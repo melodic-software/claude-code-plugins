@@ -43,7 +43,7 @@ def invoke(entry_point: str, argv: tuple[str, ...]) -> subprocess.CompletedProce
     target = contract.plugin_path(entry_point)
     command = (
         [BASH, str(target), *argv]
-        if entry_point.startswith("bin/")
+        if entry_point.startswith("scripts/")
         else [sys.executable, str(target), *argv]
     )
     return subprocess.run(
@@ -172,7 +172,7 @@ class RefusalsFireOnArgumentShape(unittest.TestCase):
     def test_every_refusal_row(self) -> None:
         for row in contract.REFUSALS:
             with self.subTest(row=row.id):
-                if row.entry_point.startswith("bin/") and BASH is None:
+                if row.entry_point.startswith("scripts/") and BASH is None:
                     self.skipTest("bash unavailable; wrapper rows need it")
                 with tempfile.TemporaryDirectory() as tmp:
                     argv = tuple(arg.format(state_dir=tmp) for arg in row.argv)
@@ -202,7 +202,7 @@ class RefusalsFireOnArgumentShape(unittest.TestCase):
                         value,
                         because(row.id, row.claim, f"{key}={payload[key]!r}"),
                     )
-                if row.entry_point.startswith("bin/"):
+                if row.entry_point.startswith("scripts/"):
                     # The observable bash-vs-Python discriminator: a wrapper-level
                     # refusal never reaches the interpreter, so it emits no envelope.
                     if row.refused_by == contract.BASH_WRAPPER:
@@ -512,14 +512,14 @@ class EntryPointCatalogueIsComplete(unittest.TestCase):
 
     def test_every_wrapper_is_classified(self) -> None:
         wrappers = {
-            f"bin/{path.name}"
-            for path in (contract.PLUGIN_ROOT / "bin").iterdir()
-            if path.is_file() and path.name.startswith("source-control-babysit-")
+            f"scripts/{path.name}"
+            for path in (contract.PLUGIN_ROOT / "scripts").iterdir()
+            if path.is_file() and path.name.startswith("source-control-")
         }
         self.assertEqual(
             wrappers,
             {entry.wrapper for entry in contract.ENTRY_POINTS if entry.wrapper},
-            "a babysit wrapper is missing from ENTRY_POINTS",
+            "a source-control-* wrapper is missing from ENTRY_POINTS",
         )
 
     def test_classifications_cite_only_real_rows(self) -> None:
@@ -581,7 +581,7 @@ class EntryPointCatalogueIsComplete(unittest.TestCase):
 
 
 WRAPPER_COMMAND = re.compile(
-    r'bash "(?:\$\{CLAUDE_PLUGIN_ROOT\}|<plugin-root>)/(bin/source-control-babysit-[a-z-]+)"'
+    r'bash "(?:\$\{CLAUDE_PLUGIN_ROOT\}|<plugin-root>)/(scripts/source-control-babysit-[a-z-]+)"'
 )
 
 
@@ -803,12 +803,12 @@ class SetupReachabilityCanaryContract(unittest.TestCase):
         setup = " ".join(self.SETUP.read_text(encoding="utf-8").split())
 
         self.assertIn(
-            'bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" --help',
+            'bash "${CLAUDE_PLUGIN_ROOT}/scripts/source-control-babysit-merge" --help',
             setup,
         )
-        # Both path prefixes are canaries: an allow rule or classifier decision
-        # covering bin/ says nothing about scripts/, and the readiness gate is
-        # the path the lane's own verdict travels.
+        # Both commands are canaries: an allow rule or classifier decision
+        # covering the wrapper says nothing about the readiness gate, and the
+        # gate is the path the lane's own verdict travels.
         self.assertIn(
             'bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" --help',
             setup,

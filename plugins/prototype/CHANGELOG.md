@@ -3,6 +3,19 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.9] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
+## [0.13.8] - 2026-10-02
+
+### Fixed
+
+- `explore-directions` no longer lists a cream or off-white background among the defaults no
+  variant may use. Each variant still declares its own background, so variants differ on it.
+
 ## [0.13.7] - 2026-10-01
 
 ### Changed

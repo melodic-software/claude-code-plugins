@@ -3,6 +3,21 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.3] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `reach` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [0.2.2] - 2026-10-02
+
+### Changed
+
+- **`reach`'s relay probe table no longer states a per-turn dollar figure.** The Cost row keeps
+  what the cost went to and points at the official cost-tracking docs for measuring a turn.
+
 ## [0.2.1] - 2026-09-30
 
 ### Changed

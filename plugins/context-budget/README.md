@@ -38,7 +38,7 @@ saving.
 ## Hook
 
 A PreToolUse checkpoint returns `permissionDecision: "ask"` when a **file-editing tool call**
-(`Write`, `Edit`, `MultiEdit`, `NotebookEdit`) targets a Claude Code settings file, so those
+(`Write`, `Edit`, `NotebookEdit`) targets a Claude Code settings file, so those
 edits prompt even in auto mode. The files it matches are `settings.json` and `settings.local.json`
 under any `.claude` directory (project or user-global), plus `managed-settings.json`. It is a
 checkpoint, not a guarantee (a `PermissionRequest` hook can allow the call; `disableAllHooks`
@@ -125,6 +125,9 @@ passed.
 
 - Usage-based removal ("which plugins do I never use") belongs to the bundled `/doctor`; the
   skill routes there and never reimplements it.
+- Which skills to turn off goes to the built-in `/skill-doctor`, which the person runs; the audit measures what a toggle saved and never picks the skill.
+  Pointer: <https://code.claude.com/docs/en/skills#find-unused-skills>. As of 2026-10-02.
+  Recheck when that section sends the question to another command.
 - Per-skill / per-agent / per-MCP-tool attribution belongs to `/context` natively.
 - Live in-session occupancy zones belong to the `context-guard` plugin.
 - Measurements describe **headless** sessions of the **local CLI**; interactive sessions and
@@ -142,7 +145,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `settings_write_ask_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SETTINGS_WRITE_ASK_ENABLED` | Kill switch for the PreToolUse hook that asks on Write, Edit, MultiEdit, and NotebookEdit calls aimed at a Claude Code settings file. Shell writes and files rendered into place are outside the matcher. |
+| `settings_write_ask_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SETTINGS_WRITE_ASK_ENABLED` | Runs the PreToolUse hook that asks before Write, Edit, and NotebookEdit calls aimed at a Claude Code settings file. On by default. Shell writes and files rendered into place are outside its matcher. |
 
 ### How to set these
 

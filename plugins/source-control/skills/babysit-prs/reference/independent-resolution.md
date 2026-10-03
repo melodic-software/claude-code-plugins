@@ -11,12 +11,14 @@ because that is the one deterministic "addressed" signal it can check. Otherwise
 the script's own words, "signing its own permission slip" on the merge gate's zero-unresolved-threads
 predicate. The Worker Contract (`orchestration.md`) is tighter still: pre-push outdatedness only.
 
-Two eligible D7.5 dispositions (`reference/review-discipline.md`) leave a thread **current** by
-construction, so neither can ever satisfy either guard:
+Three eligible D7.5 dispositions (`reference/review-discipline.md`) leave a thread **current** by
+construction, so none can ever satisfy either guard:
 
 - `INCORRECT` with counter-evidence: a disproved finding ships no fix, so nothing moves the anchor.
 - `VALID (defer)` grounded per D4.6: the fix is deliberately not in this PR, because the finding
   is structural, urgent but unable to land here, or its fix is blocked on research.
+- A fix in a linked PR: D4.6's scope test placed the fix in a separate PR, so this PR's diff never
+  moves.
 
 A prose fix does it a third way: rewriting elsewhere in the file addresses the finding without
 moving the anchored lines.
@@ -77,9 +79,11 @@ each one the disposition plus its evidence:
 
 - `VALID (fix now)`: the pushed commit SHA that fixes it, verified present on the live PR head, and
   the D7 follow-up citing it.
+- Fixed in a linked PR: the number of the separate PR the scope test placed the fix in, cited in a
+  reply on the thread, and that PR open or merged at the time of the check.
 - `VALID (defer)`: grounded per D4.6. The scope test passed (the finding is structural, urgent
   but unable to land in this PR, or its fix is blocked on research this lane cannot do; a small or medium
-  finding is fixed here instead, never deferred). The provenance test passed (the defect reproduces on the base <!-- contract-restatement-begin: D4.6-deferral-grounding -->
+  finding is fixed instead, never deferred). The provenance test passed (the defect reproduces on the base <!-- contract-restatement-begin: D4.6-deferral-grounding -->
   branch), and the tracker item exists, carries the finding's own evidence, and its cited id
   re-queries successfully. <!-- contract-restatement-end: D4.6-deferral-grounding -->
 - `INCORRECT`: the counter-evidence, read from the code or docs at the live head rather than
@@ -106,17 +110,18 @@ List mode validates the evidence too, so the list call proves the evidence rathe
 the resolve:
 
 ```text
-bash "<plugin-root>/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --independent-resolver --thread-id <id> --disposition incorrect --counter-evidence "<verbatim text from a reply on the thread>"
+bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --independent-resolver --thread-id <id> --disposition incorrect --counter-evidence "<verbatim text from a reply on the thread>"
 ```
 
 Then resolve on the pins that call reported:
 
 ```text
-bash "<plugin-root>/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --independent-resolver --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts> --disposition incorrect --counter-evidence "<verbatim text from a reply on the thread>"
+bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --independent-resolver --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts> --disposition incorrect --counter-evidence "<verbatim text from a reply on the thread>"
 ```
 
 Swap the disposition pair for the claim actually being made: `--disposition deferred --tracker-item
-<owner/repo#N>`, or `--disposition fixed --fix-commit <sha>`. Exactly one evidence flag is
+<owner/repo#N>`, `--disposition fixed --fix-commit <sha>`, or `--disposition linked-pr --linked-pr
+<N>`. Exactly one evidence flag is
 admissible per disposition; a mismatched or surplus flag is a usage error before any lookup.
 `--self-logins` is not optional here: omit it and the worker's own reply flips `botOnly` false and
 the thread returns `skipped-human-thread`. Parse the per-thread `action` field; a thread is cleared

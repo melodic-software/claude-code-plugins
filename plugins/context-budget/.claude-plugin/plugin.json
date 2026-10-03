@@ -1,8 +1,7 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "context-budget",
-  "version": "0.7.2",
-  "description": "Measure a Claude Code session's fixed startup context payload per item, on the consumer's machine at a pinned, version-stamped binary, including per-tool attribution of the built-in tool pools that /context reports only as lump sums, derived live by A/B bare-name-deny differencing with enforced comparability rules (skill-listing signature, one mode, one binary), an SDK-primary exact meter degrading to a version-aware headless /context parser and then to an honest structured error (never a wrong number), and a per-project measure-toggle-remeasure ledger under the plugin data directory recording every lever's real before/after delta. Report-only by default; `fix` applies one approved project-scope trim.",
+  "version": "0.8.3",
+  "description": "Measures a Claude Code session's fixed startup context payload per item at a pinned binary version, including per-tool attribution of the built-in tool pools that /context reports only as totals, derived by A/B deny differencing under comparability rules. Falls back from an SDK meter to a headless /context parser, then to an error rather than a wrong number. Keeps a per-project before/after ledger per lever. Report-only by default; fix applies one approved project-scope trim.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -11,8 +10,8 @@
   "userConfig": {
     "settings_write_ask_enabled": {
       "type": "boolean",
-      "title": "Settings-write ask checkpoint",
-      "description": "Kill switch for the PreToolUse hook that asks on Write, Edit, MultiEdit, and NotebookEdit calls aimed at a Claude Code settings file. Shell writes and files rendered into place are outside the matcher.",
+      "title": "Settings-write-ask hook",
+      "description": "Runs the PreToolUse hook that asks before Write, Edit, and NotebookEdit calls aimed at a Claude Code settings file. On by default. Shell writes and files rendered into place are outside its matcher.",
       "default": true
     }
   },

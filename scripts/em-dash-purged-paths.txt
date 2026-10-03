@@ -197,9 +197,10 @@ plugins/context-budget/README.md
 plugins/context-budget/CHANGELOG.md
 plugins/context-budget/skills/*/SKILL.md
 plugins/context-budget/skills/audit/reference/*.md
-# The context-guard plugin was purged whole. Its legacy-statusline reference is the canonical copy
-# of a synced cluster; the rate-limit-guard carrier is kept in step by
-# scripts/sync-legacy-statusline-detect.sh, so both are declared.
+# The context-guard plugin was purged whole. Its legacy-statusline reference is generated from
+# lib/legacy-statusline-detect.md by scripts/sync-shared-copies.sh, which also generates the
+# rate-limit-guard carrier, so the canonical and the carrier are declared.
+lib/legacy-statusline-detect.md
 plugins/context-guard/*.md
 plugins/context-guard/reference/*.md
 plugins/context-guard/skills/*/SKILL.md
@@ -398,7 +399,6 @@ plugins/prototype/README.md
 plugins/prototype/CHANGELOG.md
 plugins/prototype/context/*.md
 plugins/prototype/skills/*/SKILL.md
-plugins/provenance/README.md
 plugins/rate-limit-guard/README.md
 plugins/rate-limit-guard/CHANGELOG.md
 plugins/rate-limit-guard/bench/README.md

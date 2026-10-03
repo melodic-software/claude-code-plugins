@@ -1517,6 +1517,196 @@ else
   fail "frontmatter ending in a fence marker should not hide the Arguments line: $out"
 fi
 
+# --- 8e. Plugin names and option text. --------------------------------------
+# displayName fails; each title and description shape warns on its own line.
+OPT_DOC='docs/conventions/plugin-option-naming/README.md'
+
+# write_manifest <plugin> <extra-json-members> -- written verbatim after name.
+write_manifest() {
+  mkdir -p "$TMP/plugins/$1/.claude-plugin"
+  printf '{"name": "%s", "version": "0.1.0", "description": "fixture"%s}\n' "$1" "$2" \
+    >"$TMP/plugins/$1/.claude-plugin/plugin.json"
+}
+
+# option_case <type> <title> <description> -- one option "opt" on plugin optfix.
+option_case() {
+  reset_fixture
+  write_manifest optfix ", \"userConfig\": {\"opt\": {\"type\": \"$1\", \"title\": \"$2\", \"description\": \"$3\"}}"
+  out="$(run_fixture)"
+}
+
+reset_fixture
+write_manifest optfix ', "displayName": "Opt Fix"'
+out="$(run_fixture)"
+if grep -qF -- "- plugins/optfix/.claude-plugin/plugin.json: plugins must not set displayName ($OPT_DOC)" <<<"$out"; then
+  ok "a displayName in plugin.json fails"
+else
+  fail "a displayName in plugin.json should fail: $out"
+fi
+
+reset_fixture
+mkdir -p "$TMP/.claude-plugin"
+printf '{"plugins": [{"name": "optfix", "source": "./plugins/optfix", "displayName": "Opt Fix"}, {"name": "clean", "source": "./plugins/clean"}]}\n' \
+  >"$TMP/.claude-plugin/marketplace.json"
+out="$(run_fixture)"
+rm -rf "$TMP/.claude-plugin"
+if has_fail_line 'plugin entry "optfix" must not set displayName' && ! grep -q 'plugin entry "clean"' <<<"$out"; then
+  ok "a displayName in a marketplace entry fails, and only that entry"
+else
+  fail "a displayName in a marketplace entry should fail for that entry only: $out"
+fi
+
+# type<TAB>title<TAB>description: each conforming option draws nothing.
+while IFS=$'\t' read -r type title description; do
+  option_case "$type" "$title" "$description"
+  if grep -q 'optfix' <<<"$out"; then
+    fail "a conforming option should be silent ($title): $out"
+  else
+    ok "a conforming option draws neither a failure nor a warning: $title"
+  fi
+done <<'GOOD'
+boolean	Bash-format hook	Runs the hook after each edit.
+string	API token	The token the plugin sends.
+number	30-day window (days)	How far back to look.
+string	CI ID	Plain text with a [bracket] and a (paren).
+boolean	Optimization report	Master is fine in a description; enabled too.
+string	Optfixer mode	Starts with the plugin name only as a prefix of a longer word.
+string	API URL	Two acronyms side by side.
+boolean	Block-Windows-drive-tmp guard	A proper noun after the first word.
+string	Allow-list	Permits ps-unparsable-* tokens and a bare * alone.
+GOOD
+
+# type<TAB>title<TAB>description<TAB>the problem the warning must name.
+while IFS=$'\t' read -r type title description problem; do
+  option_case "$type" "$title" "$description"
+  if grep -qF "warning: plugins/optfix/.claude-plugin/plugin.json: userConfig \"opt\" $problem ($OPT_DOC)" <<<"$out" &&
+    ! has_fail_line 'userConfig "opt"'; then
+    ok "an option warns without failing: $problem"
+  else
+    fail "an option should warn '$problem' without failing: $out"
+  fi
+done <<'SHAPES'
+string	output directory	Where files go.	title "output directory": not sentence case
+string	-Output directory	Where files go.	title "-Output directory": not sentence case
+string	OUTPUT DIRECTORY	Where files go.	title "OUTPUT DIRECTORY": not sentence case
+string	Output DIRECTORY	Where files go.	title "Output DIRECTORY": not sentence case
+string	Output Directory	Where files go.	title "Output Directory": not sentence case
+string	Optfix output directory	Where files go.	title "Optfix output directory": opens with the plugin name
+boolean	Enable the hook	Runs it.	title "Enable the hook": boolean title uses enable, enabled, toggle, kill switch, or master
+boolean	Hook enabled	Runs it.	title "Hook enabled": boolean title uses enable, enabled, toggle, kill switch, or master
+boolean	Hook toggle	Runs it.	title "Hook toggle": boolean title uses enable, enabled, toggle, kill switch, or master
+boolean	Hook kill switch	Runs it.	title "Hook kill switch": boolean title uses enable, enabled, toggle, kill switch, or master
+boolean	Master hook	Runs it.	title "Master hook": boolean title uses enable, enabled, toggle, kill switch, or master
+string	Output directory	Uses `dir`.	description contains a backtick
+string	Output directory	Uses **dir**.	description contains **
+string	Output directory	Uses *strict* mode.	description contains *emphasis*
+string	Output directory	See [the docs](https://x.test).	description contains a markdown link
+string	Output directory	Where files go — always.	description contains an em dash
+SHAPES
+
+# Opens with the plugin name: the plugin is "opt-fix", so the hyphen and space
+# spellings are compared alike.
+reset_fixture
+mkdir -p "$TMP/plugins/opt-fix/.claude-plugin"
+printf '{"name": "opt-fix", "userConfig": {"opt": {"type": "string", "title": "Opt fix mode"}}}\n' \
+  >"$TMP/plugins/opt-fix/.claude-plugin/plugin.json"
+out="$(run_fixture)"
+if grep -qF 'title "Opt fix mode": opens with the plugin name' <<<"$out"; then
+  ok "a title opening with the hyphenated plugin name spelled with a space warns"
+else
+  fail "a title opening with the plugin name spelled with a space should warn: $out"
+fi
+
+# A boolean word in a non-boolean title is not the boolean rule's business.
+option_case string "Toggle key" "A key."
+if grep -q 'boolean title uses' <<<"$out"; then
+  fail "a non-boolean title should not draw the boolean-word warning: $out"
+else
+  ok "a non-boolean title is exempt from the boolean-word rule"
+fi
+
+option_case string "Output directory" "$(printf 'x%.0s' {1..301})"
+if grep -qF 'userConfig "opt" description is 301 characters, over the 300-character budget' <<<"$out" &&
+  ! has_fail_line 'description is'; then
+  ok "a 301-character description warns without failing"
+else
+  fail "a 301-character description should warn without failing: $out"
+fi
+option_case string "Output directory" "$(printf 'x%.0s' {1..300})"
+if grep -q 'over the 300-character budget' <<<"$out"; then
+  fail "a 300-character description is inside the budget: $out"
+else
+  ok "a 300-character description is inside the budget"
+fi
+
+# One key, one title: the same key under two titles warns once, naming both.
+reset_fixture
+write_manifest alpha ', "userConfig": {"output_dir": {"type": "directory", "title": "Output directory"}}'
+write_manifest beta ', "userConfig": {"output_dir": {"type": "directory", "title": "Output folder"}}'
+write_manifest gamma ', "userConfig": {"output_dir": {"type": "directory", "title": "Output directory"}}'
+out="$(run_fixture)"
+if grep -qF "warning: userConfig \"output_dir\" has different titles across plugins: \"Output directory\" (alpha, gamma); \"Output folder\" (beta) ($OPT_DOC)" <<<"$out" &&
+  [[ "$(grep -c 'has different titles' <<<"$out")" -eq 1 ]]; then
+  ok "a key carrying different titles across plugins warns once, naming each title and plugin"
+else
+  fail "a key with different titles across plugins should warn once: $out"
+fi
+reset_fixture
+write_manifest alpha ', "userConfig": {"output_dir": {"type": "directory", "title": "Output directory"}}'
+write_manifest beta ', "userConfig": {"output_dir": {"type": "directory", "title": "Output directory"}}'
+out="$(run_fixture)"
+if grep -q 'has different titles' <<<"$out"; then
+  fail "a key with one title across plugins should be silent: $out"
+else
+  ok "a key carrying the same title across plugins is silent"
+fi
+
+# --- 8f. claude.ai marketplace sync limits. ---------------------------------
+reset_fixture
+write_manifest syncfix ', "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json", "defaultEnabled": false'
+long="$(printf 'a%.0s' {1..501})"
+write_manifest longfix ''
+printf '{"name": "longfix", "version": "0.1.0", "description": "%s"}\n' "$long" >"$TMP/plugins/longfix/.claude-plugin/plugin.json"
+write_manifest okfix ''
+out="$(run_fixture)"
+if has_fail_line 'must not set \$schema' && has_fail_line 'must not set defaultEnabled' &&
+  grep -qE '^- .*longfix.*description is 501 characters' <<<"$out" &&
+  ! grep -qE 'okfix..claude-plugin' <<<"$out"; then
+  ok "\$schema, defaultEnabled, a description over 500 fail, and a conforming manifest passes"
+else
+  fail "claude.ai manifest limits should fail as stated: $out"
+fi
+
+# write_skill <relative-path> <content>
+write_skill() {
+  mkdir -p "$(dirname "$TMP/plugins/skfix/skills/$1")"
+  printf '%s' "$2" >"$TMP/plugins/skfix/skills/$1"
+}
+reset_fixture
+write_manifest skfix ''
+write_skill good/SKILL.md $'---\nname: good\ndescription: >-\n  Folded text, a\n  second line.\n---\nbody\n'
+write_skill angle/SKILL.md $'---\ndescription: "Use when: \'scan <X>\'."\n---\n'
+write_skill long/SKILL.md "$(printf -- '---\ndescription: %s\n---\n' "$(printf 'b%.0s' {1..1025})")"
+write_skill empty/SKILL.md $'---\nname: empty\n---\n'
+write_skill badname/SKILL.md $'---\nname: Claude_Helper\ndescription: fine\n---\n'
+write_skill good/reference/skill.md $'# Not a skill\n'
+write_skill commented/SKILL.md $'---\nname: commented-name # migration note\ndescription: | # note\n  Literal text.\n---\n'
+write_skill indented/SKILL.md $'---\ndescription: |-2\n  Indented literal.\n---\n'
+write_skill emptyblock/SKILL.md $'---\ndescription: >-2\n---\n'
+write_skill quotedcomment/SKILL.md $'---\nname: "quoted-name" # note\ndescription: "Use when X, # not a comment." # note <tag>\n---\n'
+out="$(run_fixture)"
+if grep -qE '^- .*angle.SKILL.md: skill description must not contain < or >' <<<"$out" &&
+  grep -qE '^- .*long.SKILL.md: skill description is 1025 characters' <<<"$out" &&
+  grep -qE '^- .*empty.SKILL.md: skill description must not be empty' <<<"$out" &&
+  grep -qE '^- .*badname.SKILL.md: skill name "Claude_Helper"' <<<"$out" &&
+  grep -qE '^- .*reference.skill.md: a file named SKILL.md must start with YAML frontmatter' <<<"$out" &&
+  grep -qE '^- .*emptyblock.SKILL.md: skill description must not be empty' <<<"$out" &&
+  ! grep -qE 'good.SKILL.md|commented.SKILL.md|indented.SKILL.md|quotedcomment.SKILL.md' <<<"$out"; then
+  ok "skill description, name and frontmatter limits fail per file, and a conforming skill passes"
+else
+  fail "skill limits should fail per file: $out"
+fi
+
 # --- 9. Real corpus: every shipping setup skill still conforms. -------------
 out="$( (cd "$REPO_ROOT" && node "$SUT" 2>&1))"
 rc=$?
@@ -1526,9 +1716,9 @@ else
   fail "the shipping tree should stay green (rc=$rc): $out"
 fi
 if grep -q '^warning: ' <<<"$out"; then
-  fail "the shipping tree should draw zero argument-hint warnings: $out"
+  fail "the shipping tree should draw zero warnings: $out"
 else
-  ok "the shipping tree draws zero argument-hint warnings"
+  ok "the shipping tree draws zero warnings"
 fi
 
 test_harness::report

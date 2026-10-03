@@ -1298,6 +1298,26 @@ else
   fail "unpaired vendor/ diff should still fail (rc=$rc): $out"
 fi
 
+# 20b. A pure rename inside vendor/ keeps every byte, so check 8 passes it
+#      without an upstream-version bump; the staged rename is what git sees.
+git -C "$TMP" checkout -q -- "$SKILLS/vendor-skill-bad/vendor/UPSTREAM.txt"
+git -C "$TMP" mv "$SKILLS/vendor-skill-bad/vendor/UPSTREAM.txt" "$SKILLS/vendor-skill-bad/vendor/UPSTREAM.md"
+out="$(run vendor-skill-bad 2>&1)"
+if grep -q 'only renamed' <<<"$out" && ! grep -q 'byte-identical guarantee' <<<"$out"; then
+  pass "vendor/ pure rename passes check 8"
+else
+  fail "a pure vendor/ rename should pass check 8: $out"
+fi
+printf 'renamed and edited\n' >"$SKILLS/vendor-skill-bad/vendor/UPSTREAM.md"
+out="$(run vendor-skill-bad 2>&1)"
+if grep -q 'byte-identical guarantee' <<<"$out"; then
+  pass "vendor/ rename with an edit still fails check 8"
+else
+  fail "an edited vendor/ rename should fail check 8: $out"
+fi
+git -C "$TMP" mv -f "$SKILLS/vendor-skill-bad/vendor/UPSTREAM.md" "$SKILLS/vendor-skill-bad/vendor/UPSTREAM.txt"
+printf 'v2 - hand edited\n' >"$SKILLS/vendor-skill-bad/vendor/UPSTREAM.txt"
+
 # 21. A `!` injection with a `shell:` declaration is silent — the author has
 #     taken explicit responsibility for the shell (check 19).
 make_skill inj-shell-ok '---
@@ -3620,6 +3640,36 @@ if [[ $rc -eq 0 ]] && ! grep -q 'description/verb-contract mismatch' <<<"$out"; 
   pass "scoped does-not-modify next to a mutate lead is silent"
 else
   fail "scoped does-not-modify should not warn (rc=$rc): $out"
+fi
+
+# 25m. CHECK_SKILL_ONLY=25 runs check 25 alone: the same mismatch FAILs, and no
+#      other check speaks (check 2's length note is absent).
+out="$(CHECK_SKILL_ONLY=25 run audit 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "leaf verb 'audit' is a read-only findings report" <<<"$out" &&
+  grep -q '^CHECK-SKILL audit: FAIL — 1 error(s), 0 warning(s)$' <<<"$out" &&
+  ! grep -q 'description length' <<<"$out"; then
+  pass "CHECK_SKILL_ONLY=25 fails a check-25 mismatch and runs nothing else"
+else
+  fail "CHECK_SKILL_ONLY=25 on a mismatch should fail on check 25 alone (rc=$rc): $out"
+fi
+
+# 25n. CHECK_SKILL_ONLY=25 skips check 1, so a skill with no frontmatter passes.
+out="$(CHECK_SKILL_ONLY=25 run bad-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q '^CHECK-SKILL bad-skill: PASS' <<<"$out"; then
+  pass "CHECK_SKILL_ONLY=25 skips the other checks"
+else
+  fail "CHECK_SKILL_ONLY=25 should skip check 1 (rc=$rc): $out"
+fi
+
+# 25o. Any other CHECK_SKILL_ONLY value is a usage error.
+out="$(CHECK_SKILL_ONLY=7 run good-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'CHECK_SKILL_ONLY=7 is not supported' <<<"$out"; then
+  pass "an unsupported CHECK_SKILL_ONLY value exits 2"
+else
+  fail "CHECK_SKILL_ONLY=7 should exit 2 (rc=$rc): $out"
 fi
 
 # 26a. A reference spoke over 300 lines with no table of contents in its first

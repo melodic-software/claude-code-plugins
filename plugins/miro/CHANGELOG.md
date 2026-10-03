@@ -3,6 +3,58 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
+
+## [0.5.5] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- `plugin.json` no longer sets `defaultEnabled`, which claude.ai's marketplace sync does not recognize. The marketplace entry's `defaultEnabled: false` still applies, and it takes precedence over `plugin.json`, so the plugin still installs disabled.
+
+## [0.5.4] - 2026-10-02
+
+### Fixed
+
+- The Windows PowerShell repair command the launcher prints doubles every PowerShell single-quote
+  character in a path, not only the ASCII `'`. PowerShell also reads U+2018, U+2019, U+201A and
+  U+201B as single quotes, so a path holding one ended the string early and ran the rest as code
+  ([language specification, string literals](https://learn.microsoft.com/en-us/powershell/scripting/lang-spec/chapter-02#2352-string-literals)).
+
+## [0.5.3] - 2026-10-02
+
+### Fixed
+
+- The Windows PowerShell repair command the launcher prints names `npm.cmd` instead of bare `npm`,
+  which resolves to `npm.ps1` and is refused by the default Restricted execution policy
+  ([#5880](https://github.com/melodic-software/claude-code-plugins/issues/5880)).
+- That command runs inside a child script block, `& { ... }`, so its
+  `$ErrorActionPreference = 'Stop'` no longer stays set in the session it is pasted into
+  ([#5896](https://github.com/melodic-software/claude-code-plugins/issues/5896)).
+
+## [0.5.2] - 2026-10-02
+
+### Fixed
+
+- The POSIX repair command the launcher prints quotes paths verbatim instead of rewriting each
+  backslash to `/`, so a plugin data directory whose name contains a backslash (a legal POSIX
+  filename character) is the one the command repairs
+  ([#5829](https://github.com/melodic-software/claude-code-plugins/issues/5829)). The Windows
+  PowerShell form is unchanged.
+
+## [0.5.1] - 2026-10-02
+
+### Changed
+
+- The `miro_api_token` option title reads "API token", dropping the plugin name the `/config` row
+  already shows, per the plugin option naming convention (`docs/conventions/plugin-option-naming/`).
+
 ## [0.5.0] - 2026-10-02
 
 ### Changed

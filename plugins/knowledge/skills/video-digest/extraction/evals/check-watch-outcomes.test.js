@@ -56,6 +56,24 @@ describe("densificationCoverage", () => {
     });
     expect(result).toEqual({ covered: 1, total: 1 });
   });
+
+  it("credits a gap row only for its own region, so ~15m never covers region 5", () => {
+    const result = densificationCoverage({
+      windows: [{ startSec: 300, endSec: 312 }],
+      promotedTimestampsSec: [],
+      visualGapsBody: "| ~15m (900.0-912.0s) | slide | No synthesis frame in window; transcript-only |",
+    });
+    expect(result).toEqual({ covered: 0, total: 1 });
+  });
+
+  it("credits a gap row with exact bounds for its region", () => {
+    const result = densificationCoverage({
+      windows: [{ startSec: 300, endSec: 312.4 }],
+      promotedTimestampsSec: [],
+      visualGapsBody: "| ~5m (300.0-312.4s) | slide | No synthesis frame in window; transcript-only |",
+    });
+    expect(result).toEqual({ covered: 1, total: 1 });
+  });
 });
 
 describe("parsePromotedTimestampsSec", () => {

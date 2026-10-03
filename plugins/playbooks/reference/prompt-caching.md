@@ -60,10 +60,15 @@ change effort per message instead; on a model the beta excludes, the per-message
 Batch model or effort changes into moments the cache is already broken, such as compaction, since
 those rewrite most of the conversation anyway.
 
+This section covers requests you send through the API; for what an effort change in a Claude Code
+session does to the cache, read Claude Code's own page instead of applying this section.
+
 - **Pointer**: for per-message effort and its model list, see
   [Change effort mid-conversation](https://platform.claude.com/docs/en/build-with-claude/effort#change-effort-mid-conversation-beta)
-  (correlate with Cognition's devin-fusion post, 2026-06-29, for the compaction-moment practice).
-- **As of**: 2026-09-28
+  (correlate with Cognition's devin-fusion post, 2026-06-29, for the compaction-moment practice);
+  for a Claude Code session, see
+  [Changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level).
+- **As of**: 2026-09-28 (Changing effort level: 2026-10-02)
 - **Recheck trigger**: a re-read of a pointed section no longer supporting the practice above, or
   an API release note touching this topic.
 
@@ -150,3 +155,7 @@ under Effort tiers, subagent cache TTL mechanics in the fable-5 pack's
 `context/orchestration.md`, session cache-health observability in the `harness-ops` observability
 skill, and the byte-identical-prefix rule as it reaches shared-prefix fleets in the
 `docs-hygiene` extract-ssot skill's anti-patterns reference.
+
+What a Claude Code session itself does to the cache, and why its usage climbs as it runs, are on
+[How Claude Code uses prompt caching](https://code.claude.com/docs/en/prompt-caching) and [Manage costs: Why usage climbs in a long session](https://code.claude.com/docs/en/costs#why-usage-climbs-in-a-long-session)
+(checked 2026-10-01; recheck when either section moves).

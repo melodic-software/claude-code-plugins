@@ -3,6 +3,24 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.5] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
+## [0.5.4] - 2026-10-02
+
+### Fixed
+
+- `clarify` no longer lists a cream or off-white background among the styles to leave out, since
+  the shared chrome's ivory background is the sanctioned default.
+
+### Changed
+
+- `clarify` names `discipline:wait-what` in its boundaries and says when to pick each.
+
 ## [0.5.3] - 2026-10-02
 
 ### Fixed

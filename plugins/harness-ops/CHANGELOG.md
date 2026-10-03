@@ -3,6 +3,373 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.2] - 2026-10-02
+
+### Changed
+
+- **Shared `check-retirements.sh`, `exec-bash.mjs`, `fetch-docs.sh`, `managed-scope.sh`, `spawn_noise.py`, `state-key.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's hooks, lib and scripts.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+
+## [3.4.1] - 2026-10-03
+
+### Fixed
+
+- `morning-brief` no longer quotes the GitHub REST `mergeable` sentence in its skill body. The missing review-decision field and the null-`mergeable` retry are separate bullets, each with its own pointer, as-of date, and recheck trigger ([#5963](https://github.com/melodic-software/claude-code-plugins/issues/5963)).
+
+## [3.4.0] - 2026-10-03
+
+### Changed
+
+- `prerequisites.json` is converted to the schema `docs/conventions/prerequisites/` owns: a `requires` list in place of the retired `tools` list, with a `degrade` line per entry ([#5840](https://github.com/melodic-software/claude-code-plugins/issues/5840)).
+- **`/harness-ops:prerequisites` runs the Node checker and no longer needs `python3`.** `scripts/check-prerequisites.mjs` keeps the enabled-set resolution (`claude plugin list --json`, then the settings files and `installed_plugins.json`, then a repository scan) and hands the roots to the shared checker's report mode. The table is now `plugin id kind need status check install`, a `present`/`missing`/`outdated`/`unverified`/`agent-check` status replaces present/missing, and exit 1 means a required entry is missing or below its version floor. `scripts/check-prerequisites.sh` is deleted, and its test assertions moved to `scripts/check-prerequisites.test.sh`.
+
+## [3.3.1] - 2026-10-03
+
+### Changed
+
+- The shared hook library's missing-prerequisite notice says to run `/harness-ops:prerequisites` if the `harness-ops` plugin is enabled, where it said installed: an installed but disabled plugin exposes no skills, and `harness-ops` now installs disabled ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [3.3.0] - 2026-10-03
+
+### Added
+
+- **Opt-in content capture in the session event log.** The new `session_event_log_content` option
+  (off by default) adds each event's top-level content strings, such as the prompt, Claude's last
+  message, notification messages, task text and error output, to event-log rows. A string the 64 KB
+  read cap (counted in bytes) cuts keeps its prefix with a `<key>_truncated` marker, and a row whose payload reached
+  the cap carries `content_truncated: true`. The observability privacy rules never repeat these
+  keys in a report.
+- **Every attribute the Claude Code monitoring page documents is a typed OTEL column**, effort
+  included. Cold-tier queries read older Parquet files beside the new columns by name.
+- **`CC_OTEL_COLD_KEEP_CONTENT` controls content in the cold OTEL tier.** It covers response text,
+  tool payloads, command strings, error and configuration text, `user_email` and absolute paths;
+  the default keeps them and `=0` scrubs them at compaction. `CC_OTEL_COLD_KEEP_USER_PROMPTS`
+  still governs prompts. `prune-otel-store.sh --scrub-cold` cleans files compacted earlier.
+  Tool output, diffs and bash commands from the `tool.output` span event, which never reached the
+  cold tier before, now land there by default; set `CC_OTEL_COLD_KEEP_CONTENT=0` to keep them out.
+
+### Changed
+
+- **`observability compare` reads effort from the promoted column** and reports a missing level as
+  `unset` instead of `none`.
+
+### Fixed
+
+- **Long event-log rows no longer interleave.** Bash writes long lines in 4 KB pieces, so a row
+  over 4000 bytes, and every row while `session_event_log_content` is on, appends under an
+  exclusive-create lock that only its owner removes. A lock left unchanged for 5 seconds is
+  treated as stale and removed; after 10 seconds without the lock the row is appended anyway. With
+  content off, short rows keep the single unlocked write.
+
+## [3.2.2] - 2026-10-03
+
+### Fixed
+
+- `morning-brief` no longer presents every `CLEAN` pull request as merge-ready without
+  qualification. It counts a clean PR as verified only when its head contains the base tip:
+  the script reads the compare endpoint once per clean PR, up to `--pr-limit`, and prints an
+  `UNVERIFIED` line under any PR whose head is behind its base, whose comparison could not be
+  read, or that fell past the cap, plus a `PARTIAL` line when the cap was hit. A `--behind-json`
+  fixture flag feeds those counts to the tests.
+- `machine-profile` refuses a record value holding a GitHub App installation token in the
+  `ghs_<APPID>_<JWT>` format GitHub began issuing on 2026-04-27, matched by its own shape rather
+  than only through the generic JWT rule.
+- `machine-profile` validates a long record value in linear time. jq's regex engine backtracks,
+  and the generic JWT rule took about 10 seconds on a 300 KB value of repeated `ghs_1_eyJ`. It now
+  starts only where a run of token characters starts, so its header stays unbounded and a JWS
+  with a long certificate-chain header is still refused; the `ghs_` rule's header is capped at
+  512 characters.
+
+## [3.2.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `known-issues` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [3.2.0] - 2026-10-02
+
+### Added
+
+- **The parser reader follows whole-module loads of an exported array.** An export hop used to stay
+  partial whenever the exporting file was loaded whole anywhere. The helper's new `namespace` op
+  now follows each `import()`, `require()`, `import.meta.require()` and `import*as` load to its
+  reads and accepts only reads of other exports by name: a member read that is not a call, an
+  object pattern without a rest element, a record property such as `{names:ns}` read only by name,
+  and `await Promise.all([...])` destructured by an array pattern. The built-ins those shapes rely
+  on join the names the sink rule watches, a write to an undeclared trusted name (`Promise=f`) is
+  now a sink, and a namespace settled through a promise requires its module to export no `then`.
+  Load sites come from the AST (`loads` op) instead of a regex over the raw bundle
+  ([#5901](https://github.com/melodic-software/claude-code-plugins/issues/5901)).
+- **The sink rule reads computed keys.** A computed-key write or define counts only for the
+  trusted names its key can spell when every value of the key is known (a literal, a number, a
+  boolean or `typeof` result, or a variable written only with those), so loop counters and
+  TypeScript enums no longer count.
+- **node:vm counts as code built from a string.** Any `vm`/`node:vm` load except an import naming
+  only `isContext`, and a vm runner's name (`runInThisContext`, `runInNewContext`, `runInContext`,
+  `compileFunction`, `SourceTextModule`, `SyntheticModule`) read from any object, are sinks like
+  `eval` and `Function`: code in a new context still reaches this realm's prototypes.
+
+### Fixed
+
+- **A load the parser cannot name no longer reads a wrong literal.** An aliased `require` or
+  `import.meta.require`, `require.call(...)`, `(0,require)(...)`, or `import(x)` with a specifier
+  that is no literal could load the exporting file whole unseen; a module holding one now fails
+  every export hop.
+
+### Changed
+
+- The Explore and Plan `disallowed_tools` still read partial under `--reader=parser` on
+  2.1.284-2.1.288. Every load of the re-exporting chunk is read by name, but each build still has
+  computed-key writes on receivers the sink rule cannot show are not built-in prototypes, and code
+  built from strings (ajv's generated validators, protobufjs's direct `eval`); 2.1.288 also has 3
+  modules with a load the parser cannot name. `--reader` stays `regex` by default.
+  `--reader=compare` output is unchanged on every installed build.
+
+## [3.1.1] - 2026-10-02
+
+### Fixed
+
+- The inventory parser reader's Windows PowerShell repair command doubles every PowerShell
+  single-quote character in a path, not only the ASCII `'`. PowerShell also reads U+2018, U+2019,
+  U+201A and U+201B as single quotes, so a path holding one ended the string early and ran the rest
+  as code
+  ([language specification, string literals](https://learn.microsoft.com/en-us/powershell/scripting/lang-spec/chapter-02#2352-string-literals)).
+
+## [3.1.0] - 2026-10-02
+
+### Added
+
+- `lib/prerequisites.mjs`, with its `lib/prerequisites.sh` and `lib/prerequisites.ps1` stubs: the
+  shared prerequisites checker, generated from the repository's canonical copies
+  ([#5839](https://github.com/melodic-software/claude-code-plugins/issues/5839)). It reads a
+  `prerequisites.json` in the schema that `docs/conventions/prerequisites/` owns. Nothing in this
+  plugin calls it yet; the `prerequisites` skill moves to it when the plugin's own file is
+  converted.
+
+## [3.0.1] - 2026-10-02
+
+### Fixed
+
+- The inventory parser reader's Windows PowerShell repair command runs inside a child script block,
+  `& { ... }`, so its `$ErrorActionPreference = 'Stop'` no longer stays set in the session it is
+  pasted into ([#5896](https://github.com/melodic-software/claude-code-plugins/issues/5896)).
+
+## [3.0.0] - 2026-10-02
+
+### Added
+
+- **Session event-log rows record effort and hook metadata.** Each `source: "event-log"` row
+  carries `effort`: the payload's `effort.level`, else `$CLAUDE_EFFORT`, `n/a` on events that never
+  carry a level, and `unset` when an event that can carry one had none. Rows also copy an allowlist
+  of documented top-level hook input fields (paths, model, permission mode, trigger and similar
+  strings, booleans and numbers). Prompt text, messages, tool input and output, and nested objects
+  are never copied. `measure-hook-log-budget.sh` reports the extra cost of reading a wide payload.
+- **The `changelog` skill runs harness-config's effort-pin drift check** when that plugin is
+  installed and reports its lines with the native-surface drift report.
+
+### Changed
+
+- **BREAKING: every lane must name an effort.** `lane-launcher.sh` start and restart refuse a
+  lane whose config has no `effort`, pointing at model-config's "Choose an effort level" table,
+  and launch the other lanes. Add `lanes[].effort` to each lane in `lanes.json`. The launcher always passes
+  `--effort`, and warns once per run when `CLAUDE_CODE_EFFORT_LEVEL` is set, since it overrides
+  lane levels and agent pins. The lanes config example picks each lane's level from that table.
+
+## [2.5.4] - 2026-10-02
+
+### Security
+
+- The `observability` HTML dashboard is built by a checked-in builder
+  (`skills/observability/scripts/build-dashboard.mjs`) that escapes every telemetry-derived field
+  through the rendered-views escape helper, now carried at `lib/html-escape.mjs`, and stamps the
+  generator marker. The page has no script, and a hostile skill, hook, or session name renders as
+  text. `build-dashboard.mjs --check <file>` flags a page that bypassed the builder.
+
+## [2.5.3] - 2026-10-02
+
+### Changed
+
+- **The inventory is validated against Claude Code 2.1.288.** `VALIDATED_AGAINST` moves from
+  2.1.287 to 2.1.288: every lane extracts ok, and `--reader compare` finds no value->value
+  difference between the regex and parser readers (2167 of 2167 modules parse). The parser still
+  reads the Explore and Plan `disallowed_tools` as partial where the regex reader reads them
+  literal, as on 2.1.284-2.1.287 (#5901). The one surface change is the hidden built-in `/update`
+  command, renamed `/restart` with `update` kept as an alias.
+- **The installed-build regression covers 2.1.288.** `TestInstalledBuilds` now pins the partial
+  Explore and Plan lists under the parser on 2.1.284-2.1.288.
+
+## [2.5.2] - 2026-10-02
+
+### Changed
+
+- The shared hook helper's posture comment no longer names a fixed member count.
+
+## [2.5.1] - 2026-10-02
+
+### Fixed
+
+- `restart-consumer.sh` treats a set but empty `RESTART_CONSUMER_FAKE_ALIVE_PIDS` as "no owner pid is
+  alive" instead of falling through to `kill -0`. The lock-reclaim test seeds owner pid 4242 and
+  failed whenever the host had a live process with that pid, as busy CI runners sometimes do. The
+  test now records its own live pid as the gone owner, so a fall-through fails every run.
+
+## [2.5.0] - 2026-10-02
+
+### Added
+
+- **The parser reader follows a spread array across modules.** Where `--reader=parser` used to
+  read a spread list as partial on any reference outside its safe list, the helper's new `flow`
+  op follows the array through aliases, returns to every call, arguments into the callee's
+  parameter, and the callbacks of array methods that never change it (`some`, `forEach`, `map`,
+  `reduce` and the like), resolving which function a callback or callee holds back through
+  parameters and object-literal arguments. `inventory.py` follows the hops that leave a module:
+  an export to every importer and re-export, and an argument to an imported function into the
+  module its `from` path names in Bun's module table. The list stays literal only when every hop
+  is known not to change it. These keep it partial: a hop it cannot resolve; a module with a direct `eval`; the array on the left of
+  `instanceof`; a flow too deep for the helper's stack, which no longer crashes it; an exported
+  name any module reads by name as a property (`ns.pY`); an export whose module's file is loaded
+  whole anywhere (`import*as`, `export*from`, `import(...)`, `require(...)`,
+  `import.meta.require(...)`), or is unknown; and a sink for a name the walk trusted as built in.
+- **A sink rule on trusted names.** The flow reports the names it trusts (each method it calls on
+  the array, each name it relies on the prototypes not holding, and the lookups of a coercion),
+  and the helper's new `sinks` op finds any write of one on an object not provably fresh: a member
+  write of the name or with a computed key that names nothing, the name as a string or `Symbol.x`
+  argument to any call, an object-literal key given to `Object.assign` or `defineProperties`, a
+  definer (`Object.defineProperty`, `Reflect.set`, `__defineGetter__`) given a computed key or
+  read other than as a direct callee, an alias of `Object` or `Reflect`, a prototype swap, and
+  code built from a string (global `eval` other than a direct call, the `Function` constructor).
+- `read_bundle` names each module's `/$bunfs/root/...` file from Bun's standalone module table.
+  New helper ops `keys_used`, `exports` and `sinks` back the checks, and `reader.flow_lookups`
+  counts the flow lookups. `reference/extraction.md` lists the assumptions that remain unchecked.
+
+### Changed
+
+- `--reader=regex` stays the inventory's default. The parser reader is selectable with
+  `--reader=parser` (or `--reader=compare`, which runs both) and needs Node.js and npm only when
+  selected; it installs its pinned packages on first use, and without them reports
+  `binary: broken` with the repair command. Making the parser the default is tracked in #5901.
+  The inventory and audit-native-overlap skills pass `--deps-dir "${CLAUDE_PLUGIN_DATA}"`, used
+  when a parser reader is selected.
+- The changelog skill's per-release native-drift pass keeps taking its values from the default
+  regex reader and adds a `--reader=compare --self-check` guard: a value the regex and parser
+  readers disagree on for a new build is filed as a reader-divergence item. Without Node.js or npm
+  the guard records "compare guard unavailable: install Node.js and npm" and files nothing, since
+  the regex values stand. The parser installs into the inventory's fallback,
+  `<config dir>/plugins/data/harness-ops-melodic-software`, the directory `${CLAUDE_PLUGIN_DATA}`
+  names for this plugin.
+- Under the parser, the Explore and Plan agents' `disallowed_tools` read partial on 2.1.284 to
+  2.1.287, where the regex reader reads a literal: the walk trusts `some`, `includes` and `has`,
+  every build has sinks for them, and the chunk re-exporting the array is loaded whole 13 to 14
+  times. No value differs between the readers.
+- Under the parser, `var pY=[...];export{pY}` with no importer reads partial: with no module
+  table its file is unknown, so a namespace of it cannot be ruled out.
+
+## [2.4.3] - 2026-10-02
+
+### Changed
+
+- `lanes`' example config runs the `babysit` merge lane on `opus`, the strong-tier orchestrator
+  root `docs/conventions/loop-lane/README.md` sets, instead of `sonnet`. The launcher tests assert
+  the new root.
+
+## [2.4.2] - 2026-10-02
+
+### Fixed
+
+- `audit-performance` limits the truthiness trap to the observer-agents flag and dates the
+  documented subagent defaults. `lanes` dates the effort row and points at upstream for what
+  `ultracode` does to the effort level.
+
+## [2.4.1] - 2026-10-02
+
+### Fixed
+
+- The inventory parser reader's repair command is valid on Windows. When the reader reports
+  itself broken, `install_command` now takes the platform (default `sys.platform`) and on `win32`
+  prints a Windows PowerShell 5.1 line (`$ErrorActionPreference = 'Stop'`, `Remove-Item`,
+  `New-Item`, `Copy-Item`, `npm.cmd ci --prefix`, `;` chaining, single quotes doubled) instead of the
+  POSIX `rm -rf ... && mkdir -p ... && cp ...` line. The POSIX form is unchanged elsewhere, and
+  the node-missing report still prints no command.
+
+## [2.4.0] - 2026-10-02
+
+### Added
+
+- **`/harness-ops:observability compare <session-a> <session-b>`** puts one task run as two
+  sessions side by side from the hot OTEL store. It reports `claude_code.token.usage` by type, with
+  cache writes (`cacheCreation`) as their own column, split by model and effort (`none` when the
+  attribute is absent), plus per-type totals. It then reconciles each session's
+  `claude_code.cost.usage` against its `api_request` events as `match`, `events short` or
+  `events exceed metric`. The metric is the total of record, and a shortfall names
+  anthropics/claude-code#98193. The context line links the monitoring-usage docs, with the post
+  "What a task costs on Opus 5.5" as a correlate. Read-only. It exits 2 when it cannot evaluate:
+  bad or identical ids, no store, a session with no metric rows, or a non-delta token or cost
+  metric ("cannot reconcile: cumulative metrics"). `effort` and `aggregationTemporality` are read
+  from the raw attributes, so `cc-otel.sql` and the cold Parquet schema are unchanged.
+- The `compare` reconciliation record is links-only: it states our total-of-record decision,
+  names #98193 by topic without paraphrasing it, and points at the exact monitoring-usage sections.
+
+## [2.3.0] - 2026-10-02
+
+### Added
+
+- **`inventory.py --reader=parser` takes writes and mutations from the AST.** The helper's new
+  `writes` op returns, for the variable a name resolves to, every reference eslint-scope marks as
+  a write (init, assign, compound, update, destructure, for-in-of), a function or class
+  declaration of the same name, and every read that may change the value. Only two reads are
+  known safe: a spread into an array or a call, and a member read in a listed value-only position
+  (`x.length` as an operand, a condition, an argument or an initializer; any other position counts
+  as an escape). Every other read counts, by kind: a member write or `delete`, any method call,
+  whether called, optionally called, tagged (`` x.pop`a` ``) or constructed (a method may return
+  the array, as `x.valueOf().push()` does), `Object.assign(x, ...)`, an argument to any
+  call, `new` or tagged template, and an escape (an alias, an object or array literal holding it,
+  a return, an operand of `||`, `?:` or `,`, `await`, a `for-of` iterable, a destructuring source,
+  an export). Each comes with its kind and offset. A module that calls `eval` directly answers
+  nothing. Under the parser, `_written_elsewhere` (the spread check) and the check for a
+  reassigned parameter use it instead of the regex search, and `reader.write_lookups` counts the
+  lookups. `--reader=regex` is unchanged and stays the default.
+
+### Changed
+
+- Under `--reader=parser`, the Explore and Plan agents' `disallowed_tools` read as partial on
+  2.1.284 to 2.1.287 (the regex reader reads a literal). Their spread array is exported from its
+  module, and on 2.1.286 an importer aliases it (`Gr=pY`) and returns it from a function whose
+  caller passes it to `.some(t)` callbacks, so the array reaches code that could change it.
+
+### Fixed
+
+- Under `--reader=parser`, a spread of an array that may be changed later reads as partial instead
+  of the initializer (finding 3 on #5640, and the alias shapes the #5828 verifier found):
+  `pY.push("B")`, `pY.length=0`, `g(pY)`, `var q=pY;q.push("B")`, `(pY||[]).push("B")`,
+  `function r(){return pY}`, and the other shapes above. The regex reader still reads these as
+  the literal.
+- Under `--reader=parser`, a function declaration named after a parameter counts as reassigning
+  it: `function hL(e){function e(){}}` no longer binds the call's argument to `e`.
+- Under `--reader=parser`, an arrow earlier in the same statement no longer leaves a spread
+  partial (finding 4 on #5640): `var f=()=>0,pY=[...]` reads `...pY` as its literal.
+- Under `--reader=parser`, assignment text inside a string or comment is no write:
+  `var pY=[...];var s="let pY;pY=[\"B\"]"` keeps `...pY` literal.
+- Under `--reader=parser`, a nested function's own parameter of the same name no longer counts as
+  reassigning the outer parameter, so the bound argument stands:
+  `function ff(x){function h(x){x=1}return x}` called as `ff("REAL")` reads `REAL`.
+
+## [2.2.0] - 2026-10-02
+
+### Changed
+
+- Option titles and descriptions follow the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`): sentence-case titles without colons, hook titles as
+  `<Hook-name> hook`, descriptions of 300 characters or fewer in plain text, with the cut detail
+  moved to the README's "Option details". Options are regrouped by feature: known-issues registry,
+  plugin sync, skill-usage logging, audit hooks, the session event log, then the shared stdin
+  timeout.
+- `install_new` (`ask`, `all`, `none`) and `skill_usage_scope` (`repo`, `user`, `data-dir`) are
+  pickers in `/config`. A value outside the list can no longer be chosen there; one set by hand
+  still falls back to the default as before.
+
 ## [2.1.0] - 2026-10-02
 
 ### Added

@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "That message means your build is older than 2.1.269, the first release that runs plugin eval. Update Claude Code; there is nothing to sign up for.",
+      "why": "the floor, plain"
+    },
+    {
+      "answer": "You need **v2.1.269+**. Run `claude update`, then check `claude --version` again.",
+      "why": "the floor with a plus"
+    },
+    {
+      "answer": "2.1.240 is below the floor (2.1.269 or later). Your teammate's 'currently unavailable' is different: it is switched off server-side.",
+      "why": "floor inside a comparison"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Early access means the feature is gated by account. Sign up for the beta program from your Console settings, then log in again.",
+      "why": "confident wrong: sign-up"
+    },
+    {
+      "answer": "Update Claude Code to the latest version; 2.1.240 is too old for plugin eval.",
+      "why": "right advice, no floor number"
+    },
+    {
+      "answer": "You need at least 2.1.250 for plugin eval, so update first.",
+      "why": "a different floor"
+    }
+  ]
+}

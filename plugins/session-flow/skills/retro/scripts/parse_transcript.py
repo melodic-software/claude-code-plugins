@@ -80,6 +80,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, NoReturn, cast
 
+_PLUGIN_SCRIPTS = str(Path(__file__).resolve().parents[3] / "scripts")
+if _PLUGIN_SCRIPTS not in sys.path:
+    sys.path.insert(0, _PLUGIN_SCRIPTS)
+
+import transcript_reader  # noqa: E402  (plugin-level scripts/transcript_reader.py)
+
 
 def parse_timestamp(ts_str: str) -> datetime | None:
     """Parse ISO 8601 timestamp string to datetime."""
@@ -93,6 +99,12 @@ def parse_timestamp(ts_str: str) -> datetime | None:
 
 # Tools whose `input.file_path` is a write target. Read/Grep/Glob also have
 # file_path inputs but should not count as "files modified".
+# MultiEdit stays listed on purpose: transcripts recorded by older Claude Code
+# versions carry MultiEdit calls, and they must still count as modifications.
+# Pointer: for where the permissions page names the legacy MultiEdit tool, see
+# https://code.claude.com/docs/en/permissions#read-and-edit
+# As of: 2026-10-02
+# Recheck trigger: that section stops naming MultiEdit, or moves.
 _FILE_MODIFYING_TOOLS = frozenset({"Write", "Edit", "MultiEdit", "NotebookEdit"})
 
 # Truncation length for tool-rejection error snippets in the output.
@@ -163,7 +175,9 @@ def _count_tools_and_extract_paths(content: list[Any], metrics: dict[str, Any]) 
 
 
 def parse_main_transcript(filepath: Path) -> dict[str, Any] | None:
-    """Stream-parse main JSONL transcript and collect metrics."""
+    """Collect metrics from a main transcript read through the shared transcript reader.
+
+    Tokens count once per assistant message; `human_messages` counts typed turns only."""
     if not filepath.is_file():
         return None
 
@@ -187,145 +201,127 @@ def parse_main_transcript(filepath: Path) -> dict[str, Any] | None:
         "versions": set(),
         "files_modified": set(),
         "cwd": None,
-        "total_input_tokens": 0,
-        "total_output_tokens": 0,
-        "cache_creation_tokens": 0,
-        "cache_read_tokens": 0,
         "queued_messages": 0,
         "plugin_skills": Counter(),
     }
+    stats: dict[str, int] = {}
+    # Streaming writes one message as several records; the ledger counts its usage once.
+    ledger = transcript_reader.UsageLedger()
 
-    with filepath.open(encoding="utf-8", errors="replace") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                loaded = json.loads(line)
-            except json.JSONDecodeError:
-                metrics["errors"].append(
-                    {
-                        "type": "parse_error",
-                        "detail": "Malformed JSON line",
-                    }
+    for event in transcript_reader.iter_records(filepath, stats):
+        timestamp = event.get("timestamp")
+        if isinstance(timestamp, str) and timestamp:
+            if metrics["first_timestamp"] is None:
+                metrics["first_timestamp"] = timestamp
+            metrics["last_timestamp"] = timestamp
+
+        if branch := event.get("gitBranch"):
+            metrics["git_branches"].add(branch)
+        if version := event.get("version"):
+            metrics["versions"].add(version)
+        if metrics["cwd"] is None and (cwd := event.get("cwd")):
+            # First cwd is session context; mid-session directory changes are ignored.
+            metrics["cwd"] = cwd
+
+        match event.get("type"):
+            case "assistant":
+                metrics["assistant_turns"] += 1
+                msg = _as_dict(event.get("message"))
+
+                if isinstance(timestamp, str) and timestamp:
+                    metrics["assistant_timestamps"].append(timestamp)
+
+                if model := msg.get("model"):
+                    metrics["models"].add(model)
+
+                if stop := msg.get("stop_reason"):
+                    metrics["stop_reasons"][stop] += 1
+
+                ledger.add(event)
+                _count_tools_and_extract_paths(
+                    _as_list(msg.get("content")), metrics
                 )
-                continue
 
-            if not isinstance(loaded, dict):
-                continue
+            case "user":
+                metrics["user_turns"] += 1
+                if transcript_reader.is_typed_turn(event):
+                    metrics["human_messages"] += 1
+                # A typed /<plugin>:<skill> arrives as an injected command record, not a typed
+                # turn, so the plugin-usage scan runs over every user record.
+                content_raw = _as_dict(event.get("message")).get("content", [])
 
-            event = cast(dict[str, Any], loaded)
-            timestamp = event.get("timestamp")
-            if isinstance(timestamp, str) and timestamp:
-                if metrics["first_timestamp"] is None:
-                    metrics["first_timestamp"] = timestamp
-                metrics["last_timestamp"] = timestamp
+                if isinstance(content_raw, str):
+                    _count_typed_plugin_skill(content_raw, metrics)
+                    continue
 
-            if branch := event.get("gitBranch"):
-                metrics["git_branches"].add(branch)
-            if version := event.get("version"):
-                metrics["versions"].add(version)
-            if metrics["cwd"] is None and (cwd := event.get("cwd")):
-                # First cwd is session context; mid-session directory changes are ignored.
-                metrics["cwd"] = cwd
-
-            match event.get("type"):
-                case "assistant":
-                    metrics["assistant_turns"] += 1
-                    msg = _as_dict(event.get("message"))
-
-                    if isinstance(timestamp, str) and timestamp:
-                        metrics["assistant_timestamps"].append(timestamp)
-
-                    if model := msg.get("model"):
-                        metrics["models"].add(model)
-
-                    if stop := msg.get("stop_reason"):
-                        metrics["stop_reasons"][stop] += 1
-
-                    usage = _as_dict(msg.get("usage"))
-                    metrics["total_input_tokens"] += usage.get("input_tokens", 0)
-                    metrics["total_output_tokens"] += usage.get("output_tokens", 0)
-                    metrics["cache_creation_tokens"] += usage.get(
-                        "cache_creation_input_tokens", 0
-                    )
-                    metrics["cache_read_tokens"] += usage.get(
-                        "cache_read_input_tokens", 0
-                    )
-
-                    _count_tools_and_extract_paths(
-                        _as_list(msg.get("content")), metrics
-                    )
-
-                case "user":
-                    metrics["user_turns"] += 1
-                    content_raw = _as_dict(event.get("message")).get("content", [])
-
-                    if isinstance(content_raw, str):
-                        metrics["human_messages"] += 1
-                        _count_typed_plugin_skill(content_raw, metrics)
+                for raw_item in _as_list(content_raw):
+                    if isinstance(raw_item, str):
+                        _count_typed_plugin_skill(raw_item, metrics)
                         continue
-
-                    for raw_item in _as_list(content_raw):
-                        if isinstance(raw_item, str):
-                            metrics["human_messages"] += 1
-                            _count_typed_plugin_skill(raw_item, metrics)
-                            continue
-                        if not isinstance(raw_item, dict):
-                            continue
-                        item = cast(dict[str, Any], raw_item)
-                        match item.get("type"):
-                            case "tool_result":
-                                metrics["tool_result_messages"] += 1
-                                if item.get("is_error"):
-                                    metrics["tool_rejections"].append(
-                                        {
-                                            "tool_use_id": item.get("tool_use_id", ""),
-                                            "snippet": str(item.get("content", ""))[
-                                                :_REJECTION_SNIPPET_LEN
-                                            ],
-                                        }
-                                    )
-                            case "text":
-                                metrics["human_messages"] += 1
-                                _count_typed_plugin_skill(
-                                    str(item.get("text", "")), metrics
+                    if not isinstance(raw_item, dict):
+                        continue
+                    item = cast(dict[str, Any], raw_item)
+                    match item.get("type"):
+                        case "tool_result":
+                            metrics["tool_result_messages"] += 1
+                            if item.get("is_error"):
+                                metrics["tool_rejections"].append(
+                                    {
+                                        "tool_use_id": item.get("tool_use_id", ""),
+                                        "snippet": str(item.get("content", ""))[
+                                            :_REJECTION_SNIPPET_LEN
+                                        ],
+                                    }
                                 )
-
-                case "system":
-                    match event.get("subtype", ""):
-                        case "compact_boundary":
-                            compact_meta = event.get("compactMetadata", {})
-                            metrics["compactions"].append(
-                                {
-                                    "timestamp": timestamp,
-                                    "trigger": compact_meta.get("trigger", "unknown"),
-                                    "pre_tokens": compact_meta.get("preTokens", 0),
-                                }
+                        case "text":
+                            _count_typed_plugin_skill(
+                                str(item.get("text", "")), metrics
                             )
 
-                        case "stop_hook_summary":
-                            metrics["hook_summaries"].append(
-                                {
-                                    "hook_count": event.get("hookCount", 0),
-                                    "prevented_continuation": event.get(
-                                        "preventedContinuation", False
-                                    ),
-                                    "has_output": event.get("hasOutput", False),
-                                    "hook_errors": event.get("hookErrors", []),
-                                }
-                            )
+            case "system":
+                match event.get("subtype", ""):
+                    case "compact_boundary":
+                        compact_meta = event.get("compactMetadata", {})
+                        metrics["compactions"].append(
+                            {
+                                "timestamp": timestamp,
+                                "trigger": compact_meta.get("trigger", "unknown"),
+                                "pre_tokens": compact_meta.get("preTokens", 0),
+                            }
+                        )
 
-                case "queue-operation":
-                    if event.get("operation") == "enqueue":
-                        metrics["queued_messages"] += 1
+                    case "stop_hook_summary":
+                        metrics["hook_summaries"].append(
+                            {
+                                "hook_count": event.get("hookCount", 0),
+                                "prevented_continuation": event.get(
+                                    "preventedContinuation", False
+                                ),
+                                "has_output": event.get("hasOutput", False),
+                                "hook_errors": event.get("hookErrors", []),
+                            }
+                        )
 
-                case "file-history-snapshot":
-                    backups = _as_dict(
-                        _as_dict(event.get("snapshot")).get("trackedFileBackups")
-                    )
-                    for fpath_key in backups:
-                        metrics["files_modified"].add(str(fpath_key))
+            case "queue-operation":
+                if event.get("operation") == "enqueue":
+                    metrics["queued_messages"] += 1
+
+            case "file-history-snapshot":
+                backups = _as_dict(
+                    _as_dict(event.get("snapshot")).get("trackedFileBackups")
+                )
+                for fpath_key in backups:
+                    metrics["files_modified"].add(str(fpath_key))
+
+    metrics["errors"].extend(
+        {"type": "parse_error", "detail": "Malformed JSON line"}
+        for _ in range(stats["bad_lines"] + stats["incomplete"])
+    )
+    tokens = ledger.totals()
+    metrics["total_input_tokens"] = tokens["input"]
+    metrics["total_output_tokens"] = tokens["output"]
+    metrics["cache_creation_tokens"] = tokens["cache_creation"]
+    metrics["cache_read_tokens"] = tokens["cache_read"]
 
     metrics["files_modified"] = {
         _normalize_path(p, metrics["cwd"]) for p in metrics["files_modified"]

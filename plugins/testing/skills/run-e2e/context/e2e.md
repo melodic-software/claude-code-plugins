@@ -24,7 +24,7 @@ package publishes a 0.2 or 1.0 release, or when the binary the row invokes stops
 
 **If app not running:** suggest starting via the project's documented start command, then re-check via the orchestrator's health/resource-list call.
 
-**If Playwright CLI missing:** tell the user to install it (`npm install -g @playwright/cli`) rather than substituting another automation surface; when the `playwright` plugin is installed, invoke `/playwright:playwright` via the Skill tool for usage. It owns defaults, sessions, and per-scenario references.
+**If Playwright CLI missing:** tell the user to install it (`npm install -g @playwright/cli`) rather than substituting another automation surface; when the `playwright` plugin is enabled, invoke `/playwright:playwright` via the Skill tool for usage. It owns defaults, sessions, and per-scenario references.
 
 **If only orchestrator tooling available (no browser automation):** degrade to API + log verification and report that visual/UI testing is unavailable.
 
@@ -34,11 +34,11 @@ package publishes a 0.2 or 1.0 release, or when the binary the row invokes stops
 
 | Approach | When to use | Token cost |
 |----------|------------|------------|
-| **Playwright CLI** (via `/playwright:playwright` when installed) | Default: all navigation, interaction, snapshots, screenshots | Low: artifacts on disk, paths in context |
+| **Playwright CLI** (via `/playwright:playwright` when enabled) | Default: all navigation, interaction, snapshots, screenshots | Low: artifacts on disk, paths in context |
 | **Playwright MCP** | Opt-in for stateful exploratory flows needing a continuous in-context browser (check how the consuming project enables/disables it in its MCP config) | High: payloads stream into context |
 | **Orchestrator MCP + curl** | API-only verification, health checks, structured log inspection | Minimal |
 
-**CLI mechanics** (commands, sessions, snapshots, storage, tracing, network mocking, Windows quirks): see `/playwright:playwright`, when the playwright plugin is installed. This skill (`/testing:run-e2e`) owns the broader orchestrator + API + UI story.
+**CLI mechanics** (commands, sessions, snapshots, storage, tracing, network mocking, Windows quirks): see `/playwright:playwright`, when the playwright plugin is enabled. This skill (`/testing:run-e2e`) owns the broader orchestrator + API + UI story.
 
 ## Browser-tool fit triage
 

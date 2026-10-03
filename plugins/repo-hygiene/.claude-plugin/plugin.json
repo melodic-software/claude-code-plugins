@@ -1,7 +1,6 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "repo-hygiene",
-  "version": "0.18.4",
+  "version": "0.19.1",
   "description": "Repo hygiene action-router: /repo-hygiene:clean sweeps reclaimable caches, build artifacts, and stale git metadata, and can realign the working tree to a fresh-pull state, dry-run-first, with destructive tiers gated behind explicit confirmation and a session-scoped destructive-command guard. Ecosystem targets are detected at runtime; secrets, runtime dependencies, and skill data are preserved by default.",
   "author": {
     "name": "Melodic Software",
@@ -21,8 +20,8 @@
   "userConfig": {
     "clean_destructive_guard_enabled": {
       "type": "boolean",
-      "title": "clean destructive guard",
-      "description": "Session-scoped PreToolUse guard blocking destructive Bash and PowerShell commands while the clean skill is active",
+      "title": "Clean destructive-command guard",
+      "description": "Session-scoped PreToolUse guard that blocks destructive Bash and PowerShell commands while the clean skill is active. On by default.",
       "default": true
     }
   }

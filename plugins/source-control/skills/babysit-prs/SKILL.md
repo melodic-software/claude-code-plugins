@@ -169,13 +169,13 @@ That gate merges **only when every criterion holds**, the criteria and the safet
 
 ## Guarded mutations: deterministic gates, agent judgment
 
-The two mutation gates are invoked ONLY through their wrapper scripts, by the bundled `bin/`-path form,
-never the bare command name nor the raw Python behind them. Each `source-control-babysit-<x>` named in the bullets below is that wrapper launched by its `bin/`-path form; the exact form is the single
+The two mutation gates are invoked ONLY through their wrapper scripts, by the bundled `scripts/`-path form,
+never the bare command name nor the raw Python behind them. Each `source-control-babysit-<x>` named in the bullets below is that wrapper launched by its `scripts/`-path form; the exact form is the single
 home in [reference/safety.md](reference/safety.md). Both fail closed without `--allowed-owners`.
 
 **Before composing either wrapper command, read [reference/safety.md](reference/safety.md),
 "Guarded Mutation Wrappers", for the exact flag set.** That section is the single home for the
-`bin/`-path form, every configured flag that must ride on a given form (self logins, extra bot
+`scripts/`-path form, every configured flag that must ride on a given form (self logins, extra bot
 logins, the review-settle pair, extra dependency-manager logins), the pins and the refusals they
 produce, the override flags that are never passed autonomously, and the per-thread `action`
 vocabulary. Never reconstruct one of these commands from memory; a silently dropped flag is a
@@ -281,7 +281,8 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | `babysit_self_logins` | `${user_config.babysit_self_logins}` | `--extra-self` (readiness gate and snapshot); `--self-logins` (merge gate, resolve-thread) | none. Always added to your `gh api user --jq .login` login |
 | `babysit_intended_write_identity` | `${user_config.babysit_intended_write_identity}` | `--intended-write-identity` (snapshot) | attribution-drift check dormant |
 | `babysit_default_tier` | `${user_config.babysit_default_tier}` | prose only. Tier of explicit bare invocations | `safe` |
-| `babysit_merge_method` | `${user_config.babysit_merge_method}` | deprecated fallback `--method` (merge wrapper) | repo convention, then squash |
+| `babysit_merge_method` | `${user_config.babysit_merge_method}` | deprecated fallback `--method` (merge wrapper) | `auto`: repo convention, then squash |
+| `babysit_stacked_prs` | `${user_config.babysit_stacked_prs}` | `--stacked-prs` (merge gate, every form) when `true`; omit it otherwise | `false` (a stack layer is held for a human) |
 | `babysit_autopilot_merge_tier` | `${user_config.babysit_autopilot_merge_tier}` | prose only. Gates whether the tier's `--autopilot-merge-tier` merge flags are wired at all | `false` (tier disabled; PRs go to the human merge-ready list) |
 | `babysit_lane_logins` | `${user_config.babysit_lane_logins}` | `--lane-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
 | `babysit_approver_bot_logins` | `${user_config.babysit_approver_bot_logins}` | `--approver-bot-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
@@ -300,7 +301,7 @@ this block. Values reach scripts ONLY as explicit CLI flags (option environment 
 | `babysit_advisory_fix_round_cap` | `${user_config.babysit_advisory_fix_round_cap}` | `--fix-round-cap` (snapshot, ledger) | `100` |
 | `babysit_worker_concurrency_cap` | `${user_config.babysit_worker_concurrency_cap}` | prose only. Fan-out bound | `10` |
 | `babysit_worktree_root` | `${user_config.babysit_worktree_root}` | `--root` (prune; worktree creation) | `${CLAUDE_PLUGIN_DATA}/worktrees` |
-| state dir (not configurable) | `${CLAUDE_PLUGIN_DATA}/state/babysit-prs` | `--state-dir` (every state-touching script) | n/a |
+| state dir (not configurable) | `${CLAUDE_PLUGIN_DATA}/state/babysit-prs` | `--state-dir` (every state-touching script, the merge gate included) | n/a |
 
 Seven rows are repository policy: `babysit_merge_method`, `babysit_merge_block_labels`,
 `babysit_review_gate_context`, `babysit_ci_gateway_context`,
@@ -377,7 +378,7 @@ Execute for EACH PR discovered, oldest first. Detailed mechanics: [reference/loo
   (`${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh <N>` must exit `READINESS_OK`. Proof the
   findings were decomposed, never proof the PR is merge-ready; the configured extra self identities are
   `${user_config.babysit_self_logins}`, when that value is non-empty and not a literal unexpanded token, append `--extra-self "<value>"`), report
-- [ ] **Step 5, Commit + push** fixes to the PR branch (refspec; works from a detached HEAD); clean working tree; follow-up replies
+- [ ] **Step 5, Commit + push** fixes to the PR branch, one push per wave (refspec; works from a detached HEAD); clean working tree; follow-up replies
   cite commit SHAs
 - [ ] **Step 6, PR transition:** next-oldest PR needing attention (§5.1.6)
 - [ ] **Step 7, Self-pace:** schedule the next wake per the cadence contract (§5.3)
@@ -408,7 +409,7 @@ repo#number (@author) | checks | action | open items
 
 Material findings: fixes committed or pushed; new failing or pending required checks; new
 blocking bot feedback; new ordinary human comments (one notification per stable comment ID,
-never an automatic reply); PRs merged, or armed for auto-merge (`action: auto-merge`, still open, stays queued); a PR the host runtime's permission layer left "ready,
+never an automatic reply); PRs merged, enqueued in a merge queue (`action: enqueue`, `enqueued: true`, not merged until a later cycle reads it merged), a merge still pending on GitHub (`action: merge-pending`, may still land), or armed for auto-merge (`action: auto-merge`, still open, stays queued); checks held for approval (escalate them); a PR the host runtime's permission layer left "ready,
 awaiting human execution" with its exact pinned command
 ([reference/safety.md](reference/safety.md)); escalations that need a user decision; and
 suspicious state changes such as missing permissions, changed branch protection, merge
@@ -486,7 +487,7 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 | [reference/orchestration.md](reference/orchestration.md) | An acting cycle is about to dispatch workers or resolve a conflict: gate arms, concurrency cap, leases, prompt template. |
 | [reference/cadence.md](reference/cadence.md) | Deciding the next wake interval, or a `recommended_cadence` reading needs its state and threshold. |
 | [reference/freshness.md](reference/freshness.md) | The snapshot reports `branch_freshness.state == "behind"` for a PR. |
-| [reference/stuck-checks.md](reference/stuck-checks.md) | The snapshot reports a non-empty `checks.stuck` array, **or** `branch_freshness.state == "conflicting"` and the check list is short. Report and escalate, never auto-fix. |
+| [reference/stuck-checks.md](reference/stuck-checks.md) | The snapshot reports a non-empty `checks.stuck` or `checks.approval_held` array, **or** `branch_freshness.state == "conflicting"` and the check list is short. Report and escalate, never auto-fix. |
 | [reference/review-trigger.md](reference/review-trigger.md) | An external AI reviewer is configured and a PR needs summoning or its gate read. |
 | [reference/autopilot.md](reference/autopilot.md) | Running the autopilot tier: its per-PR steps, exclusions, draft handling, widened scopes. |
 | [reference/worktrees.md](reference/worktrees.md) | Creating, reusing, or pruning a per-PR worktree before dispatching a worker. |

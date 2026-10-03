@@ -161,17 +161,11 @@ directory already on that PATH instead of recommending a repo-local
 `npm i -D`. The hook never falls back to `npx`, installs a package, or
 performs a network request during a hook run.
 
-`hooks/hooks.json` also registers a `SessionStart` probe. It reads
-`prerequisites.json` and reports a missing `markdownlint-cli2` at session start,
+`hooks/hooks.json` also registers a `SessionStart` probe, `lib/prerequisites.mjs probe`. It reads
+`prerequisites.json` and reports a missing `markdownlint-cli2` or `jq` at session start,
 and it honors `markdown_format_enabled`. `/markdown-format:check` is the
 read-only check that notice names. The probe does not look for a markdownlint
 config, so it can report in a repository that has none.
-
-`jq` is deliberately absent from `prerequisites.json`. That manifest drives the
-session-start probe, which does not consult the per-repo config opt-in, while the
-missing-`jq` notice comes only from the per-edit hook after its opt-in pre-check
-(`markdown-format.sh`, `hook::require_jq` after the config walk). Listing `jq`
-would announce it in repositories that never opted in.
 
 Telemetry timing uses `EPOCHREALTIME` (Bash 5.0+); on older Bash the telemetry
 envelope is skipped while formatting still runs.
@@ -217,8 +211,8 @@ Markdown edit is the figure that counts. Measured on Windows 11 under Git Bash, 
 trials against an interleaved `bash -c :` floor (2026-09-02). These figures predate the `node`
 launcher (`hooks/exec-bash.mjs`) and the `SessionStart` probe: each fire now adds one `node`
 process before `bash`, and the figures have not been re-measured. The `SessionStart` probe is
-exec form, so its k is 1 (the launcher); it then runs `bash` and `probe-prerequisite.sh` once
-per session start. It is not measured here:
+one `node` process running `lib/prerequisites.mjs`, once per session start, with no `bash`. It is not
+measured here:
 
 | Event | Fires | Spawn-equivalents | What changed |
 | --- | --- | --- | --- |
@@ -286,7 +280,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `markdown_format_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED` | Auto-format and lint Markdown on Write/Edit of .md/.mdc files (runs only when the repo carries a markdownlint config) |
-| `markdown_format_lint_gitignored` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED` | By default the hook leaves gitignored files alone, since a scratch tier the repo excludes is neither rewritten nor reported on. Set true to bypass THIS HOOK's git check; markdownlint-cli2's own ignores/gitignore config still applies downstream, so a path your markdownlint config also excludes stays untouched. |
+| `markdown_format_lint_gitignored` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_LINT_GITIGNORED` | By default the hook leaves gitignored files alone: a scratch tier the repo excludes is neither rewritten nor reported on. Set true to bypass this hook's git check; markdownlint-cli2's own ignores and gitignore config still apply, so a path your markdownlint config excludes stays untouched. |
 | `markdown_format_max_findings` | number<br>*min 0* | `20` | `CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_MAX_FINDINGS` | How many individual markdownlint violations are listed per run. The total count and the leading rule codes are always reported regardless. 0 = unlimited. |
 
 ### How to set these

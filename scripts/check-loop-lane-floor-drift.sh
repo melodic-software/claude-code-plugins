@@ -144,14 +144,16 @@ SOURCE="plugins/rate-limit-guard/reference/reader-contract.md"
 # The explicit consumer registry: "<mode> <path>".
 #
 # Three lane bodies (the convention's own consumer table), one skill context
-# file that inlines the same floor for the orchestrated extract-ssot mode, and
-# two launch-prompt templates. Adding a copy of the floor anywhere means adding
+# file that inlines the same floor for the orchestrated extract-ssot mode, the
+# pull-request watch handoff that checks the windows before starting a PR
+# watcher, and two launch-prompt templates. Adding a copy of the floor anywhere means adding
 # a line here in the same change; the block is small enough that a copy nobody
 # registered is a copy nobody will update.
 CONSUMERS=(
   "exact plugins/work-items/skills/work-loop/SKILL.md"
   "exact plugins/work-items/skills/attend-queue/SKILL.md"
   "exact plugins/source-control/skills/babysit-loop/SKILL.md"
+  "exact plugins/source-control/skills/pull-request/reference/watch-handoff.md"
   "exact plugins/docs-hygiene/skills/extract-ssot/context/orchestrated-mode.md"
   "values prompts/loops/loop-lane-prompts.md"
   "values prompts/loops/loop-lane-profile-claude-code-plugins.md"

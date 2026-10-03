@@ -166,6 +166,19 @@
         "Requires the duration to be measured at two or more sizes spanning realistic use",
         "Records a Scaling line with per-arm results and asks the human for the bound"
       ]
+    },
+    {
+      "id": 14,
+      "name": "estimate-derived-realistic-target-is-labeled",
+      "prompt": "/performance:goal the pre-tool hook. Measured cost: 6 spawns per tool call (E1, census). Two planned changes: caching the config read saves an estimated 2 spawns, merging two guards saves an estimated 1. Floor is 1 spawn. Set the realistic target for me.",
+      "expected_output": "Proposes a Realistic target of 3 spawns per tool call: the measured 6 minus the summed estimated gains of 2 and 1. Labels it as an estimate on the Output line (`Realistic: 3 [estimate]`) and shows it at the human gate for the person to accept or replace, rather than locking it. Records the Ideal target separately.",
+      "files": [],
+      "expectations": [
+        "Proposes a Realistic target of 3 spawns: 6 measured minus the summed estimated gains of 2 and 1",
+        "Labels the Realistic target as an estimate on the Output line",
+        "Leaves the person to accept or replace the estimated target at the human gate",
+        "Records an Ideal target separately from the Realistic one"
+      ]
     }
   ]
 }

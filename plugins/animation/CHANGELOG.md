@@ -3,6 +3,69 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1] - 2026-10-02
+
+### Changed
+
+- **Shared `exec-bash.mjs` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's hooks.**
+  It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copy.
+
+## [0.3.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5841](https://github.com/melodic-software/claude-code-plugins/issues/5841)).
+
+## [0.2.3] - 2026-10-03
+
+### Changed
+
+- The shared hook library's missing-prerequisite notice says to run `/harness-ops:prerequisites` if the `harness-ops` plugin is enabled, where it said installed: an installed but disabled plugin exposes no skills, and `harness-ops` now installs disabled ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.2.2] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
+## [0.2.1] - 2026-10-02
+
+### Changed
+
+- The shared hook helper's posture comment no longer names a fixed member count.
+
+## [0.2.0] - 2026-10-02
+
+### Added
+
+- A `SessionStart` hook (`hooks/install-python-deps.sh`) installs numpy and opencv from the
+  hash-locked `requirements.txt` into the plugin data directory, does nothing once they load, and
+  reports a failed install as a notice carrying the repair line. `scripts/pydeps.py` is the installer
+  and the launcher; `test_pydeps.py` and `hooks/install-python-deps.test.sh` cover the first
+  install, the no-op rerun and a failed install
+  ([#5844](https://github.com/melodic-software/claude-code-plugins/issues/5844)). The probe and the
+  launcher see only the installed set (no ambient `site-packages`), and a launcher started by an
+  older `python3` hands over to the interpreter the hook installed under.
+
+### Changed
+
+- `requirements.txt` is now the universal, hash-locked file; the direct pins moved to
+  `requirements.in`.
+- The `rotoscope`, `learn-style`, `produce` and `setup` skills run scripts through
+  `pydeps.py run`, which never installs, instead of `uv run --with-requirements`, which fetched
+  packages while a skill ran.
+
+## [0.1.6] - 2026-10-02
+
+### Changed
+
+- The `playwright_core` option title is sentence case, "Playwright-core directory", per the plugin
+  option naming convention (`docs/conventions/plugin-option-naming/`).
+
 ## [0.1.5] - 2026-10-02
 
 ### Fixed

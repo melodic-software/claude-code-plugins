@@ -22,7 +22,8 @@
       "expectations": [
         "Output selects the run-everything mode, not the lifecycle-tiered default",
         "Output performs the full-breadth sweep including main-thread orchestrator plugins and leaf agents",
-        "Output normalizes the heterogeneous surface outputs and persists a single ranked findings file"
+        "Output normalizes the heterogeneous surface outputs and persists a single ranked findings file",
+        "The ## Surfaces line names every leaf as <label>@<level>: each criteria-doc slice with the level the Workflow script passed it, each named agent with the effort: value from its agent definition's frontmatter"
       ]
     },
     {
@@ -458,7 +459,7 @@
     {
       "id": 37,
       "name": "fix-pass-producer-owned-surface-unavailable",
-      "prompt": "[Scenario: the same ai-slop:audit findings file, but the ai-slop plugin is NOT installed in this session, so /ai-slop:audit fix cannot be invoked.] /review:fanout fix --yes",
+      "prompt": "[Scenario: the same ai-slop:audit findings file, but the ai-slop plugin is NOT enabled in this session, so /ai-slop:audit fix cannot be invoked.] /review:fanout fix --yes",
       "expected_output": "The producer-owned rows are surfaced with the invocation the producer asked for; nothing is applied directly and nothing is installed.",
       "files": [],
       "expectations": [

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Regression tests for the bin/ wrappers' --help path.
+# Regression tests for the scripts/ wrappers' --help path.
 #
 # /source-control:setup's lane-script reachability probe (#787) invokes
-# `bin/source-control-babysit-merge --help` as a permission canary: the exact
+# `scripts/source-control-babysit-merge --help` as a permission canary: the exact
 # path form the lane mandates for every merge, chosen because it is provably
 # non-mutating. That framing is only honest while --help genuinely short-circuits
 # -- reaching no network, needing no allowlist, and exiting 0. If it ever
@@ -11,7 +11,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BIN="$SCRIPT_DIR/../bin"
+BIN="$SCRIPT_DIR"
 
 FAILED=0
 CASE_NUM=0
@@ -50,6 +50,18 @@ resolve_out=$(PATH="$NO_NET_BIN:$PATH" bash "$BIN/source-control-babysit-resolve
 assert_exit "resolve --help exit 0" 0 "$?"
 assert_contains "resolve --help prints usage" "$resolve_out" "usage: babysit_resolve_thread.py"
 assert_not_contains "resolve --help never reaches gh" "$resolve_out" "gh must not be invoked"
+
+# --- Case: the review-thread gate wrapper behaves the same -------------------
+threads_out=$(PATH="$NO_NET_BIN:$PATH" bash "$BIN/source-control-review-threads" --help 2>&1)
+assert_exit "review-threads --help exit 0" 0 "$?"
+assert_contains "review-threads --help prints usage" "$threads_out" "usage: pr_review_threads.py"
+assert_not_contains "review-threads --help never reaches gh" "$threads_out" "gh must not be invoked"
+
+# A gh failure is UNPROVEN, never a pass: the read that did not happen is not
+# evidence of zero threads.
+threads_out=$(PATH="$NO_NET_BIN:$PATH" bash "$BIN/source-control-review-threads" owner/repo#7 2>/dev/null)
+assert_exit "review-threads gh failure exits 2" 2 "$?"
+assert_contains "review-threads gh failure is UNPROVEN" "$threads_out" "THREADS_UNPROVEN reason=fetch-failed pr=owner/repo#7"
 
 # --- Case: the wrapper's own refusal is not weakened by --help ---------------
 # --allow-unpinned-head is refused BEFORE the interpreter runs, so pairing it

@@ -5,6 +5,46 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.1] - 2026-10-02
+
+### Changed
+
+- **Shared `check-retirements.sh`, `context-zone.sh`, `resolve-convention-home.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's lib and scripts.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+  The zones-inline-drift suite comment now names that generator.
+
+## [0.13.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
+
+## [0.12.3] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `audit` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+- `skills/audit/reference/component-types/skill.md` is now `skill-component.md`. claude.ai matches `SKILL.md` without regard to case and rejected the file as a skill without frontmatter.
+
+## [0.12.2] - 2026-10-02
+
+### Changed
+
+- **`auditor` records why it pins `model: opus` and `effort: high`.** The record points at the
+  model-config `high` row and the advisor capability rule, as of 2026-10-02, rechecked at the next
+  model release. The pins are unchanged.
+
+## [0.12.1] - 2026-10-02
+
+### Fixed
+
+- `audit` detects an unsubstituted effort placeholder without listing the effort levels.
+
 ## [0.12.0] - 2026-10-02
 
 ### Added

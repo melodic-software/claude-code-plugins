@@ -1,0 +1,42 @@
+{
+  "pass": [
+    {
+      "answer": "No sign-up for either of you. Your 'currently in early access' message means 2.1.240 is below the command's floor of 2.1.269; run `claude update` and try again.\n\nYour teammate's 'plugin eval is currently unavailable' is a different thing: the command is currently switched off server-side, on Anthropic's side, and that can change at any time. No local setting, flag, environment variable, reinstall or re-login turns it back on, so there's nothing for them to flip. Updating and trying again later is all they can do. Neither message has a local toggle, and neither of you needs to request access or join a waitlist.",
+      "why": "P-canonical: says 'currently unavailable' means the command is switched off server-side and no local setting, flag, env var, reinstall or re-login turns it back on."
+    },
+    {
+      "answer": "Two different causes here.\n\n1. You: 2.1.240 is too old. `plugin eval` needs 2.1.269 or later, and older binaries print the early-access wording. Update Claude Code; there's nothing to sign up for.\n2. Your teammate: their build is new enough, but the feature has been turned off on Anthropic's side. That message isn't produced by anything on their machine, so changing config, exporting an env var, reinstalling or logging out and back in won't restore it. They can check back later.\n\nSo no, there's no setting for either of you.",
+      "why": "P-alt: says in other words that the feature has been turned off on the provider's side and no config, env var, reinstall or re-login restores it."
+    },
+    {
+      "answer": "You don't need to sign up. 'Currently in early access' means your Claude Code is older than the 2.1.269 floor, so update it.\n\n'Currently unavailable' is a server-side switch: the command is turned off remotely, and no local setting, flag, environment variable, reinstall or re-login brings it back. Your teammate should make sure they're on the latest release and try again later.\n\nOne practical tip for your side: after updating, check that `claude --version` reads 2.1.269 or later before you rerun, so you know the update actually landed and you aren't chasing the old message.",
+      "why": "P-caveat: correct server-side point; advising update and try later is allowed, and the version-check tip does not touch the graded point."
+    },
+    {
+      "answer": "There's no setting to flip for either message.\n\nYour teammate's 'plugin eval is currently unavailable' means the command is switched off server-side. Nothing local, whether a setting, flag, environment variable, reinstall or re-login, turns it back on; they'll have to try again later.\n\nFor you, 'currently in early access' just means you're on an old build. The command needs Claude Code 2.1.250 or later, so run `claude update` and rerun. No waitlist or access request is involved, and nothing in your settings needs to change. Afterwards, `claude --version` should show the new build.",
+      "why": "P-plain: correct on the server-side point while naming the wrong version floor (2.1.250) for the sibling's early-access point."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "You don't need a sign-up for the early-access message: 2.1.240 is below the 2.1.269 floor, so update Claude Code.\n\nYour teammate's 'currently unavailable' usually means the feature is disabled for their account or organization. Ask an admin to check the org's feature settings, or have them sign out and back in with `claude /login` so their entitlements refresh. If their org disables experimental commands by policy, an admin can switch that off in the managed settings and the command will appear. Once that's done, rerun `claude plugin eval ./plugins/notes` and it should start normally.",
+      "why": "F-wrong: offers re-login and an admin or managed-settings change as the fix for the unavailable message, though the early-access part is right."
+    },
+    {
+      "answer": "No sign-up needed. 'Currently in early access' means your binary, 2.1.240, is older than the 2.1.269 floor, so update Claude Code with `claude update`.\n\nYour teammate's 'currently unavailable' is a different problem from yours; it isn't a version issue, so updating won't necessarily change it. No local setting, flag, environment variable, reinstall or re-login fixes it, so neither of you has anything to flip. They should stay on the latest release and just try again later; if it persists for more than a few days, they can contact support with the exact message.",
+      "why": "F-partial: says nothing local fixes it but never says the command is switched off server-side."
+    },
+    {
+      "answer": "You need no sign-up: 2.1.240 is below the 2.1.269 floor, so update.\n\nYour teammate's 'currently unavailable' means the command is switched off server-side, and no local setting or flag turns it back on.\n\nThat said, a stale session token can also cause it. Before waiting it out, have your teammate run `claude /logout` and then `claude /login`; the fresh login usually clears it, and if it doesn't, then it really is the server-side switch and they should try again later. A reinstall isn't needed either way, and neither of you has to sign up anywhere.",
+      "why": "F-retract: says it is server-side and no local fix exists, then offers re-login as the fix."
+    },
+    {
+      "answer": "Neither of you needs to sign up. Both messages come from the same version gate: 'currently in early access' is what older builds like your 2.1.240 print, and 'currently unavailable' is the newer wording of that same check, so your teammate's build is likely still under the 2.1.269 floor.\n\nThere's no setting to flip for either of you. Both of you should run `claude update`, confirm `claude --version` reads 2.1.269 or later, and rerun the eval. Once you're both past the floor, both messages go away and the eval runs normally.",
+      "why": "F-near: treats the unavailable message as the same version problem as the early-access message."
+    },
+    {
+      "answer": "No sign-up needed. 'Currently in early access' means your 2.1.240 binary is below the 2.1.269 floor, so run `claude update` and rerun.\n\nYour teammate's 'currently unavailable' is a different thing: the command has been switched off on Anthropic's side, and no local setting, flag, environment variable, reinstall or re-login turns it back on. This one is permanent. The feature is disabled for good and will never be available again, so there's nothing for them to wait for. Neither of you has a setting to flip, and nobody needs to request access.",
+      "why": "F-permanent: correct on the server-side point but presents the switch-off as permanent, never to return."
+    }
+  ]
+}

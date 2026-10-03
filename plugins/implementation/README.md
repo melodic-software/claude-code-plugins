@@ -8,16 +8,17 @@ concern: turning approved plans into verified code.
 
 | Skill | What it does |
 |---|---|
-| `/implementation:implement` | Inline execution discipline. Mode detection (feature/fix/refactor/config), TDD-by-default cadence, build+test after each logical block, green-checkpoint commits, divergence detection routing back to planning, scope-fence drift detection, phase-boundary handoffs. |
+| `/implementation:implement` | Inline execution discipline. Mode detection (feature/fix/refactor/config), TDD-by-default cadence, build+test after each logical block, green-checkpoint commits, divergence detection routing back to planning, scope-fence drift detection, phase-boundary records with the continuation routed through `/session-flow:workflow`. |
 | `/implementation:implement-dispatch` | Orchestrated execution variant. Composes scope-fenced worker briefs, dispatches subagents, verifies returns against direct evidence, builds main-side, and handles divergence in autonomous runs via a conservative-option deviations log. |
 
-Two plugin agents are the dispatch surface `implement-dispatch` routes through; their `model`
+Three plugin agents are the dispatch surface `implement-dispatch` routes through; their `model`
 frontmatter structurally binds the capability tier, so workers never silently inherit a fast
 orchestrator root's model:
 
 | Agent | What it does |
 |---|---|
-| `implementation:implementer` | Scope-fenced worker dispatched per phase; executes exactly one brief in its assigned or self-provisioned worktree, leaving staging, committing, and pushing to the orchestrator when the brief declares commit authority `orchestrator`. Frontmatter binds the strong tier's current alias. |
+| `implementation:implementer` | Scope-fenced worker dispatched per phase; executes exactly one brief in its assigned or self-provisioned worktree, leaving staging, committing, and pushing to the orchestrator when the brief declares commit authority `orchestrator`. Frontmatter binds the strong tier's current alias; it takes every unrouted or complex phase. |
+| `implementation:scoped-implementer` | The same worker contract, copied inline and kept identical by `scripts/agent-contract-sync.test.sh`, for a phase the plan's routing table marks `sonnet`: a closed scope fence, binary acceptance criteria, no open design decision, no cross-module contract change. Frontmatter binds `sonnet` at `effort: medium`, and `implement-dispatch` passes `model: sonnet` explicitly. |
 | `implementation:phase-verifier` | Fresh-context acceptance verifier dispatched at phase boundaries and for post-phase source commits with the orchestrator's rationale withheld; its tool cage bars Edit/Write and agent spawning (Bash and PowerShell remain for inspection; to narrow Bash, see Narrowing the phase-verifier's Bash), and it is bound never weaker than the implementer it checks. |
 
 ## Companion stages (separate plugins)
@@ -132,6 +133,16 @@ subagents) and the permissions page ("What a Bash rule doesn't match"), at
 <https://code.claude.com/docs/en/permissions>, verified 2026-09-27. Recheck when a release note
 touches subagent tool restrictions or Bash permission-rule matching.
 
+### Option details
+
+**`implement_dispatch_wave_cap`.** The cap is the size of one dispatch wave. Give a whole number of
+rows; a fractional value is floored since a row is discrete. The cap bounds all worker rows in
+flight in a phase, whichever worktrees they use. Rows that share a worktree under the default
+worker authority are further serialized to one at a time, whatever the cap allows. A chaining
+caller that passes `--wave-cap` is, for example, `/work-items:work` threading its
+`work_dispatch_concurrency_cap`. This key declares no default, so an unset value stays
+distinguishable from a configured one.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -142,7 +153,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `implement_dispatch_wave_cap` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_IMPLEMENT_DISPATCH_WAVE_CAP` | Maximum worker rows /implementation:implement-dispatch runs at once within one plan phase, the size of one dispatch wave. Give a whole number of rows; a fractional value is floored since a row is discrete. The cap bounds all worker rows in flight in a phase, whichever worktrees they use. Rows that share a worktree under the default worker authority are further serialized to one at a time, whatever the cap allows. A --wave-cap argument from a chaining caller (for example /work-items:work threading its work_dispatch_concurrency_cap) takes precedence for that invocation. Leave unset to keep the internal 3-5 wave default. This key declares no default, so an unset value stays distinguishable from a configured one. |
+| `implement_dispatch_wave_cap` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_IMPLEMENT_DISPATCH_WAVE_CAP` | Maximum worker rows /implementation:implement-dispatch runs at once within one plan phase. Leave unset to keep the internal 3-5 wave default. A fractional value is floored. A --wave-cap argument from a chaining caller takes precedence for that invocation. |
 
 ### How to set these
 

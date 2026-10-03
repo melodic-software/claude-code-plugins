@@ -41,7 +41,7 @@ Claude Code's native OTEL cannot see.
 | `/harness-ops:known-issues` | Searches known Claude product GitHub bugs before you build on a feature, checks service health and model quality, and maintains a persistent registry of tracked issues (what they block, workarounds, follow-ups when fixed). Actions: `status` (default), `search`, `check-all`, `scan`, `list`, `quality`, `create`. |
 | `/harness-ops:changelog` | Ingests Claude Code changelog entries and integrates them into the current repo: `fetch` (read-only display), `diff` (decision rows by owner surface and action lens over a release range, no edits), `status` (the read marker from the repo's Claude Code ledger, the default range to the newest release, and the replay cap), and `apply` (executes the decisions in scope one PR per owner plugin, hands larger ones off as work items, then runs a native-surface drift pass that files work items for new overlap candidates, fired store triggers, and a degraded or broken inventory; explicit user intent only). |
 | `/harness-ops:plugins` | Brings a machine's plugin fleet current on demand: marketplace refresh, updates for the plugins that actually load (including in-repo project/local-scope installs), new-catalog-plugin install per policy, and scope-divergence detection. Actions: `sync` (default, CLI-mediated mutations only), `audit` (read-only dry run), `converge` (the one action that can touch a committed `.claude/settings.json`. Previews and confirms per plugin first). |
-| `/harness-ops:morning-brief` | Prints the read-only, `gh`-based operator morning view for the current repo in one pass: open counts per queue label (`needs-triage`, `status: ready`, `status: needs-decision`, `needs-human`), the gh-native merge-ready PR list (non-draft + `mergeStateStatus=CLEAN`), parked `status: needs-decision` issues with their RECOMMENDED lines, and loop-lane telemetry freshness (per-lane `last-cycle` age + `flags:`). Never mutates anything; the authoritative PR merge gate stays `/source-control:babysit-prs`. |
+| `/harness-ops:morning-brief` | Prints the read-only, `gh`-based operator morning view for the current repo in one pass: open counts per queue label (`needs-triage`, `status: ready`, `status: needs-decision`, `needs-human`), the gh-native merge-ready PR list (non-draft + `mergeStateStatus=CLEAN`, with a clean PR whose head is behind its base marked `UNVERIFIED`), parked `status: needs-decision` issues with their RECOMMENDED lines, and loop-lane telemetry freshness (per-lane `last-cycle` age + `flags:`). Never mutates anything; the authoritative PR merge gate stays `/source-control:babysit-prs`. |
 | `/harness-ops:lanes` | Starts, restarts, stops, and reports loop lanes as named background Claude Code sessions seeded from canonical prompt files. `start` (default) / `restart` pull the repo and refresh the plugin marketplace, then launch each configured lane (`claude --bg -n <lane> --permission-mode auto`, plus `--permission-prompts none` on CLI 2.1.259 or later) with its per-lane `model`/`effort`; `status` shows per-lane running state and live sessionId; `stop` ends a lane via `claude stop`; `consume-restarts` is the OS-schedulable restart-request consumer. It reads each configured lane's telemetry `restart_request` and relaunches the stopped lanes that asked, through the same launcher (#1653). Acts only on sessions whose name is a configured lane. Lanes come from a JSON config (`--config`, else `$HARNESS_OPS_LANES_CONFIG`, else `<repo>/.work/lanes/lanes.json`, with a temporary default-only fallback to the pre-move `<repo>/.work/lanes.json` under a deprecation warning); config and prompts live in the reserved `lanes/` concern home under a hardcoded `.work` root, which is a sanctioned placement but still session-local, so a durable cross-machine home stays #480's job. |
 | `/harness-ops:check` | Read-only check that `node` and `jq` resolve for the hooks, with the install route for a missing tool. Model-invocable; never installs. |
 | `/harness-ops:machine-profile` | Discovers this machine's facts and identity domains (each tree's git include, `gh` directory and verdicts), stores them as a re-runnable profile that records the observation behind every value, and reports drift between the stored profile and the host now. Actions: `profile` (default), `diff`, `explain <key>`, `apply --option <key>`. Read-only unless the operator confirms a write: `record --confirm` writes the profile document, and `apply --confirm` prints what to hand to each setup and writes nothing. Never installs and never reapplies a stored value on its own. Design: [machine-profile-design](https://github.com/melodic-software/claude-code-plugins/blob/038c2ae22c23f60500b339fd2f66e4569ecbe2fd/docs/specs/machine-profile-design.md). |
@@ -373,8 +373,8 @@ options tune the skills:
 - **`install_new`** (string, optional). New-catalog-plugin install policy for the `plugins`
   skill's `sync` action. `ask` (default) offers not-yet-installed catalog plugins in one batched
   multi-select prompt; `all` installs every one automatically; `none` reports them without
-  installing. The manifest schema has no `enum` type, so this validates in prose, not JSON Schema;
-  any other value is treated as `ask`.
+  installing. `/config` shows these three as a picker; a value set by hand outside it is treated
+  as `ask` and named in the sync digest.
 - **`registry_dir`** (string, optional). Project-relative directory for the
   known-issues registry (`registry.json`). Set it to keep the
   registry inside your repo (git-tracked, team-shared) instead of the
@@ -389,8 +389,8 @@ options tune the skills:
   operator store (rows carry `project` + collision-resistant `project_id`
   fields); `data-dir` writes
   `${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>`. Plugin-owned, update-safe,
-  never in any repo tree. Prose-validated (no `enum` in the manifest schema);
-  an unknown value falls back to `repo` with a one-time advisory. The default
+  never in any repo tree. `/config` shows the three values as a picker; a value
+  set by hand outside it falls back to `repo` with a one-time advisory. The default
   stays `repo` deliberately: the store stays in the project tree, matching
   the observability posture that telemetry is project-local, and the exclude
   entry removes the status noise that motivated the scope knob. (The hook log
@@ -417,6 +417,23 @@ project-relative defaults; the bundled scripts make no outbound network calls
 except `gh`/`curl` reads of GitHub and Claude status pages in the
 known-issues skill.
 
+### Option details
+
+**`session_event_log_enabled`.** Off, a consumer pays the kill-switch read and nothing else.
+
+**`session_event_log_dir`.** Inside a checkout the directory carries a self-ignoring `.gitignore`,
+created on the first write.
+
+**`hook_events_max_bytes`.** Read only when a harness-ops hook emits the envelope: an emitter in
+another plugin that runs the sink keeps the 10485760 default. A value above 999999999999999999 is
+ignored and the default applies.
+
+**`session_log_pre_prune_command`.** The session files about to be pruned are moved into the
+directory passed as the argument, and its physical delete waits for the next retention run after
+24 hours, so an archiver has a stable set to read. The command runs through `bash -c`, so it is
+trusted configuration: on current releases project and local `pluginConfigs` are ignored and only
+the user's own settings supply it (recheck: the plugins reference's user-configuration section).
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -427,28 +444,29 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `registry_dir` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_REGISTRY_DIR` | Optional contained project-relative directory holding the known-issues registry (registry.json). Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid. Leave unset to use ${CLAUDE_PLUGIN_DATA}. |
-| `skill_usage_dir` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_DIR` | Optional contained relative directory where the skill-usage-audit hooks write skill-usage.jsonl, resolved under the skill_usage_scope root (repo scope: the project root; user scope: $HOME). Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid in every scope. Ignored by the data-dir scope (plugin-owned layout). Leave unset to use .claude/observability. |
-| `skill_usage_scope` | string | `"repo"` | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_SCOPE` | Where the skill-usage store lives. Valid values: "repo" (the default, a project tree under the repo root, kept out of git status via a machine-local .git/info/exclude entry), "user" (the skill_usage_dir subpath under $HOME, one cross-repo store; rows carry a project field), "data-dir" (${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>, plugin-owned and update-safe). The manifest schema has no enum type, so this validates in prose; any other value is treated as "repo" with a one-time advisory. |
-| `skill_usage_git_exclude` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_GIT_EXCLUDE` | When the repo-scope store sits inside a git work tree, idempotently add its directory to .git/info/exclude (machine-local; never touches .gitignore or tracked files) so git status stays clean. Set false if your team deliberately commits the telemetry. |
-| `install_new` | string | `"ask"` | `CLAUDE_PLUGIN_OPTION_INSTALL_NEW` | Controls what `sync` does with catalog plugins that aren't installed yet. Valid values: "ask" (the default, which offers them in one batched multi-select prompt), "all" (install every one automatically), "none" (report only, never install). The manifest schema has no enum type, so this validates in prose, not JSON Schema; any other value is treated as "ask". |
-| `api_error_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_API_ERROR_AUDIT_ENABLED` | Emit turn-failure telemetry on API errors |
-| `config_change_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONFIG_CHANGE_AUDIT_ENABLED` | Emit telemetry on config-source mutations |
-| `instructions_loaded_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_LOADED_AUDIT_ENABLED` | Emit telemetry on rule/instruction file loads |
-| `permission_denied_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PERMISSION_DENIED_AUDIT_ENABLED` | Emit telemetry on permission denials |
-| `pre_compact_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PRE_COMPACT_AUDIT_ENABLED` | Emit telemetry on context-compaction events |
-| `skill_usage_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_AUDIT_ENABLED` | Emit telemetry on skill usage; shared by both skill-usage audit hooks (the Skill-tool and slash-command expansion paths) and also gates the shared skill-usage.jsonl store |
-| `tool_failure_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_TOOL_FAILURE_AUDIT_ENABLED` | Emit telemetry on Write/Edit/Bash tool failures |
-| `hook_failure_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_HOOK_FAILURE_AUDIT_ENABLED` | Warn once per session per hook when the transcript records hook launch/exec failures Claude Code never surfaced |
-| `instructions_loaded_audit_log_session_start` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_LOADED_AUDIT_LOG_SESSION_START` | Opt back into logging session_start instruction loads (dropped by default as deterministic and high-volume) |
-| `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open |
-| `session_event_log_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED` | Append one JSON line per hook event to <session_event_log_dir>/sessions/<session_id>.jsonl, on every documented event the generated registry marks observable. Off by default: a consumer who has not turned it on pays the kill-switch read and nothing else. The same switch gates the SessionEnd retention hook. |
-| `session_event_log_dir` | string | `".observability/claude"` | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR` | Contained project-relative directory holding the per-session hook event log (sessions/) and the telemetry sink's hook-events.jsonl. Absolute, drive, UNC, traversal and escaping paths are invalid, and the project root itself is refused. Inside a checkout the directory carries a self-ignoring .gitignore, created on the first write. Leave unset to use .observability/claude. |
-| `session_event_log_categories` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CATEGORIES` | Comma-separated event categories to record (session, prompt, tool, permission, agent, task, turn, config, worktree, compaction, model, mcp, display, other). Empty records every category the registry marks observable. |
-| `session_log_keep_sessions` | number<br>*min 1* | `30` | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_SESSIONS` | At SessionEnd, keep the newest N session files regardless of age (a file is kept when it is among the newest N OR younger than session_log_keep_days). |
-| `session_log_keep_days` | number<br>*min 1* | `14` | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_DAYS` | At SessionEnd, keep every session file younger than N days regardless of count (a file is kept when it is younger than N days OR among the newest session_log_keep_sessions). |
-| `hook_events_max_bytes` | number<br>*min 1* | `10485760` | `CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES` | The telemetry sink rotates the shared hook-events.jsonl to hook-events.jsonl.1 (replacing any older .1) when it exceeds this many bytes, so the pair stays near twice this value. Applies whether or not the per-session event log is enabled. Read only when a harness-ops hook emits the envelope: an emitter in another plugin that runs the sink keeps the 10485760 default. A value above 999999999999999999 is ignored and the default applies. |
-| `session_log_pre_prune_command` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_PRE_PRUNE_COMMAND` | Optional command run detached at SessionEnd with one argument, a directory the session files about to be pruned were moved into; the physical delete of that directory happens on the next retention run after 24 hours, so an archiver has a stable set to read. Executed through `bash -c`, so it is trusted configuration: on current releases project and local pluginConfigs are ignored and only the user's own settings supply it (recheck: the plugins reference's user-configuration section). Leave unset to delete directly. |
+| `registry_dir` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_REGISTRY_DIR` | Project-relative directory holding the known-issues registry (registry.json). Leave unset to keep the registry in the plugin data directory, ${CLAUDE_PLUGIN_DATA}. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid. |
+| `install_new` | string | `"ask"` | `CLAUDE_PLUGIN_OPTION_INSTALL_NEW` | What the plugins skill's sync action does with catalog plugins not yet installed. ask (default) offers them in one batched multi-select prompt; all installs every one automatically; none reports them and never installs. |
+| `skill_usage_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_AUDIT_ENABLED` | Emits telemetry on skill usage, on by default. Shared by both skill-usage audit hooks (the Skill-tool and slash-command expansion paths), and also gates the shared skill-usage.jsonl store. |
+| `skill_usage_scope` | string | `"repo"` | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_SCOPE` | Where the skill-usage store lives. repo (default) keeps it in the project tree, out of git status via a machine-local .git/info/exclude entry; user puts the skill_usage_dir subpath under $HOME as one cross-repo store; data-dir uses ${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>. |
+| `skill_usage_dir` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_DIR` | Relative directory where the skill-usage-audit hooks write skill-usage.jsonl, under the skill_usage_scope root (repo: the project root; user: $HOME). Leave unset to use .claude/observability. The data-dir scope ignores it. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid. |
+| `skill_usage_git_exclude` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_GIT_EXCLUDE` | Adds the repo-scope store's directory to .git/info/exclude when it sits inside a git work tree, so git status stays clean. On by default; machine-local, and never touches .gitignore or tracked files. Set false if your team deliberately commits the telemetry. |
+| `api_error_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_API_ERROR_AUDIT_ENABLED` | Emits turn-failure telemetry on API errors. On by default. |
+| `config_change_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONFIG_CHANGE_AUDIT_ENABLED` | Emits telemetry on config-source mutations. On by default. |
+| `instructions_loaded_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_LOADED_AUDIT_ENABLED` | Emits telemetry on rule and instruction file loads. On by default. |
+| `instructions_loaded_audit_log_session_start` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_INSTRUCTIONS_LOADED_AUDIT_LOG_SESSION_START` | Makes the instructions-loaded-audit hook log session_start instruction loads. Off by default, because those loads are deterministic and high-volume. |
+| `permission_denied_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PERMISSION_DENIED_AUDIT_ENABLED` | Emits telemetry on permission denials. On by default. |
+| `pre_compact_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_PRE_COMPACT_AUDIT_ENABLED` | Emits telemetry on context-compaction events. On by default. |
+| `tool_failure_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_TOOL_FAILURE_AUDIT_ENABLED` | Emits telemetry on Write, Edit, and Bash tool failures. On by default. |
+| `hook_failure_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_HOOK_FAILURE_AUDIT_ENABLED` | Warns once per session per hook when the transcript records hook launch or exec failures Claude Code never surfaced. On by default. |
+| `session_event_log_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED` | Appends one JSON line per hook event to <session_event_log_dir>/sessions/<session_id>.jsonl, on every event the generated registry marks observable. Off by default; while off, the only cost is reading this switch. It also gates the SessionEnd retention hook. |
+| `session_event_log_dir` | string | `".observability/claude"` | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR` | Project-relative directory holding the per-session hook event log (sessions/) and the telemetry sink's hook-events.jsonl. Default .observability/claude. Absolute, drive, UNC, traversal and escaping paths are invalid, and the project root itself is refused. |
+| `session_event_log_categories` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CATEGORIES` | Comma-separated event categories to record (session, prompt, tool, permission, agent, task, turn, config, worktree, compaction, model, mcp, display, other). Empty, the default, records every category the registry marks observable. |
+| `session_event_log_content` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CONTENT` | Also records each event's top-level content strings (prompt, last_assistant_message, message, task text, error and the like) in the session event log; content the 64 KB read cap cuts is marked truncated. Off by default; has no effect while session_event_log_enabled is off. |
+| `session_log_keep_sessions` | number<br>*min 1* | `30` | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_SESSIONS` | At SessionEnd, keeps the newest N session files regardless of age; default 30. A file is kept when it is among the newest N OR younger than session_log_keep_days. |
+| `session_log_keep_days` | number<br>*min 1* | `14` | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_KEEP_DAYS` | At SessionEnd, keeps every session file younger than N days regardless of count; default 14. A file is kept when it is younger than N days OR among the newest session_log_keep_sessions. |
+| `session_log_pre_prune_command` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SESSION_LOG_PRE_PRUNE_COMMAND` | Command run detached at SessionEnd with one argument: a directory holding the session files about to be pruned, deleted on the next retention run after 24 hours. Leave unset to delete directly. Runs through bash -c, so only your own user settings can supply it. |
+| `hook_events_max_bytes` | number<br>*min 1* | `10485760` | `CLAUDE_PLUGIN_OPTION_HOOK_EVENTS_MAX_BYTES` | Size at which the telemetry sink rotates the shared hook-events.jsonl to hook-events.jsonl.1, replacing any older .1, so the pair stays near twice this value. Default 10485760. Applies whether or not the per-session event log is on. |
+| `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open. Default 2. |
 
 ### How to set these
 

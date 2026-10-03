@@ -3,6 +3,59 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.1] - 2026-10-02
+
+### Changed
+
+- **Shared `exec-bash.mjs` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's hooks.**
+  It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copy.
+
+## [0.20.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5841](https://github.com/melodic-software/claude-code-plugins/issues/5841)).
+
+## [0.19.4] - 2026-10-03
+
+### Changed
+
+- The shared hook library's missing-prerequisite notice says to run `/harness-ops:prerequisites` if the `harness-ops` plugin is enabled, where it said installed: an installed but disabled plugin exposes no skills, and `harness-ops` now installs disabled ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.19.3] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
+## [0.19.2] - 2026-10-02
+
+### Changed
+
+- The shared hook helper's posture comment no longer names a fixed member count.
+
+## [0.19.1] - 2026-10-02
+
+### Fixed
+
+- `render-index.sh` no longer indexes rules or nested instruction files inside an `evals/fixtures/` tree. Those trees imitate a consuming repository as test input, and their rows were reaching this repository's always-loaded `AGENTS.md` index.
+- `glob-tools.sh rules` (the `/instruction-placement:check` glob gate) no longer checks rules inside an `evals/fixtures/` tree, so a fixture rule whose globs name the fixture's files no longer fails the gate as a zero match. The exclusion lives in the shared discovery layer (`lib/discover.sh`), so the index, the glob gate, `detect.sh` and the wiring gate apply one filter.
+
+## [0.19.0] - 2026-10-02
+
+### Changed
+
+- Option titles follow the plugin-option-naming convention
+  (`docs/conventions/plugin-option-naming/`): `Index-drift hook`, `Over-broad glob ceiling
+  (percent)` and `Index rows before grouping`, in sentence case, and each description states its
+  default.
+- `breadth_max` declares `min` 0 and `max` 100, since it is a percent of tracked files. A value
+  above 100, which could never report a glob over-broad, is now rejected when set.
+
 ## [0.18.4] - 2026-10-02
 
 ### Fixed

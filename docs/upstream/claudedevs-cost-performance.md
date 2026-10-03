@@ -29,8 +29,8 @@ work list). The three native-overlap verdicts this effort produced (bundled `cla
 against `harness-config:audit-instructions`, `evals:methodology`, and `playbooks:fable-5`) are
 baked as `## Boundary` sections in those skill bodies with detail in a same-skill reference
 file, per the amended native-references convention (1.1.0: a non-`defer` extraction-evidence
-row lands together with its Boundary section). Open TRACK triggers: the anthropics/skills repo
-or the claude-api docs page gaining hillclimb/build-eval; a Console-side check confirming the
+row lands together with its Boundary section). Open TRACK triggers: the platform claude-api
+skill docs page listing build-eval and hillclimb; a Console-side check confirming the
 cache-diagnostics UI; a second real need for API-cost tooling in this marketplace.
 
 ## Source and verification
@@ -51,13 +51,19 @@ cache-diagnostics UI; a second real need for API-cost tooling in this marketplac
   anthropics/skills clone (HEAD `41bbe19`, 2026-09-03) plus the skill bundled inside Claude
   Code 2.1.263.
 - Five verification findings qualify adoption everywhere below:
-  1. **hillclimb repo lag.** Our extraction found `/claude-api hillclimb` (and `build-eval`) in
-     the bundled skill inside the Claude Code binary, and an exhaustive grep found them absent
-     from the public anthropics/skills repo the article links (HEAD 2026-09-03) and from the
-     skill's platform-docs page. A reader following the article's GitHub link will not find
-     them. Pointer: our binary extraction and clone grep, recorded in the claude-api row of
-     [`docs/native-surfaces/records.json`](../native-surfaces/records.json), and [In Claude Code (bundled)](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/claude-api-skill#in-claude-code-bundled).
-     As of: 2026-09-09. Recheck trigger: the repo or docs page gains the subcommands.
+  1. **Where hillclimb and build-eval are published.** Records in this repository point at the
+     published sources.
+     - **Pointer**: for the subcommands, see
+       [Work on Claude API projects](https://code.claude.com/docs/en/skills#work-on-claude-api-projects);
+       for their guides, see
+       [`eval-hillclimb.md`](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/eval-hillclimb.md)
+       and
+       [`build-eval.md`](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/build-eval.md)
+       at the pinned commit.
+     - **As of**: 2026-10-01
+     - **Recheck trigger**: the
+       [Claude API skill](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/claude-api-skill)
+       docs page lists build-eval and hillclimb; then repoint there.
   2. **Claude Console diagnostics UI unverified.** The API half of the cache-diagnostics topic
      is verified against
      [Cache miss reason types](https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics#cache-miss-reason-types);
@@ -90,9 +96,8 @@ cache-diagnostics UI; a second real need for API-cost tooling in this marketplac
      single evidence pool because no independent second pool exists publicly:
      automatic-caching breakpoint movement (docs plus a restatement page; substance
      re-confirmed live), cost-optimize behavior (skill source only; the skill's docs page does
-     not document the command), hillclimb-bundled and hillclimb-absent (binary extraction and
-     an exhaustive clone grep, both direct observations). Rows built on these carry the
-     qualification rather than a second citation.
+     not document the command). Rows built on these carry the qualification rather than a second
+     citation. The hillclimb distribution rows use the published-source pointers in finding 1.
 
 ## Row schema
 
@@ -160,8 +165,8 @@ routing restriction. The verdict is baked where the model reads it: a `## Bounda
 bundled claude-api skill` section in the `audit-instructions` body (routing, mutation gate,
 availability rule) with its records in
 `plugins/harness-config/skills/audit-instructions/reference/bundled-claude-api.md`. Recheck
-fires with the store row's trigger (subcommand set changes, or the public repo / docs page
-gains hillclimb).
+fires with the store row's trigger (subcommand set changes, or the platform claude-api skill
+docs page lists hillclimb and build-eval).
 
 | Topic | Ours | Verdict | Pointer | As of |
 |---|---|---|---|---|
@@ -182,7 +187,7 @@ tooling.
 |---|---|---|---|---|
 | Effort miscalibration in both directions | PLUGIN-PHILOSOPHY Effort tiers; opus-5 chapter overthinking guidance; fable-5-1 low-effort recall caveat | COVERED, plus a sharpening ADOPT (decided 2026-09-10). Explore evidence re-verified 2026-09-09. Work item: fold the article's two sharpest phrasings on miscalibration, in our words, into the existing surfaces | [How effort works](https://platform.claude.com/docs/en/build-with-claude/effort#how-effort-works) | 2026-09-09 |
 | A stronger model at lower effort | Nowhere; adaptation chapters deliberately carry no pricing | ADOPT (decided 2026-09-10). Land as a pricing-free section in the fable-5-1 model-adaptation chapter plus a one-line pointer in PLUGIN-PHILOSOPHY Effort tiers; numbers cited vendor-reported; pricing stays pointer-resolved through the claude-api skill | [Compare models on cost per task](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#compare-models-on-cost-per-task) and [Model pricing](https://platform.claude.com/docs/en/about-claude/pricing#model-pricing) | 2026-09-09 |
-| Effort sweeps on a non-saturated eval | `evals` plugin has zero effort content | ADOPT (decided 2026-09-10). Land as an effort-axis note in the evals plugin citing the bundled hillclimb per the Lane M posture (bundled-only, public-repo lag noted) | [Tune effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort) | 2026-09-09 |
+| Effort sweeps on a non-saturated eval | `evals` plugin has zero effort content | ADOPT (decided 2026-09-10). Land as an effort-axis note in the evals plugin citing the bundled hillclimb per the Lane M posture, pointing at its published guide (finding 1) | [Tune effort](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#tune-effort) | 2026-09-09 |
 | Effort changes mid-conversation and the cache | PLUGIN-PHILOSOPHY cache caveat + criteria I17-b carry the session-side version | COVERED session-side (decided 2026-09-10). The API-side model list is read at the pointer only inside whatever T1/T3 adoptions get written, per the Lane M beta posture; no separate surface | [Per-message effort (beta)](https://platform.claude.com/docs/en/build-with-claude/effort#change-effort-mid-conversation-beta) | 2026-09-09 |
 
 ## Lane T4: API cost optimization and profiling
@@ -195,7 +200,7 @@ cost). Batch API, output bounding as a cost lever, and the usage/cost Admin API 
 | Topic | Ours | Verdict | Pointer | As of |
 |---|---|---|---|---|
 | Spend profiling with the bundled cost-optimize | No incumbent for API-application profiling | TRACK on the bundled cost-optimize, plus one mention in the new playbooks chapter as the automation for its levers (decided 2026-09-10). Our source-as-spec read found it proposes rather than silently applies. New-plugin question deferred to a second real need. Recheck: a docs page starts covering the command | Our read of the bundled skill source (`shared/cost-optimization.md`); no docs page covers the command | 2026-09-09 |
-| Model and effort search with the bundled hillclimb | No incumbent; `evals` owns eval design without a cost axis | Cited per the Lane M posture: bundled-only, public-repo lag noted (decided 2026-09-10); the evals effort-axis note carries the citation. Recheck: the repo or docs page gains the subcommand | Our extraction of the bundled skill source from the binary (finding 1); [In Claude Code (bundled)](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/claude-api-skill#in-claude-code-bundled) | 2026-09-09 |
+| Model and effort search with the bundled hillclimb | No incumbent; `evals` owns eval design without a cost axis | Cited per the Lane M posture (decided 2026-09-10); the evals methodology skill's `reference/hillclimb.md` carries the citation. Recheck: the platform claude-api skill docs page lists the subcommand | [Work on Claude API projects](https://code.claude.com/docs/en/skills#work-on-claude-api-projects) and [`eval-hillclimb.md`](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/eval-hillclimb.md) at the pinned commit (finding 1) | 2026-10-01 |
 | Batching unattended work | Absent (sole mention is a routines.md disclaimer) | ADOPT (chapter row; decided 2026-09-10) | [Batch processing pricing](https://platform.claude.com/docs/en/about-claude/pricing#batch-processing) | 2026-09-09 |
 | Output bounding as a cost lever | In tension with prompt-audit Group 1f, which removes numeric output ceilings from skill bodies | Recorded scope-disjoint (decided 2026-09-10): output bounding is an API-request cost lever, never a skill-body instruction pattern; one sentence in the chapter says so. Tension identified by explore, 2026-09-09 | [Set budgets and output caps](https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#set-budgets-and-output-caps) | 2026-09-09 |
 | Org spend profiling through the Admin API | Absent | ADOPT (chapter row; decided 2026-09-10) | [Usage and Cost API: Cost API](https://platform.claude.com/docs/en/manage-claude/usage-cost-api#cost-api) | 2026-09-09 |
@@ -209,7 +214,7 @@ Decided at interview, 2026-09-10:
 | Record shape | DECIDED: keep this file's shape. Only the row-schema FORMAT is borrowed from aihero-course.md (per-row records, verdict vocabulary); this source is unrelated to AI Hero and this record stands alone | Owner interview, 2026-09-10 |
 | Native-overlap gate before any new skill: the article's guidance IS the bundled claude-api skill | DECIDED: run `/harness-ops:audit-native-overlap` against the four topics first and record its verdicts as gate rows; adoption scope is NOT pre-restricted on paper. The owner receives full information per topic and decides at each lane interview. Amended 2026-09-11: a registry row alone is not the deliverable; each non-`defer` verdict lands as a `## Boundary` section in the skill body with detail in a same-skill reference file, and the native-references convention (1.1.0) now requires the pair | Owner interview, 2026-09-10 and 2026-09-11; PLUGIN-PHILOSOPHY Native-first section; ADR-0028 precedent |
 | Vendor-internal numbers and beta features | DECIDED: adopt mechanisms only; cite figures as vendor-reported and unreproduced; every adopted line touching a beta feature carries its beta qualifier and GA/model-list boundary | Owner interview, 2026-09-10 |
-| Citing hillclimb while the public repo lags | DECIDED: cite it as a bundled Claude Code command with an upstream-drift record noting the public-repo lag; recheck trigger fires when the anthropics/skills repo or the skill's docs page gains the subcommand | Owner interview, 2026-09-10 |
+| Citing hillclimb | DECIDED: cite it as a bundled Claude Code command with an upstream-drift record that points at the published guides (finding 1); recheck trigger fires when the platform claude-api skill docs page lists the subcommand | Owner interview, 2026-09-10; eval-design and hillclimbing interview, 2026-10-01 |
 
 ## Interview queue
 

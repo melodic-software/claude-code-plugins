@@ -482,7 +482,7 @@ against the plugin you actually invoked. Then:
 
 Separate **plugin-owned** logic from **consumer-owned** extension points:
 
-- Plugin-owned scripts ship inside the plugin and run via `${CLAUDE_PLUGIN_ROOT}/scripts/` (or `bin/`),
+- Plugin-owned scripts ship inside the plugin and run via `${CLAUDE_PLUGIN_ROOT}/scripts/`,
   bundled and cache-isolated, never reaching outside the plugin directory.
 - Consumer-owned extension points are **declared paths**, not assumed layout: expose them through a
   `userConfig` `directory` option or a tracked-config key with a conventional default (e.g. `tools/`).
@@ -507,16 +507,10 @@ by a version bump and a changelog note. An install that still names an old id ge
 `Plugin "<name>" not found in marketplace`, and the consumer re-enables the plugin under its new
 name. Plugin splits and file moves are not renames.
 
-A rename whose tracker item scopes it may also keep the old id for one release as a deprecation
-shim. The shim is a real catalog entry whose skills are `disable-model-invocation: true` stubs that
-point at the successor. It keeps an existing install from reporting
-`Plugin "<name>" not found in marketplace`, since upstream has no
-deprecation state of its own
-([host-marketplace, "Rename or remove a plugin"](https://code.claude.com/docs/en/plugins/host-marketplace#rename-or-remove-a-plugin),
-checked 2026-09-27; recheck when that page gains a deprecation field). The next release removes
-the shim like any retirement. `provenance` → `attribution` (#4589) is the first. Consumers outside
-this repository (the fleet list, dotfiles, user-scope `enabledPlugins`) migrate from their own
-repositories.
+A rename or retirement migrates every consumer in this repository in the same change, with no
+deprecation shim, alias, or pointer to the old name: no stub catalog entry, no redirecting skill,
+no second spelling a consumer can keep using. Consumers outside this repository (the fleet list,
+dotfiles, user-scope `enabledPlugins`) migrate from their own repositories.
 
 ### Same-version commit drift (directory-source marketplaces)
 
@@ -877,8 +871,9 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
      `harness-config:audit-permission-grants` check P1 detects exactly these shapes and is the
      mechanical half of this criterion.
 2. **MCP servers: `.mcp.json` / inline in `plugin.json`.** `miro` is the only plugin that ships a
-   **local** `stdio`, bundled server (see its §2 trust accept above); `dometrain` is the only plugin
-   that ships a **remote** server (see its review record below), which remains the higher-scrutiny
+   **local** `stdio`, bundled server (see its §2 trust accept above); `dometrain-mcp` is the only plugin
+   that ships a **remote** server (see the `dometrain` review record below, which covers that
+   server), which remains the higher-scrutiny
    case. A plugin's MCP server **starts automatically when the plugin is enabled**
    (subject to per-server approval), unless it ships `defaultEnabled: false`. Check: the server host/URL and who runs it (first-party vs a third party you're delegating trust
    to); transport (local `stdio` vs remote `http`/`sse`/`ws`); **what data leaves the machine**, since a remote
@@ -936,9 +931,9 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
 7. **Main-thread and PATH surfaces.** A plugin `settings.json` `agent` entry takes over the
    consumer's main thread, and is prohibited by default per the component stance table in
    [plugin-philosophy.md](plugin-philosophy.md); an exception requires the documented justification
-   the stance demands, reviewed here. `bin/` executables join the Bash tool's `PATH` while the
-   plugin is enabled: names must be collision-safe (plugin-prefixed), and each binary's provenance
-   is reviewed like any hook script.
+   the stance demands, reviewed here. A top-level `bin/` is not accepted (the component stance table and
+   `scripts/check-plugin-manifest-presence.sh` carry the reason); executables live under
+   `scripts/`, and each one's provenance is reviewed like any hook script.
 
 Record accept/deny + rationale for any plugin touching surfaces 2, 5, 6, or 7; a later version bump
 that introduces a new surface re-triggers this review.
@@ -996,7 +991,8 @@ with the layered gates above; 6 first-party.
 
 ### Review record: `dometrain` (ACCEPT, 2026-07-22)
 
-Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review.
+Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review. The server and
+its `userConfig` ship in `dometrain-mcp`, and the sync script stays in `dometrain`.
 
 **This record is stale, and a re-review is owed (recorded 2026-08-28).** The plugin ships `0.2.7`.
 Eleven releases landed between the reviewed version and the shipping one, and no record says
@@ -1416,7 +1412,7 @@ authority.
 | `command` plugin source | reject | None in this catalog. Bulk install and suggestion flows refuse a command-source plugin until the user accepts it alone. Source: [command plugin source](https://code.claude.com/docs/en/plugins/marketplace-reference#command-plugin-source). |
 | `headersHelper` | reject | Requires `strict: false` and an `archive` source. Background auto-update skips it. This catalog is relative-path, not archive. Source: [add a headersHelper to a plugin entry](https://code.claude.com/docs/en/plugins/host-marketplace#add-a-headershelper-to-a-plugin-entry). |
 | Version computation | adopt as constraint | Rung order: `plugin.json` `version`, then the entry `version`, then source-type (git SHA, archive digest, or unknown). This catalog pins `version` in every `plugin.json` so updates are explicit. Do not omit it to track SHA. Source: [how Claude Code computes the version](https://code.claude.com/docs/en/plugins/loading#how-claude-code-computes-the-version). |
-| `bin/` under org-managed distribution | deliberate divergence: keep `plugins/source-control/bin`; do not distribute this catalog through organization sync | Documented constraint ([host a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace#distribute-through-organization-settings), fetched 2026-09-29; repeated on [sync your organization's plugins](https://claude.com/docs/plugins/org-sync#keep-executables-out-of-the-top-level-bin-directory)): "**Top-level `bin/` directory**: claude.ai rejects a plugin that has one and syncs the rest of the marketplace. The error message starts with `Plugin contains a top-level bin/ directory`. Keep executables in another directory, such as `scripts/`, and reference them as `${CLAUDE_PLUGIN_ROOT}/scripts/<name>` from your hooks or MCP server configs". `plugins/source-control/bin` is a top-level `bin/` shipped by this fleet. It stays because the `babysit-prs` skill invokes its wrappers by their bundled `${CLAUDE_PLUGIN_ROOT}/bin/` paths (`plugins/source-control/skills/babysit-prs/reference/safety.md`), so moving them to `scripts/` changes every invocation site. Distributed through organization sync, this catalog would lose `source-control` and sync the rest. |
+| `bin/` under org-managed distribution | adopt as constraint: no plugin ships a top-level `bin/` | Documented constraint ([host a marketplace](https://code.claude.com/docs/en/plugins/host-marketplace#distribute-through-organization-settings), fetched 2026-09-29; repeated on [sync your organization's plugins](https://claude.com/docs/plugins/org-sync#keep-executables-out-of-the-top-level-bin-directory)): "**Top-level `bin/` directory**: claude.ai rejects a plugin that has one and syncs the rest of the marketplace. The error message starts with `Plugin contains a top-level bin/ directory`. Keep executables in another directory, such as `scripts/`, and reference them as `${CLAUDE_PLUGIN_ROOT}/scripts/<name>` from your hooks or MCP server configs". The `source-control` wrappers live under `plugins/source-control/scripts/` and `babysit-prs` invokes them by their `${CLAUDE_PLUGIN_ROOT}/scripts/` paths, so no divergence remains, and `scripts/check-plugin-manifest-presence.sh` fails any plugin that adds a `bin/`. |
 | Submit plugins to `claude-community` | reject | This repository is the distribution channel. `claude-community` is Anthropic's third-party catalog with a separate submission bar. Forks may list there; this fleet does not. This is a decision, not a permanent ban: revisit it if a specific plugin gets outside demand. Source: [Anthropic's marketplaces](https://code.claude.com/docs/en/plugins/anthropic-marketplaces#anthropics-marketplaces). |
 
 - **Claim:** the table records the marketplace's stance on each named schema feature and gotcha.

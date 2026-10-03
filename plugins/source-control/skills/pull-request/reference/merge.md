@@ -22,7 +22,7 @@ gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100
 - New unprocessed comment → process per 3.3, then re-verify
 - New security finding → evaluate per 3.1.5, then re-verify
 
-**Only after all 6 readiness gates pass on this re-verification:**
+**Only after all 7 readiness gates pass on this re-verification:**
 
 1. Present merge summary including:
    - Check run status (all classified)
@@ -35,7 +35,12 @@ gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100
    `behind_by > 0`, update the branch (merge-forward / `gh pr update-branch`) and re-run
    readiness; do **not** squash-merge a behind head. Under a non-strict ruleset, GitHub can
    still report `CLEAN` while the head is behind, and a stale-base squash can silently revert
-   recently-landed fixes (the tests travel with the reverted code, so CI stays green). Where the
+   recently-landed fixes (the tests travel with the reverted code, so CI stays green). `CLEAN` also
+   says nothing about which base CI tested: GitHub regenerates the test merge commit only on a
+   push, a merge-base change, or once it is 12 hours old, so the compare above, against the live
+   base ref name, is the check
+   ([changelog](https://github.blog/changelog/2026-02-19-changes-to-test-merge-commit-generation-for-pull-requests),
+   as of 2026-10-02; recheck when GitHub changes test-merge regeneration). Where the
    consuming repo runs an overlapping-path CI gate, treat it as the tripwire; it covers the
    stale-**base** class only, and only a post-merge silent-revert detector catches a head that is
    current in history but stale in content. A consuming repo may have neither.
@@ -65,6 +70,28 @@ gh pr merge <pr_number> --squash && {
 ```
 
 When the repo deletes head branches on merge, the push fails with "remote ref does not exist"; that is expected, and it is the only failure to ignore. 4.3 deletes the local branch. Verified 2026-09-29 against [cli/cli#14007](https://github.com/cli/cli/pull/14007), which ships in gh 2.99.0 and makes `gh pr merge --delete-branch` skip the local delete when the head is checked out in the current linked worktree; earlier gh, such as 2.98.0, fails as described. Recheck when the minimum gh this plugin supports is 2.99.0 or later, at which point the split is no longer needed.
+
+**Through the async merge API.** Use it instead of `gh pr merge` when the session refuses GraphQL
+(`gh pr merge` and `gh pr view` run over GraphQL; this is REST), when the base requires a merge
+queue, or when the PR is a stack layer ([stacks.md](stacks.md)). `gh` has no command for it yet, so
+call it with `gh api`, pinned to the head you verified in 4.1 and never with `bypass_rules` true:
+
+```bash
+HEAD_SHA=$(gh api "repos/{owner}/{repo}/pulls/<pr_number>" --jq .head.sha)
+gh api -X PUT "repos/{owner}/{repo}/pulls/<pr_number>/merge-async" \
+  -f sha="$HEAD_SHA" -f merge_action=direct_merge -f merge_method=squash -F bypass_rules=false
+```
+
+For a merge queue send `-f merge_action=merge_queue` and drop `merge_method`. The response carries a
+request `uuid` (a 409 means one is already pending and returns its `uuid`); poll
+`gh api "repos/{owner}/{repo}/pulls/<pr_number>/merge-async/<uuid>" --jq .status` until it reads
+`merged`, `enqueued`, or `failed`. `enqueued` means queued, not merged: delete the head branch only
+once the PR reads `MERGED`. GitHub checks only basic PR state when it accepts the request and
+applies the base's rules when the merge runs, so 4.1 still comes first. Request fields and
+statuses:
+[merge a pull request asynchronously](https://docs.github.com/rest/pulls/pulls?apiVersion=2026-03-10#merge-a-pull-request-asynchronously),
+as of 2026-10-02; recheck when a `gh` release adds a command for it or that page changes a field or
+status.
 
 **Always use the explicit `<pr_number>` resolved at phase entry.** The PR title becomes the squash commit message. It is shaped to satisfy the resolved subject/title convention, per pull-request SKILL.md's "PR title format" ladder (Conventional Commits by default).
 

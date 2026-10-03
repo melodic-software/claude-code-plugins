@@ -1276,6 +1276,161 @@ for (const path of argumentSkills) {
   }
 }
 
+// Plugin names and option text, per docs/conventions/plugin-option-naming. A
+// displayName fails; every title and description shape warns on its own line.
+const OPTION_NAMING_DOC = "docs/conventions/plugin-option-naming/README.md";
+const DESCRIPTION_BUDGET = 300;
+const optionWarn = (path, message) =>
+  warnings.push(`${relative(root, path)}: ${message} (${OPTION_NAMING_DOC})`);
+const spacedLower = (text) => text.toLowerCase().replace(/[-\s]+/g, " ").trim();
+// Capitalized words that are proper nouns, so they may follow the first word.
+const TITLE_PROPER_NOUNS = new Set(["Windows", "Linux", "Claude", "Python", "Playwright"]);
+// Emphasis such as *strict*, but not a literal wildcard such as ps-unparsable-*.
+const SINGLE_ASTERISK_EMPHASIS = /(?:^|[\s(])\*(?=\S)[^*\n]*\S\*(?=$|[\s.,;:!?)])/;
+
+function optionTitleProblems(plugin, option) {
+  const { title, type } = option;
+  const problems = [];
+  // Judged word by word: an acronym of five letters or fewer ("API URL", "CI ID") passes, a
+  // longer all-caps word does not, and a later word may be capitalized only as a proper noun.
+  const words = title.split(/[\s-]+/).map((word) => word.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, ""));
+  const shouting = words.some((word) => /^[A-Z]{6,}$/.test(word));
+  const titleCased = words
+    .slice(1)
+    .some((word) => /^[A-Z][a-z]+$/.test(word) && !TITLE_PROPER_NOUNS.has(word));
+  if (!/^[A-Z0-9]/.test(title) || shouting || titleCased) problems.push("not sentence case");
+  const name = spacedLower(plugin);
+  const lowered = spacedLower(title);
+  if (lowered === name || lowered.startsWith(`${name} `)) problems.push("opens with the plugin name");
+  if (type === "boolean" && /\b(?:enable|enabled|toggle|kill switch|master)\b/i.test(title)) {
+    problems.push("boolean title uses enable, enabled, toggle, kill switch, or master");
+  }
+  return problems;
+}
+
+function optionDescriptionProblems(description) {
+  const problems = [];
+  const length = [...description].length;
+  if (length > DESCRIPTION_BUDGET) {
+    problems.push(`is ${length} characters, over the ${DESCRIPTION_BUDGET}-character budget`);
+  }
+  if (description.includes("`")) problems.push("contains a backtick");
+  if (description.includes("**")) problems.push("contains **");
+  else if (SINGLE_ASTERISK_EMPHASIS.test(description)) problems.push("contains *emphasis*");
+  if (/\[[^\]]*\]\([^)]*\)/.test(description)) problems.push("contains a markdown link");
+  if (description.includes(String.fromCodePoint(0x2014))) problems.push("contains an em dash");
+  return problems;
+}
+
+const titlesByKey = new Map();
+for (const path of pluginFiles) {
+  if (!path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) continue;
+  const manifest = JSON.parse(read(path));
+  const plugin = manifest.name ?? pluginPathParts(path)[0];
+  if ("displayName" in manifest) {
+    fail(path, `plugins must not set displayName (${OPTION_NAMING_DOC})`);
+  }
+  const userConfig = manifest.userConfig;
+  if (typeof userConfig !== "object" || userConfig === null) continue;
+  for (const [key, option] of Object.entries(userConfig)) {
+    if (!option || typeof option !== "object") continue;
+    if (typeof option.title === "string") {
+      for (const problem of optionTitleProblems(plugin, option)) {
+        optionWarn(path, `userConfig "${key}" title "${option.title}": ${problem}`);
+      }
+      if (!titlesByKey.has(key)) titlesByKey.set(key, new Map());
+      const titles = titlesByKey.get(key);
+      if (!titles.has(option.title)) titles.set(option.title, []);
+      titles.get(option.title).push(plugin);
+    }
+    if (typeof option.description === "string") {
+      for (const problem of optionDescriptionProblems(option.description)) {
+        optionWarn(path, `userConfig "${key}" description ${problem}`);
+      }
+    }
+  }
+}
+for (const [key, titles] of titlesByKey) {
+  if (titles.size < 2) continue;
+  const spread = [...titles].map(([title, plugins]) => `"${title}" (${plugins.join(", ")})`).join("; ");
+  warnings.push(`userConfig "${key}" has different titles across plugins: ${spread} (${OPTION_NAMING_DOC})`);
+}
+if (existsSync(marketplacePath)) {
+  for (const entry of [JSON.parse(read(marketplacePath)).plugins ?? []].flat()) {
+    if (entry && typeof entry === "object" && "displayName" in entry) {
+      fail(
+        marketplacePath,
+        `plugin entry "${entry.name ?? "(unnamed)"}" must not set displayName (${OPTION_NAMING_DOC})`,
+      );
+    }
+  }
+}
+
+// claude.ai marketplace sync limits. plugin.json: description at most 500
+// characters; `$schema` and `defaultEnabled` are stripped with a warning (the
+// marketplace entry carries defaultEnabled). Skills follow the Agent Skills spec
+// (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview):
+// claude.ai reads every file named SKILL.md in any case, at any depth, as a
+// skill, so each must open with frontmatter whose description is 1-1024
+// characters with no XML tags and whose name, if set, is at most 64 lowercase
+// letters, digits and hyphens.
+const PLUGIN_DESCRIPTION_MAX = 500;
+const SKILL_DESCRIPTION_MAX = 1024;
+for (const path of pluginFiles) {
+  if (!path.endsWith(`${sep}.claude-plugin${sep}plugin.json`)) continue;
+  const manifest = JSON.parse(read(path));
+  for (const key of ["$schema", "defaultEnabled"]) {
+    if (key in manifest) fail(path, `must not set ${key} (claude.ai marketplace sync strips it)`);
+  }
+  const length = [...(manifest.description ?? "")].length;
+  if (length > PLUGIN_DESCRIPTION_MAX) {
+    fail(path, `description is ${length} characters, over claude.ai's ${PLUGIN_DESCRIPTION_MAX}`);
+  }
+}
+
+// Top-level frontmatter scalar: plain, quoted, or a | / > block scalar.
+function frontmatterScalar(frontmatter, key) {
+  const lines = frontmatter.split(/\r?\n/);
+  const start = lines.findIndex((line) => line.startsWith(`${key}:`));
+  if (start === -1) return undefined;
+  const raw = lines[start].slice(key.length + 1).trim();
+  // A comment starts at a # preceded by whitespace, outside a quoted scalar.
+  const quoted = raw.match(/^("(?:[^"\\]|\\.)*"|'(?:[^']|'')*')(?:\s+#.*)?$/);
+  const head = quoted ? quoted[1] : /^["']/.test(raw) ? raw : raw.replace(/(^|\s)#.*$/, "").trim();
+  const rest = [];
+  for (const line of lines.slice(start + 1)) {
+    if (line !== "" && !/^\s/.test(line)) break;
+    rest.push(line.trim());
+  }
+  // Block scalar header: indicator, then an optional indentation digit and chomping sign in either order.
+  if (/^[|>](?:[1-9][+-]?|[+-][1-9]?)?$/.test(head)) return rest.join(head[0] === ">" ? " " : "\n").trim();
+  const value = [head, ...rest].filter(Boolean).join(" ");
+  if (/^".*"$/.test(value)) return JSON.parse(value);
+  if (/^'.*'$/.test(value)) return value.slice(1, -1).replace(/''/g, "'");
+  return value;
+}
+
+for (const path of pluginFiles) {
+  const parts = pluginPathParts(path);
+  if (parts[1] !== "skills" || parts.at(-1).toLowerCase() !== "skill.md") continue;
+  const frontmatter = read(path).match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1];
+  if (frontmatter === undefined) {
+    fail(path, "a file named SKILL.md must start with YAML frontmatter (claude.ai reads it as a skill)");
+    continue;
+  }
+  const description = frontmatterScalar(frontmatter, "description") ?? "";
+  const length = [...description].length;
+  if (length === 0) fail(path, "skill description must not be empty");
+  if (length > SKILL_DESCRIPTION_MAX) {
+    fail(path, `skill description is ${length} characters, over the ${SKILL_DESCRIPTION_MAX} maximum`);
+  }
+  if (/[<>]/.test(description)) fail(path, "skill description must not contain < or > (XML tags)");
+  const name = frontmatterScalar(frontmatter, "name");
+  if (name !== undefined && (!/^[a-z0-9-]{1,64}$/.test(name) || /anthropic|claude/.test(name))) {
+    fail(path, `skill name "${name}" must be 1-64 lowercase letters, digits and hyphens without "anthropic" or "claude"`);
+  }
+}
+
 for (const warning of warnings) console.error(`warning: ${warning}`);
 
 if (failures.length > 0) {

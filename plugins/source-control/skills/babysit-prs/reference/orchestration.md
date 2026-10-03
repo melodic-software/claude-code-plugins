@@ -47,8 +47,8 @@ question: **is there a delta since the last snapshot that a worker could actuall
 previously persisted snapshot for that PR. The arms fall into two groups against
 `pr_clean_ready_for_direct_gate` (non-draft, `mergeStateStatus` `CLEAN`/`HAS_HOOKS`, zero
 blockers, and no untriaged material bot feedback): **suppressible** arms are fully re-validated by
-the direct merge gate itself (`bash "<plugin-root>/bin/source-control-babysit-merge" owner/repo#42 --allowed-owners
-<watched-owners>`, read-only; `mergeStateStatus` already integrates required checks, approvals,
+the direct merge gate itself (`bash "<plugin-root>/scripts/source-control-babysit-merge" owner/repo#42 --allowed-owners
+<watched-owners> --state-dir <state-dir>`, read-only; `mergeStateStatus` already integrates required checks, approvals,
 and conversation resolution), so one of them firing on a cycle where the PR is already, or just
 became, clean/non-draft/zero-blocker/fully triaged would dispatch a worker that finds nothing left
 to do. That PR is routed straight to the mode-appropriate direct gate per `SKILL.md` instead.
@@ -405,6 +405,15 @@ same-worktree protections.
   or no subagent tools to dispatch to: leave the thread unresolved, do not merge, and report the PR with the
   addressed-but-unresolvable thread named. Never resolve past a refusal, and never reach around the
   wrapper.
+- A merge the gate reported `"action": "enqueue"` (`enqueued: true`) is queued, not merged. Keep
+  the PR and its worktree, and let a later cycle read its state: `MERGED` ends it like any merge; a
+  PR still open and out of the queue goes back through the gate. A merge reported
+  `status: pending`, or a later run reporting `"action": "merge-pending"`, is still live on GitHub
+  and may land whatever the gate now says: report it as "merge may still land", keep the PR, and
+  let the next cycle read it again. `mergeUnconfirmed: true` or `stackVerification.verified` other
+  than `true` goes to a human (`safety.md`, §Async Merge Path).
+- A PR whose snapshot reports `checks.approval_held` waits on a maintainer, not on CI or a fix:
+  report it for human approval and dispatch no worker for it (`stuck-checks.md`).
 - Keep state, cadence updates, and triage reporting in the main agent.
 - Do not duplicate worker work locally while workers are running.
 - Integrate worker results by verifying pushed commits, updating state, pruning clean worktrees,
@@ -752,7 +761,7 @@ convention's capability table
   security-surface work, matching the merge-lane prompt's conflict path.
 
 Every dispatch prompt also carries the subagent discipline preamble (when the
-`discipline` plugin is installed, invoke its sweep skill; when absent, inline the
+`discipline` plugin is enabled, invoke its sweep skill; when it is not, inline the
 equivalent standing instructions), per the same convention. `/source-control:babysit-loop`
 documents the lane-level binding; this skill inherits it for every fan-out it
 performs.
@@ -826,7 +835,7 @@ Each worker must:
   (`safety.md`, "Merge-lane auto-merge")
 - **auto-resolve only pre-push-outdated threads.** A worker may resolve a review thread only when
   that thread was already `isOutdated` in the pre-push snapshot it was dispatched with, and only
-  through `bash "<plugin-root>/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners>
+  through `bash "<plugin-root>/scripts/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners>
   --extra-bot-logins <extra-bot-logins> --self-logins @me,<self-logins> --autonomous --resolve` pinned with `--thread-id`, `--expected-comment-count`, and
   `--expected-last-updated` taken from that same snapshot (`safety.md`, thread-pin pair rule). A
   thread that became outdated only because of the worker's own push has not thereby been addressed,
@@ -836,9 +845,10 @@ Each worker must:
 - **report, never resolve, an addressed-but-unresolvable current bot thread.** A disposition that
   addresses a finding without moving its anchored lines leaves the thread current, so it satisfies
   neither guard above: an `INCORRECT` carrying counter-evidence, a `VALID (defer)` grounded per
-  D4.6, or a prose fix that rewrote elsewhere in the file. That is not a stuck PR and not a silent
-  skip. The worker returns the thread id, the disposition, and where the evidence lives (the reply
-  carrying the counter-evidence, the tracker item id, or the commit SHA), and the orchestrator
+  D4.6, a fix in a linked PR, or a prose fix that rewrote elsewhere in the file. That is not a stuck
+  PR and not a silent skip. The worker returns the thread id, the disposition, and where the
+  evidence lives (the reply carrying the counter-evidence, the tracker item id, the linked PR
+  number, or the commit SHA), and the orchestrator
   routes it to the independent resolution dispatch. Reporting nothing strands the thread, because
   the orchestrator cannot re-derive from a snapshot which current threads were addressed this round.
 - return changed files, tests/checks run, commit SHA, pushed branch, and remaining blockers
@@ -914,7 +924,7 @@ Stop unless branch writes are allowed. Fix only clear branch-owned CI or bot-rev
 Never refresh branches, post review triggers, merge, enable auto-merge, force-push, change
 GitHub settings, or auto-fix human-authored feedback. Classify, reply with evidence, and
 surface human items instead. You may resolve a review thread only if it appears in the pre-push
-outdated-thread list above, via bash "<plugin-root>/bin/source-control-babysit-resolve-thread"
+outdated-thread list above, via bash "<plugin-root>/scripts/source-control-babysit-resolve-thread"
 owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --self-logins
 @me,<self-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>, with the pins
 taken from that list; a

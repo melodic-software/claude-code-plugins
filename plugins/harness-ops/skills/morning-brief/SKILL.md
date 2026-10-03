@@ -70,7 +70,20 @@ saying so when capped or when GitHub has not finished computing a PR's mergeabil
 and the stranded-findings section renders `UNREADABLE`, because review threads have
 no REST read. That section never renders an all-clear it did not read.
 
-Two upstream facts the script restates, each with its verification record:
+The brief treats a clean PR as verified only when its head contains its base branch's tip. It
+reads one comparison per clean PR, up to `--pr-limit`, and prints an `UNVERIFIED` line under a PR
+whose head is behind its base, whose comparison failed, or that fell past the cap; a capped read
+also prints `PARTIAL`.
+
+- **Pointer**: for what `behind_by` counts, see
+  <https://docs.github.com/en/rest/commits/commits#compare-two-commits>. For when GitHub
+  regenerates a PR's test merge commit, no docs page covers it as of the date; correlate with
+  <https://github.blog/changelog/2026-02-19-changes-to-test-merge-commit-generation-for-pull-requests>.
+- **As of**: 2026-10-02
+- **Recheck trigger**: a docs page starts to cover test merge commit regeneration, or the
+  `mergeStateStatus` enum gains or drops a value.
+
+Upstream facts the script restates, each with its verification record:
 
 - **The refusal shape the script keys the transport switch on.** Basis: the body
   `gh api graphql` returned in a Claude Code cloud session, `{"message":"This GraphQL
@@ -83,20 +96,24 @@ Two upstream facts the script restates, each with its verification record:
 - **The REST pull schema carries no review-decision field, so the REST path reports
   `n/a`.** Basis: the "Get a pull request" response schema at
   <https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request>, which lists
-  `requested_reviewers` and `review_comments` and no `review_decision`; the same page
-  says of `mergeable` that "If the value is null, then GitHub has started a background
-  job to compute the mergeability. After giving the job time to complete, resubmit
-  the request", which is the retry the script performs. `reviewDecision` and
-  `mergeStateStatus` are `gh pr list --json` fields (gh 2.98.0 lists them client-side).
-  Verified 2026-09-10 against that page as fetched that day. Recheck when the REST
-  pull schema gains a review-decision field, or gh drops either `--json` field.
+  `requested_reviewers` and `review_comments` and no `review_decision`. `reviewDecision`
+  and `mergeStateStatus` are `gh pr list --json` fields (gh 2.98.0 lists them
+  client-side). **Pointer**: when the REST path reports a review decision, fetch
+  <https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request> live. **As of**:
+  2026-09-10. **Recheck trigger**: the REST pull schema gains a review-decision field,
+  or gh drops either `--json` field.
+- **The REST path retries a null `mergeable` read instead of treating null as the
+  final answer.** **Pointer**: when that retry runs, fetch
+  <https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request> live. **As of**:
+  2026-10-03. **Recheck trigger**: that page changes the description of `mergeable`
+  or removes the field.
 
 ## What each section reports
 
 | Section | Source | Notes |
 |---|---|---|
 | Queues | `gh issue list --label <queue>` counts | Defaults to melodic-software queue labels; live runs filter to labels that exist in the repo (pass `--queue-labels` to pin a custom set) |
-| Merge-ready PRs | `gh pr list` filtered to non-draft + `mergeStateStatus=CLEAN` (REST: `pulls` list plus one read per PR for `mergeable_state`) | A light glance signal; `reviewDecision` shown but not required (repos without required review leave it empty; the REST path reports `n/a`) |
+| Merge-ready PRs | `gh pr list` filtered to non-draft + `mergeStateStatus=CLEAN` (REST: `pulls` list plus one read per PR for `mergeable_state`) | A light glance signal; `reviewDecision` shown but not required (repos without required review leave it empty; the REST path reports `n/a`). One compare read per clean PR, capped at `--pr-limit`; `UNVERIFIED` marks a head behind its base, a comparison that could not be read, or a PR past the cap |
 | Parked decisions | open issues with the decision label (default `status: needs-decision`) | Surfaces each one's RECOMMENDED line, the uppercase marker wins over an incidental lowercase mention; a case-insensitive fallback catches lowercase markers; pass `--decision-label` to pin |
 | Lane telemetry | the loop-lane telemetry issue's per-lane comments | Each lane's `last-cycle` age (marked `STALE` past `--stale-hours`, default 6) and any `flags:` |
 | Stranded findings | merged PRs whose unresolved review threads were **created after the merge** | One line per PR at its worst severity, with a finding count; window is `--stranded-days`, default 3 |

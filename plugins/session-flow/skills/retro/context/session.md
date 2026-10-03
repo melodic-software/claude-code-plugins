@@ -162,7 +162,9 @@ code changes were made, note "N/A" and skip.
 
 ### 2E. Efficiency assessment
 
-- Compaction count. Were compactions avoidable (earlier `/session-flow:handoff`, tighter reads)?
+- Compaction count. Did each continuation follow the router in
+  [`../../workflow/context/continuation.md`](../../workflow/context/continuation.md), and would
+  tighter reads have spared any compaction?
 - Parallel tool-call opportunities missed; redundant file reads
 - Subagent usage. Was the delegation appropriate?
 - Longest/slowest turns. What caused them?
@@ -222,7 +224,7 @@ candidates" with a one-line explanation of what was considered.
 
 **Name where an accepted candidate goes.** Invoke `/playbooks:skill-authoring` via the Skill
 tool to read its doctrine, draft the candidate against it, then gate the result on
-`/skill-quality:check`, when those are installed; otherwise say the candidate has no authoring
+`/skill-quality:check`, when those are enabled; otherwise say the candidate has no authoring
 route here and leave it recorded. A candidate with no destination is a finding that evaporates
 between sessions, and a skill written ad hoc at the end of a retro is the one most likely to
 miss the conventions that playbook exists to carry. It is a knowledge surface with no arguments

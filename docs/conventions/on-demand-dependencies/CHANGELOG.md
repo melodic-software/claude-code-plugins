@@ -4,6 +4,35 @@ Notable changes to the on-demand dependency contract. The contract is versioned 
 stamp in `README.md` (SemVer). A `[SPEC]` rule that tightens is a major bump; a new rule, exception
 or adopter is a minor bump; wording is a patch.
 
+## [2.2.0] - 2026-10-02
+
+- **Exceptions**: `explainer-video` installs `srt`, and on some platforms `pycairo` and `manimpango`,
+  from hash-pinned source archives because no wheel exists for those platforms; every other package
+  stays wheels only. The build backends are the one fetch pip does not hash-check
+  ([#5861](https://github.com/melodic-software/claude-code-plugins/issues/5861)).
+- **Adoption**: `explainer-video` is the second Python adopter.
+- **Adoption**: the `speech` plugin's numpy and onnxruntime follow the Python rules
+  ([#5859](https://github.com/melodic-software/claude-code-plugins/issues/5859)).
+
+## [2.1.0] - 2026-10-02
+
+- **Python section, Rules P1-P4 [SPEC]**: commit `requirements.in` and a universal, hash-locked
+  `requirements.txt` (wheels only); a `SessionStart` hook installs it with
+  `pip install --require-hashes --only-binary :all: --no-deps --target` into
+  `<plugin data dir>/python/<lock hash>-<interpreter tag>/`, atomically and behind a load probe;
+  nothing else fetches a package; every failure is a notice with one repair line.
+- **Adoption**: the `animation` plugin's numpy and opencv are the first Python adopter
+  ([#5844](https://github.com/melodic-software/claude-code-plugins/issues/5844)).
+
+## [2.0.0] - 2026-10-02
+
+- **Rule 3 [SPEC]** tightens: on Windows the repair line is Windows PowerShell 5.1 (no `&&`, single
+  quotes doubled) and names `npm.cmd`, since the default execution policy blocks `npm.ps1`. The
+  POSIX line is unchanged elsewhere. harness-ops adopts it
+  ([#5826](https://github.com/melodic-software/claude-code-plugins/issues/5826)); miro prints
+  `npm` on Windows until
+  [#5880](https://github.com/melodic-software/claude-code-plugins/issues/5880).
+
 ## [1.0.1] - 2026-10-02
 
 - **Exceptions**: the miro MCP server bundle is removed from the table, which is now empty. miro

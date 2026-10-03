@@ -106,7 +106,8 @@
 #   6. markdownlint clean (markdownlint-cli2; WARN-skip if npx absent)
 #   7. scripts/*.test.sh pass where present
 #   8. vendor/ byte-identical vs HEAD, unless paired with an upstream-version
-#      bump (a legitimate maintainer-run sync) (vendor-backed skills only)
+#      bump (a legitimate maintainer-run sync) (vendor-backed skills only); a
+#      pure rename inside vendor/ keeps the bytes and passes
 #   9. Stale-tracking metadata keys preserved vs HEAD (upstream-version/synced/upstream-sha)
 #  10. (retired slot; numbering kept stable so later checks keep their names)
 #  11. Gotchas surface present (WARN; inline `## Gotchas` or context|reference/gotchas.md)
@@ -203,6 +204,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   esac
 done
+if [[ -n "${CHECK_SKILL_ONLY:-}" && "$CHECK_SKILL_ONLY" != 25 ]]; then
+  printf 'Error: CHECK_SKILL_ONLY=%s is not supported; only 25 can run alone\n' "$CHECK_SKILL_ONLY" >&2
+  exit 2
+fi
 
 # Git is optional. Plugin-cache installs are plain trees; non-git checks still
 # run when CHECK_SKILL_SKILLS_ROOT (or CLAUDE_PROJECT_DIR) points at them.
@@ -613,6 +618,144 @@ PLUGIN_DIR=""
 [[ -f "$SKILL_DIR/../../.claude-plugin/plugin.json" ]] && IS_PLUGIN_SKILL=1
 if [[ "$IS_PLUGIN_SKILL" == 1 ]]; then
   PLUGIN_DIR="$(cd "$SKILL_DIR/../.." && pwd)"
+fi
+
+summarize() {
+  printf '\n'
+  if ((FAILED > 0)); then
+    printf 'CHECK-SKILL %s: FAIL — %d error(s), %d warning(s)\n' "$SKILL_NAME" "$FAILED" "$WARNINGS" >&2
+    exit 1
+  fi
+  printf 'CHECK-SKILL %s: PASS — 0 errors, %d warning(s)\n' "$SKILL_NAME" "$WARNINGS"
+  exit 0
+}
+
+# --- Check 25: description/verb-contract polarity (FAIL) --------------------
+# Runs in its numbered slot after check 24; defined here so CHECK_SKILL_ONLY=25
+# (below) can run it alone.
+# plugin-philosophy Naming fixes verb meanings: audit/scan are read-only
+# findings reports (mutation only behind an explicit override such as --fix);
+# clean/tidy/fix mutate the target. This check flags a description that tells
+# a different story than that verb contract, or than the body — the two
+# directions in #2896. Narrow by design:
+#   - polarity is read from the description LEAD (before "Use when:"), so a
+#     trigger phrase like 'fix the formatting' never advertises mutation;
+#   - override language (--fix, explicit override, never on bare) anywhere in
+#     the listing text is the compliant harness-config:audit [--fix] shape and
+#     clears a report-only verb;
+#   - "read-only by default" is a default-then-override shape, not a
+#     never-mutates claim;
+#   - "remediation" as a noun and a negated "or rewrites" list are not
+#     mutate-advertising.
+# FAIL: the fleet corpus is green under this check (#4586); a mismatch is a
+# factual defect in the listing surface being routed on. Hand-verify before
+# exempting; --fix in the description is the compliant override shape.
+# Fenced code blocks are ignored in the body so a literal example cannot
+# satisfy or trip the body limbs.
+
+# Drop a negated mutate-verb clause so "never rewrites the files" cannot
+# advertise mutation. Scoped to those verbs — a blanket "not ..." strip
+# would eat unrelated lead text.
+vc_strip_negated_mutate() {
+  printf '%s' "$1" | sed -E \
+    's/(never|not|does not|do not)[[:space:]]+(rewrites?|fixes|remediates?|mutates|applies)[^.;]*//g'
+}
+
+vc_lead_mutate() {
+  # Positive action verbs only. "remediation" (noun) is not advertising.
+  vc_strip_negated_mutate "$1" | grep -qE \
+    '(^|[[:space:]])remediates[[:space:]]|and[[:space:]]+remediate([^[:alnum:]]|$)|(^|[[:space:]])rewrites[[:space:]]+(the|your|files)|(^|[[:space:]])fixes[[:space:]]+(the|your|files)|applies[[:space:]]+(fixes|edits|changes|patches)|mutates[[:space:]]+(the|on|files)|and[[:space:]]+fix([^[:alnum:]]|$)'
+}
+
+vc_lead_readonly() {
+  local t="$1"
+  case "$t" in
+  *"read-only by default"* | *"read only by default"*) return 1 ;;
+  *) ;;
+  esac
+  # A scoped "does not modify X" next to a mutate advertisement is a
+  # restriction, not a never-mutates claim (Fixes the files but does not
+  # modify vendored dependencies).
+  vc_lead_mutate "$t" && return 1
+  printf '%s' "$t" | grep -qE \
+    'read[- ]only|report[- ]only|findings[[:space:]]+(report|only)|no edits applied|never[[:space:]]+(writes|mutates|modifies|edits)|does not[[:space:]]+(modify|edit|write|mutate)|zero mutations|performs[[:space:]]+zero[[:space:]]+mutations'
+}
+
+vc_has_override() {
+  printf '%s' "$1" | grep -qE \
+    -- '--fix|explicit[[:space:]]+(user[[:space:]]+)?override|only[[:space:]]+behind|never[[:space:]]+on[[:space:]]+bare|not[[:space:]]+on[[:space:]]+bare|read[- ]only[[:space:]]+on[[:space:]]+bare'
+}
+
+vc_body_bare_mutate() {
+  printf '%s\n' "$1" | awk '
+    { low = tolower($0) }
+    low ~ /never|does not|do not|not on bare/ { next }
+    low ~ /mutates on bare invocation|edits on bare invocation|writes on bare invocation/ { found = 1 }
+    low ~ /on bare invocation[, ]+(edit|write|apply|rewrite|mutate)([^a-z]|$)/ { found = 1 }
+    END { exit !found }
+  '
+}
+
+vc_body_never_mutate() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | grep -qE \
+    'never[[:space:]]+mutates|does not[[:space:]]+modify|no edits applied|never[[:space:]]+writes|read[- ]only[[:space:]]+on[[:space:]]+bare|does not[[:space:]]+fix[[:space:]]+on[[:space:]]+bare|nothing edits'
+}
+
+check_25() {
+  local VC_BODY VC_LEAF VC_LEAD VC_LEAD_LC VC_ALL_LC VC_HIT
+  # Body limbs are fence-aware (frontmatter + both CommonMark fence forms).
+  # Close is character-only, same as check 23 — not CommonMark run-length
+  # matching. A nested shorter fence of the same character can unmask the
+  # rest of an illustrative block; accepted recall limit for an advisory check.
+  # NO ERE INTERVALS — same mawk-portability rule as checks 21 and 23.
+  VC_BODY="$(awk '
+    NR == 1 && /^---[ \t]*$/ { fm = 1; next }
+    fm { if (/^---[ \t]*$/) fm = 0; next }
+    /^[[:space:]]*(```|~~~)/ {
+      m = ($0 ~ /```/) ? "b" : "t"
+      if (!fence) { fence = 1; ch = m } else if (m == ch) fence = 0
+      next
+    }
+    fence { next }
+    { print }
+  ' "$SKILL_MD")"
+
+  VC_LEAF="${SKILL_NAME%%-*}"
+  VC_LEAD="$(printf '%s' "$CUR_DESC" | sed -E 's/[Uu]se[[:space:]]+[Ww]hen:.*//')"
+  VC_LEAD_LC="$(printf '%s' "$VC_LEAD" | tr '[:upper:]' '[:lower:]')"
+  VC_ALL_LC="$(printf '%s %s' "$CUR_DESC" "$CUR_WTU" | tr '[:upper:]' '[:lower:]')"
+
+  VC_HIT=""
+  if [[ "$VC_LEAF" == "audit" || "$VC_LEAF" == "scan" ]] &&
+    vc_lead_mutate "$VC_LEAD_LC" && ! vc_has_override "$VC_ALL_LC"; then
+    VC_HIT="leaf verb '$VC_LEAF' is a read-only findings report (plugin-philosophy Naming) but the description lead advertises mutation without an explicit override"
+  elif [[ "$VC_LEAF" == "clean" || "$VC_LEAF" == "tidy" || "$VC_LEAF" == "fix" ]] &&
+    vc_lead_readonly "$VC_LEAD_LC"; then
+    VC_HIT="leaf verb '$VC_LEAF' mutates the target (plugin-philosophy Naming) but the description lead claims the skill is read-only/report-only"
+  elif vc_lead_readonly "$VC_LEAD_LC" && vc_body_bare_mutate "$VC_BODY"; then
+    VC_HIT="description lead claims read-only but the body mutates on bare invocation (or hides an unadvertised mutation path)"
+  elif vc_lead_mutate "$VC_LEAD_LC" && ! vc_has_override "$VC_ALL_LC" &&
+    vc_body_never_mutate "$VC_BODY"; then
+    VC_HIT="description lead advertises fixing but the body claims the skill never mutates"
+  fi
+
+  if [[ -n "$VC_HIT" ]]; then
+    err "description/verb-contract mismatch: $VC_HIT — a mismatch is a factual defect in the listing surface being routed on, not a style issue. Hand-verify; --fix in the description is the compliant override shape. Out of scope: whether this skill should gain a --fix path, and any rename"
+  else
+    note "description/verb-contract polarity consistent (or no Naming verb / no polarity language)"
+  fi
+}
+
+# CHECK_SKILL_ONLY=25 reads the two frontmatter fields check 25 needs, runs
+# check 25 alone, and prints the usual summary. The marketplace's whole-corpus
+# verb-contract gate sets it: it reads only check-25 lines, and the other
+# checks cost minutes across every skill.
+if [[ "${CHECK_SKILL_ONLY:-}" == 25 ]]; then
+  FRONTMATTER="$(skill_frontmatter::extract <"$SKILL_MD")"
+  CUR_DESC="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$FRONTMATTER")")"
+  CUR_WTU="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$FRONTMATTER")")"
+  check_25
+  summarize
 fi
 
 # --- Check 1: frontmatter parses; description present; declared name matches --
@@ -1163,8 +1306,12 @@ fi
 if [[ "$HAVE_GIT" != 1 ]]; then
   [[ -d "$SKILL_DIR/vendor" ]] && note "not in a git repo — vendor byte-identity (check 8) skipped"
 elif [[ -d "$SKILL_DIR/vendor" && "$HAVE_BASE_FM" == 1 ]]; then
+  VENDOR_STATUS="$(git -C "$REPO_ROOT" diff --name-status -M100% "$BASE_REF" -- "$SKILL_REL/vendor/" 2>/dev/null)"
   if git -C "$REPO_ROOT" diff --quiet "$BASE_REF" -- "$SKILL_REL/vendor/" 2>/dev/null; then
     note "vendor/ unchanged vs $BASE_REF"
+  elif [[ -n "$VENDOR_STATUS" ]] && ! grep -qv '^R100' <<<"$VENDOR_STATUS"; then
+    # A pure rename keeps every byte, so the guarantee holds.
+    note "vendor/ only renamed vs $BASE_REF (contents byte-identical)"
   else
     # A vendor/ diff is legitimate exactly when paired with a bumped
     # metadata.upstream-version: the maintainer-run sync flow (the skill's own
@@ -2005,115 +2152,8 @@ else
 fi
 
 # --- Check 25: description/verb-contract polarity (FAIL) --------------------
-# plugin-philosophy Naming fixes verb meanings: audit/scan are read-only
-# findings reports (mutation only behind an explicit override such as --fix);
-# clean/tidy/fix mutate the target. This check flags a description that tells
-# a different story than that verb contract, or than the body — the two
-# directions in #2896. Narrow by design:
-#   - polarity is read from the description LEAD (before "Use when:"), so a
-#     trigger phrase like 'fix the formatting' never advertises mutation;
-#   - override language (--fix, explicit override, never on bare) anywhere in
-#     the listing text is the compliant harness-config:audit [--fix] shape and
-#     clears a report-only verb;
-#   - "read-only by default" is a default-then-override shape, not a
-#     never-mutates claim;
-#   - "remediation" as a noun and a negated "or rewrites" list are not
-#     mutate-advertising.
-# FAIL: the fleet corpus is green under this check (#4586); a mismatch is a
-# factual defect in the listing surface being routed on. Hand-verify before
-# exempting; --fix in the description is the compliant override shape.
-# Fenced code blocks are ignored in the body so a literal example cannot
-# satisfy or trip the body limbs.
-
-# Drop a negated mutate-verb clause so "never rewrites the files" cannot
-# advertise mutation. Scoped to those verbs — a blanket "not ..." strip
-# would eat unrelated lead text.
-vc_strip_negated_mutate() {
-  printf '%s' "$1" | sed -E \
-    's/(never|not|does not|do not)[[:space:]]+(rewrites?|fixes|remediates?|mutates|applies)[^.;]*//g'
-}
-
-vc_lead_mutate() {
-  # Positive action verbs only. "remediation" (noun) is not advertising.
-  vc_strip_negated_mutate "$1" | grep -qE \
-    '(^|[[:space:]])remediates[[:space:]]|and[[:space:]]+remediate([^[:alnum:]]|$)|(^|[[:space:]])rewrites[[:space:]]+(the|your|files)|(^|[[:space:]])fixes[[:space:]]+(the|your|files)|applies[[:space:]]+(fixes|edits|changes|patches)|mutates[[:space:]]+(the|on|files)|and[[:space:]]+fix([^[:alnum:]]|$)'
-}
-
-vc_lead_readonly() {
-  local t="$1"
-  case "$t" in
-  *"read-only by default"* | *"read only by default"*) return 1 ;;
-  *) ;;
-  esac
-  # A scoped "does not modify X" next to a mutate advertisement is a
-  # restriction, not a never-mutates claim (Fixes the files but does not
-  # modify vendored dependencies).
-  vc_lead_mutate "$t" && return 1
-  printf '%s' "$t" | grep -qE \
-    'read[- ]only|report[- ]only|findings[[:space:]]+(report|only)|no edits applied|never[[:space:]]+(writes|mutates|modifies|edits)|does not[[:space:]]+(modify|edit|write|mutate)|zero mutations|performs[[:space:]]+zero[[:space:]]+mutations'
-}
-
-vc_has_override() {
-  printf '%s' "$1" | grep -qE \
-    -- '--fix|explicit[[:space:]]+(user[[:space:]]+)?override|only[[:space:]]+behind|never[[:space:]]+on[[:space:]]+bare|not[[:space:]]+on[[:space:]]+bare|read[- ]only[[:space:]]+on[[:space:]]+bare'
-}
-
-# Body limbs are fence-aware (frontmatter + both CommonMark fence forms).
-# Close is character-only, same as check 23 — not CommonMark run-length
-# matching. A nested shorter fence of the same character can unmask the
-# rest of an illustrative block; accepted recall limit for an advisory check.
-# NO ERE INTERVALS — same mawk-portability rule as checks 21 and 23.
-VC_BODY="$(awk '
-  NR == 1 && /^---[ \t]*$/ { fm = 1; next }
-  fm { if (/^---[ \t]*$/) fm = 0; next }
-  /^[[:space:]]*(```|~~~)/ {
-    m = ($0 ~ /```/) ? "b" : "t"
-    if (!fence) { fence = 1; ch = m } else if (m == ch) fence = 0
-    next
-  }
-  fence { next }
-  { print }
-' "$SKILL_MD")"
-
-vc_body_bare_mutate() {
-  printf '%s\n' "$1" | awk '
-    { low = tolower($0) }
-    low ~ /never|does not|do not|not on bare/ { next }
-    low ~ /mutates on bare invocation|edits on bare invocation|writes on bare invocation/ { found = 1 }
-    low ~ /on bare invocation[, ]+(edit|write|apply|rewrite|mutate)([^a-z]|$)/ { found = 1 }
-    END { exit !found }
-  '
-}
-
-vc_body_never_mutate() {
-  printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | grep -qE \
-    'never[[:space:]]+mutates|does not[[:space:]]+modify|no edits applied|never[[:space:]]+writes|read[- ]only[[:space:]]+on[[:space:]]+bare|does not[[:space:]]+fix[[:space:]]+on[[:space:]]+bare|nothing edits'
-}
-
-VC_LEAF="${SKILL_NAME%%-*}"
-VC_LEAD="$(printf '%s' "$CUR_DESC" | sed -E 's/[Uu]se[[:space:]]+[Ww]hen:.*//')"
-VC_LEAD_LC="$(printf '%s' "$VC_LEAD" | tr '[:upper:]' '[:lower:]')"
-VC_ALL_LC="$(printf '%s %s' "$CUR_DESC" "$CUR_WTU" | tr '[:upper:]' '[:lower:]')"
-
-VC_HIT=""
-if [[ "$VC_LEAF" == "audit" || "$VC_LEAF" == "scan" ]] &&
-  vc_lead_mutate "$VC_LEAD_LC" && ! vc_has_override "$VC_ALL_LC"; then
-  VC_HIT="leaf verb '$VC_LEAF' is a read-only findings report (plugin-philosophy Naming) but the description lead advertises mutation without an explicit override"
-elif [[ "$VC_LEAF" == "clean" || "$VC_LEAF" == "tidy" || "$VC_LEAF" == "fix" ]] &&
-  vc_lead_readonly "$VC_LEAD_LC"; then
-  VC_HIT="leaf verb '$VC_LEAF' mutates the target (plugin-philosophy Naming) but the description lead claims the skill is read-only/report-only"
-elif vc_lead_readonly "$VC_LEAD_LC" && vc_body_bare_mutate "$VC_BODY"; then
-  VC_HIT="description lead claims read-only but the body mutates on bare invocation (or hides an unadvertised mutation path)"
-elif vc_lead_mutate "$VC_LEAD_LC" && ! vc_has_override "$VC_ALL_LC" &&
-  vc_body_never_mutate "$VC_BODY"; then
-  VC_HIT="description lead advertises fixing but the body claims the skill never mutates"
-fi
-
-if [[ -n "$VC_HIT" ]]; then
-  err "description/verb-contract mismatch: $VC_HIT — a mismatch is a factual defect in the listing surface being routed on, not a style issue. Hand-verify; --fix in the description is the compliant override shape. Out of scope: whether this skill should gain a --fix path, and any rename"
-else
-  note "description/verb-contract polarity consistent (or no Naming verb / no polarity language)"
-fi
+# Defined above check 1, where CHECK_SKILL_ONLY=25 also runs it alone.
+check_25
 
 # --- Check 26: long spoke files carry a table of contents (WARN; advisory) ---
 # A spoke long enough that its reader (the model, mid-task) cannot take in its
@@ -2225,10 +2265,4 @@ fi
 
 # --- Summary ---------------------------------------------------------------
 
-printf '\n'
-if ((FAILED > 0)); then
-  printf 'CHECK-SKILL %s: FAIL — %d error(s), %d warning(s)\n' "$SKILL_NAME" "$FAILED" "$WARNINGS" >&2
-  exit 1
-fi
-printf 'CHECK-SKILL %s: PASS — 0 errors, %d warning(s)\n' "$SKILL_NAME" "$WARNINGS"
-exit 0
+summarize

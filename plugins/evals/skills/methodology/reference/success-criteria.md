@@ -4,6 +4,8 @@ Distilled from Anthropic's "Define success criteria and build evaluations"
 (<https://platform.claude.com/docs/en/test-and-evaluate/develop-tests>, fetched 2026-08-08).
 Re-fetch the source before treating any specific here as current.
 
+This repository's own defaults and source-conflict records: [local-decisions.md](local-decisions.md).
+
 Define success criteria BEFORE building evaluations, and evaluations before iterating on prompts.
 The cycle (test cases → preliminary prompt → iterative testing and refinement → final validation →
 ship) is central to prompt engineering.

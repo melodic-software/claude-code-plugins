@@ -158,6 +158,24 @@ from the bundled templates (or `check` to inspect existing lanes, validate the
 overrides file, and report the stored `hard_exclusions` posture read-only). It is
 idempotent and safe to re-run to add or retune lanes.
 
+### Option details
+
+**`hard_exclusions`.** The GLOBAL HARD path list lives in `skills/tidy/reference/exclusions.md`.
+`advisory` is the standing form of the per-run override argument and is lifted for path entries
+only: the behavioral guards, the work-tracking entries, and the SELF-UPDATE EXTRA HARD list hold
+under every value. A skill that reads an empty, unexpanded, or unrecognized value treats it as
+`enforce`.
+
+**`comment_posture`.** `strict` holds every kept comment to `class_c_max_lines` and rewrites it
+terser when over, staging the removed narrative for the commit message; `balanced` runs the same
+triage but reports an over-budget comment instead of rewriting it; `conservative` applies class-A
+deletions only, proposing every class-B item and class-C rewrite; `aggressive` keeps only exempt
+surfaces, paired records, and terse warnings of consequence, staging and deleting every other
+comment. The per-run tokens `safe`, `strip`, and `aggressive` beat this value, `safe` first. No
+posture loosens a gate: every applied deletion still carries the token proof and every tier-2 or
+tier-3 move still needs a test net. A skill that reads an empty, unexpanded, or unrecognized value
+treats it as `strict`.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -168,8 +186,8 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `hard_exclusions` | string | `"enforce"` | `CLAUDE_PLUGIN_OPTION_HARD_EXCLUSIONS` | How tidy, dissolve-comments, and batch-simplify treat the GLOBAL HARD path list in skills/tidy/reference/exclusions.md. enforce (default): a path on that list is dropped before triage; advisory: the list is reported per path and never blocks, so a run may edit lint config, agent config, CI workflows, and hook chains. advisory is the standing form of the per-run override argument and is lifted for path entries only: the behavioral guards, the work-tracking entries, and the SELF-UPDATE EXTRA HARD list hold under every value. Any other value is read as enforce. |
-| `comment_posture` | string | `"strict"` | `CLAUDE_PLUGIN_OPTION_COMMENT_POSTURE` | How dissolve-comments treats a kept comment. strict (default): every kept comment is held to class_c_max_lines and rewritten terser when over it, with the removed narrative staged for the commit message; balanced: the same triage, but an over-budget comment is reported instead of rewritten; conservative: class-A deletions only, every class-B item and class-C rewrite is proposed; aggressive: only exempt surfaces, paired records, and terse warnings of consequence survive, and every other comment is staged and deleted. The per-run tokens safe, strip, and aggressive beat this value, safe first. No posture loosens a gate: every applied deletion still carries the token proof and every tier-2 or tier-3 move still needs a test net. Any other value is read as strict. |
+| `hard_exclusions` | string | `"enforce"` | `CLAUDE_PLUGIN_OPTION_HARD_EXCLUSIONS` | How tidy, dissolve-comments, and batch-simplify treat the GLOBAL HARD path list. enforce (default) drops a listed path before triage; advisory reports it per path and never blocks, so a run may edit lint config, agent config, CI workflows, and hook chains. |
+| `comment_posture` | string | `"strict"` | `CLAUDE_PLUGIN_OPTION_COMMENT_POSTURE` | How dissolve-comments treats a kept comment. strict (default) rewrites one over class_c_max_lines terser; balanced reports it instead; conservative applies class-A deletions only and proposes the rest; aggressive keeps only exempt surfaces, paired records, and terse warnings. |
 | `class_c_max_lines` | number<br>*min 1, max 40* | `2` | `CLAUDE_PLUGIN_OPTION_CLASS_C_MAX_LINES` | Lines a kept (class-C) comment may run before dissolve-comments rewrites it terser, staging any removed narrative for the commit message. A genuinely load-bearing multi-line contract may exceed it when the report says why. |
 | `apply_local_renames` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_APPLY_LOCAL_RENAMES` | When true (default), a function-local Rename Variable whose edit change-shape.py certifies as RENAME-ONLY is applied and reported with its identifier mapping even when no test net is discovered. When false, such renames are proposed. |
 

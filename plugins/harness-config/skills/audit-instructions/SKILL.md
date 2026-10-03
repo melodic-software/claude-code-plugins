@@ -98,16 +98,16 @@ two are routinely conflated:
   target-model scoping, deterministic pre-scans, the cross-surface conflict pass, and harness-claim
   staleness the vendor sweep misses. Application-source prompts stay with the bundled subcommand.
 
-**Routing.** The two compose rather than compete. When the bundled `claude-api` skill resolves in
-this session, prefer its `prompt-audit` for a model migration or any pass over application-code
-prompts, and run it whenever the target model changes. Prefer this skill for the standing catalog
-audit of Claude Code surfaces, cross-surface conflicts, and harness claims that misstate Claude
-Code's own behavior. Where a sweep wants both, run both: recurring gap shapes the vendor sweep
-surfaces feed this catalog as new rows, and this skill's findings never substitute for the vendor
-procedure on a model change.
+**Routing.** The two compose rather than compete. When the bundled `claude-api` skill resolves,
+prefer `/claude-api prompt-audit` for application-code prompts and model migrations, and
+`/doctor prompt-audit` (offered below) for Claude Code configuration; run one whenever the target
+model changes. Prefer this skill for the standing catalog audit of Claude Code surfaces,
+cross-surface conflicts, and harness claims that misstate Claude Code's own behavior. Where a sweep
+wants both, run both: recurring gap shapes the vendor sweep surfaces feed this catalog as new rows,
+and this skill's findings never substitute for the vendor procedure on a model change.
 
-**Mutation gate.** `prompt-audit` edits files when the request asks for edits. This skill is
-report-only: never chain into a `prompt-audit` apply; surface the finding and let the user run it.
+**Mutation gate.** This skill is report-only: never ask `prompt-audit` to apply its proposed diff
+and never chain into an apply; surface the finding and let the user run it.
 
 **Availability is never assumed.** Bundled surfaces are gated by settings, environment, plan, and
 host; this section states what to do when the surface resolves, never that it is present. Subcommand
@@ -115,19 +115,19 @@ set, distribution facts, recheck triggers: [reference/bundled-claude-api.md](ref
 
 ## Boundary, the bundled `doctor` skill
 
-`/doctor prompt-audit` also audits these files for outdated or conflicting instructions.
+`/doctor prompt-audit` and this skill both audit instruction files and are easily conflated.
 
-- **`doctor` (bundled skill, alias `checkup`)**: its `prompt-audit` subcommand audits `CLAUDE.md` files, skills, agents, and commands for
-  older-model prompting patterns. It is reserved for the person to run; the model does not invoke it.
+- **`doctor` (bundled skill, alias `checkup`)**: its `prompt-audit` subcommand is the vendor's
+  audit of instruction files. The person runs it; the model does not invoke it.
 - **This skill (marketplace plugin).** Report-only catalog audit that adds over-prescription with
   target-model scope, stale Claude Code behavior claims, and the cross-surface conflict pass.
 
 **Routing.** At the end of the run, offer it to the person: you can run `/doctor prompt-audit`
 alongside this skill. An unattended run records the offer in its output instead of asking.
-**Mutation gate.** Its write posture is undocumented; this skill never chains into `/doctor`.
-**Availability is never assumed.** Gated by `DISABLE_DOCTOR_COMMAND`, `skillOverrides`, and
-version, it survives `disableBundledSkills`; this section states what to offer, never that it is
-present. Records: [reference/native-doctor.md](reference/native-doctor.md).
+**Mutation gate.** Never ask the audit to apply its proposals, and never chain into `/doctor`.
+**Availability is never assumed.** Offer it only when `doctor` and the bundled `claude-api` skill
+both resolve in this session, else report the offer as skipped; never state that either is present.
+Records: [reference/native-doctor.md](reference/native-doctor.md).
 
 ## Arguments
 

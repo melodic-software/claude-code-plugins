@@ -24,8 +24,12 @@ tool that needs it, so long-running workflows can route heavy work away from a d
 - **Zone-crossing hooks** (`hooks/`), the first shipped consumer. Once per transition into a
   worse zone, a PostToolBatch/UserPromptSubmit hook reports the crossing (advisory; silent on
   unchanged, improving, or `unknown` zones), **splitting the report by audience**: the
-  continuation menu (continue, `/clear`, handoff-then-`/clear`, `/compact`) renders to the
-  operator on `systemMessage`, because choosing among them is the human's call; the model's
+  continuation menu (continue, `/compact`, `/clear`, handoff-then-`/clear`) renders to the
+  operator on `systemMessage`, because choosing among them is the human's call. The menu does not
+  say which option fits when: it says to route the next step with `/session-flow:workflow` (if
+  installed), and otherwise links
+  [When your context fills up](https://code.claude.com/docs/en/context-window#when-your-context-fills-up).
+  The model's
   channel carries the zone determination plus the counter-steer that a zone word is a measurement
   and not a decay signal, and never an exit menu. An exit menu injected into model context
   manufactures the model's own initiative to stop, summarize, or hand off, which the
@@ -365,9 +369,9 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `context_guard_hooks_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED` | Master switch for the zone-crossing injection, blocking gate, and PostCompact marker hooks |
-| `zone_hook_mode` | string | `"advisory"` | `CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE` | advisory (default) injects guidance only; blocking additionally denies new Write/Edit/NotebookEdit/Agent/Workflow calls on a fresh dumb-zone snapshot past the grace budget (fail-open on unknown; handoff-path writes, reads, Bash, and Skill stay allowed) |
-| `zone_gate_grace_calls` | string | `"20"` | `CLAUDE_PLUGIN_OPTION_ZONE_GATE_GRACE_CALLS` | Blocking mode only: number of matched tool calls allowed after the session first resolves dumb before the gate denies (in-script default 20) |
+| `context_guard_hooks_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED` | Runs the zone-crossing injection, blocking gate, and PostCompact marker hooks. On by default; off, every one of them exits without acting. |
+| `zone_hook_mode` | string | `"advisory"` | `CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE` | advisory (default) injects guidance only; blocking also denies new Write, Edit, NotebookEdit, Agent, and Workflow calls on a fresh dumb-zone snapshot past the grace budget. Handoff-path writes, reads, Bash, and Skill stay allowed, and an unknown zone fails open. |
+| `zone_gate_grace_calls` | number<br>*min 0, max 999999999* | `20` | `CLAUDE_PLUGIN_OPTION_ZONE_GATE_GRACE_CALLS` | Blocking mode only: matched tool calls allowed after the session first resolves dumb, before the gate denies. Default 20; 0 denies the first matched call. |
 
 ### How to set these
 

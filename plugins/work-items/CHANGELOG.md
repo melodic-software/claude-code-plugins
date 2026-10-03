@@ -3,6 +3,71 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.46.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
+
+## [0.45.4] - 2026-10-02
+
+### Changed
+
+- **`/work-items:work` pushes each review round once.** The orchestrator waits until every CI and
+  reviewer check run on the head has finished, then hands every failing check and VALID finding
+  to one fix worker that pushes once. The deferred-finding `## Related` body write lands before
+  that push, or while no run is in flight, never as its own edit right after a push.
+
+## [0.45.3] - 2026-10-03
+
+### Changed
+
+- Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.45.2] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `onboard-adapter` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [0.45.1] - 2026-10-02
+
+### Changed
+
+- **Where a small unrelated fix lands follows source-control's D4.6 scope test:** in the current
+  change only when it is in a file the change already touches, otherwise its own small PR with no
+  tracker item. `tracker-seam.md` "Default = fix, not file" carries a marked copy of the rule;
+  `/work-items:work` and `dogfood-filing.md` point at it, and the `work` eval follows the new
+  placement.
+
+## [0.45.0] - 2026-10-02
+
+### Added
+
+- **`work-loop` state records the effort each cycle ran at.** The state block gains an `effort`
+  field read from `CLAUDE_EFFORT` at each cycle start, or `"unset"`, so the level that ran sits
+  beside the `--effort` the lane was launched with. The schema stays `@2`.
+
+## [0.44.2] - 2026-10-02
+
+### Changed
+
+- **`/work-items:work`'s branch-owned fix worker lands on the strong tier, never below the original implementation.** The original can now be a Sonnet `scoped-implementer` phase, so "the same tier as the original" no longer named the fix worker's floor; it still dispatches as `implementation:implementer`.
+
+## [0.44.1] - 2026-10-02
+
+### Changed
+
+- `userConfig` option titles and descriptions follow the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`): sentence-case titles with units in parentheses,
+  `lane_instance` titled "Lane instance ID", and descriptions of 300 characters or fewer in plain
+  text. Detail cut from a description moved to the README's "Option details" subsection. Options
+  are grouped by feature, with the work-loop keys together. No key was renamed.
+
 ## [0.44.0] - 2026-10-02
 
 ### Changed

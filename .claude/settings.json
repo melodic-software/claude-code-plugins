@@ -31,18 +31,22 @@
   },
   "skillListingBudgetFraction": 0.05,
   "enabledPlugins": {
+    "ai-slop@melodic-software": true,
     "animation@melodic-software": false,
     "docs-naming@melodic-software": true,
     "dometrain-mcp@melodic-software": false,
-    "fleet@melodic-software": true,
+    "evals@melodic-software": true,
+    "explainer-video@melodic-software": false,
     "gaming@melodic-software": false,
     "harness-config@melodic-software": true,
-    "harness-memory@melodic-software": true,
     "harness-ops@melodic-software": true,
+    "instruction-placement@melodic-software": true,
     "pixel-art@melodic-software": false,
     "playgrounds@melodic-software": false,
-    "provenance@melodic-software": false,
-    "retro-audio@melodic-software": false
+    "plugin-quality@melodic-software": true,
+    "retro-audio@melodic-software": false,
+    "skill-quality@melodic-software": true,
+    "speech@melodic-software": false
   },
   "extraKnownMarketplaces": {
     "melodic-software": {

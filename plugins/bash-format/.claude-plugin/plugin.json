@@ -1,7 +1,6 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "bash-format",
-  "version": "0.9.9",
+  "version": "0.9.15",
   "description": "Auto-format and lint shell scripts on edit via shfmt + ShellCheck, using the consuming repo's own .editorconfig and .shellcheckrc.",
   "author": {
     "name": "Melodic Software",
@@ -20,7 +19,7 @@
   "userConfig": {
     "bash_format_enabled": {
       "type": "boolean",
-      "title": "bash-format hook",
+      "title": "Format and lint on edit",
       "description": "Lint and format shell scripts on edit via ShellCheck + shfmt",
       "default": true
     },

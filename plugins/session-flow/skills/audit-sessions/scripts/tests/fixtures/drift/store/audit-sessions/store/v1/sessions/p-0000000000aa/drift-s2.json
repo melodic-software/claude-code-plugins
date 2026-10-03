@@ -1,0 +1,9 @@
+{
+  "schema": "session-record/v1",
+  "session_id": "drift-s2",
+  "census": {
+    "2.0.2|*": {"record_type:user": 30},
+    "2.0.2|model-a": {"record_type:assistant": 30, "usage_key:input_tokens": 30}
+  },
+  "unknown": {"record_types": {}, "system_subtypes": {}}
+}

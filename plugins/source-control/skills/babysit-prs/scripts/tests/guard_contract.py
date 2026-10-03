@@ -45,9 +45,11 @@ REFRESH_CLI = "skills/babysit-prs/scripts/refresh_pr_branch.py"
 REVIEW_CLI = "skills/babysit-prs/scripts/request_review.py"
 SNAPSHOT_CLI = "skills/babysit-prs/scripts/pr_queue_snapshot.py"
 FINDINGS_CLI = "skills/babysit-prs/scripts/babysit_findings.py"
+THREADS_CLI = "skills/babysit-prs/scripts/pr_review_threads.py"
 READINESS_GATE = "scripts/babysit-readiness-gate.sh"
-MERGE_WRAPPER = "bin/source-control-babysit-merge"
-RESOLVE_WRAPPER = "bin/source-control-babysit-resolve-thread"
+MERGE_WRAPPER = "scripts/source-control-babysit-merge"
+RESOLVE_WRAPPER = "scripts/source-control-babysit-resolve-thread"
+THREADS_WRAPPER = "scripts/source-control-review-threads"
 
 # Where a refusal is enforced. The distinction is observable: a bash-wrapper
 # refusal never reaches Python, so it prints plain text to stderr and emits no
@@ -153,7 +155,7 @@ class EntryPoint:
 class DocCommandSource:
     """A document that spells out wrapper command lines a reader may copy.
 
-    Every `bin/`-path wrapper command fenced in these files is validated: the
+    Every `scripts/`-path wrapper command fenced in these files is validated: the
     wrapper file exists, and every flag it names is a flag the backing CLI's
     parser actually accepts.
     """
@@ -312,7 +314,7 @@ REFUSALS: tuple[Refusal, ...] = (
     Refusal(
         id="merge.unpinned-head-refused-by-wrapper",
         claim=(
-            "The bin/ wrapper refuses --allow-unpinned-head in bash, before Python runs: "
+            "The scripts/ wrapper refuses --allow-unpinned-head in bash, before Python runs: "
             "no allow-rule-covered invocation of the bare command can merge an unvetted "
             "head. The refusal prints plain text to stderr and emits no JSON envelope, "
             "which is how a caller can tell the wrapper -- not the CLI -- rejected it."
@@ -322,7 +324,7 @@ REFUSALS: tuple[Refusal, ...] = (
         exit_code=2,
         error_contains=("--allow-unpinned-head",),
         refused_by=BASH_WRAPPER,
-        enforced_at="bin/source-control-babysit-merge (argument filter loop)",
+        enforced_at="scripts/source-control-babysit-merge (argument filter loop)",
     ),
     Refusal(
         id="merge.abbreviated-unpinned-head-refused-by-wrapper",
@@ -338,7 +340,7 @@ REFUSALS: tuple[Refusal, ...] = (
         exit_code=2,
         error_contains=("--allow-unpinned-hea",),
         refused_by=BASH_WRAPPER,
-        enforced_at="bin/source-control-babysit-merge (argument filter loop)",
+        enforced_at="scripts/source-control-babysit-merge (argument filter loop)",
     ),
     Refusal(
         id="merge.equals-value-unpinned-head-refused-by-wrapper",
@@ -357,7 +359,7 @@ REFUSALS: tuple[Refusal, ...] = (
         exit_code=2,
         error_contains=("--allow-unpinned-head=true",),
         refused_by=BASH_WRAPPER,
-        enforced_at="bin/source-control-babysit-merge (argument filter loop)",
+        enforced_at="scripts/source-control-babysit-merge (argument filter loop)",
     ),
     Refusal(
         id="merge.equals-value-abbreviated-unpinned-head-refused-by-wrapper",
@@ -372,7 +374,7 @@ REFUSALS: tuple[Refusal, ...] = (
         exit_code=2,
         error_contains=("--allow-unpinned=1",),
         refused_by=BASH_WRAPPER,
-        enforced_at="bin/source-control-babysit-merge (argument filter loop)",
+        enforced_at="scripts/source-control-babysit-merge (argument filter loop)",
     ),
     Refusal(
         id="merge.abbreviation-is-not-resolved-by-the-cli",
@@ -1253,12 +1255,16 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         path=MERGE_CLI,
         wrapper=MERGE_WRAPPER,
         mutation=CONDITIONAL,
-        mutates_what="merges the PR on GitHub, or with --auto arms auto-merge",
+        mutates_what=(
+            "merges the PR on GitHub, or with --auto arms auto-merge; with --state-dir "
+            "it also keeps a local pending-merge record"
+        ),
         gate="--merge (absent: readiness check only, exit 0 ready / 10 not ready)",
         claim=(
-            "Without --merge this is a readiness reporter. With it, the TOCTOU guard "
+            "Without --merge this is a readiness reporter on GitHub; with --state-dir it "
+            "may still clear a finished pending-merge record locally. With --merge, the TOCTOU guard "
             "requires --expected-head unless --allow-unpinned-head is passed -- and the "
-            "bin/ wrapper refuses that override outright."
+            "scripts/ wrapper refuses that override outright."
         ),
         backed_by=(
             "merge.allowlist-absent",
@@ -1380,6 +1386,19 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         backed_by=(),
     ),
     EntryPoint(
+        path=THREADS_CLI,
+        wrapper=THREADS_WRAPPER,
+        mutation=READ_ONLY,
+        mutates_what="nothing",
+        gate="n/a",
+        claim=(
+            "The pull-request skill's readiness thread gate. It reads unresolved review "
+            "threads and reports THREADS_OK / THREADS_BLOCKED / THREADS_UNPROVEN; "
+            "it writes no file and performs no GitHub write."
+        ),
+        backed_by=(),
+    ),
+    EntryPoint(
         path=READINESS_GATE,
         wrapper=None,
         mutation=READ_ONLY,
@@ -1404,7 +1423,7 @@ DOC_COMMAND_SOURCES: tuple[DocCommandSource, ...] = (
     DocCommandSource(
         id="safety.pinned-command-degradation",
         claim=(
-            "reference/safety.md hard-codes fully-argument-pinned bin/-path wrapper "
+            "reference/safety.md hard-codes fully-argument-pinned scripts/-path wrapper "
             "command lines for the operator to run when the runtime denies a mutation the "
             "gate already proved ready. Every wrapper path in it resolves, and every flag "
             "it names is one the backing CLI's parser accepts."
@@ -1414,7 +1433,7 @@ DOC_COMMAND_SOURCES: tuple[DocCommandSource, ...] = (
     DocCommandSource(
         id="orchestration.worker-dispatch-commands",
         claim=(
-            "reference/orchestration.md spells out the same bin/-path wrapper commands "
+            "reference/orchestration.md spells out the same scripts/-path wrapper commands "
             "for the dispatched-worker and thread-resolve paths. It is a second copy of "
             "the same argument shapes and drifts independently of safety.md."
         ),
@@ -1461,6 +1480,7 @@ DOC_COMMAND_SOURCES: tuple[DocCommandSource, ...] = (
 WRAPPER_BACKING_CLI = {
     MERGE_WRAPPER: MERGE_CLI,
     RESOLVE_WRAPPER: RESOLVE_CLI,
+    THREADS_WRAPPER: THREADS_CLI,
 }
 
 # Flags the backing CLI accepts but the wrapper refuses, so a documented wrapper
@@ -1540,7 +1560,7 @@ def render_markdown() -> str:
         " it. A classifier granting a gate-less invocation therefore still needs the"
         " script to be able to write inside `--state-dir`; what the gate withholds is the"
         " domain mutation, not every byte. A blank wrapper column means the entry point"
-        " has no `bin/` wrapper and is invoked through the interpreter.",
+        " has no wrapper and is invoked through the interpreter.",
         "",
         *_table_head(
             "Entry point", "Wrapper", "Class", "Mutates", "Gate", "Claim", "Backed by"
@@ -1559,7 +1579,7 @@ def render_markdown() -> str:
         "## Refusals: guards that fire on argument shape alone",
         "",
         "Each row is executed. `Refused by` says which layer rejected the invocation."
-        " On a `bin/` entry point the distinction is asserted, using the observable"
+        " On a wrapper entry point the distinction is asserted, using the observable"
         " discriminator: a bash-wrapper refusal never reaches the interpreter, so it"
         " emits plain stderr and no JSON envelope. On a CLI entry point the layer is"
         " always `python-cli` and only the exit code and message are asserted.",
@@ -1648,14 +1668,14 @@ def render_markdown() -> str:
         "",
         "## Documented command lines",
         "",
-        "Documents that spell out copyable `bin/`-path wrapper commands. Every wrapper"
+        "Documents that spell out copyable `scripts/`-path wrapper commands. Every wrapper"
         " path is checked to resolve and every flag against the backing CLI's own"
         " parser, so a renamed or removed flag fails here instead of in an operator's"
         " terminal.",
         "",
         "Checked against the WRAPPER boundary, not the parser alone. A wrapper's"
         " accepted set is the narrower of the two, so a flag the CLI registers but the"
-        " wrapper refuses -- `bin/source-control-babysit-merge` and"
+        " wrapper refuses -- `scripts/source-control-babysit-merge` and"
         " `--allow-unpinned-head`, including its prefixes -- is a documented command"
         " that always exits 2, and the parser check alone would bless it. Refusals are"
         " the source: every flag listed below is one a `bash-wrapper` refusal row"

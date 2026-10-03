@@ -3,6 +3,57 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.4] - 2026-10-03
+
+### Changed
+
+- Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.9.3] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
+## [0.9.2] - 2026-10-02
+
+### Fixed
+
+- The terminal pin for pull-request diffs, fetched content and other repositories' files no
+  longer says it lasts "until the escape helper ships" (the helper has shipped), in `SKILL.md` and
+  `context/decision-matrix.md`. It lasts until the lane is wired through the helper.
+- The chrome's ivory background is no longer on the styles-to-leave-out lists, which now name only layout habits.
+
+### Changed
+
+- `visualize` and `education:eli5` name each other: this skill picks a form for what is already
+  in the conversation, and `eli5` builds a zero-knowledge picture explainer.
+
+## [0.9.1] - 2026-10-02
+
+### Added
+
+- Two `visualize` evals for medium resolution: the default `auto` defers to a user-global
+  `~/.claude/rendered-views.md` `medium:` value, and an explicitly set `medium` still overrides
+  the cascade.
+
+## [0.9.0] - 2026-10-02
+
+### Changed
+
+- Options follow the plugin option naming convention (`docs/conventions/plugin-option-naming/`).
+  `thin_context_prompt` is a picker in `/config` (`auto`, `always`, `never`), so a value outside
+  that set is no longer accepted. `medium` is a picker too (`auto`, `terminal`, `file`,
+  `artifact`). Both descriptions fit 300 characters; the rest moves to the README's "Option
+  details".
+
+### Fixed
+
+- `medium` set to `auto`, its default, now defers to the `rendered-views` cascade as an unset value
+  does. Before, the default stopped at the configured-preference rung, so a project's
+  `rendered-views` `medium:` was reached only when the option was stored empty.
+
 ## [0.8.6] - 2026-10-02
 
 ### Fixed

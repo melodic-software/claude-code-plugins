@@ -3,6 +3,19 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.26] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
+## [0.3.25] - 2026-10-02
+
+### Changed
+
+- The `offer_browser_automation` option title is a noun phrase, "Browser automation offer", per
+  the plugin option naming convention (`docs/conventions/plugin-option-naming/`).
+
 ## [0.3.24] - 2026-10-02
 
 ### Fixed

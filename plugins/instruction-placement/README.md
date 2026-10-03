@@ -206,9 +206,9 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `index_drift_hook_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED` | PostToolUse notice when a write inside a .claude/rules tree leaves the generated index stale. Advisory and non-blocking; the authoritative gate is /instruction-placement:check in CI. Costs a string comparison on writes outside a rules tree. |
-| `breadth_max` | number | `75` | `CLAUDE_PLUGIN_OPTION_BREADTH_MAX` | Percent of tracked files above which a rule's paths: glob is reported over-broad. Advisory only, never fails the check gate. Raise it in a repository where one extension legitimately covers most files. |
-| `index_max_rows` | number | `40` | `CLAUDE_PLUGIN_OPTION_INDEX_MAX_ROWS` | Surfaces listed individually in the generated index before the remainder is grouped by directory with a count. The index is always-loaded, so this bounds its own cost. |
+| `index_drift_hook_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED` | PostToolUse notice when a write inside a .claude/rules tree leaves the generated index stale. On by default. Advisory and non-blocking; the authoritative gate is /instruction-placement:check in CI. Costs a string comparison on writes outside a rules tree. |
+| `breadth_max` | number<br>*min 0, max 100* | `75` | `CLAUDE_PLUGIN_OPTION_BREADTH_MAX` | Percent of tracked files above which a rule's paths: glob is reported over-broad. Default 75. Advisory only, never fails the check gate. Raise it in a repository where one extension legitimately covers most files. |
+| `index_max_rows` | number | `40` | `CLAUDE_PLUGIN_OPTION_INDEX_MAX_ROWS` | Surfaces listed individually in the generated index before the remainder is grouped by directory with a count. Default 40. The index is always-loaded, so this bounds its own cost. |
 
 ### How to set these
 

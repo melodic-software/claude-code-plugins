@@ -3,6 +3,124 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.1] - 2026-10-02
+
+### Changed
+
+- **A plan refresh in the pull request body is written before a push, or after its CI run has
+  finished, never right after it.** `/implementation:implement` Step 4 and
+  `/implementation:implement-dispatch` Phase boundaries say so: a body edit re-runs every workflow
+  that triggers on `edited`, beside the push's own run.
+- **`/implementation:implement-dispatch` limits the early push to the time before the pull
+  request exists.** A worker dispatched onto an open pull request commits as it goes and pushes
+  once, after its whole change set passes its checks, since each push starts a full CI run and
+  cancels the one in flight.
+
+## [0.21.0] - 2026-10-03
+
+### Changed
+
+- **The `implementer` and `phase-verifier` bindings cover Workflow scripts.** An `agent()` call in
+  a Workflow script this repository ships that names either agent never passes `effort` or `model`
+  below the agent's binding, and omits both to keep it.
+
+## [0.20.5] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
+## [0.20.4] - 2026-10-02
+
+### Changed
+
+- **A phase boundary no longer writes a handoff and stops by default.** `implement` Step 4 treats
+  the phases of one approved plan as one task: it still verifies, marks the plan, updates the status
+  summary and commits, then routes the next step with `/session-flow:workflow`, handing it the
+  PLAN.md path and the next phase. It writes a handoff entry and stops only on its own conditions:
+  a model or domain switch, the end of the run, a user-only commit gate, or the work moving to
+  another session. The status summary points at the PLAN.md path and next phase when no handoff
+  was written. `implement-dispatch`'s heavy-window signal (Resident-vs-clear item (a)) routes the
+  same way instead of clearing by default. Both skills gain a `## Next` naming
+  `/review:quality-gate`, and new evals cover the routed boundary and the model-switch stop.
+
+## [0.20.3] - 2026-10-02
+
+### Fixed
+
+- **`implement-dispatch` never runs a concurrent wave on the frontier tier.** When more than one
+  `implementer` or `phase-verifier` will run at once and the session model or the upward route
+  resolves to the frontier tier (`fable` or `best`), every agent in that wave runs at `opus`. The
+  frontier tier is allowed only on a single, sequential dispatch: one security-surface or
+  frontier-routed implementer at a time with its one verifier, and a single final verification.
+  A phase that needs the frontier tier runs alone, as a wave of one: no other frontier-tier agent is
+  in flight, and the wave's `opus` rows may run beside it. The session-model raise now applies to
+  a single dispatch only, so a frontier session no longer lifts a whole wave. Inside a wave held at
+  `opus`, the `phase-verifier`'s `opus` binding already meets the checked-work rule. The
+  `implementer` and `phase-verifier` model-binding sections state the same limit. For generic
+  dispatch routing, the skill points at `/multi-agent:route` when that skill resolves in the
+  session.
+
+## [0.20.2] - 2026-10-02
+
+### Changed
+
+- **`implementer` pins `effort: medium`, down from `high`.** A phase brief is scoped feature work.
+  The pin record points at the model-config `medium` row and the cost guide's per-task comparison,
+  as of 2026-10-02, rechecked at the next model release. The pin stays explicit so an
+  orchestrator's lowered effort does not reach the worker.
+- **`phase-verifier` pins `effort: high`, up from `medium`.** Its pin record points at the
+  model-config `high` row and the advisor capability rule. Its model rule now reads as never weaker than the work it checks, and a phase routed
+  upward passes the verifier the same tier.
+- **`implement-dispatch` raises the `phase-verifier` to the model the phase's implementer ran on.**
+  When a phase's implementer ran above the verifier's binding (the frontier alias for
+  security-surface work, or a session model above it), the phase's one verifier gets a
+  per-invocation `model` at or above that model, upward only, per the checked-work row of the
+  "Model tiers" ladder. The raise used to follow the orchestrating session's model, so a phase
+  routed upward under an `opus` session was certified on `opus`. `implementer`'s model-binding
+  note no longer assumes a fast orchestrator root.
+
+## [0.20.1] - 2026-10-02
+
+### Fixed
+
+- `implement-dispatch` points at the sub-agents page for model resolution order and notes
+  that `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` overrides the frontmatter binding and per-call models;
+  it is reported, not a reason to refuse dispatch.
+
+## [0.20.0] - 2026-10-02
+
+### Added
+
+- **`scoped-implementer`: a Sonnet worker for phases the plan routes `sonnet`.** It binds `model:
+  sonnet` at `effort: medium` and carries the same worker contract as `implementer`, copied inline
+  between contract markers so a worker that skips a reference file still gets the scope fence,
+  STOP rules and return shape. `scripts/agent-contract-sync.test.sh` fails when the two contract
+  blocks, or the agents' `skills:` and `tools:` lines, differ.
+- **`implement-dispatch` routes on the plan's `Model` column.** A `sonnet` row spawns
+  `implementation:scoped-implementer` with an explicit `model: sonnet`, so a caller's standing
+  per-spawn model cannot override it. Before that, the orchestrator reads the provider variables
+  with `printenv`: on Bedrock, Agent Platform, Foundry, Claude Platform on AWS or Mantle with no
+  `ANTHROPIC_DEFAULT_SONNET_MODEL`, the `sonnet` alias resolves to an older Sonnet, so the phase
+  goes to `implementation:implementer` instead. No row or `opus` means `implementer`; security
+  work and `frontier` rows dispatch `implementer` at the frontier alias. A per-invocation `model`
+  on `implementer` still routes only upward.
+
+### Changed
+
+- The upstream records in `implementer`, `scoped-implementer` and `implement-dispatch` are links-only:
+  each states our decision with a pointer to the exact docs section, an as-of date and a recheck
+  trigger, and no longer quotes or paraphrases the sub-agents, costs, effort or model-config pages.
+
+## [0.19.21] - 2026-10-02
+
+### Changed
+
+- The `implement_dispatch_wave_cap` option title carries its unit, "Dispatch wave cap (rows)", and
+  its description fits 300 characters, per the plugin option naming convention
+  (`docs/conventions/plugin-option-naming/`). The rest of the description moves to the README's
+  "Option details".
+
 ## [0.19.20] - 2026-10-02
 
 ### Changed

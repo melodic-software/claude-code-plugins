@@ -1,5 +1,5 @@
 ---
-description: "Run mutation analysis and report surviving mutants: on the diff, or with `--exercised` on the production code the changed tests call, judged against those tests. Restores the code under test and fails if tracked source is not byte-identical; writes no test. One mutant per line, then a fresh-context reviewer judges productive versus arid versus equivalent and says why each productive survivor lived; ranks files by oracle gap and hands survivors to the test-authoring lane. Use when: the user asks to run mutation testing or wants a mutation score for a change ('run mutation testing'), doubts a suite whose coverage report looks healthy ('my coverage is high but I do not trust it'), asks whether the tests actually check the code, asks to audit test quality, or asks for the survivors persisted for the fix pass; after tests go green and before review. Flags: `--exercised [<test-path>]`, `--full`, `--paths <globs>`, `--max <n>`, `--no-suppress`, `--persist-findings`, `--record-mutants`, `--replay-mutants`."
+description: "Run mutation analysis and report surviving mutants: on the diff, or with `--exercised` on the production code the changed tests call, judged against those tests. Restores the code under test and fails if tracked source is not byte-identical; writes no test. One mutant per line, then a fresh-context reviewer judges productive versus arid versus equivalent and says why each productive survivor lived; ranks files by oracle gap and hands survivors to the test-authoring lane. Use when: the user asks to run mutation testing or wants a mutation score for a change ('run mutation testing'), doubts a suite whose coverage report looks healthy ('my coverage is high but I do not trust it'), asks whether the tests actually check the code, asks to audit test quality, or asks for the survivors persisted for the fix pass; after tests go green and before review. Flags: `--exercised [TEST-PATH]`, `--full`, `--paths GLOBS`, `--max N`, `--no-suppress`, `--persist-findings`, `--record-mutants`, `--replay-mutants`."
 argument-hint: "--exercised --full --paths --max --no-suppress --persist-findings --record-mutants --replay-mutants"
 user-invocable: true
 disable-model-invocation: false
@@ -55,8 +55,8 @@ Arguments: `$ARGUMENTS`
 
 ### Effort, the mutant cap of last resort
 
-Caller effort for this run is `${CLAUDE_EFFORT}`. If that reads as a literal placeholder rather than
-one of `low`, `medium`, `high`, `xhigh`, or `max`, this body was read directly instead of
+Caller effort for this run is `${CLAUDE_EFFORT}`. If that still reads as a literal placeholder (a dollar sign and braces around
+the variable name) rather than an effort level, this body was read directly instead of
 skill-loaded, so the substitution never ran: treat the run as `high` and leave the cap to the config.
 
 Effort supplies a **default cap only when nothing else sets one**. The precedence is `--max` first,

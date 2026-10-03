@@ -106,8 +106,8 @@ Steps 2–3 run in the fresh `auditor` subagent in every zone, the zone modulate
 
 ### Effort, and why the zone outranks it
 
-Caller effort for this run is `${CLAUDE_EFFORT}`. If that reads as a literal placeholder rather than
-one of `low`, `medium`, `high`, `xhigh`, or `max`, this body was read directly instead of
+Caller effort for this run is `${CLAUDE_EFFORT}`. If that still reads as a literal placeholder (a dollar sign and braces around
+the variable name) rather than an effort level, this body was read directly instead of
 skill-loaded, so the substitution never ran: treat the run as `high` and run every seam below.
 
 Two dials sit over step 5, and they answer different questions. The **zone decides where a seam
@@ -474,7 +474,7 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 | `reference/recurring-concerns.md` | Every audit, the reusable design-failure checklist. |
 | `reference/session-mode.md` | Running `session` or `arm`, applying the evidence bar or research gate, or resolving step 5's role seams. |
 | `reference/component-types/hook.md` | Auditing a hook (PreToolUse/PostToolUse/lifecycle). |
-| `reference/component-types/skill.md` | Auditing a skill (frontmatter, disclosure, triggering). |
+| `reference/component-types/skill-component.md` | Auditing a skill (frontmatter, disclosure, triggering). |
 | `reference/component-types/agent.md` | Auditing an agent/subagent definition. |
 | `reference/component-types/command.md` | Auditing a slash command. |
 | `reference/component-types/config.md` | Auditing plugin config / settings / userConfig surfaces, incl. plugin-shipped `settings.json` / `.lsp.json` / `monitors.json`. |

@@ -17,7 +17,15 @@
 #   scripts/affected-tests.sh --explain          report WHY each suite was selected (stderr)
 #   scripts/affected-tests.sh --allow-unmapped   downgrade an unmapped file to a warning
 #   scripts/affected-tests.sh --shard <i>/<n>    keep only leg i of n of the selection
+#   scripts/affected-tests.sh --with-always      add the live-tree suites in scripts/affected-tests-always.txt
 #   scripts/affected-tests.sh --print-fanout P   print the copy set DERIVED for shared source P
+#
+# ALWAYS-RUN. A few suites assert against the LIVE repository (every sync
+# manifest, every script under scripts/), so a change none of them names can
+# still break them. --with-always adds the suites listed in
+# scripts/affected-tests-always.txt to the selection; CI passes it, and a local
+# run leaves it off because those suites are slow on a Windows host. An entry
+# naming no suite is an error (exit 2), not a quiet skip.
 #
 # SHARDING. `--shard <i>/<n>` narrows the SELECTION, not the derivation: every
 # rule below runs in full, the unmapped check fires in full, and only then is
@@ -47,9 +55,27 @@
 # hand. CI's Linux lanes are the gate that decides.
 #
 # DIRECTION: over-selection is safe, under-selection is not. Every rule below is
-# deliberately generous — a basename match counts even when it lands in a
-# comment — because a suite that runs needlessly costs seconds, while a suite
-# that should have run and did not is the regression this tool exists to stop.
+# deliberately generous, because a suite that runs needlessly costs seconds,
+# while a suite that should have run and did not is the regression this tool
+# exists to stop. The one narrowing is COMMENTS below: a whole-line comment in a
+# non-suite file no longer makes that file a dependent.
+#
+# COMMENTS. In a NON-suite file, a line that is only a comment (`#` in shell,
+# Python and PowerShell; `//`, `/*` or a `*` block-comment continuation in Node)
+# creates no R4 dependent. A `# shellcheck source=` directive and a JSDoc type
+# import (`@import`, `import('...')`) are read by tools, not people, and still
+# count, as does a trailing comment on a code line. So does a comment naming
+# <stem>.py in a .py that imports <stem> by module name (`import <stem>`,
+# `from <stem> import`): the import never spells the .py, so the comment is the
+# only text edge to the module. Suites match on every
+# line, so R3 is unchanged. Hub files cite the scripts they sit beside in prose:
+# lib/hook-utils.sh and its 20 plugin copies name run-guards.sh only in
+# comments, so a change to run-guards.sh made every copy a "dependent" and pulled
+# in every suite naming hook-utils.sh — 278 to 328 of ~450 suites on 19% of
+# sampled pull requests, most of the corpus for a change to one plugin. The cost
+# of the narrowing is bounded only for shell suites: CI runs the shell corpus on
+# main twice a day. Python and Node suites that no .test.sh wraps run only when
+# selected, so a comment-only edge into one of them is not re-checked on main.
 #
 # FAIL LOUD, NOT OPEN. A changed file that maps to NO suite is an ERROR, not an
 # empty selection: "zero suites" reads as "nothing to run" when it actually
@@ -90,7 +116,8 @@
 #                    and the same set lang_family() names; all three move
 #                    together or a path is classified into a family nothing ever
 #                    greps) that
-#                    NAMES the file the same way is a dependent; R2/R3 are
+#                    NAMES the file the same way, on a line that is not only a
+#                    comment (see COMMENTS above), is a dependent; R2/R3 are
 #                    then applied to IT, transitively. This is what carries a lib
 #                    change out to the hooks that source it.
 #   R5 shared-lib    a file that is the `src` of a scripts/sync-*.sh selects
@@ -112,7 +139,21 @@
 #                    them and they fell to the no-suite *.md class. Only a
 #                    path rule can see them. The validator's fleet-token ban
 #                    over the rest of plugins/autonomy/ is not mapped here;
-#                    CI also runs the contract suite in a step of its own.
+#                    CI's manifest validation step runs the validator itself
+#                    on every diff.
+#   R8 plugin        any changed path under plugins/<p>/ also selects every
+#                    shell suite (*.test.sh) under plugins/<p>/. Suites that
+#                    scan their own plugin directory (a markdown lint, a
+#                    manifest or prose check) cover files no rule above can
+#                    reach: a SKILL.md edit is a no-suite class and a suite
+#                    that globs its plugin never spells the file's name. Both
+#                    suite breaks that only a full main run caught had that
+#                    shape. Shell suites only, because they are
+#                    what the whole-tree run executes; a plugin's Node, Python
+#                    and Pester suites keep reaching a change through R1-R4.
+#                    R8 ADDS suites and never MAPS a file: whether a changed
+#                    file is UNMAPPED is still decided by R1-R7 alone, so the
+#                    FAIL LOUD contract below is unchanged.
 #
 # R3/R4 skip STRUCTURAL basenames — README.md, SKILL.md, plugin.json and the
 # like — because those name a repo-wide role rather than one artifact, so a
@@ -154,7 +195,7 @@
 # [A-Za-z0-9_.-]. `/` is deliberately OUTSIDE that class, so a path-qualified
 # mention names the file — `source "$dir/hook-utils.sh"`, `"./gadget.js"`,
 # `. (Join-Path $PSScriptRoot 'Get-Thing.ps1')` — and so does a bare mention in
-# prose or a comment. A leading or trailing run of `.` is sentence punctuation
+# prose or, in a suite, a comment. A leading or trailing run of `.` is sentence punctuation
 # rather than part of a name, so a comment ending "... is covered by
 # <stem>.test.sh." names that suite too — which is how most of this repo's
 # comments cite the suite covering them.
@@ -259,7 +300,8 @@
 # its own, apart from its source, no longer reaches the other copies' suites; R5
 # fans out from the source, and the sync lane gates a copy that drifts from it.
 #
-# Three things stay deliberately generous, all in the over-selecting direction:
+# Three things stay deliberately generous, all in the over-selecting direction
+# (the comment rule above is the one deliberate narrowing):
 #   - a token match on the SAME basename in ANOTHER directory counts for any
 #     basename a frontier file carries outside a skill directory. There it is a
 #     basename rule and has to stay one: R5's entire fan-out is copies that share
@@ -267,7 +309,8 @@
 #     plugins/*/hooks/hook-utils.sh), so a suite naming its own plugin's copy is
 #     naming the shared source. Requiring the whole repo-relative path would cut
 #     that, which is under-selection.
-#   - a mention in a comment counts, exactly as it did before.
+#   - a mention in a suite's comment counts, as does a trailing comment on a
+#     code line in any file.
 #   - a basename the token rule cannot express — one carrying a character
 #     outside [A-Za-z0-9_.-], which no tracked path in this repo does today —
 #     falls back to the old substring test rather than to no coverage at all. A
@@ -279,9 +322,10 @@
 # instead — `git grep -o -E`, one bounded pattern per basename — took over two
 # minutes for that same level, which is not a usable per-level cost. So git grep
 # still finds the candidate LINES with the substring test, and one awk pass over
-# those lines (~0.06s) splits each into path tokens and keeps only the pairs
-# whose token IS one of the basenames asked about and that SKILL OWNERSHIP lets
-# stand. Both stages fail loud; see the call site in select_for.
+# those lines (~0.06s) drops the lines COMMENTS excludes, splits each remaining
+# line into path tokens and keeps only the pairs whose token IS one of the
+# basenames asked about and that SKILL OWNERSHIP lets stand.
+# Both stages fail loud; see the call site in select_for.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -292,6 +336,7 @@ cd "$SCRIPT_DIR/.." || exit 2
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 NO_SUITE_LIST="${AFFECTED_TESTS_NO_SUITE:-scripts/affected-tests-no-suite.txt}"
+ALWAYS_LIST="${AFFECTED_TESTS_ALWAYS:-scripts/affected-tests-always.txt}"
 
 # Basenames that name a structural role rather than one artifact. R3/R4 ignore
 # them; see the note above.
@@ -311,6 +356,7 @@ base_ref=""
 do_run=0
 allow_unmapped=0
 explain=0
+with_always=0
 print_fanout=""
 shard_spec=""
 jobs=1
@@ -358,6 +404,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --explain)
     explain=1
+    shift
+    ;;
+  --with-always)
+    with_always=1
     shift
     ;;
   --jobs)
@@ -448,23 +498,62 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 # Sync-manifest derivation (R5/R6)
 # ---------------------------------------------------------------------------
 
-# Published --print-manifest format (scripts/lib/sync-cluster.sh):
-#   src<TAB><path>     exactly one; empty path means the key was declared blank
-#   copy<TAB><path>    zero or more; path may still be a glob
+# Published --print-manifest format (scripts/lib/sync-cluster.sh,
+# scripts/sync-shared-copies.sh), one block per canonical source:
+#   src<TAB><path>     opens a block; empty path means the key was declared blank
+#   copy<TAB><path>    zero or more per block; path may still be a glob
 # A script that does not implement the flag (usage on stderr, empty stdout) or
 # that prints neither key is a helper sharing the sync-*.sh prefix and is
-# skipped. A script that prints copy lines (or an empty src key) without a
-# non-empty src is a half-manifest and is fatal.
+# skipped. A block with copy lines (or an empty src key) but no non-empty src
+# is a half-manifest and is fatal.
 
 # SYNC_SRC_COPIES maps a sync source path to its newline-separated copy paths.
+# SYNC_SCRIPT_SRC maps a sync script to its newline-separated source paths.
 declare -A SYNC_SRC_COPIES=()
 declare -A SYNC_SCRIPT_SRC=()
 
-build_sync_map() {
-  local script src pattern match line kind value rc errfile outfile
-  local has_src_key has_copy_key
-  local -a patterns=()
+# register_sync_block <script> <src> <has-copy-key> [<copy pattern>...]
+register_sync_block() {
+  local script="$1" src="$2" has_copy_key="$3" pattern match
+  shift 3
   local -a expanded=()
+  if [[ -z "$src" ]]; then
+    echo "error: $script --print-manifest declared copies but no src= — the shared-lib derivation cannot read it." >&2
+    echo "       Teach scripts/affected-tests.sh the new manifest shape; do not hardcode a copy list." >&2
+    exit 2
+  fi
+  SYNC_SCRIPT_SRC["$script"]+="$src"$'\n'
+  # A src with NO copy key at all is a canonical-only cluster: the lib has
+  # landed and no plugin carries it yet. That is not the rot the zero-yield
+  # guard below catches (copy patterns declared, none matching anything), so
+  # it registers with an empty copy set and R5/R6 resolve to the src alone.
+  if ((has_copy_key == 0)); then
+    SYNC_SRC_COPIES["$src"]=""
+    return 0
+  fi
+  for pattern in "$@"; do
+    if [[ -e "$pattern" ]]; then
+      expanded+=("$pattern")
+      continue
+    fi
+    # shellcheck disable=SC2086 # a manifest entry may still be a glob;
+    # splitting is the expansion, and no path in this repo contains whitespace.
+    for match in $pattern; do
+      [[ -e "$match" ]] && expanded+=("$match")
+    done
+  done
+  if [[ ${#expanded[@]} -eq 0 ]]; then
+    echo "error: $script yielded ZERO copy paths for $src." >&2
+    echo "       An empty derivation is the hardcoded-list failure mode one level up: it would" >&2
+    echo "       silently stop fanning a shared-lib change out to its carrying plugins." >&2
+    exit 2
+  fi
+  printf -v SYNC_SRC_COPIES["$src"] '%s\n' "${expanded[@]}"
+}
+
+build_sync_map() {
+  local script line kind value rc errfile outfile i
+  local -a block_src=() block_has_copy=() block_patterns=() patterns=()
   outfile="$WORK_DIR/print-manifest.out"
   errfile="$WORK_DIR/print-manifest.err"
   for script in scripts/sync-*.sh; do
@@ -476,10 +565,11 @@ build_sync_map() {
     rc=0
     bash "$script" --print-manifest >"$outfile" 2>"$errfile" || rc=$?
 
-    src=""
-    has_src_key=0
-    has_copy_key=0
-    patterns=()
+    # Each src line opens a block; a copy line before any src opens one with an
+    # empty src, which register_sync_block rejects as half a manifest.
+    block_src=()
+    block_has_copy=()
+    block_patterns=()
     while IFS= read -r line || [[ -n "$line" ]]; do
       kind="${line%%$'\t'*}"
       if [[ "$kind" == "$line" ]]; then
@@ -489,12 +579,19 @@ build_sync_map() {
       fi
       case "$kind" in
       src)
-        has_src_key=1
-        src="$value"
+        block_src+=("$value")
+        block_has_copy+=(0)
+        block_patterns+=("")
         ;;
       copy)
-        has_copy_key=1
-        patterns+=("$value")
+        if [[ ${#block_src[@]} -eq 0 ]]; then
+          block_src+=("")
+          block_has_copy+=(0)
+          block_patterns+=("")
+        fi
+        i=$((${#block_src[@]} - 1))
+        block_has_copy[i]=1
+        block_patterns[i]+="$value"$'\n'
         ;;
       *) ;;
       esac
@@ -515,44 +612,15 @@ build_sync_map() {
     # Hard-exiting on it would be a repo-wide outage: this suite runs in the
     # plugin-gate lane, so the first future `scripts/sync-something.sh` that is
     # not a manifest would turn a REQUIRED check red for every PR, including
-    # ones that never touch this tool. Half a manifest is still fatal.
-    if ((has_src_key == 0 && has_copy_key == 0)); then
-      continue
-    fi
-    if [[ -z "$src" ]]; then
-      echo "error: $script --print-manifest declared copies but no src= — the shared-lib derivation cannot read it." >&2
-      echo "       Teach scripts/affected-tests.sh the new manifest shape; do not hardcode a copy list." >&2
-      exit 2
-    fi
-    # A src with NO copy key at all is a canonical-only cluster: the lib has
-    # landed and no plugin carries it yet. That is not the rot the zero-yield
-    # guard below catches (copy patterns declared, none matching anything), so
-    # it registers with an empty copy set and R5/R6 resolve to the src alone.
-    if ((has_copy_key == 0)); then
-      SYNC_SCRIPT_SRC["$script"]="$src"
-      SYNC_SRC_COPIES["$src"]=""
-      continue
-    fi
-    expanded=()
-    for pattern in ${patterns[@]+"${patterns[@]}"}; do
-      if [[ -e "$pattern" ]]; then
-        expanded+=("$pattern")
-        continue
-      fi
-      # shellcheck disable=SC2086 # a manifest entry may still be a glob;
-      # splitting is the expansion, and no path in this repo contains whitespace.
-      for match in $pattern; do
-        [[ -e "$match" ]] && expanded+=("$match")
-      done
+    # ones that never touch this tool. Such a script opens no block, so the
+    # loop below registers nothing for it. Half a manifest is still fatal.
+    for i in "${!block_src[@]}"; do
+      patterns=()
+      while IFS= read -r line; do
+        [[ -z "$line" ]] || patterns+=("$line")
+      done <<<"${block_patterns[i]}"
+      register_sync_block "$script" "${block_src[i]}" "${block_has_copy[i]}" ${patterns[@]+"${patterns[@]}"}
     done
-    if [[ ${#expanded[@]} -eq 0 ]]; then
-      echo "error: $script yielded ZERO copy paths for $src." >&2
-      echo "       An empty derivation is the hardcoded-list failure mode one level up: it would" >&2
-      echo "       silently stop fanning a shared-lib change out to its carrying plugins." >&2
-      exit 2
-    fi
-    SYNC_SCRIPT_SRC["$script"]="$src"
-    printf -v SYNC_SRC_COPIES["$src"] '%s\n' "${expanded[@]}"
   done
   if [[ ${#SYNC_SCRIPT_SRC[@]} -eq 0 ]]; then
     echo "error: no scripts/sync-*.sh manifests found — shared-lib fan-out would be silently empty." >&2
@@ -723,6 +791,44 @@ token_hits() {
       if ((path SUBSEP name) in seen) return
       if (owned(path, name, text)) emit(path, name)
     }
+    # comment_only: is this a whole-line comment in a NON-suite file? Such a line
+    # makes no R4 dependent; see COMMENTS in the header. Suites keep every line
+    # (R3), and a shellcheck source directive or a JSDoc type import declares a
+    # real edge. The suite test mirrors is_suite_path.
+    function comment_only(path, text,   b) {
+      b = path
+      sub(/.*\//, "", b)
+      if (path ~ /\.(test\.(sh|js|mjs)|Tests\.ps1)$/ || b ~ /^test_.*\.py$/) return 0
+      if (path ~ /\.(js|mjs|cjs)$/)
+        return text ~ /^[ \t]*(\/\/|\/\*|\*([ \t\/]|$))/ && text !~ /@import|import\(/
+      if (text ~ /^[ \t]*#[ \t]*shellcheck[ \t]+source=/) return 0
+      if (text !~ /^[ \t]*#/) return 0
+      return !(path ~ /\.py$/ && py_imports_named(path, text))
+    }
+    # py_imports_named: does this .py import, by module name, a <stem>.py that
+    # this comment line names? A Python import never spells the .py, so such a
+    # comment is the only text edge to the module and has to keep counting.
+    function py_imports_named(path, text,   n, j, t, stem, line, found) {
+      n = split(text, ptk, /[^A-Za-z0-9_.-]+/)
+      for (j = 1; j <= n; j++) {
+        t = ptk[j]
+        sub(/\.+$/, "", t)
+        if (t !~ /^[A-Za-z_][A-Za-z0-9_]*\.py$/) continue
+        stem = substr(t, 1, length(t) - 3)
+        if (!((path SUBSEP stem) in pyimp)) {
+          found = 0
+          while ((getline line < path) > 0)
+            if (line ~ ("^[ \t]*(from[ \t]+\\.*" stem "[ \t]+import|import[ \t]+([A-Za-z0-9_.]+[ \t]*,[ \t]*)*" stem "([ \t,]|$))")) {
+              found = 1
+              break
+            }
+          close(path)
+          pyimp[path, stem] = found
+        }
+        if (pyimp[path, stem]) return 1
+      }
+      return 0
+    }
     {
       i = index($0, ":")
       # No separator means no path: git grep says "Binary file X matches" that
@@ -730,6 +836,7 @@ token_hits() {
       if (i == 0) next
       path = substr($0, 1, i - 1)
       text = substr($0, i + 1)
+      if (comment_only(path, text)) next
       n = split(text, tok, /[^A-Za-z0-9_.-]+/)
       for (j = 1; j <= n; j++) {
         t = tok[j]
@@ -831,12 +938,15 @@ select_for() {
       [[ -n "$copy" ]] && frontier+=("$copy")
     done <<<"${SYNC_SRC_COPIES[$seed]}"
   fi
-  # R6: a sync script pulls in whatever its source pulls in.
+  # R6: a sync script pulls in whatever its sources pull in.
   if [[ -n "${SYNC_SCRIPT_SRC[$seed]:-}" ]]; then
-    frontier+=("${SYNC_SCRIPT_SRC[$seed]}")
-    while IFS= read -r copy; do
-      [[ -n "$copy" ]] && frontier+=("$copy")
-    done <<<"${SYNC_SRC_COPIES[${SYNC_SCRIPT_SRC[$seed]}]:-}"
+    while IFS= read -r line; do
+      [[ -n "$line" ]] || continue
+      frontier+=("$line")
+      while IFS= read -r copy; do
+        [[ -n "$copy" ]] && frontier+=("$copy")
+      done <<<"${SYNC_SRC_COPIES[$line]:-}"
+    done <<<"${SYNC_SCRIPT_SRC[$seed]}"
   fi
 
   while [[ ${#frontier[@]} -gt 0 ]]; do
@@ -1121,6 +1231,33 @@ if ! git ls-files --cached --others --exclude-standard -- 'plugins/*/skills/*' \
   exit 2
 fi
 
+# R8: every shell suite of a plugin the change touches, once per plugin. Read
+# after the seed's own walk and its mapped/unmapped verdict, so it adds suites
+# without ever counting as the rule that mapped a file. Fatal on a failed
+# listing, for the same reason as the reverse lookup: a short list is an
+# under-selection that reports success.
+declare -A R8_PLUGINS=()
+select_plugin_suites() {
+  local p="$1" suite
+  case "$p" in
+  plugins/*/*) ;;
+  *) return 0 ;;
+  esac
+  p="${p#plugins/}"
+  p="${p%%/*}"
+  [[ -z "${R8_PLUGINS[$p]:-}" ]] || return 0
+  R8_PLUGINS["$p"]=1
+  if ! git ls-files --cached --others --exclude-standard -- "plugins/$p/*.test.sh" \
+    >"$WORK_DIR/r8-suites"; then
+    echo "error: listing the shell suites under plugins/$p/ failed." >&2
+    exit 2
+  fi
+  while IFS= read -r suite; do
+    [[ -n "$suite" ]] || continue
+    add_suite "$suite" "R8: plugins/$p/ changed" || true
+  done <"$WORK_DIR/r8-suites"
+}
+
 declare -a NO_SUITE_FILES=()
 for f in "${changed[@]}"; do
   [[ -n "$f" ]] || continue
@@ -1140,7 +1277,20 @@ for f in "${changed[@]}"; do
       UNMAPPED+=("$f")
     fi
   fi
+  select_plugin_suites "$f"
 done
+
+if [[ "$with_always" -eq 1 ]]; then
+  declare -a ALWAYS_ENTRIES=()
+  read_list::into ALWAYS_ENTRIES "$ALWAYS_LIST" --comments leading || exit 2
+  for entry in ${ALWAYS_ENTRIES[@]+"${ALWAYS_ENTRIES[@]}"}; do
+    entry="${entry%%[[:blank:]]*}"
+    if ! add_suite "$entry" "always: asserts against the live repository"; then
+      echo "error: $ALWAYS_LIST names '$entry', which is not a suite; remove the stale entry." >&2
+      exit 2
+    fi
+  done
+fi
 
 # `${!SUITES[@]}` cannot carry a `+` default-guard: bash parses `${!NAME...}` as
 # an indirect reference and rejects the expanded key list as a variable name.

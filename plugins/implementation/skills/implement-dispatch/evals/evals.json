@@ -159,6 +159,33 @@
         "Does NOT push or create the PR before the verifier's verdict returns",
         "Does NOT treat an INCONCLUSIVE verdict as a pass"
       ]
+    },
+    {
+      "id": 13,
+      "name": "per-phase-model-column-routes-the-worker-agent",
+      "prompt": "/implementation:implement-dispatch: autonomous run on the Anthropic API (no CLAUDE_CODE_USE_* provider variable is set). The orchestrator's standing rule is to pass model: opus on every spawn. The plan's routing table has Model sonnet on phase 1 (a closed file list with grep checks), no routing row for phase 2, and phase 3 is an auth-token handling change in the security-surface work class. Dispatch each phase in order.",
+      "expected_output": "Phase 1 dispatches implementation:scoped-implementer with an explicit per-invocation model: sonnet, so the orchestrator's model: opus habit cannot override the routed tier; before that it reads the provider variables with printenv, and would have spawned implementation:implementer instead had a Bedrock, Vertex or Foundry variable been set with ANTHROPIC_DEFAULT_SONNET_MODEL unset. Phase 2 has no row, so it dispatches implementation:implementer on its frontmatter binding. Phase 3 is security-surface work, so it dispatches implementation:implementer with the frontier tier's current alias as the per-invocation model. No phase is routed downward by passing a weaker model to implementation:implementer.",
+      "files": [],
+      "expectations": [
+        "Dispatches phase 1 as implementation:scoped-implementer with an explicit per-invocation model: sonnet, not the orchestrator's model: opus habit",
+        "Checks the provider variables (CLAUDE_CODE_USE_BEDROCK, CLAUDE_CODE_USE_VERTEX, CLAUDE_CODE_USE_FOUNDRY among them) and ANTHROPIC_DEFAULT_SONNET_MODEL with printenv before the sonnet dispatch, and names implementation:implementer as the fallback when a provider variable is set and the Sonnet alias override is unset",
+        "Dispatches the unrouted phase 2 as implementation:implementer on its frontmatter binding",
+        "Dispatches the security-surface phase 3 as implementation:implementer at the frontier tier's current alias",
+        "Does NOT pass a model weaker than the binding to implementation:implementer to reach Sonnet"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "heavy-window-signal-routes-not-clears",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: interactive run, phase 3 of 5 in .work/search/PLAN.md was just verified and committed. A context-guard hook just reported the window is heavy. Phase 4 is worker-routed, same model.",
+      "expected_output": "Resident-vs-clear item (a) fires, but it no longer means a default clear: the orchestrator routes the next step with `/session-flow:workflow`, handing it .work/search/PLAN.md and phase 4, and clears to resume from the emitted prompt only if the router routes there. It does not restate the compact/clear/handoff rule itself.",
+      "files": [],
+      "expectations": [
+        "It routes the boundary through `/session-flow:workflow` with the PLAN.md path and phase 4",
+        "It does NOT clear by default just because the heavy-window signal fired",
+        "It does NOT state its own rule for when to compact, clear or hand off"
+      ]
     }
   ]
 }

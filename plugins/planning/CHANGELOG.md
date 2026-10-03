@@ -3,6 +3,144 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.65.1] - 2026-10-02
+
+### Changed
+
+- **Shared `resolve-convention-home.sh`, `standards-contract.md` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's lib and reference.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+
+## [0.65.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
+
+## [0.64.0] - 2026-10-03
+
+### Added
+
+- **Interactive plan and brainstorm views, built with the shared view builder (#5866).**
+  `/planning:plan` offers a plan view (phases, the phases each depends on, acceptance criteria, and
+  a reply that names the phases to change) and `/planning:brainstorm` offers a candidate view
+  (cheapest to most ambitious, a tick for each that resonates). `scripts/build-view.mjs` fills a
+  checked-in template with the session's JSON as escaped data through `lib/view-builder.mjs` and
+  `lib/view-runtime.js`, which the plugin now carries as generated copies with `lib/html-escape.mjs`.
+  No page carries model-written markup or script, and no page sits beside `PLAN.md` or the brainstorm
+  record, which stay the record. The publish destination comes from the `medium` key of the
+  `rendered-views` cascade (`file` when unset); the procedure is in `reference/rendered-view.md`.
+
+### Changed
+
+- The plan and brainstorm skills no longer offer a model-written HTML page; they offer the built view.
+
+## [0.63.2] - 2026-10-03
+
+### Changed
+
+- Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.63.1] - 2026-10-03
+
+### Changed
+
+- The interview page's transport moved to the shared session-bridge library
+  (`lib/session-bridge/`): the 127.0.0.1 server, token, event stream, long-poll, watcher lease,
+  `watch.sh` and `wake.sh`. `surface/session_bridge.py`, `watch.sh` and `wake.sh` are now
+  generated copies, and `surface/session-bridge.conf` names the interview to them. The page,
+  the watcher and `round.sh` behave as before. The server also answers `GET /api/lease` with the
+  watcher lease, which `round.sh lease` and `stop` now read.
+
+## [0.63.0] - 2026-10-03
+
+### Added
+
+- **`interview` recommends separate implement and verify effort levels.** An engineering handoff
+  names one level for each phase, matched to a row of model-config's "Choose an effort level"
+  table and never below medium. When the page cannot be read, it says so and recommends no level.
+  The downstream session-config eval checks both levels.
+
+## [0.62.3] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
+## [0.62.2] - 2026-10-02
+
+### Fixed
+
+- **The `Plan` agent verification record points at the live disallowed-tool list.**
+  `reference/native-plan-agent.md` named five tools from the 2.1.285 extraction; on Claude Code
+  2.1.288 the agent disallows nine. The record now states what that means for this skill (it
+  cannot edit files, spawn an agent, or exit plan mode) and points at
+  `builtin_agents.Plan.disallowed_tools` in the inventory instead of copying the list.
+
+## [0.62.1] - 2026-10-02
+
+### Changed
+
+- Cross-plugin routing says "if enabled" where it said "if installed": an installed but disabled plugin exposes no skills, and most of the optional plugins this one routes to (`architecture`, `prototype`, `domain-driven-design`, `discipline`) now install disabled.
+
+## [0.62.0] - 2026-10-02
+
+### Added
+
+- **`/planning:plan-panel` workflow** (`workflows/plan-panel.js`): one planner per angle
+  (MVP-first, risk-first, reuse-first and testability-first by default), independent judges that
+  score every draft on goal fit, blast radius, test strategy and reversibility, and one
+  synthesizer that builds the plan from the winner and grafts runner-up ideas. It takes `task`,
+  `context`, `angles`, `judges`, `roles` and `maxConcurrent` through `args` and returns the plan,
+  the scores, the grafted ideas, the dissent and every draft in full. A missing `task` returns an
+  error and dispatches nothing, and a judge that does not score every draft exactly once is
+  counted as returning nothing. Planners take the worker role's fan-out variant, judges the verifier role's fan-out
+  variant and the synthesizer the orchestrator role's single variant, from `/multi-agent:route`
+  when the caller passes them, else from built-in fallbacks (`opus` at `medium` for planners,
+  `opus` at `high` for judges, the session model at `high` for synthesis). Agents run in waves of
+  `maxConcurrent` (default 4, clamped to 1-16), and a thrown dispatch other than a cap or budget
+  error is retried once.
+
+### Changed
+
+- **`/planning:plan` can formulate through the panel, opt-in.** When the user asks for it or
+  `/multi-agent:assess` returns `workflow`, Step 2 launches `planning:plan-panel` behind a Workflow
+  availability gate, with the single-plan flow as the fallback; `context/plan-panel.md` holds the
+  launch and how the result feeds the plan. The synthesized plan still goes through the reviewer
+  and the approval gate. `plan` grants `Workflow(planning:plan-panel)` only, so no other workflow
+  or inline script is pre-approved.
+
+## [0.61.1] - 2026-10-02
+
+### Fixed
+
+- `draft-goal-condition` no longer says `/effort ultracode` sets `xhigh` effort; it points at
+  the workflows page for ultracode's effect on the effort level.
+
+## [0.61.0] - 2026-10-02
+
+### Added
+
+- **The plan's per-phase routing table gains a `Model` column (`sonnet`, `opus` or `frontier`).** `sonnet` is allowed only for a phase with a closed scope fence, binary acceptance criteria, no open design decision, no cross-module contract change, and no security-surface work; `/implementation:implement-dispatch` sends such a row to `implementation:scoped-implementer`. `opus` covers architectural work, per-file judgment and multi-step reasoning, and is the value when in doubt. The template links the docs' `opusplan` setting and agent team token costs instead of restating either, and Step 4.5 points at the column.
+
+### Changed
+
+- `draft-goal-condition` gains a Gotchas bullet: a long goal run draws usage on every turn, linking the costs page's account of why usage climbs in a long session.
+- The routing-table record in `plan-template.md` and the goal-usage gotcha in `draft-goal-condition` are links-only: our decision, then a pointer, an as-of date and a recheck trigger, with no paraphrase of the `opusplan` or costs sections.
+
+## [0.60.0] - 2026-10-02
+
+### Changed
+
+- Options follow the plugin option naming convention (`docs/conventions/plugin-option-naming/`).
+  `surface` is a picker in `/config` (`terminal`, `page`), so a value outside that set is no longer
+  accepted. Titles read "Interview question surface", "AskUserQuestion question rounds", and
+  "Interview question emoji anchors". The `use_emoji_question_markers` description fits 300
+  characters; the rest of it, and the `surface` fallback rule, move to the README's "Option
+  details".
+
 ## [0.59.4] - 2026-10-02
 
 ### Changed

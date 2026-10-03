@@ -28,7 +28,7 @@ At `low` the skill's Effort table caps this phase and puts a named artifact or f
 Write the analysis block before composing any Phase 2 query. Phase 2 queries are composed from it, which is what chains the broad pass to the deep one. The block contains:
 
 - **Leading hypothesis**. What the evidence points toward
-- **Gaps** (numbered). Each claim not yet backed by ≥1 primary (Tier 0/1) + 2 independent corroborators, plus any open question. Every numbered gap earns a Phase 2 query, the gap count sets the Phase 2 query count
+- **Gaps** (numbered). Each claim not yet at HIGH (criterion 7) or still below the criterion-4 floor of ≥1 primary (Tier 0/1) + 2 independent corroborators, plus any open question. Every numbered gap earns a Phase 2 query, the gap count sets the Phase 2 query count
 - **Conflicts** (numbered). Disagreements between sources; each earns a resolving Phase 2 query
 - **Tool-diversity audit**, distinct tool types used; if <3, this phase failed, re-run before proceeding
 - **Recency status**. Upstream changelog/release fetched? If not, queue for Phase 2
@@ -71,7 +71,7 @@ Tool-ecosystem Phase 3 fallback playbook: the discipline file's "Tool-ecosystem 
 
 ## Phase 4 (conditional): Additional follow-up
 
-If Phases 1-3 still have gaps, conflicts, or LOW-confidence claims, launch targeted queries until every claim reaches HIGH confidence per the discipline file's "Confidence calibration". There is no limit on additional phases. Self-critique the approach as you go.
+If Phases 1-3 still have gaps, conflicts, or LOW-confidence claims, launch targeted queries until every claim reaches HIGH confidence per the discipline file's "Confidence calibration", or list it in the Gaps section with its MEDIUM or LOW label. There is no limit on additional phases. Self-critique the approach as you go.
 
 ## Research principles (apply throughout all phases)
 

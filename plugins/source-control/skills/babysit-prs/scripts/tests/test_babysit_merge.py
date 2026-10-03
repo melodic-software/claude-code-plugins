@@ -1273,6 +1273,55 @@ class AutoMergeArming(unittest.TestCase):
         )
         self.assertFalse(result["autoMerge"]["ready"])
 
+    def test_folded_security_lane_check_satisfies_the_security_lane(self) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
+                _check("review / claude-review-status", "SUCCESS"),
+                _check("security-review / security-review", "SUCCESS"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        self.assertTrue(result["autoMerge"]["ready"], result["autoMerge"])
+
+    def test_another_workflows_security_review_job_does_not_satisfy_the_lane(
+        self,
+    ) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
+                _check("review / claude-review-status", "SUCCESS"),
+                _check("scanner / security-review", "SUCCESS"),
+                _check("security-review", "SUCCESS"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        self.assertFalse(result["autoMerge"]["ready"], result["autoMerge"])
+        self.assertIn(
+            "AI review check 'claude-security-review-status' has not "
+            "succeeded on the live head",
+            result["autoMerge"]["blockers"],
+        )
+
+    def test_old_security_status_job_still_holds_beside_a_green_review_job(
+        self,
+    ) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
+                _check("review / claude-review-status", "SUCCESS"),
+                _check("security-review / security-review", "SUCCESS"),
+                _check("security-review / claude-security-review-status", "FAILURE"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        self.assertFalse(result["autoMerge"]["ready"], result["autoMerge"])
+        self.assertIn(
+            "AI review check 'claude-security-review-status' has not "
+            "succeeded on the live head",
+            result["autoMerge"]["blockers"],
+        )
+
     def test_missing_or_skipped_ai_lane_holds(self) -> None:
         result = self._evaluate(
             [_check("ci-status", None), _check("claude-review-status", "SKIPPED")],
@@ -1341,13 +1390,18 @@ class AutoMergeArming(unittest.TestCase):
             "ready": ready,
             "blockers": ["pending checks: ci-status"],
             "headRefOid": HEAD,
+            "baseRef": "main",
+            "mergeAction": "direct_merge",
+            "stack": {"enabled": False, "member": False, "landsLowerLayers": False},
             "autoMerge": {"ready": auto_ready, "blockers": []},
         }
         calls: list[list[str]] = []
 
         def capture(cmd: list[str]) -> Any:
             calls.append(cmd)
-            return mock.Mock(returncode=0, stdout="", stderr="")
+            merged = json.dumps({"status": "merged", "details": {"message": "ok"}})
+            stdout = merged if "merge-async" in " ".join(cmd) else ""
+            return mock.Mock(returncode=0, stdout=stdout, stderr="")
 
         argv = ["babysit_merge.py", "owner/repo#1", "--allowed-owners", "owner", *extra]
         with (
@@ -1355,6 +1409,12 @@ class AutoMergeArming(unittest.TestCase):
             mock.patch.object(merge, "evaluate", return_value=result),
             mock.patch.object(merge, "allowed_method", return_value="squash"),
             mock.patch.object(merge, "gh_capture", side_effect=capture),
+            mock.patch.object(merge, "repository_default_branch", return_value="main"),
+            mock.patch.object(
+                merge,
+                "pull_request_landed",
+                return_value={"merged": True, "head": HEAD},
+            ),
             contextlib.redirect_stdout(io.StringIO()) as out,
         ):
             code = merge.main()
@@ -1390,7 +1450,10 @@ class AutoMergeArming(unittest.TestCase):
         code, calls = self._main(True, *args, ready=True)
         self.assertEqual(code, 0)
         self.assertTrue(self.output["merged"])
-        self.assertNotIn("--auto", calls[0])
+        self.assertEqual(self.output["action"], "merge")
+        [cmd] = calls
+        self.assertNotIn("--auto", cmd)
+        self.assertIn("repos/owner/repo/pulls/1/merge-async", cmd)
 
     def test_auto_without_merge_and_pin_is_refused(self) -> None:
         self.assertEqual(self._main(True, "--auto")[0], 2)
@@ -1497,6 +1560,9 @@ class RepoPolicyReachesTheGate(unittest.TestCase):
                 "gh_capture",
                 return_value=mock.Mock(returncode=0, stdout="", stderr=""),
             ),
+            # Not the default branch: the merge stays on `gh pr merge`, which is
+            # the path these method-resolution tests read.
+            mock.patch.object(merge, "repository_default_branch", return_value=None),
             contextlib.redirect_stdout(out),
         ):
             code = merge.main()

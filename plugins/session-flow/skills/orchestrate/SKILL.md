@@ -49,7 +49,7 @@ told:
    Recheck trigger: that section moves or starts stating its own multiplier, or a docs page starts
    covering fan-out sizing.
    "Would flood context" is a measurement, not a hunch, when the instrument exists: with the
-   `context-guard` plugin installed, resolve this session's zone word per its reader contract
+   `context-guard` plugin enabled, resolve this session's zone word per its reader contract
    before a fan-out decision
    (the contract owns the snapshot path, staleness rule, and bands. Read them there; this
    imperative consumes only the word, no band values). Never estimate your own remaining window,
@@ -114,7 +114,11 @@ told:
    judge/adjudicate, judgment-heavy synthesis), which keeps the parent tier. Tier is not only the
    model: match the reasoning depth (effort) to the subtask too, not the parent session,
    high-volume mechanical work (search, extraction, per-item transforms, formatting) runs cheaper
-   on both. A premium fan-out outside the hard stages is a per-stage decision to justify
+   on both. Work that changes code, verifies a change, or is likely to hit edge cases is excluded
+   from the lower effort: pick its level from model-config's effort table
+   (<https://code.claude.com/docs/en/model-config#choose-an-effort-level>, as of 2026-10-02;
+   recheck when that section is renamed or moved or its table columns change), never below
+   medium. A premium fan-out outside the hard stages is a per-stage decision to justify
    explicitly, never a default to inherit.
 
 Discipline: trigger-evaluation is mandatory; the ACTION stays calibrated (delegate on value +
@@ -141,6 +145,11 @@ intervention through it, addressed by the worker's agent ID. Never re-invoke the
 continue a worker: that starts a second, independent worker. Read a refused message as a worker
 the user stopped. Pointers, as-of date and the empirical probe: `context/sources.md`, "SendMessage
 worker continuation".
+To choose between a workflow and subagents, and the model and effort each spawn gets, run
+`/multi-agent:assess` and `/multi-agent:route` when they resolve in this session; otherwise read
+<https://code.claude.com/docs/en/sub-agents#choose-a-model> (as of 2026-10-02; recheck when that
+section changes how a subagent's model is chosen; record: `context/sources.md`, "Priming addendum:
+model and effort routing").
 Export modes omit this addendum, a
 pasted target reaches none of those surfaces, and the substitution would travel as dead text.
 
