@@ -37,6 +37,21 @@ on:
     # `pull_request` whatever `permissions:` requests, so it cannot record lane
     # state — and runs the full workflow on every event exactly as before.
     types: [opened, synchronize, reopened, ready_for_review, edited, labeled, unlabeled]
+  # A merge queue tests each queued merge commit through this event alone; a
+  # required check that never reports on it leaves the queued pull request
+  # unmergeable. A merge-group run carries no `github.event.pull_request`, so
+  # every expression below that reads one takes its non-PR branch, the same one
+  # a push to main takes: the contract-only predicate is false, so every lane
+  # runs in full; the concurrency group falls back to `github.run_id`, so no
+  # queued run cancels another; the docs-only detector does not run and the
+  # change-detection action fails open, so the whole suite runs; the
+  # base-diff gates decline as they do on a push; `pr-contract` finds no pull
+  # request number and reports `skipped`, because the title, label and linkage
+  # were already checked on the pull request before it could enter the queue;
+  # and `ci-status` aggregates the lanes and records `ci-lanes` on the
+  # merge-group commit (`github.sha`), a SHA no contract-only run ever reads.
+  merge_group:
+    types: [checks_requested]
 
 permissions:
   contents: read
@@ -52,10 +67,10 @@ permissions:
 # until someone re-ran that specific run (melodic-software/github-iac#378).
 #
 # The full branch keeps one group per pull request, so a `synchronize` still
-# cancels everything on the old SHA. Push runs fall back to the unique
-# `github.run_id` and are never cancelled; the PR number scopes cancellation to
-# exactly one pull request, where `head_ref` would collide across same-named
-# fork branches.
+# cancels everything on the old SHA. Push and merge-group runs fall back to the
+# unique `github.run_id` and are never cancelled; the PR number scopes
+# cancellation to exactly one pull request, where `head_ref` would collide
+# across same-named fork branches.
 concurrency:
   group: >-
     ${{ (github.event.pull_request.head.repo.full_name == github.repository &&
@@ -2209,12 +2224,27 @@ jobs:
         run: |
           [ "$LEG" = 3 ] || exit 0
           scripts/sync-shared-copies.sh --check
-      - name: Run shared-copies generator and html-escape tests
+      - name: Run shared-copies generator, html-escape and view-builder tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
           [ "$LEG" = 3 ] || exit 0
           bash scripts/sync-shared-copies.test.sh
           bash lib/html-escape.test.sh
+          bash lib/view-builder.test.sh
+      # docs/conventions/prerequisites/: the checker and its stubs, then the gate
+      # that validates every prerequisites.json and fails on an undeclared tool
+      # not listed in scripts/prerequisites-baseline.txt.
+      - name: Run prerequisites checker and gate tests
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          bash lib/prerequisites.test.sh
+          bash scripts/check-declared-prerequisites.test.sh
+      - name: Check plugin prerequisites are declared
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          node scripts/check-declared-prerequisites.mjs
       - name: Verify carrying plugins bumped when a generated copy's canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
@@ -2483,8 +2513,9 @@ jobs:
       # Counters only, never durations, so the answer does not move with runner
       # load. A lower count is lowered in the file by hand in the same PR
       # (`ratchet.py propose-tighten --write`); there is no scheduled tightening
-      # job, because a counter this deterministic only drops when a PR changes
-      # it. LEG 0 carries it alone. The hook counters run through
+      # job. A runner image change can also lower a count: the check log then
+      # shows `propose-tighten can lower it`, and the ceiling is lowered by hand
+      # in a PR. LEG 0 carries it alone. The hook counters run through
       # scripts/hook-census.sh under strace, so its suite runs first here: no
       # other lane runs a scripts/ suite that needs strace. The counts depend
       # on the image's bash, git, jq and coreutils, so the versions are printed

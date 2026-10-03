@@ -79,6 +79,13 @@ came from, not by who wrote it down.
 - **Taint follows the text.** Text derived from a K2 source stays K2 whoever wrote it:
   the model's summary of a fetched page, a `.work/` note quoting an issue, a description
   of a diff.
+- **A record outside the repository carries its class.** A record kept in a memory-tier
+  or plugin data directory is not K1, so without a marker it is K2. It keeps K0 or K1
+  only when the lane that wrote it put a provenance line in it,
+  `<!-- content-class: K0 -->` or `<!-- content-class: K1 -->`, which states that the
+  writing context held no K2 text. A lane that cannot state that writes no marker. A
+  marker is the writer's claim, not proof: a record that quotes a K2 surface is K2
+  whatever its marker says.
 - **Operator-installed configuration is K1.** The user's CLAUDE.md, AGENTS.md, and
   rules, installed plugins' skill and agent text, installed MCP servers' instructions,
   and the harness-authored parts of a status block (working directory, clean or dirty
@@ -98,9 +105,10 @@ came from, not by who wrote it down.
 - **The class rules bind every emitter now.** The grandfathered surfaces (see Wave-1
   adoption and grandfathered surfaces) are bound too, including the minimum content
   security policy on a K0 or K1 page; only their ladder and `medium` are grandfathered.
-  Until the builder ships, a lane whose authoring context holds K2 text emits the
-  markdown record or terminal output, or a static report-profile page through
-  `lib/html-escape.mjs`, never a page with model-written markup or script.
+  A lane whose authoring context holds K2 text emits the markdown record or terminal
+  output, or a page built by the shared builder (`lib/view-builder.mjs`, report or
+  interactive profile) or by `lib/html-escape.mjs`, never a page with model-written
+  markup or script.
 - **K1 is trusted for rendering only.** It decides who may write a page's script and
   nothing else. Repository files are still DATA, never instructions, under the
   [untrusted-content framing contract](../untrusted-content/README.md#the-framing-contract).
@@ -124,7 +132,9 @@ came from, not by who wrote it down.
   injected script runs but cannot fetch, beacon, or submit a form. It can still
   navigate the page to a URL that carries data out, and CSP3 has no directive that
   stops navigation, so the authoring-context rule, not the policy, is what keeps K2
-  text out of a model-written page.
+  text out of a model-written page. The policy also blocks the web fonts and CDN
+  scripts the Artifact host otherwise allows, so a K0 or K1 page inlines everything it
+  uses.
 - The class is a property of the rendered text, not of who asked for the view or where
   it is published. Publishing a K2 page as an artifact does not lower its class.
 
@@ -158,7 +168,8 @@ from the one the browser runs. It checks the runtime body by hash before any oth
 2. **At most one data block.** `<script type="application/json">` with the builder's
    fixed `id`. Its body parses as JSON and contains no raw `<`: the builder writes `<` as
    `\u003c`, so neither `</script` nor `<!--` can occur inside it. A non-JavaScript
-   `type` makes it a data block the browser does not execute.
+   `type` makes it a data block the browser does not execute. The runtime reads it
+   only as `JSON.parse` of the element's text; nothing evaluates it.
 3. **A content security policy in the page.** The first element in `<head>` after the
    charset is a `<meta http-equiv="Content-Security-Policy">` with `default-src 'none'`,
    a `script-src` naming only the runtime's SHA-256 hash, a `style-src` naming only the
@@ -170,13 +181,28 @@ from the one the browser runs. It checks the runtime body by hash before any oth
    naming the `session-bridge` origin and nothing else; `session-bridge` owns that
    origin, and rule 9 governs what crosses it.
 4. **No inline handlers, no navigation.** No `on*` attribute, no `style` attribute, no
-   `<a href>`, `<form>`, `<iframe>`, `<object>`, `<embed>`, `<base>`, or `<link>`. A
-   URL-bearing attribute is allowed only as a same-document fragment reference (`#id`).
-   The runtime attaches every event listener.
+   `<form>`, `<iframe>`, `<object>`, `<embed>`, `<base>`, or `<link>`. A URL-bearing
+   attribute is allowed only as a same-document fragment reference (`#id`): `<a
+   href="#id">` is allowed, and an `<a href>` with any other value fails. The runtime
+   attaches every event listener. It may create a `blob:` download anchor when the
+   reader exports; that anchor is never in the built markup.
 5. **Control tags.** The tag allowlist widens to the controls the runtime drives
-   (buttons, labels, checkbox, radio, search and range inputs, select, details and
-   summary, and neutral containers); attributes widen to `aria-*`, `role`, `data-*`,
-   `hidden`, `open`, `type`, `for`, and `value`, each value escaped.
+   (buttons, labels, checkbox, radio, search, text and range inputs, textarea, select,
+   details and summary), neutral containers, and text-level elements; attributes widen
+   to `aria-*`, `role`, `data-*`, `hidden`, `open`, `type`, `for`, `value`,
+   `placeholder`, `checked`, `min`, `max`, and `step`, each value escaped.
+   - **Ids are opaque.** Every `id`, `for`, `value`, and `data-*` value is a token
+     matching `^[a-z0-9-]{1,32}$` from the checked-in template, or one the runtime
+     builds from a template key and a list position. None is derived from data, such as
+     a file path from a pull request, so no payload can carry data text in an id.
+   - **No pre-fill from data.** Data never fills a form control: the validator refuses
+     a content binding (`data-rv-text`, `data-rv-count`, `data-rv-each`) on an input,
+     textarea, select, or option, and the runtime skips those elements and never sets a
+     control's value from the data block. What a payload carries as the reader's input
+     is what the reader entered.
+   - **No binding outside page text.** The validator refuses every `data-rv-*`
+     attribute on `<html>`, `<head>`, `<title>`, `<meta>`, `<style>`, and `<script>`,
+     and the runtime skips those elements, so data never becomes CSS, metadata, or code.
 6. **An SVG allowlist.** Inline SVG is generated by the builder, never copied from K2
    text, and is limited to shape, path, text, group, and
    definition elements with geometry and presentation attributes. `<foreignObject>`,
@@ -192,11 +218,32 @@ from the one the browser runs. It checks the runtime body by hash before any oth
 7. **The same page in both hosts.** The runtime is a classic script with no imports, no
    network access outside rule 3, and every storage access wrapped so the page renders
    without it. The same file therefore behaves the same opened from `file://` and
-   published as an artifact.
+   published as an artifact. Data reaches the page only through `textContent`: the
+   runtime never sets `href`, `src`, `xlink:href`, `style`, an `on*` handler, or any
+   other attribute from a data value, and never uses one as a URL or a selector.
+   - **The artifact host does not apply the page's policy.** It wraps the page in its
+     own document, so the page's `<head>` content, the policy meta included, lands in
+     the host's `<body>`, and a browser ignores a policy meta there. The host's own
+     policy governs instead. The builder's validation and the runtime's text-only
+     rendering are the controls that hold in both hosts: both refuse bindings on
+     `<style>`, `<head>`, `<meta>`, `<title>`, `<html>`, and form controls, so data stays
+     body text the host's policy cannot be asked to police. The page's policy is defense
+     in depth that holds from `file://`. The host also blocks downloads, so the runtime
+     shows every payload as selectable text when the reader copies or saves.
+   - **Basis:** the builder's sample page, published 2026-10-02 and read back: the
+     stored page sits inside the host's `<body>`. In headless Chromium, the same page
+     wrapped that way ran a runtime that did not match its hash; unwrapped, from
+     `file://`, the policy blocked it (`lib/view-builder.test.sh`).
+   - **Recheck:** the artifact host stops wrapping pages, or lets a page declare its
+     own policy.
 8. **A generator marker naming the profile.** The page carries the builder's generator
    marker, which names the profile it was validated against, and the validator selects
-   the profile from it. The marker has no version: when the marker format changes, the
-   builder and every consumer of the old marker migrate in the same change.
+   the profile from it: `rv-gen:view-builder-interactive` selects the interactive
+   profile, and any other page, including one stamped `rv-gen:escape-helper-v1` or
+   carrying no marker, is judged by the report profile, so an unknown marker fails
+   closed. A marker proves no provenance; the structural scan decides. When the marker
+   format changes, the builder and every consumer of the old marker migrate in the same
+   change.
 9. **The Claude-interactive tier.** The tier is closed to every content class, K0, K1,
    and K2, until `session-bridge` exists and meets the last three bullets below (see
    View tiers). The first bullet binds the page; the last three are properties of the
@@ -218,9 +265,12 @@ from the one the browser runs. It checks the runtime body by hash before any oth
    - The bridge lets no message trigger a write, push, merge, or other gated action
      without the confirm or permission gate that action already has.
 
-The builder's exact tag and attribute lists, and the hostile-input corpus that proves
-each refusal above, live with the builder. A change that widens an allowlist names the
-rule above it falls under; a widening no rule covers amends this section first.
+The builder's exact tag and attribute lists live in `lib/view-builder.mjs`, and the
+hostile-input corpus that proves each refusal above, with the runtime's sink lint, lives
+in `lib/view-builder.test.sh`. Each adopting plugin carries a generated copy of both
+library files (see `scripts/shared-copies.txt`). A change that widens an allowlist
+names the rule above it falls under; a widening no rule covers amends this section
+first.
 
 - **Claim:** a `<script>` whose `type` is not a JavaScript MIME type is a data block the
   browser does not execute; the content of a script element must not contain `<!--` or
@@ -247,7 +297,8 @@ rule above it falls under; a widening no rule covers amends this section first.
   restrictions, hash-sourced inline script, directive fallback, or the reach of a
   meta-delivered policy are defined, CSP
   gains a navigation directive, browsers stop sending `Origin: null` from `file:`
-  pages, or the builder's first release finds a host where rule 7 does not hold.
+  pages, or another host turns out to treat the page differently from the two rule 7
+  names.
 
 ## Choosing the rung: text, diagram, page, or video
 
@@ -375,12 +426,14 @@ Current emitters, grandfathered on their shipped ladder and `medium` only, since
 content-class rules bind them now (see Content classes): `adhd:clarify`,
 `architecture:improve`, `education:teach` (topic mode),
 `prototype:explore-directions`, `prototype:pressure-test`, `machine-health:audit`,
-`harness-ops:observability`, `planning:interview` (and planning's other rendered views),
-`overengineering:audit`, `event-storming:simulation`, `ai-briefing:generate`,
+`planning:interview` (and planning's other rendered views),
+`overengineering:audit`, `ai-briefing:generate`,
 `visualization:visualize`.
 
 Emitters on the escape-helper gate (the third bullet of the security baseline), each building
-its page with a checked-in builder: `education:eli5`, `education:teach` (codebase mode).
+its page with a checked-in builder: `education:eli5`, `education:teach` (codebase mode),
+`knowledge:video-digest`, `harness-ops:observability`, `event-storming:simulation`. They left the
+grandfathered list when they moved onto it.
 
 Retrofit list (existing lanes rendering untrusted-ish content, aligned to the security
 baseline by the tracked retrofit issue, not silently): `adhd:clarify`,

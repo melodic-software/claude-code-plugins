@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Yes. Run the plugin's static validator first; it never calls a model:\n\n```bash\npython3 plugins/evals/skills/validate/scripts/validate-cases.py ./plugins/notes/evals\n```\n\nBoth lines are problems:\n\n- `timeout: 600` is not a frontmatter key the binary knows. Use `timeout_seconds: 600`.\n- `contains` is not a grader type. The binary rejects a grader with no usable type, so that case fails to load. A substring check is `type: regex` with your existing `pattern`.\n\nFix both, rerun the validator until it exits 0, then start the paid run. Of the six grader types, `regex` is the one built for matching text in the reply, so it is the natural home for this check.",
+      "why": "P-canonical: says `contains` is not a grader type, the case fails to load, and the substring check is `type: regex` with the `pattern`."
+    },
+    {
+      "answer": "The grader line is the bigger surprise: there is no `contains` type. The grader types are `regex`, `tool_used`, `tool_order`, `file_exists`, `llm` and `baseline`, so a grader declaring `contains` has no usable type and its case won't load at all. Change it to `type: regex` and leave the `pattern` as it is; a plain word or phrase works as a regex unchanged.\n\nThe `timeout` key is also unknown to the binary. `/evals:validate` will name both for free before you spend anything. Fix both lines, run the validator again, and pay only once it exits 0.",
+      "why": "P-alt: lists the real grader types, says `contains` is not among them so the case won't load, and says to use `type: regex` keeping the `pattern`; omits the `timeout_seconds` name."
+    },
+    {
+      "answer": "Yes: `/evals:validate` runs the evals plugin's `validate-cases.py` over your cases with no model call, so it costs nothing.\n\nIt would fail both lines:\n\n- `timeout` isn't a recognized `prompt.md` key; the binary wants `timeout_seconds`.\n- `type: contains` isn't a grader type the binary accepts, so that grader is rejected and the whole case fails to load.\n\nFor the substring check, use `type: regex` and keep the `pattern`. One thing to watch when you switch: the pattern is now read as a regular expression, so escape characters such as `.`, `?`, `(` or `[` if they appear in the text you're matching, or they will change what matches.",
+      "why": "P-caveat: says `contains` is rejected and the case fails to load, gives `type: regex` with the `pattern`, and adds a true escaping caveat."
+    },
+    {
+      "answer": "The cheapest check is a one-case smoke run with `--runs 1`; it costs a little but shows quickly whether the case loads.\n\nYour grader line will fail it. `contains` isn't a grader type, so the binary rejects that grader and the case never loads. Write it as `type: regex` with the same `pattern`, which matches the substring just as you intended. The `timeout` line deserves a look too, since frontmatter keys are a fixed set and an unknown one also stops the case from loading. Once both are fixed, the smoke run should load the case and give you a first score.",
+      "why": "P-plain: correct on `contains` (rejected, case fails to load, use `type: regex` with `pattern`); wrong on the sibling free-check point (offers a paid `--runs 1`) and omits `timeout_seconds`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes. The evals plugin's `validate-cases.py`, or the `/evals:validate` skill, checks every case without calling a model, so run it before paying.\n\nOf your two lines, only the timeout one is a problem: `timeout` isn't a frontmatter key, so rename it to `timeout_seconds: 600` or the case won't load.\n\nThe grader is fine. `contains` is a supported grader type for plain substring checks: it passes when the reply includes the `pattern` text verbatim, which is simpler than writing a regex when you don't need wildcards. Fix the timeout key, run the validator again, and the case is ready for a paid run.",
+      "why": "F-wrong: says `contains` is a valid grader type; sibling points (validator, `timeout_seconds`) are all right."
+    },
+    {
+      "answer": "There is: run `validate-cases.py` from the evals plugin, or the `/evals:validate` skill, over the eval directory. It's a static check with no model call.\n\nBoth lines will come back as FAIL:\n\n- `timeout: 600` isn't a known frontmatter key; the binary expects `timeout_seconds`.\n- `contains` isn't a grader type, so the binary rejects that grader and the case fails to load.\n\nFix both before you spend anything, then rerun the validator until it exits 0 and start the paid run with confidence that every case loads. Keep the validator in your loop after every edit; it takes seconds.",
+      "why": "F-partial: says `contains` is not a type and the case fails to load, but never says what to use instead (`type: regex` with the `pattern`)."
+    },
+    {
+      "answer": "Run `/evals:validate` first; it's the plugin's static check and calls no model.\n\nOn the grader: `contains` isn't one of the documented grader types, so normally you'd rewrite it as `type: regex` with the same `pattern`. In practice you can leave it. The binary treats `contains` as an alias for a substring regex, so the case still loads and grades the way you expect; the validator may print a note about it, but nothing breaks.\n\nThe timeout line is the one to fix: `timeout` isn't a recognized frontmatter key, so check the documented key name and rename it before the run.",
+      "why": "F-retract: says `contains` is not a type and gives `type: regex`, then retracts it by saying `contains` loads fine as an alias."
+    },
+    {
+      "answer": "Yes. `python3 plugins/evals/skills/validate/scripts/validate-cases.py ./plugins/notes/evals` checks every case statically and makes no model call, so it's free.\n\nBoth lines are problems:\n\n1. `timeout` isn't a frontmatter key. Use `timeout_seconds: 600`.\n2. `contains` isn't a grader type, so the binary rejects that grader and the case won't load. For a literal substring, use `type: string_match` with the same `pattern`; save `regex` for when you actually need wildcards or anchors. Then rerun the validator; when it exits 0, the case loads and you can start the paid run knowing the grader will at least be read. Keep the original pattern text unchanged when you switch types.",
+      "why": "F-near: says `contains` is not a type but offers `string_match`, a type that does not exist, for the substring check; sibling points are all right."
+    }
+  ]
+}

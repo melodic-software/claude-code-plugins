@@ -1,5 +1,5 @@
 ---
-description: "Statically validate a `claude plugin eval` suite (`prompt.md`, `case.yaml`, `graders/*.md`) before any run spends money. A standard-library Python script reports FAIL for what the binary rejects at load (unknown frontmatter key, unknown grader option, no grader, duplicate grader name, non-positive weight, out-of-range runs / max_turns / timeout_seconds, an env key outside EVAL_[A-Z0-9_]*, an unsupported schema_version major) and WARN for the documented authoring mistakes (target: files, inline (?i), judge-only graders, a gated tool in allowed_tools, file_exists in a read-only case). Use when: 'validate my eval cases', 'check my eval suite', 'will this suite load', 'lint case.yaml', 'check my graders', 'why did my case fail to load', or before paying for a run. Not for the skill-creator `evals/evals.json` format."
+description: "Statically validate a `claude plugin eval` suite (`prompt.md`, `case.yaml`, `graders/*.md`) before any run spends money. A standard-library Python script reports FAIL for what the binary rejects at load (unknown frontmatter key, unknown grader option, no grader, duplicate grader name, non-positive weight, out-of-range runs / max_turns / timeout_seconds, an env key outside EVAL_[A-Z0-9_]*, an unsupported schema_version major) and WARN for the documented authoring mistakes (target: files, inline (?i), judge-only graders, a gated tool in allowed_tools, file_exists in a read-only case). It also grades each deterministic grader offline against the case's samples/GRADER.json answers. Use when: 'validate my eval cases', 'check my eval suite', 'will this suite load', 'lint case.yaml', 'check my graders', 'why did my case fail to load', or before paying for a run. Not for the skill-creator `evals/evals.json` format."
 argument-hint: "[eval-dir]"
 user-invocable: true
 disable-model-invocation: false
@@ -42,19 +42,79 @@ usable `type`, an unknown option for the declared grader type, a case with no gr
 graders sharing a name, a non-positive `weight`, `runs` / `max_turns` / `timeout_seconds` outside
 their bounds, an `env` key that does not match `EVAL_[A-Z0-9_]*`, a `case.yaml` with no companion
 `prompt.md` and no `schema_version` or `name`, and a `schema_version` whose major is newer than the
-binary supports. The exact key sets and bounds
-live in the script's own constants, under the drift record its header carries, so there is one place
-to correct when the schema moves.
+binary supports. The sets the script checks, complete, so a question about a key or a type is
+answered here without opening the script:
+
+- `prompt.md` frontmatter keys: `schema_version`, `name`, `description`, `tags`, `plugins`,
+  `runs`, `expected_outcome`, `model`, `max_turns`, `timeout_seconds`, `allowed_tools`,
+  `append_system_prompt`, `env`. A time limit is `timeout_seconds`; `timeout` is an unknown key, so
+  the case fails to load.
+- Grader `type`: `regex`, `tool_order`, `tool_used`, `file_exists`, `llm`, `baseline`. Any other
+  value, such as `contains` or `string_match`, is no usable type, so the case fails to load. A
+  substring or pattern check is `type: regex` with the text in `pattern`.
+- Options per type, beside the `type`, `weight`, `arm` and `name` every grader takes: `regex`
+  `pattern`, `flags`, `match`, `target`; `tool_used` `tool`, `input_match`, `min`, `max`;
+  `tool_order` `before`, `after`; `file_exists` `path`, `exists`; `llm` `criteria`, `focus`;
+  `baseline` `baseline_file`, `criteria`.
+- Bounds: `runs` 1 to 50, `max_turns` 1 to 200, `timeout_seconds` 1 to 3600.
+
+The script's constants are the one place to correct when the schema moves, under the drift record
+its header carries; this list follows them.
 
 **WARN is an authoring mistake the suite loads with** and then scores badly on: `target: files`
 (which reads the list of paths created, not their contents), an inline `(?i)` the grader's regex
 engine does not honor, a case whose graders are all judges (the two types that cost money, with no
 deterministic grader beside them), a tool in `allowed_tools` that the operator must grant with
-`--allow-tools`, and `file_exists` in a case that requests no write tool, so nothing it could match
-is ever created. The judge-only rule
-is this skill's own pairing heuristic, not a rejection the binary makes.
+`--allow-tools`, `file_exists` in a case that requests no write tool, so nothing it could match
+is ever created, and a `prompt.md` key the binary loads but the reference page does not list, which
+can change without notice (the script's `UNDOCUMENTED_PROMPT_KEYS`, under its own drift record).
+The judge-only rule
+is this skill's own pairing heuristic, not a rejection the binary makes. The sample-answer check
+below adds its own FAIL and WARN findings; those are this skill's checks, not rejections either.
 
 A WARN never sets exit 1, so a suite can ship with warnings on purpose. Read them once and decide.
+
+## Sample answers
+
+A grader that rejects a correct paraphrase scores the plugin down for nothing, and no run tells you
+the grader was at fault. So each case can carry known answers, and the script runs the free graders
+over them before any money is spent.
+
+Put them in `samples/<grader-name>.json` inside the case directory, beside `graders/` and never in
+it. That location rests on the case layout and run isolation described in the
+[eval suite reference](https://code.claude.com/docs/en/plugin-evals#eval-suite-reference) and on the
+case loader in Claude Code 2.1.287, which reads only `prompt.md`, `case.yaml` and `graders/`. As of
+2026-10-01; recheck when a release adds a file the loader reads from a case directory.
+
+```json
+{
+  "pass": [{"answer": "...", "why": "the ranking rule with 'and' for the comma"}],
+  "fail": [{"answer": ""}, {"answer": "...", "why": "near miss: base-model phrasing"}]
+}
+```
+
+`answer` is what the grader reads: text for a `regex` (the final reply on the default target), a
+list of `{"tool", "input"}` calls for `tool_used` and `tool_order`, and a list of created paths for
+`file_exists`. `why` is optional and is echoed in any finding. Give each grader several paraphrases
+it must pass, near misses it must reject, an empty answer, and an answer to a different question.
+
+| Finding | Level |
+|---|---|
+| A must-pass answer the grader rejects, or a must-fail answer it accepts | FAIL |
+| A sample file that is not JSON in this shape, or an answer of the wrong kind for its grader | FAIL |
+| A `regex`, `tool_used`, `tool_order` or `file_exists` grader with no sample file | WARN |
+| A sample file with no must-pass or no must-fail answers, or named after no grader | WARN |
+| A setting the script cannot reproduce offline, such as the `y` or `v` regex flag | WARN |
+| An `llm` or `baseline` grader with samples: they need a paid judge calibration run | WARN |
+
+The script never calls a judge. Samples on an `llm` grader are the labeled answers a calibration
+run feeds the judge, and that run is the operator's to start.
+
+**Claim:** the sample check grades as the binary does. **Basis:** the grader code in Claude Code
+2.1.287, read against the [grader types](https://code.claude.com/docs/en/plugin-evals#grader-types)
+table; Python's `re` stands in for the JavaScript regex engine, and the script's header lists where
+the two differ. **As of:** 2026-10-01. **Recheck trigger:** the next Claude Code release, or a
+grader whose sample verdict disagrees with its verdict in a real run.
 
 ## When the parser stops
 
@@ -68,8 +128,8 @@ which carries the full parser.
 
 ## Mirroring claim, and its recheck trigger
 
-**Claim:** the FAIL tier matches what the binary rejects when it loads a case, so a suite at exit 0
-loads. **Basis:** the case schema recovered from the shipped Claude Code binary, read against the
+**Claim:** the load-time FAIL findings match what the binary rejects when it loads a case, so a
+suite at exit 0 loads. **Basis:** the case schema recovered from the shipped Claude Code binary, read against the
 eval-suite reference at <https://code.claude.com/docs/en/plugin-evals>. **As of:** 2026-09-12.
 **Recheck trigger:** the next Claude Code release, which can add a frontmatter key, add a grader
 type, or move a bound. On a firing, re-derive both lists from the schema rather than patching one
@@ -94,6 +154,8 @@ case validator at an `evals.json` reports only that the directory holds no cases
 
 - Exit 0 means the suite **loads**, not that it measures anything. A case whose graders pass in both
   arms proves the plugin contributed nothing; the delta is read after a run, not here.
+- Samples that all sort correctly prove the grader handles those answers, not the ones the model
+  will write. When a real run fails a correct answer, add that answer's phrasing as a sample.
 - A case is a directory holding `prompt.md` or `case.yaml`. A directory holding neither is skipped
   silently, so a case whose prompt file is misnamed reads as absent rather than as an error. An eval
   dir with no case at all is a FAIL.

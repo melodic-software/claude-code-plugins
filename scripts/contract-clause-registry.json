@@ -62,11 +62,45 @@
       ]
     },
     {
+      "id": "D4.6-unrelated-fix-placement",
+      "title": "An unrelated small fix lands in this PR only in a file the PR already touches",
+      "canonical": "plugins/source-control/reference/review-discipline.md",
+      "detect": "scope test|unrelated (fix|finding)|unrelated to the (current )?(task|item)|already touches",
+      "restates": "file (the|this) (PR|change) already touches|its own small PR|even (when )?(it is )?unrelated",
+      "qualifiers": [
+        {
+          "name": "touched-file-only",
+          "pattern": "file (the|this) (PR|change) already touches",
+          "hint": "say an unrelated fix lands in this PR only when it is in a file the PR already touches"
+        },
+        {
+          "name": "own-small-pr",
+          "pattern": "own small PR",
+          "hint": "say any other unrelated fix goes in its own small PR"
+        },
+        {
+          "name": "no-tracker-item",
+          "pattern": "no (tracker item|ticket)",
+          "hint": "say that separate PR needs no tracker item; filing one is the busy work the scope test rules out"
+        },
+        {
+          "name": "no-pr-lane-fallback",
+          "pattern": "cannot open a PR[^.]{0,160}unresolved",
+          "hint": "say a lane that cannot open a PR replies, leaves the thread unresolved, and reports it"
+        },
+        {
+          "name": "project-override",
+          "pattern": "CLAUDE\\.md or AGENTS\\.md",
+          "hint": "say a project changes this placement in its own CLAUDE.md or AGENTS.md"
+        }
+      ]
+    },
+    {
       "id": "D7.5-thread-eligibility",
       "title": "Resolution eligibility is a property of the whole thread",
       "canonical": "plugins/source-control/reference/review-discipline.md",
       "detect": "D7\\.5|resolve (that|the) thread|thread eligib",
-      "restates": "(carr(y|ies)|hold|must carry|needs)[^.]{0,30}(eligible|recorded)[^.]{0,10}disposition|one of three recorded dispositions",
+      "restates": "(carr(y|ies)|hold|must carry|needs)[^.]{0,30}(eligible|recorded)[^.]{0,10}disposition|one of (three|four) recorded dispositions",
       "qualifiers": [
         {
           "name": "every-finding-scope",
@@ -77,6 +111,11 @@
           "name": "disposition-fixed",
           "pattern": "fix now|pushed fix|fix pushed|pushed and cited",
           "hint": "enumerate the fixed disposition — a pushed fix cited by the D7 follow-up"
+        },
+        {
+          "name": "disposition-linked-pr",
+          "pattern": "linked PR",
+          "hint": "enumerate the linked-PR disposition: an unrelated fix the D4.6 scope test placed in a separate PR, with the reply citing that PR"
         },
         {
           "name": "disposition-deferred",

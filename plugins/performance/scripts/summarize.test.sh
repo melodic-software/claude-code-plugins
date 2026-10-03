@@ -102,6 +102,51 @@ run_summarize "arm" 1 "$WORK/nineteen"
 assert_not_contains "a refused p95 has no nearest-rank" "p95=REFUSED(n=19<20)(nearest-rank" "$RUN_OUT"
 assert_not_contains "a refused p95 has no outlier line" "OUTLIER" "$RUN_OUT"
 
+run_percentiles() {
+  capture env BENCH_PERCENTILES="$1" BENCH_LABEL=arm BENCH_CONC=1 BENCH_TIMES="$2" \
+    "$HARNESS_PYTHON" "$SUMMARIZE"
+}
+
+# --- 11. unset BENCH_PERCENTILES reports p50 and p95, unchanged ---
+# The whole line, so a default that drifts in any cell or column fails here.
+DEFAULT_LINE="arm$(printf '%26s' '')conc=1   n=20   p50=10ms(nearest-rank=10ms) p95=19ms(nearest-rank=19ms) min=1ms max=20ms rc={0: 20}"
+run_summarize "arm" 1 "$WORK/twenty"
+assert_eq "unset BENCH_PERCENTILES prints the p50,p95 line" "$DEFAULT_LINE" "$RUN_OUT"
+run_percentiles "50,95" "$WORK/twenty"
+assert_eq "an explicit 50,95 prints the same line" "$DEFAULT_LINE" "$RUN_OUT"
+
+# --- 12. an entry outside (0, 100) or not a number is refused ---
+for bad in 0 100 abc -5 nan "50,,95" ""; do
+  run_percentiles "$bad" "$WORK/twenty"
+  assert_eq "BENCH_PERCENTILES='$bad' is refused" "2" "$RUN_RC"
+  assert_contains "the refusal for '$bad' names the variable" "BENCH_PERCENTILES" "$RUN_OUT"
+done
+
+# --- 13. the floor applies to every listed entry: p99 needs 1/(1-0.99) = 100 ---
+run_percentiles "50,99" "$WORK/twenty"
+assert_eq "a refused p99 still exits 0" "0" "$RUN_RC"
+assert_contains "p99 is refused at n=20" "p99=REFUSED(n=20<100)" "$RUN_OUT"
+assert_contains "p50 is still reported" "p50=10ms(nearest-rank=10ms)" "$RUN_OUT"
+assert_not_contains "an unlisted p95 is not reported" "p95" "$RUN_OUT"
+
+# p99.9 needs 1/(1-0.999) = 1000 samples exactly, not one more from float error.
+samples "$WORK/n999" 999
+run_percentiles "99.9" "$WORK/n999"
+assert_contains "p99.9 is refused at n=999 with floor 1000" "p99.9=REFUSED(n=999<1000)" "$RUN_OUT"
+samples "$WORK/n1000" 1000
+run_percentiles "99.9" "$WORK/n1000"
+assert_not_contains "p99.9 is reported at n=1000" "REFUSED" "$RUN_OUT"
+
+# --- 14. OUTLIER follows the highest listed percentile ---
+# 10 20 30 40: p50 is 25ms; without the max it is 20ms, a 20% move.
+printf '10 0\n20 0\n30 0\n40 0\n' >"$WORK/four"
+run_percentiles "50" "$WORK/four"
+assert_contains "OUTLIER names p50 when p50 is the highest listed" \
+  "OUTLIER: one sample moves p50 (p50=25ms, without max sample 20ms); report the raw samples, not p50" \
+  "$RUN_OUT"
+run_percentiles "50,99" "$WORK/outlier"
+assert_not_contains "a refused highest entry runs no OUTLIER check" "OUTLIER" "$RUN_OUT"
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
 echo "OK: summarize percentile floor"
 exit 0

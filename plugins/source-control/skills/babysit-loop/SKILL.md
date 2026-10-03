@@ -1,5 +1,5 @@
 ---
-description: "Run one repository's pull-request queue as the merge lane of the loop-lane topology: a self-paced standing or drain loop invoking /source-control:babysit-prs each cycle at the resolved autonomy tier, with grace windows, do-not-merge respect, escalation, and lane telemetry. Merge authority is human-only until the target repo's tracked config adopts the lane; the body owns the rung rules and the single paired-argument exception. Use when asked to run or stand up the babysit loop or merge lane for a repository, or to drain its PR queue. Required argument: <owner/repo>. Launch via /loop. Sibling skills: /source-control:babysit-prs (single-pass mechanic), /source-control:pull-request (single-PR lifecycle)."
+description: "Run one repository's pull-request queue as the merge lane of the loop-lane topology: a self-paced standing or drain loop invoking /source-control:babysit-prs each cycle at the resolved autonomy tier, with grace windows, do-not-merge respect, escalation, and lane telemetry. Merge authority is human-only until the target repo's tracked config adopts the lane; the body owns the rung rules and the single paired-argument exception. Use when asked to run or stand up the babysit loop or merge lane for a repository, or to drain its PR queue. Required argument: OWNER/REPO. Launch via /loop. Sibling skills: /source-control:babysit-prs (single-pass mechanic), /source-control:pull-request (single-PR lifecycle)."
 argument-hint: "<owner/repo> [safe|worker|autopilot] [--drain] [--strip-do-not-merge]"
 user-invocable: true
 disable-model-invocation: false
@@ -303,7 +303,7 @@ block, re-read at every cycle start:
 ```json
 {"schema":"source-control/babysit-loop-state@2","cycle":12,"backoff_level":2,
  "no_progress_streak":0,"stop_mode":"standing","tier":"worker","merge_rung":"c2-mechanical",
- "rate_limit_latch":false,"guard_mode":"proactive","lane_instance":"melo-lap-001",
+ "rate_limit_latch":false,"guard_mode":"proactive","effort":"unset","lane_instance":"melo-lap-001",
  "writer_nonce":"9f3c1a7e","heartbeat_at":"2026-07-23T15:04:05Z","paused_until":null,
  "latched_account":null,"loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
  "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
@@ -316,6 +316,12 @@ budget or expiry hit records the relaunch ask; `guard_mode` is recorded every cy
 is **per-instance**, the marker partitions the block, so each measures *this* instance's experience
 rather than an average of two lanes'. The four instance fields carry the collision check that
 partition depends on; it and the `instance:` cycle-report line are the reference's.
+
+`effort` is the level that ran, which can differ from the launch `--effort`: at each cycle start
+run `printenv CLAUDE_EFFORT` through Bash and record its output, or `"unset"` when it prints
+nothing. Pointer: for the `CLAUDE_EFFORT` variable, see the `effort` row of
+[Common input fields](https://code.claude.com/docs/en/hooks#common-input-fields). As of:
+2026-10-02. Recheck trigger: that row stops naming the variable.
 
 `latched_account` is the fingerprint of the account that tripped the pause, recorded with
 `paused_until` at pause entry (never the address; this comment is public). It is `null` or absent

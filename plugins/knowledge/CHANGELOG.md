@@ -4,6 +4,50 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.17.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `docpage-digest` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [0.17.0] - 2026-10-02
+
+### Added
+
+- **The Anthropic docs profile tags a blog post's outcome counts for claude.ai as
+  `tag-exempt (consumer-surface)` with the `vendor-claimed` marker,** on both blog hosts. A team
+  that wants them handled otherwise says so in its own CLAUDE.md or AGENTS.md.
+
+### Changed
+
+- **The Anthropic docs queue's notes on the loops, Code Review, and test-impact analysis posts
+  record their fetched topics** and give each pointer in the when-fetch-live form with an as-of
+  date and a recheck trigger.
+
+## [0.16.0] - 2026-10-02
+
+### Added
+
+- **`docpage-digest` gains `check-html-rows.py`, the HTML quote gate.** It checks F-labeled rows
+  quoted from a page's HTML against `source.html` and grades each `EXACT`, `JOIN` (with declared
+  truncations) or `FAIL`; usage and read errors exit 2. It ships with a synthetic negative-control
+  test suite beside `check-fences-exact.py`.
+- **`check-html-rows.py` is a standing gate when digests carry `**FN.**` rows quoted from
+  `source.html`**, named in the pipeline invocation, dual verification and the Phase 4 checklist;
+  a fence that is empty, blank or only truncation marks fails.
+
+## [0.15.4] - 2026-10-02
+
+### Security
+
+- The `video-digest` recommendations-menu HTML view is built by a checked-in builder
+  (`skills/video-digest/scripts/build-menu-view.mjs`) that escapes every field derived from fetched
+  transcripts, titles, and URLs through the rendered-views escape helper, now carried at
+  `lib/html-escape.mjs`, and stamps the generator marker. The page has no script and the URL
+  renders as text. `build-menu-view.mjs --check <file>` flags a page that bypassed the builder.
+
 ## [0.15.3] - 2026-10-02
 
 ### Changed

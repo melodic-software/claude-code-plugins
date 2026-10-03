@@ -1,0 +1,2 @@
+{"type":"system","subtype":"init","model":"claude-sonnet-5","claude_code_version":"2.1.287","permissionMode":"dontAsk"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Paris is the capital of France, and also its largest city."}]}}

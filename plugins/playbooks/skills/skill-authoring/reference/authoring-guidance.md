@@ -241,18 +241,26 @@ example.
 
 No date-conditional guidance in a body ("before August, use the old API"): state the current
 method only. This marketplace does not keep superseded guidance in an in-body section, collapsed
-or not. History routes to the plugin `CHANGELOG.md`, the commit message, and `docs/adr/`, and a
-volatile specific the body depends on is replaced by a links-only record: our decision in our
-words, a pointer to the exact upstream section, an as-of date, and a recheck trigger, with no
-upstream text. The reason is the cost model above: a collapsed block is still tokens on every turn
-after invocation, while a separate reference file is free until read, so history that must travel
-with the skill goes in a spoke. The owning rule is
-`.claude/rules/skill-bodies-state-current-rules.md`, and the record shape is the upstream-drift
-convention's `docs/conventions/upstream-drift/README.md#required-parts`.
+or not, apart from the one exception below. History routes to the plugin `CHANGELOG.md`, the
+commit message, and `docs/adr/`, and a volatile specific the body depends on is replaced by a
+links-only record: our decision in our words, a pointer to the exact upstream section, an as-of
+date, and a recheck trigger, with no upstream text. The reason is the cost model above: a collapsed
+block is still tokens on every turn after invocation, while a separate reference file is free until
+read, so history that must travel with the skill goes in a spoke. The record shape is the
+upstream-drift convention's `docs/conventions/upstream-drift/README.md#required-parts`, and
+`.claude/rules/skill-bodies-state-current-rules.md` applies it to skill and agent bodies.
 
-**Record.** Pointer: for the page's treatment of superseded guidance, see
+The exception: a skill whose users still meet renamed API or interface names may keep an "Old
+patterns" section holding a table that maps each old name to its current one. The table carries
+names only, never a description of behavior, and the section ends in its own record. Where the
+section may sit and what it may hold are owned by
+`docs/conventions/upstream-drift/README.md#old-patterns-mapping-tables`; read the limits there.
+
+**Record.** Pointer: for the page's treatment of superseded guidance and of an "Old patterns"
+section, see
 [Avoid time-sensitive information](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#avoid-time-sensitive-information).
-As of: 2026-09-10. Recheck trigger: the page drops or changes that section.
+As of: 2026-10-02. Recheck trigger: the page drops or changes that section; then re-read the
+upstream-drift carve-out, which depends on the same section.
 
 ## Evaluation and iteration
 
@@ -277,7 +285,18 @@ it or signal it better). Where the bundled skill-creator plugin is installed, it
 this loop with a subagent per case. Use `/skill-doctor`, where it resolves, to answer "does it
 activate" from usage data, never "is the output right"; its version floor and availability are at
 the pointer. Run this loop for a skill's eval file; route a plugin measured as a plugin to
-`claude plugin eval`, whose case format is separate from `evals/evals.json`.
+`claude plugin eval`, whose case format is separate from `evals/evals.json`. For a
+`claude plugin eval` case, put everything the case depends on in the hub `SKILL.md`, not a spoke.
+
+Carrying a failure back: read the whole failure first (the case's input, the output, and the
+grader's failure text), then write the general cause into the skill in your own words. Never copy
+a case's prompt, output, or distinctive phrasing into the skill, and never draw a change from
+held-back test cases.
+
+Re-run the evals whenever a skill's description or body changes: a description change re-measures
+triggering (`/skill-quality:check measure-invocation`), a body change re-measures output (the loop
+above, or `/evals:plugin-eval` for a plugin suite). Runs are on demand; no CI workflow in this
+marketplace runs model-graded evals.
 
 When a rule is being missed, try both directive wording (a capitalized must) and reasoning-based
 wording (the rule plus the reason it exists). The evals settle it.
@@ -289,11 +308,23 @@ for the eval file shape, see <https://agentskills.io/skill-creation/evaluating-s
 `plugins/skill-quality/reference/evals.schema.json`; for the loop and the four signals, see
 [Evaluation and iteration](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices#evaluation-and-iteration);
 for `claude plugin eval` and its format separation, see
-[Test plugins with evals](https://code.claude.com/docs/en/plugin-evals). As of: 2026-09-10
-(plugin-evals read 2026-09-12). Recheck trigger: the plugin-evals page drops the format separation
-or its runner starts reading `evals/evals.json`, the skills page changes the `/skill-doctor` gate,
-the loop, or the skill-creator modes, the best-practices page changes the four signals, or the
-runner changes its record shape.
+[Test plugins with evals](https://code.claude.com/docs/en/plugin-evals); for keeping a case's
+dependencies in the hub, see the hub-only record that `/evals:plugin-eval` carries, with its own
+evidence and trigger. For carrying a failure back as a general cause, see
+[Iterating on the skill](https://agentskills.io/skill-creation/evaluating-skills#iterating-on-the-skill);
+for keeping held-back test cases out of a change, see
+[eval-hillclimb.md Step 4](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/eval-hillclimb.md#step-4-the-loop)
+and
+[Failure modes to avoid](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/eval-hillclimb.md#failure-modes-to-avoid)
+at the pinned commit (correlate with
+<https://claude.dev/blog/automating-eval-design-and-hillclimbing#overfitting>). As of: 2026-09-10
+(plugin-evals read 2026-09-12; hub-only record, failure carry-back and held-back pointers
+2026-10-02). Recheck trigger: the plugin-evals page drops the format separation or its runner
+starts reading `evals/evals.json`, the skills page changes the `/skill-doctor` gate, the loop, or
+the skill-creator modes, the best-practices page changes the four signals, the runner changes its
+record shape, the `/evals:plugin-eval` hub-only record's trigger fires, the agentskills.io
+iterating section changes, or a commit to `anthropics/skills` changes Step 4 or the failure modes
+of `eval-hillclimb.md` (then move the pin).
 
 ## Model coverage
 

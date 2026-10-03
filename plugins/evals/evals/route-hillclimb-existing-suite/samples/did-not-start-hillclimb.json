@@ -1,0 +1,86 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:methodology"
+          }
+        }
+      ],
+      "why": "this plugin answered"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "claude-api"
+          }
+        }
+      ],
+      "why": "claude-api read for its docs, no subcommand"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "claude-api",
+            "args": "how should this repo get evals?"
+          }
+        }
+      ],
+      "why": "claude-api asked a question, no subcommand"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "claude-api",
+            "args": "hillclimb"
+          }
+        }
+      ],
+      "why": "started hillclimb"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:methodology"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "claude-api",
+            "args": "hillclimb --target support-bot"
+          }
+        }
+      ],
+      "why": "started after routing"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "args": "hillclimb",
+            "skill": "claude-api"
+          }
+        }
+      ],
+      "why": "args before skill: key order does not matter"
+    }
+  ]
+}

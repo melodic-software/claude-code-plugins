@@ -1,5 +1,5 @@
 ---
-description: "Ingest a single online documentation page into a verified knowledge slice with dual verification and an interview-ready handoff. Use when: 'digest this doc', 'ingest this documentation page', 'run the doc pipeline on <url>', 'docpage digest', 'pull this vendor doc into the knowledge base', 'distill this docs page', or the user supplies a documentation URL. Book files route to /knowledge:book-distill; courses to course-digest; single videos to video-digest."
+description: "Ingest a single online documentation page into a verified knowledge slice with dual verification and an interview-ready handoff. Use when: 'digest this doc', 'ingest this documentation page', 'run the doc pipeline on URL', 'docpage digest', 'pull this vendor doc into the knowledge base', 'distill this docs page', or the user supplies a documentation URL. Book files route to /knowledge:book-distill; courses to course-digest; single videos to video-digest."
 argument-hint: "[url]"
 user-invocable: true
 disable-model-invocation: false
@@ -249,6 +249,8 @@ gate. Phrase-greps miss fluent-prose instances entirely.
   honesty.
 - **`check-snippets.py`:** only fences under Prompt snippets. Blind to Key claims, unfenced
   restatements, omitted real prompts, a lying none-marker.
+- **`check-html-rows.py`** (only when digests carry `**FN.**` rows quoted from `source.html`):
+  only those rows' fences. Blind to `**CN.**` rows and to a JOIN row's line order.
 - **Command-replay:** first number of each `→ N lines, M files` pair; POSIX-quoted commands
   replayed through cmd.exe.
 - **Presence-non-empty / parity:** unsubstituted placeholders pass; blank inventories can print

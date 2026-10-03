@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/prerequisites/prerequisites.schema.json",
+  "title": "Plugin prerequisites",
+  "description": "The external dependencies one plugin needs, in prerequisites.json at the plugin root. lib/prerequisites.mjs reads it and enforces the same rules. docs/conventions/prerequisites/README.md owns the contract.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["requires"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "requires": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/entry" }
+    }
+  },
+  "$defs": {
+    "text": { "type": "string", "pattern": "\\S" },
+    "names": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/text" } },
+    "relativePaths": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "pattern": "^(?![\\\\/])(?![A-Za-z]:)(?!.*(^|[\\\\/])\\.\\.([\\\\/]|$)).+$" }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "need", "for", "detect", "degrade", "install", "check"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._+-]*$",
+          "description": "Unique within the file. The row key in every report."
+        },
+        "kind": { "enum": ["cli", "runtime", "system-lib", "python-pkg", "node-pkg", "env", "mcp"] },
+        "need": { "enum": ["required", "optional"], "description": "Relative to the scopes in for." },
+        "for": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^(plugin|(skill|hook|mcp):[A-Za-z0-9._/-]+)$" }
+        },
+        "detect": { "type": "object" },
+        "degrade": {
+          "$ref": "#/$defs/text",
+          "description": "What stops working, and what still works, when the dependency is absent."
+        },
+        "install": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "pattern": "^[a-z][a-z0-9-]*$" },
+          "additionalProperties": { "$ref": "#/$defs/text" },
+          "description": "Hints keyed by package manager (docs, brew, winget, apt, npm, ...). Never executed. Key order is not a preference."
+        },
+        "check": { "type": "string", "pattern": "^/[a-z0-9-]+:[a-z0-9-]+( [^\\n]+)?$" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "enum": ["cli", "runtime"] } } },
+          "then": {
+            "properties": {
+              "detect": {
+                "additionalProperties": false,
+                "required": ["any"],
+                "properties": {
+                  "any": { "$ref": "#/$defs/names" },
+                  "local_bin": { "$ref": "#/$defs/relativePaths" },
+                  "version": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["args", "pattern", "min"],
+                    "properties": {
+                      "args": { "type": "array", "items": { "type": "string" } },
+                      "pattern": {
+                        "$ref": "#/$defs/text",
+                        "description": "A regular expression whose first capture group is the version."
+                      },
+                      "min": { "type": "string", "pattern": "^\\d+(\\.\\d+)*$" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "system-lib" } } },
+          "then": {
+            "properties": {
+              "detect": {
+                "additionalProperties": false,
+                "required": ["probe"],
+                "properties": {
+                  "probe": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["args", "pattern"],
+                    "properties": {
+                      "args": { "$ref": "#/$defs/names", "description": "The first item is the binary to run." },
+                      "pattern": { "$ref": "#/$defs/text" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "python-pkg" } } },
+          "then": {
+            "properties": {
+              "detect": {
+                "additionalProperties": false,
+                "required": ["any", "import"],
+                "properties": {
+                  "any": { "$ref": "#/$defs/names" },
+                  "import": { "type": "string", "pattern": "^[A-Za-z_]\\w*(\\.[A-Za-z_]\\w*)*$" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "node-pkg" } } },
+          "then": {
+            "properties": {
+              "detect": {
+                "additionalProperties": false,
+                "required": ["module", "paths"],
+                "properties": {
+                  "module": { "type": "string", "pattern": "^(@[a-z0-9._-]+/)?[a-z0-9._-]+$" },
+                  "paths": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "pattern": "^(?!.*(^|[\\\\/])\\.\\.([\\\\/]|$))(\\$\\{CLAUDE_PLUGIN_(DATA|ROOT)\\}(/.+)?|(?![\\\\/])(?![A-Za-z]:).+)$"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "env" } } },
+          "then": {
+            "properties": {
+              "detect": {
+                "additionalProperties": false,
+                "required": ["name"],
+                "properties": { "name": { "type": "string", "pattern": "^[A-Za-z_]\\w*$" } }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "mcp" } } },
+          "then": {
+            "properties": {
+              "detect": {
+                "additionalProperties": false,
+                "required": ["server"],
+                "properties": { "server": { "type": "string", "pattern": "^[A-Za-z0-9._-]+$" } }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

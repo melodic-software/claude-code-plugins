@@ -3,6 +3,37 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.1] - 2026-10-02
+
+### Changed
+
+- Check 8 (vendor/ byte-identity) passes a pure rename inside `vendor/`, since every byte is kept. A rename that also edits content still fails.
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `check` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [0.26.0] - 2026-10-02
+
+### Added
+
+- **Skill-eval cases can record why they are hard and where they came from.** `evals.schema.json`
+  accepts three optional case fields: `difficulty` (`hard` or `routine`), `why_hard` and `source`.
+  Every existing `evals.json` stays valid. `validate-evals` warns (Q11) on a `difficulty: hard` case
+  with no `why_hard`.
+- **`measure-invocation` reports noise and catches copied probes.** `compare` adds a 95%
+  normal-approximation interval to each trigger-rate delta and an INFO line that says "within noise"
+  when the interval contains 0. `validate` warns when a should-trigger probe shares 4 or more
+  consecutive words with the target listing (`--copy-span N` changes the span).
+  `emit-plugin-eval` writes `runs: 3` per case, the CLI's default, and takes `--runs N`.
+
+### Changed
+
+- **Seven seed probes are reworded the way a user would ask.** They copied the listing they were
+  scoring. The listing-overlap baseline is regenerated; its rates are unchanged.
+
 ## [0.25.5] - 2026-10-02
 
 ### Added

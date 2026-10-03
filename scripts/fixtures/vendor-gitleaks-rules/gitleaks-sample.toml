@@ -1,0 +1,61 @@
+# Offline input for test_vendor_gitleaks_rules.py, shaped like gitleaks'
+# config/gitleaks.toml. Patterns only: no rule carries an example secret.
+title = "vendor_gitleaks_rules.py offline fixture"
+
+[[rules]]
+id = "leading-flag"
+description = "A leading (?i) is global in Go and Python alike"
+regex = '''(?i)\bleading_[a-z]{8}\b'''
+keywords = ["leading_"]
+
+[[rules]]
+id = "mid-flag"
+description = "A mid-pattern (?i) scopes to the end of its group"
+regex = '''\b(p8e-(?i)[a-z0-9]{32})(?:[\x60'"\s;]|\\[nr]|$)'''
+keywords = ["p8e-"]
+
+[[rules]]
+id = "top-level-mid-flag"
+description = "A mid-pattern (?i) outside any group scopes to the end"
+regex = '''lin_api_(?i)[a-z0-9]{40}'''
+keywords = ["lin_api_"]
+
+[[rules]]
+id = "escaped-paren"
+description = "Escaped parentheses open no group"
+regex = '''\((?i)x\)'''
+
+[[rules]]
+id = "class-with-paren"
+description = "A parenthesis inside a character class opens no group"
+regex = '''([)](?i)x)y'''
+
+[[rules]]
+id = "go-end-of-text"
+description = 'Go end of text \z is Python \Z'
+regex = '''\b(sha256~[\w-]{43})(?:[^\w-]|\z)'''
+
+[[rules]]
+id = "posix-class"
+description = "POSIX classes become explicit ranges"
+regex = '''\b(pat[[:alnum:]]{14}\.[a-f0-9]{64})\b'''
+
+[[rules]]
+id = "negated-posix-class"
+description = "A POSIX class inside a negated set"
+regex = '''[^[:digit:]x]'''
+
+[[rules]]
+id = "nested-set-warning"
+description = "Valid in Go; Python warns about a possible nested set"
+regex = '''[[a]b'''
+
+[[rules]]
+id = "path-only"
+description = "A rule matching file paths, not content"
+path = '''(?i)\.p12$'''
+
+[[rules]]
+id = "unsupported-syntax"
+description = "Unicode property classes do not exist in Python re"
+regex = '''\pL{4}'''

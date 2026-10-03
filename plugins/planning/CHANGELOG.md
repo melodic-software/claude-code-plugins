@@ -3,6 +3,22 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.3] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
+## [0.62.2] - 2026-10-02
+
+### Fixed
+
+- **The `Plan` agent verification record points at the live disallowed-tool list.**
+  `reference/native-plan-agent.md` named five tools from the 2.1.285 extraction; on Claude Code
+  2.1.288 the agent disallows nine. The record now states what that means for this skill (it
+  cannot edit files, spawn an agent, or exit plan mode) and points at
+  `builtin_agents.Plan.disallowed_tools` in the inventory instead of copying the list.
+
 ## [0.62.1] - 2026-10-02
 
 ### Changed

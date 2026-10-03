@@ -3,6 +3,33 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.5] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- `plugin.json` no longer sets `defaultEnabled`, which claude.ai's marketplace sync does not recognize. The marketplace entry's `defaultEnabled: false` still applies, and it takes precedence over `plugin.json`, so the plugin still installs disabled.
+
+## [0.5.4] - 2026-10-02
+
+### Fixed
+
+- The Windows PowerShell repair command the launcher prints doubles every PowerShell single-quote
+  character in a path, not only the ASCII `'`. PowerShell also reads U+2018, U+2019, U+201A and
+  U+201B as single quotes, so a path holding one ended the string early and ran the rest as code
+  ([language specification, string literals](https://learn.microsoft.com/en-us/powershell/scripting/lang-spec/chapter-02#2352-string-literals)).
+
+## [0.5.3] - 2026-10-02
+
+### Fixed
+
+- The Windows PowerShell repair command the launcher prints names `npm.cmd` instead of bare `npm`,
+  which resolves to `npm.ps1` and is refused by the default Restricted execution policy
+  ([#5880](https://github.com/melodic-software/claude-code-plugins/issues/5880)).
+- That command runs inside a child script block, `& { ... }`, so its
+  `$ErrorActionPreference = 'Stop'` no longer stays set in the session it is pasted into
+  ([#5896](https://github.com/melodic-software/claude-code-plugins/issues/5896)).
+
 ## [0.5.2] - 2026-10-02
 
 ### Fixed

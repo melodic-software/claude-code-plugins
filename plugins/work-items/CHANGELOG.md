@@ -3,7 +3,7 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.44.3] - 2026-10-02
+## [0.45.3] - 2026-10-02
 
 ### Changed
 
@@ -11,6 +11,32 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   reviewer check run on the head has finished, then hands every failing check and VALID finding
   to one fix worker that pushes once. The deferred-finding `## Related` body write lands before
   that push, or while no run is in flight, never as its own edit right after a push.
+
+## [0.45.2] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `onboard-adapter` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [0.45.1] - 2026-10-02
+
+### Changed
+
+- **Where a small unrelated fix lands follows source-control's D4.6 scope test:** in the current
+  change only when it is in a file the change already touches, otherwise its own small PR with no
+  tracker item. `tracker-seam.md` "Default = fix, not file" carries a marked copy of the rule;
+  `/work-items:work` and `dogfood-filing.md` point at it, and the `work` eval follows the new
+  placement.
+
+## [0.45.0] - 2026-10-02
+
+### Added
+
+- **`work-loop` state records the effort each cycle ran at.** The state block gains an `effort`
+  field read from `CLAUDE_EFFORT` at each cycle start, or `"unset"`, so the level that ran sits
+  beside the `--effort` the lane was launched with. The schema stays `@2`.
 
 ## [0.44.2] - 2026-10-02
 

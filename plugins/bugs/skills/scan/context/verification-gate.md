@@ -1,7 +1,7 @@
 # The verification gate: the precision stage of `/bugs:scan`
 
 Loaded on demand by `/bugs:scan` Step 4. This is the prompt contract for the gate: **one
-separate fresh-context subagent per candidate**, dispatched by the scan skill on the gate tier its
+separate fresh-context subagent per candidate**, dispatched by the scan skill on the gate role its
 sizing table names, never the hunter that produced the candidate.
 
 Why separate and fresh: a model re-checking its own work rubber-stamps it. The gate must arrive with

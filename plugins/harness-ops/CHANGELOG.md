@@ -3,6 +3,145 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.2.2] - 2026-10-03
+
+### Fixed
+
+- `morning-brief` no longer presents every `CLEAN` pull request as merge-ready without
+  qualification. It counts a clean PR as verified only when its head contains the base tip:
+  the script reads the compare endpoint once per clean PR, up to `--pr-limit`, and prints an
+  `UNVERIFIED` line under any PR whose head is behind its base, whose comparison could not be
+  read, or that fell past the cap, plus a `PARTIAL` line when the cap was hit. A `--behind-json`
+  fixture flag feeds those counts to the tests.
+- `machine-profile` refuses a record value holding a GitHub App installation token in the
+  `ghs_<APPID>_<JWT>` format GitHub began issuing on 2026-04-27, matched by its own shape rather
+  than only through the generic JWT rule.
+- `machine-profile` validates a long record value in linear time. jq's regex engine backtracks,
+  and the generic JWT rule took about 10 seconds on a 300 KB value of repeated `ghs_1_eyJ`. It now
+  starts only where a run of token characters starts, so its header stays unbounded and a JWS
+  with a long certificate-chain header is still refused; the `ghs_` rule's header is capped at
+  512 characters.
+
+## [3.2.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `known-issues` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [3.2.0] - 2026-10-02
+
+### Added
+
+- **The parser reader follows whole-module loads of an exported array.** An export hop used to stay
+  partial whenever the exporting file was loaded whole anywhere. The helper's new `namespace` op
+  now follows each `import()`, `require()`, `import.meta.require()` and `import*as` load to its
+  reads and accepts only reads of other exports by name: a member read that is not a call, an
+  object pattern without a rest element, a record property such as `{names:ns}` read only by name,
+  and `await Promise.all([...])` destructured by an array pattern. The built-ins those shapes rely
+  on join the names the sink rule watches, a write to an undeclared trusted name (`Promise=f`) is
+  now a sink, and a namespace settled through a promise requires its module to export no `then`.
+  Load sites come from the AST (`loads` op) instead of a regex over the raw bundle
+  ([#5901](https://github.com/melodic-software/claude-code-plugins/issues/5901)).
+- **The sink rule reads computed keys.** A computed-key write or define counts only for the
+  trusted names its key can spell when every value of the key is known (a literal, a number, a
+  boolean or `typeof` result, or a variable written only with those), so loop counters and
+  TypeScript enums no longer count.
+- **node:vm counts as code built from a string.** Any `vm`/`node:vm` load except an import naming
+  only `isContext`, and a vm runner's name (`runInThisContext`, `runInNewContext`, `runInContext`,
+  `compileFunction`, `SourceTextModule`, `SyntheticModule`) read from any object, are sinks like
+  `eval` and `Function`: code in a new context still reaches this realm's prototypes.
+
+### Fixed
+
+- **A load the parser cannot name no longer reads a wrong literal.** An aliased `require` or
+  `import.meta.require`, `require.call(...)`, `(0,require)(...)`, or `import(x)` with a specifier
+  that is no literal could load the exporting file whole unseen; a module holding one now fails
+  every export hop.
+
+### Changed
+
+- The Explore and Plan `disallowed_tools` still read partial under `--reader=parser` on
+  2.1.284-2.1.288. Every load of the re-exporting chunk is read by name, but each build still has
+  computed-key writes on receivers the sink rule cannot show are not built-in prototypes, and code
+  built from strings (ajv's generated validators, protobufjs's direct `eval`); 2.1.288 also has 3
+  modules with a load the parser cannot name. `--reader` stays `regex` by default.
+  `--reader=compare` output is unchanged on every installed build.
+
+## [3.1.1] - 2026-10-02
+
+### Fixed
+
+- The inventory parser reader's Windows PowerShell repair command doubles every PowerShell
+  single-quote character in a path, not only the ASCII `'`. PowerShell also reads U+2018, U+2019,
+  U+201A and U+201B as single quotes, so a path holding one ended the string early and ran the rest
+  as code
+  ([language specification, string literals](https://learn.microsoft.com/en-us/powershell/scripting/lang-spec/chapter-02#2352-string-literals)).
+
+## [3.1.0] - 2026-10-02
+
+### Added
+
+- `lib/prerequisites.mjs`, with its `lib/prerequisites.sh` and `lib/prerequisites.ps1` stubs: the
+  shared prerequisites checker, generated from the repository's canonical copies
+  ([#5839](https://github.com/melodic-software/claude-code-plugins/issues/5839)). It reads a
+  `prerequisites.json` in the schema that `docs/conventions/prerequisites/` owns. Nothing in this
+  plugin calls it yet; the `prerequisites` skill moves to it when the plugin's own file is
+  converted.
+
+## [3.0.1] - 2026-10-02
+
+### Fixed
+
+- The inventory parser reader's Windows PowerShell repair command runs inside a child script block,
+  `& { ... }`, so its `$ErrorActionPreference = 'Stop'` no longer stays set in the session it is
+  pasted into ([#5896](https://github.com/melodic-software/claude-code-plugins/issues/5896)).
+
+## [3.0.0] - 2026-10-02
+
+### Added
+
+- **Session event-log rows record effort and hook metadata.** Each `source: "event-log"` row
+  carries `effort`: the payload's `effort.level`, else `$CLAUDE_EFFORT`, `n/a` on events that never
+  carry a level, and `unset` when an event that can carry one had none. Rows also copy an allowlist
+  of documented top-level hook input fields (paths, model, permission mode, trigger and similar
+  strings, booleans and numbers). Prompt text, messages, tool input and output, and nested objects
+  are never copied. `measure-hook-log-budget.sh` reports the extra cost of reading a wide payload.
+- **The `changelog` skill runs harness-config's effort-pin drift check** when that plugin is
+  installed and reports its lines with the native-surface drift report.
+
+### Changed
+
+- **BREAKING: every lane must name an effort.** `lane-launcher.sh` start and restart refuse a
+  lane whose config has no `effort`, pointing at model-config's "Choose an effort level" table,
+  and launch the other lanes. Add `lanes[].effort` to each lane in `lanes.json`. The launcher always passes
+  `--effort`, and warns once per run when `CLAUDE_CODE_EFFORT_LEVEL` is set, since it overrides
+  lane levels and agent pins. The lanes config example picks each lane's level from that table.
+
+## [2.5.4] - 2026-10-02
+
+### Security
+
+- The `observability` HTML dashboard is built by a checked-in builder
+  (`skills/observability/scripts/build-dashboard.mjs`) that escapes every telemetry-derived field
+  through the rendered-views escape helper, now carried at `lib/html-escape.mjs`, and stamps the
+  generator marker. The page has no script, and a hostile skill, hook, or session name renders as
+  text. `build-dashboard.mjs --check <file>` flags a page that bypassed the builder.
+
+## [2.5.3] - 2026-10-02
+
+### Changed
+
+- **The inventory is validated against Claude Code 2.1.288.** `VALIDATED_AGAINST` moves from
+  2.1.287 to 2.1.288: every lane extracts ok, and `--reader compare` finds no value->value
+  difference between the regex and parser readers (2167 of 2167 modules parse). The parser still
+  reads the Explore and Plan `disallowed_tools` as partial where the regex reader reads them
+  literal, as on 2.1.284-2.1.287 (#5901). The one surface change is the hidden built-in `/update`
+  command, renamed `/restart` with `update` kept as an alias.
+- **The installed-build regression covers 2.1.288.** `TestInstalledBuilds` now pins the partial
+  Explore and Plan lists under the parser on 2.1.284-2.1.288.
+
 ## [2.5.2] - 2026-10-02
 
 ### Changed

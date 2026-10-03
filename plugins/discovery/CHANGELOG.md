@@ -1,5 +1,45 @@
 # Changelog: discovery plugin
 
+## [0.27.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is shortened to 500 characters, claude.ai's limit.
+
+## [0.27.0] - 2026-10-02
+
+### Changed
+
+- **Contract change: the `/discovery:research` outcome gate accepts a single-publisher claim,
+  flagged.** A first-party content claim, one that states what a named Anthropic page, file or
+  changelog says, passes rows 4 and 7 at the new confidence level `HIGH (single source)` when it
+  states why only one publisher exists. A repost of the page is never a second source, and a
+  behavior claim still needs two independent corroborators. The verifier grades the stated reason,
+  and a reason that does not hold fails row 4. The flag stays visible in the evidence table, the
+  answer and any synthesis, and a flagged claim may ground a code edit with the flag carried into
+  the record beside it.
+- **The sidecar header gains a per-claim `single_source:` field**, and its `confidence:` vocabulary
+  gains `HIGH (single source)`. The definition lives in `context/discipline.md`, "Single-source
+  first-party content claims"; the verifier, the researcher, the parent contract's `pass` value,
+  the gotchas and `research-deep`'s synthesis rule point at it.
+- Two research evals grade the new branch: a flagged changelog claim with two reposts passes, and a
+  behavior claim flagged from one docs page is a Gap.
+- `research/SKILL.md` moves its `breadth=` paragraph below the Effort table so the outcome gate's
+  longer rows 4 and 7 keep the effort ceiling inside the compaction re-attach slice.
+- Outcome-gate row 7 keeps the Gaps rule: a MEDIUM or LOW claim listed in the Gaps section is not
+  an accepted claim, and `HIGH (single source)` under row 4's flag is.
+
+## [0.26.2] - 2026-10-02
+
+### Fixed
+
+- **The `Explore` verification record points at the live disallowed-tool list.**
+  `reference/native-explore.md` named four tools from the 2.1.285 extraction; on Claude Code
+  2.1.288 the agent disallows nine. The record now states what that means for this skill (it
+  cannot edit files or spawn an agent) and points at `builtin_agents.Explore.disallowed_tools`
+  in the inventory instead of copying the list.
+
 ## [0.26.1] - 2026-10-02
 
 ### Added

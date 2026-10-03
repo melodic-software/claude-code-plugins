@@ -3,7 +3,7 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.20.5] - 2026-10-02
+## [0.20.6] - 2026-10-02
 
 ### Changed
 
@@ -15,6 +15,12 @@ All notable changes to the `implementation` plugin are documented here. Format f
   request exists.** A worker dispatched onto an open pull request commits as it goes and pushes
   once, after its whole change set passes its checks, since each push starts a full CI run and
   cancels the one in flight.
+
+## [0.20.5] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
 
 ## [0.20.4] - 2026-10-02
 
