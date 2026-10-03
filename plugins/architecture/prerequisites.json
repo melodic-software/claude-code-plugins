@@ -5,14 +5,15 @@
       "kind": "runtime",
       "need": "optional",
       "for": [
-        "plugin"
+        "plugin",
+        "skill:map-flow"
       ],
       "detect": {
         "any": [
           "node"
         ]
       },
-      "degrade": "Without node, the prerequisites checker cannot run and no dependency is verified; the plugin's own skills are unaffected.",
+      "degrade": "Without node, the prerequisites checker cannot run and no dependency is verified; the plugin's skills still run, except that map-flow cannot parse the Mermaid diagram it writes and reports it unchecked.",
       "install": {
         "docs": "https://nodejs.org/en/download",
         "brew": "node",

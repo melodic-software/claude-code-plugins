@@ -130,6 +130,9 @@ lib/view-runtime.js plugins/planning/lib/view-runtime.js
 lib/prerequisites.mjs plugins/harness-ops/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/harness-ops/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/harness-ops/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/visualization/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/visualization/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/visualization/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/machine-health/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/machine-health/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/machine-health/lib/prerequisites.ps1
@@ -283,3 +286,5 @@ lib/hook-utils.sh plugins/source-control/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/speech/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/testing/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/typos-format/hooks/hook-utils.sh
+lib/mermaid-gate.mjs plugins/visualization/lib/mermaid-gate.mjs
+lib/mermaid-gate.mjs plugins/architecture/lib/mermaid-gate.mjs
