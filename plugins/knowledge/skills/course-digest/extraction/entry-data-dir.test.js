@@ -61,6 +61,21 @@ describe("data directory resolution in the Bash-run entry points", () => {
     expect(fs.readdirSync(foreign)).toEqual([]);
   });
 
+  it("run.mjs drops an inherited value naming another plugin when no flag is given", () => {
+    const foreign = foreignDataDir();
+    const home = path.dirname(foreign);
+    const dest = path.join(home, "course");
+    const stub = pathToFileURL(path.join(dir, "test-support", "register-playwright-stub.mjs")).href;
+    const result = run(
+      "run.mjs",
+      ["build-course-json.js", "--course-url", "https://example.test/courses/enrolled/1", "--output-dir", dest],
+      { CLAUDE_PLUGIN_DATA: foreign, HOME: home, USERPROFILE: home, NODE_OPTIONS: `--import ${stub}` },
+    );
+    expect(result.stderr).toContain("playwright stub: chromium.launch blocked in tests");
+    expect(fs.readdirSync(foreign)).toEqual([]);
+    expect(fs.existsSync(path.join(home, ".claude", "course-digest", "auth"))).toBe(true);
+  });
+
   it("run.mjs rejects an unsubstituted placeholder instead of launching the script", () => {
     const result = run("run.mjs", ["--data-dir", "${CLAUDE_PLUGIN_DATA}", "validate-extraction.js"], {});
     expect(result.status).toBe(2);
