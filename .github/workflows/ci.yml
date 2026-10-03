@@ -2029,7 +2029,10 @@ jobs:
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 11
+    # A whole-tree leg runs its share of the shell corpus and then of the
+    # Python corpus, whose planning surface server suite alone takes about
+    # 200 s; the leg that also runs the Node sub-projects ran past 11 minutes.
+    timeout-minutes: 16
     # ONE TO FOUR LEGS, SIZED FROM THE SELECTION. The job key stays one entry in
     # `ci-status.needs` at any size; the contract suites are partitioned across
     # up to four runners instead of executed by one: the affected selection on a
