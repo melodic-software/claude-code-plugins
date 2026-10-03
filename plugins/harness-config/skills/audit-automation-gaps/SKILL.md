@@ -377,7 +377,9 @@ For each user-selected item:
 1. **Explore**: re-read current state (may have changed since evaluation)
 2. **Research + Validate**: verify the implementation approach against current docs. The audit
    already ran one batched fetch for Claude Code surfaces in Phase 2.2, so re-fetch only what the
-   stored evidence does not already settle, or what has plausibly moved since the run was written
+   stored evidence does not already settle, or what has plausibly moved since the run was written.
+   For a mod, load the built-in `plugin-authoring` skill before planning: its type declarations
+   are the authority for the running build, and they win where a docs page disagrees
 3. **Plan**: detailed implementation steps
 4. **Implement**: execute with incremental validation and commit checkpoints
 5. **Test**: verify the automation works (run hooks, test skills, etc.)

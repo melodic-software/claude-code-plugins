@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Post-mortem View</title>
+<style>
+:root {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --fg: #1b2330;
+  --muted: #566173;
+  --line: #d6dce4;
+  --accent: #2b59c3;
+  --chip: #e6ecf8;
+  --sans: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme=light]) {
+    --bg: #12161d;
+    --surface: #1a2029;
+    --fg: #e4e9f0;
+    --muted: #9aa5b5;
+    --line: #2c3542;
+    --accent: #86a8f0;
+    --chip: #233150;
+    color-scheme: dark;
+  }
+}
+:root[data-theme=dark] {
+  --bg: #12161d;
+  --surface: #1a2029;
+  --fg: #e4e9f0;
+  --muted: #9aa5b5;
+  --line: #2c3542;
+  --accent: #86a8f0;
+  --chip: #233150;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); }
+.page { max-width: 46rem; margin: 0 auto; padding: 0 16px; padding-block: 2rem 3rem; display: grid; gap: 1.5rem; }
+.eyebrow { margin: 0; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0.25rem 0 0.5rem; font-size: 1.6rem; line-height: 1.2; text-wrap: balance; }
+h2 { margin: 0; font-size: 1.1rem; }
+.meta { margin: 0.5rem 0 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+.facts { display: grid; gap: 0.5rem; padding: 0.9rem 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.facts p { margin: 0; }
+.bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.bar input { flex: 1 1 14rem; min-width: 0; padding: 0.5rem 0.65rem; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); font: inherit; }
+.rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+.row { display: grid; grid-template-columns: auto 1fr; gap: 0.75rem; padding: 0.9rem 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.row[hidden] { display: none; }
+.row .body { min-width: 0; display: grid; gap: 0.35rem; }
+.row p { margin: 0; }
+.pick { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; font-size: 0.75rem; color: var(--muted); }
+.pick input { width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
+.chip { padding: 0.05rem 0.5rem; border-radius: 4px; background: var(--chip); color: var(--accent); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.reply { display: grid; gap: 0.6rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.reply textarea { min-height: 5rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); font: inherit; resize: vertical; }
+.actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+button { padding: 0.5rem 0.9rem; border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); color: var(--bg); font: inherit; font-weight: 600; cursor: pointer; }
+button + button { background: transparent; color: var(--accent); }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.status { margin: 0; min-height: 1.5em; color: var(--muted); }
+.out { margin: 0; padding: 0.75rem; overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; font-family: var(--mono); font-size: 0.85rem; }
+@media (prefers-reduced-motion: reduce) { * { transition: none; animation: none; } }
+</style>
+</head>
+<body>
+<main class="page">
+<header>
+<p class="eyebrow">Debug post-mortem view. The written post-mortem is authoritative.</p>
+<h1 data-rv-text="title">Post-mortem</h1>
+<p class="meta"><span data-rv-count="hypotheses">0</span> hypotheses, ranked as tested</p>
+</header>
+<section class="facts">
+<p><span class="label">Feedback loop</span> <span data-rv-text="loop"></span></p>
+<p><span class="label">Root cause</span> <span data-rv-text="cause"></span></p>
+<p><span class="label">Fix</span> <span data-rv-text="fix"></span></p>
+<p><span class="label">Regression test or seam gap</span> <span data-rv-text="seam"></span></p>
+<p><span class="label">What would have prevented it</span> <span data-rv-text="prevention"></span></p>
+</section>
+<div class="bar">
+<label for="find">Filter</label>
+<input id="find" type="search" placeholder="Type a word from a hypothesis" data-rv-filter="hypotheses">
+</div>
+<ol class="rows" data-rv-each="hypotheses">
+<li class="row">
+<label class="pick"><input type="checkbox" data-rv-pick="">Question <span class="sr" data-rv-text="claim"></span></label>
+<div class="body">
+<p class="head"><span class="chip" data-rv-text="verdict"></span><strong data-rv-text="claim"></strong></p>
+<p><span class="label">Prediction</span> <span data-rv-text="prediction"></span></p>
+<p><span class="label">Evidence</span> <span data-rv-text="evidence"></span></p>
+</div>
+</li>
+</ol>
+<section class="reply">
+<h2>Send your challenge back</h2>
+<p class="meta">Tick the hypotheses you would re-open and say why. The ids name hypotheses by their position in the list.</p>
+<label for="note">Note for the session</label>
+<textarea id="note" data-rv-note="note" placeholder="What the post-mortem got wrong or missed"></textarea>
+<div class="actions">
+<button type="button" data-rv-copy="post-mortem-reply">Copy reply</button>
+<button type="button" data-rv-download="post-mortem-reply">Save as file</button>
+</div>
+<p class="status" role="status" data-rv-status=""></p>
+<pre class="out" data-rv-out="" hidden></pre>
+</section>
+</main>
+</body>
+</html>
