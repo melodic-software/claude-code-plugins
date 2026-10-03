@@ -38,23 +38,19 @@
     "rate_limit_line_threshold": {
       "type": "number",
       "title": "Rate-limit line threshold (percent)",
-      "description": "Window use at which Claude gets the threshold line. Default 90, the loop lanes' pause edge, which stays 90 whatever this is set to.",
-      "default": 90,
-      "min": 1,
-      "max": 100
+      "description": "Window use at which Claude gets the threshold line, 1 to 100; any other value reads as the default. Default 90, the loop lanes' pause edge, which stays 90 whatever this is set to.",
+      "default": 90
     },
     "rate_limit_approach_pct": {
       "type": "number",
       "title": "Rate-limit approach mark (percent)",
-      "description": "Window use at which Claude gets one approach line before the threshold. Default 85; at or above the threshold, no approach line is sent.",
-      "default": 85,
-      "min": 1,
-      "max": 100
+      "description": "Window use at which Claude gets one approach line before the threshold, 1 to 100; any other value reads as the default. Default 85; at or above the threshold, no approach line is sent.",
+      "default": 85
     },
     "rate_limit_line_data": {
       "type": "string",
       "title": "Rate-limit line data",
-      "description": "Comma list of what a line carries beside its verdict, which every line has: percent, window and reset. Default verdict,window,reset. Never the account email or the session name.",
+      "description": "Comma list of what a line carries beside its verdict, which every line has: percent, window and reset. Default verdict,window,reset; a list with an unknown item reads as the default. Never the account email or the session name.",
       "default": "verdict,window,reset"
     },
     "rate_limit_guard_band": {

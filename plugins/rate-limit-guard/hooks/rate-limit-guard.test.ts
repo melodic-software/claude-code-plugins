@@ -22,6 +22,7 @@ type World = {
   runs: { argv: readonly string[]; stdin?: string }[]
   suggested: string[]
   below: string[]
+  logs: { text: string; to: string }[]
 }
 
 const limits = (five?: number, seven = 7): Limit[] => [
@@ -44,6 +45,7 @@ const world = (stub: any, init: Partial<World> = {}, env: Record<string, string>
     runs: [],
     suggested: [],
     below: [],
+    logs: [],
     ...init,
   }
   const clock = mock.clock(stub, { now: T0 })
@@ -69,7 +71,7 @@ const world = (stub: any, init: Partial<World> = {}, env: Record<string, string>
     return { value: { exitCode: 0, stdout: '', stderr: '' } }
   })
   on('ui.invalidate', () => ({ value: undefined }))
-  on('ui.log', () => ({ value: undefined }))
+  on('ui.log', ($: unknown, e: { text: string; to: string }) => (w.logs.push({ text: e.text, to: e.to }), { value: undefined }))
   on('prompt.read', () => ({ value: { text: w.box, cursor: w.box.length } }))
   on('prompt.suggest', ($: unknown, e: { text: string }) => {
     if (w.shown && w.box === '') w.suggested.push(e.text)
@@ -1019,3 +1021,73 @@ test(
     expect(ownLines(context)).toHaveLength(1)
   },
 )
+
+// A bad option value: the module still loads, the option reads as its default, and one line says so.
+const optionLogs = (w: World) => w.logs.filter(l => l.text.startsWith('rate-limit-guard: option '))
+const EDGE_90 = `rate-limit-guard: the 5-hour window is at the 90% pause edge, resets at 2026-10-03 21:00 UTC ${SOURCE}`
+
+for (const value of [101, 0, -5, 1e9]) {
+  test(`options: line threshold ${value} reads as 90, writes go on, one line names it`, { options: { rate_limit_line_threshold: value } }, async ($, on) => {
+    const { w } = world(on, { limits: limits(89) })
+    expect(ownLines((await bash($)).context)).toHaveLength(1)
+    w.limits = limits(92)
+    expect(ownLines((await bash($)).context)).toEqual([EDGE_90])
+    expect(bodies(w).at(-1)?.rate_limits?.five_hour?.used_percentage).toBe(92)
+    expect(optionLogs(w)).toHaveLength(1)
+    expect(optionLogs(w)[0].text).toContain('rate_limit_line_threshold')
+    expect(optionLogs(w)[0].text).toContain(String(value))
+    expect(optionLogs(w)[0].text).toContain('default, 90')
+    expect(optionLogs(w)[0].to).toBe('transcript')
+  })
+}
+
+test('options: approach mark 150 reads as 85, one line names it', { options: { rate_limit_guard_enabled: false, rate_limit_approach_pct: 150 } }, async ($, on) => {
+  const { w } = world(on, { limits: limits(84) })
+  expect(ownLines((await bash($)).context)).toEqual([])
+  w.limits = limits(86)
+  expect(ownLines((await bash($)).context)[0]).toContain('is approaching the 90% pause edge')
+  expect(optionLogs(w).map(l => l.text)).toEqual([expect.stringContaining('rate_limit_approach_pct')])
+  expect(optionLogs(w)[0].text).toContain('default, 85')
+})
+
+test('options: line data naming no known item reads as the default, and the line echoes 40 characters at most', { options: { rate_limit_guard_enabled: false, rate_limit_line_data: `bogus,${'x'.repeat(60)}` } }, async ($, on) => {
+  const { w } = world(on, { limits: limits(92) })
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_90])
+  expect(optionLogs(w)).toHaveLength(1)
+  const text = optionLogs(w)[0].text
+  expect(text).toContain('rate_limit_line_data')
+  expect(text).toContain('default, verdict,window,reset')
+  expect(text).toContain(`bogus,${'x'.repeat(34)}`)
+  expect(text).not.toContain('x'.repeat(35))
+})
+
+test('options: line data with one unknown item reads as the default, not a partial list', { options: { rate_limit_guard_enabled: false, rate_limit_line_data: 'percent,precent' } }, async ($, on) => {
+  const { w } = world(on, { limits: limits(92) })
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_90])
+  expect(optionLogs(w).map(l => l.text)).toEqual([expect.stringContaining('rate_limit_line_data')])
+})
+
+test('options: a report mode outside the list loads as automatic and the module adds no line', { options: { rate_limit_guard_enabled: false, rate_limit_report_mode: 'loud' } }, async ($, on) => {
+  const { w } = world(on, { limits: limits(92) })
+  expect(ownLines((await prompt($, 'composer')).context)).toEqual([EDGE_90])
+  expect(optionLogs(w)).toEqual([])
+})
+
+test('options: two bad options give two lines, and no more on later events or a fresh start', { options: { rate_limit_line_threshold: 250, rate_limit_approach_pct: -1 } }, async ($, on) => {
+  const { w } = world(on, { limits: limits(86) })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  expect(ownLines((await bash($)).context)[0]).toContain('is approaching the 90% pause edge')
+  w.limits = limits(92)
+  expect(ownLines((await prompt($)).context)).toEqual([EDGE_90])
+  await bash($)
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await prompt($)
+  expect(optionLogs(w).map(l => l.text)).toEqual([expect.stringContaining('rate_limit_line_threshold'), expect.stringContaining('rate_limit_approach_pct')])
+})
+
+test('options: good values log no option line', { options: { rate_limit_line_threshold: 80, rate_limit_approach_pct: 70, rate_limit_line_data: 'Percent, window' } }, async ($, on) => {
+  const { w } = world(on, { limits: limits(81) })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  expect(ownLines((await bash($)).context)).toEqual([`rate-limit-guard: the 5-hour window is at the 80% line threshold (81% used) ${SOURCE}`])
+  expect(optionLogs(w)).toEqual([])
+})

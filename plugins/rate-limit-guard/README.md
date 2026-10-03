@@ -97,8 +97,8 @@ set any key user settings can, including the plugin's `pluginConfigs` entry:
 ### Band row and status tool
 
 The band row above the prompt shows `[<model>] 5h <x>% | 7d <y>%`, the tee's standalone status
-line without its context figure (context-guard's row carries that), with the model as `/model`
-shows it (`Claude` when it cannot be read) and `-` for a window that has no reading yet. `rate_limit_guard_band` turns it off; `/rate-limit-guard:band show`,
+line without its context figure (context-guard's row carries that), with the model id the session
+reports, such as `claude-haiku-4-5-20251001`, where the tee shows a display name (`Claude` when it cannot be read) and `-` for a window that has no reading yet. `rate_limit_guard_band` turns it off; `/rate-limit-guard:band show`,
 `hide`, or no argument (toggle) changes it for the session. Claude can call
 `mcp__rate-limit-guard__status` for the exact figures from the last API response: every window
 the response reported, with its verdict, and, behind a Claude gateway, the `spend_limit` window,
@@ -236,6 +236,11 @@ The `userConfig` options:
 | `rate_limit_line_data` | What a line carries beside its verdict: `percent`, `window`, `reset` (default `verdict,window,reset`). |
 | `rate_limit_guard_band` | The band row (default `true`). |
 
+A threshold or approach mark outside 1 to 100, or line data with an unknown item, reads as that
+option's default with one transcript line naming it; the thresholds declare no range because Claude
+Code refuses the whole module for a value outside one. A value of the wrong type (text for a
+number, a number for a switch) still stops the module loading.
+
 The module reads its options when it loads. Claude Code reloads a module when its options change,
 so a switch turned off takes effect from the next event, with no restart.
 
@@ -281,9 +286,9 @@ reads it from.
 | `rate_limit_guard_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED` | Turns on the StopFailure detection hook and the snapshot writes to the machine-scope rate-limit file, by the statusline tee and by the module. Lines to Claude have their own option. On by default. Read from managed settings first, then user settings. |
 | `rate_limit_lines_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_LINES_ENABLED` | Sends Claude one line when a rate-limit window approaches or reaches the line threshold, when it resets, and after a compaction, a resume or a /clear at the threshold. On by default. |
 | `rate_limit_report_mode` | string | `"automatic"` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_REPORT_MODE` | automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a band notice when the turn ends. Headless, loop and schedule turns get automatic lines either way. |
-| `rate_limit_line_threshold` | number<br>*min 1, max 100* | `90` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_LINE_THRESHOLD` | Window use at which Claude gets the threshold line. Default 90, the loop lanes' pause edge, which stays 90 whatever this is set to. |
-| `rate_limit_approach_pct` | number<br>*min 1, max 100* | `85` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_APPROACH_PCT` | Window use at which Claude gets one approach line before the threshold. Default 85; at or above the threshold, no approach line is sent. |
-| `rate_limit_line_data` | string | `"verdict,window,reset"` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_LINE_DATA` | Comma list of what a line carries beside its verdict, which every line has: percent, window and reset. Default verdict,window,reset. Never the account email or the session name. |
+| `rate_limit_line_threshold` | number | `90` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_LINE_THRESHOLD` | Window use at which Claude gets the threshold line, 1 to 100; any other value reads as the default. Default 90, the loop lanes' pause edge, which stays 90 whatever this is set to. |
+| `rate_limit_approach_pct` | number | `85` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_APPROACH_PCT` | Window use at which Claude gets one approach line before the threshold, 1 to 100; any other value reads as the default. Default 85; at or above the threshold, no approach line is sent. |
+| `rate_limit_line_data` | string | `"verdict,window,reset"` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_LINE_DATA` | Comma list of what a line carries beside its verdict, which every line has: percent, window and reset. Default verdict,window,reset; a list with an unknown item reads as the default. Never the account email or the session name. |
 | `rate_limit_guard_band` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_BAND` | Draws the 5-hour and 7-day window figures in a row above the prompt. On by default; /rate-limit-guard:band shows or hides it for the session. |
 
 ### How to set these

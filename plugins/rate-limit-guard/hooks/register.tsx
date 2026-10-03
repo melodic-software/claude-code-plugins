@@ -23,6 +23,7 @@ type Level = 'quiet' | 'approach' | 'edge'
 type Event = Level | 'reset'
 type Reading = Map<string, SessionRateLimit>
 type Config = {
+  bad: string[]
   writes: boolean
   lines: boolean
   operator: boolean
@@ -62,22 +63,37 @@ type State = {
   reofferTimer: Timer | undefined
 }
 
+// A bad value reads as the option's default and adds one line to `bad`: the engine refuses the whole
+// module for a value outside a declared range, so the ranges are checked here instead.
 export const parseConfig = (options: Record<string, unknown>): Config => {
-  const number = (value: unknown, fallback: number) => {
-    const n = Number(value)
-    return Number.isFinite(n) && n > 0 && n <= 100 ? n : fallback
+  const bad: string[] = []
+  const reject = (key: string, kind: string, fallback: string) =>
+    bad.push(`option ${key} is ${kind}; using the default, ${fallback}`)
+  const number = (key: string, fallback: number) => {
+    const value = options[key]
+    if (value === undefined) return fallback
+    if (typeof value === 'number' && value >= 1 && value <= 100) return value
+    reject(key, typeof value === 'number' ? `${value}, outside 1 to 100` : `a ${typeof value}, not a number`, String(fallback))
+    return fallback
   }
-  const items = String(options.rate_limit_line_data ?? '')
+  const raw = options.rate_limit_line_data
+  const items = String(raw ?? '')
     .split(',')
     .map(s => s.trim().toLowerCase())
-    .filter(s => DATA_ITEMS.includes(s))
-  const data = new Set(items.length > 0 ? items : DEFAULT_DATA)
+    .filter(s => s !== '')
+  const known = items.length > 0 && items.every(s => DATA_ITEMS.includes(s))
+  if (raw !== undefined && !known) {
+    const shown = typeof raw === 'string' ? JSON.stringify(raw.slice(0, 40)) : `a ${typeof raw}`
+    reject('rate_limit_line_data', `${shown}, not a list of ${DATA_ITEMS.join(', ')}`, DEFAULT_DATA.join(','))
+  }
+  const data = new Set(known ? items : DEFAULT_DATA)
   return {
+    bad,
     writes: options.rate_limit_guard_enabled !== false,
     lines: options.rate_limit_lines_enabled !== false,
     operator: options.rate_limit_report_mode === 'operator',
-    threshold: number(options.rate_limit_line_threshold, PAUSE_EDGE),
-    approach: number(options.rate_limit_approach_pct, 85),
+    threshold: number('rate_limit_line_threshold', PAUSE_EDGE),
+    approach: number('rate_limit_approach_pct', 85),
     data,
     band: options.rate_limit_guard_band !== false,
   }
@@ -289,10 +305,15 @@ const wholePoints = (body: Partial<Body> | undefined) =>
       .map(([kind, w]) => [kind, Math.floor(Number(w?.used_percentage)), w?.resets_at ?? null]),
   )
 
-const logOnce = ($: EngineInterface, st: State, key: string, text: string) => {
+const logOnce = ($: EngineInterface, st: State, key: string, text: string, to: 'debug' | 'transcript' = 'debug') => {
   if (st.loggedOnce.has(key)) return
   st.loggedOnce.add(key)
-  $.ui.log(`rate-limit-guard: ${text}`, { to: 'debug' })
+  $.ui.log(`rate-limit-guard: ${text}`, { to })
+}
+
+// A bad option is the person's to fix, so its line goes to the transcript, once per load.
+const reportOptions = ($: EngineInterface, st: State, cfg: Config) => {
+  for (const line of cfg.bad) logOnce($, st, line, line, 'transcript')
 }
 
 // Decides in memory whether to write, so an event that writes nothing starts no process.
@@ -403,6 +424,7 @@ export const register: Register = (on, options) => {
   }
 
   on('session.start', async ($, e, next) => {
+    reportOptions($, st, cfg)
     const [tool] = await Promise.allSettled([
       $.tool.register({
         name: 'status',
@@ -449,6 +471,7 @@ export const register: Register = (on, options) => {
   }).catch(($, e, next) => next(e))
 
   on('session.measure', async ($, e, next) => {
+    reportOptions($, st, cfg)
     await recordResponse($, st, cfg).catch(() => undefined)
     await refresh($, st, cfg, e.rateLimits)
     await queueWrite($, st, cfg, 'event')
@@ -464,6 +487,7 @@ export const register: Register = (on, options) => {
   })
 
   on('prompt.submit', async ($, e, next) => {
+    reportOptions($, st, cfg)
     if (e.turnId === undefined) {
       st.origin = e.origin
       // An untaken suggestion goes to Claude at the next turn no person started; a person's turn drops it.
@@ -514,6 +538,7 @@ export const register: Register = (on, options) => {
 
   on('tool.call', async ($, e, next) => {
     if (e.tool === `mcp__${$.plugin.name}__status`) return { result: await statusJson($, st, cfg) }
+    reportOptions($, st, cfg)
     const result = await next(e)
     if (e.agentId !== undefined) return result
     await refresh($, st, cfg)
