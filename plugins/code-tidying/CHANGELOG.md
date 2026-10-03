@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.2] - 2026-10-03
+
+### Fixed
+
+- `evals-fixtures.test.sh` skips the change-shape self-certify checks, with one visible SKIP, when tree-sitter or its grammar is absent, and still runs the parse, presence, and seeding checks. `CODE_TIDYING_REQUIRE_TREE_SITTER=1` (set on the plugin-test CI steps) makes that absence a failure. A fixture no longer prints both `FAIL:` and `ok:` ([#6010](https://github.com/melodic-software/claude-code-plugins/issues/6010)).
+
 ## [0.27.1] - 2026-10-02
 
 ### Fixed
