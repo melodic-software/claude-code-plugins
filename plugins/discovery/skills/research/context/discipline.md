@@ -7,6 +7,7 @@ Recipes and rationale behind the bars stated in the research skill's SKILL.md bo
 
 - [Source tiers (canonical for this plugin)](#source-tiers-canonical-for-this-plugin)
 - [Source-tier ratio (per claim)](#source-tier-ratio-per-claim)
+- [Single-source first-party content claims](#single-source-first-party-content-claims)
 - [Recency gate (for libraries, tools, CLIs, APIs)](#recency-gate-for-libraries-tools-clis-apis)
 - [Falsification step (mandatory Phase 2 query)](#falsification-step-mandatory-phase-2-query)
 - [Broad-topic auto-detect](#broad-topic-auto-detect)
@@ -38,11 +39,25 @@ Recipes and rationale behind the bars stated in the research skill's SKILL.md bo
 
 ## Source-tier ratio (per claim)
 
-Every accepted claim has at least one Tier 0/1 source plus two independent corroborators of any tier. That is the floor criterion 4 checks; acceptance also needs HIGH (criterion 7), per "Confidence calibration" below.
+Every accepted claim has at least one Tier 0/1 source plus two independent corroborators of any tier. That is the floor criterion 4 checks; acceptance also needs HIGH (criterion 7), per "Confidence calibration" below. The one exception to the floor is the next section.
 
 **Anti-pattern:** three AI-synthesis citations of three different secondary blogs = 1 Tier 2 source, not 3. They're synthesizing from the same upstream pool. Count INDEPENDENT primary sources, not citation count.
 
 **Track tool diversity per topic in the evidence table.** Two sources both from one synthesis tool / both from one search engine / both from one author's blog network = 1 corroborator, not 2.
+
+## Single-source first-party content claims
+
+Some claims can have only one publisher. A **first-party content claim** states what a named Anthropic page, file or changelog says. The content exists in one place, so searching for an independent second source finds only copies of it. Such a claim passes criterion 4 with no counted corroborator when all of these hold:
+
+- **The claim states why only one publisher exists**, in the sidecar header's `single_source:` field. The verifier grades that reason; one that does not hold fails criterion 4 like any other uncorroborated claim.
+- **A repost is not a second source.** A blog post, forum answer, mirror or synthesis answer that quotes or restates the page shares its pool. Record it with the page's `pool`, never count it, and keep the flag: a repost does not turn the claim into a corroborated one.
+- **The primary is the named artifact itself, fetched this turn**, and it passes every run-owned row as any other primary does.
+
+The claim's confidence is `HIGH (single source)` (see "Confidence calibration"), and the flag stays visible wherever the claim goes: the evidence table's Confidence cell, the sidecar header, the answer, and any synthesis built from it. A flagged claim may ground a code edit, and the record written beside that edit carries the flag.
+
+**A behavior claim is not a content claim.** What a product does when it runs (a default that takes effect, a limit it enforces, an error it raises) can be checked by a live probe or found in an issue report, so it still needs two independent corroborators, whatever its docs page says. A content claim about a page and a behavior claim drawn from that page are two claims: split them, and only the content claim can carry the flag.
+
+**A content claim is not a single-publisher fact.** Its subject is the named artifact, not the publisher. When the page states the publisher's own pricing, roadmap or internal metrics, "the page says X" can carry the flag, while X as a fact about the publisher is a separate claim under "Single-publisher facts" below and is never accepted.
 
 ## Recency gate (for libraries, tools, CLIs, APIs)
 
@@ -219,7 +234,7 @@ The "top of Google" is a ranking artifact, not an authority signal. SEO content 
 
 **An announcement is the shallowest rung that still carries the claim.** It states the headline figure; the specific run, its conditions, and its methodology live at rung 1. Checking an announcement, an intro page, and a couple of searches, then reporting the figure as unsourced, is a ladder that was never walked.
 
-**Authoritative is not a waiver for corroboration.** Even the canonical doc still needs ≥2 independent corroborators and a freshness check. First-party docs routinely lag major releases. When the topic post-dates a major version, cross-check the canonical doc against the upstream changelog/release and treat any lag as a conflict to resolve. A fact only the publisher itself can state has no independent corroborator to find, so it is reported as "Single-publisher facts" below sets out, never accepted.
+**Authoritative is not a waiver for corroboration.** Even the canonical doc still needs ≥2 independent corroborators and a freshness check; the one exception is a claim about what the doc itself says, under "Single-source first-party content claims" above. First-party docs routinely lag major releases. When the topic post-dates a major version, cross-check the canonical doc against the upstream changelog/release and treat any lag as a conflict to resolve. A fact only the publisher itself can state has no independent corroborator to find, so it is reported as "Single-publisher facts" below sets out, never accepted.
 
 **Escalate on block, never downgrade.** A direct-fetch 403/429 means wrong fetcher, not vanished source. Escalation order: (1) a headless-browser URL reader if connected; (2) a managed scraping tool if available; (3) a synthesis tool forced to the blocked domain (domain-filter option). Only after those fail, fall back to secondary sources, and document the gap.
 
@@ -293,10 +308,11 @@ If a required tool category is unavailable this session (no synthesis MCP server
 The evidence-table `Confidence` column must be set per claim:
 
 - **HIGH**: 3+ independent Tier 0/1 sources agree; recency gate passed; falsification query failed to find counter-evidence
+- **HIGH (single source)**: a first-party content claim whose one publisher is its primary, fetched this turn, with a `single_source:` reason that holds; recency gate passed; falsification query failed to find counter-evidence. The flag is part of the level and is never dropped (see "Single-source first-party content claims")
 - **MEDIUM**: 3+ sources agree but mix of Tier 0/1 + Tier 2; OR 2 Tier 0/1 + open falsification gap; OR primary source > 30d old without changelog cross-check
 - **LOW**: fewer than 3 sources; OR sources conflict; OR Tier 2-only consensus; OR primary source > 90d old
 
-Only HIGH-confidence claims are accepted (the outcome gate enforces this). A MEDIUM or LOW claim is a **Gap**: return to Phase 4 follow-up and iterate until HIGH, or report it as a gap; never a basis for code edits.
+Only HIGH and HIGH (single source) claims are accepted (the outcome gate enforces this). A MEDIUM or LOW claim is a **Gap**: return to Phase 4 follow-up and iterate until HIGH, or report it as a gap; never a basis for code edits.
 
 ## Single-publisher facts
 

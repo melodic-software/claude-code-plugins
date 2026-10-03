@@ -3,6 +3,7 @@ description: "Diagnose and fix failing tests. Failure classification, root-cause
 argument-hint: "[failure]"
 user-invocable: true
 disable-model-invocation: false
+allowed-tools: ["Workflow(testing:fix-until-green)"]
 metadata:
   workflow-stage: test
   summary: Root-cause failing tests, never retry blindly
@@ -47,6 +48,7 @@ Examples: /testing:diagnose, /testing:diagnose the frozen-logger error, /testing
 |--------|-------|-------------|
 | Failure needs diagnosis. Stack trace, assertion mismatch, flaky test | **investigate** | [context/investigate.md](context/investigate.md) |
 | Root cause known, fix needed. Reproduce → isolate → fix → retest → regression | **loop** | [context/loop.md](context/loop.md) |
+| Several tests failing across files, user wants them fixed | **fix-until-green** (offer the workflow) | [context/fix-until-green.md](context/fix-until-green.md) |
 
 Default entry is **investigate**; it chains into **loop** once the root cause is found. Read the relevant context file before proceeding.
 

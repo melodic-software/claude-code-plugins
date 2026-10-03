@@ -41,6 +41,28 @@ With `CLAUDE_CODE_GIT_BASH_PATH` set to `C:/Program Files/Git/usr/bin/bash.exe`,
 20 ms, kill-switch off 60 ms, parallel wall 391 ms off and 441 ms on, late-EOF 350 ms. The wrapper is
 about 13 ms of S. The table above is the default resolution, which is what a hook runs.
 
+## Wide-payload read cost
+
+A measurement, not a gate: CI holds the hook to its spawn count, never to a duration.
+
+- **Claim:** reading effort and the allowlisted top-level keys out of a payload at the 64 KB read
+  cap adds work that does not grow with the session, and adds no process. On Linux the enabled row
+  on a 60 KB `tool_input` payload with every allowlisted key absent took 11.87 ms more than on a
+  small payload (`wide_payload_extra_ms`, median of 10 per-sample differences), beside S 1.01 ms
+  (`S_ms`, `bash -c :` timed in the same loop). About 4 ms of that is the top-level read; the rest
+  is the read loop and lookups the hook already did.
+- **Basis:** `hooks/measure-hook-log-budget.sh --samples 10` on a Linux (WSL2) host, the
+  `wide_payload_extra_ms` and `S_ms` lines of its capture; the hook-budget convention's unit S.
+- **As of:** 2026-10-02.
+- **Recheck:** a Windows Git Bash run of the harness, whose `wide_payload_extra_ms` and `S_ms`
+  lines are added here beside the Linux pair (Windows is unmeasured for this probe); or a change to
+  the payload parsing in `hooks/session-event-log.sh`.
+
+| Host | `wide_payload_extra_ms` | `S_ms` | Date |
+|---|---|---|---|
+| linux | 11.87 | 1.01 | 2026-10-02 |
+| windows-git-bash | unmeasured | unmeasured | |
+
 ## How to capture
 
 On the host, with `node` on PATH:
