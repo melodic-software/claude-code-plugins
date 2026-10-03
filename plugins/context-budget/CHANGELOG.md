@@ -7,6 +7,15 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.8.3] - 2026-10-03
+
+### Fixed
+
+- The Windows PowerShell form of the optional Agent SDK install in `audit` and `setup` names the
+  plugin data directory through the `${CLAUDE_PLUGIN_DATA}` token Claude Code substitutes when the
+  skill loads, like the POSIX form beside it. It read `$env:CLAUDE_PLUGIN_DATA` at run time, which
+  an operator's PowerShell does not set, so the install went to `\sdk` at the drive root.
+
 ## [0.8.2] - 2026-10-03
 
 ### Changed
