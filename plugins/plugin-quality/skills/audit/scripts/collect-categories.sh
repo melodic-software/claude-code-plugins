@@ -72,8 +72,14 @@ if [[ ! -f "$NOTES" ]]; then
 fi
 
 DIR="$(cd "$(dirname "$NOTES")" && pwd -P)"
+CYGPATH_OK=0
+if command -v cygpath >/dev/null 2>&1; then
+  CYGPATH_OK=1
+  DIR="$(cygpath -u -- "$DIR")"
+  DIR="$(realpath -m -- "$DIR")"
+fi
 
-awk -v dir="$DIR" '
+awk -v dir="$DIR" -v cygpath_ok="$CYGPATH_OK" '
 function trim(s) {
   sub(/\r$/, "", s)
   gsub(/^[[:space:]]+|[[:space:]]+$/, "", s)
@@ -83,7 +89,7 @@ function problem(msg) {
   print "problem: " msg
   bad = 1
 }
-function check_source(label, val,    i, j, url, rest, path, span, r, n, line, found, cmd) {
+function check_source(label, val,    i, j, url, rest, path, span, r, n, line, found, cmd, esc) {
   if (val !~ /^[^ ]+ saved=[^ ]+ span=./) {
     problem("research-" label "-shape section=" section " title=" title)
     return 0
@@ -99,8 +105,14 @@ function check_source(label, val,    i, j, url, rest, path, span, r, n, line, fo
     problem("research-" label "-empty-span section=" section " title=" title)
     return 0
   }
-  gsub(/\047/, "\047\\\047\047", path)
-  cmd = "realpath -m -- \047" path "\047"
+  esc = path
+  gsub(/\047/, "\047\\\047\047", esc)
+  if (cygpath_ok == 1) {
+    cmd = "cygpath -u -- \047" esc "\047"
+    if ((cmd | getline esc) > 0) gsub(/\047/, "\047\\\047\047", esc)
+    close(cmd)
+  }
+  cmd = "realpath -m -- \047" esc "\047"
   cmd | getline path
   close(cmd)
   if (index(path, dir "/") != 1) {
@@ -137,11 +149,15 @@ function close_finding(    k, u, ok) {
       if (primary == "") problem("research-missing-primary section=" section " title=" title)
       else if ((u = check_source("primary", primary)) != 0) seen_url[u] = 1
       ok = 0
-      for (k = 1; k <= ncorr; k++)
-        if ((u = check_source("corroborator", corr[k])) != 0 && !(u in seen_url)) {
+      for (k = 1; k <= ncorr; k++) {
+        if ((u = check_source("corroborator", corr[k])) == 0) continue
+        if (u in seen_url)
+          problem("research-corroborator-duplicate-url section=" section " title=" title)
+        else {
           seen_url[u] = 1
           ok++
         }
+      }
       if (ok < 2) problem("research-corroborators section=" section " title=" title " distinct-checked=" ok)
     } else problem("research-bad-value section=" section " title=" title " value=" research)
   }
