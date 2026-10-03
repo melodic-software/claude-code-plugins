@@ -142,8 +142,10 @@ fail_usage() {
 plugin_data_dir() {
   local seg
   if [[ -n "$DATA_DIR_ARG" ]]; then
+    # shellcheck disable=SC2016 # the literal, unexpanded token is what is matched
     case "$DATA_DIR_ARG" in
     *'${'* | *'<plugin-data>'*) fail_usage "--data-dir got an unsubstituted placeholder: $DATA_DIR_ARG" ;;
+    *) ;;
     esac
     printf '%s\n' "$DATA_DIR_ARG"
     return 0
