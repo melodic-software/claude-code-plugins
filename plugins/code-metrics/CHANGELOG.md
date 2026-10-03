@@ -3,11 +3,22 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.5.3] - 2026-10-03
+## [0.5.4] - 2026-10-03
 
 ### Changed
 
 - `scripts/dispatch.test.sh`, `scripts/tool-free-path.test.sh`, `skills/audit-complexity/scripts/audit-complexity.test.sh`, `skills/audit-coverage/scripts/audit-coverage.test.sh`, `skills/audit-duplication/scripts/audit-duplication.test.sh`, `skills/audit-size/scripts/audit-size.test.sh`, `skills/audit-type-debt/scripts/audit-type-debt.test.sh`, and `skills/setup/scripts/setup-check.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
+## [0.5.3] - 2026-10-03
+
+### Fixed
+
+- The audits keep their report documents in code-metrics' own data directory, whatever
+  `CLAUDE_PLUGIN_DATA` the Bash tool's shell holds. Another plugin's SessionStart hook can export
+  its own data directory under that name for every Bash call, and the audits then wrote
+  `reports/` there and pruned `<skill>-*.json` files in it down to the newest 20. An inherited
+  value is now used only when it names code-metrics; otherwise the documents go to
+  `~/.claude/plugins/data/code-metrics/reports/`, where Bash-run audits kept them before.
 
 ## [0.5.2] - 2026-10-03
 

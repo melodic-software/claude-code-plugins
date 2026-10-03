@@ -594,8 +594,9 @@ every other refusal names its fix.
 no-project-root branch. Interactive, ask for a
 location and pass it as `--memory-dir`. Non-interactive, skip steps 1 to 3 and run `new` with no
 `--memory-dir`: outside a git work tree it resolves `<plugin data>/artifacts` itself, from
-`CLAUDE_PLUGIN_DATA` when set and otherwise from its own installed cache path (the record below says
-why). The self-ignore guard still binds there. The
+`CLAUDE_PLUGIN_DATA` when that value names session-flow and otherwise from its own installed cache
+path (the record below says why; another plugin's SessionStart hook can export its own data dir
+under that name into every Bash call, so a value naming any other plugin is ignored). The self-ignore guard still binds there. The
 first refusal names the exact `.gitignore` path to create; create it with the single line `*`,
 announce the write, and re-run. When neither source gives a data dir (a `--plugin-dir` or source
 checkout run), `new` refuses and asks for an explicit `--memory-dir`.

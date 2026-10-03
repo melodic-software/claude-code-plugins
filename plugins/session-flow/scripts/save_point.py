@@ -1378,10 +1378,12 @@ def _git_toplevel(start: Path) -> Path | None:
 
 
 def _plugin_data_root() -> Path | None:
-    """The plugin's data dir: ``$CLAUDE_PLUGIN_DATA`` when set, else derived
-    from this script's install path. Bash-tool commands do not receive the
-    variable, so the derivation is the normal case in a session (record:
-    ``reference/structure.md`` "Verification record: plugin data dir").
+    """The plugin's data dir: ``$CLAUDE_PLUGIN_DATA`` when its last path
+    segment names session-flow, else derived from this script's install path.
+    Bash-tool commands do not receive this plugin's value, so the derivation
+    is the normal case in a session (record: ``reference/structure.md``
+    "Verification record: plugin data dir"), and another plugin's SessionStart
+    hook can export its own data dir under that name, which is ignored.
     An installed plugin runs from ``<config>/plugins/cache/<marketplace>/
     <plugin>/<version>/``, and its data dir is ``<config>/plugins/data/<id>/``
     where ``<id>`` is ``<plugin>@<marketplace>`` with every character other
@@ -1389,7 +1391,8 @@ def _plugin_data_root() -> Path | None:
     (``--plugin-dir``, a source checkout) has no derivable id: None.
     Caveat: derivation assumes the cache layout above; a layout change gives None (refusal), recheck per the record."""
     env = os.environ.get("CLAUDE_PLUGIN_DATA", "")
-    if env:
+    segment = Path(env.rstrip("/\\")).name if env else ""
+    if segment == "session-flow" or segment.startswith("session-flow-"):
         return Path(env).expanduser()
     version_dir = _SCRIPTS_DIR.parent
     plugin_dir = version_dir.parent

@@ -1,10 +1,21 @@
 # Changelog: session-flow plugin
 
-## [0.48.1] - 2026-10-03
+## [0.48.2] - 2026-10-03
 
 ### Changed
 
 - `scripts/save_point.test.sh` and `skills/audit-sessions/scripts/audit-sessions.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
+## [0.48.1] - 2026-10-03
+
+### Fixed
+
+- **`save_point.py` outside a git work tree no longer writes save-points into another plugin's data
+  directory.** Another plugin's SessionStart hook can export its own data directory as
+  `CLAUDE_PLUGIN_DATA` for every Bash call, and `new` and `memory-root` then resolved
+  `<that dir>/artifacts`. An inherited value is now used only when it names session-flow;
+  otherwise the data directory is derived from the script's installed cache path, as it already
+  was when the variable was unset.
 
 ## [0.48.0] - 2026-10-03
 

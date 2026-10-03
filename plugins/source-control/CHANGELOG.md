@@ -3,11 +3,23 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.79.1] - 2026-10-03
+## [0.79.2] - 2026-10-03
 
 ### Changed
 
 - `scripts/babysit-wrapper-help.test.sh`, `skills/babysit-prs/scripts/engine.test.sh`, `skills/babysit-prs/scripts/tests/test_guards.py`, and `skills/worktree/nesting-invariant-ssot.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
+## [0.79.1] - 2026-10-03
+
+### Fixed
+
+- **The resolve-thread audit log and `fetch-failed-logs.sh`'s scratch files stay out of other
+  plugins' data directories.** Another plugin's SessionStart hook can export its own data directory
+  as `CLAUDE_PLUGIN_DATA` for every Bash call, and both then wrote under it
+  (`source-control/resolve-thread-audit.jsonl` and `scratch/`). Each now uses an inherited value
+  only when its last path segment names source-control, and otherwise falls back to the location
+  it already used outside a session: `~/.claude/source-control/` for the audit log, a `mktemp`
+  directory for the scratch files.
 
 ## [0.79.0] - 2026-10-03
 
