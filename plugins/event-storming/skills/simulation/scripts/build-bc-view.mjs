@@ -82,12 +82,6 @@ function objects(value) {
   return asList(value).filter((row) => row && typeof row === "object" && !Array.isArray(row));
 }
 
-function numbered(value) {
-  const items = texts(value);
-  if (items.length === 0) return "<p>None.</p>";
-  return `<ol>${items.map((item) => `<li>${e(item)}</li>`).join("")}</ol>`;
-}
-
 function joined(value) {
   return texts(value).map((item) => escapeHtml(item)).join(", ");
 }
