@@ -3,6 +3,15 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.5.3] - 2026-10-03
+
+### Changed
+
+- **The `object-writer` agent's `medium` effort pin is settled.** An eval of the object-writing
+  cases at `low`, `medium` and `high` found `medium` level with `high` on pass rate and blind-graded
+  write quality, while `low` failed the 10-minute case (drift back to the seed) and the character
+  case (first-person voice). The agent's effort note records the reason and a new recheck trigger.
+
 ## [1.5.2] - 2026-10-03
 
 ### Added
