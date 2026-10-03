@@ -27,10 +27,11 @@
             "type": "command",
             "command": "node",
             "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs",
+              "probe",
+              "${CLAUDE_PLUGIN_ROOT}",
               "--run-if-unset-or-true",
-              "TYPOS_FORMAT_ENABLED",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh"
+              "TYPOS_FORMAT_ENABLED"
             ],
             "timeout": 10,
             "statusMessage": "Checking typos..."
