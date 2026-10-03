@@ -49,9 +49,12 @@ A view sits on one of four tiers, chosen per use case from the defaults below.
 - **Reports may be static.** A report is read, not answered, so it may ship without
   script. A report may still filter, collapse, or animate; what it never carries is a
   loop-closure control (see Loop closure and the export obligation).
-- **The Claude-interactive tier is closed to every content class.** No page, K0, K1, or
-  K2, uses it until `session-bridge` exists and meets interactive-profile rule 9. Until
-  then a page stops at client-interactive and closes the loop with a copied payload.
+- **The Claude-interactive tier is open only to builder pages.** `session-bridge` meets
+  interactive-profile rule 9, so a page of any class reaches it when the shared builder
+  built it with `--connect` and the bridge's view app serves it
+  (`lib/session-bridge/README.md`, "The view app"). A model-written K0 or K1 page does not
+  use it: it stops at client-interactive and closes the loop with a copied payload. A
+  builder page with no live session says so and keeps its copy and save controls.
 - **A K2 page's payloads carry no K2 text.** Every copy, export, or download payload on
   a K2 page, at any tier, holds to rule 9's first bullet: what the reader entered plus
   ids the builder assigned, never a string taken from the data block. A K2 page
@@ -127,8 +130,8 @@ came from, not by who wrote it down.
   the charset meta is a `<meta http-equiv="Content-Security-Policy">`, because a meta
   policy does not apply to content before it. The policy is exactly `default-src 'none';
   script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none';
-  form-action 'none'`, plus one permitted addition: `connect-src` naming the
-  `session-bridge` origin, once the Claude-interactive tier opens. The policy caps a misclassified page:
+  form-action 'none'`, with no `connect-src`: the Claude-interactive tier is open to
+  builder pages only (see View tiers). The policy caps a misclassified page:
   injected script runs but cannot fetch, beacon, or submit a form. It can still
   navigate the page to a URL that carries data out, and CSP3 has no directive that
   stops navigation, so the authoring-context rule, not the policy, is what keeps K2
@@ -177,9 +180,11 @@ from the one the browser runs. It checks the runtime body by hash before any oth
    `form-action 'none'`, which do not fall back to `default-src`. Its content is the
    builder's exact policy string. It is the only `http-equiv` meta the page carries: any
    other, such as `refresh`, which navigates and is not blocked by the policy, fails.
-   Once the Claude-interactive tier opens (rule 9), a page on it adds `connect-src`
-   naming the `session-bridge` origin and nothing else; `session-bridge` owns that
-   origin, and rule 9 governs what crosses it.
+   A Claude-interactive page (rule 9) adds one last directive, `connect-src` naming the
+   `session-bridge` origin `http://127.0.0.1:<port>` and nothing else; the builder writes
+   it from `--connect`, the validator refuses any other `connect-src`, and the runtime
+   reaches only that origin. `session-bridge` owns that origin, and rule 9 governs what
+   crosses it.
 4. **No inline handlers, no navigation.** No `on*` attribute, no `style` attribute, no
    `<form>`, `<iframe>`, `<object>`, `<embed>`, `<base>`, or `<link>`. A URL-bearing
    attribute is allowed only as a same-document fragment reference (`#id`): `<a
@@ -244,9 +249,10 @@ from the one the browser runs. It checks the runtime body by hash before any oth
    closed. A marker proves no provenance; the structural scan decides. When the marker
    format changes, the builder and every consumer of the old marker migrate in the same
    change.
-9. **The Claude-interactive tier.** The tier is closed to every content class, K0, K1,
-   and K2, until `session-bridge` exists and meets the last three bullets below (see
-   View tiers). The first bullet binds the page; the last three are properties of the
+9. **The Claude-interactive tier.** The tier opens to a page only while `session-bridge`
+   meets the last three bullets below; it meets them now, and its README's "Rendered-views
+   rule 9" table says how. A change that breaks one closes the tier again (see View
+   tiers). The first bullet binds the page; the last three are properties of the
    bridge and hold for every message from every page, whatever its class:
    - The page sends only what the reader entered plus ids assigned when the page was
      built (a finding number, a hunk id, an option id), never a string taken from the

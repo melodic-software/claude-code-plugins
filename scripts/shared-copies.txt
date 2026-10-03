@@ -125,6 +125,16 @@ lib/prerequisites.ps1 plugins/guardrails/lib/prerequisites.ps1
 lib/session-bridge/session_bridge.py plugins/planning/surface/session_bridge.py
 lib/session-bridge/watch.sh plugins/planning/surface/watch.sh
 lib/session-bridge/wake.sh plugins/planning/surface/wake.sh
+lib/session-bridge/session_bridge.py plugins/planning/view-bridge/session_bridge.py
+lib/session-bridge/watch.sh plugins/planning/view-bridge/watch.sh
+lib/session-bridge/wake.sh plugins/planning/view-bridge/wake.sh
+lib/session-bridge/view_bridge.py plugins/planning/view-bridge/view_bridge.py
+lib/session-bridge/view-bridge.sh plugins/planning/view-bridge/view-bridge.sh
+lib/session-bridge/session_bridge.py plugins/work-items/view-bridge/session_bridge.py
+lib/session-bridge/watch.sh plugins/work-items/view-bridge/watch.sh
+lib/session-bridge/wake.sh plugins/work-items/view-bridge/wake.sh
+lib/session-bridge/view_bridge.py plugins/work-items/view-bridge/view_bridge.py
+lib/session-bridge/view-bridge.sh plugins/work-items/view-bridge/view-bridge.sh
 lib/view-builder.mjs plugins/review/lib/view-builder.mjs
 lib/view-runtime.js plugins/review/lib/view-runtime.js
 lib/view-builder.mjs plugins/planning/lib/view-builder.mjs

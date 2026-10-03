@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.28.1] - 2026-10-03
+
+### Changed
+
+- Shared `view-builder.mjs`, `view-runtime.js` synced ([#5868](https://github.com/melodic-software/claude-code-plugins/issues/5868)); no change to this plugin's own behavior.
+
 ## [0.28.0] - 2026-10-03
 
 ### Added

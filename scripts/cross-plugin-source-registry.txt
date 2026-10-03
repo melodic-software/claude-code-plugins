@@ -199,6 +199,29 @@ lib/session-bridge/watch.sh -> plugins/*/surface/watch.sh
 # lib/session-bridge/wake.sh, generated into plugins/planning/surface/ as above.
 lib/session-bridge/wake.sh -> plugins/*/surface/wake.sh
 
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonicals:
+# lib/session-bridge/. The planning and work-items plugins carry the view app
+# (view_bridge.py, view-bridge.sh) with the bridge beside it in view-bridge/,
+# generated with a header that names the canonical. The arrow lines are the
+# duplication audit's clusters.
+view-bridge/session_bridge.py
+view-bridge/watch.sh
+view-bridge/wake.sh
+view-bridge/view_bridge.py
+view-bridge/view-bridge.sh
+lib/session-bridge/session_bridge.py -> plugins/*/view-bridge/session_bridge.py
+lib/session-bridge/watch.sh -> plugins/*/view-bridge/watch.sh
+lib/session-bridge/wake.sh -> plugins/*/view-bridge/wake.sh
+lib/session-bridge/view_bridge.py -> plugins/*/view-bridge/view_bridge.py
+lib/session-bridge/view-bridge.sh -> plugins/*/view-bridge/view-bridge.sh
+
+# No dedicated check: this script's own --check is the gate. The view app's
+# session-bridge settings (NAME=view, CONTROL=view-bridge.sh) are hand-written
+# beside each copy set. Canonical copy:
+# plugins/planning/view-bridge/session-bridge.conf; copy it into
+# plugins/work-items/view-bridge/ to fix a drift failure.
+view-bridge/session-bridge.conf
+
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/prerequisites.mjs. harness-ops carries the first generated copy; every
 # plugin whose prerequisites.json passes the schema carries one too

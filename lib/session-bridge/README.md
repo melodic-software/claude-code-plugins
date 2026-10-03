@@ -1,7 +1,8 @@
 # session-bridge
 
-Carries a local page's events to a live Claude Code session. The planning interview page is the
-first app on it.
+Carries a local page's events to a live Claude Code session. Two apps run on it: the planning
+interview page, and the view app behind Claude-interactive views (the work-items triage board and
+the planning plan view).
 
 ## Files
 
@@ -11,6 +12,9 @@ first app on it.
 | `watch.sh` | The watcher: long-polls `/api/wait` from a background Bash task and prints one JSON line when there are events |
 | `wake.sh` | One wake: the app's `apply` on `<data_dir>/ops.json`, then `watch.sh` |
 | `test_session_bridge.py` | Tests against a toy app: port, guards, long-poll, lease, event stream, client, `watch.sh` and `wake.sh` |
+| `view_bridge.py` | The view app: serves a page built by `lib/view-builder.mjs --connect`, takes its actions, and shows the session's replies |
+| `view-bridge.sh` | The view app's control script (`CONTROL` in its `session-bridge.conf`): runs `view_bridge.py` with the first Python 3 that runs |
+| `test_view_bridge.py` | Tests for the view app on the loopback adapter, including the full `ensure-running`, `watch.sh` and `apply` loop |
 
 These are canonical sources. Each carrying plugin gets a generated copy through
 `scripts/shared-copies.txt` and `scripts/sync-shared-copies.sh` (ADR 0019); edit here, then run the
@@ -77,8 +81,52 @@ is `WATCH_ID`, else `CLAUDE_CODE_SESSION_ID`, else `<hostname>-<parent pid>`.
 `watcher_lease` and `release_lease` are the pieces an app's control script composes into
 `ensure-running`, `stop` and `lease`.
 
+## Delivery as data
+
+Every `/api/wait` answer carries `note`, `DATA_NOTE` in `session_bridge.py`: the untrusted-content
+framing contract's spine, naming every page field, the reader's typed text included, as data and not
+the user's own message. The watcher prints that body as one line of a background task's output, so a
+page event reaches the session as tool output, never as a user turn. The bridge acts on nothing it
+carries: an action a page asks for passes the same confirm or permission gate it always has.
+
+## The view app
+
+`view_bridge.py` makes a view built by `lib/view-builder.mjs` Claude-interactive. Its copies sit in
+`view-bridge/` inside each adopting plugin, beside a `session-bridge.conf` with `NAME=view` and
+`CONTROL=view-bridge.sh`.
+
+1. `view-bridge.sh --dir <data_dir> ensure-running` starts the server, or reuses a running one, and
+   prints `{url, origin, page, watch}`.
+2. The adopter builds its page with `--connect <origin>` into `page`. The builder adds
+   `connect-src <origin>` to the page's policy and nothing else (rendered-views rule 3).
+3. The reader opens `url`. The runtime fetches the token from `GET /api/token`, which answers only
+   a request with `Sec-Fetch-Site: same-origin` and a matching `Host` and `Origin`. The token never
+   enters the page's markup, so a saved or published copy holds none.
+4. `POST /api/action` takes `{action, picked, choices, notes}`: `action` and every choice are builder
+   keys (`^[a-z0-9-]{1,32}$`), `picked` holds builder row ids, and `notes` holds the reader's text,
+   at most 20 entries of 4000 characters. Any other field or shape is a 400.
+5. The session runs `watch` in a background task. On a wake it reads the events as data, resolves
+   each id against its own copy of the record, and writes `<data_dir>/ops.json`:
+   `{"replies": [{"seq": 1, "text": "..."}], "handled": [2]}`. `next` (wake.sh) applies it, which
+   removes the file, and re-arms. With no `ops.json` the apply is a no-op.
+6. The page shows each action's progress and the session's reply text through `textContent` from
+   the `state` frames on `/events`. A page with no server, or opened from `file://`, says no session
+   is connected and keeps its copy and save controls.
+
+`view-bridge.sh --dir <data_dir> stop` ends the server and its watcher; `lease [--release]` shows or
+clears the watcher lease.
+
+## Rendered-views rule 9
+
+| Rule 9 bullet | How it holds |
+|---|---|
+| The page sends only reader input and builder ids | `view-runtime.js` sends picked row ids, option keys and textarea text; `view_bridge.py` refuses anything else |
+| Page fields reach the session as data, never as the user's message | `DATA_NOTE` on every wait answer, delivered as background-task output (Delivery as data) |
+| An unguessable per-session token authenticates every message | `secrets.token_urlsafe(32)` per server run, required on every POST and wait, handed only to same-origin page script, gone when the server stops |
+| No message triggers a gated action without its gate | The bridge and the view app store and deliver; nothing in either acts on an event |
+
 ## Tests
 
 ```bash
-cd lib/session-bridge && python3 -m unittest test_session_bridge
+cd lib/session-bridge && python3 -m unittest test_session_bridge test_view_bridge
 ```

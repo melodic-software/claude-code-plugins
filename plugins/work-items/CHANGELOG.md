@@ -3,6 +3,23 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.0] - 2026-10-03
+
+### Added
+
+- **The triage board can act on items through the session ([#5868](https://github.com/melodic-software/claude-code-plugins/issues/5868)).**
+  The board gains an "Act on items" list: tick items, pick a destination, add a note, then send it to the
+  session or copy it. `view-bridge/` carries the session-bridge view app: `view-bridge.sh ensure-running`
+  serves the page that `build-board.mjs --connect <origin>` builds, the reader's picks reach the session as
+  data through the watcher, and the session's replies show on the board. A page action never stands in
+  for a tracker write's own confirmation. A board with no session says so and keeps its copy control.
+  Procedure: `skills/triage/context/board.md`.
+
+### Changed
+
+- The shared `lib/view-builder.mjs` (`--connect`) and `lib/view-runtime.js` (the session client) are
+  regenerated. Python 3 is declared, and curl's entry names the board's watcher (`prerequisites.json`).
+
 ## [0.47.0] - 2026-10-03
 
 ### Added

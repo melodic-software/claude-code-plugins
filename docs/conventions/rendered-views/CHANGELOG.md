@@ -3,6 +3,15 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## The Claude-interactive tier opens to builder pages, 2026-10-03
+
+- **`session-bridge` meets rule 9, and the triage board and plan view adopt the tier (#5868).** Every wait
+  answer now carries the untrusted-content framing contract as its data note. The bridge's new view app
+  hands the token only to same-origin page script, so it never enters the page's markup, and takes page
+  actions holding only builder keys, row ids and the reader's notes. The builder's `--connect` adds one
+  `connect-src` naming the loopback origin, which the validator checks. The tier stays closed to
+  model-written pages. Rules 3 and 9 and View tiers record the change.
+
 ## Post-mortem and blindspot views on the builder, 2026-10-03
 
 - **`debugging:debug` and `discovery:blindspot` offer interactive views built by `lib/view-builder.mjs` (#5864).**
