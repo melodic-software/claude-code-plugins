@@ -13,7 +13,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   (path, first commenter, URL, outdated or not) and reads them through the babysit merge gate's own
   `unresolved_threads`, so both skills count the same threads. A thread read that fails, or a
   session not served GraphQL, reports `THREADS_UNPROVEN` and holds the gate. The babysit merge
-  gate's thread records now also carry the first comment's URL.
+  gate's thread records now also carry the first comment's URL. The monitor fallback watcher reads
+  the same gate every fourth poll and emits a line when the unresolved count changes, so resolving
+  a thread wakes the loop.
 
 ## [0.77.2] - 2026-10-03
 

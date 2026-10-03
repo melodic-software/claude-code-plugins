@@ -78,6 +78,8 @@ Establish a baseline poll: the §3.0.1 REST read of the PR's checks (`gh pr chec
    REPO=$(gh repo view --json name -q .name)
    prev_checks=""
    last_comment_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+   prev_threads=""
+   poll=0
 
    while true; do
      # Terminal state check — exit watch if PR closed/merged. REST, like the
@@ -136,11 +138,26 @@ Establish a baseline poll: the §3.0.1 REST read of the PR's checks (`gh pr chec
      else fetch_ok=0; fi
      [ "$fetch_ok" -eq 1 ] && last_comment_ts="$now"
 
+     # Review threads: resolving one moves no check and posts no comment, so
+     # the reads above never see it. The Gate 7 read (readiness.md) costs a
+     # GraphQL call, so it runs every 4th poll (about 2 minutes) and emits
+     # when the unresolved count, or THREADS_UNPROVEN, changes.
+     if [ $((poll % 4)) -eq 0 ]; then
+       cur_threads=$(bash "<scripts-dir>/source-control-review-threads" "$OWNER/$REPO#$PR_NUMBER" 2>/dev/null \
+         | head -n 1 | tr -d '\r' | sed -nE 's/^THREADS_(OK|BLOCKED) unresolved=([0-9]+).*/\2/p')
+       cur_threads=${cur_threads:-THREADS_UNPROVEN}
+       if [ "$cur_threads" != "$prev_threads" ]; then
+         echo "REVIEW-THREADS unresolved=$cur_threads"
+         prev_threads="$cur_threads"
+       fi
+     fi
+     poll=$((poll + 1))
+
      sleep 30
    done
    ```
 
-   Capture the returned task id. Report: `Monitor watch armed (task <id>, PR #<N>). Fires on CI check completion and new comments. Stop with TaskStop <id> or end session.`
+   Capture the returned task id. Report: `Monitor watch armed (task <id>, PR #<N>). Fires on CI check completion, new comments, and review-thread count changes. Stop with TaskStop <id> or end session.`
 
 5. Proceed with the current monitoring iteration normally
 

@@ -169,7 +169,7 @@ gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100
 
 ### Gate 7: No unresolved review threads
 
-A base that requires conversation resolution holds the PR at `mergeStateStatus` `BLOCKED` with every check green, and Gates 1 to 6 cannot see why. Thread resolution is served only over GraphQL, so read it with the bundled gate, which counts threads exactly as the `/source-control:babysit-prs` merge gate does, outdated ones included:
+An unresolved review thread can hold the merge while every check is green, and Gates 1 to 6 read nothing that shows it. Read the threads with the bundled gate, which counts them exactly as the `/source-control:babysit-prs` merge gate does, outdated ones included. `fetch_review_threads` in `skills/babysit-prs/scripts/babysit_gh.py` owns how threads are fetched and why a failed fetch reports unproven instead of zero:
 
 ```bash
 bash "<scripts-dir>/source-control-review-threads" <owner>/<repo>#<pr_number>
@@ -215,4 +215,4 @@ The five failures the gates above exist to prevent:
 2. **Ignoring security scan results.** A security actor's check run and comment are both evaluated before merge (Gate 3)
 3. **Not waiting for comment-only actors.** A review bot can post minutes after PR creation; the cooldown gives it time (Gate 5)
 4. **Treating "no comments" as "ready".** An empty comment list may mean reviewers have not posted yet (Gate 5)
-5. **Reporting "blocked" without the reason.** An unresolved review thread holds a conversation-resolution base at `BLOCKED` with every check green; name the threads (Gate 7)
+5. **Reporting "blocked" without the reason.** A merge held only by unresolved review threads shows every check green; name the threads (Gate 7)

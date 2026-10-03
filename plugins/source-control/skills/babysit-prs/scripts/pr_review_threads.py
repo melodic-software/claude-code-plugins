@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Read-only unresolved-review-thread gate for one pull request.
 
-A ruleset that requires conversation resolution holds a PR at
-mergeStateStatus BLOCKED with every check green, and nothing on the checks or
-comments surfaces says why. This names the threads. It reads them through
+An unresolved review thread can hold a merge while every check is green, and
+nothing on the checks or comments surfaces says why. This names the threads. It reads them through
 `babysit_merge.unresolved_threads`, the predicate the babysit merge gate holds
 on, so both skills count the same threads the same way, outdated ones included.
 
@@ -12,8 +11,9 @@ Stdout, exactly one verdict line first:
   THREADS_BLOCKED unresolved=<n> pr=<owner/repo#n>                exit 1
     then one line per thread: - <path> by <author> <url>[ (outdated)]
   THREADS_UNPROVEN reason=<bad-args|graphql-unavailable|fetch-failed> pr=<...>  exit 2
-UNPROVEN is never a pass: thread resolution is GraphQL-only, and a read that did
-not happen is not evidence of zero threads.
+UNPROVEN is never a pass: a read that did not happen is not evidence of zero
+threads. `babysit_gh.fetch_review_threads` owns the transport and why it fails
+closed.
 """
 
 from __future__ import annotations
