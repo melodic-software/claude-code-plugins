@@ -77,6 +77,12 @@ below):
 - `stdin_read_timeout` (default `2` seconds) bounds how long a hook waits on its input before it
   fails open.
 
+An installed mod can stop this plugin's `PreToolUse` hooks from running: they run after the last
+mod calls `next`, so a mod that answers a `tool.call` without calling it skips them
+([where settings hooks run in the order](https://code.claude.com/docs/en/plugins/mods/events#where-settings-hooks-run-in-the-order)).
+A mod can also approve a call they blocked, because its `tool.check` hook runs after them
+([approve or refuse a tool call before the user is asked](https://code.claude.com/docs/en/plugins/mods/events#approve-or-refuse-a-tool-call-before-the-user-is-asked)).
+
 ### Task-end test judge
 
 A separate headless `claude -p` run asks one question of each test block the session created or
