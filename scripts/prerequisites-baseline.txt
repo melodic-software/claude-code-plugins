@@ -162,6 +162,7 @@ source-control py
 source-control python
 source-control python3
 source-control schema
+speech jq
 testing jq
 testing schema
 typos-format jq
