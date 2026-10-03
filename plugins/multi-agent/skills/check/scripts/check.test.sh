@@ -48,16 +48,30 @@ expect "$(has_row node FAIL)" "no node: node fails"
 expect "$(has_row registration PASS)" "no node: registration still reports"
 expect "$(has_row gate FAIL 'not run')" "no node: gate not run"
 
-# A plugin root whose hooks.json does not register the gate.
-mkdir -p "$WORK/plugin/hooks"
-cp "$PLUGIN/hooks/drift-checker-fetch-gate.mjs" "$WORK/plugin/hooks/"
-printf '{"hooks":{}}\n' >"$WORK/plugin/hooks/hooks.json"
-out="$(bash "$CHECK" --plugin-root "$WORK/plugin")"
+# check.sh reads the plugin it ships in, so each fixture is a plugin copy.
+fixture() {
+  local dir="$WORK/$1"
+  mkdir -p "$dir/hooks" "$dir/skills/check/scripts"
+  cp "$PLUGIN/hooks/drift-checker-fetch-gate.mjs" "$dir/hooks/"
+  cp "$CHECK" "$dir/skills/check/scripts/"
+  printf '%s\n' "$2" >"$dir/hooks/hooks.json"
+  out="$(bash "$dir/skills/check/scripts/check.sh")"
+}
+
+fixture unregistered '{"hooks":{}}'
 expect "$(has_row registration FAIL)" "unregistered: registration fails"
 
-bash "$CHECK" --bogus >/dev/null 2>&1
+# Every string present, but the gate sits under PostToolUse while another
+# entry supplies the PreToolUse text: not one PreToolUse entry. A text-only
+# check passes this fixture; the structural check must not.
+# shellcheck disable=SC2016
+fixture split '{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"true"}]}],
+"PostToolUse":[{"matcher": "WebFetch","hooks":[{"type":"command","command": "node","args":["${CLAUDE_PLUGIN_ROOT}/hooks/drift-checker-fetch-gate.mjs"]}]}]}}'
+expect "$(has_row registration FAIL)" "split entries: registration fails"
+
+bash "$CHECK" --plugin-root /tmp >/dev/null 2>&1
 code=$?
-expect "$((code != 2))" "unknown argument exits 2"
+expect "$((code != 2))" "any argument exits 2"
 
 if [[ $fails -eq 0 ]]; then
   echo "check.sh tests passed."

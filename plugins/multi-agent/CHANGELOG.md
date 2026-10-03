@@ -9,8 +9,9 @@ All notable changes to the `multi-agent` plugin are documented here. Format foll
 
 - **`/multi-agent:check`**, a read-only check that reports whether `node` resolves, whether
   `hooks/hooks.json` registers the `drift-checker` fetch gate on `WebFetch`, and whether the gate
-  denies a sample off-host drift-checker fetch, through its bundled `scripts/check.sh`. It
-  installs nothing. `prerequisites.json` declares
+  denies a sample off-host drift-checker fetch, through its bundled `scripts/check.sh`. The
+  registration row requires one `PreToolUse` entry to carry the matcher, command and script
+  together when `node` resolves. The script takes no arguments, and the skill installs nothing. `prerequisites.json` declares
   `node` with this skill as its check.
 
 ### Changed
