@@ -3,6 +3,19 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.2] - 2026-10-03
+
+### Changed
+
+- `prerequisites.json` is converted to the schema `docs/conventions/prerequisites/` owns: a `requires` list whose entries carry `id`, `kind`, `need`, `for`, `detect`, `degrade`, `install` and `check`, in place of the retired `tools` list ([#5840](https://github.com/melodic-software/claude-code-plugins/issues/5840)). The plugin now ships the shared checker, `lib/prerequisites.mjs` with its `lib/prerequisites.sh` and `lib/prerequisites.ps1` stubs, generated from the repository's canonical copy.
+
+## [0.3.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`, and its description is shortened to fit claude.ai's
+  500-character limit. claude.ai's marketplace sync stripped `$schema` with a warning.
+
 ## [0.3.0] - 2026-10-02
 
 ### Added

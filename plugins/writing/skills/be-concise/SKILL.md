@@ -127,12 +127,12 @@ lets the user see the size of the change without rereading both versions.
   A rewrite that loses a decision has failed even if it halves the word count.
 - **Does not run in flight on chat or code.** Terseness in the current
   conversation, and code written in fewer lines, is
-  `discipline:tighten-your-output` when the `discipline` plugin is installed.
+  `discipline:tighten-your-output` when the `discipline` plugin is enabled.
 - **Does not trim repo markdown word by word.** That is
   `docs-hygiene:compress` when the `docs-hygiene` plugin is installed.
 - **Does not restructure a dense message without shortening it.** Chunking a
   decision-heavy artifact one decision at a time is `adhd:clarify` when the
-  `adhd` plugin is installed.
+  `adhd` plugin is enabled.
 - **Does not reshape agent-facing instruction prose.** A skill body, a rules
   file, or any text written for a model to follow is
   `docs-hygiene:write-for-agents` when the `docs-hygiene` plugin is installed.
@@ -142,7 +142,7 @@ lets the user see the size of the change without rereading both versions.
   `docs-hygiene:write-for-humans` when the `docs-hygiene` plugin is installed.
 - **Does not detect AI-writing tells.** Em dashes, chatbot phrasing and the
   rest of that catalog are `ai-slop:audit` when the `ai-slop` plugin is
-  installed. This skill inherits whatever that plugin's config says; it adds no
+  enabled. This skill inherits whatever that plugin's config says; it adds no
   punctuation rule of its own.
 - **Ships no detector script and gates nothing in CI.** Judgment plus the word
   count. A deterministic detector is a recorded post-V1 item.

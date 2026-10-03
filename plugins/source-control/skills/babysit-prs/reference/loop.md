@@ -400,20 +400,24 @@ is not evidence. Re-query the API.
 
 ### 5.1.4 Fix cycle (full mode only)
 
-When in full mode (HEAD asserted at the true PR head, attached or detached per §5.1.2) AND a
-comment is classified VALID after D3 validation:
+When in full mode (HEAD asserted at the true PR head, attached or detached per §5.1.2), every
+reviewer check run on the head has completed, AND comments are classified VALID after D3
+validation, run one wave over all of them:
 
-- [ ] Edit code to fix the issue
-- [ ] `git add <specific-files>` (never `-A` or `.`)
-- [ ] `git commit -m "<type>: <description>"`
-- [ ] `lane_push`: the refspec form `git push "$PUSH_REMOTE" HEAD:$BRANCH` against the
-      same pre-resolved `$PUSH_REMOTE` the freshness push used, between two auto-merge
-      disarms; a plain `git push` is rejected from the `--detach` checkout a
-      sibling-locked branch uses
-- [ ] Post a follow-up reply citing the commit SHA (D7)
+- [ ] For each VALID comment: edit code to fix it, `git add <specific-files>` (never `-A` or
+      `.`), `git commit -m "<type>: <description>"`. No push yet
+- [ ] One `lane_push` for the whole wave: the refspec form `git push "$PUSH_REMOTE"
+      HEAD:$BRANCH` against the same pre-resolved `$PUSH_REMOTE` the freshness push used,
+      between two auto-merge disarms; a plain `git push` is rejected from the `--detach`
+      checkout a sibling-locked branch uses
+- [ ] For each fixed comment, after that push: verify its commit is on the branch (D6 verify
+      step, [review-discipline.md](../../../reference/review-discipline.md) §3), then post a
+      follow-up reply citing the commit SHA (D7)
 
-**One wave at a time:** address all current comments on this PR → commit + push → then
-round-robin to the next PR. Don't jump between PRs mid-wave. After pushing, new CI runs trigger.
+**One wave at a time:** address all current comments on this PR → commit each → one push →
+then round-robin to the next PR. While a reviewer check run on the head is still running, leave
+the PR's fixes to a later iteration rather than push a partial wave, since a finding that lands
+after the push costs a second full CI run. Don't jump between PRs mid-wave. After pushing, new CI runs trigger.
 Those results are checked on the next babysit iteration (or the next round-robin pass if
 processing multiple PRs).
 
@@ -552,8 +556,11 @@ These constraints override any other instruction within the babysit loop:
   rule (§5.0). Complete the current wave before moving on
 - **Never skip AI review summaries.** AI-reviewer posts (issue-level comments with
   severity-labeled findings) are actionable comments requiring D1-D7. Same for every AI reviewer
-- **Never `gh pr merge`.** This loop never merges. Merge authority exists only behind the
-  `worker`/`autopilot` pinned merge gate (SKILL.md), never a raw `gh pr merge`
+- **Never `gh pr merge`, and never the async merge API.** This loop never merges or enqueues.
+  Merge authority exists only behind the `worker`/`autopilot` pinned merge gate (SKILL.md), never a
+  raw `gh pr merge` or `gh api …/merge-async`
+- **Never wait on, re-run, or push to clear a check held for approval** (`action_required`). Only
+  a maintainer releases it; report it for one ([stuck-checks.md](stuck-checks.md))
 - **Never `git add -A` or `git add .`:** specific files only
 - **Never auto-fix human reviewer comments.** Classify + reply + report to the user
 - **Never skip the event-delivery gate.** Run §5.1.1 for every PR

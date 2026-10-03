@@ -13,8 +13,21 @@ Contract enforced here (encoded as code, not convention):
   check that governs the merge, and the exact blockers, so the caller can react.
 - A merge only happens with `--merge` AND only when every readiness gate passes.
 - Merges use the repository's allowed method (squash preferred) and NEVER pass
-  `--admin`. This helper cannot bypass branch protection, resolve or reply to
-  review threads, force-push, or change settings.
+  `--admin` or `bypass_rules`. This helper cannot bypass branch protection,
+  resolve or reply to review threads, force-push, or change settings.
+- A ready PR on the default branch merges through the async merge API with the
+  vetted head as `sha`, polled to a terminal status; on a base that requires a
+  merge queue it is enqueued instead (`enqueued` is queued, not merged). A host
+  without the endpoint (404) falls back to `gh pr merge` for a direct merge.
+  Under `--stacked-prs` every stack member, the bottom layer included, merges
+  through the async API too (GitHub's required API for a stacked PR) and never
+  falls back. Any other base, and every `--auto` arm, keeps `gh pr merge`. A
+  request still pending at the poll bound is recorded under `--state-dir`
+  (GitHub offers no cancel), and every later run reports it as merge pending
+  until it finishes.
+- With `--stacked-prs`, a native stack layer is judged against the stack's
+  trunk and every open layer below it runs the same gate, since the async
+  merge lands them together. Without it a stack layer is held as before.
 - A PR authored by a dependency manager (Dependabot/Renovate-class) is held --
   never merged -- unless `--allow-dependency` is passed.
 - A PR on an unprotected base (zero required reviews AND zero required contexts)
@@ -23,7 +36,7 @@ Contract enforced here (encoded as code, not convention):
   repository's default branch -- the solo-owner repo the exemption exists for.
   A self-authored PR onto an unprotected NON-default base (a stack layer, or any
   feature-onto-feature merge) is held: the default branch's required checks never
-  governed it.
+  governed it. `--stacked-prs` replaces that hold for a native stack layer only.
 - A merge is held while a configured review bot still owes the LIVE head a
   review (`--review-bot-logins` with `--review-settle-minutes`, both or
   neither). A reviewer that re-reviews on push posts minutes after the head
@@ -54,7 +67,8 @@ explicit cross-checks so the *reason* for a block is always reported: the
 effective branch rules (`rules/branches`), the review decision, unresolved
 review threads, and the status-check rollup.
 
-Exit codes: 0 ready (or merged), 10 not ready (blockers), 2 usage/runtime
+Exit codes: 0 ready (or merged, enqueued, or auto-merge armed), 10 not ready
+(blockers, or a merge request that failed or is still pending), 2 usage/runtime
 error, 3 owner out of scope (or no allowlist). Output is a single JSON object
 on stdout.
 """
@@ -64,12 +78,15 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from collections.abc import Iterable
+import time
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any, cast
 
 import babysit_repo_config as repo_policy
+from babysit_state import resolve_state_dir, state_lock, write_state
 from babysit_checks import check_identity_key, classify_checks
 from babysit_classify import (
     DEFAULT_FEEDBACK_CONFIG,
@@ -95,6 +112,7 @@ from babysit_gh import (
     fetch_pull_request_reviews,
     fetch_review_threads,
     gh_capture,
+    gh_http_status,
     gh_json,
     normalized_rest_author,
     parse_repo_number,
@@ -112,6 +130,7 @@ from babysit_util import (
     is_json_array,
     is_json_object,
     json_array,
+    json_object,
     parse_allowed_owners,
     parse_csv_set,
     split_owner,
@@ -140,11 +159,55 @@ EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}
 # pre-receive hooks (GHES) -- GitHub returns one OR the other, so both are ready.
 READY_MERGE_STATES = {"CLEAN", "HAS_HOOKS"}
 
-# The two AI review status checks `--auto` waits for. `ci-status` is the only
-# required check and does not wait on these separate workflows, so auto-merge
-# armed before both pass on the live head could merge ahead of their review.
-# Matched on the job segment of the check name (`review / claude-review-status`).
-AI_REVIEW_CHECKS = ("claude-review-status", "claude-security-review-status")
+# The two AI review lanes `--auto` waits for. `ci-status` is the only required
+# check and does not wait on these separate workflows, so auto-merge armed
+# before both pass on the live head could merge ahead of their review. Each
+# lane maps to the job segments its check may carry (`review /
+# claude-review-status`). A name holding ` / ` must match the whole check
+# name: the security lane is one job named `security-review`, a name generic
+# enough that another workflow's job could carry it, so it counts only as
+# `security-review / security-review`. A pin that predates that fold reports
+# `claude-security-review-status` beside it. Every matching check must succeed.
+AI_REVIEW_CHECKS = {
+    "claude-review-status": ("claude-review-status",),
+    "claude-security-review-status": (
+        "claude-security-review-status",
+        "security-review / security-review",
+    ),
+}
+
+
+def is_ai_review_check(check_name: str, names: tuple[str, ...]) -> bool:
+    full = " / ".join(part.strip() for part in check_name.split("/"))
+    segment = full.rsplit(" / ", 1)[-1]
+    return any(full == n if " / " in n else segment == n for n in names)
+
+# The async merge API (`PUT .../pulls/{n}/merge-async`) answers with a request
+# UUID and runs the merge in the background; the gate polls it to a terminal
+# status for at most this long. A request still pending past the bound is left
+# to GitHub: the next run's PUT returns 409 with the same UUID and polls again.
+ASYNC_MERGE_POLL_TIMEOUT_SECONDS = 60.0
+ASYNC_MERGE_POLL_INTERVAL_SECONDS = 3.0
+ASYNC_TERMINAL_STATUSES = frozenset({"merged", "enqueued", "failed"})
+ASYNC_UUID_RE = re.compile(r"[0-9A-Za-z-]{1,64}")
+
+
+def _poll_sleep(seconds: float) -> None:
+    time.sleep(seconds)
+
+
+def _poll_clock() -> float:
+    return time.monotonic()
+
+
+MERGE_QUEUE_AUTO_HOLD = (
+    "base branch requires a merge queue -- auto-merge is not armed over a "
+    "queue; the gate enqueues once the PR is fully ready"
+)
+STACK_AUTO_HOLD = (
+    "stack layer -- auto-merge is not armed for a stack; the gate lands the "
+    "stack through the async merge API once every layer is ready"
+)
 
 
 @dataclass(frozen=True)
@@ -940,6 +1003,109 @@ def evaluate_review_settle(
     return [], result
 
 
+def pull_request_stack(repo: str, number: int) -> dict[str, Any] | None:
+    """The PR's native stack membership (`stack` on the REST pull), or None.
+
+    Only a native stack lands its lower layers when a layer merges; a PR that
+    merely targets another PR's branch has no `stack` object and merges into
+    that branch. Raises on a read failure so the caller holds rather than
+    guessing which of the two it is.
+    """
+    data = gh_json(["api", f"repos/{repo}/pulls/{number}", "--jq", "{stack: .stack}"])
+    stack = data.get("stack") if is_json_object(data) else None
+    return stack if is_json_object(stack) else None
+
+
+def stack_members(repo: str, stack_number: int) -> list[dict[str, Any]]:
+    """The stack's pull requests, bottom to top, as GitHub lists them."""
+    data = gh_json(["api", f"repos/{repo}/stacks/{stack_number}"])
+    members = data.get("pull_requests") if is_json_object(data) else None
+    if not is_json_array(members) or not all(is_json_object(m) for m in members):
+        raise RuntimeError(f"unexpected stack payload for {repo} stack {stack_number}")
+    return cast(list[dict[str, Any]], members)
+
+
+def evaluate_stack_layers(
+    repo: str,
+    number: int,
+    base_ref: str,
+    stack: dict[str, Any],
+    evaluate_layer: Callable[[int, str], dict[str, Any]],
+) -> tuple[list[str], dict[str, Any]]:
+    """Run the full gate over every open layer the merge would land below this PR.
+
+    Merging a stack layer through the async API lands every open layer below
+    it, so each one must pass the same gate this PR does. The chain is checked
+    as well: each open layer must target the head of the open layer below it,
+    the lowest the stack's trunk, so an order this code assumed but the API
+    did not state can only hold, never release. Every lower layer is pinned to
+    the head the stack listing reported, so a push between listing and
+    evaluation reads as a moved head.
+    """
+    trunk = str(json_object(stack.get("base")).get("ref") or "")
+    stack_number = stack.get("number")
+    record: dict[str, Any] = {
+        "member": True,
+        "number": stack_number,
+        "trunk": trunk,
+        "landsLowerLayers": True,
+        "layers": [],
+        "aiReviewHolds": [],
+    }
+    try:
+        members = stack_members(repo, int(stack_number))
+    except (RuntimeError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        return [f"stack {stack_number!r} could not be read ({exc}) -- held"], record
+    numbers = [member.get("number") for member in members]
+    if number not in numbers:
+        return [f"stack {stack_number!r} does not list this PR -- held"], record
+    blockers: list[str] = []
+    expected_base = trunk
+    for member in members[: numbers.index(number)]:
+        layer_number = member.get("number")
+        head = json_object(member.get("head"))
+        head_ref = str(head.get("ref") or "")
+        head_sha = str(head.get("sha") or "")
+        label = f"stack layer {repo}#{layer_number}"
+        if member.get("merged_at"):
+            continue
+        if member.get("state") != "open" or not isinstance(layer_number, int):
+            blockers.append(f"{label} is closed without merging -- held")
+            continue
+        if not EXPECTED_HEAD_RE.match(head_sha):
+            blockers.append(f"{label} reports no head SHA to pin -- held")
+            continue
+        layer = evaluate_layer(layer_number, head_sha)
+        record["layers"].append(
+            {
+                "pr": f"{repo}#{layer_number}",
+                "number": layer_number,
+                "headRefOid": layer.get("headRefOid"),
+                "baseRef": layer.get("baseRef"),
+                "ready": layer.get("ready"),
+                "blockers": layer.get("blockers"),
+            }
+        )
+        blockers.extend(f"{label}: {b}" for b in layer.get("blockers") or [])
+        # A layer's AI-review holds bind wherever the top layer's do (`--auto`):
+        # they live outside `blockers`, so they are carried separately.
+        record["aiReviewHolds"].extend(
+            f"{label}: {hold}" for hold in layer.get("aiReviewHolds") or []
+        )
+        if layer.get("baseRef") != expected_base:
+            blockers.append(
+                f"{label} targets {layer.get('baseRef')!r}, not {expected_base!r} "
+                "-- the stack chain is broken; held"
+            )
+        expected_base = head_ref
+    if base_ref != expected_base:
+        blockers.append(
+            f"this PR targets {base_ref!r}, not the open layer below it "
+            f"({expected_base!r}) -- the stack chain is broken; held"
+        )
+    return blockers, record
+
+
 def evaluate(
     repo: str,
     number: int,
@@ -951,6 +1117,8 @@ def evaluate(
     tier: AutopilotMergeTierConfig | None = None,
     extra_dependency_manager_logins: frozenset[str] = frozenset(),
     settle: ReviewSettleConfig | None = None,
+    stacked: bool = False,
+    rules_base: str | None = None,
 ) -> dict[str, Any]:
     owner = split_owner(repo)
     # `closingIssuesReferences` is requested only when the autopilot merge tier
@@ -984,7 +1152,22 @@ def evaluate(
     checks_by_key: dict[tuple[str, str, str], dict[str, Any]] = {
         check_identity_key(check): check for check in checks["checks"]
     }
-    rules = branch_rules(repo, str(pr.get("baseRefName") or "main"))
+    # Stack membership is read only under `stacked` (the opt-in), so the default
+    # gate makes no request it did not make before. A layer above the bottom is
+    # governed by the stack's trunk, not its literal base: GitHub determines a
+    # stack's merge requirements from the bottom layer's base branch.
+    base_ref = str(pr.get("baseRefName") or "")
+    stack: dict[str, Any] | None = None
+    stack_error: str | None = None
+    if stacked:
+        try:
+            stack = pull_request_stack(repo, number)
+        except (RuntimeError, json.JSONDecodeError) as exc:
+            stack_error = str(exc)
+    trunk = str(json_object(json_object(stack).get("base")).get("ref") or "")
+    stack_mode = bool(stack and trunk and base_ref and base_ref != trunk)
+    landing_base = rules_base or (trunk if stack_mode else base_ref)
+    rules = branch_rules(repo, landing_base or "main")
     head = pr.get("headRefOid")
     head_matches = (
         None
@@ -1107,11 +1290,28 @@ def evaluate(
         )
         if unmet_only_running:
             waiting.append(blockers[-1])
-    if rules.get("mergeQueueRequired"):
+    merge_queue_required = bool(rules.get("mergeQueueRequired"))
+    if stack_error is not None:
         blockers.append(
-            "base branch requires a merge queue -- a direct merge is not allowed; "
-            "add to the queue"
+            f"stack membership could not be read ({stack_error}) -- held: a stack "
+            "layer's merge lands the layers below it, so an unknown membership "
+            "cannot be merged"
         )
+    if stack_mode and merge_queue_required:
+        blockers.append(
+            f"stack trunk {trunk!r} requires a merge queue -- held: merge-queue "
+            "support for stacks is not relied on yet; merge the stack by hand"
+        )
+    elif merge_queue_required and not stack_mode and not rules_base:
+        # The async API enqueues a PR on the default branch. Any other base keeps
+        # the prior hold: an unconfirmed stack layer there could enqueue the
+        # layers below it with them.
+        default_branch = repository_default_branch(repo)
+        if not default_branch or base_ref != default_branch:
+            blockers.append(
+                "base branch requires a merge queue and is not the default branch "
+                "-- a direct merge is not allowed; add to the queue by hand"
+            )
     # Enforced in this read-only pass, not only at merge time: the wrapper's
     # documented purpose is reporting readiness so the caller can react, and a
     # signature hold discovered only under --merge defeats that.
@@ -1197,7 +1397,8 @@ def evaluate(
     # evaluated for this merge at all, and the PR lands on an integration branch
     # instead of passing the gate. A stacked pull request is exactly that shape
     # (self-authored, base = the layer below), but so is any feature-onto-feature
-    # merge.
+    # merge. Under `stacked`, a native stack layer is judged against its trunk
+    # instead, where the landing base is what this hold compares.
     #
     # Evaluated last, after the settle and tier blockers, so `not blockers` is the
     # COMPLETE set: the lookup below is a network call, and a PR already held for
@@ -1209,15 +1410,44 @@ def evaluate(
         and author_is_self
         and not allow_unprotected
     ):
-        base_ref = str(pr.get("baseRefName") or "")
         default_branch = repository_default_branch(repo)
-        if default_branch and base_ref and base_ref != default_branch:
+        if default_branch and landing_base and landing_base != default_branch:
             blockers.append(
-                f"base branch {base_ref!r} is unprotected (0 required reviews AND "
+                f"base branch {landing_base!r} is unprotected (0 required reviews AND "
                 "0 required contexts) and is not the default branch "
                 f"{default_branch!r} -- the default branch's required checks never "
                 "governed this merge -- held (pass --allow-unprotected to override)"
             )
+
+    # The layers below a stack layer land with it, so each runs the full gate --
+    # only once this PR is otherwise ready, for the same per-cycle cost reason.
+    stack_result: dict[str, Any] = {
+        "enabled": stacked,
+        "member": stack is not None,
+        "landsLowerLayers": stack_mode,
+    }
+    if stack_mode and stack is not None and not blockers:
+
+        def evaluate_layer(layer_number: int, layer_head: str) -> dict[str, Any]:
+            return evaluate(
+                repo,
+                layer_number,
+                layer_head,
+                allowed,
+                self_logins,
+                allow_dependency,
+                allow_unprotected,
+                tier,
+                extra_dependency_manager_logins,
+                settle,
+                rules_base=trunk,
+            )
+
+        layer_blockers, stack_result = evaluate_stack_layers(
+            repo, number, base_ref, stack, evaluate_layer
+        )
+        stack_result["enabled"] = True
+        blockers.extend(layer_blockers)
 
     ready = not blockers
     # `--auto` needs both AI review checks at SUCCESS in the rollup, which is the
@@ -1225,21 +1455,31 @@ def evaluate(
     # check (which the check buckets count as success) passes.
     ai_review_holds = [
         f"AI review check {lane!r} has not succeeded on the live head"
-        for lane in AI_REVIEW_CHECKS
+        for lane, names in AI_REVIEW_CHECKS.items()
         if not (
             matches := [
                 c
                 for c in checks["checks"]
-                if c["name"].rsplit("/", 1)[-1].strip() == lane
+                if is_ai_review_check(c["name"], names)
             ]
         )
         or any(c["effective_state"] != "SUCCESS" for c in matches)
     ]
+    ai_review_holds += stack_result.get("aiReviewHolds") or []
     auto_blockers = [b for b in blockers if b not in waiting] + ai_review_holds
+    # GitHub auto-merge is armed only over a plain direct merge; a queue or a
+    # stack is merged through the async API once the PR is fully ready.
+    if not ready and merge_queue_required:
+        auto_blockers.append(MERGE_QUEUE_AUTO_HOLD)
+    if not ready and stack_mode:
+        auto_blockers.append(STACK_AUTO_HOLD)
     return {
         "pr": f"{repo}#{number}",
         "autopilotMergeTier": tier_result,
         "reviewSettle": settle_result,
+        "stack": stack_result,
+        "landingBase": landing_base,
+        "mergeAction": "merge_queue" if merge_queue_required else "direct_merge",
         "url": pr.get("url"),
         "title": pr.get("title"),
         "author": author_login,
@@ -1270,6 +1510,7 @@ def evaluate(
         "ready": ready,
         "blockers": blockers,
         "autoMerge": {"ready": not auto_blockers, "blockers": auto_blockers},
+        "aiReviewHolds": ai_review_holds,
     }
 
 
@@ -1297,6 +1538,449 @@ def allowed_method(repo: str, requested: str | None) -> str:
         if allowed[method]:
             return method
     raise RuntimeError(f"no merge method enabled on {repo}")
+
+
+def _async_payload(text: str) -> dict[str, Any]:
+    try:
+        data = json.loads(text) if text.strip() else None
+    except json.JSONDecodeError:
+        return {}
+    return data if is_json_object(data) else {}
+
+
+def request_async_merge(
+    repo: str,
+    number: int,
+    *,
+    sha: str,
+    merge_action: str,
+    method: str | None,
+) -> dict[str, Any]:
+    """PUT one async merge request; never sets `bypass_rules`.
+
+    `sha` is the vetted head, the server-side equivalent of
+    `--match-head-commit`: GitHub cancels the merge if the head moved. A 409
+    means a request is already pending for this PR and carries its UUID. The
+    HTTP status of a failure comes from `gh`'s own message, since `gh api`
+    exits 1 for every non-2xx response.
+    """
+    cmd = [
+        "api",
+        "-X",
+        "PUT",
+        f"repos/{repo}/pulls/{number}/merge-async",
+        "-f",
+        f"merge_action={merge_action}",
+        "-F",
+        "bypass_rules=false",
+        "-f",
+        f"sha={sha}",
+    ]
+    if method and merge_action == "direct_merge":
+        cmd += ["-f", f"merge_method={method}"]
+    proc = gh_capture(cmd)
+    payload = _async_payload(proc.stdout)
+    details = json_object(payload.get("details"))
+    return {
+        "httpStatus": None if proc.returncode == 0 else gh_http_status(proc.stderr),
+        "ok": proc.returncode == 0,
+        "status": str(payload.get("status") or ""),
+        "uuid": str(details.get("uuid") or ""),
+        "message": str(details.get("message") or payload.get("message") or ""),
+        "stderr": proc.stderr.strip(),
+        "options": {
+            key: details[key]
+            for key in ("expected_head_sha", "merge_action")
+            if key in details
+        },
+    }
+
+
+def poll_async_merge(
+    repo: str,
+    number: int,
+    uuid: str,
+    *,
+    timeout_seconds: float = ASYNC_MERGE_POLL_TIMEOUT_SECONDS,
+    interval_seconds: float = ASYNC_MERGE_POLL_INTERVAL_SECONDS,
+    sleep: Callable[[float], None] | None = None,
+    clock: Callable[[], float] | None = None,
+) -> dict[str, Any]:
+    """Poll one async merge request until it is terminal or the bound elapses."""
+    sleep = sleep or _poll_sleep
+    clock = clock or _poll_clock
+    deadline = clock() + timeout_seconds
+    while True:
+        result = read_async_merge(repo, number, uuid)
+        if (
+            result["status"] in ASYNC_TERMINAL_STATUSES
+            or result["readError"]
+            or clock() >= deadline
+        ):
+            return result
+        sleep(interval_seconds)
+
+
+def read_async_merge(repo: str, number: int, uuid: str) -> dict[str, Any]:
+    """One read of an async merge request. `expired` is a 404: GitHub keeps a
+    result for 24 hours after its last update and then forgets the UUID.
+
+    A UUID that is not GitHub's shape never reaches the API path: it reads as
+    `corrupt`, which keeps a recorded request held.
+    """
+    if not ASYNC_UUID_RE.fullmatch(uuid):
+        return {
+            "status": "",
+            "message": f"unusable async merge request id {uuid!r}",
+            "readError": True,
+            "expired": False,
+            "corrupt": True,
+        }
+    try:
+        payload = gh_json(["api", f"repos/{repo}/pulls/{number}/merge-async/{uuid}"])
+    except (RuntimeError, json.JSONDecodeError) as exc:
+        return {
+            "status": "",
+            "message": f"could not read the request: {exc}",
+            "readError": True,
+            "expired": gh_http_status(str(exc)) == 404,
+        }
+    payload = payload if is_json_object(payload) else {}
+    return {
+        "status": str(payload.get("status") or ""),
+        "message": str(json_object(payload.get("details")).get("message") or ""),
+        "readError": False,
+        "expired": False,
+    }
+
+
+def pull_request_landed(repo: str, number: int) -> dict[str, Any]:
+    """Whether GitHub reads the PR as merged, and its head SHA.
+
+    `merged` is None, and `head` with it, when the PR cannot be read or reads
+    merged with no head: the head a merge landed cannot then be confirmed.
+    """
+    try:
+        data = gh_json(
+            [
+                "api",
+                f"repos/{repo}/pulls/{number}",
+                "--jq",
+                "{merged: .merged, head: .head.sha}",
+            ]
+        )
+    except (RuntimeError, json.JSONDecodeError):
+        data = None
+    data = data if is_json_object(data) else {}
+    merged, head = data.get("merged"), data.get("head")
+    head = head if isinstance(head, str) and head else None
+    if not isinstance(merged, bool) or (merged and head is None):
+        return {"merged": None, "head": None}
+    return {"merged": merged, "head": head}
+
+
+def async_merge(
+    repo: str,
+    number: int,
+    *,
+    sha: str,
+    merge_action: str,
+    method: str | None,
+) -> dict[str, Any]:
+    """Request an async merge or enqueue, poll it, and verify a reported merge.
+
+    Returns the `merge` record. `endpointMissing` marks a 404 on the request
+    itself (a host without the endpoint, such as an older GitHub Enterprise
+    Server): the PR was just read, so the 404 is the endpoint's, not the PR's.
+    """
+    request = request_async_merge(
+        repo, number, sha=sha, merge_action=merge_action, method=method
+    )
+    record: dict[str, Any] = {
+        "attempted": True,
+        "auto": False,
+        "api": "merge-async",
+        "mergeAction": merge_action,
+        "httpStatus": request["httpStatus"],
+        "uuid": request["uuid"] or None,
+        "status": request["status"] or None,
+        "message": request["message"],
+        "success": False,
+        "endpointMissing": not request["ok"] and request["httpStatus"] == 404,
+    }
+    if not request["ok"] and request["stderr"]:
+        record["stderr"] = request["stderr"]
+    accepted = request["ok"] or request["httpStatus"] == 409
+    if not accepted:
+        return record
+    # A 409 names a request this run did not send, possibly another actor's.
+    # Options it states must be this run's; options it omits leave the
+    # read-back below to confirm the head that merged.
+    expected = {"expected_head_sha": sha, "merge_action": merge_action}
+    if request["httpStatus"] == 409 and any(
+        request["options"].get(key, value) != value for key, value in expected.items()
+    ):
+        record["conflictingRequest"] = request["options"]
+        record["message"] = (
+            f"another async merge request is pending for this pull request "
+            f"({request['options']}), not this run's vetted merge -- held; it "
+            "can still merge"
+        )
+        return record
+    status = request["status"]
+    if status not in ASYNC_TERMINAL_STATUSES:
+        polled = poll_async_merge(repo, number, request["uuid"])
+        status = polled["status"]
+        record["message"] = polled["message"] or record["message"]
+    record["status"] = status or None
+    if status == "merged":
+        landed = pull_request_landed(repo, number)
+        verified = landed["merged"]
+        # None (the read failed) is surfaced as unconfirmed, never as a merge.
+        record["verifiedMerged"] = verified
+        record["mergedHead"] = landed["head"]
+        record["success"] = verified is True and landed["head"] == sha
+        if verified is True and landed["head"] != sha:
+            record["message"] = (
+                f"the pull request merged at head {landed['head']}, not the vetted "
+                f"head {sha} -- escalate to a human"
+            )
+        elif verified is False:
+            record["message"] = (
+                "the async merge API reported merged but the pull request reads "
+                "unmerged -- not counted as merged"
+            )
+        elif verified is None:
+            record["message"] = (
+                "the async merge API reported merged but the pull request could "
+                "not be read back -- unconfirmed; re-run the read-only check"
+            )
+    elif status == "enqueued":
+        record["success"] = merge_action == "merge_queue"
+    elif status == "pending":
+        record["message"] = (
+            f"still pending after {int(ASYNC_MERGE_POLL_TIMEOUT_SECONDS)}s; the "
+            "next run's request returns this one and polls it again"
+        )
+    return record
+
+
+def _open_lower_layers(
+    repo: str, number: int, stack_number: Any
+) -> list[tuple[int, str]]:
+    """`(number, head sha)` of every open, unmerged layer below this PR, read now."""
+    members = stack_members(repo, int(stack_number))
+    numbers = [member.get("number") for member in members]
+    if number not in numbers:
+        raise RuntimeError(f"stack {stack_number!r} no longer lists this PR")
+    return [
+        (int(member["number"]), str(json_object(member.get("head")).get("sha") or ""))
+        for member in members[: numbers.index(number)]
+        if not member.get("merged_at") and member.get("state") == "open"
+    ]
+
+
+def _evaluated_layers(result: dict[str, Any]) -> list[tuple[int, str]]:
+    return [
+        (int(layer["number"]), str(layer.get("headRefOid") or ""))
+        for layer in json_array(json_object(result.get("stack")).get("layers"))
+        if is_json_object(layer) and isinstance(layer.get("number"), int)
+    ]
+
+
+def stack_drift(repo: str, number: int, result: dict[str, Any]) -> str | None:
+    """Why the lower layers no longer match what the gate evaluated, or None.
+
+    The request's `sha` pins only this PR, so the layers below are re-read
+    immediately before the request: a push, a new layer, or a closed one since
+    evaluation refuses the merge instead of landing an unvetted head.
+    """
+    try:
+        live = _open_lower_layers(
+            repo, number, json_object(result["stack"]).get("number")
+        )
+    except (RuntimeError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        return f"stack could not be re-read before merging ({exc}) -- held"
+    evaluated = _evaluated_layers(result)
+    if live != evaluated:
+        return (
+            f"the stack's open lower layers changed since evaluation (evaluated "
+            f"{evaluated}, now {live}) -- held; re-run the gate"
+        )
+    return None
+
+
+def verify_stack_landed(repo: str, result: dict[str, Any]) -> dict[str, Any]:
+    """Whether every evaluated lower layer merged at the head the gate evaluated.
+
+    `verified` is None when the stack cannot be read back. A layer GitHub
+    reports at a different head lands as a mismatch for a human to judge,
+    whatever the cause.
+    """
+    evaluated = _evaluated_layers(result)
+    try:
+        members = stack_members(repo, int(json_object(result["stack"]).get("number")))
+    except (RuntimeError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        return {
+            "verified": None,
+            "mismatches": [],
+            "message": f"stack unreadable: {exc}",
+        }
+    by_number = {member.get("number"): member for member in members}
+    mismatches = []
+    for layer_number, head in evaluated:
+        member = json_object(by_number.get(layer_number))
+        landed_head = str(json_object(member.get("head")).get("sha") or "")
+        if not member.get("merged_at") or landed_head != head:
+            mismatches.append(
+                {
+                    "pr": f"{repo}#{layer_number}",
+                    "evaluatedHead": head,
+                    "reportedHead": landed_head or None,
+                    "merged": bool(member.get("merged_at")),
+                }
+            )
+    return {"verified": not mismatches, "mismatches": mismatches}
+
+
+def verify_request_landed(
+    repo: str, number: int, entry: dict[str, Any]
+) -> dict[str, Any]:
+    """Whether a recorded request merged every head the gate evaluated: the PR
+    at its recorded head and, for a stack, each lower layer at its own."""
+    landed = pull_request_landed(repo, number)
+    if landed["merged"] is None:
+        return {
+            "verified": None,
+            "mismatches": [],
+            "message": "pull request unreadable",
+        }
+    head = str(entry.get("head") or "")
+    mismatches = []
+    if not landed["merged"] or landed["head"] != head:
+        mismatches.append(
+            {
+                "pr": f"{repo}#{number}",
+                "evaluatedHead": head,
+                "reportedHead": landed["head"],
+                "merged": landed["merged"],
+            }
+        )
+    if is_json_object(entry.get("stack")):
+        stack = verify_stack_landed(repo, entry)
+        if stack["verified"] is None:
+            return stack
+        mismatches += stack["mismatches"]
+    return {"verified": not mismatches, "mismatches": mismatches}
+
+
+PENDING_MERGES_FILE = "merge-requests.json"
+
+
+def _load_pending(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(
+            f"pending merge records unreadable at {path}: {exc}"
+        ) from exc
+    requests = data.get("requests") if is_json_object(data) else None
+    if not is_json_object(requests):
+        raise RuntimeError(f"pending merge records malformed at {path}")
+    return cast(dict[str, Any], requests)
+
+
+def update_pending(path: Path, key: str, entry: dict[str, Any] | None) -> None:
+    """Record (or with None, clear) the one live async merge request for a PR."""
+    with state_lock(path):
+        requests = _load_pending(path)
+        if entry is None:
+            if key not in requests:
+                return
+            requests.pop(key)
+        else:
+            requests[key] = entry
+        write_state(path, {"schema_version": 1, "requests": requests})
+
+
+def check_pending_request(repo: str, number: int, path: Path) -> dict[str, Any] | None:
+    """The PR's recorded async merge request as GitHub reports it now.
+
+    A request left pending stays live on GitHub: it can still merge after a
+    hold appears that would refuse a new one. There is no route to cancel it,
+    so every later run reads it first. A terminal request, or one GitHub no
+    longer returns (404: it keeps a result 24 hours after its latest update),
+    clears the record; an unreadable one stays recorded and counts as pending,
+    and a corrupt one (an unusable request id) is held however old it is.
+
+    A merged request is checked against every head the gate evaluated
+    (`verification`), since its `sha` pinned only this PR. A check that cannot
+    read the heads back keeps the record for the next run.
+    """
+    key = f"{repo}#{number}"
+    with state_lock(path):
+        entry = _load_pending(path).get(key)
+    if not is_json_object(entry):
+        return None
+    current = read_async_merge(repo, number, str(entry.get("uuid") or ""))
+    report = {
+        **entry,
+        "status": current["status"] or None,
+        "message": current["message"],
+    }
+    if current.get("corrupt"):
+        report["corrupt"] = True
+    if current["expired"]:
+        report["status"] = "expired"
+    if current["status"] == "merged":
+        report["verification"] = verify_request_landed(repo, number, entry)
+        if report["verification"]["verified"] is None:
+            return report
+    if current["expired"] or current["status"] in ASYNC_TERMINAL_STATUSES:
+        update_pending(path, key, None)
+    return report
+
+
+def _record_pending(
+    path: Path,
+    repo: str,
+    number: int,
+    record: dict[str, Any],
+    pin: str,
+    result: dict[str, Any],
+) -> None:
+    """Keep a request that is still live on GitHub; forget a finished one."""
+    key = f"{repo}#{number}"
+    live = (
+        bool(record.get("uuid")) and record.get("status") not in ASYNC_TERMINAL_STATUSES
+    )
+    entry: dict[str, Any] | None = None
+    if live:
+        entry = {
+            "uuid": record["uuid"],
+            "head": pin,
+            "mergeAction": record.get("mergeAction"),
+            "requestedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        }
+        stack = json_object(result.get("stack"))
+        if stack.get("landsLowerLayers"):
+            # The heads a later run checks the landed layers against.
+            entry["stack"] = {
+                "number": stack.get("number"),
+                "layers": [
+                    {"number": layer, "headRefOid": head}
+                    for layer, head in _evaluated_layers(result)
+                ],
+            }
+    try:
+        update_pending(path, key, entry)
+    except (RuntimeError, OSError) as exc:
+        result["pendingRecordError"] = (
+            f"could not record the pending merge request ({exc}); a later run will "
+            "not know it is live"
+        )
 
 
 def build_settle(logins: Iterable[str], minutes: str) -> ReviewSettleConfig | None:
@@ -1406,11 +2090,29 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--stacked-prs",
+        action="store_true",
+        help=(
+            "treat a native stack layer as mergeable: judge it against the stack's "
+            "trunk and run the full gate over every open layer below it, which the "
+            "async merge lands with it. Unset, a stack layer is held as before"
+        ),
+    )
+    parser.add_argument(
+        "--state-dir",
+        default=None,
+        help=(
+            "babysit state directory; records an async merge request left pending "
+            "so every later run reports it as merge pending until GitHub finishes it"
+        ),
+    )
+    parser.add_argument(
         "--allow-unpinned-head",
         action="store_true",
         help=(
-            "permit --merge without --expected-head (interactive only); disables "
-            "the TOCTOU guard that pins the vetted head SHA"
+            "permit --merge without --expected-head (interactive only); the merge "
+            "still pins the head this run evaluates, but nothing ties that head "
+            "to one you vetted"
         ),
     )
     parser.add_argument(
@@ -1587,6 +2289,13 @@ def main() -> int:
     if args.auto and not (args.merge and args.expected_head):
         return _refuse("--auto requires --merge and --expected-head", 2)
 
+    pending_path: Path | None = None
+    if args.state_dir is not None:
+        try:
+            pending_path = resolve_state_dir(args.state_dir) / PENDING_MERGES_FILE
+        except ValueError as exc:
+            return _refuse(str(exc), 2)
+
     # The target repository's policy, read from its default branch with the flags
     # as the deprecated `userConfig` fallback. Unreadable policy refuses the
     # check as well as the merge: a verdict computed without the repository's
@@ -1644,6 +2353,13 @@ def main() -> int:
 
     extra_dependency_manager_logins = policy.extra_dependency_manager_logins
 
+    prior: dict[str, Any] | None = None
+    if pending_path is not None:
+        try:
+            prior = check_pending_request(repo, number, pending_path)
+        except (RuntimeError, OSError) as exc:
+            return _refuse(f"pending merge record unreadable: {exc}", 2)
+
     try:
         result = evaluate(
             repo,
@@ -1656,6 +2372,7 @@ def main() -> int:
             tier,
             extra_dependency_manager_logins=extra_dependency_manager_logins,
             settle=settle,
+            stacked=args.stacked_prs,
         )
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         # Surface any gh/parse failure as JSON rather than a traceback.
@@ -1665,6 +2382,58 @@ def main() -> int:
     result["action"] = "merge" if args.merge else "check"
     result["merged"] = False
     result["merge"] = None
+
+    if prior is not None:
+        result["pendingMergeRequest"] = prior
+        verified = json_object(prior.get("verification")).get("verified", True)
+        hold = reason = None
+        if prior.get("corrupt"):
+            hold = (
+                f"the recorded async merge request for this PR is corrupt "
+                f"({prior.get('message')}) -- merge pending until a human "
+                "inspects the record; no new request is sent"
+            )
+        elif prior.get("status") in (None, "pending"):
+            # Live (or unreadable) on GitHub: it can still merge whatever this run
+            # found, so no verdict here may read as settled and no new request goes.
+            hold = (
+                f"an async merge request ({prior.get('uuid')}) sent at "
+                f"{prior.get('requestedAt')} is still pending on GitHub and can "
+                "still merge regardless of this verdict -- merge pending; no new "
+                "request is sent"
+            )
+        elif verified is not True:
+            reason = hold = (
+                f"the async merge request ({prior.get('uuid')}) merged, but "
+                + (
+                    "the heads it landed could not be read back -- unconfirmed; "
+                    "the record is kept and re-checked next run"
+                    if verified is None
+                    else "a head it landed is not the head the gate evaluated -- "
+                    "escalate to a human"
+                )
+            )
+        if hold:
+            if reason is None:
+                result["action"] = "merge-pending"
+            result["ready"] = False
+            result["blockers"].insert(0, hold)
+            result["autoMerge"] = {"ready": False, "blockers": [hold]}
+            result["merge"] = {"attempted": False, "reason": reason or "merge pending"}
+            print(json.dumps(result, indent=2))
+            return 10
+        if prior.get("status") == "merged":
+            # The recorded request landed at every evaluated head. The gate now
+            # reads a merged (closed) PR, but that merge is this run's outcome.
+            result["merged"] = result["ready"] = True
+            result["blockers"] = []
+            result["merge"] = {
+                **prior,
+                "attempted": False,
+                "source": "pendingMergeRequest",
+            }
+            print(json.dumps(result, indent=2))
+            return 0
 
     if not args.merge:
         print(json.dumps(result, indent=2))
@@ -1705,14 +2474,92 @@ def main() -> int:
         return 2
 
     result["mergeMethod"] = method
+    # Atomic head pin: GitHub refuses the merge unless the head still equals the
+    # exact full SHA the gate just evaluated, closing the preflight-to-merge
+    # TOCTOU window. `--allow-unpinned-head` waives only the `--expected-head`
+    # argument, never this pin.
+    pin = result.get("headRefOid")
+    if not isinstance(pin, str) or not pin:
+        reason = "the gate read no head SHA to pin the merge to -- held"
+        result["ready"] = False
+        result["blockers"].append(reason)
+        result["merge"] = {"attempted": False, "reason": reason}
+        print(json.dumps(result, indent=2))
+        return 10
+
+    # A ready PR merges through the async merge API: REST (so it works where
+    # GraphQL is refused), the only API that enqueues, and GitHub's required API
+    # for merging any stacked PR, the bottom layer included. It is used on the
+    # default branch, for a queue, and for a stack member; any other base keeps
+    # `gh pr merge`. Auto-merge has no async form and keeps `gh pr merge`.
+    if not arm_auto:
+        stack = json_object(result.get("stack"))
+        stack_lands = bool(stack.get("landsLowerLayers"))
+        stack_member = bool(stack.get("member"))
+        queue = result.get("mergeAction") == "merge_queue"
+        use_async = stack_member or stack_lands or queue
+        if not use_async:
+            default_branch = repository_default_branch(repo)
+            use_async = bool(default_branch) and result.get("baseRef") == default_branch
+        if use_async:
+            if queue:
+                result["action"] = "enqueue"
+            if stack_lands and (drift := stack_drift(repo, number, result)):
+                result["ready"] = False
+                result["blockers"].append(drift)
+                result["merge"] = {"attempted": False, "reason": drift}
+                print(json.dumps(result, indent=2))
+                return 10
+            record = async_merge(
+                repo,
+                number,
+                sha=pin,
+                merge_action="merge_queue" if queue else "direct_merge",
+                method=method,
+            )
+            if not record["endpointMissing"] or stack_member or stack_lands or queue:
+                if record["endpointMissing"]:
+                    record["message"] = (
+                        "the async merge endpoint returned 404 on this host; a queue "
+                        "or stack merge has no other API -- held"
+                    )
+                result["merge"] = record
+                # A merge read back at another head is still a merge, reported
+                # with exit 10 for a human, like a stack layer landing elsewhere.
+                result["merged"] = (
+                    record["status"] == "merged"
+                    and record.get("verifiedMerged") is True
+                )
+                result["enqueued"] = (
+                    record["success"] and record["status"] == "enqueued"
+                )
+                result["mergeUnconfirmed"] = (
+                    record["status"] == "merged"
+                    and record.get("verifiedMerged") is None
+                )
+                exit_code = 0 if record["success"] else 10
+                if result["merged"] and stack_lands:
+                    verification = verify_stack_landed(repo, result)
+                    result["stackVerification"] = verification
+                    if verification["verified"] is not True:
+                        verification["message"] = verification.get("message") or (
+                            "a lower stack layer did not land at the head the gate "
+                            "evaluated -- escalate to a human"
+                        )
+                        exit_code = 10
+                if pending_path is not None:
+                    _record_pending(pending_path, repo, number, record, pin, result)
+                print(json.dumps(result, indent=2))
+                return exit_code
+            result["asyncFallback"] = (
+                "the async merge endpoint returned 404 on this host; merged with "
+                "gh pr merge instead"
+            )
+
     merge_cmd = ["pr", "merge", str(number), "-R", repo, f"--{method}"]
     if arm_auto:
         merge_cmd.append("--auto")
-    # Atomic head pin: GitHub refuses the merge unless the head still equals the
-    # exact full SHA we vetted, closing the preflight-to-merge TOCTOU window.
-    vetted_head = result.get("headRefOid")
-    if args.expected_head and isinstance(vetted_head, str) and vetted_head:
-        merge_cmd += ["--match-head-commit", vetted_head]
+    merge_cmd += ["--match-head-commit", pin]
     proc = gh_capture(merge_cmd)
     result["merge"] = {
         "attempted": True,

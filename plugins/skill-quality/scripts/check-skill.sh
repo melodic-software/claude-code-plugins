@@ -106,7 +106,8 @@
 #   6. markdownlint clean (markdownlint-cli2; WARN-skip if npx absent)
 #   7. scripts/*.test.sh pass where present
 #   8. vendor/ byte-identical vs HEAD, unless paired with an upstream-version
-#      bump (a legitimate maintainer-run sync) (vendor-backed skills only)
+#      bump (a legitimate maintainer-run sync) (vendor-backed skills only); a
+#      pure rename inside vendor/ keeps the bytes and passes
 #   9. Stale-tracking metadata keys preserved vs HEAD (upstream-version/synced/upstream-sha)
 #  10. (retired slot; numbering kept stable so later checks keep their names)
 #  11. Gotchas surface present (WARN; inline `## Gotchas` or context|reference/gotchas.md)
@@ -1305,8 +1306,12 @@ fi
 if [[ "$HAVE_GIT" != 1 ]]; then
   [[ -d "$SKILL_DIR/vendor" ]] && note "not in a git repo — vendor byte-identity (check 8) skipped"
 elif [[ -d "$SKILL_DIR/vendor" && "$HAVE_BASE_FM" == 1 ]]; then
+  VENDOR_STATUS="$(git -C "$REPO_ROOT" diff --name-status -M100% "$BASE_REF" -- "$SKILL_REL/vendor/" 2>/dev/null)"
   if git -C "$REPO_ROOT" diff --quiet "$BASE_REF" -- "$SKILL_REL/vendor/" 2>/dev/null; then
     note "vendor/ unchanged vs $BASE_REF"
+  elif [[ -n "$VENDOR_STATUS" ]] && ! grep -qv '^R100' <<<"$VENDOR_STATUS"; then
+    # A pure rename keeps every byte, so the guarantee holds.
+    note "vendor/ only renamed vs $BASE_REF (contents byte-identical)"
   else
     # A vendor/ diff is legitimate exactly when paired with a bumped
     # metadata.upstream-version: the maintainer-run sync flow (the skill's own

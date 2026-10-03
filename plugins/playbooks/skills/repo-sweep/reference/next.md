@@ -137,10 +137,14 @@ never combined with `&&` or other commands in one call. The record for these sha
    changes, never `.work/`. The message body ends with the `Scope decisions:` section, then one
    final paragraph holding `Playbook: <playbook>`, one `Playbook-Step: <skill@version>` per skill that ran,
    and the `Co-Authored-By:` trailer, so git parses them together. Push, then one tick call:
-   `S/tick.sh <id> committed <short-sha> <skill@version>...`. When the skill reported uncovered
-   scope, make that one call `S/tick.sh <id> --partial "<what was not covered>" committed
-   <short-sha> <skill@version>...` instead, so the uncovered scope survives into `history.sh`;
-   the coverage read stays step-wide as in section 3 step 3.
+   `S/tick.sh <id> committed <short-sha> <skill@version>...`. Never tick before the push lands:
+   `tick.sh` writes the remote PR body, and `state.sh` never re-checks a `committed` line, so a
+   session that dies between the two would leave the body naming a commit the branch lacks. A
+   session that dies after the push and before the tick is safe: `state.sh` reports the pushed
+   commit as `untick-committed`. When the skill reported uncovered scope, make that one call
+   `S/tick.sh <id> --partial "<what was not covered>" committed <short-sha> <skill@version>...`
+   instead, so the uncovered scope survives into `history.sh`; the coverage read stays step-wide
+   as in section 3 step 3.
 5. Report what the step changed, then tell the user: run `/playbooks:repo-sweep review` now if
    anything in the step went wrong, then `/clear` and `/playbooks:repo-sweep next`.
 

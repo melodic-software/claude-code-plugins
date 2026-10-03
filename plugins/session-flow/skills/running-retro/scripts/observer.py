@@ -911,7 +911,15 @@ _REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
         "<REDACTED: private key>",
     ),
     (re.compile(r"\b(?:sk|rk|pk)-[A-Za-z0-9_-]{16,}"), "<REDACTED: API key>"),
-    (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}"), "<REDACTED: GitHub token>"),
+    (
+        # The bounded `eyJ` header and the spelled-out segments keep this
+        # linear; an unbounded first segment is quadratic on a repeated `ghs_1_-`.
+        re.compile(
+            r"\b(?:ghs_[0-9]+_eyJ[A-Za-z0-9_-]{0,512}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"
+            r"|gh[pousr]_[A-Za-z0-9]{20,})"
+        ),
+        "<REDACTED: GitHub token>",
+    ),
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"), "<REDACTED: Slack token>"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "<REDACTED: AWS key id>"),
     (

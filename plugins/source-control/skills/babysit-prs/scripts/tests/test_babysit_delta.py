@@ -374,6 +374,60 @@ class StuckCheckSignalTests(unittest.TestCase):
         self.assertEqual(result["checks"]["stuck"], [])
 
 
+HELD_RUN = {
+    "__typename": "CheckRun",
+    "name": "test",
+    "workflowName": "ci",
+    "status": "COMPLETED",
+    "conclusion": "ACTION_REQUIRED",
+}
+FAILED_RUN = {
+    "__typename": "CheckRun",
+    "name": "lint",
+    "workflowName": "ci",
+    "status": "COMPLETED",
+    "conclusion": "FAILURE",
+}
+
+
+class ApprovalHeldCheckTests(unittest.TestCase):
+    """A run held for approval escalates; it is not a failure a worker can fix."""
+
+    def test_held_run_is_material_and_not_a_failing_blocker(self) -> None:
+        pr = make_pr(mergeStateStatus="BLOCKED", statusCheckRollup=[HELD_RUN])
+        result = classify(pr, None)
+        [held] = result["checks"]["approval_held"]
+        self.assertEqual((held["name"], held["class"]), ("test", "awaiting_approval"))
+        self.assertTrue(
+            any("held for approval" in f for f in result["material_findings"]),
+            result["material_findings"],
+        )
+        self.assertFalse(
+            any("failing check" in b for b in result["blockers"]), result["blockers"]
+        )
+        # The rollup still counts it failing, so the merge gate keeps holding.
+        self.assertEqual(result["checks"]["failing"], ["test"])
+
+    def test_a_real_failure_beside_it_is_still_one_blocker(self) -> None:
+        pr = make_pr(
+            mergeStateStatus="BLOCKED", statusCheckRollup=[HELD_RUN, FAILED_RUN]
+        )
+        result = classify(pr, None)
+        self.assertIn("1 failing check(s)", result["blockers"])
+
+    def test_a_newly_held_run_dispatches_no_worker(self) -> None:
+        held = classify(
+            make_pr(mergeStateStatus="BLOCKED", statusCheckRollup=[HELD_RUN]),
+            make_prev(),
+        )
+        self.assertNotIn("checks_changed", held["needs_worker_reasons"])
+        failed = classify(
+            make_pr(mergeStateStatus="BLOCKED", statusCheckRollup=[FAILED_RUN]),
+            make_prev(),
+        )
+        self.assertIn("checks_changed", failed["needs_worker_reasons"])
+
+
 class SuppressibleDeltaArmTests(unittest.TestCase):
     """Each suppressible arm: reason present only when NOT direct-gate-ready."""
 
