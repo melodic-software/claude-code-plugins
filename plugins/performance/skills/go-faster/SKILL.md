@@ -47,7 +47,9 @@ Then take the lock, one sweep per repository and worktree:
 "<PY>" "${CLAUDE_PLUGIN_ROOT}/scripts/findings.py" lock acquire --data "<DATA>" --session "${CLAUDE_SESSION_ID}" --invocation "go-faster $ARGUMENTS"
 ```
 
-Exit 1 means a sweep is already in flight: print its line and stop. Start nothing else. If
+Exit 1 means a sweep is already in flight: print its line and stop. Start nothing else. Exit 3
+means the data folder cannot be written (`write-denied`): print its `cannot write` line and stop;
+no lock is held. If
 `${CLAUDE_SESSION_ID}` reached you unexpanded, use `unknown` as the session and pass `TRANSCRIPT`
 as `none`.
 
@@ -65,7 +67,8 @@ setup scan only." and continue with `EVIDENCE` false.
 "<PY>" "${CLAUDE_PLUGIN_ROOT}/scripts/findings.py" run-start --data "<DATA>" --session "${CLAUDE_SESSION_ID}" --mode <attended|unattended> --session-evidence <true|false>
 ```
 
-It prints `RUN`. Dispatch the `performance:go-faster-sweeper` agent with a prompt carrying `PY`,
+It prints `RUN`; exit 3 is `write-denied`: release the lock (Step 4) and report its `cannot write`
+line. Dispatch the `performance:go-faster-sweeper` agent with a prompt carrying `PY`,
 `ROOT` (`${CLAUDE_PLUGIN_ROOT}`), `RUN`, `DATA`, `SESSION`, `TRANSCRIPT`, `MODE` and `EVIDENCE`,
 each on its own line. `MODE` is `unattended` when the argument says so, else `attended`.
 

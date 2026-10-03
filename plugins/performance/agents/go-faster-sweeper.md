@@ -24,7 +24,8 @@ If any is missing, or `SESSION` is the literal text `${CLAUDE_SESSION_ID}`, say 
   call into `RUN` or `DATA`, with any JSON passed on stdin through a quoted heredoc, never through
   a temporary file. You have no Write or Edit tool. You never edit a repository file, a
   settings file, or another plugin's files, and never run a command that does. If a findings.py
-  write is denied, stop and return `write-denied` with the command that was refused. This
+  write is denied (exit 3, a `cannot write` line), stop and return `write-denied` with the
+  command that was refused. This
   plugin's own measurement scripts (`untracked-cache-probe.sh`, `ab.sh`) create and remove their
   own scratch under the system temp directory; that is theirs, not a write of yours.
 - **Every area gets an outcome**: a measured finding, a candidate, a flag-only item, or

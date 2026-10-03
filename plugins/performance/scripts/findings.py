@@ -32,8 +32,16 @@ count toward no queue wait or step duration. Median: the middle of the sorted sa
 even count, the mean of the two middle ones. A gh call that fails, is missing, or prints
 something other than JSON exits 1 with one line naming the call.
 
+transcript-counts describes the session's work before the latest go-faster invocation (the slash
+command, or a Skill call to go-faster), never the invocation's own setup calls: per-tool calls,
+errors and wait_ms, repeated_reads, repeated_commands, skills, tokens, typed_turns, elapsed_ms
+(first to last record before the invocation) and subagents (those started before it). A tool call
+made before the invocation keeps its wait even when its result lands after it. With no invocation,
+everything counts. records and bad_lines count the whole file.
+
 Field names are the finding record in agents/go-faster-sweeper.md. Exit 0 is success, 1 a refusal
-the caller acts on (an invalid finding, a held lock, a failed gh call), 2 a usage or input error.
+the caller acts on (an invalid finding, a held lock, a failed gh call), 2 a usage or input error,
+3 a file in the data folder that cannot be written (one stderr line: cannot write <path>: <error>).
 """
 
 from __future__ import annotations
@@ -377,20 +385,42 @@ def read_json(path: Path) -> dict | None:
     return held if isinstance(held, dict) else None
 
 
+WRITE_DENIED = 3
+
+
+def write_denied(path: Path, exc: OSError) -> NoReturn:
+    print(f"cannot write {path}: {exc}", file=sys.stderr)
+    sys.exit(WRITE_DENIED)
+
+
 def write_json(path: Path, data: dict, exclusive: bool = False) -> bool:
-    """Write data as JSON; with exclusive, only when the file does not exist yet."""
-    path.parent.mkdir(parents=True, exist_ok=True)
+    """Write data as JSON; with exclusive, only when the file does not exist yet.
+
+    A folder or file that cannot be written exits WRITE_DENIED. A failed mkdir is checked on its
+    own: through a regular file it can raise FileExistsError, which is not a held lock.
+    """
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        write_denied(path, exc)
     try:
         fd = os.open(
             path,
             os.O_WRONLY | os.O_CREAT | (os.O_EXCL if exclusive else os.O_TRUNC),
             0o644,
         )
-    except FileExistsError:
-        return False
-    with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-        json.dump(data, handle, indent=2)
-        handle.write("\n")
+    except FileExistsError as exc:
+        if exclusive:
+            return False
+        write_denied(path, exc)
+    except OSError as exc:
+        write_denied(path, exc)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+            json.dump(data, handle, indent=2)
+            handle.write("\n")
+    except OSError as exc:
+        write_denied(path, exc)
     return True
 
 
@@ -652,27 +682,17 @@ def transcript_counts(path: Path) -> dict:
     import transcript_reader as tr  # noqa: PLC0415  (the generated shared copy in ../lib)
 
     stats: dict[str, int] = {}
-    ledger = tr.UsageLedger()
-    seen: set[str] = set()
-    calls = 0
-    # Tool calls made before the latest go-faster invocation, slash or model-invoked: the
-    # session's own work, as opposed to the prompt that triggered the sweep and its setup.
-    before_invocation: int | None = None
-    uses: dict[str, tuple[str, float | None]] = {}
-    tools: dict[str, dict[str, int]] = {}
-    reads: dict[str, int] = {}
-    commands: dict[str, int] = {}
-    skills: dict[str, int] = {}
-    stamps: list[float] = []
-    typed = 0
-    for record in tr.iter_records(path, stats):
+    records = list(tr.iter_records(path, stats))
+    # The latest go-faster invocation, slash or model-invoked, cuts the transcript: what comes
+    # before it is the session's own work, what follows is the sweep's setup. cut_record is the
+    # invoking record, cut_call the number of tool calls made before it.
+    cut_record: int | None = None
+    cut_call: int | None = None
+    calls: dict[str, dict] = {}  # tool_use id -> the call, in first-seen order
+    for i, record in enumerate(records):
         stamp = parse_ts(record.get("timestamp"))
-        if stamp is not None:
-            stamps.append(stamp)
-        typed += tr.is_typed_turn(record)
-        ledger.add(record)
         if record.get("type") == "user" and INVOKED in (tr.user_text(record) or ""):
-            before_invocation = calls
+            cut_record, cut_call = i, len(calls)
         content = (
             (record.get("message") or {}).get("content")
             if isinstance(record.get("message"), dict)
@@ -681,42 +701,67 @@ def transcript_counts(path: Path) -> dict:
         for block in content if isinstance(content, list) else []:
             if not isinstance(block, dict):
                 continue
-            if block.get("type") == "tool_use" and str(block.get("id")) not in seen:
+            if block.get("type") == "tool_use" and str(block.get("id")) not in calls:
                 name, args = str(block.get("name")), block.get("input") or {}
-                seen.add(str(block.get("id")))
                 if name == "Skill" and str(args.get("skill", "")).endswith("go-faster"):
-                    before_invocation = calls
-                calls += 1
-                uses[str(block.get("id"))] = (name, stamp)
-                tool = tools.setdefault(name, {"calls": 0, "errors": 0, "wait_ms": 0})
-                tool["calls"] += 1
-                if name == "Read" and isinstance(args.get("file_path"), str):
-                    reads[args["file_path"]] = reads.get(args["file_path"], 0) + 1
-                if name == "Bash" and isinstance(args.get("command"), str):
-                    commands[args["command"]] = commands.get(args["command"], 0) + 1
-                if name == "Skill" and isinstance(args.get("skill"), str):
-                    skills[args["skill"]] = skills.get(args["skill"], 0) + 1
-            elif (
-                block.get("type") == "tool_result" and block.get("tool_use_id") in uses
-            ):
-                name, started = uses.pop(block["tool_use_id"])
-                tools[name]["errors"] += bool(block.get("is_error"))
-                if started is not None and stamp is not None:
-                    tools[name]["wait_ms"] += round((stamp - started) * 1000)
+                    cut_record, cut_call = i, len(calls)
+                calls[str(block.get("id"))] = {"name": name, "args": args, "at": stamp}
+            elif block.get("type") == "tool_result":
+                call = calls.get(str(block.get("tool_use_id")))
+                if call is None or "error" in call:
+                    continue
+                call["error"] = bool(block.get("is_error"))
+                if call["at"] is not None and stamp is not None:
+                    call["wait_ms"] = round((stamp - call["at"]) * 1000)
+    prior_calls = list(calls.values())[:cut_call]
+    prior = records[:cut_record]
+    tools: dict[str, dict[str, int]] = {}
+    reads: dict[str, int] = {}
+    commands: dict[str, int] = {}
+    skills: dict[str, int] = {}
+    for call in prior_calls:
+        name, args = call["name"], call["args"]
+        tool = tools.setdefault(name, {"calls": 0, "errors": 0, "wait_ms": 0})
+        tool["calls"] += 1
+        tool["errors"] += call.get("error", False)
+        tool["wait_ms"] += call.get("wait_ms", 0)
+        if name == "Read" and isinstance(args.get("file_path"), str):
+            reads[args["file_path"]] = reads.get(args["file_path"], 0) + 1
+        if name == "Bash" and isinstance(args.get("command"), str):
+            commands[args["command"]] = commands.get(args["command"], 0) + 1
+        if name == "Skill" and isinstance(args.get("skill"), str):
+            skills[args["skill"]] = skills.get(args["skill"], 0) + 1
+    ledger = tr.UsageLedger()
+    for record in prior:
+        ledger.add(record)
+    stamps = [s for r in prior if (s := parse_ts(r.get("timestamp"))) is not None]
+    cut_at = (
+        None if cut_record is None else parse_ts(records[cut_record].get("timestamp"))
+    )
+
+    def started_before_cut(subagent: Path) -> bool:
+        first = next(
+            (
+                s
+                for r in tr.iter_records(subagent)
+                if (s := parse_ts(r.get("timestamp"))) is not None
+            ),
+            None,
+        )
+        return cut_at is None or first is None or first < cut_at
+
     return {
         "records": stats.get("records", 0),
         "bad_lines": stats.get("bad_lines", 0),
         "elapsed_ms": round((max(stamps) - min(stamps)) * 1000) if stamps else 0,
-        "typed_turns": typed,
-        "work_before_invocation": calls
-        if before_invocation is None
-        else before_invocation,
+        "typed_turns": sum(tr.is_typed_turn(r) for r in prior),
+        "work_before_invocation": len(prior_calls),
         "tokens": ledger.totals(),
         "tools": tools,
         "repeated_reads": {k: v for k, v in reads.items() if v > 1},
         "repeated_commands": {k: v for k, v in commands.items() if v > 1},
         "skills": skills,
-        "subagents": sum(1 for _ in tr.iter_subagents(path)),
+        "subagents": sum(started_before_cut(s.path) for s in tr.iter_subagents(path)),
     }
 
 

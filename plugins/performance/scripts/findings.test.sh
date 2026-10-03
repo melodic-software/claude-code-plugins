@@ -688,5 +688,96 @@ assert_eq "nothing is written to the working directory" "" "$(ls -A "$GHCWD")"
 } >"$WORK/no-invocation.jsonl"
 run transcript-counts "$WORK/no-invocation.jsonl"
 assert_eq "with no go-faster invocation, work before it is every tool call" "5" "$(q .work_before_invocation)"
+assert_eq "with no go-faster invocation, every call counts per tool" "2 2 1" "$(q '"\(.tools.Read.calls) \(.tools.Bash.calls) \(.tools.Skill.calls)"')"
+assert_eq "with no go-faster invocation, every wait counts" "3000 20000" "$(q '"\(.tools.Read.wait_ms) \(.tools.Bash.wait_ms)"')"
+assert_eq "with no go-faster invocation, every repeat counts" "2 2" "$(q '"\(.repeated_reads["a.py"]) \(.repeated_commands["make test"])"')"
+
+# --- 28. transcript-counts: the go-faster invocation's own setup calls are not session work ---
+# Slash form. Before the marker (second 20): Read u1 (1s), Bash "make test" u2 (5s) and u3 (3s,
+# error), Skill performance:goal u4 (1s); a subagent started at second 5. After it, the skill's
+# own setup: "make test" again, a.py read again, a lock call, the sweeper's Agent dispatch, and a
+# subagent started at second 40.
+SL="$WORK/slash.jsonl"
+{
+  printf '{"type":"user","timestamp":"%s","message":{"content":"speed this up"}}\n' "$(ts 0)"
+  use 1 a1 u1 Read '{"file_path":"a.py"}' 5
+  result 2 u1 false
+  use 3 a2 u2 Bash '{"command":"make test"}' 5
+  result 8 u2 false
+  use 9 a3 u3 Bash '{"command":"make test"}' 5
+  result 12 u3 true
+  use 13 a4 u4 Skill '{"skill":"performance:goal"}' 5
+  result 14 u4 false
+  printf '{"type":"user","timestamp":"%s","message":{"content":"<command-name>/performance:go-faster</command-name>"}}\n' "$(ts 20)"
+  use 21 a5 u5 Bash '{"command":"make test"}' 100
+  result 30 u5 false
+  use 31 a6 u6 Read '{"file_path":"a.py"}' 100
+  result 32 u6 false
+  use 33 a7 u7 Bash '{"command":"findings.py lock acquire"}' 100
+  result 34 u7 false
+  use 35 a8 u8 Agent '{"prompt":"sweep"}' 100
+  result 50 u8 false
+} >"$SL"
+mkdir -p "$WORK/slash/subagents"
+printf '{"type":"user","timestamp":"%s","message":{"content":"before"}}\n' "$(ts 5)" >"$WORK/slash/subagents/agent-a.jsonl"
+printf '{"type":"user","timestamp":"%s","message":{"content":"sweeper"}}\n' "$(ts 40)" >"$WORK/slash/subagents/agent-b.jsonl"
+run transcript-counts "$SL"
+assert_eq "slash: work before the invocation is the four prior calls" "4" "$(q .work_before_invocation)"
+assert_eq "slash: per-tool calls exclude the skill's own calls" "1 2 1 null" \
+  "$(q '"\(.tools.Read.calls) \(.tools.Bash.calls) \(.tools.Skill.calls) \(.tools.Agent.calls)"')"
+assert_eq "slash: per-tool waits exclude the skill's own calls" "1000 8000 1000" \
+  "$(q '"\(.tools.Read.wait_ms) \(.tools.Bash.wait_ms) \(.tools.Skill.wait_ms)"')"
+assert_eq "slash: errors before the invocation still count" "1" "$(q .tools.Bash.errors)"
+assert_eq "slash: a command re-run by the skill is not a session repeat" "2" "$(q '.repeated_commands["make test"]')"
+assert_eq "slash: a file re-read by the skill is not a session repeat" "null" "$(q '.repeated_reads["a.py"]')"
+assert_eq "slash: only skills invoked before go-faster count" '{"performance:goal":1}' "$(q '.skills | tojson')"
+assert_eq "slash: tokens stop at the invocation" "20" "$(q .tokens.output)"
+assert_eq "slash: elapsed spans the work before the invocation" "14000" "$(q .elapsed_ms)"
+assert_eq "slash: the invocation is not a typed turn of prior work" "1" "$(q .typed_turns)"
+assert_eq "slash: a subagent started after the invocation is not counted" "1" "$(q .subagents)"
+
+# Model-invoked form. b2 holds a Read and the go-faster Skill call in one message: the Read sits
+# before the Skill block, so it is prior work, and its result (second 7) lands after the cut.
+MI="$WORK/model.jsonl"
+{
+  printf '{"type":"user","timestamp":"%s","message":{"content":"how can we go faster?"}}\n' "$(ts 0)"
+  use 1 b1 v1 Bash '{"command":"make test"}' 5
+  result 4 v1 false
+  printf '{"type":"assistant","timestamp":"%s","message":{"id":"b2","content":[{"type":"tool_use","id":"v2","name":"Read","input":{"file_path":"a.py"}},{"type":"tool_use","id":"v3","name":"Skill","input":{"skill":"performance:go-faster"}}],"usage":{"input_tokens":10,"output_tokens":100}}}\n' "$(ts 5)"
+  result 6 v3 false
+  result 7 v2 false
+  use 8 b3 v4 Bash '{"command":"make test"}' 100
+  result 9 v4 false
+  use 10 b4 v5 Read '{"file_path":"a.py"}' 100
+  result 11 v5 false
+  use 12 b5 v6 Agent '{"prompt":"sweep"}' 100
+  result 20 v6 false
+} >"$MI"
+run transcript-counts "$MI"
+assert_eq "model: work before the invocation is the two prior calls" "2" "$(q .work_before_invocation)"
+assert_eq "model: per-tool calls exclude the go-faster call and its setup" "1 1 null null" \
+  "$(q '"\(.tools.Bash.calls) \(.tools.Read.calls) \(.tools.Skill.calls) \(.tools.Agent.calls)"')"
+assert_eq "model: a prior call's wait counts even when its result lands after the cut" "3000 2000" \
+  "$(q '"\(.tools.Bash.wait_ms) \(.tools.Read.wait_ms)"')"
+assert_eq "model: the skill's re-runs and re-reads are not session repeats" '{} {}' \
+  "$(q '"\(.repeated_commands | tojson) \(.repeated_reads | tojson)"')"
+assert_eq "model: the go-faster call is not a skill invocation of prior work" '{}' "$(q '.skills | tojson')"
+assert_eq "model: tokens stop before the invoking message" "5" "$(q .tokens.output)"
+assert_eq "model: elapsed spans the records before the invoking message" "4000" "$(q .elapsed_ms)"
+
+# --- 29. a data folder that cannot be written is its own exit code, never "in flight" ---
+# The data folder sits under a regular file, so no folder can be made there on any platform. Git
+# Bash cannot convert a path through a regular file and would hand Python the raw POSIX spelling,
+# which Windows Python reads as another folder, so the file's own path is converted first.
+: >"$WORK/blocker"
+BLOCKED="$(cygpath -m "$WORK/blocker" 2>/dev/null || printf '%s' "$WORK/blocker")/data"
+run lock acquire --data "$BLOCKED" --session s1
+assert_eq "an unwritable data folder exits 3 on lock acquire" "3" "$RUN_RC"
+assert_contains "the denied write names the cause" "cannot write" "$RUN_OUT"
+assert_contains "the denied write names the file" "run.lock" "$RUN_OUT"
+assert_not_contains "a denied write is not reported as a run in flight" "in-flight" "$RUN_OUT"
+run run-start --data "$BLOCKED" --session s1 --mode attended --session-evidence false
+assert_eq "an unwritable data folder exits 3 on run-start" "3" "$RUN_RC"
+assert_contains "run-start names the file it could not write" "findings.json" "$RUN_OUT"
 
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
