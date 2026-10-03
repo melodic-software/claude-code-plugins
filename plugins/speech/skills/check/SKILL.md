@@ -4,6 +4,7 @@ user-invocable: true
 disable-model-invocation: false
 allowed-tools:
   - "Bash(python3 *check.py*)"
+  - "Bash(python *check.py*)"
 metadata:
   workflow-stage: anytime
   summary: Report each missing speech prerequisite. Never installs.
@@ -19,6 +20,8 @@ Run the read-only check, report it, and stop. This skill is the model-invocable 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/check.py" --data-dir "${CLAUDE_PLUGIN_DATA}"
 ```
+
+Where `python3` is not on PATH, run the same command with `python`; the SessionStart hook accepts either.
 
 Report the `PASS`/`FAIL` rows and the summary as printed. Each `FAIL` row carries its remedy.
 Do not run the remedies.

@@ -32,6 +32,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py" run --data-dir "${CLAUDE_PLUGI
   --script <script file> --out <output folder> [--voice <name>] [--speed <x>]
 ```
 
+Where `python3` is not on PATH, run the same command with `python`; the SessionStart hook accepts either.
+
 `narrate.py` owns the behavior: how words are split, how timings are measured, and the
 `words.json` fields. Read its docstring when you need the details.
 
