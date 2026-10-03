@@ -662,7 +662,7 @@ def resolve_data_dir(cli_data_dir: Path | None) -> Path:
     ~/.claude/plugins/data/. The Bash tool does not carry this plugin's
     CLAUDE_PLUGIN_DATA, and another plugin's SessionStart hook can export its
     own data directory under that name, so any other inherited value is
-    ignored. Never the plugin's own install directory — that is replaced on
+    ignored. Never the plugin's own install directory: that is replaced on
     every update.
     """
     if cli_data_dir:
