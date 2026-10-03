@@ -3,6 +3,35 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.0] - 2026-10-02
+
+### Added
+
+- **Skill-eval cases can record why they are hard and where they came from.** `evals.schema.json`
+  accepts three optional case fields: `difficulty` (`hard` or `routine`), `why_hard` and `source`.
+  Every existing `evals.json` stays valid. `validate-evals` warns (Q11) on a `difficulty: hard` case
+  with no `why_hard`.
+- **`measure-invocation` reports noise and catches copied probes.** `compare` adds a 95%
+  normal-approximation interval to each trigger-rate delta and an INFO line that says "within noise"
+  when the interval contains 0. `validate` warns when a should-trigger probe shares 4 or more
+  consecutive words with the target listing (`--copy-span N` changes the span).
+  `emit-plugin-eval` writes `runs: 3` per case, the CLI's default, and takes `--runs N`.
+
+### Changed
+
+- **Seven seed probes are reworded the way a user would ask.** They copied the listing they were
+  scoring. The listing-overlap baseline is regenerated; its rates are unchanged.
+
+## [0.25.5] - 2026-10-02
+
+### Added
+
+- **`CHECK_SKILL_ONLY=25` runs check 25 alone.** `check-skill.sh` reads the description and
+  `when_to_use`, runs the description/verb-contract polarity check, and prints the usual
+  `CHECK-SKILL` summary, in both the single-skill and the root form. Any other value exits 2. A
+  run without the variable prints the same output as before. The marketplace's whole-corpus
+  verb-contract gate sets it, so it no longer runs all twenty-six checks on every skill to read one.
+
 ## [0.25.4] - 2026-10-02
 
 ### Changed

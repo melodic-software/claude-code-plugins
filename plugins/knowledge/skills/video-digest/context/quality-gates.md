@@ -8,7 +8,7 @@ Binary criteria for `/knowledge:video-digest watch`. A phase is not done when it
 
 1. Initialize `watch-checklist.md` at skill session start (`init-watch-checklist.js`).
 2. Tick `[ ]` → `[x]` only after **verification evidence**: cite command exit code, artifact path, or verify row in the checklist or adjacent log line.
-3. **Blocking verify scripts** must exit 0 before ticking the matching phase-complete box or setting `watch.json` `status: complete`.
+3. **Blocking verify scripts** must exit 0 before ticking the matching phase-complete box. `watch.json` `status: complete` is written only by `watch-state.js close` (see "Complete slice").
 4. Satisficing ("we have 14 frames, close enough") is a FAIL. Re-run the named phase.
 5. **Synthesis contract:** `context/synthesis-contract.md`: transcript-gap bar, vision-gated names, staged deck-first; overrides count-chasing.
 
@@ -69,7 +69,7 @@ This table lists the **blocking artifacts per phase** (which must exist before t
 | `promotion-decisions-present` | `key-frames/promotion-decisions.json` when synthesis PNG images exist | Phase 6: vision pass before copy |
 | `synthesis-filename-policy` | no pipeline tokens (`dens-*`, `code-code-*`, `-mNNN`, etc.) | Phase 6: rename from on-screen content; content-class rejects stay agent vision |
 | `actionable-artifacts` | `recommendations/` hub + four docs | Phase 8: copy `templates/recommendations/` |
-| `watch-checklist-complete` | blocking ticks when `status: complete` | Phase 9: tick 8.x + 9.1–9.4 with evidence |
+| `watch-checklist-complete` | blocking ticks once synthesis is marked or `status: complete` | Phase 9: tick 8.x + 9.1–9.4 with evidence |
 | `promotion-traceability` | every synthesis PNG has promote decision + `promotion-map.json` | Phase 6: run `vision-gated-promote.js` |
 | `manifest-audit-parity` | manifest + audit JSON rows match PNG count | Phase 6: render from JSON SSOT |
 | `quality-audit-failures` | no `pass: false` in `key-frame-quality-audit.json` | Phase 6: delete failures |
@@ -148,9 +148,14 @@ When `watch.json` / `selection.json` sets `highVolume: true`:
 
 ## Complete slice
 
-`watch.json` `status: complete` **only** when:
+`watch.json` `status: complete` is written **only** by `watch-state.js close <slice-dir>`
+(`mark-phase <slice-dir> synthesis` delegates to it), and run it only when:
 
 1. All phase-complete boxes ticked in `watch-checklist.md` (or honest deferral noted)
 2. `check-research-complete.js` exit 0
 3. `check-watch-outcomes.js --write-report` exit 0
 4. `verification/<ISO-basic>Z-watch-outcomes.md` shows PASS
+
+`close` marks synthesis, re-runs `check-watch-outcomes.js --write-report` with the blocking
+checklist enforced, and writes `complete` only when it passes; on a fail it exits 1 and leaves
+status unchanged.

@@ -6,7 +6,7 @@ file.
 ## Setup per run
 
 The fixture is committed on `main`; the run happens on a feature branch with a clean tree. The
-`testing` and `mutation-testing` plugins are installed, and `.claude/mutation-testing.md` sets
+`testing` and `mutation-testing` plugins are enabled, and `.claude/mutation-testing.md` sets
 `tool: manual` with `test-command: python -m unittest {tests}`. The user names
 `shop_tests/test_receipt.py::test_total_is_computed_quickly` as flaky unless a case says otherwise.
 

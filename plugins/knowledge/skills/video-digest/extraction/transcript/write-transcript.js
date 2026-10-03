@@ -147,9 +147,9 @@ export function transcriptFilename(entryIndex, primaryEntryIndex) {
  * @property {number} captionlessEntryCount - entries that carried no selected caption
  * @property {string|null} transcriptDegradation - NAMED provenance field (T5):
  *   the primary entry's transcript-strategy degradation reason (first degraded
- *   entry when the primary is clean); null when nothing degraded. Set whenever
- *   a transcript could not be produced the way the strategy wanted — never a
- *   silent skip.
+ *   entry when the primary is clean), else the primary caption's
+ *   `provenanceNote`; null when nothing degraded. Set whenever a transcript
+ *   could not be produced the way the strategy wanted, never a silent skip.
  * @property {EnvelopeEntryDegradation[]} entryDegradations - every per-entry degradation
  */
 
@@ -316,7 +316,7 @@ export async function writeEnvelopeTranscriptArtifacts(
     primaryEntryIndex,
     transcripts,
     captionlessEntryCount,
-    transcriptDegradation: primaryDegradation?.reason ?? null,
+    transcriptDegradation: primaryDegradation?.reason ?? primary?.caption?.provenanceNote ?? null,
     entryDegradations,
   };
 }

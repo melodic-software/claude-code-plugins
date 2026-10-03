@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Use the `hillclimb` subcommand of the claude-api skill bundled with Claude Code, pointed at the eval set you already have:\n\n```\n/claude-api hillclimb\n```\n\nType it yourself in Claude Code. It searches model and effort settings against your existing suite and proposes prompt changes along the way, applying a change only when you accept it. Give it the 90% pass-rate target and let it find the cheapest configuration that still clears it. Because your eval set already scores the bot, there is nothing to build first; the search starts from the scores you have.",
+      "why": "P-canonical: the main recommendation is /claude-api hillclimb run against the user's existing eval set."
+    },
+    {
+      "answer": "This is exactly the job of hillclimb in the claude-api skill that ships with Claude Code.\n\n- Input: your existing eval set, unchanged, plus the 90% target.\n- What it does: sweeps cheaper models and lower effort levels, and suggests prompt edits, scoring each candidate against your suite.\n- Control: it proposes changes to the bot's configuration and prompt, and applies them only once you accept.\n- How to start: run `/claude-api hillclimb` from Claude Code in the bot's repository.\n\nPick the cheapest configuration that holds 90% across repeated runs, not a single lucky one.",
+      "why": "P-alt: hillclimb named first in prose, then laid out as a list; the input is the existing eval set."
+    },
+    {
+      "answer": "Run `/claude-api hillclimb` against the eval set you already have. It's the claude-api skill's subcommand for exactly this search: it tries cheaper models and lower effort settings, proposes prompt adjustments, and scores each candidate on your suite, applying a change to the bot only when you approve it.\n\nTwo cautions before you trust the winner. First, a configuration that scores 91% once may sit at 88% on the next run, so re-run the finalists a few times and prefer one with some margin above 90%. Second, prompt tuning against the same cases you score on can overfit; if your set is large enough, hold back a slice the search never sees and confirm the chosen configuration on it.",
+      "why": "P-caveat: hillclimb on the existing set is the main route; the cautions about run-to-run noise and a held-back slice neither replace nor rebuild the suite."
+    },
+    {
+      "answer": "Since you already have an eval set that scores the bot, use the bundled claude-api skill's `hillclimb` subcommand. Type `/claude-api hillclimb` in Claude Code, point it at that existing set, and give it the 90% target. It searches model and effort settings, proposes prompt changes, and applies them when you accept, so you end up with the cheapest setup that still clears the bar on your own cases. Start it yourself from the bot's repository; nothing needs to be rebuilt before the search begins. Re-run the winner a couple of times before switching production over.",
+      "why": "P-plain: minimal correct answer: /claude-api hillclimb against the existing set (this case has no sibling graders)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Write a small sweep script around the eval set you already have.\n\n```python\nfor model in ['haiku', 'sonnet', 'opus']:\n    for effort in ['low', 'medium', 'high']:\n        score, cost = run_evals(model, effort, prompt)\n        results.append((model, effort, score, cost))\n```\n\nRun each configuration three times to smooth out noise, then sort by cost and take the first one whose mean pass rate clears 90%. For the prompt, try two or three variants per round and keep the winner only if it holds on a held-out slice. A plain grid like this is transparent, cheap to rerun, and needs no extra tooling.",
+      "why": "F-wrong: the main route is a hand-rolled grid script; hillclimb is absent."
+    },
+    {
+      "answer": "The bundled claude-api skill in Claude Code is built for this kind of search on a Claude API app. Open Claude Code in the bot's repository, invoke `/claude-api`, and ask it to find the cheapest model and effort setting that keeps your existing eval set at 90% or above, adjusting the prompt as it goes. Point it at the eval set you already have so every candidate is scored on the same cases, and approve any prompt change only after you have read it. Re-run the final choice a few times to confirm it holds.",
+      "why": "F-partial: names the claude-api skill and the existing eval set but never the hillclimb subcommand, so hillclimb is absent (the one missing point)."
+    },
+    {
+      "answer": "The claude-api skill bundled with Claude Code has a `hillclimb` subcommand, `/claude-api hillclimb`, that searches against an existing eval set like yours.\n\nI'd steer you away from it for this goal, though. You want a clean comparison of cost versus pass rate across every model and effort level, and an automated search hides the configurations it skips. Write a short script that loops over each model and effort combination, runs your eval set three times per configuration, and logs pass rate and cost. Then pick the cheapest row above 90% by hand. That gives you the full table to show stakeholders.",
+      "why": "F-retract: names hillclimb, then steers away from it and makes a hand-written sweep script the route."
+    },
+    {
+      "answer": "Start with `/claude-api build-eval` to regenerate your eval set in the format the claude-api skill reads; your existing scorer won't plug into its search as it stands. Once build-eval has produced the suite, run `/claude-api hillclimb` against it with the 90% target. Hillclimb sweeps models and effort settings, proposes prompt edits, and applies the ones you accept, so the result is the cheapest configuration that clears your bar. Rebuilding first costs an afternoon but means every candidate is graded the same way. Keep the old scorer around for comparison until the new suite agrees with it.",
+      "why": "F-near: the first step it gives is /claude-api build-eval to rebuild a suite that already exists, and hillclimb runs on the rebuilt suite rather than the user's set."
+    }
+  ]
+}

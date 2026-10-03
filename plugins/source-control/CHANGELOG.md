@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.75.0] - 2026-10-02
+## [0.76.0] - 2026-10-02
 
 ### Changed
 
@@ -28,6 +28,20 @@ All notable changes to the `source-control` plugin are documented here. Format f
   its own CLAUDE.md or AGENTS.md.
 - **`config-resolution.md` says where approval counts come from:** the repository ruleset's
   `required_approving_review_count`, which the merge gate reads. No new key.
+
+## [0.75.0] - 2026-10-02
+
+### Added
+
+- **`babysit-loop` state records the effort each cycle ran at.** The state block gains an `effort`
+  field read from `CLAUDE_EFFORT` at each cycle start, or `"unset"`, so the level that ran sits
+  beside the `--effort` the lane was launched with. The schema stays `@2`.
+
+## [0.74.1] - 2026-10-02
+
+### Changed
+
+- The shared hook helper's posture comment no longer names a fixed member count.
 
 ## [0.74.0] - 2026-10-02
 

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "`timeout` is not a key the runner knows, so that case fails to load. Rename it to `timeout_seconds: 600`.",
+      "why": "rename"
+    },
+    {
+      "answer": "Two problems. The frontmatter key is timeout_seconds, not timeout; and there is no `contains` grader type.",
+      "why": "plain prose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "`timeout: 600` is fine; it caps the run at ten minutes. The `contains` type is the problem: use `regex`.",
+      "why": "confident wrong: timeout accepted"
+    },
+    {
+      "answer": "`timeout` isn't a recognized key, so drop it and rely on the default limit.",
+      "why": "no key named"
+    },
+    {
+      "answer": "Use `timeout_ms: 600000` instead of `timeout`.",
+      "why": "a different key"
+    }
+  ]
+}

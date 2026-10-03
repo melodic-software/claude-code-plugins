@@ -66,9 +66,11 @@ section: <stable kebab-case id, matches the index anchor>
 abstract: <one line, mirrored verbatim into the index>
 claims:
   - claim: "<one-line claim>"
-    confidence: HIGH          # HIGH | MEDIUM | LOW
+    confidence: HIGH          # HIGH | HIGH (single source) | MEDIUM | LOW
+    single_source: "<why only one publisher exists>"   # only at HIGH (single source); omit otherwise
     tiers: [0, 1]             # source tiers backing this claim
     applies_to: "<product> <version range>"   # the claim's target, or version-independent
+    subject_pool: "<publisher>"   # single-publisher claims only: equals the one pool their Tier 0/1 sources share
     sources:                  # what makes gate criterion 4 gradeable off the artifact
       - url: "<url fetched this turn>"
         tier: 1
@@ -84,8 +86,15 @@ produced_by: <phase id>
 ---
 ```
 
-The vocabulary is reused, never reinvented: `HIGH | MEDIUM | LOW` and `Tier 0..3` are the research
-skill's own, defined in `discipline.md`.
+The vocabulary is reused, never reinvented: `HIGH | HIGH (single source) | MEDIUM | LOW` and
+`Tier 0..3` are the research skill's own, defined in `discipline.md`.
+
+**`single_source:` is the flag's reason, and criterion 4 grades it.** A claim at
+`HIGH (single source)` carries it; no other claim does. It states why only one publisher of the
+claim's content exists, so a verifier that never saw the run can judge that reason instead of
+counting corroborators the claim cannot have. A claim at that level without the field fails
+criterion 4. A repost of the primary is recorded under the primary's `pool`, so it never reads as a
+second source. Definition and limits: `discipline.md`'s "Single-source first-party content claims".
 
 **`sources[]` is not redundant with `tiers[]`.** It is what lets outcome-gate criterion 4, "≥2
 INDEPENDENT corroborators, not two cites of one upstream pool", be graded **by a verifier that never
@@ -93,6 +102,11 @@ saw the run**. Independence is a property of the publishing pools behind a claim
 encodes neither the URL nor the pool, so without `sources[]` the verifier can only take the run's
 word for the one criterion the whole discipline rests on. Two entries sharing a `pool` are one
 corroborator.
+
+**`subject_pool:` marks a single-publisher claim**, one whose every Tier 0/1 source is the
+publisher speaking about itself. It names that publisher and equals the one `pool` those sources
+share, so the verifier grades the label off the header, beside `pool`, for criterion 4. Omit the key
+on every other claim. Rule: `discipline.md`'s "Single-publisher facts".
 
 **`measures:`, `inference:`, and `qualifiers:` make criterion 12 gradeable off the artifact**, as
 `sources[]` does for criterion 4: a URL and a pool cannot show whether a source measured the claim's

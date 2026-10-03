@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "This is the eval run itself, not your settings. Inside the with-arm, any `Read` of a file under the plugin's own directory is refused with that message, whatever the case's `allowed_tools` says: the Read grant covers the tool, not that path. The only skill text that reaches the model is the hub `SKILL.md` body that gets injected, so `reference/grading.md` never arrives.\n\nWhat to change: move the content your cases depend on into `SKILL.md`, within its size limit. The eval measures what `SKILL.md` carries, so anything a case needs has to live there. A null delta on a reference-heavy plugin is a hub finding first.",
+      "why": "P-canonical: states the fence (reads under the plugin directory refused regardless of the Read grant) and that only the hub SKILL.md reaches the model."
+    },
+    {
+      "answer": "Nothing on your machine is denying it. The eval harness fences off the plugin's own folder: the with-arm model can call Read, because your case grants the tool, but every path inside `plugins/notes/` is rejected, so the grant never extends to it. What the model gets from your skill is the injected `SKILL.md` body and nothing more; the files under `reference/` are invisible to it.\n\nSo the fix is in the skill, not the case. Pull whatever the cases rely on out of `grading.md` and into `SKILL.md`, keeping it inside the size limit, then rerun.",
+      "why": "P-alt: makes both points in different words: the harness fences the plugin folder whatever the tool grant, and only the injected SKILL.md body reaches the model."
+    },
+    {
+      "answer": "The denial comes from the eval sandbox, not from a deny rule you wrote. In the with-arm, a Read of anything under the plugin's own directory is refused no matter what the case's Read grant is; the grant is for the tool, not for that path. Only the hub `SKILL.md` text, injected as the skill body, reaches the model.\n\nA path-scoped grant does not help either: passing `--allow-tools \"Read(//srv/repo/plugins/notes/**)\"` still leaves the read denied.\n\nChange the skill instead: move what the cases depend on into `SKILL.md`, within its size limit, so the with-arm can actually measure it.",
+      "why": "P-caveat: both points, plus the correct extra that a path-scoped --allow-tools Read grant does not lift the denial, which the rubric marks as correct."
+    },
+    {
+      "answer": "It's by design in the eval run. The with-arm refuses any Read under the plugin's own directory, regardless of the Read grant in your case: that grant covers the tool, not that path. All the model ever sees of your skill is the hub `SKILL.md` text injected as the skill body.\n\nSo change how you read the results rather than the permissions: score the with-arm only on what `SKILL.md` says, and treat a null delta as a finding about the hub before blaming the plugin. Granting the case more permissions won't change any of this.",
+      "why": "P-plain: both of this grader's points, while the advice on what to change never says to move content into SKILL.md (the sibling's point)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Allowing Read as a tool doesn't override a deny rule on a directory. Somewhere in the settings the eval run inherits, likely your user or project `settings.json`, a `permissions.deny` entry such as `Read(./skills/**)` covers the skill's reference folder, and deny always wins over allow.\n\nProject-level settings are easy to miss here, because a deny rule written for everyday sessions keeps applying when the eval runs. Find that entry and narrow or remove it, or add an explicit allow rule for `skills/notes/reference/`. Then rerun the case; the with-arm will open `grading.md` and you'll be measuring the full skill, reference included.",
+      "why": "F-wrong: blames a deny rule in the user's settings and says changing permissions fixes it."
+    },
+    {
+      "answer": "The with-arm only gets the hub. When the eval loads your plugin, the model receives the `SKILL.md` body as the skill text, and the spoke files under `reference/` are not part of what it is given, so the answers report they couldn't open `grading.md`.\n\nWhat to change: move the content your cases depend on into `SKILL.md`, keeping within its size limit. The eval measures what `SKILL.md` carries, so a null delta on a plugin whose knowledge sits in `reference/` is a hub finding before it is a plugin finding. Rerun the cases after the move.",
+      "why": "F-partial: says only the hub SKILL.md reaches the model but never says the run refuses reads under the plugin directory whatever the case's Read grant (the fence point is missing)."
+    },
+    {
+      "answer": "The eval run refuses reads under the plugin's own directory, whatever the case's Read grant; the grant covers the tool, not that path. Only the hub `SKILL.md` text, the injected skill body, reaches the model.\n\nThe quickest fix is to grant the path explicitly when you launch the run: add `--allow-tools \"Read(//srv/repo/plugins/notes/**)\"`. With a path-scoped grant the with-arm can open `reference/grading.md`, and the eval measures the full skill without restructuring anything. That also keeps your layout intact: `SKILL.md` stays short and the detailed grading rules stay in `reference/`, where they belong for normal use.",
+      "why": "F-retract: states the fence and hub-only points, then contradicts them by claiming a path-scoped --allow-tools Read grant lifts the denial."
+    },
+    {
+      "answer": "Your Read grant is working, but it only covers the case's workspace. The plugin's directory sits outside that workspace, so the run refuses the read and only the hub `SKILL.md` text, the injected skill body, reaches the model.\n\nAdd the plugin directory to the case's `context.add_dirs`, for example `/srv/repo/plugins/notes`, and the with-arm will be able to read `reference/grading.md`. That way the eval measures the skill together with its reference material. If you want a smaller change instead, keep the grading content short and inline it into `SKILL.md`, then rerun the case.",
+      "why": "F-near: says adding the plugin directory to context.add_dirs fixes the denial, which the rubric fails."
+    }
+  ]
+}

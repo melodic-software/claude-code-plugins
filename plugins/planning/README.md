@@ -54,7 +54,7 @@ themselves. Every skill also works standalone.
   review checklists, domain-vocabulary files, and commit policy come from your own
   project's `CLAUDE.md` and rules; where none exist, the skills apply standard
   engineering defaults.
-- **Graceful degrade.** Adjacent capabilities are invoked when installed:
+- **Graceful degrade.** Adjacent capabilities are invoked when enabled:
   codebase exploration and external research (`discovery`), test-design guidance
   (`tdd`), prototyping (`prototype`), decision recording (`architecture`), and
   session handoff (`session-flow`).

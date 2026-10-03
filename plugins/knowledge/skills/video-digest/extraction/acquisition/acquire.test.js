@@ -70,6 +70,45 @@ describe("acquireYouTubeMedia", () => {
     }
   });
 
+  it("reclassifies a bare .en.vtt as auto when info.json has no English manual subtitles", async () => {
+    const workDir = "/tmp/fake-work";
+    /** @param {object} infoFields */
+    const acquireWith = (infoFields) =>
+      acquireYouTubeMedia(
+        DRIVER_WATCH_URL,
+        { workDir, mode: "transcript", videoId: DRIVER_VIDEO_ID },
+        {
+          ...NO_THROTTLE,
+          spawn: spawnOk,
+          listFiles: async () => [
+            `${workDir}/7zZy1QTvokM.en.vtt`,
+            `${workDir}/7zZy1QTvokM.en-orig.vtt`,
+            `${workDir}/7zZy1QTvokM.info.json`,
+          ],
+          readFile: async () =>
+            JSON.stringify({ id: "7zZy1QTvokM", title: "Driver Video", ...infoFields }),
+        },
+      );
+
+    const autoOnly = await acquireWith({
+      subtitles: {},
+      automatic_captions: { en: [], "en-orig": [] },
+    });
+    expect(autoOnly.success).toBe(true);
+    if (autoOnly.success) {
+      expect(autoOnly.data?.caption.rung).toBe("auto-en");
+      expect(autoOnly.data?.caption.isAutoCaption).toBe(true);
+      expect(autoOnly.data?.caption.provenanceNote).toContain("7zZy1QTvokM.en.vtt");
+    }
+
+    const withManual = await acquireWith({ subtitles: { en: [] } });
+    expect(withManual.success).toBe(true);
+    if (withManual.success) {
+      expect(withManual.data?.caption.rung).toBe("manual-en");
+      expect(withManual.data?.caption.isAutoCaption).toBe(false);
+    }
+  });
+
   it("surfaces caption ladder failure", async () => {
     const result = await acquireYouTubeMedia(
       DRIVER_WATCH_URL,

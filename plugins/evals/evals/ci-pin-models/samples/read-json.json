@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "why": "P-canonical: says to add a step that reads `results.json` because exit 1 has several causes and exit 2 means a partial run.",
+      "answer": "The job step:\n\n```bash\nclaude plugin eval ./plugins/notes --trust-plugin --model sonnet --judge-model haiku --json results.json\n```\n\nThen add a step that reads `results.json`. The exit code alone doesn't tell you what happened: exit 1 can mean a case fell below the threshold or one of several other failures, and exit 2 means the run was partial. Fail the PR on a real regression and report the other states for what they are.\n\nAlso easy to miss: pin both models so a model rollout isn't mistaken for a plugin regression, and keep `--trust-plugin`, because a runner with no terminal is refused without it."
+    },
+    {
+      "why": "P-alt: makes the point reasoning-first in different words: a non-zero exit is not a diagnosis (six causes for 1, partial for 2), so inspect the written JSON before marking the PR red.",
+      "answer": "A non-zero exit is a signal, not a diagnosis. `claude plugin eval` returns 1 for six different causes and 2 when only part of the suite ran, so a job that gates on `$?` alone can't tell a regressed case from a broken run. Write the results to a file and inspect it in the next step:\n\n```bash\nclaude plugin eval ./plugins/notes --trust-plugin \\\n  --model claude-sonnet-4-5 --judge-model claude-haiku-4-5 \\\n  --json results.json\n```\n\nThe follow-up step should check whether the run was complete and which cases failed before it marks the PR red. Keep both model flags fixed too, or a model update shows up as a regression. A short `jq` script is enough for the check, and printing which cases failed makes a red check easy to act on."
+    },
+    {
+      "why": "P-caveat: reads the JSON to decide whether the suite regressed (exit 1 overloaded, exit 2 partial); posting a summary is offered as an extra on top of gating, not as the only use, so the 'summary only' fail clause does not apply.",
+      "answer": "Command:\n\n```bash\nclaude plugin eval ./plugins/notes --trust-plugin --model sonnet --judge-model haiku --json results.json --threshold 0.8\n```\n\nPitfalls:\n\n1. Reading only the exit code. Exit 1 is overloaded and exit 2 marks a partial run, so parse `results.json` too and let it say whether the suite actually regressed. Posting a short summary from it as a PR comment is a nice extra once the gate itself reads the file.\n2. Floating models. Pin `--model` and `--judge-model`, or a rollout looks like a regression.\n3. Trust. A headless runner needs `--trust-plugin`.\n4. Cost. Add `--max-cost-usd` so a runaway suite can't burn budget on every push."
+    },
+    {
+      "why": "P-plain: says to parse the JSON as well as the exit code and why (exit 1 has several reasons, exit 2 partial); it pins no models and omits `--trust-plugin`, which are other graders' points.",
+      "answer": "Have the workflow run the suite and write machine-readable results:\n\n```bash\nclaude plugin eval ./plugins/notes --json results.json --threshold 0.8\n```\n\nThen add a second step that parses `results.json` before deciding the outcome. The most common mistake is treating the exit code as the whole story. Exit 1 is returned for several different reasons, only one of which is a case falling below the threshold, and exit 2 means the run was partial. The JSON tells you which of those happened and whether the comparison is even valid, so the job can fail on a genuine regression and flag a broken run separately."
+    }
+  ],
+  "fail": [
+    {
+      "why": "F-wrong: says the exit code alone is enough and tells the user to skip `--json` and any parsing step; model pins and `--trust-plugin` are right.",
+      "answer": "The job step:\n\n```bash\nclaude plugin eval ./plugins/notes --trust-plugin --model sonnet --judge-model haiku --threshold 0.8\n```\n\nThat's all the gate needs. The command exits non-zero whenever the suite falls below the threshold, and GitHub Actions fails the step on any non-zero exit, so the PR goes red on a regression without extra scripting. Skip `--json` and a parsing step; they add moving parts for no benefit.\n\nEasy to get wrong: pin both the model and the judge so a model rollout isn't mistaken for a regression, and keep `--trust-plugin`, since the runner can't answer the trust prompt. If you want a record, upload the job log as an artifact; the exit code already carries everything the gate needs to know."
+    },
+    {
+      "why": "F-partial: writes `--json results.json` but never says the job should read it or why the exit code is not enough; every other point (pins, trust flag, cost, forks) is right.",
+      "answer": "Use this as the job step:\n\n```bash\nclaude plugin eval ./plugins/notes --trust-plugin \\\n  --model claude-sonnet-4-5 --judge-model claude-haiku-4-5 \\\n  --json results.json --threshold 0.8\n```\n\nEasy to get wrong:\n\n1. Pin both models. An unpinned agent or judge lets a model rollout show up as a plugin regression.\n2. `--trust-plugin` is required, because a non-interactive runner refuses an untrusted plugin directory.\n3. Keep the target before `--json`, or the flag swallows the path.\n4. Set `--max-cost-usd` so the suite can't overspend on a busy day.\n5. Pull requests from forks don't receive secrets, so decide how those runs behave."
+    },
+    {
+      "why": "F-retract: states the read-the-JSON advice with its reason, then says to skip that step because the exit code is the signal you want.",
+      "answer": "Command for the job:\n\n```bash\nclaude plugin eval ./plugins/notes --trust-plugin --model sonnet --judge-model haiku --json results.json\n```\n\nCommon advice is to parse `results.json` after the run, since exit 1 has several causes and exit 2 means partial. In practice you can skip that step: any non-zero exit fails the job, and that's exactly the signal you want for blocking a PR. Keep the JSON for when you need to debug locally.\n\nThe mistakes that really bite are unpinned models, where a rollout looks like a regression, and a missing `--trust-plugin`, which gets the run refused on a headless runner."
+    },
+    {
+      "why": "F-near: lets the exit code alone decide pass or fail and reads the JSON only to post a summary comment, which the rubric fails.",
+      "answer": "Job step:\n\n```bash\nclaude plugin eval ./plugins/notes --trust-plugin --model sonnet --judge-model haiku --json results.json --threshold 0.8\n```\n\nLet the exit code decide pass or fail; any non-zero status turns the check red. Then add a step that reads `results.json` and posts a summary table to the PR as a comment, so reviewers see each case's score without opening the logs.\n\nEasy to get wrong: pinning only one model (pin both, or a rollout looks like a regression), forgetting `--trust-plugin` on a headless runner, and not giving the comment step write permission on pull requests."
+    }
+  ]
+}

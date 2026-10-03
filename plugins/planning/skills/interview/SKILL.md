@@ -97,14 +97,14 @@ The Q&A path of this skill is one engine wrapped in a stop condition and an outp
 2. **Survey-then-deep**. Before asking blind, do a fast breadth pass (repo files, recent commits, existing skills, relevant project rules) so questions land in real context
 3. **Climb-to-anchor**. Find the nearest `CLAUDE.md`, `AGENTS.md`, domain-vocabulary file, or module README by walking UP from the relevant directory toward repo root; let those shape questions instead of asking what is already documented
 4. **Immediate doc maintenance** *(engineering sessions only)*. When an answer resolves a domain
-   term, invoke `/domain-driven-design:curate-language` via the Skill tool (if that plugin is installed; else
+   term, invoke `/domain-driven-design:curate-language` via the Skill tool (if that plugin is enabled; else
    record the term in the Brief's glossary notes) IMMEDIATELY between questions, not
    batched at end. Route
    decisions, gotchas, and conventions to their proper homes (ADR, project rules, side note) in the
    same response. A general session writes no repo docs. It drives to a shared-understanding summary
    only
 
-**Intake the starting point.** Early in the loop (or before it), establish where the user is. One intake question that discloses their starting point; questions and recommendations calibrate to that disclosure. When the territory itself is unfamiliar to the USER, they can't yet evaluate options because they don't know the domain or codebase area. Route to a blindspot-surfacing exploration FIRST (invoke `/discovery:blindspot <area>` via the Skill tool if installed, otherwise a guided walkthrough of the area); an interview over unknown territory locks a contract the user can't assess.
+**Intake the starting point.** Early in the loop (or before it), establish where the user is. One intake question that discloses their starting point; questions and recommendations calibrate to that disclosure. When the territory itself is unfamiliar to the USER, they can't yet evaluate options because they don't know the domain or codebase area. Route to a blindspot-surfacing exploration FIRST (invoke `/discovery:blindspot <area>` via the Skill tool if enabled, otherwise a guided walkthrough of the area); an interview over unknown territory locks a contract the user can't assess.
 
 When the effort is too big to hold at once AND still too foggy to phrase as sharp questions, the user can't yet list the decisions, let alone lock them; that is upstream of `/planning:interview`. Name `/planning:wayfind` to the user (it charts the fog as a decision map and works the frontier down decision by decision, graduating to a Brief once it clears); recommend, never auto-switch.
 
@@ -183,12 +183,12 @@ When the task touches domain concepts, these behaviors activate during Q&A. The 
 - **glossary challenge**. When the user uses a domain term two ways, or a term collides with an existing definition, probe it
 - **domain scenario exploration**. Invent edge cases that probe concept boundaries ("what happens when a Customer cancels half an Order?")
 - **inline vocabulary update** *(engineering sessions only)*. When a term resolves, invoke
-  `/domain-driven-design:curate-language` immediately (if that plugin is installed; else
+  `/domain-driven-design:curate-language` immediately (if that plugin is enabled; else
   record the term in the Brief's glossary notes). That skill owns discovery-first
   placement, the consumer's
   file shape, purity, canonical terms, rejected synonyms, and known-context routing; the interview
   resumes after the update
-- **ADR, offered sparingly** *(engineering sessions only)*. Propose an architecture decision record only when a decision is hard to reverse AND surprising without context AND the result of a real trade-off. When the `architecture` plugin is installed, invoke `/architecture:record-decision` via the Skill tool, passing the decision and its rationale; it owns convention discovery, the no-convention offer-and-defer, and the write. Otherwise write to the repository's declared ADR convention (a managed `docs/adr/` README, a project rule, or an existing `docs/adr/` shape); if none is declared, offer and defer. Never prescribe a location or format
+- **ADR, offered sparingly** *(engineering sessions only)*. Propose an architecture decision record only when a decision is hard to reverse AND surprising without context AND the result of a real trade-off. When the `architecture` plugin is enabled, invoke `/architecture:record-decision` via the Skill tool, passing the decision and its rationale; it owns convention discovery, the no-convention offer-and-defer, and the write. Otherwise write to the repository's declared ADR convention (a managed `docs/adr/` README, a project rule, or an existing `docs/adr/` shape); if none is declared, offer and defer. Never prescribe a location or format
 
 ## Acceptance-criteria capture
 
@@ -415,7 +415,7 @@ caller to stop and ask the user that question before going on. The caller owns w
 land (for example a repo-sweep step commit). Skip the Step 4 `--brief` cross-check and skip
 `/planning:plan` handoff.
 
-**`me` mode persists incrementally, not just at the end.** Lock each answer into the decision-tree ledger (`interview-checklist.md`) + the relevant PLAN.md Brief section the moment it resolves, except in **`scope` action**, which never writes PLAN.md sections. So a crash, context clear, or overflow never loses resolved branches, and a handoff can happen at any round boundary with nothing left to flush. Offer a handoff (`/session-flow:handoff` if installed, otherwise write a resume note in the topic's memory slice) when the user or the harness signals it, or when branches keep opening faster than they close (Step 5); never on your own estimate of remaining context. Target the light V1-spec Brief shape (scope / schema / code-surface bullets). Keep it terse.
+**`me` mode persists incrementally, not just at the end.** Lock each answer into the decision-tree ledger (`interview-checklist.md`) + the relevant PLAN.md Brief section the moment it resolves, except in **`scope` action**, which never writes PLAN.md sections. So a crash, context clear, or overflow never loses resolved branches, and a handoff can happen at any round boundary with nothing left to flush. Offer a handoff (`/session-flow:handoff` if enabled, otherwise write a resume note in the topic's memory slice) when the user or the harness signals it, or when branches keep opening faster than they close (Step 5); never on your own estimate of remaining context. Target the light V1-spec Brief shape (scope / schema / code-surface bullets). Keep it terse.
 
 PLAN.md holds `## Brief` + `## Plan` sections. `/planning:interview` writes only the Brief section; the Plan section stays empty until `/planning:plan` fills it.
 
@@ -429,11 +429,11 @@ Section schema: write the literal `## Brief` template (TLDR / Goal / Constraints
 
 Route the handoff by what the session produced. **A general (non-engineering) session is terminal**. It produced a shared-understanding summary, not a Brief; deliver that summary and stop, offering no pipeline handoff (nothing downstream consumes it). **An engineering session** wrote a PLAN.md Brief. Recommend the next step per task shape:
 
-- **Code change with unknowns about the codebase** → clear context, then codebase exploration (`/discovery:explore` if installed. It reads the Brief as scope)
-- **Code change relying on external libs/APIs/best-practices** → external research (`/discovery:research` if installed)
+- **Code change with unknowns about the codebase** → clear context, then codebase exploration (`/discovery:explore` if enabled. It reads the Brief as scope)
+- **Code change relying on external libs/APIs/best-practices** → external research (`/discovery:research` if enabled)
 - **Already understand the codebase and the externals** → `/planning:plan`
 - **Task is small and the contract IS the plan** → proceed directly to implementation
-- **Interview outgrew one session (branches keep opening faster than they close, or the user or harness asks for a pause)** → handoff now (`/session-flow:handoff` if installed, otherwise write a resume note), clear, resume. The ledger + Brief survive; resume continues from the first open branch. Before the first resumed round, resolve the surface through `${CLAUDE_PLUGIN_ROOT}` again (never an absolute path copied from the handoff) and run `round.sh --dir '<memory_dir>/<topic-slug>/interview-surface' doctor --ledger <ledger>`, which lists what the running version needs and the ledger lacks ([`context/surface.md`](context/surface.md) "Resume")
+- **Interview outgrew one session (branches keep opening faster than they close, or the user or harness asks for a pause)** → handoff now (`/session-flow:handoff` if enabled, otherwise write a resume note), clear, resume. The ledger + Brief survive; resume continues from the first open branch. Before the first resumed round, resolve the surface through `${CLAUDE_PLUGIN_ROOT}` again (never an absolute path copied from the handoff) and run `round.sh --dir '<memory_dir>/<topic-slug>/interview-surface' doctor --ledger <ledger>`, which lists what the running version needs and the ledger lacks ([`context/surface.md`](context/surface.md) "Resume")
 
 Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
@@ -457,7 +457,7 @@ the recommendation from this summary.
 
 - **Does not deep-dive the codebase**. Step 1 is a fast survey; the codebase gate in Step 2 is a lightweight per-question check (Grep/Read/Glob). Neither is exploration-depth work. If exploration grows beyond quick lookups, stop and recommend the exploration capability
 - **Does not plan implementation**. The Brief says *what* and *what we are assuming*; `/planning:plan` says *how*. Resist drafting an approach mid-interview
-- **Does not write code or run tests**. Discovery skill. In an engineering session it DOES write domain docs outside the topic's slices when the project keeps them: domain-vocabulary updates (inline, between questions) and ADRs (written through `/architecture:record-decision` when that plugin is installed, else by hand into the declared convention) are first-class interview outputs alongside the Brief (a general session writes none)
+- **Does not write code or run tests**. Discovery skill. In an engineering session it DOES write domain docs outside the topic's slices when the project keeps them: domain-vocabulary updates (inline, between questions) and ADRs (written through `/architecture:record-decision` when that plugin is enabled, else by hand into the declared convention) are first-class interview outputs alongside the Brief (a general session writes none)
 - **Does not adversarially attack the user's idea**. That is `/planning:devils-advocate`. Domain scenario exploration (probing concept boundaries through invented edge cases) discovers domain semantics. It is not plan-attacking. If you find yourself wanting to push back on the goal itself, surface once, capture response, continue
 - **Does not gate truly mechanical work**. Typo, lint-only, whitespace, comment, single-line non-behavioral fix, and routine dependency bumps skip `/planning:interview`. Everything that creates or changes behavior, contracts, structure, or design is **interview-first by default**. Auto-detect keeps that cheap (synthesize-on-clear, relentless-Q&A-on-fuzzy). The bar is behavior-change, not fuzziness
 - **Does not fudge gaps in `lock` mode**. If a true unknown surfaces during synthesis, STOP and surface it. Fall back to `auto` or `me` instead of guessing
@@ -484,15 +484,15 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 |---|---|---|
 | Pre-task fuzzy intent or lock-the-brief | **`/planning:interview`** (this) | Produces PLAN.md Brief |
 | Product intent fuzzy (whose problem, what success) | `/planning:prd` | Upstream of `/planning:interview`; PRD answers *what for whom and why* |
-| Need codebase grounding | `/discovery:explore` (if installed) | Reads PLAN.md Brief as scope |
-| Need external evidence | `/discovery:research` (if installed) | Reads PLAN.md Brief as scope |
-| A question needs something built to react to | `/prototype:explore-directions` (look and feel) or `/prototype:pressure-test` (logic, state, data shape) (if installed) | Mid-interview detour: confirm scope and checkpoint, build the throwaway, react to it, return and answer in one line |
+| Need codebase grounding | `/discovery:explore` (if enabled) | Reads PLAN.md Brief as scope |
+| Need external evidence | `/discovery:research` (if enabled) | Reads PLAN.md Brief as scope |
+| A question needs something built to react to | `/prototype:explore-directions` (look and feel) or `/prototype:pressure-test` (logic, state, data shape) (if enabled) | Mid-interview detour: confirm scope and checkpoint, build the throwaway, react to it, return and answer in one line |
 | Plan the implementation | `/planning:plan` | Reads PLAN.md Brief + explore + research findings |
 | Stress-test the plan | `/planning:devils-advocate` | Adversarial pass on `/planning:plan` output |
 | Validate the interview's answers via agents | `/planning:audit-answers` | Fresh validators challenge each answer in the filled ledger (hand-answered or auto-accepted); only the doubtful ones return as human questions. The Step 3 recap and `--procedure` check show the Q&A and that the procedure ran; this re-validates the answers, and neither duplicates the other |
-| Record a decision that earns an ADR | `/architecture:record-decision` (if installed) | Owns ADR convention discovery, the no-convention offer-and-defer, and the write; without it the interview writes to the declared convention or defers |
-| Pause and resume later | `/session-flow:handoff` (if installed) | Captures session state, distinct from the Brief (mid-task pause vs pre-execution intent) |
+| Record a decision that earns an ADR | `/architecture:record-decision` (if enabled) | Owns ADR convention discovery, the no-convention offer-and-defer, and the write; without it the interview writes to the declared convention or defers |
+| Pause and resume later | `/session-flow:handoff` (if enabled) | Captures session state, distinct from the Brief (mid-task pause vs pre-execution intent) |
 
-**Mid-interview composition (`me` mode):** research, exploration, prototyping, and handoff are not only downstream. Invoke them *during* the interview when a recommendation needs external/codebase grounding, when a question needs something built to react to, or when branches outgrow the session. Return to the open branch after. **The ungrillable question:** when a look, feel, or behavior question cannot be answered by asking. The user has to see the thing to know what they think. Stop grilling and route it to a throwaway prototype: `/prototype:explore-directions` (look and feel) or `/prototype:pressure-test` (logic, state, data shape), invoked via the Skill tool if installed. Those skills gate their own model-initiated entry, so confirm the spike's scope with the user and checkpoint this interview before handing off. The detour leaves an active workflow. Checkpointing is persistence the interview already owes: the question registered `open` at ask-time, plus the ledger and Brief written per lock-in, which is what lets the open branch survive the detour. Then come back and answer the question in one line. The prototype is the instrument that produces the answer, not a deliverable; it is thrown away.
+**Mid-interview composition (`me` mode):** research, exploration, prototyping, and handoff are not only downstream. Invoke them *during* the interview when a recommendation needs external/codebase grounding, when a question needs something built to react to, or when branches outgrow the session. Return to the open branch after. **The ungrillable question:** when a look, feel, or behavior question cannot be answered by asking. The user has to see the thing to know what they think. Stop grilling and route it to a throwaway prototype: `/prototype:explore-directions` (look and feel) or `/prototype:pressure-test` (logic, state, data shape), invoked via the Skill tool if enabled. Those skills gate their own model-initiated entry, so confirm the spike's scope with the user and checkpoint this interview before handing off. The detour leaves an active workflow. Checkpointing is persistence the interview already owes: the question registered `open` at ask-time, plus the ledger and Brief written per lock-in, which is what lets the open branch survive the detour. Then come back and answer the question in one line. The prototype is the instrument that produces the answer, not a deliverable; it is thrown away.
 
 `/planning:interview` is sister to `/planning:plan`: one resolves *what*, the other resolves *how*. They share the topic slug, share the directory, feed each other.

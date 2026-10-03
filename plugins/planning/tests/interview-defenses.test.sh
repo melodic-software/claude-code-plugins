@@ -495,7 +495,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "d58ea1f0b4d5b63cc4aed06a720dfa62ed8559d4b0807e7c729d75f3c45c2a89"
+  "2e30ebb48aab249847767b9106c8ff11e0a311fb2f25cfbbbcd1699307c66870"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -557,7 +557,7 @@ pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machin
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "e4940b8e524440e22e70e98ff65cda22bc1ec8fed1a37f678e0ba28a702bcf30"
+  "94f688154723dd4995c221b9ee0d952c3e8961158d5b3661e38b32ddd3a3d465"
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
   "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
@@ -603,7 +603,7 @@ pin_section "SKILL.md \"does NOT do\" section is unchanged (the fudge prohibitio
   "$SKILL" \
   "## What this skill does NOT do" \
   "## Next" \
-  "02754ea58401497b72a653ee4d5bfe1c8a069e464bb3420f189e6d23e63c26ee"
+  "3edbef2c4cf68a1adcaa6e44390cbc95a8285f7f18734ab76ecfc22fc5b6679d"
 
 # Step 2 and its loop.md twins house the rules that stop an assumption from locking
 # unseen: the constraint ledger, composed artifacts as candidates, evidence-currency labels,
@@ -627,7 +627,7 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "6bbd0e50662276497caf42d1ed9aa2941e1dbf4d2587df5d180d57f71fdd61fd"
+  "a4f75e319b64f1bb8bddc48f5f58fec33e8b4e0b7ba1d06ddfb0a8a930182fdb"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
@@ -636,7 +636,7 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
   "$LOOP" \
   "## Relentless \`me\` mode mechanics" \
   "## The open-question register" \
-  "477f639456756484f64691bea42dadfdc00aa446889577188b0275a143ae74c0"
+  "a39585b1e8142bec6752aca82d47e4e2b5e24a43dca278e8e7115c016de07483"
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
   "329157464eb40166d602ac6c549912e735e8b45d18eb40591363dab76ac9b37b"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # PreToolUse hook: block writes whose target is a Windows drive-root temp path.
 # Triggered on Bash and PowerShell tool calls (a command string), and on
-# Write / Edit / MultiEdit / NotebookEdit tool calls (a file path).
+# Write / Edit / NotebookEdit tool calls (a file path).
 #
 # TWO DOORS, ONE MATCHER. A write reaches the drive root through either shape,
 # and until 0.30.0 only the command shape was inspected: the hook read
@@ -77,7 +77,7 @@ source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundar
 # lane on Linux CI.
 #
 # THIS GATE RUNS FIRST, ahead of hook::buffer_stdin and hook::require_jq_blocking,
-# and that ordering is load-bearing. This hook matches Write / Edit / MultiEdit /
+# and that ordering is load-bearing. This hook matches Write / Edit /
 # NotebookEdit as of 0.30.0. Evaluated any later, a Linux or macOS host without
 # jq on PATH would take require_jq_blocking's fail-closed exit 2 on EVERY file
 # edit — denying writes on a platform where the guard has no opinion at all.
@@ -172,7 +172,7 @@ fi
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
 
-# Write / Edit / MultiEdit spell the target `file_path`; NotebookEdit spells it
+# Write / Edit spell the target `file_path`; NotebookEdit spells it
 # `notebook_path`. Reading both and taking whichever is populated keeps the lane
 # correct without depending on which spelling a given tool version emits.
 FILE_PATH="${HOOK_JQ_FIELDS[2]:-}"
@@ -845,7 +845,7 @@ has_write_utility_with_drive_root_tmp() {
   return 1
 }
 
-# --- File-path lane: Write / Edit / MultiEdit / NotebookEdit -----------------
+# --- File-path lane: Write / Edit / NotebookEdit -----------------
 # On these tools the payload's path IS the write target, so the whole
 # write-shape inference the command lane needs — redirect parsing, the producer
 # utility whitelist, per-segment splitting — is structurally absent here. The

@@ -11,6 +11,7 @@ import {
   findNextPhase,
   markPhaseComplete,
   readWatchState,
+  runClose,
   runMarkPhase,
   watchStatePath,
   writeContinuationPrompt,
@@ -347,20 +348,129 @@ describe("companion phase (optional side-marker)", () => {
   });
 });
 
-describe("terminal phase completes the slice", () => {
-  it("flips status to complete when synthesis is marked", async () => {
-    const sliceDir = "/tmp/slice";
-    let state = sampleTalk();
+describe("closing the slice (close, and mark-phase synthesis)", () => {
+  const sliceDir = "/tmp/slice";
+
+  /** @param {{ synthesisMarked?: boolean }} [options] */
+  function closingStore({ synthesisMarked = false } = {}) {
+    let state = { ...sampleTalk(), status: "synthesizing" };
     for (const phase of ["acquire", "transcript", "watching", "vision", "harvest", "research"]) {
       state = markPhaseComplete(state, phase);
     }
-    const { store, readFile, writeFile, mkdir } = memoryStore([
-      [watchStatePath(sliceDir), `${JSON.stringify(state, null, 2)}\n`],
-    ]);
+    if (synthesisMarked) state = markPhaseComplete(state, "synthesis");
+    return memoryStore([[watchStatePath(sliceDir), `${JSON.stringify(state, null, 2)}\n`]]);
+  }
 
-    await runMarkPhase(sliceDir, "synthesis", { readFile, writeFile, mkdir });
+  /**
+   * Outcome-check double that records the watch.json it saw on disk when it ran.
+   *
+   * @param {Map<string, string>} store
+   * @param {number} exitCode
+   */
+  function outcomeCheck(store, exitCode) {
+    /** @type {{ status: string, synthesisMarked: boolean }[]} */
+    const seen = [];
+    const verifyOutcomes = vi.fn(async () => {
+      const onDisk = JSON.parse(store.get(watchStatePath(sliceDir)));
+      seen.push({ status: onDisk.status, synthesisMarked: Boolean(onDisk.phases.synthesis) });
+      return exitCode;
+    });
+    return { verifyOutcomes, seen };
+  }
 
-    expect(JSON.parse(store.get(watchStatePath(sliceDir))).status).toBe("complete");
+  /** @param {Map<string, string>} store */
+  const persisted = (store) => JSON.parse(store.get(watchStatePath(sliceDir)));
+
+  it("marking synthesis runs the close checks: complete on a pass", async () => {
+    const { store, readFile, writeFile, mkdir } = closingStore();
+    const { verifyOutcomes, seen } = outcomeCheck(store, 0);
+
+    const code = await runMarkPhase(sliceDir, "synthesis", {
+      readFile,
+      writeFile,
+      mkdir,
+      verifyOutcomes,
+    });
+
+    expect(code).toBe(0);
+    expect(seen).toEqual([{ status: "synthesizing", synthesisMarked: true }]);
+    expect(persisted(store).status).toBe("complete");
+  });
+
+  it("marking synthesis leaves status unchanged and exits non-zero when the checks fail", async () => {
+    const { store, readFile, writeFile, mkdir } = closingStore();
+    const { verifyOutcomes } = outcomeCheck(store, 1);
+
+    const code = await runMarkPhase(sliceDir, "synthesis", {
+      readFile,
+      writeFile,
+      mkdir,
+      verifyOutcomes,
+    });
+
+    expect(code).toBe(1);
+    expect(persisted(store).status).toBe("synthesizing");
+    expect(persisted(store).phases.synthesis).not.toBeNull();
+  });
+
+  it("close writes complete only after the checks pass", async () => {
+    const { store, readFile, writeFile, mkdir } = closingStore();
+    const { verifyOutcomes, seen } = outcomeCheck(store, 0);
+
+    const code = await runClose(sliceDir, { readFile, writeFile, mkdir, verifyOutcomes });
+
+    expect(code).toBe(0);
+    expect(seen).toEqual([{ status: "synthesizing", synthesisMarked: true }]);
+    expect(persisted(store).status).toBe("complete");
+  });
+
+  it("close leaves status unchanged and exits 1 when the checks fail", async () => {
+    const { store, readFile, writeFile, mkdir } = closingStore();
+    const { verifyOutcomes } = outcomeCheck(store, 1);
+
+    const code = await runClose(sliceDir, { readFile, writeFile, mkdir, verifyOutcomes });
+
+    expect(code).toBe(1);
+    expect(persisted(store).status).toBe("synthesizing");
+  });
+
+  it("close completes a slice whose synthesis was already marked", async () => {
+    const { store, readFile, writeFile, mkdir } = closingStore({ synthesisMarked: true });
+    const markedAt = persisted(store).phases.synthesis.completedAt;
+    const { verifyOutcomes } = outcomeCheck(store, 0);
+
+    const code = await runClose(sliceDir, { readFile, writeFile, mkdir, verifyOutcomes });
+
+    expect(code).toBe(0);
+    expect(verifyOutcomes).toHaveBeenCalledTimes(1);
+    expect(persisted(store).status).toBe("complete");
+    expect(persisted(store).phases.synthesis.completedAt).toBe(markedAt);
+  });
+
+  it("re-running mark-phase synthesis after a failed close retries the close", async () => {
+    const { store, readFile, writeFile, mkdir } = closingStore({ synthesisMarked: true });
+    const { verifyOutcomes } = outcomeCheck(store, 0);
+
+    const code = await runMarkPhase(sliceDir, "synthesis", {
+      readFile,
+      writeFile,
+      mkdir,
+      verifyOutcomes,
+    });
+
+    expect(code).toBe(0);
+    expect(persisted(store).status).toBe("complete");
+  });
+
+  it("close returns 1 without running the checks when watch.json is missing", async () => {
+    const { readFile, writeFile } = memoryStore();
+    const verifyOutcomes = vi.fn(async () => 0);
+
+    const code = await runClose(sliceDir, { readFile, writeFile, verifyOutcomes });
+
+    expect(code).toBe(1);
+    expect(verifyOutcomes).not.toHaveBeenCalled();
+    expect(writeFile).not.toHaveBeenCalled();
   });
 });
 
