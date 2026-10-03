@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.77.1] - 2026-10-02
+## [0.77.1] - 2026-10-03
 
 ### Changed
 
@@ -12,13 +12,16 @@ All notable changes to the `source-control` plugin are documented here. Format f
   on the head is completed and every comment-only reviewer has landed its round or reached its
   Gate 5 bound before the push, and the cycle's CI fixes (§3.2) go up in the same push. Steps
   D6 in `SKILL.md` and `reference/review-discipline.md` commit per finding and push once per
-  round. A PR body or label change is written before that push, never after it.
+  round; the D6 "verify commit pushed" check, and D7 and D7.5 after it, run for every finding
+  after that push. A PR body or label change is written before that push, never after it.
 - **The ready flip pushes the security review's commits in one push right before
-  `gh pr ready`,** so the ready run replaces that push's draft run within seconds.
-  ready-for-review.md also records that `gh pr update-branch` pushes nothing when the head
-  already contains the base tip.
-- **`/source-control:babysit-prs` starts a comment wave's fixes only after every reviewer check
-  run on the head has completed,** so a late finding does not cost a second push.
+  `gh pr ready`,** through `push-branch.sh`, so the ready run replaces that push's draft run
+  within seconds. ready-for-review.md also records that `gh pr update-branch` pushes nothing
+  when the head already contains the base tip.
+- **`/source-control:babysit-prs` runs a comment wave as one batch:** it starts only after every
+  reviewer check run on the head has completed, commits each fix, pushes once through
+  `lane_push`, then verifies each commit and posts each D7 reply. §5.1.4 no longer pushes per
+  finding.
 
 ## [0.77.0] - 2026-10-03
 

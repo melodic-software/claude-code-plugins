@@ -77,9 +77,12 @@ clean on `git rev-parse HEAD`.
 ## 2.5.4 Flip to ready
 
 When 2.5.3 committed anything, push it all in one push and flip right after it, so the ready run
-replaces that push's draft run within seconds instead of after it ran to the end.
+replaces that push's draft run within seconds instead of after it ran to the end. Push through
+`push-branch.sh`, as [create.md](create.md) does: it pushes to the remote `resolve-remote.sh
+--push` resolves, so a fork or triangular checkout never pushes to the wrong remote.
 
 ```bash
+bash "<skill-dir>/scripts/push-branch.sh" || exit 1   # only when 2.5.3 committed anything
 gh pr ready "$PR_NUMBER"
 ```
 

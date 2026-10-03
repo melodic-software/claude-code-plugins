@@ -4,13 +4,13 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.17.6] - 2026-10-02
+## [0.17.6] - 2026-10-03
 
 ### Changed
 
-- `/playbooks:repo-sweep next` ticks a committed step before pushing it, not after: a PR body
-  edit made while the push's CI run is in flight starts a second run on the same head. A failed
-  push is retried before anything else, since the tick already names the commit.
+- `/playbooks:repo-sweep next` states why a committed step is pushed before it is ticked: the
+  tick writes the remote PR body, so ticking first lets the body name a commit the branch lacks
+  when the session dies before the push. An eval expectation now checks the order.
 
 ## [0.17.5] - 2026-10-02
 
