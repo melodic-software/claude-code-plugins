@@ -52,6 +52,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/discovery:blindspot`](../plugins/discovery/skills/blindspot/SKILL.md) | `discovery` | Surface your unknown-unknowns and sharpen the prompt before unfamiliar work |
 | [`/discovery:explore`](../plugins/discovery/skills/explore/SKILL.md) | `discovery` | Explore code, history, tests, and config before changing anything |
 | [`/discovery:trace-intent`](../plugins/discovery/skills/trace-intent/SKILL.md) | `discovery` | Reconstruct why a thing was built this way, from evidence outside the code |
+| [`/performance:go-faster`](../plugins/performance/skills/go-faster/SKILL.md) | `performance` | Whole-process speed sweep with evidenced, ranked findings and adopt-now speedups |
 | [`/performance:target`](../plugins/performance/skills/target/SKILL.md) | `performance` | Rank optimization candidates by evidence quality, not suspicion |
 
 ## 2. Research

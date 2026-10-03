@@ -3,6 +3,22 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0] - 2026-10-03
+
+### Added
+
+- **`/performance:go-faster`**: a whole-process sweep for ways to go faster without losing accuracy.
+  A background `go-faster-sweeper` agent checks 16 areas against a verified bottleneck catalog,
+  records findings and baselines through `findings.py`, and offers session-only changes for adoption.
+  It sweeps and ranks; it does not drive the goal, snapshot, verify and protect loop.
+
+### Changed
+
+- **`/performance:target` no longer claims the open-ended "what is slow here" sweep.** That belongs to
+  `/performance:go-faster`; target ranks the candidates that sweep, or the user, brings, and its
+  `## Next` names go-faster.
+- The plugin description names go-faster and is shortened to stay within 500 characters.
+
 ## [0.5.2] - 2026-10-02
 
 ### Changed

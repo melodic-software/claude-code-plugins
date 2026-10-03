@@ -53,7 +53,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 ## Verification
 
 - [`verification`](../plugins/verification): Outcome-verification stage: prove a change achieved its intended outcome (`/verification:confirm`: a mechanical build/test/lint prerequisite gate, then intent-match + evidence + verdict with the criterion auto-detected by change type), and verify measurable-improvement claims against a planning-time baseline (`/verification:measure`), never fabricating numbers.
-- [`performance`](../plugins/performance): Measurement-first optimization that refuses to report what the data does not support. target ranks candidates by evidence quality. goal sets realistic and ideal targets and computes the floor first. snapshot captures baseline and post runs on a qualified host, interleaves before/after arms, and refuses wall-clock claims from a noisy host, reporting a drift-immune counter. verify re-derives results in a fresh context. protect locks in a counter win with a CI ceiling.
+- [`performance`](../plugins/performance): Measurement-first optimization that refuses to report what the data does not support. go-faster sweeps the whole process for evidenced ways to go faster. target ranks candidates by evidence quality. goal sets realistic and ideal targets and computes the floor first. snapshot captures interleaved baseline and post runs on a qualified host and refuses wall-clock claims from a noisy one. verify re-derives results in a fresh context. protect locks in a counter win with a CI ceiling.
 
 ## Quality
 
