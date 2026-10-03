@@ -496,7 +496,7 @@ After the push:
 
 ## 3.4 Final monitoring report (readiness-gated)
 
-**Do NOT declare convergence until the full [readiness checklist](readiness.md) passes.** Run all 6 gates from that file before presenting the monitoring report. Hard requirement. No "close enough" for merge readiness.
+**Do NOT declare convergence until the full [readiness checklist](readiness.md) passes.** Run all 7 gates from that file before presenting the monitoring report. Hard requirement. No "close enough" for merge readiness.
 
 **The readiness checklist includes a 2-minute cooldown** after the last check-run completion or comment arrival. If a new comment or check result arrives during cooldown, restart the cooldown.
 
@@ -509,6 +509,7 @@ When all readiness gates pass:
 **Check runs:** X passed, Y skipped, Z failed-informational
 **Security:** [scanner] evaluated, N findings classified
 **Comments:** X from N reviewers, Y fixed, Z deferred (structural, urgent, or fix blocked on research; item ids), W incorrect
+**Review threads:** 0 unresolved
 **Review lanes:** [each lane on the checks roster: productive, or ABSENT with what was run locally in its place]
 **Cooldown:** 2+ min since last activity
 **Fix iterations:** N

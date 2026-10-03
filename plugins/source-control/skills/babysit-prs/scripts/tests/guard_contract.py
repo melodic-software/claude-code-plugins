@@ -45,6 +45,7 @@ REFRESH_CLI = "skills/babysit-prs/scripts/refresh_pr_branch.py"
 REVIEW_CLI = "skills/babysit-prs/scripts/request_review.py"
 SNAPSHOT_CLI = "skills/babysit-prs/scripts/pr_queue_snapshot.py"
 FINDINGS_CLI = "skills/babysit-prs/scripts/babysit_findings.py"
+THREADS_CLI = "skills/babysit-prs/scripts/pr_review_threads.py"
 READINESS_GATE = "scripts/babysit-readiness-gate.sh"
 MERGE_WRAPPER = "scripts/source-control-babysit-merge"
 RESOLVE_WRAPPER = "scripts/source-control-babysit-resolve-thread"
@@ -1381,6 +1382,20 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         mutates_what="nothing",
         gate="n/a",
         claim="Pure classification over supplied input; no write of any kind.",
+        backed_by=(),
+    ),
+    EntryPoint(
+        path=THREADS_CLI,
+        wrapper=None,
+        mutation=READ_ONLY,
+        mutates_what="nothing",
+        gate="n/a",
+        claim=(
+            "The pull-request skill's readiness thread gate, run through "
+            "scripts/source-control-review-threads. It reads unresolved review "
+            "threads and reports THREADS_OK / THREADS_BLOCKED / THREADS_UNPROVEN; "
+            "it writes no file and performs no GitHub write."
+        ),
         backed_by=(),
     ),
     EntryPoint(
