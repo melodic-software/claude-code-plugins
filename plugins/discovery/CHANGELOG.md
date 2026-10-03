@@ -1,5 +1,18 @@
 # Changelog: discovery plugin
 
+## [0.28.0] - 2026-10-03
+
+### Added
+
+- **Interactive blindspot view, built with the shared view builder (#5864).** `/discovery:blindspot` offers a
+  view of its cards: filterable by type, a tick for each card that was news to the reader, the improved
+  prompt, and a copy-out of the reaction. `scripts/build-view.mjs` fills a checked-in template with the
+  session's JSON as escaped data through `lib/view-builder.mjs` and `lib/view-runtime.js`, which the plugin
+  now carries as generated copies with `lib/html-escape.mjs`. No page carries model-written markup or script,
+  so repository and fetched text stays data, and no page sits beside the cards, which stay the record. The
+  publish destination comes from the `medium` key of the `rendered-views` cascade (`file` when unset); the
+  procedure is in `reference/rendered-view.md`.
+
 ## [0.27.1] - 2026-10-02
 
 ### Fixed

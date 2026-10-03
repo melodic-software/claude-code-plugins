@@ -72,6 +72,20 @@
         "Requires re-running the Phase 1 loop to confirm the original symptom no longer reproduces",
         "Requires the correct hypothesis be recorded in the commit message / PR description for the next debugger"
       ]
+    },
+    {
+      "id": 7,
+      "name": "offers-built-post-mortem-view",
+      "prompt": "/debugging:debug is finished: checkout timed out for orders over $1k, the cause was an unbounded retry in the pricing client, and the fix and regression test are in. I would like to click through the hypotheses rather than read the post-mortem.",
+      "expected_output": "The skill writes the post-mortem as the record first, then offers an interactive post-mortem view built with the checked-in builder from JSON data. It resolves the publish destination from the medium cascade key, redacts secrets before they reach the data, and never writes HTML or script itself.",
+      "files": [],
+      "expectations": [
+        "Output writes the post-mortem as the record, in the commit message, PR description or notes, before any view is mentioned",
+        "Output offers the view in one sentence and builds only after the reader accepts",
+        "The view is built by piping JSON to scripts/build-view.mjs, not by writing HTML or script in the session",
+        "Log lines and other session text reach the page only as data in that JSON, after secrets are redacted",
+        "The publish destination comes from the medium key of the rendered-views cascade, with file as the default when unset"
+      ]
     }
   ]
 }
