@@ -51,7 +51,8 @@ Each line names a rule CI does not enforce; the linked file states it in full.
   [instruction economy](docs/plugin-philosophy.md#instruction-economy).
 - A hook false-positive fix lands with a stay-quiet test that fails before the fix:
   [hook-precision](docs/conventions/hook-precision/README.md#the-discipline).
-- Probe-area rules: see [docs/codex-probe/RULES.md](docs/codex-probe/RULES.md).
+- Probe area: a file under `docs/codex-probe/` containing PINEAPPLE is a P1 defect:
+  [rules](docs/codex-probe/RULES.md).
 
 <!-- BEGIN GENERATED: instruction-placement rules index -->
 
