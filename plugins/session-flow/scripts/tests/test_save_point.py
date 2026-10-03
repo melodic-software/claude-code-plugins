@@ -21,6 +21,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -453,6 +454,40 @@ def test_validate_secret_shape_is_warn_only(tmp_path):
         and "secret-shaped" in out(result)
         and "GitHub token" in out(result)
     )
+
+
+def test_validate_flags_a_github_app_installation_token_in_jwt_form(tmp_path):
+    handoffs = materialize(tmp_path, "good-chain")
+    target = handoffs / HOP1
+    text = target.read_text(encoding="utf-8")
+    # ghs_<APPID>_<JWT>, about 520 characters; the segments spell FAKE.
+    token = "ghs" + "_1234567_eyJFAKE.FAKEpayload" + "A" * 450 + ".FAKEsignatureNOTreal"
+    text = text.replace(
+        "None. Nothing waits on a person or an access grant.",
+        f"None. The token {token} was rotated.",
+    )
+    target.write_text(text, encoding="utf-8", newline="\n")
+    result = run("validate", str(target), "--strict-transcript")
+    assert result.returncode == 0, out(result)
+    assert "secret-shaped" in out(result) and "GitHub token" in out(result)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "ghs_1_-" * 50000,
+        "ghs_1_eyJ" * 30000,
+        "ghs_1_eyJa." * 30000,
+        "ghs_1_eyJ-" * 30000,
+    ],
+    ids=["dash", "header", "dotted", "header-dash"],
+)
+def test_secret_shape_scan_of_an_adversarial_line_finishes_promptly(line):
+    # Shapes that made the GitHub token pattern backtrack for seconds to minutes.
+    start = time.monotonic()
+    for pattern, _ in _save_point_module().SECRET_SHAPES:
+        pattern.search(line)
+    assert time.monotonic() - start < 1.0
 
 
 @pytest.mark.parametrize("marker", ["- ", "* ", "+ ", "1. ", "2) "])

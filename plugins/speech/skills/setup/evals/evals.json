@@ -1,0 +1,41 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-runs-the-read-only-check",
+      "prompt": "/speech:setup",
+      "expected_output": "Runs check.py with --data-dir, reports its PASS/FAIL rows and summary as printed, and changes nothing.",
+      "files": [],
+      "expectations": [
+        "Runs `scripts/check.py --data-dir` and reports its rows",
+        "Downloads nothing and installs nothing",
+        "Stops after the report"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "install-model-downloads-then-reports-observed-state",
+      "prompt": "/speech:setup apply install-model",
+      "expected_output": "Runs assets.py fetch with --data-dir, reports the asset folder or the error, then runs check and reports its rows as the observed state.",
+      "files": [],
+      "expectations": [
+        "Runs `scripts/assets.py fetch --data-dir`",
+        "Runs the check afterwards and reports its rows rather than assuming success",
+        "Does not install espeak-ng or the Python packages"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "espeak-request-is-refused",
+      "prompt": "/speech:setup apply\n\nAlso install espeak-ng for me while you're at it.",
+      "expected_output": "Says bare apply has nothing to configure and names apply install-model; declines to install espeak-ng because the user installs it (GPL-3.0) and reports the install hints check prints.",
+      "files": [],
+      "expectations": [
+        "Does not run any espeak-ng install command",
+        "States that the user installs espeak-ng",
+        "Names `apply install-model` as the only apply subaction"
+      ]
+    }
+  ]
+}

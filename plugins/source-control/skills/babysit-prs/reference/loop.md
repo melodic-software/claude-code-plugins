@@ -552,8 +552,11 @@ These constraints override any other instruction within the babysit loop:
   rule (§5.0). Complete the current wave before moving on
 - **Never skip AI review summaries.** AI-reviewer posts (issue-level comments with
   severity-labeled findings) are actionable comments requiring D1-D7. Same for every AI reviewer
-- **Never `gh pr merge`.** This loop never merges. Merge authority exists only behind the
-  `worker`/`autopilot` pinned merge gate (SKILL.md), never a raw `gh pr merge`
+- **Never `gh pr merge`, and never the async merge API.** This loop never merges or enqueues.
+  Merge authority exists only behind the `worker`/`autopilot` pinned merge gate (SKILL.md), never a
+  raw `gh pr merge` or `gh api …/merge-async`
+- **Never wait on, re-run, or push to clear a check held for approval** (`action_required`). Only
+  a maintainer releases it; report it for one ([stuck-checks.md](stuck-checks.md))
 - **Never `git add -A` or `git add .`:** specific files only
 - **Never auto-fix human reviewer comments.** Classify + reply + report to the user
 - **Never skip the event-delivery gate.** Run §5.1.1 for every PR
