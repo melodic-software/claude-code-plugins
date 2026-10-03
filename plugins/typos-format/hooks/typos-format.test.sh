@@ -982,11 +982,11 @@ else
 fi
 # The one other row is the SessionStart prerequisite probe, exec form behind the
 # same launcher gate.
-if jq -e --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' \
-  '([.hooks[][].hooks[]] | length == 2) and ([.hooks.SessionStart[].hooks[] | select(.command == "node" and .args == [$launcher, "--run-if-unset-or-true", "TYPOS_FORMAT_ENABLED", $probe])] | length == 1)' "$HOOKS_JSON" >/dev/null; then
-  ok "hooks.json: one exec-form SessionStart row runs probe-prerequisite.sh behind --run-if-unset-or-true TYPOS_FORMAT_ENABLED"
+if jq -e --arg checker '${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs' --arg root '${CLAUDE_PLUGIN_ROOT}' \
+  '([.hooks[][].hooks[]] | length == 2) and ([.hooks.SessionStart[].hooks[] | select(.command == "node" and .args == [$checker, "probe", $root, "--run-if-unset-or-true", "TYPOS_FORMAT_ENABLED"])] | length == 1)' "$HOOKS_JSON" >/dev/null; then
+  ok "hooks.json: one exec-form SessionStart row runs the prerequisites checker's probe behind --run-if-unset-or-true TYPOS_FORMAT_ENABLED"
 else
-  fail "hooks.json: expected one exec-form SessionStart probe-prerequisite.sh row behind --run-if-unset-or-true TYPOS_FORMAT_ENABLED and no other extra row"
+  fail "hooks.json: expected one exec-form SessionStart prerequisites probe row behind --run-if-unset-or-true TYPOS_FORMAT_ENABLED and no other extra row"
 fi
 
 # --- Notice text is bound to prerequisites.json --------------------------------
@@ -996,12 +996,12 @@ fi
 # install, verbatim.
 MANIFEST="$PLUGIN_ROOT/prerequisites.json"
 if [[ -f "$MANIFEST" ]]; then
-  if jq -e '(.tools | map(.name)) == ["typos", "jq", "node"]' "$MANIFEST" >/dev/null 2>&1; then
+  if jq -e '(.requires | map(.id)) == ["typos", "jq", "node"]' "$MANIFEST" >/dev/null 2>&1; then
     ok "manifest: declares exactly typos, jq and node"
   else
     fail "manifest: expected tools typos, jq and node: $(cat "$MANIFEST")"
   fi
-  IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.tools[0] | [.name, .check, .install] | @tsv' "$MANIFEST")
+  IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST")
   NOTICE_CALL="$(sed -n '/hook::notice_once "typos-format-typos"/,/^  fi$/p' "$HOOK")"
   # assert_hook_states <field> <needle>
   assert_hook_states() {

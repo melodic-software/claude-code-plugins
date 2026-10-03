@@ -15,6 +15,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   session not served GraphQL, reports `THREADS_UNPROVEN` and holds the gate. The babysit merge
   gate's thread records now also carry the first comment's URL.
 
+## [0.77.2] - 2026-10-03
+
+### Changed
+
+- `prerequisites.json` is converted to the schema `docs/conventions/prerequisites/` owns: a `requires` list whose entries carry `id`, `kind`, `need`, `for`, `detect`, `degrade`, `install` and `check`, in place of the retired `tools` list ([#5840](https://github.com/melodic-software/claude-code-plugins/issues/5840)). The plugin now ships the shared checker, `lib/prerequisites.mjs` with its `lib/prerequisites.sh` and `lib/prerequisites.ps1` stubs, generated from the repository's canonical copy.
+
 ## [0.77.1] - 2026-10-03
 
 ### Changed

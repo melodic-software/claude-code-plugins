@@ -3,6 +3,12 @@
 All notable changes to the `speech` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.2] - 2026-10-03
+
+### Changed
+
+- Shared `prerequisites.mjs` synced ([#5840](https://github.com/melodic-software/claude-code-plugins/issues/5840)); no change to this plugin's lib.
+
 ## [0.1.1] - 2026-10-03
 
 ### Changed
