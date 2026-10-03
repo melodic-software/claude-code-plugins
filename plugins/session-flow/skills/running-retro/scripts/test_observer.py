@@ -815,12 +815,36 @@ class Redaction(unittest.TestCase):
         self.assertIn(
             "<REDACTED: GitHub token>", r("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345")
         )
+        # ghs_<APPID>_<JWT> installation token, about 520 characters; the
+        # segments spell FAKE.
+        jwt = "eyJFAKE.FAKEpayload" + "A" * 450 + ".FAKEsignatureNOTreal"
+        self.assertEqual(
+            "tok <REDACTED: GitHub token> z", r("tok ghs" + "_1234567_" + jwt + " z")
+        )
         self.assertIn("<REDACTED: connection string>", r("postgres://u:p@h/db"))
         self.assertIn("<REDACTED: email>", r("a.b+c@ex.co"))
         self.assertIn("<REDACTED: secret>", r('password: "hunter2hunter2"'))
 
     def test_clean_passthrough(self):
         self.assertEqual(observer._redact("no secrets here"), "no secrets here")
+
+    def test_github_token_pattern_finishes_promptly_on_adversarial_text(self):
+        # Shapes that made the pattern backtrack for seconds to minutes.
+        (github,) = (
+            p
+            for p, marker in observer._REDACTIONS
+            if marker == "<REDACTED: GitHub token>"
+        )
+        for text in (
+            "ghs_1_-" * 50000,
+            "ghs_1_eyJ" * 30000,
+            "ghs_1_eyJa." * 30000,
+            "ghs_1_eyJ-" * 30000,
+        ):
+            with self.subTest(text=text[:12]):
+                start = time.monotonic()
+                github.sub("x", text)
+                self.assertLess(time.monotonic() - start, 1.0)
 
 
 class ResultParsing(unittest.TestCase):
