@@ -61,6 +61,7 @@ eol-normalizer node
 eol-normalizer schema
 evals claude
 evals python3
+explainer-video jq
 firecrawl curl
 firecrawl firecrawl
 firecrawl jq
