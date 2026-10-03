@@ -2122,7 +2122,7 @@ jobs:
       - name: Test the exec-form bash launcher resolver
         if: needs.changes.outputs.run_tests == 'true'
         run: |
-          [ "$LEG" = 3 ] || exit 0
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
           node --test lib/exec-bash.resolver.test.mjs
 
       - name: Check for unregistered or drifted cross-plugin source clusters
