@@ -4,6 +4,11 @@ Notable changes to the on-demand dependency contract. The contract is versioned 
 stamp in `README.md` (SemVer). A `[SPEC]` rule that tightens is a major bump; a new rule, exception
 or adopter is a minor bump; wording is a patch.
 
+## [2.2.0] - 2026-10-02
+
+- **Adoption**: the `speech` plugin's numpy and onnxruntime follow the Python rules
+  ([#5859](https://github.com/melodic-software/claude-code-plugins/issues/5859)).
+
 ## [2.1.0] - 2026-10-02
 
 - **Python section, Rules P1-P4 [SPEC]**: commit `requirements.in` and a universal, hash-locked

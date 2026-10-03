@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "speech",
+  "version": "0.1.0",
+  "description": "Text-to-speech narration. The narrate skill turns a script into narration.wav plus words.json, a start and end time for every word, so a video or page can sync to the voice. The kokoro backend runs Kokoro-82M (Apache-2.0) locally through onnxruntime; its word timings come from the model's own per-token durations. espeak-ng, which kokoro needs to read words as phonemes, is GPL-3.0 and installed by you, never by the plugin. A SessionStart hook installs the hash-locked Python packages into the plugin data directory, setup downloads the pinned model files, and check reports each missing prerequisite.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "speech",
+    "text-to-speech",
+    "tts",
+    "narration",
+    "kokoro",
+    "word-timings",
+    "skill"
+  ]
+}
