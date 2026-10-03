@@ -1,0 +1,2 @@
+{"type":"user","uuid":"x-01","isSidechain":true,"timestamp":"2026-10-01T10:00:25.000Z","message":{"role":"user","content":"Find the login handler"}}
+{"type":"assistant","uuid":"x-02","isSidechain":true,"timestamp":"2026-10-01T10:00:26.000Z","message":{"id":"msg_s1","role":"assistant","model":"claude-sonnet-5-5","content":[{"type":"text","text":"src/a.py"}],"stop_reason":"end_turn","usage":{"input_tokens":2,"output_tokens":3,"cache_creation_input_tokens":0,"cache_read_input_tokens":0}}}

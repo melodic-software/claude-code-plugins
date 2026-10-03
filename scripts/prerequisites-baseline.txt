@@ -121,7 +121,6 @@ playbooks claude
 playbooks curl
 playbooks gh
 playbooks jq
-playbooks yarn
 playwright jq
 playwright npm
 playwright npx
@@ -163,6 +162,7 @@ source-control py
 source-control python
 source-control python3
 source-control schema
+speech jq
 testing jq
 testing schema
 typos-format jq

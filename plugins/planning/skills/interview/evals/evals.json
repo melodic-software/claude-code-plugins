@@ -105,14 +105,15 @@
       "id": 9,
       "name": "recommends-session-config-engineering-downstream",
       "prompt": "/planning:interview me — I need to re-architect our authorization layer to support per-resource policies across three services, and I'm unsure which invariants can change safely.",
-      "expected_output": "This is an engineering session (a code re-architecture that hands off downstream per Step 5), so at the stop/handoff boundary the skill recommends how to configure the downstream execution session — a model tier and effort level chosen per the capability-vs-thoroughness distinction, plus the advisor pairing when the main model is a faster tier, deriving the current model names and accepted pairings from the live official docs rather than pinned values, framed as an advisory delta the user applies, and degrading gracefully (durable distinction + a visible note) if the docs cannot be fetched rather than halting or guessing a model name.",
+      "expected_output": "This is an engineering session (a code re-architecture that hands off downstream per Step 5), so at the stop/handoff boundary the skill recommends how to configure the downstream execution session — a model tier and effort chosen per the capability-vs-thoroughness distinction, with effort split into a separate implement level and verify level, each named with the model-config effort-table row it matched and neither below medium, plus the advisor pairing when the main model is a faster tier, deriving the current model names and accepted pairings from the live official docs rather than pinned values, framed as an advisory delta the user applies, and degrading gracefully (durable distinction + a visible note, and no effort level for either phase) if the docs cannot be fetched rather than halting or guessing a model name.",
       "files": [],
       "expectations": [
         "Because this is an engineering session that hands off downstream, output frames the recommendation as configuring the downstream execution session (not the current/next session)",
         "Output recommends a model tier and effort level, distinguishing capability (model) from thoroughness (effort)",
         "Output recommends advisor pairing when the main model is a faster tier, rather than a faster main with no advisor",
+        "Output recommends a separate effort level for the implement phase and for the verify phase, each naming the model-config effort-table row it matched, and neither below medium",
         "Current model names / tiers / pairings are sourced from the live official docs, not pinned in the skill",
-        "On a doc-fetch failure the skill degrades to the durable distinction with a visible note and does not halt the interview or guess a model name",
+        "On a doc-fetch failure the skill degrades to the durable distinction with a visible note, recommends no effort level for either the implement or the verify phase, and does not halt the interview or guess a model name",
         "The recommendation is framed as advisory (applied via /model, /advisor, effort setting), not as a read of the user's current config"
       ]
     },

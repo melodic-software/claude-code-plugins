@@ -1,5 +1,58 @@
 # Changelog: session-flow plugin
 
+## [0.47.0] - 2026-10-03
+
+### Changed
+
+- **`orchestrate` keeps code and verify work off the lower effort tier.** Work that changes code,
+  verifies a change, or is likely to hit edge cases takes its level from model-config's effort
+  table, never below medium, even when the rest of a fan-out runs cheaper.
+
+## [0.46.2] - 2026-10-03
+
+### Fixed
+
+- The running-retro observer's ledger redaction and the save-point validator's secret-shape scan
+  match GitHub App installation tokens in the `ghs_<APPID>_<JWT>` format GitHub rolls out from
+  2026-04-27, whose JWT header starts `eyJ`. The old pattern stopped at the `_` after the app ID,
+  so such a token was neither redacted nor warned about.
+
+## [0.46.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `find-handoff` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [0.46.0] - 2026-10-02
+
+### Added
+
+- **`audit-sessions` skill.** Collects every session transcript on the machine into a durable local
+  store under the plugin data directory (one record per session, incremental, redacted excerpts of
+  short typed turns only), then sweeps the store for sessions over this machine's own thresholds
+  and routes each finding to the skill that would act on it. It never applies a finding. A drift
+  check compares the transcript format across Claude Code versions and marks a metric unavailable
+  when a field it reads disappears.
+- **One shared transcript reader**, `scripts/transcript_reader.py`, used by `audit-sessions` and
+  `retro`'s parser.
+- **Five `audit_sessions_*` options**: store retention (default 180 days), excerpt length, the
+  short-turn word limit, and the two drift-check bounds.
+- `retro` names `/session-flow:audit-sessions sweep` as its next step.
+
+### Fixed
+
+- **`retro` no longer roughly doubles token counts or counts injected records as human
+  messages** (#5818). A message streamed as several transcript records is now counted once, and
+  `human_messages` counts only turns the person typed, not slash-command output, task
+  notifications, peer-session messages, interrupts or meta records. Field names, the output shape,
+  the CLI forms and exit codes are unchanged. **One-time step in retro trend history:** token and
+  human-message numbers from this version on are lower than earlier retros' for the same kind of
+  session; compare across that step with care.
+- **`retro`'s parser reports a transcript line that is valid JSON but not an object** as a parse
+  error instead of skipping it silently.
+
 ## [0.45.0] - 2026-10-02
 
 ### Added
