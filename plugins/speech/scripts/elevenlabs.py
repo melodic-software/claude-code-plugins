@@ -102,6 +102,8 @@ def word_times(text, alignment):
     if len(joined) != len(chars):
         raise Failed('the alignment holds a multi-character entry, so words cannot be located')
     starts, ends = alignment['character_start_times_seconds'], alignment['character_end_times_seconds']
+    if len(starts) != len(chars) or len(ends) != len(chars):
+        raise Failed('the alignment timing arrays are not the same length as its characters')
     cursor, words = 0, []
     for token in text.split():
         i = joined.find(token, cursor)
@@ -135,16 +137,14 @@ def narrate(text, out, voice=DEFAULT_VOICE, model=DEFAULT_MODEL, proceed=False, 
         return None
     reply = send(text, voice, model, key)
     try:
-        pcm = base64.b64decode(reply['audio_base64'])
+        pcm = base64.b64decode(reply['audio_base64'], validate=True)
         words = word_times(text, reply['alignment'])
     except (KeyError, TypeError, ValueError) as e:
         raise Failed(f'the response was not the expected audio and alignment ({type(e).__name__})') from None
+    if not pcm or len(pcm) % 2:
+        raise Failed('the response held no 16-bit audio')
     out.mkdir(parents=True, exist_ok=True)
-    with wave.open(str(out / 'narration.wav'), 'wb') as w:
-        w.setnchannels(1)
-        w.setsampwidth(2)
-        w.setframerate(SAMPLE_RATE)
-        w.writeframes(pcm)
+    wav_tmp, json_tmp = out / 'narration.wav.tmp', out / 'words.json.tmp'
     record = {
         'audio': 'narration.wav',
         'sample_rate': SAMPLE_RATE,
@@ -154,7 +154,18 @@ def narrate(text, out, voice=DEFAULT_VOICE, model=DEFAULT_MODEL, proceed=False, 
         'model': model,
         'words': words,
     }
-    (out / 'words.json').write_text(json.dumps(record, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+    try:
+        with wave.open(str(wav_tmp), 'wb') as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(SAMPLE_RATE)
+            w.writeframes(pcm)
+        json_tmp.write_text(json.dumps(record, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+        os.replace(wav_tmp, out / 'narration.wav')
+        os.replace(json_tmp, out / 'words.json')
+    finally:
+        wav_tmp.unlink(missing_ok=True)
+        json_tmp.unlink(missing_ok=True)
     return record
 
 

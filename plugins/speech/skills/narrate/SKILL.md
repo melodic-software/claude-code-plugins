@@ -71,8 +71,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/elevenlabs.py" --script <script file> --o
    Do not add `--proceed` on your own, and do not reuse an earlier yes for a changed script, model or
    voice: run step 1 again.
 
-The default model is `eleven_multilingual_v2`; `--model eleven_flash_v2_5` costs half and takes longer
-scripts. `--voice` takes an ElevenLabs voice id. Rates and per-request limits are the script's
+The default model is `eleven_multilingual_v2`; `--model eleven_flash_v2_5` takes longer scripts and
+is priced differently. `--voice` takes an ElevenLabs voice id. Rates and per-request limits are the script's
 `MODELS` table, read from <https://elevenlabs.io/pricing/api> and
 <https://elevenlabs.io/docs/overview/models> on 2026-10-03; recheck when either page changes. The
 cost is an estimate: ElevenLabs bills credits against the user's plan.

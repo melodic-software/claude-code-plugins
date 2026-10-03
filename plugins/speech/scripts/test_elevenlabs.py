@@ -148,6 +148,35 @@ class Outputs(unittest.TestCase):
         with self.assertRaises(elevenlabs.Failed):
             elevenlabs.word_times('ab zz', reply('ab cd')['alignment'])
 
+    def test_a_truncated_timing_array_fails_instead_of_raising_index_error(self):
+        alignment = reply('ab cd')['alignment']
+        alignment['character_end_times_seconds'].pop()
+        with self.assertRaises(elevenlabs.Failed):
+            elevenlabs.word_times('ab cd', alignment)
+
+    def test_empty_or_malformed_audio_writes_nothing(self):
+        bad = {'empty': '', 'junk': '!!!!', 'odd': base64.b64encode(b'\x00\x01\x02').decode()}
+        for name, audio in bad.items():
+            with self.subTest(name), tempfile.TemporaryDirectory() as tmp:
+                body = {**reply(), 'audio_base64': audio}
+                with self.assertRaises(elevenlabs.Failed):
+                    elevenlabs.narrate(TEXT, Path(tmp), proceed=True, env={elevenlabs.KEY_VAR: KEY},
+                                       send=lambda *a, body=body: body, say=lambda s: None)
+                self.assertEqual(list(Path(tmp).iterdir()), [])
+
+    def test_a_failed_second_write_leaves_the_previous_pair_untouched(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            (out / 'narration.wav').write_bytes(b'old audio')
+            (out / 'words.json').write_text('old words', encoding='utf-8')
+            with mock.patch.object(Path, 'write_text', side_effect=OSError('disk full')):
+                with self.assertRaises(OSError):
+                    elevenlabs.narrate(TEXT, out, proceed=True, env={elevenlabs.KEY_VAR: KEY},
+                                       send=lambda *a: reply(), say=lambda s: None)
+            self.assertEqual((out / 'narration.wav').read_bytes(), b'old audio')
+            self.assertEqual((out / 'words.json').read_text(encoding='utf-8'), 'old words')
+            self.assertEqual(sorted(p.name for p in out.iterdir()), ['narration.wav', 'words.json'])
+
     def test_a_script_over_the_model_limit_is_refused_before_any_statement(self):
         events = []
         with self.assertRaises(ValueError):
