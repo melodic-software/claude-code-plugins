@@ -1,5 +1,5 @@
 ---
-description: "Read-only report of whether the external tools the animation plugin declares in prerequisites.json resolve, through the shared Node checker. /animation:setup is the fuller setup report; this skill is the shared checker's. Use when a hook notice says node is missing, or before assuming the animation Python packages were installed. Does not install."
+description: "Read-only report of whether the external tools the animation plugin declares in prerequisites.json resolve, through the shared Node checker. /animation:setup is the fuller setup report; this skill is the shared checker's. Use when: 'animation node notice', 'is animation ready', a hook notice says node is missing, or before assuming the animation Python packages were installed. Does not install."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -31,7 +31,7 @@ Report the PASS/FAIL rows as a table. On a FAIL, give the install hints the chec
 
 ## Next
 
-A passing check has no successor. For the fuller setup report, run `/animation:setup`.
+/animation:setup
 
 ## Gotchas
 
