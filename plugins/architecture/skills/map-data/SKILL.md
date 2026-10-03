@@ -159,6 +159,13 @@ End every run with this block, in this order:
 - **Mismatches**: the count. A mismatch is reported, not silently resolved.
 - **Live**: not requested, or requested and refused. No connection was opened.
 
+## Interactive view
+
+After the report, offer an interactive view of `data-model.json` in one sentence. The markdown and the record
+stay authoritative. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs data`, never
+hand-written; the publish destination comes from the `medium` cascade key. Procedure:
+[`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
+
 ## What this skill does NOT do
 
 - Open a database connection, read production data, or compare live rows to the declaration.

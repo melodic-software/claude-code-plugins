@@ -68,6 +68,18 @@
         "No node or edge is derived from the Gemfile",
         "Does not run the script once per ecosystem or merge records by hand"
       ]
+    },
+    {
+      "id": 6,
+      "name": "offers-built-interactive-view",
+      "prompt": "/architecture:map-dependencies\n\ndependency-graph.json and dependency-graph.md are written. I would like to filter and trace the projects rather than read the flowchart.",
+      "expected_output": "After the report, offers an interactive view of dependency-graph.json in one sentence, builds it only with scripts/build-view.mjs dependencies from the record, and resolves the publish destination from the medium cascade key.",
+      "expectations": [
+        "dependency-graph.md and dependency-graph.json are written first and stay the record",
+        "Offers the view in one sentence and builds only after the reader accepts",
+        "Builds with scripts/build-view.mjs dependencies --record dependency-graph.json and writes no HTML or script itself",
+        "The publish destination comes from the medium key of the rendered-views cascade, with file as the default when unset"
+      ]
     }
   ]
 }

@@ -69,6 +69,18 @@
         "The artifact says the ecosystem is unknown and does not draw an empty diagram",
         "Writes the collected record to the architecture directory so the next run can read it"
       ]
+    },
+    {
+      "id": 6,
+      "name": "offers-built-interactive-view",
+      "prompt": "/architecture:map-components\n\ncomponents.md is written for the deployable src/Api/Api.csproj. I would like to filter and trace its components rather than read the tables.",
+      "expected_output": "After the report, offers an interactive view of the deployable's closure in one sentence, builds it only with scripts/build-view.mjs components from dependency-graph.json with --from naming the deployable, and resolves the publish destination from the medium cascade key.",
+      "expectations": [
+        "components.md and dependency-graph.json are written first and stay the record",
+        "Offers the view in one sentence and builds only after the reader accepts",
+        "Builds with scripts/build-view.mjs components --record dependency-graph.json --from src/Api/Api.csproj and writes no HTML or script itself",
+        "The publish destination comes from the medium key of the rendered-views cascade, with file as the default when unset"
+      ]
     }
   ]
 }
