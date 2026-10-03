@@ -43,7 +43,8 @@ import session_bridge as bridge
 HERE = Path(__file__).resolve().parent
 NAME = "view"
 START_SECONDS = 10
-IDLE_SECONDS = bridge.LEASE_TIMEOUT  # no watcher wait for this long ends the server and its token
+# No watcher wait for this long ends the server, and its token with it.
+IDLE_SECONDS = bridge.LEASE_TIMEOUT
 KEY = re.compile(r"^[a-z0-9-]{1,32}$")
 ROW_ID = re.compile(r"^[a-z0-9-]{1,128}$")
 FIELDS = {"action", "picked", "choices", "notes"}

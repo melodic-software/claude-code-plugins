@@ -15,10 +15,10 @@
 # by the code-metrics duplication audit (registry-filter.py), which excludes
 # the canonical plus every copy as one sanctioned class; this script skips it.
 
-# Dedicated check: scripts/sync-hook-utils.sh --check (CI: hook-utils-sync)
+# Dedicated check: scripts/sync-shared-copies.sh --check
 hooks/hook-utils.sh
 
-# Dedicated check: scripts/sync-hook-utils.sh --check (CI: hook-utils-sync).
+# Dedicated check: scripts/sync-shared-copies.sh --check.
 # Cluster line for the duplication audit: the root canonical and the copies.
 lib/hook-utils.sh -> plugins/*/hooks/hook-utils.sh
 
