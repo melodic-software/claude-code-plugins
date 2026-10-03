@@ -120,6 +120,18 @@
         "The untracked host is not a node",
         "Must not echo the raw connection value while explaining the redaction"
       ]
+    },
+    {
+      "id": 9,
+      "name": "offers-built-interactive-view",
+      "prompt": "/architecture:map-context\n\ncontext.json and context.md are written. I would like to filter and trace the external systems rather than read the tables.",
+      "expected_output": "After the report, offers an interactive view of context.json in one sentence, builds it only with scripts/build-view.mjs context from the record, and resolves the publish destination from the medium cascade key.",
+      "expectations": [
+        "context.md and context.json are written first and stay the record",
+        "Offers the view in one sentence and builds only after the reader accepts",
+        "Builds with scripts/build-view.mjs context --record context.json and writes no HTML or script itself",
+        "The publish destination comes from the medium key of the rendered-views cascade, with file as the default when unset"
+      ]
     }
   ]
 }
