@@ -2,8 +2,8 @@
 
 Run this top to bottom on Windows, compare every output with the recorded runs, and record each
 criterion's state. It assumes no memory of the 2026-09-19 investigation. The runs feed
-[ADR 0046](../../adr/0046-adopt-claude-code-mods-within-five-scope-rules.md), which superseded
-[ADR 0035](../../adr/0035-defer-claude-code-mods-with-five-go-criteria.md) on 2026-10-02, and the
+[ADR 0049](../../adr/0049-adopt-claude-code-mods.md), which supersedes
+[ADR 0035](../../adr/0035-defer-claude-code-mods-with-five-go-criteria.md), and the
 mods row under "Recorded gate runs" in [docs/plugin-philosophy.md](../../plugin-philosophy.md).
 
 Beside this file: [experiments.md](experiments.md) holds E1 to E6 as rerunnable procedures with
@@ -15,11 +15,10 @@ open; [sources.md](sources.md) indexes every external link both files rely on;
 
 ## The verdict rule
 
-Since 2026-10-02 [ADR 0046](../../adr/0046-adopt-claude-code-mods-within-five-scope-rules.md)
-decides: mods are adopted within its five scope rules, and criterion 5 is replaced by the check
-under [Criterion 5 as replaced by ADR 0046](#criterion-5-as-replaced-by-adr-0046). A run records
-each criterion's state. A criterion that changes state is a reason to re-derive ADR 0046, not a
-verdict by itself.
+[ADR 0049](../../adr/0049-adopt-claude-code-mods.md) decides: mods are adopted with no policy
+narrowing of what a mod may do, and criterion 5 is replaced by the check under
+[Criterion 5 as replaced](#criterion-5-as-replaced). A run records each criterion's state. A
+criterion that changes state is a reason to re-derive ADR 0049, not a verdict by itself.
 
 ADR 0035's rule, which decided the 2026-09-19 baseline: go requires **all five** criteria. Any one
 failing is **no-go**. They are not weighted and none substitutes for another.
@@ -54,9 +53,8 @@ probe under [Build the test mod](#build-the-test-mod); its procedure is
 | 4 | Official documentation states throw and timeout semantics, and the engine default is settled | The events page states both, the default included. | **Holds** |
 | 5 | The "may change between releases without notice" warning is gone from `mods/README.md` | Present, at lines 114 to 116 of the README on `main` at `1c229fcd`. The 2.1.288 types header carries it too. No docs page under `plugins/mods/` carries it. | **Fails as written** |
 
-ADR 0046 adopts mods within five scope rules with criteria 3 and 5 failing as written: its rule 2
-excludes the hook shape #92533 reports, and criterion 5 is replaced. The replaced check is
-recorded below.
+Mods are adopted with criteria 3 and 5 failing as written: the Bash half of #92533 did not
+reproduce at 2.1.288 (E8), and criterion 5 is replaced. The replaced check is recorded below.
 
 **Criterion 1.** `$MOD` is the absolute path of the spike folder.
 
@@ -111,7 +109,7 @@ was not re-run.
 
 **Criterion 4.** The pointer is
 [events: handle a hook that fails](https://code.claude.com/docs/en/plugins/mods/events#handle-a-hook-that-fails),
-read from the raw page fetched under [Criterion 5 as replaced](#criterion-5-as-replaced-by-adr-0046)
+read from the raw page fetched under [Criterion 5 as replaced](#criterion-5-as-replaced)
 (`### Handle a hook that fails` at line 305 of `mods-events.md`). The 2.1.288 `plugin-authoring`
 types state the same skip-and-continue behavior in the doc comment on the engine's event table.
 
@@ -399,9 +397,9 @@ run, and against `https://github.com/anthropics/claude-code/blob/92ec78f2/mods/R
 source-based claims in the frozen snapshot. A reworded but equivalent warning also returns 0 and is
 a genuine false positive: read the file's last paragraph, do not only count.
 
-### Criterion 5 as replaced by ADR 0046
+### Criterion 5 as replaced
 
-ADR 0046 judges stability on the ten docs pages and on the header of the `plugin-authoring` types
+ADR 0049 judges stability on the ten docs pages and on the header of the `plugin-authoring` types
 for the build in use. The README check above is still run and recorded; it no longer gates.
 
 ```sh
@@ -421,16 +419,16 @@ writes no types.
 Recorded 2026-10-02 at 2.1.288: ten `http=200` lines; no file matches `without notice` (grep exit
 1); `early access` counts 1 in `mods-overview.md`, 1 in `mods-admin.md` and 0 elsewhere, each a
 note to remove the old enable variable rather than a stability warning; types line 1 is
-`// Written by Claude Code 2.1.288.` and line 4 is the early-access line. ADR 0046 accepted that
-header at adoption.
+`// Written by Claude Code 2.1.288.` and line 4 is the early-access line. Adoption accepted that
+header as it stood.
 
-**Re-derive ADR 0046 when** a docs page gains an early-access or "without notice" warning. Record
+**Re-derive ADR 0049 when** a docs page gains an early-access or "without notice" warning. Record
 any change to the types header in the run, with the build that wrote it.
 
 ## Quick check for a Claude Code pin bump
 
 Any pull request bumping the `@anthropic-ai/claude-code` pin in `package.json` runs **criteria 1 to 3
-and the replaced criterion 5**. A few minutes. Owned by whoever bumps the pin. This is ADR 0046's
+and the replaced criterion 5**. A few minutes. Owned by whoever bumps the pin. This is ADR 0049's
 first recheck trigger.
 
 1. Record the version three ways, because every baseline is pinned to a build and a minor bump can
@@ -452,13 +450,13 @@ first recheck trigger.
 4. Criterion 2, the documentation greps and the changelog grep.
 5. Criterion 3, the `gh` query only. E2 and E8 are not part of the quick check; a state change is
    what escalates.
-6. [Criterion 5 as replaced](#criterion-5-as-replaced-by-adr-0046): the docs-page greps and the
+6. [Criterion 5 as replaced](#criterion-5-as-replaced): the docs-page greps and the
    types header.
 
 All unchanged from the last run: record the run, nothing else to do. Any one changed: do the full
 run (criterion 4 and the README check here, then every experiment and open probe in
 [experiments.md](experiments.md)), re-derive
-[ADR 0046](../../adr/0046-adopt-claude-code-mods-within-five-scope-rules.md), and update the mods
+[ADR 0049](../../adr/0049-adopt-claude-code-mods.md), and update the mods
 row in [docs/plugin-philosophy.md](../../plugin-philosophy.md).
 
 ## After a run
@@ -467,9 +465,9 @@ Record the run whatever the outcome. A run that is not written down gets re-deri
 
 - **[docs/plugin-philosophy.md](../../plugin-philosophy.md)**, the mods row: update the `As of`
   date every run, and the row's reason if the *reason* for the verdict moved.
-- **[ADR 0046](../../adr/0046-adopt-claude-code-mods-within-five-scope-rules.md)**: leave it alone
-  while its scope rules and verdict hold. If a re-derivation changes either, a superseding record or
-  an amendment carries the new decision; a runbook run does not amend an accepted ADR by itself.
+- **[ADR 0049](../../adr/0049-adopt-claude-code-mods.md)**: leave it alone while its decisions and
+  verdict hold. If a re-derivation changes either, a superseding record or an amendment carries the
+  new decision; a runbook run does not amend an ADR by itself.
   [ADR 0035](../../adr/0035-defer-claude-code-mods-with-five-go-criteria.md) is superseded and stays
   as it was written.
 - **[research-2026-09-19/](research-2026-09-19/)** is frozen: if the research is redone, write a new
@@ -477,12 +475,14 @@ Record the run whatever the outcome. A run that is not written down gets re-deri
   row for any external URL a rerun newly relies on, and a refreshed `Fetched` column for rows it
   re-fetched.
 
-**Adoption did not reopen guard conversion.** ADR 0035 kept three conditions on converting a guard
-hook to a mod; ADR 0046's rule 4 drops them and keeps every guard a settings hook. Passing criteria
-says a consumer who installs one of this repository's plugins gets a working mod, which is a
-distribution question. Whether a *guard*, a hook whose whole job is to refuse, would be as strong as
-the classic command hook is a different question, and a guard written as a mod is fail-open on throw
-and on overrun unless it attaches `.catch(() => ({ deny }))`. Two structural misfits are in no
-criterion: a mod cannot take per-repository configuration, because a project's
-`.claude/settings.json` is not read for plugin options; and a mod cannot choose its own registration
-order, so a guard at the `user` tier binds the model's tool calls but not sibling plugins.
+**Guard conversion is a parity question, not a criterion.** ADR 0035 kept three conditions on
+converting a guard hook to a mod; ADR 0049 replaces them with one rule: a guard moves into a mod
+only when the mod matches every behavior of the hook it replaces, and a settings hook stays where it
+must run with mods off. Passing criteria says a consumer who installs one of this repository's
+plugins gets a working mod, which is a distribution question. Whether a *guard*, a hook whose whole
+job is to refuse, is as strong as a mod is answered by that parity check. A guard written as a mod
+is fail-open on throw and on overrun unless it attaches `.catch(() => ({ deny }))`. Two structural
+facts are in no criterion: a mod takes no per-repository option values, because a project's
+`.claude/settings.json` is not read for `pluginConfigs` (a project turns the plugin on or off
+through `enabledPlugins`); and a mod cannot choose its own registration order, so a guard at the
+`user` tier binds the model's tool calls but not sibling plugins.

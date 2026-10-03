@@ -1,8 +1,8 @@
 # Mods: the recorded experiments and the open probes
 
 The six locally answerable unknowns the 2026-09-19 spike closed, each as a rerunnable procedure with
-that day's result as the baseline, then E7 and E8 from the 2026-10-02 run at 2.1.288, followed by
-the probes that stayed open. This is the "full run" half of [go-no-go.md](go-no-go.md); criteria
+that day's result as the baseline, then E7 and E8 from the 2026-10-02 run at 2.1.288 and E9 from
+2026-10-03, followed by the probes that stayed open. This is the "full run" half of [go-no-go.md](go-no-go.md); criteria
 are recorded there, not here.
 
 Two dependencies run the other way: criterion 3 cannot pass without E2 or E8, and E5 is the standing
@@ -588,6 +588,47 @@ returning the parent directory in a worktree subagent, on 2.1.287.
 
 Clean-up: arms A to C-debug left four locked worktrees beside the throwaway repository; C-native's
 removed itself. Remove them with `git -C <repo> worktree remove --force <path>`.
+
+## E9: two mods adding `tool.call` context, 2026-10-03
+
+Question: on 2.1.288, when two mods in separate plugins each add a line to the context of the same
+tool call, do both lines reach Claude? Linux under WSL2, every plugin loaded with `--plugin-dir`.
+
+Setup: two plugins, `mod-a` and `mod-b`. Each holds one `tool.call` hook that counts calls and, on
+the second call only, returns the result of `next(e)` with one context line added (`A line: tool
+call 2`, `B line: tool call 2`), plus a registered tool and an `AbovePrompt` band row. Two forms of
+the hook body:
+
+- **replace**: `{ ...await next(e), context: [line] }`
+- **append**: `{ ...result, context: [...(result.context ?? []), line] }`, where `result` is what
+  `await next(e)` returned
+
+`claude plugin validate` passed for all four plugin folders. Each form ran twice: under
+`claude plugin test` on `mod-a`, with `mod-b` loaded inline through the test kit's `plugins` option,
+and in a live `claude -p` run with both `--plugin-dir`s, reading the context rows from the session
+transcript.
+
+| Form | `claude plugin test` | Live `-p`: lines after the 2nd tool call |
+| --- | --- | --- |
+| replace | exit 1, 3 pass, 1 fail | `B line: tool call 2` only |
+| append | exit 0, 4 pass | `B line: tool call 2` and `A line: tool call 2` |
+
+- In the replace form the test kit reports that `mod-a`'s `tool.call` hook was skipped because it
+  returned a context without an entry a hook below it attached, and the debug log records
+  `hook failed closed: mod-a ... (tool.call; its .catch answered)`. The engine drops the outer
+  mod's answer and keeps what `next` returned, so the inner mod's line survives and the outer one's
+  is lost.
+- `mod-a` loaded first and was the outer hook in every run. The reverse order was not run.
+- Both registered tools answered and both band rows drew in both forms; only the context was lost.
+- The types state only that the `tool.call` result's `context` is "Kept whole from `next`" (the doc
+  comment in the public
+  [`mods/types/claude-code.d.ts`](https://github.com/anthropics/claude-code/blob/main/mods/types/claude-code.d.ts),
+  read 2026-10-03). Neither the types nor any docs page states the consequence, that the engine
+  skips the hook's answer and logs `hook failed closed`; it appears only in the test kit's failure
+  report and the debug log.
+
+Result: a mod's `tool.call` hook that adds context must append to the `context` its `next` returned.
+A hook that replaces it loses its own line whenever a mod below it attached one.
 
 ## Open probes a rerun should try to close
 

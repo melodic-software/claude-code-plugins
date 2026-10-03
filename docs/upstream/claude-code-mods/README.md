@@ -1,9 +1,8 @@
 # Claude Code mods: the verdict and its evidence trail
 
-The verdict is **Adopt, scoped**, recorded in
-[ADR 0046](../../adr/0046-adopt-claude-code-mods-within-five-scope-rules.md) and as the mods row
-under "Recorded gate runs" in [docs/plugin-philosophy.md](../../plugin-philosophy.md). ADR 0046
-superseded the 2026-09-19 Defer in
+The verdict is **Adopt**, recorded in [ADR 0049](../../adr/0049-adopt-claude-code-mods.md)
+(Proposed until the work-machine probe passes) and as the mods row under "Recorded gate runs" in
+[docs/plugin-philosophy.md](../../plugin-philosophy.md). ADR 0049 supersedes the 2026-09-19 Defer in
 [ADR 0035](../../adr/0035-defer-claude-code-mods-with-five-go-criteria.md). This folder holds the
 trail behind both.
 
@@ -16,7 +15,7 @@ trail behind both.
    2026-09-19 baseline, and the 2026-10-02 run record. Criteria 1 to 3 and the replaced criterion 5
    are the quick check for a Claude Code pin bump; the full run is on demand.
 3. [experiments.md](experiments.md): the full run's other half: experiments E1 to E6 with their
-   2026-09-19 baselines, E7 and E8 from 2026-10-02, and the probes that stayed open. Criterion 3
-   cannot pass without E2 or E8.
+   2026-09-19 baselines, E7 and E8 from 2026-10-02, E9 from 2026-10-03, and the probes that stayed
+   open. Criterion 3 cannot pass without E2 or E8.
 4. [research-2026-09-19/](research-2026-09-19/): a frozen snapshot of the verified research report
    (hub plus ten sidecars), with the versions it was verified against.

@@ -4,10 +4,10 @@
 
 Asked "what about mods?", do this in order:
 
-1. Read [ADR 0046](../../adr/0046-adopt-claude-code-mods-within-five-scope-rules.md). It holds the
-   verdict (Adopt, scoped), the five scope rules, the replaced criterion 5, and the recheck
+1. Read [ADR 0049](../../adr/0049-adopt-claude-code-mods.md). It holds the verdict (Adopt), the
+   rule for choosing a mod, the packaging decisions, the replaced criterion 5, and the recheck
    triggers. [ADR 0035](../../adr/0035-defer-claude-code-mods-with-five-go-criteria.md), which it
-   superseded, holds the 2026-09-19 Defer and the five go criteria.
+   supersedes, holds the 2026-09-19 Defer and the five go criteria.
 2. Run [go-no-go.md](go-no-go.md). Criteria 1 to 3 and the replaced criterion 5 are the quick check
    for a Claude Code pin bump; the full run is on demand.
 3. Consult this index for every link the verdict and the runbook rest on, and re-fetch what the
@@ -40,21 +40,22 @@ relies on are in [Official mods docs pages](#official-mods-docs-pages) and the t
 ## Official mods docs pages
 
 Each row was fetched on 2026-10-02 through the raw-markdown channel (the URL plus `.md`), each
-returning `http=200`, at Claude Code 2.1.288; `llms.txt` lists all ten. Recheck trigger for every
+returning `http=200`, at Claude Code 2.1.288; `llms.txt` lists all ten. All ten were re-fetched on
+2026-10-03 for ADR 0049 and the mod-authoring convention, each again `http=200`. Recheck trigger for every
 row: a [go-no-go.md](go-no-go.md) run, where the replaced criterion 5 re-fetches all ten, or a
 page leaving `llms.txt`.
 
 | Link | What we used it for | As of | Used by |
 |---|---|---|---|
-| <https://code.claude.com/docs/en/plugins/mods/overview> | What a mod is, turning mods on or off and the minimum version, where mods run, the built-in roster, and the comparison with settings hooks. | 2026-10-02 | ADR 0046, go-no-go.md, `docs/conventions/mod-authoring/`, `docs/plugin-philosophy.md`, `harness-ops` inventory skill |
+| <https://code.claude.com/docs/en/plugins/mods/overview> | What a mod is, turning mods on or off and the minimum version, where mods run, the built-in roster, and the comparison with settings hooks. | 2026-10-02 | ADR 0049, go-no-go.md, `docs/conventions/mod-authoring/`, `docs/plugin-philosophy.md`, `harness-ops` inventory skill |
 | <https://code.claude.com/docs/en/plugins/mods/create> | Writing a mod, the per-build types and when they win over a page, `claude plugin validate`, and plugin naming. | 2026-10-02 | `docs/conventions/mod-authoring/` |
-| <https://code.claude.com/docs/en/plugins/mods/events> | Guarding a tool call, the order mods run in and where settings hooks sit in it, and a hook that fails. | 2026-10-02 | ADR 0046 (rules 3 and 4), go-no-go.md (criterion 4) |
+| <https://code.claude.com/docs/en/plugins/mods/events> | Guarding a tool call, the order mods run in and where settings hooks sit in it, and a hook that fails. | 2026-10-02 | ADR 0049, `docs/conventions/mod-authoring/`, go-no-go.md (criterion 4) |
 | <https://code.claude.com/docs/en/plugins/mods/interface> | Drawing panes and bands; read only for the replaced criterion 5 grep. | 2026-10-02 | go-no-go.md |
-| <https://code.claude.com/docs/en/plugins/mods/api> | Adding a tool, the calls that show text without starting a turn, and reaching files, processes and the network. | 2026-10-02 | ADR 0046 (rule 2), `docs/conventions/mod-authoring/` |
+| <https://code.claude.com/docs/en/plugins/mods/api> | Adding a tool, the calls that show text without starting a turn, and reaching files, processes and the network. | 2026-10-02 | `docs/conventions/mod-authoring/` |
 | <https://code.claude.com/docs/en/plugins/mods/test> | `claude plugin test` and the test kit. | 2026-10-02 | `docs/conventions/mod-authoring/`, `scripts/test-plugin-mods.sh` |
 | <https://code.claude.com/docs/en/plugins/mods/troubleshoot> | Why a mod does nothing, the version floor, and a value lost after `/clear`. | 2026-10-02 | `docs/conventions/mod-authoring/`, `docs/conventions/hook-input-rewriting/`, experiments.md (E7) |
 | <https://code.claude.com/docs/en/plugins/mods/admin> | `allowManagedModsOnly` and the other organization controls. | 2026-10-02 | `docs/conventions/mod-authoring/` |
-| <https://code.claude.com/docs/en/plugins/mods/reference> | Files, the hook function, limits, and the settings and environment variables, `CLAUDE_CODE_PLUGIN_DIRS` among them. | 2026-10-02 | ADR 0046, experiments.md (Desktop probe), `docs/conventions/mod-authoring/` |
+| <https://code.claude.com/docs/en/plugins/mods/reference> | Files, the hook function, limits, and the settings and environment variables, `CLAUDE_CODE_PLUGIN_DIRS` among them. | 2026-10-02 | `docs/plugin-philosophy.md`, experiments.md (Desktop probe), `docs/conventions/mod-authoring/` |
 | <https://code.claude.com/docs/en/plugins/mods/gallery> | The interface elements with samples; read only for the replaced criterion 5 grep. | 2026-10-02 | go-no-go.md |
 
 ## First-party source tree and binary
