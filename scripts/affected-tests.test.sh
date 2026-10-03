@@ -707,10 +707,6 @@ rm -rf "$repo" "$marker"
 for src in lib/hook-utils.sh lib/parse-concern-value.sh docs/conventions/standards/README.md; do
   derived="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh --print-fanout "$src" 2>/dev/null | sort)"
   manifest="scripts/sync-shared-copies.sh"
-  case "$src" in
-  lib/hook-utils.sh) manifest="scripts/sync-hook-utils.sh" ;;
-  *) ;;
-  esac
   expected="$(cd "$REPO_ROOT" && bash "$manifest" --print-manifest | awk -F '\t' -v s="$src" '$1=="src"{on=($2==s)} on && $1=="copy" && $2!=""{print $2}' | while IFS= read -r pat; do
     if [[ -e "$pat" ]]; then
       printf '%s\n' "$pat"

@@ -1,6 +1,6 @@
 {
   "name": "rate-limit-guard",
-  "version": "0.10.10",
+  "version": "0.10.11",
   "description": "Shared rate-limit guard for loop lanes: a statusline wrapper tees the subscription rate-limit windows to a fixed machine-scope file, a StopFailure hook records rate-limit stops reactively, and a reader contract fixes how consuming sessions pause and resume.",
   "author": {
     "name": "Melodic Software",

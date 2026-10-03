@@ -1079,7 +1079,7 @@ jobs:
       # hook::check_enabled means the whole 2,684-line hook-utils.sh is parsed
       # first — ~3.5 ms of a disabled standalone guard's ~5.3 ms on this runner.
       # The audit that prompted #3712 found the switch below the source in 43 of
-      # 43 hooks, and scripts/sync-hook-utils.sh covers the vendored library
+      # 43 hooks, and scripts/sync-shared-copies.sh covers the vendored library
       # copies but NOT the entry scripts, so nothing else here would notice the
       # ordering drifting back. Rule 2 holds every other blocking event to the
       # same order: a Stop or Notification hook's first early exit comes before
@@ -2281,9 +2281,10 @@ jobs:
         if: needs.changes.outputs.run_tests == 'false'
         run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the plugin contract suite, the sync gates and the sub-project builds cannot be affected — reporting success."
 
-  # The shared hook-utils library's sync and delivery checks, kept out of
-  # test-linux so they are legible as one lane rather than buried among fifty
-  # steps. The library's suites (lib/hook-utils.test.sh, lib/hook-test-sink.test.sh)
+  # The shared hook-utils library's delivery checks, kept out of test-linux so
+  # they are legible as one lane rather than buried among fifty steps. Its
+  # copies are verified with every other shared library's, in test-linux, by
+  # scripts/sync-shared-copies.sh. The library's suites (lib/hook-utils.test.sh, lib/hook-test-sink.test.sh)
   # are corpus suites that test-linux runs when the selector reaches them.
   #
   # SHELLCHECK RUNS HERE, NOT IN `lint`. This job does little else, so a scan
@@ -2382,23 +2383,6 @@ jobs:
         with:
           files: ${{ steps.changed_shell.outputs.files }}
           rcfile: .shellcheckrc
-
-      - name: Verify plugin copies match the shared lib
-        if: needs.changes.outputs.run_tests == 'true'
-        run: scripts/sync-hook-utils.sh --check
-      - name: Verify carrying plugins bumped when the lib changed
-        if: needs.changes.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-hook-utils.sh --check-bump "origin/$BASE_REF"
-      - name: Report not applicable to a docs-only diff
-        if: needs.changes.outputs.run_tests == 'false'
-        run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the shared hook-utils library cannot be affected — reporting success."
 
       - name: Aggregate hygiene results
         if: always()

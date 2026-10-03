@@ -1,3 +1,5 @@
+# GENERATED from lib/hook-utils.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # shellcheck shell=bash
 # Shared hook utility library for this marketplace's hook plugins. Sourced
 # (not executed): kill switch, file_path parsing + path normalization,
@@ -6,7 +8,7 @@
 # SINGLE SOURCE OF TRUTH: lib/hook-utils.sh at the marketplace repo root. The
 # copies at plugins/*/hooks/hook-utils.sh exist because installed plugins are
 # cache-isolated and must be self-contained — never edit a copy. Edit the
-# source and run scripts/sync-hook-utils.sh; CI rejects drifted copies.
+# source and run scripts/sync-shared-copies.sh; CI rejects drifted copies.
 #
 # CALLING CONVENTION: a helper that produces a value is spelled
 # `hook::<name>_to <var> [args…]` and writes into the caller's variable. That

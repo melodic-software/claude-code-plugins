@@ -36,7 +36,7 @@
 # standalone — by its own contract test today, and by a hooks.json that
 # registered it directly tomorrow.
 #
-# Why a gate rather than a convention: `scripts/sync-hook-utils.sh` synchronizes
+# Why a gate rather than a convention: `scripts/sync-shared-copies.sh` generates
 # the vendored library copies but does NOT cover the entry scripts, so nothing
 # else in this repo would notice the ordering drifting back.
 #
