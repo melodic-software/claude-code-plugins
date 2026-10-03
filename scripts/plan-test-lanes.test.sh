@@ -68,6 +68,7 @@ mk plugins/ps/x.ps1 "function X {}"
 mk plugins/ps/x.Tests.ps1 ". \$PSScriptRoot/x.ps1"
 mk plugins/z/data.cfg "k=v"
 mk .python-version 3.14
+mk pyproject.toml "[project]"
 mk .node-version 24
 mk .github/workflows/ci.yml "name: ci"
 mk .github/workflows/test-windows.yml "name: test-windows"
@@ -140,6 +141,11 @@ check "a Python change plans its test module on test-python, and test-bash has n
 plan -- .python-version
 is "$(suites python | tr '\n' ' ')" "plugins/p/test_p.py plugins/q/test_q.py " && is "$(key python_legs)" "[0,1]"
 check "a Python pin runs every Python suite but the eval fixtures, on ceil(300/180) = 2 legs" $?
+is "$(key windows_jobs)" '["win-a","win-b"]'
+check "the Python version pin runs every Windows step, whose jobs set up Python from it" $?
+plan -- pyproject.toml
+is "$(key windows_jobs)" '[]' && is "$(key python)" true
+check "another Python pin runs the Python suites but no Windows step" $?
 
 plan -- lib/w.mjs
 is "$(suites bash)" "lib/w.test.sh" && is "$(key node)" false

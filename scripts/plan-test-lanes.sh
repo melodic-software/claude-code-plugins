@@ -35,8 +35,9 @@
 # WIDER THAN THE SELECTION, NEVER NARROWER:
 #   - the whole tree (no base and no paths: a schedule, a dispatch, a push with no
 #     usable base), or a change to ci.yml or .github/actions/: every suite of
-#     every ci.yml lane. test-windows.yml and .github/actions/ do the same for the
-#     Windows plan.
+#     every ci.yml lane. test-windows.yml, .github/actions/ and .python-version
+#     (every Windows job sets up its Python from it) do the same for the Windows
+#     plan.
 #   - a Python pin (.python-version, pyproject.toml, uv.lock, requirements*.txt,
 #     .github/requirements-ci*.txt): every Python suite.
 #   - a Node pin (.node-version, the root package.json or package-lock.json):
@@ -139,7 +140,12 @@ for f in ${changed[@]+"${changed[@]}"}; do
     whole=1
     whole_windows=1
     ;;
-  .python-version | pyproject.toml | uv.lock | requirements*.txt | .github/requirements-ci*.txt) python_pin=1 ;;
+  .python-version)
+    # Every Windows job sets up its Python from this pin too.
+    python_pin=1
+    whole_windows=1
+    ;;
+  pyproject.toml | uv.lock | requirements*.txt | .github/requirements-ci*.txt) python_pin=1 ;;
   .node-version | package.json | package-lock.json) node_pin=1 ;;
   *) ;;
   esac
