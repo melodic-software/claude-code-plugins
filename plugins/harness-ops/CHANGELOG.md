@@ -3,6 +3,18 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.2.0] - 2026-10-02
+
+### Added
+
+- A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names `/harness-ops:check`. The row is shared across plugins, so a session with several of them sees one notice.
+- `lib/prerequisites.mjs`, `lib/prerequisites.sh` and `lib/prerequisites.ps1`, the generated copies of the shared prerequisites checker and its `node-notice` stubs.
+
+### Changed
+
+- The shared hook helper has `hook::require <id>` in place of `hook::require_jq`. Its skip notice is built from the plugin's declared `prerequisites.json` entry and names `/<plugin>:check`, not `/harness-ops:prerequisites`.
+- Hooks call `hook::require jq` where they called `hook::require_jq`.
+
 ## [3.1.0] - 2026-10-02
 
 ### Added

@@ -90,7 +90,6 @@ harness-ops npx
 harness-ops python3
 harness-ops schema
 instruction-placement curl
-instruction-placement jq
 kindle-dedrm curl
 kindle-dedrm gh
 knowledge ffmpeg

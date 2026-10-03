@@ -3,6 +3,13 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0] - 2026-10-02
+
+### Added
+
+- A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names `/multi-agent:check`. The row is shared across plugins, so a session with several of them sees one notice.
+- `lib/prerequisites.mjs`, `lib/prerequisites.sh` and `lib/prerequisites.ps1`, the generated copies of the shared prerequisites checker and its `node-notice` stubs.
+
 ## [0.3.0] - 2026-10-02
 
 ### Added

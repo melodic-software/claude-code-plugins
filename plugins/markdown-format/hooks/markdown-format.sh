@@ -64,7 +64,7 @@ emit_skipped() {
 # gated only by the markdown_format_enabled kill switch) still reports a
 # missing markdownlint-cli2 in a repo that never opted in; only this per-edit
 # hook is opt-in gated. The pre-check below keeps a repo without a config from
-# seeing the jq notice, since a gate that ran only after hook::require_jq would
+# seeing the jq notice, since a gate that ran only after hook::require jq would
 # still nag about a prerequisite for a hook that repository has not enabled.
 #
 # Candidates are exactly the files markdownlint-cli2 documents as automatically

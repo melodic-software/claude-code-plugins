@@ -378,7 +378,7 @@ hook::raw_file_path() {
 # before #2146 every call site asserted a posture in a comment and nothing where
 # the posture is actually implemented explained it.
 #
-# hook::require_jq          fails OPEN  — the default, and correct for most hooks
+# hook::require jq              fails OPEN  — the default, and correct for most hooks
 # hook::require_jq_blocking fails CLOSED — for a guard that blocks an
 #                                          irreversible operation
 #
@@ -431,20 +431,64 @@ hook::raw_file_path() {
 # fail-closed path impossible to reach by accident, and make omission a visible
 # choice instead of an invisible default.
 
-# Fail-OPEN jq gate — the default. For hooks whose input parsing cannot proceed
-# without jq and whose finding is advisory. When jq is absent: a visible skip
-# notice once per session and agent, renewed every eighth skip, then exit 0. Place after hook::check_enabled (and after any
+# Fail-OPEN dependency gate — the default. For hooks whose work cannot proceed
+# without the tool <id> (jq, almost always) and whose finding is advisory. When
+# <id> is absent: a visible skip notice once per session and agent, renewed
+# every eighth skip, then exit 0. Place after hook::check_enabled (and after any
 # jq-free applicability pre-filter), passing the buffered stdin for session
 # scoping. See the posture block above for when this is the WRONG choice.
-#   hook::require_jq PostToolUse my-plugin "$INPUT"
-hook::require_jq() {
-  command -v jq >/dev/null 2>&1 && return 0
-  local event="$1" plugin="$2" input="${3:-}"
-  if hook::notice_once "${plugin}-jq" "$input"; then
+#   hook::require jq PostToolUse my-plugin "$INPUT"
+#
+# The notice is built from the plugin's declared prerequisites.json entry
+# (docs/conventions/prerequisites/): its degrade text, first install doc link and
+# check command. The lookup is jq-free, because the usual missing tool is jq.
+# A plugin whose file lacks the entry gets generic degrade text and a
+# /<plugin>:check command derived from the plugin root. It never installs.
+hook::require() {
+  command -v "$1" >/dev/null 2>&1 && return 0
+  local id="$1" event="$2" plugin="$3" input="${4:-}"
+  if hook::notice_once "${plugin}-${id}" "$input"; then
+    local degrade docs check
+    hook::prerequisite_fields_to degrade docs check "$id"
     hook::emit_skip_notice "$event" \
-      "$plugin: jq not found on PATH — hook skipped for this session. Install jq (https://jqlang.org/download/) to enable it. If the harness-ops plugin is installed, run /harness-ops:prerequisites to list every missing prerequisite."
+      "$plugin: $id not found on PATH — $degrade${docs:+ Install: $docs.} Run $check to verify. It does not install."
   fi
   exit 0
+}
+
+# hook::prerequisite_fields_to <degrade-var> <docs-var> <check-var> <id>
+# Reads the declared entry for <id> from ${CLAUDE_PLUGIN_ROOT}/prerequisites.json
+# with bash alone. An entry runs from its "id" to the next "id", which holds for
+# the schema's flat entries. An absent file or entry gives generic text and a
+# check command derived from the plugin root.
+hook::prerequisite_fields_to() {
+  local __hu_d="hook skipped for this session." __hu_i="" __hu_c=""
+  local __hu_root="${CLAUDE_PLUGIN_ROOT:-}" __hu_txt="" __hu_name=""
+  local __hu_s='[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)"'
+  if [[ -r "$__hu_root/prerequisites.json" ]]; then
+    __hu_txt=$(<"$__hu_root/prerequisites.json")
+    if [[ "$__hu_txt" =~ \"id\"[[:space:]]*:[[:space:]]*\"$4\"(.*) ]]; then
+      __hu_txt="${BASH_REMATCH[1]}"
+      __hu_txt="${__hu_txt%%\"id\"[[:space:]]*:*}"
+      [[ "$__hu_txt" =~ \"degrade\"$__hu_s ]] && __hu_d="${BASH_REMATCH[1]}"
+      [[ "$__hu_txt" =~ \"docs\"$__hu_s ]] && __hu_i="${BASH_REMATCH[1]}"
+      [[ "$__hu_txt" =~ \"check\"$__hu_s ]] && __hu_c="${BASH_REMATCH[1]}"
+      __hu_d="${__hu_d//\\\"/\"}"
+    fi
+  fi
+  if [[ -z "$__hu_c" ]]; then
+    __hu_name="${__hu_root%/}"
+    __hu_name="${__hu_name##*/}"
+    if [[ "$__hu_name" =~ ^[0-9] ]]; then
+      __hu_name="${__hu_root%/*}"
+      __hu_name="${__hu_name##*/}"
+    fi
+    __hu_c="/${__hu_name:-plugin}:check"
+    [[ -d "$__hu_root/skills/check-prerequisites" ]] && __hu_c+="-prerequisites"
+  fi
+  printf -v "$1" '%s' "$__hu_d"
+  printf -v "$2" '%s' "$__hu_i"
+  printf -v "$3" '%s' "$__hu_c"
 }
 
 # Fail-CLOSED jq gate (#2146) — for a guard that blocks an irreversible
@@ -483,7 +527,9 @@ hook::require_jq_blocking() {
   else
     echo "Install jq (https://jqlang.org/download/) to restore the guard." >&2
   fi
-  echo "If the harness-ops plugin is installed, run /harness-ops:prerequisites to list every missing prerequisite." >&2
+  local __hu_degrade __hu_docs __hu_check
+  hook::prerequisite_fields_to __hu_degrade __hu_docs __hu_check jq
+  echo "Run $__hu_check to verify." >&2
   exit 2
 }
 
@@ -2736,7 +2782,7 @@ hook::data_json_to() {
 # empty, malformed, or cut short mid-document (hook::buffer_stdin_to rc 1, 2
 # and 3 alike — an advisory PostToolUse hook allows all three, since the tool
 # already ran); no path in the payload, or one no <glob> matches; jq absent,
-# after hook::require_jq's once per session and agent skip notice; a path
+# after hook::require's once per session and agent skip notice; a path
 # hook::read_file_path rejects.
 #
 # No <glob> means "any payload carrying a path", for a hook whose matcher is
@@ -2826,7 +2872,7 @@ hook::begin() {
 
   # jq is load-bearing for input parsing; absent → visible once per session and agent
   # skip notice instead of a silent no-op (dim-9 doctrine).
-  hook::require_jq "$__hu_bg_event" "$__hu_bg_plugin" "$INPUT"
+  hook::require jq "$__hu_bg_event" "$__hu_bg_plugin" "$INPUT"
 
   # The jq runs only for a payload whose raw text carries a notebook_path,
   # because without one the filter's own condition is false and it hands the

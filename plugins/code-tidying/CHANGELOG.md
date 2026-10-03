@@ -3,6 +3,13 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.1] - 2026-10-02
+
+### Changed
+
+- The shared hook helper has `hook::require <id>` in place of `hook::require_jq`. Its skip notice is built from the plugin's declared `prerequisites.json` entry and names `/<plugin>:check`, not `/harness-ops:prerequisites`.
+- The `dissolve-comments` skill names `hook::require jq`, the helper's new spelling, in its example.
+
 ## [0.27.0] - 2026-10-02
 
 ### Changed

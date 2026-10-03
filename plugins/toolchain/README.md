@@ -8,6 +8,7 @@ defaults. Three skills, one concern: mechanical verification of changed code.
 | Skill | Role |
 |---|---|
 | `/toolchain:check` | Build + test + lint for changed files, auto-detecting the affected ecosystems from git status. Also the reference skill other plugins compose for ecosystem detection and command resolution. |
+| `/toolchain:check-prerequisites` | Read-only report of whether the tools the plugin declares in `prerequisites.json` resolve. Installs nothing. |
 | `/toolchain:lint` | Lint + format checks only. Faster than a build cycle; `--fix` is format-only, `--code-fix` runs semantic lint autofixes behind a confirmation / `--yes` gate. |
 | `/toolchain:setup` | Configure the plugin for a repo: `check` (read-only, default) reports the effective configuration; `apply` interviews and writes the tracked config. Re-runnable. |
 
