@@ -201,6 +201,17 @@ rm -rf "$OUTSIDE"
 run 1 "a C:/ path outside the packet is rejected" --notes "$(tier_ledger t-winout.md "https://x.invalid/p saved=C:/no-such-packet-dir/page.md span=$SPAN" "$SRC_B" "$SRC_C")"
 has "research-primary-path-outside-packet" "the Windows-form outside path is named"
 
+FAKE_CYGPATH="$(mktemp -d)"
+CYG_OUTSIDE="$(mktemp -d)"
+printf 'The default is 1 per session.\n' >"$CYG_OUTSIDE/page.md"
+printf '#!/bin/sh\nexit 1\n' >"$FAKE_CYGPATH/cygpath"
+chmod +x "$FAKE_CYGPATH/cygpath"
+PATH="$FAKE_CYGPATH:$PATH" run 0 "a failing cygpath still accepts a POSIX saved path inside the packet" --notes "$(tier_ledger t-cygfail.md "$SRC_A" "$SRC_B" "$SRC_C")"
+has "status: complete" "a failing cygpath does not empty the packet directory"
+PATH="$FAKE_CYGPATH:$PATH" run 1 "a failing cygpath still rejects a path outside the packet" --notes "$(tier_ledger t-cygout.md "https://x.invalid/p saved=$CYG_OUTSIDE/page.md span=$SPAN" "$SRC_B" "$SRC_C")"
+has "research-primary-path-outside-packet" "a failing cygpath does not accept an outside path"
+rm -rf "$FAKE_CYGPATH" "$CYG_OUTSIDE"
+
 if command -v cygpath >/dev/null 2>&1; then
   WIN_A="$(cygpath -m -- "$SAVED_A")"
   run 0 "a C:/-form saved path inside the packet passes" --notes "$(tier_ledger t-win.md "https://code.claude.com/docs/en/skills saved=$WIN_A span=$SPAN" "$SRC_B" "$SRC_C")"

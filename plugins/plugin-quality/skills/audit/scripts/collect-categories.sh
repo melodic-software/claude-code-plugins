@@ -74,9 +74,14 @@ fi
 DIR="$(cd "$(dirname "$NOTES")" && pwd -P)"
 CYGPATH_OK=0
 if command -v cygpath >/dev/null 2>&1; then
-  CYGPATH_OK=1
-  DIR="$(cygpath -u -- "$DIR")"
-  DIR="$(realpath -m -- "$DIR")"
+  converted="$(cygpath -u -- "$DIR" 2>/dev/null)" || converted=""
+  if [[ -n "$converted" ]]; then
+    resolved="$(realpath -m -- "$converted" 2>/dev/null)" || resolved=""
+    if [[ -n "$resolved" ]]; then
+      DIR="$resolved"
+      CYGPATH_OK=1
+    fi
+  fi
 fi
 
 awk -v dir="$DIR" -v cygpath_ok="$CYGPATH_OK" '
@@ -109,13 +114,23 @@ function check_source(label, val,    i, j, url, rest, path, span, r, n, line, fo
   gsub(/\047/, "\047\\\047\047", esc)
   if (cygpath_ok == 1) {
     cmd = "cygpath -u -- \047" esc "\047"
-    if ((cmd | getline esc) > 0) gsub(/\047/, "\047\\\047\047", esc)
+    esc = ""
+    if ((cmd | getline esc) > 0 && esc != "") gsub(/\047/, "\047\\\047\047", esc)
     close(cmd)
+    if (esc == "") {
+      problem("research-" label "-path-outside-packet section=" section " title=" title)
+      return 0
+    }
   }
   cmd = "realpath -m -- \047" esc "\047"
-  cmd | getline path
+  path = ""
+  if ((cmd | getline path) <= 0 || path == "") {
+    close(cmd)
+    problem("research-" label "-path-outside-packet section=" section " title=" title)
+    return 0
+  }
   close(cmd)
-  if (index(path, dir "/") != 1) {
+  if (dir == "" || index(path, dir "/") != 1) {
     problem("research-" label "-path-outside-packet section=" section " title=" title)
     return 0
   }

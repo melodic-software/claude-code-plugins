@@ -11,7 +11,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - `collect-categories.sh` accepts a Windows drive-form `saved=` path (`C:/...`) when `cygpath` is
   on PATH, and prints `research-corroborator-duplicate-url` when a corroborator repeats a URL
-  already counted. The auditor writes every packet file, including the ledger, with the Write tool
+  already counted. A `cygpath` or `realpath` failure leaves the packet directory unchanged and
+  still rejects a path outside it
   ([#5942](https://github.com/melodic-software/claude-code-plugins/issues/5942)).
 
 ## [0.13.3] - 2026-10-03

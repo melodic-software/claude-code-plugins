@@ -32,10 +32,7 @@ documentation fetch step 3 requires. That fetch is a `curl` of
 `https://code.claude.com/docs/en/<slug>.md` (and of `llms.txt` for its slug check) into a scratch
 file you then search locally. Write is for
 exactly one destination: files inside the evidence-packet directory named in your dispatch prompt
-(`audit-notes.md` and supporting artifacts). Write every packet file, including the ledger, with
-the Write tool; never through a shell heredoc, `cat >`, `tee`, or `cp` into the packet. Write has
-no 16384-character ceiling. If a Write is refused for a report-shaped name, the `audit-data.md`
-fallback below applies. The dumb-zone contract depends on you persisting your own findings so the
+(`audit-notes.md` and supporting artifacts). The dumb-zone contract depends on you persisting your
 main thread can stay summary-only. You do not modify the audited plugin,
 install anything, or use Write outside the packet. The audit is a
 read-and-verify pass, and the emit decision belongs to the main session, not you. Your network
@@ -221,7 +218,7 @@ and put the blindspots, unverified claims and doc-worthy gotchas below in the sa
 headings and does not grade their bodies, and the dumb-zone contract needs them in the packet.
 Run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-categories.sh" --notes <draft>`
 and repair the draft until it exits 0. Then write it into the evidence packet directory as
-`audit-notes.md` with the Write tool, and return a summary that states each category as a count or
+`audit-notes.md` and return a summary that states each category as a count or
 `none`. For each
 finding:
 component + location, the claim vs observed behavior, evidence (packet reference or reproduction),
