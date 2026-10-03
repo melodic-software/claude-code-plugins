@@ -7,9 +7,46 @@
 # marketplace.json entry surfaces (it is not caught by per-plugin validation).
 # A plugin that ships a mod also gets `claude plugin test` (scripts/test-plugin-mods.sh),
 # which skips when the CLI predates mods.
+#
+#   scripts/validate-plugins.sh                    every plugin
+#   scripts/validate-plugins.sh --only "<names>"   the per-plugin pass for the
+#                                                  space-separated plugins only,
+#                                                  none when the list is empty;
+#                                                  every repository-wide check
+#                                                  (contracts, catalog, the
+#                                                  --strict catalog pass, mods)
+#                                                  still runs
+#
+# CI passes the plugins a diff touched: each per-plugin pass reads only its own
+# directory, so an untouched plugin's verdict is the one its last green run gave.
+# A name that is not a plugin directory is an error, not a quiet skip.
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
+
+limited=0
+only=()
+case "${1:-}" in
+'') ;;
+--only)
+  [[ $# -eq 2 ]] || {
+    echo "usage: validate-plugins.sh [--only \"<plugin> ...\"]" >&2
+    exit 2
+  }
+  limited=1
+  for name in $2; do
+    if [[ ! "$name" =~ ^[A-Za-z0-9._-]+$ || ! -d "plugins/$name" ]]; then
+      echo "error: '$name' is not a plugin under plugins/" >&2
+      exit 2
+    fi
+    only+=("plugins/$name/")
+  done
+  ;;
+*)
+  echo "usage: validate-plugins.sh [--only \"<plugin> ...\"]" >&2
+  exit 2
+  ;;
+esac
 
 if ! command -v node >/dev/null 2>&1; then
   echo "error: node not on PATH" >&2
@@ -105,7 +142,12 @@ render_validate() {
 }
 
 failed=0
-for dir in plugins/*/; do
+dirs=(plugins/*/)
+if ((limited)); then
+  dirs=(${only[@]+"${only[@]}"})
+  echo "Per-plugin pass limited to ${#only[@]} plugin(s): ${only[*]:-none}"
+fi
+for dir in ${dirs[@]+"${dirs[@]}"}; do
   [[ -d "$dir" ]] || continue
   echo "=== validate ${dir%/} ==="
   render_validate "$dir" || failed=1

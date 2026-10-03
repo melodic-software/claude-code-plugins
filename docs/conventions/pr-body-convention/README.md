@@ -117,7 +117,6 @@ deliberately deferred limitations, not oversights:
 - **Minimum-content / structure rules**: no per-section length, format, or sub-structure
   requirement (e.g. "Test plan must contain at least one checklist item").
 
-Trigger for revisiting: `melodic-software/standards#173` (PR convention policy-as-data: one policy
-file, one validator, thin CI runners, plugin mechanism). That effort's first implementation PR is
-the point at which this convention's schema and the eventual enforcement consumer converge on one shape,
-rather than this plugin inventing a second policy format ahead of it.
+UI evidence needs no conditional section: when a diff changes rendered output,
+`/source-control:pull-request create` drafts before/after media into the section that records
+verification (`create.md`, "Visual evidence").

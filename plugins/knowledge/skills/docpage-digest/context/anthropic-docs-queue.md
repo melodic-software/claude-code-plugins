@@ -83,20 +83,26 @@ named with it and keeps the post as a correlate):
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices>
 - <https://claude.com/blog/getting-started-with-loops> (not a pointer; correlate only)
   Linked from the claude.ai performance post
-  (<https://claude.dev/blog/how-we-made-claude-ai-faster>, correlate only); by its title, the loop
-  mechanism the `performance` plugin's measure, change, and verify cycle and the `playbooks`
-  orchestration chapter's narrow threads assume. Subject unverified until fetched. Docs pointer:
-  <https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-/loop>
+  (<https://claude.dev/blog/how-we-made-claude-ai-faster>, correlate only). A summary-level fetch
+  on 2026-09-29 confirmed its topic: Claude Code's loop types and when to use each. That the
+  `performance` plugin's measure, change, and verify cycle and the `playbooks` orchestration
+  chapter's narrow threads assume these loops is our reading, not the post's claim. Pointer: when
+  a digest needs how Claude Code repeats a prompt, fetch
+  <https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-/loop> live, the
+  post as correlate. As of: 2026-10-02. Recheck trigger: that section leaves the page.
 - <https://claude.com/blog/code-review> (not a pointer; correlate only)
   The automated-review gate the claude.ai performance post names as a safety mechanism set up
   before the fast phase; the `review` plugin's CI lanes are its local counterpart, with no custody
-  record against it. Unverified until fetched. Docs pointer:
-  <https://code.claude.com/docs/en/code-review>
+  record against it. A summary-level fetch on 2026-09-29 confirmed its topic: the launch of Claude
+  Code's Code Review. Pointer: when a digest needs whether Code Review findings gate a merge, fetch
+  <https://code.claude.com/docs/en/code-review#check-run-output> live, the post as correlate.
+  As of: 2026-10-02. Recheck trigger: that section leaves the page.
 - <https://claude.com/blog/agentic-coding-is-straining-ci-heres-how-we-scaled-test-impact-analysis-at-anthropic> (correlate only)
   The basis the claude.ai performance post cites for wins decaying in a fast-moving codebase,
-  which the `performance` plugin's ratchet guardrails rest on; also test-impact analysis as a CI
-  technique. Unverified until fetched. No docs page covers test-impact analysis as of 2026-10-01;
-  recheck trigger: a docs page starts covering it
+  which the `performance` plugin's ratchet guardrails rest on. A summary-level fetch on 2026-09-29
+  confirmed its topic: test-impact analysis in Anthropic's CI. Pointer: when a digest needs
+  test-impact analysis as a CI technique, fetch this post live; no docs page covers test-impact
+  analysis as of 2026-10-01. As of: 2026-10-01. Recheck trigger: a docs page starts covering it.
 - <https://claude.dev/blog/spending-your-effort/> (not a pointer; correlate only)
   "Using Claude Code: Spending your effort", which `docs/upstream/opus-5-5-task-cost.md` (Q34)
   and the `playbooks` model-adaptation chapters already cite as a correlate without a custody

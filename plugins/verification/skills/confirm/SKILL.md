@@ -138,7 +138,7 @@ For "run the live app and watch it behave," beyond automated `/testing:run-e2e`,
 - **No git changes but user runs `/verification:confirm all`**: run Stage 1 across all ecosystems anyway (useful after a rebase or pull), then outcome verification if intent is in scope.
 - **Changed file outside any known ecosystem**: Stage 1 skips it with a note; Stage 2 still assesses intent match.
 - **Missing tools or dependencies**: `/toolchain:check` / `/toolchain:lint` report a named environment skip with the install hint, not a failure. It is never reported as done: it holds the verdict below `CONFIRMED` (Gate result, step 4), or stops the run when nothing else ran (step 3).
-- **Invoked from a PR-prep flow**: treat the verdict as a hard gate. Any FAIL or unresolved CRITICAL gap blocks PR creation. A comprehension layer (an `education:quiz-me` report, when that plugin is installed) may precede this gate and inform it; the merge gate itself lives here, one mechanism per concern.
+- **Invoked from a PR-prep flow**: treat the verdict as a hard gate. Any FAIL or unresolved CRITICAL gap blocks PR creation. A comprehension layer (an `education:quiz-me` report, when that plugin is enabled) may precede this gate and inform it; the merge gate itself lives here, one mechanism per concern.
 
 ## Skill chaining
 

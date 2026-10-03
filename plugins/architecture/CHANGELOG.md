@@ -3,12 +3,19 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.19.0] - 2026-10-02
+## [0.19.0] - 2026-10-03
 
 ### Changed
 
 - `map-flow` runs `/visualization:mermaid-gate` on the diagram it writes when that skill is
   installed, and says the diagram was not checked when it is not.
+
+## [0.18.4] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
 
 ## [0.18.3] - 2026-10-02
 

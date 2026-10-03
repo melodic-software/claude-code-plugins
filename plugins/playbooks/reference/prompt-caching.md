@@ -60,10 +60,15 @@ change effort per message instead; on a model the beta excludes, the per-message
 Batch model or effort changes into moments the cache is already broken, such as compaction, since
 those rewrite most of the conversation anyway.
 
+This section covers requests you send through the API; for what an effort change in a Claude Code
+session does to the cache, read Claude Code's own page instead of applying this section.
+
 - **Pointer**: for per-message effort and its model list, see
   [Change effort mid-conversation](https://platform.claude.com/docs/en/build-with-claude/effort#change-effort-mid-conversation-beta)
-  (correlate with Cognition's devin-fusion post, 2026-06-29, for the compaction-moment practice).
-- **As of**: 2026-09-28
+  (correlate with Cognition's devin-fusion post, 2026-06-29, for the compaction-moment practice);
+  for a Claude Code session, see
+  [Changing effort level](https://code.claude.com/docs/en/prompt-caching#changing-effort-level).
+- **As of**: 2026-09-28 (Changing effort level: 2026-10-02)
 - **Recheck trigger**: a re-read of a pointed section no longer supporting the practice above, or
   an API release note touching this topic.
 
