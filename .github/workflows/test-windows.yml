@@ -29,7 +29,8 @@ name: test-windows
 # Draft pull requests run nothing: every job gates on the draft flag, and
 # `ready_for_review` starts the run when the draft flips. Contract-only events
 # (`edited`, `labeled`, `unlabeled`) are not triggers, since this lane reads
-# nothing from the pull request body or labels.
+# nothing from the pull request body or labels. Nor is `merge_group`: a merge
+# queue waits only on required checks, and this lane is not one.
 
 on:
   # Present for parity with ci.yml, which takes a dispatch to run its bench
