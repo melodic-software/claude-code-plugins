@@ -78,6 +78,8 @@ Establish a baseline poll: the §3.0.1 REST read of the PR's checks (`gh pr chec
    REPO=$(gh repo view --json name -q .name)
    prev_checks=""
    last_comment_ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+   prev_threads=""
+   poll=0
 
    while true; do
      # Terminal state check — exit watch if PR closed/merged. REST, like the
@@ -136,11 +138,26 @@ Establish a baseline poll: the §3.0.1 REST read of the PR's checks (`gh pr chec
      else fetch_ok=0; fi
      [ "$fetch_ok" -eq 1 ] && last_comment_ts="$now"
 
+     # Review threads: resolving one moves no check and posts no comment, so
+     # the reads above never see it. The Gate 7 read (readiness.md) costs a
+     # GraphQL call, so it runs every 4th poll (about 2 minutes) and emits
+     # when the unresolved count, or THREADS_UNPROVEN, changes.
+     if [ $((poll % 4)) -eq 0 ]; then
+       cur_threads=$(bash "<scripts-dir>/source-control-review-threads" "$OWNER/$REPO#$PR_NUMBER" 2>/dev/null \
+         | awk 'NR == 1 && /^THREADS_(OK|BLOCKED) unresolved=/ { sub(/.*unresolved=/, ""); sub(/[^0-9].*/, ""); print }')
+       cur_threads=${cur_threads:-THREADS_UNPROVEN}
+       if [ "$cur_threads" != "$prev_threads" ]; then
+         echo "REVIEW-THREADS unresolved=$cur_threads"
+         prev_threads="$cur_threads"
+       fi
+     fi
+     poll=$((poll + 1))
+
      sleep 30
    done
    ```
 
-   Capture the returned task id. Report: `Monitor watch armed (task <id>, PR #<N>). Fires on CI check completion and new comments. Stop with TaskStop <id> or end session.`
+   Capture the returned task id. Report: `Monitor watch armed (task <id>, PR #<N>). Fires on CI check completion, new comments, and review-thread count changes. Stop with TaskStop <id> or end session.`
 
 5. Proceed with the current monitoring iteration normally
 
@@ -497,7 +514,7 @@ After the push:
 
 ## 3.4 Final monitoring report (readiness-gated)
 
-**Do NOT declare convergence until the full [readiness checklist](readiness.md) passes.** Run all 6 gates from that file before presenting the monitoring report. Hard requirement. No "close enough" for merge readiness.
+**Do NOT declare convergence until the full [readiness checklist](readiness.md) passes.** Run all 7 gates from that file before presenting the monitoring report. Hard requirement. No "close enough" for merge readiness.
 
 **The readiness checklist includes a 2-minute cooldown** after the last check-run completion or comment arrival. If a new comment or check result arrives during cooldown, restart the cooldown.
 
@@ -510,6 +527,7 @@ When all readiness gates pass:
 **Check runs:** X passed, Y skipped, Z failed-informational
 **Security:** [scanner] evaluated, N findings classified
 **Comments:** X from N reviewers, Y fixed, Z deferred (structural, urgent, or fix blocked on research; item ids), W incorrect
+**Review threads:** 0 unresolved
 **Review lanes:** [each lane on the checks roster: productive, or ABSENT with what was run locally in its place]
 **Cooldown:** 2+ min since last activity
 **Fix iterations:** N

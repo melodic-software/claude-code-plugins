@@ -284,6 +284,7 @@ def unresolved_threads(repo: str, number: int) -> list[dict[str, object]] | None
         return {
             "author": author_object.get("login"),
             "path": first_object.get("path"),
+            "url": first_object.get("url"),
             "isOutdated": thread.get("isOutdated", False),
         }
 
