@@ -1,0 +1,4 @@
+{
+  "pass": [{"why": "no call", "answer": []}],
+  "fail": [{"why": "a read", "answer": [{"tool": "Read", "input": {"file_path": "/atlas.md"}}]}]
+}

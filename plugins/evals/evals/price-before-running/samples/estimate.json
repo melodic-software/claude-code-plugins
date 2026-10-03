@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "About 3.6 USD, and yes, it goes through under the default cap.\n\nHow I got it:\n\n- Agent runs: 6 cases x 3 runs x 2 arms = 36 (18 with the plugin, 18 without).\n- A suite that has never run is priced at about 0.1 USD per run in either arm, judge calls included, so the three judge votes per llm grader are already inside that figure.\n- 36 x 0.1 = 3.6 USD, treated as headroom rather than a prediction.\n\nThe plugin's default ceiling is 5 USD for the whole pass, and 3.6 is under it, so the run starts with `--max-cost-usd 5` and doesn't stop to ask. After this first pass, price the next one from its own reported cost instead.",
+      "why": "P-canonical: total about 3.6 USD (inside 3 to 4.5) from 36 agent runs at about 0.1 USD each, judge calls included."
+    },
+    {
+      "answer": "Expect somewhere around 3.5 to 4 USD for the full pass.\n\nA with-and-without pass runs every case once with the plugin loaded and once without it, three times each, so six cases make thirty-six agent runs. For a suite with no cost history, each of those runs is budgeted at roughly a dime, whichever arm it is in, and that dime already covers the judge's votes on the one llm grader. Thirty-six dimes is 3.60 USD; rounding up a little for a long answer or two gives the top of the range.\n\nThat sits under the 5 USD default ceiling for the whole pass, so it launches straight away with the cap passed as `--max-cost-usd`.",
+      "why": "P-alt: gives a range (about 3.5 to 4 USD) inside the band, worked in prose from 36 runs at roughly 0.10 USD each, judge votes included."
+    },
+    {
+      "answer": "Estimate: roughly 3.6 USD for the whole with-and-without pass.\n\n1. Runs: 6 cases x 3 runs x 2 arms = 36 agent runs.\n2. Price: about 0.1 USD per run in either arm, judge calls included.\n3. Total: 36 x 0.1 = 3.6 USD.\n\nCaveat: 0.1 USD is deliberate headroom. Measured read-only passes of this plugin averaged about 0.04 to 0.07 USD per run, so your real bill may land nearer 1.5 to 2.5 USD; still, budget on 3.6 until the suite has a run of its own to scale from.\n\nThat's under the 5 USD default ceiling for the whole pass, so the run starts with the cap passed and goes through without a prompt.",
+      "why": "P-caveat: estimate about 3.6 USD from 36 runs at 0.1 USD, plus the permitted note that measured passes came in lower, while keeping 3.6 USD as the estimate."
+    },
+    {
+      "answer": "Ballpark: 3.6 USD.\n\nThere are 36 agent runs in a full pass (6 cases x 3 runs x 2 arms). For a suite with no earlier pass to scale from, price each run at about 0.1 USD, with or without the plugin; that figure already includes the three judge calls for each case's single llm grader. So 36 x 0.1 = 3.6 USD, and it's padded on purpose.\n\nWhether that clears depends on the ceiling configured in your plugin settings (`max_cost_usd`), so compare 3.6 USD against that value before launching, and raise it or narrow the run if it comes in lower.",
+      "why": "P-plain: total about 3.6 USD from 36 runs at 0.1 USD each; it names no default ceiling figure, the sibling under-ceiling point."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Roughly a dollar, and yes, it'll go through.\n\nCount the calls first: 6 cases x 3 runs x 2 arms = 36 agent runs, plus one llm-grader call per run, so 72 model calls. A knowledge question with read-only tools is short: call it 2,000 input and 1,000 output tokens per agent run, and less for each grader call. At mid-tier list prices (about 3 USD per million input tokens and 15 USD per million output), each run costs around 2 to 3 cents, so the whole pass lands near 1 USD.\n\nThat's comfortably under the plugin's 5 USD default ceiling, so it runs to completion without stopping.",
+      "why": "F-wrong: total about 1 USD, below 3 USD, built from guessed token counts instead of the per-run anchor."
+    },
+    {
+      "answer": "Plan on about 3.6 USD for the full pass, and it should fit under the default cap.\n\nThe arithmetic: a knowledge case with one llm grader costs about 0.6 USD to evaluate end to end, covering both the with-plugin and the without-plugin side and the grader's judging. Six cases at 0.6 USD each is 3.6 USD. The run count is already folded into that per-case figure, so there is nothing to multiply by three.\n\nThe plugin's default ceiling is 5 USD for the whole pass, and 3.6 is under it, so the run starts with that cap passed and goes through without asking you anything first.",
+      "why": "F-partial: the total (about 3.6 USD) is in the band, but point 2 is missing: it prices 6 cases at a flat 0.6 USD each instead of 36 agent runs at about 0.1 USD."
+    },
+    {
+      "answer": "About 3.6 USD by the anchor: 36 agent runs (6 cases x 3 runs x 2 arms) at roughly 0.1 USD each, judge calls included. That's under the 5 USD default ceiling for the whole pass, so it would start straight away.\n\nIn practice, though, ignore the 3.6 USD figure. Without the plugin, the model on a knowledge question goes hunting for answers, and those runs cost closer to 0.8 USD each. Eighteen of them is 14.4 USD, plus 1.8 USD for the with-plugin runs, so plan on about 16 USD, which is well over the cap; the run will stop before starting and ask how to proceed.",
+      "why": "F-retract: gives about 3.6 USD from 36 runs at 0.1 USD, then retracts it ('ignore the 3.6 USD figure') and replaces it with about 16 USD."
+    },
+    {
+      "answer": "Expect roughly 16 USD.\n\nThe pass is 36 agent runs: 6 cases x 3 runs x 2 arms. The two arms aren't priced alike. A with-plugin run sits near 0.10 USD, while a without-plugin run on a knowledge case costs about 0.8 USD, five to seven times more, because the model searches for what the plugin would have told it. So 18 x 0.8 = 14.4 USD, plus 18 x 0.1 = 1.8 USD, plus cents of judge calls: about 16.3 USD.\n\nThat's over the 5 USD default ceiling for the whole pass, so the run stops before starting and asks you to raise the ceiling, narrow with `--case` or `--tag`, or accept a partial run.",
+      "why": "F-near: prices the without arm at the older 0.8 USD anchor, which applies only when a kept trace shows a large skill loading, for a total of about 16 USD, above 4.5 USD."
+    }
+  ]
+}
