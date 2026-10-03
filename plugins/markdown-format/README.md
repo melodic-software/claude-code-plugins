@@ -167,6 +167,12 @@ and it honors `markdown_format_enabled`. `/markdown-format:check` is the
 read-only check that notice names. The probe does not look for a markdownlint
 config, so it can report in a repository that has none.
 
+`jq` is deliberately absent from `prerequisites.json`. That manifest drives the
+session-start probe, which does not consult the per-repo config opt-in, while the
+missing-`jq` notice comes only from the per-edit hook after its opt-in pre-check
+(`markdown-format.sh`, `hook::require jq` after the config walk). Listing `jq`
+would announce it in repositories that never opted in.
+
 Telemetry timing uses `EPOCHREALTIME` (Bash 5.0+); on older Bash the telemetry
 envelope is skipped while formatting still runs.
 

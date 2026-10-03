@@ -5,6 +5,27 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-10-03
+
+### Added
+
+- A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names `/context-guard:check` and is silenced by the plugin's kill switch. The row is shared across plugins, so a session with several of them sees one notice.
+- `lib/prerequisites.mjs`, `lib/prerequisites.sh` and `lib/prerequisites.ps1`, the generated copies of the shared prerequisites checker and its `node-notice` stubs.
+
+### Changed
+
+- The shared hook helper has `hook::require <id>` in place of `hook::require_jq`. Its skip notice is built from the plugin's declared `prerequisites.json` entry and names `/<plugin>:check`, not `/harness-ops:prerequisites`.
+- Hooks call `hook::require jq` where they called `hook::require_jq`.
+
+## [0.9.5] - 2026-10-02
+
+### Changed
+
+- **Shared `context-zone.sh`, `exec-bash.mjs`, `legacy-statusline-detect.md`, `unwrap-before-compose.md` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's hooks, scripts and skills.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+  The reader contract's wording about the resolver copy now names that generator.
+
 ## [0.9.4] - 2026-10-03
 
 ### Changed

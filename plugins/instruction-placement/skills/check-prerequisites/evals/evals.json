@@ -1,0 +1,29 @@
+{
+  "skill_name": "check-prerequisites",
+  "evals": [
+    {
+      "id": 1,
+      "name": "hook-notice-runs-the-checker",
+      "prompt": "A hook notice says node or jq is missing for instruction-placement. What is missing?",
+      "expected_output": "Runs /instruction-placement:check-prerequisites, reports each PASS/FAIL row with the install hint the checker printed, and stops. Installs nothing.",
+      "files": [],
+      "expectations": [
+        "Runs `lib/prerequisites.sh check` or the PowerShell stub with the same arguments",
+        "Reports every FAIL row with the install hint the checker printed",
+        "Does not install Node.js or jq and does not edit prerequisites.json"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "passing-check-names-the-rule-gate",
+      "prompt": "/instruction-placement:check-prerequisites",
+      "expected_output": "When every row passes, reports the rows and stops. The rule-glob gate stays /instruction-placement:check.",
+      "files": [],
+      "expectations": [
+        "Reports the rows the checker printed",
+        "On all PASS, does not install anything",
+        "Does not treat this skill as the rule-glob gate"
+      ]
+    }
+  ]
+}

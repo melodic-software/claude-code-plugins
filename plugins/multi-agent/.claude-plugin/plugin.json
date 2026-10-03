@@ -1,6 +1,6 @@
 {
   "name": "multi-agent",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "description": "Workflow and model-routing guidance for multi-agent work: assess (workflow, subagent or single context), route (the role map a workflow script reads from args, keeping fan-out stages off a frontier model), audit-defaults (rechecks bundled defaults against upstream, or sweeps the repo's model and workflow guidance, via a read-only drift-audit workflow), check (whether node resolves and the fetch gate is registered), and setup (writes a user, team or local layer after a preview and a yes).",
   "author": {
     "name": "Melodic Software",

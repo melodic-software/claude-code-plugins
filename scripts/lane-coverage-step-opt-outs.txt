@@ -20,5 +20,5 @@
 # is only for a step whose `continue-on-error` exists to let a FAILURE FALL
 # THROUGH to a fail-open default, which is the opposite of a gate.
 
-changes/detect  the resolver's own step: a failed detector must leave its outputs unset so every consumer resolves toward RUNNING its lane, and feeding that outcome to an aggregator would red the run for the one case it exists to survive
-changes/match  the resolver's own filter-group step, on the same fall-through contract as changes/detect; the pair is gated instead by the non-continue-on-error detector self-test above them and by scripts/check-docs-only-gate.sh
+scope/detect  the resolver's own step: a failed detector must leave its outputs unset so every consumer resolves toward RUNNING its lane, and feeding that outcome to an aggregator would red the run for the one case it exists to survive
+scope/match  the resolver's own filter-group step, on the same fall-through contract as scope/detect; the pair is gated instead by the non-continue-on-error detector self-test above them and by scripts/check-docs-only-gate.sh

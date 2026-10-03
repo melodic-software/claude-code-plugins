@@ -1,0 +1,29 @@
+{
+  "skill_name": "check-prerequisites",
+  "evals": [
+    {
+      "id": 1,
+      "name": "missing-tool-runs-the-checker",
+      "prompt": "/toolchain:check-prerequisites\n\nA toolchain command stopped because a tool was not on PATH. What is missing?",
+      "expected_output": "Runs the shared prerequisites checker and reports each PASS/FAIL row with the install hint it printed, then stops. Installs nothing.",
+      "files": [],
+      "expectations": [
+        "Runs `lib/prerequisites.sh check` or the PowerShell stub with the same arguments",
+        "Reports every FAIL row with the install hint the checker printed",
+        "Installs nothing and does not edit prerequisites.json"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "passing-check-has-no-successor",
+      "prompt": "/toolchain:check-prerequisites",
+      "expected_output": "When every row passes, reports the rows and stops. Does not run /toolchain:check.",
+      "files": [],
+      "expectations": [
+        "Reports the rows the checker printed",
+        "On all PASS, does not invoke /toolchain:check",
+        "Modifies no file"
+      ]
+    }
+  ]
+}

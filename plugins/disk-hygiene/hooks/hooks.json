@@ -6,8 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "shell": "bash",
-            "command": "command -v node >/dev/null 2>&1 || printf '%s\\n' '{\"systemMessage\":\"disk-hygiene: node is not on PATH, so its destructive-delete guard cannot launch and enforces nothing. Install Node.js and restart Claude Code.\",\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"WARNING: node is not on PATH, so the destructive-delete guard of the disk-hygiene plugin cannot launch and enforces nothing. Tell the user.\"}}'",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /disk-hygiene:check DISK_HYGIENE_ENABLED; ${BASH_VERSION:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /disk-hygiene:check DISK_HYGIENE_ENABLED",
             "timeout": 10,
             "statusMessage": "Checking that node is on PATH..."
           }

@@ -145,13 +145,16 @@ Any one of these means you did not run the exercise. Fix it before writing the f
 
 ## Effort pin
 
-The effort pin in this file's frontmatter is our choice for one timed, sense-bound write. It is
-provisional: an eval comparing this agent's writes under `medium` and `high` decides it.
+The effort pin in this file's frontmatter is `medium`, settled by an eval on 2026-10-03 that ran
+the object-writing suite's cases at `low`, `medium` and `high`. `medium` matched `high` on pass rate
+and on blind-graded write quality, while `low` failed the long (10-minute) case, drifting back to
+the seed, and the character case, slipping out of first-person voice, where `medium` and `high`
+held every run.
 
 - **Pointer**: for choosing a level, see
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level);
   for what the `opus` alias resolves to, see
   [Model aliases](https://code.claude.com/docs/en/model-config#model-aliases).
-- **As of**: 2026-10-02
-- **Recheck trigger**: the `opus` alias resolves to another model, the `medium` row changes, or the
-  eval reports.
+- **As of**: 2026-10-03
+- **Recheck trigger**: the next model release, a change to the object-writing eval suite, or the
+  model-config table's `medium` or `high` rows changing.

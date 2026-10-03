@@ -22,42 +22,57 @@ hooks/hook-utils.sh
 # Cluster line for the duplication audit: the root canonical and the copies.
 lib/hook-utils.sh -> plugins/*/hooks/hook-utils.sh
 
-# Dedicated check: scripts/sync-rewrite-guard.sh --check (CI: rewrite-guard-sync)
+# Dedicated check: scripts/sync-shared-copies.sh --check
 hooks/rewrite-guard.sh
 
-# Dedicated check: scripts/sync-rewrite-guard.sh --check (CI: rewrite-guard-sync).
+# Dedicated check: scripts/sync-shared-copies.sh --check.
 # Cluster line for the duplication audit: the root canonical and the copies.
 lib/rewrite-guard.sh -> plugins/*/hooks/rewrite-guard.sh
 
 # Dedicated check: scripts/validate-plugin-contracts.mjs (lifecycleProtocolCopies)
 reference/artifact-protocol.md
 
-# Dedicated check: scripts/sync-standards-contract.sh --check (CI: standards-contract-sync)
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# docs/conventions/standards/README.md.
 reference/standards-contract.md
 
-# Dedicated check: scripts/sync-managed-scope.sh --check (CI: managed-scope-sync)
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the canonical contract and the copies.
+docs/conventions/standards/README.md -> plugins/*/reference/standards-contract.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/managed-scope.sh.
 lib/managed-scope.sh
 
-# Dedicated check: scripts/sync-state-key.sh --check (CI: state-key-sync)
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/managed-scope.sh -> plugins/*/lib/managed-scope.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/state-key.sh.
 lib/state-key.sh
 
-# Dedicated check: scripts/sync-index-regen.sh --check. Canonical:
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/state-key.sh -> plugins/*/lib/state-key.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/index-regen.sh; today's only copy is plugins/discovery/scripts/. The
 # drift checker only sees a cluster once it spans 2+ plugins (a registered
 # single-plugin path fails as stale), so uncomment the line below when a
 # second plugin consumes it.
 # scripts/index-regen.sh
 
-# Dedicated check: scripts/sync-index-regen.sh --check. Cluster line for the
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and its copy are one class today, so
 # the line is live even while the path-within-plugin entry above stays out.
 lib/index-regen.sh -> plugins/*/scripts/index-regen.sh
 
-# Dedicated check: scripts/sync-resolve-convention-pattern.sh --check.
+# Dedicated check: scripts/sync-shared-copies.sh --check.
 # Cluster line for the duplication audit: the root canonical and its copy.
 lib/resolve-convention-pattern.sh -> plugins/*/hooks/resolve-convention-pattern.sh
 
-# Dedicated check: scripts/sync-parse-concern-value.sh --check. Cluster line
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line
 # for the duplication audit: the copies sit at two shapes within a plugin.
 lib/parse-concern-value.sh -> plugins/*/skills/*/scripts/parse-concern-value.sh plugins/*/skills/*/scripts/lib/parse-concern-value.sh
 
@@ -77,17 +92,33 @@ hooks/hook-test-sink.sh
 # lib/hook-test-sink.sh; copy it into the other plugins to fix a drift failure.
 lib/hook-test-sink.sh -> plugins/*/hooks/hook-test-sink.sh
 
-# Dedicated check: scripts/sync-spawn-noise.sh --check (CI: spawn-noise-sync)
+# Dedicated check: scripts/sync-shared-copies.sh --check
 lib/spawn_noise.py
 
-# Dedicated check: scripts/sync-check-retirements.sh --check (CI: check-retirements-sync)
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/spawn_noise.py -> plugins/*/lib/spawn_noise.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check
 lib/check-retirements.sh
 
-# Dedicated check: scripts/sync-legacy-statusline-detect.sh --check (CI: legacy-statusline-detect-sync)
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/check-retirements.sh -> plugins/*/lib/check-retirements.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check
 skills/setup/reference/legacy-statusline-detect.md
 
-# Dedicated check: scripts/sync-unwrap-before-compose.sh --check (CI: unwrap-before-compose-sync)
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/legacy-statusline-detect.md -> plugins/*/skills/setup/reference/legacy-statusline-detect.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check
 skills/setup/reference/unwrap-before-compose.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/unwrap-before-compose.md -> plugins/*/skills/setup/reference/unwrap-before-compose.md
 
 # No dedicated check: the statusline compose transform the reference above
 # names, carried only by the two statusline guard plugins, so this script's own
@@ -111,17 +142,23 @@ scripts/worktree-root-resolve.sh
 # plugins/source-control/scripts/worktree-root-legacy.sh.
 scripts/worktree-root-legacy.sh
 
-# Dedicated check: scripts/sync-resolve-convention-home.sh --check (CI: resolve-convention-home-sync)
+# Dedicated check: scripts/sync-shared-copies.sh --check
 lib/resolve-convention-home.sh
 
-# Dedicated check: scripts/sync-context-zone.sh --check. Canonical copy:
-# plugins/context-guard/scripts/context-zone.sh. The plugin-quality audit and
-# setup skills call their own copy because plugin caches are per-plugin
-# isolated, which is the "same-plugin or path-provisioned callers" case the
-# context-guard reader contract scopes its resolver-invocation block to. No CI
-# step runs the dedicated check yet; this script's own --check is the live gate
-# until one is wired.
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/resolve-convention-home.sh -> plugins/*/lib/resolve-convention-home.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/context-zone.sh. The plugin-quality audit and setup skills call their own
+# copy because plugin caches are per-plugin isolated, which is the
+# "same-plugin or path-provisioned callers" case the context-guard reader
+# contract scopes its resolver-invocation block to.
 scripts/context-zone.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/context-zone.sh -> plugins/*/scripts/context-zone.sh
 
 # No dedicated check: the resolver's contract test, which travels with it.
 # Canonical copy: plugins/context-guard/scripts/context-zone.test.sh; copy it
@@ -137,6 +174,15 @@ lib/html-escape.mjs
 # Dedicated check: scripts/sync-shared-copies.sh --check.
 # Cluster line for the duplication audit: the root canonical and the copies.
 lib/html-escape.mjs -> plugins/*/lib/html-escape.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/mermaid-gate.mjs. The visualization and architecture plugins carry the
+# generated copies.
+lib/mermaid-gate.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check.
+# Cluster line for the duplication audit: the root canonical and the copies.
+lib/mermaid-gate.mjs -> plugins/*/lib/mermaid-gate.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/session-bridge/session_bridge.py. The planning plugin is the first
@@ -184,13 +230,12 @@ lib/prerequisites.ps1
 # duplication audit: the root canonical and the copies.
 lib/prerequisites.ps1 -> plugins/*/lib/prerequisites.ps1
 
-# Dedicated check: scripts/sync-fetch-docs.sh --check (CI: Verify fetch-docs
-# copies match the canonical fetcher). Canonical: lib/fetch-docs.sh. The
-# harness-config and harness-ops plugins each carry a copy because a plugin cache
-# cannot see the repo-root canonical.
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/fetch-docs.sh. The harness-config and harness-ops plugins each carry a copy
+# because a plugin cache cannot see the repo-root canonical.
 scripts/fetch-docs.sh
 
-# Dedicated check: scripts/sync-fetch-docs.sh --check. Cluster line for the
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/fetch-docs.sh -> plugins/*/scripts/fetch-docs.sh
 
@@ -205,20 +250,19 @@ lib/fetch-docs.sh -> plugins/*/scripts/fetch-docs.sh
 # this line rather than re-align the copies.
 skills/audit/CLAUDE.md
 
-# Dedicated check: scripts/sync-config-root.sh --check. Canonical:
-# plugins/source-control/lib/config-root.sh. No CI step runs the dedicated check
-# yet; this script's own --check is the live gate until one is wired.
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/config-root.sh.
 lib/config-root.sh
 
-# Dedicated check: scripts/sync-config-root.sh --check. Cluster line for the
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/config-root.sh -> plugins/*/lib/config-root.sh
 
-# Dedicated check: scripts/sync-exec-bash.sh --check. Canonical: lib/exec-bash.mjs.
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical: lib/exec-bash.mjs.
 # Exec-form hook rows name node and pass this launcher, then the shell script.
 hooks/exec-bash.mjs
 
-# Dedicated check: scripts/sync-exec-bash.sh --check. Cluster line for the
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/exec-bash.mjs -> plugins/*/hooks/exec-bash.mjs
 
@@ -230,7 +274,7 @@ lib/exec-bash.mjs -> plugins/*/hooks/exec-bash.mjs
 lib/plugin_cache_versions.py
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# lib/view-builder.mjs. The review and planning plugins carry the generated
+# lib/view-builder.mjs. The review, planning, debugging, discovery and architecture plugins carry the generated
 # copies, which stay byte-identical to each other.
 lib/view-builder.mjs
 
@@ -239,7 +283,7 @@ lib/view-builder.mjs
 lib/view-builder.mjs -> plugins/*/lib/view-builder.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# lib/view-runtime.js. The review and planning plugins carry the generated
+# lib/view-runtime.js. The review, planning, debugging, discovery and architecture plugins carry the generated
 # copies, which stay byte-identical to each other.
 lib/view-runtime.js
 

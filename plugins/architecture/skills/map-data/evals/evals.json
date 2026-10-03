@@ -93,6 +93,18 @@
         "The EF file is reported as not-compared, not as ef-fluent-unreadable",
         "The mismatch list makes no missing-in-other claim about the EF file"
       ]
+    },
+    {
+      "id": 8,
+      "name": "offers-built-interactive-view",
+      "prompt": "/architecture:map-data\n\ndata-model.json and data-model.md are written. I would like to filter and trace the entities rather than read the diagram.",
+      "expected_output": "After the report, offers an interactive view of data-model.json in one sentence, builds it only with scripts/build-view.mjs data from the record, and resolves the publish destination from the medium cascade key.",
+      "expectations": [
+        "data-model.md and data-model.json are written first and stay the record",
+        "Offers the view in one sentence and builds only after the reader accepts",
+        "Builds with scripts/build-view.mjs data --record data-model.json and writes no HTML or script itself",
+        "The publish destination comes from the medium key of the rendered-views cascade, with file as the default when unset"
+      ]
     }
   ]
 }

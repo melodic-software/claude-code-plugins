@@ -1,6 +1,18 @@
 {
   "description": "Context-zone crossing notices, the pre-edit zone gate, and the post-compaction marker",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /context-guard:check CONTEXT_GUARD_HOOKS_ENABLED; ${BASH_VERSION:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /context-guard:check CONTEXT_GUARD_HOOKS_ENABLED",
+            "timeout": 10,
+            "statusMessage": "Checking that node is on PATH..."
+          }
+        ]
+      }
+    ],
     "PostToolBatch": [
       {
         "hooks": [

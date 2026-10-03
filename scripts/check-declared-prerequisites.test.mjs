@@ -146,6 +146,12 @@ describe("main", () => {
     assert.equal(gate(["--root", root]).code, 0);
   });
 
+  test("does not scan a generated copy of a shared library", () => {
+    const files = { "lib/x.sh": "#!/bin/sh\n# GENERATED from lib/x.sh by scripts/sync-shared-copies.sh.\ngh x\n" };
+    const root = repo({ plugins: { beta: { files } } });
+    assert.equal(gate(["--root", root]).code, 0);
+  });
+
   test("a baselined gap passes and a baseline row with no gap behind it fails", () => {
     const files = { "a.sh": "gh x\n" };
     assert.equal(gate(["--root", repo({ plugins: { beta: { files } }, baseline: ["beta gh"] })]).code, 0);

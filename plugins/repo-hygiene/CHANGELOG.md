@@ -3,7 +3,7 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.18.7] - 2026-10-03
+## [0.19.3] - 2026-10-03
 
 ### Fixed
 
@@ -14,6 +14,28 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   days inside it. The script now takes `--data-dir`, which the skill passes as
   `"${CLAUDE_PLUGIN_DATA}"`, and without the flag accepts an inherited value only when it names
   repo-hygiene.
+
+## [0.19.2] - 2026-10-03
+
+### Changed
+
+- Shared `prerequisites.sh`, `prerequisites.ps1` synced ([#5843](https://github.com/melodic-software/claude-code-plugins/issues/5843)); no change to this plugin's own behavior.
+
+## [0.19.1] - 2026-10-02
+
+### Changed
+
+- **Shared `exec-bash.mjs` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's hooks.**
+  It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copy.
+
+## [0.19.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
 
 ## [0.18.6] - 2026-10-02
 

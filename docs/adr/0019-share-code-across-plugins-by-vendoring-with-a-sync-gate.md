@@ -108,11 +108,18 @@ Settled with this amendment and not reopened by it: copies, not symlinks (the al
 no dependency plugin (the alternative above); and no versioning of the copy or registry format,
 since a format change migrates every copy in the same change.
 
-The html-escape cluster (`lib/html-escape.mjs`, one carrier: `review`) is the pilot: its hand-run
-`scripts/sync-html-escape.sh` is deleted and its copy is generated. The other `sync-*.sh` clusters
-keep their byte-identical copies and their scripts until each moves to the registry in its own
-change; a cluster is migrated by registering its copies, regenerating, deleting its script and its
-test, and pointing its CI steps at the generator.
+The html-escape cluster (`lib/html-escape.mjs`, one carrier: `review`) was the pilot: its hand-run
+`scripts/sync-html-escape.sh` is deleted and its copy is generated. Every other cluster except
+`hook-utils.sh` has since moved the same way: its copies are registered, regenerated, its
+`sync-*.sh` script and test are deleted, and its CI steps call the generator. `lib/hook-utils.sh`
+keeps `scripts/sync-hook-utils.sh` until its own change.
+
+A canonical that lived inside one plugin moved to `lib/` when its cluster migrated, so that plugin's
+copy is generated like the rest and every copy of a library stays byte-identical to every other. A
+Markdown canonical gets the header as an HTML comment after any frontmatter block. The standards
+contract keeps one gate the generator does not own: `scripts/check-standards-contract-bump.sh`
+requires its frontmatter semver and CHANGELOG entry to move with a change to the contract or its
+schema.
 
 ## Addendum (2026-09-07): one sync lane with N steps, not one lane per library
 
@@ -130,8 +137,8 @@ Each shared source used to get **its own CI job**. Before claude-code-plugins#36
 `standards-contract-sync`. Each was a runner, a pinned `actions/checkout`, a
 `checkout-with-base` deepen to full history plus a base fetch, the `--check` and `--check-bump`
 steps, and in eleven of the thirteen a per-library test step as well. No toolchain install: these
-are shell scripts, and the toolchains belong to `test-linux`. The cost was the runner, the checkout
-and the unshallow, paid thirteen times over.
+are shell scripts, and the toolchains belonged to the test lane. The cost was the runner, the
+checkout and the unshallow, paid thirteen times over.
 
 **The cost is latency here and money on the fleet.** This repository is public and the jobs ran on
 `ubuntu-24.04`, a standard runner, so nothing was billed: what thirteen jobs bought was thirteen
@@ -144,12 +151,11 @@ is a per-library pooled minute there. That organization caps Actions spend at `$
 `prevent_further_usage` (melodic-software/github-iac ADR 0008), so the failure mode is not a line
 item but a hard stop on every private repository's hosted CI once the pool is gone.
 
-**They are now steps, not jobs.** Twelve of the thirteen run as steps of `test-linux`, which
-already performs that same deepen and base fetch for its own `--check-bump` steps;
-`sync-hook-utils.sh` runs in the `hook-utils` job beside the hook contract tests it covers, on the
-shell-only diff that job exists to keep off the heavier lanes. Adding a fourteenth shared source
-therefore adds a step to an existing job, and adding a job is the thing to justify rather than the
-default.
+**They are now steps, not jobs.** Every shared-library gate, the `sync-hook-utils.sh` pair and the
+generator's `--check` and `--check-bump` (see the amendment above), runs as a step of
+`check-plugins`, the job that holds the plugin contracts across files, which performs that same
+deepen and base fetch once for every bump check. Adding a fourteenth shared source therefore adds a step to an existing job,
+and adding a job is the thing to justify rather than the default.
 
 One thing was lost and is worth naming rather than glossing. The old **job** name
 (`state-key-sync`, `index-regen-sync`) was the discriminator that said which library failed. Every

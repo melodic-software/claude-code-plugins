@@ -7,7 +7,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
-## [0.8.3] - 2026-10-03
+## [0.9.1] - 2026-10-03
 
 ### Fixed
 
@@ -15,6 +15,21 @@ Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published
   plugin data directory through the `${CLAUDE_PLUGIN_DATA}` token Claude Code substitutes when the
   skill loads, like the POSIX form beside it. It read `$env:CLAUDE_PLUGIN_DATA` at run time, which
   an operator's PowerShell does not set, so the install went to `\sdk` at the drive root.
+
+## [0.9.0] - 2026-10-03
+
+### Added
+
+- A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names `/context-budget:check`. The row is shared across plugins, so a session with several of them sees one notice.
+- `lib/prerequisites.mjs`, `lib/prerequisites.sh` and `lib/prerequisites.ps1`, the generated copies of the shared prerequisites checker and its `node-notice` stubs.
+
+## [0.8.3] - 2026-10-02
+
+### Changed
+
+- **Shared `state-key.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's lib.**
+  It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copy.
 
 ## [0.8.2] - 2026-10-03
 

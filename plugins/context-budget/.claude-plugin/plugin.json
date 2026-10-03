@@ -1,6 +1,6 @@
 {
   "name": "context-budget",
-  "version": "0.8.3",
+  "version": "0.9.1",
   "description": "Measures a Claude Code session's fixed startup context payload per item at a pinned binary version, including per-tool attribution of the built-in tool pools that /context reports only as totals, derived by A/B deny differencing under comparability rules. Falls back from an SDK meter to a headless /context parser, then to an error rather than a wrong number. Keeps a per-project before/after ledger per lever. Report-only by default; fix applies one approved project-scope trim.",
   "author": {
     "name": "Melodic Software",

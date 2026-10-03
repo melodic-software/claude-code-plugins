@@ -39,7 +39,7 @@ MAX_FILES=4
 hook::buffer_stdin_to INPUT || exit 0
 # Substring check first: jq stays the authority, stdout can carry the word too.
 [[ "$INPUT" == *'"bashEditDiff"'* ]] || exit 0
-hook::require_jq PostToolUse testing "$INPUT"
+hook::require jq PostToolUse testing "$INPUT"
 
 # The globs are this plugin's own Write rows in hooks.json, generated from the
 # adapters' files: lists, so one jq call reads them along with the paths.

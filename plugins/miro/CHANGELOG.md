@@ -3,6 +3,29 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.2] - 2026-10-03
+
+### Changed
+
+- Shared `prerequisites.sh`, `prerequisites.ps1` synced ([#5843](https://github.com/melodic-software/claude-code-plugins/issues/5843)); no change to this plugin's own behavior.
+
+## [0.6.1] - 2026-10-03
+
+### Changed
+
+- **chore(deps-dev): Bump the npm-minor-patch group across 1 directory with 3 updates** (#5999).
+  - `@types/node` 26.6.2→26.6.3
+  - `@vitest/coverage-v8` 5.0.1→5.0.2
+  - `vitest` 5.0.1→5.0.2
+
+## [0.6.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
+
 ## [0.5.5] - 2026-10-02
 
 ### Fixed
