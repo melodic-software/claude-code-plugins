@@ -67,7 +67,8 @@ rendering-surface facts these rest on. The summary:
 | The shape of code before any of it exists | **types and signatures** (a code-shape sketch) |
 | What changes, when the surrounding shape is already in the conversation | a **diff-shaped delta** over any of the shapes above (a code-shape sketch) |
 | Mostly new code, or a copyable target shape, when no sketch is smaller than the code | **the whole block**, the fallback among the code-shape sketches |
-| A composite, interactive, or large multi-part view; an infographic; a short slide deck | a **rich rendered page** |
+| A composite, interactive, or large multi-part view; an infographic | a **rich rendered page** |
+| A slide deck | hand off to `/visualization:present`, which builds it from the account's Slides Artifact type |
 | A visual layout the user would rather tweak by hand: a UI mockup, screen flow, poster, banner, one-pager | a **rich rendered page**, with the **design canvas** (`/design`, the bundled `design` skill, which the person runs) offered alongside it |
 
 **Code-shape sketches** are fenced text: they render in any GFM surface and need
