@@ -19,7 +19,7 @@ graders:
   - name: dispatch-mode-unattended
     type: tool_used
     tool: Agent
-    input_match: '^(?=.*go-faster-sweeper)(?=.*(?:\\n|")MODE\W{1,4}unattended\b)'
+    input_match: '^(?=.*go-faster-sweeper)(?=.*(?:\\n|")[-*\s`]*MODE\W{1,6}unattended\b)'
   - name: waits-for-sweeper
     type: llm
     focus: trace
@@ -30,6 +30,7 @@ graders:
     criteria: 'PASS only if: Prints the report path after the lock release. FAIL otherwise.'
   - name: no-adopt-question
     type: llm
+    focus: trace
     criteria: 'PASS only if: Asks no adopt-now question, although the report has an ''Adopt now'' section. FAIL otherwise.'
   - name: no-adopt-call
     type: tool_used

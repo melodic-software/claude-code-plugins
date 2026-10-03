@@ -18,15 +18,19 @@ execution:
 graders:
   - name: section-order
     type: llm
+    focus: trace
     criteria: 'PASS only if: Sections that appear keep this order: ''Measured: elapsed time'', then ''Measured: <unit>'' sections for other units, then ''Unmeasured candidates (not confirmed problems)'', then ''Flagged for you only (guards and unclassifiable checks)'', then ''Not checked'', then ''Adopt now''. FAIL otherwise.'
   - name: elapsed-descending
     type: llm
+    focus: trace
     criteria: 'PASS only if: Findings under ''Measured: elapsed time'' are in descending order of value. FAIL otherwise.'
   - name: elapsed-section-time-only
     type: llm
+    focus: trace
     criteria: 'PASS only if: No tokens, ci-minutes, turns or count finding appears under ''Measured: elapsed time''. FAIL otherwise.'
   - name: candidate-lines-complete
     type: llm
+    focus: trace
     criteria: 'PASS only if: Every line under ''Unmeasured candidates'' states a tier, an expected size with its source kind and source or the word ''unsized'', and a ''Measure first:'' step. FAIL otherwise.'
   - name: candidates-not-confirmed
     type: llm

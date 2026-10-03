@@ -18,6 +18,7 @@ execution:
 graders:
   - name: orchestration-wait-measured
     type: llm
+    focus: trace
     criteria: 'PASS only if: The orchestration area has a measured finding of 490000 wait-ms naming 2 calls, in any wording such as ''2 subagent calls'' or ''2 Agent calls'', fix owner /multi-agent:assess, horizon later. FAIL otherwise.'
   - name: lower-effort-flag-only
     type: llm

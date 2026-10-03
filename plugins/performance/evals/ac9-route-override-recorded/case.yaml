@@ -40,7 +40,8 @@ graders:
     target: { source: file, path: go-faster-data/adopted.jsonl }
   - name: report-shows-route
     type: llm
-    criteria: 'PASS only if: The report shows a "Route:" line for the repeated `npm run lint` finding, and it matches the route the user chose (performance-chain). FAIL otherwise.'
+    focus: trace
+    criteria: 'PASS only if: The report''s entry for the repeated `npm run lint` finding shows "Route:" naming next-run or performance-chain. FAIL otherwise.'
   - name: states-behavior-guard-check
     type: llm
     criteria: 'PASS only if: The reply states the behavior change followed from here on, its guard, and when the guard is checked. FAIL otherwise.'

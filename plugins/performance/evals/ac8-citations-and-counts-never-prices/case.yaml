@@ -1,9 +1,9 @@
 schema_version: "1.1"
 name: ac8-citations-and-counts-never-prices
-description: 'Source: plan acceptance criterion AC8. Resumes the AC1 session transcript and asks what the session costs: citations must be fetched this run and dated today, measured findings cite their command, and token use is answered in counts, never prices. findings.json sits under a per-run folder whose name a grader cannot know, so its checks are judged from the trace. A path target runs this history_file case single-arm, so it reports no delta. The scaffold stages the history in the workspace, where go-faster reads it and keeps its data folder. A run needs --scaffold, --allow-tools Bash WebFetch and a sandbox backend.'
+description: 'Source: plan acceptance criterion AC8. Resumes the AC1 session transcript and asks what the session costs: measured findings cite their command, and token use is answered in counts, never prices. That a citation is dated the run''s date is enforced by findings.py add, not graded here: findings.json sits under a per-run folder whose name a grader cannot know, a file target names one path with no glob, and the rendered report carries no citation fields. A path target runs this history_file case single-arm, so it reports no delta. The scaffold stages the history in the workspace, where go-faster reads it and keeps its data folder. A run needs --scaffold, --allow-tools Bash WebFetch and a sandbox backend.'
 tags: [go-faster, session-history, routine]
 plugins: ["../.."]
-expected_outcome: 'AC8. Findings that rest on outside advice cite a source fetched in this run, dated the run''s date, with a recheck trigger; measured findings cite their command; token and cache use is reported as counts. The cost question is answered in token counts, with no price, currency amount or percentage.'
+expected_outcome: 'AC8. Measured findings cite their command; token and cache use is reported as counts. The cost question is answered in token counts, with no price, currency amount or percentage.'
 context:
   scaffold_script: scaffold.sh
   history_file: ac1-seeded-test-wait.jsonl
@@ -18,9 +18,11 @@ execution:
 graders:
   - name: measured-findings-have-command
     type: llm
+    focus: trace
     criteria: 'PASS only if: Every measured finding shows a non-empty command after ''Reproduce:'' in the report. FAIL otherwise.'
   - name: cache-as-token-count
     type: llm
+    focus: trace
     criteria: 'PASS only if: The model-cache finding reports cache_creation as a token count with cache_read and input named beside it. FAIL otherwise.'
   - name: no-price
     type: regex
@@ -31,6 +33,7 @@ graders:
     arm: both
   - name: no-cost-per-task-or-session
     type: llm
+    focus: trace
     criteria: 'PASS only if: Neither the report nor the reply states a price, a currency amount, or a cost per task or per session. FAIL otherwise.'
   - name: no-percentage
     type: regex

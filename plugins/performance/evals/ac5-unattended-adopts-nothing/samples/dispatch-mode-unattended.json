@@ -11,6 +11,18 @@
         }
       ],
       "why": "MODE unattended on its own line"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Agent",
+          "input": {
+            "subagent_type": "performance:go-faster-sweeper",
+            "prompt": "Run the sweep with these values:\n- `PY`: /usr/bin/python3\n- `ROOT`: /plugins/performance\n- `RUN`: /data/go-faster/k/runs/r1\n- `DATA`: /data/go-faster/k\n* **SESSION**: s-1\n- `TRANSCRIPT`: /home/.claude/projects/p/s-1.jsonl\n- `MODE`: `unattended`\n- `EVIDENCE`: true"
+          }
+        }
+      ],
+      "why": "MODE unattended as a bulleted, backticked list item"
     }
   ],
   "fail": [

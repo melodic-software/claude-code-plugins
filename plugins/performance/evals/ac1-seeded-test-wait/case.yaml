@@ -18,21 +18,27 @@ execution:
 graders:
   - name: bash-wait-finding-measured
     type: llm
+    focus: trace
     criteria: 'PASS only if: The report has a measured session-work finding with value 285000 and unit wait-ms whose title names the Bash tool or the `npm test` runs. FAIL otherwise.'
   - name: bash-wait-listed-first
     type: llm
+    focus: trace
     criteria: 'PASS only if: Among session-work findings in the ''Measured: elapsed time'' section, that Bash wait finding (value 285000, unit wait-ms) is listed first. FAIL otherwise.'
   - name: bash-wait-tier-e1
     type: llm
+    focus: trace
     criteria: 'PASS only if: That finding (the session-work Bash wait of 285000 wait-ms) states tier E1. FAIL otherwise.'
   - name: bash-wait-reproduce-command
     type: llm
+    focus: trace
     criteria: 'PASS only if: That finding''s (the session-work Bash wait of 285000 wait-ms) ''Reproduce:'' command is a `findings.py transcript-counts` line. FAIL otherwise.'
   - name: bash-wait-fix-owner
     type: llm
+    focus: trace
     criteria: 'PASS only if: That finding''s (the session-work Bash wait of 285000 wait-ms) ''Fix:'' names a /plugin:skill, or ''steps for you:'' followed by at least one step. FAIL otherwise.'
   - name: npm-test-repeat-counted
     type: llm
+    focus: trace
     criteria: 'PASS only if: The report has a measured finding with unit count and value 3 for the repeated `npm test` command. FAIL otherwise.'
   - name: not-a-setup-scan
     type: regex

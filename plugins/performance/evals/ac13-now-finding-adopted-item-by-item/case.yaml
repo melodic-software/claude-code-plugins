@@ -18,9 +18,11 @@ execution:
 graders:
   - name: lint-repeat-measured
     type: llm
+    focus: trace
     criteria: 'PASS only if: Under ''Measured: count'', the report lists the repeated `npm run lint` finding with value 3, tier E1 and horizon now. FAIL otherwise.'
   - name: adopt-now-guard-and-revert
     type: llm
+    focus: trace
     criteria: 'PASS only if: The ''Adopt now'' section has a line for that finding (the repeated `npm run lint`) whose guard reads ''a reused result differs from a fresh run'' and whose revert condition reads ''the inputs changed since the earlier run''. FAIL otherwise.'
   - name: asks-item-by-item
     type: llm
