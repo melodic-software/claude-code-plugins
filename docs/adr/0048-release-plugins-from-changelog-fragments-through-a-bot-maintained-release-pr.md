@@ -62,10 +62,14 @@ version bumps and CHANGELOG entries.
 
 ### Fragment format and location
 
-- **Location:** `.changes/<plugin>/<slug>.md` at the repository root, one file per plugin a pull
-  request releases. The directory sits outside `plugins/` so fragments never ship into an installed
-  plugin's cache copy. `<slug>` is the pull request's branch name with `/` replaced by `-`, which
-  is unique among open branches; a gate rejects a fragment whose path already exists on the base.
+- **Location:** `.changes/<plugin>/<branch-slug>-<suffix>.md` at the repository root, one file per
+  plugin a pull request releases. The directory sits outside `plugins/` so fragments never ship
+  into an installed plugin's cache copy. `<branch-slug>` is the branch name with `/` replaced by
+  `-`, which alone is not unique (`fix/foo-bar` and `fix-foo/bar` map to one slug, and two forks
+  can use one branch name), so `<suffix>` is 8 random hex characters. A new
+  `scripts/new-changelog-fragment.sh <plugin> <bump>` creates the file with that name and the
+  front matter, so a contributor needs no pull request number in advance. A gate still rejects a
+  fragment whose path already exists on the base.
 - **Format:** YAML front matter with one required key, then a Keep a Changelog body:
 
   ```markdown
@@ -78,30 +82,45 @@ version bumps and CHANGELOG entries.
   - **`interview` recommends separate implement and verify effort levels.** ...
   ```
 
-- **Bump level:** `bump` is `major`, `minor` or `patch`. The body's `###` headings are the existing
-  Keep a Changelog section names the CHANGELOGs already use (`Added`, `Changed`, `Fixed`,
+- **Bump level:** `bump` is `major`, `minor`, `patch` or `none`. The body's `###` headings are the
+  existing Keep a Changelog section names the CHANGELOGs already use (`Added`, `Changed`, `Fixed`,
   `Removed`, `Security`, `Deprecated`).
+- **Opt-out:** a pull request that changes a plugin's shipped files but needs no release adds a
+  fragment with `bump: none` and a body of one line saying why. The opt-out sits in the diff, so a
+  reviewer sees it; a label would not. A release deletes `none` fragments without bumping or
+  writing a CHANGELOG entry for them.
 - A fragment may be edited or deleted by a later pull request until a release consumes it.
 
 ### The release pull request
 
 - **Workflow:** a new `.github/workflows/release-plugins.yml` with `concurrency` set to one group
   and `cancel-in-progress: true`.
-- **Trigger and cadence:** `schedule` plus `workflow_dispatch`. It does not run on every push to
-  main: at the measured commit rate, regenerating on every push would force-push the release
-  branch faster than its CI completes, and it would never merge. On each run:
+- **Trigger and cadence:** `schedule`, `workflow_dispatch`, and `push` to main filtered to
+  `.changes/**`. It does not rebuild on every push to main: at the measured commit rate,
+  regenerating on every push would force-push the release branch faster than its CI completes, and
+  it would never merge. On each run:
   - With no release pull request open, it builds one from main's current fragments.
-  - With one open, it leaves it alone, so its CI can finish. Fragments that land meanwhile wait for
-    the next release. Main's status checks are not strict (see Context), so a release pull request
-    behind main still merges.
-  - When the open release pull request has a merge conflict (a consumed fragment was edited or
-    deleted on main), it rebuilds it from main.
+  - With one open, it rebuilds it from main only when main holds a fragment the release pull
+    request did not consume for a plugin that release pull request bumps, or when the release pull
+    request has a merge conflict (a consumed fragment was edited or deleted on main). Otherwise it
+    leaves it alone, so its CI can finish. A fragment for a plugin the release does not bump waits
+    for the next release; that plugin's version does not move, so its newer code ships under no
+    wrong version.
+  - A rebuild is the same reset and `createCommitOnBranch` write described below, so it restarts
+    the release pull request's CI. Rebuilds happen only as often as fragments for the plugins in
+    the open release land, not on every main commit.
+- **Release check:** a `check-changelog-fragments.sh --check-release <base>` step, run only on the
+  `release/plugins` pull request, fails when the base holds an unconsumed fragment for a plugin the
+  release bumps. Main's status checks are not strict (see Context), so a release pull request
+  behind main can otherwise merge; this check stops a stale release from bumping a plugin's version
+  over code whose fragment, CHANGELOG entry and bump level it left out. Every rebuild re-runs it.
 - **Aggregation**, by a new `scripts/release-plugins.sh` the workflow runs:
   1. Group the fragments under `.changes/<plugin>/`.
   2. The new version is the manifest's current version raised once at the highest `bump` among
-     that plugin's fragments. One release is one version, however many fragments it consumes.
-  3. Write one `## [<new>] - <date>` entry above the newest heading, merging the fragments' bodies
-     section by section, in fragment commit order.
+     that plugin's fragments. One release is one version, however many fragments it consumes. A
+     plugin whose fragments are all `bump: none` gets no new version.
+  3. Write one `## [<new>] - <date>` entry above the newest heading, merging the non-`none`
+     fragments' bodies section by section, in fragment commit order.
   4. Set `version` in `plugin.json` only. No marketplace entry carries a version, and the bot does
      not add one.
   5. Delete the consumed fragments.
@@ -122,10 +141,12 @@ version bumps and CHANGELOG entries.
 |---|---|
 | `check-changelog-parity.sh --check`, `--check-preserved`, `--check-order` | Kept as they are. They guard CHANGELOG integrity, which now changes only in release pull requests |
 | `--check-bump` | Kept for the release pull request. Its "bump without change" rule (`check-changelog-parity.sh:93-96`) counts a consumed fragment as the change. For a plugin in fragment mode, any other pull request that changes its `version` or adds a CHANGELOG heading fails with a message pointing at `.changes/` |
-| New `check-changelog-fragments.sh` | Validates every added fragment: path names an existing plugin, front matter has a valid `bump`, the body has at least one known `###` section, and the path is new on the base |
-| `check-vendor-version-bump.sh` and the `sync-*.sh --check-bump` steps | One shared predicate in `scripts/lib/` replaces "manifest version moved" with "manifest version moved, or a fragment for that plugin was added". The version-moved branch stays so legacy plugins pass during the dual mode |
+| New `check-changelog-fragments.sh` | Validates every added or modified fragment: path names an existing plugin, front matter has a valid `bump`, the body has at least one known `###` section (a `bump: none` fragment needs only a non-empty reason line instead), and an added fragment's path is new on the base |
+| New `check-changelog-fragments.sh --check-required <base>` | For each fragment-mode plugin whose shipped files (anything under `plugins/<name>/`) the pull request changes, requires an added or modified fragment for that plugin, `bump: none` included. The release pull request is exempt |
+| New `check-changelog-fragments.sh --check-release <base>` | Runs on the release pull request only. Fails when the base holds an unconsumed fragment for a plugin the release bumps (see The release pull request) |
+| `check-vendor-version-bump.sh` and the `sync-*.sh --check-bump` steps | One shared predicate in `scripts/lib/` replaces "manifest version moved" with "manifest version moved, or a fragment for that plugin with a `bump` other than `none` was added". The version-moved branch stays so legacy plugins pass during the dual mode |
 | `check-stale-base-overlap.sh` | Unchanged. It stops firing on version files because pull requests no longer touch them |
-| `dependabot-plugin-release.yml` | Writes a `patch` fragment through the same `createCommitOnBranch` call instead of running `dependabot-plugin-bump.sh` |
+| `dependabot-plugin-release.yml` | Writes a `patch` fragment, named the way `new-changelog-fragment.sh` names one, through the same `createCommitOnBranch` call instead of running `dependabot-plugin-bump.sh` |
 | `resolve-version-bump-conflict.sh` | Kept in the `source-control` plugin, which other repositories install and which may still bump per pull request. This repository stops calling it once every plugin is in fragment mode, and the four skill documents above say it applies only to repositories that bump per pull request |
 
 ### How installed users see updates
@@ -192,7 +213,8 @@ still carries its last released version.
 Each phase has its own rollback, and no phase removes the previous path until the next one is
 proven.
 
-1. **Tooling, no plugin opted in.** Land `release-plugins.sh`, `check-changelog-fragments.sh`, the
+1. **Tooling, no plugin opted in.** Land `release-plugins.sh`, `new-changelog-fragment.sh`,
+   `check-changelog-fragments.sh` with its `--check-required` and `--check-release` modes, the
    shared bump predicate and their tests, with an opt-in list `scripts/fragment-plugins.txt` that is
    empty. Rollback: revert the commit; nothing reads the list yet.
 2. **Pilot one plugin.** Add one low-traffic plugin to the list, create the GitHub App, and run the
@@ -201,7 +223,8 @@ proven.
    Rollback: remove the plugin from the list and hand-write any pending fragments into its
    CHANGELOG with a normal bump.
 3. **Dual mode, high-traffic plugins.** Add the most-bumped plugins (`planning`, `claude-ops`,
-   `source-control`, `disk-hygiene`) and turn on the schedule. Legacy plugins keep the per-PR bump
+   `source-control`, `disk-hygiene`) and turn on the schedule and the `.changes/**` push
+   trigger. Legacy plugins keep the per-PR bump
    and the resolver. Rollback: as in phase 2, per plugin.
 4. **Fleet.** Add every remaining plugin, switch `dependabot-plugin-release.yml` to fragments, and
    update the contributor instructions listed under Consequences. Rollback: empty the list and
@@ -216,7 +239,7 @@ proven.
    Until then a person merges the release pull request.
 2. **Cadence.** The schedule fires every 3 hours.
 3. **Fragment scope.** Every change to a plugin's shipped files needs a fragment. A change that
-   needs no release opts out explicitly.
+   needs no release opts out with a `bump: none` fragment, and `--check-required` enforces both.
 4. **GitHub App.** A new dedicated release App, separate from the standards-sync App. The pilot
    still confirms that main's `require_extra_approval_for_unattributed_changes: true` does not
    block the bot's pull request.
