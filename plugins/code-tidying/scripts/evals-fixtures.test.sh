@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/code-tidying/evals/*
 # Contract: every seeded eval fixture parses and self-certifies through
 # change-shape.py, so a 0-score case is a skill regression. The UNPROVABLE
 # excerpt's exit 21 is the point of the case it feeds, not a defect.

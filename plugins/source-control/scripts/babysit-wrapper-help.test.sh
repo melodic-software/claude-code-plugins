@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/source-control/scripts/* plugins/source-control/skills/babysit-prs/scripts/babysit_*.py
 # Regression tests for the scripts/ wrappers' --help path.
 #
 # /source-control:setup's lane-script reachability probe (#787) invokes
