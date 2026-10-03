@@ -1,6 +1,6 @@
 # Release plugins from changelog fragments through a bot-maintained release PR
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-03
 
 ## Context
@@ -113,8 +113,8 @@ version bumps and CHANGELOG entries.
   `dependabot-plugin-release.yml:85-111`. GitHub signs that commit, which satisfies main's
   `required_signatures` rule.
 - **Title and merge:** `chore(release): release <n> plugins`, which passes the Conventional Commits
-  title check. Its body lists each plugin's old and new version and the fragments consumed. Who
-  merges it is an open question below.
+  title check. Its body lists each plugin's old and new version and the fragments consumed. A person merges it until the
+  phase 2 pilot proves auto-merge (see Resolved decisions).
 
 ### Gates
 
@@ -160,8 +160,8 @@ still carries its last released version.
   directory" as its version (<https://code.claude.com/docs/en/plugins/loading#how-claude-code-computes-the-version>,
   fetched 2026-10-03). Deferred: it removes the race entirely, but the docs do not say whether that
   SHA is the last commit touching the plugin directory or the marketplace HEAD. If it is HEAD,
-  every merge to main would refresh all 85 plugins for every user. See the open questions for the
-  probe that settles it.
+  every merge to main would refresh all 85 plugins for every user. The probe under Resolved
+  decisions settles it before phase 2.
 - **Compute the version at merge time.** A post-merge job bumps on main. Rejected: main requires a
   pull request for every change, so a direct push needs a ruleset bypass for the bot, which widens
   who can write to main without review.
@@ -210,23 +210,17 @@ proven.
    the version-moved branch of the shared predicate, and reword the resolver references. Rollback:
    revert this phase's commit, which restores phase 4.
 
-## Open questions
+## Resolved decisions
 
-1. **Who merges the release pull request.** Options: the bot enables auto-merge so it merges when
-   `ci-status` is green; the babysit merge lane merges it; a person merges it. Unblocks phase 3.
-2. **Cadence.** How often the schedule fires bounds release latency; the cost is one full CI run
-   per release. Unblocks phase 3.
-3. **Fragment requirement.** Whether every pull request that changes a plugin's shipped files must
-   add a fragment (with an explicit opt-out for changes that need no release), or only those the
-   vendor and sync gates require today, with the rest reported as advisory.
-4. **Which GitHub App.** A dedicated release App, or the existing standards-sync App
-   (`STANDARDS_SYNC_APP_CLIENT_ID` in `.github/standards/runner-policy/policy.json`) with
-   `contents: write` and `pull_requests: write` added. Main's `pull_request` rule also sets
-   `require_extra_approval_for_unattributed_changes: true`; the pilot must confirm it does not
-   block a bot-authored pull request.
-5. **Version omission, untested.** Whether "the commit SHA of the installed directory" means the
-   last commit that touched the plugin directory or the marketplace HEAD. Probe, not yet run: a
-   disposable Git marketplace with two relative-path plugins and no `version` anywhere; install
-   both, commit a change to one, run `claude plugin update` for each, and see which reports a new
-   version. If only the changed plugin updates, omission removes the version race with no bot and
-   this decision should be revisited.
+1. **Release pull request merging.** The bot enables auto-merge once the phase 2 pilot proves it.
+   Until then a person merges the release pull request.
+2. **Cadence.** The schedule fires every 3 hours.
+3. **Fragment scope.** Every change to a plugin's shipped files needs a fragment. A change that
+   needs no release opts out explicitly.
+4. **GitHub App.** A new dedicated release App, separate from the standards-sync App. The pilot
+   still confirms that main's `require_extra_approval_for_unattributed_changes: true` does not
+   block the bot's pull request.
+5. **Version-omission probe.** Run it before phase 2: a disposable Git marketplace with two
+   relative-path plugins and no `version` anywhere; install both, commit a change to one, run
+   `claude plugin update` for each, and see which reports a new version. If only the changed
+   plugin updates, revisit this ADR before continuing.
