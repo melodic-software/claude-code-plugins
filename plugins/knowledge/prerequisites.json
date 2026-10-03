@@ -1,0 +1,134 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "skill:course-digest",
+        "skill:setup",
+        "skill:video-digest"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the digest skills cannot run their extraction scripts and stop.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "npm",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:course-digest",
+        "skill:video-digest"
+      ],
+      "detect": {
+        "any": [
+          "npm"
+        ]
+      },
+      "degrade": "Without npm, the digest skills cannot run their test suites; a digest itself does not need it.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "npm"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "ffmpeg",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:course-digest",
+        "skill:video-digest"
+      ],
+      "detect": {
+        "any": [
+          "ffmpeg"
+        ]
+      },
+      "degrade": "Without ffmpeg, the video-digest watch action and course-digest cannot extract frames; the transcript-only digests still run.",
+      "install": {
+        "docs": "https://ffmpeg.org/download.html",
+        "brew": "ffmpeg",
+        "winget": "Gyan.FFmpeg",
+        "apt": "ffmpeg"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "ffprobe",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:course-digest",
+        "skill:video-digest"
+      ],
+      "detect": {
+        "any": [
+          "ffprobe"
+        ]
+      },
+      "degrade": "Without ffprobe, the frame extraction cannot read a video's duration, so no frames are extracted.",
+      "install": {
+        "docs": "https://ffmpeg.org/download.html",
+        "brew": "ffmpeg",
+        "winget": "Gyan.FFmpeg",
+        "apt": "ffmpeg"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "yt-dlp",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:video-digest"
+      ],
+      "detect": {
+        "any": [
+          "yt-dlp"
+        ]
+      },
+      "degrade": "Without yt-dlp, /knowledge:video-digest cannot download a YouTube video or its captions, and stops.",
+      "install": {
+        "docs": "https://github.com/yt-dlp/yt-dlp#installation",
+        "brew": "yt-dlp",
+        "winget": "yt-dlp.yt-dlp"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "gh",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:course-digest"
+      ],
+      "detect": {
+        "any": [
+          "gh"
+        ]
+      },
+      "degrade": "Without gh, /knowledge:course-digest cannot analyze a course's code repository; the rest of the digest is unchanged.",
+      "install": {
+        "docs": "https://cli.github.com/",
+        "brew": "gh",
+        "winget": "GitHub.cli",
+        "apt": "gh"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}
