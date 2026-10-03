@@ -3,6 +3,14 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.0] - 2026-10-03
+
+### Changed
+
+- **The `implementer` and `phase-verifier` bindings cover Workflow scripts.** An `agent()` call in
+  a Workflow script this repository ships that names either agent never passes `effort` or `model`
+  below the agent's binding, and omits both to keep it.
+
 ## [0.20.4] - 2026-10-02
 
 ### Changed
