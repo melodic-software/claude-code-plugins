@@ -48,7 +48,7 @@ const isRelative = p => !!p && !p.startsWith('/') && !/^[A-Za-z]:/.test(p) && !p
 // and secret-bearing files must not be read into a report. Segments compare
 // case-insensitively with trailing dots and spaces stripped, as a
 // case-insensitive filesystem would.
-const PROTECTED_DIRS = ['.git', '.claude', '.github', '.husky', '.vscode', 'node_modules', '.venv', 'venv', '.tox', '.ssh', '.aws']
+const PROTECTED_DIRS = ['.git', '.claude', '.github', '.husky', '.vscode', 'node_modules', '.venv', 'venv', '.tox', '.ssh', '.aws', 'secrets', '.secrets']
 const PROTECTED_NAMES = [
   'package.json', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', '.npmrc', '.yarnrc.yml',
   'pyproject.toml', 'setup.py', 'setup.cfg', 'pipfile', 'pipfile.lock', 'poetry.lock', 'uv.lock', '.pypirc',
@@ -229,7 +229,7 @@ async function runCommand(label, base) {
   const tree = base
     ? ' Then report as changedFiles every path `git diff --name-only ' + base + '` lists plus every path ' +
       '`git ls-files --others --exclude-standard` lists.'
-    : ''
+    : ' Report changedFiles as an empty list.'
   const got = await agentRetry(
     'Stage: run. Run the command below once, exactly as given, from the repository root, and wait for it ' +
     'to finish. Change no file. Report whether it passed (exit code 0), its exit code, and every failing ' +

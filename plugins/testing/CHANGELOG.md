@@ -18,20 +18,21 @@ All notable changes to the `testing` plugin are documented here. Format follows
   the check flags weakening or an edit outside the allowed files, or when HEAD moves. It flags these
   and never reverts them. Paths that are absolute, contain `..`, sit under git internals, agent
   settings, hooks, CI, editor tasks or dependency trees, or name a dependency manifest, lockfile,
-  build file or secret-bearing file in any common ecosystem, never reach a fixer (matched
-  case-insensitively). A file a fixer asks for joins its group only when git tracks it. The checks,
-  and every re-run, count untracked files and a moved HEAD, and fixers are told to run no git
-  command that writes. After any round that dispatched a fixer, a green run gets a final verifier
-  that re-runs the command and reviews the whole diff. Its `args` carry `command` (required;
-  without it the run returns `{error: "missing-command"}` and dispatches nothing; a string that is
-  itself valid JSON, such as `true`, stays the command), `scope` (path prefixes the fixers may
-  edit; when every entry is rejected the run returns `{error: "bad-scope"}`), `maxRounds` (default 3, clamped to 1-5), `maxConcurrent` (default 2, clamped to 1-16),
-  `roles` and `finalVerify` (default true). The result carries `green`, `rounds`, `remaining`,
-  `changes` per round, `weakening`, `outsideEdits`, `base`, `nulls` and `stoppedBecause`. Fixers
-  take the worker role's fan-out variant at `medium` effort, the runner the retrieval role's single variant at `low`, and
-  the round check and final verifier the verifier role's single variant at `high`, from
-  `/multi-agent:route` when the caller passes them, else from built-in fallbacks that run fixers
-  on `opus`. It commits nothing.
+  build file, or secret-bearing file or directory in any common ecosystem, never reach a fixer
+  (matched case-insensitively). A file a fixer asks for joins its group only when git tracks it.
+  The checks, and every re-run, count untracked files and a moved HEAD, and fixers are told to run
+  no git command that writes. After any round that dispatched a fixer, a green run gets a final
+  verifier that re-runs the command and reviews the whole diff. Its `args` carry `command`
+  (required; without it the run returns `{error: "missing-command"}` and dispatches nothing; a
+  string that is itself valid JSON, such as `true`, stays the command), `scope` (path prefixes
+  the fixers may edit; when every entry is rejected the run returns `{error: "bad-scope"}`),
+  `maxRounds` (default 3, clamped to 1-5), `maxConcurrent` (default 2, clamped to 1-16), `roles`
+  and `finalVerify` (default true). The result carries `green`, `rounds`, `remaining`, `changes`
+  per round, `weakening`, `outsideEdits`, `base`, `nulls` and `stoppedBecause`. Fixers take the
+  worker role's fan-out variant at `medium` effort, the runner the retrieval role's single
+  variant at `low`, and the round check and final verifier the verifier role's single variant at
+  `high`, from `/multi-agent:route` when the caller passes them, else from built-in fallbacks that
+  run fixers on `opus`. It commits nothing.
 - **`testing:green-runner`, `testing:green-fixer` and `testing:green-verifier` agents**, one per
   workflow stage, each holding only that stage's tools: Bash for the runner; Read, Edit and Bash
   for fixers; Read and Bash for the verifier. Fixers and the verifier preload `testing:test-value`.

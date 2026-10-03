@@ -393,7 +393,7 @@ test('an absolute filesChanged path in another checkout stays a stray edit', asy
 })
 
 test('secret files and other ecosystems\' manifests are protected too', async () => {
-  const suspects = ['.env', 'config/.env.production', 'requirements-dev.txt', 'go.mod', 'Cargo.toml', 'pyproject.toml', 'keys/server.pem', '.ssh/id_rsa', 'src/a.js']
+  const suspects = ['.env', 'config/.env.production', 'requirements-dev.txt', 'go.mod', 'Cargo.toml', 'pyproject.toml', 'keys/server.pem', '.ssh/id_rsa', 'config/secrets/db.json', '.secrets/token', 'src/a.js']
   const { calls } = await run({ command: 'x' }, makeReply([red(fail('a.test.js', 1, suspects)), GREEN]))
   assert.deepEqual(allowed(one(calls, 'fix:1:1').prompt), ['a.test.js', 'src/a.js'])
 })
