@@ -3,6 +3,13 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0] - 2026-10-03
+
+### Added
+
+- `/toolchain:check-prerequisites`, a read-only report of whether the tools the plugin declares in `prerequisites.json` resolve, through the shared Node checker. `/toolchain:check` keeps the build and test run.
+- `lib/prerequisites.mjs`, `lib/prerequisites.sh` and `lib/prerequisites.ps1`, the generated copies of the shared prerequisites checker.
+
 ## [0.14.1] - 2026-10-02
 
 ### Fixed

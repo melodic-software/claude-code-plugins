@@ -9,6 +9,12 @@ versioned; this log records each change to it.
   (#5858).** It builds its page through the shared builder's interactive profile, from a
   checked-in template plus the explainer model as JSON data, and writes the markdown
   record from the same model.
+## The map-* skills offer views on the builder, 2026-10-03
+
+- **The `architecture` `map-*` skills offer interactive views built by `lib/view-builder.mjs` (#5863).**
+  One checked-in template plus the skill's JSON record as data, through the interactive profile, with the
+  destination taken from the `medium` key. The markdown and the record stay the record.
+
 ## Post-mortem and blindspot views on the builder, 2026-10-03
 
 - **`debugging:debug` and `discovery:blindspot` offer interactive views built by `lib/view-builder.mjs` (#5864).**

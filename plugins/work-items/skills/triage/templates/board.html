@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Triage Board</title>
+<style>
+:root {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --fg: #1b2330;
+  --muted: #566173;
+  --line: #d6dce4;
+  --accent: #2b59c3;
+  --chip: #e6ecf8;
+  --sans: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme=light]) {
+    --bg: #12161d;
+    --surface: #1a2029;
+    --fg: #e4e9f0;
+    --muted: #9aa5b5;
+    --line: #2c3542;
+    --accent: #86a8f0;
+    --chip: #233150;
+    color-scheme: dark;
+  }
+}
+:root[data-theme=dark] {
+  --bg: #12161d;
+  --surface: #1a2029;
+  --fg: #e4e9f0;
+  --muted: #9aa5b5;
+  --line: #2c3542;
+  --accent: #86a8f0;
+  --chip: #233150;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); }
+.page { max-width: 60rem; margin: 0 auto; padding: 0 16px; padding-block: 2rem 3rem; display: grid; gap: 1.5rem; }
+.eyebrow { margin: 0; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0.25rem 0 0.5rem; font-size: 1.6rem; line-height: 1.2; text-wrap: balance; }
+h2 { margin: 0; font-size: 1.1rem; }
+h3 { margin: 0; font-size: 1rem; }
+.meta { margin: 0; color: var(--muted); font-variant-numeric: tabular-nums; display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; }
+code { font-family: var(--mono); font-size: 0.85em; overflow-wrap: anywhere; }
+details.view { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 0.75rem 1rem; }
+details.view summary { cursor: pointer; font-weight: 600; }
+.bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-block: 0.75rem; }
+.bar input { flex: 1 1 14rem; min-width: 0; padding: 0.5rem 0.65rem; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; }
+.group { margin-block: 0.75rem 0; display: grid; gap: 0.5rem; }
+.group-head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
+.count { padding: 0.05rem 0.5rem; border-radius: 4px; background: var(--chip); color: var(--accent); font-size: 0.75rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.row { display: grid; gap: 0.2rem; padding: 0.6rem 0.8rem; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; }
+.row p { margin: 0; }
+.row .head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
+.row .sub { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; color: var(--muted); font-size: 0.85rem; }
+.kind { font-size: 0.75rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); }
+.labels { color: var(--muted); font-size: 0.85rem; overflow-wrap: anywhere; }
+input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none; animation: none; } }
+</style>
+</head>
+<body>
+<main class="page">
+<header>
+<p class="eyebrow">Work-item triage board</p>
+<h1 data-rv-text="title">Triage board</h1>
+<p class="meta"><span data-rv-text="repo"></span><span data-rv-text="generated"></span><span><span data-rv-text="total">0</span> items</span></p>
+</header>
+
+<details class="view" open>
+<summary>By state</summary>
+<div class="bar">
+<label for="find-state">Filter</label>
+<input id="find-state" type="search" placeholder="A label, state, blocker, number or title word" data-rv-filter="srows">
+</div>
+<div data-rv-each="bystate">
+<section class="group">
+<div class="group-head"><h3 data-rv-text="name"></h3><span class="count" data-rv-text="count"></span></div>
+<ol class="rows" data-rv-each="srows">
+<li class="row">
+<p class="head"><code data-rv-text="ref"></code><span class="kind" data-rv-text="kind"></span><strong data-rv-text="title"></strong></p>
+<p class="sub"><span data-rv-text="state"></span><span data-rv-text="blocker"></span></p>
+<p class="labels" data-rv-text="labels"></p>
+</li>
+</ol>
+</section>
+</div>
+</details>
+
+<details class="view">
+<summary>By blocker</summary>
+<div class="bar">
+<label for="find-blocker">Filter</label>
+<input id="find-blocker" type="search" placeholder="A label, state, blocker, number or title word" data-rv-filter="brows">
+</div>
+<div data-rv-each="byblocker">
+<section class="group">
+<div class="group-head"><h3 data-rv-text="name"></h3><span class="count" data-rv-text="count"></span></div>
+<ol class="rows" data-rv-each="brows">
+<li class="row">
+<p class="head"><code data-rv-text="ref"></code><span class="kind" data-rv-text="kind"></span><strong data-rv-text="title"></strong></p>
+<p class="sub"><span data-rv-text="state"></span><span data-rv-text="blocker"></span></p>
+<p class="labels" data-rv-text="labels"></p>
+</li>
+</ol>
+</section>
+</div>
+</details>
+
+<details class="view">
+<summary>By label</summary>
+<div class="bar">
+<label for="find-label">Filter</label>
+<input id="find-label" type="search" placeholder="A label, state, blocker, number or title word" data-rv-filter="lrows">
+</div>
+<div data-rv-each="bylabel">
+<section class="group">
+<div class="group-head"><h3 data-rv-text="name"></h3><span class="count" data-rv-text="count"></span></div>
+<ol class="rows" data-rv-each="lrows">
+<li class="row">
+<p class="head"><code data-rv-text="ref"></code><span class="kind" data-rv-text="kind"></span><strong data-rv-text="title"></strong></p>
+<p class="sub"><span data-rv-text="state"></span><span data-rv-text="blocker"></span></p>
+<p class="labels" data-rv-text="labels"></p>
+</li>
+</ol>
+</section>
+</div>
+</details>
+</main>
+</body>
+</html>

@@ -438,7 +438,9 @@ grandfathered list when they moved onto it.
 Emitters on the shared builder (`lib/view-builder.mjs`, interactive profile): `planning:plan` and
 `planning:brainstorm`, each offering its view from a checked-in template plus the session's JSON as data
 (`plugins/planning/scripts/build-view.mjs`); `debugging:debug` (post-mortem) and `discovery:blindspot`, built
-the same way (`plugins/debugging/scripts/build-view.mjs`, `plugins/discovery/scripts/build-view.mjs`).
+the same way (`plugins/debugging/scripts/build-view.mjs`, `plugins/discovery/scripts/build-view.mjs`); and the
+`architecture` `map-*` skills, each offering a view of its JSON record from one checked-in template
+(`plugins/architecture/scripts/build-view.mjs`).
 
 Retrofit list (existing lanes rendering untrusted-ish content, aligned to the security
 baseline by the tracked retrofit issue, not silently): `adhd:clarify`,

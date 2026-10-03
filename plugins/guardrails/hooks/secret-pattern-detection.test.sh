@@ -462,12 +462,12 @@ assert_silent "kill switch off → no stderr" "$OUT"
 # Runtime jq-removal is not portably simulable — an isolated bin dir without jq
 # cannot host bash + coreutils (their DLLs / PATH) across Git Bash and Linux.
 # Assert the fail-open guard is present in the hook source via the shared
-# hook::require_jq helper (docs/conventions/hook-observability/) — it composes
+# hook::require jq helper (docs/conventions/hook-observability/) — it composes
 # the once per session and agent notice_once gate with the dual-channel
-# (systemMessage + additionalContext) visibility notice; require_jq's own behavior is covered
+# (systemMessage + additionalContext) visibility notice; hook::require's own behavior is covered
 # by lib/hook-utils.test.sh, not re-asserted here.
 HOOK_SRC=$(cat "$HOOK")
-assert_contains "jq guard: uses hook::require_jq" "$HOOK_SRC" 'hook::require_jq'
+assert_contains "jq guard: uses hook::require jq" "$HOOK_SRC" 'hook::require jq'
 
 # --- Allowlist path-segment anchoring (finding P5) --------------------------
 # A real dependency-cache SEGMENT is exempt; a directory that merely CONTAINS the

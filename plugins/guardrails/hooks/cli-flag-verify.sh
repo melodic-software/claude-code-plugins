@@ -64,16 +64,16 @@ VERIFIER="$PLUGIN_ROOT/lib/verification/verify-cli-flag.sh"
 # hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read; empty
 # or timed-out stdin skips this advisory hook. Buffering does not require jq
 # (hook::buffer_stdin's own JSON-completeness check is jq-optional), so it
-# runs before the jq gate below — hook::require_jq needs the buffered input
+# runs before the jq gate below — hook::require jq needs the buffered input
 # for its once per session and agent notice scoping, and hook::read_file_path_to
 # (next) falls back to jq for a payload its builtin parse cannot prove.
 hook::buffer_stdin_to INPUT || exit 0
 
-# jq is required to parse the tool payload. hook::require_jq fails OPEN
+# jq is required to parse the tool payload. hook::require jq fails OPEN
 # (this hook never blocks) but makes the degraded state visible to both the
 # user (systemMessage) and the agent (additionalContext), once per session and
 # agent — see docs/conventions/hook-observability/.
-hook::require_jq "PostToolUse" "guardrails-cli-flag-verify" "$INPUT"
+hook::require jq "PostToolUse" "guardrails-cli-flag-verify" "$INPUT"
 
 FILE=""
 hook::read_file_path_to FILE "$INPUT" || exit 0
@@ -98,7 +98,7 @@ esac
 # Bash. Selecting the field inside jq would still cost the same process, so both
 # are fetched and the tool-specific choice happens below in the shell. Failure
 # semantics are unchanged: a missing jq or an unparsable payload yields rc 1
-# here, which exits 0 exactly as the unmatched-TOOL case did — hook::require_jq
+# here, which exits 0 exactly as the unmatched-TOOL case did — hook::require jq
 # above has already made the degraded state visible once per session and agent.
 hook::jq_fields "$INPUT" '.tool_name' '.tool_input.new_string' '.tool_input.content' || exit 0
 TOOL="${HOOK_JQ_FIELDS[0]}"

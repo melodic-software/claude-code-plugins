@@ -3,6 +3,30 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.6.0] - 2026-10-03
+
+### Added
+
+- **`morning-brief` builds a status report page.** In an interactive session, the brief's sections
+  become collapsible blocks with one filter box. The page is built only by
+  `scripts/build-brief-view.mjs` from a checked-in template and the brief's lines as escaped JSON
+  data, so an issue or pull-request title renders as text. The `medium` key of the `rendered-views`
+  cascade decides whether the page is built, written to a file, or published as an Artifact; the
+  printed brief stays the record.
+- The plugin carries generated copies of `lib/view-builder.mjs` and `lib/view-runtime.js`.
+
+## [3.5.0] - 2026-10-03
+
+### Added
+
+- A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names `/harness-ops:check`. The row is shared across plugins, so a session with several of them sees one notice.
+- `lib/prerequisites.mjs`, `lib/prerequisites.sh` and `lib/prerequisites.ps1`, the generated copies of the shared prerequisites checker and its `node-notice` stubs.
+
+### Changed
+
+- The shared hook helper has `hook::require <id>` in place of `hook::require_jq`. Its skip notice is built from the plugin's declared `prerequisites.json` entry and names `/<plugin>:check`, not `/harness-ops:prerequisites`.
+- Hooks call `hook::require jq` where they called `hook::require_jq`.
+
 ## [3.4.2] - 2026-10-02
 
 ### Changed
