@@ -14,8 +14,8 @@
 # SINGLE SOURCE OF TRUTH: lib/parse-concern-value.sh at the marketplace repo
 # root. The copies materialized into consuming plugins exist because installed
 # plugins are cache-isolated and must be self-contained — never edit a copy.
-# Edit the source and run scripts/sync-parse-concern-value.sh; CI rejects
-# drifted copies.
+# Edit the source and run scripts/sync-shared-copies.sh; CI rejects drifted
+# copies.
 #
 # Usage:
 #   parse-concern-value.sh <concern-file> <key> [fallback]

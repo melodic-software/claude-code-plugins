@@ -1968,6 +1968,8 @@ jobs:
           ANIMATION_REQUIRE_DEPS: '1'
           # The inventory parser suites fail on a missing acorn here instead of skipping green.
           INVENTORY_REQUIRE_ACORN: '1'
+          # The code-tidying eval fixtures fail on a missing tree-sitter here instead of skipping green.
+          CODE_TIDYING_REQUIRE_TREE_SITTER: '1'
         run: |
           if [ -z "$DIFF_BASE" ]; then
             scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"
@@ -2071,193 +2073,18 @@ jobs:
             scripts/validate-plugins.sh
           fi
 
-      # The shared-library sync gates. Each keeps two steps: the byte equality
-      # check against the canonical copy, and the delivery check that a change
-      # to the canonical copy bumps every carrying plugin. The library's own
-      # suite is a corpus suite, reached by the selector. The bump check needs
-      # a base ref, so it returns early on a push rather than diffing against a
-      # ref that does not exist.
+      # The shared-library gates (ADR 0019). Every per-plugin copy is generated
+      # from one canonical source by scripts/sync-shared-copies.sh, so CI only
+      # verifies: the copies match what their canonicals generate, and a change
+      # to a canonical bumps every carrying plugin. The libraries' own suites are
+      # corpus suites, reached by the selector. The bump checks need a base ref,
+      # so they return early on a push rather than diffing against a ref that
+      # does not exist.
       #
-      # LEG 3 CARRIES EVERY SYNC CLUSTER AND ALL FOUR NODE SUB-PROJECTS, to the
-      # foot of this group. Each cluster's pair, and each sub-project's
-      # install/typecheck/lint/test chain, is whole on that one leg because its
+      # LEG 3 CARRIES EVERY SHARED-LIBRARY STEP AND ALL FOUR NODE SUB-PROJECTS,
+      # to the foot of this group. Each sub-project's
+      # install/typecheck/lint/test chain is whole on that one leg because its
       # steps depend on the one before them.
-      - name: Verify plugin copies match the shared lib
-        if: needs.changes.outputs.run_tests == 'true'
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          scripts/sync-rewrite-guard.sh --check
-      - name: Verify carrying plugins bumped when the lib changed
-        if: needs.changes.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-rewrite-guard.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify plugin copies match the exec-form bash launcher
-        if: needs.changes.outputs.run_tests == 'true'
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          scripts/sync-exec-bash.sh --check
-      - name: Test the exec-form bash launcher resolver
-        if: needs.changes.outputs.run_tests == 'true'
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          node --test lib/exec-bash.resolver.test.mjs
-      - name: Verify carrying plugins bumped when the launcher changed
-        if: needs.changes.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-exec-bash.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify plugin copies match the shared parser
-        if: needs.changes.outputs.run_tests == 'true'
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          scripts/sync-parse-concern-value.sh --check
-      - name: Verify consuming plugins bumped when the lib changed
-        if: needs.changes.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-parse-concern-value.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify managed-scope cluster matches canonical
-        if: needs.changes.outputs.run_tests == 'true'
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          scripts/sync-managed-scope.sh --check
-      - name: Verify carrying plugins bumped when canonical changed
-        if: needs.changes.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-managed-scope.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify state-key cluster matches canonical
-        if: needs.changes.outputs.run_tests == 'true'
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          scripts/sync-state-key.sh --check
-      - name: Verify carrying plugins bumped when canonical changed
-        if: needs.changes.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-state-key.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify spawn-noise cluster matches canonical
-        if: needs.changes.outputs.run_tests == 'true'
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          scripts/sync-spawn-noise.sh --check
-      - name: Verify carrying plugins bumped when canonical changed
-        if: needs.changes.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-spawn-noise.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify check-retirements cluster matches canonical
-        if: needs.changes.outputs.run_tests == 'true'
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          scripts/sync-check-retirements.sh --check
-      - name: Verify carrying plugins bumped when canonical changed
-        if: needs.changes.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-check-retirements.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify legacy-statusline-detect cluster matches canonical
-        if: needs.changes.outputs.run_tests == 'true'
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          scripts/sync-legacy-statusline-detect.sh --check
-      - name: Verify carrying plugins bumped when canonical changed
-        if: needs.changes.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-legacy-statusline-detect.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify unwrap-before-compose cluster matches canonical
-        if: needs.changes.outputs.run_tests == 'true'
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          scripts/sync-unwrap-before-compose.sh --check
-      - name: Verify carrying plugins bumped when canonical changed
-        if: needs.changes.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-unwrap-before-compose.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify context-zone cluster matches canonical
-        if: needs.changes.outputs.run_tests == 'true'
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          scripts/sync-context-zone.sh --check
-      - name: Verify carrying plugins bumped when canonical changed
-        if: needs.changes.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-context-zone.sh --check-bump "origin/$BASE_REF"
-
-      # Generated shared-library copies (ADR 0019): verify only, never write.
       - name: Verify generated shared-library copies match their canonical sources
         if: needs.changes.outputs.run_tests == 'true'
         run: |
@@ -2282,80 +2109,6 @@ jobs:
             exit 0
           fi
           scripts/sync-shared-copies.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify fetch-docs copies match the canonical fetcher
-        if: needs.changes.outputs.run_tests == 'true'
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          scripts/sync-fetch-docs.sh --check
-      - name: Verify carrying plugins bumped when the fetcher changed
-        if: needs.changes.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-fetch-docs.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify resolve-convention-home cluster matches canonical
-        if: needs.changes.outputs.run_tests == 'true'
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          scripts/sync-resolve-convention-home.sh --check
-      - name: Verify carrying plugins bumped when canonical changed
-        if: needs.changes.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-resolve-convention-home.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify plugin copies match the shared resolver
-        if: needs.changes.outputs.run_tests == 'true'
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          scripts/sync-resolve-convention-pattern.sh --check
-      - name: Verify consuming plugins bumped when the lib changed
-        if: needs.changes.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-resolve-convention-pattern.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify plugin copies match the shared regen script
-        if: needs.changes.outputs.run_tests == 'true'
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          scripts/sync-index-regen.sh --check
-      - name: Verify consuming plugins bumped when the lib changed
-        if: needs.changes.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-index-regen.sh --check-bump "origin/$BASE_REF"
-
-      - name: Verify plugin binding copies match the canonical contract
-        if: needs.changes.outputs.run_tests == 'true'
-        run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
-          scripts/sync-standards-contract.sh --check
       - name: Verify contract, changelog, and carrying plugins bumped together
         if: needs.changes.outputs.run_tests == 'true'
         env:
@@ -2366,7 +2119,13 @@ jobs:
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
             exit 0
           fi
-          scripts/sync-standards-contract.sh --check-bump "origin/$BASE_REF"
+          scripts/check-standards-contract-bump.sh "origin/$BASE_REF"
+
+      - name: Test the exec-form bash launcher resolver
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = $((3 % LEGS)) ] || exit 0
+          node --test lib/exec-bash.resolver.test.mjs
 
       - name: Check for unregistered or drifted cross-plugin source clusters
         if: needs.changes.outputs.run_tests == 'true'
