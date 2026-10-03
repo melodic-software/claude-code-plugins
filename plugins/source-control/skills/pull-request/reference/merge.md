@@ -22,7 +22,7 @@ gh api --paginate "repos/{owner}/{repo}/issues/<pr_number>/comments?per_page=100
 - New unprocessed comment → process per 3.3, then re-verify
 - New security finding → evaluate per 3.1.5, then re-verify
 
-**Only after all 6 readiness gates pass on this re-verification:**
+**Only after all 7 readiness gates pass on this re-verification:**
 
 1. Present merge summary including:
    - Check run status (all classified)
