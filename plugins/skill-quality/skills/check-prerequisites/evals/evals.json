@@ -1,0 +1,29 @@
+{
+  "skill_name": "check-prerequisites",
+  "evals": [
+    {
+      "id": 1,
+      "name": "stopped-script-runs-the-checker",
+      "prompt": "A skill-quality script stopped because a tool was not on PATH. What is missing?",
+      "expected_output": "Runs /skill-quality:check-prerequisites, reports each PASS/FAIL row with the install hint the checker printed, and stops. Installs nothing.",
+      "files": [],
+      "expectations": [
+        "Runs `lib/prerequisites.sh check` or the PowerShell stub with the same arguments",
+        "Reports every FAIL row with the install hint the checker printed",
+        "Installs nothing and does not edit prerequisites.json"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "passing-check-is-not-the-lint",
+      "prompt": "/skill-quality:check-prerequisites",
+      "expected_output": "When every row passes, reports the rows and stops. Skill lint stays /skill-quality:check.",
+      "files": [],
+      "expectations": [
+        "Reports the rows the checker printed",
+        "On all PASS, does not run /skill-quality:check",
+        "Modifies no file"
+      ]
+    }
+  ]
+}

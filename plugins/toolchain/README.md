@@ -3,7 +3,7 @@
 A Claude Code plugin for **polyglot build/test/lint verification**. Detect the
 ecosystems a change touches and run the right build, test, and lint commands for
 each, with the consuming project's own documented commands overriding portable
-defaults. Three skills, one concern: mechanical verification of changed code.
+defaults. Four skills, one concern: mechanical verification of changed code.
 
 | Skill | Role |
 |---|---|
