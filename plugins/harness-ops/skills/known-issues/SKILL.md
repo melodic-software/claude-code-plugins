@@ -47,7 +47,8 @@ instead keep the registry inside their repository, git-tracked and team-shared, 
 - If it is empty or still shows an unexpanded `${user_config.registry_dir}` token (option unset) → pass
   `--data-dir "${CLAUDE_PLUGIN_DATA}"`. The Bash tool's environment does not carry this plugin's
   `CLAUDE_PLUGIN_DATA`, and another plugin's SessionStart hook can export its own data directory
-  under that name, so the script uses an inherited value only when it names harness-ops.
+  under that name, so the script uses an inherited value only when it names harness-ops (Basis and
+  recheck trigger: [Spoke paths](#spoke-paths)).
 
 | File | Purpose | Who edits |
 | --- | --- | --- |
@@ -161,9 +162,11 @@ The `context/` files write this skill's directory as `<skill-dir>`, which is `${
 Put that path in place of the placeholder before running a command or writing it into a brief. Those
 files arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash
 tool unsubstituted, and the Bash tool's environment has no `CLAUDE_SKILL_DIR` to expand it from.
-Basis: the plugins reference,
+The same table says the Bash tool's environment does not receive `CLAUDE_PLUGIN_DATA`, which the
+registry-location rule relies on. Basis: the plugins reference,
 <https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+2026-10-03; recheck when that table adds supporting files to where a `${…}` reference resolves, or
+lists the Bash tool among the processes that receive the variables.
 
 ## What This Skill Does NOT Do
 
