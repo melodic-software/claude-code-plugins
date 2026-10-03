@@ -3,6 +3,14 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.5.4] - 2026-10-02
+
+### Fixed
+
+- The inventory parser reader's Windows PowerShell repair command runs inside a child script block,
+  `& { ... }`, so its `$ErrorActionPreference = 'Stop'` no longer stays set in the session it is
+  pasted into ([#5896](https://github.com/melodic-software/claude-code-plugins/issues/5896)).
+
 ## [2.5.3] - 2026-10-02
 
 ### Changed
