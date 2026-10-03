@@ -33,6 +33,7 @@ dometrain claude
 dometrain curl
 evals claude
 evals python3
+explainer-video jq
 firecrawl curl
 firecrawl firecrawl
 firecrawl jq
