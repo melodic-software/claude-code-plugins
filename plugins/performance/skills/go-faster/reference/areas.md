@@ -74,7 +74,8 @@ Each entry gives:
   `not-checked`, `no-data`: when the call listed nothing (`runs_listed` or `prs` is 0), with the
   area's own reason below. Otherwise count the excluded items: the number's `excluded`, plus
   `runs_excluded` for a `ci-timing` number. Above 0: reason "every timed sample was excluded
-  (<that count> excluded): their timestamps were missing or unparseable". Zero: reason "the runs
+  (<that count> excluded): their timestamps were missing or unparseable; this area times only items
+  whose GitHub timestamps parse". Zero: reason "the runs
   or pull requests read had no job, step or review to time". Never run
   `gh run list`, `gh api` or `gh pr list` yourself, and never save gh output to a file. Exit 1
   makes every area fed by that call `not-checked`, `auth-gap`, reason "<the error line it
@@ -93,13 +94,13 @@ procedure it returns. A missing skill, a refused call, or a result you cannot re
 | Area | Call | Read from what it returns | Stop following it when | `owner-unavailable` reason |
 |---|---|---|---|---|
 | `hooks` | `/harness-ops:observability latency` | per hook event p50 and p95, and which events it flags | never; the `latency` action is read-only | "hook latency needs /harness-ops:observability; enable the harness-ops plugin and rerun /performance:go-faster" |
-| `instructions`, `plugins-startup` | `/context-budget:audit --ledger` | the latest history row's startup token counts | its procedure asks you to take a snapshot, spawn a session, install anything or persist a report: stop, record `owner-unavailable`, reason "the ledger history is not reachable read-only from this run; run /context-budget:audit yourself, then rerun /performance:go-faster" | "startup tokens need /context-budget:audit; enable the context-budget plugin and rerun /performance:go-faster" |
+| `instructions`, `plugins-startup` | `/context-budget:audit --ledger` | the latest history row's startup token counts | its procedure asks you to take a snapshot, spawn a session, install anything or persist a report: stop, record `owner-unavailable`, reason "the ledger history is not reachable read-only from this run; this area applies only once /context-budget:audit's ledger holds a row, which it records only for a measured lever change" | "startup tokens need /context-budget:audit; enable the context-budget plugin and rerun /performance:go-faster" |
 
 Never invoked, named only as a fix owner or as a step for the user:
 
 - `/session-flow:audit-sessions`: every run collects into session-flow's own store first.
-- `/context-budget:audit` with any argument other than `--ledger`: a full audit spawns sessions,
-  writes a ledger and offers an install.
+- `/context-budget:audit` with any argument other than `--ledger`: a full audit takes snapshots,
+  spawns sessions and offers an install.
 - `/harness-ops:audit-performance`: it writes a report file.
 
 **Upstream pointers.** The commands and file lists below depend on these upstream specifics; read
@@ -257,7 +258,8 @@ them live when a command's output, or the files you find, do not match the entry
   total, tier E2, workload `startup ledger, latest row`, `command` `/context-budget:audit --ledger`,
   `fix_owner` `/context-budget:audit`, horizon `later`, route `performance-chain`.
 - **Not checked**: no history rows: `no-data`, reason "startup cost needs /context-budget:audit
-  ledger history; run /context-budget:audit yourself, then rerun /performance:go-faster". Owner missing or stopped per the owner
+  ledger history; this area applies only once that ledger holds a row, which it records only for a
+  measured lever change". Owner missing or stopped per the owner
   table: `owner-unavailable`, with the owner-call table's reason.
 - **Guard**: none.
 - **Catalog**: [catalog/harness.md](catalog/harness.md) rows with area `plugins-startup`;
@@ -279,7 +281,7 @@ them live when a command's output, or the files you find, do not match the entry
   area applies only on Windows under Git Bash". ab.sh
   exits 2: `no-data`, reason "spawn timing refused: <its first stderr line>; fix what that line
   names and rerun /performance:go-faster". ab.sh exits 1: `no-data`, reason "spawn timing failed:
-  <its first stderr line>; rerun /performance:go-faster unattended while the machine is idle".
+  <its first stderr line>; an arm lost or gained sample rows, so the run cannot be compared".
   ab.sh prints an OUTLIER line: `no-data`, reason "spawn timing unstable: <the OUTLIER line>;
   rerun /performance:go-faster unattended while the machine is idle".
 - **Guard**: none.
@@ -437,7 +439,7 @@ them live when a command's output, or the files you find, do not match the entry
   for session <SESSION>: its transcript file is missing; this area reads only the live session's
   transcript". Else `EVIDENCE` false: `no-data`, reason "no session evidence yet; rerun
   /performance:go-faster after this session has done some work". Counts, and a row whose fetch failed: `no-data`, reason
-  "WebFetch of <pointer> failed; rerun with network access to that host". Counts but no row whose
+  "WebFetch of <pointer> failed; rerun /performance:go-faster when that host is reachable from this session". Counts but no row whose
   cause these counts size: `no-data`, reason "no catalog row covers this cause".
 - **Guard**: none.
 - **Catalog**: [catalog/harness.md](catalog/harness.md) and

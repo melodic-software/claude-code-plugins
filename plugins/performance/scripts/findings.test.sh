@@ -427,12 +427,12 @@ assert_eq "a permission-rule finding cannot be adopted" "1" "$RUN_RC"
 assert_contains "the refusal says why" "permissions-1 is flag-only" "$RUN_OUT"
 assert_eq "no adoption is recorded" "absent" "$([[ -e "$WORK/data/perm/adopted.jsonl" ]] && echo present || echo absent)"
 
-# --- 21. Machine is not checked without an elevated recording ---
-doc "$WORK/machine.json" '{"id":"machine-1","key":"machine/none","area":"machine","title":"machine not checked","status":"not-checked","reason_code":"needs-elevation","reason":"needs an elevated performance recording; flag-only"}'
+# --- 21. Machine is always not checked: this version reads no machine recording ---
+doc "$WORK/machine.json" '{"id":"machine-1","key":"machine/none","area":"machine","title":"machine not checked","status":"not-checked","reason_code":"no-data","reason":"this version reads no performance recording; machine remedies are flag-only"}'
 run validate "$WORK/machine.json"
-assert_eq "a not-checked Machine finding with needs-elevation validates" "0" "$RUN_RC"
+assert_eq "a not-checked Machine finding with no-data validates" "0" "$RUN_RC"
 run render "$WORK/machine.json"
-assert_contains "the report names the reason code and the instrument" "- machine: not checked (needs-elevation). needs an elevated performance recording; flag-only" "$RUN_OUT"
+assert_contains "the report names the reason code and the reason" "- machine: not checked (no-data). this version reads no performance recording; machine remedies are flag-only" "$RUN_OUT"
 doc "$WORK/machine2.json" '{"id":"machine-1","key":"machine/none","area":"machine","title":"t","status":"not-checked","reason_code":"elevated","reason":"x"}'
 run validate "$WORK/machine2.json"
 assert_contains "a Machine reason code outside the R5 list fails" "machine-1: reason_code must be one of" "$RUN_OUT"

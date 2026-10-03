@@ -105,7 +105,7 @@ Current state first, then look back. The per-area checks live in one place, the 
    `/context-budget:audit --ledger` call for `instructions` and `plugins-startup`. Add a group's
    findings as one JSON array, then heartbeat. Count your own turns: from turn 34 of your 40,
    start no new area; add `not-checked` for every area still without an outcome: `no-data`,
-   reason "the remaining areas were not reached in this run's turn budget". Then finish.
+   reason "the remaining areas were not reached in this run's turn budget; one go-faster run checks only the areas it reaches within that budget". Then finish.
 4. **Finish**: `"$PY" "$ROOT/scripts/findings.py" finish --run "$RUN"`. A refusal names what is
    missing; add it and run finish again.
 

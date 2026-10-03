@@ -154,7 +154,7 @@ chmod +x "$MKSHIM/mktemp"
 capture from "$REPO" env PATH="$MKSHIM:$PATH" bash "$PROBE" --scratch-root "$ROOT"
 assert_eq "a scratch dir that cannot be created is not checked" "2|refused-by-guard" "$RUN_RC|$(line reason_code)"
 assert_contains "the reason says what failed" "could not create a scratch dir under" "$(line reason)"
-assert_contains "the reason names the step the user can run" "git update-index --test-untracked-cache" "$(line reason)"
+assert_contains "the reason names git's own test as a separate tool" "git update-index --test-untracked-cache" "$(line reason)"
 assert_eq "git never ran when the scratch dir could not be created" "0" "$(grep -c '^detail=' <<<"$RUN_OUT")"
 
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
