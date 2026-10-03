@@ -3,16 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.77.1] - 2026-10-02
+## [0.77.1] - 2026-10-03
 
 ### Fixed
 
 - **The babysit merge gate accepts the folded security lane's check.** The ci-workflows security
   lane is becoming one job named `security-review`, so its check is
   `security-review / security-review` and `claude-security-review-status` stops reporting.
-  `--auto` now takes either job name as the security lane's check, and every check that matches
-  must succeed, so a caller on an older pin still holds on a red `claude-security-review-status`
-  beside its green `security-review` job.
+  `--auto` now takes `security-review / security-review` (whole name only) or the old status job as
+  the security lane's check, so another workflow's `security-review` job cannot satisfy it. Every
+  check that matches must succeed, so a caller on an older pin still holds on a red
+  `claude-security-review-status` beside its green `security-review` job.
 
 ## [0.77.0] - 2026-10-03
 

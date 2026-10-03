@@ -163,17 +163,24 @@ READY_MERGE_STATES = {"CLEAN", "HAS_HOOKS"}
 # check and does not wait on these separate workflows, so auto-merge armed
 # before both pass on the live head could merge ahead of their review. Each
 # lane maps to the job segments its check may carry (`review /
-# claude-review-status`). The security lane is one job named
-# `security-review`; a pin that predates that fold reports
-# `claude-security-review-status` beside a review job of the same
-# `security-review` name. Every matching check must succeed.
+# claude-review-status`). A name holding ` / ` must match the whole check
+# name: the security lane is one job named `security-review`, a name generic
+# enough that another workflow's job could carry it, so it counts only as
+# `security-review / security-review`. A pin that predates that fold reports
+# `claude-security-review-status` beside it. Every matching check must succeed.
 AI_REVIEW_CHECKS = {
     "claude-review-status": ("claude-review-status",),
     "claude-security-review-status": (
         "claude-security-review-status",
-        "security-review",
+        "security-review / security-review",
     ),
 }
+
+
+def is_ai_review_check(check_name: str, names: tuple[str, ...]) -> bool:
+    full = " / ".join(part.strip() for part in check_name.split("/"))
+    segment = full.rsplit(" / ", 1)[-1]
+    return any(full == n if " / " in n else segment == n for n in names)
 
 # The async merge API (`PUT .../pulls/{n}/merge-async`) answers with a request
 # UUID and runs the merge in the background; the gate polls it to a terminal
@@ -1453,7 +1460,7 @@ def evaluate(
             matches := [
                 c
                 for c in checks["checks"]
-                if c["name"].rsplit("/", 1)[-1].strip() in names
+                if is_ai_review_check(c["name"], names)
             ]
         )
         or any(c["effective_state"] != "SUCCESS" for c in matches)
