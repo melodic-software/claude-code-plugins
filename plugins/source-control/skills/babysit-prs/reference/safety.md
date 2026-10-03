@@ -662,10 +662,11 @@ partition is the only class check, so the PR is already C2 (mechanical) or C3 (s
 `--auto`, a PR that is ready except for running checks gets
 `gh pr merge <N> --auto --squash --match-head-commit <pin>` instead of a hold, and only when:
 
-- both AI review checks, `review / claude-review-status` and
-  `security-review / claude-security-review-status`, report success on the live head, which is
-  the pinned head (a missing, skipped, failed, or running check holds, and so does a head that
-  moved off the pin);
+- both AI review checks, `review / claude-review-status` and the security lane's
+  `security-review / security-review`, report success on the live head, which is the pinned head
+  (a missing, skipped, failed, or running check holds, and so does a head that moved off the
+  pin). A caller pinned to a ci-workflows release that still runs a separate status job reports
+  `security-review / claude-security-review-status` too, and it must succeed as well;
 - no review thread is unresolved, and every other gate blocker is clear.
 
 Any other running check does not hold the arm: GitHub waits out a running required check

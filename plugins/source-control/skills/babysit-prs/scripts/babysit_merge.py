@@ -140,11 +140,21 @@ EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}
 # pre-receive hooks (GHES) -- GitHub returns one OR the other, so both are ready.
 READY_MERGE_STATES = {"CLEAN", "HAS_HOOKS"}
 
-# The two AI review status checks `--auto` waits for. `ci-status` is the only
-# required check and does not wait on these separate workflows, so auto-merge
-# armed before both pass on the live head could merge ahead of their review.
-# Matched on the job segment of the check name (`review / claude-review-status`).
-AI_REVIEW_CHECKS = ("claude-review-status", "claude-security-review-status")
+# The two AI review lanes `--auto` waits for. `ci-status` is the only required
+# check and does not wait on these separate workflows, so auto-merge armed
+# before both pass on the live head could merge ahead of their review. Each
+# lane maps to the job segments its check may carry (`review /
+# claude-review-status`). The security lane is one job named
+# `security-review`; a pin that predates that fold reports
+# `claude-security-review-status` beside a review job of the same
+# `security-review` name. Every matching check must succeed.
+AI_REVIEW_CHECKS = {
+    "claude-review-status": ("claude-review-status",),
+    "claude-security-review-status": (
+        "claude-security-review-status",
+        "security-review",
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -1225,12 +1235,12 @@ def evaluate(
     # check (which the check buckets count as success) passes.
     ai_review_holds = [
         f"AI review check {lane!r} has not succeeded on the live head"
-        for lane in AI_REVIEW_CHECKS
+        for lane, names in AI_REVIEW_CHECKS.items()
         if not (
             matches := [
                 c
                 for c in checks["checks"]
-                if c["name"].rsplit("/", 1)[-1].strip() == lane
+                if c["name"].rsplit("/", 1)[-1].strip() in names
             ]
         )
         or any(c["effective_state"] != "SUCCESS" for c in matches)

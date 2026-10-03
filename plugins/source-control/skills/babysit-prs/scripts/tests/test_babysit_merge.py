@@ -1273,6 +1273,36 @@ class AutoMergeArming(unittest.TestCase):
         )
         self.assertFalse(result["autoMerge"]["ready"])
 
+    def test_folded_security_lane_check_satisfies_the_security_lane(self) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
+                _check("review / claude-review-status", "SUCCESS"),
+                _check("security-review / security-review", "SUCCESS"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        self.assertTrue(result["autoMerge"]["ready"], result["autoMerge"])
+
+    def test_old_security_status_job_still_holds_beside_a_green_review_job(
+        self,
+    ) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
+                _check("review / claude-review-status", "SUCCESS"),
+                _check("security-review / security-review", "SUCCESS"),
+                _check("security-review / claude-security-review-status", "FAILURE"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        self.assertFalse(result["autoMerge"]["ready"], result["autoMerge"])
+        self.assertIn(
+            "AI review check 'claude-security-review-status' has not "
+            "succeeded on the live head",
+            result["autoMerge"]["blockers"],
+        )
+
     def test_missing_or_skipped_ai_lane_holds(self) -> None:
         result = self._evaluate(
             [_check("ci-status", None), _check("claude-review-status", "SKIPPED")],
