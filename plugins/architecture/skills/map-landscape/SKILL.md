@@ -199,6 +199,13 @@ End every run with this block, in this order, filled from the record and the scr
   the missing backend named.
 - **Drift**: none, the drift summary, or no committed record to compare against.
 
+## Interactive view
+
+After the report, offer an interactive view of `landscape.json` in one sentence. The markdown and the record
+stay authoritative. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs landscape`, never
+hand-written; the publish destination comes from the `medium` cascade key. Procedure:
+[`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
+
 ## What this skill does NOT do
 
 - Baseline-versus-target gap analysis, capability maps, or work-breakdown structures.

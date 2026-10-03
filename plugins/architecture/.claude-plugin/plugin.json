@@ -1,6 +1,6 @@
 {
   "name": "architecture",
-  "version": "0.20.1",
+  "version": "0.21.0",
   "description": "improve uses Ousterhout's deep-module lens to find shallow modules, seam leaks, and locality gaps, reports them as HTML, and interviews the chosen one. map-landscape charts a C4 system landscape and portfolio table with drift checks. map-dependencies, map-components, map-containers, map-context, map-flow, map-events, map-data, and map-deployment draw dependency, C4, sequence, event, data, and deployment views from committed files. record-decision writes an ADR in the repo's convention.",
   "author": {
     "name": "Melodic Software",
