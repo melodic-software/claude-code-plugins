@@ -2708,9 +2708,27 @@ jobs:
       # the newest one on the SHA, so a green draft would let a merge through on
       # nothing. The aggregate below fails on the skipped lanes and records
       # `ci-lanes=failure`; this step says why.
+      #
+      # A contract-only run (`changes` skipped) reads the live draft state, not
+      # its payload. A re-run keeps the payload, and the last step re-runs the
+      # contract-only runs a body edit or label flip drew while this was a
+      # draft: on the payload they would fail here again and be the newest red
+      # ci-status. A contract-only run tests nothing either way; the `ci-lanes`
+      # status decides it. A full run's lanes skipped on this same payload, so
+      # it fails whatever the live state says. An unreadable state fails closed.
+      # Pinned by scripts/ci-fail-a-draft.test.sh, which runs this body.
       - name: Fail a draft
         if: github.event.pull_request.draft == true
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
         run: |
+          if [ "$CHANGES" = skipped ] &&
+            [ "$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .draft)" = false ]; then
+            echo "Marked ready since this run's event; the ci-lanes status decides."
+            exit 0
+          fi
           echo "::error::draft: lanes not run. Mark the pull request ready to lint and test this SHA."
           exit 1
       - name: Aggregate lane results

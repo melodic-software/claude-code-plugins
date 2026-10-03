@@ -134,7 +134,11 @@ No run waits on another run:
 3. After recording `success`, the full run's `ci-status` re-runs the failed
    jobs of every red contract-only run on the same SHA (`rerun-failed-jobs`,
    `actions: write`). The re-run keeps its event, so it is contract-only again,
-   reads `success` and replaces the red check run within seconds.
+   reads `success` and replaces the red check run within seconds. That
+   includes a run drawn while the pull request was a draft: its payload still
+   says draft, so `Fail a draft` reads the live draft state on a contract-only
+   run and passes once the pull request is ready
+   (`scripts/ci-fail-a-draft.test.sh`).
 
 A red contract-only run also stays red when its contract fails (an invalid
 title or a `do-not-merge` label). That is the intended answer.
