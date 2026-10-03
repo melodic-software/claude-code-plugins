@@ -15,3 +15,8 @@ lib/prerequisites.ps1 plugins/harness-ops/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/speech/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/speech/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/speech/lib/prerequisites.ps1
+lib/html-escape.mjs plugins/work-items/lib/html-escape.mjs
+lib/view-builder.mjs plugins/work-items/lib/view-builder.mjs
+lib/view-runtime.js plugins/work-items/lib/view-runtime.js
+lib/view-builder.mjs plugins/harness-ops/lib/view-builder.mjs
+lib/view-runtime.js plugins/harness-ops/lib/view-runtime.js

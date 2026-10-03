@@ -52,6 +52,17 @@ an authentication error wants `gh auth status`; a rate limit or a 5xx wants a re
 after the window the error names. A section rebuilt from other tools is not the
 brief: it costs a slow, unverified pass and its shape differs run to run.
 
+## Status report page
+
+Genre: reports and status. In an interactive session, read [context/view.md](context/view.md) before
+running the script: it resolves the `medium` key and, when a page is wanted, has you save the same
+output the reader sees and build a collapsible, filterable page from it. The printed brief is the
+record; the page is a view of it. The brief holds issue and pull-request titles (K2), so only
+`scripts/build-brief-view.mjs` writes the page, from its checked-in template (`templates/brief.html`) and the lines as escaped
+JSON data. Never hand-write the page or add script to it. A scheduled run, CI, or `medium: terminal`
+prints the brief only. `context/view.md` writes the plugin's root directory as `<plugin-root>`, which
+is `${CLAUDE_PLUGIN_ROOT}`; put that path in place of the placeholder before running a command.
+
 ## Degraded sections
 
 Every section is in one of three states: data, empty, or `UNREADABLE`. A section
