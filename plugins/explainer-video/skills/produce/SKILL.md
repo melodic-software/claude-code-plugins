@@ -69,11 +69,11 @@ When a render stops with a repair line or a missing tool.
 
 ## Gotchas
 
-- Python 3.12 or 3.13 only: two ManimCE dependencies publish no 3.14 wheel. `pydeps.py` picks the
-  first of `python3.13`, `python3.12`, `python3`, `python` on PATH that is one of them.
-- On Linux, and for pycairo on macOS, the first install builds pycairo and manimpango from source.
-  It needs a C compiler, `pkg-config`, and the cairo and pango development packages. A failed
-  build is a session-start notice with the repair line.
+- Python 3.12 or 3.13 only. `pydeps.py` picks the first of `python3.13`, `python3.12`, `python3`,
+  `python` on PATH that is one of them. The plugin README's Requirements section records why.
+- On some platforms the first install builds pycairo and manimpango from source and needs the
+  toolchain the README lists for that platform. A failed build is a session-start notice with the
+  repair line.
 - The render is silent. Do not call `add_sound`: an audio stream fails the check.
 - `render.py` checks the state at the end of each animation. An overlap that exists only in the
   middle of a transform is not reported; read the frames.

@@ -54,6 +54,12 @@ Narration, captions and the final mux are not part of this plugin yet.
 - `ffmpeg` and `ffprobe` on PATH.
 - Node, which runs the SessionStart hook.
 
+The wheel-availability facts above come from the release files of
+[pycairo](https://pypi.org/project/pycairo/#files), [manimpango](https://pypi.org/project/manimpango/#files)
+and [moderngl](https://pypi.org/project/moderngl/#files). As of 2026-10-03. Recheck when a Dependabot
+PR bumps any of them or when a new Python release ships; widen the Python range in `pydeps.py` and
+`prerequisites.json` once a 3.14 wheel set exists.
+
 To change a pin, edit `requirements.in` and regenerate the lock from this directory:
 `uv pip compile requirements.in --universal --generate-hashes --python-version 3.12 -o requirements.txt`.
 The lock carries a hash for every wheel and source archive; `scripts/pydeps.py` passes pip

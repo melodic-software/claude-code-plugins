@@ -119,5 +119,22 @@ class Renders(unittest.TestCase):
         self.assertNotIn('stacked on purpose', joined)
 
 
+class ClearPrevious(unittest.TestCase):
+    def test_a_rerun_starts_without_the_last_report_video_or_frames(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            (out / 'report.json').write_text('{"status": "pass"}')
+            (out / 'Scene.mp4').write_bytes(b'old')
+            (out / 'frames').mkdir()
+            (out / 'frames' / 'f0000.png').write_bytes(b'old')
+            (out / 'notes.txt').write_text('keep')
+            render.clear_previous(out, 'Scene')
+            self.assertEqual(sorted(p.name for p in out.iterdir()), ['notes.txt'])
+
+    def test_an_empty_output_folder_is_fine(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            render.clear_previous(Path(tmp), 'Scene')
+
+
 if __name__ == '__main__':
     unittest.main()

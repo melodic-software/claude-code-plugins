@@ -140,6 +140,13 @@ def snapshot(scene, text_types, containers):
     return {'t': float(scene.renderer.time), 'tops': tops, 'texts': texts}
 
 
+def clear_previous(out, scene_class):
+    """Drop the last run's report, video and frames, so a rerender that fails part-way leaves no PASS report."""
+    (out / 'report.json').unlink(missing_ok=True)
+    (out / f'{scene_class}.mp4').unlink(missing_ok=True)
+    shutil.rmtree(out / 'frames', ignore_errors=True)
+
+
 def render(scene_file, scene_class, out, quality):
     """Render with a timeline hook on Scene.play (Scene.wait plays a Wait). Returns (movie, checkpoints, config)."""
     import manim
@@ -196,6 +203,7 @@ def main(argv=None):
         return 2
     out = a.out.resolve()
     out.mkdir(parents=True, exist_ok=True)
+    clear_previous(out, a.scene_class)
     try:
         movie, checkpoints, frame = render(a.scene_file.resolve(), a.scene_class, out, a.quality)
     except Exception as e:   # the scene's own error: report it, there is nothing to check

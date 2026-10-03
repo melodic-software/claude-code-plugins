@@ -24,6 +24,6 @@ Report the rows as printed and stop. Run the repair line only when the user asks
 
 ## Gotchas
 
-On Linux, and for pycairo on macOS, the install builds pycairo and manimpango from source. When the
+On some platforms the install builds pycairo and manimpango from source. When the
 repair line fails on a missing compiler, `pkg-config`, cairo or pango, say which development
 packages the plugin README lists for that platform. Do not install system packages.
