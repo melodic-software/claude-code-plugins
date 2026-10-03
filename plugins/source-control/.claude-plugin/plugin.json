@@ -119,6 +119,12 @@
       "default": "auto",
       "options": ["auto", "squash", "merge", "rebase"]
     },
+    "babysit_stacked_prs": {
+      "type": "boolean",
+      "title": "Babysit stacked PRs",
+      "description": "Lets the merge gate merge a native stacked PR layer, which lands every open layer below it. Each of those layers must pass the same gate. Off by default: a stack layer is held for a human.",
+      "default": false
+    },
     "babysit_autopilot_merge_tier": {
       "type": "boolean",
       "title": "Babysit autopilot merge tier",
