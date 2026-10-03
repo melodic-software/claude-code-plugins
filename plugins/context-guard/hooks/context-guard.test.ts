@@ -365,6 +365,82 @@ test('zones.json: an extra threshold gets its approach line and its line once pe
   ])
 })
 
+// The token edges of a 1000000-token window at 210000 and 410000; the percentage edges there
+// (50% and 75%) sit at 500000 and 750000 tokens, so the token shape decides both crossings.
+const TOKEN_EDGES = { token_bands: { '1000000': { smart_max_tokens: 210_000, acceptable_max_tokens: 410_000 } } }
+
+test('approach, token shape: one line 50000 tokens before each token edge on a 1000000 window', async ($, on) => {
+  const { w } = world(on, { window: 1_000_000 })
+  zonesFile(w, TOKEN_EDGES)
+  expect(await walk($, w, [10, 15.9, 16, 18, 22, 35.9, 36, 38, 42])).toEqual([
+    [],
+    [],
+    [approach('smart', 'the acceptable zone')],
+    [],
+    [crossing('smart', 'acceptable')],
+    [],
+    [approach('acceptable', 'the dumb zone')],
+    [],
+    [`${crossing('acceptable', 'dumb')} ${SAVE}`],
+  ])
+})
+
+test('approach, token shape: once per boundary per cycle; a dip and re-climb sends nothing, a return to smart opens it again', async ($, on) => {
+  const { w } = world(on, { window: 1_000_000 })
+  zonesFile(w, TOKEN_EDGES)
+  expect((await walk($, w, [16, 12, 16, 22, 36, 30, 36, 42, 10, 16])).flat()).toEqual([
+    approach('smart', 'the acceptable zone'),
+    crossing('smart', 'acceptable'),
+    approach('acceptable', 'the dumb zone'),
+    `${crossing('acceptable', 'dumb')} ${SAVE}`,
+    approach('smart', 'the acceptable zone'),
+  ])
+})
+
+test('approach, token shape: approach_margin moves the lines, in points of the window', async ($, on) => {
+  const { w } = world(on, { window: 1_000_000 })
+  zonesFile(w, { ...TOKEN_EDGES, approach_margin: 10 })
+  expect(await walk($, w, [10, 10.9, 11, 22, 30.9, 31])).toEqual([
+    [],
+    [],
+    [approach('smart', 'the acceptable zone')],
+    [crossing('smart', 'acceptable')],
+    [],
+    [approach('acceptable', 'the dumb zone')],
+  ])
+})
+
+test('approach, token shape: the margin scales with the window (5 points of 2000000 is 100000 tokens)', async ($, on) => {
+  const { w } = world(on, { window: 2_000_000 })
+  zonesFile(w, TOKEN_EDGES)
+  expect(await walk($, w, [5, 5.4, 5.5])).toEqual([[], [], [approach('smart', 'the acceptable zone')]])
+})
+
+test('approach, token shape: a 200000 window keeps the percentage-shape lines', async ($, on) => {
+  const { w } = world(on)
+  zonesFile(w, { token_bands: { '200000': { smart_max_tokens: 100_000, acceptable_max_tokens: 160_000 }, ...TOKEN_EDGES.token_bands } })
+  expect(await walk($, w, [30, 45, 47, 60, 70, 72, 76])).toEqual([
+    [],
+    [approach('smart', 'the acceptable zone')],
+    [],
+    [crossing('smart', 'acceptable')],
+    [approach('acceptable', 'the dumb zone')],
+    [],
+    [`${crossing('acceptable', 'dumb')} ${SAVE}`],
+  ])
+})
+
+test('approach, token shape: an unknown window size sends no token-shape approach line', async ($, on) => {
+  const { w } = world(on, { window: undefined as unknown as number })
+  zonesFile(w, TOKEN_EDGES)
+  const seen: string[][] = []
+  for (const tokens of [100_000, 160_000, 200_000]) {
+    w.tokens = tokens
+    seen.push(...(await walk($, w, [tokens / 10_000])))
+  }
+  expect(seen).toEqual([[], [], []])
+})
+
 test('zones.json: invalid additions fall back to the defaults', async ($, on) => {
   const { w } = world(on)
   zonesFile(w, { approach_margin: -3, actions: { dumb: { action: 'explode' } }, thresholds: [{ at_percent: 'x', action: 'handoff' }, { at_percent: 40 }] })

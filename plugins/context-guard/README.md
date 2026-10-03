@@ -59,7 +59,7 @@ options and `zones.json`:
 | When | Line |
 |---|---|
 | The session first reaches a worse zone this cycle | once per zone, "crossed from the <zone> into the <zone> context zone" |
-| The session comes within `approach_margin` points (5) of a zone edge or a `zones.json` threshold | once per boundary, "is in the <zone> context zone, approaching ..." |
+| The session comes within `approach_margin` points (5) of a zone edge or a `zones.json` threshold; where a token band edge decides the crossing, within that many points of the window in tokens | once per boundary, "is in the <zone> context zone, approaching ..." |
 | The session passes a `zones.json` threshold | once per threshold, with the threshold's action |
 | After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict, once; after a compaction it is `dumb (evidence-degraded: this session was compacted)` |
 | When the module loads into a session that already has turns (a `--resume` launch, a reload after an options change, a hooks-worker restart) | the verdict, once, only when it is past `smart` |

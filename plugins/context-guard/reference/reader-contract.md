@@ -488,7 +488,10 @@ an absent or invalid one means its default, so a file without them keeps working
 ```
 
 - `approach_margin`: percentage points before each boundary (each zone edge and each threshold)
-  for the one approach line; a number from 0 (no approach lines) to below 100. Default 5.
+  for the one approach line; a number from 0 (no approach lines) to below 100. Default 5. Where a
+  token band edge sits below the percentage edge, that boundary's approach line comes the same
+  points of the window early in tokens (50000 tokens at 5 on a 1000000-token window); with no
+  known window size there is no token-shape approach line.
 - `actions.<zone>`: `action` is `none`, `save-state`, `handoff` or `block`; optional `text`
   replaces the default wording. The action's sentence appears at that zone's crossing and
   restatement, never on an approach line, labelled "operator setting for the <zone> zone".

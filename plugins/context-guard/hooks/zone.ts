@@ -101,22 +101,29 @@ const epochOf = (capturedAt: string): number | undefined => {
   return back === capturedAt ? ms / 1000 : undefined
 }
 
+export type TokenShape = { used: number; size: number; smart: number; acceptable: number }
+
+// The token shape of one snapshot body: occupancy, window size and the band row's edges;
+// undefined when it is not computable.
+export const tokenShape = (w: Json, cliVersion: unknown, bands: Bands): TokenShape | undefined => {
+  const input = orNull(w.total_input_tokens)
+  const output = orNull(w.total_output_tokens)
+  const size = orNull(w.context_window_size)
+  if (
+    !(isNumber(input) && input >= 0 && isNumber(output) && output >= 0 && isNumber(size) && size > 0) ||
+    !versionAtLeast(typeof cliVersion === 'string' ? cliVersion : '', TOKEN_SEMANTICS_MIN_VERSION)
+  ) return undefined
+  const used = input + output
+  const row = bands.tokens.filter(([cls]) => cls <= size).at(-1)
+  return used <= size && row !== undefined ? { used, size, smart: row[1], acceptable: row[2] } : undefined
+}
+
 // The zone of one snapshot body, both shapes, worse wins; undefined when neither is computable.
 export const zoneOfWindow = (w: Json, cliVersion: unknown, bands: Bands): Zone | undefined => {
   const p = orNull(w.used_percentage)
   const pz = isNumber(p) && p >= 0 && p <= 100 ? band(p, bands.smart, bands.acceptable) : undefined
-  const input = orNull(w.total_input_tokens)
-  const output = orNull(w.total_output_tokens)
-  const size = orNull(w.context_window_size)
-  let tz: Zone | undefined
-  if (
-    isNumber(input) && input >= 0 && isNumber(output) && output >= 0 && isNumber(size) && size > 0 &&
-    versionAtLeast(typeof cliVersion === 'string' ? cliVersion : '', TOKEN_SEMANTICS_MIN_VERSION)
-  ) {
-    const occupancy = input + output
-    const row = bands.tokens.filter(([cls]) => cls <= size).at(-1)
-    if (occupancy <= size && row !== undefined) tz = band(occupancy, row[1], row[2])
-  }
+  const t = tokenShape(w, cliVersion, bands)
+  const tz = t && band(t.used, t.smart, t.acceptable)
   return pz && tz ? worse(pz, tz) : (pz ?? tz)
 }
 

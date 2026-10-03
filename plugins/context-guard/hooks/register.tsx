@@ -1,5 +1,5 @@
 import type { EngineInterface, PromptOrigin, Register, Timer, ToolCallInput } from 'claude-code'
-import { RANK, readBands, resolveZone, type Bands, type Zone } from './zone.ts'
+import { RANK, readBands, resolveZone, tokenShape, type Bands, type TokenShape, type Zone } from './zone.ts'
 
 const CONTRACT_DIR = 'context-guard'
 const SOURCE_NOTE = '(a measurement from the last API response)'
@@ -51,7 +51,7 @@ type Snapshot = {
     current_usage: { input_tokens: number; output_tokens: number; cache_creation_input_tokens: number; cache_read_input_tokens: number } | null
   }
 }
-type Reading = { zone: Zone | undefined; degraded: boolean; percent?: number; tokens?: number; window: number }
+type Reading = { zone: Zone | undefined; degraded: boolean; percent?: number; tokens?: number; window: number; token?: TokenShape }
 type Event =
   | { kind: 'crossing'; from: string; zone: Zone; degraded: boolean; handedOff?: boolean; armedBefore: number }
   | { kind: 'restate'; zone: Zone; degraded: boolean }
@@ -200,20 +200,34 @@ export const recordReading = (s: Session, reading: Reading, settings: Settings) 
     s.approached.clear()
   }
   s.last = zone
-  if (percent === undefined) return
-  for (const t of settings.thresholds) {
-    if (!s.fired.has(t.at) && percent >= t.at) {
-      s.fired.add(t.at)
-      s.pending.push({ kind: 'threshold', zone, degraded: reading.degraded, rule: t })
+  if (percent !== undefined) {
+    for (const t of settings.thresholds) {
+      if (!s.fired.has(t.at) && percent >= t.at) {
+        s.fired.add(t.at)
+        s.pending.push({ kind: 'threshold', zone, degraded: reading.degraded, rule: t })
+      }
     }
   }
-  // One approach line per boundary per cycle, on the percentage shape (points are percentage points).
+  // One approach line per boundary per cycle, in the shape that decides the boundary: the token
+  // shape when its edge sits below the percentage edge, else the percentage shape. The margin is in
+  // percentage points, of the window in the token shape.
   if (settings.margin <= 0) return
   const { smart, acceptable } = settings.bands
+  const tok = reading.token
+  const near = (edgePercent: number, edgeTokens: number | undefined) => {
+    if (tok !== undefined && edgeTokens !== undefined && (percent === undefined || edgeTokens < (edgePercent * tok.size) / 100)) {
+      return tok.used >= edgeTokens - (settings.margin * tok.size) / 100 && tok.used <= edgeTokens
+    }
+    return percent !== undefined && percent >= edgePercent - settings.margin && percent <= edgePercent
+  }
   const boundaries = [
-    { key: 'acceptable', toward: 'the acceptable zone', near: s.armed < 1 && percent >= smart - settings.margin && percent <= smart },
-    { key: 'dumb', toward: 'the dumb zone', near: s.armed < 2 && percent >= acceptable - settings.margin && percent <= acceptable },
-    ...settings.thresholds.map(t => ({ key: `t${t.at}`, toward: 'an operator threshold', near: !s.fired.has(t.at) && percent >= t.at - settings.margin })),
+    { key: 'acceptable', toward: 'the acceptable zone', near: s.armed < 1 && near(smart, tok?.smart) },
+    { key: 'dumb', toward: 'the dumb zone', near: s.armed < 2 && near(acceptable, tok?.acceptable) },
+    ...settings.thresholds.map(t => ({
+      key: `t${t.at}`,
+      toward: 'an operator threshold',
+      near: percent !== undefined && !s.fired.has(t.at) && percent >= t.at - settings.margin,
+    })),
   ]
   for (const b of boundaries) {
     if (b.near && !s.approached.has(b.key)) {
@@ -350,7 +364,8 @@ async function refresh($: EngineInterface, st: State) {
     s.compacted = await $.fs.exists(`${home}/.claude/${CONTRACT_DIR}/context/${sid}.compacted`).catch(() => false)
   }
   const zone = s.compacted ? 'dumb' : word === 'unknown' ? undefined : word
-  const reading: Reading = { zone, degraded: s.compacted, percent: c.percent, tokens: c.tokens, window: c.window }
+  const token = tokenShape(body.context_window, body.cli_version, settings.bands)
+  const reading: Reading = { zone, degraded: s.compacted, percent: c.percent, tokens: c.tokens, window: c.window, token }
   recordReading(s, reading, settings)
   // A reading with no figures (usage gone at exit, or between responses) never replaces one that had them.
   if (body.context_window.used_percentage !== null || s.body === undefined || s.body.context_window.used_percentage === null) s.body = body
