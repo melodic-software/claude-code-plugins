@@ -5,6 +5,9 @@
 - Does a PostToolUse formatter hook exist?
 - Does the language's build/lint tool run fast enough for a per-edit hook, judged against the consuming repo's own documented hook budget where it has one (see the skill's `context/hook-timing.md`)?
 - Does a higher enforcement level (compiler, analyzer, build-time) already catch what the hook would catch?
+- Does the need go past what a settings hook can do: draw in the interface (a pane, band, status entry or toast), register a command or tool, rewrite a prompt or model request, or read in-process session state? Then the candidate is a mod, a plugin of function hooks, and the verdict says so. Whoever writes it loads the built-in `plugin-authoring` skill first, because that skill carries the type declarations for the running Claude Code build.
+
+**Claim:** which needs only a mod meets. **Basis:** the "Compare mods, settings hooks, skills, and MCP servers" table in the [mods overview](https://code.claude.com/docs/en/plugins/mods/overview). **As of:** 2026-10-01, Claude Code 2.1.287. **Recheck:** either "Pick it when" cell for mods or settings hooks changes, or a release lets a settings hook draw in the interface.
 
 **MCP Servers**: For each external service the repo interacts with:
 

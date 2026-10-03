@@ -4,6 +4,13 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.17.5] - 2026-10-03
+
+### Changed
+
+- The skill-authoring playbook's on-demand hooks section says those are settings hooks and points
+  at the built-in `plugin-authoring` skill for a mod.
+
 ## [0.17.4] - 2026-10-02
 
 ### Changed

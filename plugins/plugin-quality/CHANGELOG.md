@@ -5,6 +5,14 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.3] - 2026-10-03
+
+### Changed
+
+- **A mod audit reads the running build's declarations.** When the target ships a mod, step 1
+  loads the built-in `plugin-authoring` skill and records its `claude-code.d.ts` path in the
+  packet, and the auditor reads event and call meanings from that file before the docs pages.
+
 ## [0.12.2] - 2026-10-02
 
 ### Changed

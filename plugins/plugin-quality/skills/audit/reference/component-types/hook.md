@@ -32,6 +32,12 @@ PreToolUse / PostToolUse / lifecycle hook scripts.
 A hook config that names `"modules"` loads a hooks module: in-process code with the user's
 permissions, not a shell script. Read the module and run `claude plugin validate --json <plugin>`.
 
+- **Read meanings from the declarations.** Step 1 records the path of the built-in
+  `plugin-authoring` skill's `types/claude-code.d.ts`. Grep it for each event and `$` call the
+  module uses and read the declaration it lands on. It is written for the running build, so it wins
+  where the pages cited below disagree. With no path in the packet, ground in the pages and record
+  that the declarations were not read.
+
 - **Read the declared surface.** The `hooks` content's `notes` hold one line per kind:
   `./register.js hooks: tool.call, attribution.text`,
   `./register.js calls: $.env.get, $.http.fetch`, `env reads:`, `env writes:`, and `state reads:`/`state writes:` for a module using `$.state`. The
@@ -53,6 +59,12 @@ from your mod", fetched as raw markdown 2026-10-01; the `notes` placement was ob
 `claude plugin validate --json` on a throwaway mod with Claude Code 2.1.287 the same day. **As
 of:** 2026-10-01. **Recheck:** either section's call table or sample output changes, or a release
 note changes `plugin validate` output.
+
+**Claim:** loading `plugin-authoring` writes the declarations into that skill's own folder for the
+current process, and a subagent without the Skill tool cannot load it. **Basis:** the skill's
+"WHERE THE TYPES ARE" section, read by loading it in Claude Code 2.1.288; `auditor.md`'s `tools:`
+line. **As of:** 2026-10-03. **Recheck:** that section names a different location, or the auditor
+gains the Skill tool.
 
 ## Categories
 

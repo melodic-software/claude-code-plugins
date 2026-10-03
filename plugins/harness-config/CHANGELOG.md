@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.5.2] - 2026-10-03
+
+### Changed
+
+- `audit-automation-gaps` names a mod as the candidate when a need goes past what a settings hook can do, and its implement phase loads the built-in `plugin-authoring` skill before planning one.
+
 ## [1.5.1] - 2026-10-02
 
 ### Changed

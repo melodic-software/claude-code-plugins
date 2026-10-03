@@ -196,6 +196,10 @@ context. Run this once **per resolved target**, into that target's own packet. W
 - Hook failures/blocks, permission-prompt denials, MCP/tool errors observed this session.
 - The transcript path, working directory, platform/shell, plugin version + install source.
 - Anything anomalous you noticed while using the component (the reason this audit started).
+- When the target plugin ships a mod (its hook config names `"modules"`): load the built-in
+  `plugin-authoring` skill and record the path of the `types/claude-code.d.ts` it names. The
+  auditor cannot load skills, so the packet is its only way to that file. Why the file matters is
+  in `reference/component-types/hook.md` "A mod (hooks module)".
 
 ### Step 2. Map + ground (fresh `auditor` subagent, never inline, never a conversation fork)
 
