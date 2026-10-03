@@ -1,7 +1,7 @@
-"""Summarize benchmark timings: p50 and p95, plus an exit-code census.
+"""Summarize benchmark timings: listed percentiles, plus an exit-code census.
 
 Reads a sample file of `<milliseconds> <exit code>` rows, one per line, and
-reports per-arm percentiles.
+reports per-arm percentiles: p50 and p95 unless BENCH_PERCENTILES lists others.
 
 The rule this file exists to ENFORCE is the arithmetic percentile floor. A
 percentile `p` is only expressible from `n` samples when `n >= 1/(1-p)`: below
@@ -12,17 +12,19 @@ honest answer; reporting the number is not.
 
 Each reported percentile prints the linear-interpolated value and, beside it,
 the nearest-rank value (`p95=123ms(nearest-rank=130ms)`): nearest-rank is always
-an observed sample, so the two bracket the estimator choice. When p95 is
-reported and dropping the single largest sample moves it by more than
-OUTLIER_SHIFT, an OUTLIER line says so and points at the raw samples.
+an observed sample, so the two bracket the estimator choice. When the highest
+listed percentile is reported and dropping the single largest sample moves it by
+more than OUTLIER_SHIFT, an OUTLIER line says so and points at the raw samples.
 
-Every environment variable is read without a default. A missing one is a caller
-bug, and defaulting would silently summarize the wrong file or mislabel an arm.
+Every environment variable except BENCH_PERCENTILES is read without a default. A
+missing one is a caller bug, and defaulting would silently summarize the wrong
+file or mislabel an arm. An unset BENCH_PERCENTILES means 50,95.
 
 Environment:
-    BENCH_LABEL   arm label for the report line
-    BENCH_CONC    concurrency the samples were collected at, for the record
-    BENCH_TIMES   path to the sample file
+    BENCH_LABEL        arm label for the report line
+    BENCH_CONC         concurrency the samples were collected at, for the record
+    BENCH_TIMES        path to the sample file
+    BENCH_PERCENTILES  optional comma-separated percentiles, each in (0, 100)
 
 Exit: 0 summarized; 2 a precondition failed.
 """
@@ -33,12 +35,13 @@ import math
 import os
 import sys
 from collections import Counter
+from fractions import Fraction
 
 import pathfix
 
-REPORTED_PERCENTILES = (50.0, 95.0)
+DEFAULT_PERCENTILES = "50,95"
 
-# A p95 that moves by more than this fraction of itself when the single largest
+# A percentile that moves by more than this fraction of itself when the single largest
 # sample is dropped is carried by that one sample, not by the distribution.
 OUTLIER_SHIFT = 0.10
 
@@ -59,11 +62,29 @@ def env(name: str) -> str:
     return value or ""
 
 
+def listed_percentiles() -> list[float]:
+    raw = os.environ.get("BENCH_PERCENTILES", DEFAULT_PERCENTILES)
+    listed = []
+    for entry in raw.split(","):
+        try:
+            p = float(entry)
+        except ValueError:
+            p = math.nan
+        if not 0.0 < p < 100.0:
+            fail(
+                f"BENCH_PERCENTILES entry {entry!r} is not a number in the open "
+                f"interval (0, 100); the list was {raw!r}."
+            )
+        listed.append(p)
+    return listed
+
+
 def percentile_floor(p: float) -> int:
     """Smallest sample count from which percentile `p` is expressible at all."""
     if not 0.0 <= p < 100.0:
         fail(f"percentile {p} is out of range")
-    return math.ceil(1.0 / (1.0 - p / 100.0))
+    # Exact arithmetic: in floats, 1/(1-0.999) lands above 1000 and ceils to 1001.
+    return math.ceil(100 / (100 - Fraction(str(p))))
 
 
 def percentile(ordered: list[int], p: float) -> float:
@@ -116,6 +137,7 @@ def main() -> int:
     label = env("BENCH_LABEL")
     concurrency = env("BENCH_CONC")
     path = env("BENCH_TIMES")
+    listed = listed_percentiles()
 
     milliseconds, codes = load(path)
     if not milliseconds:
@@ -129,14 +151,14 @@ def main() -> int:
 
     cells = []
     refused = False
-    for p in REPORTED_PERCENTILES:
+    for p in listed:
         floor = percentile_floor(p)
         if count < floor:
             refused = True
-            cells.append(f"p{p:.0f}=REFUSED(n={count}<{floor})")
+            cells.append(f"p{p:g}=REFUSED(n={count}<{floor})")
         else:
             cells.append(
-                f"p{p:.0f}={percentile(ordered, p):.0f}ms"
+                f"p{p:g}={percentile(ordered, p):.0f}ms"
                 f"(nearest-rank={nearest_rank(ordered, p)}ms)"
             )
 
@@ -146,15 +168,17 @@ def main() -> int:
         f"min={ordered[0]}ms max={ordered[-1]}ms rc={dict(Counter(codes))}"
     )
     outlier = False
-    if count >= percentile_floor(95.0):
-        full = percentile(ordered, 95.0)
-        without_max = percentile(ordered[:-1], 95.0)
+    highest = max(listed)
+    if count >= percentile_floor(highest):
+        full = percentile(ordered, highest)
+        without_max = percentile(ordered[:-1], highest)
         if abs(full - without_max) > OUTLIER_SHIFT * full:
             outlier = True
             print(
-                f"{'':<28} OUTLIER: one sample moves p95 (p95={full:.0f}ms, "
+                f"{'':<28} OUTLIER: one sample moves p{highest:g} "
+                f"(p{highest:g}={full:.0f}ms, "
                 f"without max sample {without_max:.0f}ms); "
-                f"report the raw samples, not p95"
+                f"report the raw samples, not p{highest:g}"
             )
     if refused or outlier:
         print(f"{'':<28} raw samples (ms): {' '.join(str(value) for value in ordered)}")
