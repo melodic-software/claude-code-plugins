@@ -136,7 +136,8 @@
 # file of that name ends in, or in the file's path relative to a directory that
 # holds both files: `$SCRIPT_DIR/lib/x.sh` from a script beside lib/,
 # `$PLUGIN_DIR/skills/interview/SKILL.md` or `$PLUGIN_ROOT/hooks/hooks.json`
-# from inside the plugin. A shared library's
+# from inside the plugin. A path that spells only the name, `$DIR/README.md`,
+# means the nearest file of that name above the naming file. A shared library's
 # source and copies are the exception and keep the plain rule: R5's copies share
 # a basename on purpose, change together with their source, and a suite naming
 # its own plugin's copy is naming the shared source.
@@ -609,7 +610,7 @@ token_hits() {
     }
     FILENAME == allf {
       b = base_of($0)
-      if (b in nrt) same[b, ++nsame[b]] = $0
+      if (b in nrt) { same[b, ++nsame[b]] = $0; here[$0] = 1 }
       next
     }
     # uniq_suffix: the shortest path suffix, two components or more, that no
@@ -635,12 +636,14 @@ token_hits() {
     # does when it ends in the shortest unique suffix of t, or in the path of t
     # relative to a directory holding both files ($SCRIPT_DIR/lib/x.sh,
     # $PLUGIN_DIR/skills/<s>/SKILL.md).
-    function resolves(namer, pt, t,   u, a, i, b) {
+    # A path spelling only the name, `$DIR/README.md`, means the nearest file of
+    # that name above the namer: a closer one claims it from any farther one.
+    function resolves(namer, pt, t,   u, a, i, b, rel, claimed) {
       a = dir_of(namer)
       if (a == dir_of(t)) return 1
+      b = base_of(t)
       if (!index(pt, "/")) {
         if (a != "" && index(t, a) != 1) return 0
-        b = base_of(t)
         for (i = 1; i <= nsame[b]; i++)
           if (same[b, i] != t && (a == "" || index(same[b, i], a) == 1)) return 0
         return 1
@@ -648,8 +651,13 @@ token_hits() {
       if (!(t in usuf)) usuf[t] = uniq_suffix(t)
       u = usuf[t]
       if (u != "" && (pt == u || ends(pt, "/" u))) return 1
+      claimed = 0
       while (1) {
-        if ((a == "" || index(t, a) == 1) && (pt == substr(t, length(a) + 1) || ends(pt, "/" substr(t, length(a) + 1)))) return 1
+        if (a == "" || index(t, a) == 1) {
+          rel = substr(t, length(a) + 1)
+          if ((pt == rel || ends(pt, "/" rel)) && (index(rel, "/") || !claimed)) return 1
+        }
+        if (((a b) in here) && (a b) != t) claimed = 1
         if (a == "") return 0
         sub(/[^\/]*\/$/, "", a)
       }

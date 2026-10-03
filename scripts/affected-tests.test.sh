@@ -1783,6 +1783,25 @@ if [[ "$alpha_rc" -eq 0 ]] && has_line "$alpha_out" plugins/alpha/tests/manifest
 else
   fail "ambiguous: plugin.json resolution wrong (rc=$alpha_rc/$RC): [$alpha_out] [$OUT]"
 fi
+
+# `$DIR/README.md` spells only the name, so it means the nearest README.md above
+# the naming file: the plugin's own from inside the plugin, the root one from
+# scripts/.
+printf '# root\n' >"$repo/README.md"
+# shellcheck disable=SC2016 # deliberate: the emitted fixtures must expand these
+{
+  printf 'grep -q x "$PLUGIN_DIR/README.md"\n' >"$repo/plugins/alpha/tests/readme.test.sh"
+  printf 'grep -q x "$REPO_ROOT/README.md"\n' >"$repo/scripts/zz-root-readme.test.sh"
+}
+run_sel "$repo" README.md
+root_out="$OUT"
+run_sel "$repo" plugins/alpha/README.md
+if has_line "$root_out" scripts/zz-root-readme.test.sh && ! has_line "$root_out" plugins/alpha/tests/readme.test.sh &&
+  has_line "$OUT" plugins/alpha/tests/readme.test.sh && ! has_line "$OUT" scripts/zz-root-readme.test.sh; then
+  ok "ambiguous: a path spelling only the name means the nearest file of that name"
+else
+  fail "ambiguous: nearest-file resolution wrong: [$root_out] [$OUT]"
+fi
 rm -rf "$repo"
 
 # --- R5 copies inside skill directories still reach every copy's suite -------
