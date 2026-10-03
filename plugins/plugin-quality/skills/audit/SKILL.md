@@ -478,7 +478,7 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 | `reference/recurring-concerns.md` | Every audit, the reusable design-failure checklist. |
 | `reference/session-mode.md` | Running `session` or `arm`, applying the evidence bar or research gate, or resolving step 5's role seams. |
 | `reference/component-types/hook.md` | Auditing a hook (PreToolUse/PostToolUse/lifecycle). |
-| `reference/component-types/skill.md` | Auditing a skill (frontmatter, disclosure, triggering). |
+| `reference/component-types/skill-component.md` | Auditing a skill (frontmatter, disclosure, triggering). |
 | `reference/component-types/agent.md` | Auditing an agent/subagent definition. |
 | `reference/component-types/command.md` | Auditing a slash command. |
 | `reference/component-types/config.md` | Auditing plugin config / settings / userConfig surfaces, incl. plugin-shipped `settings.json` / `.lsp.json` / `monitors.json`. |

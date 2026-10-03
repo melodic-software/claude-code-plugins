@@ -14,6 +14,7 @@ from typing import Any
 
 from babysit_checks import (
     check_identity_key,
+    classify_approval_held_checks,
     classify_checks,
     classify_stuck_checks,
     persisted_check_identity_keys,
@@ -489,6 +490,17 @@ def classify_pr(
         merge_state=merge_state,
         age_threshold_seconds=stuck_age_seconds,
     )
+    # Held for approval: failing in the rollup (the merge gate keeps holding),
+    # but escalated to a person here rather than counted as a fixable failure.
+    checks["approval_held"] = classify_approval_held_checks(checks["checks"])
+    approval_held_keys = {
+        check_identity_key(check) for check in checks["approval_held"]
+    }
+    fixable_failing = [
+        identity
+        for identity in checks["failing_identities"]
+        if check_identity_key(identity) not in approval_held_keys
+    ]
     mergeable = str(pr.get("mergeable") or "").upper()
     head_sha = str(pr.get("headRefOid") or "")
     updated_at = str(pr.get("updatedAt") or "")
@@ -675,8 +687,14 @@ def classify_pr(
         material.append("user decision required before any branch write")
     elif not mutation_policy["branch_write_allowed"]:
         material.append("head-branch writes disabled for external fork")
-    if checks["failing"]:
-        blockers.append(f"{len(checks['failing'])} failing check(s)")
+    if fixable_failing:
+        blockers.append(f"{len(fixable_failing)} failing check(s)")
+    if checks["approval_held"]:
+        material.append(
+            f"{len(checks['approval_held'])} check(s) held for approval "
+            "(action_required); only a maintainer can release them in the web UI "
+            "-- escalate, never re-run, push, or wait"
+        )
     if checks["pending"]:
         blockers.append(f"{len(checks['pending'])} pending check(s)")
     if review_decision == "CHANGES_REQUESTED":
@@ -877,7 +895,9 @@ def classify_pr(
         prev_checks_pending = legacy_check_identity_keys(prev.get("checks_pending"))
         current_checks_failing = legacy_check_identity_keys(checks["failing"])
         current_checks_pending = legacy_check_identity_keys(checks["pending"])
-    new_failing_checks = bool(current_checks_failing - prev_checks_failing)
+    new_failing_checks = bool(
+        current_checks_failing - prev_checks_failing - approval_held_keys
+    )
     resolved_failing_checks = (
         bool(prev_checks_failing - (current_checks_failing | current_checks_pending))
         and not current_checks_pending
