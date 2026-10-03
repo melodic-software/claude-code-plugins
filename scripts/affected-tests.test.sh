@@ -9,6 +9,8 @@
 # list — because a synthetic fixture cannot show that the derivation still
 # tracks reality, which is the whole failure mode this tool exists to avoid.
 # test-scope: scripts/affected-tests* scripts/sync-*.sh scripts/lib/sync-*.sh .github/workflows/ci.yml
+# test-scope: plugins/github/skills/advise/S*.md plugins/planning/skills/interview/S*.md
+# test-scope: plugins/autonomy/reference/*.md
 set -uo pipefail
 
 TMP_ROOT="$(mktemp -d)"
@@ -826,7 +828,7 @@ else
   fail "standards-contract fan-out (rc=$RC): $out"
 fi
 
-# --- LIVE repo: reference YAML with no lane is UNMAPPED, not silently clean --
+# --- LIVE no-suite list: reference YAML with no lane is UNMAPPED -------------
 # The reference YAML under plugins/toolchain/ and docs/conventions/
 # ecosystem-commands/ is read by NO lane: no yamllint step exists, every
 # check-jsonschema step names its files and none names these,
@@ -839,29 +841,31 @@ fi
 # class again, this assertion is SUPPOSED to fail — update it together with the
 # no-suite entry, and make sure the entry names the lane that actually reads
 # them. Workflow YAML must stay covered via the .github/* entry throughout.
-# The probe paths are DISCOVERED with a glob, never written out literally. That
-# is not tidiness — a literal basename here would make this file a suite that
-# "references" the probe, R3 would select it, and the path would come back
-# MAPPED at exit 0. The assertion would then fail for a reason that has nothing
-# to do with the no-suite list. This is the MATCHING rule documented in
-# affected-tests.sh's header, met head-on: naming a file in a suite is exactly
-# what makes the selector consider it covered.
-# The exit status of this head pipe is never read, so its early exit is harmless.
-mapfile -t eco_yaml < <(cd "$REPO_ROOT" && git ls-files \
-  'plugins/toolchain/reference/ecosystems/*.yaml' \
-  'docs/conventions/ecosystem-commands/examples/*.yaml' | head -2)
-if [[ ${#eco_yaml[@]} -eq 0 ]]; then
-  fail "no reference YAML found to probe — the case below would be vacuous"
-fi
-for y in ${eco_yaml[@]+"${eco_yaml[@]}"}; do
-  out="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh "$y" 2>&1)"
-  RC=$?
-  if [[ "$RC" -eq 1 ]] && contains "$out" 'UNMAPPED'; then
+#
+# The selector runs in a fixture that carries the live no-suite list, on probe
+# files in the two live directories whose names no live file has. A live file
+# would not do: a suite that names or globs one maps it, so this suite would map
+# the files it proves unmapped, and a live run would also fail on main as soon
+# as any other suite began naming one.
+eco_yaml=(plugins/toolchain/reference/ecosystems/zz-probe.yaml
+  docs/conventions/ecosystem-commands/examples/zz-probe.yaml)
+mk_repo repo
+for y in "${eco_yaml[@]}"; do
+  mkdir -p "$repo/${y%/*}"
+  printf 'name: probe\n' >"$repo/$y"
+done
+git_test_config "$repo" add plugins docs >/dev/null
+git_test_config "$repo" commit -qm eco-yaml >/dev/null
+out="$(cd "$repo" && bash scripts/affected-tests.sh "${eco_yaml[@]}" 2>&1)"
+RC=$?
+for y in "${eco_yaml[@]}"; do
+  if [[ "$RC" -eq 1 ]] && has_line "$out" "  - $y"; then
     ok "reference YAML with no covering lane is UNMAPPED: $y"
   else
     fail "$y should be UNMAPPED, not silently covered (rc=$RC): $out"
   fi
 done
+rm -rf "$repo"
 
 # ... while YAML under .github/, which actionlint/zizmor/check-jsonschema DO
 # read, stays covered by the .github/* entry. Without this, the cases above
@@ -874,7 +878,8 @@ done
 # no-suite list is consulted, which would pass a bare rc-0 check while proving
 # nothing about .github/*. That is not hypothetical — .github/workflows/ci.yml
 # is named by two suites and reaches exit 0 through R3, so it cannot serve as
-# this probe. Discovered by glob for the R3 reason given above.
+# this probe. Discovered by glob, never spelled: a path spelled here would make
+# this suite name it, and R3 would select this suite the same way.
 #
 # The candidate is additionally FILTERED to one that no grepped-language file
 # names at all, rather than assuming the sole `.github/*.yaml` qualifies. That
@@ -1465,9 +1470,11 @@ rm -rf "$repo"
 
 # --- LIVE repo: a real autonomy reference doc selects the contract suite -----
 # The probe doc is discovered, never spelled: a basename written here would make
-# this suite name that file, and R3 would then cover it without R7. The suite
-# path above IS spelled on purpose: renaming the suite selects this file, and
-# this case then fails instead of R7 silently selecting nothing.
+# this suite name that file, and R3 would then cover it without R7. The glob is
+# declared in this suite's test-scope header, so deleting the last doc selects
+# this suite. The suite path above IS spelled on purpose: renaming the suite
+# selects this file, and this case then fails instead of R7 silently selecting
+# nothing.
 # The assertion is on the R7 reason, not on bare selection: a live doc can also
 # reach the suite through R4 fan-out (a hook naming it), which would pass without
 # R7. The seed is walked first, so R7's reason is the one recorded.
@@ -1616,8 +1623,8 @@ rm -rf "$repo"
 # Both were a skill body edit breaking a suite that never spells the body's
 # path the plain way: one scans its plugin's markdown (R8 declares it), the
 # other spells the body relative to its plugin (AMBIGUOUS NAMES resolves it).
-# The probe bodies are discovered, never spelled, so this suite does not name
-# them and run on every edit to them.
+# The probe bodies are discovered by glob and declared in this suite's
+# test-scope header, so renaming or deleting either selects this suite.
 for probe in 'plugins/github/skills/advise/S*.md|plugins/github/github.test.sh' \
   'plugins/planning/skills/interview/S*.md|plugins/planning/tests/interview-defenses.test.sh'; do
   body="$(cd "$REPO_ROOT" && git ls-files "${probe%%|*}")"
