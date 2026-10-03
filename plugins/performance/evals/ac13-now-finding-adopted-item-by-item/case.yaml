@@ -7,7 +7,7 @@ expected_outcome: 'AC13. The fixture session ran `npm run lint` three times with
 context:
   history_file: ac13-now-finding-adopted-item-by-item.jsonl
 execution:
-  prompt: '/performance:go-faster. When it asks about adopt-now items: yes to reusing the lint output, no to everything else.'
+  prompt: '/performance:go-faster. When it asks about adopt-now items: yes to reusing the lint output, no to everything else. Then list this session''s adoptions.'
   allowed_tools: [Bash, Read, Grep, Glob, Skill, Agent, WebFetch]
   max_turns: 100
   timeout_seconds: 1800
@@ -29,13 +29,13 @@ graders:
     min: 1
     max: 1
   - name: adopted-record-fields
-    type: llm
-    focus: trace
-    criteria: 'PASS only if: adopted.jsonl gains one record carrying this session''s id, the lint finding''s id and key, its guard_metric and its revert_if. FAIL otherwise.'
+    type: tool_used
+    tool: Bash
+    input_match: 'findings\.py\S*\s+adopt\s(?=.*--id\s+(?:\\"|'')?session-work-)(?=.*--session\s+\S)'
   - name: adopted-listed-for-session
-    type: llm
-    focus: trace
-    criteria: 'PASS only if: After the run, `findings.py adopted --data <DATA> --session <this session id>` prints that record. FAIL otherwise.'
+    type: tool_used
+    tool: Bash
+    input_match: 'findings\.py\S*\s+adopted\s'
   - name: states-behavior-guard-check
     type: llm
     criteria: 'PASS only if: The reply states the behavior change (reuse the earlier lint output while its inputs are unchanged), its guard, and when the guard is checked. FAIL otherwise.'

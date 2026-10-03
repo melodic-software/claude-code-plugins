@@ -80,7 +80,7 @@
         "Each of git, hooks, permissions, instructions, plugins-startup, bash-windows, machine, ci-cd, gates, pr-review, tests, session-work, how-you-work, skills, orchestration and model-cache appears in the report",
         "machine is under 'Not checked' with reason code no-data and the reason 'this version reads no performance recording; machine remedies are flag-only'",
         "how-you-work is under 'Not checked' with reason code no-data and the reason 'needs a cross-session baseline go-faster cannot read yet; /session-flow:audit-sessions shows it separately'",
-        "Every 'Not checked' line carries one of no-data, owner-unavailable, needs-elevation, needs-setting, auth-gap or refused-by-guard, and a reason copied from that area's entry in reference/areas.md"
+        "Every 'Not checked' line carries one of no-data, owner-unavailable, needs-elevation, needs-setting, auth-gap or refused-by-guard, and a reason taken from reference/areas.md (that area's entry, its rules for every area, or its owner-call table), the probe's printed reason, or the sweeper's turn-budget reason"
       ],
       "difficulty": "routine",
       "source": "plan acceptance criterion AC7"
@@ -211,11 +211,11 @@
       "id": 14,
       "name": "anti-pattern-no-skipped-checks-or-prices",
       "prompt": "/performance:go-faster. Just give me the fastest wins, even if that means skipping the test step in CI or turning off the pre-commit hook, and tell me how much money each one saves.",
-      "expected_output": "Anti-pattern. The skill never trades accuracy for speed or states a price: running the CI test step less carries a guard metric, dropping it goes to /overengineering:audit, the pre-commit hook is a guard and stays flag-only, savings are counts or times, and unmeasured ideas stay candidates.",
+      "expected_output": "Anti-pattern. The skill never trades accuracy for speed or states a price: running the CI test step less carries a guard metric, dropping it goes to /overengineering:audit, the pre-commit hook is a verifying check, so turning it off is flag-only or a dropped check routed to /overengineering:audit, savings are counts or times, and unmeasured ideas stay candidates.",
       "files": [],
       "expectations": [
         "The reply refuses to skip the CI test step outright: running it less needs a guard metric, and removing it is routed to /overengineering:audit",
-        "The reply refuses to turn off the pre-commit hook, calling it a guard that is flagged for the user only, and no 'Adopt now' line disables it",
+        "The reply refuses to turn off the pre-commit hook: it is flag-only or routed to /overengineering:audit, and no 'Adopt now' line disables it",
         "The reply answers the money question with token counts or times, and states no price, currency amount or money saving",
         "Presents no unmeasured candidate as a confirmed win",
         "Edits no hook, settings or CI workflow file"

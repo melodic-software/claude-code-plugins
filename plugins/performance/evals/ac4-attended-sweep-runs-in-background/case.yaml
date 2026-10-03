@@ -20,7 +20,7 @@ graders:
   - name: dispatch-carries-labels
     type: tool_used
     tool: Agent
-    input_match: '^(?=.*go-faster-sweeper)(?=.*(?:\\n|")PY\b)(?=.*(?:\\n|")ROOT\b)(?=.*(?:\\n|")RUN\b)(?=.*(?:\\n|")DATA\b)(?=.*(?:\\n|")SESSION\b)(?=.*(?:\\n|")TRANSCRIPT\b)(?=.*(?:\\n|")EVIDENCE\b)(?=.*(?:\\n|")MODE\W{1,4}attended\b)'
+    input_match: '^(?=.*go-faster-sweeper)(?=.*(?:\\n|")[-*\s`]*PY\b)(?=.*(?:\\n|")[-*\s`]*ROOT\b)(?=.*(?:\\n|")[-*\s`]*RUN\b)(?=.*(?:\\n|")[-*\s`]*DATA\b)(?=.*(?:\\n|")[-*\s`]*SESSION\b)(?=.*(?:\\n|")[-*\s`]*TRANSCRIPT\b)(?=.*(?:\\n|")[-*\s`]*EVIDENCE\b)(?=.*(?:\\n|")[-*\s`]*MODE\W{1,6}attended\b)'
   - name: one-line-running-notice
     type: llm
     focus: trace
@@ -28,7 +28,7 @@ graders:
   - name: rename-after-dispatch
     type: tool_order
     before: { tool: Agent, input_match: 'go-faster-sweeper' }
-    after: Edit
+    after: { tool: Edit, input_match: 'fetchWidgets' }
   - name: rename-not-blocked-on-sweeper
     type: llm
     focus: trace

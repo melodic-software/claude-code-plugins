@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "\"/usr/bin/python3\" \"/plugins/performance/scripts/findings.py\" adopt --data \"/data/go-faster/k\" --session \"s-1\" --findings \"/data/go-faster/k/runs/r1/findings.json\" --id session-work-2 --route-taken next-run"}}
+      ],
+      "why": "adopts a session-work finding for this session"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "\"/usr/bin/python3\" \"/plugins/performance/scripts/findings.py\" adopt --data \"/data/go-faster/k\" --session \"s-1\" --findings \"/data/go-faster/k/runs/r1/findings.json\" --id \"session-work-2\" --route-taken next-run"}}
+      ],
+      "why": "same call with the id quoted"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "\"/usr/bin/python3\" \"/plugins/performance/scripts/findings.py\" adopt --data \"/data/go-faster/k\" --session \"s-1\" --findings \"/data/go-faster/k/runs/r1/findings.json\" --id git-1 --route-taken next-run"}}
+      ],
+      "why": "adopts a finding from another area"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "\"/usr/bin/python3\" \"/plugins/performance/scripts/findings.py\" adopted --data \"/data/go-faster/k\" --session \"s-1\""}}
+      ],
+      "why": "lists adoptions but adopts nothing"
+    }
+  ]
+}

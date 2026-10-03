@@ -31,11 +31,11 @@ graders:
   - name: record-keeps-both-routes
     type: llm
     focus: trace
-    criteria: 'PASS only if: The new adopted.jsonl record has route_taken ''performance-chain'' and route_suggested equal to that finding''s route in findings.json. FAIL otherwise.'
+    criteria: 'PASS only if: The report shows a ''Route: <route>'' line for the repeated `npm run lint` finding (its suggested route), and the `findings.py adopt` call for that finding passes `--route-taken performance-chain`, so both the suggested and the taken route are in the trace. FAIL otherwise.'
   - name: override-flag-correct
     type: llm
     focus: trace
-    criteria: 'PASS only if: The record''s route_overridden is true when route_suggested is next-run, and false when it is performance-chain. FAIL otherwise.'
+    criteria: 'PASS only if: Comparing the report''s ''Route:'' value for the repeated `npm run lint` finding with the adopt call''s `--route-taken`: when the report reads ''Route: next-run'', the call still passes `--route-taken performance-chain` (an override); when it reads ''Route: performance-chain'', the call passes that same route (no override). FAIL otherwise.'
   - name: states-behavior-guard-check
     type: llm
     criteria: 'PASS only if: The reply states the behavior change followed from here on, its guard, and when the guard is checked. FAIL otherwise.'

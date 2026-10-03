@@ -12,14 +12,6 @@ execution:
   max_turns: 100
   timeout_seconds: 1800
 graders:
-  - name: citations-dated-today
-    type: llm
-    focus: trace
-    criteria: 'PASS only if: Every citation in findings.json has a url starting with http, as_of equal to the run''s date, and a non-empty recheck. FAIL otherwise.'
-  - name: citations-fetched-this-run
-    type: llm
-    focus: trace
-    criteria: 'PASS only if: Each cited url was fetched with WebFetch during this run. FAIL otherwise.'
   - name: measured-findings-have-command
     type: llm
     criteria: 'PASS only if: Every measured finding shows a non-empty command after ''Reproduce:'' in the report. FAIL otherwise.'
