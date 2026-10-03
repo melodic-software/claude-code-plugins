@@ -63,10 +63,13 @@ Invoke via `@review:<agent>` or let Claude delegate.
   orchestrator review plugins, then normalizes everything into one ranked findings report.
   Modes: default (auto-scales to diff size), `run-everything` (full roster), `fix` (applies
   the merged set of persisted findings, the only mutating mode).
-- **`/review:pr-explainer [pr-number|this branch]`**. Offered HTML explainer for a
-  pull request: risk map, file-by-file tour, where to focus. The markdown record
-  is the deliverable. The page is built only by the checked-in escape helper and
-  is not written unless the reader accepts it.
+- **`/review:explain-change [pr-number|this branch] [--event ready] [--policy off|offer|always]`**.
+  Change digest for a pull request: why, before and after, risk map, where to focus, and
+  annotated hunks. The markdown digest is the record. An interactive view is built only from
+  the checked-in template plus the digest as escaped JSON, outside the working tree. The
+  `review-digest` cascade concern sets `digest_policy` (`off`, `offer` by default, or `always`
+  at the ready flip) and the offer thresholds. It never posts to the pull request and never
+  gates merge. `/review:pr-explainer` is a one-release stub that points here.
 - **`/review:audit-enforceability <findings-file>`**. Read-only enforcement audit over ONE
   operator-named findings file: derives a class per finding, maps it to the cheapest deterministic
   rung (editorconfig severity, analyzer-pack rule, custom analyzer, Semgrep rule, architecture
