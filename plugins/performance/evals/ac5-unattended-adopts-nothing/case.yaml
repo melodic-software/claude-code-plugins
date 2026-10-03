@@ -31,7 +31,7 @@ graders:
   - name: no-adopt-question
     type: llm
     focus: trace
-    criteria: 'PASS only if: Asks no adopt-now question, although the report has an ''Adopt now'' section. FAIL otherwise.'
+    criteria: 'PASS only if: None of the session''s own messages to the user asks whether to adopt any finding. Text inside a file the session read or in the report it rendered (such as an ''Adopt now'' section or ''Reply per item'') does not count. FAIL otherwise.'
   - name: no-adopt-call
     type: tool_used
     tool: Bash

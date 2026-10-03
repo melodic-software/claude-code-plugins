@@ -9,11 +9,6 @@ folder passed as a literal argument. Subcommands:
                                         including a citation whose as_of is not the run's date
     finish --run <run-dir>              validate the whole run, write report.md, print its path
     validate <findings.json>            exit 1 naming each rule a finding breaks
-
-A run's date is the UTC date of the started_at that run-start writes: a citation is outside advice
-re-read in this run, so add, finish and validate refuse one with any other as_of. A findings file
-with no started_at gets the format check only. A run-start whose findings.json already exists
-exits 3 like any other denied write.
     rank <findings.json>                one `<section>\t<id>` line per finding, in report order
     render <findings.json>              the markdown report
     lint-catalog <dir|file>...          exit 1 naming each catalog row that breaks the grammar
@@ -29,6 +24,11 @@ exits 3 like any other denied write.
                                         step, test steps and re-runs as JSON
     pr-timing [--limit N]               list N merged PRs (default 20), print open to first
                                         review, open to merge and PR size as JSON
+
+A run's date is the UTC date of the started_at that run-start writes: a citation is outside advice
+re-read in this run, so add, finish, validate and adopt refuse one with any other as_of. A findings
+file with no started_at gets the format check only. A run-start whose findings.json already exists
+exits 3 like any other denied write.
 
 ci-timing and pr-timing run gh with the caller's environment (GH_CONFIG_DIR included), keep its
 output in memory and write nothing to disk. Each number is an object with value, unit, samples
@@ -514,7 +514,8 @@ def find(doc: dict, fid: str) -> dict | None:
 
 
 def cmd_adopt(args: argparse.Namespace) -> int:
-    f = find(load(args.findings), args.id)
+    doc = load(args.findings)
+    f = find(doc, args.id)
     if f is None:
         print(f"no finding {args.id}")
         return 1
@@ -523,7 +524,7 @@ def cmd_adopt(args: argparse.Namespace) -> int:
             f"{args.id} is {f.get('status')}: only measured findings and candidates can be adopted"
         )
         return 1
-    errors = finding_errors(f)
+    errors = finding_errors(f, run_date(doc))
     if errors:
         print("\n".join(errors))
         return 1
@@ -799,12 +800,13 @@ def cmd_transcript_counts(args: argparse.Namespace) -> int:
 
 
 def cmd_run_start(args: argparse.Namespace) -> int:
-    stamp = datetime.fromtimestamp(now(), timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    t = now()
+    stamp = datetime.fromtimestamp(t, timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run = Path(args.data).resolve() / "runs" / stamp
     header = {
         "schema": 1,
         "session_id": args.session,
-        "started_at": iso(now()),
+        "started_at": iso(t),
         "mode": args.mode,
         "session_evidence": args.session_evidence == "true",
         "findings": [],

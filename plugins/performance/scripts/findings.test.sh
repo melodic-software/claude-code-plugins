@@ -850,4 +850,42 @@ doc "$WORK/bare-cite.json" "$(cite git-1 2026-04-30)"
 run validate "$(native "$WORK/bare-cite.json")"
 assert_eq "a bare findings file with no run header checks only the citation's format" "0" "$RUN_RC"
 
+# --- 33. a run-start across UTC midnight dates its folder and started_at from one clock read ---
+# The clock reads 23:59:59.999Z on the run day, then 00:00:00.002Z the next day; the run folder
+# (where the sweeper takes as_of) and started_at (what add and finish check) must name one date.
+cat >"$WORK/midnight.py" <<'EOF'
+import argparse
+import sys
+
+sys.path.insert(0, sys.argv[1])
+import findings
+
+ticks = iter([float(sys.argv[3]), float(sys.argv[4])])
+findings.now = lambda: next(ticks)
+findings.cmd_run_start(
+    argparse.Namespace(data=sys.argv[2], session="s1", mode="attended", session_evidence="true")
+)
+EOF
+DM="$(native "$WORK/data/midnight")"
+LAST="$(date -u -d "${RUN_DAY}T23:59:59Z" +%s).999"
+FIRST="$(date -u -d "2026-05-02T00:00:00Z" +%s).002"
+capture "$HARNESS_PYTHON" -B "$(native "$WORK/midnight.py")" "$(native "$SCRIPT_DIR")" "$DM" "$LAST" "$FIRST"
+assert_eq "a run-start across midnight exits 0" "0" "$RUN_RC"
+MID_DIR="${RUN_OUT##*/}"
+MID_STARTED="$(sed -n 's/.*"started_at": *"\([0-9-]*\)T.*/\1/p' "$RUN_OUT/findings.json" 2>/dev/null)"
+assert_eq "the run folder and started_at name the same UTC date" \
+  "${MID_DIR:0:4}-${MID_DIR:4:2}-${MID_DIR:6:2}" "$MID_STARTED"
+assert_eq "the date is the run day of the single clock read" "$RUN_DAY" "$MID_STARTED"
+
+# --- 34. adopt holds a citation to the run's date like add and finish do ---
+ADOPT_RUN="$WORK/adopt-cite-run"
+mkdir -p "$ADOPT_RUN"
+doc "$ADOPT_RUN/findings.json" "$(measured session-work-1 session-work elapsed-ms 5000 "$NOW,\"effect\":\"batching\",\"citations\":[{\"url\":\"https://git-scm.com/docs\",\"as_of\":\"2026-04-30\",\"recheck\":\"next git release\"}]" | sed 's/"horizon":"later",//')"
+sed -i 's/"session_id":"s1",/"session_id":"s1","started_at":"2026-05-01T12:00:00Z",/' "$ADOPT_RUN/findings.json"
+DAC="$WORK/data/adopt-cite"
+run adopt --data "$(native "$DAC")" --session s1 --findings "$(native "$ADOPT_RUN/findings.json")" --id session-work-1 --route-taken next-run
+assert_eq "adopt refuses a citation dated before the run" "1" "$RUN_RC"
+assert_contains "adopt names both dates" "session-work-1: citation as_of 2026-04-30 is not this run's date 2026-05-01" "$RUN_OUT"
+assert_eq "a refused adoption writes no adopted.jsonl line" "absent" "$([[ -e "$DAC/adopted.jsonl" ]] && echo present || echo absent)"
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
