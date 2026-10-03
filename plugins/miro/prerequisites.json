@@ -1,0 +1,61 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "mcp:miro"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the Miro MCP server does not start and no Miro tool is available.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "npm",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "mcp:miro"
+      ],
+      "detect": {
+        "any": [
+          "npm"
+        ]
+      },
+      "degrade": "Without npm, the Miro MCP server cannot install its dependencies on first start and does not launch.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "claude",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:setup"
+      ],
+      "detect": {
+        "any": [
+          "claude"
+        ]
+      },
+      "degrade": "Without the claude CLI, /miro:setup cannot print or run the scripted install commands; the interactive /plugin prompt still works.",
+      "install": {
+        "docs": "https://code.claude.com/docs/en/setup"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

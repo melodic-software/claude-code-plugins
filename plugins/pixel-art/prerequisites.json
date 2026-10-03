@@ -1,0 +1,73 @@
+{
+  "requires": [
+    {
+      "id": "python3",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:animate",
+        "skill:scene",
+        "skill:sprite",
+        "skill:tileset",
+        "skill:ui",
+        "skill:vfx"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python"
+        ]
+      },
+      "degrade": "Without Python 3, no pixel-art skill can render; nothing is produced.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "ffmpeg",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:scene"
+      ],
+      "detect": {
+        "any": [
+          "ffmpeg"
+        ]
+      },
+      "degrade": "Without ffmpeg, scene.webm is video-only; the scene still renders and the audio is not muxed in.",
+      "install": {
+        "docs": "https://ffmpeg.org/download.html",
+        "brew": "ffmpeg",
+        "winget": "Gyan.FFmpeg",
+        "apt": "ffmpeg"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "node",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the prerequisites checker cannot run, so a missing tool above goes unreported; the plugin's own skills are unaffected.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}
