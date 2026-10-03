@@ -402,6 +402,22 @@
     },
     {
       "id": 28,
+      "name": "single-publisher-claim-is-labeled-not-accepted",
+      "prompt": "Research what ExampleCloud charges per million requests on its serverless tier. [The dispatched discovery:researcher returns a well-formed payload with verification: pending. One accepted HIGH claim reads 'the serverless tier costs $0.20 per million requests'. Its Tier 1 sources are ExampleCloud's pricing page, its pricing API reference and its launch announcement, each recorded with pool: 'ExampleCloud'. A Tier 2 reseller blog repeats the price and links the pricing page. The claim carries no subject_pool.]",
+      "files": [],
+      "expected_output": "Briefs the sibling verifier on rows 4, 7 and 12. The verifier reads pool off each source: all three Tier 1 sources share the pool ExampleCloud, which is the claim's own subject, so they are one corroborator, and the reseller blog only restates the pricing page. The claim is a single-publisher fact with no subject_pool, so it fails row 4, and it cannot be HIGH. The result carries it as an attribution ('ExampleCloud states the serverless tier costs $0.20 per million requests') with subject_pool: ExampleCloud, at most MEDIUM, listed under Gaps labeled single-publisher (ExampleCloud) with its fetch-log entry and date, and not as an accepted claim.",
+      "expectations": [
+        "The three ExampleCloud pages count as one corroborator because they share one pool",
+        "The reseller blog that restates the pricing page is not counted as an independent corroborator",
+        "The verifier fails row 4 for the unlabeled claim, reading pool and subject_pool off the sidecar header",
+        "The claim is worded as an attribution to ExampleCloud, not stated as a bare fact",
+        "The claim carries subject_pool: ExampleCloud, equal to the one pool its Tier 0/1 sources share",
+        "Confidence is at most MEDIUM and the claim is not accepted",
+        "The claim is listed under Gaps labeled single-publisher (ExampleCloud)"
+      ]
+    },
+    {
+      "id": 29,
       "name": "single-source-content-claim-passes-flagged",
       "prompt": "Research what Anthropic's Claude Code changelog says about one named release. [The dispatched discovery:researcher returns a well-formed payload with verification: pending, and both gates exit 0. One accepted claim reads 'the changelog entry for that release lists the change'. Its sidecar header records confidence: HIGH (single source) and single_source: 'only Anthropic publishes this changelog; every copy found elsewhere quotes it'. Its sources are the changelog file, fetched this turn, as role: primary, plus a blog post and a newsletter issue, each quoting that changelog entry and each recorded under the changelog's pool.]",
       "files": [],
@@ -416,7 +432,7 @@
       ]
     },
     {
-      "id": 29,
+      "id": 30,
       "name": "behavior-claim-from-one-page-is-a-gap",
       "prompt": "Research whether setting one named Claude Code setting to false stops automatic updates. [The dispatched discovery:researcher returns a well-formed payload with verification: pending, and both gates exit 0. One accepted claim reads 'setting the key to false stops automatic updates'. Its sidecar header records confidence: HIGH (single source) and single_source: 'Anthropic is the only publisher of its own product documentation'. Its only source is the settings documentation page, fetched this turn, as role: primary. No probe was run and no issue tracker was searched.]",
       "files": [],

@@ -38,7 +38,7 @@ saving.
 ## Hook
 
 A PreToolUse checkpoint returns `permissionDecision: "ask"` when a **file-editing tool call**
-(`Write`, `Edit`, `MultiEdit`, `NotebookEdit`) targets a Claude Code settings file, so those
+(`Write`, `Edit`, `NotebookEdit`) targets a Claude Code settings file, so those
 edits prompt even in auto mode. The files it matches are `settings.json` and `settings.local.json`
 under any `.claude` directory (project or user-global), plus `managed-settings.json`. It is a
 checkpoint, not a guarantee (a `PermissionRequest` hook can allow the call; `disableAllHooks`
@@ -145,7 +145,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `settings_write_ask_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SETTINGS_WRITE_ASK_ENABLED` | Runs the PreToolUse hook that asks before Write, Edit, MultiEdit, and NotebookEdit calls aimed at a Claude Code settings file. On by default. Shell writes and files rendered into place are outside its matcher. |
+| `settings_write_ask_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SETTINGS_WRITE_ASK_ENABLED` | Runs the PreToolUse hook that asks before Write, Edit, and NotebookEdit calls aimed at a Claude Code settings file. On by default. Shell writes and files rendered into place are outside its matcher. |
 
 ### How to set these
 

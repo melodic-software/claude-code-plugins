@@ -5,7 +5,7 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
-## [1.3.4] - 2026-10-02
+## [1.4.0] - 2026-10-02
 
 ### Fixed
 
@@ -18,6 +18,14 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   commit, an as-of date and a recheck trigger. The outdated record that two subcommands were
   missing from the public repository and the docs is gone, and the record whose trigger fired at
   Claude Code 2.1.283 was re-derived at 2.1.287.
+
+## [1.3.4] - 2026-10-02
+
+### Changed
+
+- **`audit-permission-state` keeps its `MultiEdit` check on purpose.** The `C6-uncoveredPath` lint
+  still lists `MultiEdit`, now with a pointer record to the permissions page, because a settings
+  file can carry a rule that names the legacy tool.
 
 ## [1.3.3] - 2026-10-02
 

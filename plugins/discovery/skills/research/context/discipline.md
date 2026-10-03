@@ -22,6 +22,7 @@ Recipes and rationale behind the bars stated in the research skill's SKILL.md bo
 - [Source-quality red flags](#source-quality-red-flags)
 - [Graceful degradation (missing tools)](#graceful-degradation-missing-tools)
 - [Confidence calibration](#confidence-calibration)
+- [Single-publisher facts](#single-publisher-facts)
 - [Joint-inference check](#joint-inference-check)
 - [Observed failure patterns](#observed-failure-patterns)
 
@@ -38,7 +39,7 @@ Recipes and rationale behind the bars stated in the research skill's SKILL.md bo
 
 ## Source-tier ratio (per claim)
 
-Every accepted claim has at least one Tier 0/1 source plus two independent corroborators of any tier. The one exception is the next section.
+Every accepted claim has at least one Tier 0/1 source plus two independent corroborators of any tier. That is the floor criterion 4 checks; acceptance also needs HIGH (criterion 7), per "Confidence calibration" below. The one exception to the floor is the next section.
 
 **Anti-pattern:** three AI-synthesis citations of three different secondary blogs = 1 Tier 2 source, not 3. They're synthesizing from the same upstream pool. Count INDEPENDENT primary sources, not citation count.
 
@@ -55,6 +56,8 @@ Some claims can have only one publisher. A **first-party content claim** states 
 The claim's confidence is `HIGH (single source)` (see "Confidence calibration"), and the flag stays visible wherever the claim goes: the evidence table's Confidence cell, the sidecar header, the answer, and any synthesis built from it. A flagged claim may ground a code edit, and the record written beside that edit carries the flag.
 
 **A behavior claim is not a content claim.** What a product does when it runs (a default that takes effect, a limit it enforces, an error it raises) can be checked by a live probe or found in an issue report, so it still needs two independent corroborators, whatever its docs page says. A content claim about a page and a behavior claim drawn from that page are two claims: split them, and only the content claim can carry the flag.
+
+**A content claim is not a single-publisher fact.** Its subject is the named artifact, not the publisher. When the page states the publisher's own pricing, roadmap or internal metrics, "the page says X" can carry the flag, while X as a fact about the publisher is a separate claim under "Single-publisher facts" below and is never accepted.
 
 ## Recency gate (for libraries, tools, CLIs, APIs)
 
@@ -231,7 +234,7 @@ The "top of Google" is a ranking artifact, not an authority signal. SEO content 
 
 **An announcement is the shallowest rung that still carries the claim.** It states the headline figure; the specific run, its conditions, and its methodology live at rung 1. Checking an announcement, an intro page, and a couple of searches, then reporting the figure as unsourced, is a ladder that was never walked.
 
-**Authoritative is not a waiver for corroboration.** Even the canonical doc still needs ≥2 independent corroborators and a freshness check; the one exception is a claim about what the doc itself says, under "Single-source first-party content claims" above. First-party docs routinely lag major releases. When the topic post-dates a major version, cross-check the canonical doc against the upstream changelog/release and treat any lag as a conflict to resolve.
+**Authoritative is not a waiver for corroboration.** Even the canonical doc still needs ≥2 independent corroborators and a freshness check; the one exception is a claim about what the doc itself says, under "Single-source first-party content claims" above. First-party docs routinely lag major releases. When the topic post-dates a major version, cross-check the canonical doc against the upstream changelog/release and treat any lag as a conflict to resolve. A fact only the publisher itself can state has no independent corroborator to find, so it is reported as "Single-publisher facts" below sets out, never accepted.
 
 **Escalate on block, never downgrade.** A direct-fetch 403/429 means wrong fetcher, not vanished source. Escalation order: (1) a headless-browser URL reader if connected; (2) a managed scraping tool if available; (3) a synthesis tool forced to the blocked domain (domain-filter option). Only after those fail, fall back to secondary sources, and document the gap.
 
@@ -310,6 +313,19 @@ The evidence-table `Confidence` column must be set per claim:
 - **LOW**: fewer than 3 sources; OR sources conflict; OR Tier 2-only consensus; OR primary source > 90d old
 
 Only HIGH and HIGH (single source) claims are accepted (the outcome gate enforces this). A MEDIUM or LOW claim is a **Gap**: return to Phase 4 follow-up and iterate until HIGH, or report it as a gap; never a basis for code edits.
+
+## Single-publisher facts
+
+Some facts only their publisher can state: its own pricing, roadmap, internal metrics, or how its own product behaves. Two sources sharing a `pool` are one corroborator (`artifact-shape.md`), so the publisher's own pages count once toward criterion 4 however many repeat the fact, and such a fact never reaches criterion 7 or counts as independently corroborated.
+
+A claim is single-publisher when every Tier 0/1 source behind it shares one `pool` and that pool is the claim's subject: the publisher speaking about itself. Carry it this way:
+
+- **Worded as an attribution.** The claim reads "<publisher> states ...", never as a bare fact, in the sidecar, the evidence table and the answer.
+- **`subject_pool:` on the claim** names the subject publisher and equals the one `pool` its Tier 0/1 sources share (schema: `artifact-shape.md`). A claim that fits the definition and carries no `subject_pool` is unlabeled, and the verifier fails it on criterion 4.
+- **At most MEDIUM, never accepted.** Report it under Gaps labeled `single-publisher (<pool>)`, with its fetch-log entry and date. More of the publisher's own pages cannot close it; an
+  independent Tier 0/1 source outside the subject pool (your own run of the tool, a third party's
+  measurement) can, because the claim then no longer fits the definition.
+- **Independent measurements sit beside it.** A Tier 2 third party that measured the same thing is listed next to it, and a disagreement between them is a Conflicts entry.
 
 ## Joint-inference check
 

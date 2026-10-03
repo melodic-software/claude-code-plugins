@@ -141,7 +141,7 @@ slice is graded on the source, research, and recommendations lanes alone.
 | `key-frames/triage/manifest.json` | key-frames | yes | METADATA | script (`merge-triage-json.js` over batches) |
 | `key-frames/frame-triage-log.md` | key-frames | yes | METADATA | script (`render-triage-log.js` from manifest) |
 | `key-frames/visual-frames.md` | key-frames | yes | METADATA | script (`rebuild-visual-frames.js`; pass-2 detail log) |
-| `key-frames/visual-gaps.md` | key-frames | yes (optional) | METADATA | script (`expand-visual-gaps.js`; densification windows without frames) |
+| `key-frames/visual-gaps.md` | key-frames | yes (optional) | METADATA | script (`expand-visual-gaps.js`; one row per densification window with no promoted frame's exact time inside it, region `~Nm (<start>-<end>s)`, e.g. `~5m (300.0-312.4s)`) |
 | `key-frames/promotion-decisions.json` | key-frames | yes | DELIVERABLE | agent (vision verdict per candidate PNG) |
 | `key-frames/promotion-map.json` | key-frames | yes | METADATA | script (`vision-gated-promote.js`; name map + traceability) |
 | `key-frames/key-frames-manifest.md` | key-frames | yes | METADATA | script (`render-key-frames-manifest.js`) |
@@ -159,6 +159,7 @@ slice is graded on the source, research, and recommendations lanes alone.
 | `run-state/watch.json` | run-state | yes | METADATA | script (`watch-state.js`; phase-map + `tempSession`) |
 | `run-state/watch-checklist.md` | run-state | yes | METADATA | script (`init-watch-checklist.js` from template) |
 | `run-state/continuation-prompt.md` | run-state | yes | METADATA | script (`watch-state.js`; session handoff) |
+| `media/frames/frame-times.json` | (OS temp) | **never in repo** | METADATA | script (`scene-detect.js`; per-frame time fields, reloaded by `recover-watch-bootstrap.js`) |
 | `media/frames/`, `media/contact-sheets/` | (OS temp) | **never in repo** | n/a | OS temp only |
 | `*.vtt`, `video.*` | (OS temp) | no | SOURCE | OS temp, regenerable |
 

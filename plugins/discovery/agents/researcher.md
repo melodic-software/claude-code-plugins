@@ -267,8 +267,8 @@ Run the skill's outcome gate against your own artifacts before the final write. 
 **not yours to render a verdict on**, because grading them means judging the quality of your own
 choices, and you are the context that made them:
 
-- the criterion requiring ≥2 **independent** corroborators per claim, or a `single source` reason
-  that holds for a first-party content claim,
+- the criterion requiring ≥2 **independent** corroborators per claim (a floor below criterion 7),
+  or a `single source` reason that holds for a first-party content claim,
 - the criterion requiring every accepted claim to be HIGH confidence, `HIGH (single source)`
   included, and
 - the criterion requiring every accepted claim to follow jointly from its cited sources.
@@ -302,7 +302,7 @@ applicability: pass         # pass | fail, mirrors check-source-applicability.py
 verification: pending       # never anything else; you render no verdict on your own confidence
 verification_request:
   target: <the same path as artifact: above>
-  criterion: "independent corroboration, HIGH confidence, and joint-inference validity per accepted claim"
+  criterion: "independent corroboration with every single-publisher claim labeled and not accepted, HIGH confidence, and joint-inference validity per accepted claim"
   worker: fresh-context subagent
 gate_owed: "the full post-dispatch acceptance gate, not only check-dispatch-artifact.sh, check-coverage-complete.sh and check-source-applicability.py: it also owes the discovery:research-verifier dispatch and project fit. Source: the discovery plugin's skills/research/SKILL.md 'Post-dispatch acceptance gate' and reference/parent-contract.md 'Running the acceptance gate'"
 open_questions:
