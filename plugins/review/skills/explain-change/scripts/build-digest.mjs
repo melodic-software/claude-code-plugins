@@ -40,6 +40,8 @@ export function shapeDigest(input) {
     .map((q) => ({ question: text(q.question), choices: texts(q.choices), answer: text(q.answer) }))
     .filter((q) => q.question !== "");
   const recording = src.recording && typeof src.recording === "object" ? src.recording : {};
+  // Repo-relative only: an absolute or home path would show the reader's username.
+  const recordingPath = /^(?:[/\\~]|[A-Za-z]:)/.test(text(recording.path)) ? "" : text(recording.path);
   return {
     title: text(src.title) || "Change digest",
     change: text(src.change),
@@ -54,7 +56,7 @@ export function shapeDigest(input) {
       checker: text(r.checker),
     })),
     focus: texts(src.focus),
-    recording: text(recording.path) ? [{ path: text(recording.path), head: text(recording.head) }] : [],
+    recording: recordingPath ? [{ path: recordingPath, head: text(recording.head) }] : [],
     files: list(src.files).map((f) => ({
       path: text(f.path),
       status: text(f.status),

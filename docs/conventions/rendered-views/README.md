@@ -353,7 +353,9 @@ Two sentences reconcile this with the local-first residence decision:
 One new lane is an exception to sentence 1, recorded here: the pull-request digest
 lane (`review:explain-change`) ships `medium: artifact` as its default. Its page is
 built only by the shared builder from a checked-in template, and the artifact stays
-private to the reader until they share it. An operator who wants the digest local sets
+private to the reader until they share it. The default publishes only a public
+repository's diff with no credential-shaped hunk; any other diff falls back to `file`
+and the reader is told to set `medium: artifact` to publish it anyway. An operator who wants the digest local sets
 `medium: file` in their personal layer (`~/.claude/rendered-views.md` or the repo
 overlay); the cascade below resolves it like any other key.
 

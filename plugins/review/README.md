@@ -68,8 +68,9 @@ Invoke via `@review:<agent>` or let Claude delegate.
   agent checks (disputed rows stay, marked), where to focus, a run-e2e recording link when one
   exists for the head, annotated hunks, and a quiz on request. The markdown digest is the
   record. An interactive view is built only from the checked-in template plus the digest as
-  escaped JSON, outside the working tree, and is published as an Artifact unless `medium` says
-  otherwise. The `review-digest` cascade concern sets `digest_policy` (`off`, `offer` by
+  escaped JSON, outside the working tree, and is published as a private Artifact unless `medium`
+  says otherwise; the shipped default publishes only a public repository's diff with no
+  credential-shaped hunk, and keeps any other page local. The `review-digest` cascade concern sets `digest_policy` (`off`, `offer` by
   default, or `always` at the ready flip) and the offer thresholds. It never posts to the pull
   request and never gates merge. `/review:pr-explainer` is a one-release stub that points here.
 - **`/review:audit-enforceability <findings-file>`**. Read-only enforcement audit over ONE

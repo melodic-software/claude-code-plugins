@@ -79,11 +79,24 @@
     {
       "id": 8,
       "name": "artifact-is-the-default-medium",
-      "prompt": "Explain PR 30. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"default\"}.",
-      "expected_output": "With no layer setting medium, the page is published with the Artifact tool. If the tool is unavailable, the skill gives the local path and says why.",
+      "prompt": "Explain PR 30. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"default\"}. gh repo view reports visibility PUBLIC and the publish gate printed medium artifact.",
+      "expected_output": "With no layer setting medium, the skill checks the repository's visibility and runs the publish gate over the diff first. The gate allows it, so the skill says it is publishing as a private Artifact on claude.ai, then publishes the builder's page with the Artifact tool. If the tool is unavailable, the skill gives the local path and says why.",
       "expectations": [
-        "Output publishes the built page with the Artifact tool",
+        "Output runs gh repo view for visibility and the --publish-gate check before publishing",
+        "Output says the page is being published as a private Artifact on claude.ai before publishing",
         "Output does not hand-write the page or publish a page the builder did not make"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "default-artifact-falls-back-to-file",
+      "narration": true,
+      "prompt": "Explain PR 31. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"default\"}. gh repo view reports visibility PRIVATE.",
+      "expected_output": "The medium is the shipped default and the repository is not public, so the publish gate returns medium file. The skill does not call the Artifact tool. It gives the local path, the reason (visibility PRIVATE), and how to opt in: medium: artifact in ~/.claude/rendered-views.md.",
+      "expectations": [
+        "Output does not publish the page with the Artifact tool",
+        "Output gives the local page path and says the repository is not public",
+        "Output names medium: artifact in ~/.claude/rendered-views.md as the opt-in"
       ]
     }
   ]

@@ -10,6 +10,7 @@
 //
 //   digest-policy.mjs [--event ready|review] [--blast-radius LEVEL]
 //                     [--policy off|offer|always] [--requested] < facts.json
+//   digest-policy.mjs --publish-gate <VISIBILITY> [--explicit] < diff
 // Exit 0 decided, 2 usage or unreadable facts.
 
 import { execFileSync } from "node:child_process";
@@ -353,7 +354,61 @@ export function decide(facts, options, config) {
   return { action, triggers, facts: { files: paths.length, changed_lines: changed } };
 }
 
+// ------------------------------------------------------------ publish gate
+
+/** Text shaped like a credential. Conservative: a hit keeps the page local, a miss proves nothing. */
+export const SECRET_PATTERNS = Object.freeze([
+  ["private key", /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
+  ["AWS access key", /\b(?:AKIA|ASIA|ABIA|ACCA)[A-Z0-9]{16}\b/],
+  ["GitHub token", /\b(?:gh[pousr]_[0-9A-Za-z]{36}|github_pat_[0-9A-Za-z_]{82})/],
+  ["Anthropic key", /\bsk-ant-[A-Za-z0-9_-]{20,}/],
+  ["OpenAI key", /\bsk-(?:proj-|svcacct-|admin-)?[A-Za-z0-9_-]{20,}/],
+  ["Slack token", /\bxox[abposr]-[0-9A-Za-z-]{10,}/],
+  ["Stripe key", /\b[sr]k_(?:test|live|prod)_[0-9A-Za-z]{10,}/],
+  ["password or secret assignment", /\b(?:password|passwd|pwd|secret|client_secret|api_?key|token)["']?\s*[:=]\s*["'][^"'\s$<>{}]{8,}["']/i],
+]);
+
+/** The first credential-shaped pattern in `text`, as [label, 1-based line], or null. Never the match itself. */
+export function findSecret(text) {
+  const lines = String(text ?? "").split(/\r?\n/);
+  for (let i = 0; i < lines.length; i += 1) {
+    for (const [label, re] of SECRET_PATTERNS) if (re.test(lines[i])) return [label, i + 1];
+  }
+  return null;
+}
+
+const OPT_IN = "set medium: artifact in ~/.claude/rendered-views.md to publish anyway";
+
+/**
+ * Where an `artifact` page actually goes. An explicit `medium: artifact` from a
+ * layer publishes. The shipped default publishes only for a PUBLIC repository
+ * whose diff holds nothing credential-shaped; otherwise the page stays a file.
+ * @param {{explicit: boolean, visibility: string, diff: string}} input
+ */
+export function publishGate({ explicit, visibility, diff }) {
+  const destination = "a private Artifact on claude.ai";
+  if (explicit) return { medium: "artifact", destination, reason: "a layer sets medium: artifact" };
+  if (visibility !== "PUBLIC") {
+    return { medium: "file", reason: `repository visibility is ${visibility || "unknown"}, not PUBLIC`, opt_in: OPT_IN };
+  }
+  const secret = findSecret(diff);
+  if (secret) return { medium: "file", reason: `diff line ${secret[1]} looks like a ${secret[0]}`, opt_in: OPT_IN };
+  return { medium: "artifact", destination, reason: "public repository and no credential-shaped hunk" };
+}
+
 // ------------------------------------------------------------ CLI
+
+function gateMain(argv) {
+  const [visibility, ...rest] = argv;
+  if (!visibility || rest.some((a) => a !== "--explicit")) {
+    process.stderr.write("usage: digest-policy.mjs --publish-gate <VISIBILITY> [--explicit] < diff\n");
+    return 2;
+  }
+  const diff = readFileSync(0, "utf8");
+  const result = publishGate({ explicit: rest.includes("--explicit"), visibility: visibility.toUpperCase(), diff });
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  return 0;
+}
 
 function parseArgs(argv) {
   const opts = { policy: null, event: "review", blastRadius: "", requested: false };
@@ -369,6 +424,7 @@ function parseArgs(argv) {
 }
 
 function main(argv) {
+  if (argv[0] === "--publish-gate") return gateMain(argv.slice(1));
   const opts = parseArgs(argv);
   if (!opts) {
     process.stderr.write(

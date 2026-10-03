@@ -15,7 +15,7 @@ const POLICY = join(SKILL, "scripts/digest-policy.mjs");
 const BUILDER = join(SKILL, "scripts/build-digest.mjs");
 const REPO = join(PLUGIN, "../..");
 
-const { DEFAULTS, configBlock, decide, globRegExp } = await import(POLICY);
+const { DEFAULTS, configBlock, decide, findSecret, globRegExp, publishGate } = await import(POLICY);
 const { buildDigest, shapeDigest } = await import(BUILDER);
 const { validateView } = await import(join(PLUGIN, "lib/view-builder.mjs"));
 
@@ -347,6 +347,65 @@ describe("a case-variant overlay a pull request tracks is ignored and fires risk
   });
 });
 
+describe("publish gate: the default artifact medium publishes only a public, credential-free diff", () => {
+  const clean = "+++ b/src/a.js\n+const answer = 42;\n";
+  // Assembled at run time so this file holds no credential-shaped literal.
+  const secrets = [
+    ["private key", `+-----BEGIN RSA ${"PRIVATE"} KEY-----`],
+    ["AWS access key", `+key = ${"AKIA"}${"A".repeat(16)}`],
+    ["GitHub token", `+t = ${"ghp_"}${"a".repeat(36)}`],
+    ["Anthropic key", `+k = ${"sk-ant-"}${"a".repeat(30)}`],
+    ["OpenAI key", `+k = ${"sk-proj-"}${"a".repeat(30)}`],
+    ["Slack token", `+s = ${"xoxb-"}1234567890-abc`],
+    ["password or secret assignment", `+password = "${"hunter2hunter2"}"`],
+  ];
+  for (const [label, line] of secrets) {
+    test(`a ${label} keeps the default page local and names the opt-in`, () => {
+      assert.deepEqual(findSecret(`${clean}${line}\n`), [label, 3]);
+      const result = publishGate({ explicit: false, visibility: "PUBLIC", diff: `${clean}${line}\n` });
+      assert.equal(result.medium, "file");
+      assert.match(result.reason, new RegExp(`line 3 looks like a ${label}`));
+      assert.match(result.opt_in, /medium: artifact in ~\/\.claude\/rendered-views\.md/);
+      assert.ok(!JSON.stringify(result).includes(line.slice(1, 12)), "the match itself is never echoed");
+    });
+  }
+  test("placeholders and variable references are not credentials", () => {
+    assert.equal(findSecret('+password = "${PASSWORD}"\n+secret: "<your-secret>"\n+token = process.env.TOKEN\n'), null);
+  });
+  for (const visibility of ["PRIVATE", "INTERNAL", "UNKNOWN", ""]) {
+    test(`a ${visibility || "missing"} visibility keeps the default page local`, () => {
+      const result = publishGate({ explicit: false, visibility, diff: clean });
+      assert.equal(result.medium, "file");
+      assert.match(result.reason, /not PUBLIC/);
+    });
+  }
+  test("a public repository with a clean diff publishes and names the destination", () => {
+    assert.deepEqual(publishGate({ explicit: false, visibility: "PUBLIC", diff: clean }).destination, "a private Artifact on claude.ai");
+  });
+  test("an explicit medium: artifact publishes whatever the visibility, still naming the destination", () => {
+    const result = publishGate({ explicit: true, visibility: "PRIVATE", diff: secrets[0][1] });
+    assert.equal(result.medium, "artifact");
+    assert.equal(result.destination, "a private Artifact on claude.ai");
+  });
+  test("the CLI reads the diff on stdin", () => {
+    const gate = (args, input) => spawnSync(process.execPath, [POLICY, "--publish-gate", ...args], { input, encoding: "utf8" });
+    assert.equal(JSON.parse(gate(["public"], clean).stdout).medium, "artifact");
+    assert.equal(JSON.parse(gate(["PRIVATE"], clean).stdout).medium, "file");
+    assert.equal(JSON.parse(gate(["PRIVATE", "--explicit"], clean).stdout).medium, "artifact");
+    assert.equal(gate([], clean).status, 2);
+    assert.equal(gate(["PUBLIC", "--force"], clean).status, 2);
+  });
+  test("SKILL.md runs the gate before publishing and names the destination", () => {
+    const skill = readFileSync(join(SKILL, "SKILL.md"), "utf8");
+    assert.match(/^allowed-tools: (.*)$/m.exec(skill)[1], /"Bash\(gh repo view:\*\)"/);
+    assert.match(skill, /gh repo view <owner\/repo> --json visibility/);
+    assert.match(skill, /--publish-gate <VISIBILITY> \[--explicit\]/);
+    assert.match(skill, /publishing as a private Artifact on claude\.ai/);
+    assert.match(skill, /`offer`:.*a private Artifact on claude\.ai/);
+    assert.match(skill, /`medium: artifact` in `~\/\.claude\/rendered-views\.md`/);
+  });
+});
+
 describe("builder", () => {
   const hostile = {
     title: `"><script>alert(1)</script>`,
@@ -393,6 +452,9 @@ describe("builder", () => {
     const full = shapeDigest({ quiz: [{ question: "Why?", choices: ["a", "", 2], answer: "a" }], recording: { path: "r.webm", head: "abc" } });
     assert.deepEqual(full.quiz, [{ questions: [{ question: "Why?", choices: ["a", "2"], answer: "a" }] }]);
     assert.deepEqual(full.recording, [{ path: "r.webm", head: "abc" }]);
+    for (const path of ["/home/kyle/r.webm", "~/r.webm", "C:\\Users\\kyle\\r.webm", "\\\\host\\r.webm"]) {
+      assert.deepEqual(shapeDigest({ recording: { path, head: "abc" } }).recording, [], path);
+    }
     assert.deepEqual(validateView(buildDigest({ title: "t" })), { ok: true, failures: [] });
   });
   test("the quiz and recording headings sit inside their list containers, so an empty list renders neither", () => {
@@ -444,6 +506,9 @@ describe("read-only boundary", () => {
     for (const verb of ["gh pr comment", "gh pr review", "gh pr edit", "gh pr merge", "gh api", "gh issue"]) {
       assert.ok(!tools.includes(verb), verb);
     }
+  });
+  test("the risk-map checker is a read-only Explore agent", () => {
+    assert.match(skill, /## 3\. Check the risk map[\s\S]*?read-only `Explore` subagent/);
   });
   test("the risk-map checker's brief carries only the pull request number and repository", () => {
     const brief = /## 3\. Check the risk map[\s\S]*?```text\n([\s\S]*?)```/.exec(skill)[1];

@@ -19,8 +19,18 @@ All notable changes to the `review` plugin are documented here. Format follows
 
 ### Changed
 
-- **The digest publishes as an Artifact by default.** `digest-policy.mjs` resolves `medium` to
-  `artifact` when no layer sets it. `medium: file` in a personal layer keeps the page local.
+- **The digest publishes as an Artifact by default, for a public repository and a clean diff.**
+  `digest-policy.mjs` resolves `medium` to `artifact` when no layer sets it. Before publishing
+  that default, `digest-policy.mjs --publish-gate <visibility>` reads the diff: a repository that
+  is not public, or a hunk that looks like a credential (a private key header, an AWS, GitHub,
+  Anthropic, OpenAI, Slack, or Stripe token, or a quoted `password=`/`secret=` value), keeps the
+  page as a local file and names `medium: artifact` in `~/.claude/rendered-views.md` as the
+  opt-in. An explicit `medium: artifact` still publishes. Either way the session names claude.ai
+  as the destination, in the offer and before publishing. `medium: file` in a personal layer
+  keeps the page local.
+- **The risk-map checker is a read-only `Explore` agent.** It reads author-controlled diff text.
+- **The recording path is repo-relative.** The builder drops a recording whose path is absolute
+  or starts with `~`, so the page never shows a home directory.
 
 ## [0.38.1] - 2026-10-03
 
