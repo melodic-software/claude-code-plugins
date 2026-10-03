@@ -64,7 +64,7 @@ Example combining a non-default library dir with a forced cookie source (unset o
 contribute no flag):
 
 ```bash
-node "<skill-dir>/extraction/run.mjs" \
+node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" \
   --work-root "${CLAUDE_PROJECT_DIR}/${user_config.library_dir}" \
   --cookies-from-browser "${user_config.yt_dlp_cookies_from_browser}" \
   <script.js> [args…]
