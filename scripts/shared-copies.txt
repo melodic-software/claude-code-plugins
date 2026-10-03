@@ -128,6 +128,8 @@ lib/session-bridge/watch.sh plugins/planning/surface/watch.sh
 lib/session-bridge/wake.sh plugins/planning/surface/wake.sh
 lib/view-builder.mjs plugins/review/lib/view-builder.mjs
 lib/view-runtime.js plugins/review/lib/view-runtime.js
+lib/view-builder.mjs plugins/education/lib/view-builder.mjs
+lib/view-runtime.js plugins/education/lib/view-runtime.js
 lib/view-builder.mjs plugins/planning/lib/view-builder.mjs
 lib/view-runtime.js plugins/planning/lib/view-runtime.js
 lib/view-builder.mjs plugins/architecture/lib/view-builder.mjs
