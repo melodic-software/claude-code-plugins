@@ -23,9 +23,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Added
 
 - **`/source-control:pull-request create` drafts before/after media into the verification
-  section** when the diff changes rendered visual or audio output, attached with
-  `gh pr create --attach` when the installed gh lists that flag. A project turns the step off in
-  its own CLAUDE.md or AGENTS.md.
+  section** when the diff changes rendered visual or audio output: it lists each capture's local
+  path and asks the person to drag the files into the PR description, since `gh pr create` cannot
+  upload a file. A project turns the step off in its own CLAUDE.md or AGENTS.md.
 - **`config-resolution.md` says where approval counts come from:** the repository ruleset's
   `required_approving_review_count`, which the merge gate reads. No new key.
 

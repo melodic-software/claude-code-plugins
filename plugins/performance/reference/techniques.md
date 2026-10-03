@@ -771,8 +771,8 @@ Used by: `/performance:verify` §5 Report.
 users can see goes to its human owner with before/after media for a ruling. When: the change is
 visible. Counter: counts taken from the recording (see [C](#c-lab-measurement-and-rigs)). Fails
 when: a perceptible change is reported only as a number. Used by: the
-`/source-control:pull-request` create step's Verification drafting, which attaches before/after
-media for a change to rendered output.
+`/source-control:pull-request` create step's Verification drafting, which lists before/after
+captures for a change to rendered output for the person to attach.
 
 - **Pointer**: when deciding which changes need a human ruling with media, fetch the post's [Steering section][steer] live; no docs page covers before/after media for performance rulings as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering it.
 

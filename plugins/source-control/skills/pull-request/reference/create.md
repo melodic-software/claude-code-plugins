@@ -268,11 +268,11 @@ user-supplied content), and the §2.4.3 attribution line.
 
 The content inside those headings is prose a reviewer reads: plain language, bottom line first, no filler, by invoking `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. It rewords section content only, so the closing-keyword line, the resolved `${REQUIRED_SECTIONS[@]}` headings, and `${REFS_LINES}` are untouched and the §2.4.2 gate sees the same shape either way.
 
-**Visual evidence.** When the diff changes rendered visual or audio output, the section that records verification (`Verification`, or `Test plan` under the portable default) carries before/after media captured while verifying, for example by `/testing:run-e2e` or the Chrome screenshot and GIF tools. Attach it with `gh pr create --attach` when `gh pr create --help` lists that flag; when it does not, or no media could be captured, that section says no visual evidence was attached. A project turns this step off in its own CLAUDE.md or AGENTS.md.
+**Visual evidence.** When the diff changes rendered visual or audio output, the section that records verification (`Verification`, or `Test plan` under the portable default) carries before/after media captured while verifying, for example by `/testing:run-e2e` or the Chrome screenshot and GIF tools. `gh pr create` has no option that uploads a file, so the section lists each capture's local path and asks the person to drag the files into the PR description on GitHub; when no media could be captured, it says no visual evidence was attached. A project turns this step off in its own CLAUDE.md or AGENTS.md.
 
-- **Pointer**: when attaching media, fetch the `--attach` entry under [gh pr create, Options](https://cli.github.com/manual/gh_pr_create#options) live.
+- **Pointer**: when the person asks how to add the captures, fetch GitHub's [Attaching files](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/attaching-files) live for the upload routes and size limits.
 - **As of**: 2026-10-02
-- **Recheck trigger**: a gh release note that renames, removes, or changes the argument format of `gh pr create --attach`.
+- **Recheck trigger**: a gh release adds an option to `gh pr create` or `gh pr edit` that uploads a file, at which point the step attaches the captures itself.
 
 ```bash
 # One content resolver, reused whether Related is required or ad hoc — the single place
