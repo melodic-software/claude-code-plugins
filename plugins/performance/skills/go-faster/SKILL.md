@@ -52,8 +52,9 @@ as `none`.
 ## Step 2: Where the session is
 
 With a transcript, run `"<PY>" "${CLAUDE_PLUGIN_ROOT}/scripts/findings.py" transcript-counts
-"<TRANSCRIPT>"`. `EVIDENCE` is `true` when `typed_turns` is 1 or more, the user having typed
-something besides this invocation. Otherwise this is a fresh session: say "No session evidence yet:
+"<TRANSCRIPT>"`. `EVIDENCE` is `true` when `work_before_invocation` is 1 or more: the session made
+tool calls before this sweep was invoked, whether by the slash command or by a prompt that
+triggered it. Otherwise this is a fresh session: say "No session evidence yet:
 setup scan only." and continue with `EVIDENCE` false.
 
 ## Step 3: Start the run and dispatch the sweeper

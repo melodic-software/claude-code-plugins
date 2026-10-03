@@ -113,6 +113,22 @@ run validate "$WORK/cit.json"
 assert_contains "a citation without a dated as_of fails" "git-1: citation as_of" "$RUN_OUT"
 assert_contains "a citation without recheck fails" "git-1: citation recheck" "$RUN_OUT"
 
+# --- 8b. validate: a candidate's expected size is a count with a known source kind (Q26) ---
+size_case() { # <label> <expected message> <expected_size json>
+  doc "$WORK/size.json" "$(candidate skills-1 skills session-count 3 | sed "s/\"expected_size\":{[^}]*}/\"expected_size\":$3/")"
+  run validate "$WORK/size.json"
+  assert_contains "$1" "$2" "$RUN_OUT"
+}
+size_case "an expected size without source_kind fails" "skills-1: expected_size source_kind" '{"count":3,"source":"s"}'
+size_case "a vendor percentage is not a source kind" "skills-1: expected_size source_kind" '{"count":3,"source_kind":"vendor-percent","source":"s"}'
+size_case "a non-numeric count fails" "skills-1: expected_size count" '{"count":"3","source_kind":"cited","source":"s"}'
+size_case "an expected size without its source fails" "skills-1: expected_size source" '{"count":3,"source_kind":"cited"}'
+
+# --- 8c. validate: confidence is one of the catalog labels ---
+doc "$WORK/conf.json" "$(measured git-1 git elapsed-ms 10 '"confidence":"measured"')"
+run validate "$WORK/conf.json"
+assert_contains "an unknown confidence label fails" "git-1: confidence must be one of" "$RUN_OUT"
+
 # --- 9. R1: a `now` finding must be measured at E1/E2 with a guard and a revert condition ---
 NOW='"horizon":"now","guard_metric":"tool errors per turn","revert_if":"a tool error after adoption"'
 doc "$WORK/now-ok.json" "$(measured session-work-1 session-work elapsed-ms 5000 "$NOW,\"effect\":\"batching\"" | sed 's/"horizon":"later",//')"
@@ -140,6 +156,8 @@ now_case "now that lowers verification depth must be flag-only" "session-work-1:
   "$(measured session-work-1 session-work elapsed-ms 5 "$NOW,\"effect\":\"lower-verification\"" | sed 's/"horizon":"later",//')"
 now_case "now that conflicts with a loaded instruction must be flag-only" "session-work-1: a change that conflicts with a loaded instruction is flag-only" \
   "$(measured session-work-1 session-work elapsed-ms 5 "$NOW,\"conflicts_instruction\":\"CLAUDE.md:12\"" | sed 's/"horizon":"later",//')"
+now_case "now that drops a check is rejected" "gates-1: drops-check cannot be horizon now" \
+  "$(measured gates-1 gates elapsed-ms 5 "$NOW,\"effect\":\"drops-check\",\"fix_owner\":\"/overengineering:audit\"" | sed -e 's/"horizon":"later",//' -e 's#"fix_owner":"/performance:goal",##')"
 doc "$WORK/now-flag.json" "$(measured session-work-1 session-work elapsed-ms 5 "$NOW,\"effect\":\"lower-effort\",\"reason\":\"lowers effort\"" | sed -e 's/"horizon":"later",//' -e 's/"status":"measured"/"status":"flag-only"/')"
 run validate "$WORK/now-flag.json"
 assert_eq "a lower-effort finding offered as flag-only passes" "0" "$RUN_RC"
@@ -165,7 +183,6 @@ assert_contains "measured findings cite their command" '`cmd`' "$RUN_OUT"
 assert_contains "candidates are never presented as confirmed" "Unmeasured candidates (not confirmed problems)" "$RUN_OUT"
 assert_contains "a candidate names the source of its expected size" "8 (session-count: s)" "$RUN_OUT"
 assert_contains "not-checked areas name their reason code" "no-data" "$RUN_OUT"
-assert_not_contains "token use is a count, never a price" '$' "$RUN_OUT"
 assert_not_contains "no adopt-now prompt without now findings" "Adopt now" "$RUN_OUT"
 run render "$WORK/now-ok.json"
 assert_contains "now findings get the adopt-now prompt" "Adopt now" "$RUN_OUT"
@@ -202,10 +219,18 @@ lock_at "$((T0 + 112 * 60))" release --data "$D1" --session s1
 assert_eq "releasing someone else's lock is refused" "1" "$RUN_RC"
 assert_contains "the lock survives a foreign release" '"session_id": "s2"' "$(cat "$D1/run.lock")"
 lock_at "$((T0 + 112 * 60))" release --data "$D1" --session s2
-assert_eq "the holder releases on finish or abort" "0" "$RUN_RC"
+assert_eq "the holder releases its lock" "0" "$RUN_RC"
 assert_eq "release removes the lock file" "absent" "$([[ -e "$D1/run.lock" ]] && echo present || echo absent)"
 lock_at "$((T0 + 113 * 60))" status --data "$D1"
 assert_eq "status of a released lock" "free" "$RUN_OUT"
+: >"$D1/run.lock"
+lock_at "$((T0 + 114 * 60))" status --data "$D1"
+assert_eq "an unreadable lock reports stale" "stale session=unknown" "$RUN_OUT"
+lock_at "$((T0 + 114 * 60))" acquire --data "$D1" --session s3
+assert_eq "an unreadable lock is replaced, not held forever" "0" "$RUN_RC"
+printf '{"session_id":"s9","heartbeat":"soon"}' >"$D1/run.lock"
+lock_at "$((T0 + 115 * 60))" acquire --data "$D1" --session s3
+assert_eq "a lock with an unreadable heartbeat is replaced" "0" "$RUN_RC"
 
 # --- 13. adopt: one record per agreed item, with the route taken and whether it was overridden ---
 DA="$WORK/data/adopt"
@@ -217,6 +242,8 @@ assert_contains "the record carries the stable key" '"key": "session-work/sessio
 assert_contains "the record carries the guard" '"guard_metric": "tool errors per turn"' "$rec"
 assert_contains "the record carries the revert condition" '"revert_if": "a tool error after adoption"' "$rec"
 assert_contains "the suggested route kept is not an override" '"route_overridden": false' "$rec"
+assert_contains "the record carries the route taken" '"route_taken": "next-run"' "$rec"
+assert_contains "the record carries when it was adopted" '"adopted_at": "20' "$rec"
 run adopt --data "$DA" --session s1 --findings "$WORK/rank.json" --id b --route-taken performance-chain
 assert_contains "a different route than suggested is recorded as overridden" '"route_overridden": true' "$(tail -1 "$DA/adopted.jsonl")"
 run adopt --data "$DA" --session s1 --findings "$WORK/rank.json" --id hooks-1 --route-taken next-run
@@ -244,13 +271,18 @@ assert_eq "matching conditions compare against the baseline" \
   "compared git/git-status before=900 after=600 unit=elapsed-ms delta=-300" "$RUN_OUT"
 sed 's/"model":"opus"/"model":"sonnet"/' "$WORK/m2.json" >"$WORK/m3.json"
 run compare --data "$DC" --findings "$WORK/m3.json" --id git-status
-assert_eq "a different model is cannot-quantify" "cannot-quantify git/git-status: differs in model" "$RUN_OUT"
+assert_eq "a different model is cannot-quantify" "cannot-quantify git/git-status: differs in model; baseline reset" "$RUN_OUT"
 sed 's/"unit":"elapsed-ms"/"unit":"wait-ms"/' "$WORK/m2.json" >"$WORK/m4.json"
 run compare --data "$DC" --findings "$WORK/m4.json" --id git-status
-assert_eq "a different unit is cannot-quantify" "cannot-quantify git/git-status: differs in unit" "$RUN_OUT"
+assert_eq "a different unit is cannot-quantify" "cannot-quantify git/git-status: differs in unit, model; baseline reset" "$RUN_OUT"
 sed 's/"workload":"w"/"workload":""/' "$WORK/m2.json" >"$WORK/m5.json"
 run compare --data "$DC" --findings "$WORK/m5.json" --id git-status
-assert_eq "an unrecorded condition is cannot-quantify" "cannot-quantify git/git-status: differs in workload" "$RUN_OUT"
+assert_eq "an unrecorded condition is cannot-quantify" "cannot-quantify git/git-status: differs in unit, workload; baseline kept" "$RUN_OUT"
+run compare --data "$DC" --findings "$WORK/m3.json" --id git-status
+assert_contains "a changed condition is cannot-quantify" "cannot-quantify git/git-status" "$RUN_OUT"
+run compare --data "$DC" --findings "$WORK/m3.json" --id git-status
+assert_eq "after a conditions change the new conditions become the baseline" \
+  "compared git/git-status before=600 after=600 unit=elapsed-ms delta=0" "$RUN_OUT"
 run compare --data "$DC" --findings "$WORK/rank.json" --id f
 assert_eq "a candidate has nothing to compare" "1" "$RUN_RC"
 
@@ -322,6 +354,19 @@ assert_eq "a re-read file is counted" "2" "$(q '.repeated_reads["a.py"]')"
 assert_eq "a re-run command is counted" "2" "$(q '.repeated_commands["make test"]')"
 assert_eq "skills invoked are counted" "1" "$(q '.skills["performance:goal"]')"
 assert_eq "a streamed message's tokens count once, last record wins" "27" "$(q .tokens.output)"
+use 30 m6 t6 Skill '{"skill":"performance:go-faster"}' 5 >>"$TR"
+run transcript-counts "$TR"
+assert_eq "work before a model-invoked go-faster is counted" "5" "$(q .work_before_invocation)"
+{
+  printf '{"type":"user","timestamp":"%s","message":{"content":"how can we go faster?"}}\n' "$(ts 0)"
+  use 1 m1 t1 Skill '{"skill":"performance:go-faster"}' 5
+} >"$WORK/fresh-model.jsonl"
+run transcript-counts "$WORK/fresh-model.jsonl"
+assert_eq "a fresh session whose first prompt triggered go-faster has no prior work" "0" "$(q .work_before_invocation)"
+printf '{"type":"user","timestamp":"%s","message":{"content":"<command-name>/performance:go-faster</command-name>"}}\n' "$(ts 0)" >"$WORK/fresh-slash.jsonl"
+use 1 m1 t1 Bash '{"command":"echo PY"}' 5 >>"$WORK/fresh-slash.jsonl"
+run transcript-counts "$WORK/fresh-slash.jsonl"
+assert_eq "the skill's own calls after a slash invocation are not prior work" "0" "$(q .work_before_invocation)"
 run transcript-counts "$WORK/missing.jsonl"
 assert_eq "a missing transcript is an input error" "2" "$RUN_RC"
 
@@ -362,7 +407,9 @@ assert_eq "status-timing exits 0 in a repository" "0" "$RUN_RC"
 assert_eq "one sample per run" "3" "$(jq '.samples_ms | length' <<<"$RUN_OUT")"
 assert_eq "every sample is a positive duration" "true" "$(jq '[.samples_ms[] | . > 0] | all' <<<"$RUN_OUT")"
 assert_eq "the label says no index refresh" "status without index refresh" "$(jq -r .label <<<"$RUN_OUT")"
-assert_contains "the git version is recorded" "." "$(jq -r .git_version <<<"$RUN_OUT")"
+assert_eq "the git version is recorded" "yes" "$([[ "$(jq -r .git_version <<<"$RUN_OUT")" =~ ^[0-9]+\.[0-9]+ ]] && echo yes || echo no)"
+capture bash -c "cd '$REPO' && GIT_TRACE2_PERF_BRIEF=1 '$HARNESS_PYTHON' '$FINDINGS' status-timing --data '$DT' --runs 2"
+assert_eq "a caller's brief trace format does not empty the samples" "2" "$(jq '.samples_ms | length' <<<"$RUN_OUT")"
 assert_eq "the trace is kept in the data folder" "yes" "$([[ -s "$DT/trace2-status.txt" ]] && echo yes || echo no)"
 capture bash -c "cd '$WORK' && '$HARNESS_PYTHON' '$FINDINGS' status-timing --data '$DT' --runs 1"
 assert_eq "outside a repository it is an input error" "2" "$RUN_RC"

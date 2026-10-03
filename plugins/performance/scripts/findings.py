@@ -161,8 +161,33 @@ def finding_errors(f: dict) -> list[str]:
         need(confidence == "HIGH", f"horizon now cannot rest on a {confidence} row")
         need(effect not in LOWERING, f"{effect} is flag-only")
         need(
+            effect != "drops-check",
+            f"drops-check cannot be horizon now; it goes to {OVERENGINEERING}",
+        )
+        need(
             not f.get("conflicts_instruction"),
             "a change that conflicts with a loaded instruction is flag-only",
+        )
+    if "confidence" in f:
+        need(
+            f["confidence"] in CONFIDENCES,
+            f"confidence must be one of {', '.join(CONFIDENCES)}",
+        )
+    size = f.get("expected_size")
+    if status == "candidate" and size is not None:
+        size = size if isinstance(size, dict) else {}
+        count = size.get("count")
+        need(
+            isinstance(count, (int, float)) and not isinstance(count, bool),
+            "expected_size count must be a number",
+        )
+        need(
+            size.get("source_kind") in SOURCE_KINDS,
+            f"expected_size source_kind must be one of {', '.join(SOURCE_KINDS)}",
+        )
+        need(
+            isinstance(size.get("source"), str) and size["source"],
+            "expected_size source required",
         )
     for c in f.get("citations") or []:
         c = c if isinstance(c, dict) else {}
@@ -355,8 +380,15 @@ def write_json(path: Path, data: dict, exclusive: bool = False) -> bool:
 def cmd_lock(args: argparse.Namespace) -> int:
     path = Path(args.data) / "run.lock"
     t = now()
-    held = read_json(path)
-    age = t - float(held.get("heartbeat", 0)) if held else None
+    held: dict | None = read_json(path)
+    if held is None and path.exists():
+        held = {
+            "session_id": "unknown"
+        }  # an unreadable lock cannot be live, so it reads stale
+    try:
+        age = t - float(held["heartbeat"]) if held else None
+    except (KeyError, TypeError, ValueError):
+        age = float("inf")
     stale = held is not None and age is not None and age > args.stale_minutes * 60
     mine = held is not None and held.get("session_id") == args.session
     if args.action == "status":
@@ -419,6 +451,10 @@ def cmd_adopt(args: argparse.Namespace) -> int:
         print(
             f"{args.id} is {f.get('status')}: only measured findings and candidates can be adopted"
         )
+        return 1
+    errors = finding_errors(f)
+    if errors:
+        print("\n".join(errors))
         return 1
     record = {
         "session_id": args.session,
@@ -562,13 +598,23 @@ def cmd_compare(args: argparse.Namespace) -> int:
         c for c in CONDITION_FIELDS if not after.get(c) or before.get(c) != after.get(c)
     ]
     if differs:
-        print(f"cannot-quantify {key}: differs in {', '.join(differs)}")
+        # The new conditions become the baseline, so the next run under them can compare;
+        # a measurement with an unrecorded condition cannot anchor anything and is not kept.
+        complete = all(after.get(c) for c in CONDITION_FIELDS)
+        if complete:
+            current["recorded_at"] = iso(now())
+            write_json(path, current)
+        note = "baseline reset" if complete else "baseline kept"
+        print(f"cannot-quantify {key}: differs in {', '.join(differs)}; {note}")
         return 0
     delta = current["value"] - base["value"]
     print(
         f"compared {key} before={base['value']} after={current['value']} unit={current['unit']} delta={delta:g}"
     )
     return 0
+
+
+INVOKED = "<command-name>/performance:go-faster"
 
 
 def parse_ts(value: object) -> float | None:
@@ -582,10 +628,16 @@ def parse_ts(value: object) -> float | None:
 
 def transcript_counts(path: Path) -> dict:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+    sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
     import transcript_reader as tr  # noqa: PLC0415  (the generated shared copy in ../lib)
 
     stats: dict[str, int] = {}
     ledger = tr.UsageLedger()
+    seen: set[str] = set()
+    calls = 0
+    # Tool calls made before the latest go-faster invocation, slash or model-invoked: the
+    # session's own work, as opposed to the prompt that triggered the sweep and its setup.
+    before_invocation: int | None = None
     uses: dict[str, tuple[str, float | None]] = {}
     tools: dict[str, dict[str, int]] = {}
     reads: dict[str, int] = {}
@@ -599,6 +651,8 @@ def transcript_counts(path: Path) -> dict:
             stamps.append(stamp)
         typed += tr.is_typed_turn(record)
         ledger.add(record)
+        if record.get("type") == "user" and INVOKED in (tr.user_text(record) or ""):
+            before_invocation = calls
         content = (
             (record.get("message") or {}).get("content")
             if isinstance(record.get("message"), dict)
@@ -607,8 +661,12 @@ def transcript_counts(path: Path) -> dict:
         for block in content if isinstance(content, list) else []:
             if not isinstance(block, dict):
                 continue
-            if block.get("type") == "tool_use" and block.get("id") not in uses:
+            if block.get("type") == "tool_use" and str(block.get("id")) not in seen:
                 name, args = str(block.get("name")), block.get("input") or {}
+                seen.add(str(block.get("id")))
+                if name == "Skill" and str(args.get("skill", "")).endswith("go-faster"):
+                    before_invocation = calls
+                calls += 1
                 uses[str(block.get("id"))] = (name, stamp)
                 tool = tools.setdefault(name, {"calls": 0, "errors": 0, "wait_ms": 0})
                 tool["calls"] += 1
@@ -630,6 +688,9 @@ def transcript_counts(path: Path) -> dict:
         "bad_lines": stats.get("bad_lines", 0),
         "elapsed_ms": round((max(stamps) - min(stamps)) * 1000) if stamps else 0,
         "typed_turns": typed,
+        "work_before_invocation": calls
+        if before_invocation is None
+        else before_invocation,
         "tokens": ledger.totals(),
         "tools": tools,
         "repeated_reads": {k: v for k, v in reads.items() if v > 1},
@@ -714,14 +775,18 @@ def cmd_status_timing(args: argparse.Namespace) -> int:
     trace = Path(args.data).resolve() / "trace2-status.txt"
     trace.parent.mkdir(parents=True, exist_ok=True)
     trace.unlink(missing_ok=True)
-    env = {**os.environ, "GIT_TRACE2_PERF": str(trace)}
+    # The column layout parsed below is the non-brief form; a caller's BRIEF setting would drop it.
+    env = {**os.environ, "GIT_TRACE2_PERF": str(trace), "GIT_TRACE2_PERF_BRIEF": "0"}
     for _ in range(args.runs):
-        subprocess.run(
+        result = subprocess.run(
             ["git", "--no-optional-locks", "status", "--porcelain"],
             env=env,
             stdout=subprocess.DEVNULL,
-            check=True,
+            stderr=subprocess.PIPE,
+            text=True,
         )
+        if result.returncode != 0:
+            die(f"git status failed ({result.returncode}): {result.stderr.strip()}")
     if not trace.is_file() or not trace.stat().st_size:
         die(f"git wrote no trace to {trace}")
     samples, version = [], ""
