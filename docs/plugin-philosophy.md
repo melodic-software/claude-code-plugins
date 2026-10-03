@@ -1333,8 +1333,8 @@ same depth on two models):
   dispatches (the skill-pin record under [override levers](#effort-tiers)); no docs page covers
   that reach, so the cache caveat below still applies.
 - **Read-only bulk mechanical sweeps may pin `low`.** We allow it where speed and cost matter more
-  than depth, subagent sweeps included, and never for a lane that changes code or verifies a change
-  (the [effort floor](#effort-floor)). Not at the model ladder's own bottom rung either, because the
+  than depth, subagent sweeps included, and never for a lane that changes code, verifies a
+  change, or does work likely to hit edge cases (the [effort floor](#effort-floor)). Not at the model ladder's own bottom rung either, because the
   two ladders do not compose there: we read the model the `haiku` alias resolves to as having no
   effort support, so a pin there has no level to land on. What the harness does with such a pin,
   whether ignore it, warn, or fail, is **unverified here**, and no page we read settles it. The rule
