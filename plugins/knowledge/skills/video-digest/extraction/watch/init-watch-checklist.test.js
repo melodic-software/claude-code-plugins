@@ -107,6 +107,25 @@ describe("initWatchChecklist", () => {
     expect(body).not.toContain("pending `key-frames/vision-plan.md`");
   });
 
+  it("renders no unsubstituted {{ tokens, with or without vision-plan.md", () => {
+    const withoutPlan = fs.readFileSync(initWatchChecklist(makeSliceDir(), { force: true }), "utf8");
+    expect(withoutPlan).not.toContain("{{");
+    expect(withoutPlan).toContain("≥ deferred% before phase 6 complete");
+
+    const withPlan = fs.readFileSync(
+      initWatchChecklist(
+        makeSliceDir({
+          visionPlan: "# Plan\n\nClass: `conference-multi-session`\n".padEnd(120, "x"),
+        }),
+        { force: true },
+      ),
+      "utf8",
+    );
+    expect(withPlan).not.toContain("{{");
+    expect(withPlan).toContain("≥ 75% before phase 6 complete");
+    expect(withPlan).not.toContain("deferred%");
+  });
+
   it("skips when checklist exists without force", () => {
     const sliceDir = makeSliceDir();
     initWatchChecklist(sliceDir, { force: true });

@@ -5,14 +5,21 @@
  * `.work/<watch-epic>/<video-slug>/watch.json`.
  */
 
+import { readFileSync, realpathSync, statSync } from "node:fs";
 import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 
 import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
 import { runCheckWatchOutcomes } from "../evals/check-watch-outcomes.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
-import { normalizePortableTempPath, serializeTempSession } from "../lib/temp-session-paths.js";
+import {
+  normalizePortableTempPath,
+  resolveTempSession,
+  serializeTempSession,
+} from "../lib/temp-session-paths.js";
 
 /**
  * @typedef {Object} PhaseRecord
@@ -136,6 +143,114 @@ export function markPhaseComplete(state, phase, metrics = {}) {
       },
     },
   };
+}
+
+/**
+ * @param {string} filePath
+ * @returns {Record<string, unknown> | null}
+ */
+function readJsonObject(filePath) {
+  try {
+    const parsed = JSON.parse(readFileSync(filePath, "utf8"));
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return /** @type {Record<string, unknown>} */ (parsed);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Vision-phase metrics from the triage manifest and promotion map.
+ * Missing artifacts count as zero so `mark-phase vision` never stores `{}`.
+ *
+ * @param {string} sliceDir
+ * @returns {{ contactSheetsTriaged: number, cellsTriaged: number, promotedCount: number }}
+ */
+export function computeVisionMetrics(sliceDir) {
+  const manifest = readJsonObject(
+    lanePath(sliceDir, LANES.keyFrames, "triage", "manifest.json"),
+  );
+  let contactSheetsTriaged = 0;
+  let cellsTriaged = 0;
+  if (manifest && Array.isArray(manifest.sheets)) {
+    contactSheetsTriaged = manifest.sheets.length;
+    for (const sheet of manifest.sheets) {
+      if (!sheet || typeof sheet !== "object" || Array.isArray(sheet)) continue;
+      const cells = /** @type {{ cells?: unknown }} */ (sheet).cells;
+      if (Array.isArray(cells)) cellsTriaged += cells.length;
+    }
+  } else if (
+    manifest &&
+    typeof manifest.sheetCount === "number" &&
+    Number.isFinite(manifest.sheetCount)
+  ) {
+    contactSheetsTriaged = manifest.sheetCount;
+  }
+
+  const promotionMap = readJsonObject(lanePath(sliceDir, LANES.keyFrames, "promotion-map.json"));
+  const promotedCount = promotionMap ? Object.keys(promotionMap).length : 0;
+  return { contactSheetsTriaged, cellsTriaged, promotedCount };
+}
+
+/**
+ * Directory fields of a temp session. Cleanup never invents other paths.
+ * @type {("workDir" | "framesDir" | "contactSheetsDir")[]}
+ */
+const TEMP_SESSION_DIR_KEYS = ["workDir", "framesDir", "contactSheetsDir"];
+
+/**
+ * @returns {string}
+ */
+function osTempRoot() {
+  try {
+    return realpathSync.native(os.tmpdir());
+  } catch {
+    return path.resolve(os.tmpdir());
+  }
+}
+
+/**
+ * True when `dir` exists, is a directory, and is strictly inside the OS temp dir.
+ * A missing path, a file, the temp root itself, or anything outside it is not removable.
+ *
+ * @param {string} dir
+ * @returns {boolean}
+ */
+function isRemovableTempDir(dir) {
+  let real;
+  try {
+    real = realpathSync.native(dir);
+  } catch {
+    return false;
+  }
+  const rel = path.relative(osTempRoot(), real);
+  if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) return false;
+  try {
+    return statSync(real).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Remove the directories recorded on this slice's tempSession after a successful close.
+ * Only those three fields, and only when each resolved path is a directory inside the
+ * OS temp dir. Never lists or globs the temp directory.
+ *
+ * @param {WatchState["tempSession"]} tempSession
+ */
+export async function removeRecordedTempSessionDirs(tempSession) {
+  if (!tempSession) return;
+  const resolved = resolveTempSession(
+    /** @type {{ workDir?: string, framesDir?: string, contactSheetsDir?: string, acquiredAt?: string }} */ (
+      tempSession
+    ),
+  );
+  for (const key of TEMP_SESSION_DIR_KEYS) {
+    const dir = resolved[key];
+    if (!dir || !isRemovableTempDir(dir)) continue;
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 }
 
 /** Sequential phase walk; `companion` is an optional side-marker and stays out of it. */
@@ -320,8 +435,10 @@ async function verifyWatchOutcomes(sliceDir) {
 /**
  * Close the slice: the only writer of `status: "complete"`. Marks synthesis
  * when unmarked, runs the outcome checks against that state on disk, and sets
- * `complete` only when they pass. A failed close leaves status unchanged with
- * synthesis marked, so a re-run retries the checks.
+ * `complete` only when they pass. On that success, removes the directories
+ * recorded in this slice's `tempSession`. A failed close leaves status unchanged
+ * with synthesis marked, and leaves those directories in place, so a re-run
+ * retries the checks.
  *
  * @param {string} sliceDir
  * @param {WatchStateIo} [io]
@@ -353,6 +470,7 @@ export async function runClose(
     return 1;
   }
 
+  await removeRecordedTempSessionDirs(closing.tempSession);
   await writeWatchState(sliceDir, { ...closing, status: "complete" }, writeFile, mkdir);
   writeStdout("close: outcome checks passed, status complete\n");
   return 0;
@@ -393,7 +511,8 @@ export async function runMarkPhase(sliceDir, phase, io = {}) {
     return 0;
   }
 
-  await writeWatchState(sliceDir, markPhaseComplete(state, phase), writeFile, mkdir);
+  const metrics = phase === "vision" ? computeVisionMetrics(sliceDir) : undefined;
+  await writeWatchState(sliceDir, markPhaseComplete(state, phase, metrics), writeFile, mkdir);
   writeStdout(`mark-phase: ${phase} marked complete\n`);
   return 0;
 }

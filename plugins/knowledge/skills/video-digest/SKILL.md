@@ -72,6 +72,7 @@ conflicts explicitly; never silently adopt a video's shortcut over team rules.
 | `watch` | Dequeue first `pending` queue row (FIFO). Claim stub → bootstrap → full pipeline. |
 | `watch <n>` | Dequeue queue row `#n` only (parallel path across terminals). |
 | `watch <url>` | Full pipeline: download → frame selection → vision absorption → link harvest → research agenda → repo-applicability synthesis. |
+| `<url>` | A bare URL, with no action word, means `watch <url>`. |
 | `resume <slice-slug>` | Continue an interrupted watch from `watch.json` phase-map state in the named slice under `.work/<watch-epic>/` (the same directory documented elsewhere in this skill as `<video-slug>`). |
 
 `--target <repo>` is an optional modifier on any `watch` form (not a dispatchable action of its

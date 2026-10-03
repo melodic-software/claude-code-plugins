@@ -82,6 +82,7 @@ classified, acquisition iterates browser cookie profiles before giving up. Recov
 | Removed / private / 404 at preflight | fatal | adapter | `reject` / `unavailable`, never enqueued |
 | Not a YouTube video URL | queue-lane rejection (not an error class) | adapter (`acceptForEnqueue`) | `reject` / `invalid-url` |
 | Unsupported host | unsupported-source | registry, before any adapter | `reject` / `invalid-url`, listing the supported sources |
+| HTTP 403 on media fragments (`HTTP Error 403: Forbidden`, fragment not found), including yt-dlp's "older than 90 days" warning | stale client | this spoke | update yt-dlp first |
 | HTTP 429 / 503 / connection reset / timeout | retryable | **shared retry policy**, not this adapter | backoff + honor the concurrency cap; see `../../context/gotchas.md` |
 
 The last row is the one to read carefully: this adapter declares **no** retryable patterns of its
