@@ -1,0 +1,16 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "optional",
+      "for": ["skill:map-flow"],
+      "detect": {
+        "any": ["node"]
+      },
+      "degrade": "Without node, map-flow cannot parse the Mermaid diagram it writes and reports it unchecked; the trace itself still runs.",
+      "install": { "docs": "https://nodejs.org/en/download" },
+      "check": "/architecture:map-flow"
+    }
+  ]
+}

@@ -4,19 +4,19 @@
       "id": "node",
       "kind": "runtime",
       "need": "required",
-      "for": ["skill:mermaid-gate"],
+      "for": ["skill:visualize"],
       "detect": {
         "any": ["node"]
       },
-      "degrade": "Without node, /visualization:mermaid-gate cannot parse a Mermaid block; visualize still renders, unchecked.",
+      "degrade": "Without node, the mermaid gate cannot parse a Mermaid block; visualize still renders, unchecked.",
       "install": { "docs": "https://nodejs.org/en/download" },
-      "check": "/visualization:mermaid-gate check"
+      "check": "/visualization:visualize"
     },
     {
       "id": "mmdc",
       "kind": "cli",
       "need": "optional",
-      "for": ["skill:mermaid-gate"],
+      "for": ["skill:visualize"],
       "detect": {
         "any": ["mmdc"],
         "local_bin": ["node_modules/.bin/mmdc"],
@@ -24,7 +24,7 @@
       },
       "degrade": "Without mmdc 11.17.0 or newer, the gate runs its structural check only and a local page carries the Mermaid source with a note saying why instead of an SVG. A published Artifact renders Mermaid natively either way.",
       "install": { "docs": "https://github.com/mermaid-js/mermaid-cli", "npm": "npm install -g @mermaid-js/mermaid-cli@11.17.0" },
-      "check": "/visualization:mermaid-gate check"
+      "check": "/visualization:visualize"
     }
   ]
 }

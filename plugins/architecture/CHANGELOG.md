@@ -7,8 +7,8 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 
 ### Changed
 
-- `map-flow` runs `/visualization:mermaid-gate` on the diagram it writes when that skill is
-  enabled, and says the diagram was not checked when it is not.
+- `map-flow` parses the diagram it writes with its own copy of `lib/mermaid-gate.mjs` and says
+  the diagram was not checked when node is missing. `prerequisites.json` declares `node` for it.
 
 ## [0.18.4] - 2026-10-02
 

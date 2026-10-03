@@ -87,3 +87,8 @@ lib/prerequisites.ps1 plugins/typos-format/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/speech/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/speech/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/speech/lib/prerequisites.ps1
+lib/mermaid-gate.mjs plugins/visualization/lib/mermaid-gate.mjs
+lib/mermaid-gate.mjs plugins/architecture/lib/mermaid-gate.mjs
+lib/prerequisites.mjs plugins/architecture/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/architecture/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/architecture/lib/prerequisites.ps1

@@ -187,10 +187,32 @@ renderer can be embedded, deliver the mermaid **source** fence in the terminal a
 say it is unrendered. Never open a page that shows source instead of the promised
 picture.
 
-Run `/visualization:mermaid-gate` on every mermaid block before it is emitted, whatever the
-medium. For a local file, give it `--svg-dir` and embed the SVG it returns; when the pinned
-`mmdc` is absent it keeps the source and names why, so print that reason on the page. For an
-Artifact, run it without `--svg-dir`: the Artifact renders mermaid natively.
+Parse every mermaid block before it is emitted, whatever the medium. Write each diagram to a
+`.mmd` file (or use the markdown file holding the ` ```mermaid ` fence) and run:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/lib/mermaid-gate.mjs" [--svg-dir "<dir>"] <file>...
+```
+
+Stdout is one JSON report; each block has `file`, `line`, `status` (`ok` or `error`) and `render`
+(`svg` or `source`). Exit 1 means a block failed to parse. For a local file, pass `--svg-dir` and
+embed the SVG a block names in place of the fence. For an Artifact, omit `--svg-dir`: the Artifact
+renders mermaid natively and needs the parse only.
+
+- `status: error`: do not write the page. Report the block's `file`, `line` and `error`, fix the
+  diagram, run the gate again.
+- `render: source`: keep the mermaid source and print the block's `reason` beside it. Never call
+  such a page rendered.
+- Without `mmdc` the parse is a structural check (unknown diagram type, unterminated quote,
+  unbalanced flowchart brackets), so say an `ok` does not prove every syntax error is absent.
+- The gate uses `mmdc` only at the minimum version in `prerequisites.json` or newer, found on PATH
+  or at `node_modules/.bin/mmdc` under the working directory. An older one is treated as absent.
+  A failure that is not a parse error (no Chrome) falls back to source with the failure as the
+  reason. Pointer: <https://github.com/mermaid-js/mermaid-cli/releases>. As of 2026-10-03.
+  Recheck when the Artifact runtime's Mermaid version (see `context/decision-matrix.md`) moves to
+  a different major.
+- Check the prerequisites with
+  `node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" check "${CLAUDE_PLUGIN_ROOT}" --data-dir "${CLAUDE_PLUGIN_DATA}"`.
 
 Honor a preference without overproducing: `artifact` still renders a trivial
 three-row table inline, and `terminal` degrades a rich form to its best terminal

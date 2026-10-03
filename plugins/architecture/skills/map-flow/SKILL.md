@@ -148,9 +148,17 @@ that picture as the whole path.
 Exit 1 means the record is unreadable, not schema_version 1, or not in the one-object-per-line
 layout. Nothing was written. Report that message. Do not reformat the record by hand.
 
-When `/visualization:mermaid-gate` is enabled, run it on `flow.md` before the report and quote any
-failing block's line and error. A failing block is a defect in the render script: report it and
-do not repair `flow.md` by hand. When the skill is not enabled, say the diagram was not checked.
+Parse `flow.md` before the report. Stdout is one JSON report with a `status` of `ok` or `error` per
+block; exit 1 means a block failed to parse:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/lib/mermaid-gate.mjs" "<out>/flow.md"
+```
+
+Quote any failing block's `line` and `error`. A failing block is a defect in the render script:
+report it and do not repair `flow.md` by hand. Without `mmdc` the parse is a structural check, so
+say that an `ok` does not prove every syntax error is absent. When node is missing, say the
+diagram was not checked.
 
 ## Close with the report
 
