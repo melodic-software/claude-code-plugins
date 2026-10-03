@@ -1100,11 +1100,20 @@ class ChannelRelay(Transport):
             return None
         finally:
             conn.close()
-        if resp.status in (403, 409):
-            raise Conflict(body if resp.status == 409 else {"error": "token changed"})
+        if resp.status == 409:
+            raise Conflict(body if isinstance(body, dict) else {})
+        if resp.status == 403:
+            raise Conflict({"error": "token changed"})
         if resp.status != 200:
             return None
-        return body["seq"], body["events"], body.get("replayed")
+        if not (
+            isinstance(body, dict)
+            and isinstance(body.get("events"), list)
+            and type(body.get("seq")) is int
+        ):
+            raise ValueError("the page server's /api/wait answer has the wrong shape")
+        replay = body.get("replayed")
+        return body["seq"], body["events"], replay if type(replay) is int else None
 
     def release(self):
         """Stop watching and clear the page server's lease."""
@@ -1162,13 +1171,28 @@ class ChannelRelay(Transport):
             )
         return line
 
-    def stop(self, reason):
-        if not self.stopped.is_set():
-            self.stopped.set()
-            self.reason = reason
-            self.ring(self, f"stopped watching: {reason}", stopped=1)
+    def stop(self, reason, release=False):
+        """End watching and ring why. `reason` is fixed text: nothing the page server sent may
+        reach the session through a ring."""
+        if self.stopped.is_set():
+            return None
+        self.reason = reason
+        if release:
+            self.release()
+        self.stopped.set()
+        self.ring(self, f"stopped watching: {reason}", stopped=1)
+        return None
 
     def run(self):
+        """Poll until stopped. A bad answer or any unexpected error releases the lease and rings a
+        fixed stopped notice, so `watch` can start again."""
+        try:
+            return self.poll()
+        except Exception as e:  # noqa: BLE001
+            print(f"session-bridge relay: {type(e).__name__}: {e}", file=sys.stderr)
+            return self.stop("the relay hit an unexpected error", release=True)
+
+    def poll(self):
         replayed, fails = 0, 0
         while not self.stopped.is_set():
             self.waiting = True
@@ -1181,9 +1205,14 @@ class ChannelRelay(Transport):
                     pid=os.getpid(),
                 )
             except Conflict as e:
+                holder = e.payload.get("holder")
+                if isinstance(holder, str) and re.fullmatch(
+                    r"[A-Za-z0-9._-]{1,64}", holder
+                ):
+                    print(f"session-bridge relay: lease held by {holder}", file=sys.stderr)
                 return self.stop(
                     {
-                        "lease held": f"another watcher ({e.payload.get('holder')}) holds this page's lease",
+                        "lease held": "another session holds this page's lease",
                         "lease released": "this watcher's lease was released (lease --release)",
                     }.get(
                         str(e),
@@ -1374,16 +1403,20 @@ class ChannelServer:
         return self.send({"jsonrpc": "2.0", "id": mid, "result": result})
 
     def serve(self, lines):
-        """Answer each JSON-RPC line until the input closes, then stop every relay."""
-        for line in lines:
-            try:
-                msg = json.loads(line)
-            except ValueError:
-                continue
-            if isinstance(msg, dict):
-                self.handle(msg)
-        for relay in self.relays.values():
-            relay.stopped.set()
+        """Answer each JSON-RPC line until the input closes, then release the lease of every relay
+        still watching; a stopped relay holds none, and its page may have a new holder."""
+        try:
+            for line in lines:
+                try:
+                    msg = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(msg, dict):
+                    self.handle(msg)
+        finally:
+            for relay in list(self.relays.values()):
+                if not relay.stopped.is_set():
+                    relay.release()
 
 
 def main(argv):

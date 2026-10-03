@@ -11,6 +11,9 @@ All notable changes to the `planning` plugin are documented here. Format follows
   Claude Code's native channels, and the selection that keeps the loopback watcher when channels
   are unavailable. Planning registers no channel server and calls neither, so the interview page,
   the watcher and `round.sh` behave as before ([#5855](https://github.com/melodic-software/claude-code-plugins/issues/5855)).
+- The channels adapter's rings carry only fixed text: a lease conflict no longer quotes the holder
+  the page server names. A malformed wait answer or an unexpected error releases the lease and
+  rings a stopped notice, and the channel server releases its leases when its input closes.
 
 ## [0.65.1] - 2026-10-02
 
