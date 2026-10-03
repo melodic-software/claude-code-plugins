@@ -17,7 +17,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 | Lane | Rows | Baked | Integration | Verdicts |
 |---|---|---|---|---|
-| Built-in CLI commands | 25 | 24 | route 4, suggest 21 | complementary 24, defer 1 |
+| Built-in CLI commands | 26 | 25 | route 4, suggest 22 | complementary 25, defer 1 |
 | Bundled skills | 29 | 22 | route 18, suggest 9, wrap 2 | complementary 23, defer 6 |
 | Bundled workflows | 1 | 1 | suggest 1 | complementary 1 |
 | Plugin-backed built-ins | 4 | 2 | route 4 | complementary 3, defer 1 |
