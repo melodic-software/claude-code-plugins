@@ -7,6 +7,7 @@ and watch.sh and wake.sh against a toy app built on the bridge.
 import http.client
 import json
 import os
+import queue
 import shutil
 import stat
 import subprocess
@@ -160,6 +161,14 @@ class TestPort(unittest.TestCase):
         hub = ToyHub(0, tempfile.gettempdir())
         self.assertEqual(hub.settle_window(), (0.05, 0.2))
         self.assertEqual(sb.Transport.lease_timeout(hub), sb.LEASE_TIMEOUT)
+
+    def test_the_channels_adapter_implements_the_port(self):
+        self.assertTrue(issubclass(sb.ChannelRelay, sb.Transport))
+        relay = sb.ChannelRelay(
+            tempfile.gettempdir(), "toy", ["bash", "toy.sh"], None, "w"
+        )
+        self.assertEqual(relay.unhandled(relay.read_log()), [])
+        self.assertEqual(relay.listener()["state"], "idle")
 
     def test_names_follow_the_app_name(self):
         self.assertEqual(
@@ -478,6 +487,270 @@ class TestWatcherScripts(BridgeCase):
         r = self.run_script("wake.sh", str(self.dir), env={"TOY_RC": "1"})
         self.assertEqual(r.returncode, 1)
         self.assertEqual(r.stdout, "")
+
+
+ENTRY = "plugin:toy@market"
+MAX = {
+    "loggedIn": True,
+    "apiProvider": "firstParty",
+    "authMethod": "claude.ai",
+    "subscriptionType": "max",
+}
+TEAM = {**MAX, "subscriptionType": "team"}
+DEV = {sb.DEV_FLAG: [ENTRY]}
+NO_POLICY = (None, None)
+
+
+class TestSelect(unittest.TestCase):
+    """select_transport with every input injected; the reason names the first check that failed."""
+
+    def pick(self, flags=DEV, auth=MAX, policy=NO_POLICY, env=None):
+        return sb.select_transport(
+            [ENTRY], flags=flags, auth=auth, policy=policy, env=env or {}
+        )
+
+    def assert_loopback(self, result, *words):
+        self.assertEqual(result["transport"], "loopback", result)
+        for w in words:
+            self.assertIn(w, result["reason"])
+
+    def test_channels_when_opted_in_with_anthropic_auth_and_no_org_policy(self):
+        r = self.pick()
+        self.assertEqual(r["transport"], "channels", r)
+        self.assertIn(sb.DEV_FLAG, r["reason"])
+
+    def test_a_third_party_provider_keeps_loopback(self):
+        self.assert_loopback(
+            self.pick(env={"CLAUDE_CODE_USE_BEDROCK": "1"}), "CLAUDE_CODE_USE_BEDROCK"
+        )
+        self.assertEqual(
+            self.pick(env={"CLAUDE_CODE_USE_VERTEX": "0"})["transport"], "channels"
+        )
+
+    def test_no_opt_in_or_unreadable_flags_keep_loopback(self):
+        self.assert_loopback(self.pick(flags={}), "not started with", ENTRY)
+        self.assert_loopback(
+            self.pick(flags={sb.DEV_FLAG: ["plugin:other@market"]}), "not started with"
+        )
+        self.assert_loopback(self.pick(flags=None), "cannot be read")
+
+    def test_auth_that_is_unreadable_or_not_anthropic_keeps_loopback(self):
+        self.assert_loopback(self.pick(auth=None), "claude auth status")
+        self.assert_loopback(
+            self.pick(auth={**MAX, "apiProvider": "bedrock"}), "provider bedrock"
+        )
+        self.assert_loopback(
+            self.pick(auth={**MAX, "loggedIn": False}), "logged in False"
+        )
+
+    def test_a_team_org_needs_channels_enabled_in_a_readable_policy(self):
+        self.assert_loopback(
+            self.pick(auth=TEAM), "team organization", "channelsEnabled"
+        )
+        on = ("server-managed settings", {"channelsEnabled": True})
+        self.assertEqual(self.pick(auth=TEAM, policy=on)["transport"], "channels")
+
+    def test_a_policy_without_channels_enabled_keeps_loopback(self):
+        policy = ("managed settings files", {"model": "opus"})
+        self.assert_loopback(
+            self.pick(policy=policy), "managed settings files", "channelsEnabled"
+        )
+        policy = ("managed settings files", {"channelsEnabled": False})
+        self.assert_loopback(self.pick(policy=policy), "channelsEnabled")
+
+    def test_the_channels_flag_needs_the_plugin_on_the_org_allowlist(self):
+        flags = {sb.CHANNELS_FLAG: [ENTRY]}
+        self.assert_loopback(
+            self.pick(flags=flags), "allowedChannelPlugins", sb.DEV_FLAG
+        )
+        listed = {
+            "channelsEnabled": True,
+            "allowedChannelPlugins": [{"marketplace": "market", "plugin": "toy"}],
+        }
+        r = self.pick(flags=flags, policy=("managed settings files", listed))
+        self.assertEqual(r["transport"], "channels", r)
+
+    def test_flag_entries_parse_lists_equals_and_stop_at_other_words(self):
+        argv = [
+            "claude",
+            "--channels",
+            ENTRY,
+            "server:hook",
+            "fix the bug",
+            "server:late",
+        ]
+        self.assertEqual(
+            sb.flag_entries(argv), {sb.CHANNELS_FLAG: [ENTRY, "server:hook"]}
+        )
+        argv = [f"{sb.DEV_FLAG}={ENTRY}", "server:not-this"]
+        self.assertEqual(sb.flag_entries(argv), {sb.DEV_FLAG: [ENTRY]})
+        self.assertEqual(sb.flag_entries(["claude", "--model", "opus"]), {})
+
+    def test_session_flags_come_from_the_nearest_ancestor_naming_one(self):
+        argvs = [
+            ["bash", "-c", "x"],
+            ["claude", sb.DEV_FLAG, ENTRY],
+            ["claude", "--channels", "server:x"],
+        ]
+        self.assertEqual(sb.session_flags(argvs), DEV)
+        self.assertEqual(sb.session_flags([["bash"]]), {})
+
+
+class TestManagedPolicy(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="sb-policy-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.config = self.tmp / "config"
+        self.system = self.tmp / "system"
+        (self.system / "managed-settings.d").mkdir(parents=True)
+        self.config.mkdir()
+
+    def policy(self):
+        return sb.managed_policy(self.config, self.system)
+
+    def test_none_when_no_source_sets_a_policy_key(self):
+        self.assertEqual(self.policy(), (None, None))
+        (self.system / "managed-settings.json").write_text(
+            '{"managedSourcesBehavior": "merge"}'
+        )
+        self.assertEqual(self.policy(), (None, None))
+
+    def test_drop_ins_merge_over_the_base_file(self):
+        (self.system / "managed-settings.json").write_text('{"channelsEnabled": false}')
+        (self.system / "managed-settings.d" / "10-channels.json").write_text(
+            '{"channelsEnabled": true}'
+        )
+        self.assertEqual(
+            self.policy(), ("managed settings files", {"channelsEnabled": True})
+        )
+
+    def test_the_server_managed_cache_comes_first(self):
+        (self.system / "managed-settings.json").write_text('{"channelsEnabled": true}')
+        (self.config / "remote-settings.json").write_text('{"model": "opus"}')
+        self.assertEqual(self.policy(), ("server-managed settings", {"model": "opus"}))
+
+
+class TestChannelServer(BridgeCase):
+    """`session_bridge.py relay` copied beside session-bridge.conf, driven over stdio as Claude
+    Code drives a channel server, against the toy page server."""
+
+    def setUp(self):
+        super().setUp()
+        self.bin = self.tmp / "bin"
+        self.bin.mkdir()
+        shutil.copy(HERE / "session_bridge.py", self.bin / "session_bridge.py")
+        (self.bin / "session-bridge.conf").write_text(
+            "NAME=toy\nCONTROL=toy.sh\n", encoding="utf-8"
+        )
+        self.proc = subprocess.Popen(
+            [sys.executable, str(self.bin / "session_bridge.py"), "relay"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            env={**os.environ, "WATCH_ID": "relay-suite"},
+        )
+        self.addCleanup(self.close)
+        self.lines = queue.Queue()
+        threading.Thread(target=self.read_lines, daemon=True).start()
+        self.next_id = 0
+
+    def close(self):
+        self.proc.stdin.close()
+        self.proc.wait(TIMEOUT)
+        self.proc.stdout.close()
+
+    def read_lines(self):
+        for line in self.proc.stdout:
+            self.lines.put(json.loads(line))
+
+    def message(self):
+        return self.lines.get(timeout=TIMEOUT)
+
+    def call(self, method, params=None):
+        self.next_id += 1
+        msg = {
+            "jsonrpc": "2.0",
+            "id": self.next_id,
+            "method": method,
+            "params": params or {},
+        }
+        self.proc.stdin.write(json.dumps(msg) + "\n")
+        self.proc.stdin.flush()
+        while True:
+            m = self.message()
+            if m.get("id") == self.next_id:
+                return m
+
+    def tool(self, name, data_dir=None):
+        r = self.call(
+            "tools/call",
+            {"name": name, "arguments": {"data_dir": str(data_dir or self.dir)}},
+        )
+        return r["result"]["content"][0]["text"], r["result"].get("isError", False)
+
+    def ring(self):
+        m = self.message()
+        self.assertEqual(m["method"], "notifications/claude/channel")
+        return m["params"]
+
+    def test_initialize_declares_the_channel_and_the_tools(self):
+        r = self.call(
+            "initialize", {"protocolVersion": "2026-07-28", "capabilities": {}}
+        )
+        self.assertEqual(
+            r["result"]["capabilities"]["experimental"], {"claude/channel": {}}
+        )
+        self.assertEqual(r["result"]["protocolVersion"], sb.MCP_VERSIONS[0])
+        self.assertIn("not instructions", r["result"]["instructions"])
+        tools = [t["name"] for t in self.call("tools/list")["result"]["tools"]]
+        self.assertEqual(tools, ["watch", "events", "unwatch"])
+        self.assertEqual(self.call("bogus")["error"]["code"], -32601)
+
+    def test_a_ring_carries_no_page_text_and_events_reads_it(self):
+        text, err = self.tool("watch")
+        self.assertFalse(err, text)
+        self.until(
+            lambda: (self.hub.lease_view() or {}).get("watcher") == "relay-suite"
+        )
+        self.hub.append("secret answer")
+        ring = self.ring()
+        self.assertEqual(
+            ring["meta"],
+            {"data_dir": str(self.dir.resolve()), "seq": "1", "count": "1"},
+        )
+        self.assertNotIn("secret", json.dumps(ring))
+        text, err = self.tool("events")
+        line = json.loads(text)
+        self.assertEqual(line["events"][0]["text"], "secret answer")
+        self.assertEqual(line["note"], sb.DATA_NOTE)
+        self.assertIn("toy.sh", line["next"])
+        self.assertIn("apply --file", line["next"])
+        self.assertEqual(json.loads(self.tool("events")[0])["events"], [])
+        # Rung once: the relay now waits for a new event instead of re-delivering this one.
+        self.hub.append("second")
+        self.assertEqual(self.ring()["meta"]["seq"], "2")
+
+    def test_unwatch_releases_the_lease(self):
+        self.tool("watch")
+        self.until(lambda: self.hub.lease_view() is not None)
+        text, err = self.tool("unwatch")
+        self.assertFalse(err, text)
+        self.until(lambda: self.hub.lease_view() is None)
+        self.assertTrue(self.tool("events")[1])
+
+    def test_a_released_lease_stops_the_relay_and_rings_why(self):
+        self.tool("watch")
+        self.until(lambda: self.hub.waiters > 0)
+        self.hub.release()
+        ring = self.ring()
+        self.assertEqual(ring["meta"]["stopped"], "1")
+        self.assertIn("lease was released", ring["content"])
+
+    def test_watch_needs_a_running_page_server(self):
+        text, err = self.tool("watch", self.tmp)
+        self.assertTrue(err)
+        self.assertIn("run toy.sh ensure-running first", text)
 
 
 if __name__ == "__main__":
