@@ -131,7 +131,7 @@
     "session_event_log_content": {
       "type": "boolean",
       "title": "Session-event-log content fields",
-      "description": "Also records each event's top-level content strings (prompt, session_title, last_assistant_message, message, task text, PostToolUseFailure error and the like) in the session event log. A field cut by the hook's 64 KB read cap is recorded as its prefix plus <key>_truncated: true. Off by default; has no effect while session_event_log_enabled is off.",
+      "description": "Also records each event's top-level content strings (prompt, last_assistant_message, message, task text, error and the like) in the session event log; content the 64 KB read cap cuts is marked truncated. Off by default; has no effect while session_event_log_enabled is off.",
       "default": false
     },
     "session_log_keep_sessions": {
