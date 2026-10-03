@@ -3,6 +3,18 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1] - 2026-10-03
+
+### Fixed
+
+- **The slide build keeps its state in ai-briefing's own data directory.** Another plugin's
+  SessionStart hook can export its own data directory as `CLAUDE_PLUGIN_DATA` for every Bash call,
+  and the build then wrote `slides-data.js`, decks, screenshots and the seen-item registry under
+  `<that dir>/<profile>/`. The `generate` launch line now sets `CLAUDE_PLUGIN_DATA` from the
+  substituted `${CLAUDE_PLUGIN_DATA}`, the way it already passes `AI_BRIEFING_PROFILE`, so a
+  runtime staged by an earlier version also gets the right directory, and `paths.js` uses an
+  inherited value only when it names ai-briefing.
+
 ## [0.8.0] - 2026-10-02
 
 ### Added
