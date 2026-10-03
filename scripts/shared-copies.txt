@@ -7,6 +7,9 @@ lib/html-escape.mjs plugins/event-storming/lib/html-escape.mjs
 lib/html-escape.mjs plugins/harness-ops/lib/html-escape.mjs
 lib/html-escape.mjs plugins/knowledge/lib/html-escape.mjs
 lib/html-escape.mjs plugins/review/lib/html-escape.mjs
+lib/prerequisites.mjs plugins/explainer-video/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/explainer-video/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/explainer-video/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/actionlint/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/actionlint/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/actionlint/lib/prerequisites.ps1
