@@ -257,9 +257,9 @@ if [[ "$CONC" == "1" ]]; then
   # trials) so neither arm systematically lands in the warmer or colder half of
   # a drift cycle. A fixed AB, BA alternation is not enough: periodic
   # interference can line up with it. One byte per iteration from the order
-  # source: even runs A first, odd runs B first. Read once, before anything is
-  # timed, so od(1) is not a spawn between samples. A short source is refused
-  # rather than padded with a fixed order.
+  # source: even runs A first, odd runs B first. Read once, before the first
+  # measured sample, so od(1) is not a spawn between samples. A short source is
+  # refused rather than padded with a fixed order.
   ORDER_SOURCE="${PERF_AB_ORDER_SOURCE:-/dev/urandom}"
   order_bytes=()
   read -r -d '' -a order_bytes < <(od -An -v -tu1 -N"$ITERS" "$ORDER_SOURCE" 2>/dev/null)

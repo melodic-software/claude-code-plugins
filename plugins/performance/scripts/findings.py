@@ -911,9 +911,10 @@ def ci_timing(repo: str, runs: int, job_runs: int) -> dict:
         ["run", "list", "--repo", repo, "--limit", str(runs), "--status", "completed"]
         + ["--json", RUN_FIELDS]
     )
-    newest = sorted(
-        listed, key=lambda r: parse_ts(r.get("createdAt")) or 0, reverse=True
-    )[:job_runs]
+    # A run with no parseable createdAt cannot be ordered, so it is never timed.
+    dated = [(t, r) for r in listed if (t := parse_ts(r.get("createdAt"))) is not None]
+    dated.sort(key=lambda tr: tr[0], reverse=True)
+    newest = [r for _, r in dated[:job_runs]]
     waits: list[int] = []
     lengths: list[int] = []
     tests: list[int] = []
@@ -924,13 +925,17 @@ def ci_timing(repo: str, runs: int, job_runs: int) -> dict:
         path = f"repos/{repo}/actions/runs/{run.get('databaseId')}/jobs"
         jobs, line = gh_list(["api", path, "--jq", JOBS_JQ])
         job_lines.append(line)
-        starts = [
-            s for s in (parse_ts(j.get("started_at")) for j in jobs) if s is not None
-        ]
-        ends = [
-            e for e in (parse_ts(j.get("completed_at")) for j in jobs) if e is not None
-        ]
-        if starts and ends:
+        starts = [parse_ts(j.get("started_at")) for j in jobs]
+        ends = [parse_ts(j.get("completed_at")) for j in jobs]
+        # One ran job with an unknown start or end makes the whole run's length unknown.
+        unknown = any(
+            None in (s, e)
+            for j, s, e in zip(jobs, starts, ends)
+            if j.get("conclusion") != "skipped"
+        )
+        starts = [s for s in starts if s is not None]
+        ends = [e for e in ends if e is not None]
+        if starts and ends and not unknown:
             lengths.append(round((max(ends) - min(starts)) * 1000))
         else:
             no_length += 1
@@ -975,6 +980,7 @@ def ci_timing(repo: str, runs: int, job_runs: int) -> dict:
         "repo": repo,
         "runs_listed": len(listed),
         "runs_timed": len(newest),
+        "runs_excluded": len(listed) - len(dated),
         "queue_wait": stat(waits, "wait-ms", jobs_cite, no_wait),
         "run_length": length,
         "slowest_step": slowest,
@@ -1013,15 +1019,17 @@ def pr_timing(limit: int) -> dict:
             no_first += 1
             continue
         # A pending review has no submittedAt; one stamped before the PR opened is not a wait.
-        submitted = [
-            s
-            for s in (
-                parse_ts(r.get("submittedAt"))
-                for r in pr.get("reviews") or []
-                if isinstance(r, dict)
-            )
-            if s is not None and s >= created
+        # An unparseable stamp could be the earliest review, so the PR is left out.
+        stamps = [
+            r.get("submittedAt")
+            for r in pr.get("reviews") or []
+            if isinstance(r, dict) and r.get("submittedAt") is not None
         ]
+        parsed = [parse_ts(s) for s in stamps]
+        if None in parsed:
+            no_first += 1
+            continue
+        submitted = [s for s in parsed if s is not None and s >= created]
         if submitted:
             first.append(round((min(submitted) - created) * 1000))
     return {

@@ -78,7 +78,7 @@ array) on stdin. The fields:
 | `guard_metric`, `revert_if` | the reading that shows accuracy slipping, and the reading that ends a `now` adoption |
 | `confidence`, `citations` | the source's label; `{url, as_of: YYYY-MM-DD, recheck}` for outside advice re-read this run |
 | `reason_code`, `reason` | `not-checked`: `no-data`, `owner-unavailable`, `needs-elevation`, `needs-setting`, `auth-gap` or `refused-by-guard`, and why plus what would enable it; `flag-only`: why |
-| `conditions` | measured findings: `{repo, machine, harness_version, model, workload}` |
+| `conditions` | measured findings: `{repo, machine, harness_version, model, workload}`, plus `gh_config_dir` on a GitHub finding when areas.md's gh-account rule sets it |
 
 Fill `conditions` from `bash "$ROOT/lib/state-key.sh"` (repo), `hostname` (machine),
 `claude --version` (harness_version) and your own model id. `workload` is compared verbatim across

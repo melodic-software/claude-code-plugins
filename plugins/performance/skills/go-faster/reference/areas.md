@@ -47,15 +47,22 @@ Each entry gives:
   cited, and a candidate that needed it is not reported. No row, no candidate.
 - **Fix owner.** A measured finding names the owner its entry gives. Where none is given, use the
   cited row's remedy as `steps-for-you`; with no cited row, `/performance:target`.
+- **Which gh account.** Every gh call below inherits the caller's `GH_CONFIG_DIR`. Only when the
+  caller's environment does not set it and the repository's own instructions (the CLAUDE.md or
+  AGENTS.md this session loaded) name a value for this repository, pass that value on the
+  `gh repo view` probe and the `ci-timing` and `pr-timing` calls, and record it as
+  `gh_config_dir` in each GitHub finding's `conditions` (in the reason of a `not-checked` one).
+  Never choose an account directory any other way. A gh failure either way is the `auth-gap`
+  below.
 - **One GitHub probe.** Before the first of `ci-cd`, `gates`, `pr-review` and `tests`, run
-  `gh repo view --json nameWithOwner --jq .nameWithOwner` once, inheriting the caller's
-  `GH_CONFIG_DIR`. It prints `OWNER/REPO` for `ci-timing --repo` below. On failure all four areas
+  `gh repo view --json nameWithOwner --jq .nameWithOwner` once, with `GH_CONFIG_DIR` as the rule
+  above sets it. It prints `OWNER/REPO` for `ci-timing --repo` below. On failure all four areas
   are `not-checked`, `auth-gap`, reason "gh repo view failed: <its first error line>; run
   `gh auth status`, and `gh auth login` if it shows no login for this host; this run inherits
   GH_CONFIG_DIR from the session that started it, so set it there and rerun /performance:go-faster".
 - **GitHub numbers come from findings.py.** After the probe, the four GitHub areas make two calls:
   `"$PY" "$ROOT/scripts/findings.py" ci-timing --repo <OWNER/REPO>` and
-  `"$PY" "$ROOT/scripts/findings.py" pr-timing`. Each runs gh itself, inheriting `GH_CONFIG_DIR`,
+  `"$PY" "$ROOT/scripts/findings.py" pr-timing`. Each runs gh itself, with `GH_CONFIG_DIR` as above,
   and prints JSON whose numbers are objects with `value`, `unit`, `samples`, `excluded` and
   `command`; record `value` and `unit` as printed and copy `command` into the finding. Never run
   `gh run list`, `gh api` or `gh pr list` yourself, and never save gh output to a file. Exit 1

@@ -605,7 +605,7 @@ assert_eq "no review wait; the PR without createdAt is excluded" "0 1" \
   "$(q '"\(.first_review.samples) \(.first_review.excluded)"')"
 assert_eq "size needs no timestamp" "9.5 2 0" "$(q '"\(.size.value) \(.size.samples) \(.size.excluded)"')"
 # Jobs: run 102 gains a job that never started and a test step that never completed; every
-# median from section 23 stands.
+# median from section 23 stands except run length, which now leaves run 102 out.
 printf '[%s,%s]\n' \
   "$(job build success 06:00:00 06:00:50 06:04:50 "$(step Checkout success 06:00:50 06:01:00)" \
     "$(step 'Run tests' success 06:01:00 06:04:20)" "$(step Lint success 06:04:20 06:04:40)")" \
@@ -617,7 +617,7 @@ assert_eq "the unstarted job is excluded from queue wait and counted" "35000 6 1
   "$(q '"\(.queue_wait.value) \(.queue_wait.samples) \(.queue_wait.excluded)"')"
 assert_eq "the uncompleted test step is excluded and counted" "125000 6 1" \
   "$(q '"\(.test_steps.value) \(.test_steps.samples) \(.test_steps.excluded)"')"
-assert_eq "run length is unchanged" "3 5 0" "$(q '"\(.run_length.value) \(.run_length.samples) \(.run_length.excluded)"')"
+assert_eq "run 102's unstarted job leaves it out of run length, counted; 120 120 180 280 s remain" "2.5 4 1" "$(q '"\(.run_length.value) \(.run_length.samples) \(.run_length.excluded)"')"
 
 # --- 25. a gh failure exits 1 with one line naming it ---
 RUN_OUT="$(cd "$GHCWD" && env -u GH_CONFIG_DIR PATH="$SHIM:$PATH" FAKE_GH="$FIX" "$HARNESS_PYTHON" "$FINDINGS" ci-timing --repo o/r 2>&1)"
@@ -631,6 +631,44 @@ gh_run ci-timing --repo o/r
 assert_eq "a failed jobs fetch exits 1" "1" "$RUN_RC"
 assert_contains "the error names the failed fetch and its reason" "runs/104/jobs" "$RUN_OUT"
 assert_contains "the error carries the HTTP status" "HTTP 404" "$RUN_OUT"
+assert_eq "nothing is written to the working directory" "" "$(ls -A "$GHCWD")"
+
+# --- 26. a sample with one bad timestamp is left out whole and counted, never half-used ---
+# Run 201 (12:00): build 12:00:00-12:02:00 and lint started 12:01:00 with an unparseable end, so
+# its length is unknown. Run 203 (11:00): build 11:00:00-11:03:00 (3 minutes) and a skipped
+# deploy job with no timestamps, which does not make the run unknown.
+printf '[%s,%s]\n' "$(listed_run 201 1 12:00:00)" "$(listed_run 203 1 11:00:00)" >"$FIX/runs.json"
+printf '[%s,%s]\n' "$(job build success 12:00:00 12:00:00 12:02:00)" \
+  '{"name":"lint","conclusion":"success","created_at":"2026-10-01T12:01:00Z","started_at":"2026-10-01T12:01:00Z","completed_at":"garbage","steps":[]}' \
+  >"$FIX/jobs-201.json"
+printf '[%s,%s]\n' "$(job build success 11:00:00 11:00:00 11:03:00)" \
+  '{"name":"deploy","conclusion":"skipped","created_at":"2026-10-01T11:00:00Z","started_at":null,"completed_at":null,"steps":[]}' \
+  >"$FIX/jobs-203.json"
+gh_run ci-timing --repo o/r
+assert_eq "ci-timing exits 0 on a job with an unparseable end" "0" "$RUN_RC"
+assert_eq "a run with a non-skipped job missing an end is left out of run length and counted" "3 1 1" \
+  "$(q '"\(.run_length.value) \(.run_length.samples) \(.run_length.excluded)"')"
+# Run 202 has an unparseable createdAt and no jobs fixture: fetching its jobs would fail the run.
+printf '[%s,%s,%s]\n' "$(listed_run 201 1 12:00:00)" \
+  '{"databaseId":202,"attempt":2,"createdAt":"garbage","startedAt":null,"updatedAt":null,"conclusion":"success","workflowName":"CI"}' \
+  "$(listed_run 203 1 11:00:00)" >"$FIX/runs.json"
+gh_run ci-timing --repo o/r
+assert_eq "ci-timing exits 0 on a run with an unparseable createdAt" "0" "$RUN_RC"
+assert_eq "the undated run is listed, not timed, and counted as excluded" "3 2 1" \
+  "$(q '"\(.runs_listed) \(.runs_timed) \(.runs_excluded)"')"
+assert_eq "the undated run's jobs are never fetched" "0" "$(q '[.commands[] | select(contains("runs/202/"))] | length')"
+assert_eq "re-runs still count every listed run" "1 3" "$(q '"\(.reruns.value) \(.reruns.samples)"')"
+# PRs: one with reviews at 1h and an unparseable one (its earliest review is unknown), one with
+# only an unparseable review, and one reviewed at 2h. Only the last yields a first-review wait.
+printf '[%s,%s,%s]\n' \
+  '{"number":1,"createdAt":"2026-09-01T00:00:00Z","mergedAt":"2026-09-01T04:00:00Z","reviews":[{"submittedAt":"2026-09-01T01:00:00Z"},{"submittedAt":"not a time"}],"additions":1,"deletions":0,"changedFiles":1}' \
+  '{"number":2,"createdAt":"2026-09-02T00:00:00Z","mergedAt":"2026-09-02T04:00:00Z","reviews":[{"submittedAt":"not a time"}],"additions":1,"deletions":0,"changedFiles":1}' \
+  '{"number":3,"createdAt":"2026-09-03T00:00:00Z","mergedAt":"2026-09-03T04:00:00Z","reviews":[{"submittedAt":"2026-09-03T02:00:00Z"}],"additions":1,"deletions":0,"changedFiles":1}' \
+  >"$FIX/prs.json"
+gh_run pr-timing
+assert_eq "pr-timing exits 0 on an unparseable review time" "0" "$RUN_RC"
+assert_eq "a PR with an unparseable review time is excluded from first review and counted" "7200000 1 2" \
+  "$(q '"\(.first_review.value) \(.first_review.samples) \(.first_review.excluded)"')"
 assert_eq "nothing is written to the working directory" "" "$(ls -A "$GHCWD")"
 
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
