@@ -232,7 +232,8 @@ done
 # after the leading scalar run: its captured prefix is cut back to whole JSON
 # escapes and whole UTF-8 characters and recorded with `<key>_truncated: true`.
 # Only that position is provably top-level in a cut buffer; a field the cap
-# fell inside after a nested value is not recorded.
+# fell inside after a nested value is not recorded. Any row whose payload hit
+# the cap carries `content_truncated: true`, so a dropped field is never silent.
 if [[ "${CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CONTENT:-false}" == "true" ]]; then
   open_key="" open_val=""
   if [[ "${buf:lead}" =~ ^[[:space:]]*\"([a-z_]+)\"[[:space:]]*:[[:space:]]*\"(.*)$ ]]; then
@@ -264,6 +265,7 @@ if [[ "${CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CONTENT:-false}" == "true" ]]; t
     field_to value "$key" top
     [[ -n "$value" ]] && meta+=("$key" b "$value")
   done
+  ((${#buf} >= 65536)) && meta+=(content_truncated n true)
 fi
 
 # --- root and guard ------------------------------------------------------------

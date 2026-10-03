@@ -348,6 +348,18 @@ n=$(truncated_case c10 'a€' LC_ALL=C)
 assert_eq "truncated at cap (byte locale): a cut multibyte character is dropped" "$((n + 1))" "$(jq -r '.prompt | length' "$(CLOG c10)" 2>/dev/null)"
 iconv -f UTF-8 -t UTF-8 "$(CLOG c10)" >/dev/null 2>&1
 assert_exit "truncated at cap (byte locale): the row is valid UTF-8" 0 "$?"
+assert_eq "truncated at cap: a provable cut also carries content_truncated" "true" "$(jq -r .content_truncated "$(CLOG c8)" 2>/dev/null)"
+
+# A content string cut after a nested value cannot be placed at the top level:
+# it is not recorded, and the row says content was cut.
+FILL70=$(head -c 70000 /dev/zero | tr '\0' 'q')
+NESTED_CUT='{"session_id":"c11","cwd":"/x","hook_event_name":"PostToolUseFailure","tool_name":"Bash","tool_input":{"command":"npm test"},"error":"'"$FILL70"'"}'
+run "$P" "$NESTED_CUT" "$ON" "$CONTENT_ON" >/dev/null
+assert_record "cut after a nested value: the row is valid JSON" "$(CLOG c11)"
+assert_eq "cut after a nested value: content_truncated is true, error absent" "true false" "$(jq -r '"\(.content_truncated) \(has("error"))"' "$(CLOG c11)" 2>/dev/null)"
+assert_eq "under the cap: no content_truncated key" "false" "$(jq -r 'has("content_truncated")' "$(CLOG c5)")"
+run "$P" "${NESTED_CUT/c11/c12}" "$ON" >/dev/null
+assert_eq "opt-in off over the cap: no content keys and no content_truncated" "false false" "$(jq -r '"\(has("error")) \(has("content_truncated"))"' "$(CLOG c12)" 2>/dev/null)"
 
 # --- a pause after a NESTED `}` does not end the read early ----------------------
 # The writer stops for longer than one slice right after tool_input closes,
