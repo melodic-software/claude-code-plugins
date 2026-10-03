@@ -91,7 +91,7 @@ describe("detectRecoverableBootstrap", () => {
       phases: {},
       tempSession: { workDir: makeWorkDir("captions.vtt"), framesDir, contactSheetsDir: sheetsDir },
     });
-    const knowledgeData = "/home/u/.claude/plugins/data/knowledge-melodic-software";
+    const knowledgeData = "/var/fixture/claude/plugins/data/knowledge-melodic-software";
 
     vi.stubEnv("CLAUDE_PLUGIN_DATA", knowledgeData);
     try {
@@ -104,7 +104,7 @@ describe("detectRecoverableBootstrap", () => {
       expect(launcher.endsWith("/skills/video-digest/extraction/run.mjs")).toBe(true);
       expect(fs.existsSync(launcher)).toBe(true);
       expect(dataDir).toBe(knowledgeData);
-      vi.stubEnv("CLAUDE_PLUGIN_DATA", "/home/u/.claude/plugins/data/codex-openai-codex");
+      vi.stubEnv("CLAUDE_PLUGIN_DATA", "/var/fixture/claude/plugins/data/codex-openai-codex");
       expect(formatRecoverCommand(tmp)).not.toContain("--data-dir");
       expect(formatRecoverCommand(tmp)).not.toContain("codex-openai-codex");
     } finally {
@@ -145,7 +145,7 @@ describe("detectRecoverableBootstrap", () => {
 
 describe("run.mjs hands its child only the resolved data dir", () => {
   const launcher = path.join(import.meta.dirname, "..", "run.mjs");
-  const codex = "/home/u/.claude/plugins/data/codex-openai-codex";
+  const codex = "/var/fixture/claude/plugins/data/codex-openai-codex";
 
   /** The recover command the CLI prints when run through the launcher with these args. */
   function recoverCommandVia(launcherArgs) {
@@ -164,7 +164,7 @@ describe("run.mjs hands its child only the resolved data dir", () => {
   }
 
   it("replaces an inherited value naming another plugin with the --data-dir value", () => {
-    const knowledge = "/home/u/.claude/plugins/data/knowledge-melodic-software";
+    const knowledge = "/var/fixture/claude/plugins/data/knowledge-melodic-software";
     const command = recoverCommandVia(["--data-dir", knowledge]);
     expect(command).toContain(`--data-dir "${knowledge}"`);
     expect(command).not.toContain("codex-openai-codex");

@@ -56,7 +56,7 @@ describe("parseRunArgs", () => {
   });
 
   it("extracts --data-dir alongside --work-root in either order", () => {
-    const data = "/home/u/.claude/plugins/data/knowledge-melodic-software";
+    const data = "/var/fixture/claude/plugins/data/knowledge-melodic-software";
     const expected = { dataDir: data, workRoot: "/proj", script: "watch/run-watch.js", rest: ["https://x"] };
     expect(parseRunArgs(["--data-dir", data, "--work-root", "/proj", "watch/run-watch.js", "https://x"])).toEqual(
       expected,
@@ -137,8 +137,8 @@ describe("buildChildEnv", () => {
 });
 
 describe("resolvePluginData", () => {
-  const knowledge = "C:/Users/u/.claude/plugins/data/knowledge-melodic-software";
-  const codex = "C:/Users/u/.claude/plugins/data/codex-openai-codex";
+  const knowledge = "C:/fixture/claude/plugins/data/knowledge-melodic-software";
+  const codex = "C:/fixture/claude/plugins/data/codex-openai-codex";
 
   it("prefers the flag over an inherited value naming another plugin", () => {
     expect(resolvePluginData(knowledge, { CLAUDE_PLUGIN_DATA: codex })).toBe(knowledge);
@@ -152,12 +152,12 @@ describe("resolvePluginData", () => {
   it("keeps an inherited value naming this plugin when no flag is given", () => {
     expect(resolvePluginData(undefined, { CLAUDE_PLUGIN_DATA: knowledge })).toBe(knowledge);
     expect(resolvePluginData(undefined, { CLAUDE_PLUGIN_DATA: `${knowledge}/` })).toBe(`${knowledge}/`);
-    const windows = "C:\\Users\\u\\.claude\\plugins\\data\\knowledge-inline";
+    const windows = "C:\\fixture\\claude\\plugins\\data\\knowledge-inline";
     expect(resolvePluginData(undefined, { CLAUDE_PLUGIN_DATA: windows })).toBe(windows);
   });
 
   it("does not take a prefix match for this plugin's name", () => {
-    const lookalike = "/home/u/.claude/plugins/data/knowledgebase-other";
+    const lookalike = "/var/fixture/claude/plugins/data/knowledgebase-other";
     expect(resolvePluginData(undefined, { CLAUDE_PLUGIN_DATA: lookalike })).toBeUndefined();
   });
 
