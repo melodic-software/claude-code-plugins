@@ -4,11 +4,26 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.19.1] - 2026-10-03
+## [0.19.2] - 2026-10-03
 
 ### Changed
 
 - Shared `prerequisites.sh`, `prerequisites.ps1` synced ([#5843](https://github.com/melodic-software/claude-code-plugins/issues/5843)); no change to this plugin's own behavior.
+
+## [0.19.1] - 2026-10-03
+
+### Fixed
+
+- **`video-digest` and `course-digest` install into and load from the knowledge plugin's own data
+  directory, whatever `CLAUDE_PLUGIN_DATA` the Bash tool's shell holds.** Another plugin's
+  SessionStart hook can export its own data directory under that name for every Bash call, and
+  `setup-deps.mjs` installed the extraction dependencies there. `run.mjs` and `setup-deps.mjs`
+  now take a leading `--data-dir`, which every documented command passes as
+  `"${CLAUDE_PLUGIN_DATA}"` (or `"<plugin-data>"` in the spoke files). Without the flag they
+  accept an inherited value only when it names this plugin, and `setup-deps.mjs` stops before
+  writing anything when no directory resolves. The pre-computed dependency checks read the
+  substituted path, and the bootstrap recovery command names the launcher by absolute path with
+  the resolved `--data-dir`.
 
 ## [0.19.0] - 2026-10-02
 
