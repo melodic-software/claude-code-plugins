@@ -8,7 +8,7 @@
 # against the LIVE repo — the derived shared-lib copy set and the real no-suite
 # list — because a synthetic fixture cannot show that the derivation still
 # tracks reality, which is the whole failure mode this tool exists to avoid.
-# test-scope: scripts/affected-tests* scripts/sync-*.sh scripts/lib/sync-*.sh .github/workflows/ci.yml
+# test-scope: scripts/affected-tests* scripts/sync-*.sh .github/workflows/ci.yml
 # test-scope: plugins/github/skills/advise/S*.md plugins/planning/skills/interview/S*.md
 # test-scope: plugins/autonomy/reference/*.md
 set -uo pipefail
@@ -697,10 +697,6 @@ rm -rf "$repo" "$marker"
 for src in lib/hook-utils.sh lib/parse-concern-value.sh docs/conventions/standards/README.md; do
   derived="$(cd "$REPO_ROOT" && bash scripts/affected-tests.sh --print-fanout "$src" 2>/dev/null | sort)"
   manifest="scripts/sync-shared-copies.sh"
-  case "$src" in
-  lib/hook-utils.sh) manifest="scripts/sync-hook-utils.sh" ;;
-  *) ;;
-  esac
   expected="$(cd "$REPO_ROOT" && bash "$manifest" --print-manifest | awk -F '\t' -v s="$src" '$1=="src"{on=($2==s)} on && $1=="copy" && $2!=""{print $2}' | while IFS= read -r pat; do
     if [[ -e "$pat" ]]; then
       printf '%s\n' "$pat"
