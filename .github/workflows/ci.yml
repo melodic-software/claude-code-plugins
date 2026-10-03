@@ -1512,6 +1512,37 @@ jobs:
           fi
           scripts/check-vendor-version-bump.sh --check-bump "origin/$BASE_REF"
 
+      - name: Validate marketplace manifest
+        id: marketplace_schema
+        if: needs.scope.outputs.run_manifests == 'true'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        with:
+          schemafile: https://json.schemastore.org/claude-code-marketplace.json
+          files: .claude-plugin/marketplace.json
+      - name: Validate plugin manifests
+        id: plugin_schema
+        if: needs.scope.outputs.run_manifests == 'true'
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        with:
+          schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
+          files: plugins/*/.claude-plugin/plugin.json
+
+      # JSON Schema validates the ALREADY-PARSED document, so it structurally
+      # cannot see a duplicate object key -- by the time a schema runs, the
+      # earlier member is already gone (every JSON parser resolves a repeated
+      # key last-wins). #1492 shipped plugins/skill-quality/.claude-plugin/
+      # plugin.json with two "version" members through this exact schema step
+      # green. scripts/check-manifest-duplicate-keys.py reads the raw
+      # key/value pairs via object_pairs_hook, BEFORE that collapse, so it
+      # catches what the schema step next to it cannot. See #1498.
+      - name: Detect duplicate keys in plugin/marketplace manifests
+        id: duplicate_keys
+        if: needs.scope.outputs.run_manifests == 'true'
+        continue-on-error: true
+        run: python3 scripts/check-manifest-duplicate-keys.py
+
       # The root npm install, for the steps below that read it: htmlhint and the
       # claude CLI from node_modules/.bin, and node for the launcher resolver,
       # the prerequisite gate and the counter ceilings. Gated like those steps,
@@ -1841,36 +1872,6 @@ jobs:
           bash scripts/hook-census.sh --versions
           python3 plugins/performance/scripts/ratchet.py check --file .performance/ratchets.json
 
-      - name: Validate marketplace manifest
-        id: marketplace_schema
-        if: needs.scope.outputs.run_manifests == 'true'
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
-        with:
-          schemafile: https://json.schemastore.org/claude-code-marketplace.json
-          files: .claude-plugin/marketplace.json
-      - name: Validate plugin manifests
-        id: plugin_schema
-        if: needs.scope.outputs.run_manifests == 'true'
-        continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
-        with:
-          schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
-          files: plugins/*/.claude-plugin/plugin.json
-
-      # JSON Schema validates the ALREADY-PARSED document, so it structurally
-      # cannot see a duplicate object key -- by the time a schema runs, the
-      # earlier member is already gone (every JSON parser resolves a repeated
-      # key last-wins). #1492 shipped plugins/skill-quality/.claude-plugin/
-      # plugin.json with two "version" members through this exact schema step
-      # green. scripts/check-manifest-duplicate-keys.py reads the raw
-      # key/value pairs via object_pairs_hook, BEFORE that collapse, so it
-      # catches what the schema step next to it cannot. See #1498.
-      - name: Detect duplicate keys in plugin/marketplace manifests
-        id: duplicate_keys
-        if: needs.scope.outputs.run_manifests == 'true'
-        continue-on-error: true
-        run: python3 scripts/check-manifest-duplicate-keys.py
       - name: Report not applicable to a docs-only diff
         if: needs.scope.outputs.run_tests == 'false'
         run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the manifest schemas and duplicate-key detector, the plugin validation, the shared-library sync gates and the counter ceilings cannot be affected — reporting success."
