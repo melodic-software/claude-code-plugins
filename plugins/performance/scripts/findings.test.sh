@@ -325,4 +325,46 @@ assert_eq "a streamed message's tokens count once, last record wins" "27" "$(q .
 run transcript-counts "$WORK/missing.jsonl"
 assert_eq "a missing transcript is an input error" "2" "$RUN_RC"
 
+# --- 18. run-start / add / finish: the sweeper builds its findings file without a Write tool (R4) ---
+DR="$WORK/data/runs-test"
+capture env GO_FASTER_NOW="$T0" "$HARNESS_PYTHON" "$FINDINGS" run-start --data "$DR" --session s1 --mode unattended --session-evidence false
+assert_eq "run-start exits 0" "0" "$RUN_RC"
+RUN_DIR="$RUN_OUT"
+# The interpreter prints the native spelling of the path, so compare the part it owns.
+assert_contains "run-start prints a per-run directory under runs/" "runs-test/runs/$(date -u -d "@$T0" +%Y%m%dT%H%M%SZ)" "$RUN_DIR"
+assert_contains "the run header records the mode" '"mode": "unattended"' "$(cat "$RUN_DIR/findings.json")"
+capture "$HARNESS_PYTHON" "$FINDINGS" add --run "$RUN_DIR" <<<"$(measured git-1 git elapsed-ms 120)"
+assert_eq "a valid finding is added" "0" "$RUN_RC"
+capture "$HARNESS_PYTHON" "$FINDINGS" add --run "$RUN_DIR" <<<'{"id":"hooks-1","key":"hooks/x","area":"hooks","title":"t","status":"not-checked"}'
+assert_eq "an invalid finding is refused" "1" "$RUN_RC"
+assert_contains "the refusal names the rule" "hooks-1: reason required" "$RUN_OUT"
+assert_not_contains "a refused finding is not written" "hooks-1" "$(cat "$RUN_DIR/findings.json")"
+capture "$HARNESS_PYTHON" "$FINDINGS" add --run "$RUN_DIR" <<<"$(measured git-1 git elapsed-ms 99)"
+assert_contains "a duplicate id is refused" "git-1: duplicate id" "$RUN_OUT"
+run finish --run "$RUN_DIR"
+assert_eq "finish refuses a run that leaves areas uncovered" "1" "$RUN_RC"
+assert_contains "finish names the uncovered area" "area not covered: hooks" "$RUN_OUT"
+for area in "${AREAS[@]}"; do
+  [[ "$area" == git ]] || "$HARNESS_PYTHON" "$FINDINGS" add --run "$RUN_DIR" <<<"$(not_checked "$area")" >/dev/null
+done
+run finish --run "$RUN_DIR"
+assert_eq "finish succeeds once every area is covered" "0" "$RUN_RC"
+assert_eq "finish prints the report path" "$RUN_DIR/report.md" "$RUN_OUT"
+assert_contains "the report reflects the header" "No session evidence yet: setup scan only." "$(cat "$RUN_DIR/report.md")"
+
+# --- 19. status-timing: git status under trace2, the trace kept in the data folder (R6) ---
+REPO="$WORK/repo"
+mkdir -p "$REPO"
+git -C "$REPO" init -q
+DT="$WORK/data/timing"
+capture bash -c "cd '$REPO' && '$HARNESS_PYTHON' '$FINDINGS' status-timing --data '$DT' --runs 3"
+assert_eq "status-timing exits 0 in a repository" "0" "$RUN_RC"
+assert_eq "one sample per run" "3" "$(jq '.samples_ms | length' <<<"$RUN_OUT")"
+assert_eq "every sample is a positive duration" "true" "$(jq '[.samples_ms[] | . > 0] | all' <<<"$RUN_OUT")"
+assert_eq "the label says no index refresh" "status without index refresh" "$(jq -r .label <<<"$RUN_OUT")"
+assert_contains "the git version is recorded" "." "$(jq -r .git_version <<<"$RUN_OUT")"
+assert_eq "the trace is kept in the data folder" "yes" "$([[ -s "$DT/trace2-status.txt" ]] && echo yes || echo no)"
+capture bash -c "cd '$WORK' && '$HARNESS_PYTHON' '$FINDINGS' status-timing --data '$DT' --runs 1"
+assert_eq "outside a repository it is an input error" "2" "$RUN_RC"
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1

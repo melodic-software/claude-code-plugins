@@ -3,6 +3,10 @@
 The sweeper agent has no Write tool, so each file go-faster keeps is written here, under the data
 folder passed as a literal argument. Subcommands:
 
+    run-start --data <dir> --session <id> --mode attended|unattended --session-evidence true|false
+                                        create runs/<UTC-stamp>/findings.json, print the run dir
+    add --run <run-dir>                 append the finding(s) on stdin; refuse any that break a rule
+    finish --run <run-dir>              validate the whole run, write report.md, print its path
     validate <findings.json>            exit 1 naming each rule a finding breaks
     rank <findings.json>                one `<section>\t<id>` line per finding, in report order
     render <findings.json>              the markdown report
@@ -12,9 +16,10 @@ folder passed as a literal argument. Subcommands:
     adopted --data <dir> --session <id> this session's adoptions, one JSON object per line
     compare --data <dir> --findings <findings.json> --id <id>
     transcript-counts <transcript.jsonl>
+    status-timing --data <dir> [--runs N]  time git status in the current repository via trace2
 
-Field names are the contract in the skill's reference/finding-record.md. Exit 0 is success, 1 a
-refusal the caller acts on (an invalid file, a held lock), 2 a usage or input error.
+Field names are the finding record in agents/go-faster-sweeper.md. Exit 0 is success, 1 a refusal
+the caller acts on (an invalid finding, a held lock), 2 a usage or input error.
 """
 
 from __future__ import annotations
@@ -23,6 +28,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -603,7 +609,7 @@ def transcript_counts(path: Path) -> dict:
                 continue
             if block.get("type") == "tool_use" and block.get("id") not in uses:
                 name, args = str(block.get("name")), block.get("input") or {}
-                uses[block.get("id")] = (name, stamp)
+                uses[str(block.get("id"))] = (name, stamp)
                 tool = tools.setdefault(name, {"calls": 0, "errors": 0, "wait_ms": 0})
                 tool["calls"] += 1
                 if name == "Read" and isinstance(args.get("file_path"), str):
@@ -638,6 +644,109 @@ def cmd_transcript_counts(args: argparse.Namespace) -> int:
     if not path.is_file():
         die(f"no transcript at {path}")
     print(json.dumps(transcript_counts(path), indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_run_start(args: argparse.Namespace) -> int:
+    stamp = datetime.fromtimestamp(now(), timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    run = Path(args.data).resolve() / "runs" / stamp
+    header = {
+        "schema": 1,
+        "session_id": args.session,
+        "started_at": iso(now()),
+        "mode": args.mode,
+        "session_evidence": args.session_evidence == "true",
+        "findings": [],
+    }
+    if not write_json(run / "findings.json", header, exclusive=True):
+        die(f"{run} already exists")
+    print(run.as_posix())
+    return 0
+
+
+def cmd_add(args: argparse.Namespace) -> int:
+    path = Path(args.run) / "findings.json"
+    doc = load(str(path))
+    try:
+        new = json.loads(sys.stdin.read())
+    except ValueError as exc:
+        die(f"stdin is not JSON: {exc}")
+    new = new if isinstance(new, list) else [new]
+    have = {f.get("id") for f in doc["findings"]}
+    errors = []
+    for f in new:
+        if not isinstance(f, dict):
+            errors.append("a finding is not an object")
+            continue
+        errors += finding_errors(f)
+        if f.get("id") in have:
+            errors.append(f"{f.get('id')}: duplicate id")
+        have.add(f.get("id"))
+    if errors:
+        print("\n".join(errors))
+        return 1
+    doc["findings"] += new
+    write_json(path, doc)
+    print(f"added {len(new)}")
+    return 0
+
+
+def cmd_finish(args: argparse.Namespace) -> int:
+    run = Path(args.run)
+    doc = load(str(run / "findings.json"))
+    errors = doc_errors(doc)
+    if errors:
+        print("\n".join(errors))
+        return 1
+    report = run / "report.md"
+    report.write_text(render(doc), encoding="utf-8", newline="\n")
+    print(report.as_posix())
+    return 0
+
+
+def cmd_status_timing(args: argparse.Namespace) -> int:
+    """Time `git status` with no index refresh, from git's own trace2 perf stream (R6)."""
+    probe = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"], capture_output=True, text=True
+    )
+    if probe.returncode != 0:
+        die("not inside a git repository")
+    trace = Path(args.data).resolve() / "trace2-status.txt"
+    trace.parent.mkdir(parents=True, exist_ok=True)
+    trace.unlink(missing_ok=True)
+    env = {**os.environ, "GIT_TRACE2_PERF": str(trace)}
+    for _ in range(args.runs):
+        subprocess.run(
+            ["git", "--no-optional-locks", "status", "--porcelain"],
+            env=env,
+            stdout=subprocess.DEVNULL,
+            check=True,
+        )
+    if not trace.is_file() or not trace.stat().st_size:
+        die(f"git wrote no trace to {trace}")
+    samples, version = [], ""
+    for line in trace.read_text(encoding="utf-8", errors="replace").splitlines():
+        cols = [c.strip() for c in line.split("|")]
+        if len(cols) > 5 and cols[3] == "version":
+            version = cols[-1]
+        if len(cols) > 5 and cols[3] == "atexit" and cols[1] == "d0":
+            samples.append(round(float(cols[5]) * 1000, 3))
+    ordered = sorted(samples)
+    print(
+        json.dumps(
+            {
+                "label": "status without index refresh",
+                "command": "git --no-optional-locks status --porcelain",
+                "git_version": version,
+                "samples_ms": samples,
+                "median_ms": ordered[len(ordered) // 2] if ordered else None,
+                "min_ms": ordered[0] if ordered else None,
+                "max_ms": ordered[-1] if ordered else None,
+                "trace": trace.as_posix(),
+            },
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -678,6 +787,22 @@ def main() -> int:
     p.add_argument("--findings", required=True)
     p.add_argument("--id", required=True)
     p.set_defaults(fn=cmd_compare)
+    p = sub.add_parser("run-start")
+    p.add_argument("--data", required=True)
+    p.add_argument("--session", required=True)
+    p.add_argument("--mode", required=True, choices=("attended", "unattended"))
+    p.add_argument("--session-evidence", required=True, choices=("true", "false"))
+    p.set_defaults(fn=cmd_run_start)
+    p = sub.add_parser("add")
+    p.add_argument("--run", required=True)
+    p.set_defaults(fn=cmd_add)
+    p = sub.add_parser("finish")
+    p.add_argument("--run", required=True)
+    p.set_defaults(fn=cmd_finish)
+    p = sub.add_parser("status-timing")
+    p.add_argument("--data", required=True)
+    p.add_argument("--runs", type=int, default=5)
+    p.set_defaults(fn=cmd_status_timing)
     p = sub.add_parser("lint-catalog")
     p.add_argument("paths", nargs="+")
     p.set_defaults(fn=cmd_lint_catalog)
