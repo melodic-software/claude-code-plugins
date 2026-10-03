@@ -866,6 +866,18 @@ assert_eq "the env override is not fallen back from" "4" "$RC"
 assert_contains "the env override is used verbatim" "$OUT" "lane config not found: $TMP/nowhere.json"
 rm -rf "${REPO:?}/.work"
 
+# --- Another plugin's data dir is never used for the ledger --------------------
+# Another plugin's SessionStart hook can export its own data dir into every Bash
+# call as CLAUDE_PLUGIN_DATA.
+FOREIGN="$TMP/codex-openai-codex"
+: >"$LAUNCH_LOG"
+HOME="$TMP/home-foreign" CLAUDE_PLUGIN_DATA="$FOREIGN" bash "$SCRIPT" run --config "$CONFIG" --repo "$REPO" \
+  --target-repo "owner/name" --launcher "$LAUNCHER" --no-telemetry --now 1800000000 \
+  --telemetry-json "$TEL" --agents-json "$AGENTS_NONE" >/dev/null 2>&1
+assert_eq "a foreign CLAUDE_PLUGIN_DATA gets no ledger" "absent" "$([[ -e "$FOREIGN" ]] && echo present || echo absent)"
+assert_eq "the ledger falls back to the home data dir" "1" \
+  "$(find "$TMP/home-foreign/.claude/plugins/data/harness-ops/lanes" -name 'restart-consumer.jsonl' 2>/dev/null | wc -l | tr -d ' ')"
+
 # --- Summary -----------------------------------------------------------------
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
 ((FAILED == 0)) || exit 1

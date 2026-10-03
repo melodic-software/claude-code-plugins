@@ -1,5 +1,5 @@
 ---
-description: "Faithfully clarify a dense, decision-heavy message so the reader can act on it. Chunk it into one-decision-at-a-time, define the session's own jargon, and surface exactly what the reader must decide, with operative terms quoted verbatim and no loss of precision. Decision-dense content gets an HTML decision table with numbered rows. Use when: 'make this clear', 'clarify this', 'help me digest this', 'break this down', 'I can't parse this', 'what am I actually deciding here', 'this is a wall of text'. Empty argument targets the previous assistant response. This changes STRUCTURE, not altitude and not medium. A lossy plain-language drop is education:explain (if installed) instead; a picture explainer (a diagram, ELI5) is education:eli5 (if installed). Sibling to adhd:shape, a standing session-wide posture; this is a one-shot reshape of one artifact."
+description: "Faithfully clarify a dense, decision-heavy message so the reader can act on it. Chunk it into one-decision-at-a-time, define the session's own jargon, and surface exactly what the reader must decide, with operative terms quoted verbatim and no loss of precision. Decision-dense content gets an HTML decision table with numbered rows. Use when: 'make this clear', 'clarify this', 'help me digest this', 'break this down', 'I can't parse this', 'what am I actually deciding here', 'this is a wall of text'. Empty argument targets the previous assistant response. This changes STRUCTURE, not altitude and not medium. A lossy plain-language drop is education:explain (if installed) instead; a picture explainer (a diagram, ELI5) is education:illustrate (if installed). Sibling to adhd:shape, a standing session-wide posture; this is a one-shot reshape of one artifact."
 argument-hint: "[artifact to clarify]"
 user-invocable: true
 disable-model-invocation: false
@@ -223,10 +223,10 @@ accessibility, and it climbs back up only on request. This skill holds altitude
 **fixed** and changes *arrangement*: same precision, same reading level, made
 clear by reorganizing.
 
-**vs `education:eli5`, structure, not medium.** `eli5` changes what the
-explanation *is*: a visual explainer that assumes zero prior knowledge, one idea
-per diagram, minimal text. Its floor does not climb the way `explain`'s does. This
-skill stays in the artifact's own medium and its own words.
+**vs `education:illustrate`, structure, not medium.** `illustrate` changes what the
+explanation *is*: a visual explainer, one idea per diagram, with a zero-knowledge
+preset for "ELI5". It does not climb a ladder the way `explain` does. This skill
+stays in the artifact's own medium and its own words.
 
 **vs `discipline:wait-what`, shape, not re-pitch.** `wait-what` is the reader's own
 stop signal, fired by the human when one message did not land: it backs up, adds the
@@ -237,9 +237,9 @@ never given; use this when the premise is all on the page and the decisions are 
 
 The three-way routing rule: "I don't get it / explain simply / what does this
 mean" is a comprehension gap → `explain`; "ELI5 / draw me this / show me a
-diagram" is a request for a picture → `eli5`; "make this clear / clarify this /
+diagram" is a request for a picture → `illustrate`; "make this clear / clarify this /
 what am I deciding" is a structure problem → this skill. For the first two, hand
-off by invoking `/education:explain` or `/education:eli5` via the Skill tool (if
+off by invoking `/education:explain` or `/education:illustrate` via the Skill tool (if
 the `education` plugin is installed, which owns both altitude and medium as
 concerns); when it is not, say which of the two the ask actually wants and give a
 faithful restructure, which is this skill's own job either way.
@@ -276,7 +276,7 @@ long, decision-heavy responses with no glossary, locators, or table).
 - **Not a simplifier.** Altitude stays fixed. Lowering it is
   `education:explain`.
 - **Not a picture.** Medium stays fixed too. A diagram or an ELI5-style visual
-  explainer is `education:eli5`.
+  explainer is `education:illustrate`.
 - **Not a summarizer.** It keeps every decision; it does not compress the artifact
   to its gist.
 - **Not a standing output posture.** It reshapes one artifact once; the

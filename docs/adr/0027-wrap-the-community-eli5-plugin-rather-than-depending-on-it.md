@@ -1,6 +1,8 @@
 # Wrap the community `eli5` plugin rather than depending on it or reimplementing it
 
-- Status: accepted
+- Status: superseded. `education:eli5` is now `education:illustrate`, which builds every page
+  through a checked-in builder and never delegates to the community `eli5` plugin, because that
+  plugin's page does not pass through the escape helper.
 - Date: 2026-09-01
 
 ## Context

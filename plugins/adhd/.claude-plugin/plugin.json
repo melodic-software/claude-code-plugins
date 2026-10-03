@@ -1,6 +1,6 @@
 {
   "name": "adhd",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "description": "Shapes assistant output for a reader with ADHD: action-first and low-friction. adhd:shape is a standing session posture: lead with the next action, number steps, restate state across turns, cap and rank lists, give time estimates, cut preamble. adhd:clarify reshapes one dense, decision-heavy message: one decision at a time, jargon defined, operative terms quoted verbatim, with an HTML decision table for big content. Reauthored in part from ayghri/i-have-adhd (MIT).",
   "author": {
     "name": "Melodic Software",

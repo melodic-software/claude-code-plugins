@@ -498,8 +498,8 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 # Sync-manifest derivation (R5/R6)
 # ---------------------------------------------------------------------------
 
-# Published --print-manifest format (scripts/lib/sync-cluster.sh,
-# scripts/sync-shared-copies.sh), one block per canonical source:
+# Published --print-manifest format (scripts/sync-shared-copies.sh), one
+# block per canonical source:
 #   src<TAB><path>     opens a block; empty path means the key was declared blank
 #   copy<TAB><path>    zero or more per block; path may still be a glob
 # A script that does not implement the flag (usage on stderr, empty stdout) or

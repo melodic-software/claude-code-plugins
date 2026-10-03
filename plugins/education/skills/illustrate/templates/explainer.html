@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Explainer</title>
+<style>
+/* One reading column: the answer, then one picture per idea, then the words and the sources. */
+:root {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --fg: #1b2330;
+  --muted: #566173;
+  --line: #d6dce4;
+  --accent: #2b59c3;
+  --box: #e6ecf8;
+  --sans: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme=light]) {
+    --bg: #12161d;
+    --surface: #1a2029;
+    --fg: #e4e9f0;
+    --muted: #9aa5b5;
+    --line: #2c3542;
+    --accent: #86a8f0;
+    --box: #233150;
+    color-scheme: dark;
+  }
+}
+:root[data-theme=dark] {
+  --bg: #12161d;
+  --surface: #1a2029;
+  --fg: #e4e9f0;
+  --muted: #9aa5b5;
+  --line: #2c3542;
+  --accent: #86a8f0;
+  --box: #233150;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 var(--sans); }
+.page { max-width: 46rem; margin: 0 auto; padding: 0 16px; padding-block: 2rem 3rem; display: grid; gap: 1.5rem; }
+h1 { margin: 0 0 0.5rem; font-size: 1.7rem; line-height: 1.2; text-wrap: balance; }
+h2 { margin: 0; font-size: 1.15rem; }
+p { margin: 0; max-width: 65ch; }
+.lede { display: grid; gap: 0.5rem; font-size: 1.05rem; }
+.meta { color: var(--muted); font-size: 0.9rem; }
+code { font-family: var(--mono); font-size: 0.85em; overflow-wrap: anywhere; }
+.pictures { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; }
+.picture { display: grid; gap: 0.75rem; padding: 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.flow, .stack { list-style: none; margin: 0; padding: 0; display: flex; gap: 0.5rem; }
+.flow { flex-wrap: wrap; align-items: center; }
+.stack { flex-direction: column; align-items: stretch; }
+.flow:empty, .stack:empty { display: none; }
+.step { display: flex; align-items: center; gap: 0.5rem; }
+.flow .step:first-child .arrow, .stack .arrow { display: none; }
+.arrow { color: var(--accent); font-weight: 700; }
+.box { padding: 0.5rem 0.75rem; border: 1px solid var(--accent); border-radius: 6px; background: var(--box); }
+.stack .box { flex: 1 1 auto; }
+.caption { font-weight: 600; }
+.caption:empty { display: none; }
+.text { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; color: var(--muted); }
+.text:empty { display: none; }
+.unclear { display: flex; gap: 0.4rem; align-items: center; font-size: 0.85rem; color: var(--muted); }
+.unclear input { width: 1rem; height: 1rem; accent-color: var(--accent); }
+details { padding: 0.75rem 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+details:has(.list:empty) { display: none; }
+summary { cursor: pointer; font-weight: 600; }
+.list { margin: 0.75rem 0 0; padding-left: 1.2rem; display: grid; gap: 0.35rem; }
+.terms { list-style: none; padding: 0; }
+.term { font-weight: 600; }
+.bar { display: flex; margin-top: 0.75rem; }
+.bar input { flex: 1 1 auto; min-width: 0; padding: 0.45rem 0.6rem; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); font: inherit; }
+.reply { display: grid; gap: 0.6rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.reply textarea { min-height: 4.5rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); font: inherit; resize: vertical; }
+.actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+button { padding: 0.5rem 0.9rem; border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); color: var(--bg); font: inherit; font-weight: 600; cursor: pointer; }
+button + button { background: transparent; color: var(--accent); }
+button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.status { min-height: 1.5em; color: var(--muted); }
+.out { margin: 0; padding: 0.75rem; overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; font-family: var(--mono); font-size: 0.85rem; }
+@media (prefers-reduced-motion: reduce) { * { transition: none; animation: none; } }
+</style>
+</head>
+<body>
+<main class="page">
+<header>
+<h1 data-rv-text="title">Explainer</h1>
+<div class="lede" data-rv-each="summary"><p data-rv-text="line"></p></div>
+<p class="meta"><span data-rv-count="diagrams">0</span> pictures, one idea each.</p>
+</header>
+<ol class="pictures" data-rv-each="diagrams"><li class="picture">
+<h2 data-rv-text="heading"></h2>
+<ol class="flow" data-rv-each="flow"><li class="step"><span class="arrow">→</span><span class="box" data-rv-text="step"></span></li></ol>
+<ol class="stack" data-rv-each="stack"><li class="step"><span class="arrow">↓</span><span class="box" data-rv-text="step"></span></li></ol>
+<p class="caption" data-rv-text="caption"></p>
+<ul class="text" data-rv-each="text"><li data-rv-text="line"></li></ul>
+<label class="unclear"><input type="checkbox" data-rv-pick="">Still unclear</label>
+</li></ol>
+<details open>
+<summary>Words used here</summary>
+<div class="bar"><input id="find" type="search" placeholder="Find a word" aria-label="Find a word" data-rv-filter="terms"></div>
+<ul class="list terms" data-rv-each="terms"><li><span class="term" data-rv-text="term"></span>: <span data-rv-text="plain"></span></li></ul>
+</details>
+<details>
+<summary>Where this came from</summary>
+<ol class="list" data-rv-each="sources"><li><code data-rv-text="source"></code></li></ol>
+</details>
+<section class="reply">
+<h2>Ask about what is still unclear</h2>
+<label for="question">Tick each picture that is still unclear, and add a question if you have one.</label>
+<textarea id="question" data-rv-note="question" placeholder="What I still do not get"></textarea>
+<div class="actions">
+<button type="button" data-rv-copy="illustrate">Copy reply</button>
+<button type="button" data-rv-download="illustrate">Save as file</button>
+</div>
+<p class="status" role="status" data-rv-status=""></p>
+<pre class="out" data-rv-out="" hidden></pre>
+</section>
+</main>
+</body>
+</html>

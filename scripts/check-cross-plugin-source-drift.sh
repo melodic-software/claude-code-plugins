@@ -14,7 +14,7 @@
 #                                                        identical
 #
 # This does not replace a cluster's own dedicated drift check --
-# scripts/sync-hook-utils.sh stays authoritative for hooks/hook-utils.sh,
+# scripts/sync-shared-copies.sh stays authoritative for hooks/hook-utils.sh,
 # scripts/validate-plugin-contracts.mjs for reference/artifact-protocol.md.
 # This script's job is the one neither of those can do: notice when a NEW
 # shared-copy pattern appears with no dedicated check yet. Register a cluster in

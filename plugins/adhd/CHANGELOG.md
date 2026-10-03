@@ -3,6 +3,12 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.6] - 2026-10-03
+
+### Changed
+
+- `clarify` routes a picture request ("ELI5", "draw me this") to `education:illustrate`, which replaces `education:eli5`.
+
 ## [0.5.5] - 2026-10-02
 
 ### Fixed

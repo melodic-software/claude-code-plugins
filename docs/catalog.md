@@ -125,7 +125,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 
 ## Learning
 
-- [`education`](../plugins/education): Learning tools. teach is a multi-session coach for a general subject or a repo-grounded concept through the Knowledge-Skills-Wisdom progression, with persistent per-topic state, and also a single-session domain primer. explain is a one-shot plain-language explainer. eli5 answers as a diagram-led HTML artifact for someone new to the topic. quiz-me checks your comprehension of a completed change. setup validates the plugin's configuration.
+- [`education`](../plugins/education): Learning tools. teach is a multi-session coach for a general subject or a repo-grounded concept through the Knowledge-Skills-Wisdom progression, with persistent per-topic state, and also a single-session domain primer. explain is a one-shot plain-language explainer. illustrate explains a concept or codebase topic as diagrams: a markdown record plus an interactive page. quiz-me checks your comprehension of a completed change. setup validates the plugin's configuration.
 
 ## Visual Arts
 
@@ -137,7 +137,7 @@ plugin manifests and kept in sync by CI. Never hand-edit it; the category vocabu
 
 - [`songwriting`](../plugins/songwriting): Songwriting craft companion: nine concern-scoped lyric-craft skills (workflow router, rhyme, object-writing, metaphor, meter-prosody, song-form, co-write, diagnose, practice) applying Pat Pattison's methods, with an object-writing agent that performs the sensory exercise itself and per-skill emission boundaries that route generation to the skill that owns it, plus Suno v5.5 prompt engineering (style prompts, tagged lyrics, genre templates, troubleshooting).
 - [`retro-audio`](../plugins/retro-audio): Renders retro sound effects and short chiptune loops to WAV with the Python standard library only: an sfxr-style parameter model and an MML subset with Game Boy and NES pulse duties and channel limits for Game Boy, NES, and PICO-8 (four channels, one noise part). Another plugin can play the WAV; this one does not read that plugin's files.
-- [`speech`](../plugins/speech): Text-to-speech narration. The narrate skill turns a script into narration.wav plus words.json, a start and end time for every word. The kokoro backend runs Kokoro-82M (Apache-2.0) locally through onnxruntime, with timings from the model's own durations. espeak-ng (GPL-3.0) is installed by you, never by the plugin. A SessionStart hook installs the locked Python packages, setup downloads the pinned model files, and check reports each missing prerequisite.
+- [`speech`](../plugins/speech): Text-to-speech narration. The narrate skill turns a script into narration.wav plus words.json, a start and end time for every word. The default kokoro backend runs Kokoro-82M locally with onnxruntime. The optional elevenlabs backend sends the text to the third-party ElevenLabs API (ELEVENLABS_API_KEY) after showing a cost estimate; an organization can forbid it. You install espeak-ng (GPL-3.0). A hook installs the Python packages; setup downloads the models; check reports missing prerequisites.
 
 ## Personal
 

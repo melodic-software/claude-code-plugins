@@ -40,7 +40,8 @@
 #   --lane NAME          restrict to this lane (repeatable). Default: every lane
 #                        in the config.
 #   --data-dir DIR       base dir for the run ledger; default $CLAUDE_PLUGIN_DATA
-#                        env var if set, else ~/.claude/plugins/data/harness-ops.
+#                        env var if it names harness-ops, else
+#                        ~/.claude/plugins/data/harness-ops.
 #                        NOTE: CLAUDE_PLUGIN_DATA reaches hook and MCP/LSP
 #                        subprocesses as a real env var but NOT a script a skill
 #                        shells out to via the Bash tool (Claude Code
@@ -458,8 +459,20 @@ resolve_target_repo() {
   }
 }
 
+# Base data dir: --data-dir, else $CLAUDE_PLUGIN_DATA when its last path segment
+# names this plugin (another plugin's SessionStart hook can export its own data
+# dir under that name), else ~/.claude/plugins/data/harness-ops.
 resolve_data_dir() {
-  local base="${DATA_DIR_OVERRIDE:-${CLAUDE_PLUGIN_DATA:-$HOME/.claude/plugins/data/harness-ops}}"
+  local base="$DATA_DIR_OVERRIDE" seg="${CLAUDE_PLUGIN_DATA:-}"
+  if [[ -z "$base" ]]; then
+    seg="${seg%[/\\]}"
+    seg="${seg##*[/\\]}"
+    if [[ "$seg" == harness-ops || "$seg" == harness-ops-* ]]; then
+      base="$CLAUDE_PLUGIN_DATA"
+    else
+      base="$HOME/.claude/plugins/data/harness-ops"
+    fi
+  fi
   printf '%s/lanes' "${base%/}"
 }
 
