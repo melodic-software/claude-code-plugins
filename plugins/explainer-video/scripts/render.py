@@ -54,6 +54,13 @@ def clipped(box, frame_w, frame_h, margin=MARGIN):
     return on_screen and past
 
 
+def probed_duration(probe):
+    try:
+        return float(probe['format']['duration'])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
 def stream_defects(probe, expected, fps, animations):
     """ffprobe's JSON against the scene's timeline. A frame of rounding per animation is allowed."""
     streams = probe.get('streams', [])
@@ -63,9 +70,8 @@ def stream_defects(probe, expected, fps, animations):
         defects.append(f'expected one video stream, ffprobe found {len(video)}')
     if any(s.get('codec_type') == 'audio' for s in streams):
         defects.append('the file has an audio stream; this render is meant to be silent (remove add_sound)')
-    try:
-        duration = float(probe['format']['duration'])
-    except (KeyError, TypeError, ValueError):
+    duration = probed_duration(probe)
+    if duration is None:
         return defects + ['ffprobe reports no duration']
     tolerance = (animations + 1) / fps
     if duration <= 0 or abs(duration - expected) > tolerance:
@@ -233,12 +239,13 @@ def main(argv=None):
         if cp['tops'] and blank(path):
             defects.append(f'the frame at {cp["t"]:.2f} s is blank while {len(cp["tops"])} element(s) are on screen')
 
+    probed = probed_duration(probe)
     report = {'scene': a.scene_class, 'quality': a.quality, 'video': str(final),
-              'duration': {'timeline': round(expected, 3), 'ffprobe': float(probe.get('format', {}).get('duration', 0))},
+              'duration': {'timeline': round(expected, 3), 'ffprobe': probed},
               'animations': len(checkpoints), 'frames': frames, 'defects': defects,
               'status': 'defect' if defects else 'pass'}
     (out / 'report.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
-    print(f'{report["status"].upper()}: {final} ({report["duration"]["ffprobe"]:.2f} s, {len(checkpoints)} animations)')
+    print(f'{report["status"].upper()}: {final} ({probed} s, {len(checkpoints)} animations)')
     for d in defects:
         print(f'DEFECT: {d}')
     print('Read these frames:')
