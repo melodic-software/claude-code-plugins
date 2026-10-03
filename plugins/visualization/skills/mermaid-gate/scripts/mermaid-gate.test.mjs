@@ -55,6 +55,8 @@ test("structuralCheck accepts valid heads and names each defect", () => {
   assert.match(structuralCheck("flowcart TD\n  A-->B\n"), /line 1: unknown diagram type 'flowcart'/);
   assert.match(structuralCheck("flowchart TD\n  A[Start --> B\n"), /line 2: unbalanced '\['/);
   assert.match(structuralCheck("flowchart TD\n  A[\"x] --> B\n"), /line 2: unterminated double quote/);
+  assert.equal(structuralCheck("flowchart TD\n  A>text] --> B\n  C[a>b] --> D\n"), null);
+  assert.match(structuralCheck("flowchart TD\n  A>text --> B\n"), /line 2: unbalanced/);
   assert.match(structuralCheck("\n%% only a comment\n"), /empty/);
 });
 

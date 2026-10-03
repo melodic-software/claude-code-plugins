@@ -47,6 +47,24 @@ function bodyLines(source) {
     .filter(({ text }) => text.trim() && !text.trim().startsWith("%%"));
 }
 
+// `A>text]` is the asymmetric shape: a `>` outside any bracket and not part of an arrow opens a `]`.
+// Returns the bracket that is missing its partner, or null when the line balances.
+function unbalancedBracket(text) {
+  const closeOf = { "[": "]", "(": ")", "{": "}" };
+  const open = { "]": 0, ")": 0, "}": 0 };
+  let asymmetric = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (closeOf[c]) open[closeOf[c]]++;
+    else if (c in open) open[c]--;
+    else if (c === ">" && !"-=.".includes(text[i - 1] ?? "") && open["]"] === 0) asymmetric++;
+  }
+  open["]"] += asymmetric;
+  const close = Object.keys(open).find((k) => open[k] !== 0);
+  if (!close) return null;
+  return open[close] > 0 ? Object.keys(closeOf).find((o) => closeOf[o] === close) : close;
+}
+
 // Without mmdc there is no real parser, so this catches only what is certain: an unknown diagram
 // type, an unterminated quote, or unbalanced brackets in a flowchart.
 export function structuralCheck(source) {
@@ -60,10 +78,8 @@ export function structuralCheck(source) {
     if ((text.match(/"/g) ?? []).length % 2) return `line ${n}: unterminated double quote`;
     if (!flow) continue;
     const bare = text.replace(/"[^"]*"/g, "");
-    for (const [open, close] of ["[]", "()", "{}"]) {
-      const delta = bare.split(open).length - bare.split(close).length;
-      if (delta) return `line ${n}: unbalanced '${delta > 0 ? open : close}'`;
-    }
+    const unbalanced = unbalancedBracket(bare);
+    if (unbalanced) return `line ${n}: unbalanced '${unbalanced}'`;
   }
   return null;
 }
