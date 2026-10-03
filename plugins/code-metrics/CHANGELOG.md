@@ -3,6 +3,17 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1] - 2026-10-03
+
+### Fixed
+
+- The audits keep their report documents in code-metrics' own data directory, whatever
+  `CLAUDE_PLUGIN_DATA` the Bash tool's shell holds. Another plugin's SessionStart hook can export
+  its own data directory under that name for every Bash call, and the audits then wrote
+  `reports/` there and pruned `<skill>-*.json` files in it down to the newest 20. An inherited
+  value is now used only when it names code-metrics; otherwise the documents go to
+  `~/.claude/plugins/data/code-metrics/reports/`, where Bash-run audits kept them before.
+
 ## [0.5.0] - 2026-10-02
 
 ### Added
