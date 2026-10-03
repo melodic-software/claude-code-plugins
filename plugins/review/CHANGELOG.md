@@ -3,6 +3,32 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.37.0] - 2026-10-03
+
+### Added
+
+- **`/review:explain-change` explains one pull request ([#1217](https://github.com/melodic-software/claude-code-plugins/issues/1217)).**
+  The markdown digest (why, before and after, risk map, where to focus, annotated hunks) is the
+  record. `scripts/build-digest.mjs` builds an interactive view from the checked-in
+  `templates/digest.html` plus the digest as escaped JSON, through the shared view-builder's
+  interactive profile. The page filters files, collapses hunks, and copies or saves a reply that
+  holds only the reader's input and builder row ids. It writes outside the working tree and
+  refuses a path inside one.
+- **`digest_policy` decides when the digest runs unasked.** `scripts/digest-policy.mjs` reads
+  `gh pr view --json files,additions,deletions,labels` and resolves the new `review-digest`
+  cascade concern. `off` never runs it, `offer` (the default) offers it when more than 5 files or
+  200 changed lines, a HIGH or CRITICAL blast radius, a risk path, or the `explain-change` label
+  fires, and `always` builds it at the ready flip. A direct request always builds. It also
+  resolves the `rendered-views` `medium` key, with `file` as this lane's default.
+- **The digest never posts.** The skill grants no tool that comments, reviews, labels, or sets a
+  check status, and its scripts never call `gh`.
+
+### Changed
+
+- **`/review:pr-explainer` is a one-release stub** that names `/review:explain-change`. Its
+  report-profile builder `build-explainer.mjs` is removed, and `tests/pr-explainer-chrome.test.sh`
+  becomes `tests/explain-change-chrome.test.sh`, checking the new template's chrome tokens.
+
 ## [0.36.4] - 2026-10-03
 
 ### Changed

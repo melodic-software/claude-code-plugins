@@ -3,6 +3,13 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## The digest lane is `review:explain-change`, 2026-10-03
+
+- **`review:pr-explainer` is renamed `review:explain-change` (#1217).** The digest lane
+  builds an interactive page through the shared builder from a checked-in template, ships
+  `medium: file`, and keeps the planned `artifact` default behind its own review. The
+  escape-helper bullet and the thin-skill example name the new lane.
+
 ## The shared builder ships, 2026-10-02
 
 - **`lib/view-builder.mjs` and `lib/view-runtime.js` implement both validator
