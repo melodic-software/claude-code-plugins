@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Run `claude plugin test` on every plugin that ships a mod: a hooks/hooks.json
-# whose "modules" array is non-empty. ADR 0035 defers mods, so today no plugin
-# ships one and this skips; it is here for the first mod that clears the ADR's
-# go criteria. Exits 0 with a skip line when no plugin ships a mod, when
+# whose "modules" array is non-empty. ADR 0046 adopts mods within its scope
+# rules; until a plugin ships one this skips. Exits 0 with a skip line when no
+# plugin ships a mod, when
 # `claude` is not on PATH, or when the CLI predates `claude plugin test` (mods
 # need 2.1.287). Exits 1 when any mod's tests fail, and 2 when node, which
 # reads hooks.json, is not on PATH.

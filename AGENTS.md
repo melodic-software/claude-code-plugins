@@ -45,7 +45,7 @@ and its content is not already in context, read the file directly.
 | Surface | Covers | Topic |
 |---|---|---|
 | `.claude/rules/cost-claims.md` | `plugins/*/skills/**, plugins/*/agents/**, plugins/*/reference/**, docs/**/*.md, prompts/**` | Cost claims link the costs and pricing docs and state no prices or per-task figures; `docs/upstream/` records may list vendor figures labeled vendor-reported |
-| `.claude/rules/mod-authoring.md` | `plugins/*/hooks/**, plugins/*/types/**` | Mods stay deferred under ADR 0035: no plugin gains a `modules` key until its five go criteria pass; when they do, load the built-in `plugin-authoring` skill and the upstream mods docs first |
+| `.claude/rules/mod-authoring.md` | `plugins/*/hooks/**` | A mod follows ADR 0046's five scope rules; before adding or changing a hooks module, load the built-in `plugin-authoring` skill and follow the mod-authoring convention |
 | `.claude/rules/ruff-pin.md` | `**/*.py` | Python linting runs through the pinned ruff wrapper, never a bare ruff on PATH |
 | `.claude/rules/skill-bodies-state-current-rules.md` | `plugins/*/skills/**, plugins/*/agents/**` | Skill and agent bodies point at the live upstream source for any volatile specific instead of restating it, recorded as pointer, as-of date and recheck trigger, and name their successor in a `## Next` section; read before editing any skill body |
 | `plugins/attribution/skills/audit/AGENTS.md` | `plugins/attribution/skills/audit/**` | Editing the attribution audit skill: contributor conventions |

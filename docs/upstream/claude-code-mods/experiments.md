@@ -1,11 +1,12 @@
 # Mods: the recorded experiments and the open probes
 
 The six locally answerable unknowns the 2026-09-19 spike closed, each as a rerunnable procedure with
-that day's result as the baseline, followed by the probes that stayed open. This is the "full run"
-half of [go-no-go.md](go-no-go.md); the verdict is decided there, by the five criteria, not here.
+that day's result as the baseline, then E7 and E8 from the 2026-10-02 run at 2.1.288, followed by
+the probes that stayed open. This is the "full run" half of [go-no-go.md](go-no-go.md); criteria
+are recorded there, not here.
 
-Two dependencies run the other way: criterion 3 cannot pass without E2, and E5 is the standing reason
-a third-party mod is a security decision rather than only a behavior one.
+Two dependencies run the other way: criterion 3 cannot pass without E2 or E8, and E5 is the standing
+reason a third-party mod is a security decision rather than only a behavior one.
 
 Every setup below assumes `$P`, the temp directory built in
 [go-no-go.md](go-no-go.md#build-the-test-mod), and the two path rules recorded there. `<P>` in a
@@ -487,6 +488,107 @@ machine, `true` as the command, pre-existing classic hooks in every run, and arm
 obtained by decomposition rather than read directly. The ±19 ms floor is larger than arm (b)'s whole
 effect, so treat the `bash` number as an order of magnitude.
 
+## E7: usage-band spike, 2026-10-02
+
+Question: on 2.1.288, with `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` unset, does a mod that draws a band,
+adds a command and registers a tool load and work in `-p` and in an interactive terminal? This is
+the criterion-1 evidence for the 2026-10-02 run and the first look at the
+[#5777](https://github.com/melodic-software/claude-code-plugins/issues/5777) pilot. Linux under
+WSL2; the spike stayed machine-local and shipped nothing.
+
+The mod, `usage-band`:
+
+- `hooks/hooks.json` names one module, `./register.tsx`. `plugin.json` names `types/index.d.ts` as
+  `types`, declaring one `$.state` value, `usage-band.latest`.
+- `session.start` registers a `/usage-now` command and a tool named `usage`, which Claude sees as
+  `mcp__usage-band__usage`, then takes a first reading.
+- `session.measure` stores the event's context, rate-limit and cost figures in the state value.
+- `ui.render` on `{ component: 'AbovePrompt' }` draws one row from that value above what is drawn
+  beneath it.
+- `command.run` on `{ command: 'usage-now' }` and `tool.call` on
+  `{ tool: 'mcp__usage-band__usage' }` return the live usage and the last reading as JSON.
+- Every hook has a `.catch`: the observing hooks fall back to `next(e)`, the command answers an
+  error text, and the tool answers `{ deny }`.
+- No `$.http`, `$.fs` or `$.process` call, and no `tool.call` hook other than the one on its own
+  tool. The tool needs that hook: a registered tool is answered only by a `tool.call` hook filtered
+  to its full name (the `$.tool.register` declaration in the 2.1.288 `plugin-authoring` types).
+
+Steps and output, `$MOD` being the spike folder's absolute path:
+
+1. `claude plugin validate "$MOD" --json`: exit 0, `"success": true`, the only manifest warning a
+   missing `author`. The hooks notes list `session.start`, `tool.call{tool=mcp__usage-band__usage}`,
+   `session.measure`, `ui.render{component=AbovePrompt}` and `command.run{command=usage-now}`.
+2. `claude plugin test "$MOD"`: exit 0, `3 pass`, `0 fail`.
+3. `printenv CLAUDE_CODE_ENABLE_FUNCTION_HOOKS`: exit 1, no output.
+4. `claude -p "/usage-now" --plugin-dir "$MOD"`: exit 0. Before any API call the reply carries the
+   context window size but no token count, and an empty rate-limit list.
+5. `claude -p "Call the mcp__usage-band__usage tool exactly once ..." --plugin-dir "$MOD"
+   --permission-mode auto --output-format stream-json --verbose`: exit 0. The init tool list
+   includes `mcp__usage-band__usage`, the model loaded it with ToolSearch, the plugin loaded as
+   `usage-band@inline`, and the stream has no permission denials. Called after the first API
+   response, the tool returned populated context and rate-limit figures, and the stored
+   `session.measure` reading had been written mid-turn, so `session.measure` fires in `-p`.
+6. Interactive: `tmux new-session -d -s usage-band-poc -x 160 -y 45 claude --plugin-dir "$MOD"`,
+   then `tmux send-keys -t usage-band-poc "say hi" Enter` and
+   `tmux capture-pane -p -t usage-band-poc`. Before the prompt the band showed rate limits with no
+   context figure; after the turn it showed the context percentage, agreeing with the status line.
+
+Not covered: `--bg` sessions; Claude Desktop, which needs a native Windows session and
+`CLAUDE_CODE_PLUGIN_DIRS`, a user-scope change; and `/clear`, after which the state value resets
+and the band stays empty until the next `session.measure`, per
+[troubleshoot: an edit or a value is lost](https://code.claude.com/docs/en/plugins/mods/troubleshoot#an-edit-or-a-value-is-lost)
+(as of 2026-10-02; recheck when the pilot handles `/clear`). The module was not type-checked: no
+`tsc` was on `PATH`.
+
+## E8: #92533 three-arm probe, 2026-10-02
+
+Question: on 2.1.288, does a plugin's `tool.call` hook still break Bash and file search inside an
+`Agent(isolation: "worktree")` subagent, and is a hook filtered to the mod's own tool safe? The
+2.1.288 changelog lists a fix at line 27. This run stands in for E2 in the 2026-10-02 record. Linux
+under WSL2, not Windows.
+
+Setup: a throwaway repository, `git init` plus one committed `README.md`. A second mod,
+`bash-passthrough`, holds one hook, `tool.call` on `{ tool: 'Bash' }` returning `next(e)`;
+`claude plugin validate` lists `tool.call{tool=Bash}`. Each arm runs from inside the throwaway
+repository:
+
+```sh
+claude -p "$PROMPT" [--plugin-dir <mod>] --permission-mode auto --output-format stream-json --verbose
+```
+
+`$PROMPT` has the parent call the Agent tool once (`general-purpose`, `isolation: "worktree"`); the
+subagent runs Bash `pwd`, Bash `git rev-parse --show-toplevel` and Glob `*`, and reports all three
+verbatim.
+
+| Arm | Plugin | Exit | Subagent Bash | `pwd` equals the top level | Glob |
+| --- | --- | --- | --- | --- | --- |
+| A | none | 0 | ran, `is_error: false` | yes, the agent worktree | no Glob tool |
+| B | `usage-band` (E7) | 0 | ran, `is_error: false` | yes, the agent worktree | no Glob tool |
+| C | `bash-passthrough` | 0 | ran, `is_error: false` | yes, the agent worktree | no Glob tool |
+| C-debug | `bash-passthrough`, `--debug-file` | 0 | ran, `is_error: false` | yes, the agent worktree | `Error: No such tool available: Glob` |
+| C-native | `bash-passthrough`, `--debug-file`, `--setting-sources project,local` | 0 | ran, `is_error: false` | yes, the agent worktree | no Glob tool |
+
+- `grep -l` for `isolation context` and `was lost` over all five streams: exit 1, no match.
+- The hook ran on the subagent's Bash calls. Each debug log holds two lines
+  `hooks module bash-passthrough@inline tool.call settled in ...ms (worker hop, next() included)`,
+  one per subagent Bash call.
+- Arms A to C-debug went through this machine's user `WorktreeCreate` hook, which puts agent
+  worktrees beside the repository (`Created hook-based agent worktree at: ...`). C-native skipped
+  user settings, so the built-in path ran
+  (`Created agent worktree at: <repo>/.claude/worktrees/agent-...`) and removed its worktree when
+  the agent finished.
+- File search was not tested: this native Linux build registers no Glob or Grep tool. The
+  file-search half of the changelog fix is unverified.
+
+Result: on 2.1.288 the Bash half of #92533 does not reproduce on Linux, through either worktree
+path, with the hook confirmed running. Arm B shows a `tool.call` hook filtered to the mod's own
+registered tool leaving the subagent's Bash and paths intact. Open: Windows, where E2 reproduced at
+2.1.278; the file-search half; and a 2026-10-02 comment on the issue reporting `$.session.cwd()`
+returning the parent directory in a worktree subagent, on 2.1.287.
+
+Clean-up: arms A to C-debug left four locked worktrees beside the throwaway repository; C-native's
+removed itself. Remove them with `git -C <repo> worktree remove --force <path>`.
+
 ## Open probes a rerun should try to close
 
 ### Claude Desktop
@@ -511,12 +613,21 @@ gate is already on in that build".
 Untested and still open: the flag unset in Desktop (the rollout-gate arm), cloud sessions, Cowork,
 and mods that draw UI.
 
-The premise the route rests on held. There is **no documented way to point Desktop at a local plugin
-directory** (`--plugin-dir` has no Desktop equivalent), and the route works only because Desktop and
-the CLI read the same configuration: settings in `~/.claude.json` and `~/.claude/settings.json` are
-shared, so a plugin installed at user scope by the CLI is visible to Desktop local sessions. If a
-rerun comes back negative, that shared-configuration premise is one of the things that could have
-changed, not only the mods gate.
+The premise the route rests on held on 2026-09-19: Desktop and the CLI read the same configuration
+(settings in `~/.claude.json` and `~/.claude/settings.json` are shared), so a plugin installed at
+user scope by the CLI is visible to Desktop local sessions. If a rerun comes back negative, that
+shared-configuration premise is one of the things that could have changed, not only the mods gate.
+
+Desktop now has a documented route to a local plugin directory without installing it:
+`CLAUDE_CODE_PLUGIN_DIRS`, read from the environment or from the `env` block of
+`~/.claude/settings.json`, for an app that takes no `--plugin-dir`. Nobody here has probed it in
+Desktop, and setting it in `~/.claude/settings.json` is a user-scope change.
+
+- **Pointer**: for that variable, see
+  [reference: settings and environment variables](https://code.claude.com/docs/en/plugins/mods/reference#settings-and-environment-variables);
+  the 2.1.288 `plugin-authoring` skill's `reference.md` names the Desktop app as one such host.
+- **As of**: 2026-10-02
+- **Recheck trigger**: that row changes or leaves the page, or a Desktop probe of the route is run.
 
 The procedure, by hand:
 
@@ -543,7 +654,8 @@ The procedure, by hand:
    session that made it and is inherited by everything else launched from that shell: use a throwaway
    shell, or clear it with `Remove-Item Env:\CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` once Desktop is up.
    That any of the three actually reaches the Desktop-bundled CLI process is **inference, not
-   documented**.
+   documented**. Skip this step when Desktop's bundled CLI is 2.1.287 or later, which ignores the
+   variable and loads mods by default.
 4. Fully quit Claude Desktop, tray icon included, and start it again; route (c) already did this.
    Environment variables and plugin enablement are read at session start.
 5. In the Code tab open a **local** session, not a cloud session, because the plugin browser and locally

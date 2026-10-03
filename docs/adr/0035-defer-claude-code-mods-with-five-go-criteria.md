@@ -1,6 +1,6 @@
 # Defer Claude Code mods, with five go criteria and two recheck triggers
 
-- Status: accepted
+- Status: superseded by [ADR 0046](0046-adopt-claude-code-mods-within-five-scope-rules.md)
 - Date: 2026-09-19
 
 ## Context
