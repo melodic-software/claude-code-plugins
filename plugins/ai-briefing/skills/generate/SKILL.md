@@ -124,7 +124,8 @@ cascade overlay:
    and do not emit duplicate items.
 8. For `--format html` or `--format slides`, require the optional build tree installed by
    `/ai-briefing:setup apply install-build-deps`. Run the staged build pipeline against the emitted
-   markdown with `AI_BRIEFING_PROFILE="$PROFILE"` set on the launched process. Playwright may
+   markdown with `CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}"` and `AI_BRIEFING_PROFILE="$PROFILE"`
+   set on the launched process, as in the launch line above. Playwright may
    open only generated local HTML for PDF rendering and layout validation. Surface missing
    prerequisites with the exact setup command; do not silently fall back to another browser
    provider.
