@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Runs the `Fail a draft` step body of .github/workflows/ci.yml's ci-status
-# under the shell Actions uses (bash -eo pipefail), against a stub `gh`.
+# under the shell Actions gives a step with no `shell:` (bash -e), against a
+# stub `gh`.
 #
 # The case that matters is the re-run: a contract-only run drawn while the pull
 # request was a draft keeps that payload when the full run re-runs it after the
@@ -53,7 +54,7 @@ expect() {
   local label="$1" want_rc="$2" want_call="$3" out rc called=no
   : >"$TMP_ROOT/log"
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" CHANGES="$4" STUB_DRAFT="$5" STUB_RC="$6" \
-    GITHUB_REPOSITORY=o/r PR=7 bash --noprofile --norc -eo pipefail "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    GITHUB_REPOSITORY=o/r PR=7 bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   [[ -s "$TMP_ROOT/log" ]] && called=yes
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
