@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.77.1] - 2026-10-03
+## [0.77.2] - 2026-10-03
 
 ### Changed
 
@@ -22,6 +22,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   reviewer check run on the head has completed, commits each fix, pushes once through
   `lane_push`, then verifies each commit and posts each D7 reply. §5.1.4 no longer pushes per
   finding.
+
+## [0.77.1] - 2026-10-03
+
+### Changed
+
+- Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+- The shared hook library's missing-prerequisite notice says to run `/harness-ops:prerequisites` if the `harness-ops` plugin is enabled, where it said installed: an installed but disabled plugin exposes no skills, and `harness-ops` now installs disabled ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
 
 ## [0.77.0] - 2026-10-03
 

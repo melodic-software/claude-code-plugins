@@ -7,8 +7,14 @@ lib/html-escape.mjs plugins/event-storming/lib/html-escape.mjs
 lib/html-escape.mjs plugins/harness-ops/lib/html-escape.mjs
 lib/html-escape.mjs plugins/knowledge/lib/html-escape.mjs
 lib/html-escape.mjs plugins/review/lib/html-escape.mjs
+lib/session-bridge/session_bridge.py plugins/planning/surface/session_bridge.py
+lib/session-bridge/watch.sh plugins/planning/surface/watch.sh
+lib/session-bridge/wake.sh plugins/planning/surface/wake.sh
 lib/view-builder.mjs plugins/review/lib/view-builder.mjs
 lib/view-runtime.js plugins/review/lib/view-runtime.js
 lib/prerequisites.mjs plugins/harness-ops/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/harness-ops/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/harness-ops/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/speech/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/speech/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/speech/lib/prerequisites.ps1

@@ -442,7 +442,7 @@ hook::require_jq() {
   local event="$1" plugin="$2" input="${3:-}"
   if hook::notice_once "${plugin}-jq" "$input"; then
     hook::emit_skip_notice "$event" \
-      "$plugin: jq not found on PATH — hook skipped for this session. Install jq (https://jqlang.org/download/) to enable it. If the harness-ops plugin is installed, run /harness-ops:prerequisites to list every missing prerequisite."
+      "$plugin: jq not found on PATH — hook skipped for this session. Install jq (https://jqlang.org/download/) to enable it. If the harness-ops plugin is enabled, run /harness-ops:prerequisites to list every missing prerequisite."
   fi
   exit 0
 }
@@ -483,7 +483,7 @@ hook::require_jq_blocking() {
   else
     echo "Install jq (https://jqlang.org/download/) to restore the guard." >&2
   fi
-  echo "If the harness-ops plugin is installed, run /harness-ops:prerequisites to list every missing prerequisite." >&2
+  echo "If the harness-ops plugin is enabled, run /harness-ops:prerequisites to list every missing prerequisite." >&2
   exit 2
 }
 

@@ -20,5 +20,5 @@ Rephrase for clarity; do not dumb down the work or skip load-bearing detail. Cut
 operator needs to act correctly costs more than one more short sentence.
 
 For a one-shot deep explanation, invoke `/education:explain` when the `education` plugin is
-installed; otherwise explain inline in this simplified register instead of relying on this style
+enabled; otherwise explain inline in this simplified register instead of relying on this style
 alone.
