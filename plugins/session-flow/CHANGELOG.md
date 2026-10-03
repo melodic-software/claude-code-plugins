@@ -1,5 +1,39 @@
 # Changelog: session-flow plugin
 
+## [0.47.4] - 2026-10-02
+
+### Changed
+
+- **Shared `exec-bash.mjs`, `parse-concern-value.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's hooks and skills.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+
+## [0.47.3] - 2026-10-03
+
+### Fixed
+
+- `audit-sessions sweep --format md` lists each drift change by class and key path under the counts line (vanished, new, canary-lost, unknown-record-type). The counts stay. A model other than the all-models bucket is named on the same bullet. A backtick or line break in a key or model stays inside one code span, so transcript text cannot open a new bullet or heading. The JSON report carries the same `changes` list ([#6001](https://github.com/melodic-software/claude-code-plugins/issues/6001)).
+
+## [0.47.2] - 2026-10-03
+
+### Changed
+
+- `prerequisites.json` is converted to the schema `docs/conventions/prerequisites/` owns: a `requires` list whose entries carry `id`, `kind`, `need`, `for`, `detect`, `degrade`, `install` and `check`, in place of the retired `tools` list ([#5840](https://github.com/melodic-software/claude-code-plugins/issues/5840)). The plugin now ships the shared checker, `lib/prerequisites.mjs` with its `lib/prerequisites.sh` and `lib/prerequisites.ps1` stubs, generated from the repository's canonical copy.
+
+## [0.47.1] - 2026-10-03
+
+### Changed
+
+- Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.47.0] - 2026-10-03
+
+### Changed
+
+- **`orchestrate` keeps code and verify work off the lower effort tier.** Work that changes code,
+  verifies a change, or is likely to hit edge cases takes its level from model-config's effort
+  table, never below medium, even when the rest of a fan-out runs cheaper.
+
 ## [0.46.2] - 2026-10-03
 
 ### Fixed

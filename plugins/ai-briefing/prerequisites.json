@@ -1,0 +1,47 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "skill:generate",
+        "skill:setup"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, /ai-briefing:generate and /ai-briefing:setup cannot run the briefing extraction scripts.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "npm",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:setup"
+      ],
+      "detect": {
+        "any": [
+          "npm"
+        ]
+      },
+      "degrade": "Without npm, /ai-briefing:setup cannot build the extraction scripts; nothing else in the plugin needs it.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "npm"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

@@ -5,7 +5,7 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.12.4] - 2026-10-03
+## [0.13.2] - 2026-10-03
 
 ### Changed
 
@@ -13,6 +13,23 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   loads the built-in `plugin-authoring` skill and records its `claude-code.d.ts` path in the
   packet, and the auditor reads event and call meanings from that file before the docs pages. A
   missing or dead path falls back to the pages and is recorded.
+
+## [0.13.1] - 2026-10-02
+
+### Changed
+
+- **Shared `check-retirements.sh`, `context-zone.sh`, `resolve-convention-home.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's lib and scripts.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+  The zones-inline-drift suite comment now names that generator.
+
+## [0.13.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5842](https://github.com/melodic-software/claude-code-plugins/issues/5842)).
 
 ## [0.12.3] - 2026-10-02
 

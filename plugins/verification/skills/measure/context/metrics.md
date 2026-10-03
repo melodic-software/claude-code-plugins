@@ -10,12 +10,12 @@ Quality is partly subjective, but some aspects ARE measurable:
 
 | Quality aspect | Measurable proxy | How to check |
 |---------------|-----------------|--------------|
-| Complexity | Cyclomatic complexity, nesting depth | `/code-metrics:audit-complexity --json` when the `code-metrics` plugin is installed (treat the pair as INCONCLUSIVE when `status` is `empty` on either side, or when the two documents' `schema` values or `root.path` differ; a baseline taken before `code-metrics/v2` is a v1 document and must be re-taken); otherwise count conditionals, measure max nesting |
-| Size | Lines of code, file count, method length | `/code-metrics:audit-size --json` when the `code-metrics` plugin is installed (same INCONCLUSIVE rule); otherwise a line counter (`wc -l` on POSIX/Git Bash, `Measure-Object -Line` in PowerShell), `git diff --stat` |
+| Complexity | Cyclomatic complexity, nesting depth | `/code-metrics:audit-complexity --json` when the `code-metrics` plugin is enabled (treat the pair as INCONCLUSIVE when `status` is `empty` on either side, or when the two documents' `schema` values or `root.path` differ; a baseline taken before `code-metrics/v2` is a v1 document and must be re-taken); otherwise count conditionals, measure max nesting |
+| Size | Lines of code, file count, method length | `/code-metrics:audit-size --json` when the `code-metrics` plugin is enabled (same INCONCLUSIVE rule); otherwise a line counter (`wc -l` on POSIX/Git Bash, `Measure-Object -Line` in PowerShell), `git diff --stat` |
 | Coupling | Dependency count, import count | Count import/dependency declarations (`import`/`require`/`using`, package or project references) |
 | Cohesion | Methods per class, related functionality | Inspect class responsibility |
-| Duplication | Repeated code blocks | `/code-metrics:audit-duplication --json` when the `code-metrics` plugin is installed (same INCONCLUSIVE rule); otherwise grep for similar patterns |
-| Test coverage | Test count, assertion count, covered lines per function | `/code-metrics:audit-coverage --json` over the build's existing coverage artifact when the `code-metrics` plugin is installed (same INCONCLUSIVE rule); otherwise your test runner's output, test inventory |
+| Duplication | Repeated code blocks | `/code-metrics:audit-duplication --json` when the `code-metrics` plugin is enabled (same INCONCLUSIVE rule); otherwise grep for similar patterns |
+| Test coverage | Test count, assertion count, covered lines per function | `/code-metrics:audit-coverage --json` over the build's existing coverage artifact when the `code-metrics` plugin is enabled (same INCONCLUSIVE rule); otherwise your test runner's output, test inventory |
 | Test fault-detection | Covered-code mutation score | Your ecosystem's mutation tool, diff-scoped (see below) |
 | API surface | Public member count | Count `public` declarations |
 
@@ -24,7 +24,7 @@ Produce every count with a command or script whose output goes into the report (
 ## `baseline` phase (at planning time)
 
 1. **Map the claim to a proxy:** "simpler" → fewer lines / lower complexity / less nesting; "cleaner" → better naming / less duplication; "more maintainable" → fewer deps / better cohesion / more tests; "better organized" → feature-aligned structure / reduced coupling.
-2. **Capture pre-change metrics** for the chosen proxies. Invoke the matching `/code-metrics:audit-<measure> --json --base <base>` when the `code-metrics` plugin is installed and keep the document (the comparison is INCONCLUSIVE under the rule in the table above); otherwise the manual counts (line count of each file at the base revision, with `git show <base>:<file>` run on its own and its output written to a scratch file and counted in a second call, since a worktree-isolated session refuses a pipe around git; complexity count, dependency count). Store in the topic's memory-tier baselines directory (SKILL.md "Two-phase model", machine-bound, never committed) and record in the plan.
+2. **Capture pre-change metrics** for the chosen proxies. Invoke the matching `/code-metrics:audit-<measure> --json --base <base>` when the `code-metrics` plugin is enabled and keep the document (the comparison is INCONCLUSIVE under the rule in the table above); otherwise the manual counts (line count of each file at the base revision, with `git show <base>:<file>` run on its own and its output written to a scratch file and counted in a second call, since a worktree-isolated session refuses a pipe around git; complexity count, dependency count). Store in the topic's memory-tier baselines directory (SKILL.md "Two-phase model", machine-bound, never committed) and record in the plan.
 
 ## `compare` phase (at `/verification:measure metrics`)
 
@@ -71,7 +71,7 @@ strength*, Infection names it *Covered Code MSI*): the share of injected faults 
 counting only faults in code the tests actually reach. Report it beside coverage, and report the
 *delta* diff-scoped to the change. A whole-repo score moves too slowly to attribute to one change.
 
-To collect it, invoke `/mutation-testing:audit` via the Skill tool when the `mutation-testing` plugin is installed; it
+To collect it, invoke `/mutation-testing:audit` via the Skill tool when the `mutation-testing` plugin is enabled; it
 owns the run and the metric vocabulary. Without that plugin, run your ecosystem's own mutation tool
 (StrykerJS, Stryker.NET, PIT, Infection, mutmut) scoped to the diff with its own since/incremental
 flag, and read the covered-code figure rather than the headline one. When the language has no such
