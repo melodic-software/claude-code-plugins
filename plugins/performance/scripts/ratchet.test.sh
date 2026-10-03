@@ -150,6 +150,43 @@ assert_eq "a counter that disagrees with itself is refused" "2" "$RUN_RC"
 assert_contains "the refusal shows both runs" "measured 1 then 2" "$RUN_OUT"
 assert_not_contains "nothing is recorded for it" "drifts" "$(<"$A")"
 
+# --- 5. --runs sets how many agreeing runs add and propose-tighten need ---
+# tally <file>: a command that counts its own runs in <file> and prints spawns=1.
+tally() { printf "n=\$(cat '%s' 2>/dev/null || echo 0); echo \$((n + 1)) >'%s'; echo spawns=1" "$1" "$1"; }
+
+R="$WORK/runs.json"
+ratchet add --file "$R" --name twice --field spawns --goal "g" --command "$(tally "$WORK/t2")"
+assert_eq "add without --runs exits 0" "0" "$RUN_RC"
+assert_eq "add without --runs measures twice" "2" "$(<"$WORK/t2")"
+
+ratchet add --file "$R" --name once --field spawns --goal "g" --runs 1 --command "$(tally "$WORK/t1")"
+assert_eq "add --runs 1 exits 0" "0" "$RUN_RC"
+assert_eq "add --runs 1 measures once" "1" "$(<"$WORK/t1")"
+
+# Runs one and two agree on 1; run three reads 2.
+THIRD="$WORK/third"
+ratchet add --file "$R" --name late --field spawns --goal "g" --runs 3 \
+  --command "n=\$(cat '$THIRD' 2>/dev/null || echo 0); n=\$((n + 1)); echo \$n >'$THIRD'; echo spawns=\$((n / 3 + 1))"
+assert_eq "add --runs 3 refuses a disagreement on the third run" "2" "$RUN_RC"
+assert_contains "the refusal shows all three runs" "measured 1 then 1 then 2" "$RUN_OUT"
+assert_not_contains "nothing is recorded for it" "late" "$(<"$R")"
+
+for bad in 0 -1; do
+  ratchet add --file "$R" --name zero --field spawns --goal "g" --runs "$bad" --command 'echo spawns=1'
+  assert_eq "add --runs $bad is refused" "2" "$RUN_RC"
+  assert_contains "the --runs $bad refusal states the minimum" "at least 1" "$RUN_OUT"
+done
+
+# One run accepts the dip that two runs refuse above.
+ceilings "$F" "n=\$(cat '$WORK/dip1' 2>/dev/null || echo 2); echo \$((n + 1)) >'$WORK/dip1'; echo spawns=\$n" 4
+ratchet propose-tighten --file "$F" --write --runs 1
+assert_eq "propose-tighten --runs 1 exits 0" "0" "$RUN_RC"
+assert_contains "propose-tighten --runs 1 records the one-run value" '"ceiling": 2' "$(<"$F")"
+
+ratchet propose-tighten --file "$F" --runs 0
+assert_eq "propose-tighten --runs 0 is refused" "2" "$RUN_RC"
+assert_contains "the propose-tighten refusal states the minimum" "at least 1" "$RUN_OUT"
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
 echo "OK: ratchet ceilings"
 exit 0

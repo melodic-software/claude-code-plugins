@@ -48,8 +48,11 @@ count of 4 -> 1, not a duration.
 
 **Say plainly that this refusal is a house rule.** No surveyed benchmarking tool refuses above a
 variance threshold: pyperf, Criterion, JMH and benchstat all warn and print the number anyway.
-pyperf's own thresholds (stdev >= 10% of the mean, min/max >= 50% from the mean, shortest value
-< 1 ms) are warnings. Presenting this refusal as consensus would be a miscitation.
+Presenting this refusal as consensus would be a miscitation.
+
+- **Pointer**: when you need pyperf's own stability thresholds, fetch
+  [pyperf check](https://pyperf.readthedocs.io/en/latest/cli.html#check-cmd) live. **As of**:
+  2026-10-02. **Recheck trigger**: that section turns a check from a warning into a failure.
 
 ### 1b. Measuring-tool integrity (before timing)
 
@@ -112,7 +115,10 @@ this step prevents.
 
 ### 3. Capture durations, only if step 1 allowed it
 
-p50 and p95 over at least 20 samples, per the goal. Enforce the arithmetic floor: a percentile `p`
+The goal's percentile list (default p50 and p95) over at least 20 samples, passed to `ab.sh` as
+`--percentiles`. A vendored `ab.sh` from before plugin 0.5.0 exits 2 on that flag: re-copy
+`ratchet.py`, `ab.sh` and `summarize.py` from `${CLAUDE_PLUGIN_ROOT}/scripts/` before using it.
+Enforce the arithmetic floor: a percentile `p`
 needs `1/(1-p)` samples to be expressible at all (`percentile_floor()` in `lib/spawn_noise.py`).
 Report **no** percentile the sample count cannot support; report the raw samples instead.
 `${CLAUDE_PLUGIN_ROOT}/scripts/summarize.py` enforces that floor and is what `ab.sh` summarizes
@@ -158,7 +164,7 @@ Two valid modes:
 Run the bundled harness from the Bash tool; do not hand-roll a timing loop:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/ab.sh" --a '<baseline command>' --b '<candidate command>' --iterations 20
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/ab.sh" --a '<baseline command>' --b '<candidate command>' --iterations 20 --percentiles 50,95
 ```
 
 It alternates the arms within one run, flips the order each iteration, and reports the median of
@@ -272,7 +278,9 @@ stored one.
 
 ## Next
 
-`/performance:verify`.
+- After a baseline capture: `/implementation:implement` for the change, then
+  `/performance:snapshot post`.
+- After a post capture: `/performance:verify`.
 
 ## Gotchas
 

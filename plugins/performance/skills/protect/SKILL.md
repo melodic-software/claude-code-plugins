@@ -18,8 +18,10 @@ Performance wins decay in a codebase that keeps moving: nothing asserts the new 
 change that adds it back passes every test. A checked-in counter ceiling, checked in CI, turns the
 win into a build failure the next regression has to answer.
 
-Run it once, after `/performance:verify` reports **MET** on a counter. It proposes files; a human
-approves them. It never merges, and no model runs in CI: the check is a script and a number.
+Run it once, after `/performance:verify` reports **MET** on a counter. For a change shipped behind
+a flag, run it only after the field read that verify's Next routes to shows the gain; if the read
+shows no gain, turn the flag off instead. It proposes files; a human approves them. It never
+merges, and no model runs in CI: the check is a script and a number.
 
 Read [`${CLAUDE_PLUGIN_ROOT}/reference/techniques.md#g-protect-the-win`](${CLAUDE_PLUGIN_ROOT}/reference/techniques.md#g-protect-the-win)
 for the technique entries this skill applies.
@@ -32,8 +34,12 @@ for the technique entries this skill applies.
   value; a guard with a per-user cache can count 6 spawns cold and 1 warm. CI runners start cold, so
   a ceiling measured warm fails there. Pin the state in the command (unset or empty the cache
   location), and measure that.
-- **It must be deterministic.** `ratchet.py add` measures twice and refuses a counter whose two runs
-  disagree (`${CLAUDE_PLUGIN_ROOT}/reference/harness-integrity.md` rule 1). Fix what varies before ratcheting.
+- **It must be deterministic.** `ratchet.py add` measures twice by default and refuses a counter
+  whose runs disagree (`${CLAUDE_PLUGIN_ROOT}/reference/harness-integrity.md` rule 1). `--runs N`
+  sets the run count, at least 1. Fix what varies before ratcheting.
+- **A vendored copy may predate `--runs`.** A copy of `ratchet.py` from before plugin 0.5.0 exits 2
+  on it. Re-copy `ratchet.py`, `ab.sh` and `summarize.py` from `${CLAUDE_PLUGIN_ROOT}/scripts/`
+  before using the new flags.
 
 ## 2. The ceilings file
 
@@ -43,10 +49,12 @@ from the repository root:
 
 ```json
 {"counters": [{"name": "guard-spawns", "command": "<shell command>", "field": "spawns",
-               "ceiling": 6, "goal": "<the verified goal this protects>"}]}
+               "ceiling": 6, "goal": "<the verified goal this protects>. Correlation: unproven: <reason>"}]}
 ```
 
 - `command` runs through the shell from the repository root and prints a `<field>=<number>` token.
+- `--goal` names the verified goal and ends with the goal's Correlation value, copied as
+  `Correlation: <pointer>` or `Correlation: unproven: <reason>`.
 - **The command must exit non-zero when the subject fails.** A subject that errors out early spends
   fewer spawns and passes any ceiling. `spawn-census.sh` exits 0 whatever the subject did and prints
   `rc=<n>`, so append `| grep -F ' rc=0 '`.
@@ -61,7 +69,8 @@ A count that lives in a telemetry store (spans, events, a log) is measured by a 
 flushes, queries, and prints the token itself; `ratchet.py` only runs the command and parses stdout.
 
 ```json
-{"name": "tool-calls", "field": "calls", "ceiling": 12, "goal": "<the verified goal this protects>",
+{"name": "tool-calls", "field": "calls", "ceiling": 12,
+ "goal": "<the verified goal this protects>. Correlation: <pointer>",
  "command": "id=$(uuidgen); RUN_ID=$id ./run-subject.sh && ./flush-exporter.sh && ./count-run.sh $id"}
 ```
 
@@ -73,9 +82,9 @@ flushes, queries, and prints the token itself; `ratchet.py` only runs the comman
   record present it prints `calls=<n>`, and `calls=0` is valid, since a zero ceiling is legitimate.
   The subject's own failure must also fail the command.
 - **Force the exporter to flush, or poll until the run's record is complete, before printing.**
-  `add` and `propose-tighten` measure twice. A read taken before the flush sees a partial count: the
-  two runs disagree and `add` refuses, or both read partial values, agree, and set a ceiling that is
-  too low.
+  `add` and `propose-tighten` measure twice by default, and `--runs` tunes the count. A read taken
+  before the flush sees a partial count: the runs disagree and `add` refuses, or all read partial
+  values, agree, and set a ceiling that is too low.
 - **CI needs the store.** `check` exits 2 when the command fails, and a runner with no telemetry
   store fails it. Either the CI job stands up the store and exporter so the command is
   self-contained, or the counter is re-expressed as a count the command prints directly. Otherwise
@@ -105,6 +114,9 @@ ceiling; `propose-tighten --write` records the lower value and never raises one.
 - **Counter moves only when code changes it:** tighten in the same PR. No schedule is needed.
 - **Counter can fall without a PR touching it** (a dependency upgrade, a data-driven count, a
   nightly rig): propose a scheduled job that opens a draft PR and stops there.
+
+The proposed workflow file is the setting: keep it to tighten on a schedule, delete it to tighten by
+hand.
 
 ```yaml
 on:
@@ -190,8 +202,8 @@ Propose these beside the ratchet. The ratchet alone passes a subject that got ch
 ## Output
 
 ```text
-Counter:   <name> = <measured> (<field>), deterministic across 2 runs
-Ceiling:   <value> in .performance/ratchets.json    Protects: <goal>
+Counter:   <name> = <measured> (<field>), deterministic across <runs> runs
+Ceiling:   <value> in .performance/ratchets.json    Protects: <goal>. Correlation: <goal's value>
 CI step:   <workflow file and job>                   Required check: <name>
 Tighten:   same-PR | scheduled draft PR (<workflow file>)
 Guardrails proposed: <tests, or none needed and why>

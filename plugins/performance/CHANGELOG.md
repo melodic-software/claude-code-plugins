@@ -3,12 +3,38 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.4.2] - 2026-10-02
+## [0.5.1] - 2026-10-02
 
 ### Fixed
 
 - `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
 - The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
+## [0.5.0] - 2026-10-02
+
+### Added
+
+- **`ab.sh --percentiles <list>`** (default `50,95`) sets the per-arm percentiles `summarize.py`
+  reports; the `1/(1-p)` floor applies to every entry. `snapshot` passes the goal's list.
+- **`ratchet.py add` and `propose-tighten` take `--runs N`** (default 2, at least 1) and refuse
+  any disagreement between runs.
+- Consumers who vendor the scripts: re-copy `ratchet.py`, `ab.sh` and `summarize.py` before using
+  these flags. An old copy exits 2 on them.
+
+### Changed
+
+- **The technique catalog keeps only its own rules**, each with a pointer to read the source
+  section live.
+- **`verify` folds the field read into its Next routes.** A counter win shipped behind a flag goes
+  to `protect` after the field read shows the gain; a read showing no gain turns the flag off and
+  goes to `target`. The report names the field source.
+- **`protect` copies the goal's Correlation value to the end of `--goal`** and shows it in its
+  Output. It runs after the field read for a change shipped behind a flag, and says that the
+  proposed scheduled workflow file is the tightening setting.
+- **`goal` may propose an estimated Realistic target** (measured cost minus the estimated gain),
+  labeled as an estimate at the human gate, and records the goal's percentile list.
+- **`snapshot` routes a baseline to `/implementation:implement`**, then `snapshot post`.
+- **`target` Next names the real stop**: `goal` stops on a candidate the ranking says to instrument.
 
 ## [0.4.1] - 2026-10-01
 

@@ -584,8 +584,8 @@ choice, on the same reasoning I10 applies to a declined widening.
 - **Widened to `opus-5-5` on 2026-09-23:** the Opus 5.5 guide, "Prompts written for thinking
   disabled", prescribes removing the no-thinking rule on that model, where thinking is always on.
   On `opus-5-5` the Detect clause's leakage premise does not apply; the finding stands on that
-  removal alone. **As of 2026-09-23** (our probe: the guide's raw `.md`, 28,311 bytes, MD5
-  `fb3bff7f41e20fbbb71be78770edb8cb`). **Recheck trigger:** that section ceasing to prescribe the
+  removal alone. **As of 2026-10-02**, moved (our probe: the guide's raw `.md`, 28,499 bytes, MD5
+  `5278fe0b08f0532c308dad50efa0f153`). **Recheck trigger:** that section ceasing to prescribe the
   removal.
 - **Considered for `sonnet-5-5` on 2026-10-01 and declined.** We read the Sonnet 5.5 guide as
   covering this directive only under the `between_tools` thinking setting (pointer below), and no

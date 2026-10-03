@@ -1,6 +1,6 @@
 {
   "name": "performance",
-  "version": "0.4.2",
+  "version": "0.5.1",
   "description": "Measurement-first optimization that refuses to report what the data does not support. target ranks candidates by evidence quality. goal sets realistic and ideal targets and computes the floor first. snapshot captures baseline and post runs on a qualified host, interleaves before/after arms, and refuses wall-clock claims from a noisy host, reporting a drift-immune counter. verify re-derives results in a fresh context. protect locks in a counter win with a CI ceiling.",
   "author": {
     "name": "Melodic Software",

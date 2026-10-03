@@ -4,13 +4,22 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.17.4] - 2026-10-02
+## [0.17.5] - 2026-10-02
 
 ### Fixed
 
 - `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
 - The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
 - The vendored upstream baselines of `boris` and `skill-authoring` moved from `vendor/SKILL.md` to `vendor/upstream-skill.md`, byte-identical. claude.ai read each file named `SKILL.md` as a skill, and the boris baseline's description is over the 1024-character limit.
+
+## [0.17.4] - 2026-10-02
+
+### Changed
+
+- The Opus 5.5 chapter and the orchestration chapter's narrow-threads section keep only this
+  repository's rules, each with a pointer to read the official docs section live: the scope
+  section goes, Long runs says a project changes its named stops in its own CLAUDE.md or AGENTS.md,
+  and each thread's changes merge under the repository's own merge policy.
 
 ## [0.17.3] - 2026-10-02
 
