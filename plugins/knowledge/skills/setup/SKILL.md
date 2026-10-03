@@ -84,8 +84,8 @@ reports "already configured".
    `${CLAUDE_PLUGIN_DATA}/ms-playwright`):
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/setup-deps.mjs"
-   node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/setup-deps.mjs"
+   node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"
+   node "${CLAUDE_PLUGIN_ROOT}/skills/course-digest/extraction/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"
    ```
 
    A stored fingerprint gates reinstalls, so re-running is safe and cheap. After provisioning,
