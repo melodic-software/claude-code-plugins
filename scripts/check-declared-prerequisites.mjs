@@ -59,8 +59,8 @@ function shellMatcher(tools) {
   const lead = String.raw`(?:^\s*\(?|[;&|{\x60]|\$\(|\b(?:then|do|else|elif|if|while|until|exec|xargs|time|env|nohup|sudo|!)\s|\bcommand(?:\s+-[vV])?\s|\btype(?:\s+-[aPpt])?\s|\bhash\s|\bwhich\s|\bGet-Command(?:\s+-Name)?\s|&\s*)`;
   const assign = String.raw`[A-Za-z_]\w*=(?:'[^']*'|"[^"]*"|[^\s'"(]\S*)?\s+`;
   const names = alternation(tools);
-  // A tool that is the whole body of a substitution, `$(gh)` or `$(command -v gh)`, ends at `)`.
-  const closed = String.raw`(?:\$\(\s*|\bcommand\s+-[vV]\s+)(${names})(?=\))`;
+  // A tool that is the whole body of a substitution, `$(gh)` or `$(which gh)`, ends at `)`.
+  const closed = String.raw`(?:\$\(\s*|\b(?:command(?:\s+-[vV])?|type(?:\s+-[aPpt])?|hash|which|Get-Command(?:\s+-Name)?)\s+)(${names})(?=\))`;
   return new RegExp(
     String.raw`${lead}\s*(?:${assign})*(${names})(?=$|[\s;&\x60'"])(?!\s*=[^=])|${closed}`,
     "g",
