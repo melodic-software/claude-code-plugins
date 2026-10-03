@@ -15,6 +15,8 @@ sys.path.insert(0, str(HERE))
 import assets  # noqa: E402
 import check  # noqa: E402
 
+sys.modules.pop("pydeps", None)
+
 REVISION = 'abc123abc123abc123'
 
 

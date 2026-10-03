@@ -145,6 +145,7 @@ class DataDir(unittest.TestCase):
             import pydeps
         finally:
             sys.path.remove(str(HERE))
+            sys.modules.pop("pydeps", None)
         with tempfile.TemporaryDirectory() as tmp:
             config = Path(tmp)
             (config / 'plugins/data/speech-market').mkdir(parents=True)
@@ -169,6 +170,7 @@ class RepairLine(unittest.TestCase):
             import pydeps
         finally:
             sys.path.remove(str(HERE))
+            sys.modules.pop("pydeps", None)
         real = sys.platform
         sys.platform = 'win32'
         try:

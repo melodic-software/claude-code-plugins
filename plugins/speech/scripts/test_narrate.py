@@ -19,6 +19,8 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import narrate  # noqa: E402
 
+sys.modules.pop("pydeps", None)
+
 try:
     import numpy as np
 except ImportError:
