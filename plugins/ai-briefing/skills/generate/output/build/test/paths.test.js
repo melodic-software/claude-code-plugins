@@ -73,7 +73,7 @@ test("profile validation rejects POSIX and Windows traversal forms", () => {
 });
 
 test("state and project paths remain under their configured roots", () => {
-  const dataRoot = path.resolve("test-plugin-data");
+  const dataRoot = path.resolve("ai-briefing-test");
   const projectRoot = path.resolve("test-project");
   withEnvironment(
     {
@@ -85,4 +85,16 @@ test("state and project paths remain under their configured roots", () => {
       assert.equal(configDir("team"), path.join(projectRoot, ".claude", "ai-briefing", "team"));
     },
   );
+});
+
+// Another plugin's SessionStart hook can export its own data dir into every Bash
+// call as CLAUDE_PLUGIN_DATA; build state must never land there.
+test("state root ignores a CLAUDE_PLUGIN_DATA that names another plugin", () => {
+  let unset;
+  withEnvironment({ CLAUDE_PLUGIN_DATA: undefined }, () => {
+    unset = stateRoot("team");
+  });
+  withEnvironment({ CLAUDE_PLUGIN_DATA: path.resolve("codex-openai-codex") }, () => {
+    assert.equal(stateRoot("team"), unset);
+  });
 });

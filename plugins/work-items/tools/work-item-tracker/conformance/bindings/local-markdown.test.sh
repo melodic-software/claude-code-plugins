@@ -2,6 +2,7 @@
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 # RUNS the full abstract conformance suite offline against the local-markdown adapter,
 # once normally and once under a PATH shim that makes gh/curl fail.
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/local-markdown/*
 set -uo pipefail
 
 TMP_ROOT="$(mktemp -d)"

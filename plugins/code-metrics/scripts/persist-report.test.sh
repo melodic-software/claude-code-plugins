@@ -17,7 +17,8 @@ source "$SCRIPT_DIR/persist-report.sh"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-export CLAUDE_PLUGIN_DATA="$TMP/data"
+# Named like the real per-plugin dir, so the inherited-value path is the one exercised.
+export CLAUDE_PLUGIN_DATA="$TMP/code-metrics-test"
 ROOT="$CLAUDE_PLUGIN_DATA/reports"
 DOC="$TMP/doc.json"
 printf '{}\n' >"$DOC"
@@ -73,6 +74,21 @@ export CODE_METRICS_REPORT_DIR="$TMP/override"
 out="$(persist_from "$TMP/repo-a" audit-size)"
 assert_eq "CODE_METRICS_REPORT_DIR overrides with no key" "$TMP/override" "$(dirname "$out")"
 assert_eq "cm_report_dir prints the override unchanged" "$TMP/override" "$(cm_report_dir)"
+
+# (e) another plugin's data dir is never written to or pruned. Another plugin's
+# SessionStart hook can export its own data dir into every Bash call under the
+# name CLAUDE_PLUGIN_DATA; CM_REPORTS_KEPT is still 2 here, so a persist into it
+# would prune the three files planted below.
+unset CODE_METRICS_REPORT_DIR CM_LEFTOVERS_NOTED
+FOREIGN="$TMP/codex-openai-codex"
+KEY_REL="$(dirname "${pa#"$ROOT"/}")"
+mkdir -p "$FOREIGN/reports/$KEY_REL"
+for day in 1 2 3; do
+  printf '{}\n' >"$FOREIGN/reports/$KEY_REL/audit-size-2020010${day}T000000Z.json"
+done
+out="$(cd "$TMP/repo-a" && HOME="$TMP/home" CLAUDE_PLUGIN_DATA="$FOREIGN" cm_persist_report audit-size "$DOC")"
+assert_contains "a foreign CLAUDE_PLUGIN_DATA falls back to the home data dir" "$out" "$TMP/home/.claude/plugins/data/code-metrics/reports/$KEY_REL/"
+assert_eq "nothing in a foreign data dir is pruned" 3 "$(count_reports "$FOREIGN/reports/$KEY_REL")"
 
 printf '%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 exit $((FAILED > 0 ? 1 : 0))

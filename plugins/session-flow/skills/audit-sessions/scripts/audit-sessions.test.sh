@@ -4,6 +4,7 @@
 # SKIPs (exit 0) when Python 3.10+ or pytest is unavailable, matching the
 # repo test-runner convention for optional toolchains. -p no:cacheprovider keeps
 # a .pytest_cache/README.md out of the plugin-wide markdownlint glob.
+# test-scope: plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/*
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1

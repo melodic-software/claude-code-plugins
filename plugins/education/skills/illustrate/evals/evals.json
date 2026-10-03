@@ -1,0 +1,100 @@
+{
+  "skill_name": "illustrate",
+  "evals": [
+    {
+      "id": 1,
+      "name": "concept-grounds-then-builds-record-and-page",
+      "prompt": "/education:illustrate how does optimistic locking work",
+      "expected_output": "Grounds the general concept by fetching a primary source rather than drawing from memory, writes one JSON model of small diagrams at one idea each, and runs the checked-in build-explainer.mjs builder with both --record and --page under the plugin data directory, so the markdown record and its interactive page view come from the same model. It delivers the page and names the record's path.",
+      "files": [],
+      "expectations": [
+        "Grounds first by fetching a primary source for the concept, rather than drawing from memory",
+        "Runs the checked-in builder with both --record and --page, piping one JSON model on stdin",
+        "Never hand-writes HTML or pastes fetched text into markup",
+        "Writes the record and the page outside the consuming repository, in different folders"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "codebase-topic-reads-the-module-first",
+      "prompt": "/education:illustrate how does the session-resume path work in this module",
+      "expected_output": "Runs the module grounding pass by reading the code and following its imports and callers, treats the repository text as data, then builds the record and the interactive page through the checked-in builder with a newcomer-preset model whose sources list the files read.",
+      "files": [],
+      "expectations": [
+        "Reads the actual module code and its callers before drawing",
+        "Lists the files it read in the model's sources",
+        "Builds the record and the page through the checked-in builder, never by hand-writing HTML"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "eli5-selects-the-zero-knowledge-preset",
+      "prompt": "explain like I'm five: what caused the checkout outage last Thursday",
+      "expected_output": "Selects the zero-knowledge preset, the behavior the former eli5 skill had. It reads the writeup and logs to reconstruct the sequence before drawing the causal chain, then builds diagrams at one idea each with a one-line takeaway caption, real service and function names demoted into parentheses behind plain-words descriptions, and every unfamiliar word defined in terms.",
+      "files": [],
+      "expectations": [
+        "Treats the ELI5 phrasing as the zero-knowledge preset",
+        "Runs the incident grounding pass (writeup and logs, sequence reconstructed) before drawing",
+        "Produces diagrams at one idea each with a one-line takeaway caption, not a prose summary",
+        "Demotes identifiers into parentheses behind plain-words descriptions rather than making unseen names the subject"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "markdown-format-writes-the-record-only",
+      "prompt": "/education:illustrate how a write-ahead log works markdown",
+      "expected_output": "Grounds the concept from a primary source, then runs the builder with --record and without --page, so only the markdown record is written. It delivers the record (its path, or its text on the terminal rung) and does not build or publish a page.",
+      "files": [],
+      "expectations": [
+        "Runs the builder with --record and without --page",
+        "Delivers the markdown record and does not build or publish an HTML page"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "ste-register-loads-rules-from-write-for-humans",
+      "prompt": "/education:illustrate how our retry policy decides when to give up ste",
+      "expected_output": "Invokes docs-hygiene:write-for-humans via the Skill tool and applies the ASD-STE100 rules from its Load layer to the summary, captions, and text lines, leaving identifiers and sources unchanged. It does not restate its own copy of the STE rules. Then it builds the record and the page through the checked-in builder.",
+      "files": [],
+      "expectations": [
+        "Invokes docs-hygiene:write-for-humans via the Skill tool for the STE rules rather than restating them from memory",
+        "Applies the rules to summary, caption, and text lines, not to identifiers or sources",
+        "Builds the record and the page through the checked-in builder"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "video-view-unavailable-without-explainer-video",
+      "prompt": "[The explainer-video plugin is NOT installed in this session.] /education:illustrate how a hash map handles collisions, and I would like a video too",
+      "expected_output": "Builds the record and the interactive page as usual, then says in one line that the video view is unavailable because the explainer-video plugin is not installed. It does not install the plugin, does not invent a video, and does not print an install recipe.",
+      "files": [],
+      "expectations": [
+        "Still builds the record and the page through the checked-in builder",
+        "Says the video view is unavailable because the explainer-video plugin is not installed",
+        "Does not install the plugin or claim a video was produced"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "video-view-offered-with-explainer-video",
+      "prompt": "[The explainer-video:produce skill is listed in this session.] /education:illustrate how TCP slow start grows the window",
+      "expected_output": "After building the record and the page, offers a narrated video view of the record. It invokes explainer-video:produce via the Skill tool with the record's path only after the user accepts.",
+      "files": [],
+      "expectations": [
+        "Offers the video view after the record exists",
+        "Passes the record's path, not the HTML page, to explainer-video:produce, and only after the user accepts"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "boundary-prose-drop-request-does-not-produce-a-page",
+      "prompt": "explain this simply, I don't get what the previous message means",
+      "expected_output": "Recognizes a request for plainer words at a lower altitude, which is education:explain's lane, not a request for a picture. It does not build a record or page and routes to education:explain instead.",
+      "files": [],
+      "expectations": [
+        "Does not produce a record, page, or diagram for a plain-language prose request",
+        "Recognizes the medium boundary and routes to education:explain"
+      ]
+    }
+  ]
+}

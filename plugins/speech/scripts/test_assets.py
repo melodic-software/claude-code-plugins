@@ -109,7 +109,7 @@ class Check(unittest.TestCase):
         self.assertIn('is 3.10.1, below 3.12', rows[0][2])
 
     def test_kinds_other_than_cli_and_runtime_are_left_to_their_own_rows(self):
-        entry = self.entry(id='key', kind='env', detect={'name': 'KEY'})
+        entry = self.entry(id='numpy', kind='python-pkg', detect={'any': ['python3'], 'import': 'numpy'})
         self.assertEqual(check.declared_rows(self.prerequisites([entry]), which=lambda name: None), [])
 
     def test_the_shipped_file_declares_espeak_ng_with_hints_and_never_an_install_step(self):

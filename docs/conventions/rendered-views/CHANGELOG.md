@@ -3,6 +3,56 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## Decks use the account's Slides Artifact type, 2026-10-03
+
+- **New section, Artifact types (#5867).** It says when a producer uses a claude.ai Artifact type
+  instead of the shared builder, finds the type at run time through the Artifact tool's
+  `quickstart`, falls back to the markdown record when the account has no such type, keeps K2
+  content to escaped text, and runs the shared publish gate before the type's create call.
+- **`visualization:present` is the deck lane and the second `artifact` default.** It is listed
+  under Emitters through an Artifact type and in Default ladder and its reconciliation.
+- **The publish gate is a shared library.** `lib/publish-gate.mjs` holds the credential patterns
+  and the gate that `review:explain-change` used inline; both lanes carry a generated copy. It
+  also resolves the trusted medium layers, so a team file can keep a deck local but never publish it.
+- **A K2 deck is held to an allowlist**, read by a quote-aware tokenizer that fails closed, and the
+  create call's title is the one the gate read.
+
+## The Claude-interactive tier opens to builder pages, 2026-10-03
+
+- **`session-bridge` meets rule 9, and the triage board and plan view adopt the tier (#5868).** Every wait
+  answer now carries the untrusted-content framing contract as its data note. The bridge's new view app
+  hands the token only to same-origin page script, so it never enters the page's markup, ends itself and
+  its token 600 seconds after the session's watcher last waited, and takes page
+  actions holding only builder keys, row ids and the reader's notes. The builder's `--connect` adds one
+  `connect-src` naming the loopback origin, which the validator checks. The tier stays closed to
+  model-written pages. Rules 3 and 9 and View tiers record the change.
+- **Rule 9's token wording states what the code does.** The token is minted per server run, and the
+  server exits `IDLE_SECONDS` after the session's last wait (and on stop). The view app also matches
+  its validators in full, so a trailing newline no longer passes, and refuses a data dir that is not
+  owned by the user or is open to group or other.
+
+## The digest publishes as an Artifact by default, 2026-10-03
+
+- **`review:explain-change` ships `medium: artifact` (#5856).** With no layer setting
+  `medium`, the digest page is published as a private Artifact when the repository is public
+  and no hunk looks like a credential; otherwise it falls back to `file` and names
+  `medium: artifact` as the opt-in. An operator who wants it local sets `medium: file` in a
+  personal layer.
+
+## The digest lane is `review:explain-change`, 2026-10-03
+
+- **`review:pr-explainer` is renamed `review:explain-change` (#1217).** The digest lane
+  builds an interactive page through the shared builder from a checked-in template, ships
+  `medium: file`, and keeps the planned `artifact` default behind its own review. The
+  escape-helper bullet and the thin-skill example name the new lane.
+
+## The first interactive emitter, 2026-10-03
+
+- **`education:illustrate` replaces `education:eli5` on the escape-helper emitter list
+  (#5858).** It builds its page through the shared builder's interactive profile, from a
+  checked-in template plus the explainer model as JSON data, and writes the markdown
+  record from the same model.
+
 ## The map-* skills offer views on the builder, 2026-10-03
 
 - **The `architecture` `map-*` skills offer interactive views built by `lib/view-builder.mjs` (#5863).**

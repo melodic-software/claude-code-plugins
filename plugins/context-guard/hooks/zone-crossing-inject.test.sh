@@ -9,6 +9,7 @@
 #
 # Self-contained: defines its own assertion helpers — installed plugins are
 # cache-isolated with no shared test lib.
+# test-scope: plugins/context-guard/hooks/*
 
 set -uo pipefail
 
