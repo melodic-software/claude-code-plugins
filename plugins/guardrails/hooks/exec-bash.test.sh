@@ -83,25 +83,12 @@ done <<<"$rows"
 [[ "$dispatcher" -ge 8 ]] || fail "expected the dispatcher rows, found $dispatcher"
 [[ "$workflow" -eq 1 ]] || fail "expected one workflow row, found $workflow"
 
-# --- SessionStart node notice: shell form, needs no node, never blocks -------
+# --- SessionStart node notice: shell form, needs no node ---------------------
+# The row's behavior, with and without node and under PowerShell, is run by
+# scripts/node-notice-rows.test.sh; this pins that guardrails keeps it shell form.
 notice=$(jq -c '.hooks.SessionStart[].hooks[]' "$HOOKS_JSON")
 [[ "$(jq -s 'length' <<<"$notice")" -eq 1 ]] || fail "expected one SessionStart row"
-jq -e '.type == "command" and .shell == "bash" and (has("args") | not) and (.command | contains("node") and (startswith("node") | not))' \
-  <<<"$notice" >/dev/null || fail "SessionStart row is not shell-form bash: $notice"
-notice_cmd=$(jq -r '.command' <<<"$notice")
-bash_path=$(command -v bash)
-nonode_dir="$TEST_TMPDIR/nonode"
-mkdir -p "$nonode_dir"
-ln -s "$bash_path" "$nonode_dir/bash"
-rc=0
-out=$(PATH="$nonode_dir" "$bash_path" -c "$notice_cmd" 2>&1) || rc=$?
-[[ "$rc" -eq 0 ]] || fail "notice row exited $rc without node"
-jq -e '.systemMessage | contains("guards cannot launch and enforce nothing")' <<<"$out" >/dev/null ||
-  fail "user notice missing without node: $out"
-jq -e '.hookSpecificOutput | .hookEventName == "SessionStart" and (.additionalContext | contains("enforce nothing"))' <<<"$out" >/dev/null ||
-  fail "model context missing without node: $out"
-rc=0
-out=$(bash -c "$notice_cmd" 2>&1) || rc=$?
-[[ "$rc" -eq 0 && -z "$out" ]] || fail "notice row is not silent with node (rc=$rc): $out"
+jq -e '.type == "command" and (has("args") | not) and (.command | startswith("sh ") and contains("prerequisites.sh\" node-notice /guardrails:check"))' \
+  <<<"$notice" >/dev/null || fail "SessionStart row is not the shell-form node notice: $notice"
 
 echo "exec-bash: stdin, exit 2, Git Bash resolution, and hooks.json shape passed ($dispatcher dispatcher rows)."

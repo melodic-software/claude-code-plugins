@@ -119,7 +119,7 @@ esac
 #     that routes into evaluation and nothing more, the same forcing power the
 #     repo's own `env` block already has over the presence tests.
 # Nothing here is payload-derived, so it MUST stay above the buffer — and
-# everything payload-derived (hook::require_jq, EVENT, SESSION_ID, and the
+# everything payload-derived (hook::require jq, EVENT, SESSION_ID, and the
 # SubagentStop-versus-Stop discrimination) MUST stay below it (#2852).
 gate_maybe_configured() {
   [[ -n "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID:-}" ]] && return 0
@@ -208,7 +208,7 @@ hook::buffer_stdin_to INPUT || exit 0
 # jq parses the payload and the trusted config. Absent → visible once per session and agent
 # notice, then allow the stop (fail-open). Stop supports additionalContext, so
 # the notice reaches both the agent and the user.
-hook::require_jq "Stop" "autonomy-lane-stop-gate" "$INPUT"
+hook::require jq "Stop" "autonomy-lane-stop-gate" "$INPUT"
 
 # Every payload field the gate reads, in ONE jq pass: five `printf | jq | tr`
 # pipelines used to read the same buffer one field at a time. EVENT, SESSION_ID,

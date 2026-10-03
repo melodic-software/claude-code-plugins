@@ -3,6 +3,13 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.0] - 2026-10-03
+
+### Added
+
+- `/skill-quality:check-prerequisites`, a read-only report of whether the tools the plugin declares in `prerequisites.json` resolve, through the shared Node checker. `/skill-quality:check` keeps the skill-authoring gate.
+- `lib/prerequisites.mjs`, `lib/prerequisites.sh` and `lib/prerequisites.ps1`, the generated copies of the shared prerequisites checker.
+
 ## [0.27.0] - 2026-10-02
 
 ### Added

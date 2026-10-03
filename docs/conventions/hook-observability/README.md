@@ -136,7 +136,7 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
     section changes how it treats the field.
 
 **Repeat-notice discipline.** A missing-prerequisite notice behind a broad matcher (every
-`Write|Edit`, every `Bash` call) must not repeat on every invocation. Use `hook::require_jq`
+`Write|Edit`, every `Bash` call) must not repeat on every invocation. Use `hook::require jq`
 (wraps `hook::notice_once` + `hook::emit_skip_notice`) for a missing-`jq` gate, or pair
 `hook::notice_once` with `hook::emit_skip_notice` directly for a non-`jq` prerequisite. A raw,
 unguarded `hook::emit_skip_notice` call on a broad-matcher hook is a conformance defect. The latch
@@ -327,7 +327,7 @@ different event.
 Fleet audits check, per wired producer hook:
 
 - Every `command`-type handler in its `hooks.json` declares a `statusMessage`.
-- Every missing-prerequisite skip path emits a `systemMessage` (via `hook::require_jq` or
+- Every missing-prerequisite skip path emits a `systemMessage` (via `hook::require jq` or
   `hook::notice_once` + `hook::emit_skip_notice`), gated so it fires once per session and agent (renewed every eighth skip) on a broad
   matcher.
 - Any `systemMessage` that is neither a prerequisite-skip notice nor a content-mutation notice

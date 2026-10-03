@@ -65,7 +65,7 @@ hook::ctx_reset
 
 hook::buffer_stdin_to INPUT || exit 0
 
-hook::require_jq "PostToolUse" "guardrails-skill-reference-verify" "$INPUT"
+hook::require jq "PostToolUse" "guardrails-skill-reference-verify" "$INPUT"
 
 FILE=""
 hook::read_file_path_to FILE "$INPUT" || exit 0
@@ -117,7 +117,7 @@ shopt -u nullglob
 # — every consumer below tests `== "true"`, which "" and "false" fail alike.
 # Failure semantics are unchanged: a missing jq or an unparsable payload yields
 # rc 1 here, which exits 0 exactly as the unmatched-TOOL case did —
-# hook::require_jq above has already made the degraded state visible once per
+# hook::require jq above has already made the degraded state visible once per
 # session and agent.
 hook::jq_fields "$INPUT" '.tool_name' '.tool_input.new_string' \
   '.tool_input.content' '.tool_input.replace_all // false | tostring' \

@@ -264,7 +264,7 @@ from them.
    class-A input: it calls a comment code whenever the body reparses, so prose carrying
    backtick-quoted identifiers hits. A hit whose text is a sentence, not a statement, is prose. That
    test does not settle an indented usage example under a documentation block
-   (`#   hook::require_jq PostToolUse my-plugin "$INPUT"`), which is a statement and still
+   (`#   hook::require jq PostToolUse my-plugin "$INPUT"`), which is a statement and still
    documentation. Reading decides: a line demonstrating how to call the thing the block documents is
    prose, whatever it parses as.
    **Criterion 2 is decided on evidence, never on impression.** For every class-C candidate whose

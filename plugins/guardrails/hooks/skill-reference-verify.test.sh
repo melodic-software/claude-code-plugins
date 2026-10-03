@@ -822,10 +822,10 @@ assert_silent "empty stdin → no output" "$OUT"
 # cannot host bash + coreutils across Git Bash and Linux, the same constraint
 # secret-pattern-detection.test.sh and require-jq-notice-isolation.test.sh both
 # document. Assert the fail-open guard is present via the shared helper;
-# require_jq's own behavior is covered by lib/hook-utils.test.sh, and this hook's
+# hook::require's own behavior is covered by lib/hook-utils.test.sh, and this hook's
 # notice key is proven unique plugin-wide by require-jq-notice-isolation.test.sh.
 HOOK_SRC=$(cat "$HOOK")
-assert_contains "jq guard: uses hook::require_jq" "$HOOK_SRC" 'hook::require_jq'
+assert_contains "jq guard: uses hook::require jq" "$HOOK_SRC" 'hook::require jq'
 assert_contains "jq guard: hook-specific notice key" "$HOOK_SRC" 'guardrails-skill-reference-verify'
 # The directory comes from parameter expansion, not a `$(dirname …)` subshell:
 # this hook runs on every Write and Edit, and a command substitution is a fork

@@ -70,7 +70,7 @@ RESOLVER="$CG_DIR/../scripts/context-zone.sh"
 # Write's tool_input rides in this payload, and a single bounded read timing
 # out on it would fail the gate open for exactly the biggest writes.
 INPUT=$(cg::read_payload) || exit 0
-hook::require_jq "PreToolUse" "context-guard" "$INPUT"
+hook::require jq "PreToolUse" "context-guard" "$INPUT"
 
 SESSION=$(hook::jq_field "$INPUT" '.session_id') || exit 0
 [[ "$SESSION" =~ ^[A-Za-z0-9_-]+$ ]] || exit 0

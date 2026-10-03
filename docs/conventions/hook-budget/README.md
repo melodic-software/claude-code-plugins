@@ -41,7 +41,7 @@ workflow is not in this budget.
 
 CI enforces counts, never durations, in two places:
 
-1. **`.performance/ratchets.json`**, checked by the test-linux step "Check performance counter
+1. **`.performance/ratchets.json`**, checked by the check-plugins step "Check performance counter
    ceilings" (`ratchet.py check`). Hook counters run through `scripts/hook-census.sh`, which fires
    the command exactly as `hooks.json` registers it, under strace, from a scratch repository:
    - `spawns` counts process creations plus successful execs, the hook's own shell included;
@@ -133,9 +133,9 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
   unresolvable, the launcher exits 1: a non-blocking hook error and not a guard block, and the guard
   script does not run (the header of
   [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs)).
-- **Scope.** Three rows stay shell form so they can report a missing `node`: the `SessionStart` notice rows in `guardrails` and `disk-hygiene`, and the `hook-failure-audit` Stop row in `harness-ops`.
-  Neither check script inspects a shell-form row; each of the three plugins' own hook tests pins its
-  row's shell form, so a sweep back to `node` fails that test. A plugin hook config carries no
+- **Scope.** The `SessionStart` node-notice row of every hook plugin (the [prerequisites convention](../prerequisites/README.md#hook-notices)) and the `hook-failure-audit` Stop row in `harness-ops` stay shell form so they can report a missing `node`.
+  Neither check script inspects a shell-form row; `scripts/node-notice-rows.test.sh` pins the node-notice
+  rows and the hook test of `harness-ops` pins its Stop row, so a sweep back to `node` fails them. A plugin hook config carries no
   `${user_config.*}` token (the [philosophy Hooks row](../../plugin-philosophy.md#component-stances)),
   so no `userConfig` rule requires exec form and exec form fleet-wide is this sweep's choice.
 - **Measurement.** The reference figures above (Windows, 2026-07-31 and 2026-09-02) were taken before
