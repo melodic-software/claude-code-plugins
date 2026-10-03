@@ -414,4 +414,43 @@ assert_eq "the trace is kept in the data folder" "yes" "$([[ -s "$DT/trace2-stat
 capture bash -c "cd '$WORK' && '$HARNESS_PYTHON' '$FINDINGS' status-timing --data '$DT' --runs 1"
 assert_eq "outside a repository it is an input error" "2" "$RUN_RC"
 
+# --- 20. a permission rule that asks or denies is a guard: shown flag-only, never adoptable ---
+PERM='{"id":"permissions-1","key":"permissions/ask-rules","area":"permissions","title":"3 ask rules prompt before Bash","status":"flag-only","horizon":"now","reason":"a permission rule that asks or denies is a safety guard; loosening it is yours to decide"}'
+doc "$WORK/perm.json" "$PERM"
+run validate "$WORK/perm.json"
+assert_eq "a flag-only permission-rule finding validates" "0" "$RUN_RC"
+run render "$WORK/perm.json"
+assert_contains "it is listed under the guards heading" $'## Flagged for you only (guards and unclassifiable checks)\n\n- **3 ask rules prompt before Bash** (permissions, `permissions-1`): a permission rule that asks or denies' "$RUN_OUT"
+assert_not_contains "a guard is never offered for adoption, even marked now" "Adopt now" "$RUN_OUT"
+run adopt --data "$WORK/data/perm" --session s1 --findings "$WORK/perm.json" --id permissions-1 --route-taken next-run
+assert_eq "a permission-rule finding cannot be adopted" "1" "$RUN_RC"
+assert_contains "the refusal says why" "permissions-1 is flag-only" "$RUN_OUT"
+assert_eq "no adoption is recorded" "absent" "$([[ -e "$WORK/data/perm/adopted.jsonl" ]] && echo present || echo absent)"
+
+# --- 21. Machine is not checked without an elevated recording ---
+doc "$WORK/machine.json" '{"id":"machine-1","key":"machine/none","area":"machine","title":"machine not checked","status":"not-checked","reason_code":"needs-elevation","reason":"needs an elevated performance recording; flag-only"}'
+run validate "$WORK/machine.json"
+assert_eq "a not-checked Machine finding with needs-elevation validates" "0" "$RUN_RC"
+run render "$WORK/machine.json"
+assert_contains "the report names the reason code and the instrument" "- machine: not checked (needs-elevation). needs an elevated performance recording; flag-only" "$RUN_OUT"
+doc "$WORK/machine2.json" '{"id":"machine-1","key":"machine/none","area":"machine","title":"t","status":"not-checked","reason_code":"elevated","reason":"x"}'
+run validate "$WORK/machine2.json"
+assert_contains "a Machine reason code outside the R5 list fails" "machine-1: reason_code must be one of" "$RUN_OUT"
+
+# --- 22. lint-catalog: the area cell is `all` or ", "-separated area slugs ---
+area_row() { # <area cell>
+  printf '| x | %s | c | m | r | g | steps-for-you | HIGH | no | https://a.example | 2026-09-01 | t |\n' "$1"
+}
+printf '%s\n%s\n' "$HDR" "$(area_row 'git, gti')" >"$CAT/bad.md"
+run lint-catalog "$CAT/bad.md"
+assert_eq "a row with an unknown area slug fails" "1" "$RUN_RC"
+assert_contains "the error names the unknown slug" "gti" "$RUN_OUT"
+printf '%s\n%s\n' "$HDR" "$(area_row 'ci-cd, gates')" >"$CAT/bad.md"
+run lint-catalog "$CAT/bad.md"
+assert_eq "a row with two known slugs passes" "0" "$RUN_RC"
+printf '%s\n%s\n' "$HDR" "$(area_row all)" >"$CAT/bad.md"
+run lint-catalog "$CAT/bad.md"
+assert_eq "a row with area all passes" "0" "$RUN_RC"
+rm -f "$CAT/bad.md"
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1

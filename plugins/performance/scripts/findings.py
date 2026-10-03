@@ -547,6 +547,9 @@ def catalog_errors(path: Path) -> tuple[int, list[str]]:
         for field in ("class", "area", "recheck_trigger"):
             if not r[field]:
                 errors.append(f"{where}: {field} required")
+        unknown = [a for a in r["area"].split(", ") if a not in AREAS]
+        if r["area"] and r["area"] != "all" and unknown:
+            errors.append(f"{where}: unknown area {', '.join(unknown)}")
     return rows, errors
 
 

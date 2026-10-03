@@ -23,7 +23,9 @@ in their own list, guards flagged for you only, and every area it could not chec
 lands. `later` findings go to the skill that owns the fix, or to steps for you.
 
 The finding rules, ranking and lock live in `${CLAUDE_PLUGIN_ROOT}/scripts/findings.py`; the
-procedure lives in the `go-faster-sweeper` agent.
+per-area checks live in [reference/areas.md](reference/areas.md), walked by the
+`go-faster-sweeper` agent, and the evidence rows they cite in
+[reference/catalog/README.md](reference/catalog/README.md).
 
 ## Step 1: Resolve paths and take the lock
 
