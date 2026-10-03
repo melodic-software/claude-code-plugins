@@ -50,7 +50,7 @@ source "$HOOK_DIR/hook-utils.sh"
 source "$HOOK_DIR/worktree-path-lib.sh"
 hook::buffer_stdin_to INPUT || exit 0
 
-hook::require_jq "PostToolUse" "source-control-worktree-add-claim-gate" "$INPUT"
+hook::require jq "PostToolUse" "source-control-worktree-add-claim-gate" "$INPUT"
 
 # ONE `jq` for the field and no `tr` behind it. The payload is fed through
 # `printf '%s' "$INPUT" | jq`, the form lib/hook-utils.sh prescribes for a hook
