@@ -10,26 +10,17 @@
 --   temporality  metric, session, aggregationTemporality: any token or cost data point of
 --                either session that is not delta. Summing data points is valid for delta only.
 --   checked      one row once the temporality check has run
---   tokens       session, model, effort ('none' when absent), input, output, cacheRead,
+--   tokens       session, model, effort ('unset' when absent), input, output, cacheRead,
 --                cacheCreation (sums of claude_code.token.usage)
 --   cost         session, metric data points, metric_usd (claude_code.cost.usage),
 --                events_usd (api_request cost), gap_usd, api_requests, status
 --
--- effort and aggregationTemporality are read here, not promoted in cc-otel.sql: a new
--- projected column would change the cold Parquet schema that cc_*_cold() reads.
-
-CREATE OR REPLACE TEMP MACRO attr_json(attrs, k) AS
-  to_json(list_filter(attrs, lambda x: x.key = k)[1].value);
--- A numeric attribute arrives as doubleValue, intValue (a quoted int64) or stringValue.
--- Read through JSON: a store with no doubleValue anywhere has no such struct member to bind.
-CREATE OR REPLACE TEMP MACRO attr_num(attrs, k) AS TRY_CAST(COALESCE(
-  json_extract_string(attr_json(attrs, k), '$.doubleValue'),
-  json_extract_string(attr_json(attrs, k), '$.intValue'),
-  json_extract_string(attr_json(attrs, k), '$.stringValue')) AS DOUBLE);
+-- effort, cost_usd and cost_usd_micros are promoted columns of cc-otel.sql. aggregationTemporality
+-- is a field of the sum, not an attribute, so it is read here.
 
 CREATE TEMP TABLE points AS
 SELECT session_id, metric_name, COALESCE(model, 'unknown') AS model,
-  COALESCE(list_filter(attributes_list, lambda x: x.key = 'effort')[1].value.stringValue, 'none') AS effort,
+  COALESCE(effort, 'unset') AS effort,
   attr_type, value
 FROM cc_metrics_from(getvariable('metrics_src'))
 WHERE metric_name IN ('claude_code.token.usage', 'claude_code.cost.usage')
@@ -80,8 +71,7 @@ metric AS (
 events AS (
   -- cost_usd_micros is the exact integer form; cost_usd the rounded double.
   SELECT session_id, count(*) AS n,
-    COALESCE(sum(COALESCE(attr_num(attributes_list, 'cost_usd_micros') / 1e6,
-                          attr_num(attributes_list, 'cost_usd'))), 0) AS usd
+    COALESCE(sum(COALESCE(cost_usd_micros / 1e6, cost_usd)), 0) AS usd
   FROM cc_logs_from(getvariable('logs_src'))
   WHERE event_name = 'api_request' AND session_id IN (getvariable('a'), getvariable('b'))
   GROUP BY session_id

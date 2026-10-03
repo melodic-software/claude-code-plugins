@@ -4,6 +4,14 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.18.0] - 2026-10-03
+
+### Changed
+
+- **`map-corpus`'s effort gotcha points at the marketplace's Effort tiers record.** It no longer
+  says no dispatched subagent takes a per-call effort override; which dispatch surfaces take one is
+  read from that record's Workflow probe paragraph.
+
 ## [0.17.1] - 2026-10-02
 
 ### Fixed
