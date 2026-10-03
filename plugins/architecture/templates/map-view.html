@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Architecture Map View</title>
+<style>
+:root {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --fg: #1b2330;
+  --muted: #566173;
+  --line: #d6dce4;
+  --accent: #2b59c3;
+  --chip: #e6ecf8;
+  --sans: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme=light]) {
+    --bg: #12161d;
+    --surface: #1a2029;
+    --fg: #e4e9f0;
+    --muted: #9aa5b5;
+    --line: #2c3542;
+    --accent: #86a8f0;
+    --chip: #233150;
+    color-scheme: dark;
+  }
+}
+:root[data-theme=dark] {
+  --bg: #12161d;
+  --surface: #1a2029;
+  --fg: #e4e9f0;
+  --muted: #9aa5b5;
+  --line: #2c3542;
+  --accent: #86a8f0;
+  --chip: #233150;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); }
+.page { max-width: 56rem; margin: 0 auto; padding: 0 16px; padding-block: 2rem 3rem; display: grid; gap: 1.5rem; }
+.eyebrow { margin: 0; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0.25rem 0 0.5rem; font-size: 1.6rem; line-height: 1.2; text-wrap: balance; }
+.meta { margin: 0.5rem 0 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+.facts { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; color: var(--muted); font-family: var(--mono); font-size: 0.85rem; }
+.bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.bar input { flex: 1 1 14rem; min-width: 0; padding: 0.5rem 0.65rem; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); font: inherit; }
+.rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.row { padding: 0.6rem 0.9rem; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.row[hidden] { display: none; }
+summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
+.chip { padding: 0.05rem 0.5rem; border-radius: 4px; background: var(--chip); color: var(--accent); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.fields { margin: 0.6rem 0 0; padding-left: 1.1rem; font-family: var(--mono); font-size: 0.85rem; overflow-wrap: anywhere; }
+summary:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none; animation: none; } }
+</style>
+</head>
+<body>
+<main class="page">
+<header>
+<p class="eyebrow">Interactive view. The markdown and the JSON record are authoritative.</p>
+<h1 data-rv-text="title">Architecture map</h1>
+<ul class="facts" data-rv-each="facts"><li data-rv-text="item"></li></ul>
+<p class="meta"><span data-rv-count="rows">0</span> rows. Open a row for its fields. Type an id or a name in the filter to trace every row that names it.</p>
+</header>
+<div class="bar">
+<label for="find">Filter</label>
+<input id="find" type="search" placeholder="A node id, a name, or any word from a field" data-rv-filter="rows">
+</div>
+<ol class="rows" data-rv-each="rows">
+<li class="row">
+<details>
+<summary><span class="chip" data-rv-text="kind"></span><strong data-rv-text="name"></strong></summary>
+<ul class="fields" data-rv-each="fields"><li data-rv-text="item"></li></ul>
+</details>
+</li>
+</ol>
+</main>
+</body>
+</html>

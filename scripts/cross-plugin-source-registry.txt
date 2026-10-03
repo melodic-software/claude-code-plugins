@@ -274,7 +274,7 @@ lib/exec-bash.mjs -> plugins/*/hooks/exec-bash.mjs
 lib/plugin_cache_versions.py
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# lib/view-builder.mjs. The review, planning, debugging and discovery plugins carry the generated
+# lib/view-builder.mjs. The review, planning, debugging, discovery and architecture plugins carry the generated
 # copies, which stay byte-identical to each other.
 lib/view-builder.mjs
 
@@ -283,7 +283,7 @@ lib/view-builder.mjs
 lib/view-builder.mjs -> plugins/*/lib/view-builder.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# lib/view-runtime.js. The review, planning, debugging and discovery plugins carry the generated
+# lib/view-runtime.js. The review, planning, debugging, discovery and architecture plugins carry the generated
 # copies, which stay byte-identical to each other.
 lib/view-runtime.js
 

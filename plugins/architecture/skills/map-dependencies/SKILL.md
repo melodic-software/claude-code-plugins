@@ -210,6 +210,13 @@ says it aggregated to directory level.
 - **Diagram**: mermaid flowchart, or no diagram because the result is unknown or a filter
   left nothing to draw.
 
+## Interactive view
+
+After the report, offer an interactive view of `dependency-graph.json` in one sentence. The markdown and the
+record stay authoritative. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs dependencies`,
+never hand-written; the publish destination comes from the `medium` cascade key. Procedure:
+[`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
+
 ## What this skill does NOT do
 
 - Import graphs, call graphs, or runtime discovery.
