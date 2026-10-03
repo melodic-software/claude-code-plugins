@@ -3,11 +3,19 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.35.1] - 2026-10-02
+## [0.36.1] - 2026-10-02
 
 ### Fixed
 
 - `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
+## [0.36.0] - 2026-10-02
+
+### Changed
+
+- **`fanout` run-everything mode shows each leaf's effort level.** The report's Surfaces line
+  names each leaf as `label@level`: slices from the workflow's returned roles, named agents from
+  their definition's pin, noting that the level is the one requested.
 
 ## [0.35.0] - 2026-10-02
 

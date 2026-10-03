@@ -15,7 +15,8 @@ writing a comment, or answering a question. No size threshold below which verifi
 
 More tokens and more time are acceptable, even encouraged, when they produce more accuracy and
 prevent rework. Insufficient research is a leading source of rework. If context is healthy, invest
-in depth; context pressure (approaching compaction) is the budget constraint, not effort.
+in depth; context pressure (approaching compaction) is the budget constraint, not the amount of
+work.
 
 ## Task tracking
 

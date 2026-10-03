@@ -7,12 +7,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
-## [0.7.5] - 2026-10-02
+## [0.8.1] - 2026-10-02
 
 ### Fixed
 
 - `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
 - The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
+## [0.8.0] - 2026-10-02
+
+### Added
+
+- **`audit` carries a Boundary section for the built-in `/skill-doctor` command.** The command is
+  user-only, so the section offers it to the person for choosing which skills to turn off and keeps
+  measuring what a toggle saved here. Its four-part records live in
+  `reference/native-skill-doctor.md`.
+
+### Changed
+
+- **`audit`'s route-out sends skill pruning to `/skill-doctor`.** Unused MCP servers and plugins
+  stay with the bundled `/doctor`. The README's Boundaries list, the lever catalogue's routes and
+  the report's Routes section name the same split.
 
 ## [0.7.4] - 2026-10-02
 

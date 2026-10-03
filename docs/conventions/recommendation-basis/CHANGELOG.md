@@ -4,6 +4,15 @@ Notable changes to the recommendation-basis contract (SemVer). Changing the grou
 label's values, or the re-emit shape is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [1.1.0] - 2026-10-02
+
+Minor, additive. The Basis label section adds the `single source` qualifier: a recommendation
+resting on a first-party content claim that `/discovery:research` accepted with a `single source`
+flag stays `verified` and may ground a code edit, and its label and the record beside the edit
+carry the flag, `Basis: verified (single source), <url>`. The label's two values, the grounding bar
+and the re-emit shape are unchanged, so earlier adopters still conform. The plugin-shipped copies
+leave the qualifier out because it applies only to research output.
+
 ## [1.0.2] - 2026-10-01
 
 Patch, docs-only. The Boundary bullet on durable records of upstream-derived facts names the record

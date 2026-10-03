@@ -3,13 +3,34 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [2.5.5] - 2026-10-02
+## [3.0.1] - 2026-10-02
 
 ### Fixed
 
 - `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
 - The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
 - The `known-issues` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [3.0.0] - 2026-10-02
+
+### Added
+
+- **Session event-log rows record effort and hook metadata.** Each `source: "event-log"` row
+  carries `effort`: the payload's `effort.level`, else `$CLAUDE_EFFORT`, `n/a` on events that never
+  carry a level, and `unset` when an event that can carry one had none. Rows also copy an allowlist
+  of documented top-level hook input fields (paths, model, permission mode, trigger and similar
+  strings, booleans and numbers). Prompt text, messages, tool input and output, and nested objects
+  are never copied. `measure-hook-log-budget.sh` reports the extra cost of reading a wide payload.
+- **The `changelog` skill runs harness-config's effort-pin drift check** when that plugin is
+  installed and reports its lines with the native-surface drift report.
+
+### Changed
+
+- **BREAKING: every lane must name an effort.** `lane-launcher.sh` start and restart refuse a
+  lane whose config has no `effort`, pointing at model-config's "Choose an effort level" table,
+  and launch the other lanes. Add `lanes[].effort` to each lane in `lanes.json`. The launcher always passes
+  `--effort`, and warns once per run when `CLAUDE_CODE_EFFORT_LEVEL` is set, since it overrides
+  lane levels and agent pins. The lanes config example picks each lane's level from that table.
 
 ## [2.5.4] - 2026-10-02
 

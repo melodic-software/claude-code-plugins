@@ -30,7 +30,7 @@ PILOT_SUITE = REPO_ROOT / "plugins" / "evals" / "evals"
 # what keeps the fixtures discriminating: this pattern alone does not.
 FAIL_LINE = re.compile(
     r"^FAIL .*(unknown frontmatter key|duplicate grader|no grader|runs|not parsed"
-    r"|schema_version|without a prompt.md)",
+    r"|schema_version|without a prompt.md|sample)",
     re.MULTILINE,
 )
 
@@ -97,6 +97,15 @@ class ValidatorTestCase(unittest.TestCase):
             write(case_dir / "graders" / (grader_name + ".md"), body)
         return case_dir
 
+    def samples(self, case_name, grader_name, passing=(), failing=()):
+        path = self.eval_dir / case_name / "samples" / (grader_name + ".json")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        data = {
+            "pass": [{"answer": answer} for answer in passing],
+            "fail": [{"answer": answer} for answer in failing],
+        }
+        path.write_text(json.dumps(data), encoding="utf-8")
+
     def validate(self, *args):
         return run_validator(str(self.eval_dir), *args)
 
@@ -113,6 +122,9 @@ class ValidatorTestCase(unittest.TestCase):
             0, result.returncode, "expected exit 0\n" + result.stdout + result.stderr
         )
         self.assertNotIn("FAIL", result.stdout)
+        # A sample set that could not be graded is a WARN, which would otherwise
+        # let a broken mirror read as a clean pass.
+        self.assertNotIn("samples not checked", result.stdout)
 
 
 class UnknownKeyFixture(ValidatorTestCase):
@@ -132,6 +144,33 @@ class UnknownKeyFixture(ValidatorTestCase):
         result = self.validate()
         self.assert_fail(result, 'unknown frontmatter key "run_count"')
         self.assertIn("unknown-key/prompt.md", result.stdout)
+
+    def test_undocumented_keys_the_binary_accepts_warn_without_failing(self):
+        # Claude Code 2.1.287's case schema accepts both keys; the reference
+        # page's prompt.md field table lists neither.
+        self.case(
+            "undocumented-keys",
+            prompt="""\
+            ---
+            description: Two keys that load but are not documented
+            artifact_publish: true
+            growthbook_overrides: {some_flag: true}
+            ---
+
+            Do the thing.
+            """,
+            graders={"criteria": REGEX_GRADER},
+        )
+        self.samples("undocumented-keys", "criteria", ["conftest.py"], ["no"])
+        result = self.validate()
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertNotIn("FAIL", result.stdout)
+        for key in ("artifact_publish", "growthbook_overrides"):
+            self.assertIn(
+                'WARN undocumented-keys/prompt.md: frontmatter key "%s" loads but '
+                "is undocumented" % key,
+                result.stdout,
+            )
 
 
 class DuplicateGraderFixture(ValidatorTestCase):
@@ -738,6 +777,307 @@ class OutputContract(ValidatorTestCase):
         self.assertIn("exit", result.stdout.lower())
 
 
+def regex_grader(pattern, extra=""):
+    return '---\ntype: regex\npattern: "%s"\n%s---\n' % (pattern, extra)
+
+
+class SampleAnswers(ValidatorTestCase):
+    def test_a_must_pass_answer_the_regex_rejects_fails(self):
+        self.case("c", prompt=CLEAN_PROMPT, graders={"g": regex_grader("conftest")})
+        self.samples("c", "g", passing=["use conftest.py", "a fixtures module"])
+        result = self.validate()
+        self.assert_fail(result, "must-pass sample 2 fails the grader")
+        self.assertIn("c/samples/g.json", result.stdout)
+        self.assertNotIn("must-pass sample 1", result.stdout)
+
+    def test_a_must_fail_answer_the_regex_accepts_fails(self):
+        self.case("c", prompt=CLEAN_PROMPT, graders={"g": regex_grader("conftest")})
+        self.samples("c", "g", passing=["conftest.py"], failing=["a conftest file"])
+        self.assert_fail(self.validate(), "must-fail sample 1 passes the grader")
+
+    def test_samples_the_grader_sorts_correctly_are_clean(self):
+        self.case("c", prompt=CLEAN_PROMPT, graders={"g": regex_grader("conftest")})
+        self.samples("c", "g", passing=["conftest.py"], failing=["", "I don't know."])
+        result = self.validate()
+        self.assert_clean(result)
+        self.assertNotIn("no sample answers", result.stdout)
+
+    def test_the_why_label_appears_in_the_finding(self):
+        self.case("c", prompt=CLEAN_PROMPT, graders={"g": regex_grader("conftest")})
+        path = self.eval_dir / "c" / "samples" / "g.json"
+        path.parent.mkdir(parents=True)
+        path.write_text(
+            json.dumps({"pass": [{"answer": "nope", "why": "R2 phrasing"}]}),
+            encoding="utf-8",
+        )
+        self.assert_fail(self.validate(), 'must-pass sample 1 ("R2 phrasing") fails')
+
+    def test_flags_i_is_honored_and_no_flags_is_case_sensitive(self):
+        self.case(
+            "c",
+            prompt=CLEAN_PROMPT,
+            graders={
+                "loose": regex_grader("conftest", "flags: i\n"),
+                "strict": regex_grader("conftest"),
+            },
+        )
+        self.samples("c", "loose", passing=["CONFTEST.PY"], failing=["pytest"])
+        self.samples("c", "strict", passing=["conftest.py"], failing=["CONFTEST.PY"])
+        self.assert_clean(self.validate())
+
+    def test_multiline_and_dotall_flags_change_the_match(self):
+        self.case(
+            "c",
+            prompt=CLEAN_PROMPT,
+            graders={
+                "line": regex_grader("^two$", "flags: m\n"),
+                "span": regex_grader("one.two", "flags: s\n"),
+            },
+        )
+        self.samples("c", "line", passing=["one\ntwo\nthree"], failing=["one two"])
+        self.samples("c", "span", passing=["one\ntwo"], failing=["one\n\ntwo"])
+        self.assert_clean(self.validate())
+
+    def test_not_contains_and_count_modes(self):
+        self.case(
+            "c",
+            prompt=CLEAN_PROMPT,
+            graders={
+                "absent": regex_grader("TODO", "match: not_contains\n"),
+                "twice": regex_grader("ok", 'match: "count:2"\n'),
+            },
+        )
+        self.samples("c", "absent", passing=["done"], failing=["a TODO left"])
+        self.samples("c", "twice", passing=["ok, ok"], failing=["ok", "ok ok ok"])
+        self.assert_clean(self.validate())
+
+    def test_a_javascript_named_group_is_translated(self):
+        self.case(
+            "c",
+            prompt=CLEAN_PROMPT,
+            graders={"g": regex_grader("(?<word>ab)\\\\k<word>")},
+        )
+        self.samples("c", "g", passing=["abab"], failing=["ab"])
+        self.assert_clean(self.validate())
+
+    def test_tool_used_matches_the_compact_json_input_and_its_bounds(self):
+        self.case(
+            "c",
+            prompt=CLEAN_PROMPT,
+            graders={
+                "fired": """\
+                ---
+                type: tool_used
+                tool: Skill
+                input_match: '"skill":"(?:evals:)?methodology"'
+                ---
+                """,
+                "never": """\
+                ---
+                type: tool_used
+                tool: Skill
+                min: 0
+                max: 0
+                arm: both
+                ---
+                """,
+            },
+        )
+        skill = {"tool": "Skill", "input": {"skill": "evals:methodology"}}
+        other = {"tool": "Skill", "input": {"skill": "evals:design"}}
+        read = {"tool": "Read", "input": {"file_path": "a.md"}}
+        self.samples(
+            "c", "fired", passing=[[skill], [read, skill]], failing=[[], [other]]
+        )
+        self.samples("c", "never", passing=[[], [read]], failing=[[skill], [other]])
+        self.assert_clean(self.validate())
+
+    def test_tool_order_compares_the_first_matching_calls(self):
+        self.case(
+            "c",
+            prompt=CLEAN_PROMPT,
+            graders={
+                "order": """\
+                ---
+                type: tool_order
+                before: Read
+                after: { tool: Skill, input_match: "design" }
+                ---
+                """
+            },
+        )
+        read = {"tool": "Read", "input": {}}
+        design = {"tool": "Skill", "input": {"skill": "evals:design"}}
+        self.samples(
+            "c",
+            "order",
+            passing=[[read, design], [read, design, read]],
+            failing=[[design, read], [read], [design]],
+        )
+        self.assert_clean(self.validate())
+
+    def test_file_exists_uses_the_anchored_glob(self):
+        self.case(
+            "c",
+            prompt="""\
+            ---
+            allowed_tools: [Read, Write]
+            ---
+
+            Write the report.
+            """,
+            graders={
+                "made": """\
+                ---
+                type: file_exists
+                path: "out/**/*.txt"
+                ---
+                """,
+                "absent": """\
+                ---
+                type: file_exists
+                path: "*.log"
+                exists: false
+                ---
+                """,
+            },
+        )
+        self.samples(
+            "c",
+            "made",
+            passing=[["out/a.txt"], ["out/x/y/b.txt"]],
+            failing=[[], ["out/a.md"], ["src/out/a.txt"]],
+        )
+        self.samples(
+            "c", "absent", passing=[[], ["logs/run.log"]], failing=[["run.log"]]
+        )
+        self.assert_clean(self.validate())
+
+    def test_a_deterministic_grader_without_samples_warns(self):
+        self.case("c", prompt=CLEAN_PROMPT, graders={"g": REGEX_GRADER})
+        result = self.validate()
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertIn("WARN c/graders/g.md: no sample answers", result.stdout)
+
+    def test_a_one_sided_sample_file_warns(self):
+        self.case("c", prompt=CLEAN_PROMPT, graders={"g": regex_grader("conftest")})
+        self.samples("c", "g", passing=["conftest.py"])
+        result = self.validate()
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertIn("no must-fail answers", result.stdout)
+
+    def test_judge_samples_warn_for_calibration_and_are_never_graded(self):
+        self.case(
+            "c",
+            prompt=CLEAN_PROMPT,
+            graders={
+                "judge": "---\ntype: llm\n---\n\nPASS when the answer names conftest.py.\n",
+                "g": REGEX_GRADER,
+            },
+        )
+        # Samples a regex would sort the other way: a judge's are not graded.
+        self.samples("c", "judge", passing=[""], failing=["conftest.py"])
+        result = self.validate()
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertIn("2 sample answers need judge calibration", result.stdout)
+        self.assertNotIn("graders/judge.md: no sample answers", result.stdout)
+
+    def test_samples_for_a_grader_in_case_yaml_are_found_by_name(self):
+        self.case(
+            "c",
+            case_yaml="""\
+            schema_version: "1.1"
+            name: c
+            execution:
+              prompt: Do the thing.
+            graders:
+              - name: listed
+                type: regex
+                pattern: "thing"
+            """,
+        )
+        self.samples("c", "listed", passing=["other"], failing=["nothing"])
+        result = self.validate()
+        self.assert_fail(
+            result, "must-pass sample 1 fails", "must-fail sample 1 passes"
+        )
+
+    def test_malformed_samples_fail_closed(self):
+        self.case(
+            "c",
+            prompt=CLEAN_PROMPT,
+            graders={
+                "a": regex_grader("x"),
+                "b": regex_grader("x"),
+                "d": regex_grader("x"),
+            },
+        )
+        directory = self.eval_dir / "c" / "samples"
+        directory.mkdir()
+        (directory / "a.json").write_text("{not json", encoding="utf-8")
+        (directory / "b.json").write_text('{"passes": []}', encoding="utf-8")
+        (directory / "d.json").write_text('{"pass": [{"answer": 3}]}', encoding="utf-8")
+        result = self.validate()
+        self.assert_fail(
+            result,
+            "c/samples/a.json: samples not parsed",
+            'unknown key "passes"',
+            "answer must be a string for a regex grader",
+        )
+
+    def test_samples_for_no_grader_warn(self):
+        self.case("c", prompt=CLEAN_PROMPT, graders={"g": regex_grader("x")})
+        self.samples("c", "g", passing=["x"], failing=["y"])
+        self.samples("c", "renamed", passing=["x"], failing=["y"])
+        result = self.validate()
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertIn('no grader named "renamed"', result.stdout)
+
+    def test_an_unmirrorable_flag_warns_instead_of_grading(self):
+        self.case(
+            "c",
+            prompt=CLEAN_PROMPT,
+            graders={"g": regex_grader("x", "flags: y\n")},
+        )
+        self.samples("c", "g", passing=["no match here", "x"], failing=["x"])
+        result = self.validate()
+        self.assertEqual(0, result.returncode, result.stdout)
+        self.assertIn("samples not checked: flag y", result.stdout)
+        self.assertEqual(1, result.stdout.count("samples not checked"))
+
+
+class R2Regression(ValidatorTestCase):
+    """The tracked samples catch the regex that scored R2's with-arm 0."""
+
+    R2_PATTERN = (
+        "showpiece|fastest, most reliable, most scalable|headline (metric|number)"
+        "|read(ing)? (a )?samples?"
+    )
+
+    def test_the_r2_regex_fails_the_tracked_samples(self):
+        case_dir = self.eval_dir / "grading-method-choice"
+        shutil.copytree(PILOT_SUITE / "grading-method-choice", case_dir)
+        write(
+            case_dir / "graders" / "methodology-wording.md",
+            regex_grader(self.R2_PATTERN, "flags: i\narm: both\n"),
+        )
+        result = self.validate()
+        # Samples 1 and 5 carry the two phrasings the R2 with-arm used.
+        self.assert_fail(
+            result,
+            "must-pass sample 1 (",
+            "must-pass sample 5 (",
+            "must-fail sample 7 (",
+        )
+
+    def test_the_tracked_regex_passes_the_tracked_samples(self):
+        shutil.copytree(
+            PILOT_SUITE / "grading-method-choice",
+            self.eval_dir / "grading-method-choice",
+        )
+        self.assert_clean(self.validate())
+
+
 class PilotSuite(unittest.TestCase):
     def test_tracked_pilot_suite_passes(self):
         self.assertTrue(
@@ -751,6 +1091,9 @@ class PilotSuite(unittest.TestCase):
             "the live fixture must validate clean\n" + result.stdout + result.stderr,
         )
         self.assertNotIn("FAIL", result.stdout)
+        # Every deterministic grader in the pilot suite carries checked samples.
+        self.assertNotIn("no sample answers", result.stdout)
+        self.assertNotIn("samples not checked", result.stdout)
 
 
 if __name__ == "__main__":

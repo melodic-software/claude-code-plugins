@@ -136,7 +136,9 @@ that line before editing, since it may be an illustrative example path rather th
    and a non-empty `evals` array are required; each case requires `id`, `prompt`, and at least one
    non-empty grading criterion: a non-empty `expected_output` string, a non-empty `expectations`
    array, or a non-empty `assertions` array (a case that cannot be graded is not an eval); a
-   rich-form case may add `name` (kebab-case) and `files`.
+   rich-form case may add `name` (kebab-case) and `files`, and any case may add `difficulty`
+   (`hard` or `routine`), `why_hard` (the reason a person judged it hard) and `source` (where
+   the case came from).
 4. Report each violation with its JSON path, or confirm the file conforms.
 5. Run the deterministic eval-quality lint over every located file, all at once. The script
    accepts multiple paths:
@@ -149,8 +151,9 @@ that line before editing, since it may be an illustrative example path rather th
    an unresolvable `files` fixture, an empty criterion item), then its `WARN:` lines grouped
    after (advisory quality heuristics: vague criterion phrasing, thin sole-criterion
    `expected_output`, identical prompt+files pairs, a set with no refusal/anti-pattern case, a criterion that leaves an
-   evaluative word such as "appropriate" or "correctly" undefined).
-   The script exits 0 when only warnings remain; run `--help` for the full Q1-Q10 check list.
+   evaluative word such as "appropriate" or "correctly" undefined, a `difficulty: hard` case
+   with no `why_hard`).
+   The script exits 0 when only warnings remain; run `--help` for the full Q1-Q11 check list.
    If `jq` is absent the script exits 2. Report that the quality lint was skipped for that
    reason; the schema verdict from steps 3-4 still stands.
 
@@ -217,8 +220,12 @@ Model-graded `claude plugin eval` cases are emitted on demand. Contract:
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/measure-invocation.sh" score <probes-dir>
    ```
 
-   `compare <baseline> <treatment>` prints per-skill train and validation deltas. `emit-plugin-eval
-   <probes-dir> <out-dir>` writes `claude plugin eval` cases into an empty or new `<out-dir>`.
+   `validate` WARNs when a should-trigger probe shares 4 or more consecutive words with the target
+   listing (`--copy-span N` changes the span); reword such a probe the way a user would ask.
+   `compare <baseline> <treatment>` prints per-skill train and validation deltas, each trigger-rate
+   delta with a 95% interval and a "within noise" line when the interval contains 0.
+   `emit-plugin-eval [--runs N] <probes-dir> <out-dir>` writes `claude plugin eval` cases into an
+   empty or new `<out-dir>`, 3 runs per case unless `--runs` says otherwise.
    Claim: each case is a directory holding `prompt.md` (frontmatter fields, body is the prompt)
    and `graders/`, and a `tool_used` grader with `tool: Skill` and an `input_match` on the skill
    name checks that the skill fired. Basis: <https://code.claude.com/docs/en/plugin-evals>, the
@@ -226,8 +233,9 @@ Model-graded `claude plugin eval` cases are emitted on demand. Contract:
    case layout, the `prompt.md` fields, or the `tool_used` grader fields.
 3. Report per skill, per split (`train` and `validation`): `trigger_rate` and
    `false_trigger_rate`, sample size, and the method name. A rewrite is compared with `compare`
-   against `probes/baselines/listing-overlap.json` (or a later model-graded snapshot). The action
-   is complete when both splits are named; a single blended rate is not the done-condition.
+   against `probes/baselines/listing-overlap.json` (or a later model-graded snapshot); a delta
+   reported "within noise" is not a gain. The action is complete when both splits are named; a
+   single blended rate is not the done-condition.
 4. `listing-overlap` is a floor, not a model-graded auto-invocation rate. Say so when reporting.
    Do not treat a 1.0 positive rate on the floor as proof the description saturates live
    auto-invocation.
@@ -257,9 +265,7 @@ tool. This gate does not automate that reachability check; author and review aga
 - `measure-invocation`'s default `listing-overlap` method is a lexical floor. A 1.0 positive
   trigger rate means the description already contains the request's nouns, not that live
   auto-invocation saturates. Report both splits and name the method.
-- The shipped probes are this marketplace's skills, and two positives of
-  `probes/skill-quality.check.json` quote the `check` description nearly verbatim, so a 1.0
-  positive rate there is close to true by construction. Outside the marketplace checkout `score`
+- The shipped probes are this marketplace's skills. Outside the marketplace checkout `score`
   needs your own probes directory; no script turns `plugin-eval` or `claude -p` results into a
   report for `compare`.
 - A git repository is optional. Git-backed checks (trigger-keyword preservation, vendor
@@ -361,7 +367,7 @@ tool. This gate does not automate that reachability check; author and review aga
   phrases, "read-only by default",
   the noun "remediation", and a negated "or rewrites" list do not advertise mutation.
 - `check-evals-quality.sh` requires `jq` (exit 2 without it, and the schema validation of
-  `validate-evals` steps 3-4 is unaffected). Its WARN-tier checks (Q5-Q10) are lexical heuristics:
+  `validate-evals` steps 3-4 is unaffected). Its WARN-tier checks (Q5-Q11) are lexical heuristics:
   Q9 (set-coverage) detects refusal/anti-pattern cases by wording, so a set whose guardrail case
   phrases the prohibition unusually can WARN despite covering it. Read the set before adding a
   case. It deliberately does not flag low case count: the marketplace's low eval volume is a recorded

@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "The eval run refuses Reads under the plugin's own directory, whatever the case's Read grant; the grant covers the tool, not that path. Only the hub `SKILL.md`, injected as the skill body, reaches the model.\n\nSo move the content your cases depend on out of `reference/grading.md` and into `SKILL.md`, staying within its size limit. Then the with-arm can actually use it, and the delta measures what the skill knows rather than what it can't open. Rerun the affected cases afterwards to compare. Until then, a null delta says more about the hub than about the plugin.",
+      "why": "P-canonical: says to move the content the cases depend on into the hub SKILL.md within its size limit so the with-arm can measure it."
+    },
+    {
+      "answer": "That message is the eval's own sandbox, and no change to `allowed_tools` gets past it: inside the with-arm, files under the plugin's folder are off limits even with Read granted. The model only ever sees the hub `SKILL.md` body.\n\nThe eval measures only what `SKILL.md` carries, so whatever your cases test has to be written there. Pick the grading rules the cases actually rely on and put them into the hub itself, inside its size limit; spoke files can stay for everything the cases don't touch. Then rerun and compare the delta with the earlier run.",
+      "why": "P-alt: says the eval measures only what SKILL.md carries, so what the cases test must go there, the rubric's accepted alternative wording."
+    },
+    {
+      "answer": "In the with-arm, a Read of any file under the plugin's own directory is refused with exactly that message, regardless of the case's Read grant. Only the hub `SKILL.md` text reaches the model.\n\nWhat to change: move the content the cases depend on into `SKILL.md`, within its size limit.\n\nTwo caveats. A path-scoped `--allow-tools \"Read(//home/dev/repo/plugins/notes/**)\"` grant does not lift the denial, so don't spend time on permissions. And until you move it, a null delta on this plugin is a finding about the hub, not proof the skill adds nothing.",
+      "why": "P-caveat: says to move the case-critical content into SKILL.md within its size limit; the caveats about the path-scoped grant and the null delta are correct and do not touch the graded point."
+    },
+    {
+      "answer": "That read is blocked by the eval sandbox, so the with-arm never gets `grading.md`, and the answers you see come from a skill missing its grading rules.\n\nTo make the eval measure what the skill knows, move the content your cases depend on into `SKILL.md` itself, keeping it within the size limit. Pick the rules, thresholds and examples the cases actually check and put them in the hub; trim wording elsewhere in `SKILL.md` if you need room. Then rerun the cases and compare the delta with your earlier run; the gap should now reflect the grading knowledge itself.",
+      "why": "P-plain: says to move the content into SKILL.md within its size limit, while missing the sibling's points (no mention that the Read grant is irrelevant or that only the hub reaches the model)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Read in `allowed_tools` lets the model call the tool, but a deny rule on that directory still wins. Check the settings the eval inherits, your user and project `settings.json`, for a `permissions.deny` entry covering `skills/` and remove it or narrow it. If you can't find one, grant the path directly when you launch: `claude plugin eval ./plugins/notes --allow-tools \"Read(//home/dev/repo/plugins/notes/**)\"`. Once the read succeeds, the with-arm sees the full reference and your delta reflects what the skill knows. Leave `SKILL.md` as it is; the layout isn't the problem, and splitting detail into `reference/` is good practice for keeping the hub short.",
+      "why": "F-wrong: offers only permission and allow-tools changes as the fix, never moving content into SKILL.md."
+    },
+    {
+      "answer": "The eval run refuses Reads under the plugin's own directory whatever the case's Read grant; the grant covers the tool, not that path. Only the hub `SKILL.md` text, the injected skill body, reaches the model, so `reference/grading.md` never arrives.\n\nWhat to change: rewrite the cases so they only test what `SKILL.md` already says, and drop the expectations that depend on the grading reference. Then the with-arm is scored on knowledge it can actually see and the delta stops being dragged down by unreachable files. Rerun the suite afterwards and compare the new delta with the old one.",
+      "why": "F-partial: explains the cause correctly but never says to move the content into SKILL.md; it changes the cases instead."
+    },
+    {
+      "answer": "In the with-arm, Reads under the plugin's own folder are refused no matter what the case's Read grant is, and only the hub `SKILL.md` body reaches the model.\n\nThe obvious move is to put the grading content into `SKILL.md`. I'd advise against it, though: keep `SKILL.md` lean and leave the detail in `reference/`, where it belongs for real use. Accept that the with-arm score understates the skill, and note in your results that the reference wasn't readable during the eval. Readers of the report can then discount the with-arm accordingly.",
+      "why": "F-retract: mentions moving the content into SKILL.md, then retracts it, says to keep the reference out of SKILL.md, and accepts the score."
+    },
+    {
+      "answer": "The run refuses reads under the plugin's own directory whatever the case's Read grant, so only the hub `SKILL.md` reaches the model. Files the case owns are a different matter, because the case directory is part of the run's workspace.\n\nSo copy `reference/grading.md` into the case directory next to `prompt.md`, and point the prompt at the local copy. The with-arm can read it there, and you keep `SKILL.md` short while the eval still measures the grading knowledge. Repeat that for each case that needs the reference, and keep the copies in sync when the reference changes.",
+      "why": "F-near: proposes copying the reference into the case directory, a fix the rubric explicitly fails."
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Rerun with `--keep-temp` so the traces survive.",
+      "why": "the flag"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Rerun with more runs and post the new delta.",
+      "why": "no flag"
+    }
+  ]
+}

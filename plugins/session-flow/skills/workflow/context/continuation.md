@@ -37,6 +37,7 @@ mechanics.
 | What is still running | a reconciliation ALREADY run this session (`session-flow:reconcile`), else `session-flow:orient`'s read-only off-thread glance | the liveness answer: which off-thread work is finished, which is live |
 | Which boundary this is | the workflow checklist (SKILL.md, "Consumer conventions") | the last ticked stage and the next unticked one |
 | Whether the remaining work is already scoped | the consuming repo's work-item tracker | the claimed item's remaining acceptance criteria |
+| The effort the next stage wants | this skill's `context/steps.md`, "Effort per stage" | the level and matched table text that rule advises for the next stage, or its statement that the table could not be read |
 
 An absent informant makes its input simply unknown, the same conservative degradation the zone
 word takes. An unknown input never blocks the router; it only narrows the evidence the
@@ -167,6 +168,13 @@ behalf. Emit three things:
 
 State the evidence even when it is thin: "no zone snapshot and no orient briefing, judged from
 window position and response quality" is a legitimate recommendation basis, and an honest one.
+
+**A pending effort change rides along as advice.** When the next stage's effort input differs
+from the level this session runs at, or that level is unknown, add the advised level, the matched
+table text, and the human's step: `/effort` in the continuing or resumed session, or the
+`--effort` that `session-flow:continue-in-background` passes at launch. When the input says the
+table could not be read, say so and advise no level. The router advises the change and never
+sets it: neither autonomy tier below covers an effort change.
 
 ## Autonomy: two tiers, each explicitly licensed
 

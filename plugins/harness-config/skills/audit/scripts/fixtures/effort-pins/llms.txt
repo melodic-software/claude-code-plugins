@@ -1,0 +1,3 @@
+# Synthetic docs index
+
+- [Synthetic model page](https://code.claude.com/docs/en/model-config.md): placeholder page for the effort-pin drift check suite

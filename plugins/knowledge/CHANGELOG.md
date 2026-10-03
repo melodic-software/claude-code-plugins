@@ -4,13 +4,25 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.15.5] - 2026-10-02
+## [0.16.1] - 2026-10-02
 
 ### Fixed
 
 - `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
 - The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
 - The `docpage-digest` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [0.16.0] - 2026-10-02
+
+### Added
+
+- **`docpage-digest` gains `check-html-rows.py`, the HTML quote gate.** It checks F-labeled rows
+  quoted from a page's HTML against `source.html` and grades each `EXACT`, `JOIN` (with declared
+  truncations) or `FAIL`; usage and read errors exit 2. It ships with a synthetic negative-control
+  test suite beside `check-fences-exact.py`.
+- **`check-html-rows.py` is a standing gate when digests carry `**FN.**` rows quoted from
+  `source.html`**, named in the pipeline invocation, dual verification and the Phase 4 checklist;
+  a fence that is empty, blank or only truncation marks fails.
 
 ## [0.15.4] - 2026-10-02
 

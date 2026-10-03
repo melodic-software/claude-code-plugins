@@ -17,7 +17,7 @@
 #   bash check-evals-quality.sh <evals.json> [<evals.json> ...]
 #   bash check-evals-quality.sh --help
 #
-# Checks (Q1-Q4 FAIL; Q5-Q10 WARN — quality heuristics stay advisory so the
+# Checks (Q1-Q4 FAIL; Q5-Q11 WARN — quality heuristics stay advisory so the
 # gate never blocks on a judgment call):
 #   Q1. Duplicate case `id` within a set (FAIL — ids must be stable and
 #       unique for a grader to address a case)
@@ -65,6 +65,9 @@
 #       adequate, sensible) without saying what a grader must find (WARN —
 #       the word leaves the standard undefined; skips an item Q7 already
 #       flags. Lexical, so read the item before rewording it)
+#   Q11. A case marked `difficulty: hard` with no `why_hard` (WARN — a hard
+#       case earns its place by the reason a person judged it hard; without
+#       the reason a later editor cannot tell it from a routine case)
 #
 # Deliberately NOT checked: case count. The marketplace's low case volume
 # is a RECORDED divergence from the guidance's volume-over-polish principle
@@ -220,7 +223,11 @@ JQ_PROG='
                     (items | map(tostring) | join(" "))] | join(" ")]
        | any(test($neg; "i")) | not)
    then "WARN" + $u + "\($f): no case exhibits refusal/guardrail or anti-pattern language — the rich form aims for at least one of each (lexical check; verify by reading the set) (Q9)"
-   else empty end)
+   else empty end),
+  # Q11: a hard case with no stated reason.
+  ($cases[] | select(.difficulty == "hard" and ((.why_hard // "") | gsub("[[:space:]]"; "") == ""))
+    | caseref as $c
+    | "WARN" + $u + "\($f): \($c): marked difficulty: hard with no why_hard — say why a person judged it hard (Q11)")
 '
 
 # US (0x1f) delimits lint-line fields — it cannot appear in jq -r output of
