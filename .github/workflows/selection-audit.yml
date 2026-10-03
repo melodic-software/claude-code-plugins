@@ -57,7 +57,7 @@ jobs:
         with:
           persist-credentials: false
       # The suites read what they read only when their tools are present, so
-      # the toolchains match ci.yml's test-linux lane (Node, Python, ShellCheck,
+      # the toolchains match ci.yml's test-bash lane (Node, Python, ShellCheck,
       # shfmt, the inventory parser packages, DuckDB); a suite that skips for a
       # missing tool reads less and can hide a gap, never invent one.
       - name: Set up Node
