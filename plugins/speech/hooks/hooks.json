@@ -1,0 +1,21 @@
+{
+  "description": "Installs the plugin's hash-locked Python packages (numpy, onnxruntime) into the plugin data directory at session start, and reports a failed install.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/install-python-deps.sh"
+            ],
+            "timeout": 300,
+            "statusMessage": "Installing speech Python packages..."
+          }
+        ]
+      }
+    ]
+  }
+}
