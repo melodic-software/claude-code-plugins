@@ -111,8 +111,8 @@ check("the sample template builds an interactive page", page.includes(INTERACTIV
 check("validateView selects the interactive profile and passes", validateView(page).ok, validateView(page).failures);
 
 const cspContent = /<meta http-equiv="Content-Security-Policy" content="([^"]*)">/.exec(page)[1].replaceAll("&#x27;", "'");
-const inlineRuntime = /<script>([\s\S]*?)<\/script>/.exec(page)[1];
-const inlineStyle = /<style>([\s\S]*?)<\/style>/.exec(page)[1];
+const inlineRuntime = /<script>([\s\S]*?)<\/script>/.exec(page)[1]; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+const inlineStyle = /<style>([\s\S]*?)<\/style>/.exec(page)[1]; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 check("the inlined runtime is the shipped runtime, byte for byte", inlineRuntime === runtime);
 check(
   "the script-src hash is the SHA-256 of the inlined runtime",
@@ -130,11 +130,11 @@ check(
 );
 check(
   "the policy is the first element in head after the charset",
-  /<head><!--[^>]*-->\s*<meta charset="utf-8"><meta http-equiv="Content-Security-Policy"/.test(page),
+  /<head><!--[^>]*-->\s*<meta charset="utf-8"><meta http-equiv="Content-Security-Policy"/.test(page), // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 );
 
 const evil = buildView({ profile: "interactive", template, data: hostileData });
-const dataBody = /<script type="application\/json" id="rv-data">([\s\S]*?)<\/script>/.exec(evil)[1];
+const dataBody = /<script type="application\/json" id="rv-data">([\s\S]*?)<\/script>/.exec(evil)[1]; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 check("hostile data builds and the page still validates", validateView(evil).ok, validateView(evil).failures);
 check("the data block holds no raw <", !dataBody.includes("<"));
 check("the page carries exactly two script elements", (evil.match(/<script/gi) ?? []).length === 2);
@@ -275,26 +275,26 @@ for (const [name, bad] of Object.entries(reportRejects)) {
 }
 
 // -------------------------------------------------------- runtime sink lint
-const code = runtime.replace(/^\s*\/\/.*$/gm, "");
+const code = runtime.replace(/^\s*\/\/.*$/gm, ""); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 const forbidden = {
   "innerHTML": /innerHTML/, "outerHTML": /outerHTML/, "insertAdjacentHTML": /insertAdjacentHTML/,
-  "document.write": /document\.write/, "eval": /\beval\s*\(/, "new Function": /new\s+Function/,
+  "document.write": /document\.write/, "eval": /\beval\s*\(/, "new Function": /new\s+Function/, // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   "setTimeout": /setTimeout/, "setInterval": /setInterval/, "location": /location/,
-  "setAttribute": /setAttribute|setAttributeNS/, "style": /\.style\b|cssText/,
-  "src": /\.src\b/, "srcdoc": /srcdoc/, "on* property": /\.on[a-z]+\s*=/,
+  "setAttribute": /setAttribute|setAttributeNS/, "style": /\.style\b|cssText/, // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  "src": /\.src\b/, "srcdoc": /srcdoc/, "on* property": /\.on[a-z]+\s*=/, // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   "storage": /localStorage|sessionStorage|indexedDB|document\.cookie/,
-  "network": /fetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon|EventSource|import\s*\(/,
-  "window globals": /\bwindow\./,
+  "network": /fetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon|EventSource|import\s*\(/, // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  "window globals": /\bwindow\./, // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   // Selectors are string literals, or scoped()'s parameter, whose callers pass literals.
-  "selector from data": /(?:querySelector(?:All)?|matches|closest)(?:\?\.)?\((?!"|selector\))|\bscoped\([a-z]+, (?!")/,
+  "selector from data": /(?:querySelector(?:All)?|matches|closest)(?:\?\.)?\((?!"|selector\))|\bscoped\([a-z]+, (?!")/, // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   "script text": /<!--|<script|<\/script/i,
 };
 for (const [name, re] of Object.entries(forbidden)) {
   check(`runtime uses no ${name}`, !re.test(code), (code.match(re) ?? [])[0]);
 }
-check("the only href the runtime sets is the blob: object URL", (code.match(/\.href\s*=/g) ?? []).length === 1 && /anchor\.href = url;/.test(code) && /const url = URL\.createObjectURL\(/.test(code));
+check("the only href the runtime sets is the blob: object URL", (code.match(/\.href\s*=/g) ?? []).length === 1 && /anchor\.href = url;/.test(code) && /const url = URL\.createObjectURL\(/.test(code)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 check("the runtime reads the data block only with JSON.parse", (code.match(/JSON\.parse\(/g) ?? []).length === 1 && /JSON\.parse\(block\.textContent\)/.test(code));
-check("the runtime writes data only through textContent", !/\.(innerText|value)\s*=\s*text/.test(code));
+check("the runtime writes data only through textContent", !/\.(innerText|value)\s*=\s*text/.test(code)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 
 // ---------------------------------------------------- generated plugin copy
 const copy = await import(pathToFileURL(`${root}/plugins/review/lib/view-builder.mjs`).href);
