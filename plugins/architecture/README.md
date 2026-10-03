@@ -127,6 +127,14 @@ picture is `diagram_dialect.system`. Pulumi projects of any other runtime, Helm
 stops. Resources a reader parses and does not map are listed, and a read that
 places no container is refused. `--live` is refused.
 
+## Interactive views
+
+Each `map-*` skill offers an interactive view of its JSON record after the report: a filter that
+traces an id through every row naming it, and rows that open to their fields and citations. The markdown
+and the record stay authoritative. The page is a checked-in template plus the record as escaped data, so
+repository text never becomes markup or script. Where it is delivered comes from the `medium` key of the
+`rendered-views` cascade (`file` when unset). The procedure is in `reference/rendered-view.md`.
+
 ## Record a decision
 
 `/architecture:record-decision` discovers the ADR convention the repository

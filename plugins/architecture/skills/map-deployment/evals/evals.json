@@ -187,6 +187,18 @@
         "The artifact states partial-read",
         "Does not run terraform or helm"
       ]
+    },
+    {
+      "id": 15,
+      "name": "offers-built-interactive-view",
+      "prompt": "/architecture:map-deployment\n\ndeployment.json and deployment.md are written. I would like to filter and trace the placements rather than read the tables.",
+      "expected_output": "After the report, offers an interactive view of deployment.json in one sentence, builds it only with scripts/build-view.mjs deployment from the record, and resolves the publish destination from the medium cascade key.",
+      "expectations": [
+        "deployment.md and deployment.json are written first and stay the record",
+        "Offers the view in one sentence and builds only after the reader accepts",
+        "Builds with scripts/build-view.mjs deployment --record deployment.json and writes no HTML or script itself",
+        "The publish destination comes from the medium key of the rendered-views cascade, with file as the default when unset"
+      ]
     }
   ]
 }
