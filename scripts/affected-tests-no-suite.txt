@@ -102,8 +102,9 @@ scripts/sync-plugin-options-docs.py
 # consumer's plugin cache (which fires only on a plugin-root lockfile) never
 # installs its dev toolchain. Its tests are vitest (`*.test.ts`), which is not
 # one of the four suite conventions this tool selects, so the whole tree needs
-# this entry. The lane covering it is the miro block of the `test` job in
-# .github/workflows/ci.yml, gated on `run_node` (matcher `plugins/miro/**`):
+# this entry. The lane covering it is the miro block of the `test-node` job in
+# .github/workflows/ci.yml, which runs whenever a file under plugins/miro/server/
+# changes (scripts/plan-test-lanes.sh):
 # `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, and a stdio smoke
 # test that starts src/launch.ts twice from an empty plugin data directory (the
 # first launch installs from the lockfile, the second reuses it). Manifests and prose under the

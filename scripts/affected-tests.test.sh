@@ -1413,11 +1413,11 @@ fi
 rm -rf "$repo3"
 
 # --- LIVE repo: ci.yml actually fans the selection out -----------------------
-# `--shard` only buys anything if the workflow both PASSES it and creates more
-# than one runner to pass it from. Either half alone is silently useless: a
-# shard spec with no matrix runs leg 0 of 1 (everything, as before), and a
-# matrix with no shard spec runs the whole selection on every leg. Pinned
-# together, in the job that owns them.
+# The plan's legs only buy anything if the workflow both sizes its matrix from
+# them and has each leg run its own suites. Either half alone is silently
+# useless: a plan read by no matrix runs one leg, and a matrix whose legs do
+# not pick their own list runs nothing or everything. Pinned together, in the
+# job that owns them.
 live_ci="$REPO_ROOT/.github/workflows/ci.yml"
 test_bash_block="$(awk '
   /^  [A-Za-z_][A-Za-z0-9_-]*:[[:blank:]]*(#.*)?$/ {
@@ -1426,13 +1426,14 @@ test_bash_block="$(awk '
   job == "test-bash"
 ' "$live_ci")"
 # shellcheck disable=SC2016 # deliberate: these are workflow literals to match, not shell expansions.
-if grep -q 'affected-tests\.sh --run --jobs 3 --shard "\$LEG/\$LEGS"' <<<"$test_bash_block" &&
-  grep -q '^    strategy:' <<<"$test_bash_block" &&
+if grep -q 'run-plugin-tests\.sh --jobs 3 --suites-from "\$RUNNER_TEMP/leg-suites\.txt"' <<<"$test_bash_block" &&
+  grep -q "leg: \${{ fromJSON(needs\.scope\.outputs\.bash_legs || '\[0\]') }}" <<<"$test_bash_block" &&
   grep -q 'LEG: \${{ strategy\.job-index }}' <<<"$test_bash_block" &&
-  grep -q 'LEGS: \${{ strategy\.job-total }}' <<<"$test_bash_block"; then
-  ok "ci.yml test-bash declares a matrix, runs three suites at a time, and passes the leg through to --shard"
+  grep -q 'PLAN: \${{ needs\.scope\.outputs\.bash_plan }}' <<<"$test_bash_block" &&
+  grep -q "jq -r --arg leg \"\$LEG\" '\.\[\$leg\] // \[\] | \.\[\]' <<<\"\$PLAN\"" <<<"$test_bash_block"; then
+  ok "ci.yml test-bash sizes its matrix from the plan and runs each leg's suites three at a time"
 else
-  fail "ci.yml test-bash no longer fans the affected selection across a matrix at --jobs 3"
+  fail "ci.yml test-bash no longer fans the planned selection across a matrix at --jobs 3"
 fi
 
 # --- ci.yml never asks for more than the proven three ------------------------
