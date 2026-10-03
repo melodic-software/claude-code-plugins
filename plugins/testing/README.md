@@ -17,6 +17,18 @@ skills, one concern: proving behavior with tests.
 | `/testing:check` | Read-only and model-invocable. Reports whether `node` and `jq` resolve for the plugin's hooks, with the install route from `prerequisites.json` when it does not. It never installs. |
 | `testing:test-value` | Model-invoked guidance, loaded by the review and implementation agents and the `test-scan` hook: where each expected value must come from, when call-count and database checks are legitimate, and the can't-fail taxonomy keyed to `/testing:audit` rule ids. |
 
+| Workflow | Launched by | What it does |
+|---|---|---|
+| `/testing:fix-until-green` (`workflows/fix-until-green.js`) | `/testing:diagnose`, offered when several tests fail across files | One runner runs the command and lists failures with the source files each points at or imports. The workflow groups them so no two groups share a file and runs one fixer per group in the same working tree, in waves of `maxConcurrent`. A verifier then checks the diff from the starting commit for test weakening and for changed files no fixer was allowed to edit, and the command runs again. It stops when the command passes, at `maxRounds`, after two rounds in a row with no fewer failures, when a fixer's root cause sits in a file that is out of scope or protected (an editable in-scope file joins that fixer's group next round instead), when the check flags weakening or an edit outside the allowed files, or when HEAD moves. It flags these and never reverts them. Paths that are absolute, contain `..`, sit under git internals, agent settings, hooks, CI, editor tasks or dependency trees, or name a dependency manifest, lockfile, build file or secret-bearing file or directory, never reach a fixer (matched case-insensitively). A file a fixer asks for joins its group only when git tracks it, and the checks and every re-run count untracked files and a moved HEAD. After any round that dispatched a fixer, a green run gets a final verifier that re-runs the command and reviews the whole diff. `args`: `command` (required; without it nothing runs), `scope` (all entries rejected returns `bad-scope`), `maxRounds` (default 3), `maxConcurrent` (default 2), `roles` (the map `/multi-agent:route all code` prints; without it, fixers run on `opus`) and `finalVerify`. It commits nothing. |
+
+| Agent | Dispatched by | What it does |
+|---|---|---|
+| `testing:green-runner` | the `testing:fix-until-green` workflow | Runs the command and returns its failures. Bash only. |
+| `testing:green-fixer` | the `testing:fix-until-green` workflow | Fixes one group of failures in its assigned files, with `testing:test-value` preloaded. Read, Edit and Bash. |
+| `testing:green-verifier` | the `testing:fix-until-green` workflow | Checks a round's diff for test weakening against `testing:test-value`, and re-runs the command on the final pass. Read and Bash. |
+
+Each agent inherits the model and pins no effort; the workflow passes both from the role map.
+
 ## Works in any repo
 
 - **Reads your conventions, assumes none.** Test frameworks, project locations,

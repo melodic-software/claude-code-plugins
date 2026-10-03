@@ -12,6 +12,7 @@ answer.
 | `/multi-agent:assess <task>` | Returns `workflow`, `subagent` or `single` with a one-line reason. Checks whether workflows are available in this session first; when they are not, `workflow` becomes `subagent`. Writes nothing. |
 | `/multi-agent:route <role\|all> [code\|research\|mechanical] [session=<alias>]` | Resolves the role map through the config cascade and prints it as fenced JSON: per role a `single` and a `fanout` variant, each with model, effort and the layer that supplied them. `all` is the map a workflow reads from `args.roles`. |
 | `/multi-agent:audit-defaults [<role>\|fanout\|repo]` | Fetches each bundled default's pointer and reports which defaults have drifted or whose recheck trigger has fired, with evidence and a proposed diff. `repo` checks the repository's own model, effort, subagent and workflow statements against upstream instead. Runs the `multi-agent:drift-audit` workflow when workflows are available. Never edits a file. |
+| `/multi-agent:check` | Reports whether `node` resolves, whether `hooks/hooks.json` registers the fetch gate on `WebFetch`, and whether the gate denies a sample off-host drift-checker fetch. Read-only; installs nothing. |
 | `/multi-agent:setup [check\|apply]` | `check` prints the resolved map and whether the personal overlay is gitignored. `apply` previews a change to the user, team or local layer as a diff, writes it on your explicit yes, and shows the map before and after. Run by hand only. |
 
 ## How a workflow uses it
@@ -83,8 +84,10 @@ key. `/multi-agent:setup` writes any of the three. Keys, values and layering:
 
 - **Bash 3.2 or later, awk and git.** The resolver parses the YAML subset with awk, so no
   `jq`, `yq` or Python is needed.
-- **Node.js** for the `drift-checker` fetch gate hook. Without `node` the hook does not run, and
-  the drift checker's fetches are held to its hosts only by its prompt.
+- **Node.js** for the `drift-checker` fetch gate hook. Without `node` the gate fails open: the hook
+  cannot start, Claude Code shows a non-blocking hook error notice, and the drift checker's fetches
+  are held to first-party docs hosts only by the workflow's source filter and the agent's prompt.
+  `/multi-agent:check` reports whether `node` resolves and the gate is registered.
 
 ## Install
 
