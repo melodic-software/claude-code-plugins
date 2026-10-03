@@ -25,6 +25,107 @@ resume on their own after the reset. Four parts:
   fixed tee path, the 90%-of-either-window pause threshold, the staleness rule, pause-end
   semantics, capability-detect fail-open, and drain-then-pause.
 
+The plugin also ships a mod, a hooks module (`hooks/register.tsx`) that Claude Code runs in its own
+process. It needs Claude Code 2.1.287 or later; older builds are unsupported. It runs beside the
+statusline tee and does not replace it yet.
+
+## The module
+
+The module tells Claude where the account stands against its rate limits, draws the figures in a
+band row, answers a status tool, and writes the same contract file the tee writes, in interactive,
+`-p`, `--bg` and `/loop` sessions alike. Tested with `claude plugin test` and one `claude -p` run
+on Claude Code 2.1.288; the Desktop app, VS Code and `--bg` were not run.
+
+### Lines to Claude
+
+A line goes to Claude only at a boundary, appended to the context of a main-thread tool result or
+of a prompt; a crossing seen when a turn ends reaches Claude with the next prompt. Per window
+(5-hour and 7-day), with the default options:
+
+| When | Line |
+|---|---|
+| The window reaches the approach mark (85%) | once per window, "approaching the 90% pause edge" |
+| The window reaches the line threshold (90%) | once per window, "at the 90% pause edge", with the reset time |
+| The window resets (its reset time passes, or it leaves the reading) after reaching the threshold | once; the approach and threshold lines can then fire again |
+| After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict for every window, once |
+| After `/clear`, and when the module loads into a session that already has turns (a `--resume` launch, a reload after an options change, a hooks-worker restart) | the verdict for each window at or above the threshold, once; nothing when none is |
+
+Use only rises within a window, so a reading that dips below a mark sends nothing and does not
+re-arm that mark's line. No other tool call or prompt carries a line. Each window gets its own
+line, a fact with its source, for example `rate-limit-guard: the 5-hour window is at the 90% pause
+edge, resets at 2026-10-03 21:00 UTC (a measurement from the last API response)`. Every line
+carries its verdict; `rate_limit_line_data` chooses what goes with it: the window's name
+(`window`), its use (`percent`) and its reset time (`reset`). Without `window` the line says "a
+rate-limit window". A line never carries the account email or the session name. Subagents get no
+line. The line threshold is a line setting only: the loop lanes' pause edge stays 90% (see the
+[reader contract](reference/reader-contract.md)).
+
+### Operator mode
+
+With `rate_limit_report_mode` set to `operator`, a turn a person started by typing (or through the
+Remote Control bridge) gets no line. When that turn ends, the line is offered as the prompt box's
+suggestion (Tab takes it) and shown as a notice in the band. With text in the box, only the notice
+shows, and the suggestion is offered again once the box is empty. Where nobody can take a
+suggestion, the line goes to Claude as in automatic mode: `-p` and SDK turns, `/loop` and scheduled
+turns, task notifications and other non-typed turns, a session with no drawing surface (such as
+the VS Code panel), and a suggestion the session reports it cannot show.
+
+Upstream's render-sites table lists the band's site, `AbovePrompt`, as drawn in the terminal and
+the Desktop app. No probe of this plugin ran in the Desktop app or VS Code, so the band, the
+notice and the suggestion there are untested.
+
+- **Pointer**: [mods reference: render sites](https://code.claude.com/docs/en/plugins/mods/reference#render-sites).
+- **As of**: 2026-10-03, Claude Code 2.1.288.
+- **Recheck trigger**: the `AbovePrompt` row changes the apps it lists, or a Desktop run of this
+  plugin is made.
+
+A `--bg` session reports its first prompt as typed, so in operator mode a `--bg` lane gets no line
+from that turn. A lane that needs the lines starts its session with its own options through
+`--settings`, which can set any key user settings can, including the plugin's `pluginConfigs`
+entry: `{"pluginConfigs": {"rate-limit-guard@<marketplace>": {"options":
+{"rate_limit_report_mode": "automatic"}}}}` (a `--plugin-dir` copy is keyed `<name>@inline`).
+
+- **Pointer**: [settings: change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session)
+  and the `pluginConfigs` row of
+  [mods reference: settings and environment variables](https://code.claude.com/docs/en/plugins/mods/reference#settings-and-environment-variables).
+- **As of**: 2026-10-03, Claude Code 2.1.288.
+- **Recheck trigger**: either section changes the scope `pluginConfigs` is read from.
+
+### Band row and status tool
+
+The band row above the prompt shows `[<model>] 5h <x>% | 7d <y>%`, the tee's standalone status
+line without its context figure (context-guard's row carries that), with the model as `/model`
+shows it (`Claude` when it cannot be read) and `-` for a window that has no reading yet. `rate_limit_guard_band` turns it off; `/rate-limit-guard:band show`,
+`hide`, or no argument (toggle) changes it for the session. Claude can call
+`mcp__rate-limit-guard__status` for the exact figures from the last API response: every window
+the response reported, with its verdict, and, behind a Claude gateway, the `spend_limit` window,
+which is never written to the contract file.
+
+### Snapshot writes
+
+The module writes `~/.claude/rate-limit-guard/rate-limits.json` through `lib/write-snapshot.mjs`,
+run with `node`, so the file is replaced atomically on Linux, macOS and native Windows. It writes
+at once when a window moves a whole point, appears, leaves or resets, and otherwise at most once
+every 300 seconds across the machine, checked from main-thread tool results, each measurement after
+a turn, a 60-second timer that runs only while a turn runs, and the session's end. It never writes
+from a turn a task notification started (a paused lane's own Monitor tick), and it follows the
+plugin's on/off switch and `rate_limit_guard_enabled`. The body carries `captured_at`,
+`session_id`, the windows, and `account.email` only when the account state file is older than the
+API response the windows came from; it never carries `session_name` or `spend_limit`. A session
+with no windows writes a windowless body, which never replaces a file that has windows.
+
+Process cost: an event that writes nothing starts no process; each write starts one `node`
+process. Mods can start host processes in the CLI only; where they cannot, the module writes
+nothing and logs that once to the debug log.
+
+### Where mods are off
+
+Below Claude Code 2.1.287, under `disableAllHooks`, with `--bare`, when mods are switched off
+remotely, or after the hooks worker crashes, the module does not run: no lines, no band, no status
+tool, no module writes. The StopFailure hook still records, and readers fall back to reactive-only
+as the reader contract says. `/rate-limit-guard:check` and `/rate-limit-guard:setup check` report
+"mods off" in that case. A hook that throws passes its event through unchanged.
+
 ## Behavior
 
 - **Transparent by contract.** No tee outcome ever changes the wrapped statusline's output or
@@ -120,11 +221,26 @@ governs how often it runs.
 
 ## Configuration
 
-One `userConfig` option:
+The `userConfig` options:
 
 | Option | What it controls |
 |---|---|
-| `rate_limit_guard_enabled` | Kill switch for the StopFailure detection hook **and** the statusline tee's snapshot write (default `true`). |
+| `rate_limit_guard_enabled` | Kill switch for the StopFailure detection hook **and** the statusline tee's snapshot write (default `true`). It also stops the module's snapshot writes, not its lines. |
+| `rate_limit_lines_enabled` | The module's lines to Claude, and the operator-mode suggestions (default `true`). |
+| `rate_limit_report_mode` | `automatic` (default) or `operator`; see [Operator mode](#operator-mode). |
+| `rate_limit_line_threshold` | Window use for the threshold line (default `90`). |
+| `rate_limit_approach_pct` | Window use for the one approach line (default `85`). |
+| `rate_limit_line_data` | What a line carries beside its verdict: `percent`, `window`, `reset` (default `verdict,window,reset`). |
+| `rate_limit_guard_band` | The band row (default `true`). |
+
+The module reads its options when it loads. Claude Code reloads a module when its options change,
+so a switch turned off takes effect from the next event, with no restart.
+
+- **Pointer**: the doc comment on `Register` in the `claude-code/index.d.ts` types Claude Code
+  writes for its build (see
+  [create: get the types for your build](https://code.claude.com/docs/en/plugins/mods/create#get-the-types-for-your-build)).
+- **As of**: 2026-10-03, Claude Code 2.1.288.
+- **Recheck trigger**: that doc comment stops saying an options change reloads the plugin.
 
 Set it with `/plugin configure rate-limit-guard@<marketplace>`, or headless via `claude plugin install
 rate-limit-guard@<marketplace> -s <scope> --config rate_limit_guard_enabled=false`, against an
@@ -159,7 +275,13 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `rate_limit_guard_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED` | Turns on the StopFailure detection hook and the statusline tee's snapshot write. On by default. Read from managed settings first, then user settings. |
+| `rate_limit_guard_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED` | Turns on the StopFailure detection hook and the snapshot writes to the machine-scope rate-limit file, by the statusline tee and by the module. Lines to Claude have their own option. On by default. Read from managed settings first, then user settings. |
+| `rate_limit_lines_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_LINES_ENABLED` | Sends Claude one line when a rate-limit window approaches or reaches the line threshold, when it resets, and after a compaction, a resume or a /clear at the threshold. On by default. |
+| `rate_limit_report_mode` | string | `"automatic"` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_REPORT_MODE` | automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a band notice when the turn ends. Headless, loop and schedule turns get automatic lines either way. |
+| `rate_limit_line_threshold` | number<br>*min 1, max 100* | `90` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_LINE_THRESHOLD` | Window use at which Claude gets the threshold line. Default 90, the loop lanes' pause edge, which stays 90 whatever this is set to. |
+| `rate_limit_approach_pct` | number<br>*min 1, max 100* | `85` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_APPROACH_PCT` | Window use at which Claude gets one approach line before the threshold. Default 85; at or above the threshold, no approach line is sent. |
+| `rate_limit_line_data` | string | `"verdict,window,reset"` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_LINE_DATA` | Comma list of what a line carries beside its verdict, which every line has: percent, window and reset. Default verdict,window,reset. Never the account email or the session name. |
+| `rate_limit_guard_band` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_BAND` | Draws the 5-hour and 7-day window figures in a row above the prompt. On by default; /rate-limit-guard:band shows or hides it for the session. |
 
 ### How to set these
 

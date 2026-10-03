@@ -125,6 +125,24 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
      but not running (statusline refreshes only in interactive sessions; also re-check steps 2 and
      3, because a shim that is wired but not installed produces exactly this). Note the file only updates
      while some interactive session is active.
+   When step 4a reports mods off, report an absent or stale file as "mods off", not as a missing
+   instrument.
+4a. **Module state.** The plugin's module (`hooks/register.tsx`) writes the same file and sends the
+   rate-limit lines; it loads only where mods can.
+   - Run `claude --version`. Older than 2.1.287 → FAIL "mods off: Claude Code <version> is older
+     than the 2.1.287 floor; older builds are unsupported". Remediation: update Claude Code.
+   - Otherwise run `claude plugin test` from a new empty temporary directory and fetch the
+     troubleshoot table at the pointer below to read its message: mods can load → PASS; a setting,
+     a policy or a remote switch keeps them off → INFO "mods off", naming the cause the table gives.
+     Some states that turn mods off (such as `--bare`, or repeated hooks-worker crashes) belong to
+     one session and do not show here; say so.
+   - Where mods are off, the guard runs reactive-only there: the StopFailure hook still records,
+     and the file updates only from the tee or another session.
+
+   - **Pointer**: [troubleshoot: check whether mods can load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load)
+     and [the mod doesn't load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#the-mod-doesnt-load).
+   - **As of**: 2026-10-03, Claude Code 2.1.288.
+   - **Recheck trigger**: that table changes a message, or the minimum version changes.
 5. **StopFailure hook.** INFO: the hook needs no wiring (it registers via the plugin's
    `hooks/hooks.json`); confirm the plugin is enabled (`/plugin` → Installed) and report the
    effective kill switch `${user_config.rate_limit_guard_enabled}` (unexpanded or empty means the
