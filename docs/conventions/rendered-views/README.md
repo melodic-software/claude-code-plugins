@@ -351,14 +351,14 @@ Two sentences reconcile this with the local-first residence decision:
    priced fleet sweep deliberately migrates them (tracked as a deferred-work issue).
 
 One new lane is an exception to sentence 1, recorded here: the pull-request digest
-lane (`review:explain-change`) ships `medium: file` and takes
-`medium: artifact` as its default only after that lane's own external-publication
-review signs off. An operator who wants the digest local sets `medium: file`
-in their personal layer (`~/.claude/rendered-views.md` or the repo overlay); the
-cascade below resolves it like any other key.
+lane (`review:explain-change`) ships `medium: artifact` as its default. Its page is
+built only by the shared builder from a checked-in template, and the artifact stays
+private to the reader until they share it. An operator who wants the digest local sets
+`medium: file` in their personal layer (`~/.claude/rendered-views.md` or the repo
+overlay); the cascade below resolves it like any other key.
 
 Rendered views are untracked by default; publishing anywhere else is optional and
-configured, never the default, except for the digest's planned `artifact` default.
+configured, never the default, except for the digest's `artifact` default.
 
 A plan that depends on sharing or editing a rendered view across accounts or subscriptions
 does not assume it works: it checks the live Share dialog first.
@@ -568,9 +568,9 @@ owner declaration.
 - **Keys** (per-key override, declared here per the contract): `medium`, one of `auto`,
   `terminal`, `file`, `artifact`; the preferred rung for rendered views, applied within
   reachability. Future keys are added here first. A lane's shipped default for `medium`
-  is the last tier of the ladder below; the digest's planned `artifact` default (see
-  Default ladder and its reconciliation) is one such default once it ships, and any layer
-  that sets `medium` overrides it.
+  is the last tier of the ladder below; the digest's `artifact` default (see
+  Default ladder and its reconciliation) is one such default, and any layer that sets
+  `medium` overrides it.
 - **No policy-floor class**: every key is a taste dial over deliverable presentation; a
   personal value weakens nothing another surface depends on (the `ai-slop` precedent).
   The default direction holds: the team layer refines user-global, the overlay is the

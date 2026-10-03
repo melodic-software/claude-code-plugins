@@ -35,7 +35,7 @@ export const CONFIG_PATHS = Object.freeze([
   ".claude/rendered-views.local.md",
   ".gitmodules",
 ]);
-export const MEDIUM_DEFAULT = "file";
+export const MEDIUM_DEFAULT = "artifact";
 const POLICIES = ["off", "offer", "always"];
 const MEDIUMS = ["terminal", "file", "artifact"];
 const LEVELS = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];

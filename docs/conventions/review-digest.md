@@ -61,7 +61,9 @@ reader is offered a view.
 
 Where a built page goes is the `medium` key of the
 [rendered-views concern](rendered-views/README.md#the-rendered-views-cascade-concern), not a key
-here. The skill's shipped default is `file`.
+here. The skill's shipped default is `artifact`, so with no layer setting `medium` the page is
+published as a private Artifact. A reader who keeps digests on their machine sets `medium: file`
+in `~/.claude/rendered-views.md`.
 
 The block below holds the shipped defaults, so this repository runs on them. A test holds it equal
 to the skill's own defaults.

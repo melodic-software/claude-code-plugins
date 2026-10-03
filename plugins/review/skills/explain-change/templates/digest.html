@@ -60,6 +60,10 @@ pre { margin: 0; padding: 0.6rem; overflow-x: auto; border: var(--border); borde
 .hunks { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
 .hunk { display: grid; gap: 0.35rem; }
 .pick { display: inline-flex; gap: 0.35rem; align-items: center; color: var(--muted); font-size: 0.85rem; }
+.optional:empty { display: none; }
+.quiz, .choices { margin: 0; display: grid; gap: 0.5rem; }
+.choices { list-style: none; padding: 0; }
+.question { display: grid; gap: 0.35rem; }
 textarea { min-height: 5rem; resize: vertical; width: 100%; }
 .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 button { padding: 0.5rem 0.9rem; border: 1.5px solid var(--focus); border-radius: 6px; background: var(--focus); color: var(--bg); font: inherit; font-weight: 600; cursor: pointer; }
@@ -91,15 +95,22 @@ input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3p
 </section>
 <section>
 <h2 id="risk-map">Risk map</h2>
+<p class="muted">A second agent rated the risks from the diff alone, without the reasoning behind this digest. Rows it disputed stay in the map, marked.</p>
 <table>
-<thead><tr><th>Area</th><th>Level</th><th>Why</th></tr></thead>
-<tbody data-rv-each="risks"><tr><td data-rv-text="area"></td><td data-rv-text="level"></td><td data-rv-text="why"></td></tr></tbody>
+<thead><tr><th>Area</th><th>Level</th><th>Why</th><th>Check</th></tr></thead>
+<tbody data-rv-each="risks"><tr><td data-rv-text="area"></td><td data-rv-text="level"></td><td data-rv-text="why"></td><td><strong data-rv-text="check"></strong> <span class="muted" data-rv-text="checker"></span></td></tr></tbody>
 </table>
 </section>
 <section>
 <h2 id="focus">Where to focus</h2>
 <ol data-rv-each="focus"><li data-rv-text="item"></li></ol>
 </section>
+<div class="optional" data-rv-each="recording"><section>
+<h2 id="recording">Recording</h2>
+<p>A run-e2e recording of this head exists. Open the file at this path:</p>
+<p><code data-rv-text="path"></code></p>
+<p class="muted">Recorded at <code data-rv-text="head"></code></p>
+</section></div>
 <section>
 <h2 id="files"><span data-rv-count="files">0</span> files, annotated</h2>
 <div class="bar">
@@ -123,6 +134,16 @@ input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3p
 </li>
 </ol>
 </section>
+<div class="optional" data-rv-each="quiz"><section>
+<h2 id="quiz">Check your understanding</h2>
+<ol class="quiz" data-rv-each="questions">
+<li class="question">
+<p data-rv-text="question"></p>
+<ul class="choices" data-rv-each="choices"><li><label class="pick"><input type="checkbox" data-rv-pick=""><span data-rv-text="item"></span></label></li></ul>
+<details><summary>Answer</summary><p data-rv-text="answer"></p></details>
+</li>
+</ol>
+</section></div>
 <section>
 <h2 id="reply">Send your questions back</h2>
 <label for="note">Questions or notes for the session</label>

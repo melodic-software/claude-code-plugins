@@ -3,6 +3,25 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.39.0] - 2026-10-03
+
+### Added
+
+- **`/review:explain-change` checks its risk map with a fresh-context agent ([#5856](https://github.com/melodic-software/claude-code-plugins/issues/5856)).**
+  One subagent rates the pull request's risks from the diff alone, without the record or its
+  reasoning. Each row is marked `agreed`, `disputed` (kept, with the checker's level and reason),
+  `added` (an area only the checker named), or `unchecked`. The page shows a Check column.
+- **An optional quiz section.** `--quiz`, or a reader's request, adds three to five questions
+  with choices and answers to the record and the page. The reader ticks choices; the copied reply
+  carries only their builder ids. With no request, neither has a quiz section.
+- **A run-e2e recording link.** When `/testing:run-e2e` recorded the pull request's head, the
+  record links the recording and the page shows its path. Otherwise neither has the section.
+
+### Changed
+
+- **The digest publishes as an Artifact by default.** `digest-policy.mjs` resolves `medium` to
+  `artifact` when no layer sets it. `medium: file` in a personal layer keeps the page local.
+
 ## [0.38.0] - 2026-10-03
 
 ### Added
