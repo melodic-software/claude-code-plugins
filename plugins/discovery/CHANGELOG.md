@@ -1,10 +1,17 @@
 # Changelog: discovery plugin
 
-## [0.28.1] - 2026-10-03
+## [0.28.2] - 2026-10-03
 
 ### Changed
 
 - Shared `view-builder.mjs`, `view-runtime.js` synced ([#5868](https://github.com/melodic-software/claude-code-plugins/issues/5868)); no change to this plugin's own behavior.
+
+## [0.28.1] - 2026-10-03
+
+### Fixed
+
+- **Research gates run as one plain command, and a fan-out sub-slice is not named `git` (#6067).**
+  A worktree-isolated session refused a compound gate command whose words included a slice path ending in `git`, and allowed the same path as one plain command. "How to invoke" now says each gate is one Bash call, and `/discovery:research-deep` forbids the slug `git`.
 
 ## [0.28.0] - 2026-10-03
 

@@ -357,7 +357,7 @@ Two sentences reconcile this with the local-first residence decision:
    priced fleet sweep deliberately migrates them (tracked as a deferred-work issue).
 
 One new lane is an exception to sentence 1, recorded here: the pull-request digest
-lane (`review:pr-explainer` today, `review:explain-change` once #5835 C1 lands) takes
+lane (`review:explain-change`) ships `medium: file` and takes
 `medium: artifact` as its default only after that lane's own external-publication
 review signs off. An operator who wants the digest local sets `medium: file`
 in their personal layer (`~/.claude/rendered-views.md` or the repo overlay); the
@@ -475,8 +475,9 @@ the checked-in helper in the third bullet instead of this skeleton alone.
   string through `lib/html-escape.mjs` (the same path inside each adopting plugin,
   generated and drift-gated by `scripts/sync-shared-copies.sh`). The page carries the generator marker
   `validateRenderedPage` checks, so a page assembled without the helper is detectable.
-  `/review:pr-explainer` and `/education:quiz-me` are on that gate. Such a lane is K2 (see
-  Content classes); the shared builder carries the same helper and adds the interactive profile.
+  `/education:quiz-me` is on that gate, and `/review:explain-change` builds through the
+  shared builder. Such a lane is K2 (see Content classes); the shared builder carries the
+  same helper and adds the interactive profile.
 - Escaping reaches text and quoted-attribute positions and nothing else. A value that
   lands in URL position (`href`, `src`, `action`, `formaction`, SVG `xlink:href`) is
   checked against a scheme allowlist BEFORE it is escaped: `javascript:` and `data:`
@@ -628,7 +629,7 @@ which is another cost of copying.
 - It never makes a view the record: the markdown record stays authoritative everywhere.
 - It adds no generic HTML skill, one whose job is "make a page" for any content. Thin
   intent-named skills are allowed: a skill named for what the reader is trying to do
-  (`review:pr-explainer` explains a pull request) may emit a view as its deliverable,
+  (`review:explain-change` explains a pull request) may emit a view as its deliverable,
   owning its genre's page shape and reusing the shared builder and chrome.
   `visualization:visualize` stays a router that owns no craft.
 - It does not migrate the grandfathered surfaces' ladder or `medium`: that sweep is
