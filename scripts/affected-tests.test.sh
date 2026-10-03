@@ -1878,6 +1878,24 @@ else
   fail "--replay --against output wrong (rc=$RC): $out"
 fi
 
+# A commit this selector maps to no suite still reports what <ref> ran as
+# dropped, not as added.
+printf 'scripts/zz-old-scan.test.sh  plugins/beta/*\n' >"$repo/scripts/affected-tests-scopes.txt"
+git_test_config "$repo" commit -qam 'scan beta' >/dev/null
+printf 'notes\n' >"$repo/plugins/beta/zz-notes.yaml"
+git_test_config "$repo" add plugins >/dev/null
+git_test_config "$repo" commit -qm 'add beta notes' >/dev/null
+beta_commit="$(git -C "$repo" rev-parse HEAD)"
+printf 'scripts/zz-new-scan.test.sh  plugins/alpha/*\n' >"$repo/scripts/affected-tests-scopes.txt"
+out="$(cd "$repo" && bash scripts/affected-tests.sh --replay HEAD~1..HEAD --against HEAD 2>/dev/null)"
+RC=$?
+if [[ "$RC" -eq 0 ]] && contains "$out" "commit $beta_commit 0 1 " &&
+  has_line "$out" "  - scripts/zz-old-scan.test.sh  (test-scope plugins/beta/*)" && ! contains "$out" "  + "; then
+  ok "--replay --against lists a commit's suites as dropped when this selector picks none"
+else
+  fail "--replay --against with an empty selection wrong (rc=$RC): $out"
+fi
+
 for args in "--replay HEAD~1..HEAD plugins/alpha/hooks/alpha-hook.sh" "--against HEAD" "--replay HEAD~1..HEAD --run"; do
   # shellcheck disable=SC2086 # deliberate: each case is a word list
   (cd "$repo" && bash scripts/affected-tests.sh $args >/dev/null 2>&1)

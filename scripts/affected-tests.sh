@@ -1230,7 +1230,7 @@ run_replay() {
     u_old=$(grep -c . "$WORK_DIR/old.unmapped")
     printf 'commit %s %s %s %s %s  %s\n' "$c" "$n_new" "$n_old" "$u_new" "$u_old" "$subject"
     sed 's/^/  unmapped /' "$WORK_DIR/new.unmapped"
-    awk -F '\t' 'FNR == 1 { side++ } side == 1 { n[$1] = $2; next } { o[$1] = $2 }
+    awk -F '\t' 'FILENAME == ARGV[1] { n[$1] = $2; next } { o[$1] = $2 }
       END {
         for (s in n) if (!(s in o)) print "  + " s "  (" n[s] ")"
         for (s in o) if (!(s in n)) print "  - " s "  (" o[s] ")"
