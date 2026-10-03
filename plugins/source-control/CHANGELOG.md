@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.75.0] - 2026-10-02
+## [0.76.0] - 2026-10-02
 
 ### Added
 
@@ -50,6 +50,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   a fix worker. The merge gate still holds on it.
 - `safety.md` and `merge.md` record that `CLEAN` does not say which base CI tested, since GitHub
   regenerates a PR's test merge commit only on a push, a merge-base change, or after 12 hours.
+
+## [0.75.0] - 2026-10-02
+
+### Added
+
+- **`babysit-loop` state records the effort each cycle ran at.** The state block gains an `effort`
+  field read from `CLAUDE_EFFORT` at each cycle start, or `"unset"`, so the level that ran sits
+  beside the `--effort` the lane was launched with. The schema stays `@2`.
 
 ## [0.74.1] - 2026-10-02
 

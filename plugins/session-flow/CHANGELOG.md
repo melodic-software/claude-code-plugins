@@ -1,6 +1,6 @@
 # Changelog: session-flow plugin
 
-## [0.44.8] - 2026-10-02
+## [0.45.1] - 2026-10-02
 
 ### Fixed
 
@@ -8,6 +8,21 @@
   match GitHub App installation tokens in the `ghs_<APPID>_<JWT>` format GitHub rolls out from
   2026-04-27, whose JWT header starts `eyJ`. The old pattern stopped at the `_` after the app ID,
   so such a token was neither redacted nor warned about.
+
+## [0.45.0] - 2026-10-02
+
+### Added
+
+- **`workflow` advises an effort level per stage.** Each stage names its kind of work, and the
+  skill matches it to a row of model-config's "Choose an effort level" table, naming the level and
+  the matched text. Code-changing and verifying stages are never advised below medium. The
+  continuation router adds the advice when the next stage's level differs from the current one. It
+  only advises; the user sets the level with `/effort`. When the page cannot be read, it says so
+  and advises no level.
+- **`continue-in-background` passes an explicit `--effort`** for resumed verify work and any
+  unattended task, since a background session does not inherit the level. It picks the level from
+  the same table and names it in the launch report; when the page cannot be read, it passes none
+  and says the session starts at its default.
 
 ## [0.44.7] - 2026-10-02
 

@@ -5,11 +5,25 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
-## [1.4.1] - 2026-10-02
+## [1.5.1] - 2026-10-02
 
 ### Fixed
 
 - The audit engine's secret-shape check (`SECRET_RE`, which flags a token in tracked `settings.json` and redacts hook commands) covers GitHub OAuth, user, server and refresh tokens (`gho_`, `ghu_`, `ghs_`, `ghr_`) and the `ghs_<APPID>_<JWT>` installation-token format GitHub rolls out from 2026-04-27, whose JWT header starts `eyJ`. Before, only `ghp_` and `github_pat_` were matched. The check runs grep under `LC_ALL=C`, because in a UTF-8 locale GNU grep took 25 to 60 seconds on a long line against the widened pattern.
+
+## [1.5.0] - 2026-10-02
+
+### Added
+
+- **An effort-pin drift check and an `effort-pins` audit scope.** `check-effort-pins.sh` reads
+  model-config's effort tables and per-model defaults, compares their hash with a committed
+  baseline, and lists every effort pin in agents, skills, lane configs, and Workflow literals in
+  skill `context/` files and plugin `workflows/*.js` and `*.mjs` scripts. It
+  flags pins when the page changed or a pin names a level the page does not list, and never edits
+  a pin or the baseline. `/harness-config:audit effort-pins` runs only this check; a full audit
+  runs it in Phase 3.
+- **`unhobble` records the session's effort level** in its manifest and in each `stumbles.md`
+  row, written as `unset` when no level renders.
 
 ## [1.4.0] - 2026-10-02
 
