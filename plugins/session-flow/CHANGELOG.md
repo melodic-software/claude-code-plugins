@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.47.3] - 2026-10-03
+
+### Fixed
+
+- `audit-sessions sweep --format md` lists each drift change by class and key path under the counts line (vanished, new, canary-lost, unknown-record-type). The counts stay. A model other than the all-models bucket is named on the same bullet. The JSON report carries the same `changes` list ([#6001](https://github.com/melodic-software/claude-code-plugins/issues/6001)).
+
 ## [0.47.2] - 2026-10-03
 
 ### Changed

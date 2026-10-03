@@ -203,6 +203,19 @@ def test_canary_lost_degrades_metric(data_dir, tmp_path):
     assert env["data"]["window"]["cc_versions"] == ["2.0.1", "2.0.2"]
     md = sweep(data_dir, *args, "--format", "md")
     assert md.returncode == 1 and "unavailable" in md.stdout
+    drift_md = md.stdout.split("## Drift", 1)[1].split("## Unchecked", 1)[0]
+    assert "- canary-lost: `key_path:user:message.content`" in drift_md
+
+
+def test_md_names_unknown_record_types(data_dir):
+    stored = record("s1")
+    stored["unknown"] = {"record_types": {"relocated": 1}}
+    write_store(data_dir, stored)
+    md = sweep(data_dir, "--format", "md")
+    assert md.returncode == 0, md.stderr
+    drift_md = md.stdout.split("## Drift", 1)[1].split("## Unchecked", 1)[0]
+    assert "- unknown-record-type: `relocated`" in drift_md
+    assert "1 unknown-record-type" in drift_md
 
 
 def test_md_renders_metrics_and_findings_from_the_same_data(data_dir):
