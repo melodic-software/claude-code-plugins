@@ -106,7 +106,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/retro-audio:music`](../plugins/retro-audio/skills/music/SKILL.md) | `retro-audio` | Render a short chiptune score to a WAV file |
 | [`/retro-audio:sfx`](../plugins/retro-audio/skills/sfx/SKILL.md) | `retro-audio` | Render one retro sound effect to a WAV file |
 | [`/source-control:commit`](../plugins/source-control/skills/commit/SKILL.md) | `source-control` | Commit with the resolved convention and surgical staging |
-| [`/speech:narrate`](../plugins/speech/skills/narrate/SKILL.md) | `speech` | Script in, narration.wav and per-word words.json out (kokoro, local) |
+| [`/speech:narrate`](../plugins/speech/skills/narrate/SKILL.md) | `speech` | Script in, narration.wav and words.json out (kokoro local; elevenlabs optional, third-party) |
 
 ## 5. Test
 
