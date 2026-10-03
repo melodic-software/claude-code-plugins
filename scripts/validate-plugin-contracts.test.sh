@@ -1693,6 +1693,7 @@ write_skill good/reference/skill.md $'# Not a skill\n'
 write_skill commented/SKILL.md $'---\nname: commented-name # migration note\ndescription: | # note\n  Literal text.\n---\n'
 write_skill indented/SKILL.md $'---\ndescription: |-2\n  Indented literal.\n---\n'
 write_skill emptyblock/SKILL.md $'---\ndescription: >-2\n---\n'
+write_skill quotedcomment/SKILL.md $'---\nname: "quoted-name" # note\ndescription: "Use when X, # not a comment." # note <tag>\n---\n'
 out="$(run_fixture)"
 if grep -qE '^- .*angle.SKILL.md: skill description must not contain < or >' <<<"$out" &&
   grep -qE '^- .*long.SKILL.md: skill description is 1025 characters' <<<"$out" &&
@@ -1700,7 +1701,7 @@ if grep -qE '^- .*angle.SKILL.md: skill description must not contain < or >' <<<
   grep -qE '^- .*badname.SKILL.md: skill name "Claude_Helper"' <<<"$out" &&
   grep -qE '^- .*reference.skill.md: a file named SKILL.md must start with YAML frontmatter' <<<"$out" &&
   grep -qE '^- .*emptyblock.SKILL.md: skill description must not be empty' <<<"$out" &&
-  ! grep -qE 'good.SKILL.md|commented.SKILL.md|indented.SKILL.md' <<<"$out"; then
+  ! grep -qE 'good.SKILL.md|commented.SKILL.md|indented.SKILL.md|quotedcomment.SKILL.md' <<<"$out"; then
   ok "skill description, name and frontmatter limits fail per file, and a conforming skill passes"
 else
   fail "skill limits should fail per file: $out"

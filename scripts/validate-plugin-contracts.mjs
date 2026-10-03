@@ -1395,7 +1395,8 @@ function frontmatterScalar(frontmatter, key) {
   if (start === -1) return undefined;
   const raw = lines[start].slice(key.length + 1).trim();
   // A comment starts at a # preceded by whitespace, outside a quoted scalar.
-  const head = /^["']/.test(raw) ? raw : raw.replace(/(^|\s)#.*$/, "").trim();
+  const quoted = raw.match(/^("(?:[^"\\]|\\.)*"|'(?:[^']|'')*')(?:\s+#.*)?$/);
+  const head = quoted ? quoted[1] : /^["']/.test(raw) ? raw : raw.replace(/(^|\s)#.*$/, "").trim();
   const rest = [];
   for (const line of lines.slice(start + 1)) {
     if (line !== "" && !/^\s/.test(line)) break;
