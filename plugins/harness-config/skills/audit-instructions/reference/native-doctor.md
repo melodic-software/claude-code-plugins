@@ -1,17 +1,16 @@
 # The bundled `doctor` skill, as this skill relates to it
 
-Four-part records behind the `doctor` Boundary section in `SKILL.md`. The section carries the
-conclusion; this file carries what it rests on. Nothing here asserts that the surface is present in
-any session.
+Records behind the `doctor` Boundary section in `SKILL.md`. Each row is our decision, a pointer to
+where the specific is read live, the date the decision was last derived, and the observable event
+that obliges re-deriving it. The section carries the conclusion; this file carries what it rests
+on. Nothing here asserts that the surface is present in any session.
 
-| Claim | Basis | As of | Recheck when |
+| Decision | Pointer | As of | Recheck when |
 |---|---|---|---|
-| `doctor` is a bundled skill with alias `checkup`, user-invocable, with model invocation disabled, gated, and it survives `disableBundledSkills` | The `/harness-ops:inventory` extraction of the installed 2.1.284 binary (`model_invocable: false`, `disable_model_invocation: true`, `gated: true`, `survives_kill_switch: true`, `aliases: ["checkup"]`) | 2026-09-29, Claude Code 2.1.284 | A release renames or removes it, changes its alias, or changes its invocability |
-| Its argument hint is `[prompt-audit [<path>]]` | Same binary extraction | 2026-09-29, Claude Code 2.1.284 | A release changes the argument hint |
-| `/doctor prompt-audit` (also `/checkup prompt-audit`) audits `CLAUDE.md` files, skills, agents, and commands for prompting patterns written for older models | Claude Code changelog 2.1.283 | 2026-09-29 | A release note changes or removes `prompt-audit` |
-| The commands page describes it as auditing `CLAUDE.md` files, skills, and other configuration for outdated or conflicting instructions, instead of running the checkup, and requires v2.1.283 or later | The `/doctor` row of <https://code.claude.com/docs/en/commands> | 2026-09-29 | The commands page row changes |
-| `/doctor` stays typable under `disableBundledSkills`; `DISABLE_DOCTOR_COMMAND` or a `skillOverrides` entry `"doctor": "off"` hides it | <https://code.claude.com/docs/en/skills>, bundled skills section | 2026-09-29 | The skills page changes its gating for `/doctor` |
-| Our decision: offer `prompt-audit` to the person and leave applying its proposed edits to them; never chain into it. Its write posture and its dependency on the bundled `claude-api` skill are read live from the pointer | <https://code.claude.com/docs/en/memory#audit-your-instruction-files> | 2026-10-02 | That section changes when the audit edits files, or which settings turn it off |
+| This skill offers `/doctor prompt-audit` to the person and never invokes it. The probe observed `doctor` as a bundled skill with alias `checkup`, user-invocable and not model-invocable, with an argument hint naming `prompt-audit` | The `/harness-ops:inventory` binary extraction, `bundled_skills.doctor` | 2026-10-02, Claude Code 2.1.287 | A release renames or removes `doctor`, or changes its alias, argument hint, or invocability |
+| This skill keeps its own catalog and offers `/doctor prompt-audit` beside it at the end of a run; it copies none of that audit's checks | For what the audit covers: [Audit your instruction files](https://code.claude.com/docs/en/memory#audit-your-instruction-files); for the command and its version floor: the `/doctor` row of [All commands](https://code.claude.com/docs/en/commands#all-commands); for the release that added it: [changelog 2.1.283](https://code.claude.com/docs/en/changelog#2-1-283) | 2026-10-02 | That section or row changes, or a release note names `prompt-audit` |
+| This skill never asks the audit to apply its proposals and never chains into `/doctor`; the person decides what to apply | For the audit's write posture: [Audit your instruction files](https://code.claude.com/docs/en/memory#audit-your-instruction-files) | 2026-10-02 | That section changes what the audit does before the person asks |
+| Offer `/doctor prompt-audit` only when both `doctor` and the bundled `claude-api` skill resolve in this session; when either does not, the report says the offer was skipped | For what the audit depends on: [Audit your instruction files](https://code.claude.com/docs/en/memory#audit-your-instruction-files); for how `doctor` itself is gated: [Bundled skills](https://code.claude.com/docs/en/skills#bundled-skills); for the settings that turn bundled skills off: [`disableBundledSkills`](https://code.claude.com/docs/en/settings-reference#disablebundledskills) and [Override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings) | 2026-10-02 | That section changes what the audit depends on, or a release adds, removes, or renames a setting that gates `doctor` or bundled skills |
 
 ## Why the verdict is complementary
 

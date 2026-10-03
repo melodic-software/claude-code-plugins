@@ -5,6 +5,8 @@ Distilled from Anthropic's "Define success criteria and build evaluations"
 (`anthropics/claude-cookbooks` `misc/building_evals.ipynb`), both fetched 2026-08-08. Re-fetch the
 sources before treating any specific here as current.
 
+This repository's own defaults and source-conflict records: [local-decisions.md](local-decisions.md).
+
 ## The ladder: pick the fastest, most reliable, most scalable method that fits
 
 1. **Code-based grading**: fastest and most reliable, extremely scalable; lacks nuance for

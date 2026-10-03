@@ -17,7 +17,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 | Lane | Rows | Baked | Integration | Verdicts |
 |---|---|---|---|---|
-| Built-in CLI commands | 24 | 23 | route 4, suggest 20 | complementary 23, defer 1 |
+| Built-in CLI commands | 25 | 24 | route 4, suggest 21 | complementary 24, defer 1 |
 | Bundled skills | 29 | 22 | route 18, suggest 9, wrap 2 | complementary 23, defer 6 |
 | Bundled workflows | 1 | 1 | suggest 1 | complementary 1 |
 | Plugin-backed built-ins | 4 | 2 | route 4 | complementary 3, defer 1 |
@@ -430,6 +430,24 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
+### `skill-doctor` → `context-budget:audit`
+
+- **Verdict:** `complementary`: The two meet only on skills. We send the choice of which skills to turn off to the built-in command, which the person runs; context-budget:audit measures a fresh headless session's startup payload per item, splits the built-in tool pools, and ledgers what each toggle measurably saved. User-only, so ours offers it to the person. Human-added pair: discovery scored it under the 0.30 floor. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.
+- **Integration:** `suggest`
+- **Native surface:** `skill-doctor` (built-in command; markers: gated, model-invocation-disabled)
+- **Our component:** `context-budget:audit` (skill)
+- **Evidence:**
+  - `skill-doctor` present in the 2.1.285 extraction as builtin-command (source builtin)
+  - invocation mode (2026-10-02, Claude Code 2.1.285): user-invocable only, model invocation disabled (command type `local-jsx`)
+  - markers: model-invocation-disabled from the extraction; gated from the docs pointers below, since the extraction set no gated flag (the same basis as the sibling harness-ops:audit-skill-visibility row)
+  - detect: origin discovered only at threshold 0.01, score 0.0729 from shared tokens cost, context; not emitted at the default 0.30
+  - docs pointers (read 2026-10-02, not restated here): https://code.claude.com/docs/en/skills#find-unused-skills and the /skill-doctor and /doctor rows on https://code.claude.com/docs/en/commands
+  - our route-out sends skill pruning to /skill-doctor and unused MCP servers and plugins to /doctor; our Boundary: 'If /skill-doctor is available in your session (gate basis: the records linked below), you can run `/skill-doctor` to choose which skills to turn off'; the description carries no /skill-doctor clause
+- **Observation:** extraction: extracted from binary v2.1.285 on 2026-10-02 (the /harness-ops:inventory --binary-only extraction of the installed native build; every lane ok, overall degraded only because 2.1.285 differs from the validated 2.1.287, so counts are floors) (2026-10-02)
+- **Recheck trigger:** a Claude Code release or docs change removes or renames /skill-doctor, folds it into /doctor, makes it model-invocable, changes its version or feature-flag gate, or widens it to startup measurement or a before/after comparison (verified 2026-10-02)
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence yes
+- **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
+
 ### `skill-doctor` → `harness-ops:audit-skill-visibility`
 
 - **Verdict:** `complementary`: The sibling doctor row's split, narrowed to the surface that now owns the question. Built-in /skill-doctor is a one-shot report of what each loaded skill costs in context and how often it is used, so unused ones can be turned off. audit-skill-visibility answers why a skill is unseen: it reconciles three usage sources (native ~/.claude.json counters, its own JSONL store, OTEL) under a max-across-sources rule, computes an observed horizon and withholds every verdict the span cannot support, diagnoses reachability causes, and analyses listing-budget starvation. It disables nothing by contract. This row is separate from the doctor row rather than folded into it because the two surfaces carry different gates: /doctor answers to DISABLE_DOCTOR_COMMAND, /skill-doctor to a minimum version and to feature-flag fetching, so a session can resolve either, both, or neither, and each routing line needs its own presence gate.
@@ -526,34 +544,35 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ### `claude-api` → `evals:methodology`
 
-- **Verdict:** `complementary`: Different jobs on the same object. The bundled skill's hillclimb subcommand consumes an eval suite and searches model and effort for the cheapest configuration that holds the target (train/test split, one change per round, held-out scoring), and build-eval scaffolds the suite it needs; both run evals and change configuration. evals:methodology is knowledge about designing the suite (criteria, anatomy, grading, effort as an axis) and runs nothing. The two chain: design the suite here, hand it to the search. Recorded when the effort-axis note citing hillclimb landed in the methodology reference.
+- **Verdict:** `complementary`: Different jobs on the same object. The bundled skill's hillclimb and build-eval subcommands act on an eval suite, as their published guides describe; evals:methodology is knowledge about designing the suite (criteria, anatomy, grading, effort as an axis) and runs nothing. The two chain: design the suite here, then the user types the subcommand. Routing by repository kind and the hillclimb step map live in the methodology skill and its reference/hillclimb.md.
 - **Integration:** `route`
 - **Native surface:** `claude-api` (bundled skill; markers: gated)
 - **Our component:** `evals:methodology` (skill)
 - **Evidence:**
-  - binary extraction 2026-09-09 (claude.exe 2.1.263): subcommand array includes build-eval and hillclimb; bundled shared/evals/eval-hillclimb.md read end to end (train/test split, one proposal per round, held-out scoring)
-  - hillclimb and build-eval absent from anthropics/skills HEAD 41bbe19 (2026-09-03) and from the platform claude-api-skill docs page
+  - binary extraction 2026-09-09 (claude.exe 2.1.263): subcommand array includes build-eval and hillclimb
+  - subcommand pointer: https://code.claude.com/docs/en/skills#work-on-claude-api-projects; published guides: https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/eval-hillclimb.md and build-eval.md at the same commit (as of 2026-10-01)
   - our description: 'Knowledge (WHY/WHAT of eval design), not a runner; ... for running and scoring a plugin's suite against a no-plugin baseline use /evals:plugin-eval'
-  - reference/eval-design.md 'Effort as an eval axis' cites the subcommand behind the presence gate
+  - reference/hillclimb.md names each hillclimb step by a link to its section and states only this repository's facts; reference/eval-design.md 'Effort as an eval axis' points to it behind the presence gate
 - **Observation:** extraction: extracted from binary 2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (subcommand array; bundled shared/evals/eval-hillclimb.md extracted and read); bulk registrar enumeration was broken at this build, so this row's evidence is the targeted extraction, not the inventory JSON (2026-09-09)
-- **Recheck trigger:** a Claude Code release changes the bundled claude-api skill's subcommand set, or the public anthropics/skills repo or the docs page gains hillclimb/build-eval (verified 2026-09-11)
+- **Recheck trigger:** a Claude Code release changes the bundled claude-api skill's subcommand set, the platform claude-api-skill docs page lists build-eval and hillclimb, or a commit to anthropics/skills changes skills/claude-api/shared/evals/ (verified 2026-10-01)
 - **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 
 ### `claude-api` → `harness-config:audit-instructions`
 
-- **Verdict:** `complementary`: Composite posture, decided at the ClaudeDevs cost-performance adoption interview: wrap or point to the bundled subcommand where it fits the use case, and run our own processes where they fit, rather than routing one way on paper. The bundled skill's prompt-audit subcommand is the vendor's apply-sweep over the working directory's whole prompt surface, application code included; audit-instructions is a standing report-only audit of locally-owned Claude Code instruction surfaces with the versioned I-catalog, target-model scoping, and deterministic pre-scans. ADR-0028 already composes both: run the vendor procedure per model change, feed recurring gap shapes back into the catalog. The app-code surface stays with the bundled skill (scope widening rejected at the same interview).
+- **Verdict:** `complementary`: Composite posture, decided at the ClaudeDevs cost-performance adoption interview: wrap or point to the bundled subcommand where it fits the use case, and run our own processes where they fit, rather than routing one way on paper. Model migrations and application-code prompts go to the bundled skill's prompt-audit subcommand; audit-instructions stays a standing report-only audit of locally-owned Claude Code instruction surfaces with the versioned I-catalog, target-model scoping, and deterministic pre-scans, and never chains into a prompt-audit apply. ADR-0028 already composes both: run the vendor procedure per model change, feed recurring gap shapes back into the catalog. The app-code surface stays with the bundled skill (scope widening rejected at the same interview).
 - **Integration:** `route`
 - **Native surface:** `claude-api` (bundled skill; markers: gated)
 - **Our component:** `harness-config:audit-instructions` (skill)
 - **Evidence:**
-  - binary extraction 2026-09-09 (claude.exe 2.1.263): registerClaudeApiSkill present; subcommand array cost-optimize, migrate, managed-agents-onboard, prompt-audit, upgrade, build-eval, hillclimb
-  - platform docs claude-api-skill page (fetched 2026-09-09): 'The skill comes bundled with Claude Code and is also available in the open-source Anthropic skills repository'
-  - hillclimb and build-eval are bundled-only: absent from anthropics/skills HEAD 41bbe19 (2026-09-03) and from the skill's docs page
+  - binary extraction 2026-09-09 (claude.exe 2.1.263) and 2026-10-02 (Claude Code 2.1.287): registerClaudeApiSkill present; the subcommand array includes prompt-audit
+  - distribution pointer: https://platform.claude.com/docs/en/agents-and-tools/agent-skills/claude-api-skill#in-claude-code-bundled (as of 2026-10-02)
+  - subcommand pointer: https://code.claude.com/docs/en/skills#work-on-claude-api-projects; published guides: https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/prompt-audit.md and model-migration.md at the same commit (as of 2026-10-02)
+  - the routing, mutation gate and presence records live in the skill's reference/bundled-claude-api.md, links-only
   - executed composition precedent: ADR-0028 (fleet-wide prompt-audit run, 805 findings applied; repeats per model change; findings are edits, not criteria)
   - verdict recorded from the owner's interview answers in docs/upstream/claudedevs-cost-performance.md Lane M and Lane T2, 2026-09-10
-- **Observation:** extraction: extracted from binary 2.1.263 at node_modules/@anthropic-ai/claude-code/bin/claude.exe (registerClaudeApiSkill string plus subcommand array; bundled shared/evals/eval-hillclimb.md extracted and read); bulk registrar enumeration was broken at this build, so this row's evidence is the targeted extraction, not the inventory JSON (2026-09-09)
-- **Recheck trigger:** a Claude Code release changes the bundled claude-api skill's subcommand set, or the anthropics/skills repo or the platform claude-api-skill docs page gains hillclimb/build-eval (which also fires the docs/upstream/claudedevs-cost-performance.md hillclimb row) (verified 2026-09-10)
+- **Observation:** extraction: extracted from binary v2.1.287 on 2026-10-02 (the /harness-ops:inventory --binary-only extraction lists claude-api as a gated, model-invocable bundled skill; the registerClaudeApiSkill string and subcommand array read from the same binary) (2026-10-02)
+- **Recheck trigger:** a Claude Code release changes the bundled claude-api skill's subcommand set or names prompt-audit or the model-migration guide, the platform claude-api-skill docs page lists build-eval and hillclimb, or a commit to anthropics/skills changes skills/claude-api/shared/prompt-audit.md or model-migration.md (verified 2026-10-02)
 - **Baked:** description phrase yes · Boundary section yes · Native step no · suggest sentence no
 - **Budget caveat:** the baked phrase may be dropped from the skill listing under budget pressure. It is the best available routing surface, not a guaranteed one
 

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "python3 noise-report.py aggregate-result.json --threshold 0.8 --grader-agreement",
+      "why": "the command"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Bootstrap the per-case deltas and post the 95% interval.",
+      "why": "another test"
+    }
+  ]
+}
