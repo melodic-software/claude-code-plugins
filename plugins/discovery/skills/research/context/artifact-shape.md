@@ -69,6 +69,7 @@ claims:
     confidence: HIGH          # HIGH | MEDIUM | LOW
     tiers: [0, 1]             # source tiers backing this claim
     applies_to: "<product> <version range>"   # the claim's target, or version-independent
+    subject_pool: "<publisher>"   # single-publisher claims only: equals the one pool their Tier 0/1 sources share
     sources:                  # what makes gate criterion 4 gradeable off the artifact
       - url: "<url fetched this turn>"
         tier: 1
@@ -93,6 +94,11 @@ saw the run**. Independence is a property of the publishing pools behind a claim
 encodes neither the URL nor the pool, so without `sources[]` the verifier can only take the run's
 word for the one criterion the whole discipline rests on. Two entries sharing a `pool` are one
 corroborator.
+
+**`subject_pool:` marks a single-publisher claim**, one whose every Tier 0/1 source is the
+publisher speaking about itself. It names that publisher and equals the one `pool` those sources
+share, so the verifier grades the label off the header, beside `pool`, for criterion 4. Omit the key
+on every other claim. Rule: `discipline.md`'s "Single-publisher facts".
 
 **`measures:`, `inference:`, and `qualifiers:` make criterion 12 gradeable off the artifact**, as
 `sources[]` does for criterion 4: a URL and a pool cannot show whether a source measured the claim's

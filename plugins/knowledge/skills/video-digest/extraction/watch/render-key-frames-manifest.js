@@ -13,6 +13,7 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { indexSelectedFrames, readLaneJson } from "../lib/watch-frame-index.js";
+import { frameMinuteLabel } from "../watching/timestamp-interleave.js";
 
 /**
  * @param {string} sliceDir
@@ -37,8 +38,8 @@ export function renderKeyFramesManifest(sliceDir) {
 
   for (const row of promotes) {
     const destName = row.destName.endsWith(".png") ? row.destName : `${row.destName}.png`;
-    const ts = byFile[row.sourceFile]?.timestampSec;
-    const tsLabel = ts != null ? `~${Math.round(ts / 60)}m` : "—";
+    const frame = byFile[row.sourceFile];
+    const tsLabel = frameMinuteLabel(frame?.timestampSec, frame?.timestampSource);
     lines.push(`| ${destName} | ${row.session ?? "—"} | ${tsLabel} | ${row.gapNote ?? ""} |`);
   }
 

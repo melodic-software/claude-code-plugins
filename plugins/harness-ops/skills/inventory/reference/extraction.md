@@ -277,7 +277,9 @@ spread reads the binding its own module and scope see, not the nearest same-name
 bundle. When that binding is not an array literal, is itself a bare or conditional assignment
 rather than a declaration, or any other code assigns it (a conditional write in the same block such
 as `if(c)pY=["B"]`, a nested block, a function such as `function init(){pY=["B"]}`, or an
-expression-bodied arrow such as `()=>pY=["B"]`), the list is `partial`.
+expression-bodied arrow such as `()=>pY=["B"]`), the list is `partial`. Under the parser reader,
+code that may change the array without assigning it (`pY.push("B")`, an alias, an export) makes
+it `partial` too, unless section 12's following shows nothing changes it.
 
 ### 10. Find built-in tools by shape, not by builder
 
@@ -384,6 +386,94 @@ an export of it.
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
 | The loader requires 11 built-in plugins (10 on 2.1.285, which lacks `cc-plugin-you-should-know`), each with one registration, and only `cc-plugin-claude-test` and `cc-plugin-plugin-authoring` declare skills; claude-test's agents and diff's `/diff` command come from the manifest and the hooks API | `inventory.py --binary-only` on the 2.1.285, 2.1.286 and 2.1.287 native builds: `builtin_plugin_notes.loaded_not_registered` empty, every plugin's `partial` empty. Derived per run, so no document restates the roster | 2026-10-01, Claude Code 2.1.287 | `--self-check` reports the `builtin_plugins` lane degraded or broken, or a run's plugin names change |
+
+### 12. Resolve bindings with a parser, when selected
+
+`--reader` picks who answers the binding questions the sections above ask (which declaration a
+name reads, whether anything writes or changes it). `regex`, the default, is the text reader the
+sections above describe. `parser` parses each module with acorn and resolves names with
+eslint-scope, installed on first use from the committed lockfile (`scripts/js/`, under
+[on-demand dependencies](../../../../../docs/conventions/on-demand-dependencies/README.md)); it
+needs node and npm, and without them the binary source is broken with the repair command, never a
+regex answer. `compare` runs both and breaks the report on any value that differs between them;
+the changelog skill's native-drift pass reads each new build that way.
+
+The parser stays opt-in because it reads the Explore and Plan `disallowed_tools` partial on
+2.1.284 to 2.1.287 (the claim below), where the regex reader reads a literal it cannot back:
+nothing the text reader sees rules out the namespace loads and sinks below. Making the parser the
+default is tracked in [#5901](https://github.com/melodic-software/claude-code-plugins/issues/5901).
+
+A spread (section 9) keeps its literal under the parser only when no code can change the array.
+A reference other than a spread into an array or call and a member read used as a value is
+followed, inside a module by the helper's `flow` op and across modules by `_flow_holds`:
+
+- an alias (`var Gr=pY`, `q=pY`), whose own reads are followed;
+- a `return`, followed to every call of a function bound to one plain name;
+- an argument, followed into the callee's parameter, the callee being every function the name can
+  hold, resolved back through parameters and object-literal arguments (`gn(e,{hook:n})` called as
+  `gn(x,{hook:!1})` holds no function);
+- a method of the array: one that never changes it, with its callback's array parameter followed
+  (`some`, `every`, `forEach`, `map`, `filter`, `find*`, `flatMap`, `reduce*`), or a name neither
+  `Array.prototype` nor `Object.prototype` holds, whose call throws before anything runs;
+- an export, followed into every module importing that name, and again through a re-export;
+- an argument to an imported function, followed into that function's parameter in the module the
+  import's `from` path names in Bun's module table (an external, unknown or unexported source
+  stays partial).
+
+Anything else stays partial: a hop the walk cannot resolve (a callback that is a parameter of an
+exported function, an object property, `await`, `arguments`), a module with a direct `eval`, an
+exported name any module reads by name as a property (`ns.pY`, `{pY}=ns`), since a module
+namespace reaches the export that way, and a bundle with a sink for a name the walk trusted.
+
+The walk trusts names as built in: each method it calls on the array (`some`, `includes`), each
+name it relies on the prototypes not holding (`has`), and the lookups of a coercion
+(`Symbol.toPrimitive`, `toString`, `valueOf`, `join`) when the array is an operand of `+`, `==`
+or a template. Which object a prototype is reached through is not followed, since there is no end
+of ways (`var A=Array`, `globalThis.Array`, `Array["proto"+"type"]`, `Reflect.get`,
+`[].__proto__`, a parameter). The rule watches the writes instead (the helper's `sinks` op): a
+member write of a trusted name, a write whose computed key names nothing, a trusted name passed
+as a string or `Symbol.x` argument to any call, an object literal holding one given to
+`Object.assign`, `defineProperties` or `setPrototypeOf`, a definer (`Object.defineProperty`,
+`Reflect.set`, `__defineGetter__`) given a key that names nothing or read other than as a direct
+callee, an alias of `Object` or `Reflect`, and a prototype swap (`__proto__=`, `setPrototypeOf`).
+A key is a name when it is a string, a template without substitutions, or `Symbol.x`. A target
+is cleared only when it is provably fresh: a literal or a function (never a call result, not even
+`Object.create(...)`, which can be replaced); `this` in the constructor of a class with no
+superclass (a derived class's `this` is whatever `super()` returns); a variable that only ever
+holds one of those; or the `prototype` of a function or class declared in the module whose every
+reference is `F.prototype.k` with a named key other than `constructor` (a call, `new`, or
+`F.prototype.constructor` leads back to F, which could replace it). `Reflect.set`'s receiver, when
+given, must be fresh too. A module that does not parse or calls `eval` is a sink, and so is code
+built from a string: global `eval` other than a direct call, the global `Function` used other
+than for `typeof`, `instanceof` or a `.prototype` read, and any member named `eval` or `Function`
+(on 2.1.284 to 2.1.287, lodash's `Function("return this")()` in 4 modules and a CEL evaluator's
+`g.eval(...)` in 3).
+
+The bundle is not a closed world: a module can be loaded whole as a namespace, where a computed
+read (`N[k]`) or an enumeration (`Object.values(N)`, `{...N}`, `for in`) reaches an export
+without naming it. `read_bundle` names each module's own file from Bun's standalone module table
+(after the `---- Bun! ----` trailer, the offsets block points at 52-byte records whose first two
+(offset, length) pairs are the module's path and source), and an export hop stays partial when
+the exporting or re-exporting module's file is loaded whole anywhere: `import*as N from`,
+`export*from`, `import(...)`, `require(...)` or `import.meta.require(...)` with its literal path.
+Without a table the file is the one its importers name in `from"..."`, and a module whose file is
+still unknown counts as loaded whole. A namespace object is not followed to its reads: any whole
+load of the file counts. On 2.1.284 to 2.1.287 the chunk re-exporting the Explore and Plan array
+as `ARTIFACT_FAMILY_TOOL_NAMES` is not the entry chunk; it is loaded whole 13 to 14 times.
+
+Stated assumptions, not checked:
+
+- Code built from strings is not analyzed: `new Function(...)`, `Function("...")` and
+  `vm.runInThisContext`, which the module spans of 2.1.284 and 2.1.287 hold 2, 5 and 0 times.
+- A dynamic `import(x)` or `require(x)` whose path is not a literal names no file.
+- An array method a JavaScriptCore build adds that V8's `Array.prototype` lacks is read as
+  throwing by the method rule.
+- A spread is a copy of the elements, the reading both readers rest on: the sink rule does not
+  watch `Symbol.iterator` or the array iterator's `next` for a spread.
+
+| Claim | Basis | As of | Recheck trigger |
+|---|---|---|---|
+| On 2.1.284 to 2.1.287 the Explore and Plan `disallowed_tools` spread an exported array whose importers spread it, call `includes`, alias it and return it to a `.some(t)` caller whose `t` holds `!1`, re-export it, and pass it to an imported function that only calls `has`/`includes` on it. The walk follows each hop and trusts `some`, `includes` and `has`; every build has sinks for them (on 2.1.287, 189 modules with a write whose key names nothing on a target not shown fresh, 88 with a definer given such a key), and the re-exporting chunk is loaded whole, so both lists read partial under the parser | `inventory.py --binary-only` under `--reader=regex` and `--reader=parser` on each native build, compared with `compare_reports.py`: no value->value change; `test_reader_findings.TestInstalledBuilds` pins it where the builds are installed | 2026-10-02, Claude Code 2.1.287 (hop and sink counts); 2.1.288 (both lists read partial under the parser, `TestInstalledBuilds`) | A run under the parser reads either list literal, or `compare` reports a value change |
 
 ## Known non-commands
 
@@ -493,6 +583,8 @@ check failed, and each maps to one edit:
 | `builtin_plugins` degraded: a plugin's `partial` is non-empty | A component or field moved behind a form this reader does not follow | Read the named field in that plugin's module; extend `_plugin_skills`, `_plugin_manifest` or `_plugin_commands` |
 | `integrity.undetermined` grows | A field moved behind a getter or a new indirection | Read one such field; extend `_scan` or `_resolve_chain` if the form is static |
 | `docs_crosscheck` broken | The commands page restructured its table | Re-derive `_ROW_RE` and `_SECTION` from the page |
+| `reader parser: broken`, modules do not parse | The build uses syntax the pinned acorn rejects | Bump acorn in `scripts/js/`'s lockfile; `--reader=regex` reads meanwhile |
+| A spread list is `partial` under the parser and literal under `--reader=regex` | A hop, sink or whole-file load section 12 cannot rule out | Trace the array with the helper's `flow` and `sinks` ops; extend a rule only for a case that provably cannot change it |
 
 After revalidating, bump `VALIDATED_AGAINST`. Leaving it stale is not a bug: every report then says
 its counts are believed rather than verified, which is the honest state until someone checks.
@@ -505,3 +597,7 @@ and, with `--docs`, both fetches. On 2.1.285 with the agent and tool lanes, abou
 `--binary-only`. The binding lookup puts the identifier before its boundary lookbehind: a pattern
 that opens with a lookbehind loses the regex engine's literal-prefix scan, and at about 0.2 seconds
 per lookup it tripled the run. The file is opened read-only and never executed.
+
+`--reader=parser` adds parsing every module (about 4 seconds) and its lookups: on
+2.1.284 to 2.1.287 under WSL2, about 26 to 28 seconds wall clock for `--binary-only` against 21
+for `--reader=regex`, after a first run that installs the packages.

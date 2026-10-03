@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [2.5.0] - 2026-10-02
+## [2.6.0] - 2026-10-02
 
 ### Added
 
@@ -13,6 +13,95 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   `prerequisites.json` in the schema that `docs/conventions/prerequisites/` owns. Nothing in this
   plugin calls it yet; the `prerequisites` skill moves to it when the plugin's own file is
   converted.
+
+## [2.5.4] - 2026-10-02
+
+### Security
+
+- The `observability` HTML dashboard is built by a checked-in builder
+  (`skills/observability/scripts/build-dashboard.mjs`) that escapes every telemetry-derived field
+  through the rendered-views escape helper, now carried at `lib/html-escape.mjs`, and stamps the
+  generator marker. The page has no script, and a hostile skill, hook, or session name renders as
+  text. `build-dashboard.mjs --check <file>` flags a page that bypassed the builder.
+
+## [2.5.3] - 2026-10-02
+
+### Changed
+
+- **The inventory is validated against Claude Code 2.1.288.** `VALIDATED_AGAINST` moves from
+  2.1.287 to 2.1.288: every lane extracts ok, and `--reader compare` finds no value->value
+  difference between the regex and parser readers (2167 of 2167 modules parse). The parser still
+  reads the Explore and Plan `disallowed_tools` as partial where the regex reader reads them
+  literal, as on 2.1.284-2.1.287 (#5901). The one surface change is the hidden built-in `/update`
+  command, renamed `/restart` with `update` kept as an alias.
+- **The installed-build regression covers 2.1.288.** `TestInstalledBuilds` now pins the partial
+  Explore and Plan lists under the parser on 2.1.284-2.1.288.
+
+## [2.5.2] - 2026-10-02
+
+### Changed
+
+- The shared hook helper's posture comment no longer names a fixed member count.
+
+## [2.5.1] - 2026-10-02
+
+### Fixed
+
+- `restart-consumer.sh` treats a set but empty `RESTART_CONSUMER_FAKE_ALIVE_PIDS` as "no owner pid is
+  alive" instead of falling through to `kill -0`. The lock-reclaim test seeds owner pid 4242 and
+  failed whenever the host had a live process with that pid, as busy CI runners sometimes do. The
+  test now records its own live pid as the gone owner, so a fall-through fails every run.
+
+## [2.5.0] - 2026-10-02
+
+### Added
+
+- **The parser reader follows a spread array across modules.** Where `--reader=parser` used to
+  read a spread list as partial on any reference outside its safe list, the helper's new `flow`
+  op follows the array through aliases, returns to every call, arguments into the callee's
+  parameter, and the callbacks of array methods that never change it (`some`, `forEach`, `map`,
+  `reduce` and the like), resolving which function a callback or callee holds back through
+  parameters and object-literal arguments. `inventory.py` follows the hops that leave a module:
+  an export to every importer and re-export, and an argument to an imported function into the
+  module its `from` path names in Bun's module table. The list stays literal only when every hop
+  is known not to change it. These keep it partial: a hop it cannot resolve; a module with a direct `eval`; the array on the left of
+  `instanceof`; a flow too deep for the helper's stack, which no longer crashes it; an exported
+  name any module reads by name as a property (`ns.pY`); an export whose module's file is loaded
+  whole anywhere (`import*as`, `export*from`, `import(...)`, `require(...)`,
+  `import.meta.require(...)`), or is unknown; and a sink for a name the walk trusted as built in.
+- **A sink rule on trusted names.** The flow reports the names it trusts (each method it calls on
+  the array, each name it relies on the prototypes not holding, and the lookups of a coercion),
+  and the helper's new `sinks` op finds any write of one on an object not provably fresh: a member
+  write of the name or with a computed key that names nothing, the name as a string or `Symbol.x`
+  argument to any call, an object-literal key given to `Object.assign` or `defineProperties`, a
+  definer (`Object.defineProperty`, `Reflect.set`, `__defineGetter__`) given a computed key or
+  read other than as a direct callee, an alias of `Object` or `Reflect`, a prototype swap, and
+  code built from a string (global `eval` other than a direct call, the `Function` constructor).
+- `read_bundle` names each module's `/$bunfs/root/...` file from Bun's standalone module table.
+  New helper ops `keys_used`, `exports` and `sinks` back the checks, and `reader.flow_lookups`
+  counts the flow lookups. `reference/extraction.md` lists the assumptions that remain unchecked.
+
+### Changed
+
+- `--reader=regex` stays the inventory's default. The parser reader is selectable with
+  `--reader=parser` (or `--reader=compare`, which runs both) and needs Node.js and npm only when
+  selected; it installs its pinned packages on first use, and without them reports
+  `binary: broken` with the repair command. Making the parser the default is tracked in #5901.
+  The inventory and audit-native-overlap skills pass `--deps-dir "${CLAUDE_PLUGIN_DATA}"`, used
+  when a parser reader is selected.
+- The changelog skill's per-release native-drift pass keeps taking its values from the default
+  regex reader and adds a `--reader=compare --self-check` guard: a value the regex and parser
+  readers disagree on for a new build is filed as a reader-divergence item. Without Node.js or npm
+  the guard records "compare guard unavailable: install Node.js and npm" and files nothing, since
+  the regex values stand. The parser installs into the inventory's fallback,
+  `<config dir>/plugins/data/harness-ops-melodic-software`, the directory `${CLAUDE_PLUGIN_DATA}`
+  names for this plugin.
+- Under the parser, the Explore and Plan agents' `disallowed_tools` read partial on 2.1.284 to
+  2.1.287, where the regex reader reads a literal: the walk trusts `some`, `includes` and `has`,
+  every build has sinks for them, and the chunk re-exporting the array is loaded whole 13 to 14
+  times. No value differs between the readers.
+- Under the parser, `var pY=[...];export{pY}` with no importer reads partial: with no module
+  table its file is unknown, so a namespace of it cannot be ruled out.
 
 ## [2.4.3] - 2026-10-02
 

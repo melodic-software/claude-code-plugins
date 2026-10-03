@@ -24,8 +24,12 @@ tool that needs it, so long-running workflows can route heavy work away from a d
 - **Zone-crossing hooks** (`hooks/`), the first shipped consumer. Once per transition into a
   worse zone, a PostToolBatch/UserPromptSubmit hook reports the crossing (advisory; silent on
   unchanged, improving, or `unknown` zones), **splitting the report by audience**: the
-  continuation menu (continue, `/clear`, handoff-then-`/clear`, `/compact`) renders to the
-  operator on `systemMessage`, because choosing among them is the human's call; the model's
+  continuation menu (continue, `/compact`, `/clear`, handoff-then-`/clear`) renders to the
+  operator on `systemMessage`, because choosing among them is the human's call. The menu does not
+  say which option fits when: it says to route the next step with `/session-flow:workflow` (if
+  installed), and otherwise links
+  [When your context fills up](https://code.claude.com/docs/en/context-window#when-your-context-fills-up).
+  The model's
   channel carries the zone determination plus the counter-steer that a zone word is a measurement
   and not a decay signal, and never an exit menu. An exit menu injected into model context
   manufactures the model's own initiative to stop, summarize, or hand off, which the

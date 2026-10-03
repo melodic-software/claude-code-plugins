@@ -79,4 +79,26 @@ describe("summarizeFrameSelection", () => {
     expect(result.selected[0].timestampSec).toBe(5);
     expect(result.selected[1].timestampSec).toBe(100);
   });
+
+  it("sorts untimed frames after timed ones and estimated frames by their time", () => {
+    const [early, late] = makeFrames(2).map((frame, i) => ({
+      ...frame,
+      timestampSec: [5, 100][i],
+    }));
+    const untimed = { ...early, path: "/u.png", file: "u.png", timestampSec: null };
+    const estimated = {
+      ...early,
+      path: "/e.png",
+      file: "e.png",
+      timestampSec: 60,
+      timestampSource: "estimated",
+    };
+    const result = summarizeFrameSelection([untimed, late, estimated, early]);
+    expect(result.selected.map((frame) => frame.file)).toEqual([
+      early.file,
+      "e.png",
+      late.file,
+      "u.png",
+    ]);
+  });
 });

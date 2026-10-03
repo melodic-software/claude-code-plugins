@@ -40,6 +40,14 @@ MEDIUM or LOW and listed in the Gaps section is not an accepted claim, so it doe
 A quote found at its link settles only that the quote exists; it does not show the claim follows
 from it, which is the question row 12 asks.
 
+Row 4 reads independence off each source's `pool`: two sources sharing one are one corroborator. A
+claim carrying `subject_pool` is a single-publisher claim. Grade it against the discipline file's
+"Single-publisher facts" in
+[`${CLAUDE_PLUGIN_ROOT}/skills/research/context/discipline.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/discipline.md):
+its `subject_pool` equals the one `pool` its Tier 0/1 sources share, it is worded as an
+attribution, it is at most MEDIUM, and it is not accepted. A claim whose Tier 0/1 sources all share
+the `pool` of the claim's own subject but that carries no `subject_pool` fails row 4.
+
 Fetch each page once, and read each file once; the rule is stated once in
 [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
 ("Read each file once, stated once"). Your limit is `maxTurns: 30`, from this definition's

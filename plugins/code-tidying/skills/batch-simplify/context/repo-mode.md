@@ -130,9 +130,10 @@ One agent per group, spawned via the `Agent` tool with an inline prompt. Use the
 `subagent_type` ladder the main workflow's Phase 6 documents (`code-simplifier:code-simplifier`,
 then `pr-review-toolkit:code-simplifier`, then any other installed `code-simplifier` agent, else
 `general-purpose`). State which one you used in the group's result line; a silent substitution hides
-why one wave's output differs in character from another's. **Model tier:** refutation verifiers run
-on the parent session's model (they are the judgment stage); simplifiers default to that same model
-unless the orchestrator documents a cheaper tier for a wide repo sweep.
+why one wave's output differs in character from another's. **Model and effort:** simplifiers follow
+Phase 6's rule. Refutation verifiers are the judgment stage: they take the `verifier` role's
+`fanout` variant from the same `/multi-agent:route` run, or, when it does not resolve, the
+simplifiers' fallback model at effort `high`.
 
 The prompt carries everything the main workflow's Phase 6 prompt carries, plus:
 
@@ -162,7 +163,7 @@ depth.
 ## Refutation verifier
 
 **Mandatory in repo mode, once per group.** Spawn a fresh-context agent that did not perform
-the simplification and has not seen the reasoning behind it, on the **parent session's model**, and
+the simplification and has not seen the reasoning behind it, on the verifier tier the spawn contract sets, and
 give it the group's diff and one job: try to refute the claim that behavior is preserved. Ask for a specific counterexample (an
 input, a call sequence, a state) that behaves differently before and after, not a general opinion
 about risk.

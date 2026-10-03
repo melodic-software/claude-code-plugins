@@ -11,6 +11,7 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { indexSelectedFrames, readJsonFile, readLaneJson } from "../lib/watch-frame-index.js";
+import { compareTimesUntimedLast, frameMinuteLabel } from "../watching/timestamp-interleave.js";
 
 /**
  * Resolve synthesis filename → source frame using slice promotion-map and generic patterns.
@@ -30,7 +31,7 @@ export function resolveSourceFile(destFile, promotionMap) {
   }
   const sceneShort = destFile.match(/^(\d{4})(?:-\d+)?\.png$/);
   if (sceneShort) return `scene_${sceneShort[1]}.png`;
-  const atStem = destFile.match(/^at-\d+m\d+s-(.+)\.png$/);
+  const atStem = destFile.match(/^(?:at-\d+m\d+s|untimed)-(.+)\.png$/);
   if (atStem) return `${atStem[1]}.png`;
   return undefined;
 }
@@ -63,12 +64,17 @@ export function rebuildVisualFrames(sliceDir) {
 
   const rows = files.map((file) => {
     const source = resolveSourceFile(file, promotionMap);
-    const ts = source && byFile[source] ? byFile[source].timestampSec : 0;
-    const min = Math.floor(ts / 60);
+    const frame = source ? byFile[source] : undefined;
+    const timestampSec = frame?.timestampSec ?? null;
     const label = source ?? file.replace(/\.png$/, "");
-    return { min, file, label };
+    return {
+      timestampSec,
+      time: frameMinuteLabel(timestampSec, frame?.timestampSource, Math.floor),
+      file,
+      label,
+    };
   });
-  rows.sort((a, b) => a.min - b.min);
+  rows.sort(compareTimesUntimedLast);
 
   const lines = [
     "# Visual frame log — full vision pass",
@@ -83,7 +89,7 @@ export function rebuildVisualFrames(sliceDir) {
     "| --- | --- | --- |",
   ];
   for (const row of rows) {
-    lines.push(`| ~${row.min}m | \`frames/${row.file}\` | ${row.label} |`);
+    lines.push(`| ${row.time} | \`frames/${row.file}\` | ${row.label} |`);
   }
   lines.push("");
 
