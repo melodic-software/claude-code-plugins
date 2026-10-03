@@ -3,6 +3,15 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1] - 2026-10-02
+
+### Fixed
+
+- **`prerequisites.json` now uses the schema's `requires` shape**, declaring `node` as a required
+  runtime for the fetch-gate hook and `/multi-agent:check`. It had used an unknown `tools` key, so
+  the prerequisites gate failed on `main`. The plugin now carries the generated
+  `lib/prerequisites.{mjs,sh,ps1}` checker copies the gate requires.
+
 ## [0.3.0] - 2026-10-02
 
 ### Added

@@ -1,9 +1,18 @@
 {
-  "tools": [
+  "requires": [
     {
-      "name": "node",
-      "check": "/multi-agent:check",
-      "install": "install Node.js from https://nodejs.org/en/download"
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": ["hook:drift-checker-fetch-gate.mjs", "skill:check"],
+      "detect": {
+        "any": ["node"]
+      },
+      "degrade": "Without node the drift-checker fetch gate hook cannot start and fails open: the drift checker's fetches are held to first-party docs hosts only by the workflow's source filter and the agent's prompt. Everything else in the plugin still works.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      },
+      "check": "/multi-agent:check"
     }
   ]
 }
