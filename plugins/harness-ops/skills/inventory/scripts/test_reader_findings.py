@@ -703,7 +703,7 @@ class TestInstalledBuilds(unittest.TestCase):
 
     def test_explore_and_plan_read_partial_under_the_parser(self) -> None:
         target = _require_live(self)
-        for version in ("2.1.284", "2.1.285", "2.1.286", "2.1.287"):
+        for version in ("2.1.284", "2.1.285", "2.1.286", "2.1.287", "2.1.288"):
             with self.subTest(version=version):
                 binary = INSTALLED / version
                 if not binary.is_file():
