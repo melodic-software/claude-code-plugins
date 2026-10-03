@@ -5,6 +5,8 @@ Distilled from Anthropic's "Define success criteria and build evaluations"
 (`anthropics/claude-cookbooks` `misc/building_evals.ipynb`), both fetched 2026-08-08. Re-fetch the
 sources before treating any specific here as current.
 
+This repository's own defaults and source-conflict records: [local-decisions.md](local-decisions.md).
+
 ## Anatomy of an eval
 
 Four parts per case:
@@ -30,7 +32,9 @@ Four parts per case:
    string match, code-graded, LLM-graded. "Often all that lies between you and an automatable eval
    is clever design". Reformatting into multiple choice is a common tactic.
 3. **Prioritize volume over quality.** More questions with slightly-lower-signal automated grading
-   beat fewer questions with high-quality human hand-grading.
+   beat fewer questions with high-quality human hand-grading. Volume means cheaper grading per
+   case, never easier cases: a hard case stays in for a stated reason (correlate with
+   <https://claude.dev/blog/automating-eval-design-and-hillclimbing#adversarial-sampling>).
 
 ## The cost asymmetry: design for cheap re-runs
 
@@ -56,13 +60,22 @@ beat a weaker one at high effort on both axes (basis:
 verified 2026-09-09; recheck on that section changing).
 
 When the bundled `claude-api` skill resolves in this session, its `hillclimb` subcommand
-automates this search over a suite: it splits cases into train and test sets, proposes one
-configuration change per round from failing train transcripts, and scores the winner on the
-held-out test set. Distribution record: the subcommand (and its `build-eval` prerequisite) ships in
-the bundled skill inside Claude Code, while the public anthropics/skills repository and the skill's
-docs page do not carry it (verified 2026-09-09 against Claude Code 2.1.263 and the repository
-HEAD of 2026-09-03; recheck when either public surface gains the subcommand). The routing between
-that surface and this skill is the `## Boundary` section in `SKILL.md`.
+automates this search over a suite; this repository's step map for it is
+[hillclimb.md](hillclimb.md). The routing between that surface and this skill is the `## Boundary`
+section in `SKILL.md`.
+
+Distribution record. The subcommands and their guides are published:
+
+- **Pointer**: for the `/claude-api` subcommands, see
+  <https://code.claude.com/docs/en/skills#work-on-claude-api-projects>; for the guides, see
+  [`eval-hillclimb.md`](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/eval-hillclimb.md)
+  and
+  [`build-eval.md`](https://github.com/anthropics/skills/blob/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/claude-api/shared/evals/build-eval.md)
+  at the pinned commit.
+- **As of**: 2026-10-01
+- **Recheck trigger**: the Claude API skill docs page
+  (<https://platform.claude.com/docs/en/agents-and-tools/agent-skills/claude-api-skill>) lists
+  `build-eval` and `hillclimb`; then repoint there.
 
 ## Scaling authoring
 

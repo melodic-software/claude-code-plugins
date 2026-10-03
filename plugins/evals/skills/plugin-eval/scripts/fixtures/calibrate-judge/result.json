@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.287",
+  "partial": false,
+  "suite": {"ablation": "none", "judgeModel": "sonnet", "threshold": 0},
+  "cases": [
+    {
+      "name": "capital-city--names-paris--01",
+      "graders": [{"name": "names-paris", "type": "llm", "weight": 1}],
+      "arms": {
+        "with": [
+          {
+            "score": 1, "error": null, "skippedPaidGraders": false,
+            "tracePath": "traces/reproduced.jsonl",
+            "graders": [{"name": "names-paris", "passed": true, "explanation": "judge votes: PASS PASS PASS", "judgeVotes": [true, true, true]}]
+          },
+          {
+            "score": 1, "error": null, "skippedPaidGraders": false,
+            "graders": [{"name": "names-paris", "passed": true, "explanation": "judge votes: PASS FAIL PASS", "judgeVotes": [true, false, true], "evidence": "**Paris** is the capital.  \n\nIt has been the \"seat of government\" since 987 (see C:\\atlas).\n"}]
+          },
+          {
+            "score": 1, "error": null, "skippedPaidGraders": false,
+            "tracePath": "traces/deleted-by-the-runner.jsonl",
+            "graders": [{"name": "names-paris", "passed": true, "explanation": "judge votes: PASS PASS PASS", "judgeVotes": [true, true, true]}]
+          }
+        ]
+      }
+    },
+    {
+      "name": "capital-city--names-paris--02",
+      "graders": [{"name": "names-paris", "type": "llm", "weight": 1}],
+      "arms": {
+        "with": [
+          {
+            "score": 0, "error": null, "skippedPaidGraders": false,
+            "graders": [{"name": "names-paris", "passed": false, "explanation": "judge votes: FAIL FAIL FAIL", "judgeVotes": [false, false, false], "evidence": "The capital of France is Lyon."}]
+          },
+          {
+            "score": 0, "error": null, "skippedPaidGraders": false,
+            "graders": [{"name": "names-paris", "passed": false, "explanation": "judge votes: FAIL FAIL FAIL", "judgeVotes": [false, false, false], "evidence": "The capital of France is Lyon."}]
+          },
+          {
+            "score": 0, "error": null, "skippedPaidGraders": true,
+            "graders": [{"name": "names-paris", "passed": false, "explanation": "skipped: cost ceiling"}]
+          }
+        ]
+      }
+    },
+    {
+      "name": "capital-city--names-paris--03",
+      "graders": [{"name": "names-paris", "type": "llm", "weight": 1}],
+      "arms": {
+        "with": [
+          {
+            "score": 0, "error": null, "skippedPaidGraders": false,
+            "graders": [{"name": "names-paris", "passed": false, "explanation": "judge votes: FAIL FAIL PASS", "judgeVotes": [false, false, true], "evidence": "The capital of France is Paris."}]
+          },
+          {
+            "score": 1, "error": null, "skippedPaidGraders": false,
+            "tracePath": "traces/answered-itself.jsonl",
+            "graders": [{"name": "names-paris", "passed": true, "explanation": "judge votes: PASS PASS PASS", "judgeVotes": [true, true, true], "evidence": "Paris is the capital of France, and also its largest city."}]
+          },
+          {
+            "score": 1, "error": null, "skippedPaidGraders": false,
+            "graders": [{"name": "names-paris", "passed": true, "explanation": "judge votes: PASS PASS PASS", "judgeVotes": [true, true, true], "evidence": "The capital of France is Paris."}]
+          }
+        ]
+      }
+    },
+    {
+      "name": "capital-city--names-paris--04",
+      "graders": [{"name": "names-paris", "type": "llm", "weight": 1}],
+      "arms": {
+        "with": [
+          {
+            "score": 0, "error": null, "skippedPaidGraders": false,
+            "graders": [{"name": "names-paris", "passed": false, "explanation": "judge votes: FAIL FAIL FAIL", "judgeVotes": [false, false, false], "evidence": "The capital of France is Marseille."}]
+          },
+          {
+            "score": 0, "error": null, "skippedPaidGraders": false,
+            "graders": [{"name": "names-paris", "passed": false, "explanation": "judge votes: FAIL FAIL FAIL", "judgeVotes": [false, false, false], "evidence": "The capital of France is Marseille."}]
+          },
+          {
+            "score": 0, "error": null, "skippedPaidGraders": false,
+            "graders": [{"name": "names-paris", "passed": false, "explanation": "judge votes: FAIL FAIL FAIL", "judgeVotes": [false, false, false], "evidence": "The capital of France is Marseille."}]
+          },
+          {
+            "score": 0, "error": null, "skippedPaidGraders": false,
+            "graders": [{"name": "names-paris", "passed": false, "explanation": "judge votes: FAIL FAIL FAIL", "judgeVotes": [false, false, false], "evidence": "The capital of France is Marseille."}]
+          }
+        ]
+      }
+    }
+  ]
+}

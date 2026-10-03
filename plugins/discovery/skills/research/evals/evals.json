@@ -415,6 +415,35 @@
         "Confidence is at most MEDIUM and the claim is not accepted",
         "The claim is listed under Gaps labeled single-publisher (ExampleCloud)"
       ]
+    },
+    {
+      "id": 29,
+      "name": "single-source-content-claim-passes-flagged",
+      "prompt": "Research what Anthropic's Claude Code changelog says about one named release. [The dispatched discovery:researcher returns a well-formed payload with verification: pending, and both gates exit 0. One accepted claim reads 'the changelog entry for that release lists the change'. Its sidecar header records confidence: HIGH (single source) and single_source: 'only Anthropic publishes this changelog; every copy found elsewhere quotes it'. Its sources are the changelog file, fetched this turn, as role: primary, plus a blog post and a newsletter issue, each quoting that changelog entry and each recorded under the changelog's pool.]",
+      "files": [],
+      "expected_output": "Briefs the sibling verifier on rows 4, 7 and 12. The verifier grades row 4 on its single-source branch: the claim states what a named Anthropic file says, the stated reason holds, and the blog post and newsletter are reposts recorded under the changelog's pool and not counted as corroborators. Row 4 passes without two corroborators, and row 7 passes at HIGH (single source). The parent writes verification: pass and presents the claim with its single source flag visible in the evidence table and the answer. A code edit that later rests on the claim carries the flag in the record beside it.",
+      "expectations": [
+        "The verifier is briefed on rows 4, 7 and 12 by number",
+        "Row 4 is graded on the claim's single_source: reason, not failed for lacking two independent corroborators",
+        "The blog post and the newsletter are treated as reposts of the changelog: recorded, not counted as second sources",
+        "Row 7 passes with the claim at HIGH (single source), not plain HIGH",
+        "The claim is presented with the single source flag visible, not filed as a Gap",
+        "A record of a code edit grounded on the claim carries the single source flag"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "behavior-claim-from-one-page-is-a-gap",
+      "prompt": "Research whether setting one named Claude Code setting to false stops automatic updates. [The dispatched discovery:researcher returns a well-formed payload with verification: pending, and both gates exit 0. One accepted claim reads 'setting the key to false stops automatic updates'. Its sidecar header records confidence: HIGH (single source) and single_source: 'Anthropic is the only publisher of its own product documentation'. Its only source is the settings documentation page, fetched this turn, as role: primary. No probe was run and no issue tracker was searched.]",
+      "files": [],
+      "expected_output": "The verifier grades row 4 and finds the flag misapplied: the claim states what the product does when the key is set, a behavior claim that a live probe or an issue report could corroborate, so the single-source branch does not apply and the claim needs two independent corroborators, which it lacks. Row 4 fails, and so does row 7. The parent files the claim as a Gap and routes it to Phase 2 for a probe or an issue search. A separate content claim, that the settings page documents the key with that effect, may be split out and carry the flag.",
+      "expectations": [
+        "The verifier treats the claim as a behavior claim, not a first-party content claim",
+        "The single_source: reason is judged not to hold for a behavior claim, so row 4 fails",
+        "Row 7 fails: the claim is not accepted at HIGH (single source)",
+        "The claim is filed as a Gap routed to Phase 2 for a live probe or an issue search, not presented as accepted",
+        "Only a split-out content claim about what the page states may carry the single source flag"
+      ]
     }
   ]
 }
