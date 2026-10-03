@@ -8,7 +8,6 @@ context-budget npm
 context7 npm
 context7 npx
 disk-hygiene gh
-explainer-video jq
 go-format go
 guardrails gh
 harness-ops claude
@@ -29,4 +28,3 @@ source-control gh
 source-control py
 source-control python
 source-control python3
-speech jq
