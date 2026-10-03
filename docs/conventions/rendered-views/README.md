@@ -357,7 +357,7 @@ Two sentences reconcile this with the local-first residence decision:
    priced fleet sweep deliberately migrates them (tracked as a deferred-work issue).
 
 One new lane is an exception to sentence 1, recorded here: the pull-request digest
-lane (`review:explain-change`) ships `medium: artifact` as its default. Its page is
+lane (`/review:explain-change`) ships `medium: artifact` as its default. Its page is
 built only by the shared builder from a checked-in template, and the artifact stays
 private to the reader until they share it. The default publishes only a public
 repository's diff with no credential-shaped hunk; any other diff falls back to `file`
@@ -365,7 +365,7 @@ and the reader is told to set `medium: artifact` to publish it anyway. An operat
 `medium: file` in their personal layer (`~/.claude/rendered-views.md` or the repo
 overlay); the cascade below resolves it like any other key.
 
-The deck lane (`visualization:present`) is the second exception: a deck exists only as an
+The deck lane (`/visualization:present`) is the second exception: a deck exists only as an
 Artifact made from the account's Slides type, so it publishes behind the same gate (see
 Artifact types), and anything the gate keeps local stays the markdown outline.
 
@@ -402,7 +402,7 @@ Rules for a producer on a type:
   producer's check script holds a K2 deck to an allowlist of text and layout elements, attributes,
   and uploaded image sources, read by a quote-aware tokenizer that refuses whatever it cannot parse,
   so no live embed, script, link, inline SVG, CSS function, or image taken from the source is sent.
-- **The publish gate decides first.** `lib/publish-gate.mjs` (shared with `review:explain-change`)
+- **The publish gate decides first.** `lib/publish-gate.mjs` (shared with `/review:explain-change`)
   runs before the type's create call, which already publishes the title, so the create call takes
   the title the gate read. The check script resolves the layers itself, not the model: only
   `medium: artifact` from a layer a checked-out branch cannot write (the argument, the plugin's
@@ -413,7 +413,7 @@ Rules for a producer on a type:
 - **A design system is optional.** It is used only when the user names one or the `quickstart`
   attaches the account's default.
 
-Producers on a type: `visualization:present` (Slides).
+Producers on a type: `/visualization:present` (Slides).
 
 ## Genre rubric and stopping rule
 
@@ -488,7 +488,7 @@ the same way (`plugins/debugging/scripts/build-view.mjs`, `plugins/discovery/scr
 `architecture` `map-*` skills, each offering a view of its JSON record from one checked-in template
 (`plugins/architecture/scripts/build-view.mjs`).
 
-Emitters through an Artifact type (see Artifact types): `visualization:present`, a deck made from
+Emitters through an Artifact type (see Artifact types): `/visualization:present`, a deck made from
 the account's Slides type, gated by `plugins/visualization/skills/present/scripts/check-deck.mjs`.
 
 Retrofit list (existing lanes rendering untrusted-ish content, aligned to the security
@@ -672,7 +672,7 @@ which is another cost of copying.
 - It never makes a view the record: the markdown record stays authoritative everywhere.
 - It adds no generic HTML skill, one whose job is "make a page" for any content. Thin
   intent-named skills are allowed: a skill named for what the reader is trying to do
-  (`review:explain-change` explains a pull request) may emit a view as its deliverable,
+  (`/review:explain-change` explains a pull request) may emit a view as its deliverable,
   owning its genre's page shape and reusing the shared builder and chrome.
   `visualization:visualize` stays a router that owns no craft.
 - It does not migrate the grandfathered surfaces' ladder or `medium`: that sweep is

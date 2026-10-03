@@ -262,6 +262,12 @@ interrogate form by form; one question, then render.
   plugin chrome; use real labels and data; support desktop and mobile.
 - Report what you produced and, for a page, its path or link.
 
+## Next
+
+/visualization:present
+
+It turns the material into a slide deck when the request is for slides rather than one visual.
+
 ## Gotchas
 
 - **Terminal mermaid is source, not a picture.** If the user wants to *see* the
