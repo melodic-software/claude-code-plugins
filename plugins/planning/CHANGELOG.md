@@ -21,6 +21,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - The plan and brainstorm skills no longer offer a model-written HTML page; they offer the built view.
 
+## [0.63.2] - 2026-10-03
+
+### Changed
+
+- Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
 ## [0.63.1] - 2026-10-03
 
 ### Changed

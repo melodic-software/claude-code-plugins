@@ -3,6 +3,19 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.0] - 2026-10-03
+
+### Changed
+
+- `prerequisites.json` is converted to the schema `docs/conventions/prerequisites/` owns: a `requires` list in place of the retired `tools` list, with a `degrade` line per entry ([#5840](https://github.com/melodic-software/claude-code-plugins/issues/5840)).
+- **`/harness-ops:prerequisites` runs the Node checker and no longer needs `python3`.** `scripts/check-prerequisites.mjs` keeps the enabled-set resolution (`claude plugin list --json`, then the settings files and `installed_plugins.json`, then a repository scan) and hands the roots to the shared checker's report mode. The table is now `plugin id kind need status check install`, a `present`/`missing`/`outdated`/`unverified`/`agent-check` status replaces present/missing, and exit 1 means a required entry is missing or below its version floor. `scripts/check-prerequisites.sh` is deleted, and its test assertions moved to `scripts/check-prerequisites.test.sh`.
+
+## [3.3.1] - 2026-10-03
+
+### Changed
+
+- The shared hook library's missing-prerequisite notice says to run `/harness-ops:prerequisites` if the `harness-ops` plugin is enabled, where it said installed: an installed but disabled plugin exposes no skills, and `harness-ops` now installs disabled ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
 ## [3.3.0] - 2026-10-03
 
 ### Added
