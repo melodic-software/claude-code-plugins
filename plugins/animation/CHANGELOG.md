@@ -10,6 +10,10 @@ All notable changes to the `animation` plugin are documented here. Format follow
 - A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names `/animation:check-prerequisites`.
 - `/animation:check-prerequisites`, a read-only report of whether the tools in `prerequisites.json` resolve, through the shared Node checker.
 
+### Changed
+
+- Each `prerequisites.json` entry's `check` names `/animation:check-prerequisites`, so a failed row sends the user back to the plugin's own check.
+
 ## [0.3.2] - 2026-10-03
 
 ### Changed
