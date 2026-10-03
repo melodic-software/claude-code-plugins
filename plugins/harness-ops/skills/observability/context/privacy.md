@@ -12,7 +12,7 @@ Defense-in-depth redaction at output time. Write-time enforcement (in `hook::rec
 | Field values matching env-var deny list (see below) | REPLACE with `[redacted-env]` | Catches accidental env-var-as-subject |
 | Lines containing 8+ char base64-like token (`[A-Za-z0-9+/]{32,}={0,2}`) | REPLACE token with `[redacted-token]` | Catches accidental secret leak |
 | File contents excerpts | REMOVE | Should not appear in any source; if present, hook bug |
-| Prompt text snippets | REMOVE | Should not appear in any source; if present, hook bug |
+| Prompt text snippets, and the event log's content keys (`prompt`, `last_assistant_message`, `message` and the rest of the `session_event_log_content` list in data-sources.md, with their `<key>_truncated` markers) | REMOVE | Present in an event-log file only when the operator turned `session_event_log_content` on; a report never repeats them. Anywhere else, a hook bug |
 
 ## Env-var deny list (literal field-value match)
 
@@ -55,7 +55,7 @@ Apply just before final stdout / file write, never to the raw JSONL input.
 
 ## Trust boundary
 
-Source files (the hook log root's `sessions/*.jsonl`, `hook-events.jsonl` and its rotated `hook-events.jsonl.1`) sit in a tree that carries its own self-ignoring `.gitignore`. They never leave the repo unless the user explicitly shares the `/harness-ops:observability` report or copies the JSONL elsewhere. A per-session file also carries `file_path` values (repo-relative, or the basename when the file is outside the repo) and, for a `reason`-bearing event, the reason text the hook was given; both pass through the same filter below before any report. The privacy filter assumes the report MAY be shared (e.g., pasted into chat, attached to issue) and prevents the worst leaks.
+Source files (the hook log root's `sessions/*.jsonl`, `hook-events.jsonl` and its rotated `hook-events.jsonl.1`) sit in a tree that carries its own self-ignoring `.gitignore`. They never leave the repo unless the user explicitly shares the `/harness-ops:observability` report or copies the JSONL elsewhere. A per-session file also carries `file_path` values (repo-relative, or the basename when the file is outside the repo) and, for a `reason`-bearing event, the reason text the hook was given; both pass through the same filter below before any report. Whenever the event log is on, its rows carry `cwd`, `transcript_path` and `scratchpad_dir` (and the other path-valued keys) as the payload's raw absolute values, username and home directory included. The `session_event_log_content` option is off by default; turned on, rows also carry the events' content strings: prompt text, Claude's last message on `Stop` and `SubagentStop`, notification messages, task subjects and descriptions, `PostToolUseFailure` error output, and the other keys data-sources.md lists, each cut at the hook's 64 KB read cap with a `<key>_truncated` marker. Turn it on only where those files may hold that text. The privacy filter assumes the report MAY be shared (e.g., pasted into chat, attached to issue) and prevents the worst leaks.
 
 Does NOT defend against:
 

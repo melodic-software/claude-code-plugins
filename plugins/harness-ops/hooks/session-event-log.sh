@@ -38,6 +38,7 @@
 # Kill switch: CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED (default false).
 # Category filter: CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CATEGORIES.
 # Root: CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_DIR (default .observability/claude).
+# Content fields: CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CONTENT (default false).
 
 set -uo pipefail
 
@@ -177,7 +178,8 @@ num='-?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?'
 effort_obj='"effort"[[:space:]]*:[[:space:]]*\{[[:space:]]*"level"[[:space:]]*:[[:space:]]*'"$str"'[[:space:]]*\}'
 member="[[:space:]]*(${str}[[:space:]]*:[[:space:]]*($str|$num|true|false|null)|$effort_obj)[[:space:]]*"
 top=""
-[[ "$buf" =~ ^[[:space:]]*\{(($member,)*) ]] && top="${BASH_REMATCH[1]}"
+lead=0
+[[ "$buf" =~ ^[[:space:]]*\{(($member,)*) ]] && top="${BASH_REMATCH[1]}" && lead=${#BASH_REMATCH[0]}
 [[ "$buf" =~ ((,$member)*)\}[[:space:]]*$ ]] && top+="${BASH_REMATCH[1]}"
 
 # effort (D33): an event in SLOG_EFFORT_NA_EVENTS never carries a level, so
@@ -221,6 +223,48 @@ for key in $SLOG_EVENT_LOG_SCALARS; do
   scalar_to value "$key"
   [[ -n "$value" ]] && meta+=("$key" n "$value")
 done
+
+# --- content (session_event_log_content, default off) ----------------------------
+# The top-level content strings in SLOG_EVENT_LOG_CONTENT, recorded only when
+# the option is exactly true. `error` is tool
+# output on PostToolUseFailure; on StopFailure it is the metadata enum above.
+# A content string still open where the 64 KB read cap fell is the member right
+# after the leading scalar run: its captured prefix is cut back to whole JSON
+# escapes and whole UTF-8 characters and recorded with `<key>_truncated: true`.
+# Only that position is provably top-level in a cut buffer; a field the cap
+# fell inside after a nested value is not recorded.
+if [[ "${CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_CONTENT:-false}" == "true" ]]; then
+  open_key="" open_val=""
+  if [[ "${buf:lead}" =~ ^[[:space:]]*\"([a-z_]+)\"[[:space:]]*:[[:space:]]*\"(.*)$ ]]; then
+    open_key="${BASH_REMATCH[1]}"
+    open_val="${BASH_REMATCH[2]}"
+    if [[ "$open_val" =~ ^(([^\"\\]|\\[^u]|\\u[0-9A-Fa-f]{4})*)\\?(u[0-9A-Fa-f]{0,3})?$ ]]; then
+      open_val="${BASH_REMATCH[1]}"
+      # A UTF-8 lead byte whose continuation bytes were cut off, matched byte
+      # by byte (the regex has to sit in a variable: quoted text in `=~` is
+      # literal).
+      cut_char=$'([\xc2-\xdf]|[\xe0-\xef][\x80-\xbf]?|[\xf0-\xf4][\x80-\xbf]{0,2})$'
+      trim_utf8() {
+        local LC_ALL=C
+        [[ "$open_val" =~ $cut_char ]] && open_val="${open_val:0:${#open_val}-${#BASH_REMATCH[1]}}"
+      }
+      trim_utf8
+    else
+      open_key="" # the string closes: a whole member, read from `top` below
+    fi
+  fi
+  for entry in $SLOG_EVENT_LOG_CONTENT; do
+    key="${entry%@*}"
+    [[ "$entry" == "$key" || "${entry#*@}" == "$event" ]] || continue
+    if [[ "$key" == "$open_key" ]]; then
+      meta+=("$key" b "$open_val" "${key}_truncated" n true)
+      continue
+    fi
+    [[ "$top" == *"\"$key\""* ]] || continue
+    field_to value "$key" top
+    [[ -n "$value" ]] && meta+=("$key" b "$value")
+  done
+fi
 
 # --- root and guard ------------------------------------------------------------
 project="${CLAUDE_PROJECT_DIR:-}"
@@ -267,5 +311,5 @@ done
 extras+=(${meta[@]+"${meta[@]}"})
 slog_event_record_to line event-log "$ts" "$session_id" "$event" ok "$duration_ms" "${extras[@]}"
 
-printf '%s\n' "$line" >>"$root/sessions/$session_id.jsonl" 2>/dev/null
+slog_append "$root/sessions/$session_id.jsonl" "$line"
 exit 0

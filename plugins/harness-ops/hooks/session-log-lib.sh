@@ -9,7 +9,8 @@
 # Deliberately NOT lib/hook-utils.sh: a logging producer runs on every hook
 # event, and parsing that library costs more than the rest of the hook.
 # Nothing here spawns a
-# process; every function assigns into a caller-named variable (`printf -v`)
+# process, except slog_append on a line over 4000 bytes (`rm`, and `sleep`
+# while it waits for the lock); every other function assigns into a caller-named variable (`printf -v`)
 # or returns a status. Locals carry a `slog__` prefix so `printf -v` can never
 # land on a shadowed name.
 #
@@ -44,11 +45,10 @@
 # numbers (SCALARS, emitted with their JSON type). Paths are recorded as the
 # payload's raw absolute values; `file_path` keeps its own reduction in the
 # hook. A `key@Event` entry is read only on that event: `error` is an enum on
-# StopFailure and tool output on PostToolUseFailure. Never copied: content
-# (prompt, session_title, command_args, message, title, last_assistant_message,
-# task_subject, task_description, error_details, custom_instructions,
-# compact_summary, url, and every object or array, tool_input and
-# tool_response among them), and the payload keys `source` and `duration_ms`,
+# StopFailure and tool output on PostToolUseFailure. Content strings
+# (SLOG_EVENT_LOG_CONTENT) are copied only when the session_event_log_content
+# option is true. Never copied: every object or array, tool_input and
+# tool_response among them, and the payload keys `source` and `duration_ms`,
 # whose names the record's spine already holds.
 #
 # `effort` is on every event-log record: the level, `n/a` on the events in
@@ -73,10 +73,12 @@
 # Recheck: each /harness-ops:changelog ingest whose release notes touch hook
 # input fields, when a key here stops appearing in the page's input sections,
 # or when Stop rows on an effort-capable model record `unset`.
-# shellcheck disable=SC2034 # the three lists are read by session-event-log.sh
+# shellcheck disable=SC2034 # the lists are read by session-event-log.sh
 SLOG_EVENT_LOG_STRINGS="transcript_path cwd scratchpad_dir permission_mode agent_type model trigger memory_type load_reason trigger_file_path parent_file_path expansion_type command_name command_source notification_type agent_transcript_path task_id teammate_name team_name error@StopFailure old_cwd new_cwd directory worktree_path from_model to_model requested_model cache_ttl pricing mcp_server_name mode elicitation_id action"
 # shellcheck disable=SC2034
 SLOG_EVENT_LOG_SCALARS="seconds_since_last_response context_tokens prompt_cache_likely_expired estimated_cache_write_usd is_interrupt stop_hook_active prompt_cache_warm"
+# shellcheck disable=SC2034
+SLOG_EVENT_LOG_CONTENT="prompt session_title command_args message title last_assistant_message task_subject task_description error_details custom_instructions compact_summary url error@PostToolUseFailure"
 # shellcheck disable=SC2034
 SLOG_EFFORT_NA_EVENTS="SessionStart SessionEnd Setup InstructionsLoaded UserPromptSubmit UserPromptExpansion Notification SubagentStart TaskCreated TaskCompleted TeammateIdle ConfigChange CwdChanged DirectoryAdded WorktreeRemove PreCompact PostCompact PreModelSwitch PostModelSwitch Elicitation ElicitationResult"
 
@@ -323,6 +325,47 @@ slog_record_to() {
     slog__sep=","
   done
   printf -v "$slog__var" '%s' "${slog__line}}"
+}
+
+# slog_append <file> <line>: appends <line> and a newline; always returns 0.
+# Bash's printf writes in 4096-byte chunks, so a longer line is several
+# write() calls and parallel appenders can interleave inside it (the 64 KB
+# append probe in measure-hook-log-budget.sh caught it). A line over 4000 bytes
+# is therefore appended under a lock file, <file>.lock; a short line keeps the
+# single write and spawns nothing. The wait is bounded (about 2 s): on give-up
+# the lock is treated as stale and removed, and the line is appended anyway,
+# so a hook never drops the row or blocks the session.
+slog_append() {
+  local slog__f="$1" slog__l="$2" slog__lock="$1.lock" slog__n=0 slog__bytes
+  slog_byte_len_to slog__bytes "$slog__l"
+  if ((slog__bytes <= 4000)); then
+    printf '%s\n' "$slog__l" >>"$slog__f" 2>/dev/null
+    return 0
+  fi
+  until slog_lock "$slog__lock" || ((++slog__n >= 30)); do
+    sleep 0.05 2>/dev/null
+  done
+  printf '%s\n' "$slog__l" >>"$slog__f" 2>/dev/null
+  rm -f "$slog__lock" 2>/dev/null # ours, or a stale one broken after the wait
+  return 0
+}
+
+# slog_lock <path>: 0 when this call created <path>. noclobber makes the `>`
+# an O_EXCL create, so exactly one racer wins, with no process spawned. Not
+# mkdir: uutils mkdir 0.10.0 was caught exiting 0 on EEXIST under contention.
+slog_lock() {
+  local slog__was=0 slog__rc=0
+  [[ $- == *C* ]] && slog__was=1
+  set -C
+  { : >"$1"; } 2>/dev/null || slog__rc=1
+  ((slog__was)) || set +C
+  return "$slog__rc"
+}
+
+# slog_byte_len_to <var> <string>: the string's length in bytes, not characters.
+slog_byte_len_to() {
+  local LC_ALL=C
+  printf -v "$1" '%s' "${#2}"
 }
 
 # slog_event_record_to <var> <source> <ts> <session_id> <hook_event_name>
