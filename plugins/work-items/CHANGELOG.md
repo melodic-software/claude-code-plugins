@@ -24,6 +24,12 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 - The shared `lib/view-builder.mjs` (`--connect`) and `lib/view-runtime.js` (the session client) are
   regenerated. Python 3 is declared, and curl's entry names the board's watcher (`prerequisites.json`).
 
+## [0.47.1] - 2026-10-03
+
+### Changed
+
+- `tests/no-hardcoded-priority-scheme.test.sh`, `tools/work-item-tracker/adapters/gitea/list-items.test.sh`, `tools/work-item-tracker/adapters/local-markdown/claim-integrity.test.sh`, `tools/work-item-tracker/adapters/local-markdown/list-sub-items.test.sh`, `tools/work-item-tracker/adapters/local-markdown/renew-lease.test.sh`, `tools/work-item-tracker/conformance/bindings/jira.test.sh`, `tools/work-item-tracker/conformance/bindings/local-markdown.test.sh`, and `tools/work-item-tracker/work-item-tracker.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
 ## [0.47.0] - 2026-10-03
 
 ### Added

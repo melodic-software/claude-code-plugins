@@ -26,6 +26,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
   `lib/view-runtime.js` (the session client) are regenerated too.
 - Python 3 and curl now also serve the plan view's session link (`prerequisites.json`).
 
+## [0.65.5] - 2026-10-03
+
+### Changed
+
+- `surface/surface.test.sh`, `surface/test_exporters.py`, `surface/test_round.py`, `surface/test_schema.py`, `surface/test_server.py`, `surface/watch.test.sh`, and `tests/reattach-slice.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
 ## [0.65.4] - 2026-10-03
 
 ### Changed

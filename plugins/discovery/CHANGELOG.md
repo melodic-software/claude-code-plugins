@@ -1,10 +1,16 @@
 # Changelog: discovery plugin
 
-## [0.28.2] - 2026-10-03
+## [0.28.3] - 2026-10-03
 
 ### Changed
 
 - Shared `view-builder.mjs`, `view-runtime.js` synced ([#5868](https://github.com/melodic-software/claude-code-plugins/issues/5868)); no change to this plugin's own behavior.
+
+## [0.28.2] - 2026-10-03
+
+### Changed
+
+- `agents/tool-honesty.test.sh` and `scripts/contract.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
 
 ## [0.28.1] - 2026-10-03
 

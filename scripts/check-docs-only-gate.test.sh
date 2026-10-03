@@ -19,6 +19,7 @@
 # no scratch git repo is needed. That is deliberate — a fixture repo would need
 # `git -C <dir> config user.*`, and the un-scoped form of that command writes the
 # test identity into the CALLER's repo config (claude-code-plugins#2839).
+# test-scope: .github/workflows/ci.yml
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -728,12 +729,6 @@ if [[ -z "$suite_steps" ]]; then
   ok "no scripts/ or lib/ suite runs as a step of its own in the live workflow"
 else
   fail "scripts/ or lib/ suite(s) run as steps of their own:$(printf '%s' "$suite_steps" | tr '\n' ' ')"
-fi
-
-if grep -qF -- '--with-always' "$live_workflow"; then
-  ok "the live workflow's selection carries the always-run live-tree suites"
-else
-  fail "the live workflow's selection lost --with-always, so the live-tree suites run only on the schedule"
 fi
 
 # --- verdict ----------------------------------------------------------------

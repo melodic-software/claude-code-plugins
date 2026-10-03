@@ -3,11 +3,17 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.6.3] - 2026-10-03
+## [3.6.4] - 2026-10-03
 
 ### Changed
 
 - Shared `view-builder.mjs`, `view-runtime.js` synced ([#5868](https://github.com/melodic-software/claude-code-plugins/issues/5868)); no change to this plugin's own behavior.
+
+## [3.6.3] - 2026-10-03
+
+### Changed
+
+- `hooks/audit-session-id.test.sh`, `skills/plugins/scripts/fleet-state.test.sh`, and `skills/plugins/scripts/sync-run.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
 
 ## [3.6.2] - 2026-10-03
 

@@ -8,6 +8,7 @@
 # on hook_event_name, so every payload here carries that key as Claude Code
 # sends it; skill-usage-audit.sh and hook-failure-audit.sh keep their own
 # scripts.
+# test-scope: plugins/harness-ops/hooks/*-audit.sh
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

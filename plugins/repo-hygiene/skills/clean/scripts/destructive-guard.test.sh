@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Regression tests for destructive-guard.sh.
+# test-scope: plugins/repo-hygiene/skills/clean/SKILL.md
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -17,6 +17,14 @@ versioned; this log records each change to it.
   its validators in full, so a trailing newline no longer passes, and refuses a data dir that is not
   owned by the user or is open to group or other.
 
+## The digest publishes as an Artifact by default, 2026-10-03
+
+- **`review:explain-change` ships `medium: artifact` (#5856).** With no layer setting
+  `medium`, the digest page is published as a private Artifact when the repository is public
+  and no hunk looks like a credential; otherwise it falls back to `file` and names
+  `medium: artifact` as the opt-in. An operator who wants it local sets `medium: file` in a
+  personal layer.
+
 ## The digest lane is `review:explain-change`, 2026-10-03
 
 - **`review:pr-explainer` is renamed `review:explain-change` (#1217).** The digest lane
