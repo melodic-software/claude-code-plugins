@@ -139,6 +139,21 @@ lib/html-escape.mjs
 lib/html-escape.mjs -> plugins/*/lib/html-escape.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/session-bridge/session_bridge.py. The planning plugin is the first
+# adopting copy (plugins/planning/surface/), generated with a header that names
+# the canonical. A path-within-plugin line stays out until a second plugin
+# carries it. The arrow line is the duplication audit's cluster.
+lib/session-bridge/session_bridge.py -> plugins/*/surface/session_bridge.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/session-bridge/watch.sh, generated into plugins/planning/surface/ as above.
+lib/session-bridge/watch.sh -> plugins/*/surface/watch.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/session-bridge/wake.sh, generated into plugins/planning/surface/ as above.
+lib/session-bridge/wake.sh -> plugins/*/surface/wake.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/prerequisites.mjs. harness-ops carries the first generated copy; every
 # plugin whose prerequisites.json passes the schema carries one too
 # (scripts/check-declared-prerequisites.mjs). A path-within-plugin line joins

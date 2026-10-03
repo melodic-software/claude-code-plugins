@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# GENERATED from lib/session-bridge/watch.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
-# edit the canonical source, then rerun the script.
 # session-bridge's watcher (the loopback adapter's client). Run in a background Bash task; it exits
 # when the page has something new.
 #   bash watch.sh '<data_dir>'
