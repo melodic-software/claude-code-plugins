@@ -11,6 +11,16 @@ All notable changes to the `performance` plugin are documented here. Format foll
   A background `go-faster-sweeper` agent checks 16 areas against a verified bottleneck catalog,
   records findings and baselines through `findings.py`, and offers session-only changes for adoption.
   It sweeps and ranks; it does not drive the goal, snapshot, verify and protect loop.
+- **`findings.py`**: the go-faster record keeper. It validates findings, ranks and renders the
+  report, holds the per-worktree lock, records adoptions and re-measures against stored baselines.
+  `ci-timing` and `pr-timing` compute GitHub Actions and pull request timings in memory, so no
+  `gh` output is ever saved. A citation must be re-read in the run that cites it, and every
+  denied write exits 3.
+- **`untracked-cache-probe.sh`**: tests git's untracked cache in a temporary directory on the
+  repository's volume, never in the repository itself.
+- Evals: `skills/go-faster/evals/evals.json`, plus `claude plugin eval` cases that resume a
+  synthetic session history. `EVAL_GO_FASTER_DATA` and `EVAL_GO_FASTER_TRANSCRIPT` exist only so
+  those cases run inside the eval sandbox.
 
 ### Changed
 
