@@ -13,10 +13,7 @@ self-hosted-runner:
 # GA `concurrency.queue` key (upstream gap:
 # https://github.com/rhysd/actionlint/issues/654). GitHub accepts and
 # honors the key at both workflow and job level — verified by live probe
-# runs recorded in melodic-software/ci-workflows
-# docs/topics/claude-review-lanes/PLAN.md (Phase 0). Suppression approved
-# 2026-07-26 (that PLAN.md's Approval record, item 3), scoped to exactly
-# that one syntax-check message.
+# runs. Suppression scoped to exactly that one syntax-check message.
 #
 # REMOVAL TRIGGER: delete this ignore when rhysd/actionlint#654 ships in the
 # pinned actionlint version. The file itself stays either way, because the
