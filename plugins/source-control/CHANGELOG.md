@@ -3,6 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.75.0] - 2026-10-02
+
+### Added
+
+- **`babysit-loop` state records the effort each cycle ran at.** The state block gains an `effort`
+  field read from `CLAUDE_EFFORT` at each cycle start, or `"unset"`, so the level that ran sits
+  beside the `--effort` the lane was launched with. The schema stays `@2`.
+
 ## [0.74.1] - 2026-10-02
 
 ### Changed

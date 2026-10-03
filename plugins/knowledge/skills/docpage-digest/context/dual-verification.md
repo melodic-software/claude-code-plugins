@@ -80,11 +80,13 @@ required artifact, or the mandate converts a visible gap into an invisible pass.
 
 **Standing gates (required, after the pin):**
 [`check-fences-exact.py`](../scripts/check-fences-exact.py) and
-[`check-snippets.py`](../scripts/check-snippets.py). Invocation in
+[`check-snippets.py`](../scripts/check-snippets.py), plus
+[`check-html-rows.py`](../scripts/check-html-rows.py) when digests carry `**FN.**` rows quoted
+from `source.html`. Invocation in
 [pipeline-hardening.md](pipeline-hardening.md). They stand alongside the quote
 gate. Prerequisite: `python3` (3.9+). A PASS covers only what each script prints. Their
-negative-control evidence is `scripts/test_check_fences_exact.py` and
-`scripts/test_check_snippets.py`.
+negative-control evidence is `scripts/test_check_fences_exact.py`,
+`scripts/test_check_snippets.py` and `scripts/test_check_html_rows.py`.
 
 **Commands are replayable in every pipeline artifact, not just digest rows.** SOURCES rows, applied
 records, verdicts, rulings and handoffs carry commands too, in the same command-plus-raw-count form,

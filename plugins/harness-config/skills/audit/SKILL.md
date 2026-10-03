@@ -1,6 +1,6 @@
 ---
 description: "When the bundled update-config skill resolves in this session, prefer it to make a requested settings change; this skill to audit what is configured. Audit settings.json, settings.local.json, .mcp.json, hooks, plugins, permissions and env vars for correctness, security, and drift against current official docs. Use when: 'audit settings', 'check config', 'check for config drift', after a Claude Code update; pass --fix to apply auto-correctable findings with confirmation."
-argument-hint: "[--fix] [permissions|mcp|hooks|plugins|issues|all]"
+argument-hint: "[--fix] [permissions|mcp|hooks|plugins|issues|effort-pins|all]"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -9,7 +9,7 @@ metadata:
   summary: Audit settings, hooks, permissions, and MCP config for drift against current official docs
 ---
 
-**Arguments.** `[--fix] [permissions|mcp|hooks|plugins|issues|all]`. default: all
+**Arguments.** `[--fix] [permissions|mcp|hooks|plugins|issues|effort-pins|all]`. default: all
 
 ## Pre-computed context
 
@@ -49,6 +49,8 @@ Parse `$ARGUMENTS` for:
   - `hooks`: hook scripts exist, timeouts, matchers
   - `plugins`: enabled/disabled status, marketplace availability
   - `issues`: recheck known GitHub issues only (Category J and Phase 3.2)
+  - `effort-pins`: run only the effort-pin drift check (Phase 3) and report its lines verbatim; no
+    engine run and no fixes
   - `all`: run everything (default)
 
 ## Division of labor: the engine decides, the model judges
@@ -237,6 +239,39 @@ It greps every key and sentence this skill's references cite
 ([reference/doc-citations.tsv](reference/doc-citations.tsv)) in the fetched pages. A `MISS` means a
 checklist row cites text the page no longer carries, and that row is re-derived before it is used;
 a `SKIP` means the page could not be read and its rows stay unverified this run.
+
+Then run the effort-pin drift check, which the `effort-pins` scope runs on its own:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-effort-pins.sh" --docs-dir <dir>
+```
+
+It hashes three parts of the model-config page (the Levels column table, the level rows of the
+level-guidance table, and the resolution-list item that states each model's default level),
+compares the hash with [reference/effort-table.baseline](reference/effort-table.baseline), and
+lists every effort pin: `effort:` frontmatter in agents and skills, the lanes config, the lane
+launch lines, and Workflow literals in skill `context/` files and plugin `workflows/` scripts.
+Report its lines verbatim. It never edits a pin. Exit 0: unchanged, and every pin names a listed level. Exit 1: the page changed
+(`reason=table-changed` on every pin) or a pin names a level the page does not list
+(`reason=level-not-in-table`). Exit 3: the page was unread or reshaped, which supports no claim
+about any pin. Exit 2: fatal.
+
+**Rebaseline.** After `table status=changed`, a person reads the changed rows and defaults and
+re-decides each flagged pin and lane level. Then, from this skill's directory in the plugin's source
+repository, they write the new baseline and commit it with those edits:
+
+```bash
+bash scripts/check-effort-pins.sh --print-baseline > reference/effort-table.baseline
+```
+
+The script never rewrites the baseline itself.
+
+- **Pointer**: for the levels, per-model defaults and level guidance the check reads, see
+  [Adjust effort level](https://code.claude.com/docs/en/model-config#adjust-effort-level) and
+  [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level).
+- **As of**: 2026-10-02
+- **Recheck trigger**: the check reports `table status=unparsed`, or either section is renamed or
+  moved.
 
 ### 3.1 Official docs check
 
