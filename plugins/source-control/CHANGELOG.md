@@ -3,6 +3,26 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.78.1] - 2026-10-03
+
+### Fixed
+
+- The babysit branch-rules read percent-encodes the base branch, including `/`, before calling `repos/{repo}/rules/branches/{branch}`. A base such as `release/1.x` is one path segment (`release%2F1.x`). A name with no reserved characters, such as `main`, is unchanged ([#5954](https://github.com/melodic-software/claude-code-plugins/issues/5954)).
+
+## [0.78.0] - 2026-10-03
+
+### Added
+
+- **pull-request readiness holds on unresolved review threads (Gate 7).** A base that requires
+  conversation resolution kept a PR at `BLOCKED` with every check green, and readiness could not
+  say why. The new read-only `scripts/source-control-review-threads` names each unresolved thread
+  (path, first commenter, URL, outdated or not) and reads them through the babysit merge gate's own
+  `unresolved_threads`, so both skills count the same threads. A thread read that fails, or a
+  session not served GraphQL, reports `THREADS_UNPROVEN` and holds the gate. The babysit merge
+  gate's thread records now also carry the first comment's URL. The monitor fallback watcher reads
+  the same gate every fourth poll and emits a line when the unresolved count changes, so resolving
+  a thread wakes the loop.
+
 ## [0.77.4] - 2026-10-03
 
 ### Fixed

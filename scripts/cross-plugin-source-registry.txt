@@ -228,3 +228,21 @@ lib/exec-bash.mjs -> plugins/*/hooks/exec-bash.mjs
 # plugins/harness-ops/lib/plugin_cache_versions.py; copy it into
 # plugins/disk-hygiene/lib/ to fix a drift failure.
 lib/plugin_cache_versions.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/view-builder.mjs. The review and planning plugins carry the generated
+# copies, which stay byte-identical to each other.
+lib/view-builder.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/view-builder.mjs -> plugins/*/lib/view-builder.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/view-runtime.js. The review and planning plugins carry the generated
+# copies, which stay byte-identical to each other.
+lib/view-runtime.js
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/view-runtime.js -> plugins/*/lib/view-runtime.js
