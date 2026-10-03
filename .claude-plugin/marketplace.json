@@ -376,7 +376,7 @@
       "name": "speech",
       "source": "./plugins/speech",
       "category": "audio",
-      "tags": ["speech", "text-to-speech", "tts", "narration", "kokoro", "audio", "skill"],
+      "tags": ["speech", "text-to-speech", "tts", "narration", "kokoro", "elevenlabs", "audio", "skill"],
       "defaultEnabled": false
     },
     {
