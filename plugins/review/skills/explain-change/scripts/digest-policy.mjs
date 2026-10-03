@@ -194,7 +194,9 @@ function readTeamDigest(base, docsPath, dotPath, warnings) {
 
 /** An overlay applies only untracked and gitignored, so a pull request cannot ship one. */
 function overlayApplies(root, path, warnings) {
-  if (git(root, ["ls-files", "--error-unmatch", "--", path])) {
+  // Any tracked case variant counts: on a case-insensitive filesystem it is this file.
+  const rel = relative(root, path).split("\\").join("/");
+  if (gitOut(root, ["ls-files", "--", `:(icase)${rel}`])) {
     warnings.push(`overlay ${path}: tracked in git, so a pull request could set it; layer ignored`);
     return false;
   }
@@ -276,7 +278,7 @@ export function resolveMedium(warnings, baseRef) {
 // ------------------------------------------------------------ decision
 
 /** Glob to RegExp: `**` spans directories, `*` and `?` stay inside one segment. */
-export function globRegExp(glob) {
+export function globRegExp(glob, flags = "") {
   let out = "";
   for (let i = 0; i < glob.length; i += 1) {
     const c = glob[i];
@@ -292,7 +294,7 @@ export function globRegExp(glob) {
       out += c.replace(/[.+^${}()|[\]\\]/g, "\\$&");
     }
   }
-  return new RegExp(`^${out}$`);
+  return new RegExp(`^${out}$`, flags);
 }
 
 /**
@@ -303,14 +305,17 @@ export function globRegExp(glob) {
 export function decide(facts, options, config) {
   const value = (key) => config[key].value;
   const files = Array.isArray(facts.files) ? facts.files : [];
-  const paths = files.map((f) => (f && typeof f.path === "string" ? f.path : "")).filter(Boolean);
+  const paths = files
+    .map((f) => (f && typeof f.path === "string" ? f.path.replace(/\\/g, "/").replace(/\/{2,}/g, "/").replace(/^(\.\/)+/, "") : ""))
+    .filter(Boolean);
   const num = (n) => (Number.isFinite(n) ? n : 0);
   const changed =
     facts.additions !== undefined || facts.deletions !== undefined
       ? num(facts.additions) + num(facts.deletions)
       : files.reduce((sum, f) => sum + num(f?.additions) + num(f?.deletions), 0);
   const labels = (Array.isArray(facts.labels) ? facts.labels : []).map((l) => (typeof l === "string" ? l : l?.name));
-  const patterns = [...CONFIG_PATHS, ...value("risk_paths")].map(globRegExp);
+  // Config paths match in any case: a case-insensitive filesystem reads every variant.
+  const patterns = [...CONFIG_PATHS.map((p) => globRegExp(p, "i")), ...value("risk_paths").map((p) => globRegExp(p))];
 
   const triggers = [];
   if (paths.length > value("max_files")) triggers.push("files");

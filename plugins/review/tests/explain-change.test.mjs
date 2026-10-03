@@ -246,6 +246,36 @@ describe("a pull request branch cannot silence its own digest", () => {
   });
 });
 
+describe("a case-variant overlay a pull request tracks is ignored and fires risk-path", () => {
+  // Simulates a case-insensitive filesystem on any host: the tracked entry differs
+  // only in case from the untracked, gitignored file the script reads.
+  const home = join(scratch, "home-case");
+  const repo = join(scratch, "repo-case");
+  mkdirSync(join(home, ".claude"), { recursive: true });
+  mkdirSync(join(repo, ".claude"), { recursive: true });
+  const { git, commit } = gitRepo(repo);
+  writeFileSync(join(repo, ".gitignore"), "*.local.*\n");
+  git("add", ".gitignore");
+  commit();
+  git("checkout", "-q", "-b", "pr");
+  writeFileSync(join(repo, ".claude/Review-Digest.local.json"), '{"digest_policy": "off"}');
+  writeFileSync(join(repo, ".claude/Rendered-Views.local.md"), "medium: terminal\n");
+  git("add", "-f", ".claude");
+  commit();
+  writeFileSync(join(repo, ".claude/review-digest.local.json"), '{"digest_policy": "off"}');
+  writeFileSync(join(repo, ".claude/rendered-views.local.md"), "medium: terminal\n");
+  const run = runPolicy(home, repo);
+
+  test("the overlay is treated as tracked and a case-variant config path offers", () => {
+    const result = run({ ...quiet, files: [{ path: "./.claude//Review-Digest.local.json" }], baseRefName: "main" });
+    assert.deepEqual(result.policy, { value: "offer", source: "default" });
+    assert.equal(result.action, "offer");
+    assert.deepEqual(result.triggers, ["risk-path"]);
+    assert.deepEqual(result.medium, { value: "file", source: "default" });
+    assert.match(result.warnings.join("\n"), /overlay .*tracked/);
+  });
+});
+
 describe("builder", () => {
   const hostile = {
     title: `"><script>alert(1)</script>`,
