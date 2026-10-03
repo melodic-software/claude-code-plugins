@@ -111,9 +111,16 @@ version bumps and CHANGELOG entries.
     the open release land, not on every main commit.
 - **Release check:** a `check-changelog-fragments.sh --check-release <base>` step, run only on the
   `release/plugins` pull request, fails when the base holds an unconsumed fragment for a plugin the
-  release bumps. Main's status checks are not strict (see Context), so a release pull request
-  behind main can otherwise merge; this check stops a stale release from bumping a plugin's version
-  over code whose fragment, CHANGELOG entry and bump level it left out. Every rebuild re-runs it.
+  release bumps. Every rebuild re-runs it. That alone does not stop a stale merge: main's status
+  checks are not strict (see Context), so a green result from before a fragment landed still allows
+  a merge while the push-triggered rebuild is in flight. The merge path closes that gap (next
+  bullet).
+- **Merge path:** the release pull request merges only through the workflow's own `merge` step,
+  never the merge button. The step runs `--check-release` against main's live tip, then calls the
+  merge endpoint with the release head SHA it checked; a failing check starts a rebuild instead of
+  a merge. That leaves only the seconds between the check and the merge call. Once main's merge
+  queue is active, `--check-release` also runs on `merge_group`, which tests the release against the
+  exact base it lands on and closes the window.
 - **Aggregation**, by a new `scripts/release-plugins.sh` the workflow runs:
   1. Group the fragments under `.changes/<plugin>/`.
   2. The new version is the manifest's current version raised once at the highest `bump` among
@@ -132,8 +139,9 @@ version bumps and CHANGELOG entries.
   `dependabot-plugin-release.yml:85-111`. GitHub signs that commit, which satisfies main's
   `required_signatures` rule.
 - **Title and merge:** `chore(release): release <n> plugins`, which passes the Conventional Commits
-  title check. Its body lists each plugin's old and new version and the fragments consumed. A person merges it until the
-  phase 2 pilot proves auto-merge (see Resolved decisions).
+  title check. Its body lists each plugin's old and new version and the fragments consumed. Until
+  the phase 2 pilot proves the merge step, a person starts it by `workflow_dispatch`; after that the
+  workflow runs it itself (see Resolved decisions).
 
 ### Gates
 
@@ -235,8 +243,9 @@ proven.
 
 ## Resolved decisions
 
-1. **Release pull request merging.** The bot enables auto-merge once the phase 2 pilot proves it.
-   Until then a person merges the release pull request.
+1. **Release pull request merging.** The workflow's `merge` step merges it automatically once the
+   phase 2 pilot proves that step. Until then a person starts the step by `workflow_dispatch`, never
+   the merge button.
 2. **Cadence.** The schedule fires every 3 hours.
 3. **Fragment scope.** Every change to a plugin's shipped files needs a fragment. A change that
    needs no release opts out with a `bump: none` fragment, and `--check-required` enforces both.
