@@ -22,7 +22,7 @@ written, never emitted in its place.
    the OS temp directory:
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs" <<'JSON'
+   node "<skill-dir>/../../scripts/build-view.mjs" <<'JSON'
    {"title": "...", "loop": "...", "cause": "...", "fix": "...", "seam": "...", "prevention": "...", "hypotheses": [{"verdict": "CONFIRMED", "claim": "...", "prediction": "...", "evidence": "..."}]}
    JSON
    ```
