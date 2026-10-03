@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-r"""Vendor gitleaks' default rules into the regex file audit-sessions redaction reads.
+r"""Vendor gitleaks' default rules into the regex file the audit-sessions redaction reads.
 
 Reads gitleaks `config/gitleaks.toml` from a path or an https URL, rewrites the Go RE2 syntax that
 Python `re` reads differently, compiles every rule with warnings as errors, and writes
