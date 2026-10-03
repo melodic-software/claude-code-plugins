@@ -63,6 +63,23 @@ Does NOT defend against:
 - File contents already on disk in unrelated paths (out of scope)
 - Memory feedback files in `~/.claude/projects/<slug>/memory/` containing user free-text (read selectively; see below)
 
+## OTEL cold tier content boundary
+
+The hot OTEL store keeps every attribute Claude Code sends, content included when its capture
+flags are on. Two switches decide what compaction carries into cold Parquet:
+
+| Switch | Covers | Default | Effect |
+|---|---|---|---|
+| `CC_OTEL_COLD_KEEP_USER_PROMPTS` | `user_prompt` bodies, the logs `prompt` and spans `user_prompt` columns, the `prompt` and `prompt_text` attributes | scrubbed | `=1` keeps them |
+| `CC_OTEL_COLD_KEEP_CONTENT` | every other content-class column: response and model-output text, tool payloads (`content`, `output`, `diff`, `new_context`, `tool_input`, `tool_parameters`), command strings (`full_command`, `bash_command`), error text (`error`), configuration text (`hook_definitions`, `hook_matcher`, `system_prompt_preview`, `user_system_prompt`, `managed_settings_settings`), `user_email`, and absolute paths (`file_path`, `body_ref`, `workspace_host_paths`, `managed_settings_helper_path`) | kept | `=0` NULLs those columns and scrubs their attributes from the raw JSON |
+
+Cold files are unbounded history, so with the default a cold file holds whatever content the
+capture flags let through, absolute paths with the username among it. Set
+`CC_OTEL_COLD_KEEP_CONTENT=0` where cold files may be shared or kept long. A compaction cannot be
+undone: content it scrubbed is gone from cold. Files compacted under a keep switch are cleaned
+with `prune-otel-store.sh --scrub-cold` run under the scrubbing switch. The authoritative column
+list is the cold content boundary comment in `../otel/cc-otel.sql`.
+
 ## Memory feedback handling
 
 When reading `~/.claude/projects/<slug>/memory/feedback_*.md` for the calibration signal (Section 6 of report), only count occurrences, never include feedback text in output. Format:

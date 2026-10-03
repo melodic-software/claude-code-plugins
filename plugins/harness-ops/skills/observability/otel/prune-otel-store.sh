@@ -64,7 +64,9 @@
 # not stop the Collector, which never writes cold/. A normal run prints a one-line notice when
 # a cold file still holds prompt content; once a scan under the sentinel finds none, it writes
 # cold/.prompt-scrub-clean and later runs skip the scan until a keep-on compaction removes it.
-# CC_OTEL_COLD_KEEP_USER_PROMPTS=1 makes --scrub-cold a no-op.
+# With CC_OTEL_COLD_KEEP_CONTENT=0 it also scrubs the content-class columns of cold logs, spans
+# and metrics. It is a no-op when both switches keep: CC_OTEL_COLD_KEEP_USER_PROMPTS=1 and
+# CC_OTEL_COLD_KEEP_CONTENT unset or 1.
 #
 # Env overrides:
 #   CC_OTEL_RETENTION_DAYS keep structure records newer than N days (default: 7).
@@ -80,7 +82,12 @@
 #                          =1 keeps user_prompt bodies + the `prompt`/`prompt_text` attributes
 #                          in the cold tier un-scrubbed (default: off — body NULLed, prompt
 #                          attributes scrubbed)
-#   CC_OTEL_START_CMD      command that starts the Collector service — hermetic test seam
+#   CC_OTEL_COLD_KEEP_CONTENT
+#                          =0 NULLs the other content-class columns (response, tool payloads,
+#                          commands, error text, configuration text, user_email, absolute paths;
+#                          the list is cc-otel.sql's cold content boundary) and scrubs their
+#                          attributes in the cold tier (default: unset = 1, kept)
+#   CC_OTEL_START_CMD     command that starts the Collector service — hermetic test seam
 #   CC_OTEL_STOP_CMD       command that stops the Collector service — hermetic test seam
 #   CC_OTEL_RUNNING_CMD    service query command: exit 0 = running/not Stopped, 1 = Stopped,
 #                          2+ = query error — hermetic test seam
@@ -124,9 +131,10 @@ store file is only ever replaced by a temp that parses.
 
 Options:
   --dry-run     Report cutoffs, the size cap + per-file per-class counts; never stop the Collector or mutate.
-  --scrub-cold  Rewrite cold logs/spans files that still hold prompt content (prompt, prompt_text,
-                user_prompt) with the compaction scrub; row counts are verified before replace.
-                With --dry-run, list affected files and row counts only.
+  --scrub-cold  Rewrite cold files that still hold content the cold switches scrub (prompt,
+                prompt_text, user_prompt; with CC_OTEL_COLD_KEEP_CONTENT=0 also the content-class
+                columns, metrics included) with the compaction scrub; row counts are verified
+                before replace. With --dry-run, list affected files and row counts only.
   --help        Show this help.
 
 Env:
@@ -138,6 +146,7 @@ Env:
   CC_OTEL_STORE                absolute store dir (default: <repo-root>/.claude/observability/otel)
   CC_OTEL_COLD_KEEP_USER_PROMPTS
                                =1 keeps user_prompt bodies + prompt/prompt_text attributes in cold (default: off)
+  CC_OTEL_COLD_KEEP_CONTENT    =0 scrubs the other content-class columns in cold (default: 1, kept)
   Lifecycle                    Windows service: otelcol-contrib (requires provisioning's scoped
                                SERVICE_STOP and SERVICE_START grant for the runtime user)
 EOF
@@ -269,8 +278,9 @@ main() {
 
   if [[ "$scrub_cold_mode" == true ]]; then
     printf 'store_dir=%s\n' "$store_dir"
-    if [[ "${CC_OTEL_COLD_KEEP_USER_PROMPTS:-0}" == "1" ]]; then
-      printf 'CC_OTEL_COLD_KEEP_USER_PROMPTS=1 keeps prompt content in cold; nothing scrubbed\n'
+    # shellcheck disable=SC2310  # predicates: their status IS the branch
+    if keep_prompts && ! scrub_content; then
+      printf 'CC_OTEL_COLD_KEEP_USER_PROMPTS=1 and CC_OTEL_COLD_KEEP_CONTENT (unset or 1) keep prompts and content in cold; nothing scrubbed\n'
       printf 'action=noop-scrub-cold-keep-user-prompts\n'
       return 0
     fi
