@@ -79,6 +79,7 @@ lib/exec-bash.mjs plugins/source-control/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/testing/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/typos-format/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/speech/hooks/exec-bash.mjs
+lib/exec-bash.mjs plugins/explainer-video/hooks/exec-bash.mjs
 lib/prerequisites.mjs plugins/explainer-video/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/explainer-video/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/explainer-video/lib/prerequisites.ps1
