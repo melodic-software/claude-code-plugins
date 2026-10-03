@@ -3,6 +3,13 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0] - 2026-10-03
+
+### Added
+
+- A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names `/animation:check-prerequisites`.
+- `/animation:check-prerequisites`, a read-only report of whether the tools in `prerequisites.json` resolve, through the shared Node checker.
+
 ## [0.3.2] - 2026-10-03
 
 ### Changed
