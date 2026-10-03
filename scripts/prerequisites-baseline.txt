@@ -110,8 +110,6 @@ markdown-format schema
 mcp-tools jq
 miro claude
 miro npm
-multi-agent node
-multi-agent schema
 pixel-art ffmpeg
 pixel-art python3
 planning curl
