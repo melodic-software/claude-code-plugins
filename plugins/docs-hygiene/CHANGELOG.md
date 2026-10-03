@@ -1,5 +1,13 @@
 # Changelog: docs-hygiene plugin
 
+## [0.26.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5841](https://github.com/melodic-software/claude-code-plugins/issues/5841)).
+
 ## [0.25.2] - 2026-10-03
 
 ### Changed
