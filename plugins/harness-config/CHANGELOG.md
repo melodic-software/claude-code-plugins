@@ -11,7 +11,7 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 
 - **Shared `prerequisites.mjs` synced ([#6084](https://github.com/melodic-software/claude-code-plugins/issues/6084)); no change to this plugin's lib.**
   The prerequisite check now counts a Windows App Execution Alias (a Store or winget install on PATH) as found,
-  except App Installer's Python install stub.
+  except App Installer's Python install stub. A `cli` or `runtime` entry can set `reject_store_alias` to skip aliases instead; no entry in this plugin does.
 
 ## [1.7.4] - 2026-10-03
 

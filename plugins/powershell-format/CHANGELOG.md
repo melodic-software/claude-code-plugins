@@ -10,7 +10,7 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 - **No more false "pwsh was not found on PATH" notice for a Microsoft Store pwsh ([#6084](https://github.com/melodic-software/claude-code-plugins/issues/6084)).** The SessionStart
   prerequisite check now counts a Windows App Execution Alias, such as the Store build's
   `%LOCALAPPDATA%\Microsoft\WindowsApps\pwsh.exe`, as found. App Installer's Python install stub still reports
-  missing. Shared `prerequisites.mjs` synced.
+  missing. Shared `prerequisites.mjs` synced; it also accepts a per-entry `reject_store_alias`, which no entry here sets.
 
 ## [0.10.1] - 2026-10-03
 
