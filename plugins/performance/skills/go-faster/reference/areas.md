@@ -49,10 +49,18 @@ Each entry gives:
   cited row's remedy as `steps-for-you`; with no cited row, `/performance:target`.
 - **One GitHub probe.** Before the first of `ci-cd`, `gates`, `pr-review` and `tests`, run
   `gh repo view --json nameWithOwner --jq .nameWithOwner` once, inheriting the caller's
-  `GH_CONFIG_DIR`. It prints `OWNER/REPO` for the `gh api` paths below. On failure all four areas
+  `GH_CONFIG_DIR`. It prints `OWNER/REPO` for `ci-timing --repo` below. On failure all four areas
   are `not-checked`, `auth-gap`, reason "gh repo view failed: <its first error line>; run
   `gh auth status`, and `gh auth login` if it shows no login for this host; this run inherits
   GH_CONFIG_DIR from the session that started it, so set it there and rerun /performance:go-faster".
+- **GitHub numbers come from findings.py.** After the probe, the four GitHub areas make two calls:
+  `"$PY" "$ROOT/scripts/findings.py" ci-timing --repo <OWNER/REPO>` and
+  `"$PY" "$ROOT/scripts/findings.py" pr-timing`. Each runs gh itself, inheriting `GH_CONFIG_DIR`,
+  and prints JSON whose numbers are objects with `value`, `unit`, `samples`, `excluded` and
+  `command`; record `value` and `unit` as printed and copy `command` into the finding. Never run
+  `gh run list`, `gh api` or `gh pr list` yourself, and never save gh output to a file. Exit 1
+  makes every area fed by that call `not-checked`, `auth-gap`, reason "<the error line it
+  printed>; run `gh auth status`, and `gh auth login` if it shows no login for this host".
 - **History is not contended.** CI, review and job timestamps were recorded before this sweep, so
   findings built from them are tier E2 (aggregate) in both modes. Only timings the sweeper takes
   itself follow the contention rule.
@@ -273,18 +281,18 @@ them live when a command's output, or the files you find, do not match the entry
 ## ci-cd
 
 - **Source**: GitHub Actions run and job timestamps.
-- **Run**: `gh run list --limit 20 --status completed --json databaseId,attempt,createdAt,startedAt,updatedAt,conclusion,workflowName`,
-  then, for each of the five most recent runs:
-  `gh api repos/<OWNER/REPO>/actions/runs/<databaseId>/jobs --jq '[.jobs[] | {name, conclusion, created_at, started_at, completed_at, steps: [(.steps // [])[] | {name, conclusion, started_at, completed_at}]}]'`.
-  Keep both outputs; `gates` and `tests` reuse them.
+- **Run**: `"$PY" "$ROOT/scripts/findings.py" ci-timing --repo <OWNER/REPO>`. It lists the 20
+  most recent completed runs and fetches jobs for the five newest. Keep its JSON in context;
+  `gates` and `tests` read the same output.
 - **Owner**: none.
-- **Record**: a measured finding for queue wait: per job, `started_at` minus `created_at`, skipped
-  jobs excluded; value the median across the five runs, unit `wait-ms`, tier E2, workload
-  `ci jobs, last 5 completed runs`, `command` the gh api line. A second measured finding for run
-  length: per run, latest job `completed_at` minus earliest job `started_at`; value the median,
-  unit `ci-minutes`, same tier and workload. Both horizon `later`, route `performance-chain`.
-- **Not checked**: no workflow runs: `no-data`, reason "no completed CI runs in this repository".
-  GitHub probe failed: `auth-gap`, with the probe's reason.
+- **Record**: a measured finding for queue wait from `queue_wait` (per job, `started_at` minus
+  `created_at`, skipped jobs excluded, median across the five runs): unit `wait-ms`, tier E2,
+  workload `ci jobs, last 5 completed runs`, `command` its `command`. A second measured finding
+  for run length from `run_length` (per run, latest job `completed_at` minus earliest job
+  `started_at`, median): unit `ci-minutes`, same tier and workload. Both horizon `later`, route
+  `performance-chain`.
+- **Not checked**: `runs_listed` is 0: `no-data`, reason "no completed CI runs in this repository".
+  GitHub probe failed or `ci-timing` exited 1: `auth-gap`, with that reason.
 - **Guard**: none beyond `gates`.
 - **Catalog**: [catalog/ci-cd.md](catalog/ci-cd.md) and
   [catalog/measurement.md](catalog/measurement.md) rows with area `ci-cd`;
@@ -293,16 +301,17 @@ them live when a command's output, or the files you find, do not match the entry
 ## gates
 
 - **Source**: CI step timings for recent runs, from the `ci-cd` job data.
-- **Run**: no new call; reuse the job data `ci-cd` fetched for the five most recent runs.
+- **Run**: no new call; read `slowest_step` from the `ci-timing` output `ci-cd` holds.
 - **Owner**: none.
 - **Record**: a measured finding for the slowest step by median duration across those runs
   (skipped steps excluded): unit `elapsed-ms`, tier E2, workload `ci steps, last 5 completed runs`,
-  title naming the step and its job, `command` the gh api line from `ci-cd`. Classify the step: a
+  title naming its `step` and its `job`, `command` its `command`. Classify the step: a
   verifying check (test, lint, build, type or security check) or a guard. A remedy that runs it on
   fewer changes is `effect: fewer-checks` with a `guard_metric`; one that drops or weakens it goes
   to `/overengineering:audit`; a step you cannot classify is `flag-only` with the reason.
-- **Not checked**: no completed runs: `no-data`, reason "no completed CI runs to time". GitHub
-  probe failed: `auth-gap`, with the probe's reason.
+- **Not checked**: `runs_listed` is 0 or `slowest_step` has `samples` 0: `no-data`, reason "no
+  completed CI runs to time". GitHub probe failed or `ci-timing` exited 1: `auth-gap`, with that
+  reason.
 - **Guard**: a step that blocks a merge or a deploy (a required check, an approval gate) is a
   guard; a finding that would skip or relax it is `flag-only`.
 - **Catalog**: [catalog/ci-cd.md](catalog/ci-cd.md) and
@@ -312,15 +321,17 @@ them live when a command's output, or the files you find, do not match the entry
 ## pr-review
 
 - **Source**: merged pull request timestamps and reviews.
-- **Run**: `gh pr list --state merged --limit 20 --json number,createdAt,mergedAt,reviews,additions,deletions,changedFiles`.
+- **Run**: `"$PY" "$ROOT/scripts/findings.py" pr-timing`. It lists the 20 most recent merged pull
+  requests.
 - **Owner**: none.
-- **Record**: a measured finding for open to first review (earliest review `submittedAt` minus
-  `createdAt`, over PRs with a review), and one for open to merge (`mergedAt` minus `createdAt`):
-  median each, unit `wait-ms`, tier E2, workload `merged PRs, last 20`, `command` the gh line,
-  horizon `later`, route `next-run`. PR size is a candidate only: `expected_size`
-  `{count: <median additions plus deletions>, source_kind: repo-count, source: "merged PRs, last 20"}`.
-- **Not checked**: no merged PRs: `no-data`, reason "no merged pull requests to time". GitHub
-  probe failed: `auth-gap`, with the probe's reason.
+- **Record**: a measured finding for open to first review from `first_review` (earliest review
+  `submittedAt` minus `createdAt`, over PRs with a review), and one for open to merge from
+  `open_to_merge` (`mergedAt` minus `createdAt`): median each, unit `wait-ms`, tier E2, workload
+  `merged PRs, last 20`, `command` its `command`, horizon `later`, route `next-run`. PR size is a
+  candidate only: `expected_size`
+  `{count: <size value>, source_kind: repo-count, source: "merged PRs, last 20"}`.
+- **Not checked**: `prs` is 0: `no-data`, reason "no merged pull requests to time". GitHub probe
+  failed or `pr-timing` exited 1: `auth-gap`, with that reason.
 - **Guard**: a required review or approval is a guard; a finding that would skip or relax one is
   `flag-only`.
 - **Catalog**: [catalog/review-and-tests.md](catalog/review-and-tests.md) and
@@ -330,16 +341,17 @@ them live when a command's output, or the files you find, do not match the entry
 ## tests
 
 - **Source**: CI re-runs and test step timings, from the `ci-cd` data.
-- **Run**: no new call; reuse the `gh run list` output and the job data from `ci-cd`.
+- **Run**: no new call; read `reruns` and `test_steps` from the `ci-timing` output `ci-cd` holds.
 - **Owner**: none.
-- **Record**: a measured finding, unit `count`, value the runs among the 20 with `attempt` above 1,
-  tier E2, workload `ci runs, last 20`, `fix_owner` `/testing:diagnose`. A measured finding for the
-  median duration of steps whose name contains `test` (any case), unit `elapsed-ms`, tier E2,
-  workload `ci steps, last 5 completed runs`. Running fewer tests per change is
+- **Record**: a measured finding from `reruns`, unit `count`, value the runs among the 20 with
+  `attempt` above 1, tier E2, workload `ci runs, last 20`, `fix_owner` `/testing:diagnose`,
+  `command` its `command`. A measured finding from `test_steps` for the median duration of steps
+  whose name contains `test` (any case), unit `elapsed-ms`, tier E2, workload
+  `ci steps, last 5 completed runs`, `command` its `command`. Running fewer tests per change is
   `effect: fewer-checks` with a `guard_metric`; deleting or weakening tests goes to
   `/overengineering:audit`.
-- **Not checked**: no runs: `no-data`, reason "no CI runs to read test outcomes from". GitHub
-  probe failed: `auth-gap`, with the probe's reason.
+- **Not checked**: `runs_listed` is 0: `no-data`, reason "no CI runs to read test outcomes from".
+  GitHub probe failed or `ci-timing` exited 1: `auth-gap`, with that reason.
 - **Guard**: as `gates`.
 - **Catalog**: [catalog/ci-cd.md](catalog/ci-cd.md),
   [catalog/review-and-tests.md](catalog/review-and-tests.md) and

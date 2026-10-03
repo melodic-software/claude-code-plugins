@@ -95,8 +95,8 @@ Current state first, then look back. The per-area checks live in one place, the 
    `reason` text, when the condition holds. Apply its Guard line and the rules for every area
    before you add anything.
 3. **Fit your turn budget.** Issue independent commands as parallel tool calls in one turn. Areas
-   that share data share one call: one `gh repo view` probe for the four GitHub areas, one jobs
-   fetch for `ci-cd`, `gates` and `tests`, one transcript-counts run for the session areas, one
+   that share data share one call: one `gh repo view` probe for the four GitHub areas, one
+   `ci-timing` run for `ci-cd`, `gates` and `tests`, one transcript-counts run for the session areas, one
    `/context-budget:audit --ledger` call for `instructions` and `plugins-startup`. Add a group's
    findings as one JSON array, then heartbeat. Count your own turns: from turn 34 of your 40,
    start no new area; add `not-checked` for every area still without an outcome (`no-data`,

@@ -453,4 +453,184 @@ run lint-catalog "$CAT/bad.md"
 assert_eq "a row with area all passes" "0" "$RUN_RC"
 rm -f "$CAT/bad.md"
 
+# --- 23. ci-timing / pr-timing: gh runs inside findings.py, which prints the numbers (R4) ---
+# A fake gh first on PATH answers from fixtures. It refuses unless GH_CONFIG_DIR carries the
+# caller's value, so a pass shows the environment was inherited. gh.cmd is the Windows entry
+# point, since a Windows interpreter cannot start an extensionless script.
+SHIM="$WORK/gh-shim"
+FIX="$WORK/gh-fixtures"
+GHCWD="$WORK/gh-cwd"
+mkdir -p "$SHIM" "$FIX" "$GHCWD"
+cat >"$SHIM/gh" <<'GH'
+#!/usr/bin/env bash
+if [[ "${GH_CONFIG_DIR:-}" != fake-gh-config ]]; then
+  printf 'To get started with GitHub CLI, please run:  gh auth login\nAlternatively, populate the GH_TOKEN environment variable.\n' >&2
+  exit 4
+fi
+case "$1 $2" in
+  "run list") cat "$FAKE_GH/runs.json" ;;
+  "pr list") cat "$FAKE_GH/prs.json" ;;
+  api\ repos/*/jobs)
+    id="${2%/jobs}"
+    id="${id##*/}"
+    [[ -f "$FAKE_GH/jobs-$id.json" ]] || { printf 'HTTP 404: Not Found\n' >&2; exit 1; }
+    cat "$FAKE_GH/jobs-$id.json"
+    ;;
+  *) printf 'unexpected gh call: %s\n' "$*" >&2; exit 1 ;;
+esac
+GH
+chmod +x "$SHIM/gh"
+printf '@bash "%%~dp0gh" %%*\r\n' >"$SHIM/gh.cmd"
+
+gh_run() { # <findings args...>: run from an empty cwd with the fake gh first on PATH
+  RUN_OUT="$(cd "$GHCWD" && env PATH="$SHIM:$PATH" GH_CONFIG_DIR=fake-gh-config FAKE_GH="$FIX" "$HARNESS_PYTHON" "$FINDINGS" "$@" 2>&1)"
+  RUN_RC=$?
+}
+
+T() { printf '"2026-10-01T%sZ"' "$1"; }
+step() { # <name> <conclusion> <start> <end>
+  printf '{"name":"%s","conclusion":"%s","started_at":%s,"completed_at":%s}' "$1" "$2" "$(T "$3")" "$(T "$4")"
+}
+job() { # <name> <conclusion> <created> <started> <completed> <step-json>...
+  local name="$1" concl="$2" created="$3" started="$4" completed="$5" IFS=,
+  shift 5
+  printf '{"name":"%s","conclusion":"%s","created_at":%s,"started_at":%s,"completed_at":%s,"steps":[%s]}' \
+    "$name" "$concl" "$(T "$created")" "$(T "$started")" "$(T "$completed")" "$*"
+}
+listed_run() { # <id> <attempt> <created>
+  printf '{"databaseId":%s,"attempt":%s,"createdAt":%s,"startedAt":%s,"updatedAt":%s,"conclusion":"success","workflowName":"CI"}' \
+    "$1" "$2" "$(T "$3")" "$(T "$3")" "$(T "$3")"
+}
+# Six completed runs, newest first as gh lists them; three are re-runs (attempt above 1). Jobs
+# exist only for the five newest, so fetching the sixth's would fail the run.
+printf '[%s,%s,%s,%s,%s,%s]\n' "$(listed_run 106 1 10:00:00)" "$(listed_run 105 2 09:00:00)" \
+  "$(listed_run 104 1 08:00:00)" "$(listed_run 103 3 07:00:00)" "$(listed_run 102 1 06:00:00)" \
+  "$(listed_run 101 2 05:00:00)" >"$FIX/runs.json"
+# Queue waits of the jobs that ran, in seconds: 10, 30, 20, 60, 40, 50. The skipped deploy job
+# would add 130. "Run tests" lasts 90, 150, 100, 80, 200; "Test e2e" 230; the skipped "Publish"
+# step 500. Run lengths: 120, 180, 280, 120, 240.
+printf '[%s,%s]\n' \
+  "$(job build success 10:00:00 10:00:10 10:02:10 "$(step Checkout success 10:00:10 10:00:20)" \
+    "$(step 'Run tests' success 10:00:20 10:01:50)" "$(step Lint success 10:01:50 10:02:10)")" \
+  "$(job deploy skipped 10:00:00 10:02:10 10:02:10)" >"$FIX/jobs-106.json"
+printf '[%s]\n' \
+  "$(job build success 09:00:00 09:00:30 09:03:30 "$(step Checkout success 09:00:30 09:00:40)" \
+    "$(step 'Run tests' success 09:00:40 09:03:10)" "$(step Lint success 09:03:10 09:03:30)" \
+    "$(step Publish skipped 09:03:30 09:11:50)")" >"$FIX/jobs-105.json"
+printf '[%s,%s]\n' \
+  "$(job build success 08:00:00 08:00:20 08:02:30 "$(step Checkout success 08:00:20 08:00:30)" \
+    "$(step 'Run tests' success 08:00:30 08:02:10)" "$(step Lint success 08:02:10 08:02:30)")" \
+  "$(job e2e success 08:00:00 08:01:00 08:05:00 "$(step Setup success 08:01:00 08:01:10)" \
+    "$(step 'Test e2e' success 08:01:10 08:05:00)")" >"$FIX/jobs-104.json"
+printf '[%s]\n' \
+  "$(job build success 07:00:00 07:00:40 07:02:40 "$(step Checkout success 07:00:40 07:00:50)" \
+    "$(step 'Run tests' success 07:00:50 07:02:10)" "$(step Lint success 07:02:10 07:02:30)")" >"$FIX/jobs-103.json"
+printf '[%s]\n' \
+  "$(job build success 06:00:00 06:00:50 06:04:50 "$(step Checkout success 06:00:50 06:01:00)" \
+    "$(step 'Run tests' success 06:01:00 06:04:20)" "$(step Lint success 06:04:20 06:04:40)")" >"$FIX/jobs-102.json"
+
+gh_run ci-timing --repo o/r
+assert_eq "ci-timing exits 0" "0" "$RUN_RC"
+q() { jq -r "$1" <<<"$RUN_OUT"; }
+assert_eq "queue wait is the even-count median of jobs that ran, skipped job excluded" "35000 wait-ms 6" \
+  "$(q '"\(.queue_wait.value) \(.queue_wait.unit) \(.queue_wait.samples)"')"
+assert_eq "run length is the median per run in CI minutes" "3 ci-minutes 5" \
+  "$(q '"\(.run_length.value) \(.run_length.unit) \(.run_length.samples)"')"
+assert_eq "the slowest step by median is named with its job, skipped steps excluded" "e2e|Test e2e|230000|elapsed-ms" \
+  "$(q '"\(.slowest_step.job)|\(.slowest_step.step)|\(.slowest_step.value)|\(.slowest_step.unit)"')"
+assert_eq "test steps match 'test' in any case; their median over an even count" "125000 elapsed-ms 6" \
+  "$(q '"\(.test_steps.value) \(.test_steps.unit) \(.test_steps.samples)"')"
+assert_eq "re-runs are runs with attempt above 1, out of the runs listed" "3 count 6" \
+  "$(q '"\(.reruns.value) \(.reruns.unit) \(.reruns.samples)"')"
+assert_eq "runs listed and runs timed are reported" "6 5" "$(q '"\(.runs_listed) \(.runs_timed)"')"
+assert_eq "the run list command is the gh line it ran" \
+  "gh run list --repo o/r --limit 20 --status completed --json databaseId,attempt,createdAt,startedAt,updatedAt,conclusion,workflowName" \
+  "$(q .reruns.command)"
+JOBS_JQ="'[.jobs[] | {name, conclusion, created_at, started_at, completed_at, steps: [(.steps // [])[] | {name, conclusion, started_at, completed_at}]}]'"
+assert_eq "one jobs fetch per timed run, newest first" \
+  "gh api repos/o/r/actions/runs/106/jobs --jq $JOBS_JQ|gh api repos/o/r/actions/runs/102/jobs --jq $JOBS_JQ|6" \
+  "$(q '"\(.commands[1])|\(.commands[5])|\(.commands | length)"')"
+assert_eq "a job-based finding cites the jobs lines it ran" "5" "$(q '.queue_wait.command | split("; ") | length')"
+assert_eq "nothing is written to the working directory" "" "$(ls -A "$GHCWD")"
+
+# --- 24. pr-timing: review and merge waits from merged pull requests ---
+pr() { # <created> <merged> <review-submittedAt...> ; additions and deletions follow as PR_ADD PR_DEL
+  local created="$1" merged="$2" reviews="" r
+  shift 2
+  for r in "$@"; do reviews+="${reviews:+,}{\"state\":\"APPROVED\",\"submittedAt\":\"$r\"}"; done
+  printf '{"number":1,"createdAt":"%s","mergedAt":"%s","reviews":[%s],"additions":%s,"deletions":%s,"changedFiles":1}' \
+    "$created" "$merged" "$reviews" "$PR_ADD" "$PR_DEL"
+}
+# First review after open, in hours: 1 (the earlier of two, listed second), 3, 2; one PR has no
+# review. Open to merge: 4, 2, 24, 6. Size (additions plus deletions): 15, 100, 50, 2.
+{
+  printf '['
+  PR_ADD=10 PR_DEL=5 pr 2026-09-01T00:00:00Z 2026-09-01T04:00:00Z 2026-09-01T02:00:00Z 2026-09-01T01:00:00Z
+  printf ','
+  PR_ADD=100 PR_DEL=0 pr 2026-09-02T00:00:00Z 2026-09-02T02:00:00Z
+  printf ','
+  PR_ADD=30 PR_DEL=20 pr 2026-09-03T00:00:00Z 2026-09-04T00:00:00Z 2026-09-03T03:00:00Z
+  printf ','
+  PR_ADD=1 PR_DEL=1 pr 2026-09-05T00:00:00Z 2026-09-05T06:00:00Z 2026-09-05T02:00:00Z
+  printf ']\n'
+} >"$FIX/prs.json"
+gh_run pr-timing
+assert_eq "pr-timing exits 0" "0" "$RUN_RC"
+assert_eq "open to first review is the median of each PR's earliest review" "7200000 wait-ms 3" \
+  "$(q '"\(.first_review.value) \(.first_review.unit) \(.first_review.samples)"')"
+assert_eq "open to merge is the even-count median" "18000000 wait-ms 4" \
+  "$(q '"\(.open_to_merge.value) \(.open_to_merge.unit) \(.open_to_merge.samples)"')"
+assert_eq "PR size is the median of additions plus deletions" "32.5 count 4" \
+  "$(q '"\(.size.value) \(.size.unit) \(.size.samples)"')"
+assert_eq "the pr list command is the gh line it ran" \
+  "gh pr list --state merged --limit 20 --json number,createdAt,mergedAt,reviews,additions,deletions,changedFiles" \
+  "$(q .first_review.command)"
+printf '[]\n' >"$FIX/prs.json"
+gh_run pr-timing
+assert_eq "no merged PRs is exit 0 with zero samples and no value" "0|0|null" "$RUN_RC|$(q .prs)|$(q .open_to_merge.value)"
+assert_eq "nothing is written to the working directory" "" "$(ls -A "$GHCWD")"
+
+# --- 24b. a missing or unparseable timestamp is left out and counted, never a crash ---
+# PRs: one with no createdAt (no merge wait, no review wait), one never stamped merged with only
+# a pending review; its size still counts. Sizes 15, 4 -> median 9.5.
+printf '[%s,%s]\n' \
+  '{"number":1,"createdAt":null,"mergedAt":"2026-09-01T04:00:00Z","reviews":[{"submittedAt":"2026-09-01T01:00:00Z"}],"additions":10,"deletions":5,"changedFiles":1}' \
+  '{"number":2,"createdAt":"2026-09-02T00:00:00Z","mergedAt":"not a time","reviews":[{"state":"PENDING","submittedAt":null}],"additions":3,"deletions":1,"changedFiles":1}' \
+  >"$FIX/prs.json"
+gh_run pr-timing
+assert_eq "pr-timing survives missing timestamps" "0" "$RUN_RC"
+assert_eq "no merge wait from either PR, both counted as excluded" "null 0 2" \
+  "$(q '"\(.open_to_merge.value) \(.open_to_merge.samples) \(.open_to_merge.excluded)"')"
+assert_eq "no review wait; the PR without createdAt is excluded" "0 1" \
+  "$(q '"\(.first_review.samples) \(.first_review.excluded)"')"
+assert_eq "size needs no timestamp" "9.5 2 0" "$(q '"\(.size.value) \(.size.samples) \(.size.excluded)"')"
+# Jobs: run 102 gains a job that never started and a test step that never completed; every
+# median from section 23 stands.
+printf '[%s,%s]\n' \
+  "$(job build success 06:00:00 06:00:50 06:04:50 "$(step Checkout success 06:00:50 06:01:00)" \
+    "$(step 'Run tests' success 06:01:00 06:04:20)" "$(step Lint success 06:04:20 06:04:40)")" \
+  '{"name":"flaky","conclusion":"failure","created_at":"2026-10-01T06:00:00Z","started_at":null,"completed_at":null,"steps":[{"name":"Unit test","conclusion":"failure","started_at":"2026-10-01T06:00:05Z","completed_at":null}]}' \
+  >"$FIX/jobs-102.json"
+gh_run ci-timing --repo o/r
+assert_eq "ci-timing survives missing timestamps" "0" "$RUN_RC"
+assert_eq "the unstarted job is excluded from queue wait and counted" "35000 6 1" \
+  "$(q '"\(.queue_wait.value) \(.queue_wait.samples) \(.queue_wait.excluded)"')"
+assert_eq "the uncompleted test step is excluded and counted" "125000 6 1" \
+  "$(q '"\(.test_steps.value) \(.test_steps.samples) \(.test_steps.excluded)"')"
+assert_eq "run length is unchanged" "3 5 0" "$(q '"\(.run_length.value) \(.run_length.samples) \(.run_length.excluded)"')"
+
+# --- 25. a gh failure exits 1 with one line naming it ---
+RUN_OUT="$(cd "$GHCWD" && env -u GH_CONFIG_DIR PATH="$SHIM:$PATH" FAKE_GH="$FIX" "$HARNESS_PYTHON" "$FINDINGS" ci-timing --repo o/r 2>&1)"
+RUN_RC=$?
+assert_eq "a gh failure exits 1" "1" "$RUN_RC"
+assert_eq "the error is one line" "1" "$(wc -l <<<"$RUN_OUT" | tr -d ' ')"
+assert_contains "the error names the gh call" "gh run list" "$RUN_OUT"
+assert_contains "the error carries gh's first error line" "gh auth login" "$RUN_OUT"
+rm -f "$FIX/jobs-104.json"
+gh_run ci-timing --repo o/r
+assert_eq "a failed jobs fetch exits 1" "1" "$RUN_RC"
+assert_contains "the error names the failed fetch and its reason" "runs/104/jobs" "$RUN_OUT"
+assert_contains "the error carries the HTTP status" "HTTP 404" "$RUN_OUT"
+assert_eq "nothing is written to the working directory" "" "$(ls -A "$GHCWD")"
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1

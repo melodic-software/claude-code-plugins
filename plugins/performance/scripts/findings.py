@@ -17,9 +17,23 @@ folder passed as a literal argument. Subcommands:
     compare --data <dir> --findings <findings.json> --id <id>
     transcript-counts <transcript.jsonl>
     status-timing --data <dir> [--runs N]  time git status in the current repository via trace2
+    ci-timing --repo OWNER/REPO [--runs N] [--job-runs M]
+                                        list N completed runs (default 20), fetch jobs for the M
+                                        newest (default 5), print queue wait, run length, slowest
+                                        step, test steps and re-runs as JSON
+    pr-timing [--limit N]               list N merged PRs (default 20), print open to first
+                                        review, open to merge and PR size as JSON
+
+ci-timing and pr-timing run gh with the caller's environment (GH_CONFIG_DIR included), keep its
+output in memory and write nothing to disk. Each number is an object with value, unit, samples
+and command, the gh line(s) to cite; value is null when samples is 0, and excluded counts the
+items left out because a timestamp it needs is missing or unparseable. Skipped jobs and steps
+count toward no queue wait or step duration. Median: the middle of the sorted samples; with an
+even count, the mean of the two middle ones. A gh call that fails, is missing, or prints
+something other than JSON exits 1 with one line naming the call.
 
 Field names are the finding record in agents/go-faster-sweeper.md. Exit 0 is success, 1 a refusal
-the caller acts on (an invalid finding, a held lock), 2 a usage or input error.
+the caller acts on (an invalid finding, a held lock, a failed gh call), 2 a usage or input error.
 """
 
 from __future__ import annotations
@@ -28,10 +42,13 @@ import argparse
 import json
 import os
 import re
+import shlex
+import shutil
 import subprocess
 import sys
 import time
 from datetime import datetime, timezone
+from collections.abc import Sequence
 from pathlib import Path
 from typing import NoReturn
 
@@ -818,6 +835,224 @@ def cmd_status_timing(args: argparse.Namespace) -> int:
     return 0
 
 
+RUN_FIELDS = "databaseId,attempt,createdAt,startedAt,updatedAt,conclusion,workflowName"
+JOBS_JQ = (
+    "[.jobs[] | {name, conclusion, created_at, started_at, completed_at,"
+    " steps: [(.steps // [])[] | {name, conclusion, started_at, completed_at}]}]"
+)
+PR_FIELDS = "number,createdAt,mergedAt,reviews,additions,deletions,changedFiles"
+
+
+class GhError(Exception):
+    pass
+
+
+def gh_list(args: list[str]) -> tuple[list[dict], str]:
+    """Run gh with the caller's environment; return the JSON array it printed and the line run."""
+    line = shlex.join(["gh", *args])
+    exe = shutil.which("gh")
+    if exe is None:
+        raise GhError(f"{line}: gh not found on PATH")
+    try:
+        result = subprocess.run(
+            [exe, *args],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError as exc:
+        raise GhError(f"{line}: {exc}") from exc
+    if result.returncode != 0:
+        lines = [x.strip() for x in result.stderr.splitlines() if x.strip()]
+        raise GhError(
+            f"{line} failed ({result.returncode}): {lines[0] if lines else 'no error output'}"
+        )
+    try:
+        doc = json.loads(result.stdout)
+    except ValueError as exc:
+        raise GhError(f"{line}: output is not JSON ({exc})") from exc
+    if not isinstance(doc, list):
+        raise GhError(f"{line}: output is not a JSON array")
+    return [d for d in doc if isinstance(d, dict)], line
+
+
+def whole(value: float) -> float:
+    return int(value) if float(value).is_integer() else value
+
+
+def median(samples: Sequence[float]) -> float | None:
+    if not samples:
+        return None
+    ordered, mid = sorted(samples), len(samples) // 2
+    return whole(
+        ordered[mid] if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+    )
+
+
+def span_ms(start: object, end: object) -> int | None:
+    a, b = parse_ts(start), parse_ts(end)
+    return None if a is None or b is None else round((b - a) * 1000)
+
+
+def stat(samples: Sequence[float], unit: str, command: str, excluded: int = 0) -> dict:
+    """One number to record; excluded counts items whose timestamps were missing or unparseable."""
+    return {
+        "value": median(samples),
+        "unit": unit,
+        "samples": len(samples),
+        "excluded": excluded,
+        "command": command,
+    }
+
+
+def ci_timing(repo: str, runs: int, job_runs: int) -> dict:
+    listed, list_line = gh_list(
+        ["run", "list", "--repo", repo, "--limit", str(runs), "--status", "completed"]
+        + ["--json", RUN_FIELDS]
+    )
+    newest = sorted(
+        listed, key=lambda r: parse_ts(r.get("createdAt")) or 0, reverse=True
+    )[:job_runs]
+    waits: list[int] = []
+    lengths: list[int] = []
+    tests: list[int] = []
+    job_lines: list[str] = []
+    no_wait = no_length = no_step = no_test = 0
+    by_step: dict[tuple[str, str], list[int]] = {}
+    for run in newest:
+        path = f"repos/{repo}/actions/runs/{run.get('databaseId')}/jobs"
+        jobs, line = gh_list(["api", path, "--jq", JOBS_JQ])
+        job_lines.append(line)
+        starts = [
+            s for s in (parse_ts(j.get("started_at")) for j in jobs) if s is not None
+        ]
+        ends = [
+            e for e in (parse_ts(j.get("completed_at")) for j in jobs) if e is not None
+        ]
+        if starts and ends:
+            lengths.append(round((max(ends) - min(starts)) * 1000))
+        else:
+            no_length += 1
+        for job in jobs:
+            if job.get("conclusion") == "skipped":
+                continue
+            wait = span_ms(job.get("created_at"), job.get("started_at"))
+            if wait is None:
+                no_wait += 1
+            else:
+                waits.append(wait)
+            for step in job.get("steps") or []:
+                if step.get("conclusion") == "skipped":
+                    continue
+                name = str(step.get("name"))
+                took = span_ms(step.get("started_at"), step.get("completed_at"))
+                if took is None:
+                    no_step += 1
+                    no_test += "test" in name.lower()
+                    continue
+                by_step.setdefault((str(job.get("name")), name), []).append(took)
+                if "test" in name.lower():
+                    tests.append(took)
+    jobs_cite = "; ".join(job_lines)
+    length = stat(lengths, "ci-minutes", jobs_cite, no_length)
+    if length["value"] is not None:
+        length["value"] = whole(round(length["value"] / 60000, 2))
+    slowest = stat([], "elapsed-ms", jobs_cite, no_step)
+    if by_step:
+        (job_name, step_name), took = min(
+            by_step.items(), key=lambda kv: (-(median(kv[1]) or 0), kv[0])
+        )
+        slowest = {
+            "job": job_name,
+            "step": step_name,
+            **stat(took, "elapsed-ms", jobs_cite, no_step),
+        }
+    reruns = [
+        r for r in listed if isinstance(r.get("attempt"), int) and r["attempt"] > 1
+    ]
+    return {
+        "repo": repo,
+        "runs_listed": len(listed),
+        "runs_timed": len(newest),
+        "queue_wait": stat(waits, "wait-ms", jobs_cite, no_wait),
+        "run_length": length,
+        "slowest_step": slowest,
+        "test_steps": stat(tests, "elapsed-ms", jobs_cite, no_test),
+        "reruns": {
+            "value": len(reruns),
+            "unit": "count",
+            "samples": len(listed),
+            "command": list_line,
+        },
+        "commands": [list_line, *job_lines],
+    }
+
+
+def pr_timing(limit: int) -> dict:
+    prs, line = gh_list(
+        ["pr", "list", "--state", "merged", "--limit", str(limit), "--json", PR_FIELDS]
+    )
+    first: list[int] = []
+    merge: list[int] = []
+    sizes: list[int] = []
+    no_first = no_merge = no_size = 0
+    for pr in prs:
+        added, deleted = pr.get("additions"), pr.get("deletions")
+        if isinstance(added, int) and isinstance(deleted, int):
+            sizes.append(added + deleted)
+        else:
+            no_size += 1
+        took = span_ms(pr.get("createdAt"), pr.get("mergedAt"))
+        if took is None:
+            no_merge += 1
+        else:
+            merge.append(took)
+        created = parse_ts(pr.get("createdAt"))
+        if created is None:
+            no_first += 1
+            continue
+        # A pending review has no submittedAt; one stamped before the PR opened is not a wait.
+        submitted = [
+            s
+            for s in (
+                parse_ts(r.get("submittedAt"))
+                for r in pr.get("reviews") or []
+                if isinstance(r, dict)
+            )
+            if s is not None and s >= created
+        ]
+        if submitted:
+            first.append(round((min(submitted) - created) * 1000))
+    return {
+        "prs": len(prs),
+        "first_review": stat(first, "wait-ms", line, no_first),
+        "open_to_merge": stat(merge, "wait-ms", line, no_merge),
+        "size": stat(sizes, "count", line, no_size),
+        "commands": [line],
+    }
+
+
+def cmd_ci_timing(args: argparse.Namespace) -> int:
+    try:
+        result = ci_timing(args.repo, args.runs, args.job_runs)
+    except GhError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, indent=2))
+    return 0
+
+
+def cmd_pr_timing(args: argparse.Namespace) -> int:
+    try:
+        result = pr_timing(args.limit)
+    except GhError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, indent=2))
+    return 0
+
+
 def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(newline="\n", encoding="utf-8")  # type: ignore[union-attr]
@@ -871,6 +1106,14 @@ def main() -> int:
     p.add_argument("--data", required=True)
     p.add_argument("--runs", type=int, default=5)
     p.set_defaults(fn=cmd_status_timing)
+    p = sub.add_parser("ci-timing")
+    p.add_argument("--repo", required=True)
+    p.add_argument("--runs", type=int, default=20)
+    p.add_argument("--job-runs", type=int, default=5)
+    p.set_defaults(fn=cmd_ci_timing)
+    p = sub.add_parser("pr-timing")
+    p.add_argument("--limit", type=int, default=20)
+    p.set_defaults(fn=cmd_pr_timing)
     p = sub.add_parser("lint-catalog")
     p.add_argument("paths", nargs="+")
     p.set_defaults(fn=cmd_lint_catalog)
