@@ -89,21 +89,38 @@ type State = {
   zonesKey: string | undefined
 }
 
-export const parseConfig = (options: Record<string, unknown>): Config => {
-  const items = String(options.zone_line_data ?? '')
+// plugin.json declares no number bounds, because the engine refuses the whole module for a value
+// outside them; the module checks them here, uses the default and names each bad option once.
+const badOption = (name: string, kind: string, fallback: string) => `context-guard: option ${name} ${kind}; it reads as the default, ${fallback}`
+const quote = (s: string) => JSON.stringify(s.length > 40 ? `${s.slice(0, 40)}...` : s)
+
+export const parseConfig = (options: Record<string, unknown>): Config & { bad: string[] } => {
+  const bad: string[] = []
+  let items = String(options.zone_line_data ?? '')
     .split(',')
     .map(s => s.trim().toLowerCase())
-    .filter(s => DATA_ITEMS.includes(s))
-  const grace = Number(options.zone_gate_grace_calls)
+    .filter(s => s !== '')
+  const unknown = items.filter(s => !DATA_ITEMS.includes(s))
+  if (unknown.length > 0) {
+    bad.push(badOption('zone_line_data', `has an item that is not zone, percent, tokens or window (${quote(unknown.join(', '))})`, 'zone'))
+    items = []
+  }
+  let grace = Number(options.zone_gate_grace_calls ?? 20)
+  const graceKind = !Number.isInteger(grace) ? 'not a whole number' : grace < 0 ? 'a negative number' : grace > 999_999_999 ? 'above 999999999' : undefined
+  if (graceKind !== undefined) {
+    bad.push(badOption('zone_gate_grace_calls', `is ${graceKind}`, '20'))
+    grace = 20
+  }
   return {
     enabled: options.context_guard_hooks_enabled !== false,
     lines: options.zone_lines_enabled !== false,
     operator: options.zone_report_mode === 'operator',
     data: new Set(['zone', ...items]),
     blocking: options.zone_hook_mode === 'blocking',
-    grace: Number.isInteger(grace) && grace >= 0 && grace <= 999_999_999 ? grace : 20,
+    grace,
     blockUnattended: options.zone_block_unattended === 'same-as-typed',
     band: options.context_guard_band !== false,
+    bad,
   }
 }
 
@@ -593,6 +610,10 @@ export const register: Register = (on, options) => {
   }
 
   on('session.start', async ($, e, next) => {
+    for (const line of cfg.bad) {
+      if (!st.loggedOnce.has(line)) $.ui.log(line)
+      st.loggedOnce.add(line)
+    }
     await registerSurfaces($, st)
     // A fresh load mid-session (a reload, a worker respawn, an enable, a --resume launch): the
     // earlier lines already reached Claude, so only a verdict past smart is restated.

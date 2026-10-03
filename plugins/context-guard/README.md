@@ -469,6 +469,12 @@ The module reads its options when it loads. Claude Code reloads a module when it
 so a change takes effect from the next event, with no restart. The PostCompact marker hook reads
 `context_guard_hooks_enabled` at session start, as before.
 
+A bad option value does not switch the module off: a `zone_gate_grace_calls` that is not a whole
+number from 0 to 999999999, or a `zone_line_data` item it does not know, reads as that option's
+default, with one transcript line per option naming it, and a choice outside its list reads as its
+default with Claude Code's own line. A value of the wrong type (text in a number or on/off option)
+is still refused by Claude Code, which then loads none of the module.
+
 - **Pointer**: the doc comment on `Register` in the `claude-code/index.d.ts` types Claude Code
   writes for its build (see
   [create: get the types for your build](https://code.claude.com/docs/en/plugins/mods/create#get-the-types-for-your-build)).
@@ -501,7 +507,7 @@ reads it from.
 | `zone_report_mode` | string | `"automatic"` | `CLAUDE_PLUGIN_OPTION_ZONE_REPORT_MODE` | automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a band notice when the turn ends. Headless, loop and schedule turns get automatic lines either way. |
 | `zone_line_data` | string | `"zone"` | `CLAUDE_PLUGIN_OPTION_ZONE_LINE_DATA` | Comma list of what a line carries beside its zone, which every line has: percent, tokens and window. Default zone. |
 | `zone_hook_mode` | string | `"advisory"` | `CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE` | advisory (default) sends lines only; blocking also denies new Write, Edit, NotebookEdit, Agent and Workflow calls in the dumb zone past the grace budget, unless zones.json sets an action for the dumb zone. Handoff-path writes, reads, Bash and Skill stay allowed, and an unknown zone fails open. |
-| `zone_gate_grace_calls` | number<br>*min 0, max 999999999* | `20` | `CLAUDE_PLUGIN_OPTION_ZONE_GATE_GRACE_CALLS` | Blocking only: matched tool calls allowed after the session first reaches a blocked zone, before the gate denies. Default 20; 0 denies the first matched call. |
+| `zone_gate_grace_calls` | number | `20` | `CLAUDE_PLUGIN_OPTION_ZONE_GATE_GRACE_CALLS` | Blocking only: matched tool calls allowed after the session first reaches a blocked zone, before the gate denies. Default 20; 0 denies the first matched call; a value that is not a whole number from 0 to 999999999 reads as 20. |
 | `zone_block_unattended` | string | `"post-compaction"` | `CLAUDE_PLUGIN_OPTION_ZONE_BLOCK_UNATTENDED` | post-compaction (default): in turns no person typed (headless, loop, schedule and notification turns) only a compacted session is blocked; same-as-typed blocks them as typed turns are. |
 | `context_guard_band` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_BAND` | Draws the context figure and zone in a row above the prompt. On by default; /context-guard:band shows or hides it for the session. |
 

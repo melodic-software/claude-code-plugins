@@ -548,17 +548,91 @@ test('gate: leaving the dumb zone or an unknown reading resets the budget', BLOC
   expect(await writes($, 2)).toEqual([undefined, denial('Write', 1)])
 })
 
-// The engine refuses options outside plugin.json's type, min and max before the module loads
-// ("options do not fit plugin.json userConfig"), so only a fraction reaches the module.
-for (const grace of [1.5]) {
-  test(`gate: a grace value of ${JSON.stringify(grace)} means the default 20`, { options: { zone_hook_mode: 'blocking', zone_gate_grace_calls: grace } }, async ($, on) => {
-    world(on, { percent: 80 })
+// ---- Bad option values: the module loads, uses the default and says so once -----------------
+
+// A session raises session.start once per load of the module; the kit leaves it to the test.
+const load = ($: any) => $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+const optionLines = (w: World) => w.logs.filter(l => l.startsWith('context-guard: option '))
+const graceLine = (kind: string) => `context-guard: option zone_gate_grace_calls is ${kind}; it reads as the default, 20`
+const dataLine = (items: string) =>
+  `context-guard: option zone_line_data has an item that is not zone, percent, tokens or window (${items}); it reads as the default, zone`
+
+for (const [grace, kind] of [
+  [-1, 'a negative number'],
+  [1_000_000_000, 'above 999999999'],
+  [1.5, 'not a whole number'],
+] as const) {
+  test(`options: a grace value of ${grace} loads, gates with the default 20 and logs one line`, BLOCKING(grace), async ($, on) => {
+    const { w } = world(on, { percent: 80 })
+    await load($)
     await prompt($, 'composer')
     const out = await writes($, 21)
     expect(out.slice(0, 20)).toEqual(Array(20).fill(undefined))
     expect(out[20]).toBe(denial('Write', 20))
+    expect(optionLines(w)).toEqual([graceLine(kind)])
   })
 }
+
+test('options: zone_line_data with an unknown item loads, carries the verdict alone and logs one line', { options: { zone_line_data: 'zone, percent, bogus' } }, async ($, on) => {
+  const { w } = world(on)
+  await load($)
+  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('smart', 'acceptable')])
+  expect(optionLines(w)).toEqual([dataLine('"bogus"')])
+})
+
+test('options: a long unknown zone_line_data item is cut to 40 characters in the log line', { options: { zone_line_data: `zone, ${'x'.repeat(60)}` } }, async ($, on) => {
+  const { w } = world(on)
+  await load($)
+  await walk($, w, [30])
+  expect(optionLines(w)).toEqual([dataLine(`"${'x'.repeat(40)}..."`)])
+})
+
+test('options: an empty zone_line_data is the default, not a bad value', { options: { zone_line_data: '' } }, async ($, on) => {
+  const { w } = world(on)
+  await load($)
+  await walk($, w, [30, 60])
+  expect(optionLines(w)).toEqual([])
+})
+
+// A choice outside its list reaches the module as the default, and the engine logs that itself.
+test('options: zone_hook_mode outside its list loads as advisory', { options: { zone_hook_mode: 'block', zone_gate_grace_calls: 0 } }, async ($, on) => {
+  const { w } = world(on, { percent: 80 })
+  await load($)
+  await prompt($, 'composer')
+  expect(await writes($, 2)).toEqual([undefined, undefined])
+  expect(optionLines(w)).toEqual([])
+})
+
+test('options: zone_report_mode outside its list loads as automatic', { options: { zone_report_mode: 'quiet' } }, async ($, on) => {
+  const { w } = world(on)
+  await load($)
+  await prompt($, 'composer')
+  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('smart', 'acceptable')])
+  expect(w.suggested).toEqual([])
+  expect(optionLines(w)).toEqual([])
+})
+
+test('options: zone_block_unattended outside its list loads as post-compaction', BLOCKING(0, { zone_block_unattended: 'always' }), async ($, on) => {
+  const { w } = world(on, { percent: 80 })
+  await load($)
+  await prompt($, 'sdk')
+  expect(await writes($, 2)).toEqual([undefined, undefined])
+  expect(optionLines(w)).toEqual([])
+})
+
+test('options: two bad options give two log lines, and later events add none', BLOCKING(-5, { zone_line_data: 'zone, pct' }), async ($, on) => {
+  const { w } = world(on, { percent: 30 })
+  await load($)
+  await prompt($, 'composer')
+  await walk($, w, [60, 80])
+  await writes($, 3)
+  await prompt($, 'composer')
+  await compact($, 'manual')
+  await load($)
+  await walk($, w, [85])
+  // In plugin.json's declaration order.
+  expect(optionLines(w)).toEqual([dataLine('"pct"'), graceLine('a negative number')])
+})
 
 test('gate: an unattended turn gets no pre-compaction denial, and the post-compaction one', BLOCKING(1), async ($, on) => {
   const { w } = world(on, { percent: 80 })
