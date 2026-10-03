@@ -21,18 +21,26 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   trusted names its key can spell when every value of the key is known (a literal, a number, a
   boolean or `typeof` result, or a variable written only with those), so loop counters and
   TypeScript enums no longer count.
-- **node:vm counts as code built from a string.** `runInThisContext` and `compileFunction` read
-  or destructured from any object or imported by name, and a `vm`/`node:vm` load used other than
-  by named reads, are sinks like `eval` and `Function`.
+- **node:vm counts as code built from a string.** Any `vm`/`node:vm` load except an import naming
+  only `isContext`, and a vm runner's name (`runInThisContext`, `runInNewContext`, `runInContext`,
+  `compileFunction`, `SourceTextModule`, `SyntheticModule`) read from any object, are sinks like
+  `eval` and `Function`: code in a new context still reaches this realm's prototypes.
+
+### Fixed
+
+- **A load the parser cannot name no longer reads a wrong literal.** An aliased `require` or
+  `import.meta.require`, `require.call(...)`, `(0,require)(...)`, or `import(x)` with a specifier
+  that is no literal could load the exporting file whole unseen; a module holding one now fails
+  every export hop.
 
 ### Changed
 
 - The Explore and Plan `disallowed_tools` still read partial under `--reader=parser` on
-  2.1.284-2.1.288, now only because of the sink rule: every load of the re-exporting chunk passes,
-  while each build still has computed-key writes on receivers the rule cannot show are not
-  built-in prototypes, and code built from strings (ajv's generated validators, protobufjs's direct
-  `eval`). `--reader` stays `regex` by default. `--reader=compare` output is unchanged on every
-  installed build.
+  2.1.284-2.1.288. Every load of the re-exporting chunk is read by name, but each build still has
+  computed-key writes on receivers the sink rule cannot show are not built-in prototypes, and code
+  built from strings (ajv's generated validators, protobufjs's direct `eval`); 2.1.288 also has 3
+  modules with a load the parser cannot name. `--reader` stays `regex` by default.
+  `--reader=compare` output is unchanged on every installed build.
 
 ## [3.0.1] - 2026-10-02
 

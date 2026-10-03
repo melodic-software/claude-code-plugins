@@ -395,7 +395,8 @@ class ParserReader:
     def loads(self, src: str, lo: int, hi: int) -> list[str] | None:
         """The file names the module `src[lo:hi]` loads whole (`import(f)`,
         `require(f)`, `import*as N from f`, `export*from f`, `f` a literal),
-        or None when it does not parse."""
+        holding "*" when it may load a file it cannot name, or None when it
+        does not parse."""
         key = ("loads", id(src), lo)
         if key not in self._answers:
             res = self._send("loads", src, lo, hi)

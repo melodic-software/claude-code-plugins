@@ -2351,7 +2351,10 @@ def _namespace_holds(src: str, lo: int, name: str) -> set[str] | None:
     nothing rules out a namespace of it. Every module that loads one of
     those files whole (`import(...)`, `require(...)`, `import*as`,
     `export*`, the parser's `loads` op) is followed by the `namespace` op,
-    which accepts only reads of other exports by name. A promise settled
+    which accepts only reads of other exports by name. A module that may
+    load a file the parser cannot name (an aliased `require`,
+    `require.call`, `import(x)`) could load this one, so it fails the hop.
+    A promise settled
     with the namespace reads its `then` export, so then each file's module
     must be known and export no `then`."""
     assert _PARSER is not None
@@ -2366,6 +2369,8 @@ def _namespace_holds(src: str, lo: int, name: str) -> set[str] | None:
     thenable = False
     for span in _module_spans(src):
         loaded = _PARSER.loads(src, *span)
+        if loaded is not None and "*" in loaded:
+            return None
         for file in sorted(files if loaded is None else files.intersection(loaded)):
             found = _PARSER.namespace(src, *span, file, name)
             if not found["safe"]:

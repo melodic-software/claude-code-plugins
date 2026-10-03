@@ -450,9 +450,11 @@ reference is `F.prototype.k` with a named key other than `constructor` (a call, 
 given, must be fresh too. A module that does not parse or calls `eval` is a sink, and so is code
 built from a string: global `eval` other than a direct call, the global `Function` used other
 than for `typeof`, `instanceof` or a `.prototype` read, any member named `eval` or `Function`,
-and node:vm's same-realm runners: a read or destructured key `runInThisContext` or
-`compileFunction` from any object, a named import of either, and a load of `vm` or `node:vm` used
-other than by named reads (the `namespace` walk). On each of 2.1.284 to 2.1.288 that is 4 modules
+and node:vm, since code in a new context still reaches this realm
+(`this.constructor.constructor("...")()` inside `runInNewContext`): any load of `vm` or
+`node:vm` except an import naming only `isContext`, and a runner's name (`runInThisContext`,
+`runInNewContext`, `runInContext`, `compileFunction`, `SourceTextModule`, `SyntheticModule`)
+read or destructured from any object. On each of 2.1.284 to 2.1.288 that is 4 modules
 using `Function` (lodash's `Function("return this")()`, a `new Function("")` probe, an unused
 syntax check, and ajv running the validator code it generates), 3 with a member `.eval(...)` (a CEL
 evaluator, the workflow runtime, a CLI command definition), and 1 with a direct `eval`
@@ -477,15 +479,17 @@ name alone. Those shapes trust built-ins the sink rule then watches: `require`; 
 `await`; `Promise`, `all`, `resolve`, `then`, `constructor`, `Symbol.species`, `Symbol.iterator`,
 `next` and `return` for `Promise.all` and the array pattern; and on a record, any name read that
 the literal does not hold. A promise settled with the namespace reads its `then` export, so the
-file's module must be known and export no `then`. On 2.1.284 to 2.1.288 the chunk re-exporting the
-Explore and Plan array as `ARTIFACT_FAMILY_TOOL_NAMES` is loaded whole 13 to 14 times, each read
-by name.
+file's module must be known and export no `then`. A load the scan cannot name (`import(x)` with a
+specifier that is no literal; `require`, `import.meta.require` or `x.require` aliased, `.call`ed,
+behind a comma, or called with no literal) could load any file whole, so any such module fails
+every export hop; `typeof require`, `require.resolve` and a binding named `require` do not count.
+On 2.1.284 to 2.1.288 the chunk re-exporting the Explore and Plan array as
+`ARTIFACT_FAMILY_TOOL_NAMES` is loaded whole 13 to 14 times, each read by name, but on 2.1.288 3
+modules hold a load the scan cannot name.
 
 Stated assumptions, not checked:
 
-- Code built from strings is not analyzed, only counted as a sink (above); code a vm context
-  other than this realm's runs (`runInContext`, `runInNewContext`) sees its own built-ins.
-- A dynamic `import(x)` or `require(x)` whose path is not a literal names no file.
+- Code built from strings is not analyzed, only counted as a sink (above).
 - An array method a JavaScriptCore build adds that V8's `Array.prototype` lacks is read as
   throwing by the method rule.
 - A spread is a copy of the elements, the reading both readers rest on: the sink rule does not
@@ -493,7 +497,7 @@ Stated assumptions, not checked:
 
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
-| On 2.1.284 to 2.1.288 the Explore and Plan `disallowed_tools` spread an exported array whose importers spread it, call `includes`, alias it and return it to a `.some(t)` caller whose `t` holds `!1`, re-export it, and pass it to an imported function that only calls `has`/`includes` on it. The walk follows each hop, including every whole load of the re-exporting chunk, and trusts `some`, `includes` and `has` plus the built-ins those loads rely on; every build has sinks for them (on 2.1.288, with only `some`, `includes` and `has`: at least 178 modules with a write whose key may be any name on a target not shown fresh, 92 with a definer given such a key, 22 with a prototype swap, 11 with a definer read other than as a callee, and the 8 running code built from a string listed above), so both lists read partial under the parser | `inventory.py --binary-only --reader=compare` on each native build: no value->value change, the four Explore/Plan values wrong->unresolved; the helper's `sinks` op over every module of 2.1.288; `test_reader_findings.TestInstalledBuilds` pins it where the builds are installed | 2026-10-02, Claude Code 2.1.284 to 2.1.288 | A run under the parser reads either list literal, or `compare` reports a value change |
+| On 2.1.284 to 2.1.288 the Explore and Plan `disallowed_tools` spread an exported array whose importers spread it, call `includes`, alias it and return it to a `.some(t)` caller whose `t` holds `!1`, re-export it, and pass it to an imported function that only calls `has`/`includes` on it. The walk follows each hop, including every whole load of the re-exporting chunk, and trusts `some`, `includes` and `has` plus the built-ins those loads rely on; on 2.1.288 3 modules hold a load the parser cannot name, and every build has sinks for them (on 2.1.288, with only `some`, `includes` and `has`: at least 178 modules with a write whose key may be any name on a target not shown fresh, 92 with a definer given such a key, 22 with a prototype swap, 11 with a definer read other than as a callee, and the 8 running code built from a string listed above), so both lists read partial under the parser | `inventory.py --binary-only --reader=compare` on each native build: no value->value change, the four Explore/Plan values wrong->unresolved; the helper's `sinks` op over every module of 2.1.288; `test_reader_findings.TestInstalledBuilds` pins it where the builds are installed | 2026-10-02, Claude Code 2.1.284 to 2.1.288 | A run under the parser reads either list literal, or `compare` reports a value change |
 
 ## Known non-commands
 

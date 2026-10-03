@@ -853,6 +853,8 @@ function flow(req) {
 
 // The file name a module specifier ends in; loads match files by it.
 const fileName = (spec) => spec.split("/").at(-1);
+// What `loads` lists for a load whose file the scan cannot name.
+const UNKNOWN_FILE = "*";
 
 const literalString = (n) =>
   n?.type === "Literal" && typeof n.value === "string"
@@ -1198,9 +1200,18 @@ const SINK_LIMIT = 20;
 // A computed key known to be a number, which no trusted name spells.
 const NUMBER = Symbol("number");
 const ARITHMETIC = new Set(["-", "*", "/", "%", "**", "|", "&", "^", "<<", ">>", ">>>"]);
-// node:vm's ways to run a string as code in this realm, and its specifiers.
-const VM_RUNNERS = new Set(["runInThisContext", "compileFunction"]);
+// node:vm's ways to run a string as code, its specifiers, and the names
+// an import of it may hold and still run nothing.
+const VM_RUNNERS = new Set([
+  "runInThisContext",
+  "runInNewContext",
+  "runInContext",
+  "compileFunction",
+  "SourceTextModule",
+  "SyntheticModule",
+]);
 const VM_SPECIFIERS = new Set(["vm", "node:vm"]);
+const VM_HARMLESS = new Set(["isContext"]);
 
 // The specifier a node loads from, any kind of load or re-export, or null.
 function loadedSpecifier(node) {
@@ -1256,9 +1267,9 @@ function definerOf(n) {
 //   - a prototype swap: a `__proto__` write or `setPrototypeOf` call,
 //     which can put any object's properties on the chain;
 //   - a write to an undeclared (global) name that is one of the names;
-//   - code run from a string in this realm through node:vm: a read of
-//     `runInThisContext` or `compileFunction` from any object, and the
-//     vm module used other than by named reads.
+//   - code run from a string through node:vm: any load of the vm module
+//     except an import naming only `isContext`, and a vm runner's name
+//     (`runInThisContext`, `runInNewContext`, ...) read from any object.
 //   A target is cleared only when it is provably a fresh object: a
 //   literal, a function, `this` in a class
 //   constructor, a variable only ever holding one of those, or the
@@ -1511,28 +1522,19 @@ function sinks(req) {
     if ((member === "eval" || member === "Function") && !isTarget(parents, node)) {
       hit(member === "eval" ? "indirect-eval" : "function-constructor", null, node);
     }
-    // node:vm runs a string in this realm through `runInThisContext` (on
-    // `vm` or a `vm.Script`) and `compileFunction`: either name read from
-    // any object or destructured is a sink, and so is the vm module itself
-    // used other than by named reads (`vm[k]`, an alias that escapes).
+    // node:vm runs strings as code, and even a new context reaches this
+    // realm (`this.constructor.constructor("...")()` inside
+    // `runInNewContext` patches the outer prototypes). Any load of the vm
+    // module is a sink, except an import naming only functions that run no
+    // code; so is a vm runner's name read or destructured from any object.
     if ((VM_RUNNERS.has(member) && !isTarget(parents, node)) || (node.type === "Property" && parents.get(node)?.type === "ObjectPattern" && VM_RUNNERS.has(keyName(node.key, node.computed)))) {
       hit("vm-string-code", null, node);
     }
-    if (node.type === "ImportSpecifier" && VM_RUNNERS.has(node.imported.name ?? node.imported.value)) hit("vm-string-code", null, node);
     if (VM_SPECIFIERS.has(loadedSpecifier(node))) {
-      try {
-        const walk = new Namespace(entry, "");
-        if (node.type === "ImportDeclaration") {
-          for (const s of node.specifiers) if (s.type !== "ImportSpecifier") walk.binding(entry.decls.get(s.local.start));
-        } else if (node.type === "ExportAllDeclaration" || node.type === "ExportNamedDeclaration") {
-          hit("vm-string-code", null, node);
-        } else {
-          walk.site(node);
-        }
-      } catch (e) {
-        if (!(e instanceof Unresolved) && !(e instanceof RangeError)) throw e;
-        hit("vm-string-code", null, node);
-      }
+      const harmless =
+        node.type === "ImportDeclaration" &&
+        node.specifiers.every((s) => s.type === "ImportSpecifier" && VM_HARMLESS.has(s.imported.name ?? s.imported.value));
+      if (!harmless) hit("vm-string-code", null, node);
     }
     if (definerOf(node) !== null && !(holder?.type === "CallExpression" && holder.callee === node)) {
       hit("definer-escape", null, node);
@@ -1626,14 +1628,38 @@ function scanFor(req) {
   return scan;
 }
 
+// Whether `node` (with parent `parent`) may load a module the scan cannot
+// name: `import(x)` with a specifier that is no literal, and `require`,
+// `import.meta.require` or `x.require` used other than as the direct callee
+// of a call with a literal specifier (an alias, `.call`, `(0,require)`), a
+// `typeof` test, or `require.resolve`. A binding named `require` is no use.
+function unknownLoad(node, parent) {
+  if (node.type === "ImportExpression") return literalString(node.source) === null;
+  const named = node.type === "Identifier" ? node.name === "require" : memberName(node) === "require";
+  if (!named) return false;
+  if (node.type === "Identifier") {
+    const binding =
+      (parent?.type === "MemberExpression" && parent.property === node && !parent.computed) ||
+      ((parent?.type === "Property" || parent?.type === "MethodDefinition" || parent?.type === "PropertyDefinition") && parent.key === node && !parent.computed && !parent.shorthand) ||
+      (parent?.type === "VariableDeclarator" && parent.id === node) ||
+      (FUNCTIONS.has(parent?.type) && (parent.id === node || parent.params.includes(node))) ||
+      ["ImportSpecifier", "ImportDefaultSpecifier", "ImportNamespaceSpecifier", "ExportSpecifier", "LabeledStatement", "BreakStatement", "ContinueStatement"].includes(parent?.type);
+    if (binding) return false;
+  }
+  if (parent?.type === "CallExpression" && parent.callee === node) return literalString(parent.arguments[0]) === null;
+  if (parent?.type === "UnaryExpression" && parent.operator === "typeof") return false;
+  return !(parent?.type === "MemberExpression" && parent.object === node && memberName(parent) === "resolve");
+}
+
 function scanOf(ast) {
   const keys = new Set();
   const loads = new Set();
-  const stack = [ast];
+  const stack = [[ast, null]];
   while (stack.length) {
-    const node = stack.pop();
+    const [node, parent] = stack.pop();
     const loaded = loadedFile(node);
     if (loaded !== null) loads.add(loaded);
+    if (unknownLoad(node, parent)) loads.add(UNKNOWN_FILE);
     if (node.type === "MemberExpression") {
       const p = node.property;
       if (!node.computed) keys.add(p.name);
@@ -1649,7 +1675,7 @@ function scanOf(ast) {
     for (const key of Object.keys(node)) {
       const child = node[key];
       for (const c of Array.isArray(child) ? child : [child]) {
-        if (c && typeof c.type === "string" && c !== node) stack.push(c);
+        if (c && typeof c.type === "string" && c !== node) stack.push([c, node]);
       }
     }
   }
@@ -1669,7 +1695,8 @@ function keysUsed(req) {
 }
 
 // {"op":"loads","module":key,"source"?:...}
-//   -> {"files":[file names the module loads whole]} (`loadedFile`), or
+//   -> {"files":[file names the module loads whole]} (`loadedFile`), with
+//      "*" when it may load one the scan cannot name (`unknownLoad`), or
 //      {"files":null} for a module that does not parse.
 function loads(req) {
   if (typeof req.module !== "string") return { ok: false, error: "loads needs a string `module`" };

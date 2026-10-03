@@ -664,10 +664,40 @@ class TestOpenFindings(unittest.TestCase):
             'import{runInThisContext as r}from"vm";r(s);',
             'import*as V from"node:vm";var k="runIn"+"ThisContext";V[k](s);',
             'var vm=require("vm");g(vm);',
+            # A new context still reaches this realm through
+            # `this.constructor.constructor`.
+            'import{runInNewContext as r}from"node:vm";r(s);',
+            'var vm=require("vm");vm.runInContext(s,vm.createContext({}));',
+            'import{Script}from"vm";new Script(s).runInNewContext();',
+            'import*as V from"node:vm";new V.SourceTextModule(s);',
         ):
             with self.subTest(module=module):
                 self.assert_across_modules(True, named, module)
         self.assert_across_modules(False, named, 'import{isContext}from"node:vm";')
+
+    def test_a_load_the_parser_cannot_name_stays_partial(self) -> None:
+        """#5970 verifier probes: a load whose file the AST does not name
+        (an aliased or `.call`ed require, a comma callee, a specifier that
+        is no literal) could load the exporting file whole, so the hop
+        stays partial. A direct literal load and `typeof require` stay
+        literal."""
+        named = 'import{pY}from"/a.js";var c=[...pY];'
+        for module in (
+            'var r=import.meta.require,n=r("/a.js");for(var k in n)n[k].push&&n[k].push("B");',
+            'var n=require.call(null,"/a.js");for(var k in n)n[k].push&&n[k].push("B");',
+            'var n=(0,require)("/a.js");for(var k in n)n[k].push&&n[k].push("B");',
+            'var n=import.meta.require.call(0,"/a.js");for(var k in n)n[k].push("B");',
+            'var n=await import(s);for(var k in n)n[k].push&&n[k].push("B");',
+            "var n=require(s);",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, named, module)
+        for module in (
+            'var x=require("/c.js").q,t=typeof require,p=require.resolve("/c.js");',
+            "function f(require){return 1}var o={require:1};",
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(False, named, module)
 
     def test_an_exporter_whose_file_is_unknown_stays_partial(self) -> None:
         """#5891 second verifier: the bundle is not a closed world. With no
@@ -854,7 +884,8 @@ class TestInstalledBuilds(unittest.TestCase):
     modules that may write those names on an object the sink rule cannot
     show is no prototype (a write whose key names nothing,
     `Object.defineProperty(o,k,...)`) or that run code built from a string
-    (ajv's `Function(...)`, a direct `eval`). So both lists read partial
+    (ajv's `Function(...)`, a direct `eval`); 2.1.288 also has 3 modules
+    with a load the parser cannot name. So both lists read partial
     under the parser: never a value the regex reader does not also read.
     Each build is skipped when it is not installed on this machine."""
 
