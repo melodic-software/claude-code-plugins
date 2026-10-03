@@ -132,6 +132,7 @@ fi
 ORPHAN_TOTAL=0
 NEW_TOTAL=0
 REMOVED_TOTAL=0
+RENAME_TOTAL=0
 SKIPPED_MARKETS=()
 
 # One compact JSON block per marketplace, one per line, slurped into the array
@@ -457,7 +458,7 @@ audit_marketplace() {
         | {name: $o, follow: $f,
            enabled: ([$pairs[] | select(.name == $o)] | first | .value)}] as $class
     | {key: $k, status: "ok", source: $src, skip_reason: "",
-       orphans: [$class[] | select(.follow.kind != "removed")
+       orphans: [$class[] | select(.follow.kind != "removed" and .follow.kind != "rename")
          | {name, marketplace: $k, enabled}
            + (if .follow.kind == "cycle" then {reason: "renames chain cycles"}
               elif .follow.kind == "bad" then {reason: "renames map value is not a name or null"}
@@ -480,17 +481,19 @@ audit_marketplace() {
 
   # --- Render -----------------------------------------------------------------
 
-  local orphan_count new_count removed_count local_count upstream_count
+  local orphan_count new_count removed_count rename_count local_count upstream_count
   orphan_count=$(jq -j '.orphans | length' <<<"$block")
   new_count=$(jq -j '.new_upstream | length' <<<"$block")
   removed_count=$(jq -j '.removed | length' <<<"$block")
+  rename_count=$(jq -j '[.renames[] | select(.source == "renames")] | length' <<<"$block")
   local_count=$(jq -j --argjson i "$index" "$JQ_DEFS"'mk($i).key as $k | [ep | keys[] | select(endswith("@" + $k))] | length' "$SETTINGS")
   upstream_count=$(jq -j '[.plugins[]? | objects | .name | strings] | unique | length' <<<"$upstream_json")
   ORPHAN_TOTAL=$((ORPHAN_TOTAL + orphan_count))
   NEW_TOTAL=$((NEW_TOTAL + new_count))
   REMOVED_TOTAL=$((REMOVED_TOTAL + removed_count))
+  RENAME_TOTAL=$((RENAME_TOTAL + rename_count))
 
-  if [[ "$orphan_count" -eq 0 && "$new_count" -eq 0 && "$removed_count" -eq 0 ]]; then
+  if [[ "$orphan_count" -eq 0 && "$new_count" -eq 0 && "$removed_count" -eq 0 && "$rename_count" -eq 0 ]]; then
     printf '  %sOK%s    no drift (%d local, %d upstream)\n' \
       "$GREEN" "$RESET" "$local_count" "$upstream_count"
   fi
@@ -629,7 +632,7 @@ main() {
   done
 
   printf '\n%sSummary%s\n' "$CYAN" "$RESET"
-  if [[ "$ORPHAN_TOTAL" -eq 0 && "$NEW_TOTAL" -eq 0 && "$REMOVED_TOTAL" -eq 0 && "${#SKIPPED_MARKETS[@]}" -eq 0 ]]; then
+  if [[ "$ORPHAN_TOTAL" -eq 0 && "$NEW_TOTAL" -eq 0 && "$REMOVED_TOTAL" -eq 0 && "$RENAME_TOTAL" -eq 0 && "${#SKIPPED_MARKETS[@]}" -eq 0 ]]; then
     printf '  %sOK%s    no drift detected\n' "$GREEN" "$RESET"
   fi
   [[ "$ORPHAN_TOTAL" -gt 0 ]] && printf '  %sDRIFT%s %d orphan entries, run fix-plugin-drift.sh to plan their removal\n' \
@@ -643,7 +646,7 @@ main() {
 
   write_findings
 
-  [[ "$ORPHAN_TOTAL" -eq 0 && "$REMOVED_TOTAL" -eq 0 ]] && exit 0
+  [[ "$ORPHAN_TOTAL" -eq 0 && "$REMOVED_TOTAL" -eq 0 && "$RENAME_TOTAL" -eq 0 ]] && exit 0
   exit 1
 }
 

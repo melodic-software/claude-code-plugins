@@ -797,7 +797,7 @@ assert_contains "case-24: null is manual review" "$out" '(null, manual review re
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(make_fixture_dir)
 write_settings "$case_dir/settings.json" '{
-  "enabledPlugins": {"old-name@mkt": true},
+  "enabledPlugins": {"old-name@mkt": false},
   "extraKnownMarketplaces": {"mkt": {"source": {"source": "github", "repo": "owner/mkt"}}}
 }'
 # old-name-extra shares a prefix with old-name, so the heuristic would pair them.
@@ -817,8 +817,8 @@ out=$(NO_COLOR=1 \
 assert_exit "case-25: a mapped orphan exits 1" 1 "$exit_code"
 assert_jq "case-25: the rename names unrelated from the map" "$OUTPUT_JSON_PATH" \
   '.[0].renames == [{from: "old-name", to: "unrelated", marketplace: "mkt", source: "renames"}]'
-assert_jq "case-25: the old key stays an orphan" "$OUTPUT_JSON_PATH" \
-  '.[0].orphans == [{name: "old-name", marketplace: "mkt", enabled: true}]'
+assert_jq "case-25: a mapped key is a rename, not an orphan the fixer can remove" "$OUTPUT_JSON_PATH" \
+  '.[0].orphans == []'
 assert_contains "case-25: settings-file remediation" "$out" \
   "replace the key in this file, or open a Claude Code session in this checkout and commit the rewrite it makes"
 assert_not_contains "case-25: the similar name is not the reported target" "$out" "old-name -> old-name-extra"

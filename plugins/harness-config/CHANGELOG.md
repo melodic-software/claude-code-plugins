@@ -9,7 +9,7 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 
 ### Changed
 
-- The plugin drift check reads each marketplace catalog's `renames` map before the name heuristic ([#6032](https://github.com/melodic-software/claude-code-plugins/issues/6032)). An enabled key the map sends to a name is a rename row naming the final name in the chain; a `null` entry is a removed row; a chain that repeats a name is reported as a cycle and is not given a final name. A key the map does not mention stays on the similarity heuristic. A repo-sourced catalog is read from the local marketplace clone when one is present, and fetched only otherwise. The fixer prints a catalog rename and a similarity guess as separate report-only lists, and only the catalog list carries the replace-the-key line.
+- The plugin drift check reads each marketplace catalog's `renames` map before the name heuristic ([#6032](https://github.com/melodic-software/claude-code-plugins/issues/6032)). An enabled key the map sends to a name is a rename row naming the final name in the chain; a `null` entry is a removed row; a chain that repeats a name is reported as a cycle and is not given a final name. A key the map does not mention stays on the similarity heuristic. A repo-sourced catalog is read from the local marketplace clone when one is present, and fetched only otherwise. The fixer prints a catalog rename and a similarity guess as separate report-only lists, and only the catalog list carries the replace-the-key line. A key the catalog maps to a new name is not also an orphan, so a disabled mapped key is not deleted.
 
 ## [1.7.4] - 2026-10-03
 
