@@ -40,6 +40,12 @@ MEDIUM or LOW and listed in the Gaps section is not an accepted claim, so it doe
 A quote found at its link settles only that the quote exists; it does not show the claim follows
 from it, which is the question row 12 asks.
 
+A claim at `HIGH (single source)` has no corroborator to count, so row 4 turns on its
+`single_source:` reason. Judge that reason against the definition in
+[`${CLAUDE_PLUGIN_ROOT}/skills/research/context/discipline.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/discipline.md),
+"Single-source first-party content claims". A reason that does not hold, a behavior claim carrying
+the flag, or a repost counted as a source fails row 4.
+
 Row 4 reads independence off each source's `pool`: two sources sharing one are one corroborator. A
 claim carrying `subject_pool` is a single-publisher claim. Grade it against the discipline file's
 "Single-publisher facts" in

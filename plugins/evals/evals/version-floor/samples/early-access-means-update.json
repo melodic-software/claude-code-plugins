@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "No sign-up needed. 'plugin eval is currently in early access' is what a Claude Code binary older than the command's floor prints. The floor is 2.1.269, and you're on 2.1.240, so update:\n\n```bash\nclaude update\nclaude --version\n```\n\nOnce the version reads 2.1.269 or later, rerun the eval.\n\nYour teammate's 'plugin eval is currently unavailable' is different: the command is switched off server-side, and no local setting, flag, environment variable, reinstall or re-login turns it back on. They can only wait and try again later. Neither of you has a setting to flip.",
+      "why": "P-canonical: says the early-access message means the binary is older than the 2.1.269 floor, the fix is to update, and no sign-up is needed."
+    },
+    {
+      "answer": "Your binary is simply too old. `plugin eval` needs Claude Code 2.1.269 or later, and builds below that answer with the early-access wording, which reads like a beta gate but isn't one. There's no programme to join or access to request; updating Claude Code is the whole fix.\n\nThe 'currently unavailable' message your teammate gets means something else: the command has been switched off on the server side. Nothing local changes that, not a setting, flag, env var, reinstall or fresh login. Updating and trying again later is all they can do.",
+      "why": "P-alt: same facts in other words: the early-access wording comes from a too-old binary, no programme to join or access to request, updating is the fix."
+    },
+    {
+      "answer": "You don't need to sign up or request access anywhere. The early-access message means your Claude Code binary is older than the version the command needs, 2.1.269, so the fix is to update Claude Code (`claude update`) and rerun.\n\nIf your install is managed by a package manager or by your company, update it through that channel instead; `claude update` may not apply there.\n\nFor your teammate, 'currently unavailable' means the command is switched off server-side. No local setting, flag, environment variable, reinstall or re-login brings it back, so there's nothing for either of you to flip.",
+      "why": "P-caveat: correct on the early-access point; the extra note about updating through a package manager or managed install does not touch the graded point."
+    },
+    {
+      "answer": "No sign-up is involved. 'Currently in early access' means your Claude Code binary is older than the version `plugin eval` needs, so update Claude Code and run it again; 2.1.240 is too old.\n\nYour teammate's 'currently unavailable' is likely the same thing on their side: their build may still be under the required version. Have them update to the latest release as well, and both of you should be able to run the command. There's no setting, flag or environment variable involved for either of you. Check `claude --version` afterwards to confirm the new build took effect.",
+      "why": "P-plain: correct on this grader's point (old binary, update, no sign-up) while wrongly treating the teammate's message as the same version problem, the sibling's point."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes, early access means the command is gated behind a beta programme. Opt in from your Claude Code configuration:\n\n```bash\nclaude config set betaFeatures true\n```\n\nThen restart Claude Code and run `claude plugin eval ./plugins/notes` again. If it still says early access, your account probably hasn't been added yet; request access through your Anthropic account settings.\n\nYour teammate's 'currently unavailable' is a server-side switch: the command is turned off for now, and no local setting, flag or re-login restores it. They'll need to wait and try again later, ideally on the newest release.",
+      "why": "F-wrong: tells the user to enable a config setting and request access instead of updating, though it gets the teammate's server-side point right."
+    },
+    {
+      "answer": "The 'currently in early access' message means your Claude Code binary is older than the version `plugin eval` needs, which is 2.1.269. You're on 2.1.240, so update Claude Code:\n\n```bash\nclaude update\n```\n\nThen check `claude --version` and rerun the eval. If `claude update` says you're already current, your install channel may lag behind; update through whatever installed Claude Code.\n\nYour teammate's 'plugin eval is currently unavailable' is a different situation: the command is switched off server-side. No local setting, flag, environment variable, reinstall or re-login turns it back on; they can only try again later.",
+      "why": "F-partial: explains the old binary and the update, but never says no sign-up or access request is needed, which the user asked."
+    },
+    {
+      "answer": "No sign-up is needed for the first message. 'Currently in early access' means your binary, 2.1.240, is older than the 2.1.269 floor, so run `claude update`.\n\nOnce you're on 2.1.269, though, you will still have to request access: the early-access gate also checks your account, so submit the plugin eval access request from your Claude account page before it runs. Approval usually takes a day or two.\n\nYour teammate's 'currently unavailable' means the command is switched off server-side; no local setting, flag or re-login fixes it, so they should update and try again later.",
+      "why": "F-retract: says no sign-up is needed and to update, then contradicts it by requiring an access request after updating."
+    },
+    {
+      "answer": "You don't need to sign up or join anything. That early-access message comes from a Claude Code binary below the minimum version `plugin eval` supports, which is 2.1.250. You're on 2.1.240, so update:\n\n```bash\nclaude update\n```\n\nThen confirm `claude --version` reports 2.1.250 or later and rerun `claude plugin eval ./plugins/notes`. No setting or environment variable is involved.\n\nYour teammate's 'currently unavailable' is a server-side switch: the command is turned off, and no local setting, flag, environment variable, reinstall or re-login brings it back. They can update and try again later.",
+      "why": "F-near: right mechanism and no sign-up, but names a minimum version of 2.1.250 instead of 2.1.269."
+    }
+  ]
+}

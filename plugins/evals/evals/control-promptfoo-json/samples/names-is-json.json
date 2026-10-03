@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Add an assertion of type `is-json` to the test:\n\n```yaml\nassert:\n  - type: is-json\n```\n\nGive it a JSON schema as `value` to check the shape too.",
+      "why": "yaml example"
+    },
+    {
+      "answer": "Use the is-json assertion; contains-json is only for output that wraps JSON in other text.",
+      "why": "contrasted with contains-json"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Use `type: contains-json`; it passes whenever the output holds a JSON object.",
+      "why": "confident wrong: contains-json"
+    },
+    {
+      "answer": "Write a javascript assertion: `JSON.parse(output); return true;` inside a try block.",
+      "why": "code instead of the assertion"
+    },
+    {
+      "answer": "Use `not-is-json` and invert the result in your test.",
+      "why": "not-is-json does not count"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Run these on aggregate-result.json, in order:\n\n```bash\npython3 plugins/evals/skills/plugin-eval/scripts/run-validity.py aggregate-result.json --runs 3\npython3 plugins/evals/skills/plugin-eval/scripts/noise-report.py aggregate-result.json --threshold 0.8 --interval-method normal --grader-agreement\n```\n\n- The validity gate must print `verdict: VALID` before you quote any number; on INVALID, report INVALID with its reasons and no delta.\n- The noise report takes the same `--threshold 0.8` your eval used, plus `--grader-agreement`, since the plugin's grader-run-twice setting is on by default.\n- Read its verdict: `the interval excludes 0` means +0.25 is a gain to post with its interval; `within noise` or `n too small to call` means it isn't established.",
+      "why": "P-canonical: the noise-report.py command passes --threshold 0.8 and --grader-agreement."
+    },
+    {
+      "answer": "Gate first. From your plugin root:\n\n`python3 skills/plugin-eval/scripts/run-validity.py aggregate-result.json --runs 3`\n\nNothing in the file is quotable until that prints `verdict: VALID`.\n\nThen size the uncertainty around +0.25 with six cases:\n\n`python3 skills/plugin-eval/scripts/noise-report.py aggregate-result.json --grader-agreement --threshold=.8`\n\nThe threshold has to be the one the eval ran with, 0.8, and the grader-agreement switch stays on. A verdict saying the interval excludes 0 is the only one that lets you call +0.25 a gain; `within noise` or `n too small to call` means it isn't established yet. Run both from the plugin root so the relative paths resolve.",
+      "why": "P-alt: the noise-report.py command carries both flags in a different order and form (--grader-agreement first, --threshold=.8, which the rubric says equals 0.8)."
+    },
+    {
+      "answer": "Here's the sequence I'd run before posting:\n\n```bash\npython3 \"${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/run-validity.py\" aggregate-result.json --runs 3\npython3 \"${CLAUDE_PLUGIN_ROOT}/skills/plugin-eval/scripts/noise-report.py\" aggregate-result.json \\\n  --threshold 0.8 --interval-method normal --grader-agreement\n```\n\nPass `--grader-agreement` because the plugin's grader-run-twice setting is true, which is its default; if you had turned that setting off, you'd leave the flag out. `--interval-method normal` is the default method.\n\nQuote the +0.25 only after the gate prints `verdict: VALID`, and call it a gain only when the noise report says the interval excludes 0. If the gate prints INVALID instead, post INVALID with its reasons and no number.",
+      "why": "P-caveat: both flags are in the noise-report.py command; it states the condition for --grader-agreement (grader-run-twice, on by default), which the rubric says is fine."
+    },
+    {
+      "answer": "Run the noise report over the file so you can see how much of that +0.25 survives run-to-run variation:\n\n```bash\npython3 plugins/evals/skills/plugin-eval/scripts/noise-report.py aggregate-result.json --threshold 0.8 --interval-method normal --grader-agreement\n```\n\nKeep `--threshold 0.8` identical to the value the eval ran with. `--grader-agreement` belongs there because the plugin's grader-run-twice setting is on by default. Six cases at three runs each is a small sample, so read the report's verdict and interval carefully before writing the post, and include the interval next to the mean. The script lives under the plugin's skill folder in the repo checkout.",
+      "why": "P-plain: the noise-report.py command has --threshold 0.8 and --grader-agreement; it misses sibling points (no run-validity.py gate, no verdict rule)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Before posting, put an interval around that mean so the team can see how stable it is:\n\n```bash\njq '[.cases[].aggregates.delta]' aggregate-result.json > deltas.json\npython3 -c \"import json,random,statistics as s; d=json.load(open('deltas.json')); m=sorted(s.mean(random.choices(d,k=len(d))) for _ in range(10000)); print(m[250], m[9750])\"\n```\n\nThat's a 95% bootstrap interval over the 6 per-case deltas. If the lower bound is above 0, +0.25 is a real improvement; if the interval straddles 0, say the result is inconclusive. Also confirm `partial` is false so you know every case finished.",
+      "why": "F-wrong: gives no noise-report.py command at all, so neither --threshold 0.8 nor --grader-agreement is passed."
+    },
+    {
+      "answer": "Gate the file, then check the noise:\n\n```bash\npython3 plugins/evals/skills/plugin-eval/scripts/run-validity.py aggregate-result.json --runs 3\npython3 plugins/evals/skills/plugin-eval/scripts/noise-report.py aggregate-result.json --threshold 0.8 --interval-method normal\n```\n\nOnly quote a number once the first command prints `verdict: VALID`; an INVALID verdict means you post INVALID with its reasons and no delta. The noise report has to use the same 0.8 threshold the eval ran with.\n\nThen read its verdict line. `the interval excludes 0` lets you post +0.25 along with its interval. `within noise` or `n too small to call` means the gain isn't established, whatever the size of the delta.",
+      "why": "F-partial: the noise-report.py command has --threshold 0.8 but is missing --grader-agreement."
+    },
+    {
+      "answer": "Run these against aggregate-result.json:\n\n```bash\npython3 plugins/evals/skills/plugin-eval/scripts/run-validity.py aggregate-result.json --runs 3\npython3 plugins/evals/skills/plugin-eval/scripts/noise-report.py aggregate-result.json --threshold 0.8 --grader-agreement\n```\n\nReport nothing unless the gate says `verdict: VALID`. Then call +0.25 a gain only if the noise report says the interval excludes 0; `within noise` or `n too small to call` means it isn't established.\n\nOne adjustment: with only 3 runs per case the agreement statistics are too thin to mean anything, so drop `--grader-agreement` and run the noise report with just `--threshold 0.8`. If the gate prints INVALID, post INVALID with its reasons and leave the number out.",
+      "why": "F-retract: gives both flags, then later says to drop --grader-agreement."
+    },
+    {
+      "answer": "Validity first, noise second:\n\n```bash\npython3 plugins/evals/skills/plugin-eval/scripts/run-validity.py aggregate-result.json --runs 3\npython3 plugins/evals/skills/plugin-eval/scripts/noise-report.py aggregate-result.json --interval-method normal --grader-agreement\n```\n\nNo `--threshold` is needed on the noise report: the eval already recorded 0.8 in aggregate-result.json and the script reads it from there.\n\nHold the +0.25 until the gate prints `verdict: VALID`; if it prints INVALID, report INVALID and its reasons with no number. After that the noise verdict decides: `the interval excludes 0` means post the delta with its interval, while `within noise` or `n too small to call` means the gain isn't established.",
+      "why": "F-near: the noise-report.py command omits --threshold, claiming the script reads 0.8 from the file; a missing flag fails."
+    }
+  ]
+}

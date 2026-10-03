@@ -129,7 +129,7 @@ class TestRepairCommandPerPlatform(unittest.TestCase):
         target = "'D:\\o''brien data\\inventory-parser\\abc'"
         self.assertNotIn("&&", cmd)
         self.assertNotIn("rm -rf", cmd)
-        self.assertTrue(cmd.startswith("$ErrorActionPreference = 'Stop'; "))
+        self.assertTrue(cmd.startswith("& { $ErrorActionPreference = 'Stop'; "))
         self.assertIn(
             f"Remove-Item -LiteralPath {target} -Recurse -Force "
             "-ErrorAction SilentlyContinue; ",
@@ -145,9 +145,35 @@ class TestRepairCommandPerPlatform(unittest.TestCase):
         )
         self.assertTrue(
             cmd.endswith(
-                f"npm.cmd ci --prefix {target} --ignore-scripts --no-audit --no-fund"
+                f"; npm.cmd ci --prefix {target} --ignore-scripts --no-audit --no-fund }}"
             )
         )
+
+    def test_the_windows_form_is_one_child_script_block_so_stop_does_not_leak(
+        self,
+    ) -> None:
+        # A bare `$ErrorActionPreference = 'Stop'` would be a second top-level
+        # statement and stay set in the session the line is pasted into.
+        pwsh = shutil.which("pwsh")
+        if pwsh is None:
+            self.skipTest("pwsh is not installed")
+        probe = (
+            "$e = $null; $s = [System.Management.Automation.Language.Parser]::"
+            "ParseInput($env:REPAIR_LINE, [ref]$null, [ref]$e).EndBlock.Statements; "
+            "$c = $s[0].PipelineElements[0]; "
+            '"$($e.Count) $($s.Count) $($c.InvocationOperator) '
+            '$($c.CommandElements[0].GetType().Name)"'
+        )
+        run = subprocess.run(
+            [pwsh, "-NoProfile", "-NonInteractive", "-Command", probe],
+            capture_output=True,
+            text=True,
+            env={
+                **os.environ,
+                "REPAIR_LINE": pr.install_command(self.WIN_TARGET, "win32"),
+            },
+        )
+        self.assertEqual(run.stdout.strip(), "0 1 Ampersand ScriptBlockExpressionAst")
 
     def test_the_default_platform_is_this_one(self) -> None:
         target = pathlib.Path("/a b/t")

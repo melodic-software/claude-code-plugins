@@ -496,6 +496,37 @@ else
   fail "Q10 must skip Q7-flagged items (rc=$rc): $out"
 fi
 
+# Q11: a case marked difficulty: hard with no why_hard WARNs; a hard case
+#      with a reason and a routine case stay silent.
+f="$(make_evals q11 '{
+  "skill_name": "q11",
+  "evals": [
+    {"id": 1, "name": "hard-no-reason", "prompt": "a", "difficulty": "hard", "expectations": ["Reports the effective value"]}
+  ]
+}')"
+out="$(run "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'case hard-no-reason (id=1).*no why_hard.*(Q11)' <<<"$out"; then
+  pass "Q11: a hard case with no why_hard WARNs"
+else
+  fail "Q11 should warn on a hard case with no why_hard (rc=$rc): $out"
+fi
+
+f="$(make_evals q11-silent '{
+  "skill_name": "q11-silent",
+  "evals": [
+    {"id": 1, "prompt": "a", "difficulty": "hard", "why_hard": "Two skills claim the trigger phrase", "expectations": ["Reports the effective value"]},
+    {"id": 2, "prompt": "b", "difficulty": "routine", "expectations": ["Reports the effective value"]}
+  ]
+}')"
+out="$(run "$f" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q '(Q11)' <<<"$out"; then
+  pass "Q11: a hard case with a reason and a routine case stay silent"
+else
+  fail "Q11 must not flag a reasoned hard case or a routine case (rc=$rc): $out"
+fi
+
 # 13. Q8: a thin sole-criterion expected_output WARNs; the same string with
 #     expectations alongside does not.
 f="$(make_evals thin '{

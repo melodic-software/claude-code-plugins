@@ -20,13 +20,14 @@
 # it needs no jq and no git.
 #
 # Every line is one hook event record in the key set session-log-lib.sh
-# documents and formats (slog_event_record_to): the spine, `category`, and
-# whichever correlation keys the payload carries (prompt_id, tool_use_id,
-# agent_id, traceparent) plus, for events that carry a decision or a change, a
-# small payload (tool_name, file_path, reason). Those three pass as the
-# payload's own JSON string bodies, re-emitted verbatim, so no escaping is
-# re-derived here; ids are constrained to file-name-safe characters because
-# session_id names the file.
+# documents and formats (slog_event_record_to): the spine, `category`,
+# `effort`, and whichever correlation keys the payload carries (prompt_id,
+# tool_use_id, agent_id, traceparent) plus, for events that carry a decision or
+# a change, a small payload (tool_name, file_path, reason), and the top-level
+# metadata keys session-log-lib.sh allowlists. Strings pass as the payload's
+# own JSON string bodies, re-emitted verbatim, so no escaping is re-derived
+# here; ids are constrained to file-name-safe characters because session_id
+# names the file.
 #
 # stdin is read in bounded slices the way hook::buffer_stdin does, without
 # sourcing it: a Win32 pipe delivers EOF late, so a read that waits for EOF
@@ -136,8 +137,10 @@ done
 session_id="" event="" prompt_id="" tool_use_id="" agent_id="" tool_name=""
 # shellcheck disable=SC2034
 file_path="" reason="" cwd="" category="" root="" ts="" duration_ms="" line=""
-field_to() { # <var> <key>: the JSON string body of "<key>": "..." or ""
-  if [[ "$buf" =~ \"$2\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]]; then
+field_to() { # <var> <key> [<haystack var>]: the JSON string body of "<key>": "..." or ""
+  local field__in="$buf"
+  (($# > 2)) && field__in="${!3}"
+  if [[ "$field__in" =~ \"$2\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]]; then
     printf -v "$1" '%s' "${BASH_REMATCH[1]}"
   else
     printf -v "$1" '%s' ""
@@ -160,6 +163,65 @@ field_to file_path file_path
 field_to reason reason
 field_to cwd cwd
 
+# --- top-level metadata and effort ----------------------------------------------
+# The allowlisted keys and `effort` are read only from the payload's top-level
+# members: inside tool_input, tool_calls, background_tasks or an elicitation's
+# content, a key of the same name holds content or another object's value.
+# `top` is the run of scalar members (and the flat effort object) from the
+# opening brace up to the first nested value, plus the run of scalar members
+# after the last one up to the closing brace. A member inside a nested value
+# is in neither run: the nested value's own `}` or `]` breaks both. Each run is
+# one anchored regex, so the 64 KB read cap bounds the work.
+str='"([^"\\]|\\.)*"'
+num='-?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?'
+effort_obj='"effort"[[:space:]]*:[[:space:]]*\{[[:space:]]*"level"[[:space:]]*:[[:space:]]*'"$str"'[[:space:]]*\}'
+member="[[:space:]]*(${str}[[:space:]]*:[[:space:]]*($str|$num|true|false|null)|$effort_obj)[[:space:]]*"
+top=""
+[[ "$buf" =~ ^[[:space:]]*\{(($member,)*) ]] && top="${BASH_REMATCH[1]}"
+[[ "$buf" =~ ((,$member)*)\}[[:space:]]*$ ]] && top+="${BASH_REMATCH[1]}"
+
+# effort (D33): an event in SLOG_EFFORT_NA_EVENTS never carries a level, so
+# `n/a`. Otherwise the payload's top-level effort.level, accepted when the
+# payload holds that one "effort" object; Claude Code sets a hook's
+# $CLAUDE_EFFORT from that same field, so the payload wins over a value the
+# hook merely inherited. $CLAUDE_EFFORT fills in only when the payload has no
+# effort object; else `unset`.
+effort="unset"
+levels=" low medium high xhigh max "
+if [[ " $SLOG_EFFORT_NA_EVENTS " == *" $event "* ]]; then
+  effort=n/a
+elif [[ "$top" =~ \"effort\"[[:space:]]*:[[:space:]]*\{[[:space:]]*\"level\"[[:space:]]*:[[:space:]]*\"([a-z]+)\" ]]; then
+  level="${BASH_REMATCH[1]}"
+  if [[ "$levels" == *" $level "* ]] &&
+    ! [[ "$buf" =~ \"effort\"[[:space:]]*:[[:space:]]*\{.*\"effort\"[[:space:]]*:[[:space:]]*\{ ]]; then
+    effort="$level"
+  fi
+elif [[ -n "${CLAUDE_EFFORT:-}" && "$levels" == *" $CLAUDE_EFFORT "* ]]; then
+  effort="$CLAUDE_EFFORT"
+fi
+
+# scalar_to <var> <key>: the JSON boolean or number of a top-level "<key>", or "".
+scalar_to() {
+  if [[ "$top" =~ \"$2\"[[:space:]]*:[[:space:]]*(true|false|-?[0-9]+(\.[0-9]+)?)[[:space:]]*(,|$) ]]; then
+    printf -v "$1" '%s' "${BASH_REMATCH[1]}"
+  else
+    printf -v "$1" '%s' ""
+  fi
+}
+meta=()
+for entry in $SLOG_EVENT_LOG_STRINGS; do
+  key="${entry%@*}"
+  [[ "$entry" == "$key" || "${entry#*@}" == "$event" ]] || continue
+  [[ "$top" == *"\"$key\""* ]] || continue
+  field_to value "$key" top
+  [[ -n "$value" ]] && meta+=("$key" b "$value")
+done
+for key in $SLOG_EVENT_LOG_SCALARS; do
+  [[ "$top" == *"\"$key\""* ]] || continue
+  scalar_to value "$key"
+  [[ -n "$value" ]] && meta+=("$key" n "$value")
+done
+
 # --- root and guard ------------------------------------------------------------
 project="${CLAUDE_PROJECT_DIR:-}"
 [[ -n "$project" ]] || project="$cwd"
@@ -171,8 +233,10 @@ slog_guard_ok "$root" "$project" || exit 0
 
 # --- the line -------------------------------------------------------------------
 # A file path is recorded repo-relative when it sits under the project, else
-# by its last segment: an absolute path embeds the developer's username, which
-# the observability privacy rules keep out of every record.
+# by its last segment, so the record does not say where else on the machine
+# the session read or wrote. The session's own location keys (cwd,
+# transcript_path, scratchpad_dir and the other allowlisted paths) are recorded
+# as the payload's raw absolute values.
 if [[ -n "$file_path" ]]; then
   if [[ "$file_path" == "$project/"* ]]; then
     file_path="${file_path#"$project"/}"
@@ -189,7 +253,7 @@ slog_duration_ms_to duration_ms "$start"
 # decoded strings; tool_name, file_path and reason are the payload's own JSON
 # string bodies and pass as bodies (type `b`), which is what keeps this hook
 # from re-deriving an escape it has no jq to check.
-extras=(category s "$category")
+extras=(category s "$category" effort s "$effort")
 for key in prompt_id tool_use_id agent_id tool_name file_path reason; do
   [[ -n "${!key}" ]] || continue
   if [[ "$key" == prompt_id || "$key" == tool_use_id || "$key" == agent_id ]]; then
@@ -200,6 +264,7 @@ for key in prompt_id tool_use_id agent_id tool_name file_path reason; do
   fi
 done
 [[ -n "${TRACEPARENT:-}" && "$TRACEPARENT" =~ ^[0-9a-f-]+$ ]] && extras+=(traceparent s "$TRACEPARENT")
+extras+=(${meta[@]+"${meta[@]}"})
 slog_event_record_to line event-log "$ts" "$session_id" "$event" ok "$duration_ms" "${extras[@]}"
 
 printf '%s\n' "$line" >>"$root/sessions/$session_id.jsonl" 2>/dev/null

@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "No. `claude plugin eval` can't measure CLAUDE.md or `.claude/rules`. Every run starts from a clean, throwaway home where CLAUDE.md, rules, user settings and memory never load, so there's nothing for a with-versus-without comparison to vary. Re-injecting the rules through the case would measure that shim, not the rules.\n\nThe alternative is `/harness-config:unhobble`: strip the instructions on a branch, work normally, log where the model stumbles, and restore only what repeated evidence earns.",
+      "why": "P-canonical: says no, and why: each run starts from a throwaway home where CLAUDE.md and rules never load."
+    },
+    {
+      "answer": "It can't. The eval harness isolates each run in a fresh, disposable home directory, and your project instructions, CLAUDE.md and the `.claude/rules` files alike, are simply not loaded there. So plugin eval has no way to show their effect.\n\nTo learn whether they matter, remove them on a branch, keep working as usual, and note every place the model goes wrong; bring back only the rules that repeated stumbles justify. Expect it to take a few days of normal work before the pattern is clear.",
+      "why": "P-alt: 'it can't', with the reason in other words: a fresh disposable home where project instructions are not loaded."
+    },
+    {
+      "answer": "No, it can't measure them. Each eval run begins in a throwaway home with CLAUDE.md, `.claude/rules`, settings and memory absent, so your rules never load in either arm. Don't try to sneak them back in through `append_system_prompt` or a wrapper plugin: that measures the shim, not the rules as Claude Code loads them.\n\nUse `/harness-config:unhobble` instead. If that plugin isn't installed, run the experiment by hand: strip the instructions on a branch, do real work, log observed stumbles, and restore only what repeated evidence earns.",
+      "why": "P-caveat: no plus the throwaway-home reason, with the welcome shim point added."
+    },
+    {
+      "answer": "No. Plugin eval starts every run from a clean, temporary home where CLAUDE.md and `.claude/rules` don't load, so it never sees your rules and can't tell you what they change.\n\nBuild a small A/B harness instead: run the same set of prompts headless in two checkouts, one with the instruction files and one without, then grade the transcripts for the behaviors each rule is supposed to produce. Use a dozen or so prompts that exercise the rules you care about most.",
+      "why": "P-plain: no plus the clean-home reason; wrong on the sibling point (offers a headless A/B)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Yes. Point `claude plugin eval` at the repo root: the with arm loads CLAUDE.md and `.claude/rules` the way a normal session does, and the baseline arm strips them, so the delta is the effect of your rules.\n\nFor a second opinion from real work, `/harness-config:unhobble` strips the instructions on a branch, logs where the model stumbles, and restores only what repeated evidence earns. Run it at the default 3 runs per case so the delta isn't a single noisy sample.",
+      "why": "F-wrong: says yes, that plugin eval loads the rules in one arm; sibling point (unhobble) is right."
+    },
+    {
+      "answer": "No. CLAUDE.md and `.claude/rules` aren't something `claude plugin eval` can measure; it isn't a supported target for that, and no flag changes it.\n\nThe alternative is `/harness-config:unhobble`. It measures standing instructions directly: strip them on a branch, keep doing real work, log where the model stumbles, and restore only the rules that repeated evidence earns back. Expect it to take a few days of ordinary work; the evidence comes from real sessions, so let the stripped branch see the kind of tasks the rules were written for.",
+      "why": "F-partial: says no but gives no why (nothing about the clean, throwaway home where the rules do not load)."
+    },
+    {
+      "answer": "No: each eval run starts in a clean, throwaway home where CLAUDE.md, rules, settings and memory don't load, so it can't measure them.\n\nOne correction to that: the throwaway home only drops your user-level files. A CLAUDE.md and `.claude/rules` checked into the target repo still load in the run, so you can measure them by running the suite once with them and once with them deleted, and comparing scores.\n\nFor day-to-day evidence, `/harness-config:unhobble` strips them on a branch and logs where the model stumbles.",
+      "why": "F-retract: gives the right no and reason, then retracts it by saying repo-level CLAUDE.md and rules do load and proposes a with/without plugin eval."
+    },
+    {
+      "answer": "Not directly. Every run starts in a throwaway home, so CLAUDE.md and `.claude/rules` never load on their own.\n\nThe workaround is a shim plugin: copy the rules into a small wrapper plugin that injects them through `append_system_prompt`, then run `claude plugin eval` on it. The with-plugin arm then has your rules and the baseline doesn't, so the delta measures exactly what they change.\n\nIf you also want real-work evidence, `/harness-config:unhobble` strips them on a branch and logs where the model stumbles.",
+      "why": "F-near: proposes injecting the rules through a wrapper plugin as a valid measurement, which the rubric lists as a FAIL."
+    }
+  ]
+}
