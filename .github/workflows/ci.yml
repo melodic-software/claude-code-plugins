@@ -2076,8 +2076,8 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           shfmt --version
           test "$(shfmt --version)" = "$SHFMT_VERSION"
-      # The animation wheels (numpy and opencv, which the speech suites use
-      # too) and the inventory's parser packages go only on a leg whose suites
+      # The animation wheels (numpy and opencv; the speech suites need their
+      # numpy) and the inventory's parser packages go only on a leg whose suites
       # need them, per the plan (`LEG_PLAN`). An under-install is loud, not
       # quiet: those suites fail rather than skip without their dependency
       # (ANIMATION_REQUIRE_DEPS, SPEECH_REQUIRE_DEPS, INVENTORY_REQUIRE_ACORN).
