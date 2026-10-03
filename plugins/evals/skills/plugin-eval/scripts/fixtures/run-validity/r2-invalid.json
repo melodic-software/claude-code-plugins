@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.287",
+  "partial": false,
+  "suite": {"ablation": "with-without", "threshold": 1},
+  "cases": [
+    {
+      "name": "control-no-trigger",
+      "runsPerCase": 3,
+      "graders": [
+        {"name": "names-conftest", "type": "regex"},
+        {"name": "no-skill-fired", "type": "tool_used", "config": {"tool": "Skill", "min": 0, "max": 0, "arm": "both"}}
+      ],
+      "arms": {
+        "with": [
+          {"score": 1, "error": null, "skippedPaidGraders": false, "tracePath": "traces/clean.jsonl", "graders": [{"name": "names-conftest", "passed": true}, {"name": "no-skill-fired", "passed": true}]},
+          {"score": 1, "error": null, "skippedPaidGraders": false, "tracePath": "traces/clean.jsonl", "graders": [{"name": "names-conftest", "passed": true}, {"name": "no-skill-fired", "passed": true}]}
+        ],
+        "without": [
+          {"score": 1, "error": null, "skippedPaidGraders": false, "tracePath": "traces/clean.jsonl", "graders": [{"name": "names-conftest", "passed": true}, {"name": "no-skill-fired", "passed": true}]},
+          {"score": 1, "error": null, "skippedPaidGraders": false, "tracePath": "traces/clean.jsonl", "graders": [{"name": "names-conftest", "passed": true}, {"name": "no-skill-fired", "passed": true}]}
+        ]
+      }
+    },
+    {
+      "name": "grading-method-choice",
+      "runsPerCase": 3,
+      "graders": [
+        {"name": "methodology-wording", "type": "regex"},
+        {"name": "skill-fired", "type": "tool_used", "config": {"tool": "Skill"}}
+      ],
+      "arms": {
+        "with": [
+          {"score": 0, "error": null, "skippedPaidGraders": false, "tracePath": "traces/LyFFkR.jsonl", "graders": [{"name": "methodology-wording", "passed": false}, {"name": "skill-fired", "passed": true}]},
+          {"score": 0, "error": null, "skippedPaidGraders": false, "tracePath": "traces/d6Z5IW.jsonl", "graders": [{"name": "methodology-wording", "passed": false}, {"name": "skill-fired", "passed": true}]}
+        ],
+        "without": [
+          {"score": 0, "error": null, "skippedPaidGraders": false, "tracePath": "traces/clean.jsonl", "graders": [{"name": "methodology-wording", "passed": false}]},
+          {"score": 0, "error": null, "skippedPaidGraders": false, "tracePath": "traces/clean.jsonl", "graders": [{"name": "methodology-wording", "passed": false}]}
+        ]
+      }
+    },
+    {
+      "name": "measurable-criterion",
+      "runsPerCase": 3,
+      "graders": [
+        {"name": "four-properties", "type": "llm"},
+        {"name": "skill-fired", "type": "tool_used", "config": {"tool": "Skill"}}
+      ],
+      "arms": {
+        "with": [
+          {"score": 1, "error": null, "skippedPaidGraders": false, "tracePath": "traces/axyiOf.jsonl", "graders": [{"name": "four-properties", "passed": true, "judgeVotes": [true, true, true]}, {"name": "skill-fired", "passed": true}]},
+          {"score": 1, "error": null, "skippedPaidGraders": false, "tracePath": "traces/clean.jsonl", "graders": [{"name": "four-properties", "passed": true, "judgeVotes": [true, true, true]}, {"name": "skill-fired", "passed": true}]}
+        ],
+        "without": [
+          {"score": 1, "error": null, "skippedPaidGraders": false, "tracePath": "traces/clean.jsonl", "graders": [{"name": "four-properties", "passed": true, "judgeVotes": [true, true, true]}]},
+          {"score": 1, "error": null, "skippedPaidGraders": false, "tracePath": "traces/clean.jsonl", "graders": [{"name": "four-properties", "passed": true, "judgeVotes": [true, true, true]}]}
+        ]
+      }
+    },
+    {
+      "name": "noise-before-gain",
+      "runsPerCase": 3,
+      "graders": [
+        {"name": "noise-verdict", "type": "llm"},
+        {"name": "skill-fired", "type": "tool_used", "config": {"tool": "Skill"}}
+      ],
+      "arms": {
+        "with": [
+          {"score": 0, "error": null, "skippedPaidGraders": false, "tracePath": "traces/clean.jsonl", "graders": [{"name": "noise-verdict", "passed": false, "judgeVotes": [false, false, false]}, {"name": "skill-fired", "passed": false}]},
+          {"score": 0, "error": null, "skippedPaidGraders": false, "tracePath": "traces/clean.jsonl", "graders": [{"name": "noise-verdict", "passed": false, "judgeVotes": [false, false, true]}, {"name": "skill-fired", "passed": true}]}
+        ],
+        "without": [
+          {"score": 1, "error": null, "skippedPaidGraders": false, "tracePath": "traces/clean.jsonl", "graders": [{"name": "noise-verdict", "passed": true, "judgeVotes": [true, true, true]}]},
+          {"score": 0, "error": null, "skippedPaidGraders": false, "tracePath": "traces/clean.jsonl", "graders": [{"name": "noise-verdict", "passed": false, "judgeVotes": [false, false, false]}]}
+        ]
+      }
+    }
+  ]
+}

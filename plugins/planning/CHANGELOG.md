@@ -3,6 +3,22 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.62.2] - 2026-10-02
+
+### Fixed
+
+- **The `Plan` agent verification record points at the live disallowed-tool list.**
+  `reference/native-plan-agent.md` named five tools from the 2.1.285 extraction; on Claude Code
+  2.1.288 the agent disallows nine. The record now states what that means for this skill (it
+  cannot edit files, spawn an agent, or exit plan mode) and points at
+  `builtin_agents.Plan.disallowed_tools` in the inventory instead of copying the list.
+
+## [0.62.1] - 2026-10-02
+
+### Changed
+
+- Cross-plugin routing says "if enabled" where it said "if installed": an installed but disabled plugin exposes no skills, and most of the optional plugins this one routes to (`architecture`, `prototype`, `domain-driven-design`, `discipline`) now install disabled.
+
 ## [0.62.0] - 2026-10-02
 
 ### Added

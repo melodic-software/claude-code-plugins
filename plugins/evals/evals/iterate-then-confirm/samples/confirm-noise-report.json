@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Iterate with:\n\n```bash\nclaude plugin eval ./plugins/notes --case grader-tune --runs 1 --ablation none\n```\n\nOne run is noisy, so when the grader looks right, confirm at 3 runs per case. Then read the confirm's noise report, its verdict and interval, before you trust that the change helped; the raw score alone can move by chance. While you iterate, each edit costs one with-plugin run of that case, and the output shows `SCORE` and `PASS%` instead of a with-versus-without delta.",
+      "why": "P-canonical: says to read the confirm's noise report (verdict and interval) before trusting the change."
+    },
+    {
+      "answer": "Keep each edit cheap: `--case grader-tune`, `--runs 1`, `--ablation none`.\n\nA higher number on a single run tells you little. Re-run the case at the default 3 runs, then look at the noise section of that run's report: if its verdict says the difference could be noise, you haven't shown the change helped yet. Only believe it once that verdict supports it. Until then, keep iterating at one run per edit; it's cheap, and it's only a signal that the grader behaves.",
+      "why": "P-alt: says to check the confirm run's noise verdict before believing the change, in different words."
+    },
+    {
+      "answer": "Iterate on that case alone with `--case grader-tune --runs 1 --ablation none`; each edit then costs one with-plugin run and prints `SCORE` and `PASS%`.\n\nTo believe a change helped, confirm it at 3 runs per case and read the confirm's noise report first: its verdict and interval tell you whether the difference is bigger than run-to-run noise. Don't mix in the one-run scores from your tuning loop when you judge it; they were a quick signal that the grader behaves, never evidence.",
+      "why": "P-caveat: reads the confirm's noise report first; the note about ignoring one-run scores does not touch the graded point."
+    },
+    {
+      "answer": "Run only that case, once, while you tune: `claude plugin eval ./plugins/notes --case grader-tune --runs 1`.\n\nTo believe a change, run a confirm with `--runs 5` and read that run's noise report. Its verdict tells you whether the improvement stands out from run-to-run variation; if it doesn't, the change hasn't been shown to help, however good the score looks. Iterating at one run keeps each edit cheap; the confirm is where you spend more, so make its report the thing you judge by.",
+      "why": "P-plain: reads the confirm's noise report verdict; wrong on sibling points (5 runs, no `--ablation none`)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Iterate with `--case grader-tune --runs 1 --ablation none`, so you pay for one with-plugin run per edit and skip the baseline.\n\nTo believe a change helped, rerun at 3 runs per case and look at the delta. Three runs already average out most of the run-to-run noise, so if the delta is positive and the pass rate went up, the change worked; if it's flat or negative, revert it. Either way, you've only paid for the extra runs once.",
+      "why": "F-wrong: trusts the confirm's delta and pass rate without the noise report; sibling points (flags, 3 runs) are right."
+    },
+    {
+      "answer": "Use `claude plugin eval ./plugins/notes --case grader-tune --runs 1 --ablation none` while tuning: one case, one run, no baseline arm.\n\nA single run is too noisy to judge by. Once the grader looks right, confirm the change at 3 runs per case, the default, and compare that result with the version you started from before deciding to keep it. Iterating this way keeps each edit to a single with-plugin run, and the output shows `SCORE` and `PASS%` instead of a delta.",
+      "why": "F-partial: otherwise correct but never says to read the confirm's noise report."
+    },
+    {
+      "answer": "Iterate on one case with `--case grader-tune --runs 1 --ablation none`.\n\nFor the confirm, rerun at 3 runs per case. The run prints a noise report with a verdict and interval, and the careful move is to read it. In practice you can skip it for a single-case change: if the score went up at 3 runs, that's good enough to keep the edit. Iterating at one run per edit keeps the tuning loop itself cheap and quick.",
+      "why": "F-retract: mentions reading the noise report, then says to skip it and trust the score."
+    },
+    {
+      "answer": "Tune with `claude plugin eval ./plugins/notes --case grader-tune --runs 1 --ablation none`.\n\nWhen it looks right, confirm at 3 runs per case. Then look at the three individual scores: if all three land above where the case sat before your edit and they're close to each other, the improvement is real; if they scatter, the change is noise. Iterating at one run per edit keeps the tuning loop cheap; the confirm is the only time you pay for more than one run.",
+      "why": "F-near: replaces the noise report with eyeballing the three run scores; sibling points are right."
+    }
+  ]
+}

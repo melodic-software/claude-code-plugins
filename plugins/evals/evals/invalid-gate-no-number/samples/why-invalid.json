@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "No, hold the number. The gate isn't being strict for its own sake. `run-validity.py` checks each run's kept trace, for example whether any tool call was denied and whether the skill actually fired in the with-plugin arm. The runner deletes those traces when a run ends unless you pass `--keep-temp`, and your run didn't, so the trace checks had nothing to read. Without them the run can't be shown valid, which is why it's INVALID.\n\nReport it as INVALID with that reason and no delta. Then rerun the eval with `--keep-temp` added and run the gate again on the new results file.",
+      "why": "P-canonical: the gate checks kept per-run traces (tool denials, skill firing), the runner deletes them without --keep-temp, so the checks cannot run and the run cannot be shown valid; rerun with --keep-temp."
+    },
+    {
+      "answer": "Think of `partial` and `error` as answering \"did the runs finish?\" and the gate as answering \"did the runs measure what you think?\" Only the second needs the traces: it looks inside them for things like denied tools or a skill that never triggered.\n\nThose traces live in temp directories that `claude plugin eval` deletes after the run unless `--keep-temp` is set. Yours ran with just `--json results.json`, so the gate found nothing to inspect, couldn't confirm validity, and correctly said INVALID.\n\nFix: run the eval again with `--json results.json --keep-temp`, then rerun `run-validity.py`. No +0.30 in the channel until that prints VALID.",
+      "why": "P-alt: framed as two questions; the gate inspects traces for denied tools or an untriggered skill, they are deleted without --keep-temp, so validity cannot be confirmed; rerun with --keep-temp."
+    },
+    {
+      "answer": "Not yet. The gate reads the per-run traces to check things like tool denials and whether the skill fired. Without `--keep-temp`, the runner deletes each trace directory, so the `tracePath` values in your JSON point at nothing and those checks can't run. A run whose checks can't run can't be shown valid; hence INVALID, and no +0.30.\n\nRerun with `--keep-temp`, then gate the new file. There's no way to recover the traces from this run, so the flag has to be on before the eval starts.\n\nKept traces take up disk space, so clear them out once you've gated and reported.",
+      "why": "P-caveat: full trace explanation and rerun with --keep-temp; the extra notes (decide before the run, disk cleanup) do not touch the graded point."
+    },
+    {
+      "answer": "That INVALID is the gate doing its job. Several of its checks run against the per-run traces, such as looking for denied tool calls or confirming the skill was invoked. The eval runner deletes those traces after the run unless `--keep-temp` is on, and a plain `--json results.json` run doesn't set it. With no traces, the checks report as unchecked, and a run with unchecked checks can't be shown valid.\n\nSo rerun the same eval with `--keep-temp`:\n\n```bash\nclaude plugin eval ./plugins/notes --json results.json --keep-temp\n```\n\nthen run `run-validity.py` on the fresh results.json and go from what it reports.",
+      "why": "P-plain: explains the trace checks, the deletion without --keep-temp and why the run cannot be shown valid, and says to rerun with --keep-temp; it misses the sibling point by never saying not to post +0.30 or to report INVALID with no number."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The INVALID comes from your run count, not the JSON. With the default 3 runs per case, the gate doesn't have enough repeated runs to cross-check the traces, so it marks those checks unchecked and fails the run.\n\nRerun with more repetitions:\n\n```bash\nclaude plugin eval ./plugins/notes --runs 10 --json results.json\n```\n\nthen gate it with `run-validity.py results.json --runs 10`. With ten runs the trace checks have enough samples and the verdict should come back VALID. Ten runs per case cost more, but it's the cleanest way to clear the gate. Until then, don't post +0.30; report the run as INVALID.",
+      "why": "F-wrong: blames the run count and reruns without keeping the traces, both in the FAIL list."
+    },
+    {
+      "answer": "Don't post it. `run-validity.py` validates each run from its kept trace: it checks things like whether a tool call was denied and whether the skill fired at all. The runner deletes those traces as soon as a run finishes unless `--keep-temp` was passed, and you ran with only `--json results.json`. So the trace checks had nothing to read, and a run whose checks can't run can't be shown valid. That's the INVALID, and it's correct.\n\n`partial: false` and null errors don't change it, because they say nothing about what happened inside the runs. Report the run as INVALID with that reason, and no delta.",
+      "why": "F-partial: the explanation is complete, but it never says to rerun with --keep-temp; that required point is missing."
+    },
+    {
+      "answer": "The gate needs the per-run traces to check for denied tools and whether the skill fired, and the runner deletes them unless you pass `--keep-temp`. Without them those checks can't run, so the run can't be shown valid. The proper fix is to rerun with `--keep-temp`.\n\nHonestly, though, for a run with `partial: false` and no errors, the trace checks are belt and braces. If a rerun is expensive, skip the gate for this one and treat the clean JSON as your validity evidence, then switch to `--keep-temp` from the next eval on. Either way, keep the footnote.",
+      "why": "F-retract: gives the right explanation and rerun, then suggests skipping the gate for this run."
+    },
+    {
+      "answer": "You're right that it's overly strict here. The gate refuses to say VALID whenever it can't read the per-run traces, even when the JSON is clean, and the runner deletes those traces unless `--keep-temp` is set. Your run didn't keep them, so checks like tool denials and skill firing came back unchecked.\n\nIt's a conservative design rather than a sign anything went wrong in your runs, but it's the rule: rerun with `--keep-temp`, gate the new file, and post a number only on `verdict: VALID`. Until then the channel gets \"INVALID: trace checks unchecked\" and no +0.30.",
+      "why": "F-near: the mechanism and rerun are right, but it agrees the gate is overly strict, which the FAIL list names."
+    }
+  ]
+}

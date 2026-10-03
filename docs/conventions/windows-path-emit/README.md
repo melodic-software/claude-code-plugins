@@ -200,7 +200,7 @@ This is a different concern from
 [`plugins/guardrails/hooks/block-windows-drive-tmp.sh`](../../../plugins/guardrails/hooks/block-windows-drive-tmp.sh),
 which blocks a *tool call* aimed at a drive-root temp path before it runs (#2594). That guard reads
 the payload ahead of time, a Bash/PowerShell command string, and since guardrails 0.30.0 a
-Write/Edit/MultiEdit/NotebookEdit target path as well; this detector reads the filesystem
+Write/Edit/NotebookEdit target path as well; this detector reads the filesystem
 afterwards, and catches the class where the offending path was never spelled in the payload at all,
 because it was computed inside a native interpreter.
 

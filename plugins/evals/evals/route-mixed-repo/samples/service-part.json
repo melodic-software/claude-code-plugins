@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Give each part of the repository its own eval route.\n\n- `services/summarizer/` calls the Anthropic Messages API, which makes it a Claude API app. With no eval there yet, type `/claude-api build-eval` to create its first suite: sample meeting notes as inputs plus graders for the summaries.\n- The plugin (`.claude-plugin/plugin.json` and its three skills) goes to `claude plugin eval`, measured against a no-plugin baseline. Scaffold it with `/evals:design` and run it with `/evals:plugin-eval`.\n\nOnce the summarizer has a suite, `/claude-api hillclimb` is available for tuning model, effort and prompt against it.",
+      "why": "P-canonical: the summarizer goes to /claude-api build-eval to create its evals; hillclimb comes only after the suite exists."
+    },
+    {
+      "answer": "The repository mixes a plugin and an application, and they get evaluated in different places. The three skills behind `.claude-plugin/plugin.json` belong to Claude Code's `claude plugin eval` command, which compares behavior with and without the plugin; `/evals:design` sets up those cases and `/evals:plugin-eval` runs them. The meeting-notes summarizer is a different kind of code: Python calling Claude through the Messages API. Its evals come from the claude-api skill bundled with Claude Code, starting with the build-eval subcommand, `/claude-api build-eval`, which you type yourself to stand up its first suite.",
+      "why": "P-alt: plugin first, then the summarizer sent to the bundled claude-api skill's build-eval, named in prose and as a command."
+    },
+    {
+      "answer": "For `services/summarizer/`: it calls Claude through the Messages API, so type `/claude-api build-eval` to build its first eval suite. Two cautions there. Meeting notes often carry names and internal details, so use redacted or synthetic notes as inputs. And wait to reach for `/claude-api hillclimb` until that suite exists and gives you a baseline; hillclimb improves against a suite, it doesn't create one.\n\nFor the plugin with three skills: `claude plugin eval` runs its cases with the plugin and against a no-plugin baseline. Use `/evals:design` to scaffold the cases and `/evals:plugin-eval` to run them.\n\nTwo suites, each matched to what its part actually is.",
+      "why": "P-caveat: build-eval is the summarizer's route; the privacy caution and 'hillclimb only after the suite exists' are extras that keep build-eval first."
+    },
+    {
+      "answer": "For the summarizer service, the route is the bundled claude-api skill: type `/claude-api build-eval` and it creates the service's first eval suite, with meeting-note inputs and graders for the summaries. For the plugin, write a few test prompts per skill, run them by hand in Claude Code, and note whether each skill picks up the request and responds the way its SKILL.md describes. Record the results in a simple table so you can compare after each change to a skill. That covers both parts of the repository without any extra setup.",
+      "why": "P-plain: the summarizer is correctly sent to /claude-api build-eval; the plugin gets no specific route, which only the plugin-part sibling grades."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Split the repo in two.\n\n**Plugin:** use `claude plugin eval` against a no-plugin baseline, scaffolding with `/evals:design` and running with `/evals:plugin-eval`.\n\n**Summarizer:** build a dataset of 40 to 50 meeting notes, each with a reference summary written by someone who attended. Then add a pytest module that calls the service on each note and asks a separate model to score the output against the reference for faithfulness, coverage of decisions and action items, and length on a 1 to 5 scale. Fail the run if the average drops below 4. A promptfoo config would work equally well if you prefer YAML to Python.",
+      "why": "F-wrong: the summarizer gets only a hand-written reference-summary harness with a judge (pytest or promptfoo); build-eval is absent. The plugin route is right."
+    },
+    {
+      "answer": "Each part has its own home. The plugin's three skills go to `claude plugin eval`, which measures them against a no-plugin baseline; `/evals:design` scaffolds the cases and `/evals:plugin-eval` runs them. The summarizer is a Claude API app, since its Python code calls the Messages API, so its evals belong on the Claude API side rather than in the plugin runner. Set up a separate suite for it with representative meeting notes as inputs and graders for the summaries, and keep it in `services/summarizer/` so it travels with the code.",
+      "why": "F-partial: correctly classifies the summarizer as a Claude API app but never sends it to build-eval, the one required point."
+    },
+    {
+      "answer": "For `services/summarizer/`, the starting point is `/claude-api build-eval`, which sets up a first suite for a Claude API app. For the plugin and its three skills, use `claude plugin eval` against a no-plugin baseline, scaffolded with `/evals:design` and run with `/evals:plugin-eval`.\n\nThinking about it more, build-eval is a poor fit for free-text summaries. Skip it for the summarizer and write a reference-summary set instead: thirty meeting notes, a human summary for each, and a pytest harness that has a model judge compare the service's output with the reference. That gives you finer control over what a good summary means than a generated suite would.",
+      "why": "F-retract: sends the summarizer to build-eval, then retracts it for a hand-written reference-summary harness."
+    },
+    {
+      "answer": "The plugin goes to `claude plugin eval`: scaffold the cases with `/evals:design`, run them with `/evals:plugin-eval`, and read the result against a no-plugin baseline.\n\nThe summarizer is a Claude API app, so use the bundled claude-api skill's search directly. Type `/claude-api hillclimb` as the first step: point it at a dozen meeting notes, and it will try model, effort and prompt variations and keep whatever produces the best summaries. Its runs double as your eval history, so there is no need to build a separate suite before tuning.",
+      "why": "F-near: makes /claude-api hillclimb the summarizer's first step although no eval exists; build-eval is skipped."
+    }
+  ]
+}

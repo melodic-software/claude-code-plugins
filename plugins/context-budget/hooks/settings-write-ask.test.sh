@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Contract test for the settings-write ask checkpoint hook.
 #
-# Contract: a Write/Edit/MultiEdit/NotebookEdit whose target is a Claude Code
+# Contract: a Write/Edit/NotebookEdit whose target is a Claude Code
 # settings surface (settings.json / settings.local.json under any .claude
 # directory, or managed-settings.json — case-insensitively, since macOS and
 # Windows filesystems resolve case variants to the same file) gets
@@ -110,6 +110,20 @@ assert_asks "$(run Edit "$WORK/repo/.claude/settings.LOCAL.json")" \
 # portability-ok: the doubled backslashes are literal JSON escapes for printf, not a GNU regex class
 assert_asks "$(printf '{"tool_name":"Write","tool_input":{"file_path":"C:\\\\repo\\\\.claude\\\\settings.json"}}' | node "$HOOK")" \
   "backslash paths normalize and ask"
+
+# The hook is inert unless hooks.json routes the tools to it, so the registered
+# matcher is part of the contract.
+matcher=$(node -e '
+  const h = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+  const row = h.hooks.PreToolUse.find((r) =>
+    r.hooks.some((c) => JSON.stringify(c).includes("settings-write-ask")));
+  process.stdout.write(row ? row.matcher : "");
+' "$SCRIPT_DIR/hooks.json")
+if [[ "$matcher" == "Write|Edit|NotebookEdit" ]]; then
+  ok "hooks.json routes exactly Write, Edit and NotebookEdit to the hook"
+else
+  fail "hooks.json matcher is '$matcher'"
+fi
 
 echo
 echo "passed: $PASS, failed: $FAIL"
