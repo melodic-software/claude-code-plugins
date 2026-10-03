@@ -1,5 +1,5 @@
 ---
-description: "Sweep stale references after a rename, including forms token-only grep misses (slash-tokens, paths, chain prose, table rows, frontmatter globs). Use when: 'rename X to Y', 'I renamed X', 'audit rename', 'find stale refs', 'check for stragglers', 'after git mv', 'sweep references', 'rename impact preview', 'find half-renamed state', 'broken refs after rename', 'pre-PR rename check'. A whole tree against a casing rule is docs-naming:audit-file-names, if installed."
+description: "Sweep stale references after a rename, including forms token-only grep misses (slash-tokens, paths, chain prose, table rows, frontmatter globs). Use when: 'rename X to Y', 'I renamed X', 'audit rename', 'find stale refs', 'check for stragglers', 'after git mv', 'sweep references', 'rename impact preview', 'find half-renamed state', 'broken refs after rename', 'pre-PR rename check'. A whole tree against a casing rule is docs-naming:audit-file-names, if enabled."
 argument-hint: "[audit|preview|blocklist] [<old> [to <new>]] [--container|--identifier|--include-historical…]"
 user-invocable: true
 disable-model-invocation: false
@@ -160,7 +160,7 @@ Paths skipped from sweeps automatically:
 - **Does not rename git branches**. Use `git branch -m`. Operates on file content, not git refs.
 - **Does not handle framework version migrations**. Use dedicated migration tooling. Different concern: behavioral upgrade, not text rename.
 - **Does not auto-fix conversation history or memory entries**. Past mentions of the old name in conversation/memory are deliberately preserved as historical record. Future renames are the user's responsibility to invoke this skill for.
-- **Does not audit a whole tree against a casing rule**. If `docs-naming` is installed, `/docs-naming:audit-file-names` does. Without it, list the tree with `git ls-files`, compare each name against the rule by hand, and run `audit` here once per pair you decide to rename.
+- **Does not audit a whole tree against a casing rule**. If `docs-naming` is enabled, `/docs-naming:audit-file-names` does. Without it, list the tree with `git ls-files`, compare each name against the rule by hand, and run `audit` here once per pair you decide to rename.
 - **Does not run builds or tests**. Hand off to the consuming repository's build/test/verification workflow after the rename completes.
 - **Does not perform general dead-reference scanning**. `audit orphans` is STRICTLY pair-driven (post-rename hygiene only). For repo-wide dead-link / dead-reference checks unrelated to a specific rename, use a codebase-audit workflow or documentation link checker if your environment provides one. Charter boundary preserves single responsibility.
 

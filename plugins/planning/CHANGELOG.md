@@ -3,6 +3,23 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.63.2] - 2026-10-03
+
+### Changed
+
+- Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.63.1] - 2026-10-03
+
+### Changed
+
+- The interview page's transport moved to the shared session-bridge library
+  (`lib/session-bridge/`): the 127.0.0.1 server, token, event stream, long-poll, watcher lease,
+  `watch.sh` and `wake.sh`. `surface/session_bridge.py`, `watch.sh` and `wake.sh` are now
+  generated copies, and `surface/session-bridge.conf` names the interview to them. The page,
+  the watcher and `round.sh` behave as before. The server also answers `GET /api/lease` with the
+  watcher lease, which `round.sh lease` and `stop` now read.
+
 ## [0.63.0] - 2026-10-03
 
 ### Added
