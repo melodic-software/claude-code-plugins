@@ -8,7 +8,7 @@
 # SINGLE SOURCE OF TRUTH: lib/index-regen.sh at the marketplace repo root. The
 # copies materialized into consuming plugins exist because installed plugins
 # are cache-isolated and must be self-contained — never edit a copy. Edit the
-# source and run scripts/sync-index-regen.sh; CI rejects drifted copies.
+# source and run scripts/sync-shared-copies.sh; CI rejects drifted copies.
 #
 # Usage:
 #   index-regen.sh <slice-dir>

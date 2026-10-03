@@ -158,10 +158,62 @@ def build_data(records, rules, drift, fed, scope, window, catalog) -> dict:
         "scope": scope,
         "metrics": metrics,
         "findings": findings,
-        "drift": {k: drift[k] for k in ("window", "counts", "degraded_metrics")},
+        "drift": {k: drift[k] for k in ("window", "counts", "changes", "degraded_metrics")},
         "unchecked": unchecked,
         "suggestions": [{"skill": s, "why": "findings on " + ", ".join(m)} for s, m in why.items()],
     }
+
+
+def markdown_code(text: str) -> str:
+    """One CommonMark code span whose contents cannot close it early.
+
+    Drift keys and model names come from session transcripts. A backtick or a
+    line break in one would end the span or the bullet. Line breaks become
+    spaces. The fence is one backtick longer than the longest backtick run in
+    the text, with a space of padding when that run is non-zero, which is the
+    code-span rule. Pointer: https://spec.commonmark.org/0.31.2/#code-spans
+    """
+    flat = " ".join(text.replace("\r", " ").replace("\n", " ").split())
+    run = longest = 0
+    for char in flat:
+        if char == "`":
+            run += 1
+            longest = max(longest, run)
+        else:
+            run = 0
+    fence = "`" * (longest + 1)
+    if longest:
+        return f"{fence} {flat} {fence}"
+    return f"{fence}{flat}{fence}"
+
+
+def drift_key_lines(changes: object) -> list[str]:
+    """One markdown bullet per drift change, class then key path.
+
+    The counts line names how many keys moved. These lines name them. A model
+    other than the all-models bucket is included so two rows for one key stay
+    distinct. No cap: a hidden key is the gap this report exists to close.
+    Only the census classes are emitted; the class word is ours, not the
+    transcript's.
+    """
+    if not isinstance(changes, list):
+        return []
+    order = {cls: index for index, cls in enumerate(census.CLASSES)}
+    rows: list[tuple[int, str, str, str, str]] = []
+    for change in changes:
+        if not isinstance(change, dict):
+            continue
+        key = change.get("key")
+        cls = change.get("class")
+        if not isinstance(key, str) or not key or cls not in order:
+            continue
+        model = change.get("model")
+        suffix = ""
+        if isinstance(model, str) and model and model != "*":
+            suffix = f" ({markdown_code(model)})"
+        rows.append((order[cls], key, str(model or ""), cls, suffix))
+    rows.sort()
+    return [f"- {cls}: {markdown_code(key)}{suffix}" for _, key, _, cls, suffix in rows]
 
 
 def _fmt(value: object) -> str:
@@ -196,7 +248,13 @@ def render_md(data: dict) -> str:
     drift = data["drift"]
     counts = ", ".join(f"{n} {cls}" for cls, n in drift["counts"].items() if n) or "none"
     lines += ["", "## Drift", "", f"Changes since the baseline versions: {counts}."]
+    named = drift_key_lines(drift.get("changes"))
+    if named:
+        lines.append("")
+        lines.extend(named)
     if drift["degraded_metrics"]:
+        if named:
+            lines.append("")
         lines.append("Unavailable metrics: " + ", ".join(f"`{m}`" for m in drift["degraded_metrics"]) + ".")
     lines += ["", "## Unchecked", ""] + [f"- `{u['what']}`: {u['reason']}" for u in data["unchecked"]]
     if data["suggestions"]:
