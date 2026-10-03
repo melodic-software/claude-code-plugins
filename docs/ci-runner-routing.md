@@ -1,6 +1,6 @@
 # CI runner routing
 
-This repository is public, so every lane runs on GitHub-hosted runners, free for
+This repository is public, so every lane runs on GitHub-hosted runners, which are free for
 public repositories: `ubuntu-24.04` for all of them except the informational
 Windows lane `test-windows`, which runs `windows-2025` in its own workflow,
 `.github/workflows/test-windows.yml`. The organization's
