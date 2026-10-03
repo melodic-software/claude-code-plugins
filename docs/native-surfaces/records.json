@@ -2962,6 +2962,42 @@
     },
     {
       "native": {
+        "name": "Agent",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "multi-agent",
+        "skill": "assess",
+        "kind": "skill"
+      },
+      "reason": "The Agent tool launches a subagent; ours decides whether a task runs as a workflow, subagents or inline and launches nothing. Complementary, not duplicated. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.288",
+      "date": "2026-10-02",
+      "fingerprint": {
+        "native": "2331a2afb78bb465504bc6223af08a9b",
+        "component": "4fc5c423020ada26d256c4ebbe966cce"
+      }
+    },
+    {
+      "native": {
+        "name": "Agent",
+        "class": "builtin-tool"
+      },
+      "component": {
+        "plugin": "multi-agent",
+        "skill": "route",
+        "kind": "skill"
+      },
+      "reason": "The Agent tool launches a subagent; ours resolves which model and effort each agent role gets and launches nothing. Complementary, not duplicated. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.288",
+      "date": "2026-10-02",
+      "fingerprint": {
+        "native": "2331a2afb78bb465504bc6223af08a9b",
+        "component": "553f214ea07616b6be3bc9719e1cf8ee"
+      }
+    },
+    {
+      "native": {
         "name": "Bash",
         "class": "builtin-tool"
       },
@@ -3502,6 +3538,42 @@
     },
     {
       "native": {
+        "name": "agents",
+        "class": "builtin-command"
+      },
+      "component": {
+        "plugin": "multi-agent",
+        "skill": "assess",
+        "kind": "skill"
+      },
+      "reason": "/agents manages subagents (its registration reads \"(removed)\"); ours decides whether a task runs as a workflow, subagents or inline. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.288",
+      "date": "2026-10-02",
+      "fingerprint": {
+        "native": "50803a5285096ddfa642be9e0d31533f",
+        "component": "4fc5c423020ada26d256c4ebbe966cce"
+      }
+    },
+    {
+      "native": {
+        "name": "agents",
+        "class": "builtin-command"
+      },
+      "component": {
+        "plugin": "multi-agent",
+        "skill": "route",
+        "kind": "skill"
+      },
+      "reason": "/agents manages subagents (its registration reads \"(removed)\"); ours resolves the model and effort per agent role. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.288",
+      "date": "2026-10-02",
+      "fingerprint": {
+        "native": "50803a5285096ddfa642be9e0d31533f",
+        "component": "553f214ea07616b6be3bc9719e1cf8ee"
+      }
+    },
+    {
+      "native": {
         "name": "artifact-design",
         "class": "bundled-skill"
       },
@@ -3741,6 +3813,24 @@
       },
       "component": {
         "plugin": "testing",
+        "skill": "run-e2e",
+        "kind": "skill"
+      },
+      "reason": "The plugin node and its claude-test skill are one surface; the store's claude-test -> testing:run-e2e defer row (2026-10-01) carries this ruling. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.288",
+      "date": "2026-10-02",
+      "fingerprint": {
+        "native": "bdca54a963f338f3d5b08615eb951993",
+        "component": "5aecd2cd670a3ba3d9b72f46d7e0792d"
+      }
+    },
+    {
+      "native": {
+        "name": "cc-plugin-claude-test",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
+        "plugin": "testing",
         "skill": "setup",
         "kind": "skill"
       },
@@ -3812,15 +3902,33 @@
         "class": "plugin-backed-builtin"
       },
       "component": {
+        "plugin": "mutation-testing",
+        "skill": "audit",
+        "kind": "skill"
+      },
+      "reason": "The built-in claude-test skill runs Claude Test specs against a local dev server; ours runs mutation analysis and reports surviving mutants. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.288",
+      "date": "2026-10-02",
+      "fingerprint": {
+        "native": "78890721f4173755e2659ef0881f4923",
+        "component": "81f6074467343662a9fb2831daf55640"
+      }
+    },
+    {
+      "native": {
+        "name": "claude-test",
+        "class": "plugin-backed-builtin"
+      },
+      "component": {
         "plugin": "prototype",
         "skill": "pressure-test",
         "kind": "skill"
       },
-      "reason": "The built-in claude-test skill runs plain-language specs against a local dev server in a browser; ours builds a throwaway terminal app to pressure-test logic before committing to it. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.287",
-      "date": "2026-10-01",
+      "reason": "The built-in claude-test skill runs Claude Test specs against a local dev server; ours builds a throwaway terminal app to pressure-test logic before committing to it. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.288",
+      "date": "2026-10-02",
       "fingerprint": {
-        "native": "2167546b6a0f6c522af542dc86243406",
+        "native": "78890721f4173755e2659ef0881f4923",
         "component": "b1d0ebecb379ca7a6eb4cf82d701620d"
       }
     },
@@ -3834,11 +3942,11 @@
         "skill": "test-value",
         "kind": "skill"
       },
-      "reason": "The built-in claude-test skill runs plain-language specs against a local dev server in a browser; ours is guidance on what makes a test worth keeping. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.287",
-      "date": "2026-10-01",
+      "reason": "The built-in claude-test skill runs Claude Test specs against a local dev server; ours is guidance on what makes a test worth keeping. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.288",
+      "date": "2026-10-02",
       "fingerprint": {
-        "native": "2167546b6a0f6c522af542dc86243406",
+        "native": "78890721f4173755e2659ef0881f4923",
         "component": "ce076b3ced24d3c7b11594070f416336"
       }
     },
@@ -3870,11 +3978,11 @@
         "skill": "security-review",
         "kind": "skill"
       },
-      "reason": "The bundled skill reviews for correctness bugs; ours is the CI security lane. The security pair is recorded as security-review -> review:security-review. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.285",
-      "date": "2026-10-01",
+      "reason": "The bundled skill reviews for correctness bugs; ours is the CI security lane. The security pair is recorded as security-review -> review:security-review. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.288",
+      "date": "2026-10-02",
       "fingerprint": {
-        "native": "8598387da809a2243d7352d66d98b8a1",
+        "native": "64849eb7040a3c8e17892ba163f7891e",
         "component": "071455025613ebdd302b735cf719f523"
       }
     },
@@ -4586,6 +4694,24 @@
         "class": "builtin-command"
       },
       "component": {
+        "plugin": "docs-hygiene",
+        "skill": "rename-references",
+        "kind": "skill"
+      },
+      "reason": "/rename renames the conversation; ours sweeps stale references after a file or symbol rename. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.288",
+      "date": "2026-10-02",
+      "fingerprint": {
+        "native": "b7b277e905dba7621cb48e6eef55ae23",
+        "component": "3dd11aa7afb7ac4bdf88bbfffb2c1845"
+      }
+    },
+    {
+      "native": {
+        "name": "rename",
+        "class": "builtin-command"
+      },
+      "component": {
         "plugin": "docs-naming",
         "skill": "audit-file-names",
         "kind": "skill"
@@ -4632,6 +4758,42 @@
       "fingerprint": {
         "native": "b7b277e905dba7621cb48e6eef55ae23",
         "component": "97c74e4dd0405715716d8d485d574633"
+      }
+    },
+    {
+      "native": {
+        "name": "restart",
+        "class": "builtin-command"
+      },
+      "component": {
+        "plugin": "firecrawl",
+        "skill": "update",
+        "kind": "skill"
+      },
+      "reason": "/restart (alias /update) restarts Claude Code and keeps the session; ours drift-checks the firecrawl wrapper against its upstream. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.288",
+      "date": "2026-10-02",
+      "fingerprint": {
+        "native": "6d1f64a559c628d115c0cac5dd28a6b1",
+        "component": "8c207489dfa7c594a4586ed51cc1dad4"
+      }
+    },
+    {
+      "native": {
+        "name": "restart",
+        "class": "builtin-command"
+      },
+      "component": {
+        "plugin": "playbooks",
+        "skill": "update",
+        "kind": "skill"
+      },
+      "reason": "/restart (alias /update) restarts Claude Code and keeps the session; ours drift-checks the playbooks plugin's vendored packs. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.288",
+      "date": "2026-10-02",
+      "fingerprint": {
+        "native": "6d1f64a559c628d115c0cac5dd28a6b1",
+        "component": "fcd86b079d31c37cf759c9241c5a4b42"
       }
     },
     {
@@ -4708,42 +4870,6 @@
     },
     {
       "native": {
-        "name": "update",
-        "class": "builtin-command"
-      },
-      "component": {
-        "plugin": "firecrawl",
-        "skill": "update",
-        "kind": "skill"
-      },
-      "reason": "/update switches Claude Code to the latest version; ours drift-checks the firecrawl wrapper against its upstream. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.284",
-      "date": "2026-09-29",
-      "fingerprint": {
-        "native": "8969b4589bd827224bb6f0975ca719ad",
-        "component": "8c207489dfa7c594a4586ed51cc1dad4"
-      }
-    },
-    {
-      "native": {
-        "name": "update",
-        "class": "builtin-command"
-      },
-      "component": {
-        "plugin": "playbooks",
-        "skill": "update",
-        "kind": "skill"
-      },
-      "reason": "/update switches Claude Code to the latest version; ours drift-checks the playbooks plugin's vendored packs. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
-      "as_of": "2.1.284",
-      "date": "2026-09-29",
-      "fingerprint": {
-        "native": "8969b4589bd827224bb6f0975ca719ad",
-        "component": "fcd86b079d31c37cf759c9241c5a4b42"
-      }
-    },
-    {
-      "native": {
         "name": "update-config",
         "class": "bundled-skill"
       },
@@ -4812,6 +4938,24 @@
       "fingerprint": {
         "native": "cbc1f297a2e2195d9616355d9371b597",
         "component": "b30c829b801f29dd87dbba3477fc0f60"
+      }
+    },
+    {
+      "native": {
+        "name": "worker",
+        "class": "builtin-agent"
+      },
+      "component": {
+        "plugin": "discovery",
+        "skill": "sweep-worker",
+        "kind": "agent"
+      },
+      "reason": "The worker agent executes a delegated task; ours runs one stage of the discovery:research-sweep workflow and is dispatched only by it. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.288",
+      "date": "2026-10-02",
+      "fingerprint": {
+        "native": "cbc1f297a2e2195d9616355d9371b597",
+        "component": "b7ac81cb968bdeaf46ed952187358f0b"
       }
     },
     {
@@ -4902,6 +5046,24 @@
       "fingerprint": {
         "native": "8cf8e49eb69e53c15428fd8427e3fe26",
         "component": "57f30812b809930d11e028dada56bb15"
+      }
+    },
+    {
+      "native": {
+        "name": "workflow-subagent",
+        "class": "builtin-agent"
+      },
+      "component": {
+        "plugin": "multi-agent",
+        "skill": "assess",
+        "kind": "skill"
+      },
+      "reason": "workflow-subagent is an internal, gated agent that workflow scripts run; ours decides whether a task should be a workflow at all. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation.",
+      "as_of": "2.1.288",
+      "date": "2026-10-02",
+      "fingerprint": {
+        "native": "ae56ba693ef657a23c778af14e00f51e",
+        "component": "4fc5c423020ada26d256c4ebbe966cce"
       }
     },
     {
