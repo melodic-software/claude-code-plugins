@@ -1136,6 +1136,49 @@ test('snapshot: session.end writes what the floor held back', async ($, on) => {
   expect(w.runs).toHaveLength(2)
 })
 
+const end = ($: any, reason: string, sessionId = 'sess-1') => $.session.end({ reason, sessionId, resume: { id: sessionId } } as any)
+
+test('snapshot: session.end with no usage left writes the last populated body, not a blank one', async ($, on) => {
+  const { w, clock } = world(on)
+  await bash($)
+  await clock.advance(61_000)
+  w.percent = undefined
+  await end($, 'other')
+  expect(w.runs).toHaveLength(2)
+  expect(bodies(w).map(b => b.context_window.used_percentage)).toEqual([30, 30])
+})
+
+test('snapshot: a reading that comes back empty never replaces a populated body', async ($, on) => {
+  const { w, clock } = world(on)
+  await bash($)
+  w.percent = undefined
+  await bash($)
+  await clock.advance(61_000)
+  await bash($)
+  expect(bodies(w).map(b => b.context_window.used_percentage)).toEqual([30, 30])
+})
+
+test('snapshot: a session that never read its usage writes nothing at session.end', async ($, on) => {
+  const { w } = world(on)
+  await end($, 'other')
+  expect(w.runs).toEqual([])
+})
+
+test('snapshot: after /clear the new session writes its own populated body at its first carrier', async ($, on) => {
+  const { w } = world(on)
+  await bash($)
+  await end($, 'clear')
+  w.sid = 'sess-2'
+  w.percent = 5
+  await bash($)
+  // The end flush is the same body inside the 60 s floor, so it starts no process.
+  expect(w.runs.map(r => r.argv[2])).toEqual([TARGET, `${CTX}/sess-2.json`])
+  expect(bodies(w).map(b => [b.session_id, b.context_window.used_percentage])).toEqual([
+    ['sess-1', 30],
+    ['sess-2', 5],
+  ])
+})
+
 test('timer: rewrites every 60 s inside a turn, never outside one', async ($, on) => {
   const { w, clock } = world(on)
   await bash($)

@@ -351,7 +351,8 @@ async function refresh($: EngineInterface, st: State) {
   const zone = s.compacted ? 'dumb' : word === 'unknown' ? undefined : word
   const reading: Reading = { zone, degraded: s.compacted, percent: c.percent, tokens: c.tokens, window: c.window }
   recordReading(s, reading, settings)
-  s.body = body
+  // A reading with no figures (usage gone at exit, or between responses) never replaces one that had them.
+  if (body.context_window.used_percentage !== null || s.body === undefined || s.body.context_window.used_percentage === null) s.body = body
   st.reading = reading
   const band = bandText(reading, undefined)
   if (band !== st.band) {
@@ -628,8 +629,9 @@ export const register: Register = (on, options) => {
   on('session.end', async ($, e, next) => {
     st.reofferTimer = stopTimer(st.reofferTimer)
     st.writeTimer = stopTimer(st.writeTimer)
-    // A -p exit does not drop the last reading the floor held back.
-    await queueWrite($, st, true)
+    // A -p exit does not drop the last reading the floor held back. The last refreshed body, not
+    // a fresh read: usage at exit can come back empty, and a session never refreshed writes nothing.
+    await queueWrite($, st)
     st.sessions.delete(e.sessionId)
     st.carry = e.reason === 'resume' ? 'all' : undefined
     st.origin = undefined
