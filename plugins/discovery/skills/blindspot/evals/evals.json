@@ -40,6 +40,20 @@
         "The run offers to hand off to /discovery:explore to persist EXPLORE.md rather than writing the handoff artifact from this skill",
         "The run does not itself write EXPLORE.md as a default step"
       ]
+    },
+    {
+      "id": 4,
+      "name": "offers-built-blindspot-view",
+      "prompt": "Run blindspot on the payments module. There will be a lot of cards, so I would like to filter them and tick the ones that were news to me.",
+      "expected_output": "The skill presents the blindspot cards and the improved prompt in the conversation first, then offers an interactive view built with the checked-in builder from JSON data. It resolves the publish destination from the medium cascade key and never writes HTML or script itself.",
+      "files": [],
+      "expectations": [
+        "Output presents the cards and the improved prompt in the conversation, which stays the record, before any view is mentioned",
+        "Output offers the view in one sentence and builds only after the reader accepts",
+        "The view is built by piping JSON to scripts/build-view.mjs, not by writing HTML or script in the session",
+        "Text read from repository files or fetched pages reaches the page only as data in that JSON",
+        "The publish destination comes from the medium key of the rendered-views cascade, with file as the default when unset"
+      ]
     }
   ]
 }

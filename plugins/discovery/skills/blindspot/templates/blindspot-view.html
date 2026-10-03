@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Blindspot View</title>
+<style>
+:root {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --fg: #1b2330;
+  --muted: #566173;
+  --line: #d6dce4;
+  --accent: #2b59c3;
+  --chip: #e6ecf8;
+  --sans: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme=light]) {
+    --bg: #12161d;
+    --surface: #1a2029;
+    --fg: #e4e9f0;
+    --muted: #9aa5b5;
+    --line: #2c3542;
+    --accent: #86a8f0;
+    --chip: #233150;
+    color-scheme: dark;
+  }
+}
+:root[data-theme=dark] {
+  --bg: #12161d;
+  --surface: #1a2029;
+  --fg: #e4e9f0;
+  --muted: #9aa5b5;
+  --line: #2c3542;
+  --accent: #86a8f0;
+  --chip: #233150;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 var(--sans); }
+.page { max-width: 46rem; margin: 0 auto; padding: 0 16px; padding-block: 2rem 3rem; display: grid; gap: 1.5rem; }
+.eyebrow { margin: 0; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 0.25rem 0 0.5rem; font-size: 1.6rem; line-height: 1.2; text-wrap: balance; }
+h2 { margin: 0; font-size: 1.1rem; }
+.lede { margin: 0; max-width: 65ch; }
+.meta { margin: 0.5rem 0 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+code { font-family: var(--mono); font-size: 0.85em; overflow-wrap: anywhere; }
+.facts { display: grid; gap: 0.5rem; padding: 0.9rem 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.facts p { margin: 0; }
+.prompt { margin: 0; padding: 0.75rem; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; font-family: var(--mono); font-size: 0.85rem; }
+.bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.bar input { flex: 1 1 14rem; min-width: 0; padding: 0.5rem 0.65rem; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); font: inherit; }
+.rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+.row { display: grid; grid-template-columns: auto 1fr; gap: 0.75rem; padding: 0.9rem 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.row[hidden] { display: none; }
+.row .body { min-width: 0; display: grid; gap: 0.35rem; }
+.row p { margin: 0; }
+.pick { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; font-size: 0.75rem; color: var(--muted); }
+.pick input { width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.head { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; }
+.chip { padding: 0.05rem 0.5rem; border-radius: 4px; background: var(--chip); color: var(--accent); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+.label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.reply { display: grid; gap: 0.6rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.reply textarea { min-height: 5rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); font: inherit; resize: vertical; }
+.actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+button { padding: 0.5rem 0.9rem; border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); color: var(--bg); font: inherit; font-weight: 600; cursor: pointer; }
+button + button { background: transparent; color: var(--accent); }
+button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.status { margin: 0; min-height: 1.5em; color: var(--muted); }
+.out { margin: 0; padding: 0.75rem; overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; font-family: var(--mono); font-size: 0.85rem; }
+@media (prefers-reduced-motion: reduce) { * { transition: none; animation: none; } }
+</style>
+</head>
+<body>
+<main class="page">
+<header>
+<p class="eyebrow">Blindspot view. The cards in the conversation are authoritative.</p>
+<h1 data-rv-text="title">Blindspots</h1>
+<p class="lede"><span class="label">Your starting point</span> <span data-rv-text="start"></span></p>
+<p class="meta"><span data-rv-count="cards">0</span> blindspots</p>
+</header>
+<div class="bar">
+<label for="find">Filter</label>
+<input id="find" type="search" placeholder="Type a word or a type: landmine, history, convention, missing concept" data-rv-filter="cards">
+</div>
+<ol class="rows" data-rv-each="cards">
+<li class="row">
+<label class="pick"><input type="checkbox" data-rv-pick="">News to me <span class="sr" data-rv-text="gap"></span></label>
+<div class="body">
+<p class="head"><span class="chip" data-rv-text="type"></span><strong data-rv-text="gap"></strong></p>
+<p><span class="label">Why it matters here</span> <span data-rv-text="why"></span></p>
+<p><span class="label">Prompt fix</span> <code data-rv-text="fix"></code></p>
+</div>
+</li>
+</ol>
+<section class="facts">
+<h2>Improved implementation prompt</h2>
+<pre class="prompt" data-rv-text="prompt"></pre>
+<p class="meta" data-rv-text="scope"></p>
+</section>
+<section class="reply">
+<h2>Send your reaction back</h2>
+<p class="meta">Tick the cards that were news to you and say what is still unclear. The ids name cards by their position in the list.</p>
+<label for="note">Note for the session</label>
+<textarea id="note" data-rv-note="note" placeholder="What you still do not know about this area"></textarea>
+<div class="actions">
+<button type="button" data-rv-copy="blindspot-reply">Copy reply</button>
+<button type="button" data-rv-download="blindspot-reply">Save as file</button>
+</div>
+<p class="status" role="status" data-rv-status=""></p>
+<pre class="out" data-rv-out="" hidden></pre>
+</section>
+</main>
+</body>
+</html>
