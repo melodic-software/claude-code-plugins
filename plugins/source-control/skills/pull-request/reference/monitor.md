@@ -144,7 +144,7 @@ Establish a baseline poll: the §3.0.1 REST read of the PR's checks (`gh pr chec
      # when the unresolved count, or THREADS_UNPROVEN, changes.
      if [ $((poll % 4)) -eq 0 ]; then
        cur_threads=$(bash "<scripts-dir>/source-control-review-threads" "$OWNER/$REPO#$PR_NUMBER" 2>/dev/null \
-         | head -n 1 | tr -d '\r' | sed -nE 's/^THREADS_(OK|BLOCKED) unresolved=([0-9]+).*/\2/p')
+         | awk 'NR == 1 && /^THREADS_(OK|BLOCKED) unresolved=/ { sub(/.*unresolved=/, ""); sub(/[^0-9].*/, ""); print }')
        cur_threads=${cur_threads:-THREADS_UNPROVEN}
        if [ "$cur_threads" != "$prev_threads" ]; then
          echo "REVIEW-THREADS unresolved=$cur_threads"
