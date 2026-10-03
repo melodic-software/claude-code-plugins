@@ -143,6 +143,25 @@ lib/html-escape.mjs
 # Cluster line for the duplication audit: the root canonical and the copies.
 lib/html-escape.mjs -> plugins/*/lib/html-escape.mjs
 
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/prerequisites.mjs. harness-ops carries the first generated copy; every
+# plugin whose prerequisites.json passes the schema carries one too
+# (scripts/check-declared-prerequisites.mjs). A path-within-plugin line joins
+# once a second plugin carries it. The arrow line is the duplication audit's
+# cluster.
+lib/prerequisites.mjs -> plugins/*/lib/prerequisites.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/prerequisites.sh, the checker's POSIX sh stub. Carried beside every copy
+# of lib/prerequisites.mjs. The arrow line is the duplication audit's cluster.
+lib/prerequisites.sh -> plugins/*/lib/prerequisites.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/prerequisites.ps1, the checker's PowerShell stub. Carried beside every
+# copy of lib/prerequisites.mjs. The arrow line is the duplication audit's
+# cluster.
+lib/prerequisites.ps1 -> plugins/*/lib/prerequisites.ps1
+
 # Dedicated check: scripts/sync-fetch-docs.sh --check (CI: Verify fetch-docs
 # copies match the canonical fetcher). Canonical: lib/fetch-docs.sh. The
 # harness-config and harness-ops plugins each carry a copy because a plugin cache

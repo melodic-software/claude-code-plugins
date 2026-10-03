@@ -769,6 +769,8 @@ current refusals. They stay; they are not defects against a missing subaction.
 
 Declare every required runtime, shell, CLI, service, credential, and platform constraint at the point
 of use and in the plugin README. Never download or execute an undeclared tool as an incidental fallback.
+The [prerequisites convention](conventions/prerequisites/README.md) owns the machine-readable
+declaration and its checker.
 
 Classify absence deliberately:
 
@@ -820,6 +822,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Permission-rule hygiene | [`docs/conventions/permission-rule-hygiene/`](conventions/permission-rule-hygiene/README.md) |
 | Plugin-data report keying, retention, and overwrite | [`docs/conventions/plugin-data-report-keying/`](conventions/plugin-data-report-keying/README.md) |
 | On-demand dependencies (pinned lockfile, `npm ci` into the plugin data directory, no vendored bundles) | [`docs/conventions/on-demand-dependencies/`](conventions/on-demand-dependencies/README.md) |
+| Prerequisites: the `prerequisites.json` schema, the `lib/prerequisites.mjs` checker, and the undeclared-tool gate | [`docs/conventions/prerequisites/`](conventions/prerequisites/README.md) |
 | Repository standards index | [`docs/conventions/standards/`](conventions/standards/README.md) |
 | Skill layout contract and evals schema | `skill-quality` plugin (contract gate + bundled schema) |
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |

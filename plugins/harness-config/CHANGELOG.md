@@ -5,6 +5,26 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.5.1] - 2026-10-02
+
+### Changed
+
+- `audit-prompting-postures` and `audit-instructions` re-stamp their Opus 5.5 prompting guide reads to 2026-10-02. The guide changed; both recorded decisions still hold.
+
+## [1.5.0] - 2026-10-02
+
+### Added
+
+- **An effort-pin drift check and an `effort-pins` audit scope.** `check-effort-pins.sh` reads
+  model-config's effort tables and per-model defaults, compares their hash with a committed
+  baseline, and lists every effort pin in agents, skills, lane configs, and Workflow literals in
+  skill `context/` files and plugin `workflows/*.js` and `*.mjs` scripts. It
+  flags pins when the page changed or a pin names a level the page does not list, and never edits
+  a pin or the baseline. `/harness-config:audit effort-pins` runs only this check; a full audit
+  runs it in Phase 3.
+- **`unhobble` records the session's effort level** in its manifest and in each `stumbles.md`
+  row, written as `unset` when no level renders.
+
 ## [1.4.0] - 2026-10-02
 
 ### Fixed

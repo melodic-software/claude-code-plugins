@@ -189,6 +189,19 @@ the summary's location, items, dedupe and approval: [context/native-drift.md](co
 Its commands write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`; put that
 path in place of the placeholder before running one.
 
+When the harness-config plugin is installed, also run its effort-pin drift check directly, with
+that plugin's install directory in place of the placeholder:
+
+```bash
+bash <harness-config plugin root>/skills/audit/scripts/check-effort-pins.sh
+```
+
+Report its lines with the native-drift report. Exit 1 means model-config's effort tables or
+per-model defaults moved, or a pin names a level the page does not list: each flagged pin waits on
+a person to re-decide it and rebaseline, as the `/harness-config:audit` `effort-pins` scope
+documents. Exit 3 means the page was unread or reshaped, so the check made no claim; say so.
+Without the harness-config plugin, report that the effort-pin check was not run.
+
 End the run with a report that leads with what waits on the user (rows left out of scope, rows
 filed or reported unfiled, stages skipped for a missing plugin), then the PRs opened and what each
 changed, what `/verification:confirm` showed, the docs-lag pairs handed off, and the Phase 5 drift

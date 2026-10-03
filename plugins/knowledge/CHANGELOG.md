@@ -4,6 +4,32 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.17.0] - 2026-10-02
+
+### Added
+
+- **The Anthropic docs profile tags a blog post's outcome counts for claude.ai as
+  `tag-exempt (consumer-surface)` with the `vendor-claimed` marker,** on both blog hosts. A team
+  that wants them handled otherwise says so in its own CLAUDE.md or AGENTS.md.
+
+### Changed
+
+- **The Anthropic docs queue's notes on the loops, Code Review, and test-impact analysis posts
+  record their fetched topics** and give each pointer in the when-fetch-live form with an as-of
+  date and a recheck trigger.
+
+## [0.16.0] - 2026-10-02
+
+### Added
+
+- **`docpage-digest` gains `check-html-rows.py`, the HTML quote gate.** It checks F-labeled rows
+  quoted from a page's HTML against `source.html` and grades each `EXACT`, `JOIN` (with declared
+  truncations) or `FAIL`; usage and read errors exit 2. It ships with a synthetic negative-control
+  test suite beside `check-fences-exact.py`.
+- **`check-html-rows.py` is a standing gate when digests carry `**FN.**` rows quoted from
+  `source.html`**, named in the pipeline invocation, dual verification and the Phase 4 checklist;
+  a fence that is empty, blank or only truncation marks fails.
+
 ## [0.15.4] - 2026-10-02
 
 ### Security

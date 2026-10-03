@@ -80,17 +80,31 @@ commit that still contains `base_commit`. A different absolute path is not a mis
   `non-derivable`, which is kept and restored like `policy`),
   what was stripped, how to restore it (repo-relative path, restore mechanism, backup location under
   the plugin data dir), `origin_url`, `branch`, `base_commit`, `branch_deviation` (empty, or why the
-  experiment branch is not `experiment/unhobble-<model-version>`), target model, `phase`
+  experiment branch is not `experiment/unhobble-<model-version>`), target model, `effort` (see
+  Effort below), `phase`
   (`snapshot` | `bare` | `observe` | `readd` | `closed`, or `watch` for a Deletion watch experiment),
   phase timestamps, and optionally `pr_url` (the experiment pull request, written when one opens).
   No absolute host path, in any field.
 - `stumbles.md`: the observation ledger (one row per observed failure: date, task, what the model
-  did, what was expected, suspected missing instruction, severity), with any deletion watch
+  did, what was expected, suspected missing instruction, severity, effort), with any deletion watch
   recorded above the table (see Deletion watch).
 - `backups/`, under `${CLAUDE_PLUGIN_DATA}` only: pre-strip copies of any non-git-tracked file
   modified or removed (settings hook entries, and an untracked instruction file the plan classified
   behavioral, which git cannot restore and so is never stripped through the git helper). Never
   commit `backups/`.
+
+**Effort.** Caller effort for this run is `${CLAUDE_EFFORT}`. Copy that value into the manifest
+`effort` field when Phase 1 writes the manifest, and into the Effort cell of each ledger row when
+the row is written, so a stumble can later be compared with the effort level of the session it
+happened in. Write `unset` when the value is empty or still reads as the dollar-brace placeholder
+instead of a level name: the substitution did not run, or no level was available. Record what
+rendered, never a guessed level; the value changes nothing else about the experiment.
+
+- **Pointer**: for the `CLAUDE_EFFORT` substitution, see
+  <https://code.claude.com/docs/en/skills#available-string-substitutions>.
+- **As of**: 2026-10-02
+- **Recheck trigger**: that table states what renders when no effort level is available, or drops
+  the substitution.
 
 `status` reads `manifest.json` and `stumbles.md` and prints:
 
@@ -289,9 +303,9 @@ instructions in context, so it cannot measure their absence.
 Work normally on real tasks for a meaningful window (days of real work, not one toy prompt). When
 the model stumbles, doing something an instruction used to prevent, missing a convention, or breaking a
 workflow, append a row to `stumbles.md` with the Write or Edit tool and commit that update on the
-experiment branch:
+experiment branch. The Effort cell is filled as State's Effort paragraph says:
 
-| Date | Task | What happened | Expected | Suspected missing instruction | Severity |
+| Date | Task | What happened | Expected | Suspected missing instruction | Severity | Effort |
 
 The first ledger commit sets `phase: observe`. Log honestly, including surprises in the other direction (things the bare model now does *better*;
 mark those `improvement`, since they are the deletions proving themselves). The ledger is the experiment's
