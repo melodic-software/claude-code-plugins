@@ -3,6 +3,15 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.6] - 2026-10-03
+
+### Changed
+
+- **chore(deps-dev): Bump the npm-minor-patch group across 1 directory with 3 updates** (#5999).
+  - `@types/node` 26.6.2→26.6.3
+  - `@vitest/coverage-v8` 5.0.1→5.0.2
+  - `vitest` 5.0.1→5.0.2
+
 ## [0.5.5] - 2026-10-02
 
 ### Fixed
