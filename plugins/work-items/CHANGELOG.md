@@ -16,6 +16,15 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 - The plugin carries generated copies of `lib/view-builder.mjs`, `lib/view-runtime.js` and
   `lib/html-escape.mjs`.
 
+## [0.45.4] - 2026-10-02
+
+### Changed
+
+- **`/work-items:work` pushes each review round once.** The orchestrator waits until every CI and
+  reviewer check run on the head has finished, then hands every failing check and VALID finding
+  to one fix worker that pushes once. The deferred-finding `## Related` body write lands before
+  that push, or while no run is in flight, never as its own edit right after a push.
+
 ## [0.45.3] - 2026-10-03
 
 ### Changed

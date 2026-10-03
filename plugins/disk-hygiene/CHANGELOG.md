@@ -3,6 +3,14 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.13] - 2026-10-03
+
+### Fixed
+
+- The guard decision log path test asserts the documented location
+  `<data-root>/guard-decisions/decisions.jsonl` instead of rebuilding that path
+  from the implementation's own directory and file-name constants ([#6005](https://github.com/melodic-software/claude-code-plugins/issues/6005)).
+
 ## [0.42.12] - 2026-10-03
 
 ### Changed
