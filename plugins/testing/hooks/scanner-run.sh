@@ -120,3 +120,65 @@ testing::run_bounded() {
     ((SCAN_RC > 128)) || SCAN_RC=143
   fi
 }
+
+# testing::norm_copy_path <var> <path>: the path as the copy check compares
+# it. On Windows, backslashes become slashes and case is folded; a trailing
+# slash is always dropped. A POSIX host keeps a backslash: it is a filename
+# byte there.
+testing::norm_copy_path() {
+  local v="$2"
+  case "${TESTING_OSTYPE:-${OSTYPE:-}}" in
+  msys* | cygwin* | win32)
+    v="${v//\\//}"
+    v="${v,,}"
+    ;;
+  *) ;;
+  esac
+  v="${v%/}"
+  printf -v "$1" '%s' "$v"
+}
+
+# testing::under_copy_root <path> <root>: true when path is the root or a
+# file under it, on a segment boundary. The root is literal text, not a glob.
+testing::under_copy_root() {
+  local p="$1" root="$2"
+  [[ -n "$root" && "$root" != / ]] || return 1
+  [[ "$p" == "$root" || "${p#"$root"/}" != "$p" ]]
+}
+
+# testing::record_skip <path>: true when this test file is a working copy the
+# task-end judge must not record. A file under the system temp directory, or
+# in a Claude session scratchpad (.../claude/<project>/<session>/scratchpad/),
+# was copied to be run, not authored. TEST_SCAN_SKIP_ROOT replaces the temp
+# root (TMPDIR, else TMP, else TEMP), so a harness whose fixtures live under
+# the real temp dir can point it elsewhere. On Windows the root's 8.3 short
+# form (cygpath -s -m) is matched too: scratchpad paths arrive in that spelling.
+testing::record_skip() {
+  local p raw root short os
+  local -a raws=()
+  testing::norm_copy_path p "$1"
+  [[ -n "$p" ]] || return 1
+  [[ "$p" =~ (^|/)claude/[^/]+/[^/]+/scratchpad/ ]] && return 0
+  os="${TESTING_OSTYPE:-${OSTYPE:-}}"
+  if [[ -n "${TEST_SCAN_SKIP_ROOT+x}" ]]; then
+    raws=("$TEST_SCAN_SKIP_ROOT")
+  else
+    raws=("${TMPDIR:-}" "${TMP:-}" "${TEMP:-}")
+  fi
+  for raw in "${raws[@]}"; do
+    [[ -n "$raw" ]] || continue
+    testing::norm_copy_path root "$raw"
+    testing::under_copy_root "$p" "$root" && return 0
+    case "$os" in
+    msys* | cygwin* | win32)
+      command -v cygpath >/dev/null 2>&1 || continue
+      short="$(cygpath -s -m -- "$raw" 2>/dev/null)" || continue
+      testing::norm_copy_path short "$short"
+      [[ "$short" == "$root" ]] && continue
+      testing::under_copy_root "$p" "$short" && return 0
+      ;;
+    *) ;;
+    esac
+  done
+  return 1
+}
