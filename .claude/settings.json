@@ -44,7 +44,8 @@
     "playgrounds@melodic-software": false,
     "plugin-quality@melodic-software": true,
     "retro-audio@melodic-software": false,
-    "skill-quality@melodic-software": true
+    "skill-quality@melodic-software": true,
+    "speech@melodic-software": false
   },
   "extraKnownMarketplaces": {
     "melodic-software": {

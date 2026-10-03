@@ -1361,8 +1361,9 @@ fi
 # --- Category D: hooks ---------------------------------------------------------
 
 # Token shapes that never belong in a claim or detail. Used here to redact a
-# hook command and in category F to flag a tracked settings value.
-SECRET_RE='ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{5,}|sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|xox[abp]-[A-Za-z0-9-]{10,}'
+# hook command and in category F to flag a tracked settings value. Match it under
+# LC_ALL=C: in a UTF-8 locale GNU grep takes quadratic time on a long line here.
+SECRET_RE='gh[pousr]_[A-Za-z0-9]{20,}|ghs_[0-9]+_eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|github_pat_[A-Za-z0-9_]{20,}|eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{5,}|sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|xox[abp]-[A-Za-z0-9-]{10,}'
 
 resolve_hook_path() {
   # resolve_hook_path <command> <plugin-path> -> the first token with placeholders expanded
@@ -1415,7 +1416,7 @@ while IFS=$'\t' read -r src event matcher cmd timeout htype hif hargs; do
   # raw command still feeds the anchor, which stores only a hash.
   cmd_ref="$cmd"
   cmd_public=1
-  if [[ "$surface" == "$SURF_LOCAL" || "$surface" == "$SURF_USER" ]] || printf '%s' "$cmd" | grep -Eq "$SECRET_RE"; then
+  if [[ "$surface" == "$SURF_LOCAL" || "$surface" == "$SURF_USER" ]] || printf '%s' "$cmd" | LC_ALL=C grep -Eq "$SECRET_RE"; then
     cmd_ref="cmd:$(anchor_for_excerpt "$cmd")"
     cmd_public=0
   fi
@@ -1761,7 +1762,7 @@ fi
 # --- Category F: environment variables -----------------------------------------
 
 if [[ $PROJECT_OK -eq 1 ]]; then
-  if tr -d '\r' <"$SETTINGS" | grep -Eq "$SECRET_RE"; then
+  if tr -d '\r' <"$SETTINGS" | LC_ALL=C grep -Eq "$SECRET_RE"; then
     row F secrets finding error "$SURF_SETTINGS" "secret-shaped-value" "a token-shaped value is present in the tracked settings file; move it to settings.local.json or a credential store" /env
   else
     row F secrets ok none "$SURF_SETTINGS" "no-secret-shaped-value" "no token-shaped value in settings.json" -
