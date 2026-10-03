@@ -689,6 +689,10 @@ class TestOpenFindings(unittest.TestCase):
             'var n=import.meta.require.call(0,"/a.js");for(var k in n)n[k].push("B");',
             'var n=await import(s);for(var k in n)n[k].push&&n[k].push("B");',
             "var n=require(s);",
+            # #5970 Codex: a destructured or aliased `import.meta`.
+            'const{require:r}=import.meta;var n=r("/a.js");for(var k in n)n[k].push("B");',
+            'var m=import.meta,n=m["req"+"uire"]("/a.js");for(var k in n)n[k].push("B");',
+            'var{require:r}=globalThis;var n=r("/a.js");for(var k in n)n[k].push("B");',
         ):
             with self.subTest(module=module):
                 self.assert_across_modules(True, named, module)

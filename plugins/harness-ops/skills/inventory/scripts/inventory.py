@@ -2355,7 +2355,7 @@ def _namespace_holds(src: str, lo: int, name: str) -> set[str] | None:
     load a file the parser cannot name (an aliased `require`,
     `require.call`, `import(x)`) could load this one, so it fails the hop.
     A promise settled
-    with the namespace reads its `then` export, so then each file's module
+    with the namespace reads its `then` export, so each file's module
     must be known and export no `then`."""
     assert _PARSER is not None
     path = _PARSER.module_path(src, lo)

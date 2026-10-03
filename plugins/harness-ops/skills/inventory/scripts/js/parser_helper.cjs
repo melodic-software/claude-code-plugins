@@ -1635,6 +1635,11 @@ function scanFor(req) {
 // `typeof` test, or `require.resolve`. A binding named `require` is no use.
 function unknownLoad(node, parent) {
   if (node.type === "ImportExpression") return literalString(node.source) === null;
+  // `import.meta` other than read by name can hand out its `require`
+  // (`var m=import.meta`, `{require:r}=import.meta`), and so can any
+  // destructured `require` key.
+  if (isImportMeta(node)) return !(parent?.type === "MemberExpression" && parent.object === node && memberName(parent) !== null);
+  if (node.type === "Property" && parent?.type === "ObjectPattern") return keyName(node.key, node.computed) === "require";
   const named = node.type === "Identifier" ? node.name === "require" : memberName(node) === "require";
   if (!named) return false;
   if (node.type === "Identifier") {
