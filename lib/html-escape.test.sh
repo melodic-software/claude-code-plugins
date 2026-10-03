@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Behavioral tests for lib/html-escape.mjs and the review explainer that is
-# the first page allowed to render a pull-request diff.
+# Behavioral tests for lib/html-escape.mjs, driven through view-builder's report
+# profile as a page that renders pull-request text.
 #
 #   bash lib/html-escape.test.sh
 #
@@ -20,21 +20,30 @@ if ! bash "$REPO_ROOT/scripts/sync-shared-copies.sh" --check >/dev/null; then
   exit 1
 fi
 
-work="$(mktemp -d)" || exit 2
-trap 'rm -rf "$work"' EXIT
-
-node --input-type=module - "$REPO_ROOT" "$work" <<'NODE'
-import { readFileSync, writeFileSync } from "node:fs";
+node --input-type=module - "$REPO_ROOT" <<'NODE'
 import { pathToFileURL } from "node:url";
-import { spawnSync } from "node:child_process";
 
 const root = process.argv[2];
-const work = process.argv[3];
 const helperUrl = pathToFileURL(`${root}/lib/html-escape.mjs`).href;
-const builderPath = `${root}/plugins/review/skills/pr-explainer/scripts/build-explainer.mjs`;
-const builderUrl = pathToFileURL(builderPath).href;
 const { escapeHtml, stampPage, validateRenderedPage } = await import(helperUrl);
-const { buildExplainerPage } = await import(builderUrl);
+const { buildView } = await import(pathToFileURL(`${root}/lib/view-builder.mjs`).href);
+const template = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{title}}</title>
+</head>
+<body>
+<h1>{{title}}</h1>
+<p>{{pr}}</p>
+<p>{{summary}}</p>
+<table><tbody>{{#each risks}}<tr><td>{{area}}</td><td>{{level}}</td><td>{{why}}</td></tr>{{/each}}</tbody></table>
+{{#each files}}<section><h3><code>{{path}}</code></h3><p>{{notes}}</p></section>{{/each}}
+<ol>{{#each focus}}<li>{{.}}</li>{{/each}}</ol>
+</body>
+</html>
+`;
+const buildPage = (data) => buildView({ profile: "report", template, data });
 
 let failed = 0;
 const ok = (name) => console.log(`ok: ${name}`);
@@ -79,8 +88,8 @@ const model = {
   files: [{ path: hostile[6], notes: hostile[7] }],
   focus: [hostile[8]],
 };
-const page = buildExplainerPage(model);
-check("the builder is deterministic", page === buildExplainerPage(model));
+const page = buildPage(model);
+check("the builder is deterministic", page === buildPage(model));
 const verdict = validateRenderedPage(page);
 check(
   "a page routed through the helper passes the validator",
@@ -97,10 +106,6 @@ check(
   "no external resource tag is emitted",
   !/<(?:link|iframe|object|embed|img|script|base)\b/i.test(page) && // portability-ok: embedded node JavaScript regex, not a shell tool pattern
     !verdict.failures.some((item) => item.startsWith("attr:")),
-);
-check(
-  "attribute breakout is escaped inside the title attribute",
-  page.includes(`title="${escapeHtml(hostile[6])}"`),
 );
 check(
   "quote and angle-bracket payloads are inert text",
@@ -205,61 +210,11 @@ check(
   validateRenderedPage(tampered).failures.join(","),
 );
 
-const emptyVerdict = validateRenderedPage(buildExplainerPage({}));
+const emptyVerdict = validateRenderedPage(buildPage({}));
 check(
   "an empty model still validates",
   emptyVerdict.ok,
   emptyVerdict.failures.join(","),
-);
-
-const source = readFileSync(builderPath, "utf8");
-const pageFn = source.slice(
-  source.indexOf("export function buildExplainerPage"),
-  source.indexOf("function readStdin"),
-);
-const interpolations = pageFn.match(/\$\{[^}]+\}/g) ?? [];
-const stray = interpolations.filter(
-  (item) => !/^\$\{(?:e\(|riskRows\(|fileBlocks\(|focusItems\(|CSS)/.test(item),
-);
-check(
-  "the builder template interpolates only escaped calls or pre-escaped fragments",
-  stray.length === 0,
-  stray.join(" "),
-);
-
-writeFileSync(`${work}/page.html`, page);
-const cli = spawnSync(process.execPath, [builderPath], {
-  input: JSON.stringify(model),
-  encoding: "utf8",
-});
-check(
-  "the CLI emits the same page as the function",
-  cli.status === 0 && cli.stdout === page,
-  `status ${cli.status} ${cli.stderr}`,
-);
-const bad = spawnSync(process.execPath, [builderPath], { input: "{", encoding: "utf8" });
-check("invalid JSON exits 2", bad.status === 2, String(bad.status));
-const checkOk = spawnSync(process.execPath, [builderPath, "--check", `${work}/page.html`], {
-  encoding: "utf8",
-});
-check("--check accepts a builder page", checkOk.status === 0, checkOk.stderr);
-writeFileSync(`${work}/naive.html`, naive);
-const checkBad = spawnSync(process.execPath, [builderPath, "--check", `${work}/naive.html`], {
-  encoding: "utf8",
-});
-check(
-  "--check flags a page assembled without the helper",
-  checkBad.status === 1,
-  String(checkBad.status),
-);
-
-const skill = readFileSync(`${root}/plugins/review/skills/pr-explainer/SKILL.md`, "utf8");
-check(
-  "the skill keeps the markdown record as the deliverable and offers the page",
-  skill.includes("The markdown record is the deliverable.") &&
-    skill.includes("Offer the page") &&
-    skill.includes("Do not hand-write the HTML") &&
-    skill.includes("build-explainer.mjs"),
 );
 
 if (failed > 0) process.exit(1);

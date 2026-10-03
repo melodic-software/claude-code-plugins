@@ -697,6 +697,17 @@ gate itself rather than an interpreter wrapping it:
 "${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py" <slice> --expect-evidence-use <mode>
 ```
 
+Run each gate as one plain command, one Bash call per gate. Pass the slice or ledger
+path as an argument and stop there: no `; echo exit=$?`, no `for` loop, and no `&&`
+chain. The tool result already carries a non-zero exit. A worktree-isolated session
+refused a compound command whose words included a slice path ending in `git`, and
+allowed the same path as one plain command. The side-effect-free `--help` probes in
+"Pre-flight" stay chained; they take no slice path.
+
+- **Pointer**: when a worktree-isolated Bash command is refused, fetch <https://code.claude.com/docs/en/worktrees> (isolation, command shape) live. The probe is [#6067](https://github.com/melodic-software/claude-code-plugins/issues/6067).
+- **As of**: 2026-10-03
+- **Recheck trigger**: a Claude Code release in which `<gate> <absolute-slice-ending-in-git>; echo exit=$?` from a worktree-isolated session is allowed. When that probe passes, drop the sub-slice naming line in `/discovery:research-deep`.
+
 The source-applicability checker ships as Python only, with no `.sh` twin. Where the shebang's
 `python3` does not resolve (common on Windows), run it as `python "…/check-source-applicability.py"`
 from any open lane; a session that can run no Python interpreter halts on criterion 13.

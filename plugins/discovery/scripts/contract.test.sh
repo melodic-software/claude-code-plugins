@@ -1146,6 +1146,20 @@ done
 assert_present 'evals grade a single-publisher claim that is not accepted' \
   'skills/research/evals/evals.json' 'single-publisher-claim-is-labeled-not-accepted'
 
+# ---------------------------------------------------------------------------
+# 21. A gate is one plain command, and a fan-out sub-slice is not named git
+#     (#6067)
+#
+# A worktree-isolated session refused compound commands whose words included a
+# slice path ending in `git`, and allowed the same path as one plain command.
+# ---------------------------------------------------------------------------
+assert_present 'how to invoke runs each gate as one plain command per Bash call' \
+  'reference/parent-contract.md' 'one plain command, one Bash call per gate'
+assert_present 'how to invoke gives the worktree-isolation reason' \
+  'reference/parent-contract.md' 'worktree-isolated session'
+assert_present 'research-deep fan-out says a sub-slice is not named git' \
+  'skills/research-deep/SKILL.md' 'Do not name a sub-slice `git`'
+
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then
   printf 'All contract assertions passed.\n'
