@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.4] - 2026-10-02
+
+### Changed
+
+- **`/work-items:work` pushes each review round once.** The orchestrator waits until every CI and
+  reviewer check run on the head has finished, then hands every failing check and VALID finding
+  to one fix worker that pushes once. The deferred-finding `## Related` body write lands before
+  that push, or while no run is in flight, never as its own edit right after a push.
+
 ## [0.45.3] - 2026-10-03
 
 ### Changed
