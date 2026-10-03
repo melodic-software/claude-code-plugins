@@ -3,13 +3,24 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.3.3] - 2026-10-03
+## [0.4.1] - 2026-10-03
 
 ### Changed
 
 - **Shared `hook-utils.sh` synced ([#5838](https://github.com/melodic-software/claude-code-plugins/issues/5838)); no change to this plugin's hooks.**
   It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
   the canonical, not the copy.
+
+## [0.4.0] - 2026-10-03
+
+### Added
+
+- A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names `/animation:check-prerequisites`.
+- `/animation:check-prerequisites`, a read-only report of whether the tools in `prerequisites.json` resolve, through the shared Node checker.
+
+### Changed
+
+- Each `prerequisites.json` entry's `check` names `/animation:check-prerequisites`, so a failed row sends the user back to the plugin's own check.
 
 ## [0.3.2] - 2026-10-03
 

@@ -3,13 +3,33 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.6.1] - 2026-10-03
+## [3.6.2] - 2026-10-03
 
 ### Changed
 
 - **Shared `hook-utils.sh` synced ([#5838](https://github.com/melodic-software/claude-code-plugins/issues/5838)); no change to this plugin's hooks.**
   It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
   the canonical, not the copy.
+
+## [3.6.1] - 2026-10-03
+
+### Fixed
+
+- **Bash-run scripts no longer write into another plugin's data directory.** Another plugin's
+  SessionStart hook can export its own data directory as `CLAUDE_PLUGIN_DATA` for every Bash call,
+  and `known-issues`' `check-all.sh` and `registry_manager.py`, `observability`'s
+  `report-path.sh`, and `lanes`' `lane-launcher.sh` and `restart-consumer.sh` then put their
+  scratch files, registry, reports, launch-commit markers and run ledger there, while
+  `telemetry-upsert.sh` accepted a body file from anywhere under it. Each now uses an inherited
+  value only when its last path segment names harness-ops, and otherwise falls back to the
+  location it already used outside a session (`telemetry-upsert.sh` then requires `--body-dir`).
+  The `known-issues` registry-location rule now always passes `--data-dir`, as
+  `"${CLAUDE_PLUGIN_DATA}"` when no `registry_dir` is configured, and `registry_manager.py`
+  refuses an unsubstituted placeholder. An empty `--data-dir` is not given.
+  `pathlib.Path("")` normalizes to `Path(".")`, so the flag used to resolve the
+  registry to the current working directory. `check-all.sh` and `report-path.sh`
+  read `$HOME` only when the inherited data directory does not name harness-ops, so
+  an unset `HOME` no longer aborts a run that already has this plugin's directory.
 
 ## [3.6.0] - 2026-10-03
 

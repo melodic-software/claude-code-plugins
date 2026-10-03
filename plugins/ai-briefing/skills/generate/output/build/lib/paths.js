@@ -53,9 +53,20 @@ export function configDir(profile = activeProfile()) {
   return safeProfile === "default" ? base : path.join(base, safeProfile);
 }
 
+// The plugin data dir, only when its last path segment names this plugin. The
+// skill sets CLAUDE_PLUGIN_DATA on the launched build from the substituted
+// "${CLAUDE_PLUGIN_DATA}", because the Bash tool does not carry this plugin's
+// value and another plugin's SessionStart hook can export its own data dir under
+// that name; a value naming any other plugin is ignored.
+function pluginDataDir() {
+  const data = envDir("CLAUDE_PLUGIN_DATA");
+  const lastSegment = data?.replace(/[\\/]+$/, "").split(/[\\/]/).pop() ?? "";
+  return /^ai-briefing(-|$)/.test(lastSegment) ? data : null;
+}
+
 export function stateRoot(profile = activeProfile()) {
   const safeProfile = validateProfileName(profile);
-  const data = envDir("CLAUDE_PLUGIN_DATA");
+  const data = pluginDataDir();
   return data ? path.join(data, safeProfile) : SKILL_ROOT;
 }
 

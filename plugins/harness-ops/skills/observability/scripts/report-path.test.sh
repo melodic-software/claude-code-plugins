@@ -28,7 +28,9 @@ SCRIPT="$SCRIPT_DIR/report-path.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-DATA="$TEST_TMPDIR/plugindata"
+# Named like the real per-plugin dir: an inherited CLAUDE_PLUGIN_DATA is used only
+# when it names harness-ops.
+DATA="$TEST_TMPDIR/harness-ops-test"
 mkdir -p "$DATA"
 DATE="2026-09-07"
 
@@ -148,6 +150,19 @@ OUT_D=$( (cd "$TEST_TMPDIR/repo-a" && CLAUDE_PLUGIN_DATA="$DATA" bash "$SCRIPT" 
 RC=$?
 assert_exit "a traversal --date is refused" 2 "$RC"
 assert_contains "the refusal names the offending value" "$OUT_D" "YYYY-MM-DD"
+
+# --- Case group 10: another plugin's data dir is never used ---
+# Another plugin's SessionStart hook can export its own data dir into every Bash
+# call as CLAUDE_PLUGIN_DATA.
+FOREIGN="$TEST_TMPDIR/codex-openai-codex"
+OUT_X=$(cd "$TEST_TMPDIR/repo-a" && HOME="$TEST_TMPDIR/home" CLAUDE_PLUGIN_DATA="$FOREIGN" bash "$SCRIPT" --date "$DATE" --mkdir 2>/dev/null)
+assert_contains "a foreign CLAUDE_PLUGIN_DATA falls back to the home data dir" "$OUT_X" "$TEST_TMPDIR/home/.claude/plugins/data/harness-ops/reports/"
+assert_eq "a foreign CLAUDE_PLUGIN_DATA gets no directory" "absent" "$([[ -e "$FOREIGN" ]] && echo present || echo absent)"
+
+# $HOME is read only for that fallback. A value that already names this plugin
+# must still resolve when HOME is unset.
+OUT_NH=$(cd "$TEST_TMPDIR/repo-a" && env -u HOME CLAUDE_PLUGIN_DATA="$DATA" bash "$SCRIPT" --date "$DATE" 2>/dev/null)
+assert_contains "an unset HOME still uses a harness-ops CLAUDE_PLUGIN_DATA" "$OUT_NH" "$DATA/reports/"
 
 [[ $FAILED -eq 0 ]] || exit 1
 echo "All cases passed ($CASE_NUM)."

@@ -107,7 +107,7 @@ writing. Re-running it after everything passes changes nothing and reports "alre
   On Windows, print this PowerShell form instead:
 
   ```powershell
-  New-Item -ItemType Directory -Force -Path "$env:CLAUDE_PLUGIN_DATA\sdk" | Out-Null; npm install --prefix "$env:CLAUDE_PLUGIN_DATA\sdk" @anthropic-ai/claude-agent-sdk <!-- portability-ok: Windows path, not a shell regex -->
+  New-Item -ItemType Directory -Force -Path "${CLAUDE_PLUGIN_DATA}\sdk" | Out-Null; npm install --prefix "${CLAUDE_PLUGIN_DATA}\sdk" @anthropic-ai/claude-agent-sdk <!-- portability-ok: Windows path, not a shell regex -->
   ```
 
 - **Toggle off (or on):** reconfigure through Claude Code's native flow, per the marketplace's
