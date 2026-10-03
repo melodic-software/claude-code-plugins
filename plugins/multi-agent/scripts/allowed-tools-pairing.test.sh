@@ -45,6 +45,13 @@ expected_granted() {
   esac
 }
 
+expected_workflow_grant() {
+  case "$1" in
+  audit-defaults) echo "multi-agent:drift-audit" ;;
+  *) echo "" ;;
+  esac
+}
+
 fails=0
 pass() { echo "PASS: $1"; }
 fail() {
@@ -98,6 +105,22 @@ for skill in "${SKILLS[@]}"; do
   # a grant nothing runs is dead weight, and a non-executable target cannot be
   # invoked directly at all.
   mapfile -t granted < <(grep -oE 'Bash\(\$\{CLAUDE_SKILL_DIR\}/scripts/[^:)]+' <<<"$at" | sed 's|.*/||')
+
+  # A skill that launches this plugin's own workflow grants that one named
+  # workflow and nothing else: never bare Workflow, never a script.
+  workflow_grant="$(expected_workflow_grant "$skill")"
+  if [[ -n "$workflow_grant" ]]; then
+    if [[ "$at" == "allowed-tools: [\"Workflow($workflow_grant)\"]" ]]; then
+      pass "$skill: allowed-tools grants only the named $workflow_grant workflow"
+    else
+      fail "$skill: allowed-tools must be exactly [\"Workflow($workflow_grant)\"], got: $at"
+    fi
+    continue
+  fi
+  if grep -qE 'Workflow([^(]|$)' <<<"$at"; then
+    fail "$skill: allowed-tools carries a bare Workflow grant"
+  fi
+
   if [[ ${#granted[@]} -eq 0 ]]; then
     fail "$skill: no \${CLAUDE_SKILL_DIR} bundled-script grant found"
   fi

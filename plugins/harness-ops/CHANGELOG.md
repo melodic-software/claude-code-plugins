@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [2.5.4] - 2026-10-02
+## [2.5.5] - 2026-10-02
 
 ### Fixed
 
@@ -21,6 +21,16 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   starts only where a run of token characters starts, so its header stays unbounded and a JWS
   with a long certificate-chain header is still refused; the `ghs_` rule's header is capped at
   512 characters.
+
+## [2.5.4] - 2026-10-02
+
+### Security
+
+- The `observability` HTML dashboard is built by a checked-in builder
+  (`skills/observability/scripts/build-dashboard.mjs`) that escapes every telemetry-derived field
+  through the rendered-views escape helper, now carried at `lib/html-escape.mjs`, and stamps the
+  generator marker. The page has no script, and a hostile skill, hook, or session name renders as
+  text. `build-dashboard.mjs --check <file>` flags a page that bypassed the builder.
 
 ## [2.5.3] - 2026-10-02
 
