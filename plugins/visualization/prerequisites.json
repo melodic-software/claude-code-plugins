@@ -3,7 +3,7 @@
     {
       "id": "node",
       "kind": "runtime",
-      "need": "required",
+      "need": "optional",
       "for": ["skill:visualize"],
       "detect": {
         "any": ["node"]
