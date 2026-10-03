@@ -9,7 +9,7 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 
 ### Changed
 
-- `audit-automation-gaps` names a mod as the candidate when a need goes past what a settings hook can do, and its implement phase loads the built-in `plugin-authoring` skill before planning one.
+- `audit-automation-gaps` names a mod only when a need goes past what a settings hook, a skill, or an MCP server can do (in-interface drawing, a prompt or model rewrite, or in-process session state). A reusable command stays a skill and an external-service tool stays an MCP server. Its implement phase loads the built-in `plugin-authoring` skill before planning a mod.
 
 ## [1.7.1] - 2026-10-02
 

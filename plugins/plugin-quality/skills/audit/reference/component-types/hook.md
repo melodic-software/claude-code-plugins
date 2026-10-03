@@ -32,10 +32,11 @@ PreToolUse / PostToolUse / lifecycle hook scripts.
 A hook config that names `"modules"` loads a hooks module: in-process code with the user's
 permissions, not a shell script. Read the module and run `claude plugin validate --json <plugin>`.
 
-- **Read meanings from the declarations.** Step 1 records the path of the built-in
-  `plugin-authoring` skill's `types/claude-code.d.ts`. Grep it for each event and `$` call the
+- **Read meanings from the declarations.** Step 1 records the declaration-file path the built-in
+  `plugin-authoring` skill names. Grep that path for each event and `$` call the
   module uses and read the declaration it lands on. It is written for the running build, so it wins
-  where the pages cited below disagree. With no path in the packet, or a path that no longer exists
+  where the pages cited below disagree. As of 2026-10-03 the path ends in `types/claude-code.d.ts`;
+  a later skill that names a different file is still the file to read. With no path in the packet, or a path that no longer exists
   (the folder belongs to one process, so a resumed audit can carry a dead one), ground in the pages
   and record that the declarations were not read.
 
