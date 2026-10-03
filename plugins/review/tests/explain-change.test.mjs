@@ -553,6 +553,23 @@ describe("connected page: the author Q&A over session-bridge", () => {
     assert.equal(readFileSync(target, "utf8"), "keep");
     assert.ok(lstatSync(join(dir, "page.html")).isFile());
   });
+  test("a link reached through a trailing slash or dot is refused", () => {
+    const linked = join(scratch, "bridge-slash-link");
+    symlinkSync(bridgeDir("bridge-slash-real"), linked);
+    for (const dir of [`${linked}/`, `${linked}/.`]) {
+      const out = connect(["--connect", origin, "--dir", dir]);
+      assert.equal(out.status, 2, `${dir}: ${out.stderr}`);
+    }
+    assert.ok(!existsSync(join(scratch, "bridge-slash-real", "page.html")));
+  });
+  test("a page.html that is a directory is refused with exit 2", () => {
+    const dir = bridgeDir("bridge-page-dir");
+    mkdirSync(join(dir, "page.html"));
+    const out = connect(["--connect", origin, "--dir", dir]);
+    assert.equal(out.status, 2, out.stderr);
+    assert.match(out.stderr, /is a directory/);
+    assert.ok(lstatSync(join(dir, "page.html")).isDirectory());
+  });
   test("the page goes nowhere but a private view-bridge data dir outside a working tree", () => {
     const plain = join(scratch, "not-a-bridge");
     mkdirSync(plain, { mode: 0o700 });

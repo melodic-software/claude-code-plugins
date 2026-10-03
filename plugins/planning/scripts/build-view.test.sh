@@ -36,12 +36,21 @@ work="$(mktemp -d)" || exit 2
 trap 'rm -rf "$work"' EXIT
 
 node --input-type=module - "$SCRIPT_DIR" "$work" "$chrome" <<'NODE'
-import { copyFileSync, lstatSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 const [dir, work, chrome] = process.argv.slice(2);
 const env = { ...process.env, TMPDIR: work, TEMP: work, TMP: work };
+
+// A data dir shaped like the one view-bridge ensure-running leaves: private, holding its session file.
+const bridgeDir = (name, port = 8765) => {
+  const path = `${work}/${name}`;
+  mkdirSync(path, { mode: 0o700 });
+  chmodSync(path, 0o700);
+  writeFileSync(`${path}/.view-session.json`, JSON.stringify({ port, pid: 1 }));
+  return path;
+};
 
 let failed = 0;
 const check = (name, cond, detail) => {
@@ -139,7 +148,7 @@ for (const kind of Object.keys(fixtures)) {
   }
 
   // Claude-interactive build into a view-bridge data dir.
-  const bridgedOut = `${work}/${kind}-bridged-page.html`;
+  const bridgedOut = `${bridgeDir(`${kind}-bridge`)}/page.html`;
   const bridged = spawnSync("node", [`${dir}/build-view.mjs`, kind, "--connect", "http://127.0.0.1:8765", "--out", bridgedOut], {
     input: JSON.stringify(fixtures[kind].data),
     encoding: "utf8",
@@ -151,7 +160,44 @@ for (const kind of Object.keys(fixtures)) {
 const flag = (...args) => spawnSync("node", [`${dir}/build-view.mjs`, "plan", ...args], { input: JSON.stringify(fixtures.plan.data), encoding: "utf8", env }).status;
 check("--connect without --out exits 2", flag("--connect", "http://127.0.0.1:8765") === 2);
 check("an unknown flag exits 2", flag("--open", "x") === 2);
-check("--connect to a non-loopback origin exits 1", flag("--connect", "https://evil.example", "--out", `${work}/x.html`) === 1);
+check("--connect to a non-loopback origin exits 2", flag("--connect", "https://evil.example", "--out", `${bridgeDir("evil")}/page.html`) === 2);
+{
+  const origin = "http://127.0.0.1:8765";
+  const plain = `${work}/not-a-bridge`;
+  mkdirSync(plain, { mode: 0o700 });
+  const open = bridgeDir("open-bridge");
+  chmodSync(open, 0o755);
+  const real = bridgeDir("real-bridge");
+  symlinkSync(real, `${work}/linked-bridge`);
+  const repo = `${work}/repo`;
+  mkdirSync(`${repo}/.git`, { recursive: true });
+  const tracked = `${repo}/views`;
+  mkdirSync(tracked, { mode: 0o700 });
+  writeFileSync(`${tracked}/.view-session.json`, '{"port": 8765, "pid": 1}');
+  const refused = {
+    "a dir with no session file": `${plain}/page.html`,
+    "another port": `${bridgeDir("other-port", 9999)}/page.html`,
+    "a group-readable dir": `${open}/page.html`,
+    "a symlinked dir": `${work}/linked-bridge/page.html`,
+    "a dir inside a working tree": `${tracked}/page.html`,
+    "a file name other than page.html": `${bridgeDir("odd-name")}/x.html`,
+  };
+  for (const [label, out] of Object.entries(refused)) {
+    check(`--out refused for ${label}`, flag("--connect", origin, "--out", out) === 2);
+    check(`--out writes nothing for ${label}`, !existsSync(out));
+  }
+  const linkDir = bridgeDir("planted");
+  const target = `${work}/link-target.md`;
+  writeFileSync(target, "keep");
+  symlinkSync(target, `${linkDir}/page.html`);
+  check("a planted page.html link is replaced, never written through", flag("--connect", origin, "--out", `${linkDir}/page.html`) === 0 && readFileSync(target, "utf8") === "keep" && lstatSync(`${linkDir}/page.html`).isFile());
+  const dirDir = bridgeDir("page-dir");
+  mkdirSync(`${dirDir}/page.html`);
+  check("a page.html that is a directory exits 2", flag("--connect", origin, "--out", `${dirDir}/page.html`) === 2 && lstatSync(`${dirDir}/page.html`).isDirectory());
+  const modeOut = `${bridgeDir("mode")}/page.html`;
+  flag("--connect", origin, "--out", modeOut);
+  check("the page is created mode 0600", process.platform === "win32" || (statSync(modeOut).mode & 0o777) === 0o600);
+}
 if (!chrome) {
   console.log("SKIP: browser check, no Chrome or Chromium found (set CHROME to run it)");
 }

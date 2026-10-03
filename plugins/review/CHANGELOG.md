@@ -17,6 +17,8 @@ All notable changes to the `review` plugin are documented here. Format follows
 - **`build-digest.mjs --connect <origin> --dir <data_dir>`.** It writes only `<data_dir>/page.html`,
   and only into a private view-bridge data dir outside any working tree whose session file names that
   origin's port. A planted `page.html` link is replaced, not followed. `--out` is still refused.
+  `--dir` is refused when any part of its path is a link (`lnk/` and `lnk/.` included), and a
+  directory at `page.html` exits 2 with a refusal.
 - **`view-bridge/`**: the session-bridge view app, generated from `lib/session-bridge/`.
   `prerequisites.json` declares curl and Python 3 for it.
 

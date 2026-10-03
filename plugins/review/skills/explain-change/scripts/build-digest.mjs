@@ -96,6 +96,7 @@ export function bridgeDirProblem(dir, origin) {
   if (process.platform !== "win32" && (st.uid !== process.getuid() || st.mode & 0o077)) {
     return `${dir} must be owned by you with mode 0700`;
   }
+  if (realpathSync(dir) !== resolve(dir)) return `${dir} is not a plain directory path (a link is in it)`;
   const root = repoRoot(realpathSync(dir));
   if (root) return `${dir} is inside the working tree ${root}`;
   let session;
@@ -175,6 +176,7 @@ function main(args) {
   if (connected) {
     // Never write through a link a K2-steered run might have planted.
     const out = join(realpathSync(flags["--dir"]), "page.html");
+    if (existsSync(out) && lstatSync(out).isDirectory()) fail(`refused: ${out} is a directory`, 2);
     rmSync(out, { force: true });
     writeFileSync(out, page, { flag: "wx", mode: 0o600 });
     process.stdout.write(`${out}\n`);
