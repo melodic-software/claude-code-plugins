@@ -187,6 +187,11 @@ renderer can be embedded, deliver the mermaid **source** fence in the terminal a
 say it is unrendered. Never open a page that shows source instead of the promised
 picture.
 
+Run `/visualization:mermaid-gate` on every mermaid block before it is emitted, whatever the
+medium. For a local file, give it `--svg-dir` and embed the SVG it returns; when the pinned
+`mmdc` is absent it keeps the source and names why, so print that reason on the page. For an
+Artifact, run it without `--svg-dir`: the Artifact renders mermaid natively.
+
 Honor a preference without overproducing: `artifact` still renders a trivial
 three-row table inline, and `terminal` degrades a rich form to its best terminal
 approximation with a visible note rather than dropping detail silently.

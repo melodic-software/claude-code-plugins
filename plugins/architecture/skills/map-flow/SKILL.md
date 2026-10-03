@@ -148,6 +148,10 @@ that picture as the whole path.
 Exit 1 means the record is unreadable, not schema_version 1, or not in the one-object-per-line
 layout. Nothing was written. Report that message. Do not reformat the record by hand.
 
+When `/visualization:mermaid-gate` is installed, run it on `flow.md` before the report and quote any
+failing block's line and error. A failing block is a defect in the render script: report it and
+do not repair `flow.md` by hand. When the skill is absent, say the diagram was not checked.
+
 ## Close with the report
 
 End every run with this block, in this order, filled from the record and the script exits:

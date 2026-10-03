@@ -280,6 +280,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/source-control:check`](../plugins/source-control/skills/check/SKILL.md) | `source-control` | Report whether node and jq resolve for the source-control hooks. Never installs. |
 | [`/testing:check`](../plugins/testing/skills/check/SKILL.md) | `testing` | Report whether node and jq resolve for the testing hooks. Never installs. |
 | [`/typos-format:check`](../plugins/typos-format/skills/check/SKILL.md) | `typos-format` | Report whether typos and node are installed. Never installs. |
+| [`/visualization:mermaid-gate`](../plugins/visualization/skills/mermaid-gate/SKILL.md) | `visualization` | Parse Mermaid blocks, report syntax errors, and pre-render to SVG with the pinned mmdc |
 | [`/visualization:visualize`](../plugins/visualization/skills/visualize/SKILL.md) | `visualization` | Pick the best visual form for what is in the conversation and render it |
 | [`/wizard:generate`](../plugins/wizard/skills/generate/SKILL.md) | `wizard` | Author a hardened interactive bash wizard for human-only setup, credential, and cutover steps |
 | [`/wizard:unattended`](../plugins/wizard/skills/unattended/SKILL.md) | `wizard` | Author an unattended script a human launches once for a privilege or policy boundary |

@@ -1,12 +1,14 @@
 # visualization
 
-A Claude Code plugin for on-demand visualization. One skill, one job: at any point
+A Claude Code plugin for on-demand visualization. `visualize` has one job: at any point
 in a conversation, decide **what** is most worth showing visually and **how** to
 show it, then render it. It is a form-and-medium router, not a craft teacher.
+`mermaid-gate` checks the mermaid it emits.
 
 | Skill | What it does |
 |---|---|
 | `/visualization:visualize` | Infer the target from the conversation, pick a form (mermaid diagram, table, chart, ASCII/Unicode, code-shape sketch, or a rich page) and a medium (terminal, local HTML file, or published Artifact), and render it, asking only on genuine ambiguity |
+| `/visualization:mermaid-gate` | Parse every mermaid block before it is emitted, report a syntax error with its line, and pre-render to SVG for a local page when the pinned `mmdc` is installed (otherwise the source is kept and the page says why). Other plugins' mermaid-emitting skills opt in by calling it |
 
 ## What it decides
 
