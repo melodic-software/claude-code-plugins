@@ -175,7 +175,7 @@
     {
       "id": 15,
       "name": "wrap-up-offers-plugin-audit-after-plugin-skill",
-      "prompt": "/workflow wrap-up — this session ran /source-control:commit and /verification:confirm. plugin-quality is installed.",
+      "prompt": "/workflow wrap-up — this session ran /source-control:commit and /verification:confirm. plugin-quality is enabled.",
       "expected_output": "The wrap-up checklist includes a one-line offer of `/plugin-quality:audit session` because the session invoked plugin skills. It is an offer only; the router does not run the audit.",
       "files": [],
       "expectations": [

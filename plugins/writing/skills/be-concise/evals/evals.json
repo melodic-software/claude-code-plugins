@@ -79,7 +79,7 @@
         "evals/fixtures/wall-of-text-migration-decisions.md"
       ],
       "expectations": [
-        "Output routes to `adhd:clarify` by name, gated on the `adhd` plugin being installed",
+        "Output routes to `adhd:clarify` by name, gated on the `adhd` plugin being enabled",
         "Output states the distinguishing reason: clarify restructures without shortening, while this skill shortens",
         "No condensed or reshaped version of the memo is produced",
         "No before and after word counts are reported, because no reshape happened",
