@@ -121,7 +121,6 @@ playbooks claude
 playbooks curl
 playbooks gh
 playbooks jq
-playbooks yarn
 playwright jq
 playwright npm
 playwright npx
