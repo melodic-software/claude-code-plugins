@@ -3,6 +3,27 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.1] - 2026-10-03
+
+### Changed
+
+- Shared `view-builder.mjs`, `view-runtime.js` synced ([#5868](https://github.com/melodic-software/claude-code-plugins/issues/5868)); no change to this plugin's own behavior.
+
+## [0.21.0] - 2026-10-03
+
+### Added
+
+- **Interactive views for the `map-*` records (#5863).** Each of `map-landscape`, `map-containers`,
+  `map-components`, `map-dependencies`, `map-data`, `map-events`, `map-flow`, `map-context` and
+  `map-deployment` offers a view of its record: a filter that traces an id through every row that names it,
+  and rows that open to their fields and citations. `scripts/build-view.mjs` fills the checked-in
+  `templates/map-view.html` with the record as escaped JSON data through `lib/view-builder.mjs` and
+  `lib/view-runtime.js`, which the plugin now carries as generated copies with `lib/html-escape.mjs`. No page
+  carries model-written markup or script, so repository text stays data. The markdown and the JSON record stay
+  the record. The publish destination comes from the `medium` key of the `rendered-views` cascade (`file` when
+  unset); the procedure is in `reference/rendered-view.md`. `map-components` passes `--from` to chart the
+  chosen deployable's closure.
+
 ## [0.20.1] - 2026-10-03
 
 ### Changed

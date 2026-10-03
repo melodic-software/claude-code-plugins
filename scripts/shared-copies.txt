@@ -2,6 +2,7 @@
 # One copy per line: `<canonical> <copy>`, both repo-relative. The canonical is
 # the only file to edit; each copy sits inside its plugin because a plugin cache
 # cannot see the repository root. Register a copy here, then run the script.
+lib/html-escape.mjs plugins/architecture/lib/html-escape.mjs
 lib/html-escape.mjs plugins/debugging/lib/html-escape.mjs
 lib/html-escape.mjs plugins/discovery/lib/html-escape.mjs
 lib/html-escape.mjs plugins/education/lib/html-escape.mjs
@@ -137,8 +138,12 @@ lib/session-bridge/view_bridge.py plugins/work-items/view-bridge/view_bridge.py
 lib/session-bridge/view-bridge.sh plugins/work-items/view-bridge/view-bridge.sh
 lib/view-builder.mjs plugins/review/lib/view-builder.mjs
 lib/view-runtime.js plugins/review/lib/view-runtime.js
+lib/view-builder.mjs plugins/education/lib/view-builder.mjs
+lib/view-runtime.js plugins/education/lib/view-runtime.js
 lib/view-builder.mjs plugins/planning/lib/view-builder.mjs
 lib/view-runtime.js plugins/planning/lib/view-runtime.js
+lib/view-builder.mjs plugins/architecture/lib/view-builder.mjs
+lib/view-runtime.js plugins/architecture/lib/view-runtime.js
 lib/view-builder.mjs plugins/debugging/lib/view-builder.mjs
 lib/view-runtime.js plugins/debugging/lib/view-runtime.js
 lib/view-builder.mjs plugins/discovery/lib/view-builder.mjs

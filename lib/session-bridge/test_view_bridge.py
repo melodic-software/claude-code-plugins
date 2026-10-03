@@ -102,6 +102,20 @@ class TestPageAndToken(ViewCase):
         self.assertEqual(code, 403)
         self.assertEqual(self.hub.read_log()["events"], [])
 
+    def test_the_server_expires_only_when_no_watcher_has_waited_for_idle_seconds(self):
+        hub = self.hub
+        hub.idle = 60
+        self.assertFalse(hub.expired())
+        hub.started -= 61
+        self.assertTrue(hub.expired())
+        hub.waiters = 1
+        self.assertFalse(hub.expired())
+        hub.waiters = 0
+        hub.last_wait = time.time() - 30
+        self.assertFalse(hub.expired())
+        hub.last_wait -= 31
+        self.assertTrue(hub.expired())
+
 
 class TestActions(ViewCase):
     def test_an_action_holds_builder_keys_ids_and_the_readers_notes(self):
@@ -294,6 +308,52 @@ class TestLoop(unittest.TestCase):
         time.sleep(0.2)
         self.assertFalse(canary.exists())
         self.assertFalse(sb.ping(session["port"]))
+
+    def test_the_token_dies_once_no_watcher_listens(self):
+        idle = 3
+        r = self.control("ensure-running", "--idle-seconds", str(idle))
+        self.assertEqual(r.returncode, 0, r.stderr)
+        session = json.loads(
+            (self.dir / ".view-session.json").read_text(encoding="utf-8")
+        )
+        watch = subprocess.Popen(
+            ["bash", str(self.bin / "watch.sh"), str(self.dir)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=self.env,
+        )
+        self.addCleanup(watch.kill)
+        time.sleep(idle + 1.5)
+        self.assertTrue(sb.ping(session["port"]), "a listening watcher keeps it up")
+
+        status = self.post(session["port"], session["token"], {"action": "send"})
+        self.assertEqual(status, 200)
+        out, err = watch.communicate(timeout=TIMEOUT + 15)
+        self.assertEqual(watch.returncode, 0, err)
+        self.assertEqual(json.loads(out)["events"][0]["seq"], 1)
+
+        def ended():
+            # clear_session removes the env file, then writes the port-only session file.
+            kept = sb.kept_port(self.dir, "view")
+            return kept and not (self.dir / ".view-session.env").exists()
+
+        deadline = time.monotonic() + idle + TIMEOUT
+        while time.monotonic() < deadline and not ended():
+            time.sleep(0.2)
+        self.assertTrue(ended(), "no watcher: the server ends")
+        self.assertFalse(sb.ping(session["port"]))
+        left = json.loads((self.dir / ".view-session.json").read_text("utf-8"))
+        self.assertNotIn("token", left)
+        self.assertFalse((self.dir / ".view-session.env").exists())
+
+        r = self.control("ensure-running")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        fresh = json.loads(
+            (self.dir / ".view-session.json").read_text(encoding="utf-8")
+        )
+        self.assertNotEqual(fresh["token"], session["token"])
+        self.assertEqual(fresh["port"], session["port"])
 
 
 if __name__ == "__main__":

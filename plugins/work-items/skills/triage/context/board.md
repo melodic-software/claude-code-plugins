@@ -107,7 +107,9 @@ closes the loop.
    event you answer and `handled` for the rest, then run the event line's `next` as a background Bash
    task. It applies the replies, which the board shows, and re-arms the watcher.
 7. A watcher exit 3 means another session holds the board or it was stopped: stop watching. Exit 2
-   names its cause on stderr; report it. When triage is done, run
+   names its cause on stderr. When it asks for `ensure-running`, the server ended after 600 seconds
+   with no watcher, and its token with it: run step 1 again, tell the reader to reload the board, and
+   run the new `watch`. Report any other exit 2 cause. When triage is done, run
    `bash "<plugin-root>/view-bridge/view-bridge.sh" --dir "<data_dir>" stop`.
 
 With no session listening, the board says so and its copy control still works.

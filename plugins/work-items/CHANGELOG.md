@@ -13,6 +13,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   serves the page that `build-board.mjs --connect <origin>` builds, the reader's picks reach the session as
   data through the watcher, and the session's replies show on the board. A page action never stands in
   for a tracker write's own confirmation. A board with no session says so and keeps its copy control.
+  The server and its token end 600 seconds after the session's watcher last waited.
   Procedure: `skills/triage/context/board.md`.
 
 ### Changed

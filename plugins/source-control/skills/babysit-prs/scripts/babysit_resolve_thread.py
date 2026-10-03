@@ -216,8 +216,12 @@ def resolve_thread_audit_log_path() -> Path:
     override = os.environ.get("SOURCE_CONTROL_RESOLVE_THREAD_AUDIT_LOG")
     if override:
         return Path(override).expanduser()
-    plugin_data = os.environ.get("CLAUDE_PLUGIN_DATA")
-    if plugin_data:
+    # Another plugin's SessionStart hook can export its own data dir into every
+    # Bash call under this name, so an inherited value counts only when its last
+    # path segment names this plugin.
+    plugin_data = os.environ.get("CLAUDE_PLUGIN_DATA", "")
+    segment = Path(plugin_data.rstrip("/\\")).name if plugin_data else ""
+    if segment == "source-control" or segment.startswith("source-control-"):
         return Path(plugin_data) / "source-control" / "resolve-thread-audit.jsonl"
     home = os.environ.get("HOME")
     if home:

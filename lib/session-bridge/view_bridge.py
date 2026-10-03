@@ -1,8 +1,10 @@
 """view-bridge: the session-bridge app that makes a built view Claude-interactive. Python 3 stdlib.
 
 Usage: python view_bridge.py --dir DATA_DIR <command>
-  ensure-running [--port P]  start the server on the data dir (or reuse it); print its JSON
-  serve --port P --nonce N   run the server in the foreground (ensure-running spawns this)
+  ensure-running [--port P] [--idle-seconds S]
+                             start the server on the data dir (or reuse it); print its JSON
+  serve --port P --nonce N [--idle-seconds S]
+                             run the server in the foreground (ensure-running spawns this)
   apply --file F             merge the session's replies from F into replies.json, then remove F
   stop                       stop the server and its watcher
   lease [--release]          show (or clear) the watcher lease
@@ -15,6 +17,10 @@ on `/events`. `replies.json` is the session's file: the seqs it handled and its 
 A page action holds only builder keys, builder row ids and the reader's own notes. Anything else is
 refused. Nothing here acts on an action: the watcher prints it under session_bridge.DATA_NOTE and the
 session decides (rendered-views README, rule 9).
+
+The token lives only while the session listens: the server exits once no watcher has waited for
+IDLE_SECONDS, and the next ensure-running starts a server with a new token. A session that ends takes
+its background watcher with it, so its token stops working within IDLE_SECONDS of its last wait.
 """
 
 import argparse
@@ -26,6 +32,7 @@ import shlex
 import shutil
 import signal
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -34,6 +41,7 @@ import session_bridge as bridge
 HERE = Path(__file__).resolve().parent
 NAME = "view"
 START_SECONDS = 10
+IDLE_SECONDS = bridge.LEASE_TIMEOUT  # no watcher wait for this long ends the server and its token
 KEY = re.compile(r"^[a-z0-9-]{1,32}$")
 ROW_ID = re.compile(r"^[a-z0-9-]{1,128}$")
 FIELDS = {"action", "picked", "choices", "notes"}
@@ -108,11 +116,19 @@ def mtime(path):
 class ViewHub(bridge.LoopbackWatcher):
     name = NAME
 
-    def __init__(self, port, data_dir):
+    def __init__(self, port, data_dir, idle=IDLE_SECONDS):
         super().__init__(port, data_dir)
         self.actions = self.dir / "actions.json"
         self.replies = self.dir / "replies.json"
         self.page = self.dir / "page.html"
+        self.idle = idle
+        self.started = time.time()
+
+    def expired(self):
+        """True once no watcher wait is in flight and none has ended for `idle` seconds."""
+        with self.cond:
+            quiet = time.time() - max(self.last_wait, self.started)
+            return self.waiters == 0 and quiet > self.idle
 
     def read_log(self):
         return load_json(self.actions, {"seq": 0, "events": []})
@@ -257,7 +273,25 @@ def cmd_apply(d, a):
 
 
 def cmd_serve(d, a):
-    bridge.serve(ViewHandler, lambda port: ViewHub(port, d), a.port, a.nonce)
+    httpd, hub = bridge.start(
+        ViewHandler, lambda port: ViewHub(port, d, a.idle_seconds), a.port, a.nonce
+    )
+
+    def expire():
+        while not hub.expired():
+            time.sleep(1)
+        httpd.shutdown()
+
+    threading.Thread(target=expire, daemon=True).start()
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        httpd.server_close()
+        s = bridge.read_session(d, NAME)
+        if s and s["pid"] == os.getpid():
+            bridge.clear_session(d, NAME)
 
 
 def cmd_ensure_running(d, a):
@@ -270,7 +304,10 @@ def cmd_ensure_running(d, a):
         port = next((p for p in ports if p and bridge.port_free(p)), 0)
         nonce = secrets.token_hex(8)
         cmd = [bridge.interpreter(), str(HERE / "view_bridge.py"), "--dir", str(d)]
-        proc = bridge.spawn([*cmd, "serve", "--port", str(port), "--nonce", nonce])
+        idle = ["--idle-seconds", str(a.idle_seconds)]
+        proc = bridge.spawn(
+            [*cmd, "serve", "--port", str(port), "--nonce", nonce, *idle]
+        )
         s = bridge.wait_started(d, NAME, nonce, proc, START_SECONDS)
         if s is None:
             if proc.poll() is None:
@@ -323,9 +360,11 @@ def main(argv=None):
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("ensure-running")
     s.add_argument("--port", type=int, default=None)
+    s.add_argument("--idle-seconds", type=float, default=IDLE_SECONDS)
     s = sub.add_parser("serve")
     s.add_argument("--port", type=int, default=0)
     s.add_argument("--nonce", default="")
+    s.add_argument("--idle-seconds", type=float, default=IDLE_SECONDS)
     s = sub.add_parser("apply")
     s.add_argument("--file", required=True)
     sub.add_parser("stop")

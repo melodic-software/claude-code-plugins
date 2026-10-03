@@ -13,7 +13,8 @@ All notable changes to the `planning` plugin are documented here. Format follows
   that `scripts/build-view.mjs plan --connect <origin> --out <page>` builds, the reader's ticked phases,
   verdict and note reach the session as data through the watcher, and the session's replies show on the
   page. A page with no session says so and keeps its copy and save controls. An `approve` verdict is not
-  an approval; the approval gate stays in the conversation. Procedure: `reference/rendered-view.md`.
+  an approval; the approval gate stays in the conversation. The server and its token end 600 seconds
+  after the session's watcher last waited. Procedure: `reference/rendered-view.md`.
 
 ### Changed
 
@@ -21,6 +22,18 @@ All notable changes to the `planning` plugin are documented here. Format follows
   regenerated `surface/session_bridge.py`. The shared `lib/view-builder.mjs` (`--connect`) and
   `lib/view-runtime.js` (the session client) are regenerated too.
 - Python 3 and curl now also serve the plan view's session link (`prerequisites.json`).
+
+## [0.65.4] - 2026-10-03
+
+### Changed
+
+- The generated `surface/session_bridge.py` copy now carries session-bridge's second adapter, on
+  Claude Code's native channels, and the selection that keeps the loopback watcher when channels
+  are unavailable. Planning registers no channel server and calls neither, so the interview page,
+  the watcher and `round.sh` behave as before ([#5855](https://github.com/melodic-software/claude-code-plugins/issues/5855)).
+- The channels adapter's rings carry only fixed text: a lease conflict no longer quotes the holder
+  the page server names. A malformed wait answer or an unexpected error releases the lease and
+  rings a stopped notice, and the channel server releases its leases when its input closes.
 
 ## [0.65.3] - 2026-10-03
 

@@ -7,10 +7,24 @@ versioned; this log records each change to it.
 
 - **`session-bridge` meets rule 9, and the triage board and plan view adopt the tier (#5868).** Every wait
   answer now carries the untrusted-content framing contract as its data note. The bridge's new view app
-  hands the token only to same-origin page script, so it never enters the page's markup, and takes page
+  hands the token only to same-origin page script, so it never enters the page's markup, ends itself and
+  its token 600 seconds after the session's watcher last waited, and takes page
   actions holding only builder keys, row ids and the reader's notes. The builder's `--connect` adds one
   `connect-src` naming the loopback origin, which the validator checks. The tier stays closed to
   model-written pages. Rules 3 and 9 and View tiers record the change.
+
+## The first interactive emitter, 2026-10-03
+
+- **`education:illustrate` replaces `education:eli5` on the escape-helper emitter list
+  (#5858).** It builds its page through the shared builder's interactive profile, from a
+  checked-in template plus the explainer model as JSON data, and writes the markdown
+  record from the same model.
+
+## The map-* skills offer views on the builder, 2026-10-03
+
+- **The `architecture` `map-*` skills offer interactive views built by `lib/view-builder.mjs` (#5863).**
+  One checked-in template plus the skill's JSON record as data, through the interactive profile, with the
+  destination taken from the `medium` key. The markdown and the record stay the record.
 
 ## Post-mortem and blindspot views on the builder, 2026-10-03
 

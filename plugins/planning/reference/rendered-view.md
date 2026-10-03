@@ -81,7 +81,9 @@ curl is missing; the copied reply still closes the loop. The brainstorm view has
    applies the replies, which the page shows, and re-arms the watcher. Revise `PLAN.md` first when the
    reply changes the plan, then rebuild the page into the same `page` path; the reader reloads it.
 7. A watcher exit 3 means another session holds the view or it was stopped: stop watching. Exit 2 names
-   its cause on stderr; report it. At the approval gate, or when the reader is done, run
+   its cause on stderr. When it asks for `ensure-running`, the server ended after 600 seconds with no
+   watcher, and its token with it: run step 1 again, tell the reader to reload the page, and run the new
+   `watch`. Report any other exit 2 cause. At the approval gate, or when the reader is done, run
    `bash "${CLAUDE_PLUGIN_ROOT}/view-bridge/view-bridge.sh" --dir "<data_dir>" stop`.
 
 With no session listening, the page says so and its copy and save controls still work.
