@@ -39,8 +39,8 @@ when you want less thinking. In Claude Code, set your level with `/effort` or th
 rather than relying on a top-level `effortLevel` in user settings. The default, the ladder, and the
 per-model levels resolve at the pointers, never from this file. `[CC: direct]`
 
-Where an integration you author needs a faster first token after effort is already low, the guide
-carries a tested line for it; read it there and compare quality before and after adding it.
+Where an integration you author needs a faster first token after effort is already low, add a
+prompt line for it only after comparing quality with and without it; the line stays at the pointer.
 `[CC: prompt-authoring]`
 
 - **Pointer**: for effort calibration, see the guide's
@@ -55,7 +55,8 @@ carries a tested line for it; read it there and compare quality before and after
   a higher level adds to verifying work, see
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level)
   (correlate with <https://claude.dev/blog/spending-your-effort>).
-- **As of**: 2026-09-23 for the guide and the what's-new page; 2026-10-01 for model-config.
+- **As of**: 2026-10-02 for the guide; 2026-09-23 for the what's-new page; 2026-10-01 for
+  model-config.
 - **Recheck trigger**: a re-read of any pointed section no longer supporting the decision above,
   a Claude Code release note that changes thinking or effort controls for this model, or the
   model-config effort sections change.
@@ -68,29 +69,30 @@ nothing can move without the user, or at the trust-and-authority chapter's conse
 destructive, hard to undo, or outward-visible. A rule to keep going never relaxes that gate.
 `[CC: direct]`
 
+A project changes these named stops in its own CLAUDE.md or AGENTS.md. The consent gate stays
+whatever stops the project names. `[CC: direct]`
+
 For long runs, keep the task list in a file and tick it as you go; after compaction, read the file,
 not your memory of the scrollback (the context-economy chapter's durable-note rule applies).
 `[CC: direct]`
 
-When you author instructions for a long-running agent, start from the guide's early-stop addition
-at the pointer; the example stays on the live page. For pair-programming surfaces, the opposite
-rule, announcing the plan up front and summarizing at the close, is equally valid; say which one
-the surface wants. In an unattended API harness you author, a turn ending in plain text does not
-count as done: the harness sends the still-open checklist items back, up to the continuation limit
-the guide sets. `[CC: prompt-authoring]`
+When you author instructions for an agent, say which rule the surface wants: keep working until the
+task is done, or check in with the person pairing on it. `[CC: prompt-authoring]`
 
-- **Pointer**: for early stops in long runs, see
-  [Unattended agentic runs](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#unattended-agentic-runs).
-- **As of**: 2026-09-23
-- **Recheck trigger**: a re-read of that section no longer supporting the decision above.
+- **Pointer**: when authoring an unattended-run steer, fetch
+  [Unattended agentic runs](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#unattended-agentic-runs)
+  live and adapt its sample paragraph. No docs page covers scope hedging as of 2026-10-02
+  (correlate with <https://claude.dev/blog/how-we-made-claude-ai-faster#steering>).
+- **As of**: 2026-10-02
+- **Recheck trigger**: a re-read of that section no longer supporting the decisions above, or an
+  official guide or system card covers scope hedging (move the correlate beside that page).
 
 ## Reports and questions
 
 When no surface specifies an end-of-run shape, lead with what is blocked on the user, then what
 changed, then what was found. Never ask a model, yourself or a worker, to write its hidden thinking
-out in the reply: on you that request is a refusal category (see "Safeguards and fallback"
-below). Ask for what is needed instead, such as the rationale in a few sentences or the evidence
-list. `[CC: prompt-authoring]`
+out in the reply (the reasoning-extraction pointer below gives the reason). Ask for what is needed
+instead, such as the rationale in a few sentences or the evidence list. `[CC: prompt-authoring]`
 
 - **Pointer**: for reporting, see
   [Capabilities relevant to prompting](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#capability-improvements)
@@ -98,7 +100,7 @@ list. `[CC: prompt-authoring]`
   [User-facing progress updates](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#user-facing-progress-updates);
   for reasoning extraction, see
   [Safeguard refusals](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#safeguard-refusals).
-- **As of**: 2026-09-23
+- **As of**: 2026-10-02
 - **Recheck trigger**: a re-read of any pointed section no longer supporting the decision above.
 
 ## Delegation
@@ -108,28 +110,14 @@ evidence before accepting it, and finish a fan-out with one consolidated table. 
 strength is not verification. The Opus 5 delegation floor does not carry to you. `[CC: direct]`
 
 For multi-agent harnesses you author, feed the lead agent a running clock against a time budget,
-and enforce the deadline in the harness, since the model treats the budget as guidance.
-`[CC: API-side]`
+and enforce the deadline in the harness itself, never in the prompt alone. `[CC: API-side]`
 
 - **Pointer**: for multi-agent work, see
   [Capabilities relevant to prompting](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#capability-improvements)
   and
   [Time signals for multiagent harnesses](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#time-signals-for-multi-agent-harnesses).
-- **As of**: 2026-09-23
+- **As of**: 2026-10-02
 - **Recheck trigger**: a re-read of either section no longer supporting the decision above.
-
-## Scope boldness
-
-When the work's guardrails are strong, tell the model to be bolder, and name the guardrails in the
-same instruction: the review every change passes, the tests that run before it merges, the flag
-that turns it off. Where the guardrails are weak, leave the default alone. Boldness never relaxes
-the trust-and-authority chapter's consent gate. Unverified on Opus 5.5. `[CC: prompt-authoring]`
-
-- **Pointer**: no docs page covered scope hedging as of the date below. The post's model is not
-  Opus 5.5 (correlate with <https://claude.dev/blog/how-we-made-claude-ai-faster>).
-- **As of**: 2026-09-23
-- **Recheck trigger**: a docs page starts covering scope hedging or estimate padding (move the
-  pointer there), or the post's model is identified.
 
 ## Review
 
@@ -145,7 +133,7 @@ separate pass. `[CC: prompt-authoring]`
   for what a higher level adds to verifying work, see
   [Choose an effort level](https://code.claude.com/docs/en/model-config#choose-an-effort-level)
   (correlate with <https://claude.dev/blog/spending-your-effort>).
-- **As of**: 2026-09-23 for the guide; 2026-10-01 for the effort floor and model-config.
+- **As of**: 2026-10-02 for the guide; 2026-10-01 for the effort floor and model-config.
 - **Recheck trigger**: a re-read of the guide section, or a later page, addresses whether a severity
   bar lowers this model's recall, or the model-config section changes.
 
@@ -153,47 +141,46 @@ separate pass. `[CC: prompt-authoring]`
 
 The calibration chapter's identifier rule governs unchanged: a specific you state without a tool
 call behind it this session is recall-grade. When asked to check a long document, quote each
-problem and say where it is. The Opus 5 card's stated-facts finding is about a different model and
-does not carry. `[CC: direct]`
+problem and say where it is. The stated-facts adjustment specific to Opus 5 does not carry to you.
+`[CC: direct]`
 
 - **Pointer**: for knowledge work, see
   [Capabilities relevant to prompting](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#capability-improvements).
-- **As of**: 2026-09-23
+- **As of**: 2026-10-02
 - **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Vision
 
 Read the image itself rather than a retyped transcription of it. Keep image-handling steps written
 for older models only after checking that they still improve the answer. When an image is too
-dense to read reliably, give it more pixels, let the model crop it, and raise effort.
+dense to read reliably, apply the aids at the pointer before asking the same question again.
 `[CC: direct]`
 
 - **Pointer**: for visual inputs, see
   [Tools for complex visual inputs](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#tools-for-complex-visual-inputs).
-- **As of**: 2026-09-23
+- **As of**: 2026-10-02
 - **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Design
 
-For frontend work, give a named list of styles to avoid; a request for a "less generic" look is
-not enough. The guide's example list stays on the live page. Check which styles the first draft
-fell back on, and add any unwanted one to the list before the next pass. `[CC: direct]`
+For frontend work, give a named list of styles to avoid, never a bare request for a less generic
+look. Check which styles the first draft used, and add any unwanted one to the list before the
+next pass. `[CC: direct]`
 
 - **Pointer**: for design defaults, see
   [Frontend design defaults](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#frontend-design-defaults).
-- **As of**: 2026-09-23
+- **As of**: 2026-10-02
 - **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Chat system prompts
 
-For chat-product system prompts you author, remove think-carefully lines, and use the guide's
-settled-answers instruction where follow-up latency matters; read it at the pointer. Leave it out
-of long analysis and agentic work, where revisiting earlier output is the point. It never goes
-into this playbook or any agentic surface. `[CC: prompt-authoring]`
+For chat-product system prompts you author, remove think-carefully lines. Where follow-up latency
+matters, the settled-answers instruction at the pointer may go in; it never goes into long
+analysis, this playbook, or any agentic surface. `[CC: prompt-authoring]`
 
 - **Pointer**: for thinking instructions in chat, see
   [Thinking instructions in chat system prompts](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#thinking-instructions-in-chat-system-prompts).
-- **As of**: 2026-09-23
+- **As of**: 2026-10-02
 - **Recheck trigger**: a re-read of that section no longer supporting the decision above.
 
 ## Safeguards and fallback
@@ -211,7 +198,8 @@ hidden thinking in the reply. `[CC: prompt-authoring]`
   [Safeguard refusals](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#safeguard-refusals)
   and
   [Refusals and fallback](https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5#refusals-and-fallback).
-- **As of**: 2026-10-01 for model-config; 2026-09-23 for the guide and the what's-new page.
+- **As of**: 2026-10-01 for model-config; 2026-10-02 for the guide; 2026-09-23 for the what's-new
+  page.
 - **Recheck trigger**: a re-read of the fallback section naming different targets, or a refusal
   category added or removed for this model.
 
@@ -228,11 +216,10 @@ runs where latency is not the constraint. Availability and prices resolve at the
 
 ## API-side, for integrations you author
 
-Do not force `tool_choice` on this model. Show progress-update thinking blocks to users, or a
-text-only client looks frozen during tool work. Keep conversation histories append-only. For
-multi-app agents, have the model survey the connected sources before it changes anything, and give
-it only sources free of untrusted content. Mark user-pasted text with tagged blocks, in
-the form the guide gives. Size `max_tokens` with thinking counted in. Model IDs, prices, and limits
+Do not force `tool_choice` on this model. Render progress-update thinking blocks to users. Keep
+conversation histories append-only. For multi-app agents, have the model survey the connected
+sources before it changes anything, and give it only sources free of untrusted content. Mark
+user-pasted text in the form at the pointer. Size `max_tokens` with thinking counted in. Model IDs, prices, and limits
 resolve through the `claude-api` skill at the moment of use; this chapter carries none.
 `[CC: API-side]`
 
@@ -246,7 +233,8 @@ resolve through the `claude-api` skill at the moment of use; this chapter carrie
   [Mark pasted text in user messages](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#mark-pasted-text-in-user-messages),
   and
   [Calibrate effort](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#calibrate-effort).
-- **As of**: 2026-09-23
+- **As of**: 2026-10-02 for the guide; 2026-09-23 for the what's-new page and the migration
+  guide.
 - **Recheck trigger**: a re-read of any pointed section no longer supporting the decision above.
 
 ## What carries from the Opus 5 chapter, and what does not
@@ -265,7 +253,9 @@ resolve through the `claude-api` skill at the moment of use; this chapter carrie
 
 Our reads, recorded so a re-read can tell whether a page moved:
 
-- The guide, raw `.md` read 2026-09-23 (28,311 bytes, MD5 `fb3bff7f41e20fbbb71be78770edb8cb`).
+- The guide, raw `.md` read 2026-10-02: moved (28,499 bytes, MD5 `5278fe0b08f0532c308dad50efa0f153`,
+  against 28,311 bytes at the 2026-09-23 read). Every pointed section still supports the decision
+  beside it.
 - <https://platform.claude.com/docs/en/models/opus-5-5/whats-new-opus-5-5>, raw `.md` read
   2026-09-23 (21,525 bytes, MD5 `bacb60024cacd3f9bdb539587fbc9bf8`).
 - <https://code.claude.com/docs/en/model-config> and <https://code.claude.com/docs/en/fast-mode>,

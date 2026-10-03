@@ -17,6 +17,10 @@ or a comment is not enforced by `ci-status`, which reads only the label; the bab
 still respects a body hold and human comments, so never override one. The hold convention is in
 `docs/conventions/loop-lane/README.md`.
 
+In this repository a small unrelated review fix in the same plugin as the PR also goes into the PR
+(shared version bump and CHANGELOG line); the rule itself is the scope test in
+`plugins/source-control/reference/review-discipline.md`.
+
 ## When to stop and when to keep going
 
 When a step doesn't need the user's input, keep going, with status notes in the same message as

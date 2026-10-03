@@ -143,9 +143,11 @@ audit ai-slop,attribution,harness-config,harness-memory,codebase-health,context-
 # whether node and jq resolve for its hooks. context-budget and rate-limit-guard
 # join on the same grounds: context-budget reports whether node resolves for its
 # hooks, rate-limit-guard whether node and jq resolve for its hook and statusline tee.
+# multi-agent joins on the same grounds: it reports whether node resolves for its
+# drift-checker fetch gate hook and whether that hook is registered.
 # explainer-video joins on the same grounds: it reports whether Python, the
 # ManimCE packages its hook installs, ffmpeg and ffprobe resolve, read-only.
-check actionlint,autonomy,bash-format,biome-format,harness-ops,context-budget,context-guard,context7,desktop-notification,disk-hygiene,eol-normalizer,explainer-video,go-format,guardrails,instruction-placement,markdown-format,playwright,powershell-format,rate-limit-guard,ruff-format,session-flow,skill-quality,source-control,testing,toolchain,typos-format
+check actionlint,autonomy,bash-format,biome-format,harness-ops,context-budget,context-guard,context7,desktop-notification,disk-hygiene,eol-normalizer,explainer-video,go-format,guardrails,instruction-placement,markdown-format,multi-agent,playwright,powershell-format,rate-limit-guard,ruff-format,session-flow,skill-quality,source-control,testing,toolchain,typos-format
 
 # Fixed verb meaning: mutates the target. disk-hygiene cleans an arbitrary
 # directory tree, repo-hygiene cleans a repository's caches and git metadata.

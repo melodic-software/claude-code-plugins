@@ -37,7 +37,10 @@ worse than generating none.
 | `/performance:verify` | Fresh-context re-derivation that does not inherit the implementer's numbers, plus the report. |
 | `/performance:protect` | Locks in a proven counter win: a checked-in counter ceiling, a CI check that fails when the counter rises, and a lower ceiling when it falls: in the same PR, or through a scheduled draft PR for a counter that can fall without a code change. Never merges. |
 
-Each names its successor. There is no router skill.
+Each names its successor. There is no router skill. The loop over the five skills runs under the
+user's own `/goal` or `/loop` condition, which sets its cadence and when it stops.
+
+- **Pointer**: when you want a per-goal optimization loop run end to end, fetch the post's [The loop, thread by thread section](https://claude.dev/blog/how-we-made-claude-ai-faster/#the-loop-thread-by-thread) live; no docs page covers a per-goal optimization loop as of 2026-10-02. **As of**: 2026-10-02. **Recheck trigger**: a docs page starts covering a per-goal loop.
 
 Each `SKILL.md` frontmatter carries `metadata.workflow-stage` and `metadata.summary`. Claude Code
 does not act on `metadata`; both keys are read by the marketplace's own
@@ -52,9 +55,6 @@ in a stage and prints its summary in [`docs/skill-cheat-sheet.md`](../../docs/sk
 - [`reference/harness-integrity.md`](reference/harness-integrity.md): the rules a harness must
   satisfy before any number it produces is reported.
 
-The catalog draws on
-["How we made claude.ai 3x faster in two weeks"](https://claude.dev/blog/how-we-made-claude-ai-faster).
-
 ## What it refuses to do
 
 - **Report a wall-clock claim from a host it has characterized as unmeasurable.** The host this was
@@ -67,28 +67,29 @@ The catalog draws on
   283 ms in the same hour at ~10% CPU; any two-pass comparison attributes that 6x to the change.
 - **Fold a behavior change into a performance claim.** A correctness regression outranks any
   speedup and is stated separately.
-- **Own the fix.** It measures, sets the goal, and verifies. The change itself is delegated to the
-  implementation lane.
+- **Own the fix.** It measures, sets the goal, and verifies; the edit itself is delegated to
+  `/implementation:implement`. A run from goal through verify, the fix included, is driven by the
+  user's own `/goal` or `/loop` condition, whose turn clause bounds it.
 
 ## Honest about its own grounding
 
-The methodology is sourced (see the source tiers in each skill body), and where the literature does
-not support a rule, the skill says so rather than dressing a house choice as consensus:
+Each skill body names its source tiers. Where a rule is a house choice, the bullet below says so
+rather than presenting it as consensus:
 
-- **No benchmarking-community sample count for a meaningful percentile exists** beyond the derivable
-  `1/(1-p)` floor. The p50/p95-over-20-samples default here is a house rule, and the derivable floor
-  is the part that is actually enforced.
-- **p95 specifically is convention.** The pattern "median plus a high-order percentile" is grounded
-  (Google SRE Book, ch. 4), but the percentiles that chapter names are the 99th and 99.9th.
-- **No surveyed tool refuses above a variance threshold.** pyperf, Criterion, JMH and benchstat all
-  warn and print anyway. The refusal here is deliberately stricter than the field.
-- **The counts-over-wall-clock rationale is grounded only for instruction counts.** Extending it to
-  syscalls, queries, and process spawns is this plugin's own generalization, and process-spawn count
-  is its headline metric. Valgrind's manual argues both halves itself: execution time "is what users
-  perceive", and its simulations are "unlikely to reflect the behavior of a modern machine".
-- **Warmup does not establish steady state.** Barrett et al. (OOPSLA 2017) found at most 43.5% of
-  VM/benchmark pairs consistently reach one. Discarding warmup iterations is fine; claiming steady
+- **The sample count is a house rule.** The p50/p95-over-20-samples default is this plugin's choice;
+  the derivable `1/(1-p)` floor is the part that is actually enforced.
+- **p95 is this plugin's choice.** The plugin reports a median beside one high-order percentile, and
+  picks p95 as that percentile.
+  - **Pointer**: when choosing which high-order percentile to report, fetch the Google SRE Book's [Aggregation section](https://sre.google/sre-book/service-level-objectives/#aggregation-1Ls9hQin) live. **As of**: 2026-10-02. **Recheck trigger**: that section changes the percentiles it discusses.
+- **The variance refusal is this plugin's rule.** The harness refuses to report above its variance
+  threshold rather than warning and printing.
+- **Counting over wall-clock time is this plugin's rule for every counter.** It applies the rule to
+  instruction counts, syscalls, queries and process spawns, and process-spawn count is its headline
+  metric.
+  - **Pointer**: when weighing instruction counts against execution time, fetch the Cachegrind manual's [Overview](https://valgrind.org/docs/manual/cg-manual.html#cg-manual.overview) live. **As of**: 2026-10-02. **Recheck trigger**: a Valgrind release changes that section.
+- **Warmup does not establish steady state.** Discarding warmup iterations is fine; claiming steady
   state is not.
+  - **Pointer**: when checking how often benchmarks reach a steady state, fetch Barrett et al., [Virtual Machine Warmup Blows Hot and Cold](https://doi.org/10.1145/3133876) (OOPSLA 2017) live. **As of**: 2026-10-02. **Recheck trigger**: a later study revises that finding.
 
 ## Relationship to neighboring plugins
 
