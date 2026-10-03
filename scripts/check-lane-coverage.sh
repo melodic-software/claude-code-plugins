@@ -3,10 +3,11 @@
 # aggregate red, at BOTH levels the lanes live at, or carry a written reason
 # for staying out of it.
 #
-#   scripts/check-lane-coverage.sh --check [<workflow> [<aggregate-job-id> [<step-opt-out-list>]]]
+#   scripts/check-lane-coverage.sh --check [<workflow> [<aggregate-job-id> [<step-opt-out-list> [<peer-workflow-dir>]]]]
 #
-# Defaults: .github/workflows/ci.yml, the `ci-status` aggregate, and
-# scripts/lane-coverage-step-opt-outs.txt.
+# Defaults: .github/workflows/ci.yml, the `ci-status` aggregate,
+# scripts/lane-coverage-step-opt-outs.txt, and .github/workflows as the peer
+# directory when the workflow is the default one (no peers otherwise).
 #
 # WHY. `ci-status` is the single check the org ci-gate ruleset keys on, and its
 # own comment calls its `needs` list "the single source of truth for the lane
@@ -67,6 +68,17 @@
 #                         feed reads anyway. An exemption must not outlive what
 #                         it excuses.
 #   9. BARE STEP OPT-OUT  — a listed step with no reason written beside it.
+#
+# WHAT IS CHECKED ACROSS WORKFLOWS:
+#  10. SHARED CHECK NAME  — a job of this workflow whose check name (its literal
+#                         `name:`, else its id) a job of another workflow in the
+#                         peer directory also carries. A required check matches
+#                         by name alone, and GitHub's protected-branches
+#                         guidance is to keep job names unique across all
+#                         workflows: a twin makes the required result
+#                         ambiguous. A reusable-workflow job is skipped, because
+#                         its checks are named `<job> / <inner job>`.
+#
 # Steps of a job that is itself annotated `# lane-coverage-ok:` are exempt from
 # 5 and 6: an informational lane cannot gate a merge whatever its steps do.
 # Check 7 applies everywhere, because a feed row that reads nothing is wrong in
@@ -143,7 +155,7 @@ cd "$(git rev-parse --show-toplevel)" || exit 2
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
 
 usage() {
-  echo "usage: $(basename "$0") --check [<workflow> [<aggregate-job-id> [<step-opt-out-list>]]]" >&2
+  echo "usage: $(basename "$0") --check [<workflow> [<aggregate-job-id> [<step-opt-out-list> [<peer-workflow-dir>]]]]" >&2
   exit 2
 }
 
@@ -151,7 +163,9 @@ usage() {
 WORKFLOW="${2:-.github/workflows/ci.yml}"
 AGGREGATE="${3:-ci-status}"
 STEP_OPT_OUTS="${4:-scripts/lane-coverage-step-opt-outs.txt}"
-[[ $# -le 4 ]] || usage
+PEER_DIR="${5:-}"
+[[ -n "$PEER_DIR" || "$WORKFLOW" != ".github/workflows/ci.yml" ]] || PEER_DIR=".github/workflows"
+[[ $# -le 5 ]] || usage
 
 if [[ ! -f "$WORKFLOW" ]]; then
   echo "check-lane-coverage: workflow not found: $WORKFLOW" >&2
@@ -159,6 +173,10 @@ if [[ ! -f "$WORKFLOW" ]]; then
 fi
 if [[ ! -f "$STEP_OPT_OUTS" ]]; then
   echo "check-lane-coverage: step opt-out list not found: $STEP_OPT_OUTS" >&2
+  exit 2
+fi
+if [[ -n "$PEER_DIR" && ! -d "$PEER_DIR" ]]; then
+  echo "check-lane-coverage: peer workflow directory not found: $PEER_DIR" >&2
   exit 2
 fi
 
@@ -508,6 +526,49 @@ while IFS="$TAB" read -r entry oreason; do
   fi
 done <<<"$step_optout_reasons"
 
+# --- across workflows -------------------------------------------------------
+
+# check_names <workflow>: one check name per job, the literal 4-space `name:`
+# when the job has one, else the job id. A reusable-workflow job and a name
+# built from an expression print nothing: neither is a plain check name.
+check_names() {
+  awk -v q="'" '
+    function flush() {
+      if (job != "" && !uses) { print (name != "" ? name : job) }
+      job = ""; name = ""; uses = 0
+    }
+    /^jobs:[[:blank:]]*$/ { injobs = 1; next }
+    !injobs { next }
+    /^[^[:blank:]#]/ { flush(); injobs = 0; next }
+    /^  [A-Za-z_][A-Za-z0-9_-]*:[[:blank:]]*(#.*)?$/ {
+      flush(); job = $0; sub(/:.*$/, "", job); sub(/^  /, "", job); next
+    }
+    /^    uses:/ { uses = 1; next }
+    /^    name:/ {
+      name = $0; sub(/^    name:[[:blank:]]*/, "", name); sub(/[[:blank:]]+#.*$/, "", name)
+      gsub("^[\"" q "]|[\"" q "]$", "", name)
+      if (name ~ /\$\{\{/) { uses = 1 }
+      next
+    }
+    END { flush() }
+  ' "$1"
+}
+
+peer_count=0
+if [[ -n "$PEER_DIR" ]]; then
+  own_names="$(check_names "$WORKFLOW")"$'\n'
+  for peer in "$PEER_DIR"/*.yml "$PEER_DIR"/*.yaml; do
+    [[ -f "$peer" ]] || continue
+    [[ "$peer" -ef "$WORKFLOW" ]] && continue
+    peer_count=$((peer_count + 1))
+    while IFS= read -r pname; do
+      [[ -n "$pname" ]] || continue
+      has_line "$own_names" "$pname" &&
+        report "SHARED CHECK NAME: job '$pname' in $WORKFLOW has the same check name as a job in $peer. A required check matches by name alone, so the two results are ambiguous; rename one."
+    done <<<"$(check_names "$peer")"
+  done
+fi
+
 if [[ "$errors" -ne 0 ]]; then
   echo "check-lane-coverage: $errors coverage defect(s) in $WORKFLOW" >&2
   exit 1
@@ -516,5 +577,5 @@ fi
 covered="$(printf '%s\n' "$needs_all" | grep -c . || true)"
 fed="$(printf '%s' "$feed_reads" | grep -c . || true)"
 opted="$(printf '%s' "$step_optouts" | grep -c . || true)"
-echo "check-lane-coverage: $WORKFLOW — all $covered lane(s) reachable from ${AGGREGATE}.needs; all $fed gate step(s) fed to the aggregator, $opted opted out"
+echo "check-lane-coverage: $WORKFLOW — all $covered lane(s) reachable from ${AGGREGATE}.needs; all $fed gate step(s) fed to the aggregator, $opted opted out; no check name shared with $peer_count peer workflow(s)"
 exit 0

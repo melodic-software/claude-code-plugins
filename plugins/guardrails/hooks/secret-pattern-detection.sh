@@ -72,7 +72,7 @@ start=${EPOCHREALTIME:-}
 # fault) is a loud skip the dispatcher takes once. buffer_stdin already
 # printed the reason to stderr. Buffering does not require jq (hook::buffer_stdin's
 # own JSON-completeness check is jq-optional), so it runs before the jq gate
-# below — hook::require_jq needs the buffered input for its once per session
+# below — hook::require jq needs the buffered input for its once per session
 # and agent notice scoping.
 hook::buffer_stdin_to INPUT || {
   rc=$?
@@ -80,11 +80,11 @@ hook::buffer_stdin_to INPUT || {
   exit 0
 }
 
-# jq is required to parse the tool payload. hook::require_jq fails OPEN
+# jq is required to parse the tool payload. hook::require jq fails OPEN
 # (advisory hooks never block over a missing prerequisite) but makes the
 # degraded state visible to both the user (systemMessage) and the agent
 # (additionalContext), once per session and agent — see docs/conventions/hook-observability/.
-hook::require_jq "PreToolUse" "guardrails-secret-pattern-detection" "$INPUT"
+hook::require jq "PreToolUse" "guardrails-secret-pattern-detection" "$INPUT"
 
 # Every payload field this hook can need, in ONE jq process (hook::jq_fields),
 # not three — a jq spawn is fork() emulation on Windows Git Bash and this guard
@@ -94,7 +94,7 @@ hook::require_jq "PreToolUse" "guardrails-secret-pattern-detection" "$INPUT"
 # below in the shell. NotebookEdit's target is `notebook_path`, appended last so
 # the MCP lane's indices (2, 5) do not move. Failure semantics are unchanged: a
 # missing jq or an unparsable payload yields rc 1 here, which exits 0 exactly as
-# the empty-TOOL case did; hook::require_jq above has already made the degraded
+# the empty-TOOL case did; hook::require jq above has already made the degraded
 # state visible once per session and agent.
 hook::jq_fields "$INPUT" \
   '.tool_name' '.tool_input.file_path' \

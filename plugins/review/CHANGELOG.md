@@ -32,6 +32,12 @@ All notable changes to the `review` plugin are documented here. Format follows
   report-profile builder `build-explainer.mjs` is removed, and `tests/pr-explainer-chrome.test.sh`
   becomes `tests/explain-change-chrome.test.sh`, checking the new template's chrome tokens.
 
+## [0.37.2] - 2026-10-03
+
+### Changed
+
+- Shared `prerequisites.sh`, `prerequisites.ps1` synced ([#5843](https://github.com/melodic-software/claude-code-plugins/issues/5843)); no change to this plugin's own behavior.
+
 ## [0.37.1] - 2026-10-02
 
 ### Changed

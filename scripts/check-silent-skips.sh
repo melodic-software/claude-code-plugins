@@ -28,7 +28,7 @@
 #
 # A flagged site passes when the skip is visible — the guard line or block
 # carries one of the sanctioned visibility calls (hook::emit_skip_notice,
-# hook::emit_system_message, hook::notice_once, hook::require_jq) — or when
+# hook::emit_system_message, hook::notice_once, hook::require jq) — or when
 # it is a documented quiet classification: an annotation comment
 # `# silent-skip-ok: <reason>` on the guard line, in the comment block
 # immediately above it, or inside the guard block. The annotation is the
@@ -60,7 +60,7 @@ scan_hook() {
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
     function is_visible(l) {
       return l ~ /hook::emit_skip_notice/ || l ~ /hook::emit_system_message/ ||
-        l ~ /hook::notice_once/ || l ~ /hook::require_jq/
+        l ~ /hook::notice_once/ || l ~ /hook::require(_jq_blocking| jq)/
     }
     function flag_open_block() {
       if (in_block && block_skips && !block_visible && !block_annotated)
@@ -198,7 +198,7 @@ if ((errors > 0)); then
   {
     echo
     echo "A missing-CLI skip must be visible (hook::emit_skip_notice /"
-    echo "hook::emit_system_message / hook::notice_once / hook::require_jq)"
+    echo "hook::emit_system_message / hook::notice_once / hook::require jq)"
     echo "or carry a documented quiet classification:"
     echo "'# silent-skip-ok: <reason>' at the site. A bare stderr write is"
     echo "NOT sufficient — stderr on exit 0 is never shown to the user or"

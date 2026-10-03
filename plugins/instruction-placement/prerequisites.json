@@ -19,7 +19,7 @@
         "winget": "OpenJS.NodeJS.LTS",
         "apt": "nodejs"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/instruction-placement:check-prerequisites"
     },
     {
       "id": "jq",
@@ -42,7 +42,7 @@
         "winget": "jqlang.jq",
         "apt": "jq"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/instruction-placement:check-prerequisites"
     },
     {
       "id": "curl",
@@ -63,7 +63,7 @@
         "winget": "cURL.cURL",
         "apt": "curl"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/instruction-placement:check-prerequisites"
     }
   ]
 }

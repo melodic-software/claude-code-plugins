@@ -9,6 +9,6 @@
 # in `leading` mode. An entry naming no existing suite fails the selector
 # (exit 2): an always-run list must not outlive what it lists.
 
-scripts/affected-tests.test.sh  its LIVE cases derive the copy set from every scripts/sync-*.sh, read ci.yml's test-linux fan-out and the real no-suite list; a new manifest or a ci.yml edit reaches none of them by name
+scripts/affected-tests.test.sh  its LIVE cases derive the copy set from every scripts/sync-*.sh, read ci.yml's test-bash fan-out and the real no-suite list; a new manifest or a ci.yml edit reaches none of them by name
 scripts/lib/gate-entry.test.sh  scans every script under scripts/ for a hand-rolled base-ref predicate and for stale allowlist entries; a new gate script is never named by it
 scripts/lib/test-harness.test.sh  asserts every scripts/ suite that sources the harness ends on test_harness::report; a new suite is never named by it
