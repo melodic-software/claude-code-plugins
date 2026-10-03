@@ -1,10 +1,18 @@
 # Changelog: session-flow plugin
 
-## [0.46.3] - 2026-10-03
+## [0.47.1] - 2026-10-03
 
 ### Changed
 
 - Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.47.0] - 2026-10-03
+
+### Changed
+
+- **`orchestrate` keeps code and verify work off the lower effort tier.** Work that changes code,
+  verifies a change, or is likely to hit edge cases takes its level from model-config's effort
+  table, never below medium, even when the rest of a fan-out runs cheaper.
 
 ## [0.46.2] - 2026-10-03
 
