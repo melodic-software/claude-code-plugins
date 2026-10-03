@@ -11,15 +11,19 @@ on:
 
 permissions: {}
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.issue.number || github.run_id }}
-  cancel-in-progress: false
+# No top-level concurrency block: the standards `concurrency-policy` shape for
+# one requires `cancel-in-progress: true`, and canceling a triage run mid-way
+# could leave a comment without its labels. Per-issue serialization without
+# cancellation lives on the job, as in claude-security-review-hosted.yml.
 
 jobs:
   intake-triage:
     permissions:
       contents: read # check out the default branch so the lane can read AGENTS.md
       issues: write  # apply labels and post the triage comment
+    concurrency:
+      group: claude-intake-triage-${{ github.event.issue.number || github.run_id }}
+      cancel-in-progress: false
     uses: melodic-software/ci-workflows/.github/workflows/claude-intake-triage.yml@632130a974770e50825c8747e87b0e18ecb2b36e # v0.33.0
     with:
       runner: ubuntu-24.04
