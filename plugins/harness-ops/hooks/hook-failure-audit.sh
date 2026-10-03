@@ -96,7 +96,7 @@ START=${EPOCHREALTIME:-}
 # plain-string fields with the library's builtin parser — so a Stop envelope
 # costs no process at all, where the unfused pair cost a fork and a jq exec.
 #
-# The fused call is also why hook::require_jq comes AFTER it rather than before:
+# The fused call is also why hook::require jq comes AFTER it rather than before:
 # without jq the library returns an EMPTY field array and still reports success,
 # and reading `${HOOK_JQ_FIELDS[0]}` from it under `set -u` would kill the hook
 # with an unbound-variable error instead of failing open. The gate runs first,
@@ -104,7 +104,7 @@ START=${EPOCHREALTIME:-}
 hook::buffer_stdin_to INPUT '.transcript_path' '.session_id' || exit 0
 
 # Advisory finding -> fail open, with the standard once per session and agent notice.
-hook::require_jq Stop harness-ops "$INPUT"
+hook::require jq Stop harness-ops "$INPUT"
 
 # An absent field arrives as the empty string rather than as a non-zero return,
 # so each guard below is spelled out instead of riding on `||`.

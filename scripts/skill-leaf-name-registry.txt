@@ -152,6 +152,12 @@ audit ai-slop,attribution,harness-config,harness-memory,codebase-health,context-
 # ManimCE packages its hook installs, ffmpeg and ffprobe resolve, read-only.
 check actionlint,autonomy,bash-format,biome-format,harness-ops,context-budget,context-guard,context7,desktop-notification,disk-hygiene,eol-normalizer,explainer-video,go-format,guardrails,instruction-placement,markdown-format,multi-agent,playwright,powershell-format,rate-limit-guard,ruff-format,session-flow,skill-quality,source-control,speech,testing,toolchain,typos-format
 
+# The prerequisites check, for a plugin whose `check` already means something
+# else (docs/conventions/prerequisites/). instruction-placement gates rule
+# globs, skill-quality gates a skill, toolchain builds and tests a project. A
+# hook notice names this skill where it would name `check`.
+check-prerequisites instruction-placement,skill-quality,toolchain
+
 # Fixed verb meaning: mutates the target. disk-hygiene cleans an arbitrary
 # directory tree, repo-hygiene cleans a repository's caches and git metadata.
 clean disk-hygiene,repo-hygiene

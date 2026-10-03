@@ -1,6 +1,18 @@
 {
   "description": "Detects a rules index drifting out of step with the rule files it indexes, after a write or edit.",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /instruction-placement:check-prerequisites INDEX_DRIFT_HOOK_ENABLED; ${BASH_VERSION:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /instruction-placement:check-prerequisites INDEX_DRIFT_HOOK_ENABLED",
+            "timeout": 10,
+            "statusMessage": "Checking that node is on PATH..."
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Write|Edit",

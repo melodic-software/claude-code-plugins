@@ -87,7 +87,7 @@ start=${EPOCHREALTIME:-}
 hook::buffer_stdin_to INPUT || exit 0
 [[ -n "$INPUT" ]] || exit 0
 
-hook::require_jq "PreToolUse" "source-control-pr-linkage-mcp-gate" "$INPUT"
+hook::require jq "PreToolUse" "source-control-pr-linkage-mcp-gate" "$INPUT"
 
 # Every payload field this gate reads, in ONE jq process (#3509). The per-field
 # form this replaced ran `printf '%s' "$INPUT" | jq -r … 2>/dev/null` five times

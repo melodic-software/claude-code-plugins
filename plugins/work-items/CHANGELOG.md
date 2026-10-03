@@ -16,6 +16,12 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 - The plugin carries generated copies of `lib/view-builder.mjs`, `lib/view-runtime.js` and
   `lib/html-escape.mjs`.
 
+## [0.46.1] - 2026-10-03
+
+### Changed
+
+- Shared `prerequisites.sh`, `prerequisites.ps1` synced ([#5843](https://github.com/melodic-software/claude-code-plugins/issues/5843)); no change to this plugin's own behavior.
+
 ## [0.46.0] - 2026-10-02
 
 ### Added

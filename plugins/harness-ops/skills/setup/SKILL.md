@@ -108,7 +108,7 @@ modify anything.
    through the Bash tool with `command -v node`, which does not depend on the launcher. Resolves:
    PASS. Does not resolve: FAIL, the hooks do not launch and record nothing; the remediation is
    the person installing Node.js (this skill installs nothing) and starting a fresh session.
-8. **jq for the hook libraries.** `hook::require_jq` and `hook::require_jq_blocking` in
+8. **jq for the hook libraries.** `hook::require jq` and `hook::require_jq_blocking` in
    `lib/hook-utils.sh` need `jq` on PATH. Probe it through the Bash tool with `command -v jq`.
    Resolves: PASS. Does not resolve: FAIL, hooks that parse their payload with jq skip their work;
    the remediation is the person installing jq (this skill installs nothing) and starting a fresh

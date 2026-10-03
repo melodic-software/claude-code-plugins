@@ -265,6 +265,9 @@ lib/prerequisites.ps1 plugins/source-control/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/testing/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/testing/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/testing/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/toolchain/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/toolchain/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/toolchain/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/typos-format/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/typos-format/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/typos-format/lib/prerequisites.ps1
