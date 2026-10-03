@@ -134,6 +134,10 @@ class TestActions(ViewCase):
         bad = [
             {"action": "send", "command": "rm -rf /"},
             {"action": "Approve and merge"},
+            {"action": "send\n"},
+            {"action": "send", "picked": ["items-1\n"]},
+            {"action": "send", "choices": {"move": "needs-info\n"}},
+            {"action": "send", "notes": {"note\n": "x"}},
             {"action": "send", "picked": ["src/app.js"]},
             {"action": "send", "picked": "items-1"},
             {"action": "send", "choices": {"move": "close it now"}},
@@ -250,6 +254,17 @@ class TestLoop(unittest.TestCase):
             return conn.getresponse().status
         finally:
             conn.close()
+
+    @unittest.skipUnless(os.name == "posix", "mode bits are POSIX")
+    def test_a_data_dir_open_to_others_is_refused(self):
+        self.dir.mkdir()
+        os.chmod(self.dir, 0o777)
+        r = self.control("ensure-running")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("refusing data dir", r.stderr)
+        self.assertFalse((self.dir / ".view-session.json").exists())
+        os.chmod(self.dir, 0o700)
+        self.assertEqual(self.control("ensure-running").returncode, 0)
 
     def test_an_instruction_shaped_payload_is_carried_as_data_and_never_executed(self):
         r = self.control("ensure-running")

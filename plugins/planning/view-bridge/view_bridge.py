@@ -33,6 +33,7 @@ import secrets
 import shlex
 import shutil
 import signal
+import stat
 import sys
 import threading
 import time
@@ -45,8 +46,8 @@ NAME = "view"
 START_SECONDS = 10
 # No watcher wait for this long ends the server, and its token with it.
 IDLE_SECONDS = bridge.LEASE_TIMEOUT
-KEY = re.compile(r"^[a-z0-9-]{1,32}$")
-ROW_ID = re.compile(r"^[a-z0-9-]{1,128}$")
+KEY = re.compile(r"[a-z0-9-]{1,32}")
+ROW_ID = re.compile(r"[a-z0-9-]{1,128}")
 FIELDS = {"action", "picked", "choices", "notes"}
 MAX_PICKED = 500
 MAX_KEYED = 20
@@ -71,7 +72,7 @@ def keyed(value, field, check):
     if not isinstance(value, dict) or len(value) > MAX_KEYED:
         raise ValueError(f"{field} must be an object of at most {MAX_KEYED} entries")
     for k, v in value.items():
-        if not KEY.match(k) or not check(v):
+        if not KEY.fullmatch(k) or not check(v):
             raise ValueError(f"{field} holds a key or value the page did not build")
     return value
 
@@ -82,19 +83,19 @@ def parse_action(msg):
     if extra:
         raise ValueError(f"unknown field: {extra[0]}")
     action = msg.get("action")
-    if not isinstance(action, str) or not KEY.match(action):
+    if not isinstance(action, str) or not KEY.fullmatch(action):
         raise ValueError("action must be a builder key")
     picked = msg.get("picked", [])
     if (
         not isinstance(picked, list)
         or len(picked) > MAX_PICKED
-        or not all(isinstance(p, str) and ROW_ID.match(p) for p in picked)
+        or not all(isinstance(p, str) and ROW_ID.fullmatch(p) for p in picked)
     ):
         raise ValueError("picked must be a list of builder row ids")
     choices = keyed(
         msg.get("choices", {}),
         "choices",
-        lambda v: isinstance(v, str) and bool(KEY.match(v)),
+        lambda v: isinstance(v, str) and bool(KEY.fullmatch(v)),
     )
     notes = keyed(
         msg.get("notes", {}),
@@ -297,10 +298,22 @@ def cmd_serve(d, a):
             bridge.clear_session(d, NAME)
 
 
+def private_dir(d):
+    """Create the data dir, or refuse one that is a symlink, someone else's, or open to group/other."""
+    d.mkdir(mode=0o700, parents=True, exist_ok=True)
+    if os.name != "posix":
+        return
+    st = d.lstat()
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
+        sys.exit(f"refusing data dir {d}: not a plain directory")
+    if st.st_uid != os.getuid() or st.st_mode & 0o077:
+        sys.exit(f"refusing data dir {d}: it must be owned by you with mode 0700")
+
+
 def cmd_ensure_running(d, a):
     if not shutil.which("curl"):
         sys.exit("missing prerequisite: curl (the watcher needs it on PATH)")
-    d.mkdir(mode=0o700, parents=True, exist_ok=True)
+    private_dir(d)
     s = bridge.read_session(d, NAME)
     if not (s and bridge.running(d, s)):
         ports = [a.port, bridge.kept_port(d, NAME)]

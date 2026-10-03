@@ -12,6 +12,10 @@ versioned; this log records each change to it.
   actions holding only builder keys, row ids and the reader's notes. The builder's `--connect` adds one
   `connect-src` naming the loopback origin, which the validator checks. The tier stays closed to
   model-written pages. Rules 3 and 9 and View tiers record the change.
+- **Rule 9's token wording states what the code does.** The token is minted per server run, and the
+  server exits `IDLE_SECONDS` after the session's last wait (and on stop). The view app also matches
+  its validators in full, so a trailing newline no longer passes, and refuses a data dir that is not
+  owned by the user or is open to group or other.
 
 ## The first interactive emitter, 2026-10-03
 

@@ -264,9 +264,9 @@ from the one the browser runs. It checks the runtime body by hash before any oth
      the session as DATA under the untrusted-content framing contract, never as the
      user's own message.
    - The bridge authenticates every message by an unguessable per-session token and
-     rejects any message without it. The token is issued per session when the page opens
-     and expires with the session; it never enters a published, shared, or exported copy
-     of the page. The origin authenticates nothing: a page opened
+     rejects any message without it. The token is minted per server run; the server exits
+     `IDLE_SECONDS` after the session's last wait (and on stop), which ends the token. It
+     never enters a published, shared, or exported copy of the page. The origin authenticates nothing: a page opened
      from `file://` sends `Origin: null`, the same value any opaque origin sends.
    - The bridge lets no message trigger a write, push, merge, or other gated action
      without the confirm or permission gate that action already has.
