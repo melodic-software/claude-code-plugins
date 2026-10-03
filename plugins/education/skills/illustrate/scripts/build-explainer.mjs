@@ -9,7 +9,7 @@
 // through the shared view builder's interactive profile, so no model text is
 // ever written into markup. Exit 0 ok, 1 the page fails its profile, 2 usage.
 
-import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -154,7 +154,14 @@ function main(args) {
     // Build the page before writing anything, so a refused page leaves no half-written pair.
     const page = opts.page ? buildExplainerPage(model) : null;
     let out = write(opts.record, buildExplainerRecord(model));
-    if (page !== null) out += write(opts.page, page);
+    if (page !== null) {
+      try {
+        out += write(opts.page, page);
+      } catch (error) {
+        rmSync(opts.record, { force: true });
+        throw error;
+      }
+    }
     return [0, out, ""];
   } catch (error) {
     return [error instanceof ViewBuildError ? 1 : 2, "", error.message];

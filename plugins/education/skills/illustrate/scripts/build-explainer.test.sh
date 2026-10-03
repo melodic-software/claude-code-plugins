@@ -103,6 +103,9 @@ check("the same file for --page and --record exits 2", clash.status === 2 && !ex
 check("a page beside the record exits 2", run(["--record", `${work}/d/y.md`, "--page", `${work}/d/y.html`], json).status === 2);
 const linky = buildExplainerRecord({ title: "![i](https://evil/x.png)", summary: ["[x](javascript:alert(1))"], sources: ["[s](https://evil/)"] });
 check("the record carries no markdown link or image syntax", !/(^|[^\\])\[/.test(linky) && !/(^|[^\\])\]/.test(linky), linky);
+writeFileSync(`${work}/blocker`, "file");
+const unpaired = run(["--record", `${work}/u/r.md`, "--page", `${work}/blocker/sub/p.html`], json);
+check("a failed page write leaves no unpaired record", unpaired.status === 2 && !existsSync(`${work}/u/r.md`), unpaired.stderr);
 writeFileSync(`${work}/page.html`, page);
 check("--check accepts a builder page", run(["--check", `${work}/page.html`]).status === 0);
 writeFileSync(`${work}/hand.html`, `<!doctype html><html><head></head><body><h1>${hostile[0]}</h1></body></html>`);

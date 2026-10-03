@@ -8,7 +8,7 @@ All notable changes to the `education` plugin are documented here. Format follow
 ### Fixed
 
 - `illustrate` refuses a `--page` that shares a directory with `--record`, and escapes markdown
-  link and image brackets in record text.
+  link and image brackets in record text. A failed page write removes the record it just wrote.
 
 ## [0.13.0] - 2026-10-03
 
