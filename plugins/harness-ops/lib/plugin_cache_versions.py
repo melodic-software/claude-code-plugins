@@ -108,3 +108,4 @@ def orphan_marker(read: Reader, version_rel: str, now: float) -> dict[str, Any] 
         }
     except (OSError, ValueError, OverflowError):
         return None
+# CI probe: an unmapped .py must run the Python corpus. Never merged.
