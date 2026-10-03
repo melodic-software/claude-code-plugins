@@ -83,11 +83,6 @@ lib/parse-concern-value.sh -> plugins/*/skills/*/scripts/parse-concern-value.sh 
 # plugins' context/ to fix a drift failure.
 context/recommendation-basis.md
 
-# Dedicated check: scripts/check-prerequisite-probes.test.sh fails when a copy
-# differs. It reads the plugin's prerequisites.json, so the copies stay
-# identical; copy any one of them over the others to fix a drift failure.
-hooks/probe-prerequisite.sh
-
 # No dedicated check: the telemetry-sink test helper each carrying plugin
 # ships, because only the plugin directory installs. Canonical copy:
 # lib/hook-test-sink.sh; copy it into the other plugins to fix a drift failure.
