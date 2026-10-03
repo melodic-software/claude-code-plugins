@@ -19,6 +19,14 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 - **`unhobble` records the session's effort level** in its manifest and in each `stumbles.md`
   row, written as `unset` when no level renders.
 
+## [1.3.4] - 2026-10-02
+
+### Changed
+
+- **`audit-permission-state` keeps its `MultiEdit` check on purpose.** The `C6-uncoveredPath` lint
+  still lists `MultiEdit`, now with a pointer record to the permissions page, because a settings
+  file can carry a rule that names the legacy tool.
+
 ## [1.3.3] - 2026-10-02
 
 ### Changed

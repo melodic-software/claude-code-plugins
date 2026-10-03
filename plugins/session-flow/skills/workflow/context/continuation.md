@@ -22,7 +22,7 @@ router consumes only the resulting word, and inlines no band values). Absent plu
 snapshot, or `unknown` → assume degraded and lean on the judgment tests below (window position
 and response quality). If context-guard's evidence-degraded marker exists for this session, or
 the session is otherwise known to have been compacted, treat the context as degraded regardless
-of a green zone word.
+of a smart zone word.
 
 ## Informant inputs (presence-gated pointers, never duplicated reads)
 
@@ -96,26 +96,64 @@ boundary.
    that skill: say that the work looks delegable and what a brief would have to carry, meaning
    scope, turn and budget caps, and the return contract, then leave the spawn decision with the user.)
 3. **Is there enough smart zone left, or is the remaining work simple enough for a degraded
-   context?** → continue in session. *The zero-cost exit for everything questions 1 and 2 didn't
+   context, and does neither question 4 nor question 5 apply?** → continue in session.
+   *Questions 4 and 5 do not depend on the zone, so their cases route there whatever the zone
+   says. The zero-cost exit for everything questions 1 and 2 didn't
    already claim; every other remaining mechanism spends setup cost or loss. In a degraded zone
    only mechanical, low-judgment steps qualify as "simple enough". Within a still-healthy zone,
    prefer continue when the next stage consumes this stage's reasoning verbatim, because a summary of the
-   reasoning is not the reasoning; this never overrides a degraded zone, where handoff remains
-   the route.*
-4. **Is this session's context disposable, with nothing in it worth carrying forward?** → `/clear`.
-   *The cheapest reset, asked before any writing mechanism: capturing state nothing needs is
-   pure cost.*
-5. **Must state survive the boundary, or does the work pass to another agent, another checkout,
-   or a colleague?** → `session-flow:handoff`, then the user `/clear`s. *The first mechanism
-   that pays a write cost without a live continuation attached: a handoff carries forward exactly
-   the state that matters, chosen deliberately.* The skill ships in this plugin, so it is never
-   absent here; a handoff file is written through it, never free-hand.
-6. **Fallthrough** → `/compact`, at a phase boundary only, with a steering hint naming what the
-   summary must keep. *Last deliberately: a compaction summary is a model-written lossy summary
-   produced at the least-intelligent point of the session, and whatever degradation prompted
-   this decision rides along into the continued session. The full tradeoff is owned by the
-   handoff skill's "Fork beats compaction when the window is deep" section. This router routes;
-   it does not restate.*
+   reasoning is not the reasoning; this never overrides a degraded zone, where the questions
+   below choose the route.*
+4. **Is this session's context disposable: nothing in it is worth carrying forward, the next work
+   is unrelated work, or two corrections on the same issue have already failed?** → `/clear`.
+   *The cheapest reset, asked before any writing mechanism: capturing state nothing needs is pure
+   cost. Unrelated work is work that neither uses this stage's artifact or files nor serves the
+   same Original goal or work item. After two failed corrections we clear and restate the problem
+   rather than carry those attempts forward.*
+5. **Does the work leave this session, or is a finished spec or plan moving into execution?** →
+   `session-flow:handoff`, then the user `/clear`s. *Leaving means another agent, another
+   checkout, a colleague, another machine, or a break longer than the prompt cache lasts. We
+   execute a finished spec or plan in a new session. An attended run that
+   has already been compacted and whose output quality is now degrading also hands off to a fresh
+   session rather than compacting again; unattended runs leave auto-compact on (context-guard's
+   reader contract). This is the first mechanism that pays a write cost without a live
+   continuation attached: a handoff carries forward exactly the state that matters.* The skill
+   ships in this plugin, so it is never absent here; a handoff file is written through it, never
+   free-hand.
+6. **Fallthrough: the next work is the related next task** → `/compact <focus>`, typed by the
+   user, the focus naming what the summary must keep. *A related next task uses this stage's
+   artifact or files and serves the same Original goal or work item, so the session's context is
+   still its context.*
+
+**Timing.** Before stepping away for longer than the prompt cache lasts, route now: hand off before
+leaving.
+
+**Same-task boundaries.** Whether the next stage is the same task follows the stage boundary:
+
+- explore → plan stays in one session, `/compact <focus>` when the window needs it.
+- a finished spec or plan → execution moves to a fresh session (question 5).
+- implementation → review runs in fresh context, for example a reviewer subagent.
+- two failed corrections on one issue → `/clear` (question 4).
+
+We route by task: same task compacts with a focus, unrelated work clears, work that leaves the
+session hands off. The "rather than compacting again" clause in question 5 is our judgment; no
+source we read compares a second compaction with a handoff, and the workflow evals carry the case
+that would settle it.
+
+- **Pointer**: for when context fills up, see
+  <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>; for managing
+  context, see <https://code.claude.com/docs/en/best-practices#manage-context-aggressively>; for
+  the stage boundaries, see
+  <https://code.claude.com/docs/en/best-practices#explore-first-then-plan-then-code>,
+  <https://code.claude.com/docs/en/best-practices#let-claude-interview-you>,
+  <https://code.claude.com/docs/en/best-practices#run-multiple-claude-sessions>,
+  <https://code.claude.com/docs/en/best-practices#add-an-adversarial-review-step> and
+  <https://code.claude.com/docs/en/best-practices#course-correct-early-and-often>; for the cache
+  lifetime, see <https://code.claude.com/docs/en/prompt-caching#cache-lifetime>.
+- **As of**: 2026-10-02
+- **Recheck trigger**: either context page changes its `/compact` or `/clear` guidance, a
+  best-practices section above changes how it splits sessions, or the cache-lifetime section
+  changes.
 
 ## Output shape: suggest by default
 

@@ -15,6 +15,31 @@
   the same table and names it in the launch report; when the page cannot be read, it passes none
   and says the session starts at its default.
 
+## [0.44.7] - 2026-10-02
+
+### Changed
+
+- **`retro`'s transcript parser keeps `MultiEdit` on purpose.** The file-modifying tool set still
+  lists it, now with a pointer record to the permissions page, because transcripts recorded by older
+  Claude Code versions carry the call.
+- **`workflow`'s continuation router routes by task.** The related next task compacts with a focus
+  (`/compact <focus>`, typed by the user); work for a different task, disposable context and two
+  failed corrections on one issue clear; work leaving the session, a finished spec or plan moving into execution, and an
+  already-compacted attended run that is degrading hand off. A timing rule routes before a break so
+  the move lands before the prompt cache expires, and a same-task boundary list names which stage
+  changes stay in one session. Compaction is no longer the last resort, and the workflow's
+  spec-first mode row no longer says it clears between stages. New workflow evals cover each route,
+  and the router's zone examples use context-guard's own zone words.
+- **`handoff`, `keep-going`, spec-first and `retro` point at the continuation router.** The handoff
+  skill's window-depth section becomes "Handoff or compaction: route by task", a pointer to the
+  router; a handoff the model elects on its own walks the router first and writes nothing when it
+  routes elsewhere, while a user's explicit `/session-flow:handoff` still writes. `keep-going`
+  routes a degraded-zone continuation with `/session-flow:workflow continue`. Spec-first no longer
+  clears between every stage or reaches for a handoff mid-stage; each boundary is routed. The retro
+  efficiency check asks whether each continuation followed the router instead of treating a
+  compaction as a missed handoff. `handoff` and `keep-going` gain a `## Next` section, and a new
+  handoff eval covers the model-elected same-task case.
+
 ## [0.44.6] - 2026-10-02
 
 ### Changed

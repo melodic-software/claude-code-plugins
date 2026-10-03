@@ -16,6 +16,43 @@ only after that version increases.
   `source.html`**, named in the pipeline invocation, dual verification and the Phase 4 checklist;
   a fence that is empty, blank or only truncation marks fails.
 
+## [0.15.3] - 2026-10-02
+
+### Changed
+
+- `course-digest` writes `continuation-prompt.md` and the `course.json` phase markers after every
+  module, and at a module boundary routes the next step with `/session-flow:workflow`, naming the
+  course slug, the next module and the `course.json` path for a compaction focus. A new session
+  resumes with `continue <slug>`. Without session-flow it links the docs section on when context
+  fills up.
+
+### Fixed
+
+- `video-digest` no longer labels auto captions as manual. A bare `<id>.en.vtt` counts as manual
+  only when info.json lists English manual subtitles; otherwise the transcript uses the
+  auto-caption cleaner and records why in `transcriptDegradation`.
+- Transcript paragraphs no longer open with the words the previous cue ended on.
+- `status: complete` is written only by the new `watch-state.js close <slice-dir>`, which runs the
+  outcome checks and the blocking checklist first and leaves status unchanged when they fail.
+  `mark-phase <slice-dir> synthesis` delegates to it.
+- `video-digest` key frames carry the time ffmpeg measured instead of one spread evenly over the
+  video. Each frame records where its time came from in `timestampSource`; an interval frame
+  ffmpeg gave no time for is marked `estimated` with an error bound, and a frame with no basis
+  stays untimed and renders as `untimed` rather than 0:00. Scene detection writes the times to
+  `frame-times.json` in the temp frames directory, which recovery reloads instead of recomputing
+  them, and `selection.json` now carries each frame's time source.
+- `visual-gaps.md` logs a densification window as a gap only when no promoted frame's exact time
+  falls inside it; whole-minute labels are used only for slices with no promoted frames on disk.
+  Each row keeps its `~Nm` region and adds the window's exact bounds, and the outcome check no
+  longer credits a `~15m` row to region 5.
+- `video-digest` now extracts an extra frame inside any stretch between timed frames longer than
+  `maxFrameGapSec` (60 s by default, `run-watch.js --max-frame-gap-sec` per run), including the
+  start and end of the video. Gaps are measured over every timed frame examined, before dedup,
+  so an unchanged slide whose frames dedup dropped is not refilled. `watch.json` and `coverage-plan.json` record the value, so
+  `run-watch.js --recover` plans with the run's own gap (an older slice without it gets the
+  default); `SKILL.md` and `watch-pipeline.md` list the flag. The coverage-plan rationale names
+  stratified sampling only when that pass runs.
+
 ## [0.15.2] - 2026-10-02
 
 ### Changed

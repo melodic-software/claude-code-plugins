@@ -10,6 +10,7 @@ import fs from "node:fs";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
 
+import { readFrameTimes } from "@melodic/video-digestion/frames/scene-detect";
 import { probeVideoDuration } from "@melodic/video-digestion/media/ffprobe-duration";
 import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
@@ -17,11 +18,10 @@ import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/termin
 import { resolveSourceAdapter } from "../adapters/registry.js";
 import { parseVideoMetadata } from "../acquisition/video-metadata.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
-import { planFrameCoverage } from "../watching/compute-coverage-plan.js";
+import { MAX_FRAME_GAP_SEC, planFrameCoverage } from "../watching/compute-coverage-plan.js";
 import { normalizeVttCues } from "../watching/cue-normalize.js";
 import { isHighVolume, selectFramesForCoverage } from "../watching/frame-budget.js";
 import { mergeFrameCandidates } from "../watching/merge-frame-candidates.js";
-import { assignFrameTimestamps } from "../watching/orchestrate-watching.js";
 import {
   batchFramesForContactSheets,
   interleaveTranscriptAndFrames,
@@ -51,31 +51,44 @@ export async function resolveRecoverySourceUrl(sliceDir) {
 }
 
 /**
- * @param {string} file
- * @returns {number|null}
+ * The maximum frame gap the original run recorded in `watch.json`, or the
+ * default for a slice recorded before the field existed.
+ *
+ * @param {string} sliceDir
+ * @returns {Promise<number>}
  */
-function parseTimestampFromFileName(file) {
-  const anchorMatch = file.match(/^anchor_(\d+)_/);
-  if (anchorMatch) {
-    return Number(anchorMatch[1]) / 1000;
-  }
-  return null;
+async function resolveRecoveryMaxFrameGapSec(sliceDir) {
+  const recorded = (await readWatchState(sliceDir))?.maxFrameGapSec;
+  return typeof recorded === "number" && recorded > 0 ? recorded : MAX_FRAME_GAP_SEC;
 }
 
 /**
+ * Frames on disk with the times they were captured at: an anchor's exact seek
+ * time from its file name, a scene or interval frame's from `frame-times.json`.
+ * A frame with neither stays untimed; no time is invented.
+ *
  * @param {string} framesDir
  * @returns {import('@melodic/video-digestion/frames/models').FrameCandidate[]}
  */
 function loadFramesFromDir(framesDir) {
+  const frameTimes = readFrameTimes(framesDir);
   const files = fs
     .readdirSync(framesDir)
     .filter((name) => name.endsWith(".png"))
     .sort();
-  return files.map((file) => ({
-    path: path.join(framesDir, file),
-    file,
-    timestampSec: parseTimestampFromFileName(file),
-  }));
+  return files.map((file) => {
+    const framePath = path.join(framesDir, file);
+    const anchorMatch = file.match(/^anchor_(\d+)_/);
+    if (anchorMatch) {
+      return {
+        path: framePath,
+        file,
+        timestampSec: Number(anchorMatch[1]) / 1000,
+        timestampSource: /** @type {const} */ ("anchor"),
+      };
+    }
+    return { timestampSec: null, ...frameTimes[file], path: framePath, file };
+  });
 }
 
 /**
@@ -201,11 +214,12 @@ export async function recoverWatchBootstrapCli(argv) {
 
   const rawFrames = loadFramesFromDir(framesDir);
   const merged = mergeFrameCandidates(rawFrames);
-  assignFrameTimestamps(merged, durationSec);
 
+  const maxFrameGapSec = await resolveRecoveryMaxFrameGapSec(sliceDir);
   const { windows, coveragePlan } = planFrameCoverage(cues, {
     durationSec,
     sceneCandidateCount: merged.length,
+    maxFrameGapSec,
   });
 
   let selection = selectFramesForCoverage(merged, {
@@ -266,6 +280,7 @@ export async function recoverWatchBootstrapCli(argv) {
     videoSlug: path.basename(sliceDir),
     sourceUrl,
     title: metadata.title,
+    maxFrameGapSec,
   });
   state.tempSession = tempSession;
   state.status = "vision";

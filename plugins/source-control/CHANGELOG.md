@@ -11,6 +11,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   field read from `CLAUDE_EFFORT` at each cycle start, or `"unset"`, so the level that ran sits
   beside the `--effort` the lane was launched with. The schema stays `@2`.
 
+## [0.74.1] - 2026-10-02
+
+### Changed
+
+- The shared hook helper's posture comment no longer names a fixed member count.
+
 ## [0.74.0] - 2026-10-02
 
 ### Added

@@ -110,9 +110,10 @@ instrument exists to replace. Absent plugin, absent snapshot, or
 `unknown` → judge from response quality alone, conservatively. A degraded
 zone, or context-guard's evidence-degraded marker for this session, does
 not stop the recovery (steps 1-4 are reads and evidence-gated actions
-either way); it changes where the *continuation* goes: prefer routing the
-remaining work through `/session-flow:handoff` over pushing a long or
-judgment-heavy task through a degraded window.
+either way); it changes where the *continuation* goes. Route it with
+`/session-flow:workflow continue`, whose router in
+[`../workflow/context/continuation.md`](../workflow/context/continuation.md)
+makes that choice.
 
 ## Active-verification protocol. Evidence before action
 
@@ -230,6 +231,12 @@ that is still the job.
   wakeup.
 - **Does not trust remembered state.** Every status claim is grounded in
   a fresh read of the real artifact.
+
+## Next
+
+/session-flow:workflow continue
+
+It routes how the recovered session carries on at the next phase boundary.
 
 ## Gotchas
 

@@ -73,7 +73,7 @@ Structured execution with incremental validation and commit checkpoints.
 - Commit after green. Small, frequent commits are save points
 - If implementation diverges from the approved plan or hits unexpected complexity, stop and
   re-plan rather than pushing through a broken approach
-- At phase boundaries on long work, write a save-point by invoking `/session-flow:handoff` via the Skill tool so a fresh session can resume
+- At phase boundaries, route the continuation with section 4 (`context/continuation.md`)
 - **Effort:** code-changing work within the scope the plan fixed
 
 ## 5. Test
