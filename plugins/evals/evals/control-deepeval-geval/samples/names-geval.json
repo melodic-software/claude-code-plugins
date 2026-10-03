@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "```python\nfrom deepeval.metrics import GEval\nfrom deepeval.test_case import LLMTestCaseParams\n\ncorrectness = GEval(\n    name=\"Correctness\",\n    criteria=\"Is the actual output factually correct given the expected output?\",\n    evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT, LLMTestCaseParams.EXPECTED_OUTPUT],\n)\n```",
+      "why": "full construction"
+    },
+    {
+      "answer": "metric = GEval (name=\"Correct\", evaluation_steps=[\"Compare the answer with the expected output\"], evaluation_params=[...])",
+      "why": "space before the parenthesis"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```python\nfrom deepeval.metrics import AnswerRelevancyMetric\nmetric = AnswerRelevancyMetric(threshold=0.7)\n```",
+      "why": "confident wrong: another metric class"
+    },
+    {
+      "answer": "Subclass BaseMetric and call your judge model in measure(); that gives you full control of the criteria.",
+      "why": "a custom metric instead"
+    },
+    {
+      "answer": "Use the G-Eval approach: write your criteria as a rubric and ask the judge for a 1-10 score.",
+      "why": "names G-Eval but builds nothing"
+    }
+  ]
+}

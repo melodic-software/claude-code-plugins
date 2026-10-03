@@ -74,7 +74,9 @@ unless the case routes it in explicitly.
       `arm: both` when the check must score in both arms, which a must-not-invoke check
       (`min: 0` **and** `max: 0`) requires.
 - [ ] Drop any assertion that passes in both arms and measures nothing. A case at 1.00 on both sides
-      is a passing case and a null measurement.
+      is a passing case and a null measurement. Keep one only as a regression guard: tag it
+      `regression-guard`, say so in its `description`, and pair it with a case a person judged
+      hard, tagged `hard`, with the reason in its `description`.
 
 | Type | Fields | Passes when |
 |---|---|---|

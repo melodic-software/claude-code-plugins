@@ -37,12 +37,13 @@ Two rules govern everything this skill says, per the plugin's
 
 ## Scope boundary (route out)
 
-- Unused skills/plugins/MCP servers by usage history → the bundled `/doctor`, which finds unused
-  skills, MCP servers, and plugins against their context cost and asks for confirmation before
-  changing anything. Tell the operator to run it themselves; never reimplement its checks.
-  Verified 2026-09-06 against Claude Code 2.1.263 and the commands reference
-  (<https://code.claude.com/docs/en/commands>, the `/doctor` row). Recheck when that row stops
-  naming the unused-component check, or when a release note names `/doctor`.
+- Which skills to turn off → the built-in `/skill-doctor`; unused MCP servers and plugins → the
+  bundled `/doctor`. Tell the operator to run either one themselves;
+  never reimplement their checks, and never decide here what to turn off. Pointers: for
+  `/skill-doctor`, see <https://code.claude.com/docs/en/skills#find-unused-skills>; for `/doctor`,
+  see the `/doctor` row on <https://code.claude.com/docs/en/commands>. As of 2026-10-02. Recheck
+  when either changes which command it sends that question to, or when a release note names
+  `/skill-doctor` or `/doctor`.
 - Per-skill / per-agent / per-MCP-tool attribution → `/context` natively, which the person runs.
 - Live in-session occupancy over time → the `context-guard` plugin, if installed.
 - Settings correctness, permission-rule state → the `harness-config` plugin, if installed.
@@ -102,6 +103,28 @@ binary on 2026-09-29 (`builtin_commands` lane: `gated` true, `user_invocable` tr
 fetched 2026-09-30. As of 2026-09-30. Recheck when a release renames or removes `/context`,
 changes its gate, or makes it model-invocable. The remaining records live in
 [reference/native-context.md](reference/native-context.md).
+
+## Boundary, the built-in `skill-doctor` command
+
+"Which of my skills cost context" can land on either surface:
+
+- **`/skill-doctor` (built-in command, user-only).** We send the choice of which skills to turn
+  off there; the person runs it.
+- **This skill (marketplace plugin).** Measures a fresh headless session's startup payload per
+  item, splits the built-in tool pools, and ledgers the measured delta of each toggle, including
+  what turning a skill off actually saved.
+
+**Routing.** When the person asks which skills to turn off, offer it to the person:
+If /skill-doctor is available in your session (gate basis: the records linked below), you can run
+`/skill-doctor` to choose which skills to turn off. Prefer this skill to measure what a toggle
+saved. An unattended run records the offer in its output instead of asking.
+
+**Mutation gate.** This skill never runs `/skill-doctor` and never turns a skill off on its
+behalf; it stays read-only unless `fix` is passed.
+
+**Availability is never assumed.** This section states what to do when the person can run the
+command, never that it is present; its gate is read live at the pointer. The four-part records
+live in [reference/native-skill-doctor.md](reference/native-skill-doctor.md).
 
 ## Declared scope
 

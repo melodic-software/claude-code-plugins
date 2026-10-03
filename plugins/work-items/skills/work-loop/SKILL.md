@@ -95,7 +95,7 @@ the source of truth for these counters):
  "item_cap":2,"rate_limit_latch":false,"first_drain_complete":false,"guard_mode":"proactive",
  "stop_mode":"standing","ordering":"oldest-first","shard":null,"scope":null,
  "lane_instance":"melo-lap-001","writer_nonce":"9f3c1a7e","heartbeat_at":"2026-07-23T15:04:05Z",
- "paused_until":null,"latched_account":null,
+ "paused_until":null,"latched_account":null,"effort":"unset",
  "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
  "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
  "five_hour_delta_pct":1.8}}
@@ -108,6 +108,7 @@ telemetry comment; they are not re-derived from prose in the launch prompt.
 `loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
 budget/expiry hit records the relaunch ask; `guard_mode` is recorded every cycle. `latched_account`
 is the tripping account's fingerprint (see [reference/paused-wait.md](reference/paused-wait.md)).
+`effort` is the level that ran, which can differ from the launch `--effort`: at each cycle start run `printenv CLAUDE_EFFORT` through Bash and record its output, or `"unset"` when it prints nothing. Pointer: for the `CLAUDE_EFFORT` variable, see the `effort` row of [Common input fields](https://code.claude.com/docs/en/hooks#common-input-fields). As of: 2026-10-02. Recheck trigger: that row stops naming the variable.
 
 Every counter here is **per-instance**, the marker partitions the block, so `item_cap`,
 `clean_streak`, `no_progress_streak`, and `rate_limit_latch` measure *this* instance's experience,

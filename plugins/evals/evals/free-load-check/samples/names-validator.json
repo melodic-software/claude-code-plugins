@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Yes. Run the evals plugin's static validator before any paid run; it reaches no model, so it costs nothing:\n\n```bash\npython3 \"${CLAUDE_PLUGIN_ROOT}/skills/validate/scripts/validate-cases.py\" ./plugins/notes/evals\n```\n\nExit 0 means proceed, exit 1 means at least one FAIL to fix first, and exit 2 means the path or arguments are wrong.\n\nBoth of your lines are problems, and the validator reports each as a FAIL because the binary rejects them at load:\n\n- `timeout: 600` is not a known `prompt.md` frontmatter key. The key is `timeout_seconds`.\n- `contains` is not a grader type. Write the substring check as `type: regex` with the same `pattern`.",
+      "why": "P-canonical: names validate-cases.py as the no-model, no-cost check and says it catches both lines."
+    },
+    {
+      "answer": "Both lines would stop that case from loading. `timeout` isn't a frontmatter key the binary accepts; it wants `timeout_seconds: 600`. And there is no `contains` grader: a substring match is `type: regex` with your `pattern` kept as is.\n\nYou can confirm all of this for free with the `/evals:validate` skill, which runs the plugin's validator over the eval directory without calling a model. Fix whatever it reports as FAIL, rerun it until it exits 0, and only then start the paid eval. It takes seconds, so it's worth running after every edit to the cases, not just once.",
+      "why": "P-alt: lines first, then names the /evals:validate skill as the free check that calls no model."
+    },
+    {
+      "answer": "There is, and it belongs before every paid run. The evals plugin ships a static validator, `validate-cases.py`, which the `/evals:validate` skill wraps. It reads `prompt.md`, `case.yaml` and the grader files and calls no model:\n\n```bash\npython3 plugins/evals/skills/validate/scripts/validate-cases.py ./plugins/notes/evals\n```\n\nIt will flag both of your lines as FAIL:\n\n1. `timeout` is an unknown frontmatter key; rename it to `timeout_seconds`.\n2. `type: contains` has no usable type; use `type: regex` and keep the `pattern`.\n\nOne caveat: lines marked WARN are advice, not a stop, so a run that exits 0 with warnings is still safe to pay for. Exit 2 means the eval directory couldn't be read, which is a stop too.",
+      "why": "P-caveat: names validate-cases.py and /evals:validate as the free check; the WARN and exit-2 caveat does not touch the graded point."
+    },
+    {
+      "answer": "Yes: run the evals plugin's validator, `validate-cases.py`, against the case directory. It is a static check that never reaches a model, so it costs nothing, and it fails on anything the eval binary would reject at load.\n\nBoth lines are a problem. `timeout` isn't one of the frontmatter keys the binary knows, so the case won't load until you rename it; the validator reports it as a FAIL. `contains` isn't a grader type either. Replace that grader with `type: llm` and describe the substring you expect in its rubric. Run it again after the edits; once it exits 0, the cases will load.",
+      "why": "P-plain: names validate-cases.py as the no-model check; misses sibling points (no `timeout_seconds`, suggests `llm` instead of `regex`)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The cheapest way to find out is a dry run: `claude plugin eval ./plugins/notes --dry-run` parses every case and grader and exits before any model call, so it costs nothing.\n\nIt will catch both of your lines:\n\n- `timeout: 600` isn't a recognized key in `prompt.md` frontmatter. Use `timeout_seconds: 600`.\n- `contains` isn't a valid grader type, so that grader is rejected and the case won't load. For a substring check, write `type: regex` and keep your `pattern`.\n\nOnce the dry run comes back clean, start the real run with your usual run count.",
+      "why": "F-wrong: offers an invented `--dry-run` flag as the free check instead of the plugin's validator; sibling points are all right."
+    },
+    {
+      "answer": "Yes, you can check this without spending anything: validate the suite statically before the paid run. A static pass over the case files parses the frontmatter and graders the way the binary does at load, with no model call.\n\nBoth lines would fail that check:\n\n- `timeout` isn't a frontmatter key the binary accepts. Spell it `timeout_seconds: 600`.\n- `contains` isn't a grader type, so that case won't load. Use `type: regex` with the same `pattern`; a plain substring works as a regex as long as you escape characters like `.` or `(`. Fix both, run the check again, and only then pay for the real run.",
+      "why": "F-partial: describes a generic static check but never names validate-cases.py or /evals:validate, the one required point."
+    },
+    {
+      "answer": "There is a free check: the evals plugin's `validate-cases.py`, also available as the `/evals:validate` skill, reads the case files without calling a model.\n\nThat said, you can skip it here. The `claude plugin eval` binary parses every case before it starts any model call, so a bad key or grader type stops the run with a load error and nothing is spent. Just start the run and let the loader tell you.\n\nAs for the lines themselves: `timeout` should be `timeout_seconds`, and `contains` isn't a grader type, so change it to `type: regex` and keep the `pattern`.",
+      "why": "F-retract: names validate-cases.py, then dismisses it and makes the paid run's load step the check."
+    },
+    {
+      "answer": "Yes, and it's free. Before any paid run, lint the suite with the skill-quality plugin: `/skill-quality:check validate-evals notes`. It checks the eval definitions against a schema and makes no model call.\n\nBoth of your lines need fixing:\n\n1. `timeout: 600` uses an unknown frontmatter key. The binary only knows `timeout_seconds`, so the case fails to load.\n2. `type: contains` isn't a grader type. Write the substring check as `type: regex` and keep the `pattern` line.\n\nAfter the lint passes, run the real eval. That way the first paid run is spent on grading, not on load errors.",
+      "why": "F-near: names skill-quality's validate-evals, a different check the rubric lists as a FAIL; sibling points are all right."
+    }
+  ]
+}
