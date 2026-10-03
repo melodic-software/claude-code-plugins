@@ -36,7 +36,7 @@ that exact artifact. One decision per chunk, a glossary of the session's own
 shorthand, and the actual choices pulled to the surface, **faithfully**. The
 move is restructure, never simplify: precision and reading level stay fixed;
 only the arrangement changes (lowering the altitude is `education:explain`'s job
-and turning it into a visual explainer is `education:eli5`'s, both deliberately
+and turning it into a visual explainer is `education:illustrate`'s, both deliberately
 disjoint concerns). Four hard fidelity rules keep a clarification of
 a decision document from corrupting the decisions: operative terms quoted verbatim,
 original item numbers kept as back-links, omissions named explicitly, and a
@@ -69,7 +69,7 @@ a plain-language cue ("make this clear", "clarify this", "help me digest this",
 "break this down", "I can't parse this", "what am I actually deciding") or a direct `/adhd:clarify`,
 acts on one artifact, and changes nothing about how later responses are written.
 Its triggers are kept disjoint from `education:explain`'s comprehension cues ("I
-don't get it", "explain simply") and from `education:eli5`'s picture cues ("ELI5",
+don't get it", "explain simply") and from `education:illustrate`'s picture cues ("ELI5",
 "draw me this") so the auto-firing skills route on intent, restructure faithfully
 vs drop the altitude vs change the medium, rather than colliding on their shared
 "previous response" default target.
