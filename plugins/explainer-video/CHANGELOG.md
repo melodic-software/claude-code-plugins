@@ -3,6 +3,21 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.0] - 2026-10-03
+
+### Added
+
+- **Narrated videos, audio first** ([#5862](https://github.com/melodic-software/claude-code-plugins/issues/5862)).
+  `produce` writes a narration script (one paragraph per beat) and narrates it with `/speech:narrate`;
+  `scripts/narration.py` turns the script's paragraphs and `words.json` into beat start times, and a
+  scene's `beat(self, k)` calls hold until each one. `render.py --narration <folder>` muxes the silent
+  render with the narration (AAC) and a caption track built from `words.json` (`mov_text`, also
+  written as `captions.srt`), and fails the run when a beat misses its narration start by more than
+  one frame, when the file does not hold one video, one audio and one subtitle stream, or when the
+  video and audio streams differ by more than a frame per animation plus one.
+- Without the `speech` plugin, `produce` renders silent and says narration is unavailable; `beat`
+  then holds only its `hold` seconds, so one scene serves both.
+
 ## [0.1.2] - 2026-10-03
 
 ### Changed

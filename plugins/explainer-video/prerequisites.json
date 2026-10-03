@@ -29,7 +29,7 @@
       "need": "required",
       "for": ["skill:produce"],
       "detect": { "any": ["ffmpeg"] },
-      "degrade": "Without ffmpeg ManimCE cannot write the video and render.py cannot extract frames; /explainer-video:produce stops with exit 2.",
+      "degrade": "Without ffmpeg ManimCE cannot write the video and render.py cannot extract frames or mux the narration and captions; /explainer-video:produce stops with exit 2.",
       "install": { "docs": "https://ffmpeg.org/download.html", "brew": "ffmpeg", "winget": "Gyan.FFmpeg", "apt": "ffmpeg" },
       "check": "/explainer-video:check"
     },
