@@ -3,6 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.0] - 2026-10-03
+
+### Added
+
+- **`/work-items:triage` builds a triage board page for the attention view.** In an interactive
+  session, after the table, it groups the same items by state, blocker and label in collapsible
+  sections with a filter box. The page is built only by `scripts/build-board.mjs` from a checked-in
+  template and the items as escaped JSON data, so a hostile issue title renders as text. The
+  `medium` key of the `rendered-views` cascade decides whether the page is built, written to a file,
+  or published as an Artifact; the table stays the record.
+- The plugin carries generated copies of `lib/view-builder.mjs`, `lib/view-runtime.js` and
+  `lib/html-escape.mjs`.
+
 ## [0.46.1] - 2026-10-03
 
 ### Changed

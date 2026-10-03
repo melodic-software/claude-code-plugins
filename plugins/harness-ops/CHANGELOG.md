@@ -3,6 +3,18 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.6.0] - 2026-10-03
+
+### Added
+
+- **`morning-brief` builds a status report page.** In an interactive session, the brief's sections
+  become collapsible blocks with one filter box. The page is built only by
+  `scripts/build-brief-view.mjs` from a checked-in template and the brief's lines as escaped JSON
+  data, so an issue or pull-request title renders as text. The `medium` key of the `rendered-views`
+  cascade decides whether the page is built, written to a file, or published as an Artifact; the
+  printed brief stays the record.
+- The plugin carries generated copies of `lib/view-builder.mjs` and `lib/view-runtime.js`.
+
 ## [3.5.0] - 2026-10-03
 
 ### Added
