@@ -98,7 +98,6 @@
     {"from":"claude-code-plugins","to":"uudashr/gocognit","type":"cites","relation":"external","count":4,"files":["plugins/code-metrics/README.md","plugins/code-metrics/reference/collectors.md","plugins/code-metrics/scripts/collectors/gocognit.py"]},
     {"from":"claude-code-plugins","to":"wilsjo2/OptiScaler-DLSSNR-PreSR-Multipass","type":"cites","relation":"external","count":3,"files":["plugins/gaming/skills/dlss5/reference/fork-comparison.md","plugins/gaming/skills/dlss5/reference/presets.md","plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1"]},
     {"from":"claude-code-plugins","to":"x-motemen/ghq","type":"cites","relation":"external","count":2,"files":["docs/adr/0031-name-the-worktree-root-git-config-key-as-a-capability-section.md","plugins/repo-hygiene/skills/setup/SKILL.md"]},
-    {"from":"claude-code-plugins","to":"anthropics/claude-plugins-community","type":"installs-plugin","relation":"external","count":2,"files":["plugins/education/README.md","plugins/education/skills/eli5/SKILL.md"]},
     {"from":"claude-code-plugins","to":"anthropics/claude-plugins-official","type":"installs-plugin","relation":"external","count":1,"files":["plugins/playgrounds/skills/use/SKILL.md"]},
     {"from":"claude-code-plugins","to":"dometrain/mcp","type":"installs-plugin","relation":"external","count":1,"files":["plugins/dometrain/README.md"]},
     {"from":"claude-code-plugins","to":"trailofbits/skills","type":"installs-plugin","relation":"external","count":1,"files":["plugins/review/skills/audit-enforceability/SKILL.md"]},

@@ -495,7 +495,7 @@
       "source": "./plugins/education",
       "category": "learning",
       "defaultEnabled": false,
-      "tags": ["teach", "learn", "learning", "coach", "tutor", "pedagogy", "primer", "explain", "eli5", "onboarding", "quiz", "comprehension", "skill"]
+      "tags": ["teach", "learn", "learning", "coach", "tutor", "pedagogy", "primer", "explain", "illustrate", "onboarding", "quiz", "comprehension", "skill"]
     },
     {
       "name": "repo-hygiene",

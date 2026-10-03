@@ -3,6 +3,13 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## The first interactive emitter, 2026-10-03
+
+- **`education:illustrate` replaces `education:eli5` on the escape-helper emitter list
+  (#5858).** It builds its page through the shared builder's interactive profile, from a
+  checked-in template plus the explainer model as JSON data, and writes the markdown
+  record from the same model.
+
 ## The shared builder ships, 2026-10-02
 
 - **`lib/view-builder.mjs` and `lib/view-runtime.js` implement both validator

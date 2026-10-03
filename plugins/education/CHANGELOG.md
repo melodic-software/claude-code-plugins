@@ -3,6 +3,25 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0] - 2026-10-03
+
+### Added
+
+- `illustrate` explains a concept or a codebase topic as small diagrams, one idea each. It writes a
+  markdown record and, by default, an interactive page view of it. Both come from one JSON model
+  through `scripts/build-explainer.mjs`. The page is built from a checked-in template through the
+  shared view builder (`lib/view-builder.mjs`), so untrusted text reaches it only as JSON data. The
+  reader can search the word list, tick the pictures that are still unclear, and copy a short reply
+  back into the session.
+- `illustrate` options: the `zero-knowledge` preset ("ELI5"), the `ste` register, whose rules it
+  loads from `docs-hygiene:write-for-humans`, and the `markdown` format. When the explainer-video
+  plugin is installed, it offers a video view of the record. When that plugin is not installed, it
+  says the video view is unavailable.
+
+### Removed
+
+- `eli5`. Use `/education:illustrate` with the `zero-knowledge` preset, or say "ELI5".
+
 ## [0.12.4] - 2026-10-02
 
 ### Fixed

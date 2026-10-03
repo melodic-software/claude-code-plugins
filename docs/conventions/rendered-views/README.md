@@ -431,7 +431,7 @@ content-class rules bind them now (see Content classes): `adhd:clarify`,
 `visualization:visualize`.
 
 Emitters on the escape-helper gate (the third bullet of the security baseline), each building
-its page with a checked-in builder: `education:eli5`, `education:teach` (codebase mode),
+its page with a checked-in builder: `education:illustrate`, `education:teach` (codebase mode),
 `knowledge:video-digest`, `harness-ops:observability`, `event-storming:simulation`. They left the
 grandfathered list when they moved onto it.
 
