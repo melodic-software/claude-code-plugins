@@ -19,9 +19,12 @@
 
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+# Fixture isolation. An inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
+# redirect `git init` / `git config` into the caller's repository. An inherited
+# CLAUDE_PLUGIN_DATA (another plugin's) would receive this suite's skip-notices
+# and latch hook::notice_once across cases. A case that needs a data dir sets
+# its own.
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PLUGIN_DATA
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HOOK_DIR/pr-body-linkage-gate.sh"

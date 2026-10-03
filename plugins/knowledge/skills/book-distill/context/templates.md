@@ -4,7 +4,7 @@ The two fill-in templates the SKILL.md phases point to: the progress file (Phase
 
 ## Progress file (Phase 1.4)
 
-Save a progress file under `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/` (named by book slug) with this template. Derive both slugs per SKILL.md Phase 1.4 (`{project-slug}` includes the path-hash discriminator):
+Save a progress file under `<plugin-data>/{project-slug}/{target-skill-slug}/` (named by book slug) with this template. Derive both slugs per SKILL.md Phase 1.4 (`{project-slug}` includes the path-hash discriminator):
 
 ```markdown
 # {Book title} distillation
@@ -34,7 +34,7 @@ When approaching ~3 chapters completed (or when PDF image accumulation degrades 
 
 ### Context
 {Book title} by {Author} distillation into the `{skill-name}` skill.
-Progress file: `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-progress.md`
+Progress file: `<plugin-data>/{project-slug}/{target-skill-slug}/{book-slug}-progress.md`
 
 ### Completed so far
 - `{file1}.md` — Ch {N} ({topic}) — DONE
@@ -66,7 +66,7 @@ When the source is EPUB, use this template instead of the PDF page ranges above:
 
 ### Context
 {Book title} by {Author} distillation into the `{skill-name}` skill.
-Progress file: `${CLAUDE_PLUGIN_DATA}/{project-slug}/{target-skill-slug}/{book-slug}-progress.md`
+Progress file: `<plugin-data>/{project-slug}/{target-skill-slug}/{book-slug}-progress.md`
 
 ### Completed so far
 - `{file1}.md` — Ch {N} ({topic}) — DONE

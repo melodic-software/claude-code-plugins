@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.79.1] - 2026-10-03
+
+### Fixed
+
+- The pull-request body linkage gate tests unset an inherited `CLAUDE_PLUGIN_DATA` before they run. The missing-jq case no longer writes a skip-notice into another plugin's data directory ([#6072](https://github.com/melodic-software/claude-code-plugins/issues/6072)).
+
 ## [0.79.0] - 2026-10-03
 
 ### Added
