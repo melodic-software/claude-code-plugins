@@ -1,5 +1,5 @@
 ---
-standards-contract: 1.0.1
+standards-contract: 1.0.2
 ---
 
 # Standards Convention
@@ -15,11 +15,11 @@ This directory is the source of truth: this README (index schema, layers,
 precedence, resolution ladder, setup and migration),
 `standards.schema.json` (the tracked concern file's shape), `CHANGELOG.md`
 (version history), `examples/` (one worked index). Consuming plugins carry
-a synced, byte-identical binding copy at `reference/standards-contract.md`;
+a synced binding copy at `reference/standards-contract.md`, this text under a generated header;
 the `standards-contract` frontmatter key above names the contract version a
 copy or a consumer index conforms to.
 
-This file is synced verbatim into plugin binding copies, so it contains no
+This file is synced into plugin binding copies, its text unchanged under a generated header, so it contains no
 relative markdown links; neighboring files are named in backticks instead.
 
 ## Layers and precedence
@@ -50,7 +50,7 @@ in the index itself. A short scope preamble is allowed.
 
 ```markdown
 ---
-standards-contract: 1.0.1
+standards-contract: 1.0.2
 ---
 
 # Standards index

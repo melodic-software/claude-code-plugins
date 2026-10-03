@@ -42,6 +42,8 @@ git_test_config() {
     -c commit.gpgsign=false \
     -c tag.gpgsign=false \
     -c core.autocrlf=false \
+    -c gc.auto=0 \
+    -c maintenance.auto=false \
     "$@"
 }
 

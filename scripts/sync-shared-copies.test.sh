@@ -168,6 +168,27 @@ else
   bad "a new copy takes the canonical's executable bit" "not executable"
 fi
 
+# --- a Markdown copy takes an HTML-comment header, after any frontmatter --------
+fixture
+printf '# Title\n\nbody\n' >"$root/lib/plain.md"
+printf -- '---\nkey: 1.0.0\n---\n\n# Title\n' >"$root/lib/front.md"
+printf 'lib/plain.md plugins/alpha/ref/plain.md\nlib/front.md plugins/alpha/ref/front.md\n' >"$root/scripts/shared-copies.txt"
+run >/dev/null
+want=$'<!-- GENERATED from lib/plain.md by scripts/sync-shared-copies.sh. Do not edit this copy:\nedit the canonical source, then rerun the script. -->\n\n# Title\n\nbody'
+if [[ "$(cat "$root/plugins/alpha/ref/plain.md")" == "$want" ]]; then
+  pass "a Markdown copy without frontmatter opens with the header comment"
+else
+  bad "a Markdown copy without frontmatter opens with the header comment" "got: $(cat "$root/plugins/alpha/ref/plain.md")"
+fi
+want=$'---\nkey: 1.0.0\n---\n\n<!-- GENERATED from lib/front.md by scripts/sync-shared-copies.sh. Do not edit this copy:\nedit the canonical source, then rerun the script. -->\n\n# Title'
+if [[ "$(cat "$root/plugins/alpha/ref/front.md")" == "$want" ]]; then
+  pass "a Markdown copy keeps its frontmatter first and takes the header after it"
+else
+  bad "a Markdown copy keeps its frontmatter first and takes the header after it" "got: $(cat "$root/plugins/alpha/ref/front.md")"
+fi
+out="$(run --check)"
+expect "--check passes on generated Markdown copies" 0 $? "$out"
+
 # --- --print-manifest publishes one block per canonical ------------------------
 fixture
 printf 'lib/b.sh plugins/beta/hooks/b.sh\n' >>"$root/scripts/shared-copies.txt"

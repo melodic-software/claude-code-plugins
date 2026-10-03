@@ -1,13 +1,13 @@
 # shellcheck shell=bash
 # shellcheck disable=SC2154  # every sync_cluster_* parameter is assigned by the caller after it sources this file; left undeclared here on purpose, so a caller that forgets one aborts under set -u instead of running with an empty value
-# Shared engine for the scripts/sync-<cluster>.sh gates. Sourced, never executed.
+# Shared engine for the scripts/sync-<cluster>.sh gates of the clusters not yet
+# on the generated-copy registry (ADR 0019; only hook-utils remains). Sourced,
+# never executed.
 #
-# Every one of those gates answers the same three questions about one cluster of
-# vendored copies -- rewrite the copies, fail on drift, fail when the canonical
-# changed vs a base ref but a carrying plugin's manifest version did not -- and
-# they differ only in the cluster's parameters and four wordings. Keeping one
-# engine here means a fix to the walk (or to the "absent at the base ref is a new
-# plugin" carve-out) lands in every gate at once instead of four times over.
+# Each such gate answers three questions about one cluster of vendored copies --
+# rewrite the copies, fail on drift, fail when the canonical changed vs a base
+# ref but a carrying plugin's manifest version did not -- and differs only in the
+# cluster's parameters and four wordings.
 #
 # A caller sources this file, sets the parameters below, and ends with
 # `sync_cluster::run "$@"`:
@@ -23,13 +23,6 @@
 #                                plugins that vendor the copies
 #   sync_cluster_sync_summary    1 to print a trailing per-run copy count in sync
 #                                mode, 0 for the scripts that never printed one
-#
-# A gate whose --check-bump also gates surface no other cluster has
-# (scripts/sync-standards-contract.sh gates the contract's own frontmatter semver
-# and its CHANGELOG) keeps that one mode to itself, delegates the rest with
-# `sync_cluster::run "$mode"`, and calls
-# `sync_cluster::check_manifest_bumps_to <var> <base-ref>` for the
-# carrying-plugin walk so the walk still lives in one place.
 #
 # `--print-manifest` is the published surface scripts/affected-tests.sh reads.
 # It emits one `src<TAB><path>` line and zero or more `copy<TAB><path>` lines

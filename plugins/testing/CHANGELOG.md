@@ -15,6 +15,14 @@ All notable changes to the `testing` plugin are documented here. Format follows
 - The shared hook helper has `hook::require <id>` in place of `hook::require_jq`. Its skip notice is built from the plugin's declared `prerequisites.json` entry and names `/<plugin>:check`, not `/harness-ops:prerequisites`.
 - Hooks call `hook::require jq` where they called `hook::require_jq`.
 
+## [0.21.4] - 2026-10-02
+
+### Changed
+
+- **Shared `exec-bash.mjs`, `rewrite-guard.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's hooks.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+
 ## [0.21.3] - 2026-10-03
 
 ### Changed

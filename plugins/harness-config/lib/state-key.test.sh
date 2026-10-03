@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Self-contained tests for lib/state-key.sh (no external test lib — ships with the plugin).
 #
-# The four copies in harness-memory, harness-ops, context-budget and improvement are
-# byte-identical, registered in scripts/cross-plugin-source-registry.txt and pinned
-# by scripts/sync-state-key.sh --check, so this suite covers all five.
+# Every plugin copy is generated from the canonical lib/state-key.sh, registered in
+# scripts/shared-copies.txt and pinned by scripts/sync-shared-copies.sh --check, so
+# this suite covers them all.
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would

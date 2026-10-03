@@ -14,8 +14,8 @@
 #                             resolver does not read: that check is
 #                             consumer-side and stays in the skill body.
 #
-# Byte-identity of the resolver against its canonical is a different gate
-# (scripts/sync-context-zone.sh --check). This lane covers what that one
+# Whether the resolver matches its canonical is a different gate
+# (scripts/sync-shared-copies.sh --check). This lane covers what that one
 # cannot: a value moving in the reader contract without the resolver moving
 # with it, or the reverse.
 #

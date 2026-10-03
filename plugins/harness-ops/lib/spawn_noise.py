@@ -1,3 +1,5 @@
+# GENERATED from lib/spawn_noise.py by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 """Process-spawn noise characterization: is this host measurable at all?
 
 A single spawn timing is misleading because the floor itself moves with machine

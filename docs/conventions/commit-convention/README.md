@@ -165,7 +165,7 @@ purposes without it.
 ## Consumers
 
 - `guardrails` CC-layer content gate (#914) and opt-in `commit-msg` hook (#919) source the vendored
-  copy of the resolver; each registers its path in `scripts/sync-resolve-convention-pattern.sh` and
+  copy of the resolver; each registers its path in `scripts/shared-copies.txt` and
   bumps the guardrails manifest so consumers receive the change.
 
 Naming coincidence recorded per the seam rules: the convention file is `.claude/source-control.md`

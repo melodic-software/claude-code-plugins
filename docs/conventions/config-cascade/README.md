@@ -528,8 +528,8 @@ its conformance cell.
 Each row states whether the surface implements Resolution algorithm step 2 on `main`: classifies the
 root through `plugins/source-control/lib/config-root.sh` (or an inline copy of the same rule) and
 skips team and overlay at a `home` or `non-repo` root. A plugin whose reader script adopts the
-resolver carries a byte-identical `lib/config-root.sh`, kept in step by
-`scripts/sync-config-root.sh`. "Not yet" names the reader and its anchor. "Prose only" means a
+resolver carries a generated `lib/config-root.sh`, produced from the canonical `lib/config-root.sh`
+by `scripts/sync-shared-copies.sh`. "Not yet" names the reader and its anchor. "Prose only" means a
 model-run skill with no reader script, so the rule lives in the skill text.
 
 | Surface | Step 2 | Reader and anchor |

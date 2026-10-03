@@ -1,6 +1,6 @@
 {
   "name": "improvement",
-  "version": "0.1.23",
+  "version": "0.1.24",
   "description": "Evidence-first, cross-dimension improvement finder. Point it at a repo, feature, concept, or process surface and it produces a ranked, evidence-cited list of improvement candidates led by value-to-effort, interviews on the pick, and hands off to the planning pipeline; runnable unattended as a tech-debt-sweep routine.",
   "author": {
     "name": "Melodic Software",

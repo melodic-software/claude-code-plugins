@@ -1,3 +1,6 @@
+<!-- GENERATED from lib/unwrap-before-compose.md by scripts/sync-shared-copies.sh. Do not edit this copy:
+edit the canonical source, then rerun the script. -->
+
 # Unwrap before you compose: the statusline wiring transform
 
 The shared, plugin-name-free half of the two statusline guard plugins' compose

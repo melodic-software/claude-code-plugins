@@ -14,6 +14,14 @@ All notable changes to the `actionlint` plugin are documented here. Format follo
 
 - The shared hook helper has `hook::require <id>` in place of `hook::require_jq`. Its skip notice is built from the plugin's declared `prerequisites.json` entry and names `/<plugin>:check`, not `/harness-ops:prerequisites`.
 
+## [0.11.16] - 2026-10-02
+
+### Changed
+
+- **Shared `exec-bash.mjs` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's hooks.**
+  It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copy.
+
 ## [0.11.15] - 2026-10-03
 
 ### Changed

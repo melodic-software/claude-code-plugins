@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# GENERATED from lib/fetch-docs.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # Upstream docs fetcher, shared by the plugins that read vendor docs pages.
 #
 # Skills that rest on official docs pages grep them for cited spans and read

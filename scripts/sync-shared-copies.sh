@@ -53,12 +53,33 @@ load_registry() {
   done <"$registry"
 }
 
-# render <canonical>: the generated copy's bytes, on stdout.
+# render <canonical>: the generated copy's bytes, on stdout. A shell, Python or
+# JavaScript copy takes a two-line comment header after any shebang; a Markdown
+# copy takes the same header as an HTML comment after any frontmatter block.
 render() {
-  local src="$1" prefix first=""
+  local src="$1" prefix first="" close=""
   case "$src" in
   *.mjs | *.cjs | *.js | *.ts) prefix='//' ;;
   *.sh | *.bash | *.py | *.ps1 | *.psm1) prefix='#' ;;
+  *.md)
+    IFS= read -r first <"$src" || true
+    if [[ "$first" == '---' ]]; then
+      close="$(awk 'NR > 1 && /^---$/ { print NR; exit }' "$src")"
+    fi
+    if [[ -n "$close" ]]; then
+      head -n "$close" "$src"
+      printf '\n'
+    fi
+    printf '<!-- GENERATED from %s by %s. Do not edit this copy:\n' "$src" "$self"
+    printf 'edit the canonical source, then rerun the script. -->\n'
+    if [[ -n "$close" ]]; then
+      tail -n +"$((close + 1))" "$src"
+    else
+      printf '\n'
+      cat "$src"
+    fi
+    return 0
+    ;;
   *)
     echo "error: no comment syntax known for $src; teach $self its extension." >&2
     return 2

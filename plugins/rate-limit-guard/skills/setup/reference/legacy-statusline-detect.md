@@ -1,3 +1,6 @@
+<!-- GENERATED from lib/legacy-statusline-detect.md by scripts/sync-shared-copies.sh. Do not edit this copy:
+edit the canonical source, then rerun the script. -->
+
 # Legacy statusline detection: shared classification
 
 The shared, plugin-name-free half of the two statusline guard plugins' legacy detection. The hub

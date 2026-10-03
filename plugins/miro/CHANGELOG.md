@@ -3,6 +3,12 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.2] - 2026-10-03
+
+### Changed
+
+- The shared `prerequisites.sh` and `prerequisites.ps1` stubs are synced with a new `node-notice` mode ([#5997](https://github.com/melodic-software/claude-code-plugins/pull/5997)); no change to this plugin's own behavior.
+
 ## [0.6.1] - 2026-10-03
 
 ### Changed
