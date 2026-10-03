@@ -181,12 +181,12 @@ describe("cascade layers resolve through the CLI", () => {
   });
   test("a malformed layer, an invalid value, and an unknown key degrade soft", () => {
     writeFileSync(join(repo, ".claude/review-digest.local.json"), "{nope");
-    writeFileSync(join(home, ".claude/review-digest.json"), '{"max_files": -1, "colour": "red"}');
+    writeFileSync(join(home, ".claude/review-digest.json"), '{"max_files": -1, "palette": "red"}');
     const result = run(facts);
     const warnings = result.warnings.join("\n");
     assert.match(warnings, /overlay .*layer ignored/);
     assert.match(warnings, /invalid max_files/);
-    assert.match(warnings, /unknown key colour is inert/);
+    assert.match(warnings, /unknown key palette is inert/);
     assert.equal(result.config.max_files.value, 2);
   });
   test("both team locations: the docs block wins with a warning", () => {

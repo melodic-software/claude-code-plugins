@@ -1,0 +1,16 @@
+{
+  "skill_name": "pr-explainer",
+  "evals": [
+    {
+      "id": 1,
+      "name": "stub-points-to-explain-change",
+      "prompt": "/review:pr-explainer 123",
+      "expected_output": "The skill says the command is renamed to /review:explain-change and runs that skill with the same arguments. It builds nothing itself.",
+      "expectations": [
+        "Output tells the reader the new name is /review:explain-change",
+        "Output runs /review:explain-change with the same pull request argument",
+        "Output does not run a page builder or write an HTML file itself"
+      ]
+    }
+  ]
+}
