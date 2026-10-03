@@ -1157,6 +1157,8 @@ printf 'import runner\n' >"$repo/plugins/alpha/scripts/test_runner.py"
 printf 'import sys\nimport tool as t\n' >"$repo/plugins/alpha/scripts/tests/test_tool_behavior.py"
 printf 'import tool\n' >"$repo/plugins/alpha/skills/one/scripts/use_tool.py"
 printf 'import use_tool\n' >"$repo/plugins/alpha/skills/one/scripts/test_use_tool.py"
+printf 'from . import tool\n' >"$repo/plugins/alpha/scripts/rel_user.py"
+printf 'import rel_user\n' >"$repo/plugins/alpha/scripts/test_rel_user.py"
 printf 'import tool\n' >"$repo/plugins/beta/scripts/other.py"
 printf 'import other\n' >"$repo/plugins/beta/scripts/test_other.py"
 printf 'X = 1\n' >"$repo/plugins/alpha/pkg/sub/deep.py"
@@ -1168,8 +1170,9 @@ run_sel "$repo" plugins/alpha/scripts/tool.py
 if [[ "$RC" -eq 0 ]] && has_line "$OUT" plugins/alpha/scripts/test_runner.py &&
   has_line "$OUT" plugins/alpha/scripts/tests/test_tool_behavior.py &&
   has_line "$OUT" plugins/alpha/skills/one/scripts/test_use_tool.py &&
+  has_line "$OUT" plugins/alpha/scripts/test_rel_user.py &&
   ! has_line "$OUT" plugins/beta/scripts/test_other.py; then
-  ok "python: an import selects from the module's directory, below it, and across its plugin"
+  ok "python: an import (also 'from . import') selects from the module's directory, below it, and across its plugin"
 else
   fail "python: import selection wrong for tool.py (rc=$RC): $OUT"
 fi
