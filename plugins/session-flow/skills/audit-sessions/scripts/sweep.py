@@ -164,12 +164,37 @@ def build_data(records, rules, drift, fed, scope, window, catalog) -> dict:
     }
 
 
+def markdown_code(text: str) -> str:
+    """One CommonMark code span whose contents cannot close it early.
+
+    Drift keys and model names come from session transcripts. A backtick or a
+    line break in one would end the span or the bullet. Line breaks become
+    spaces. The fence is one backtick longer than the longest backtick run in
+    the text, with a space of padding when that run is non-zero, which is the
+    code-span rule. Pointer: https://spec.commonmark.org/0.31.2/#code-spans
+    """
+    flat = " ".join(text.replace("\r", " ").replace("\n", " ").split())
+    run = longest = 0
+    for char in flat:
+        if char == "`":
+            run += 1
+            longest = max(longest, run)
+        else:
+            run = 0
+    fence = "`" * (longest + 1)
+    if longest:
+        return f"{fence} {flat} {fence}"
+    return f"{fence}{flat}{fence}"
+
+
 def drift_key_lines(changes: object) -> list[str]:
     """One markdown bullet per drift change, class then key path.
 
     The counts line names how many keys moved. These lines name them. A model
     other than the all-models bucket is included so two rows for one key stay
     distinct. No cap: a hidden key is the gap this report exists to close.
+    Only the census classes are emitted; the class word is ours, not the
+    transcript's.
     """
     if not isinstance(changes, list):
         return []
@@ -180,13 +205,15 @@ def drift_key_lines(changes: object) -> list[str]:
             continue
         key = change.get("key")
         cls = change.get("class")
-        if not isinstance(key, str) or not key or not isinstance(cls, str):
+        if not isinstance(key, str) or not key or cls not in order:
             continue
         model = change.get("model")
-        suffix = f" ({model})" if isinstance(model, str) and model and model != "*" else ""
-        rows.append((order.get(cls, len(order)), key, str(model or ""), cls, suffix))
+        suffix = ""
+        if isinstance(model, str) and model and model != "*":
+            suffix = f" ({markdown_code(model)})"
+        rows.append((order[cls], key, str(model or ""), cls, suffix))
     rows.sort()
-    return [f"- {cls}: `{key}`{suffix}" for _, key, _, cls, suffix in rows]
+    return [f"- {cls}: {markdown_code(key)}{suffix}" for _, key, _, cls, suffix in rows]
 
 
 def _fmt(value: object) -> str:

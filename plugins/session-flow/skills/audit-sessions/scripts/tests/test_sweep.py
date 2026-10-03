@@ -207,6 +207,19 @@ def test_canary_lost_degrades_metric(data_dir, tmp_path):
     assert "- canary-lost: `key_path:user:message.content`" in drift_md
 
 
+def test_drift_markdown_keeps_a_hostile_key_inside_one_bullet():
+    import sweep
+
+    key = "x`\n- injected\n![a](https://evil.example/beacon)"
+    lines = sweep.drift_key_lines([{"class": "unknown-record-type", "key": key, "model": "m`\n## heading"}])
+    assert len(lines) == 1
+    assert "\n" not in lines[0]
+    assert lines[0].startswith("- unknown-record-type: ")
+    assert "![a](https://evil.example/beacon)" in lines[0]
+    # The fence is longer than the backtick inside the key, so the span stays closed.
+    assert lines[0].split("unknown-record-type: ", 1)[1].startswith("``")
+
+
 def test_md_names_unknown_record_types(data_dir):
     stored = record("s1")
     stored["unknown"] = {"record_types": {"relocated": 1}}
