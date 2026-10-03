@@ -1,5 +1,30 @@
 # Changelog: session-flow plugin
 
+## [0.47.0] - 2026-10-03
+
+### Changed
+
+- **`orchestrate` keeps code and verify work off the lower effort tier.** Work that changes code,
+  verifies a change, or is likely to hit edge cases takes its level from model-config's effort
+  table, never below medium, even when the rest of a fan-out runs cheaper.
+
+## [0.46.2] - 2026-10-03
+
+### Fixed
+
+- The running-retro observer's ledger redaction and the save-point validator's secret-shape scan
+  match GitHub App installation tokens in the `ghs_<APPID>_<JWT>` format GitHub rolls out from
+  2026-04-27, whose JWT header starts `eyJ`. The old pattern stopped at the `_` after the app ID,
+  so such a token was neither redacted nor warned about.
+
+## [0.46.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `find-handoff` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
 ## [0.46.0] - 2026-10-02
 
 ### Added

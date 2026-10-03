@@ -3,6 +3,65 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.3.0] - 2026-10-03
+
+### Added
+
+- **Opt-in content capture in the session event log.** The new `session_event_log_content` option
+  (off by default) adds each event's top-level content strings, such as the prompt, Claude's last
+  message, notification messages, task text and error output, to event-log rows. A string the 64 KB
+  read cap (counted in bytes) cuts keeps its prefix with a `<key>_truncated` marker, and a row whose payload reached
+  the cap carries `content_truncated: true`. The observability privacy rules never repeat these
+  keys in a report.
+- **Every attribute the Claude Code monitoring page documents is a typed OTEL column**, effort
+  included. Cold-tier queries read older Parquet files beside the new columns by name.
+- **`CC_OTEL_COLD_KEEP_CONTENT` controls content in the cold OTEL tier.** It covers response text,
+  tool payloads, command strings, error and configuration text, `user_email` and absolute paths;
+  the default keeps them and `=0` scrubs them at compaction. `CC_OTEL_COLD_KEEP_USER_PROMPTS`
+  still governs prompts. `prune-otel-store.sh --scrub-cold` cleans files compacted earlier.
+  Tool output, diffs and bash commands from the `tool.output` span event, which never reached the
+  cold tier before, now land there by default; set `CC_OTEL_COLD_KEEP_CONTENT=0` to keep them out.
+
+### Changed
+
+- **`observability compare` reads effort from the promoted column** and reports a missing level as
+  `unset` instead of `none`.
+
+### Fixed
+
+- **Long event-log rows no longer interleave.** Bash writes long lines in 4 KB pieces, so a row
+  over 4000 bytes, and every row while `session_event_log_content` is on, appends under an
+  exclusive-create lock that only its owner removes. A lock left unchanged for 5 seconds is
+  treated as stale and removed; after 10 seconds without the lock the row is appended anyway. With
+  content off, short rows keep the single unlocked write.
+
+## [3.2.2] - 2026-10-03
+
+### Fixed
+
+- `morning-brief` no longer presents every `CLEAN` pull request as merge-ready without
+  qualification. It counts a clean PR as verified only when its head contains the base tip:
+  the script reads the compare endpoint once per clean PR, up to `--pr-limit`, and prints an
+  `UNVERIFIED` line under any PR whose head is behind its base, whose comparison could not be
+  read, or that fell past the cap, plus a `PARTIAL` line when the cap was hit. A `--behind-json`
+  fixture flag feeds those counts to the tests.
+- `machine-profile` refuses a record value holding a GitHub App installation token in the
+  `ghs_<APPID>_<JWT>` format GitHub began issuing on 2026-04-27, matched by its own shape rather
+  than only through the generic JWT rule.
+- `machine-profile` validates a long record value in linear time. jq's regex engine backtracks,
+  and the generic JWT rule took about 10 seconds on a 300 KB value of repeated `ghs_1_eyJ`. It now
+  starts only where a run of token characters starts, so its header stays unbounded and a JWS
+  with a long certificate-chain header is still refused; the `ghs_` rule's header is capped at
+  512 characters.
+
+## [3.2.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `known-issues` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
 ## [3.2.0] - 2026-10-02
 
 ### Added

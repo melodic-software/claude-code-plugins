@@ -3,6 +3,13 @@
 All notable changes to the `naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.9] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
 ## [0.5.8] - 2026-09-28
 
 ### Changed
