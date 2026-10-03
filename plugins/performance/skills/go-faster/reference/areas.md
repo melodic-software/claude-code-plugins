@@ -58,13 +58,16 @@ Each entry gives:
   `gh repo view --json nameWithOwner --jq .nameWithOwner` once, with `GH_CONFIG_DIR` as the rule
   above sets it. It prints `OWNER/REPO` for `ci-timing --repo` below. On failure all four areas
   are `not-checked`, `auth-gap`, reason "gh repo view failed: <its first error line>; run
-  `gh auth status`, and `gh auth login` if it shows no login for this host; this run inherits
-  GH_CONFIG_DIR from the session that started it, so set it there and rerun /performance:go-faster".
+  `gh auth status`, and `gh auth login` if it shows no login for this host; this run used
+  GH_CONFIG_DIR=<the value used, or unset>, so set the right one in the session that starts the
+  run and rerun /performance:go-faster".
 - **GitHub numbers come from findings.py.** After the probe, the four GitHub areas make two calls:
   `"$PY" "$ROOT/scripts/findings.py" ci-timing --repo <OWNER/REPO>` and
   `"$PY" "$ROOT/scripts/findings.py" pr-timing`. Each runs gh itself, with `GH_CONFIG_DIR` as above,
   and prints JSON whose numbers are objects with `value`, `unit`, `samples`, `excluded` and
-  `command`; record `value` and `unit` as printed and copy `command` into the finding. Never run
+  `command`; record `value` and `unit` as printed and copy `command` into the finding. A number
+  whose `samples` is 0 is not recorded as measured; an area left with no recorded number is
+  `not-checked`, `no-data`, reason "every timed sample was excluded (<excluded> excluded)". Never run
   `gh run list`, `gh api` or `gh pr list` yourself, and never save gh output to a file. Exit 1
   makes every area fed by that call `not-checked`, `auth-gap`, reason "<the error line it
   printed>; run `gh auth status`, and `gh auth login` if it shows no login for this host".
