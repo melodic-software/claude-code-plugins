@@ -1,6 +1,33 @@
 {
   "requires": [
     {
+      "id": "pwsh",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "skill:audit"
+      ],
+      "detect": {
+        "any": [
+          "pwsh"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "PowerShell ([0-9.]+)",
+          "min": "7.4"
+        }
+      },
+      "degrade": "Without PowerShell 7.4 or newer, /machine-health:audit cannot run its checks, and Windows PowerShell 5.1 does not qualify.",
+      "install": {
+        "docs": "https://learn.microsoft.com/powershell/scripting/install/installing-powershell",
+        "brew": "powershell",
+        "winget": "Microsoft.PowerShell"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
       "id": "docker",
       "kind": "cli",
       "need": "optional",

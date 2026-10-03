@@ -22,6 +22,33 @@
       "check": "/harness-ops:prerequisites"
     },
     {
+      "id": "pwsh",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:unattended"
+      ],
+      "detect": {
+        "any": [
+          "pwsh"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "PowerShell ([0-9.]+)",
+          "min": "7.0"
+        }
+      },
+      "degrade": "Without PowerShell 7, /wizard:unattended cannot dry-run the script it writes, and Windows PowerShell 5.1 does not qualify.",
+      "install": {
+        "docs": "https://learn.microsoft.com/powershell/scripting/install/installing-powershell",
+        "brew": "powershell",
+        "winget": "Microsoft.PowerShell"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
       "id": "node",
       "kind": "cli",
       "need": "optional",

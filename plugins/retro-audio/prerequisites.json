@@ -10,8 +10,7 @@
       ],
       "detect": {
         "any": [
-          "python3",
-          "python"
+          "python3"
         ]
       },
       "degrade": "Without Python 3, neither skill can synthesize audio; no .wav file is produced.",

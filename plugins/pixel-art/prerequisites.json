@@ -14,8 +14,7 @@
       ],
       "detect": {
         "any": [
-          "python3",
-          "python"
+          "python3"
         ]
       },
       "degrade": "Without Python 3, no pixel-art skill can render; nothing is produced.",

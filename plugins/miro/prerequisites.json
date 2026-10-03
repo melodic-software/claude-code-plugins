@@ -10,9 +10,16 @@
       "detect": {
         "any": [
           "node"
-        ]
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "v([0-9.]+)",
+          "min": "24.0"
+        }
       },
-      "degrade": "Without node, the Miro MCP server does not start and no Miro tool is available.",
+      "degrade": "Without node, the Miro MCP server does not start and no Miro tool is available; the server needs Node 24 or newer.",
       "install": {
         "docs": "https://nodejs.org/en/download",
         "brew": "node",

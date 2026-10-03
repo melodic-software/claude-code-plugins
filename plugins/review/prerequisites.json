@@ -9,8 +9,7 @@
       ],
       "detect": {
         "any": [
-          "python3",
-          "python"
+          "python3"
         ]
       },
       "degrade": "Without Python 3, the stub emitter skips Unicode normalization of file paths and proceeds with the raw path.",

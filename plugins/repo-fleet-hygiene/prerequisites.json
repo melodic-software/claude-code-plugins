@@ -10,8 +10,7 @@
       ],
       "detect": {
         "any": [
-          "python3",
-          "python"
+          "python3"
         ]
       },
       "degrade": "Without Python 3, the audit script cannot build its report and /repo-fleet-hygiene:apply cannot read an action plan.",

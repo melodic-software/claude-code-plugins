@@ -54,7 +54,7 @@
           "curl"
         ]
       },
-      "degrade": "Without curl, the Linear conformance binding cannot reach its API; the other providers are unaffected.",
+      "degrade": "Without curl, the Linear, Jira and Gitea or Forgejo providers cannot reach their APIs; the github and local-markdown providers are unaffected.",
       "install": {
         "docs": "https://curl.se/download.html",
         "brew": "curl",
