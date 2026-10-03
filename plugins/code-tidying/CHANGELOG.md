@@ -7,7 +7,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
 ### Fixed
 
-- `evals-fixtures.test.sh` skips the change-shape self-certify checks, with one visible SKIP, when tree-sitter or its grammar is absent, and still runs the parse, presence, and seeding checks. `CODE_TIDYING_REQUIRE_TREE_SITTER=1` (set on the plugin-test CI steps) makes that absence a failure. A fixture no longer prints both `FAIL:` and `ok:` ([#6010](https://github.com/melodic-software/claude-code-plugins/issues/6010)).
+- `evals-fixtures.test.sh` skips the change-shape self-certify checks, with one visible SKIP, when tree-sitter or a grammar it probes is absent, and still runs the parse, presence, and seeding checks. Bash and Python are probed separately, so a missing Python grammar does not fail the Bash fixtures or get reported as a fixture regression. The UNPROVABLE fixture is required to be present even when its self-certify check is skipped. `CODE_TIDYING_REQUIRE_TREE_SITTER=1` (set on the plugin-test CI steps) makes that absence a failure. A fixture no longer prints both `FAIL:` and `ok:` ([#6010](https://github.com/melodic-software/claude-code-plugins/issues/6010)).
 
 ## [0.28.0] - 2026-10-02
 

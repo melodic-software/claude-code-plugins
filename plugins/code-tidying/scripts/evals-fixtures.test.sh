@@ -49,29 +49,51 @@ check_self_certifies() {
   fi
 }
 
-# One probe. Exit 3 is change-shape's EXIT_NO_TOOLING (package or grammar).
-self_certify=1
-probe_src="$fixtures/${shell_fixtures[0]}"
-if [[ -f "$probe_src" ]]; then
-  cp "$probe_src" "$scratch/probe.sh"
-  probe_rc=0
-  python3 "$change_shape" --lang bash "$scratch/probe.sh" "$scratch/probe.sh" >"$scratch/probe.out" 2>"$scratch/probe.err" || probe_rc=$?
+# Exit 3 is change-shape's EXIT_NO_TOOLING (package or that language's grammar).
+# Probe every language the self-certify checks use, so a present Bash grammar
+# does not hide a missing Python grammar.
+unavailable_reason=""
+note_unavailable() {
+  local lang="$1" errfile="$2" reason="" line
+  while IFS= read -r line; do
+    case "$line" in
+      "change-shape: UNAVAILABLE: "*) reason="${line#change-shape: UNAVAILABLE: }" ;;
+      *) ;;
+    esac
+  done <"$errfile"
+  [[ -n "$reason" ]] || reason="tree-sitter is not installed"
+  if [[ -n "$unavailable_reason" ]]; then
+    unavailable_reason="${unavailable_reason}; ${lang}: ${reason}"
+  else
+    unavailable_reason="${lang}: ${reason}"
+  fi
+}
+bash_certify=1
+python_certify=1
+probe_rc=0
+if [[ -f "$fixtures/${shell_fixtures[0]}" ]]; then
+  cp "$fixtures/${shell_fixtures[0]}" "$scratch/probe.sh"
+  python3 "$change_shape" --lang bash "$scratch/probe.sh" "$scratch/probe.sh" >"$scratch/probe-bash.out" 2>"$scratch/probe-bash.err" || probe_rc=$?
   if [[ "$probe_rc" -eq 3 ]]; then
-    reason=""
-    while IFS= read -r line; do
-      case "$line" in
-        "change-shape: UNAVAILABLE: "*) reason="${line#change-shape: UNAVAILABLE: }" ;;
-        *) ;;
-      esac
-    done <"$scratch/probe.err"
-    [[ -n "$reason" ]] || reason="tree-sitter is not installed"
-    notice="change-shape tooling unavailable: ${reason}; install the locked set with: pip install -r .github/requirements-ci.txt"
-    if [[ -n "${CODE_TIDYING_REQUIRE_TREE_SITTER:-}" ]]; then
-      fail "$notice"
-    else
-      printf 'SKIP: %s\n' "$notice"
-    fi
-    self_certify=0
+    bash_certify=0
+    note_unavailable bash "$scratch/probe-bash.err"
+  fi
+fi
+probe_rc=0
+if [[ -f "$fixtures/${python_fixtures[0]}" ]]; then
+  cp "$fixtures/${python_fixtures[0]}" "$scratch/probe.py"
+  python3 "$change_shape" --lang python "$scratch/probe.py" "$scratch/probe.py" >"$scratch/probe-python.out" 2>"$scratch/probe-python.err" || probe_rc=$?
+  if [[ "$probe_rc" -eq 3 ]]; then
+    python_certify=0
+    note_unavailable python "$scratch/probe-python.err"
+  fi
+fi
+if [[ -n "$unavailable_reason" ]]; then
+  notice="change-shape tooling unavailable: ${unavailable_reason}; install the locked set with: pip install -r .github/requirements-ci.txt"
+  if [[ -n "${CODE_TIDYING_REQUIRE_TREE_SITTER:-}" ]]; then
+    fail "$notice"
+  else
+    printf 'SKIP: %s\n' "$notice"
   fi
 fi
 
@@ -86,7 +108,7 @@ for file in "${shell_fixtures[@]}"; do
     fail "$file does not parse as bash"
     passed=0
   }
-  if [[ "$self_certify" -eq 1 ]]; then
+  if [[ "$bash_certify" -eq 1 ]]; then
     set +e
     check_self_certifies "$src" "${file%.txt}" bash 0
     cert_rc=$?
@@ -94,7 +116,7 @@ for file in "${shell_fixtures[@]}"; do
     [[ "$cert_rc" -eq 0 ]] || passed=0
   fi
   if [[ "$passed" -eq 1 ]]; then
-    if [[ "$self_certify" -eq 1 ]]; then
+    if [[ "$bash_certify" -eq 1 ]]; then
       ok "$file parses and self-certifies COMMENT-ONLY"
     else
       ok "$file parses"
@@ -114,7 +136,7 @@ for file in "${python_fixtures[@]}"; do
     fail "$file does not compile"
     passed=0
   }
-  if [[ "$self_certify" -eq 1 ]]; then
+  if [[ "$python_certify" -eq 1 ]]; then
     set +e
     check_self_certifies "$src" "${file%.txt}" python 0
     cert_rc=$?
@@ -122,7 +144,7 @@ for file in "${python_fixtures[@]}"; do
     [[ "$cert_rc" -eq 0 ]] || passed=0
   fi
   if [[ "$passed" -eq 1 ]]; then
-    if [[ "$self_certify" -eq 1 ]]; then
+    if [[ "$python_certify" -eq 1 ]]; then
       ok "$file compiles and self-certifies COMMENT-ONLY"
     else
       ok "$file compiles"
@@ -130,7 +152,10 @@ for file in "${python_fixtures[@]}"; do
   fi
 done
 
-if [[ "$self_certify" -eq 1 ]]; then
+# Presence is independent of self-certify. The seeding loop below only sees
+# files that exist, so a missing UNPROVABLE fixture would otherwise pass.
+[[ -f "$fixtures/$unprovable_fixture" ]] || fail "$unprovable_fixture is missing"
+if [[ "$bash_certify" -eq 1 && -f "$fixtures/$unprovable_fixture" ]]; then
   set +e
   check_self_certifies "$fixtures/$unprovable_fixture" "${unprovable_fixture%.txt}" bash 21
   cert_rc=$?
