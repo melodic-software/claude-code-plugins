@@ -121,7 +121,9 @@ fi
 #   run-python-hook.sh — disk-hygiene's interpreter resolver; execs the
 #                        Python guard, whose switch is disk_hygiene_enabled and
 #                        lives in destructive_guard.py
-LAUNCHERS=("run-guards.sh" "run-python-hook.sh")
+#   prerequisites.sh   - the shared SessionStart node notice; reads the plugin's switch
+#                        from its argument and guards nothing
+LAUNCHERS=("run-guards.sh" "run-python-hook.sh" "prerequisites.sh")
 
 is_launcher() {
   local candidate="$1" known

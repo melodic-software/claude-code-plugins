@@ -981,9 +981,10 @@ else
   fail "row-gate: hooks.json registers $(jq '[.hooks.PostToolUse[].hooks[]] | length' "$HOOKS_JSON" 2>&1) PostToolUse hook commands, want 1"
 fi
 # The one other row is the SessionStart prerequisite probe, exec form behind the
-# same launcher gate.
+# same launcher gate. The SessionStart node-notice row is pinned fleet-wide by
+# scripts/node-notice-rows.test.sh.
 if jq -e --arg checker '${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs' --arg root '${CLAUDE_PLUGIN_ROOT}' \
-  '([.hooks[][].hooks[]] | length == 2) and ([.hooks.SessionStart[].hooks[] | select(.command == "node" and .args == [$checker, "probe", $root, "--run-if-unset-or-true", "TYPOS_FORMAT_ENABLED"])] | length == 1)' "$HOOKS_JSON" >/dev/null; then
+  '([.hooks | del(.SessionStart)[][].hooks[]] | length == 1) and ([.hooks.SessionStart[].hooks[] | select(.command == "node" and .args == [$checker, "probe", $root, "--run-if-unset-or-true", "TYPOS_FORMAT_ENABLED"])] | length == 1)' "$HOOKS_JSON" >/dev/null; then
   ok "hooks.json: one exec-form SessionStart row runs the prerequisites checker's probe behind --run-if-unset-or-true TYPOS_FORMAT_ENABLED"
 else
   fail "hooks.json: expected one exec-form SessionStart prerequisites probe row behind --run-if-unset-or-true TYPOS_FORMAT_ENABLED and no other extra row"

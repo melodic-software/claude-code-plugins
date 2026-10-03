@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.65.3] - 2026-10-03
+## [0.65.4] - 2026-10-03
 
 ### Changed
 
@@ -14,6 +14,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - The channels adapter's rings carry only fixed text: a lease conflict no longer quotes the holder
   the page server names. A malformed wait answer or an unexpected error releases the lease and
   rings a stopped notice, and the channel server releases its leases when its input closes.
+
+## [0.65.3] - 2026-10-03
+
+### Changed
+
+- Shared `prerequisites.sh`, `prerequisites.ps1` synced ([#5843](https://github.com/melodic-software/claude-code-plugins/issues/5843)); no change to this plugin's own behavior.
 
 ## [0.65.2] - 2026-10-02
 

@@ -203,7 +203,7 @@ CG_REQUIRED=0
 cg_require_utils() {
   cg_load_utils
   ((CG_REQUIRED)) && return 0
-  hook::require_jq "$EVENT" "context-guard" "$INPUT"
+  hook::require jq "$EVENT" "context-guard" "$INPUT"
   CG_REQUIRED=1
 }
 

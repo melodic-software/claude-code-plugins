@@ -666,10 +666,10 @@ HOOK_SRC=$(cat "$HOOK")
 # Runtime jq-removal is not portably simulable — an isolated bin dir without jq
 # cannot host bash + coreutils across Git Bash and Linux, the same constraint
 # secret-pattern-detection.test.sh and require-jq-notice-isolation.test.sh both
-# document. Assert the fail-open guard is present; require_jq's own behavior is
+# document. Assert the fail-open guard is present; hook::require's own behavior is
 # covered by lib/hook-utils.test.sh and the notice key's plugin-wide uniqueness
 # by require-jq-notice-isolation.test.sh.
-assert_contains "jq guard: uses hook::require_jq" "$HOOK_SRC" 'hook::require_jq'
+assert_contains "jq guard: uses hook::require jq" "$HOOK_SRC" 'hook::require jq'
 assert_contains "jq guard: hook-specific notice key" "$HOOK_SRC" 'guardrails-stale-path-verify'
 
 # The repo root is resolved from the written file, never from the process CWD, so

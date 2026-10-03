@@ -18,7 +18,7 @@
 #
 # installs an EXIT trap that passes every CHOSEN status through untouched (the
 # hook's own `exit 0` / `exit 2`, including the ones the shared helpers make on
-# its behalf: hook::check_enabled, hook::require_jq, hook::require_jq_blocking)
+# its behalf: hook::check_enabled, hook::require jq, hook::require_jq_blocking)
 # and treats any other status as "the guard did not run". For those it writes
 # one line naming the hook and the status to stderr, and then applies the
 # hook's declared posture:

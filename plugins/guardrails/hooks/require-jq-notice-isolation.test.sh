@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Cross-hook contract test: every guardrails hook's hook::require_jq call must
+# Cross-hook contract test: every guardrails hook's hook::require jq call must
 # use a hook-specific notice_once key, not a key shared across the plugin.
 #
 # Repro-first regression for a real bug (found in independent review of #836's
 # fleet-adoption PR): all 9 jq-missing conversions initially passed the
-# literal plugin id "guardrails" as require_jq's second argument. Since
-# require_jq's notice_once key is "${plugin}-jq" (lib/hook-utils.sh), all 9
+# literal plugin id "guardrails" as hook::require's plugin argument. Since
+# hook::require's notice_once key is "${plugin}-jq" (lib/hook-utils.sh), all 9
 # resolved to the SAME key ("guardrails-jq") and therefore the SAME marker
 # file within one session — whichever guard ran first silenced the other 8
 # for the rest of the session, on both channels. No single-hook *.test.sh
@@ -21,7 +21,7 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
-# Every hook whose source CALLS the FAIL-OPEN hook::require_jq — discovered, not
+# Every hook whose source CALLS the FAIL-OPEN hook::require jq — discovered, not
 # hand-enumerated, so a future 10th jq-consuming hook is covered automatically.
 # Excludes hook-utils.sh (the function's own definition, not a call site) and
 # *.test.sh (which reference the name in assertions/comments, not calls) —
@@ -40,15 +40,15 @@ mapfile -t JQ_HOOKS < <(
     hook-utils.sh | *.test.sh) continue ;;
     *) ;;
     esac
-    grep -lE 'hook::require_jq[[:space:]]' "$f" 2>/dev/null || true
+    grep -lE 'hook::require jq[[:space:]]' "$f" 2>/dev/null || true
   done | sort
 )
 
 if ((${#JQ_HOOKS[@]} < 2)); then
-  bad "expected at least 2 guardrails hooks calling the fail-open hook::require_jq, found ${#JQ_HOOKS[@]} — this test needs >=2 to prove cross-hook isolation"
+  bad "expected at least 2 guardrails hooks calling the fail-open hook::require jq, found ${#JQ_HOOKS[@]} — this test needs >=2 to prove cross-hook isolation"
 fi
 
-# --- Every hook's require_jq key is unique -----------------------------------
+# --- Every hook's require jq key is unique -----------------------------------
 # Portable extraction (bash regex, not `grep -P` — BSD grep on macOS has no
 # Perl-regex support, and this fleet targets Windows/macOS/Linux).
 declare -A seen_keys=()
@@ -56,30 +56,30 @@ dup_found=0
 for h in "${JQ_HOOKS[@]}"; do
   key=""
   while IFS= read -r line; do
-    if [[ "$line" =~ hook::require_jq[[:space:]]+\"[^\"]*\"[[:space:]]+\"([^\"]+)\" ]] &&
+    if [[ "$line" =~ hook::require[[:space:]]+jq[[:space:]]+\"[^\"]*\"[[:space:]]+\"([^\"]+)\" ]] &&
       [[ "$line" != *"hook::require_jq_blocking"* ]]; then
       key="${BASH_REMATCH[1]}"
       break
     fi
   done <"$h"
   if [[ -z "$key" ]]; then
-    bad "$(basename "$h"): could not extract require_jq's plugin argument"
+    bad "$(basename "$h"): could not extract hook::require's plugin argument"
     continue
   fi
   if [[ -n "${seen_keys[$key]:-}" ]]; then
-    bad "duplicate require_jq key '$key': $(basename "$h") collides with ${seen_keys[$key]}"
+    bad "duplicate require jq key '$key': $(basename "$h") collides with ${seen_keys[$key]}"
     dup_found=1
   else
     seen_keys[$key]="$(basename "$h")"
   fi
 done
-((dup_found == 0)) && ok "every guardrails hook's require_jq key is unique (${#seen_keys[@]} distinct keys for ${#JQ_HOOKS[@]} hooks)"
+((dup_found == 0)) && ok "every guardrails hook's require jq key is unique (${#seen_keys[@]} distinct keys for ${#JQ_HOOKS[@]} hooks)"
 
 # --- Runtime proof: hook::notice_once fires independently for each hook's
 # ACTUAL extracted key, within one shared session/data-dir -------------------
 # Real jq-removal is not portably simulable (isolated bin dir without jq
 # cannot host bash + coreutils across Git Bash and Linux — same constraint
-# secret-pattern-detection.test.sh documents), and require_jq short-circuits
+# secret-pattern-detection.test.sh documents), and hook::require short-circuits
 # before ever calling notice_once when jq IS present (the normal test
 # environment). So this drives hook::notice_once directly with each hook's
 # real extracted key — the exact mechanism the bug lives in — rather than

@@ -70,7 +70,7 @@ ec_pin="v3.4.0" # editorconfig-checker 3.x, per .editorconfig-checker.json
 ec_sha="feae0baaf8d55e51fd9b6c9e04497f2fb288b40034110fb9ac83fb1bf0b6011e"
 gitleaks_pin="8.28.0"
 gitleaks_sha="a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb"
-shfmt_pin="v3.14.1" # check-detector-eval-coverage.sh requires >= v3.13.0; lint-2 installs this pin
+shfmt_pin="v3.14.1" # check-detector-eval-coverage.sh requires >= v3.13.0; check-skills installs this pin
 shfmt_sha="76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf"
 # markdownlint-cli2: root package-lock.json (npm ci) — never npm -g into the
 # nvm prefix; hook processes do not inherit that PATH segment (#2739 / #2748).

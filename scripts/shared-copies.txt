@@ -2,6 +2,8 @@
 # One copy per line: `<canonical> <copy>`, both repo-relative. The canonical is
 # the only file to edit; each copy sits inside its plugin because a plugin cache
 # cannot see the repository root. Register a copy here, then run the script.
+lib/html-escape.mjs plugins/debugging/lib/html-escape.mjs
+lib/html-escape.mjs plugins/discovery/lib/html-escape.mjs
 lib/html-escape.mjs plugins/education/lib/html-escape.mjs
 lib/html-escape.mjs plugins/event-storming/lib/html-escape.mjs
 lib/html-escape.mjs plugins/harness-ops/lib/html-escape.mjs
@@ -127,6 +129,10 @@ lib/view-builder.mjs plugins/review/lib/view-builder.mjs
 lib/view-runtime.js plugins/review/lib/view-runtime.js
 lib/view-builder.mjs plugins/planning/lib/view-builder.mjs
 lib/view-runtime.js plugins/planning/lib/view-runtime.js
+lib/view-builder.mjs plugins/debugging/lib/view-builder.mjs
+lib/view-runtime.js plugins/debugging/lib/view-runtime.js
+lib/view-builder.mjs plugins/discovery/lib/view-builder.mjs
+lib/view-runtime.js plugins/discovery/lib/view-runtime.js
 lib/prerequisites.mjs plugins/harness-ops/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/harness-ops/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/harness-ops/lib/prerequisites.ps1
@@ -259,11 +265,19 @@ lib/prerequisites.ps1 plugins/source-control/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/testing/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/testing/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/testing/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/toolchain/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/toolchain/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/toolchain/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/typos-format/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/typos-format/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/typos-format/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/speech/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/speech/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/speech/lib/prerequisites.ps1
+lib/html-escape.mjs plugins/work-items/lib/html-escape.mjs
+lib/view-builder.mjs plugins/work-items/lib/view-builder.mjs
+lib/view-runtime.js plugins/work-items/lib/view-runtime.js
+lib/view-builder.mjs plugins/harness-ops/lib/view-builder.mjs
+lib/view-runtime.js plugins/harness-ops/lib/view-runtime.js
 lib/mermaid-gate.mjs plugins/visualization/lib/mermaid-gate.mjs
 lib/mermaid-gate.mjs plugins/architecture/lib/mermaid-gate.mjs

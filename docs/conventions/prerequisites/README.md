@@ -132,6 +132,24 @@ arguments and exit code when `node` is on `PATH`. Without `node` they print this
 prerequisites: node was not found on PATH, so no prerequisite was checked. Install Node.js from https://nodejs.org/en/download, then run this check again.
 ```
 
+## Hook notices
+
+Two notices cover a hook's dependencies. Both name `/<plugin>:check`, never `/<plugin>:setup`,
+because `setup` is manual-only (the
+[philosophy](../../plugin-philosophy.md#setup-is-explicit-and-repeatable) explains the split). A
+plugin whose `check` skill already means something else (`instruction-placement`, `skill-quality`
+and `toolchain`) ships `check-prerequisites` and names that. No hook installs anything.
+
+| Notice | Fires | How |
+| --- | --- | --- |
+| `node` is missing | `SessionStart`, once per session across every plugin | Each hook plugin carries one shell-form `SessionStart` row that runs `lib/prerequisites.sh node-notice`, then `lib/prerequisites.ps1 node-notice`. bash takes the first and leaves at `${BASH_VERSION:+exit}`; PowerShell, the default shell on Windows without Git Bash, has no `sh`, skips to the second. Both stubs share a latch keyed by session id in the temp directory, so a session with several hook plugins sees one notice. A plugin's `<name>_enabled` kill switch, passed as the last argument, silences its row. |
+| Another hook dependency is missing | `SessionStart` for an entry whose `for` names a hook, via `probe`; and at the point of use | `hook::require <id>` in `lib/hook-utils.sh`. It fails open: when `<id>` is not on `PATH` it prints one skip notice per session and agent and exits 0. The text comes from the plugin's declared entry: `degrade`, the `docs` install link and `check`. An entry that names only a skill never notifies at session start. |
+
+`hook::require` reads an entry with bash alone, from its `id` to the next one, so write `id` first in every entry.
+
+`hook::require_jq_blocking` stays separate. It denies the call, so it prints its reason every time
+and does not latch.
+
 ## The CI gate
 
 `node scripts/check-declared-prerequisites.mjs` runs in CI and checks three things:

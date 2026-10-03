@@ -53,22 +53,22 @@ start=${EPOCHREALTIME:-}
 # hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read; empty
 # or timed-out stdin skips this advisory hook. Buffering does not require jq
 # (hook::buffer_stdin's own JSON-completeness check is jq-optional), so it
-# runs before the jq gate below — hook::require_jq needs the buffered input
+# runs before the jq gate below — hook::require jq needs the buffered input
 # for its once per session and agent notice scoping.
 hook::buffer_stdin_to INPUT || exit 0
 
 # jq parses the tool payload and builds the additionalContext JSON.
-# hook::require_jq fails OPEN (this hook never blocks) but makes the degraded
+# hook::require jq fails OPEN (this hook never blocks) but makes the degraded
 # state visible to both the user (systemMessage) and the agent
 # (additionalContext), once per session and agent — see docs/conventions/hook-observability/.
-hook::require_jq "PreToolUse" "guardrails-workflow-resilience-check" "$INPUT"
+hook::require jq "PreToolUse" "guardrails-workflow-resilience-check" "$INPUT"
 
 # Both payload fields in ONE jq process (hook::jq_fields), not two — a jq spawn is
 # fork() emulation on Windows Git Bash. Failure semantics are unchanged: a missing
 # jq or an unparsable payload yields rc 1 here, which exits 0 exactly as the
 # empty-SCRIPT skip below did (both fields would have come back empty, and the
 # scriptPath fallback needs a non-empty SCRIPT_PATH to do anything) —
-# hook::require_jq above has already made the degraded state visible once per
+# hook::require jq above has already made the degraded state visible once per
 # session and agent.
 hook::jq_fields "$INPUT" '.tool_input.script' '.tool_input.scriptPath' || exit 0
 SCRIPT="${HOOK_JQ_FIELDS[0]}"

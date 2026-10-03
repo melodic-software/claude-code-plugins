@@ -98,6 +98,17 @@ Show three buckets (oldest first, one-line summaries):
 
 List open items and filter into buckets programmatically (adapter: "List items", bare read). Apply the lane-infrastructure exclusion ("Scope: raw intake only") to that listing **before** bucketing, so a telemetry issue carrying the raw marker is filtered out rather than bucketed under it. **Defensive skip:** drop any item that already carries a native `blocked-by` edge *and* a prior triage comment (machine disclaimer or structured needs-info template), a stray re-label from another lane must not cost a full re-investigation. When the repo treats external PRs as a request surface, include them and tag each line `[PR]` or `[issue]`, but surface only *external* PRs (a collaborator's in-flight PR is not triage work; this filter is discovery-only, and an explicitly named PR is always triaged regardless of author). Present as a compact table.
 
+### Board page
+
+Genre: reports and status, interactive. In an interactive session, after the table, read
+[context/board.md](context/board.md) and follow it: it resolves the `medium` key, then builds a
+page that groups the same items by state, blocker and label with a filter box. The table is the
+record; the page is a view of it. Item text is tracker text (K2), so only
+`scripts/build-board.mjs` writes the page, from its checked-in template (`templates/board.html`) and the items as escaped
+JSON data. Never hand-write the page or add script to it. A lane run, CI, or `medium: terminal`
+prints the table only. `context/board.md` writes the plugin's root directory as `<plugin-root>`,
+which is `${CLAUDE_PLUGIN_ROOT}`; put that path in place of the placeholder before running a command.
+
 ## Triage workflow (with number)
 
 ### 1. Gather context
