@@ -259,6 +259,11 @@ const reportTemplate = [
 const report = buildView({ profile: "report", template: reportTemplate, data: hostileData });
 check("the report profile builds a page from hostile data", validateRenderedPage(report).ok, validateRenderedPage(report).failures);
 check("validateView selects the report profile for it", validateView(report).ok);
+const markerData = { title: "t", findings: [{ file: "f", what: INTERACTIVE_MARKER, evidence: [] }] };
+const markerReport = buildView({ profile: "report", template: reportTemplate, data: markerData });
+check("report text naming the interactive marker still validates as a report", validateView(markerReport).ok, validateView(markerReport).failures);
+const missingCheck = spawnSync(process.execPath, [`${root}/lib/view-builder.mjs`, "--check", "/no/such/page.html"], { encoding: "utf8" });
+check("--check on an unreadable path exits 2", missingCheck.status === 2, missingCheck.status);
 check("the report page carries no script", !/<script/i.test(report));
 check("hostile text is escaped in the report", report.includes("&lt;/script&gt;&lt;script&gt;") && !report.includes("<img"));
 check("prototype keys are not read as data", !report.includes("polluted"));
