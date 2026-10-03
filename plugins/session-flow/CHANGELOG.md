@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.48.1] - 2026-10-03
+
+### Changed
+
+- `scripts/save_point.test.sh` and `skills/audit-sessions/scripts/audit-sessions.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
 ## [0.48.0] - 2026-10-03
 
 ### Added
