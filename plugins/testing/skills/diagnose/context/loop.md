@@ -90,7 +90,7 @@ After fixing one instance, ask: is this a pattern? Could the same bug exist in s
 If after 3 iterations the fix keeps breaking other things:
 
 - The code may need redesign, not a patch
-- Route back to the planning skill (invoke `/planning:plan review` via the Skill tool when installed) for a broader replanning
+- Route back to the planning skill (invoke `/planning:plan review` via the Skill tool when enabled) for a broader replanning
 - Don't push through. That's how technical debt compounds
 
 ## Integration with /implementation:implement

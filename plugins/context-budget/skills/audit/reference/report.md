@@ -53,8 +53,8 @@ mode; the displayed fraction in cli-parse mode).
    category, `removes-weight` first. Postures bind: `never-recommend` rows appear under a
    "priced, not recommended" heading; `report-only` vendor weight closes the group as the honest
    floor.
-6. **Routes.** The catalogue's route-outs (`/doctor` for usage-based removal, which the operator
-   runs; memory files, hooks, live occupancy to their owners), each in one line.
+6. **Routes.** The catalogue's route-outs (`/skill-doctor` for unused skills and `/doctor` for
+   unused MCP servers and plugins, both of which the operator runs; memory files, hooks, live occupancy to their owners), each in one line.
 7. **Degradations and caveats.** Every `caveats[]` entry from the records used, plus anything the
    engine could not measure and why. The attribution record already merges the baseline with
    each deny run and the combined additivity run, so a deny-run disclosure is in that list and

@@ -31,16 +31,19 @@ independent source". A rewrite takes its expected value from a source that secti
   `file:line`.
 - B: brittle: it asserts internals and would fail on a behavior-preserving refactor.
 - D: a behavior-level duplicate of a kept test on the same inputs. Cite both tests.
+- L: a layer replay: it proves, through a mocked collaborator, a contract that a kept test at a
+  stronger boundary (the real transport with a fake network, the shared owner) already proves on
+  the same inputs. Cite both tests and quote the keeper's assertion.
 
 ## Rule: the first matching row wins
 
 | # | Condition | Action |
 |---|---|---|
 | 1 | F | quarantine (the skill applies it; return the row only) |
-| 2 | CF and K | rewrite: same behavior, expected value from the contract |
-| 3 | B and K | rewrite to assert the observable outcome through the public API |
+| 2 | CF and K, not L | rewrite: same behavior, expected value from the contract |
+| 3 | B and K, not L | rewrite to assert the observable outcome through the public API |
 | 4 | CF or B, and a positive no-contract statement | delete; if real logic lives in a collaborator, name the test to add there |
-| 5 | D, both tests cited | merge (parameterize) or delete the duplicate |
+| 5 | D or L, both tests cited | D: merge (parameterize) or delete the duplicate; L: delete the replay |
 | 6 | none | keep |
 
 - Row 4 needs a positive statement, not a missing citation: the subject is trivial (a constant, a
@@ -55,7 +58,10 @@ independent source". A rewrite takes its expected value from a source that secti
 - A file whose adapter is `block_model: file` (`<list>`) is one whole-file test to the scanner:
   rows 4 and 5 do not apply; rewrite individual checks or keep.
 - Row 5 merges only tests at the same level: never an integration or end-to-end test with a unit
-  test.
+  test. An L row deletes the weaker-layer test and never merges; when the replay covers a risk the
+  keeper cannot reach (a transport or lifecycle failure), it is not L.
+- Judge a test by its assertions, not its name. The "Judgment only" shapes in section 5 of
+  `<plugin-root>/skills/test-value/SKILL.md` are CF or B evidence once you quote them from the test.
 - A snapshot-only finding is row 2: an explicit assertion where requirements give the value,
   otherwise a smaller snapshot.
 
@@ -74,4 +80,5 @@ candidate, F when named flaky>
 
 Write the subagent's table to `<work>/classifier-answer.md` unchanged. A row without a quoted line,
 a row 2 or 3 without a `file:line` K citation, or a row 4 without a positive no-contract statement
-is treated as row 6 (keep), and the decision table says why.
+is treated as row 6 (keep), and the decision table says why. So is a row 5 that names L without
+both the keeper's `file:line` and a quoted line of the keeper's assertion.

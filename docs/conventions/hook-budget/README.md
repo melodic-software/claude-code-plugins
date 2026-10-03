@@ -79,8 +79,8 @@ interleaves a `bash -c :` spawn floor S with every sample. A run is valid at S a
 figures below are spawn-equivalents (hook wall divided by the same-run S), which is the number that
 survives a change of host, with the reference-host conversion at S = 80 ms beside it. Every hook
 stays `type: command` in its plugin's `hooks/hooks.json`; the program removed no check, added no
-`async` row, and narrowed no matcher. The eight guardrails per-Bash-call guards and the three
-per-Write verifier guards run through one dispatcher process per event; the six formatter plugins
+`async` row, and narrowed no matcher. The guardrails per-Bash-call guards and the per-Write
+verifier guards run through one dispatcher process per event; the six formatter plugins
 carry one `if: Edit(*.ext)` row per extension so a Write to any other file spawns nothing.
 
 | Surface (benign payload) | Before (`main` 2026-09-02 morning, S = 33 ms) | After (`main` at `5e3d749cb`, 2026-09-03, S = 18 ms, quiet host) | After at S = 80 ms |
@@ -97,8 +97,9 @@ carry one `if: Edit(*.ext)` row per extension so a Write to any other file spawn
 
 In the "after" column the slowest hook on each per-tool-call surface costs 76 to 169 S, and on
 each per-turn surface 16 to 23 S. The per-tool-call cost is the guardrails dispatcher, 1,360 to
-3,048 ms per fire on the Windows measuring host across the Write, Edit and Bash rows (eight guards per Bash
-call and three per Write or Edit), followed by markdown-format's `markdownlint-cli2` Node process.
+3,048 ms per fire on the Windows measuring host across the Write, Edit and Bash rows (eight guards
+per Bash call and three per Write or Edit, both at measurement time), followed by markdown-format's
+`markdownlint-cli2` Node process.
 The "after" spawn-equivalents read higher than "before" on the Write and Edit rows because the
 before run's samples lived outside the repository, so every Write and verifier guard early-exited
 and measured a no-op; the harness now writes its samples under the measured cwd. Per-plugin
@@ -134,9 +135,9 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
   [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs)).
 - **Scope.** Three rows stay shell form so they can report a missing `node`: the `SessionStart` notice rows in `guardrails` and `disk-hygiene`, and the `hook-failure-audit` Stop row in `harness-ops`.
   Neither check script inspects a shell-form row; each of the three plugins' own hook tests pins its
-  row's shell form, so a sweep back to `node` fails that test. The philosophy
-  Hooks row makes exec form mandatory only where `${user_config.*}` appears, so exec form fleet-wide
-  is this sweep's choice.
+  row's shell form, so a sweep back to `node` fails that test. A plugin hook config carries no
+  `${user_config.*}` token (the [philosophy Hooks row](../../plugin-philosophy.md#component-stances)),
+  so no `userConfig` rule requires exec form and exec form fleet-wide is this sweep's choice.
 - **Measurement.** The reference figures above (Windows, 2026-07-31 and 2026-09-02) were taken before
   the sweep. The launcher's added time comes from the paired run below
   ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)).

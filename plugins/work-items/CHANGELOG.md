@@ -3,6 +3,24 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.1] - 2026-10-02
+
+### Changed
+
+- **Where a small unrelated fix lands follows source-control's D4.6 scope test:** in the current
+  change only when it is in a file the change already touches, otherwise its own small PR with no
+  tracker item. `tracker-seam.md` "Default = fix, not file" carries a marked copy of the rule;
+  `/work-items:work` and `dogfood-filing.md` point at it, and the `work` eval follows the new
+  placement.
+
+## [0.45.0] - 2026-10-02
+
+### Added
+
+- **`work-loop` state records the effort each cycle ran at.** The state block gains an `effort`
+  field read from `CLAUDE_EFFORT` at each cycle start, or `"unset"`, so the level that ran sits
+  beside the `--effort` the lane was launched with. The schema stays `@2`.
+
 ## [0.44.2] - 2026-10-02
 
 ### Changed

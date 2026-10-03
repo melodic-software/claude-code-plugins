@@ -144,7 +144,7 @@ session. Do not fabricate a map.
 
    | Type label | Mode | Routes to |
    |---|---|---|
-   | `wayfind: research` | autonomous-capable | `/discovery:research` (falls back to inline research if not installed) |
+   | `wayfind: research` | autonomous-capable | `/discovery:research` (falls back to inline research if not enabled) |
    | `wayfind: interview` | HITL | `/planning:interview` |
    | `wayfind: design` | HITL | `/planning:design`, or `/event-storming:methodology` / `/event-storming:simulation` when the item is domain/event-model work |
    | `wayfind: prototype` | HITL | `/prototype:pressure-test` (behaviour/feasibility) or `/prototype:explore-directions` (design/UX). The item body says which |

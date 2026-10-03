@@ -170,6 +170,10 @@ binding layer, never unioned).
 | `babysit_loop_no_progress_threshold` | positive integer, consecutive no-progress cycles (open PRs in view, none merged, materially changed, or escalated; cycles held by the rate-limit guard are not counted) before the lane raises its stall escalation; it escalates and keeps looping, never stops | `3` |
 | `babysit_loop_trusted_internal_bot_logins` | flat Markdown bullet list (`- <login>` per line) of exact GitHub App bot logins the repository attests as its own internal automation, the C5 trust test's reviewed internal-bot trust signal; **honored in the team-tracked layer only** ("the C5 trust test's one reviewed widening" below) | none, the empty set: the trust test accepts `OWNER`/`MEMBER` only |
 
+No key, `babysit_loop_merge` included, sets an approval count: how many approving reviews a merge needs comes from the repository
+ruleset's `required_approving_review_count`, which the merge gate reads, and a repository with two
+or more human reviewers sets it to at least 1.
+
 Dimension semantics, what each tier value grants per dimension, are owned by the babysit-prs
 autonomy table (`/source-control:babysit-prs`, "Autonomy tiers (per action class)") and are not
 restated here. The merge dimension's rung semantics are owned by the loop-lane convention's autonomy

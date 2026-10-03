@@ -26,8 +26,67 @@ name: managed-files-guard
 # enrolled for local CI routing takes the fleet-routed sibling,
 # components/managed-files-guard/managed-files-guard-fleet.yml, instead.
 
+# The guard fails only on an exact managed destination path, so the workflow
+# runs only when the pull request touches one. `paths` is the sorted union of
+# every sync target's managed destinations (`sync-manifest.sh dest-paths`),
+# this workflow and its sibling included; the contract test fails when the
+# manifest moves that union and this list does not follow. `types` restates
+# the documented pull_request default.
 on:
   pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - .chezmoidata/claude-permissions.json
+      - .claude/cloud-bootstrap.sh
+      - .claude/rules/pr-body-contract.md
+      - .claude/settings.json
+      - .editorconfig
+      - .editorconfig-checker.json
+      - .gitattributes
+      - .github/actionlint.yaml
+      - .github/actions/comment-hygiene/comment-hygiene-patterns.sh
+      - .github/actions/machine-specific-paths/machine-path-patterns.sh
+      - .github/standards/pyright/pyrightconfig.json
+      - .github/standards/runner-policy/package-lock.json
+      - .github/standards/runner-policy/package.json
+      - .github/standards/runner-policy/policy.json
+      - .github/standards/runner-policy/policy.schema.json
+      - .github/standards/runner-policy/repository-policy.schema.json
+      - .github/standards/runner-policy/runner-policy.mjs
+      - .github/workflows/claude-review-hosted.yml
+      - .github/workflows/claude-review.yml
+      - .github/workflows/claude-security-review-hosted.yml
+      - .github/workflows/claude-security-review.yml
+      - .github/workflows/managed-files-guard-fleet.yml
+      - .github/workflows/managed-files-guard.yml
+      - .gitleaks.toml
+      - .golangci.yml
+      - .lefthook/base.yml
+      - .lefthook/dotnet-format-staged.mjs
+      - .lefthook/dotnet.yml
+      - .lefthook/powershell.yml
+      - .lefthook/psscriptanalyzer-staged.ps1
+      - .lefthook/psscriptanalyzer-target.ps1
+      - .lefthook/python.yml
+      - .lefthook/shellcheck.yml
+      - .markdownlint-cli2.jsonc
+      - .node-version
+      - .shellcheckrc
+      - PSScriptAnalyzerSettings.psd1
+      - REVIEW.md
+      - _typos.toml
+      - docs/adr/README.md
+      - docs/adr/adr-template.md
+      - dot_markdownlint-cli2.jsonc
+      - eng/dotnet-analysis/Directory.Build.props
+      - eng/dotnet-analysis/dotnet.globalconfig
+      - lychee.toml
+      - plugins/guardrails/lib/path-detection/machine-path-patterns.sh
+      - ruff.toml
+      - tools/mcp-launcher/dispatch.js
+      - tools/mcp-launcher/launcher.js
+      - tools/shared/comment-hygiene/comment-hygiene-patterns.sh
+      - tools/shared/path-detection/machine-path-patterns.sh
 
 permissions:
   contents: read

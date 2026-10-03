@@ -3,6 +3,12 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.11] - 2026-10-02
+
+### Changed
+
+- The shared hook helper's posture comment no longer names a fixed member count.
+
 ## [0.8.10] - 2026-10-02
 
 ### Changed

@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "No. Every plugin eval run starts from a throwaway home where CLAUDE.md, `.claude/rules`, settings and memory don't load, so it can't see your rules.\n\nUse `/harness-config:unhobble` instead. It strips the instructions on a branch, you keep working normally, it logs where the model stumbles, and you restore only the rules that repeated evidence earns back. Expect it to take a few days of ordinary work; the evidence comes from real sessions rather than a scored suite, so give the branch the kind of tasks the rules were written for.",
+      "why": "P-canonical: names `/harness-config:unhobble` and describes the strip, work, log, restore experiment."
+    },
+    {
+      "answer": "Not with plugin eval: its runs start from a clean home, so your project instructions and rules never load.\n\nTest them the other way round. On a branch, delete the CLAUDE.md content and the rule files, then do your ordinary work there for a while. Each time the model trips over something a rule used to cover, write it down. Put back only the rules whose absence caused the same stumble repeatedly.",
+      "why": "P-alt: describes the experiment without naming the skill: remove on a branch, do real work, log stumbles, restore on repeated evidence."
+    },
+    {
+      "answer": "No. Each run starts in a throwaway home where CLAUDE.md and `.claude/rules` are absent, and re-injecting them through a case would measure the shim, not the rules.\n\nThe alternative is `/harness-config:unhobble`, from the `claude-config` plugin: strip the instructions on a branch, work normally, log each stumble, and restore only what repeated evidence earns. If that plugin isn't installed, you can run the same experiment by hand. Expect it to take a while, since the evidence comes from real sessions, so keep using the branch across several days of normal work.",
+      "why": "P-caveat: names unhobble and the experiment, plus a by-hand fallback and a note on duration that does not touch the graded point."
+    },
+    {
+      "answer": "Plugin eval isn't the right tool for CLAUDE.md or `.claude/rules`; it won't tell you what they change.\n\nRun `/harness-config:unhobble`. It removes the instructions on a dedicated branch while you keep working normally, logs every place the model stumbles without them, and restores only the instructions with repeated evidence behind them. Give it a few days of the tasks the rules were written for, since one stumble can be chance; a rule earns its way back only when its absence causes the same problem more than once.",
+      "why": "P-plain: names unhobble and the experiment; misses the sibling's 'why' (no mention of the throwaway home)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No. Plugin eval runs start from a clean, throwaway home, so CLAUDE.md and `.claude/rules` never load and it can't measure them.\n\nThe alternative is to stop relying on prose for anything that matters. Turn each rule you care about into a hook or a linter check: a PreToolUse hook that blocks the forbidden command, a lint rule for the code convention. Then the behavior is enforced, and the hook logs show how often it fires.",
+      "why": "F-wrong: proposes hooks and linters as the alternative; sibling point (no, plus why) is right."
+    },
+    {
+      "answer": "No. `claude plugin eval` can't measure them: every run starts from a throwaway home where CLAUDE.md, `.claude/rules`, settings and memory never load, and re-injecting them through a case would measure the shim instead of the rules.\n\nThere isn't a good substitute for this kind of question. Keep the rules short and specific, and rely on code review to catch the cases where the model ignores them. If a rule keeps getting ignored, reword it to say exactly what to do and where it applies.",
+      "why": "F-partial: correct on plugin eval but proposes no measuring alternative (no unhobble, no strip-and-log experiment)."
+    },
+    {
+      "answer": "No: each plugin eval run starts from a throwaway home where CLAUDE.md and rules don't load.\n\nThe usual suggestion is `/harness-config:unhobble`, which strips the instructions on a branch and logs where the model stumbles during real work. I wouldn't bother with it: it's slow and the evidence is anecdotal. A headless A/B is more reliable. Run the same prompts with `claude -p` in two checkouts, one with the instruction files and one without, and diff the outputs.",
+      "why": "F-retract: names unhobble, then dismisses it in favor of a headless A/B."
+    },
+    {
+      "answer": "No. Every run starts from a clean, throwaway home, so CLAUDE.md and `.claude/rules` never load.\n\nTo measure them, strip the instructions on a branch and compare. Write a fixed set of twenty or so representative prompts, run each one headless with `claude -p` on the stripped branch and on main, and diff the outputs; keep the rules whose removal changes the answers. Use the same model and settings for both sides so the only difference is the instruction files.",
+      "why": "F-near: a headless A/B on a stripped branch with no real work and no stumble log, which the rubric says does not meet it."
+    }
+  ]
+}

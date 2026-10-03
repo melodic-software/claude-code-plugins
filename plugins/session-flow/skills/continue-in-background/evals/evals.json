@@ -142,6 +142,20 @@
         "The launched payload contains no `/goal` command and the agent is not asked to arm a goal; the reasoning names arming a goal in a detached agent as a separate decision",
         "Both regions are still shown on screen before the launch, the launch result is reported, and the skill STOPS"
       ]
+    },
+    {
+      "id": 12,
+      "name": "resumed-verify-launch-passes-effort-from-table",
+      "prompt": "/continue-in-background — the fix is implemented and committed; what remains is the verify stage: run the suite and confirm the outcome against the plan's acceptance criteria. Clean tree apart from the save-points. I'm heading out.",
+      "expected_output": "Because the resumed task is verify work and runs unattended, the skill reads model-config's 'Choose an effort level' table at launch, picks the level whose described use fits verification work, and passes that level as `--effort` in the `claude --bg` command. The launch report names the level and quotes the matched use. The level is taken from the live table, not from memory, and is not below medium.",
+      "files": [],
+      "expectations": [
+        "The `claude --bg` launch command carries an `--effort` flag with a single level name, placed before the prompt argument",
+        "The level comes from reading model-config's 'Choose an effort level' table during this run, not from a remembered or hard-coded value",
+        "The launch report names the level passed and quotes the matched use from the table",
+        "The level passed for this verify task is not below medium",
+        "The launch result is reported and the skill STOPS"
+      ]
     }
   ]
 }

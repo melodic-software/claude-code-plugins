@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// PreToolUse checkpoint: any Write/Edit/MultiEdit/NotebookEdit aimed at a Claude Code
-// settings surface returns permissionDecision "ask", forcing a prompt even in
+// PreToolUse checkpoint: any Write/Edit/NotebookEdit aimed at a Claude Code settings
+// surface returns permissionDecision "ask", forcing a prompt even in
 // auto mode (the classifier may still deny; it cannot silently approve).
 //
 // This is a CHECKPOINT, NOT A GUARANTEE — documented as such in the audit
@@ -36,7 +36,7 @@ process.stdin.on('end', () => {
       process.exit(0);
     }
     const tool = payload.tool_name || '';
-    if (!['Write', 'Edit', 'MultiEdit', 'NotebookEdit'].includes(tool)) process.exit(0);
+    if (!['Write', 'Edit', 'NotebookEdit'].includes(tool)) process.exit(0);
     const target = String(
       payload.tool_input?.file_path || payload.tool_input?.notebook_path || '',
     ).replace(/\\/g, '/');

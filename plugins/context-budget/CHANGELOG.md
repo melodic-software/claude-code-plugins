@@ -7,6 +7,30 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.8.0] - 2026-10-02
+
+### Added
+
+- **`audit` carries a Boundary section for the built-in `/skill-doctor` command.** The command is
+  user-only, so the section offers it to the person for choosing which skills to turn off and keeps
+  measuring what a toggle saved here. Its four-part records live in
+  `reference/native-skill-doctor.md`.
+
+### Changed
+
+- **`audit`'s route-out sends skill pruning to `/skill-doctor`.** Unused MCP servers and plugins
+  stay with the bundled `/doctor`. The README's Boundaries list, the lever catalogue's routes and
+  the report's Routes section name the same split.
+
+## [0.7.4] - 2026-10-02
+
+### Changed
+
+- **The settings-write checkpoint is registered on `Write|Edit|NotebookEdit`.** The `MultiEdit`
+  alternative is dropped from the `hooks.json` matcher and the hook's tool list, so the hook no
+  longer runs for a tool the current tools reference does not list. The contract test now asserts
+  the registered matcher, and the option description and README match.
+
 ## [0.7.3] - 2026-10-02
 
 ### Changed

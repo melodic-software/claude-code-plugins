@@ -292,8 +292,9 @@ tooling sweeping the directory expects them:
 The loop-lane convention's lanes (`work-items` `work-loop`, `work-items` `attend-queue`, and
 `source-control` `babysit-loop`) inline the floor. Each records its guard mode (proactive /
 reactive / unknown) in its lane telemetry every cycle, per the convention. Further surfaces inline
-the same floor: the `docs-hygiene` `extract-ssot` orchestrated mode, and the loop-lane
-launch-prompt templates under `prompts/loops/` in the marketplace repository.
+the same floor: the `docs-hygiene` `extract-ssot` orchestrated mode, the `source-control`
+`pull-request` watch handoff, which checks the windows before starting a PR watcher, and the
+loop-lane launch-prompt templates under `prompts/loops/` in the marketplace repository.
 
 Every copy is drift-checked against the "Operable floor" block above by
 `scripts/check-loop-lane-floor-drift.sh`, which runs in the marketplace repo's
