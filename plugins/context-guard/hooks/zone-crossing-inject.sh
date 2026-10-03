@@ -4,8 +4,11 @@
 #
 # TWO CHANNELS, TWO AUDIENCES — the split is load-bearing, not cosmetic.
 # `systemMessage` renders to the operator; `additionalContext` lands in the
-# model's context. The continuation menu (continue / clear / handoff / compact)
-# is a HUMAN's choice and goes to the operator channel only. The model's channel
+# model's context. The continuation menu (continue / compact / clear / handoff)
+# is a HUMAN's choice and goes to the operator channel only. It names the
+# options without saying which applies when: that rule is session-flow's, so the
+# menu routes the choice to session-flow's router and, for an install without
+# session-flow, to the docs section on a filling context. The model's channel
 # carries the zone determination plus the counter-steer, and never an exit menu:
 # a menu injected into model context manufactures the model's own initiative to
 # stop, summarize, or hand off — the measurement decides only when to ask, while
@@ -961,11 +964,12 @@ fi
 
 # Operator channel: the same crossing, plus the continuation menu that is the
 # human's call to make. Menu-first and terse — the detail behind the bands
-# lives in the plugin README, not on the status line. The "(if installed)"
-# hedges stay, and option 3 keeps a manual alternative: context-guard installs
-# standalone (see header), so a menu naming only session-flow leaves such an
-# install no actionable path when state must survive.
-operator="context-guard: context zone ${prev_label} → ${zone_label}. Response quality can degrade as context fills (bands tunable: zones.json). Continuation options, yours to choose: (1) continue — remaining work is small; (2) /clear — this context is disposable; (3) /session-flow:handoff (if installed) or a hand-written resume note, then /clear — state must survive; (4) /compact — last resort, at a phase boundary. Full router: /session-flow:workflow (if installed)."
+# lives in the plugin README, not on the status line. The menu does not rank
+# the options or say when each fits (see header). The "(if installed)" hedges
+# stay, and the handoff option keeps a manual alternative: context-guard
+# installs standalone (see header), so a menu naming only session-flow leaves
+# such an install no actionable path when state must survive.
+operator="context-guard: context zone ${prev_label} → ${zone_label}. Response quality can degrade as context fills (bands tunable: zones.json). Continuation options, yours to choose: continue; /compact; /clear; /session-flow:handoff (if installed) or a hand-written resume note, then /clear. To pick one, route the next step with /session-flow:workflow (if installed); without it, see https://code.claude.com/docs/en/context-window#when-your-context-fills-up."
 
 cg_require_utils
 hook::emit_channels "$EVENT" "$guidance" "$operator"

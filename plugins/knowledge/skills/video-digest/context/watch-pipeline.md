@@ -36,12 +36,17 @@ On resume: if companion is unmarked, run 0b before vision even when CLI phases a
 ## CLI bootstrap
 
 ```bash
-node "<skill-dir>/extraction/run.mjs" watch/run-watch.js "<url>" [--skip-research] [--target <repo>]
+node "<skill-dir>/extraction/run.mjs" watch/run-watch.js "<url>" [--skip-research] [--target <repo>] [--max-frame-gap-sec <sec>]
 ```
 
 Pass an explicit `--target <repo>` through from the invoking `watch <url> --target <repo>` command.
 It is recorded in `watch.json` (`state.target`) so an interrupted watch's `resume` recovers it
 instead of re-asking (see [Phase 7](#phase-7-synthesis)).
+
+`--max-frame-gap-sec <sec>` sets the longest stretch between timed frames before a gap-fill frame
+is extracted; without it the run uses `MAX_FRAME_GAP_SEC`. The effective value is recorded in
+`watch.json` (`state.maxFrameGapSec`) and `coverage-plan.json`, and `run-watch.js --recover` plans
+with the recorded value.
 
 Runs acquire (retry + throttle) → transcript → dynamic coverage watching → metadata link harvest.
 Writes:
@@ -89,6 +94,8 @@ already-marked phase is a no-op):
 node "<skill-dir>/extraction/run.mjs" watch/watch-state.js mark-phase <slice-dir> <phase>
 ```
 
+`mark-phase <slice-dir> synthesis` delegates to `close` (Phase 9).
+
 Promote only via vision-gated decisions:
 
 ```bash
@@ -109,7 +116,8 @@ Use `--force` to regenerate per-sheet rows after `contactSheetCount` changes. Ti
 only with verification evidence (command exit code, artifact path, verify row). **Ordered
 checkboxes:** `templates/watch-checklist.md` → slice `run-state/watch-checklist.md`.
 
-Do not run `mark-phase` or set `status: complete` while the phase verify script fails.
+Do not run `mark-phase` while the phase verify script fails. Only `watch-state.js close` sets
+`status: complete` (Phase 9).
 
 ## Phase 1: vision planning
 
@@ -258,15 +266,23 @@ Write `recommendations/interview.md` with the menu + *"Should we go further?"*; 
 
 ## Phase 9: outcome verification
 
-Mandatory host verify script, before `status: complete`:
+Mandatory host verify script, before closing the slice:
 
 ```bash
 node "<skill-dir>/extraction/run.mjs" evals/check-watch-outcomes.js "<slice-dir>" --write-report
 ```
 
-Writes `verification/<ISO-basic>Z-watch-outcomes.md`. **Do not** mark the slice complete while this
-exits non-zero. Long conferences (`conference-multi-session`, ≥4h) must meet the floors in
-`quality-gates.md`. Verify script `triage-agentic-required` fails `selection-signals` / missing
+Writes `verification/<ISO-basic>Z-watch-outcomes.md`. Once it exits 0 and the blocking checklist
+items (8.1-8.4, 9.1, 9.2, 9.4) are ticked, close the slice:
+
+```bash
+node "<skill-dir>/extraction/run.mjs" watch/watch-state.js close "<slice-dir>"
+```
+
+`close` is the only writer of `status: complete`. It marks synthesis, re-runs the outcome checks
+with the blocking checklist enforced, and writes `complete` only on a pass; on a fail it exits 1
+and leaves status unchanged, so fix the failing check and re-run `close`. Long conferences
+(`conference-multi-session`, ≥4h) must meet the floors in `quality-gates.md`. Verify script `triage-agentic-required` fails `selection-signals` / missing
 model. Temp paths use `{tmp}` prefix (portable temp-session path serialization).
 
 **Queue completion:** when this watch was started from `QUEUE.md`, set that row `complete` (or
@@ -282,6 +298,30 @@ Deterministic stages in `watching/orchestrate-watching.js`:
    (`extract-anchor-frames.js`)
 3. Transcript densification windows (`watching/densification.js`)
 4. Contact-sheet batching for triage (`watching/timestamp-interleave.js`)
+
+Every frame carries `timestampSec` and a `timestampSource` naming where the time came from:
+
+- Measured. `scene-detection` and `interval` frames take the presentation time ffmpeg reports for
+  that frame; `anchor` frames are extracted at their requested time.
+- `estimated`. An interval frame ffmpeg gave no time for takes its position times the interval,
+  with `timestampMethod: "interval-index"` and `timestampErrorSec` (half the interval).
+- Untimed. A frame with no basis keeps `timestampSec: null`. It sorts after every timed frame,
+  counts as outside every densification window, and renders as `untimed`, never as 0:00.
+
+Rendered tables show an estimated time as `~5m, estimated`. Scene detection writes the times to
+`frame-times.json` in the frames directory; `recover-watch-bootstrap.js` reloads them from there,
+and a frames directory without that file recovers its scene and interval frames untimed.
+
+We take each frame's time from ffmpeg's per-frame report and use it unchanged, with no start-offset
+correction. A probe on ffmpeg 8.0.1 found the reported times already relative to the stream start
+(a stream starting at 12.8 s gave the same cut times as one starting at 0).
+
+- **Pointer**: for per-frame timing, see <https://ffmpeg.org/ffmpeg-filters.html#showinfo>; for
+  start-offset handling, see the `-copyts` entry at
+  <https://ffmpeg.org/ffmpeg.html#Advanced-options>.
+- **As of**: 2026-10-02
+- **Recheck trigger**: the ffmpeg floor under Prerequisites in `SKILL.md` changes, or a release note
+  for either entry mentions timestamps.
 
 Standalone pipeline (when video + VTT already acquired):
 

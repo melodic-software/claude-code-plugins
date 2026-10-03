@@ -38,6 +38,20 @@ describe("interleaveTranscriptAndFrames", () => {
     expect(timeline.filter((item) => item.kind === "transcript")).toHaveLength(2);
     expect(timeline.filter((item) => item.kind === "frame")).toHaveLength(2);
   });
+
+  it("places an untimed frame after every timed item, never at 0", () => {
+    const untimed = { ...FRAMES[0], path: "/f3.png", file: "f3.png", timestampSec: null };
+    const timeline = interleaveTranscriptAndFrames(
+      [
+        { startSec: 0, endSec: 5, text: "Intro" },
+        { startSec: 25, endSec: 35, text: "Middle" },
+      ],
+      [untimed, ...FRAMES],
+    );
+
+    expect(timeline.map((item) => item.timestampSec)).toEqual([0, 10, 25, 30, null]);
+    expect(timeline.at(-1)?.frame?.file).toBe("f3.png");
+  });
 });
 
 describe("batchFramesForContactSheets", () => {

@@ -1,6 +1,6 @@
 {
   "name": "bash-format",
-  "version": "0.9.11",
+  "version": "0.9.12",
   "description": "Auto-format and lint shell scripts on edit via shfmt + ShellCheck, using the consuming repo's own .editorconfig and .shellcheckrc.",
   "author": {
     "name": "Melodic Software",
