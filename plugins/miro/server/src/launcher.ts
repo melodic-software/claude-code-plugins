@@ -94,7 +94,8 @@ export function installCommand(target: string, platform = process.platform): str
     // Windows PowerShell 5.1 has no `&&`; Stop turns each cmdlet failure into a halt, and the
     // child script block keeps it out of the user's session. Bare `npm` resolves to `npm.ps1`,
     // which the default Restricted execution policy refuses to run; `npm.cmd` is not subject to it.
-    const q = (path: string) => `'${path.replaceAll("'", "''")}'`;
+    // PowerShell reads U+2018, U+2019, U+201A and U+201B as single quotes too; doubling escapes each.
+    const q = (path: string) => `'${path.replace(/['‘’‚‛]/g, "$&$&")}'`;
     return (
       `& { $ErrorActionPreference = 'Stop'; ` +
       `Remove-Item -LiteralPath ${q(target)} -Recurse -Force -ErrorAction SilentlyContinue; ` +
