@@ -1,19 +1,58 @@
 {
-  "tools": [
+  "requires": [
     {
-      "name": "actionlint",
-      "check": "/actionlint:check",
-      "install": "https://github.com/rhysd/actionlint/blob/main/docs/install.md"
+      "id": "actionlint",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:actionlint-check.sh"
+      ],
+      "detect": {
+        "any": [
+          "actionlint"
+        ]
+      },
+      "degrade": "Without actionlint, the hook cannot lint edited GitHub Actions workflows; edits still go through.",
+      "install": {
+        "docs": "https://github.com/rhysd/actionlint/blob/main/docs/install.md"
+      },
+      "check": "/actionlint:check"
     },
     {
-      "name": "jq",
-      "check": "/actionlint:check",
-      "install": "install jq from https://jqlang.org/download/"
+      "id": "jq",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "hook:actionlint-check.sh"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, the actionlint hooks skip their work for the session and say so once.",
+      "install": {
+        "docs": "https://jqlang.org/download/"
+      },
+      "check": "/actionlint:check"
     },
     {
-      "name": "node",
-      "check": "/actionlint:check",
-      "install": "install Node.js from https://nodejs.org/en/download"
+      "id": "node",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the actionlint hooks cannot launch, so they do nothing.",
+      "install": {
+        "docs": "https://nodejs.org/en/download"
+      },
+      "check": "/actionlint:check"
     }
   ]
 }

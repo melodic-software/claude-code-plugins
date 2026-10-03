@@ -1,0 +1,19 @@
+{
+  "name": "explainer-video",
+  "version": "0.1.1",
+  "description": "Short silent explainer videos made with ManimCE. The produce skill plans the beats, writes one scene script (Text for words, MathTypst for math), renders it at low quality first, and checks every render: ffprobe confirms one video stream, no audio and the scene's duration, a frame is read back after every animation, and overlapping or clipped text fails. A SessionStart hook installs the hash-locked Python packages; the check skill reports whether Python, ManimCE, ffmpeg and ffprobe are ready.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "explainer",
+    "video",
+    "manim",
+    "animation",
+    "math",
+    "typst",
+    "skill"
+  ]
+}

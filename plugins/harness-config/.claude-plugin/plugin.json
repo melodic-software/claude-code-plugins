@@ -1,6 +1,6 @@
 {
   "name": "harness-config",
-  "version": "1.5.3",
+  "version": "1.7.1",
   "description": "Configuration health for a repo's Claude Code: audit (settings, .mcp.json, hooks, plugins, permission drift), audit-automation-gaps, audit-permission-grants, audit-permission-state (effective rules with provenance), draft-auto-mode-rules (prints an autoMode block), audit-instructions (instructions the model no longer needs, conflicts), audit-prompting-postures, audit-pass (one ordered, resumable pass), unhobble (strip instructions, re-add what evidence earns), and setup.",
   "author": {
     "name": "Melodic Software",

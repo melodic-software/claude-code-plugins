@@ -1,6 +1,6 @@
 {
   "name": "playbooks",
-  "version": "0.17.5",
+  "version": "0.19.0",
   "description": "Doctrine and knowledge playbooks as on-demand skills: boris (Boris Cherny's Claude Code workflow tips, howborisusesclaudecode.com), skill-authoring (Anthropic's internal skill-authoring playbook), fable-5 (Claude Fable 5's operating doctrine, self-authored), and repo-sweep (runs a catalog of hygiene skills through a repository one commit per step). boris and skill-authoring vendor a verbatim upstream baseline; /playbooks:update drift-checks and syncs them (maintainers).",
   "author": {
     "name": "Melodic Software",

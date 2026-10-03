@@ -3,6 +3,28 @@
 All notable changes to the `docs-naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.2] - 2026-10-02
+
+### Changed
+
+- **Shared `check-retirements.sh`, `config-root.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's lib.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+
+## [0.2.1] - 2026-10-03
+
+### Changed
+
+- The rename executor's test suite runs in two halves when `APPLY_RENAME_TEST_SHARD` is `1` or `2`, and runs whole when it is unset. It refuses to start if a case group is in neither half. The four cases that edit the tree before auditing now share one pre-audited fixture, so the suite runs the audit three times instead of six. Every assertion is unchanged. No behavior changes.
+
+## [0.2.0] - 2026-10-02
+
+### Added
+
+- `prerequisites.json`, declaring the external tools this plugin runs and what stops working
+  without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
+  stubs that read it ([#5841](https://github.com/melodic-software/claude-code-plugins/issues/5841)).
+
 ## [0.1.4] - 2026-10-02
 
 ### Fixed

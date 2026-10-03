@@ -161,8 +161,8 @@ directory already on that PATH instead of recommending a repo-local
 `npm i -D`. The hook never falls back to `npx`, installs a package, or
 performs a network request during a hook run.
 
-`hooks/hooks.json` also registers a `SessionStart` probe. It reads
-`prerequisites.json` and reports a missing `markdownlint-cli2` at session start,
+`hooks/hooks.json` also registers a `SessionStart` probe, `lib/prerequisites.mjs probe`. It reads
+`prerequisites.json` and reports a missing `markdownlint-cli2` or `jq` at session start,
 and it honors `markdown_format_enabled`. `/markdown-format:check` is the
 read-only check that notice names. The probe does not look for a markdownlint
 config, so it can report in a repository that has none.
@@ -217,8 +217,8 @@ Markdown edit is the figure that counts. Measured on Windows 11 under Git Bash, 
 trials against an interleaved `bash -c :` floor (2026-09-02). These figures predate the `node`
 launcher (`hooks/exec-bash.mjs`) and the `SessionStart` probe: each fire now adds one `node`
 process before `bash`, and the figures have not been re-measured. The `SessionStart` probe is
-exec form, so its k is 1 (the launcher); it then runs `bash` and `probe-prerequisite.sh` once
-per session start. It is not measured here:
+one `node` process running `lib/prerequisites.mjs`, once per session start, with no `bash`. It is not
+measured here:
 
 | Event | Fires | Spawn-equivalents | What changed |
 | --- | --- | --- | --- |

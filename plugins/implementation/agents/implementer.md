@@ -93,6 +93,8 @@ per-invocation `model` here only to route a phase **upward**, to the frontier ti
 for security-surface work classes, or to the session's own model when it resolves above this
 binding and no other frontier-tier worker is in flight. A concurrent wave under a frontier session runs at
 this binding (see `/implementation:implement-dispatch` Dispatch cadence step 2). It never hands source-editing work to a weaker model than this binding.
+The same holds for a Workflow script this repository ships: an `agent()` call naming this agent
+never passes `effort` or `model` below this binding, and omits both to keep it.
 
 `effort` is bound alongside it for the same reason: it otherwise inherits the session's level, so an
 orchestrator that lowered effort for its own bookkeeping would silently lower it for the phase

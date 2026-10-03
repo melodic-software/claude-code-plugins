@@ -14,6 +14,28 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 - The `SessionStart` node notice is the shared row instead of an inline bash command, so it also works without Git Bash and appears once per session across plugins.
 
+## [0.42.14] - 2026-10-02
+
+### Changed
+
+- **Shared `exec-bash.mjs` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's hooks.**
+  It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copy.
+
+## [0.42.13] - 2026-10-03
+
+### Fixed
+
+- The guard decision log path test asserts the documented location
+  `<data-root>/guard-decisions/decisions.jsonl` instead of rebuilding that path
+  from the implementation's own directory and file-name constants ([#6005](https://github.com/melodic-software/claude-code-plugins/issues/6005)).
+
+## [0.42.12] - 2026-10-03
+
+### Changed
+
+- `prerequisites.json` is converted to the schema `docs/conventions/prerequisites/` owns: a `requires` list whose entries carry `id`, `kind`, `need`, `for`, `detect`, `degrade`, `install` and `check`, in place of the retired `tools` list ([#5840](https://github.com/melodic-software/claude-code-plugins/issues/5840)). The plugin now ships the shared checker, `lib/prerequisites.mjs` with its `lib/prerequisites.sh` and `lib/prerequisites.ps1` stubs, generated from the repository's canonical copy.
+
 ## [0.42.11] - 2026-10-03
 
 ### Fixed

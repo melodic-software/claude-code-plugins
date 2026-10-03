@@ -531,12 +531,12 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
   # The one row outside this gate is the SessionStart prerequisite probe, exec
   # form, which is asserted on its own here.
   ALL_HANDLERS="$(jq -c '[.hooks | to_entries[] | .key as $ev | .value[]? | .matcher as $m | .hooks[]? | select((.command // "") | contains("node-notice") | not) | . + {event: $ev, matcher: ($m // "(none)")}]' "$HOOKS_JSON")"
-  PROBE_COUNT="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select(.event == "SessionStart" and .command == "node" and .args == [$launcher, "--run-if-unset-or-true", "GO_FORMAT_ENABLED", $probe])] | length' <<<"$ALL_HANDLERS")"
-  HANDLERS="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select((.event == "SessionStart" and .command == "node" and .args == [$launcher, "--run-if-unset-or-true", "GO_FORMAT_ENABLED", $probe]) | not)]' <<<"$ALL_HANDLERS")"
+  PROBE_COUNT="$(jq -c --arg checker '${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs' --arg root '${CLAUDE_PLUGIN_ROOT}' '[.[] | select(.event == "SessionStart" and .command == "node" and .args == [$checker, "probe", $root, "--run-if-unset-or-true", "GO_FORMAT_ENABLED"])] | length' <<<"$ALL_HANDLERS")"
+  HANDLERS="$(jq -c --arg checker '${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs' --arg root '${CLAUDE_PLUGIN_ROOT}' '[.[] | select((.event == "SessionStart" and .command == "node" and .args == [$checker, "probe", $root, "--run-if-unset-or-true", "GO_FORMAT_ENABLED"]) | not)]' <<<"$ALL_HANDLERS")"
   if [[ "$PROBE_COUNT" == "1" ]]; then
-    ok "hooks.json: one exec-form SessionStart row runs probe-prerequisite.sh behind the go_format_enabled gate"
+    ok "hooks.json: one exec-form SessionStart row runs the prerequisites checker's probe behind the go_format_enabled gate"
   else
-    fail "hooks.json: expected one exec-form SessionStart probe-prerequisite.sh row gated on GO_FORMAT_ENABLED, found $PROBE_COUNT"
+    fail "hooks.json: expected one exec-form SessionStart prerequisites probe row gated on GO_FORMAT_ENABLED, found $PROBE_COUNT"
   fi
   HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
   HANDLER_GROUPS="$(jq -r '[.[] | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"

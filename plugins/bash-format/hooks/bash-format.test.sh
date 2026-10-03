@@ -733,12 +733,12 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
   # form behind the bash_format_enabled launcher gate, which is asserted on its
   # own here.
   ALL_HANDLERS="$(jq -c '[.hooks | to_entries[] | .key as $ev | .value[]? | .matcher as $m | .hooks[]? | select((.command // "") | contains("node-notice") | not) | . + {event: $ev, matcher: ($m // "(none)")}]' "$HOOKS_JSON")"
-  PROBE_COUNT="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select(.event == "SessionStart" and .command == "node" and .args == [$launcher, "--run-if-unset-or-true", "BASH_FORMAT_ENABLED", $probe])] | length' <<<"$ALL_HANDLERS")"
-  HANDLERS="$(jq -c --arg launcher '${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs' --arg probe '${CLAUDE_PLUGIN_ROOT}/hooks/probe-prerequisite.sh' '[.[] | select((.event == "SessionStart" and .command == "node" and .args == [$launcher, "--run-if-unset-or-true", "BASH_FORMAT_ENABLED", $probe]) | not)]' <<<"$ALL_HANDLERS")"
+  PROBE_COUNT="$(jq -c --arg checker '${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs' --arg root '${CLAUDE_PLUGIN_ROOT}' '[.[] | select(.event == "SessionStart" and .command == "node" and .args == [$checker, "probe", $root, "--run-if-unset-or-true", "BASH_FORMAT_ENABLED"])] | length' <<<"$ALL_HANDLERS")"
+  HANDLERS="$(jq -c --arg checker '${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs' --arg root '${CLAUDE_PLUGIN_ROOT}' '[.[] | select((.event == "SessionStart" and .command == "node" and .args == [$checker, "probe", $root, "--run-if-unset-or-true", "BASH_FORMAT_ENABLED"]) | not)]' <<<"$ALL_HANDLERS")"
   if [[ "$PROBE_COUNT" == "1" ]]; then
-    ok "hooks.json: one exec-form SessionStart row runs probe-prerequisite.sh behind --run-if-unset-or-true BASH_FORMAT_ENABLED"
+    ok "hooks.json: one exec-form SessionStart row runs the prerequisites checker's probe behind --run-if-unset-or-true BASH_FORMAT_ENABLED"
   else
-    fail "hooks.json: expected one exec-form SessionStart probe-prerequisite.sh row behind --run-if-unset-or-true BASH_FORMAT_ENABLED, found $PROBE_COUNT"
+    fail "hooks.json: expected one exec-form SessionStart prerequisites probe row behind --run-if-unset-or-true BASH_FORMAT_ENABLED, found $PROBE_COUNT"
   fi
   HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
   HANDLER_GROUPS="$(jq -r '[.[] | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
@@ -799,7 +799,7 @@ PLUGIN_ROOT="${HOOK_DIR%/*}"
 MANIFEST="$PLUGIN_ROOT/prerequisites.json"
 HOOKS_JSON="$HOOK_DIR/hooks.json"
 if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
-  if jq -e '(.tools | map(.name) | sort) == ["jq", "node", "shellcheck", "shfmt"]' "$MANIFEST" >/dev/null 2>&1; then
+  if jq -e '(.requires | map(.id) | sort) == ["jq", "node", "shellcheck", "shfmt"]' "$MANIFEST" >/dev/null 2>&1; then
     ok "manifest: declares exactly shfmt, shellcheck, jq and node"
   else
     fail "manifest: expected tools shfmt, shellcheck, jq and node: $(cat "$MANIFEST")"
@@ -817,7 +817,7 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
     shfmt) NOTICE_VAR=SHFMT_NOTICE ;;
     *) NOTICE_VAR=SC_NOTICE ;;
     esac
-    IFS=$'\t' read -r MF_CHECK MF_INSTALL < <(jq -r --arg n "$MF_TOOL" '.tools[] | select(.name == $n) | [.check, .install] | @tsv' "$MANIFEST")
+    IFS=$'\t' read -r MF_CHECK MF_INSTALL < <(jq -r --arg n "$MF_TOOL" '.requires[] | select(.id == $n) | [.check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST")
     NOTICE_CALL="$(sed -n "/hook::tool_missing_notice_to $NOTICE_VAR/,/[^\\\\]\$/p" "$HOOK")"
     assert_hook_states "$MF_TOOL" name "'$MF_TOOL'" "$NOTICE_CALL"
     assert_hook_states "$MF_TOOL" check "$MF_CHECK" "$NOTICE_CALL"
@@ -878,7 +878,7 @@ else
     pg_ok=1
     while IFS=$'\t' read -r PG_NAME PG_CHECK PG_INSTALL; do
       [[ "$OUT_PG" == *"$PG_NAME"* && "$OUT_PG" == *"$PG_CHECK"* && "$OUT_PG" == *"$PG_INSTALL"* ]] || pg_ok=0
-    done < <(jq -r '.tools[] | select(.name != "node") | [.name, .check, .install] | @tsv' "$MANIFEST")
+    done < <(jq -r '.requires[] | select(.id != "node") | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST")
     if [[ $RC_PG -eq 0 && $pg_ok -eq 1 ]]; then
       ok "probe-gate: $label -> notices name each tool, its check and the install line"
     else

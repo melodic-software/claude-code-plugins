@@ -4,9 +4,15 @@
       "id": "node",
       "kind": "runtime",
       "need": "required",
-      "for": ["plugin"],
-      "detect": { "any": ["node"] },
-      "degrade": "Without node, the rules index drift hook does not launch and nothing reports it. The skills still run.",
+      "for": [
+        "plugin"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the rules-index drift hook cannot start, so index drift goes unreported.",
       "install": {
         "docs": "https://nodejs.org/en/download",
         "brew": "node",
@@ -19,10 +25,44 @@
       "id": "jq",
       "kind": "cli",
       "need": "required",
-      "for": ["skill:check", "skill:migrate"],
-      "detect": { "any": ["jq"] },
-      "degrade": "Without jq, /instruction-placement:check cannot read hook payloads for its load verification and /instruction-placement:migrate cannot read the installed plugin list. The other checks still run.",
-      "install": { "docs": "https://jqlang.org/download/", "brew": "jq", "winget": "jqlang.jq", "apt": "jq" },
+      "for": [
+        "hook:hook-utils.sh",
+        "hook:index-drift.sh",
+        "skill:migrate"
+      ],
+      "detect": {
+        "any": [
+          "jq"
+        ]
+      },
+      "degrade": "Without jq, the rules-index drift hook cannot read its JSON input and reports nothing, and /instruction-placement:migrate's remove-shims action refuses because it cannot read the installed plugin versions.",
+      "install": {
+        "docs": "https://jqlang.org/download/",
+        "brew": "jq",
+        "winget": "jqlang.jq",
+        "apt": "jq"
+      },
+      "check": "/instruction-placement:check-prerequisites"
+    },
+    {
+      "id": "curl",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:migrate"
+      ],
+      "detect": {
+        "any": [
+          "curl"
+        ]
+      },
+      "degrade": "Without curl, /instruction-placement:migrate's cutover check cannot confirm a remote reference and reports it as unknown.",
+      "install": {
+        "docs": "https://curl.se/download.html",
+        "brew": "curl",
+        "winget": "cURL.cURL",
+        "apt": "curl"
+      },
       "check": "/instruction-placement:check-prerequisites"
     }
   ]

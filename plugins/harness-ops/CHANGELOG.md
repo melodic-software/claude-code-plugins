@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.3.0] - 2026-10-03
+## [3.5.0] - 2026-10-03
 
 ### Added
 
@@ -14,6 +14,65 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 
 - The shared hook helper has `hook::require <id>` in place of `hook::require_jq`. Its skip notice is built from the plugin's declared `prerequisites.json` entry and names `/<plugin>:check`, not `/harness-ops:prerequisites`.
 - Hooks call `hook::require jq` where they called `hook::require_jq`.
+
+## [3.4.2] - 2026-10-02
+
+### Changed
+
+- **Shared `check-retirements.sh`, `exec-bash.mjs`, `fetch-docs.sh`, `managed-scope.sh`, `spawn_noise.py`, `state-key.sh` synced ([#5837](https://github.com/melodic-software/claude-code-plugins/issues/5837)); no change to this plugin's hooks, lib and scripts.**
+  Each is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copies.
+
+## [3.4.1] - 2026-10-03
+
+### Fixed
+
+- `morning-brief` no longer quotes the GitHub REST `mergeable` sentence in its skill body. The missing review-decision field and the null-`mergeable` retry are separate bullets, each with its own pointer, as-of date, and recheck trigger ([#5963](https://github.com/melodic-software/claude-code-plugins/issues/5963)).
+
+## [3.4.0] - 2026-10-03
+
+### Changed
+
+- `prerequisites.json` is converted to the schema `docs/conventions/prerequisites/` owns: a `requires` list in place of the retired `tools` list, with a `degrade` line per entry ([#5840](https://github.com/melodic-software/claude-code-plugins/issues/5840)).
+- **`/harness-ops:prerequisites` runs the Node checker and no longer needs `python3`.** `scripts/check-prerequisites.mjs` keeps the enabled-set resolution (`claude plugin list --json`, then the settings files and `installed_plugins.json`, then a repository scan) and hands the roots to the shared checker's report mode. The table is now `plugin id kind need status check install`, a `present`/`missing`/`outdated`/`unverified`/`agent-check` status replaces present/missing, and exit 1 means a required entry is missing or below its version floor. `scripts/check-prerequisites.sh` is deleted, and its test assertions moved to `scripts/check-prerequisites.test.sh`.
+
+## [3.3.1] - 2026-10-03
+
+### Changed
+
+- The shared hook library's missing-prerequisite notice says to run `/harness-ops:prerequisites` if the `harness-ops` plugin is enabled, where it said installed: an installed but disabled plugin exposes no skills, and `harness-ops` now installs disabled ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [3.3.0] - 2026-10-03
+
+### Added
+
+- **Opt-in content capture in the session event log.** The new `session_event_log_content` option
+  (off by default) adds each event's top-level content strings, such as the prompt, Claude's last
+  message, notification messages, task text and error output, to event-log rows. A string the 64 KB
+  read cap (counted in bytes) cuts keeps its prefix with a `<key>_truncated` marker, and a row whose payload reached
+  the cap carries `content_truncated: true`. The observability privacy rules never repeat these
+  keys in a report.
+- **Every attribute the Claude Code monitoring page documents is a typed OTEL column**, effort
+  included. Cold-tier queries read older Parquet files beside the new columns by name.
+- **`CC_OTEL_COLD_KEEP_CONTENT` controls content in the cold OTEL tier.** It covers response text,
+  tool payloads, command strings, error and configuration text, `user_email` and absolute paths;
+  the default keeps them and `=0` scrubs them at compaction. `CC_OTEL_COLD_KEEP_USER_PROMPTS`
+  still governs prompts. `prune-otel-store.sh --scrub-cold` cleans files compacted earlier.
+  Tool output, diffs and bash commands from the `tool.output` span event, which never reached the
+  cold tier before, now land there by default; set `CC_OTEL_COLD_KEEP_CONTENT=0` to keep them out.
+
+### Changed
+
+- **`observability compare` reads effort from the promoted column** and reports a missing level as
+  `unset` instead of `none`.
+
+### Fixed
+
+- **Long event-log rows no longer interleave.** Bash writes long lines in 4 KB pieces, so a row
+  over 4000 bytes, and every row while `session_event_log_content` is on, appends under an
+  exclusive-create lock that only its owner removes. A lock left unchanged for 5 seconds is
+  treated as stale and removed; after 10 seconds without the lock the row is appended anyway. With
+  content off, short rows keep the single unlocked write.
 
 ## [3.2.2] - 2026-10-03
 
