@@ -129,7 +129,7 @@ class TestRepairCommandPerPlatform(unittest.TestCase):
         target = "'D:\\o''brien data\\inventory-parser\\abc'"
         self.assertNotIn("&&", cmd)
         self.assertNotIn("rm -rf", cmd)
-        self.assertTrue(cmd.startswith("$ErrorActionPreference = 'Stop'; "))
+        self.assertTrue(cmd.startswith("& { $ErrorActionPreference = 'Stop'; "))
         self.assertIn(
             f"Remove-Item -LiteralPath {target} -Recurse -Force "
             "-ErrorAction SilentlyContinue; ",
@@ -145,9 +145,79 @@ class TestRepairCommandPerPlatform(unittest.TestCase):
         )
         self.assertTrue(
             cmd.endswith(
-                f"npm.cmd ci --prefix {target} --ignore-scripts --no-audit --no-fund"
+                f"; npm.cmd ci --prefix {target} --ignore-scripts --no-audit --no-fund }}"
             )
         )
+
+    def test_the_windows_form_is_one_child_script_block_so_stop_does_not_leak(
+        self,
+    ) -> None:
+        # A bare `$ErrorActionPreference = 'Stop'` would be a second top-level
+        # statement and stay set in the session the line is pasted into.
+        pwsh = shutil.which("pwsh")
+        if pwsh is None:
+            self.skipTest("pwsh is not installed")
+        probe = (
+            "$e = $null; $s = [System.Management.Automation.Language.Parser]::"
+            "ParseInput($env:REPAIR_LINE, [ref]$null, [ref]$e).EndBlock.Statements; "
+            "$c = $s[0].PipelineElements[0]; "
+            '"$($e.Count) $($s.Count) $($c.InvocationOperator) '
+            '$($c.CommandElements[0].GetType().Name)"'
+        )
+        run = subprocess.run(
+            [pwsh, "-NoProfile", "-NonInteractive", "-Command", probe],
+            capture_output=True,
+            text=True,
+            env={
+                **os.environ,
+                "REPAIR_LINE": pr.install_command(self.WIN_TARGET, "win32"),
+            },
+        )
+        self.assertEqual(run.stdout.strip(), "0 1 Ampersand ScriptBlockExpressionAst")
+
+    # PowerShell's tokenizer treats U+2018, U+2019, U+201A and U+201B as single-quote
+    # characters (language specification 2.3.5.2); doubling the same character escapes each.
+    CURLY_TARGET = pathlib.Path(
+        "D:\\it\u2018s \u2019 \u201a \u201b data\\inventory-parser\\abc"
+    )
+
+    def test_the_windows_form_doubles_every_powershell_single_quote_character(
+        self,
+    ) -> None:
+        cmd = pr.install_command(self.CURLY_TARGET, "win32")
+        self.assertIn(
+            "-LiteralPath 'D:\\it\u2018\u2018s \u2019\u2019 \u201a\u201a "
+            "\u201b\u201b data\\inventory-parser\\abc'",
+            cmd,
+        )
+
+    def test_a_path_with_curly_single_quotes_stays_one_argument_in_each_use(
+        self,
+    ) -> None:
+        pwsh = shutil.which("pwsh")
+        if pwsh is None:
+            self.skipTest("pwsh is not installed")
+        probe = (
+            "$e = $null; $a = [System.Management.Automation.Language.Parser]::"
+            "ParseInput($env:REPAIR_LINE, [ref]$null, [ref]$e); "
+            "$h = $a.FindAll({ param($n) "
+            "$n -is [System.Management.Automation.Language.StringConstantExpressionAst] "
+            "-and $n.Value -ceq $env:EXPECTED_PATH }, $true); "
+            '"$($e.Count) $($h.Count)"'
+        )
+        run = subprocess.run(
+            [pwsh, "-NoProfile", "-NonInteractive", "-Command", probe],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            env={
+                **os.environ,
+                "REPAIR_LINE": pr.install_command(self.CURLY_TARGET, "win32"),
+                "EXPECTED_PATH": str(self.CURLY_TARGET),
+            },
+        )
+        # Remove-Item, New-Item, Copy-Item -Destination and npm --prefix each carry it once.
+        self.assertEqual(run.stdout.strip(), "0 4")
 
     def test_the_default_platform_is_this_one(self) -> None:
         target = pathlib.Path("/a b/t")
@@ -471,17 +541,313 @@ class TestWritesQuery(unittest.TestCase):
         self.assertIsNone(self.reader.writes("var =;", 0, 6, "x", 0))
 
 
+class TestFlowQuery(unittest.TestCase):
+    """The helper's `flow` op: where an array value can go inside one
+    module, and the hops that leave it."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.reader = pr.ParserReader(_require_live(cls("run")))
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.reader.close()
+
+    def _flow(self, src: str, start: dict | None = None) -> dict:
+        start = start or {"var": True, "offset": src.index("pY=["), "name": "pY"}
+        return self.reader.flow(src, 0, len(src), start)
+
+    def assert_safe(self, src: str, exits: list[tuple] | None = None) -> None:
+        got = self._flow(src)
+        self.assertTrue(got["safe"], got)
+        self.assertEqual(got["exits"], exits or [])
+
+    def assert_unsafe(self, src: str, at: str) -> None:
+        got = self._flow(src)
+        self.assertFalse(got["safe"], got)
+        self.assertEqual(src[got["at"] : got["at"] + len(at)], at, got["reason"])
+
+    def test_an_alias_returned_to_a_callback_method_resolves_its_callback(self) -> None:
+        """The 2.1.286 shape: the callback reaches `.some` through two
+        parameters and a destructured object literal argument."""
+        body = (
+            "var pY=[1],Gr=pY;function Xr(e){if(e)return Gr;return[]}"
+            "function ko(e,t){let n=(s)=>Xr(s).some(t);return n(e)}"
+            'function Eo(e,t){return typeof t==="function"?ko(e,t):e}'
+            "function gn(e,{hook:n}){return Eo(e,n)}"
+        )
+        self.assert_safe(body + "gn(1,{hook:!1});")
+        self.assert_safe(body + "gn(1,{hook:(x)=>x===1});")
+        self.assert_unsafe(body + "gn(1,{hook:(x,i,a)=>a.push(2)});", "a.push")
+        self.assert_unsafe(body + "gn(1,{hook:h});", "h}")
+        self.assert_unsafe(body + "gn(1,{});", "{})")
+        self.assert_unsafe(body + "gn(1,{hook:!1});gn(2,o);", "o)")
+        # A getter's value is its accessor function, not what reading `hook` returns.
+        self.assert_unsafe(
+            body + "gn(1,{get hook(){return(x,i,a)=>a.push(2)}});", "{get"
+        )
+
+    def test_a_callback_method_follows_the_array_into_its_callback(self) -> None:
+        self.assert_safe("var pY=[1];pY.some((e)=>e>0);pY.forEach(f);function f(e,i){}")
+        self.assert_safe("var pY=[1];pY.reduce((s,e,i)=>s+e,0);")
+        self.assert_unsafe("var pY=[1];pY.some((e,i,a)=>a.pop());", "a.pop")
+        self.assert_unsafe("var pY=[1];pY.reduce((s,e,i,a)=>a.pop());", "a.pop")
+        self.assert_unsafe(
+            "var pY=[1];function f(e,i,a){a.length=0}pY.map(f);", "a.length"
+        )
+        self.assert_unsafe("var pY=[1];pY.map(f);", "f)")
+
+    def test_an_argument_follows_into_the_parameter(self) -> None:
+        self.assert_safe("var pY=[1];function g(a,b){return b.includes(a)}g(1,pY);")
+        self.assert_safe("var pY=[1];var g=(a)=>a.join();g(pY);")
+        self.assert_unsafe("var pY=[1];function g(a,b){b.push(a)}g(1,pY);", "b.push")
+        self.assert_unsafe(
+            "var pY=[1];function g(){arguments[0].push(2)}g(pY);", "function g"
+        )
+        self.assert_unsafe(
+            "var pY=[1];function g(...a){a[0].push(2)}g(pY);", "function g"
+        )
+        self.assert_unsafe("var pY=[1];function g([a]){}g(pY);", "[a]")
+        self.assert_unsafe("var pY=[1];o.g(pY);", "o.g(pY)")
+        self.assert_unsafe('var pY=[1],a=pY;a+="";', "a+=")
+        self.assert_unsafe("var pY=[1],a=pY;a++;", "a++")
+
+    def test_a_return_follows_every_call(self) -> None:
+        self.assert_safe("var pY=[1];function r(){return pY}r().includes(1);[...r()];")
+        self.assert_unsafe("var pY=[1];function r(){return pY}r().push(2);", "r().push")
+        self.assert_unsafe("var pY=[1];function r(){return pY}h(r);", "r)")
+        self.assert_unsafe("var pY=[1];async function r(){return pY}", "pY}")
+
+    def test_a_method_neither_prototype_holds_throws_before_it_runs(self) -> None:
+        self.assert_safe(
+            'var pY=[1];function g(n){return"has"in n?n.has(1):n.includes(1)}g(pY);'
+        )
+        self.assert_unsafe("var pY=[1];pY.constructor(2);", "pY.constructor")
+
+    def test_hops_out_of_the_module_come_back_as_exits(self) -> None:
+        self.assert_safe("var pY=[1];export{pY as W};", [("export", "W")])
+        self.assert_safe("export var pY=[1];", [("export", "pY")])
+        self.assert_safe(
+            'import{g}from"/x.js";var pY=[1];g(0,pY);pY.some(g);',
+            [("param", "g", 1, "/x.js"), ("param", "g", 2, "/x.js")],
+        )
+        self.assert_safe(
+            "var pY=[1];function r(){return pY}export{r};", [("export-call", "r")]
+        )
+        self.assert_unsafe("var pY=[1];export default pY;", "pY;")
+
+    def test_an_import_start_follows_the_imported_binding(self) -> None:
+        src = 'import{pY as q}from"/a.js";export{q as W};q.includes(1);'
+        got = self._flow(src, {"import": "pY", "calls": False})
+        self.assertEqual(
+            got, {"safe": True, "exits": [("export", "W")], "trusted": ["includes"]}
+        )
+        src = 'import{pY as q}from"/a.js";q.push(1);'
+        self.assertFalse(self._flow(src, {"import": "pY", "calls": False})["safe"])
+        src = 'export{pY as W}from"/a.js";'
+        got = self._flow(src, {"import": "pY", "calls": True})
+        self.assertEqual(
+            got, {"safe": True, "exits": [("export-call", "W")], "trusted": []}
+        )
+
+    def test_a_param_start_resolves_the_module_scope_function(self) -> None:
+        src = "function g(a,b){b.push(1)}var h=(a)=>a.at(0);"
+        self.assertFalse(self._flow(src, {"param": 1, "name": "g"})["safe"])
+        self.assertTrue(self._flow(src, {"param": 0, "name": "h"})["safe"])
+
+    def test_a_chain_too_deep_for_the_stack_is_unresolved_not_a_crash(self) -> None:
+        """#5891 verifier: a 5,000-long alias chain exhausted the helper's
+        stack before the step limit, so the helper died and the whole binary
+        source read as a broken install."""
+        chain = "".join(f"var a{i}=a{i - 1};" for i in range(1, 5000))
+        got = self._flow("var pY=[1],a0=pY;" + chain + "a4999.push(2);")
+        self.assertEqual(got["reason"], "the flow is too deep to follow")
+        self.assertTrue(self.reader.ping()["acorn"])
+
+    def test_a_direct_eval_leaves_the_flow_unresolved(self) -> None:
+        got = self._flow('var pY=[1];function e(){eval("")}')
+        self.assertEqual(got["reason"], "the module calls eval directly")
+
+    def test_keys_used_reads_member_names_and_destructured_keys(self) -> None:
+        for src, used in (
+            ("n.pY.push(1);", True),
+            ('n["pY"];', True),
+            ("var{pY:q}=n;", True),
+            ("var{pY}=n;", True),
+            ("var o={pY:1};", False),
+            ('var s="pY";', False),
+            ('import{pY}from"/a.js";', False),
+        ):
+            with self.subTest(src=src):
+                self.assertEqual(self.reader.keys_used(src, "pY"), used)
+
+    def _sinks(self, src: str, names: tuple[str, ...] = ("includes",)) -> list[str]:
+        return [kind for kind, _, _ in self.reader.sinks(src, 0, len(src), list(names))]
+
+    def test_sinks_are_writes_of_a_trusted_name_on_a_possible_prototype(self) -> None:
+        """#5891 second verifier: the sink rule. Every way to reach a
+        prototype ends in a write of the name, a definer given the name, or
+        a write whose key names nothing; only a provably fresh target is
+        cleared."""
+        for src, kinds in (
+            ("var A=Array;A.prototype.includes=f;", ["write"]),
+            ("(0,Array).prototype.includes=f;", ["write"]),
+            ("globalThis.Array.prototype.includes=f;", ["write"]),
+            ('Array["proto"+"type"].includes=f;', ["write"]),
+            ('Reflect.get(Array,"prototype").includes=f;', ["write"]),
+            (
+                "var e={hasOwnProperty(o){o.includes=f}};e.hasOwnProperty.call(null,[].__proto__);",
+                ["write"],
+            ),
+            ('function G(o,k){o.includes=f}G(Array.prototype,"__proto__");', ["write"]),
+            (
+                "(function(Object){Object.prototype.includes=f})(Array);",
+                ["write", "definer-escape"],
+            ),
+            (
+                "class WeakSet{constructor(a){a[0].includes=f}}new WeakSet([Array.prototype]);",
+                ["write"],
+            ),
+            ('Array.prototype.__defineGetter__("includes",g);', ["argument"]),
+            ("var Q=[].__proto__;Q.includes=f;", ["write"]),
+            ("var Q=Object.getPrototypeOf([]);Q.includes=f;", ["write"]),
+            ('Object.defineProperty(P,"includes",{});', ["argument"]),
+            ("Object.assign(P,{includes:f});", ["object-key"]),
+            ("Object.defineProperty(P,k,{});", ["computed-define"]),
+            ("o[k]=f;", ["computed-write"]),
+            ("Object.setPrototypeOf(P,Q);", ["proto-swap"]),
+            ("var dp=Object.defineProperty;", ["definer-escape"]),
+            ("var R=Reflect;", ["definer-escape"]),
+            ('function e(){eval("")}', ["eval"]),
+            ("(0,eval)(s);", ["indirect-eval"]),
+            ("var e=eval;", ["indirect-eval"]),
+            ("Function(s)();", ["function-constructor"]),
+            ("new Function(s);", ["function-constructor"]),
+            ("Function.call(0,s)();", ["function-constructor"]),
+            ("globalThis.eval(s);", ["indirect-eval"]),
+            ("window.Function(s)();", ["function-constructor"]),
+            ("o.eval=f;", []),
+            (
+                "typeof eval;x instanceof Function;Function.prototype.toString.call(f);",
+                [],
+            ),
+            # Cleared: a trusted name or computed key on a fresh object, or
+            # a name nothing trusted.
+            ("var o={};o.includes=f;o[k]=1;", []),
+            ("class C{constructor(k){this[k]=1}}", []),
+            (
+                "class D extends B{constructor(k){super();this[k]=1}}",
+                ["computed-write"],
+            ),
+            ("function F(){}F.prototype.includes=f;F.prototype.x;", []),
+            ("function F(){}F.prototype.includes=f;new F;", ["write"]),
+            (
+                "function F(){}F.prototype.constructor.prototype=P;F.prototype.includes=f;",
+                ["write"],
+            ),
+            ("function F(){}var G=F;F.prototype.includes=f;", ["write"]),
+            ("function F(){}h(F);F.prototype.includes=f;", ["write"]),
+            (
+                'var o=Object.create(null);Object.defineProperty(o,"includes",{});',
+                ["argument"],
+            ),
+            ('var o={};Object.defineProperty(o,"includes",{});', []),
+            ('Reflect.set({},"includes",f,Array.prototype);', ["argument"]),
+            ('Reflect.set({},"includes",f,{});', []),
+            ("Object.defineProperty(P,`includes`,{value:f});", ["argument"]),
+            ("Reflect.set(o,`includes`,f);", ["argument"]),
+            ("o.__defineGetter__(`includes`,g);", ["argument"]),
+            ("x.join=f;Array.prototype.join=f;", []),
+            (
+                'Object.keys(o);e instanceof Object;Object.prototype.hasOwnProperty.call(o,"k");',
+                [],
+            ),
+        ):
+            with self.subTest(src=src):
+                self.assertEqual(self._sinks(src), kinds)
+
+    def test_a_flow_reports_the_names_it_trusted(self) -> None:
+        got = self._flow(
+            'var pY=[1];pY.some((e)=>e);pY.has(1);var s=""+pY;'
+            'function g(n){return"has"in n}g(pY);'
+        )
+        self.assertTrue(got["safe"], got)
+        self.assertEqual(
+            got["trusted"],
+            ["@@toPrimitive", "has", "join", "some", "toString", "valueOf"],
+        )
+
+    def test_exports_lists_every_exported_name(self) -> None:
+        src = "export var a=1,{b}=o;export function c(){}var d;export{d as e};"
+        self.assertEqual(
+            sorted(self.reader.exports(src, 0, len(src)) or []), ["a", "b", "c", "e"]
+        )
+        self.assertIsNone(self.reader.exports("var =;", 0, 6))
+        star = 'export*from"/b.js";export var a=1;'
+        self.assertIsNone(self.reader.exports(star, 0, len(star)))
+
+
+class TestModuleTable(unittest.TestCase):
+    """`inventory._graph_sources`: Bun's standalone module table maps each
+    module's source offset to its `/$bunfs/root/...` path."""
+
+    @staticmethod
+    def _graph(modules: list[tuple[bytes, bytes]]) -> tuple[bytes, list[int]]:
+        import struct
+
+        blob = b"\0" * 8
+        records = b""
+        starts = []
+        for name, body in modules:
+            name_at = len(blob)
+            blob += name + b"\0"
+            body_at = len(blob)
+            starts.append(body_at)
+            blob += body + b"\0"
+            records += (
+                struct.pack("<4I", name_at, len(name), body_at, len(body)) + b"\0" * 36
+            )
+        table = len(blob)
+        blob += records
+        offsets = struct.pack("<QII", len(blob), table, len(records)) + b"\0" * 16
+        return b"MZ-prefix" + blob + offsets + inv._GRAPH_TRAILER, starts
+
+    def test_each_source_offset_maps_to_its_path(self) -> None:
+        data, starts = self._graph(
+            [
+                (b"/$bunfs/root/chunk-a.js", b"// @bun\nvar a=1;"),
+                (b"/$bunfs/root/b.js", b"// @bun\n"),
+            ]
+        )
+        prefix = len(b"MZ-prefix")
+        self.assertEqual(
+            inv._graph_sources(data),
+            {
+                prefix + starts[0]: "/$bunfs/root/chunk-a.js",
+                prefix + starts[1]: "/$bunfs/root/b.js",
+            },
+        )
+
+    def test_a_build_without_a_table_maps_nothing(self) -> None:
+        self.assertEqual(inv._graph_sources(b"no graph here"), {})
+
+
 class _StubReader:
     """Stands in for the helper: every module parses unless its text says not."""
 
     lookups = 0
     write_lookups = 0
+    flow_lookups = 0
 
     def __init__(self) -> None:
         self.parsed = 0
 
-    def parse_ok(self, source: str) -> tuple[bool, str | None]:
+    def set_module_paths(self, src: str, paths: dict[int, str]) -> None:
+        pass
+
+    def parse_module(self, src: str, lo: int, hi: int) -> tuple[bool, str | None]:
         self.parsed += 1
+        source = src[lo:hi]
         return ("UNPARSABLE" not in source, None if "UNPARSABLE" not in source else "x")
 
     def __enter__(self) -> _StubReader:
@@ -525,11 +891,21 @@ class TestInventoryReaderFlag(unittest.TestCase):
         self.assertEqual(spans, [(0, len(MARKER + BIG))])
 
     def test_regex_is_the_default_and_adds_no_reader_block(self) -> None:
+        """The flip to the parser is held (#5901)."""
         with mock.patch.object(pr, "open_reader") as opened:
             code, out = self._run("--binary-only")
         self.assertEqual(code, 0)
         self.assertNotIn("reader", json.loads(out))
+        self.assertIn("help", json.loads(out)["builtin_commands"])
         opened.assert_not_called()
+
+    def test_the_parser_stays_selectable(self) -> None:
+        stub = _StubReader()
+        with self._stub(stub):
+            code, out = self._run("--binary-only", "--reader", "parser")
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(out)["reader"]["name"], "parser")
+        self.assertEqual(stub.parsed, 1)
 
     def test_a_broken_parser_reader_fails_closed_with_the_command(self) -> None:
         broken = pr.ReaderBroken(
@@ -597,7 +973,7 @@ class TestInventoryReaderFlag(unittest.TestCase):
         changed = {c["pointer"]: c for c in report["reader"]["compare"]["changes"]}
         self.assertIn(pointer, changed)
         self.assertFalse(report["reader"]["compare"]["failed"])
-        _, regex = self._run("--binary-only")
+        _, regex = self._run("--binary-only", "--reader", "regex")
         self.assertEqual(
             json.loads(regex)[inv.AGENT_LANE]["spread-probe"][
                 "disallowed_tools_source"

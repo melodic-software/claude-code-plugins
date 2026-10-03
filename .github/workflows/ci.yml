@@ -1047,18 +1047,17 @@ jobs:
         continue-on-error: true
         run: scripts/check-plugin-manifest-presence.sh
 
-      # docs/cloud-sessions.md promises `enabledPlugins` "turns on the whole
-      # catalog, so this repo dogfoods everything it publishes"; nothing
-      # enforced it, and ai-slop (#2892), context-budget (#2932) and
-      # improvement (#2985) each reached main catalogued but never enabled. The
-      # failure is silent by construction: .claude/cloud-bootstrap.sh computes
-      # its install set from that same enabledPlugins map. Repo-wide and
-      # static, so it always runs. The self-test runs first so a broken
-      # detector cannot mask a regression behind a green gate.
+      # The cloud plugin list is derived from the catalog's defaultEnabled, and
+      # .claude/settings.json overlays its enabledPlugins keys on it. A key that
+      # names no catalogued plugin silently no-ops, and .claude/cloud-
+      # bootstrap.sh installs only the marketplace it hardcodes, so the gate
+      # holds the keys to the catalog, their order, and that marketplace
+      # name. Repo-wide and static, so it always runs. The self-test runs first
+      # so a broken detector cannot mask a regression behind a green gate.
       - name: Test the plugin-catalog-enablement gate
         if: needs.changes.outputs.run_shell == 'true'
         run: bash scripts/check-plugin-catalog-enablement.test.sh
-      - name: Check every catalogued plugin carries an enabledPlugins key
+      - name: Check every enabledPlugins key names a catalogued plugin
         id: plugin_catalog_enablement
         continue-on-error: true
         run: scripts/check-plugin-catalog-enablement.sh
@@ -2210,13 +2209,28 @@ jobs:
         run: |
           [ "$LEG" = 3 ] || exit 0
           scripts/sync-shared-copies.sh --check
-      - name: Run shared-copies generator, html-escape and session-bridge tests
+      - name: Run shared-copies generator, html-escape, view-builder and session-bridge tests
         if: needs.changes.outputs.run_tests == 'true'
         run: |
           [ "$LEG" = 3 ] || exit 0
           bash scripts/sync-shared-copies.test.sh
           bash lib/html-escape.test.sh
           (cd lib/session-bridge && python3 -m unittest -v test_session_bridge)
+          bash lib/view-builder.test.sh
+      # docs/conventions/prerequisites/: the checker and its stubs, then the gate
+      # that validates every prerequisites.json and fails on an undeclared tool
+      # not listed in scripts/prerequisites-baseline.txt.
+      - name: Run prerequisites checker and gate tests
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          bash lib/prerequisites.test.sh
+          bash scripts/check-declared-prerequisites.test.sh
+      - name: Check plugin prerequisites are declared
+        if: needs.changes.outputs.run_tests == 'true'
+        run: |
+          [ "$LEG" = 3 ] || exit 0
+          node scripts/check-declared-prerequisites.mjs
       - name: Verify carrying plugins bumped when a generated copy's canonical changed
         if: needs.changes.outputs.run_tests == 'true'
         env:
@@ -2485,8 +2499,9 @@ jobs:
       # Counters only, never durations, so the answer does not move with runner
       # load. A lower count is lowered in the file by hand in the same PR
       # (`ratchet.py propose-tighten --write`); there is no scheduled tightening
-      # job, because a counter this deterministic only drops when a PR changes
-      # it. LEG 0 carries it alone. The hook counters run through
+      # job. A runner image change can also lower a count: the check log then
+      # shows `propose-tighten can lower it`, and the ceiling is lowered by hand
+      # in a PR. LEG 0 carries it alone. The hook counters run through
       # scripts/hook-census.sh under strace, so its suite runs first here: no
       # other lane runs a scripts/ suite that needs strace. The counts depend
       # on the image's bash, git, jq and coreutils, so the versions are printed

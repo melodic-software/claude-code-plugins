@@ -556,7 +556,9 @@ lock_boot_id() { tr -d '\r\n' <"$LOCK_DIR/boot-id" 2>/dev/null || printf ''; }
 LOCK_HARD_STALE_SECONDS=86400
 
 # Is the recorded lock owner still the process that took the lock? Overridable
-# so the tests can drive every branch without spawning real processes.
+# so the tests can drive every branch without spawning real processes: a SET
+# RESTART_CONSUMER_FAKE_ALIVE_PIDS is the whole live set, so set-but-empty means
+# no pid is alive and `kill -0` never consults the host's real process table.
 lock_owner_alive() {
   local pid="$1" age="$2" recorded_boot current_boot
   ((pid > 0)) || return 1
@@ -572,7 +574,7 @@ lock_owner_alive() {
     ((age >= LOCK_HARD_STALE_SECONDS)) && return 1
   fi
 
-  if [[ -n "${RESTART_CONSUMER_FAKE_ALIVE_PIDS-}" ]]; then
+  if [[ -n "${RESTART_CONSUMER_FAKE_ALIVE_PIDS+set}" ]]; then
     [[ " $RESTART_CONSUMER_FAKE_ALIVE_PIDS " == *" $pid "* ]]
     return
   fi

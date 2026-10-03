@@ -4,6 +4,30 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.17.4] - 2026-10-02
+
+### Changed
+
+- The Opus 5.5 chapter and the orchestration chapter's narrow-threads section keep only this
+  repository's rules, each with a pointer to read the official docs section live: the scope
+  section goes, Long runs says a project changes its named stops in its own CLAUDE.md or AGENTS.md,
+  and each thread's changes merge under the repository's own merge policy.
+
+## [0.17.3] - 2026-10-02
+
+### Changed
+
+- `skill-authoring`'s time-sensitive guidance allows one exception to the in-body history ban: an
+  "Old patterns" section holding a names-only table of old-to-current names, under the
+  upstream-drift convention's old-patterns carve-out. The ban no longer names
+  `.claude/rules/skill-bodies-state-current-rules.md` as its owner, since that rule does not hold
+  it; the pre-share checklist row says the same.
+- `skill-authoring`'s evaluation guidance says how to carry a failure back (read the whole failure,
+  write the general cause in your own words, never copy case text, never draw on held-back test
+  cases), to re-run the evals when a skill's description or body changes, and to keep everything a
+  `claude plugin eval` case depends on in the hub `SKILL.md`, with a pointer to the evals plugin's
+  record.
+
 ## [0.17.2] - 2026-10-02
 
 ### Fixed

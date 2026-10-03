@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.61.2] - 2026-10-02
+## [0.62.3] - 2026-10-02
 
 ### Changed
 
@@ -13,6 +13,49 @@ All notable changes to the `planning` plugin are documented here. Format follows
   generated copies, and `surface/session-bridge.conf` names the interview to them. The page,
   the watcher and `round.sh` behave as before. The server also answers `GET /api/lease` with the
   watcher lease, which `round.sh lease` and `stop` now read.
+
+## [0.62.2] - 2026-10-02
+
+### Fixed
+
+- **The `Plan` agent verification record points at the live disallowed-tool list.**
+  `reference/native-plan-agent.md` named five tools from the 2.1.285 extraction; on Claude Code
+  2.1.288 the agent disallows nine. The record now states what that means for this skill (it
+  cannot edit files, spawn an agent, or exit plan mode) and points at
+  `builtin_agents.Plan.disallowed_tools` in the inventory instead of copying the list.
+
+## [0.62.1] - 2026-10-02
+
+### Changed
+
+- Cross-plugin routing says "if enabled" where it said "if installed": an installed but disabled plugin exposes no skills, and most of the optional plugins this one routes to (`architecture`, `prototype`, `domain-driven-design`, `discipline`) now install disabled.
+
+## [0.62.0] - 2026-10-02
+
+### Added
+
+- **`/planning:plan-panel` workflow** (`workflows/plan-panel.js`): one planner per angle
+  (MVP-first, risk-first, reuse-first and testability-first by default), independent judges that
+  score every draft on goal fit, blast radius, test strategy and reversibility, and one
+  synthesizer that builds the plan from the winner and grafts runner-up ideas. It takes `task`,
+  `context`, `angles`, `judges`, `roles` and `maxConcurrent` through `args` and returns the plan,
+  the scores, the grafted ideas, the dissent and every draft in full. A missing `task` returns an
+  error and dispatches nothing, and a judge that does not score every draft exactly once is
+  counted as returning nothing. Planners take the worker role's fan-out variant, judges the verifier role's fan-out
+  variant and the synthesizer the orchestrator role's single variant, from `/multi-agent:route`
+  when the caller passes them, else from built-in fallbacks (`opus` at `medium` for planners,
+  `opus` at `high` for judges, the session model at `high` for synthesis). Agents run in waves of
+  `maxConcurrent` (default 4, clamped to 1-16), and a thrown dispatch other than a cap or budget
+  error is retried once.
+
+### Changed
+
+- **`/planning:plan` can formulate through the panel, opt-in.** When the user asks for it or
+  `/multi-agent:assess` returns `workflow`, Step 2 launches `planning:plan-panel` behind a Workflow
+  availability gate, with the single-plan flow as the fallback; `context/plan-panel.md` holds the
+  launch and how the result feeds the plan. The synthesized plan still goes through the reviewer
+  and the approval gate. `plan` grants `Workflow(planning:plan-panel)` only, so no other workflow
+  or inline script is pre-approved.
 
 ## [0.61.1] - 2026-10-02
 

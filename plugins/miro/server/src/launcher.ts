@@ -91,14 +91,17 @@ export function installCommand(target: string, platform = process.platform): str
   const sources = MANIFESTS.map((name) => join(SERVER_DIR, name));
   const [ci, ...flags] = NPM_CI_ARGS;
   if (platform === "win32") {
-    // Windows PowerShell 5.1 has no `&&`; Stop turns each cmdlet failure into a halt.
-    const q = (path: string) => `'${path.replaceAll("'", "''")}'`;
+    // Windows PowerShell 5.1 has no `&&`; Stop turns each cmdlet failure into a halt, and the
+    // child script block keeps it out of the user's session. Bare `npm` resolves to `npm.ps1`,
+    // which the default Restricted execution policy refuses to run; `npm.cmd` is not subject to it.
+    // PowerShell reads U+2018, U+2019, U+201A and U+201B as single quotes too; doubling escapes each.
+    const q = (path: string) => `'${path.replace(/['‘’‚‛]/g, "$&$&")}'`;
     return (
-      `$ErrorActionPreference = 'Stop'; ` +
+      `& { $ErrorActionPreference = 'Stop'; ` +
       `Remove-Item -LiteralPath ${q(target)} -Recurse -Force -ErrorAction SilentlyContinue; ` +
       `New-Item -ItemType Directory -Force -Path ${q(target)} | Out-Null; ` +
       `Copy-Item -LiteralPath ${sources.map(q).join(", ")} -Destination ${q(target)}; ` +
-      `npm ${ci} --prefix ${q(target)} ${flags.join(" ")}`
+      `npm.cmd ${ci} --prefix ${q(target)} ${flags.join(" ")} }`
     );
   }
   const q = (path: string) => `'${path.replaceAll("'", `'\\''`)}'`;

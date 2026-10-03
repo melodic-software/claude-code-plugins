@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Run `python3 plugins/evals/skills/validate/scripts/validate-cases.py evals/` first.",
+      "why": "the script"
+    },
+    {
+      "answer": "The `/evals:validate` skill checks the suite with no model call.",
+      "why": "the skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Do a `--runs 1` pass on that case; it is cheap.",
+      "why": "paid smoke run"
+    }
+  ]
+}

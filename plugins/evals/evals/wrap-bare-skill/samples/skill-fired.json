@@ -1,0 +1,83 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:plugin-eval",
+            "args": "the user question"
+          }
+        }
+      ],
+      "why": "qualified name, the shape real runs record"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "claude-api"
+          }
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:design"
+          }
+        }
+      ],
+      "why": "after another skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "plugin-eval"
+          }
+        }
+      ],
+      "why": "bare name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no Skill call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "claude-api"
+          }
+        }
+      ],
+      "why": "a different plugin's skill"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "evals:methodology"
+          }
+        }
+      ],
+      "why": "a sibling evals skill whose hub lacks the graded fact"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "design"
+          }
+        }
+      ],
+      "why": "the bundled design skill, not evals:design"
+    }
+  ]
+}

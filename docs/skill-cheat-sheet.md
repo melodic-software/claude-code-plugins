@@ -160,6 +160,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
+| [`/session-flow:audit-sessions`](../plugins/session-flow/skills/audit-sessions/SKILL.md) | `session-flow` | Cross-session audit of transcripts with routed, never-applied findings |
 | [`/session-flow:retro`](../plugins/session-flow/skills/retro/SKILL.md) | `session-flow` | Structured session retrospective with codified learnings |
 | [`/session-flow:running-retro`](../plugins/session-flow/skills/running-retro/SKILL.md) | `session-flow` | In-flight retro checkpoint appended to a running ledger |
 
@@ -260,6 +261,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/instruction-placement:delta`](../plugins/instruction-placement/skills/delta/SKILL.md) | `instruction-placement` | Report only what moved since the last placement audit |
 | [`/markdown-format:check`](../plugins/markdown-format/skills/check/SKILL.md) | `markdown-format` | Report whether markdownlint-cli2 and node are installed. Never installs. |
 | [`/multi-agent:audit-defaults`](../plugins/multi-agent/skills/audit-defaults/SKILL.md) | `multi-agent` | Recheck the routing defaults against their upstream sources |
+| [`/multi-agent:check`](../plugins/multi-agent/skills/check/SKILL.md) | `multi-agent` | Report whether node resolves and the drift-checker fetch gate is registered. Never installs. |
 | [`/overengineering:audit`](../plugins/overengineering/skills/audit/SKILL.md) | `overengineering` | Audit the enforcement surface for mechanisms no longer earning their carry cost |
 | [`/overengineering:delta`](../plugins/overengineering/skills/delta/SKILL.md) | `overengineering` | Re-run the enforcement-surface audit and report only what moved since the last run |
 | [`/overengineering:justify`](../plugins/overengineering/skills/justify/SKILL.md) | `overengineering` | Make one artifact you point at justify its own existence, on evidence |

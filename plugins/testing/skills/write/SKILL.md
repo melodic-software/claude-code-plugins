@@ -57,12 +57,12 @@ Read the relevant context file before proceeding. Both draw on the consuming pro
 - **Test behavior, not implementation**. Assert on what the user sees or what the API returns, not internal state (Kent C. Dodds: "The more your tests resemble the way your software is used, the more confidence they can give you")
 - **Four Pillars** (Vladimir Khorikov): protection against regressions, resistance to refactoring, fast feedback, maintainability. Every test scores well on all four
 - **Naming**. Use the project's documented naming pattern; when undocumented, mirror the consuming ecosystem's own idiom (never impose one language's convention on another). The forms below are illustrative (.NET/xUnit). Adapt casing/separators to the target ecosystem: unit `{Method}_Should{Behavior}_When{Condition}`, integration `{Subject}_{Behavior}`, architecture `{Subject}_Should{Constraint}`
-- When uncertain about a testing decision (mock or not, output vs state test), load `/tdd:principles` (when the `tdd` plugin is installed) for authoritative Beck/Khorikov guidance
-- Where each expected value comes from and which tests earn their keep: `testing:test-value` (if installed)
+- When uncertain about a testing decision (mock or not, output vs state test), load `/tdd:principles` (when the `tdd` plugin is enabled) for authoritative Beck/Khorikov guidance
+- Where each expected value comes from and which tests earn their keep: `testing:test-value` (if enabled)
 
 ## Handoff
 
-- Run the new tests by invoking `/toolchain:check` via the Skill tool (or the project's own test command when the `toolchain` plugin is absent), then continue implementation. Invoke `/implementation:implement` via the Skill tool when that plugin is installed
+- Run the new tests by invoking `/toolchain:check` via the Skill tool (or the project's own test command when the `toolchain` plugin is absent), then continue implementation. Invoke `/implementation:implement` via the Skill tool when that plugin is enabled
 - **For HIGH/CRITICAL test suites** (new domain logic, security-critical behavior, regression-prone paths, mocks of non-trivial dependencies, non-deterministic dependencies like clock/random/network) call the `advisor` tool (when available in the session). Rubber-duck checkpoint before commit. Lightweight cross-model critique catches false-green or brittle tests before slow CI runs, the author writing tests for their own code is the producer verifying its own work, and this cross-model pass is that independence seam. Skip for trivial test additions
 - After an `organize` decision: proceed to authoring for the new test project
 - Coverage gaps still open → invoke `/testing:plan` via the Skill tool; failures while running → invoke `/testing:diagnose` via the Skill tool

@@ -189,15 +189,24 @@ Skill supports different scopes:
 | `/knowledge:course-digest continue <slug>` | Continue from a prior session. Reads continuation prompt file |
 | `/knowledge:course-digest` (no args) | Auto-detect: check for in-progress courses, resume the most recent |
 
-### Session handoff protocol
+### Session continuation protocol
 
-When the session has run long or quality is degrading, a compaction has occurred, or a session is
-ending mid-pipeline:
+After every module, and whenever a session ends mid-pipeline:
 
 1. **Write a continuation prompt** to `<course-dir>/continuation-prompt.md`
 2. Include: what was completed, what remains, task-by-task breakdown, known issues, quality notes
 3. Update `course.json` phase markers with timestamps
-4. Tell the user: *"Session state saved. Start a new session and run `/knowledge:course-digest continue <slug>` to pick up where we left off."*
+
+At a module boundary, route the next step with `/session-flow:workflow`. Give it the facts a
+compaction focus needs: the course slug, the next module, and the `course.json` path. A new
+session resumes with `/knowledge:course-digest continue <slug>`.
+
+Without session-flow, the user picks the next step from the docs.
+
+- **Pointer**: for when context fills up, see
+  <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>.
+- **As of**: 2026-10-02
+- **Recheck trigger**: that section moves, or changes its `/compact` or `/clear` guidance.
 
 The `continue` action reads the continuation prompt and reconstructs task context. No args defaults to checking `course.json` for the most recent in-progress course.
 
@@ -207,7 +216,7 @@ Courses can have 60+ lessons. Processing all in one session may hit context limi
 
 - **After discovering course structure** (Phase 1): present module/lesson list and ask user which modules to process, or confirm "all"
 - **After each module completes**: save progress immediately, a crash shouldn't lose work
-- **At a module boundary, if the session has run long, quality is degrading, or a compaction has occurred**: suggest saving progress and resuming in a new session with `/knowledge:course-digest resume <slug>`
+- **At a module boundary**: follow the [session continuation protocol](#session-continuation-protocol)
 
 ## Analysis output format
 

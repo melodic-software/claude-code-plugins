@@ -3,6 +3,64 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.76.0] - 2026-10-02
+
+### Changed
+
+- **An unrelated small review fix lands in the PR only when it is in a file the PR already
+  touches.** Any other goes in its own small PR with no tracker item; a lane that cannot open a PR
+  replies, leaves the thread unresolved, and reports it. A project changes this placement in its
+  own CLAUDE.md or AGENTS.md. The D4.6 scope test in `review-discipline.md` owns the rule, now
+  under its own contract-restatement clause; `pull-request`'s classify step and `monitor.md`,
+  and `babysit-prs`'s `safety.md` and `independent-resolution.md`, point at it.
+- **D7.5 gains a fourth thread disposition, fixed in a linked PR,** with the reply citing that PR.
+  `source-control-babysit-resolve-thread --independent-resolver` accepts it as
+  `--disposition linked-pr --linked-pr <N>`: it resolves only when a reply on the thread by someone
+  other than the opener cites `#N` or its URL and PR `N`, a different PR in the same repository,
+  is open or merged. New refusals: `refused-linked-pr-not-cited`, `refused-linked-pr-not-found`,
+  `refused-linked-pr-closed`, `refused-linked-pr-fork`, `refused-linked-pr-draft`.
+
+### Added
+
+- **`/source-control:pull-request create` drafts before/after media into the verification
+  section** when the diff changes rendered visual or audio output: it lists each capture's local
+  path and asks the person to drag the files into the PR description, since `gh pr create` cannot
+  upload a file. A project turns the step off in its own CLAUDE.md or AGENTS.md.
+- **`config-resolution.md` says where approval counts come from:** the repository ruleset's
+  `required_approving_review_count`, which the merge gate reads. No new key.
+
+## [0.75.0] - 2026-10-02
+
+### Added
+
+- **`babysit-loop` state records the effort each cycle ran at.** The state block gains an `effort`
+  field read from `CLAUDE_EFFORT` at each cycle start, or `"unset"`, so the level that ran sits
+  beside the `--effort` the lane was launched with. The schema stays `@2`.
+
+## [0.74.1] - 2026-10-02
+
+### Changed
+
+- The shared hook helper's posture comment no longer names a fixed member count.
+
+## [0.74.0] - 2026-10-02
+
+### Added
+
+- **`pull-request` chooses who watches a PR once it is out of draft.** At the end of `ready`, and
+  at `monitor` entry when no choice was made, a matrix picks between this skill's monitor, a
+  background agent through `/session-flow:continue-in-background`, `/background`, `/autofix-pr`
+  and the babysit loop, by whether the person is staying and whether the machine stays on. For a
+  route only the person can start, the skill prints it ready to run, and `/autofix-pr` comes with
+  a filled-in prompt that carries the skill's review discipline (verify, reply, then fix; no merge
+  or force-push). Before any route it reads the `rate-limit-guard` tee file: a window at the
+  pause threshold starts and offers nothing and reports the reset time, lower readings sit beside
+  the recommendation, and unknown usage points at `/usage` and favors `monitor` for a person who
+  is staying. New
+  `reference/watch-handoff.md`, which inlines the rate-limit floor and is registered in
+  `check-loop-lane-floor-drift.sh`; `native-surfaces.md` records auto-fix's requirements and
+  limits, cloud sessions sharing the account's rate limits, and `/background`.
+
 ## [0.73.0] - 2026-10-02
 
 ### Changed

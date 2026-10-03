@@ -28,6 +28,7 @@
 #   --label-b <s>           Default: B (candidate)
 #   --warmup <n>            Discard this many runs per arm first. Default 1.
 #   --min-pairs <n>         Pairs required before a ratio is reported. Default 20.
+#   --percentiles <list>    Per-arm percentiles, comma-separated. Default 50,95.
 #   --stdin <text>          Feed <text> to both arms on stdin.
 #   --allow-windows-paths   Permit drive-letter paths in the arm commands.
 #
@@ -52,6 +53,7 @@ ab.sh --a <command> --b <command> --iterations <n> [options]
   --label-b <s>           Default: B (candidate)
   --warmup <n>            Discard this many runs per arm first. Default 1.
   --min-pairs <n>         Pairs required before a ratio is reported. Default 20.
+  --percentiles <list>    Per-arm percentiles, comma-separated. Default 50,95.
   --stdin <text>          Feed <text> to both arms on stdin.
   --allow-windows-paths   Permit drive-letter paths in the arm commands.
 
@@ -67,6 +69,7 @@ LABEL_A="A (baseline)"
 LABEL_B="B (candidate)"
 WARMUP=1
 MIN_PAIRS="20"
+PERCENTILES="50,95"
 STDIN_TEXT=""
 ALLOW_WINDOWS_PATHS=0
 
@@ -102,6 +105,10 @@ while (($# > 0)); do
       ;;
     --min-pairs)
       MIN_PAIRS="${2:-}"
+      shift 2
+      ;;
+    --percentiles)
+      PERCENTILES="${2:-}"
       shift 2
       ;;
     --stdin)
@@ -270,9 +277,9 @@ for arm in a b; do
   fi
 done
 
-BENCH_LABEL="$LABEL_A" BENCH_CONC="$CONC" BENCH_TIMES="$OUT/a" \
+BENCH_LABEL="$LABEL_A" BENCH_CONC="$CONC" BENCH_TIMES="$OUT/a" BENCH_PERCENTILES="$PERCENTILES" \
   "$HARNESS_PYTHON" "$SCRIPT_DIR/summarize.py" || exit $?
-BENCH_LABEL="$LABEL_B" BENCH_CONC="$CONC" BENCH_TIMES="$OUT/b" \
+BENCH_LABEL="$LABEL_B" BENCH_CONC="$CONC" BENCH_TIMES="$OUT/b" BENCH_PERCENTILES="$PERCENTILES" \
   "$HARNESS_PYTHON" "$SCRIPT_DIR/summarize.py" || exit $?
 
 BENCH_OLD="$OUT/a" BENCH_NEW="$OUT/b" BENCH_CONC="$CONC" BENCH_MIN_PAIRS="$MIN_PAIRS" \

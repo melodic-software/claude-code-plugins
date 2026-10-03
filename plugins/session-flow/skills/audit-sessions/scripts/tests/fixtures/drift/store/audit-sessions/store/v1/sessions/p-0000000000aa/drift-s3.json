@@ -1,0 +1,9 @@
+{
+  "schema": "session-record/v1",
+  "session_id": "drift-s3",
+  "census": {
+    "2.0.3|*": {"record_type:user": 15, "key_path:user:fresh": 15, "record_type:mode": 4},
+    "2.0.3|model-a": {"record_type:assistant": 15}
+  },
+  "unknown": {"record_types": {"mode": 4}, "system_subtypes": {}}
+}

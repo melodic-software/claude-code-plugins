@@ -111,8 +111,8 @@ On a re-scan after a MET result, look first for the next slow spot in the same j
 
 ## Next
 
-`/performance:goal <chosen target>`. Carry the evidence tier forward: a goal built on an E3
-candidate must say so.
+`/performance:goal <chosen target>`. Carry the evidence tier forward: goal stops on an E3 or E4
+candidate, or one this ranking says to instrument, until the named instrument has run.
 
 ## Gotchas
 

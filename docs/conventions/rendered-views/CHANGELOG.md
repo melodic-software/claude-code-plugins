@@ -3,6 +3,28 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## The shared builder ships, 2026-10-02
+
+- **`lib/view-builder.mjs` and `lib/view-runtime.js` implement both validator
+  profiles (#5852).** The builder fills a report template's slots with escaped text,
+  or puts an interactive page's data only in the JSON data block and inlines the
+  runtime under a policy that pins it and the page's style by hash. It refuses any page
+  that fails its profile. A lane whose context holds K2 text may now emit through it.
+  Rule 7 records what publishing the sample showed: the artifact host wraps the page,
+  so the page's policy meta is not applied there, and the host blocks downloads.
+- **Six clarifications from the #5875 security review.** Rule 7 forbids the runtime
+  from writing a data value to any attribute, URL, or selector. Rule 5 makes ids
+  opaque tokens never derived from data and bans pre-filling a form control from
+  data. Rule 4 allows `<a href="#id">` and a runtime-created `blob:` download anchor.
+  Rule 2 says the runtime reads the data block only with `JSON.parse`. Rule 8 names
+  the marker string for each profile and falls back to the report profile for any
+  other. A record outside the repository keeps K0 or K1 only with a
+  `content-class` provenance line, and a K0 or K1 page inlines its fonts and scripts.
+- **Rule 5 refuses bindings outside page text.** No `data-rv-*` binding on `html`,
+  `head`, `title`, `meta`, `style`, or `script`, and no content binding on a form
+  control, so data cannot become CSS inside the artifact host, where the page's policy
+  is not applied.
+
 ## Tiers and content classes, 2026-10-02
 
 - **Views gain tiers, content classes, and a validator profile (#5851).** Four
@@ -65,6 +87,24 @@ versioned; this log records each change to it.
   list names a cream or off-white background; those lists name layout habits. Carve-outs for
   pull-request diffs, fetched content and other repositories' files now read "until the lane is
   wired through the escape helper", not "until the helper ships". No boundary-rule, genre, or
+  cascade-key change.
+
+## Education lanes on the escape helper, 2026-10-02
+
+- **`education:eli5` and `education:teach` in codebase mode build their HTML with a checked-in
+  builder (#5845).** Each routes every interpolated repository string through the synced
+  `lib/html-escape.mjs` and stamps the generator marker. `education:eli5` joins the emitter list
+  as an escape-helper lane; `education:teach` stays grandfathered for topic mode. No
+  boundary-rule, genre, or cascade-key change.
+
+## Three more lanes on the escape helper, 2026-10-02
+
+- **`knowledge:video-digest`, `harness-ops:observability` and `event-storming:simulation` build
+  their HTML with a checked-in builder (#5846).** Each routes every interpolated external string
+  (fetched transcripts and titles, telemetry strings, board text) through the synced
+  `lib/html-escape.mjs` and stamps the generator marker. The two that were grandfathered
+  (`harness-ops:observability`, `event-storming:simulation`) leave that list; the escape-helper
+  lanes are named in the emitters paragraph of the README. No boundary-rule, genre, or
   cascade-key change.
 
 ## Escape helper, 2026-09-28

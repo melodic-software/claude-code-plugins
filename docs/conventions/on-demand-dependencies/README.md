@@ -1,6 +1,6 @@
 # On-demand dependencies: install pinned packages, never vendor them
 
-Version: 2.1.0
+Version: 2.1.1
 Last updated: 2026-10-02
 
 A marketplace-wide rule for **third-party packages a plugin needs at run time**: commit the pinned
@@ -64,7 +64,7 @@ install base in this order and record which rule chose it:
 
 1. An explicit flag (the inventory's `--deps-dir`). A skill body may pass
    `--deps-dir "${CLAUDE_PLUGIN_DATA}"`, since that reference is substituted inline in skill
-   content; the inventory's `SKILL.md` does not pass it yet (#5640 P4 wires it in).
+   content; the inventory's `SKILL.md` does.
 2. `$CLAUDE_PLUGIN_DATA` from the environment, accepted only when its last path segment names the
    plugin: a skill subprocess has been observed holding another plugin's value (recorded in
    `plugins/harness-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility.py`,

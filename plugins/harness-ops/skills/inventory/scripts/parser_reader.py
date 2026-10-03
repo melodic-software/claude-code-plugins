@@ -37,6 +37,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -110,8 +111,12 @@ def _q(path: Path) -> str:
     return shlex.quote(path.as_posix())
 
 
+_PS_SINGLE_QUOTES = re.compile("['‘’‚‛]")
+
+
 def _ps_q(path: Path) -> str:
-    return "'" + str(path).replace("'", "''") + "'"
+    # PowerShell reads all four curly forms as single quotes; doubling escapes each.
+    return "'" + _PS_SINGLE_QUOTES.sub(lambda m: m[0] * 2, str(path)) + "'"
 
 
 def install_command(target: Path, platform: str = sys.platform) -> str:
@@ -119,18 +124,20 @@ def install_command(target: Path, platform: str = sys.platform) -> str:
 
     POSIX shell elsewhere; Windows PowerShell 5.1 on win32, which has no `&&`.
     There it names `npm.cmd`: bare `npm` resolves to `npm.ps1`, which the
-    default Restricted execution policy refuses to run.
+    default Restricted execution policy refuses to run. The sequence runs in a
+    child script block so its `$ErrorActionPreference = 'Stop'` does not stay
+    set in the session the user pastes it into.
     """
     flags = " ".join(NPM_CI_ARGS[1:])
     if platform == "win32":
         q = _ps_q
         sources = ", ".join(q(JS_DIR / m) for m in MANIFESTS)
         return (
-            "$ErrorActionPreference = 'Stop'; "
+            "& { $ErrorActionPreference = 'Stop'; "
             f"Remove-Item -LiteralPath {q(target)} -Recurse -Force -ErrorAction SilentlyContinue; "
             f"New-Item -ItemType Directory -Force -Path {q(target)} | Out-Null; "
             f"Copy-Item -LiteralPath {sources} -Destination {q(target)}; "
-            f"npm.cmd {NPM_CI_ARGS[0]} --prefix {q(target)} {flags}"
+            f"npm.cmd {NPM_CI_ARGS[0]} --prefix {q(target)} {flags} }}"
         )
     q = _q
     sources = " ".join(q(JS_DIR / m) for m in MANIFESTS)
@@ -230,9 +237,9 @@ class ParserReader:
         self._stderr = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
         self._next_id = 0
         self._keys: dict[tuple[int, int, int], tuple[str, str]] = {}
-        self._answers: dict[
-            tuple[str, int, int, str, int | None], dict[str, Any] | None
-        ] = {}
+        self._spans: dict[int, list[tuple[int, int]]] = {}
+        self._paths: dict[int, tuple[str, dict[int, str]]] = {}
+        self._answers: dict[tuple[Any, ...], dict[str, Any] | None] = {}
         try:
             self._proc = subprocess.Popen(
                 [node, str(HELPER)],
@@ -284,6 +291,180 @@ class ParserReader:
     def parse_ok(self, source: str) -> tuple[bool, str | None]:
         res = self.request("parse_ok", source=source)
         return bool(res["parsed"]), res.get("error")
+
+    def parse_module(self, src: str, lo: int, hi: int) -> tuple[bool, str | None]:
+        """`parse_ok` for the module `src[lo:hi]`, which also files the
+        module among the ones `keys_used` reads for `src`."""
+        self._spans.setdefault(id(src), []).append((lo, hi))
+        res = self.request(
+            "parse_ok", source=src[lo:hi], module=self._module_key(src, lo, hi)
+        )
+        return bool(res["parsed"]), res.get("error")
+
+    def flow(self, src: str, lo: int, hi: int, start: dict[str, Any]) -> dict[str, Any]:
+        """Whether an array value stays unchanged in the module `src[lo:hi]`
+        (the helper's `flow` op). `start["offset"]`, when present, is a
+        position in `src`; so is the `at` of an unsafe answer."""
+        key = ("flow", id(src), lo, json.dumps(start, sort_keys=True))
+        cached = self._answers.get(key)
+        if cached is not None:
+            return cached
+        fields = dict(start)
+        if "offset" in fields:
+            fields["offset"] -= lo
+        res = self._send("flow", src, lo, hi, start=fields)
+        if res.get("unreadable"):
+            answer = {
+                "safe": False,
+                "reason": "the module holds a character outside the BMP",
+                "at": None,
+            }
+        elif res["safe"]:
+            answer = {
+                "safe": True,
+                "exits": [tuple(hop) for hop in res["exits"]],
+                "trusted": res.get("trusted", []),
+            }
+        else:
+            at = res.get("at")
+            answer = {
+                "safe": False,
+                "reason": res["reason"],
+                "at": None if at is None else at + lo,
+            }
+        self._answers[key] = answer
+        return answer
+
+    def sinks(
+        self, src: str, lo: int, hi: int, names: list[str]
+    ) -> list[tuple[str, str | None, int]]:
+        """Where the module `src[lo:hi]` may write one of `names` on an object
+        that could be a built-in prototype (the helper's `sinks` op), each
+        (kind, name, offset in `src`). A module that does not parse, calls
+        `eval` directly, or holds a character outside the BMP is one hit."""
+        res = self._send("sinks", src, lo, hi, names=names)
+        if res.get("unreadable"):
+            return [("unreadable", None, lo)]
+        return [(kind, name, at + lo) for kind, name, at in res["hits"]]
+
+    def set_module_paths(self, src: str, paths: dict[int, str]) -> None:
+        """File `src`'s module paths by module start (`read_bundle`)."""
+        self._paths[id(src)] = (src, paths)
+
+    def module_start(self, src: str, path: str) -> int | None:
+        """The start of the module whose path is `path`, if one is filed."""
+        held = self._paths.get(id(src))
+        if not held:
+            return None
+        return next((lo for lo, p in held[1].items() if p == path), None)
+
+    def modules_named(self, src: str, file: str) -> list[int]:
+        """The starts of the modules whose path ends in the file name `file`."""
+        held = self._paths.get(id(src))
+        if not held:
+            return []
+        return [lo for lo, p in held[1].items() if p.rsplit("/", 1)[-1] == file]
+
+    def module_path(self, src: str, lo: int) -> str | None:
+        """The `/$bunfs/root/...` path of the module starting at `lo`."""
+        held = self._paths.get(id(src))
+        return held[1].get(lo) if held else None
+
+    def module_spans(self, src: str) -> list[tuple[int, int]] | None:
+        """The modules `parse_module` filed for `src`, in order, if any."""
+        return self._spans.get(id(src))
+
+    def exports(self, src: str, lo: int, hi: int) -> list[str] | None:
+        """Every name the module `src[lo:hi]` exports, or None when it does
+        not parse or holds an `export*`, whose names it cannot list."""
+        res = self._send("exports", src, lo, hi)
+        if res.get("unreadable") or "error" in res or res["star"]:
+            return None
+        return res["names"]
+
+    def export_binding(
+        self, src: str, lo: int, hi: int, name: str
+    ) -> tuple[str | None, str | None] | None:
+        """How the module `src[lo:hi]` exports `name`: (local, from), `from`
+        being the path of a re-export and None for a local binding, `local`
+        None when it names no binding. None when the module does not parse
+        or does not list the name."""
+        res = self._send("exports", src, lo, hi)
+        if res.get("unreadable") or "error" in res:
+            return None
+        found = res["bindings"].get(name)
+        if found is None:
+            return None
+        return found[0], found[1]
+
+    def loads(self, src: str, lo: int, hi: int) -> list[str] | None:
+        """The file names the module `src[lo:hi]` loads whole (`import(f)`,
+        `require(f)`, `import*as N from f`, `export*from f`, `f` a literal),
+        holding "*" when it may load a file it cannot name, or None when it
+        does not parse."""
+        key = ("loads", id(src), lo)
+        if key not in self._answers:
+            res = self._send("loads", src, lo, hi)
+            self._answers[key] = {
+                "files": None if res.get("unreadable") else res["files"]
+            }
+        cached = self._answers[key]
+        assert cached is not None
+        return cached["files"]
+
+    def namespace(
+        self, src: str, lo: int, hi: int, file: str, name: str
+    ) -> dict[str, Any]:
+        """Whether every whole load of `file` in the module `src[lo:hi]`
+        reads only exports other than `name`, by name (the helper's
+        `namespace` op): {"safe": True, "trusted": [...], "thenable": bool}
+        or {"safe": False, "reason": ..., "at": offset in `src` or None}."""
+        key = ("namespace", id(src), lo, file, name)
+        cached = self._answers.get(key)
+        if cached is not None:
+            return cached
+        res = self._send("namespace", src, lo, hi, file=file, name=name)
+        if res.get("unreadable"):
+            answer: dict[str, Any] = {
+                "safe": False,
+                "reason": "the module holds a character outside the BMP",
+                "at": None,
+            }
+        elif res["safe"]:
+            answer = {
+                "safe": True,
+                "trusted": res["trusted"],
+                "thenable": res["thenable"],
+            }
+        else:
+            at = res.get("at")
+            answer = {
+                "safe": False,
+                "reason": res["reason"],
+                "at": None if at is None else at + lo,
+            }
+        self._answers[key] = answer
+        return answer
+
+    def keys_used(
+        self, src: str, name: str, spans: list[tuple[int, int]] | None = None
+    ) -> bool:
+        """Whether any module of `src` reads `name` by name as a property:
+        `x.name`, `x["name"]`, or a destructured key. A computed read with
+        any other key is not seen. The modules are those `parse_module`
+        filed for `src`, else `spans`. A module that does not parse reads
+        every name."""
+        key = ("keys", id(src), name)
+        cached = self._answers.get(key)
+        if cached is None:
+            cached = {"used": False}
+            for lo, hi in self._spans.get(id(src)) or spans or [(0, len(src))]:
+                res = self._send("keys_used", src, lo, hi, names=[name])
+                if res.get("unreadable") or res["used"]:
+                    cached["used"] = True
+                    break
+            self._answers[key] = cached
+        return cached["used"]
 
     def binding(
         self, src: str, lo: int, hi: int, name: str, offset: int | None
@@ -343,13 +524,23 @@ class ParserReader:
     ) -> dict[str, Any]:
         """Ask `op` about `name` in the module `src[lo:hi]`, sending the
         module's text when the helper does not hold it."""
-        fields: dict[str, Any] = {"module": self._module_key(src, lo, hi), "name": name}
+        fields: dict[str, Any] = {"name": name}
         fields.update({"top": True} if offset is None else {"offset": offset - lo})
+        res = self._send(op, src, lo, hi, **fields)
+        return {"found": False} if res.get("unreadable") else res
+
+    def _send(
+        self, op: str, src: str, lo: int, hi: int, **fields: Any
+    ) -> dict[str, Any]:
+        """Ask `op` about the module `src[lo:hi]`, sending its text when the
+        helper does not hold it. `unreadable` when the module holds a
+        character outside the BMP, where offsets stop matching."""
+        fields["module"] = self._module_key(src, lo, hi)
         res = self.request(op, **fields)
         if res.get("need_source"):
             text = src[lo:hi]
             if any(ord(c) > 0xFFFF for c in text):
-                return {"found": False}
+                return {"unreadable": True}
             res = self.request(op, source=text, **fields)
         return res
 
@@ -362,6 +553,11 @@ class ParserReader:
     def write_lookups(self) -> int:
         """Distinct writes lookups answered so far."""
         return sum(key[0] == "writes" for key in self._answers)
+
+    @property
+    def flow_lookups(self) -> int:
+        """Distinct flow lookups answered so far."""
+        return sum(key[0] == "flow" for key in self._answers)
 
     def _module_key(self, src: str, lo: int, hi: int) -> str:
         """A name for the module the helper caches it under. `src` is held

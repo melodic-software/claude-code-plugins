@@ -1,0 +1,2 @@
+{"type": "user", "uuid": "s-01", "promptSource": "typed", "message": {"role": "user", "content": "Delegate the widget work"}}
+{"type": "assistant", "uuid": "s-02", "message": {"id": "msg_main", "role": "assistant", "usage": {"output_tokens": 11}}}
