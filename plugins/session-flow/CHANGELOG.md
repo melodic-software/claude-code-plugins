@@ -1,10 +1,46 @@
 # Changelog: session-flow plugin
 
-## [0.45.1] - 2026-10-03
+## [0.46.2] - 2026-10-03
 
 ### Changed
 
 - Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.46.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `find-handoff` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [0.46.0] - 2026-10-02
+
+### Added
+
+- **`audit-sessions` skill.** Collects every session transcript on the machine into a durable local
+  store under the plugin data directory (one record per session, incremental, redacted excerpts of
+  short typed turns only), then sweeps the store for sessions over this machine's own thresholds
+  and routes each finding to the skill that would act on it. It never applies a finding. A drift
+  check compares the transcript format across Claude Code versions and marks a metric unavailable
+  when a field it reads disappears.
+- **One shared transcript reader**, `scripts/transcript_reader.py`, used by `audit-sessions` and
+  `retro`'s parser.
+- **Five `audit_sessions_*` options**: store retention (default 180 days), excerpt length, the
+  short-turn word limit, and the two drift-check bounds.
+- `retro` names `/session-flow:audit-sessions sweep` as its next step.
+
+### Fixed
+
+- **`retro` no longer roughly doubles token counts or counts injected records as human
+  messages** (#5818). A message streamed as several transcript records is now counted once, and
+  `human_messages` counts only turns the person typed, not slash-command output, task
+  notifications, peer-session messages, interrupts or meta records. Field names, the output shape,
+  the CLI forms and exit codes are unchanged. **One-time step in retro trend history:** token and
+  human-message numbers from this version on are lower than earlier retros' for the same kind of
+  session; compare across that step with care.
+- **`retro`'s parser reports a transcript line that is valid JSON but not an object** as a parse
+  error instead of skipping it silently.
 
 ## [0.45.0] - 2026-10-02
 

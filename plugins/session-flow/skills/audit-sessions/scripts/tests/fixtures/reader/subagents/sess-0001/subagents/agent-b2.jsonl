@@ -1,0 +1,2 @@
+{"type": "assistant", "uuid": "b2-01", "isSidechain": true, "message": {"id": "msg_b2", "role": "assistant", "usage": {"output_tokens": 4}}}
+not json
