@@ -33,7 +33,7 @@ if [[ ! -s "$TMP_ROOT/body.sh" ]]; then
   exit 1
 fi
 for line in "if: github.event.pull_request.draft == true" \
-  "CHANGES: \${{ needs.changes.result }}" \
+  "SCOPE: \${{ needs.scope.result }}" \
   "PR: \${{ github.event.pull_request.number }}"; do
   if [[ "$step" == *"$line"* ]]; then ok "step carries '$line'"; else fail "step lost '$line'"; fi
 done
@@ -49,11 +49,11 @@ printf '%s\n' "$STUB_DRAFT"
 EOF
 chmod +x "$TMP_ROOT/bin/gh"
 
-# expect <label> <want-rc> <want-gh-call: yes|no> <CHANGES> <STUB_DRAFT> <STUB_RC>
+# expect <label> <want-rc> <want-gh-call: yes|no> <SCOPE> <STUB_DRAFT> <STUB_RC>
 expect() {
   local label="$1" want_rc="$2" want_call="$3" out rc called=no
   : >"$TMP_ROOT/log"
-  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" CHANGES="$4" STUB_DRAFT="$5" STUB_RC="$6" \
+  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" SCOPE="$4" STUB_DRAFT="$5" STUB_RC="$6" \
     GITHUB_REPOSITORY=o/r PR=7 bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   [[ -s "$TMP_ROOT/log" ]] && called=yes
   if [[ "$rc" -ne "$want_rc" ]]; then

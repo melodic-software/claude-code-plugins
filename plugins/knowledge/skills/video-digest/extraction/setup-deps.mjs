@@ -14,19 +14,37 @@
  * real installs so they resolve from the data directory rather than a symlink
  * back into the plugin cache.
  *
- * Usage: node setup-deps.mjs
+ * The data directory comes from `--data-dir`, resolved like `run.mjs` resolves it
+ * (`resolvePluginData`), and nothing is written until it resolves.
+ *
+ * Usage: node setup-deps.mjs --data-dir <dir>
  */
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
+import { parseRunArgs, resolvePluginData } from "./lib/run-args.js";
+
 const here = import.meta.dirname;
-const data = process.env.CLAUDE_PLUGIN_DATA;
+const usage = "Usage: node setup-deps.mjs --data-dir <dir>\n";
+
+let data;
+try {
+  const { dataDir, script, rest: _rest, ...otherFlags } = parseRunArgs(process.argv.slice(2));
+  if (script !== undefined || Object.keys(otherFlags).length > 0) {
+    throw new Error("setup-deps.mjs takes only `--data-dir <dir>`");
+  }
+  data = resolvePluginData(dataDir, process.env);
+} catch (error) {
+  process.stderr.write(`${error.message}\n${usage}`);
+  process.exit(2);
+}
 
 if (!data) {
   process.stderr.write(
-    "CLAUDE_PLUGIN_DATA is not set. Run this inside Claude Code with the knowledge plugin installed.\n",
+    'The knowledge plugin data directory is unknown. Pass --data-dir "${CLAUDE_PLUGIN_DATA}" from the skill; ' +
+      "an inherited CLAUDE_PLUGIN_DATA that names another plugin is ignored.\n",
   );
   process.exit(1);
 }

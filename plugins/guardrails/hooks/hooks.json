@@ -6,8 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "shell": "bash",
-            "command": "command -v node >/dev/null 2>&1 || printf '%s\\n' '{\"systemMessage\":\"guardrails: node is not on PATH, so its guards cannot launch and enforce nothing. Install Node.js and restart Claude Code. Run /guardrails:check to verify.\",\"hookSpecificOutput\":{\"hookEventName\":\"SessionStart\",\"additionalContext\":\"WARNING: node is not on PATH, so the guards of the guardrails plugin cannot launch and enforce nothing. Tell the user. Run /guardrails:check to verify.\"}}'",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /guardrails:check; ${BASH_VERSION:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /guardrails:check",
             "timeout": 10,
             "statusMessage": "Checking that node is on PATH..."
           }

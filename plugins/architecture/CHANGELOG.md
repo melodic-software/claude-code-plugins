@@ -18,6 +18,12 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   unset); the procedure is in `reference/rendered-view.md`. `map-components` passes `--from` to chart the
   chosen deployable's closure.
 
+## [0.20.1] - 2026-10-03
+
+### Changed
+
+- Shared `prerequisites.sh`, `prerequisites.ps1` synced ([#5843](https://github.com/melodic-software/claude-code-plugins/issues/5843)); no change to this plugin's own behavior.
+
 ## [0.20.0] - 2026-10-03
 
 ### Changed

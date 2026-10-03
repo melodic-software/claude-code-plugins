@@ -3,6 +3,12 @@
 All notable changes to the `speech` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.4] - 2026-10-03
+
+### Changed
+
+- **SessionStart reports a missing node.** One shell-form row runs the shared node-notice, and shared `hook-utils.sh`, `prerequisites.sh`, `prerequisites.ps1` are synced ([#5843](https://github.com/melodic-software/claude-code-plugins/issues/5843)).
+
 ## [0.1.3] - 2026-10-03
 
 ### Changed

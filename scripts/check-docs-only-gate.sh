@@ -86,7 +86,7 @@
 #                           .outputs.<name> }}`, and never in a condition: its
 #                           value is not a polarity decision, and an empty one
 #                           must mean "the whole tree" to the script reading it.
-#                           The one other read is the test-linux matrix size,
+#                           The one other read is the test-bash matrix size,
 #                           pinned whole in MATRIX_READ with its four-leg
 #                           default.
 #  11. A SKIP NEVER PASSES — the aggregate's `treat-skipped-as` is `fail`, a
@@ -135,7 +135,7 @@ fi
 # The contract's literals, kept together so the whole of it reads as one block
 # rather than as constants scattered through the assertions.
 TAB="$(printf '\t')"
-RESOLVER_JOB="changes"
+RESOLVER_JOB="scope"
 DETECT_STEP_ID="detect"
 # The resolver publishes a TABLE of boolean-string outputs, not one. Every
 # polarity decision in the workflow lives in this table, and consumers only
@@ -153,7 +153,6 @@ run_full${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' }}
 run_tests${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true }}
 run_node${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['node'] != 'false' }}
 run_python${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' }}
-run_windows${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && (fromJSON(steps.match.outputs.results || '{}')['shell'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' || fromJSON(steps.match.outputs.results || '{}')['powershell'] != 'false') }}
 run_workflows${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
 run_skill_checker${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
 run_manifests${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}"
@@ -166,7 +165,7 @@ DATA_TABLE="\
 lane_base${TAB}\${{ steps.base.outputs.ref }}
 test_legs${TAB}\${{ steps.legs.outputs.legs }}
 test_needs${TAB}\${{ steps.legs.outputs.needs }}"
-# The one data read that is not an env entry: test-linux sizes its matrix from
+# The one data read that is not an env entry: test-bash sizes its matrix from
 # `test_legs`, and an unset value falls back to the full four-leg fan-out.
 MATRIX_READ="leg: \${{ fromJSON(needs.${RESOLVER_JOB}.outputs.test_legs || '[0,1,2,3]') }}"
 # The single required context. Everything reachable from its `needs` is a
@@ -293,7 +292,7 @@ parsed="$(
       # Every table name, so a BARE mention of any output — in an env value, an
       # echo, a run script — reaches the exact-shape check rather than being
       # invisible to it. Matching only the root output would have delivered the
-      # over-matching this header promises for one row out of eight.
+      # over-matching this header promises for one row out of seven.
       n_outnames = split(tolower(output_names), outnames, " ")
       if (resolver_lc == "" || n_outnames == 0) {
         print "ERR\tinternal: resolver job or output names were not supplied to the parser"

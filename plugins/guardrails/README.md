@@ -1379,10 +1379,11 @@ as before.
   resolvable on `PATH`, and we treat a row that cannot start because `node` is missing as a guard
   that enforced nothing, with no documented error to rely on. `/guardrails:check` reports a missing
   `node` or `jq`. A `SessionStart` row in shell form
-  (`"shell": "bash"`, no `args`) runs `command -v node` and needs no node itself. When node is
+  (no `shell` field and no `args`) runs `lib/prerequisites.sh node-notice`, or
+  `lib/prerequisites.ps1` where there is no `sh`, and needs no node itself. When node is
   absent it exits 0 with JSON: `systemMessage` shows the user a warning and `additionalContext`
-  tells the model that the guards cannot launch and enforce nothing. It prints nothing when node
-  is present. It does not read the per-guard toggles, because an unset toggle exports no
+  tells the model, once per session across plugins, and the notice names `/guardrails:check`.
+  It prints nothing when node is present. It does not read the per-guard toggles, because an unset toggle exports no
   environment variable and the row would need every guard's key listed by hand; a host that turns
   every guard off should disable the plugin instead. Pointer: for how an exec-form `command`
   resolves, see <https://code.claude.com/docs/en/hooks#exec-form-and-shell-form>; for a hook that

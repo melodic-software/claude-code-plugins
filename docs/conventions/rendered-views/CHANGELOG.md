@@ -9,6 +9,12 @@ versioned; this log records each change to it.
   One checked-in template plus the skill's JSON record as data, through the interactive profile, with the
   destination taken from the `medium` key. The markdown and the record stay the record.
 
+## Post-mortem and blindspot views on the builder, 2026-10-03
+
+- **`debugging:debug` and `discovery:blindspot` offer interactive views built by `lib/view-builder.mjs` (#5864).**
+  Each view is a checked-in template plus the session's JSON as data, through the interactive profile, with
+  the destination taken from the `medium` key. Log, error and repository text reaches the page only as data.
+
 ## Plan and brainstorm views move onto the builder, 2026-10-03
 
 - **`planning:plan` and `planning:brainstorm` offer interactive views built by `lib/view-builder.mjs` (#5866).**

@@ -11,6 +11,7 @@ import path from "node:path";
 import { isMainModule } from "@melodic/video-digestion/shared/main-module";
 import { writeStderr, writeStdout } from "@melodic/video-digestion/shared/terminal";
 
+import { resolvePluginData } from "../lib/run-args.js";
 import { LANES, lanePath } from "../lib/slice-lanes.js";
 import { resolveTempSession } from "../lib/temp-session-paths.js";
 import { watchStatePath } from "./watch-state.js";
@@ -99,6 +100,10 @@ export function detectRecoverableBootstrap(sliceDir) {
 }
 
 /**
+ * The command the agent runs through the Bash tool, whose environment has neither
+ * plugin variable: the launcher's absolute path, and the data directory `run.mjs`
+ * resolved for this process when it names this plugin.
+ *
  * @param {string} sliceDir
  * @returns {string}
  */
@@ -108,7 +113,10 @@ export function formatRecoverCommand(sliceDir) {
     return "";
   }
   const { workDir, framesDir, contactSheetsDir } = detection.tempSession;
-  return `node "\${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watch/recover-watch-bootstrap.js "${sliceDir}" "${workDir}" "${framesDir}" "${contactSheetsDir}"`;
+  const launcher = path.join(import.meta.dirname, "..", "run.mjs").split(path.sep).join("/");
+  const dataDir = resolvePluginData(undefined, process.env);
+  const dataFlag = dataDir ? ` --data-dir "${dataDir}"` : "";
+  return `node "${launcher}"${dataFlag} watch/recover-watch-bootstrap.js "${sliceDir}" "${workDir}" "${framesDir}" "${contactSheetsDir}"`;
 }
 
 /**

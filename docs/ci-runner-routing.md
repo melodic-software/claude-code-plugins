@@ -39,11 +39,12 @@ reviewed pull request.
 ## Routing and failure behavior
 
 The `ci-status` required check depends on every **required** workload lane
-(`changes`, `lint`, `lint-2`, `test-linux`, `hook-utils`) and requires
+(`scope`, `lint-repo`, `lint-shell`, `check-plugins`, `check-skills`,
+`test-bash`) and requires
 each result to be `success`, failing closed through execution
 (`!cancelled()`, never a success-guard, so a skipped lane cannot report
 success to branch protection). On a draft pull request every lane but
-`changes` carries a draft gate, so a draft run lints and tests nothing, and its
+`scope` carries a draft gate, so a draft run lints and tests nothing, and its
 `ci-status` fails (`draft: lanes not run`) and records `ci-lanes=failure`
 (`scripts/check-docs-only-gate.sh` pins both). A green draft would be the
 newest `ci-status` on the SHA from the flip to ready until the
@@ -53,24 +54,34 @@ aggregate, as an informational platform lane; `test-windows.yml` says so at the
 top of the file and warns against wiring it into any required check. It runs in
 its own workflow because nothing gates on it and, inside `ci.yml`, it was the
 longest job in the run: time-to-green is measured to the run's completion, so an
-advisory lane was setting the number. It re-derives its own `run_windows` from
-the same detector and the same two filter groups `ci.yml` uses, because job
-outputs do not cross workflow files; the two rows are kept byte-identical. The
+advisory lane was setting the number. Its `on.paths` filters repeat the `shell`,
+`python` and `powershell` groups of `ci.yml`'s change-detection table, so a diff
+that touches none of them starts no Windows run; the two are kept in step by
+hand. The
 metadata checks (Conventional Commits title,
 `do-not-merge` label, issue linkage) run as the `pr-contract` composite step
 inside the same `ci-status` job on the same hosted runner, so they no longer
 carry status contexts of their own. Fork pull requests receive no secrets and
 no automated review, by design.
 
-`lint` and `lint-2` are two halves of one hygiene lane, split across two
-runners and balanced on measured wall time; every gate keeps the name it always
-had, and each half carries its own `aggregate-hygiene-results.sh` feed over
-exactly its own gate steps. ShellCheck runs in `hook-utils` with a one-row feed
-of its own, so its whole-repository scan does not set `lint`'s wall time.
+Jobs are named `<verb>-<domain>` and the job id is the check name: `lint`
+runs linters over source, `check` holds a repository contract across files,
+`test` executes code. `lint-repo` lints the repository as a whole (text
+hygiene, the CI configuration, the docs conventions); `lint-shell` runs
+ShellCheck and the gates that read shell source; `check-plugins` holds the
+plugin manifests, changelogs, hook declarations, `claude plugin validate`, the
+counter ceilings and every shared-library sync; `check-skills` holds the skill
+and eval contracts, check 25 included; `test-bash` runs the affected contract
+suites, with the Node sub-projects and the disk-hygiene module as steps. A
+domain is its own job only when that shortens the critical path by more than a
+job's fixed cost (about 15 s bare, about 40 s with a toolchain), which is why
+those last two ride `test-bash`. Every gate keeps its step name and its `id`,
+which is its aggregator key, and each job carries its own
+`aggregate-hygiene-results.sh` feed over exactly its own gate steps.
 
 ## What each event tests
 
-The `changes` job resolves one diff base, published as `lane_base`, and every
+The `scope` job resolves one diff base, published as `lane_base`, and every
 diff-scoped step diffs against it:
 
 - **Pull request:** the base branch. The contract suites are the affected
@@ -83,7 +94,8 @@ diff-scoped step diffs against it:
   waits. With no such run among the last 50, or a range that touches the
   shared test machinery (`ci.yml`, `.github/actions/`, the suite runner and
   selector, `scripts/lib/`, the toolchain pins), the push tests the whole tree.
-- **Schedule (05:17 and 17:17 UTC) and dispatch:** the whole tree. That means
+- **Schedule (09:17 and 16:17 UTC, two of the workflow's quietest hours) and
+  dispatch:** the whole tree. That means
   the full contract corpus, the whole-repository ShellCheck, and the check-25
   scan over every skill. This run catches what a diff cannot show: a suite that
   asserts against the live tree, or a dependency the selector does not see.
@@ -99,7 +111,7 @@ to the whole tree when there is no diff base or `ci.yml` changed, and the
 scheduled run scans everything. Replayed on 20 recent pull requests, every
 skipped or narrowed scan landed on a whole-tree success.
 
-`changes` also plans `test-linux`: one leg per 25 selected suites, one to
+`scope` also plans `test-bash`: one leg per 25 selected suites, one to
 four (four on the whole tree or an UNMAPPED file), and, per leg, whether its
 slice needs the animation wheels, the inventory's parser packages or the DuckDB
 CLI. A leg installs only those; the shfmt and DuckDB downloads are cached.
@@ -119,12 +131,12 @@ newest status the Actions bot wrote is `success`.
 
 No run waits on another run:
 
-1. A full run's `changes` job first writes `ci-lanes=pending` on the head SHA.
+1. A full run's `scope` job first writes `ci-lanes=pending` on the head SHA.
    A contract-only run that reads it goes red at once instead of carrying an
    older verdict forward while the lanes are in flight. Before its marker is
    written, the full run is queued or in progress on the SHA, and the
    contract-only run goes red at once on that too: one runs listing, where a
-   sibling whose `changes` job was skipped (contract-only) or whose `ci-status`
+   sibling whose `scope` job was skipped (contract-only) or whose `ci-status`
    job has started (writing its verdict) does not count.
 2. The full run's own `ci-status` check run appears only when its lanes finish.
    It is newer than the red one, and the newest same-name check run is the one
