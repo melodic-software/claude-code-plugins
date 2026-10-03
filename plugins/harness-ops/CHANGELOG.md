@@ -24,6 +24,16 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   `--effort`, and warns once per run when `CLAUDE_CODE_EFFORT_LEVEL` is set, since it overrides
   lane levels and agent pins. The lanes config example picks each lane's level from that table.
 
+## [2.5.4] - 2026-10-02
+
+### Security
+
+- The `observability` HTML dashboard is built by a checked-in builder
+  (`skills/observability/scripts/build-dashboard.mjs`) that escapes every telemetry-derived field
+  through the rendered-views escape helper, now carried at `lib/html-escape.mjs`, and stamps the
+  generator marker. The page has no script, and a hostile skill, hook, or session name renders as
+  text. `build-dashboard.mjs --check <file>` flags a page that bypassed the builder.
+
 ## [2.5.3] - 2026-10-02
 
 ### Changed
