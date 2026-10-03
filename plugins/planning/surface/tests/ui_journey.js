@@ -243,9 +243,11 @@ async page => { // the user journey in order on one page, no reload after phase 
     const f4 = await page.$eval("#filter", el => el.value);
     await page.selectOption("#filter", "open"); await page.waitForTimeout(200);
     const open4 = (await page.$$eval(".rail-list .qbtn", els => els.map(e => e.dataset.q))).join(",");
+    await page.selectOption("#filter", "review"); await page.waitForTimeout(200);
+    const review4 = (await page.$$eval(".rail-list .qbtn", els => els.map(e => e.dataset.q))).join(",");
     await page.selectOption("#filter", f4); await page.waitForTimeout(150);
     const cards4 = await text('.qbtn[data-q="Q2"]') + await text('.qbtn[data-q="Q4"]');
-    ok("Claude's confirm-commitments line after an answer is not a reply: Q2 and Q4 stay settled, off Show: Open and without the after-answer chip", !/Q[24]/.test(open4) && !/after your answer/.test(cards4) && /Q3/.test(open4) && (await text("#meterText")) === "4 of 7 answered", open4 + " / " + cards4 + " / " + await text("#meterText"));
+    ok("Claude's confirm-commitments line after an answer is not a reply: Q2 and Q4 stay settled, off Show: Open and Show: Review and without the after-answer chip; Q3, answered with a later reply, is under Review", !/Q[24]/.test(open4 + review4) && !/after your answer/.test(cards4) && /Q3/.test(review4) && !/Q3/.test(open4) && (await text("#meterText")) === "4 of 7 answered", open4 + " / " + review4 + " / " + cards4 + " / " + await text("#meterText"));
     ok("Wrap up warns while assumptions are open and stays enabled", /^3 assumptions not confirmed yet\.$/.test(await text("#openAssumeWarn")) && !(await page.$eval('[data-wrapup="1"]', el => el.disabled)), await text("#openAssumeWarn"));
     const n1 = (await events()).length;
     await tap("[data-confirmall]", 1500);

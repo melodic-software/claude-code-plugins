@@ -1,6 +1,18 @@
 {
   "description": "Gates pull-request and worktree operations: a PR body against the repo's PR-contract linkage gate on both the CLI and the GitHub MCP path, and a `git worktree add` target against the nesting invariant.",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /source-control:check; ${BASH_VERSION:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /source-control:check",
+            "timeout": 10,
+            "statusMessage": "Checking that node is on PATH..."
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",

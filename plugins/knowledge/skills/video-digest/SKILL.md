@@ -11,7 +11,7 @@ shell: bash
 ## Pre-computed context
 
 ```!
-{ printf 'video-extraction deps: '; node -e "const fs=require('fs'),path=require('path'),p=process.env.CLAUDE_PLUGIN_DATA;console.log(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')" 2>/dev/null || echo "MISSING - node not found (see Prerequisites)"; }
+{ printf 'video-extraction deps: '; node -e "const fs=require('fs'),path=require('path'),p=process.argv[1];console.log(p&&fs.existsSync(path.join(p,'node_modules','@melodic','video-digestion'))?'installed':'MISSING - run setup-deps.mjs (see Prerequisites)')" "${CLAUDE_PLUGIN_DATA}" 2>/dev/null || echo "MISSING - node not found (see Prerequisites)"; }
 { printf 'yt-dlp: '; command -v yt-dlp >/dev/null 2>&1 && { yt-dlp --version 2>/dev/null | head -1; :; } || echo "MISSING — install yt-dlp (see Prerequisites)"; }
 { printf 'ffmpeg: '; command -v ffmpeg >/dev/null 2>&1 && { ffmpeg -version 2>/dev/null | head -1; :; } || echo "MISSING — install ffmpeg (watch action only)"; }
 { printf 'ImageMagick: '; command -v magick >/dev/null 2>&1 && { magick -version 2>/dev/null | head -1; :; } || echo "MISSING — install ImageMagick 7 (watch action only)"; }
@@ -80,7 +80,7 @@ own). Resolution rungs in `context/watch-pipeline.md`.
 ## Transcript action
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" transcript/run-transcript.js "<url>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" transcript/run-transcript.js "<url>"
 ```
 
 1. **Acquire**. Captions + info JSON (`--skip-download`)
@@ -106,8 +106,8 @@ release, FIFO, stale reclaim, parallel terminals, companion briefs, is in `conte
 read it for any queue action. Template: `templates/queue.md`.
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" acquisition/preflight-metadata.js "<url>" ["<url>"...]
-node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watch/queue-claim.js {list|claim <n>|release <n>|stale-check}
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" acquisition/preflight-metadata.js "<url>" ["<url>"...]
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" watch/queue-claim.js {list|claim <n>|release <n>|stale-check}
 ```
 
 ## Watch action
@@ -124,7 +124,7 @@ Ordered phase spine. Each phase's procedure, inputs, and outputs: `context/watch
    harvest):
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watch/run-watch.js "<url>" [--skip-research] [--target <repo>] [--max-frame-gap-sec <sec>]
+   node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" watch/run-watch.js "<url>" [--skip-research] [--target <repo>] [--max-frame-gap-sec <sec>]
    ```
 
    `--max-frame-gap-sec` sets the longest stretch between timed frames before a gap-fill frame is
@@ -162,7 +162,7 @@ it carries depends on which 0-case it is. See `reference/sources/x.md`.
 ## Resume action
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" watch/run-resume.js "<slice-slug>"
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" watch/run-resume.js "<slice-slug>"
 ```
 
 Reads the slice `watch.json`, identifies the next incomplete phase (`acquire` → `transcript` →
@@ -191,13 +191,21 @@ before writing or staging slice artifacts.
 
 ## Spoke paths
 
-The `context/` and `reference/` files write this skill's directory as `<skill-dir>`, which is
-`${CLAUDE_SKILL_DIR}`. Put that path in place of the placeholder before running a command or
+The `context/`, `reference/` and `templates/` files write this skill's directory as `<skill-dir>`,
+which is `${CLAUDE_SKILL_DIR}`, and the plugin data directory as `<plugin-data>`, which is
+`${CLAUDE_PLUGIN_DATA}`. Put those paths in place of the placeholders before running a command or
 writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
 in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_SKILL_DIR` to expand it from. Basis: the plugins reference,
+`CLAUDE_SKILL_DIR` to expand it from.
+
+Every `run.mjs` and `setup-deps.mjs` command takes the leading `--data-dir` flag shown above.
+The Bash tool's environment does not carry this plugin's `CLAUDE_PLUGIN_DATA`, and another
+plugin's SessionStart hook can put its own data directory there under that name. The scripts
+therefore take the directory from the flag, and accept an inherited value only when it names this
+plugin. Basis: the plugins reference,
 <https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+2026-10-02; recheck when that table adds supporting files to where a `${…}` reference resolves, or
+lists the Bash tool among the processes that receive the variables.
 
 ## Gotchas
 
@@ -210,7 +218,7 @@ patterns live in the source spokes.
 
 Verify before starting (stop and route to the fix path on failure):
 
-1. **video-extraction deps**. `node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/setup-deps.mjs"`.
+1. **video-extraction deps**. `node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"`.
    Installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin
    updates); idempotent. Safe to re-run, and re-run after a plugin update.
 2. **yt-dlp**, required for all actions. Floor **2026.6**. Install: `winget install yt-dlp.yt-dlp`

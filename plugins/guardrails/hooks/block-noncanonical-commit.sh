@@ -118,7 +118,7 @@ start=${EPOCHREALTIME:-}
 # pipe, a transport fault) is a loud skip the dispatcher takes once.
 # Buffering does not require jq
 # (hook::buffer_stdin's own JSON-completeness check is jq-optional), so it runs
-# before the jq gate below — hook::require_jq needs the buffered input for its
+# before the jq gate below — hook::require jq needs the buffered input for its
 # once per session and agent notice scoping.
 hook::buffer_stdin_to INPUT || {
   rc=$?
@@ -126,17 +126,17 @@ hook::buffer_stdin_to INPUT || {
   exit 0
 }
 
-# jq is required to parse the tool payload. hook::require_jq fails OPEN
+# jq is required to parse the tool payload. hook::require jq fails OPEN
 # (advisory hooks never block over a missing prerequisite) but makes the
 # degraded state visible to both the user (systemMessage) and the agent
 # (additionalContext), once per session and agent — see docs/conventions/hook-observability/.
-hook::require_jq "PreToolUse" "guardrails-block-noncanonical-commit" "$INPUT"
+hook::require jq "PreToolUse" "guardrails-block-noncanonical-commit" "$INPUT"
 
 # All three payload fields in ONE jq process (hook::jq_fields), not three. A jq
 # spawn is fork() emulation on Windows Git Bash and this guard runs on every
 # Bash/PowerShell call. Failure semantics are unchanged: a missing jq or an
 # unparsable payload yields rc 1 here, which exits 0 exactly as the empty-COMMAND
-# skip below did — hook::require_jq above has already made the degraded state
+# skip below did — hook::require jq above has already made the degraded state
 # visible once per session and agent. The `// "Bash"` default moves to the bash-side
 # expansion, matching block-dangerous-git.
 hook::jq_fields "$INPUT" '.tool_input.command' '.cwd' '.tool_name' || exit 0

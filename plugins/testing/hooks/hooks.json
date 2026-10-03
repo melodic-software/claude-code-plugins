@@ -1674,6 +1674,16 @@
             "timeout": 30
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /testing:check; ${BASH_VERSION:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /testing:check",
+            "timeout": 10,
+            "statusMessage": "Checking that node is on PATH..."
+          }
+        ]
       }
     ]
   }

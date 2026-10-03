@@ -527,7 +527,7 @@ hook::_c_locale typos_classify_report_only ||
       }' 2>/dev/null) || CLASSIFIED=""
 
 if [[ -z "$CLASSIFIED" ]]; then
-  # jq is already a hard prerequisite (hook::require_jq above), so this is
+  # jq is already a hard prerequisite (hook::require jq above), so this is
   # near-unreachable. It still must not degrade into silence: the file may
   # already have been rewritten, and "changed, details unavailable" is a far
   # better answer than nothing.
@@ -554,7 +554,7 @@ fi
 # before every newline and carry a literal \r into the emitted context.
 #
 # The failure arm is near-unreachable — jq is a hard prerequisite
-# (hook::require_jq above) and CLASSIFIED is jq's own output — but it must not
+# (hook::require jq above) and CLASSIFIED is jq's own output — but it must not
 # leave the display strings unset under `set -u`.
 if hook::jq_fields "$CLASSIFIED" \
   '.appliedCount' '.residualCount' '.appliedText' '.appliedInline' '.residualText' \

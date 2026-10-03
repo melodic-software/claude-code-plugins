@@ -3,13 +3,25 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.21.5] - 2026-10-03
+## [0.22.1] - 2026-10-03
 
 ### Changed
 
 - **Shared `hook-utils.sh` synced ([#5838](https://github.com/melodic-software/claude-code-plugins/issues/5838)); no change to this plugin's hooks.**
   It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
   the canonical, not the copy.
+
+## [0.22.0] - 2026-10-03
+
+### Added
+
+- A `SessionStart` hook row reports a missing `node` once per session, on both hook channels, and works on Windows without Git Bash. The notice names `/testing:check`. The row is shared across plugins, so a session with several of them sees one notice.
+- `lib/prerequisites.mjs`, `lib/prerequisites.sh` and `lib/prerequisites.ps1`, the generated copies of the shared prerequisites checker and its `node-notice` stubs.
+
+### Changed
+
+- The shared hook helper has `hook::require <id>` in place of `hook::require_jq`. Its skip notice is built from the plugin's declared `prerequisites.json` entry and names `/<plugin>:check`, not `/harness-ops:prerequisites`.
+- Hooks call `hook::require jq` where they called `hook::require_jq`.
 
 ## [0.21.4] - 2026-10-02
 

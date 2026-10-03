@@ -80,6 +80,8 @@ End with one scan-scope disclosure line: which lane(s) ran and what was and was 
 read, sources fetched), so the user knows what the cards do and do not cover. One line, not a
 methodology dump.
 
+For a long card list, offer an interactive view (cards filterable by type, a tick for each that was news, a copy-out of the reaction). The page is never written beside the cards, which stay the record. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs`, never hand-written; the publish destination comes from the `medium` cascade key. Procedure and data shape: [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
+
 This skill does NOT write `EXPLORE.md`. Its deliverable is the user's understanding plus the improved
 prompt. When the scan's findings also serve as stage-1 codebase exploration, offer to hand off to
 `/discovery:explore` to persist the `EXPLORE.md` artifact rather than

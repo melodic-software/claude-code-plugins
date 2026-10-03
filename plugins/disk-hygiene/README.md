@@ -69,10 +69,11 @@ at preview. Backups remain the recovery boundary for user data.
 - Node.js on `PATH`. Every guard and detector registration runs `node hooks/exec-bash.mjs`, and Claude Code's
   native binary neither ships nor uses Node ([Setup](https://code.claude.com/docs/en/setup)), so
   without `node` no hook launches and no guard is enforced. A `SessionStart` row in shell form
-  (`"shell": "bash"`, no `args`) runs `command -v node` and needs no node itself. When node is
+  (no `shell` field and no `args`) runs `lib/prerequisites.sh node-notice`, or
+  `lib/prerequisites.ps1` where there is no `sh`, and needs no node itself. When node is
   absent it exits 0 with JSON: `systemMessage` shows the user a warning and `additionalContext`
-  tells the model that the destructive-delete guard cannot launch and enforces nothing. It prints
-  nothing when node is present. Basis: https://code.claude.com/docs/en/hooks, "SessionStart"
+  tells the model, once per session across plugins, and the notice names `/disk-hygiene:check`.
+  `disk_hygiene_enabled` set to false silences it. It prints nothing when node is present. Basis: https://code.claude.com/docs/en/hooks, "SessionStart"
   (plain stdout reaches Claude only, and exit-2 stderr reaches the user only) and "JSON output"
   (`systemMessage` is a warning shown to the user).
 - Bash that `hooks/exec-bash.mjs` can find. The file's header comment lists the candidates in

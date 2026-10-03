@@ -1383,20 +1383,20 @@ rm -rf "$repo3"
 # matrix with no shard spec runs the whole selection on every leg. Pinned
 # together, in the job that owns them.
 live_ci="$REPO_ROOT/.github/workflows/ci.yml"
-test_linux_block="$(awk '
+test_bash_block="$(awk '
   /^  [A-Za-z_][A-Za-z0-9_-]*:[[:blank:]]*(#.*)?$/ {
     job = $0; sub(/:.*$/, "", job); sub(/^  /, "", job)
   }
-  job == "test-linux"
+  job == "test-bash"
 ' "$live_ci")"
 # shellcheck disable=SC2016 # deliberate: these are workflow literals to match, not shell expansions.
-if grep -q 'affected-tests\.sh --run --jobs 3 --shard "\$LEG/\$LEGS"' <<<"$test_linux_block" &&
-  grep -q '^    strategy:' <<<"$test_linux_block" &&
-  grep -q 'LEG: \${{ strategy\.job-index }}' <<<"$test_linux_block" &&
-  grep -q 'LEGS: \${{ strategy\.job-total }}' <<<"$test_linux_block"; then
-  ok "ci.yml test-linux declares a matrix, runs three suites at a time, and passes the leg through to --shard"
+if grep -q 'affected-tests\.sh --run --jobs 3 --shard "\$LEG/\$LEGS"' <<<"$test_bash_block" &&
+  grep -q '^    strategy:' <<<"$test_bash_block" &&
+  grep -q 'LEG: \${{ strategy\.job-index }}' <<<"$test_bash_block" &&
+  grep -q 'LEGS: \${{ strategy\.job-total }}' <<<"$test_bash_block"; then
+  ok "ci.yml test-bash declares a matrix, runs three suites at a time, and passes the leg through to --shard"
 else
-  fail "ci.yml test-linux no longer fans the affected selection across a matrix at --jobs 3"
+  fail "ci.yml test-bash no longer fans the affected selection across a matrix at --jobs 3"
 fi
 
 # --- ci.yml never asks for more than the proven three ------------------------

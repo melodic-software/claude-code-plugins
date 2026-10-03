@@ -14,7 +14,8 @@
 //   3. No plugin file runs a tool from scripts/prerequisites-tools.txt that the
 //      plugin's valid file does not declare. Gap `<tool>`. A line carrying
 //      `prereq-ok: <reason>` is exempt. Test files, fixtures and evals are not
-//      scanned: they run in CI, not on a user's machine.
+//      scanned: they run in CI, not on a user's machine. Neither are generated
+//      copies of a shared library, which the canonical source owns.
 // A baseline row that no longer matches a gap fails too, so the list only shrinks.
 // --write-baseline rewrites the baseline from the current tree.
 //
@@ -228,6 +229,7 @@ export function collect(root) {
     const declared = valid ? declaredTools(manifest) : new Set();
     for (const rel of walk(pluginRoot)) {
       const text = readFileSync(path.join(pluginRoot, rel), "utf8");
+      if (text.slice(0, 300).includes("GENERATED from ")) continue;
       for (const { tool, line } of usesOf(rel, text, tools)) {
         if (!declared.has(tool)) addGap(`${name} ${tool}`, `plugins/${name}/${rel}:${line}`);
       }

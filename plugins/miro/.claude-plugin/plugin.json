@@ -1,6 +1,6 @@
 {
   "name": "miro",
-  "version": "0.6.0",
+  "version": "0.6.2",
   "description": "Miro board management over the Model Context Protocol: create and manage boards, sticky notes, shapes, frames, connectors, and tags for EventStorming, brainstorming, and diagramming. Ships a local stdio MCP server that installs its pinned npm dependencies on first launch (needs Node.js 24+ and npm); installs disabled, so opt in. The server starts without a Miro API token; until one is set, each tool call explains how to set it.",
   "author": {
     "name": "Melodic Software",

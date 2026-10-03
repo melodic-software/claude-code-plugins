@@ -118,8 +118,8 @@
 # `--language-dialect bash`: the man page default `auto` can fall through to
 # posix for a file whose name does not say which shell it is.
 #
-# Pin: mvdan/sh v3.14.1 (SHA-256 in .claude/cloud-bootstrap.sh and the lint-2
-# install step). v3.12.0, the previous pin, parses `$(printf a)#tag; emit ...`
+# Pin: mvdan/sh v3.14.1 (SHA-256 in .claude/cloud-bootstrap.sh and the
+# check-skills install step). v3.12.0, the previous pin, parses `$(printf a)#tag; emit ...`
 # as one statement and drops the call, which is the silent loss this gate
 # exists to stop. v3.13.0 is the first release that keeps both calls. shfmt
 # missing, or a non-zero parse, is exit 2. A file this gate cannot read is
@@ -286,7 +286,7 @@ if ! command -v jq >/dev/null 2>&1; then
   echo "check-detector-eval-coverage: jq not found; cannot read any eval suite" >&2
   exit 2
 fi
-# Same pin as .claude/cloud-bootstrap.sh and the lint-2 install step.
+# Same pin as .claude/cloud-bootstrap.sh and the check-skills install step.
 # shfmt --to-json is how emit call sites are read; without it the gate cannot
 # see its input. Older than v3.13.0 drops a call after `#` following a
 # command substitution or a backtick, and that drop is a silent pass.

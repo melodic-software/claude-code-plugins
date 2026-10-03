@@ -15,6 +15,7 @@ the reviewer to confirm the description still names that intent, or to restore t
 | Skill | What it does |
 |---|---|
 | `/skill-quality:check` | Runs the contract gate (`check`), reports the shared listing budget (`listing-budget`), schema-validates and quality-lints evals (`validate-evals`), or scores description auto-invocation probes (`measure-invocation`). |
+| `/skill-quality:check-prerequisites` | Read-only report of whether the tools the plugin declares in `prerequisites.json` resolve. Installs nothing. |
 | `/skill-quality:setup` | Check-only: resolves and verifies the skills directory and prints the guidance for routing a non-default `skills_root` change through Claude Code. |
 
 ## Checks

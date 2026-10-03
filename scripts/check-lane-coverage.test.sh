@@ -169,7 +169,7 @@ feed_of() {
 expect "bare invocation exits 2 with usage" 2 "usage:"
 expect "unknown mode exits 2 with usage" 2 "usage:" --verify
 expect "missing workflow exits 2" 2 "workflow not found" --check "$scratch/nope.yml"
-expect "excess arguments exit 2" 2 "usage:" --check "$scratch/nope.yml" ci-status "$NONE" extra
+expect "excess arguments exit 2" 2 "usage:" --check "$scratch/nope.yml" ci-status "$NONE" "$scratch" extra
 
 write_workflow "$scratch/list-missing.yml" "" "$(needs_of alpha beta)"
 expect "missing step opt-out list exits 2" 2 "step opt-out list not found" \
@@ -343,7 +343,7 @@ expect "a feed row for a step without continue-on-error fails" 1 \
 # sanctioned is scripts/check-docs-only-gate.sh's question, not this one.)
 write_step_workflow "$scratch/steps-overridden-feed.yml" \
   "$(steps_of gate:shellcheck)" \
-  "            shellcheck=\${{ needs.changes.outputs.run_full == 'false' && 'success' || steps.shellcheck.outcome }}"
+  "            shellcheck=\${{ needs.scope.outputs.run_full == 'false' && 'success' || steps.shellcheck.outcome }}"
 expect "an overridden feed row still pairs with its gate step" 0 "all 1 gate step(s) fed" \
   --check "$scratch/steps-overridden-feed.yml" ci-status "$NONE"
 
@@ -422,9 +422,61 @@ expect "a malformed opt-out entry exits 2" 2 "malformed entry in" \
   --check "$scratch/steps-paired-again.yml" ci-status \
   "$(optout_list "$scratch/ol-malformed.txt" "lint:typos  the separator is a slash")"
 
+# --- ACROSS workflows: a check name another workflow also carries -----------
+#
+# The peer directory holds the workflow under test and its peers. A job id, a
+# literal `name:` and a reusable-workflow job (whose checks are `<job> /
+# <inner job>`, so never a plain twin) each take one case.
+
+peers="$scratch/peers"
+mkdir -p "$peers"
+write_workflow "$peers/ci.yml" "" "$(needs_of alpha beta)"
+cat >"$peers/other.yml" <<'YAML'
+name: other
+
+on:
+  pull_request:
+
+jobs:
+  gamma:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo ok
+  named:
+    name: delta
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo ok
+  alpha:
+    uses: some-org/some-repo/.github/workflows/lane.yml@v1
+YAML
+expect "no check name shared with a peer workflow passes" 0 "no check name shared with 1 peer workflow(s)" \
+  --check "$peers/ci.yml" ci-status "$NONE" "$peers"
+
+cat >"$peers/twin.yml" <<'YAML'
+name: twin
+
+on:
+  push:
+
+jobs:
+  renamed:
+    name: beta
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo ok
+YAML
+expect "a check name a peer workflow also carries fails and names it" 1 \
+  "SHARED CHECK NAME: job 'beta'" \
+  --check "$peers/ci.yml" ci-status "$NONE" "$peers"
+
+expect "a missing peer directory exits 2" 2 "peer workflow directory not found" \
+  --check "$peers/ci.yml" ci-status "$NONE" "$scratch/no-such-dir"
+
 # --- the real workflow ------------------------------------------------------
 
 expect "the repository's own ci.yml is fully covered" 0 "reachable from ci-status.needs" --check
+expect "no ci.yml check name is shared with another workflow here" 0 "no check name shared with" --check
 expect "every gate step in the repository's own ci.yml is fed or opted out" 0 \
   "gate step(s) fed to the aggregator" --check
 

@@ -119,6 +119,8 @@ Examples:
 - `/careful`, blocks rm -rf, DROP TABLE, force-push, kubectl delete via PreToolUse matcher on Bash
 - `/freeze`, blocks any Edit/Write outside a specific directory
 
+These are settings hooks. For a mod, a plugin of function hooks, load the built-in `plugin-authoring` skill before writing one.
+
 ---
 
 ## Distribution
