@@ -15,8 +15,9 @@ only after that version increases.
   on media fragments as a cue to update yt-dlp. `run-watch.js` writes a stderr progress line at
   the start and end of acquire, transcript (with the strategy), and watching. `mark-phase vision`
   records contact sheets triaged, cells triaged, and the promotion-map count so
-  `vision-metrics-honesty` runs. A bare URL in the action router means `watch <url>`. A successful
-  `close` removes only the directories recorded in that slice's `tempSession`.
+  `vision-metrics-honesty` runs. A bare URL in the action router, the argument hint, and the
+  Arguments line means `watch <url>`. A successful `close` removes the resolved directories
+  recorded in that slice's `tempSession`, after checking each one is inside the OS temp dir.
 
 ## [0.19.2] - 2026-10-03
 

@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, symlinkSync, writeFileSync } from "node:fs";
 import { mkdir, mkdtemp, readFile as realReadFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -597,6 +597,39 @@ describe("close removes recorded tempSession directories", () => {
       await rm(dirs.framesDir, { recursive: true, force: true });
       await rm(dirs.sheetsDir, { recursive: true, force: true });
       await rm(dirs.leftover, { recursive: true, force: true });
+    }
+  });
+
+  it("deletes the directory a recorded symlink resolves to", async () => {
+    const sliceDir = await mkdtemp(path.join(os.tmpdir(), "watch-close-slice-"));
+    const target = await mkdtemp(path.join(os.tmpdir(), "video-extraction-target-"));
+    const framesDir = await mkdtemp(path.join(os.tmpdir(), "video-frames-"));
+    const sheetsDir = await mkdtemp(path.join(os.tmpdir(), "video-sheets-"));
+    const link = path.join(os.tmpdir(), `video-extraction-link-${path.basename(target)}`);
+    writeFileSync(path.join(target, "keep.txt"), "x");
+    symlinkSync(target, link, "dir");
+    let state = sampleTalk();
+    for (const phase of ["acquire", "transcript", "watching", "vision", "harvest", "research"]) {
+      state = markPhaseComplete(state, phase);
+    }
+    state.status = "synthesizing";
+    state.tempSession = {
+      workDir: link,
+      framesDir,
+      contactSheetsDir: sheetsDir,
+      acquiredAt: "2026-10-03T00:00:00.000Z",
+    };
+    await writeWatchState(sliceDir, state);
+    try {
+      expect(await runClose(sliceDir, { verifyOutcomes: async () => 0 })).toBe(0);
+      expect(existsSync(target)).toBe(false);
+      expect(existsSync(path.join(target, "keep.txt"))).toBe(false);
+    } finally {
+      await rm(sliceDir, { recursive: true, force: true });
+      await rm(target, { recursive: true, force: true });
+      await rm(link, { recursive: true, force: true });
+      await rm(framesDir, { recursive: true, force: true });
+      await rm(sheetsDir, { recursive: true, force: true });
     }
   });
 

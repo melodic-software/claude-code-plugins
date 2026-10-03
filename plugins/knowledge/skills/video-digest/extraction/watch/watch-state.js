@@ -210,26 +210,28 @@ function osTempRoot() {
 }
 
 /**
- * True when `dir` exists, is a directory, and is strictly inside the OS temp dir.
+ * The real directory inside the OS temp dir, or null.
  * A missing path, a file, the temp root itself, or anything outside it is not removable.
+ * The caller deletes this resolved path, the one the check validated.
  *
  * @param {string} dir
- * @returns {boolean}
+ * @returns {string|null}
  */
-function isRemovableTempDir(dir) {
+function resolveRemovableTempDir(dir) {
   let real;
   try {
     real = realpathSync.native(dir);
   } catch {
-    return false;
+    return null;
   }
   const rel = path.relative(osTempRoot(), real);
-  if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) return false;
+  if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) return null;
   try {
-    return statSync(real).isDirectory();
+    if (!statSync(real).isDirectory()) return null;
   } catch {
-    return false;
+    return null;
   }
+  return real;
 }
 
 /**
@@ -248,8 +250,9 @@ export async function removeRecordedTempSessionDirs(tempSession) {
   );
   for (const key of TEMP_SESSION_DIR_KEYS) {
     const dir = resolved[key];
-    if (!dir || !isRemovableTempDir(dir)) continue;
-    await fs.rm(dir, { recursive: true, force: true });
+    const real = dir ? resolveRemovableTempDir(dir) : null;
+    if (!real) continue;
+    await fs.rm(real, { recursive: true, force: true });
   }
 }
 
