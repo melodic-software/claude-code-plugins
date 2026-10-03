@@ -307,3 +307,5 @@ lib/view-builder.mjs plugins/harness-ops/lib/view-builder.mjs
 lib/view-runtime.js plugins/harness-ops/lib/view-runtime.js
 lib/mermaid-gate.mjs plugins/visualization/lib/mermaid-gate.mjs
 lib/mermaid-gate.mjs plugins/architecture/lib/mermaid-gate.mjs
+lib/write-snapshot.mjs plugins/rate-limit-guard/lib/write-snapshot.mjs
+lib/write-snapshot.mjs plugins/context-guard/lib/write-snapshot.mjs

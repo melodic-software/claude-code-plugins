@@ -1636,6 +1636,10 @@ jobs:
         if: needs.scope.outputs.run_tests == 'true'
         run: node --test lib/exec-bash.resolver.test.mjs
 
+      - name: Test the guards' snapshot writer
+        if: needs.scope.outputs.run_tests == 'true'
+        run: node --test lib/write-snapshot.test.mjs
+
       - name: Check for unregistered or drifted cross-plugin source clusters
         if: needs.scope.outputs.run_tests == 'true'
         run: scripts/check-cross-plugin-source-drift.sh --check

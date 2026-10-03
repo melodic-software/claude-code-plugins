@@ -343,6 +343,10 @@ jobs:
       # real Git Bash through node.exe.
       - name: Test the exec-form bash launcher resolver on Windows
         run: node --test lib/exec-bash.resolver.test.mjs
+      # The guards' snapshot writer under the real node.exe: rename over an
+      # existing file, exclusive temp and lock files, and the sweep on NTFS.
+      - name: Test the guards' snapshot writer on Windows
+        run: node --test lib/write-snapshot.test.mjs
 
   test-windows-lib:
     # `test-windows-rename-1`'s gate, verbatim.
