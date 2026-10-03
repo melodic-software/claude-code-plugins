@@ -2490,8 +2490,9 @@ jobs:
       # Counters only, never durations, so the answer does not move with runner
       # load. A lower count is lowered in the file by hand in the same PR
       # (`ratchet.py propose-tighten --write`); there is no scheduled tightening
-      # job, because a counter this deterministic only drops when a PR changes
-      # it. LEG 0 carries it alone. The hook counters run through
+      # job. A runner image change can also lower a count: the check log then
+      # shows `propose-tighten can lower it`, and the ceiling is lowered by hand
+      # in a PR. LEG 0 carries it alone. The hook counters run through
       # scripts/hook-census.sh under strace, so its suite runs first here: no
       # other lane runs a scripts/ suite that needs strace. The counts depend
       # on the image's bash, git, jq and coreutils, so the versions are printed

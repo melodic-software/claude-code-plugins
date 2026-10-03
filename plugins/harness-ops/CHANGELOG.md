@@ -10,6 +10,16 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 - `prerequisites.json` is converted to the schema `docs/conventions/prerequisites/` owns: a `requires` list in place of the retired `tools` list, with a `degrade` line per entry ([#5840](https://github.com/melodic-software/claude-code-plugins/issues/5840)).
 - **`/harness-ops:prerequisites` runs the Node checker and no longer needs `python3`.** `scripts/check-prerequisites.mjs` keeps the enabled-set resolution (`claude plugin list --json`, then the settings files and `installed_plugins.json`, then a repository scan) and hands the roots to the shared checker's report mode. The table is now `plugin id kind need status check install`, a `present`/`missing`/`outdated`/`unverified`/`agent-check` status replaces present/missing, and exit 1 means a required entry is missing or below its version floor. `scripts/check-prerequisites.sh` is deleted, and its test assertions moved to `scripts/check-prerequisites.test.sh`.
 
+## [3.1.1] - 2026-10-02
+
+### Fixed
+
+- The inventory parser reader's Windows PowerShell repair command doubles every PowerShell
+  single-quote character in a path, not only the ASCII `'`. PowerShell also reads U+2018, U+2019,
+  U+201A and U+201B as single quotes, so a path holding one ended the string early and ran the rest
+  as code
+  ([language specification, string literals](https://learn.microsoft.com/en-us/powershell/scripting/lang-spec/chapter-02#2352-string-literals)).
+
 ## [3.1.0] - 2026-10-02
 
 ### Added
