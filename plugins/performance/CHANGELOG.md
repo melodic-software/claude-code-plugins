@@ -18,6 +18,7 @@ All notable changes to the `performance` plugin are documented here. Format foll
   `/performance:go-faster`; target ranks the candidates that sweep, or the user, brings, and its
   `## Next` names go-faster.
 - The plugin description names go-faster and is shortened to stay within 500 characters.
+- `ab.sh` randomizes the arm order per iteration instead of alternating it, and prints the order used.
 
 ## [0.5.2] - 2026-10-02
 

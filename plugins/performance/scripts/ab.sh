@@ -4,9 +4,10 @@
 # Never compare two separate passes on a drifting host. A bare `bash -c true`
 # measured 1825ms and 283ms in the same hour at roughly 10% CPU on the box this
 # plugin was built from; any two-pass comparison attributes that 6x to the
-# change. Alternating the arms within a single run, and flipping the ORDER each
+# change. Alternating the arms within a single run, in a random ORDER each
 # iteration, puts both arms under the same instantaneous load, so the paired
-# ratio survives drift the absolute numbers do not.
+# ratio survives drift the absolute numbers do not. The order used is printed
+# as one `arm_order=` line, one AB or BA per iteration.
 #
 # Grounded, Tier 1, benchstat's own documentation: "The best way to do this is
 # to interleave before and after runs, rather than running, say, 10 iterations
@@ -32,6 +33,11 @@
 #   --stdin <text>          Feed <text> to both arms on stdin.
 #   --allow-windows-paths   Permit drive-letter paths in the arm commands.
 #
+#   PERF_AB_ORDER_SOURCE    File the serial run reads its arm order from, one
+#                           byte per iteration: even runs A first, odd runs B
+#                           first. Default /dev/urandom; the same file gives
+#                           the same order.
+#
 # Exit: 0 the run completed; 1 a sample-count assertion failed; 2 a precondition
 # failed.
 set -uo pipefail
@@ -56,6 +62,11 @@ ab.sh --a <command> --b <command> --iterations <n> [options]
   --percentiles <list>    Per-arm percentiles, comma-separated. Default 50,95.
   --stdin <text>          Feed <text> to both arms on stdin.
   --allow-windows-paths   Permit drive-letter paths in the arm commands.
+
+  PERF_AB_ORDER_SOURCE    File the serial run reads its arm order from, one
+                          byte per iteration: even runs A first, odd runs B
+                          first. Default /dev/urandom; the same file gives
+                          the same order.
 
 Exit: 0 completed; 1 a sample-count assertion failed; 2 a precondition failed.
 USAGE
@@ -242,17 +253,32 @@ for ((w = 0; w < WARMUP; w++)); do
 done
 
 if [[ "$CONC" == "1" ]]; then
+  # Pick the ORDER of each iteration at random (randomized multiple interleaved
+  # trials) so neither arm systematically lands in the warmer or colder half of
+  # a drift cycle. A fixed AB, BA alternation is not enough: periodic
+  # interference can line up with it. One byte per iteration from the order
+  # source: even runs A first, odd runs B first. Read once, before anything is
+  # timed, so od(1) is not a spawn between samples. A short source is refused
+  # rather than padded with a fixed order.
+  ORDER_SOURCE="${PERF_AB_ORDER_SOURCE:-/dev/urandom}"
+  order_bytes=()
+  read -r -d '' -a order_bytes < <(od -An -v -tu1 -N"$ITERS" "$ORDER_SOURCE" 2>/dev/null)
+  if ((${#order_bytes[@]} != ITERS)); then
+    harness_die "the order source '$ORDER_SOURCE' (PERF_AB_ORDER_SOURCE) yielded ${#order_bytes[@]} bytes; $ITERS iterations need one byte each."
+  fi
+  order=()
   for ((i = 0; i < ITERS; i++)); do
-    # Flip the ORDER each iteration so neither arm systematically lands in the
-    # warmer or colder half of a drift cycle.
-    if ((i % 2 == 0)); then
+    if ((order_bytes[i] % 2 == 0)); then
       one "$CMD_A" "$OUT/a"
       one "$CMD_B" "$OUT/b"
+      order+=(AB)
     else
       one "$CMD_B" "$OUT/b"
       one "$CMD_A" "$OUT/a"
+      order+=(BA)
     fi
   done
+  printf 'arm_order=%s\n' "${order[*]}"
 else
   # One sink file PER ITERATION. Parallel appends to a single file are not
   # atomic on MSYS, and a spliced line makes the summarizer raise on a value

@@ -42,7 +42,7 @@
       "id": 4,
       "name": "interleaves-rather-than-comparing-two-passes",
       "prompt": "/performance:snapshot post. I measured the old version 20 times this morning and the new version 20 times just now. Compare them.",
-      "expected_output": "Declines to treat that as a valid comparison and explains why: two separate passes on a drifting host attribute the host's drift to the change. Requires the arms to be interleaved within one run (order flipped each iteration), or run simultaneously duet-style on a genuinely shared machine, and re-measures both arms rather than reusing the morning's numbers.",
+      "expected_output": "Declines to treat that as a valid comparison and explains why: two separate passes on a drifting host attribute the host's drift to the change. Requires the arms to be interleaved within one run (order randomized each iteration), or run simultaneously duet-style on a genuinely shared machine, and re-measures both arms rather than reusing the morning's numbers.",
       "files": [],
       "expectations": [
         "Rejects the two-pass comparison and names host drift as the reason",

@@ -178,6 +178,62 @@ run_ab --a "$NOOP" --b "$NOOP" --iterations 2 --warmup 0 --percentiles 0,95
 assert_eq "an invalid percentile list is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the bad entry" "BENCH_PERCENTILES entry '0'" "$RUN_OUT"
 
+# --- 8. a serial run picks each iteration's arm order at random, and records it ---
+# A fixed AB, BA, AB pattern can line up with periodic interference; randomized
+# multiple interleaved trials give every round a fresh random order. The rule
+# documented in ab.sh: one byte per iteration from PERF_AB_ORDER_SOURCE, even
+# runs A first, odd runs B first. The fixture bytes below are chosen by hand, so
+# the expected order is derived from that rule, not from running the script.
+ORDER_DIR="$(mktemp -d)"
+ORDER_FIXTURE="$ORDER_DIR/order-bytes"
+ORDER_LOG="$ORDER_DIR/arm-log"
+# Bytes 0 1 1 0 3 3 2 4 5 6 7 7 8 10 9 11 12 13 14 14: more than 16, so the
+# multi-line read path runs, and with repeats, so a collapsed read would show.
+printf '\000\001\001\000\003\003\002\004\005\006\007\007\010\012\011\013\014\015\016\016' >"$ORDER_FIXTURE"
+EXPECTED_ORDER="arm_order=AB BA BA AB BA BA AB AB BA AB BA BA AB AB BA BA AB BA AB AB"
+# shellcheck disable=SC2016  # $AB_TEST_LOG belongs to the inner `bash -c`, not to this shell
+LOG_A='printf A >>"$AB_TEST_LOG"; sleep 0.01'
+# shellcheck disable=SC2016  # as above
+LOG_B='printf B >>"$AB_TEST_LOG"; sleep 0.01'
+
+run_ordered() {
+  : >"$ORDER_LOG"
+  capture env AB_TEST_LOG="$ORDER_LOG" PERF_AB_ORDER_SOURCE="$ORDER_FIXTURE" \
+    bash "$AB" --a "$LOG_A" --b "$LOG_B" --iterations 20 --warmup 0 --min-pairs 20
+}
+
+run_ordered
+assert_eq "a run with an order source exits 0" "0" "$RUN_RC"
+assert_eq "the order follows the source's bytes, not parity alternation" \
+  "$EXPECTED_ORDER" "$(printf '%s\n' "$RUN_OUT" | grep '^arm_order=')"
+# The probes run A then B once before any iteration; with no warmup the rest of
+# the log is the iterations themselves, so this proves every iteration ran each
+# arm exactly once, in the recorded order.
+assert_eq "each iteration runs each arm once, in the recorded order" \
+  "AB$(printf '%s' "${EXPECTED_ORDER#arm_order=}" | tr -d ' ')" "$(cat "$ORDER_LOG")"
+
+run_ordered
+assert_eq "the same order source reproduces the same order" \
+  "$EXPECTED_ORDER" "$(printf '%s\n' "$RUN_OUT" | grep '^arm_order=')"
+
+# Too few bytes for the iterations is refused, never padded with a fixed order.
+printf '\000\001' >"$ORDER_FIXTURE"
+run_ordered
+assert_eq "an order source shorter than the iterations is refused" "2" "$RUN_RC"
+assert_contains "the refusal names the order source" "PERF_AB_ORDER_SOURCE" "$RUN_OUT"
+
+rm -f "$ORDER_FIXTURE" "$ORDER_LOG"
+rmdir "$ORDER_DIR"
+
+# The default source is the OS random device; only the shape is checkable.
+run_ab --a "$NOOP" --b "$NOOP" --iterations 6 --warmup 0 --min-pairs 6
+assert_eq "a run with the default order source exits 0" "0" "$RUN_RC"
+if printf '%s\n' "$RUN_OUT" | grep -Eq '^arm_order=(AB|BA)( (AB|BA)){5}$'; then
+  pass "the default source records one AB or BA per iteration"
+else
+  fail "the default source records one AB or BA per iteration" "arm_order= with 6 tokens" "$RUN_OUT"
+fi
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
 echo "OK: ab interleaving and refusals"
 exit 0
