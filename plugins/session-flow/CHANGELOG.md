@@ -25,6 +25,8 @@
   the CLI forms and exit codes are unchanged. **One-time step in retro trend history:** token and
   human-message numbers from this version on are lower than earlier retros' for the same kind of
   session; compare across that step with care.
+- **`retro`'s parser reports a transcript line that is valid JSON but not an object** as a parse
+  error instead of skipping it silently.
 
 ## [0.44.7] - 2026-10-02
 

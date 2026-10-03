@@ -69,6 +69,17 @@ def test_empty_jsonl(tmp_path):
     assert output["data"]["turns"]["assistant"] == 0
 
 
+def test_json_line_that_is_not_an_object_is_a_parse_error(tmp_path):
+    (tmp_path / f"{SESSION_ID}.jsonl").write_text(
+        json.dumps({"type": "user", "message": {"content": "hi"}}) + "\n[1, 2, 3]\n"
+    )
+    result = _run_script(SESSION_ID, str(tmp_path))
+    result.check_returncode()
+    data = json.loads(result.stdout)["data"]
+    assert data["errors"] == [{"type": "parse_error", "detail": "Malformed JSON line"}]
+    assert data["turns"]["user"] == 1
+
+
 def test_single_assistant_turn_extracts_cache_tokens(tmp_path):
     """Cache tokens are extracted from usage data."""
     data = _run_with_event(

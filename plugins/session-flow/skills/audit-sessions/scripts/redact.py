@@ -45,12 +45,23 @@ _PROSE = re.compile(
     r"(?!<redacted:)(?=[^\s,;]*[\d!@#$%^&*])[^\s,;]+"
 )
 # The scheme starts where no scheme character precedes it and is short, so a long token of scheme
-# characters is scanned once, not from every offset.
+# characters is scanned once, not from every offset. The password runs to the token's last `@`, so
+# one holding `@` or `/` is redacted whole; a token with no `@` left is consumed unchanged, so the
+# scan resumes after it instead of retrying from every later scheme in it.
 _URL_CREDENTIAL = re.compile(
-    r"(?i)(?<![a-z0-9+.-])([a-z][a-z0-9+.-]{0,30}://[^\s:/@]*:)[^\s@/]+(?=@)"
+    r"(?i)(?<![a-z0-9+.-])([a-z][a-z0-9+.-]{0,30}://[^\s:/@]*:)(?:(\S+)(?=@)|\S*)"
 )
+
+
+def _url_credential(match: re.Match[str]) -> str:
+    return match[0] if match[2] is None else match[1] + "<redacted:url-credential>"
+
+
 _BEARER = re.compile(r"(?i)\b(bearer)(\s+)(?!<redacted:)[A-Za-z0-9._~+/=-]{8,}")
-_BASIC = re.compile(r"(?i)\b(authorization\s*:\s*basic)(\s+)(?!<redacted:)[A-Za-z0-9+/=]{8,}")
+# A JSON or log header quotes the key and the value: `"Authorization": "Basic <credential>"`.
+_BASIC = re.compile(
+    r"""(?i)\b(authorization["']?\s*:\s*["']?basic)(\s+)(?!<redacted:)[A-Za-z0-9+/=]{8,}"""
+)
 # A private key block runs to its END marker, or to the end of the text when that was cut off.
 _PRIVATE_KEY = re.compile(
     r"-----BEGIN ([A-Z ]*)PRIVATE KEY-----.*?(?:-----END \1PRIVATE KEY-----|\Z)", re.S
@@ -62,7 +73,7 @@ _CLI_PASSWORD = re.compile(
 )
 _PASSES = (
     (_PRIVATE_KEY, "<redacted:private-key>"),
-    (_URL_CREDENTIAL, r"\1<redacted:url-credential>"),
+    (_URL_CREDENTIAL, _url_credential),
     (_CLI_PASSWORD, r"\1<redacted:cli-password>"),
     (_BEARER, r"\1\2<redacted:bearer>"),
     (_BASIC, r"\1\2<redacted:basic-auth>"),
@@ -95,6 +106,9 @@ class Redactor:
         return len(self.rules)
 
     def redact(self, text: str) -> str:
+        # The curl rules were written for RE2. Python's `.` matches a bare \r, so a run of them
+        # backtracks polynomially; as \n, `.` stops at each one.
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
         # A rule runs only when one of its keywords appears, as gitleaks does.
         lowered = text.lower()
         for rule in self.rules:

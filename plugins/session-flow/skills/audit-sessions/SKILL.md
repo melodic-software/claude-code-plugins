@@ -67,8 +67,8 @@ the scripts' own defaults differ (collect keeps records forever).
   --retention-days "$RETENTION" --excerpt-chars "$EXCERPT_CHARS" --excerpt-words "$EXCERPT_WORDS"
 ```
 
-Collect is incremental: it skips sessions whose transcript is unchanged and drops records older
-than the retention window. The first run on a machine reads every transcript (about 70 s for 2.6 GB
+Collect is incremental: it skips sessions whose transcript is unchanged, re-ingests them when the
+excerpt options or plugin version changed, and drops records older than the retention window. The first run on a machine reads every transcript (about 70 s for 2.6 GB
 of transcripts, measured 2026-10-02 on Claude Code 2.1.287; recheck when a first run on a machine
 of similar size exceeds 300 s), so give that call a Bash timeout of 600000 ms or run it in the
 background. Later runs take under a second when nothing changed.

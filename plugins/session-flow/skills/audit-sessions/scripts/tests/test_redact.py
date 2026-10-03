@@ -144,6 +144,30 @@ def test_url_credentials_are_redacted(scheme: str, host: str) -> None:
 
 
 @pytest.mark.parametrize(
+    "password",
+    ["p@ss" + "1", "p/ss" + "1", "p@s/s@" + "1"],
+    ids=["at", "slash", "both"],
+)
+def test_url_credential_password_runs_to_the_last_at_before_the_host(password: str) -> None:
+    raw = f"postgres://app:{password}@db:5432/x"
+    assert redact.load_redactor().redact(f"use {raw} now") == (
+        "use postgres://app:<redacted:url-credential>@db:5432/x now"
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["a://b:" + "@/" * 2045, "a://b:" * 20_000],
+    ids=["at-slash-dense", "schemes-without-at"],
+)
+def test_url_credential_pass_stays_fast_on_long_tokens(text: str) -> None:
+    # Retrying the run to the last `@` from every scheme in an `@`-free token is quadratic.
+    started = time.monotonic()
+    redact.load_redactor().redact(text)
+    assert time.monotonic() - started < 1.0
+
+
+@pytest.mark.parametrize(
     ("raw", "expected"),
     [
         ("my password is " + SHORT, "my password is <redacted:prose-credential>"),
@@ -163,6 +187,14 @@ def test_url_credential_pass_stays_fast_on_a_long_hyphenated_token() -> None:
     text = "a-" * 20_000
     started = time.monotonic()
     assert redact.load_redactor().redact(text) == text
+    assert time.monotonic() - started < 1.0
+
+
+@pytest.mark.parametrize("breaks", ["\r", "\r\n", "\n"], ids=["cr", "crlf", "lf"])
+def test_curl_rules_stay_fast_on_a_run_of_line_breaks(breaks: str) -> None:
+    # The curl rules were written for RE2; under re, `.` matching a bare \r made 50 of them take seconds.
+    started = time.monotonic()
+    assert redact.load_redactor().redact("curl " + breaks * 200) == "curl " + "\n" * 200
     assert time.monotonic() - started < 1.0
 
 
@@ -202,10 +234,15 @@ def test_attached_database_client_password_is_redacted(raw: str, expected: str) 
     assert redact.load_redactor().redact(raw) == expected
 
 
-def test_basic_auth_header_is_redacted() -> None:
+@pytest.mark.parametrize(
+    "template",
+    ["Authorization: Basic {}", '"Authorization": "Basic {}"', "{{'authorization': 'basic {}'}}"],
+    ids=["unquoted", "double-quoted", "single-quoted"],
+)
+def test_basic_auth_header_is_redacted(template: str) -> None:
     credential = "".join(("YWRtaW46", "c2VjcmV0MTIz"))  # spellchecker:disable-line
-    assert redact.load_redactor().redact(f"Authorization: Basic {credential}") == (
-        "Authorization: Basic <redacted:basic-auth>"
+    assert redact.load_redactor().redact(template.format(credential)) == template.format(
+        "<redacted:basic-auth>"
     )
 
 

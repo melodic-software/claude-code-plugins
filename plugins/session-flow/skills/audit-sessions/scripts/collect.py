@@ -9,7 +9,9 @@
 
 Writes one `session-record/v1` file per main session (the main transcript plus its subagents)
 under `D/audit-sessions/store/v1/`, the machine-wide store `sweep.py` reads. A session whose
-fingerprint matches its stored record is skipped. With a retention window, records of sessions
+fingerprint matches its stored record is skipped, unless that record was written by another
+collector version, under other excerpt limits, or with redaction failing closed where it now
+works or the reverse. With a retention window, records of sessions
 that ended before it are pruned and such sessions are not ingested. Typed turns of at most
 `--excerpt-words` words right after an assistant message keep an excerpt, redacted by redact.py
 and then cut to `--excerpt-chars`; when redaction fails closed no excerpt is stored and the run
@@ -631,6 +633,7 @@ def build_record(
     return {
         "schema": RECORD_SCHEMA,
         "collector_version": version,
+        "excerpt_limits": {"chars": excerpt_chars, "words": excerpt_words},
         "ingested_at": _iso(time.time()),
         "session_id": main.stem,
         "fingerprint": fp,
@@ -723,16 +726,23 @@ def build_record(
     }
 
 
-def load_store(store: Path) -> dict[Path, tuple[dict | None, float | None]]:
-    """(fingerprint, session end) of each readable stored record; others are re-ingested."""
-    index: dict[Path, tuple[dict | None, float | None]] = {}
+def stored_policy(record: dict) -> tuple:
+    """The settings besides the transcript that shaped a record's stored text; None where a field is missing."""
+    redaction = _obj(record.get("redaction"))
+    return record.get("collector_version"), record.get("excerpt_limits"), redaction.get("excerpts_suppressed")
+
+
+def load_store(store: Path) -> dict[Path, tuple[dict | None, tuple, float | None]]:
+    """(fingerprint, collection policy, session end) of each readable stored record; others are re-ingested."""
+    index: dict[Path, tuple[dict | None, tuple, float | None]] = {}
     for path in store.glob("p-*/*.json"):
         try:
             record = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
         if isinstance(record, dict) and record.get("schema") == RECORD_SCHEMA:
-            index[path] = (record.get("fingerprint"), _epoch(_obj(record.get("time")).get("end")))
+            end = _epoch(_obj(record.get("time")).get("end"))
+            index[path] = (record.get("fingerprint"), stored_policy(record), end)
     return index
 
 
@@ -761,6 +771,8 @@ def cmd_collect(args: argparse.Namespace) -> int:
     redactor = redact.load_redactor()
     identity = RepoIdentity()
     index = load_store(store)
+    # A record stored under other settings is re-ingested, so a lowered excerpt limit reaches old records.
+    policy = (version, {"chars": args.excerpt_chars, "words": args.excerpt_words}, redactor.fail_closed)
     scanned = ingested = skipped = expired = too_long = 0
     failed: list[dict] = []
     unknown_types: Counter = Counter()
@@ -779,7 +791,7 @@ def cmd_collect(args: argparse.Namespace) -> int:
             target = store / project_segment(main.parent.name) / f"{main.stem}.json"
             subagents = list(transcript_reader.iter_subagents(main))
             fp = fingerprint(main, [s.path for s in subagents])
-            if not args.force and target in index and index[target][0] == fp:
+            if not args.force and target in index and index[target][:2] == (fp, policy):
                 skipped += 1
                 continue
             record = build_record(
@@ -803,13 +815,13 @@ def cmd_collect(args: argparse.Namespace) -> int:
         except OSError as exc:
             failed.append({"session_id": main.stem, "reason": str(exc)})
             continue
-        index[target] = (fp, end)
+        index[target] = (fp, policy, end)
         ingested += 1
         too_long += record["redaction"]["skipped_too_long"]
         unknown_types.update(record["unknown"]["record_types"])
     pruned = 0
     if cutoff is not None:
-        for path, (_fp, end) in index.items():
+        for path, (*_, end) in index.items():
             if end is not None and end < cutoff:
                 path.unlink(missing_ok=True)
                 pruned += 1

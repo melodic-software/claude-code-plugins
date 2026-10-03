@@ -20,7 +20,10 @@ D/audit-sessions/
   itself is not stored because it encodes the working directory unredacted.
 - **One JSON file per session, replaced atomically.** Re-collecting a session rewrites its file, so
   a repeated run never double-counts. Collect skips a session whose transcript fingerprint is
-  unchanged; `--force` re-ingests it.
+  unchanged, unless its record was written by another plugin version, under other excerpt
+  settings, or while redaction was failing closed and now is not (or the reverse); `--force`
+  re-ingests it regardless. Lowering `audit_sessions_excerpt_chars` to 0 therefore removes stored
+  excerpts, titles and agent names on the next collect.
 - **Transcript text kept.** A record stores these strings from the transcript, each redacted before
   it is written:
   - excerpts of your own short typed turns, cut to `audit_sessions_excerpt_chars` characters, and

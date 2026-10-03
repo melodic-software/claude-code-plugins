@@ -162,7 +162,7 @@ def drift(records: list[dict], canaries: list[dict], *, min_count: int, versions
             by_version.setdefault(version, {})[model] = row
     ordered = sorted(by_version, key=version_key)
     window = [v for v in ordered if sum(r["records"] for r in by_version[v].values()) >= min_count]
-    recent, baseline = window[-versions:], window[:-versions]
+    baseline = window[:-versions]
     newest = window[-1] if window else None
 
     def count(version: str, model: str, key: str) -> int:
@@ -186,13 +186,17 @@ def drift(records: list[dict], canaries: list[dict], *, min_count: int, versions
                 changes.append(
                     {"class": "new", "key": key, "model": model, "count": count(newest, model, key), "first_seen_version": newest}
                 )
-        # Every version from the start of the recent window on, thin ones included: a key still
-        # seen in any of them has not vanished.
-        since_window = ordered[ordered.index(recent[0]) :] if recent else []
         for model, key in series:
-            checked = [v for v in recent if model_records(v, model) >= min_count]
-            seen = sum(count(v, model, key) for v in baseline)
-            if baseline and checked and seen >= min_count and not any(count(v, model, key) for v in since_window):
+            # Each model gets its own window: the versions where it has min_count records.
+            model_window = [v for v in window if model_records(v, model) >= min_count]
+            model_recent, model_baseline = model_window[-versions:], model_window[:-versions]
+            if not model_baseline:
+                continue
+            seen = sum(count(v, model, key) for v in model_baseline)
+            # Every version from the start of the recent window on, thin ones included: a key still
+            # seen in any of them has not vanished.
+            since_window = ordered[ordered.index(model_recent[0]) :]
+            if seen >= min_count and not any(count(v, model, key) for v in since_window):
                 last = max((v for v in ordered if count(v, model, key)), key=version_key)
                 changes.append({"class": "vanished", "key": key, "model": model, "count": seen, "last_seen_version": last})
         for canary in canaries:

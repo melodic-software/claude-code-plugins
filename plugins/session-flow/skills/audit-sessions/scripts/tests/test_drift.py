@@ -124,6 +124,24 @@ def test_key_still_seen_in_a_thin_recent_version_has_not_vanished():
     assert classes(drift(records), "vanished") == []
 
 
+@pytest.mark.parametrize(
+    ("later_m_versions", "vanished"),
+    [((), []), (("1.0.5", "1.0.6"), ["key_path:assistant:k"])],
+    ids=["one-m-version-without-k", "three-m-versions-without-k"],
+)
+def test_vanish_window_counts_only_versions_where_the_model_has_min_count_records(later_m_versions, vanished):
+    # Other models fill 1.0.2 and 1.0.3, but m has no records there, so with only 1.0.4 after it
+    # m's last three qualifying versions are 1.0.1 and 1.0.4, and k is present in 1.0.1.
+    records = [
+        rec("a", {"1.0.1|m": {"record_type:assistant": 30, "key_path:assistant:k": 30}}),
+        rec("b", {"1.0.2|*": {"record_type:user": 30}}),
+        rec("c", {"1.0.3|*": {"record_type:user": 30}}),
+        rec("d", {"1.0.4|m": {"record_type:assistant": 30}}),
+        *(rec(v, {f"{v}|m": {"record_type:assistant": 30}}) for v in later_m_versions),
+    ]
+    assert classes(drift(records, versions=3), "vanished") == vanished
+
+
 def test_unknown_version_bucket_is_outside_every_window():
     # Were `unknown` a version, it would sort oldest and make `ghost` a vanished baseline key.
     records = [

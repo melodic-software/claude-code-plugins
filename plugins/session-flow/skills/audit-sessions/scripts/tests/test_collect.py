@@ -248,6 +248,46 @@ def test_force_reingests_unchanged_sessions(data_dir, multi):
     assert envelope(collect(data_dir, root, "--force"))["data"]["ingested"] == 3
 
 
+def test_excerpt_chars_zero_later_reingests_and_drops_stored_text(data_dir, multi):
+    root, _ = multi
+    assert collect(data_dir, root).returncode == 0
+    assert records(data_dir)["sess-a1"]["link_keys"]["custom_title"] == "widget work"
+    data = envelope(collect(data_dir, root, "--excerpt-chars", "0"))["data"]
+    assert (data["ingested"], data["skipped_unchanged"]) == (3, 0)
+    rec = records(data_dir)["sess-a1"]
+    assert (rec["link_keys"]["custom_title"], rec["link_keys"]["agent_name"]) == (None, None)
+    assert [t["excerpt"] for t in rec["human"]["flagged"]] == [None, None]
+
+
+def test_changed_excerpt_words_reingests(data_dir, multi):
+    root, _ = multi
+    assert collect(data_dir, root).returncode == 0
+    data = envelope(collect(data_dir, root, "--excerpt-words", "3"))["data"]
+    assert (data["ingested"], data["skipped_unchanged"]) == (3, 0)
+    # sess-a1's flagged turns are 8 and 3 words long.
+    assert [t["words"] for t in records(data_dir)["sess-a1"]["human"]["flagged"]] == [3]
+
+
+@pytest.mark.parametrize(
+    "edit",
+    [
+        pytest.param(lambda rec: rec.update(collector_version="0.0.1"), id="other-collector-version"),
+        pytest.param(lambda rec: rec.pop("excerpt_limits", None), id="written-before-excerpt-limits"),
+    ],
+)
+def test_record_from_another_collection_policy_is_reingested(data_dir, multi, edit):
+    root, _ = multi
+    assert collect(data_dir, root).returncode == 0
+    store = data_dir / "audit-sessions" / "store" / "v1" / "sessions"
+    (path,) = store.glob("p-*/sess-a2.json")
+    rec = json.loads(path.read_text(encoding="utf-8"))
+    edit(rec)
+    path.write_text(json.dumps(rec), encoding="utf-8")
+    data = envelope(collect(data_dir, root))["data"]
+    assert (data["ingested"], data["skipped_unchanged"]) == (1, 2)
+    assert "excerpt_limits" in records(data_dir)["sess-a2"]
+
+
 def test_session_and_since_filters(data_dir, multi):
     root, _ = multi
     data = envelope(collect(data_dir, root, "--session", "sess-b1"))["data"]
@@ -399,6 +439,8 @@ def collect_failing_closed(data_dir: Path, root: Path, tmp_path: Path) -> subpro
     skill = tmp_path / "plugin" / "skills" / "audit-sessions"
     (skill / "scripts").mkdir(parents=True)
     (tmp_path / "plugin" / "scripts").mkdir()
+    # The same manifest, so the copy reports the same collector version as the real script.
+    shutil.copytree(SCRIPTS.parents[2] / ".claude-plugin", tmp_path / "plugin" / ".claude-plugin")
     shutil.copy2(SCRIPTS.parents[2] / "scripts" / "transcript_reader.py", tmp_path / "plugin" / "scripts")
     for name in ("collect.py", "census.py", "redact.py"):
         shutil.copy2(SCRIPTS / name, skill / "scripts")
@@ -438,6 +480,27 @@ def test_failing_closed_keeps_edit_counts_but_no_paths(data_dir, multi, tmp_path
         "max_one_file": 3,
         "by_relpath": {"<suppressed>": 4},
     }
+
+
+def test_record_stored_while_failing_closed_is_reingested_once_redaction_works(data_dir, multi, tmp_path):
+    root, _ = multi
+    assert collect_failing_closed(data_dir, root, tmp_path).returncode == 1
+    data = envelope(collect(data_dir, root))["data"]
+    assert (data["ingested"], data["skipped_unchanged"]) == (3, 0)
+    rec = records(data_dir)["sess-a1"]
+    assert [t["excerpt"] for t in rec["human"]["flagged"]] == [
+        "no, that's wrong, use the existing store module",
+        "ugh!! still failing",
+    ]
+    assert rec["link_keys"]["custom_title"] == "widget work"
+
+
+def test_record_stored_while_redaction_worked_is_reingested_once_it_fails_closed(data_dir, multi, tmp_path):
+    root, _ = multi
+    assert collect(data_dir, root).returncode == 0
+    data = envelope(collect_failing_closed(data_dir, root, tmp_path))["data"]
+    assert (data["ingested"], data["skipped_unchanged"]) == (3, 0)
+    assert [t["excerpt"] for t in records(data_dir)["sess-a1"]["human"]["flagged"]] == [None, None]
 
 
 def test_retention_prunes_old_records_and_never_reingests_them(data_dir, multi):
