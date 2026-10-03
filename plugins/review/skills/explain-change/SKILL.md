@@ -109,7 +109,7 @@ The reader can ask this session questions from the page instead of pasting them.
    bash "${CLAUDE_PLUGIN_ROOT}/view-bridge/view-bridge.sh" --dir "<data_dir>" ensure-running
    ```
 
-   It prints one JSON line: `url`, `origin`, `page` and `watch`.
+   It prints one JSON line: `url`, `origin`, `page` and `watch`. `page` sits in the canonical data dir (a temp path through a link such as macOS `/tmp` resolves there); use `page`'s directory as `<data_dir>` from here on, because the builder refuses a path with a link in it.
 2. Build the page into that data dir, naming `origin`. The builder writes only `<data_dir>/page.html`, and only into a private view-bridge data dir outside any working tree:
 
    ```bash

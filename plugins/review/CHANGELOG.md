@@ -18,7 +18,9 @@ All notable changes to the `review` plugin are documented here. Format follows
   and only into a private view-bridge data dir outside any working tree whose session file names that
   origin's port. A planted `page.html` link is replaced, not followed. `--out` is still refused.
   `--dir` is refused when any part of its path is a link (`lnk/` and `lnk/.` included), and a
-  directory at `page.html` exits 2 with a refusal.
+  directory at `page.html` exits 2 with a refusal. The skill builds into the directory of the `page`
+  that `ensure-running` returns, so a temp path through a link still works, and the Python 3
+  prerequisite also detects `python`.
 - **`view-bridge/`**: the session-bridge view app, generated from `lib/session-bridge/`.
   `prerequisites.json` declares curl and Python 3 for it.
 

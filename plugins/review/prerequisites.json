@@ -10,7 +10,8 @@
       ],
       "detect": {
         "any": [
-          "python3"
+          "python3",
+          "python"
         ]
       },
       "degrade": "Without Python 3, the stub emitter skips Unicode normalization of file paths and proceeds with the raw path, and the change digest cannot reach the session, so the reader copies questions back instead.",
