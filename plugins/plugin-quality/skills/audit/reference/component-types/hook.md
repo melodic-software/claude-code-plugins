@@ -35,8 +35,9 @@ permissions, not a shell script. Read the module and run `claude plugin validate
 - **Read meanings from the declarations.** Step 1 records the path of the built-in
   `plugin-authoring` skill's `types/claude-code.d.ts`. Grep it for each event and `$` call the
   module uses and read the declaration it lands on. It is written for the running build, so it wins
-  where the pages cited below disagree. With no path in the packet, ground in the pages and record
-  that the declarations were not read.
+  where the pages cited below disagree. With no path in the packet, or a path that no longer exists
+  (the folder belongs to one process, so a resumed audit can carry a dead one), ground in the pages
+  and record that the declarations were not read.
 
 - **Read the declared surface.** The `hooks` content's `notes` hold one line per kind:
   `./register.js hooks: tool.call, attribution.text`,
