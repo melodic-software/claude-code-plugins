@@ -42,7 +42,8 @@
     "multi-agent@melodic-software": true,
     "pixel-art@melodic-software": false,
     "playgrounds@melodic-software": false,
-    "retro-audio@melodic-software": false
+    "retro-audio@melodic-software": false,
+    "speech@melodic-software": false
   },
   "extraKnownMarketplaces": {
     "melodic-software": {

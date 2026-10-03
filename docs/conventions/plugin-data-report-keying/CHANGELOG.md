@@ -5,6 +5,15 @@ is versioned by the `Version:` stamp in `README.md` (SemVer). A rule whose `[SPE
 tightens is a major bump; a new rule or a new named example is a minor bump; wording and adoption-table
 updates are a patch.
 
+## [1.0.4] - 2026-10-02
+
+Patch under this contract's own rule, adoption table only. No `[SPEC]` obligation tightens, no
+rule is added, and no worked example is added or removed.
+
+- **`session-flow:audit-sessions` joins the adoption table**: a machine-wide session store whose
+  records each carry their own repository identity, and reports keyed by scope (`machine` or the
+  project's state key) with the newest 20 kept and an appended `history.jsonl`.
+
 ## [1.0.3] - 2026-09-30
 
 Patch under this contract's own rule, adoption table only. No `[SPEC]` obligation tightens, no

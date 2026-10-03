@@ -105,6 +105,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/retro-audio:music`](../plugins/retro-audio/skills/music/SKILL.md) | `retro-audio` | Render a short chiptune score to a WAV file |
 | [`/retro-audio:sfx`](../plugins/retro-audio/skills/sfx/SKILL.md) | `retro-audio` | Render one retro sound effect to a WAV file |
 | [`/source-control:commit`](../plugins/source-control/skills/commit/SKILL.md) | `source-control` | Commit with the resolved convention and surgical staging |
+| [`/speech:narrate`](../plugins/speech/skills/narrate/SKILL.md) | `speech` | Script in, narration.wav and per-word words.json out (kokoro, local) |
 
 ## 5. Test
 
@@ -160,6 +161,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
+| [`/session-flow:audit-sessions`](../plugins/session-flow/skills/audit-sessions/SKILL.md) | `session-flow` | Cross-session audit of transcripts with routed, never-applied findings |
 | [`/session-flow:retro`](../plugins/session-flow/skills/retro/SKILL.md) | `session-flow` | Structured session retrospective with codified learnings |
 | [`/session-flow:running-retro`](../plugins/session-flow/skills/running-retro/SKILL.md) | `session-flow` | In-flight retro checkpoint appended to a running ledger |
 
@@ -278,6 +280,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/session-flow:show-options`](../plugins/session-flow/skills/show-options/SKILL.md) | `session-flow` | Lay out the skills that fit this moment as a ranked, nothing-hidden menu |
 | [`/session-flow:workflow`](../plugins/session-flow/skills/workflow/SKILL.md) | `session-flow` | Navigate the staged dev workflow and suggest the next stage |
 | [`/source-control:check`](../plugins/source-control/skills/check/SKILL.md) | `source-control` | Report whether node and jq resolve for the source-control hooks. Never installs. |
+| [`/speech:check`](../plugins/speech/skills/check/SKILL.md) | `speech` | Report each missing speech prerequisite. Never installs. |
 | [`/testing:check`](../plugins/testing/skills/check/SKILL.md) | `testing` | Report whether node and jq resolve for the testing hooks. Never installs. |
 | [`/typos-format:check`](../plugins/typos-format/skills/check/SKILL.md) | `typos-format` | Report whether typos and node are installed. Never installs. |
 | [`/visualization:visualize`](../plugins/visualization/skills/visualize/SKILL.md) | `visualization` | Pick the best visual form for what is in the conversation and render it |

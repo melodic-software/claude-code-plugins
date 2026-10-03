@@ -78,7 +78,6 @@ playbooks claude
 playbooks curl
 playbooks gh
 playbooks jq
-playbooks yarn
 playwright jq
 playwright npm
 playwright npx
@@ -105,6 +104,7 @@ source-control gh
 source-control py
 source-control python
 source-control python3
+speech jq
 wizard gh
 work-items curl
 work-items gh
