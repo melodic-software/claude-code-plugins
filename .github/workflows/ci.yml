@@ -2277,7 +2277,7 @@ jobs:
           # Eval fixtures are data the skill evals read, not suites.
           pytest_each() {
             awk '!/\/evals\/fixtures\//' "$1" | tr '\n' '\0' |
-              xargs -0 -r -n1 python -m pytest -q -o tmp_path_retention_policy=none --
+              xargs -0 -r -t -n1 python -m pytest -q -o tmp_path_retention_policy=none --
           }
           # A listing's suites the selector does not run itself: Python here,
           # Node through each package's own npm test. Pester is the
