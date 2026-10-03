@@ -102,9 +102,9 @@
     {"from":"claude-code-plugins","to":"anthropics/claude-plugins-official","type":"installs-plugin","relation":"external","count":1,"files":["plugins/playgrounds/skills/use/SKILL.md"]},
     {"from":"claude-code-plugins","to":"dometrain/mcp","type":"installs-plugin","relation":"external","count":1,"files":["plugins/dometrain/README.md"]},
     {"from":"claude-code-plugins","to":"trailofbits/skills","type":"installs-plugin","relation":"external","count":1,"files":["plugins/review/skills/audit-enforceability/SKILL.md"]},
-    {"from":"claude-code-plugins","to":"actions/checkout","type":"uses-workflow","relation":"external","count":10,"files":[".github/workflows/ci.yml",".github/workflows/dependabot-plugin-release.yml",".github/workflows/managed-files-guard.yml",".github/workflows/silent-revert-canary.yml",".github/workflows/test-windows.yml"]},
+    {"from":"claude-code-plugins","to":"actions/checkout","type":"uses-workflow","relation":"external","count":12,"files":[".github/workflows/ci.yml",".github/workflows/dependabot-plugin-release.yml",".github/workflows/managed-files-guard.yml",".github/workflows/silent-revert-canary.yml",".github/workflows/test-windows.yml"]},
     {"from":"claude-code-plugins","to":"actions/setup-node","type":"uses-workflow","relation":"external","count":3,"files":[".github/workflows/ci.yml",".github/workflows/dependabot-plugin-release.yml"]},
-    {"from":"claude-code-plugins","to":"actions/setup-python","type":"uses-workflow","relation":"external","count":4,"files":[".github/workflows/ci.yml",".github/workflows/test-windows.yml"]},
+    {"from":"claude-code-plugins","to":"actions/setup-python","type":"uses-workflow","relation":"external","count":7,"files":[".github/workflows/ci.yml",".github/workflows/test-windows.yml"]},
     {"from":"claude-code-plugins","to":"melodic-software/ci-workflows","type":"uses-workflow","relation":"internal","count":21,"files":[".github/workflows/ci.yml",".github/workflows/issue-triage-label.yml",".github/workflows/managed-files-guard.yml",".github/workflows/test-windows.yml"]}
   ]
 }

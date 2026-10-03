@@ -3,6 +3,127 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.0] - 2026-10-03
+
+### Changed
+
+- `prerequisites.json` is converted to the schema `docs/conventions/prerequisites/` owns: a `requires` list in place of the retired `tools` list, with a `degrade` line per entry ([#5840](https://github.com/melodic-software/claude-code-plugins/issues/5840)).
+- **`/harness-ops:prerequisites` runs the Node checker and no longer needs `python3`.** `scripts/check-prerequisites.mjs` keeps the enabled-set resolution (`claude plugin list --json`, then the settings files and `installed_plugins.json`, then a repository scan) and hands the roots to the shared checker's report mode. The table is now `plugin id kind need status check install`, a `present`/`missing`/`outdated`/`unverified`/`agent-check` status replaces present/missing, and exit 1 means a required entry is missing or below its version floor. `scripts/check-prerequisites.sh` is deleted, and its test assertions moved to `scripts/check-prerequisites.test.sh`.
+
+## [3.3.1] - 2026-10-03
+
+### Changed
+
+- The shared hook library's missing-prerequisite notice says to run `/harness-ops:prerequisites` if the `harness-ops` plugin is enabled, where it said installed: an installed but disabled plugin exposes no skills, and `harness-ops` now installs disabled ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [3.3.0] - 2026-10-03
+
+### Added
+
+- **Opt-in content capture in the session event log.** The new `session_event_log_content` option
+  (off by default) adds each event's top-level content strings, such as the prompt, Claude's last
+  message, notification messages, task text and error output, to event-log rows. A string the 64 KB
+  read cap (counted in bytes) cuts keeps its prefix with a `<key>_truncated` marker, and a row whose payload reached
+  the cap carries `content_truncated: true`. The observability privacy rules never repeat these
+  keys in a report.
+- **Every attribute the Claude Code monitoring page documents is a typed OTEL column**, effort
+  included. Cold-tier queries read older Parquet files beside the new columns by name.
+- **`CC_OTEL_COLD_KEEP_CONTENT` controls content in the cold OTEL tier.** It covers response text,
+  tool payloads, command strings, error and configuration text, `user_email` and absolute paths;
+  the default keeps them and `=0` scrubs them at compaction. `CC_OTEL_COLD_KEEP_USER_PROMPTS`
+  still governs prompts. `prune-otel-store.sh --scrub-cold` cleans files compacted earlier.
+  Tool output, diffs and bash commands from the `tool.output` span event, which never reached the
+  cold tier before, now land there by default; set `CC_OTEL_COLD_KEEP_CONTENT=0` to keep them out.
+
+### Changed
+
+- **`observability compare` reads effort from the promoted column** and reports a missing level as
+  `unset` instead of `none`.
+
+### Fixed
+
+- **Long event-log rows no longer interleave.** Bash writes long lines in 4 KB pieces, so a row
+  over 4000 bytes, and every row while `session_event_log_content` is on, appends under an
+  exclusive-create lock that only its owner removes. A lock left unchanged for 5 seconds is
+  treated as stale and removed; after 10 seconds without the lock the row is appended anyway. With
+  content off, short rows keep the single unlocked write.
+
+## [3.2.2] - 2026-10-03
+
+### Fixed
+
+- `morning-brief` no longer presents every `CLEAN` pull request as merge-ready without
+  qualification. It counts a clean PR as verified only when its head contains the base tip:
+  the script reads the compare endpoint once per clean PR, up to `--pr-limit`, and prints an
+  `UNVERIFIED` line under any PR whose head is behind its base, whose comparison could not be
+  read, or that fell past the cap, plus a `PARTIAL` line when the cap was hit. A `--behind-json`
+  fixture flag feeds those counts to the tests.
+- `machine-profile` refuses a record value holding a GitHub App installation token in the
+  `ghs_<APPID>_<JWT>` format GitHub began issuing on 2026-04-27, matched by its own shape rather
+  than only through the generic JWT rule.
+- `machine-profile` validates a long record value in linear time. jq's regex engine backtracks,
+  and the generic JWT rule took about 10 seconds on a 300 KB value of repeated `ghs_1_eyJ`. It now
+  starts only where a run of token characters starts, so its header stays unbounded and a JWS
+  with a long certificate-chain header is still refused; the `ghs_` rule's header is capped at
+  512 characters.
+
+## [3.2.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `known-issues` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
+## [3.2.0] - 2026-10-02
+
+### Added
+
+- **The parser reader follows whole-module loads of an exported array.** An export hop used to stay
+  partial whenever the exporting file was loaded whole anywhere. The helper's new `namespace` op
+  now follows each `import()`, `require()`, `import.meta.require()` and `import*as` load to its
+  reads and accepts only reads of other exports by name: a member read that is not a call, an
+  object pattern without a rest element, a record property such as `{names:ns}` read only by name,
+  and `await Promise.all([...])` destructured by an array pattern. The built-ins those shapes rely
+  on join the names the sink rule watches, a write to an undeclared trusted name (`Promise=f`) is
+  now a sink, and a namespace settled through a promise requires its module to export no `then`.
+  Load sites come from the AST (`loads` op) instead of a regex over the raw bundle
+  ([#5901](https://github.com/melodic-software/claude-code-plugins/issues/5901)).
+- **The sink rule reads computed keys.** A computed-key write or define counts only for the
+  trusted names its key can spell when every value of the key is known (a literal, a number, a
+  boolean or `typeof` result, or a variable written only with those), so loop counters and
+  TypeScript enums no longer count.
+- **node:vm counts as code built from a string.** Any `vm`/`node:vm` load except an import naming
+  only `isContext`, and a vm runner's name (`runInThisContext`, `runInNewContext`, `runInContext`,
+  `compileFunction`, `SourceTextModule`, `SyntheticModule`) read from any object, are sinks like
+  `eval` and `Function`: code in a new context still reaches this realm's prototypes.
+
+### Fixed
+
+- **A load the parser cannot name no longer reads a wrong literal.** An aliased `require` or
+  `import.meta.require`, `require.call(...)`, `(0,require)(...)`, or `import(x)` with a specifier
+  that is no literal could load the exporting file whole unseen; a module holding one now fails
+  every export hop.
+
+### Changed
+
+- The Explore and Plan `disallowed_tools` still read partial under `--reader=parser` on
+  2.1.284-2.1.288. Every load of the re-exporting chunk is read by name, but each build still has
+  computed-key writes on receivers the sink rule cannot show are not built-in prototypes, and code
+  built from strings (ajv's generated validators, protobufjs's direct `eval`); 2.1.288 also has 3
+  modules with a load the parser cannot name. `--reader` stays `regex` by default.
+  `--reader=compare` output is unchanged on every installed build.
+
+## [3.1.1] - 2026-10-02
+
+### Fixed
+
+- The inventory parser reader's Windows PowerShell repair command doubles every PowerShell
+  single-quote character in a path, not only the ASCII `'`. PowerShell also reads U+2018, U+2019,
+  U+201A and U+201B as single quotes, so a path holding one ended the string early and ran the rest
+  as code
+  ([language specification, string literals](https://learn.microsoft.com/en-us/powershell/scripting/lang-spec/chapter-02#2352-string-literals)).
+
 ## [3.1.0] - 2026-10-02
 
 ### Added

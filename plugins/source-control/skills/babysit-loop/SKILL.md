@@ -1,5 +1,5 @@
 ---
-description: "Run one repository's pull-request queue as the merge lane of the loop-lane topology: a self-paced standing or drain loop invoking /source-control:babysit-prs each cycle at the resolved autonomy tier, with grace windows, do-not-merge respect, escalation, and lane telemetry. Merge authority is human-only until the target repo's tracked config adopts the lane; the body owns the rung rules and the single paired-argument exception. Use when asked to run or stand up the babysit loop or merge lane for a repository, or to drain its PR queue. Required argument: <owner/repo>. Launch via /loop. Sibling skills: /source-control:babysit-prs (single-pass mechanic), /source-control:pull-request (single-PR lifecycle)."
+description: "Run one repository's pull-request queue as the merge lane of the loop-lane topology: a self-paced standing or drain loop invoking /source-control:babysit-prs each cycle at the resolved autonomy tier, with grace windows, do-not-merge respect, escalation, and lane telemetry. Merge authority is human-only until the target repo's tracked config adopts the lane; the body owns the rung rules and the single paired-argument exception. Use when asked to run or stand up the babysit loop or merge lane for a repository, or to drain its PR queue. Required argument: OWNER/REPO. Launch via /loop. Sibling skills: /source-control:babysit-prs (single-pass mechanic), /source-control:pull-request (single-PR lifecycle)."
 argument-hint: "<owner/repo> [safe|worker|autopilot] [--drain] [--strip-do-not-merge]"
 user-invocable: true
 disable-model-invocation: false
@@ -417,7 +417,7 @@ above). A plugin version-bump collision (`.claude-plugin/plugin.json`, `CHANGELO
 conflict worker or the inline freshness merge meets it, is resolved by `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-version-bump-conflict.sh`, per
 `/source-control:resolve-conflicts` step 3. This loop adds two lane rules, per the convention: the subagent runs at the **frontier
 capability tier** (order-defined, resolved at runtime by model alias only, never a hard-coded
-model ID), and every dispatch prompt carries the subagent discipline preamble, when the `discipline` plugin is installed, invoke its sweep skill, which resolves its own membership (never a hand-copied list, which drifts from the plugin owning it); when absent, inline the equivalent standing instructions (verify claims against authoritative sources, prefer installed skills, re-check against active conventions), per the convention.
+model ID), and every dispatch prompt carries the subagent discipline preamble, when the `discipline` plugin is enabled, invoke its sweep skill, which resolves its own membership (never a hand-copied list, which drifts from the plugin owning it); when absent, inline the equivalent standing instructions (verify claims against authoritative sources, prefer installed skills, re-check against active conventions), per the convention.
 
 The explicit-`autopilot` pre-escalation dispatch (Escalation, above) adds one further requirement:
 **context independence**, per the convention's §3, the dispatched subagent must share no

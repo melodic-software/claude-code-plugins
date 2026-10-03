@@ -11,6 +11,13 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
   stubs that read it ([#5841](https://github.com/melodic-software/claude-code-plugins/issues/5841)).
 
+## [0.18.4] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+
 ## [0.18.3] - 2026-10-02
 
 ### Fixed

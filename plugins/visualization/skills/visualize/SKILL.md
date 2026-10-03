@@ -255,8 +255,8 @@ An **interactive parameter explorer whose output returns as a prompt** (controls
 beside a live preview with a copy-out prompt, the "playground" shape) is not a form
 this skill renders. When the first-party `playground` plugin is installed, route the
 request to its `playground` skill, or to the `playgrounds` wrapper's `/playgrounds:use`
-when that wrapper is installed, which also owns the install uplift and cloud delivery
-guidance. When neither is installed, say the capability exists as an installable
+when that wrapper is enabled, which also owns the install uplift and cloud delivery
+guidance. When neither is enabled, say the capability exists as an installable
 plugin and continue with this skill's closest static form (a rich page without the
 round-trip controls), never a hand-built imitation of the explorer.
 
@@ -321,6 +321,6 @@ report the refusal and never retry around it. The four-part records live in
 - **Does not teach artifact-design fundamentals**. Those route to an artifact-design capability and the Artifact tool's contract.
 - **Does not restate rendering-surface facts**. They live once in the catalog spoke.
 - **Does not digest or re-explain dense text**. That is a comprehension concern, not a form concern.
-- **Does not explain a topic from zero prior knowledge**. A one-idea-per-diagram picture explainer that assumes the reader knows nothing is `education:eli5` (if installed). This skill picks a form for what is already in the conversation.
+- **Does not explain a topic from zero prior knowledge**. A one-idea-per-diagram picture explainer that assumes the reader knows nothing is `education:eli5` (if enabled). This skill picks a form for what is already in the conversation.
 - **Does not render a pull-request diff, fetched content, or another repository's files to HTML** until this lane is wired through the rendered-views escape helper. Those stay terminal fences.
 - **Does not publish an Artifact when that surface is absent or when the preference is `file`**. It degrades to a local file or terminal.

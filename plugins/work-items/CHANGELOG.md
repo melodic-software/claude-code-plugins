@@ -3,6 +3,29 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.45.4] - 2026-10-02
+
+### Changed
+
+- **`/work-items:work` pushes each review round once.** The orchestrator waits until every CI and
+  reviewer check run on the head has finished, then hands every failing check and VALID finding
+  to one fix worker that pushes once. The deferred-finding `## Related` body write lands before
+  that push, or while no run is in flight, never as its own edit right after a push.
+
+## [0.45.3] - 2026-10-03
+
+### Changed
+
+- Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.45.2] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `onboard-adapter` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
+
 ## [0.45.1] - 2026-10-02
 
 ### Changed

@@ -3,6 +3,31 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.36.4] - 2026-10-03
+
+### Changed
+
+- Cross-plugin routing to plugins that now install disabled says "enabled" where it said "installed": an installed but disabled plugin exposes no skills ([#5934](https://github.com/melodic-software/claude-code-plugins/issues/5934)).
+
+## [0.36.3] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
+## [0.36.2] - 2026-10-02
+
+### Added
+
+- **Shared `view-builder.mjs` and `view-runtime.js` synced ([#5852](https://github.com/melodic-software/claude-code-plugins/issues/5852)); no change to this plugin's skills.**
+  `lib/view-builder.mjs` builds a rendered view from a checked-in template plus data under the
+  report or interactive profile, and `lib/view-runtime.js` is the client runtime it inlines and pins
+  by hash. Both are generated from the repository's `lib/` by `scripts/sync-shared-copies.sh`, ready
+  for the pull-request digest to build on.
+- **Bindings stay in page text.** The interactive validator refuses any `data-rv-*` binding on
+  `html`, `head`, `title`, `meta`, `style`, or `script`, and any content binding (`data-rv-text`,
+  `data-rv-count`, `data-rv-each`) on a form control; the runtime skips the same elements.
+
 ## [0.36.1] - 2026-10-02
 
 ### Changed

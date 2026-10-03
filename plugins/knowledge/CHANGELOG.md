@@ -4,13 +4,29 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.18.0] - 2026-10-02
+## [0.19.0] - 2026-10-02
 
 ### Added
 
 - `prerequisites.json`, declaring the external tools this plugin runs and what stops working
   without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
   stubs that read it ([#5841](https://github.com/melodic-software/claude-code-plugins/issues/5841)).
+
+## [0.18.0] - 2026-10-03
+
+### Changed
+
+- **`map-corpus`'s effort gotcha points at the marketplace's Effort tiers record.** It no longer
+  says no dispatched subagent takes a per-call effort override; which dispatch surfaces take one is
+  read from that record's Workflow probe paragraph.
+
+## [0.17.1] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+- The plugin description is 500 characters or fewer, the limit claude.ai's marketplace sync enforces.
+- The `docpage-digest` skill description no longer contains angle brackets: placeholders such as `<X>` are now uppercase words. The Agent Skills spec forbids XML tags in a description, and claude.ai strips them.
 
 ## [0.17.0] - 2026-10-02
 

@@ -11,6 +11,12 @@ All notable changes to the `kindle-dedrm` plugin are documented here. Format fol
   without each, and the generated `lib/prerequisites.mjs` checker with its `.sh` and `.ps1`
   stubs that read it ([#5841](https://github.com/melodic-software/claude-code-plugins/issues/5841)).
 
+## [0.7.24] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
+
 ## [0.7.23] - 2026-10-02
 
 ### Fixed
