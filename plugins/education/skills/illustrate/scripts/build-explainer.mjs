@@ -60,6 +60,7 @@ const md = (value) =>
   asText(value)
     .replace(/\s+/g, " ")
     .trim()
+    .replaceAll("\\", "\\\\")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")

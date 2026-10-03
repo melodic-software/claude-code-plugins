@@ -15,7 +15,7 @@ Explain one thing as a series of small pictures. The output is a **markdown reco
 views of it: an **interactive page** by default, and a **video** when the explainer-video plugin
 is installed and the reader wants one. The record is the deliverable; every view renders it.
 
-`education:explain` drops altitude and stays in chat prose. This skill changes the medium.
+`/education:explain` drops altitude and stays in chat prose. This skill changes the medium.
 
 ## Read the arguments
 
@@ -68,9 +68,9 @@ the same thing.
 - `zero-knowledge`: the reader knows nothing. Minimal text, the plain-words version first, and
   real function, file, and service names demoted to parentheses after it. "Zero prior knowledge"
   is a floor, not a starting rung: a reader who wants the precise version wants `newcomer` or
-  `education:explain`, not this preset turned down.
+  `/education:explain`, not this preset turned down.
 
-**The STE register.** Invoke `docs-hygiene:write-for-humans` via the Skill tool and apply the
+**The STE register.** Invoke `/docs-hygiene:write-for-humans` via the Skill tool and apply the
 ASD-STE100 rules its Load layer names (the "Load" section of its sentence rules) to every
 `summary`, `caption`, and `text` line. Do not apply them to identifiers or `sources`. When that
 skill is not installed, say the STE register is unavailable and write in the plain register.
@@ -128,7 +128,7 @@ format delivers the record by the same rules, with no page.
 
 ## Step 5. Offer the video view
 
-When `explainer-video:produce` is in this session's skill listing, offer a narrated video of the
+When `/explainer-video:produce` is in this session's skill listing, offer a narrated video of the
 record. On a yes, invoke it via the Skill tool with the record's path. When it is not listed, say
 in one line that the video view is unavailable because the explainer-video plugin is not
 installed. Never install it.
@@ -143,11 +143,11 @@ installed. Never install it.
 ## Boundaries
 
 - **Plainer words, not a picture** ("explain this simply", "I don't get it") is
-  `education:explain`; invoke it via the Skill tool.
-- **Reorganizing a dense message** without losing precision is `adhd:clarify` via the Skill tool
+  `/education:explain`; invoke it via the Skill tool.
+- **Reorganizing a dense message** without losing precision is `/adhd:clarify` via the Skill tool
   (if installed). Without it, restructure in place and keep the terms verbatim.
 - **Picking the best form for content already in the conversation** (a table, a chart, a
-  code-shape sketch) is `visualization:visualize` via the Skill tool (if installed).
+  code-shape sketch) is `/visualization:visualize` via the Skill tool (if installed).
 - **Ongoing coaching** is `/education:teach`.
 
 ## Next
@@ -161,6 +161,6 @@ installed. Never install it.
   bare `/eli5` reaches the community `eli5` plugin's skill when that plugin is installed; do not
   promise the user that this skill sees every ELI5 request.
 - **No diagram, no explainer.** A simple, correct answer with no diagram has not met the contract.
-  When the topic truly has no structure to draw, say so and hand off to `education:explain`.
+  When the topic truly has no structure to draw, say so and hand off to `/education:explain`.
 - **The record is not a view.** Never edit the record to match the page. Change the model and
   rebuild both.
