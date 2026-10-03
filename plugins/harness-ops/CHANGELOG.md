@@ -19,6 +19,8 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   tool payloads, command strings, error and configuration text, `user_email` and absolute paths;
   the default keeps them and `=0` scrubs them at compaction. `CC_OTEL_COLD_KEEP_USER_PROMPTS`
   still governs prompts. `prune-otel-store.sh --scrub-cold` cleans files compacted earlier.
+  Tool output, diffs and bash commands from the `tool.output` span event, which never reached the
+  cold tier before, now land there by default; set `CC_OTEL_COLD_KEEP_CONTENT=0` to keep them out.
 
 ### Changed
 
