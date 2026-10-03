@@ -6,6 +6,7 @@ prints its sha256, for the hook suite (../hooks/install-python-deps.test.sh).
 """
 import base64
 import hashlib
+import importlib.util
 import os
 import re
 import shutil
@@ -17,6 +18,15 @@ import zipfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+
+
+def load_pydeps():
+    spec = importlib.util.spec_from_file_location("speech_pydeps", HERE / "pydeps.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 PLUGIN = HERE.parent
 SCRIPT = HERE / 'pydeps.py'
 NAME, VERSION = 'fakedeps', '1.0'
@@ -140,12 +150,7 @@ class OnDemandInstall(unittest.TestCase):
 
 class DataDir(unittest.TestCase):
     def test_resolution_order(self):
-        sys.path.insert(0, str(HERE))
-        try:
-            import pydeps
-        finally:
-            sys.path.remove(str(HERE))
-            sys.modules.pop("pydeps", None)
+        pydeps = load_pydeps()
         with tempfile.TemporaryDirectory() as tmp:
             config = Path(tmp)
             (config / 'plugins/data/speech-market').mkdir(parents=True)
@@ -165,12 +170,7 @@ class DataDir(unittest.TestCase):
 
 class RepairLine(unittest.TestCase):
     def test_on_windows_it_is_a_powershell_5_1_command(self):
-        sys.path.insert(0, str(HERE))
-        try:
-            import pydeps
-        finally:
-            sys.path.remove(str(HERE))
-            sys.modules.pop("pydeps", None)
+        pydeps = load_pydeps()
         real = sys.platform
         sys.platform = 'win32'
         try:
