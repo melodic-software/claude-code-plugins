@@ -160,6 +160,24 @@ run_ab --a "bash D:/repo/hook.sh" --b "$NOOP" --iterations 2
 assert_eq "a drive-letter path inside an arm command is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the 127 shape" "exits 127 in both arms" "$RUN_OUT"
 
+# --- 7. --percentiles reaches both per-arm summaries ---
+run_ab --help
+assert_contains "--help lists --percentiles" "--percentiles <list>" "$RUN_OUT"
+
+run_ab --a "$NOOP" --b "$NOOP" --iterations 4 --warmup 0 --percentiles 50,99
+assert_eq "a --percentiles run exits 0" "0" "$RUN_RC"
+if [[ "$(printf '%s' "$RUN_OUT" | grep -c 'p99=REFUSED(n=4<100)')" == "2" ]]; then
+  pass "both arms report the listed p99"
+else
+  fail "both arms report the listed p99" "two p99=REFUSED(n=4<100) cells" "$RUN_OUT"
+fi
+# The leading space excludes ratio.py's own ratio_of_p95 field.
+assert_not_contains "an unlisted p95 is not reported per arm" " p95=" "$RUN_OUT"
+
+run_ab --a "$NOOP" --b "$NOOP" --iterations 2 --warmup 0 --percentiles 0,95
+assert_eq "an invalid percentile list is refused" "2" "$RUN_RC"
+assert_contains "the refusal names the bad entry" "BENCH_PERCENTILES entry '0'" "$RUN_OUT"
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
 echo "OK: ab interleaving and refusals"
 exit 0

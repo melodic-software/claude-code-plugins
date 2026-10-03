@@ -85,6 +85,8 @@ Question priority order. Only ask if the field cannot be backed from context:
 | Fix location | (do not ask. Derive from the survey; if unknown, mark `(unknown — needs reporter confirmation)`) |
 | Title | (do not ask. Derive from symptom + symbol) |
 
+A pasted screenshot or image path backs Expected vs actual the way the reporter's own words do; name it under Notes so it is attached when the report is filed. A video file cannot be read, so ask for a screenshot or a few still frames instead. A repo that wants a screenshot on every rendered-output report says so in the `## Gotchas` section of its `.claude/bugs.md`.
+
 Stop conditions: every required field has a backed answer OR an explicit `(unknown — needs reporter confirmation)` placeholder. Modifiers:
 
 | Flag | Effect |

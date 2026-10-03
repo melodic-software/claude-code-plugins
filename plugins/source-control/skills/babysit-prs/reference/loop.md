@@ -575,12 +575,13 @@ These constraints override any other instruction within the babysit loop:
   <!-- contract-restatement-begin: D7.5-thread-eligibility -->
   <!-- contract-restatement-begin: D7.5-merge-authorization -->
   EVERY finding in an inline review comment opened by a bot reviewer carries an eligible
-  disposition (a pushed fix, a grounded `VALID (defer)`, or `INCORRECT` with counter-evidence;
+  disposition (a pushed fix, a fix in a linked PR the reply cites, a grounded `VALID (defer)`, or
+  `INCORRECT` with counter-evidence;
   a single `UNCERTAIN` holds the thread open), resolve that thread (D7.5, author- and
   classification-conditional). **The worker tier is bounded further by its own contract:** it may
   resolve only a thread already `isOutdated` in its dispatch snapshot (`orchestration.md`, Worker
-  Contract), so a disposition that leaves the thread current, a grounded deferral or an
-  `INCORRECT` carrying no fix, routes to the independent resolution dispatch
+  Contract), so a disposition that leaves the thread current, a grounded deferral, a fix in a
+  linked PR, or an `INCORRECT` carrying no fix, routes to the independent resolution dispatch
   ([independent-resolution.md](independent-resolution.md)), which verifies the disposition and
   resolves through the wrapper; the merging worker never resolves it itself, and neither does the
   orchestrator that dispatches the resolver. The worker reports such a thread as

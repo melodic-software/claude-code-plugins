@@ -182,9 +182,8 @@ loop's own escalation contract is not outside it.
 - Fix (c) like any other in-scope defect, but count it. It is never deferrable, because it is a
   defect this change is shipping (`<plugin-root>/reference/review-discipline.md`,
   D4.6). <!-- contract-restatement-end: D4.6-deferral-provenance --> A (b) finding follows D4.6's
-  scope test: a small or medium one is fixed in this PR in a review-fix commit, even when unrelated
-  to the task, and only a structural, urgent-but-cannot-land, or fix-blocked-on-research one is filed and
-  deferred. A second consecutive **advisory** round whose findings are *all* (c) means incremental
+  scope test, which places a small or medium fix and files and defers only a structural,
+  urgent-but-cannot-land, or fix-blocked-on-research one. A second consecutive **advisory** round whose findings are *all* (c) means incremental
   patching is injecting defects about as fast as it removes them; that is the non-convergence
   signal a round count only approximates. The test is scoped to advisory rounds because those are
   the rounds the ledger records. A blocking-defect round in between neither counts nor resets it.
@@ -595,7 +594,11 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   - `deferred` + `--tracker-item <owner/repo#N|#N|N>`: the item must exist and still be **open**.
     A closed follow-up is not a deferral; it is the finding disappearing. The script cannot check
     D4.6's scope test, so claim `deferred` only for a structural, urgent-but-cannot-land, or
-    fix-blocked-on-research finding; a small or medium one is `fixed` in this PR.
+    fix-blocked-on-research finding; a small or medium one is never `deferred`.
+  - `linked-pr` + `--linked-pr <N>`: the fix D4.6's scope test placed in a separate PR. `N` must
+    be a different, non-draft PR whose head is in the same repository, cited (`#N` or its URL) in a
+    **reply** on the thread by someone other than the opener, and **open or merged**: a PR closed
+    without merging is the fix disappearing.
   - `incorrect` + `--counter-evidence <text>`: the text must already appear in a **reply** on the
     thread, posted by **someone other than the thread's opener**. Excluding the opening comment
     alone is not enough: the mandated classification reply restates the finding's own text, so a
@@ -609,7 +612,8 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   unresolved, which is the recoverable direction, while a suppressed finding is not. Each refusal
   is its own per-thread `action`: `refused-fix-commit-not-on-head`,
   `refused-tracker-item-not-found`, `refused-tracker-item-not-open`,
-  `refused-counter-evidence-not-found`, and `refused-evidence-unverifiable` for an API that could
+  `refused-counter-evidence-not-found`, `refused-linked-pr-not-cited`,
+  `refused-linked-pr-not-found`, `refused-linked-pr-closed`, `refused-linked-pr-fork`, `refused-linked-pr-draft`, and `refused-evidence-unverifiable` for an API that could
   not be consulted, kept distinct so an outage is never reported as a false claim. **Only a
   confirmed HTTP 404 earns an evidence-specific refusal.** Every other operational failure, whether
   403, 429, 5xx, a timeout, an unreachable API, or no HTTP response at all, reports

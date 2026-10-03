@@ -112,6 +112,13 @@ Then compare:
 
 Record both: a single target collapses "did we succeed" and "how much is left" into one number.
 
+The Realistic target may be an estimate: the candidate's measured cost minus the estimated gain of
+the planned change, summed when several planned changes aim at this metric. Label it `estimate`
+and show it at this phase's human gate, where the person accepts or replaces it. A candidate with
+no measured cost gets no estimated target. See
+[estimates in the target unit](../../reference/techniques.md#a-choose-the-target). A project that
+wants Realistic targets stated by hand says so in its own CLAUDE.md or AGENTS.md.
+
 ### 4. What counts as done
 
 Including whether merge is in scope and whether a behavior change disqualifies the result. A
@@ -119,7 +126,9 @@ correctness regression outranks any speedup and is reported separately from the 
 
 ## Percentiles and sample count
 
-Default: **p50 and p95 over at least 20 samples**, alongside the counter.
+Default: **p50 and p95 over at least 20 samples**, alongside the counter. The goal records its
+percentile list; `/performance:snapshot` passes that list to `ab.sh` as `--percentiles`, and the
+`1/(1-p)` floor below applies to every entry.
 
 State plainly that this is a **house convention, not field consensus**:
 
@@ -151,8 +160,8 @@ Boundary:   start <event> -> end <event>; <which side of the split each falls on
 Event:      <wall-clock metric when units run in parallel> | n/a
 Unit:       <unit under study + marginal over next-slowest peer> | n/a
 Floor:      <value> (measured by: <command>)
-Realistic:  <value>    Ideal: <value>   [event-level realistic/ideal when parallel]
-Percentiles: p50, p95 over N>=20   [house convention; floor 1/(1-p) enforced]
+Realistic:  <value> [estimate / stated]    Ideal: <value>   [event-level realistic/ideal when parallel]
+Percentiles: <list, default p50, p95> over N>=20   [house convention; floor 1/(1-p) enforced]
 Scaling:    <growing input, sizes, per-arm results, bound> | n/a: subject reads no growing state
 Done when:  <criteria, including whether merge is in scope and any scaling bound on growing state>
 Target (from /performance:target): <candidate> @ <E1..E4>
