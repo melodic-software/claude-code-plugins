@@ -449,11 +449,15 @@ reference is `F.prototype.k` with a named key other than `constructor` (a call, 
 `F.prototype.constructor` leads back to F, which could replace it). `Reflect.set`'s receiver, when
 given, must be fresh too. A module that does not parse or calls `eval` is a sink, and so is code
 built from a string: global `eval` other than a direct call, the global `Function` used other
-than for `typeof`, `instanceof` or a `.prototype` read, and any member named `eval` or `Function`.
-On each of 2.1.284 to 2.1.288 that is 4 modules using `Function` (lodash's
-`Function("return this")()`, a `new Function("")` probe, an unused syntax check, and ajv running
-the validator code it generates), 3 with a member `.eval(...)` (a CEL evaluator, the workflow
-runtime, a CLI command definition), and 1 with a direct `eval` (protobufjs's `inquire`).
+than for `typeof`, `instanceof` or a `.prototype` read, any member named `eval` or `Function`,
+and node:vm's same-realm runners: a read or destructured key `runInThisContext` or
+`compileFunction` from any object, a named import of either, and a load of `vm` or `node:vm` used
+other than by named reads (the `namespace` walk). On each of 2.1.284 to 2.1.288 that is 4 modules
+using `Function` (lodash's `Function("return this")()`, a `new Function("")` probe, an unused
+syntax check, and ajv running the validator code it generates), 3 with a member `.eval(...)` (a CEL
+evaluator, the workflow runtime, a CLI command definition), and 1 with a direct `eval`
+(protobufjs's `inquire`); on 2.1.288, 5 more use `vm` (the workflow runtime, the plugin loader, a
+test kit).
 
 The bundle is not a closed world: a module can be loaded whole as a namespace, where a computed
 read (`N[k]`) or an enumeration (`Object.values(N)`, `{...N}`, `for in`) reaches an export
@@ -479,8 +483,8 @@ by name.
 
 Stated assumptions, not checked:
 
-- Code built from strings is not analyzed: `new Function(...)`, `Function("...")` and
-  `vm.runInThisContext`, which the module spans of 2.1.284 and 2.1.287 hold 2, 5 and 0 times.
+- Code built from strings is not analyzed, only counted as a sink (above); code a vm context
+  other than this realm's runs (`runInContext`, `runInNewContext`) sees its own built-ins.
 - A dynamic `import(x)` or `require(x)` whose path is not a literal names no file.
 - An array method a JavaScriptCore build adds that V8's `Array.prototype` lacks is read as
   throwing by the method rule.

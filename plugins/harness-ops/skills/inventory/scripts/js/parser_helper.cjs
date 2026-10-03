@@ -1198,6 +1198,20 @@ const SINK_LIMIT = 20;
 // A computed key known to be a number, which no trusted name spells.
 const NUMBER = Symbol("number");
 const ARITHMETIC = new Set(["-", "*", "/", "%", "**", "|", "&", "^", "<<", ">>", ">>>"]);
+// node:vm's ways to run a string as code in this realm, and its specifiers.
+const VM_RUNNERS = new Set(["runInThisContext", "compileFunction"]);
+const VM_SPECIFIERS = new Set(["vm", "node:vm"]);
+
+// The specifier a node loads from, any kind of load or re-export, or null.
+function loadedSpecifier(node) {
+  if (node.type === "ImportExpression") return literalString(node.source);
+  if (isRequire(node)) return literalString(node.arguments[0]);
+  if (node.type === "ImportDeclaration" || node.type === "ExportAllDeclaration" || node.type === "ExportNamedDeclaration") {
+    return node.source?.value ?? null;
+  }
+  return null;
+}
+
 const TYPEOF = ["undefined", "object", "boolean", "number", "bigint", "string", "symbol", "function"];
 
 // `Object` or `Reflect`, as a name or a member (`globalThis.Object`); by
@@ -1241,7 +1255,10 @@ function definerOf(n) {
 //     `defineProperties`, `setPrototypeOf` or `defineProperty`;
 //   - a prototype swap: a `__proto__` write or `setPrototypeOf` call,
 //     which can put any object's properties on the chain;
-//   - a write to an undeclared (global) name that is one of the names.
+//   - a write to an undeclared (global) name that is one of the names;
+//   - code run from a string in this realm through node:vm: a read of
+//     `runInThisContext` or `compileFunction` from any object, and the
+//     vm module used other than by named reads.
 //   A target is cleared only when it is provably a fresh object: a
 //   literal, a function, `this` in a class
 //   constructor, a variable only ever holding one of those, or the
@@ -1493,6 +1510,29 @@ function sinks(req) {
     const member = memberName(node);
     if ((member === "eval" || member === "Function") && !isTarget(parents, node)) {
       hit(member === "eval" ? "indirect-eval" : "function-constructor", null, node);
+    }
+    // node:vm runs a string in this realm through `runInThisContext` (on
+    // `vm` or a `vm.Script`) and `compileFunction`: either name read from
+    // any object or destructured is a sink, and so is the vm module itself
+    // used other than by named reads (`vm[k]`, an alias that escapes).
+    if ((VM_RUNNERS.has(member) && !isTarget(parents, node)) || (node.type === "Property" && parents.get(node)?.type === "ObjectPattern" && VM_RUNNERS.has(keyName(node.key, node.computed)))) {
+      hit("vm-string-code", null, node);
+    }
+    if (node.type === "ImportSpecifier" && VM_RUNNERS.has(node.imported.name ?? node.imported.value)) hit("vm-string-code", null, node);
+    if (VM_SPECIFIERS.has(loadedSpecifier(node))) {
+      try {
+        const walk = new Namespace(entry, "");
+        if (node.type === "ImportDeclaration") {
+          for (const s of node.specifiers) if (s.type !== "ImportSpecifier") walk.binding(entry.decls.get(s.local.start));
+        } else if (node.type === "ExportAllDeclaration" || node.type === "ExportNamedDeclaration") {
+          hit("vm-string-code", null, node);
+        } else {
+          walk.site(node);
+        }
+      } catch (e) {
+        if (!(e instanceof Unresolved) && !(e instanceof RangeError)) throw e;
+        hit("vm-string-code", null, node);
+      }
     }
     if (definerOf(node) !== null && !(holder?.type === "CallExpression" && holder.callee === node)) {
       hit("definer-escape", null, node);

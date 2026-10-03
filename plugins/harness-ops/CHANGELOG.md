@@ -21,6 +21,9 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   trusted names its key can spell when every value of the key is known (a literal, a number, a
   boolean or `typeof` result, or a variable written only with those), so loop counters and
   TypeScript enums no longer count.
+- **node:vm counts as code built from a string.** `runInThisContext` and `compileFunction` read
+  or destructured from any object or imported by name, and a `vm`/`node:vm` load used other than
+  by named reads, are sinks like `eval` and `Function`.
 
 ### Changed
 

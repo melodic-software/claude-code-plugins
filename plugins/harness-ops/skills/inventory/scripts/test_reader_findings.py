@@ -651,6 +651,24 @@ class TestOpenFindings(unittest.TestCase):
             with self.subTest(module=module):
                 self.assert_across_modules(True, named, module)
 
+    def test_a_bundle_calling_vm_run_in_this_context_stays_partial(self) -> None:
+        """node:vm runs a string as code in this realm, where it could patch
+        the `includes` the flow trusts, so each spelling is a sink like
+        `eval`; a named import that runs no code is not."""
+        named = 'import{pY}from"/a.js";pY.includes("x");'
+        for module in (
+            'import vm from"node:vm";vm.runInThisContext(s);',
+            'var vm=require("vm");vm.runInThisContext(s);',
+            'new(require("vm").Script)(s).runInThisContext();',
+            'var{compileFunction:c}=import.meta.require("node:vm");c(s)();',
+            'import{runInThisContext as r}from"vm";r(s);',
+            'import*as V from"node:vm";var k="runIn"+"ThisContext";V[k](s);',
+            'var vm=require("vm");g(vm);',
+        ):
+            with self.subTest(module=module):
+                self.assert_across_modules(True, named, module)
+        self.assert_across_modules(False, named, 'import{isContext}from"node:vm";')
+
     def test_an_exporter_whose_file_is_unknown_stays_partial(self) -> None:
         """#5891 second verifier: the bundle is not a closed world. With no
         module table and no named importer the exporter's file is unknown,
