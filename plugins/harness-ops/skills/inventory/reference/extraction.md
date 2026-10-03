@@ -399,9 +399,9 @@ regex answer. `compare` runs both and breaks the report on any value that differ
 the changelog skill's native-drift pass reads each new build that way.
 
 The parser stays opt-in because it reads the Explore and Plan `disallowed_tools` partial on
-2.1.284 to 2.1.287 (the claim below), where the regex reader reads a literal it cannot back:
-nothing the text reader sees rules out the namespace loads and sinks below. Making the parser the
-default is tracked in [#5901](https://github.com/melodic-software/claude-code-plugins/issues/5901).
+2.1.284 to 2.1.288 (the claim below), where the regex reader reads a literal it cannot back:
+nothing the text reader sees rules out the sinks below. Making the parser the default is tracked
+in [#5901](https://github.com/melodic-software/claude-code-plugins/issues/5901).
 
 A spread (section 9) keeps its literal under the parser only when no code can change the array.
 A reference other than a spread into an array or call and a member read used as a value is
@@ -431,12 +431,16 @@ name it relies on the prototypes not holding (`has`), and the lookups of a coerc
 or a template. Which object a prototype is reached through is not followed, since there is no end
 of ways (`var A=Array`, `globalThis.Array`, `Array["proto"+"type"]`, `Reflect.get`,
 `[].__proto__`, a parameter). The rule watches the writes instead (the helper's `sinks` op): a
-member write of a trusted name, a write whose computed key names nothing, a trusted name passed
-as a string or `Symbol.x` argument to any call, an object literal holding one given to
+member write of a trusted name, a write whose computed key may be one, a trusted name passed as a
+string or `Symbol.x` argument to any call, an object literal holding one given to
 `Object.assign`, `defineProperties` or `setPrototypeOf`, a definer (`Object.defineProperty`,
-`Reflect.set`, `__defineGetter__`) given a key that names nothing or read other than as a direct
-callee, an alias of `Object` or `Reflect`, and a prototype swap (`__proto__=`, `setPrototypeOf`).
-A key is a name when it is a string, a template without substitutions, or `Symbol.x`. A target
+`Reflect.set`, `__defineGetter__`) given a key that may be one or read other than as a direct
+callee, an alias of `Object` or `Reflect`, a prototype swap (`__proto__=`, `setPrototypeOf`), and a
+write to an undeclared name that is a trusted one (`Promise=f`). A key is a name when it is a
+string, a template without substitutions, or `Symbol.x`. A computed key is known when every value
+it can take is: a literal, a number (arithmetic, `++`, unary minus), a boolean or `typeof`
+result, or a variable each write of which is one of those, so a loop counter (`o[i]=`) or a
+TypeScript enum (`e[e.X=1]=`) writes no trusted name; any other key may write every one. A target
 is cleared only when it is provably fresh: a literal or a function (never a call result, not even
 `Object.create(...)`, which can be replaced); `this` in the constructor of a class with no
 superclass (a derived class's `this` is whatever `super()` returns); a variable that only ever
@@ -445,27 +449,47 @@ reference is `F.prototype.k` with a named key other than `constructor` (a call, 
 `F.prototype.constructor` leads back to F, which could replace it). `Reflect.set`'s receiver, when
 given, must be fresh too. A module that does not parse or calls `eval` is a sink, and so is code
 built from a string: global `eval` other than a direct call, the global `Function` used other
-than for `typeof`, `instanceof` or a `.prototype` read, and any member named `eval` or `Function`
-(on 2.1.284 to 2.1.287, lodash's `Function("return this")()` in 4 modules and a CEL evaluator's
-`g.eval(...)` in 3).
+than for `typeof`, `instanceof` or a `.prototype` read, any member named `eval` or `Function`,
+and node:vm, since code in a new context still reaches this realm
+(`this.constructor.constructor("...")()` inside `runInNewContext`): any load of `vm` or
+`node:vm` except an import naming only `isContext`, and a runner's name (`runInThisContext`,
+`runInNewContext`, `runInContext`, `compileFunction`, `SourceTextModule`, `SyntheticModule`)
+read or destructured from any object. On each of 2.1.284 to 2.1.288 that is 4 modules
+using `Function` (lodash's `Function("return this")()`, a `new Function("")` probe, an unused
+syntax check, and ajv running the validator code it generates), 3 with a member `.eval(...)` (a CEL
+evaluator, the workflow runtime, a CLI command definition), and 1 with a direct `eval`
+(protobufjs's `inquire`); on 2.1.288, 5 more use `vm` (the workflow runtime, the plugin loader, a
+test kit).
 
 The bundle is not a closed world: a module can be loaded whole as a namespace, where a computed
 read (`N[k]`) or an enumeration (`Object.values(N)`, `{...N}`, `for in`) reaches an export
 without naming it. `read_bundle` names each module's own file from Bun's standalone module table
 (after the `---- Bun! ----` trailer, the offsets block points at 52-byte records whose first two
-(offset, length) pairs are the module's path and source), and an export hop stays partial when
-the exporting or re-exporting module's file is loaded whole anywhere: `import*as N from`,
-`export*from`, `import(...)`, `require(...)` or `import.meta.require(...)` with its literal path.
-Without a table the file is the one its importers name in `from"..."`, and a module whose file is
-still unknown counts as loaded whole. A namespace object is not followed to its reads: any whole
-load of the file counts. On 2.1.284 to 2.1.287 the chunk re-exporting the Explore and Plan array
-as `ARTIFACT_FAMILY_TOOL_NAMES` is not the entry chunk; it is loaded whole 13 to 14 times.
+(offset, length) pairs are the module's path and source). An export hop's files are that path and
+every file its importers name in `from"..."`; with neither, the file is unknown and the hop stays
+partial. Every whole load of one of those files (`import*as N from`, `export*from`, `import(...)`,
+`require(...)` or `import.meta.require(...)` with a literal path, found in the AST by the helper's
+`loads` op) is followed by the `namespace` op, and the hop stays partial unless each one only reads
+other exports by name: a member read that is not a call (`ns.f()` hands `ns` to `f` as `this`), an
+object pattern with no rest element, a record property (`e={names:ns}`) whose variable is never
+written again and is only read by name or tested (`e?...`, `e&&...`), and an `import()` that is a
+statement, awaited, or an element of `await Promise.all([...])` destructured by an array pattern.
+`export*` stays partial. `import.meta.require` counts only when the module reads `import.meta` by
+name alone. Those shapes trust built-ins the sink rule then watches: `require`; `constructor` for
+`await`; `Promise`, `all`, `resolve`, `then`, `constructor`, `Symbol.species`, `Symbol.iterator`,
+`next` and `return` for `Promise.all` and the array pattern; and on a record, any name read that
+the literal does not hold. A promise settled with the namespace reads its `then` export, so the
+file's module must be known and export no `then`. A load the scan cannot name (`import(x)` with a
+specifier that is no literal; `require`, `import.meta.require` or `x.require` aliased, `.call`ed,
+behind a comma, or called with no literal) could load any file whole, so any such module fails
+every export hop; `typeof require`, `require.resolve` and a binding named `require` do not count.
+On 2.1.284 to 2.1.288 the chunk re-exporting the Explore and Plan array as
+`ARTIFACT_FAMILY_TOOL_NAMES` is loaded whole 13 to 14 times, each read by name, but on 2.1.288 3
+modules hold a load the scan cannot name.
 
 Stated assumptions, not checked:
 
-- Code built from strings is not analyzed: `new Function(...)`, `Function("...")` and
-  `vm.runInThisContext`, which the module spans of 2.1.284 and 2.1.287 hold 2, 5 and 0 times.
-- A dynamic `import(x)` or `require(x)` whose path is not a literal names no file.
+- Code built from strings is not analyzed, only counted as a sink (above).
 - An array method a JavaScriptCore build adds that V8's `Array.prototype` lacks is read as
   throwing by the method rule.
 - A spread is a copy of the elements, the reading both readers rest on: the sink rule does not
@@ -473,7 +497,7 @@ Stated assumptions, not checked:
 
 | Claim | Basis | As of | Recheck trigger |
 |---|---|---|---|
-| On 2.1.284 to 2.1.287 the Explore and Plan `disallowed_tools` spread an exported array whose importers spread it, call `includes`, alias it and return it to a `.some(t)` caller whose `t` holds `!1`, re-export it, and pass it to an imported function that only calls `has`/`includes` on it. The walk follows each hop and trusts `some`, `includes` and `has`; every build has sinks for them (on 2.1.287, 189 modules with a write whose key names nothing on a target not shown fresh, 88 with a definer given such a key), and the re-exporting chunk is loaded whole, so both lists read partial under the parser | `inventory.py --binary-only` under `--reader=regex` and `--reader=parser` on each native build, compared with `compare_reports.py`: no value->value change; `test_reader_findings.TestInstalledBuilds` pins it where the builds are installed | 2026-10-02, Claude Code 2.1.287 (hop and sink counts); 2.1.288 (both lists read partial under the parser, `TestInstalledBuilds`) | A run under the parser reads either list literal, or `compare` reports a value change |
+| On 2.1.284 to 2.1.288 the Explore and Plan `disallowed_tools` spread an exported array whose importers spread it, call `includes`, alias it and return it to a `.some(t)` caller whose `t` holds `!1`, re-export it, and pass it to an imported function that only calls `has`/`includes` on it. The walk follows each hop, including every whole load of the re-exporting chunk, and trusts `some`, `includes` and `has` plus the built-ins those loads rely on; on 2.1.288 3 modules hold a load the parser cannot name, and every build has sinks for them (on 2.1.288, with only `some`, `includes` and `has`: at least 178 modules with a write whose key may be any name on a target not shown fresh, 92 with a definer given such a key, 22 with a prototype swap, 11 with a definer read other than as a callee, and the 8 running code built from a string listed above), so both lists read partial under the parser | `inventory.py --binary-only --reader=compare` on each native build: no value->value change, the four Explore/Plan values wrong->unresolved; the helper's `sinks` op over every module of 2.1.288; `test_reader_findings.TestInstalledBuilds` pins it where the builds are installed | 2026-10-02, Claude Code 2.1.284 to 2.1.288 | A run under the parser reads either list literal, or `compare` reports a value change |
 
 ## Known non-commands
 

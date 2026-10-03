@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "gold-9999",
+    "proj"
+  ],
+  "exit": 2,
+  "output": {
+    "status": "error",
+    "summary": "No transcript found at proj/gold-9999.jsonl",
+    "data": {}
+  }
+}
