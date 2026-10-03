@@ -1,7 +1,7 @@
 """pydeps.py: the hash-locked on-demand install (first install, no-op rerun, a failed install) and the run launcher.
 
 The lock is a local wheel that provides the numpy and onnxruntime modules, installed with pip's own PIP_NO_INDEX and
-PIP_FIND_LINKS, so no test reaches a package index. `python test_pydeps.py --make-wheel DIR` builds that wheel and
+PIP_FIND_LINKS, so no test reaches a package index. `python test_speech_pydeps.py --make-wheel DIR` builds that wheel and
 prints its sha256, for the hook suite (../hooks/install-python-deps.test.sh).
 """
 import base64
@@ -202,7 +202,7 @@ class Launcher(unittest.TestCase):
 class NoRuntimeFetch(unittest.TestCase):
     """Nothing the skills or scripts run fetches a package; the install hook, through pydeps.py, is the only fetch."""
     FETCH = re.compile(r'\buv\s+(run|pip|tool|sync)\b|\buvx\b|\bpip3?\s+install\b|-m\s+pip\b|--with-requirements')
-    OWNERS = {'pydeps.py', 'test_pydeps.py'}
+    OWNERS = {'pydeps.py', 'test_speech_pydeps.py'}
 
     def test_no_skill_or_script_fetches_a_package(self):
         runnable = [*PLUGIN.glob('skills/**/SKILL.md'), *PLUGIN.glob('skills/**/scripts/*'),

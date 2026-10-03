@@ -46,7 +46,7 @@ native() { cygpath -m "$1" 2>/dev/null || printf '%s' "$1"; }
 WHEELS="$WORK/wheels"
 EMPTY="$WORK/empty"
 mkdir -p "$WHEELS" "$EMPTY"
-digest="$("$py" "$PLUGIN_DIR/scripts/test_pydeps.py" --make-wheel "$(native "$WHEELS")")" || {
+digest="$("$py" "$PLUGIN_DIR/scripts/test_speech_pydeps.py" --make-wheel "$(native "$WHEELS")")" || {
   echo "FAIL: could not build the fixture wheel" >&2
   exit 1
 }

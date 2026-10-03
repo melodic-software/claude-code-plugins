@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Contract tests for the speech scripts narrate.py, assets.py, check.py and pydeps.py.
-# test_assets, test_pydeps and most of test_narrate need only the standard library and always run (test_pydeps
+# test_assets, test_speech_pydeps and most of test_narrate need only the standard library and always run (test_speech_pydeps
 # skips without pip). test_narrate's timing tests need numpy (../requirements.in pins it, ../requirements.txt
 # hash-locks it) and skip without it, so SPEECH_REQUIRE_DEPS=1 fails the run instead: a lane that provisions the
 # pinned requirements sets it, and a missing numpy then reads as a broken environment, not as passing coverage.
@@ -22,4 +22,4 @@ if ! python3 -c 'import numpy' 2>/dev/null; then
   echo "SKIP: narrate timing suite: numpy missing (set SPEECH_REQUIRE_DEPS=1 to fail instead)" >&2
 fi
 
-exec python3 -m unittest test_narrate test_assets test_pydeps -q
+exec python3 -m unittest test_narrate test_assets test_speech_pydeps -q
