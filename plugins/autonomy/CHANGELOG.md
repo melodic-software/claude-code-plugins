@@ -7,10 +7,7 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 ### Changed
 
-- The runner lifecycle's deferred merge-serialization growth stage names GitHub's native binding:
-  the merge queue, entered through the asynchronous merge endpoint with `merge_action=merge_queue`. It
-  is a dated pointer record with a recheck trigger; the stage stays deferred until its evidence
-  trigger fires.
+- The shared hook helper's posture comment no longer names a fixed member count.
 
 ## [0.25.6] - 2026-10-02
 
