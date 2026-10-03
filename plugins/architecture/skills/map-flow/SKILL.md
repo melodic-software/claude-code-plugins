@@ -173,6 +173,13 @@ End every run with this block, in this order, filled from the record and the scr
   tree, or on a receiver of unknown type), `di=` (interface and service-locator hops), and the
   remainder, and that none were bound to a guessed implementation.
 
+## Interactive view
+
+After the report, offer an interactive view of `flow.json` in one sentence. The markdown and the record stay
+authoritative. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs flow`, never hand-written; the
+publish destination comes from the `medium` cascade key. Procedure:
+[`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md).
+
 ## What this skill does NOT do
 
 - Bind an interface, a service locator, or reflection to an implementation, or bind any call by
