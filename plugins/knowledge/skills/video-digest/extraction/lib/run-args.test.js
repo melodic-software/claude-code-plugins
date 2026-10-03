@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildChildEnv, expandPathValue, parseRunArgs } from "./run-args.js";
+import { buildChildEnv, expandPathValue, parseRunArgs, resolvePluginData } from "./run-args.js";
 
 describe("parseRunArgs", () => {
   it("returns no flags when none are present", () => {
@@ -53,6 +53,21 @@ describe("parseRunArgs", () => {
     expect(parsed.workRoot).toBeUndefined();
     expect(parsed.script).toBe("watch/queue-claim.js");
     expect(parsed.rest).toEqual(["--work-root", "list"]);
+  });
+
+  it("extracts --data-dir alongside --work-root in either order", () => {
+    const data = "/home/u/.claude/plugins/data/knowledge-melodic-software";
+    const expected = { dataDir: data, workRoot: "/proj", script: "watch/run-watch.js", rest: ["https://x"] };
+    expect(parseRunArgs(["--data-dir", data, "--work-root", "/proj", "watch/run-watch.js", "https://x"])).toEqual(
+      expected,
+    );
+    expect(parseRunArgs(["--work-root", "/proj", "--data-dir", data, "watch/run-watch.js", "https://x"])).toEqual(
+      expected,
+    );
+  });
+
+  it("throws when --data-dir has no value", () => {
+    expect(() => parseRunArgs(["--data-dir"])).toThrow(/`--data-dir` requires a directory value/);
   });
 
   it("throws when --work-root has no value", () => {
@@ -111,6 +126,48 @@ describe("buildChildEnv", () => {
     const base = { PATH: "/usr/bin" };
     buildChildEnv(base, { workRoot: "/proj" });
     expect(base).toEqual({ PATH: "/usr/bin" });
+  });
+
+  it("hands the child the data dir as CLAUDE_PLUGIN_DATA", () => {
+    expect(buildChildEnv({ PATH: "/usr/bin" }, { dataDir: "/data/knowledge-m" })).toEqual({
+      PATH: "/usr/bin",
+      CLAUDE_PLUGIN_DATA: "/data/knowledge-m",
+    });
+  });
+});
+
+describe("resolvePluginData", () => {
+  const knowledge = "C:/Users/u/.claude/plugins/data/knowledge-melodic-software";
+  const codex = "C:/Users/u/.claude/plugins/data/codex-openai-codex";
+
+  it("prefers the flag over an inherited value naming another plugin", () => {
+    expect(resolvePluginData(knowledge, { CLAUDE_PLUGIN_DATA: codex })).toBe(knowledge);
+  });
+
+  it("ignores an inherited value naming another plugin when no flag is given", () => {
+    expect(resolvePluginData(undefined, { CLAUDE_PLUGIN_DATA: codex })).toBeUndefined();
+    expect(resolvePluginData("", { CLAUDE_PLUGIN_DATA: codex })).toBeUndefined();
+  });
+
+  it("keeps an inherited value naming this plugin when no flag is given", () => {
+    expect(resolvePluginData(undefined, { CLAUDE_PLUGIN_DATA: knowledge })).toBe(knowledge);
+    expect(resolvePluginData(undefined, { CLAUDE_PLUGIN_DATA: `${knowledge}/` })).toBe(`${knowledge}/`);
+    const windows = "C:\\Users\\u\\.claude\\plugins\\data\\knowledge-inline";
+    expect(resolvePluginData(undefined, { CLAUDE_PLUGIN_DATA: windows })).toBe(windows);
+  });
+
+  it("does not take a prefix match for this plugin's name", () => {
+    const lookalike = "/home/u/.claude/plugins/data/knowledgebase-other";
+    expect(resolvePluginData(undefined, { CLAUDE_PLUGIN_DATA: lookalike })).toBeUndefined();
+  });
+
+  it("returns undefined when nothing is set", () => {
+    expect(resolvePluginData(undefined, {})).toBeUndefined();
+  });
+
+  it("throws on a placeholder that reached the script unsubstituted", () => {
+    expect(() => resolvePluginData("${CLAUDE_PLUGIN_DATA}", {})).toThrow(/unsubstituted placeholder/);
+    expect(() => resolvePluginData("<plugin-data>", {})).toThrow(/unsubstituted placeholder/);
   });
 });
 

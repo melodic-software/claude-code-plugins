@@ -1,6 +1,6 @@
 # Storage Schema
 
-All course data lives under the invoking project's `library_dir` setting (or `${CLAUDE_PLUGIN_DATA}` when no library dir is configured), as `courses/<platform>/<slug>/`.
+All course data lives under the invoking project's `library_dir` setting (or `<plugin-data>` when no library dir is configured), as `courses/<platform>/<slug>/`.
 
 ## Platform naming
 

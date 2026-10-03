@@ -1,8 +1,9 @@
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 
 import {
   detectRecoverableBootstrap,
@@ -84,6 +85,33 @@ describe("detectRecoverableBootstrap", () => {
     expect(formatRecoverCommand(tmp)).not.toContain("youtube-digest");
   });
 
+  it("names the launcher by absolute path and passes the plugin's own data dir", () => {
+    const { framesDir, sheetsDir } = makeFrameAndSheetDirs();
+    const tmp = makeSliceDir({
+      phases: {},
+      tempSession: { workDir: makeWorkDir("captions.vtt"), framesDir, contactSheetsDir: sheetsDir },
+    });
+    const knowledgeData = "/home/u/.claude/plugins/data/knowledge-melodic-software";
+
+    vi.stubEnv("CLAUDE_PLUGIN_DATA", knowledgeData);
+    try {
+      const match = /^node "([^"]+)" --data-dir "([^"]+)" watch\/recover-watch-bootstrap\.js /.exec(
+        formatRecoverCommand(tmp),
+      );
+      expect(match).not.toBeNull();
+      const [, launcher, dataDir] = /** @type {RegExpExecArray} */ (match);
+      expect(path.isAbsolute(launcher)).toBe(true);
+      expect(launcher.endsWith("/skills/video-digest/extraction/run.mjs")).toBe(true);
+      expect(fs.existsSync(launcher)).toBe(true);
+      expect(dataDir).toBe(knowledgeData);
+      vi.stubEnv("CLAUDE_PLUGIN_DATA", "/home/u/.claude/plugins/data/codex-openai-codex");
+      expect(formatRecoverCommand(tmp)).not.toContain("--data-dir");
+      expect(formatRecoverCommand(tmp)).not.toContain("codex-openai-codex");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("accepts an auto-caption-only workDir (*-orig.vtt)", () => {
     const { framesDir, sheetsDir } = makeFrameAndSheetDirs();
     const tmp = makeSliceDir({
@@ -112,6 +140,40 @@ describe("detectRecoverableBootstrap", () => {
     const result = detectRecoverableBootstrap(tmp);
     expect(result.recoverable).toBe(false);
     expect(formatRecoverCommand(tmp)).toBe("");
+  });
+});
+
+describe("run.mjs hands its child only the resolved data dir", () => {
+  const launcher = path.join(import.meta.dirname, "..", "run.mjs");
+  const codex = "/home/u/.claude/plugins/data/codex-openai-codex";
+
+  /** The recover command the CLI prints when run through the launcher with these args. */
+  function recoverCommandVia(launcherArgs) {
+    const { framesDir, sheetsDir } = makeFrameAndSheetDirs();
+    const slice = makeSliceDir({
+      phases: {},
+      tempSession: { workDir: makeWorkDir("captions.vtt"), framesDir, contactSheetsDir: sheetsDir },
+    });
+    const result = spawnSync(
+      process.execPath,
+      [launcher, ...launcherArgs, "watch/detect-recoverable-bootstrap.js", slice, "--json"],
+      { encoding: "utf8", timeout: 20000, env: { ...process.env, CLAUDE_PLUGIN_DATA: codex } },
+    );
+    expect(result.status, result.stderr).toBe(0);
+    return JSON.parse(result.stdout).recoverCommand;
+  }
+
+  it("replaces an inherited value naming another plugin with the --data-dir value", () => {
+    const knowledge = "/home/u/.claude/plugins/data/knowledge-melodic-software";
+    const command = recoverCommandVia(["--data-dir", knowledge]);
+    expect(command).toContain(`--data-dir "${knowledge}"`);
+    expect(command).not.toContain("codex-openai-codex");
+  });
+
+  it("never passes on an inherited value naming another plugin when no flag is given", () => {
+    const command = recoverCommandVia([]);
+    expect(command).not.toContain("--data-dir");
+    expect(command).not.toContain("codex-openai-codex");
   });
 });
 

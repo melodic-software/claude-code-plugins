@@ -12,7 +12,7 @@ Tick only after verification evidence. Criteria SSOT: `quality-gates.md` (the `/
 
 ## Phase 0: Prerequisites
 
-- [ ] **0.1** video-extraction deps installed. Verify: `node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/setup-deps.mjs"` exit 0
+- [ ] **0.1** video-extraction deps installed. Verify: `node "<skill-dir>/extraction/setup-deps.mjs" --data-dir "<plugin-data>"` exit 0
 - [ ] **0.2** yt-dlp available. Verify: SKILL pre-computed context ≠ MISSING
 - [ ] **0.3** ffmpeg available (watch only). Verify: SKILL pre-computed context ≠ MISSING
 - [ ] **0.4** ImageMagick 7 available (watch only). Verify: SKILL pre-computed context ≠ MISSING
@@ -89,7 +89,7 @@ Tick only after verification evidence. Criteria SSOT: `quality-gates.md` (the `/
 - [ ] **7.2** Per done cluster: finding file or inline in `RESEARCH.md`. Verify: research outcome gate per cluster
 - [ ] **7.3** `RESEARCH.md` slice summary. Verify: ≥200 chars; conflicts + gaps sections
 - [ ] **7.4** Top harvested URLs fetched; repos analyzed to temp if GitHub links. Verify: fetch log / `analyze-harvested-repos.js` when applicable
-- [ ] **7.5** Research verify. Verify: `node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" evals/check-research-complete.js "<slice-dir>"` exit 0
+- [ ] **7.5** Research verify. Verify: `node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" evals/check-research-complete.js "<slice-dir>"` exit 0
 - [ ] **7.6** `mark-phase <slice-dir> research` only after 7.5. Verify: `watch.json`
 
 ## Phase 8: Synthesis
@@ -105,7 +105,7 @@ Tick only after verification evidence. Criteria SSOT: `quality-gates.md` (the `/
 
 ## Phase 9: Outcome verification (mandatory before complete)
 
-- [ ] **9.1** Host verify. Verify: `node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/run.mjs" evals/check-watch-outcomes.js "<slice-dir>" --write-report` exit 0
+- [ ] **9.1** Host verify. Verify: `node "<skill-dir>/extraction/run.mjs" --data-dir "<plugin-data>" evals/check-watch-outcomes.js "<slice-dir>" --write-report` exit 0
 - [ ] **9.2** `verification/<ISO-basic>Z-watch-outcomes.md` shows PASS. Verify: all `fail` severity checks green
 - [ ] **9.3** `watch-state.js close <slice-dir>` exit 0 after 9.1, 9.2 and 9.4; it is the only writer of `status: complete`. Verify: `watch.json` `status: complete`
 - [ ] **9.4** Vision fidelity spot-check (required for a vision-complete claim). Verify: ≥10 synthesis PNG images name↔content + ≥3 contact sheets verdict↔JPG; notes in Resume notes below. Verify script exit 0 alone is structural only.
