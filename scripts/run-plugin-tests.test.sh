@@ -80,6 +80,13 @@ assert_output_has "repo-local hook suites are discovered" "PASS: .claude/hooks/h
 assert_output_has "the all-green summary line" "All plugin tests passed."
 assert_output_has "the suite count is reported" "Suites: 3 (0 serial, 3 across up to 1 job(s))"
 
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "--list exits 0" --list --root "$r"
+if [[ "$RUN_OUTPUT" == $'.claude/hooks/h.test.sh\nplugins/a/a.test.sh\nplugins/b/b.test.sh' ]]; then
+  ok "--list prints the discovered corpus and runs nothing"
+else
+  fail "--list: got [$RUN_OUTPUT]"
+fi
+
 # A gate's self-test and a shared library's suite are corpus suites too: the
 # whole-tree run reaches them by discovery, not by a workflow step of their own.
 r="$(make_root scripts-lib)"
