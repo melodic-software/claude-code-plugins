@@ -27,8 +27,10 @@ because their working directory had been removed.
    `lib/state-key.sh` prints (`<identity>/<worktree>`), keeps the records whose repository identity
    matches its identity part, so every checkout and worktree of the repository counts, and writes
    its report under the full key.
-4. **Nothing in the store is committed**, and uninstalling the plugin deletes it. The skill says so
-   before the first collect on a machine.
+4. **Nothing in the store is committed.** Uninstalling the plugin from the last scope where it is
+   installed deletes the store unless the uninstall passes `--keep-data`
+   ([plugin-data-report-keying](../conventions/plugin-data-report-keying/README.md) records the
+   upstream behavior). The skill warns about this before the first collect on a machine.
 
 ## Alternatives considered
 
