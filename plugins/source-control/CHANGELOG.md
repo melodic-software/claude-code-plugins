@@ -3,11 +3,19 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.79.2] - 2026-10-03
+## [0.79.3] - 2026-10-03
 
 ### Changed
 
 - `scripts/babysit-wrapper-help.test.sh`, `skills/babysit-prs/scripts/engine.test.sh`, `skills/babysit-prs/scripts/tests/test_guards.py`, and `skills/worktree/nesting-invariant-ssot.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
+## [0.79.2] - 2026-10-03
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5838](https://github.com/melodic-software/claude-code-plugins/issues/5838)); no change to this plugin's hooks.**
+  It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copy.
 
 ## [0.79.1] - 2026-10-03
 

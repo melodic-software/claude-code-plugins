@@ -1098,7 +1098,7 @@ jobs:
       # hook::check_enabled means the whole 2,684-line hook-utils.sh is parsed
       # first — ~3.5 ms of a disabled standalone guard's ~5.3 ms on this runner.
       # The audit that prompted #3712 found the switch below the source in 43 of
-      # 43 hooks, and scripts/sync-hook-utils.sh covers the vendored library
+      # 43 hooks, and scripts/sync-shared-copies.sh covers the vendored library
       # copies but NOT the entry scripts, so nothing else here would notice the
       # ordering drifting back. Rule 2 holds every other blocking event to the
       # same order: a Stop or Notification hook's first early exit comes before
@@ -1595,28 +1595,13 @@ jobs:
             scripts/validate-plugins.sh
           fi
 
-      # The shared-library gates (ADR 0019). Every per-plugin copy but
-      # hook-utils.sh's is generated from one canonical source by
-      # scripts/sync-shared-copies.sh; hook-utils.sh keeps its own sync script.
+      # The shared-library gates (ADR 0019). Every per-plugin copy is generated
+      # from one canonical source by scripts/sync-shared-copies.sh.
       # CI only verifies: the copies match their canonical, and a change to a
       # canonical bumps every carrying plugin. The libraries' own suites are
       # corpus suites, reached by the selector. The bump checks need a base
       # ref, so they return early on a push rather than diffing against a ref
       # that does not exist.
-      - name: Verify plugin copies match the shared hook-utils lib
-        if: needs.scope.outputs.run_tests == 'true'
-        run: scripts/sync-hook-utils.sh --check
-      - name: Verify carrying plugins bumped when hook-utils changed
-        if: needs.scope.outputs.run_tests == 'true'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
-            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
-            exit 0
-          fi
-          scripts/sync-hook-utils.sh --check-bump "origin/$BASE_REF"
-
       - name: Verify generated shared-library copies match their canonical sources
         if: needs.scope.outputs.run_tests == 'true'
         run: scripts/sync-shared-copies.sh --check
