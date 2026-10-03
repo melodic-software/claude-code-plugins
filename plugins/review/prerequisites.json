@@ -5,14 +5,16 @@
       "kind": "cli",
       "need": "optional",
       "for": [
-        "skill:audit-enforceability"
+        "skill:audit-enforceability",
+        "skill:explain-change"
       ],
       "detect": {
         "any": [
-          "python3"
+          "python3",
+          "python"
         ]
       },
-      "degrade": "Without Python 3, the stub emitter skips Unicode normalization of file paths and proceeds with the raw path.",
+      "degrade": "Without Python 3, the stub emitter skips Unicode normalization of file paths and proceeds with the raw path, and the change digest cannot reach the session, so the reader copies questions back instead.",
       "install": {
         "docs": "https://www.python.org/downloads/",
         "brew": "python",
@@ -40,6 +42,27 @@
         "brew": "gh",
         "winget": "GitHub.cli",
         "apt": "gh"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "curl",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:explain-change"
+      ],
+      "detect": {
+        "any": [
+          "curl"
+        ]
+      },
+      "degrade": "Without curl, the change digest's view watcher does not start, so the reader copies questions back instead.",
+      "install": {
+        "docs": "https://curl.se/download.html",
+        "brew": "curl",
+        "winget": "cURL.cURL",
+        "apt": "curl"
       },
       "check": "/harness-ops:prerequisites"
     },

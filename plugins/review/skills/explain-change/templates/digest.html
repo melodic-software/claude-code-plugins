@@ -72,7 +72,8 @@ a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
   outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 2px;
 }
 input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-.out { white-space: pre-wrap; }
+.out, .answers li { white-space: pre-wrap; }
+.answers { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.35rem; }
 </style>
 </head>
 <body>
@@ -145,14 +146,18 @@ input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3p
 </ol>
 </section></div>
 <section>
-<h2 id="reply">Send your questions back</h2>
+<h2 id="reply">Ask the session that wrote this change</h2>
 <label for="note">Questions or notes for the session</label>
 <textarea id="note" data-rv-note="note" placeholder="What is unclear, and which files you reviewed"></textarea>
 <div class="actions">
+<button type="button" data-rv-send="explain-change">Ask the session</button>
 <button type="button" data-rv-copy="explain-change">Copy reply</button>
 <button type="button" data-rv-download="explain-change">Save as file</button>
 </div>
 <p class="muted" role="status" data-rv-status=""></p>
+<p class="muted" data-rv-session=""></p>
+<h3>Answers</h3>
+<ol class="answers" data-rv-replies=""></ol>
 <pre class="out" data-rv-out="" hidden></pre>
 <p class="muted">The markdown record is the deliverable. This page is a view of it.</p>
 </section>
