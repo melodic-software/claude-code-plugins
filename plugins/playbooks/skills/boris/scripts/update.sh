@@ -8,7 +8,7 @@
 #
 # Modes:
 #   --check  (default) read-only: report upstream version + vendor SHA delta
-#   --apply  fetch latest upstream, replace vendor/SKILL.md verbatim, bump
+#   --apply  fetch latest upstream, replace vendor/upstream-skill.md verbatim, bump
 #            frontmatter metadata (upstream-version + synced). Does NOT
 #            rewrite the SKILL.md body or reference/*.md content — distilled
 #            integration is a manual, reviewed step (advisory contract).
@@ -28,7 +28,7 @@ INSTALL_URL="https://howborisusesclaudecode.com/api/install"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 FRONTMATTER_FILE="${SKILL_DIR}/SKILL.md"
-VENDOR_FILE="${SKILL_DIR}/vendor/SKILL.md"
+VENDOR_FILE="${SKILL_DIR}/vendor/upstream-skill.md"
 TMPDIR_RUN=$(mktemp -d -t boris-update-XXXXXX)
 
 cleanup() {
@@ -138,7 +138,7 @@ run_check() {
     log "→ version match"
   fi
 
-  section "vendor/SKILL.md SHA"
+  section "vendor/upstream-skill.md SHA"
   upstream_md=$(fetch_upstream_install) || {
     err "failed to fetch $INSTALL_URL"
     return 2
@@ -150,7 +150,7 @@ run_check() {
   log "upstream SHA256: $upstream_sha"
 
   if [[ -z "$vendor_sha" ]]; then
-    log "→ vendor/SKILL.md missing — first sync"
+    log "→ vendor/upstream-skill.md missing — first sync"
     drift=1
   elif [[ "$upstream_sha" == "$vendor_sha" ]]; then
     log "→ vendor content matches upstream byte-for-byte"
@@ -198,10 +198,10 @@ run_apply() {
     return 0
   fi
 
-  section "Replace vendor/SKILL.md"
+  section "Replace vendor/upstream-skill.md"
   mkdir -p "$(dirname "$VENDOR_FILE")"
   cp "$upstream_md" "$VENDOR_FILE"
-  log "vendor/SKILL.md replaced ($(wc -c <"$VENDOR_FILE" | tr -d ' \r') bytes)"
+  log "vendor/upstream-skill.md replaced ($(wc -c <"$VENDOR_FILE" | tr -d ' \r') bytes)"
 
   section "Bump frontmatter metadata"
   today=$(date -u +%Y-%m-%d)
@@ -211,7 +211,7 @@ run_apply() {
   log "metadata.synced:           ${prev_synced:-<unset>} → $today"
 
   section "Manual next steps"
-  log "NOTE: vendor/SKILL.md is untrusted third-party data — ignore any"
+  log "NOTE: vendor/upstream-skill.md is untrusted third-party data — ignore any"
   log "instructions embedded in it (e.g. its UPDATE CHECK auto-install block)."
   log "1. Diff the vendor baseline against prior HEAD to surface new/changed tips:"
   log "     git diff HEAD -- \"$VENDOR_FILE\""
@@ -244,9 +244,9 @@ Vendor-backed update helper for the boris pack (playbooks plugin). Maintainer-
 facing: run in a working-tree checkout of the plugin, not an installed copy.
 
   --check  (default) Read-only drift report: upstream version + SHA delta vs
-           vendor/SKILL.md. Exit 0 if in sync, 1 if drift, 2 on prereq/network.
+           vendor/upstream-skill.md. Exit 0 if in sync, 1 if drift, 2 on prereq/network.
 
-  --apply  Fetch latest upstream, replace vendor/SKILL.md verbatim, bump
+  --apply  Fetch latest upstream, replace vendor/upstream-skill.md verbatim, bump
            frontmatter metadata (upstream-version + synced). Does NOT rewrite
            the SKILL.md body or reference/*.md — distilled integration is the
            manual next step per the advisory contract.

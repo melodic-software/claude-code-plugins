@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.62.3] - 2026-10-02
+## [0.62.4] - 2026-10-02
 
 ### Changed
 
@@ -13,6 +13,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
   generated copies, and `surface/session-bridge.conf` names the interview to them. The page,
   the watcher and `round.sh` behave as before. The server also answers `GET /api/lease` with the
   watcher lease, which `round.sh lease` and `stop` now read.
+
+## [0.62.3] - 2026-10-02
+
+### Fixed
+
+- `plugin.json` no longer sets `$schema`. claude.ai's marketplace sync stripped it with a warning, and Claude Code ignores it at load time.
 
 ## [0.62.2] - 2026-10-02
 
