@@ -1,6 +1,6 @@
 ---
 description: "Text-to-speech: turn a narration script into narration.wav plus words.json, a start and end time in seconds for every word of the script, so a video, caption track or page can sync to the voice. The default kokoro backend is local, with no network at run time. The optional elevenlabs backend sends the script text to the third-party ElevenLabs API (api.elevenlabs.io), only after showing its character count, host and cost estimate and getting the user's go-ahead. Use when: 'narrate this script', 'text to speech', 'read this aloud', 'make a voiceover', 'generate narration audio', 'TTS with word timings', 'I need audio for this explainer', 'narrate with elevenlabs'. Not for transcribing existing audio."
-argument-hint: "<script file or text> [--backend kokoro|elevenlabs] [--out <dir>] [--voice <name>] [--speed <0.5-2.0>] [--model <id>]"
+argument-hint: "<script or text> [--backend kokoro|elevenlabs] [--out <dir>] [--voice <v>] [--speed <n>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
