@@ -194,7 +194,15 @@ async function refresh($: EngineInterface, st: State, cfg: Config, limits?: read
   return { now, reading }
 }
 
+function clearNotice($: EngineInterface, st: State) {
+  if (st.notice === undefined) return
+  st.notice = undefined
+  st.reofferTimer = stopTimer(st.reofferTimer)
+  $.ui.invalidate('ui.render')
+}
+
 // The lines a carrier attaches now, consumed; none when none is due or operator mode holds them.
+// Lines sent to Claude supersede any notice still offering them to the person.
 async function takeLines($: EngineInterface, st: State, cfg: Config): Promise<string[]> {
   if (!cfg.lines) {
     consume(st)
@@ -203,6 +211,7 @@ async function takeLines($: EngineInterface, st: State, cfg: Config): Promise<st
   if (await operatorHolds($, st, cfg)) return []
   const lines = dueLines(st, cfg)
   consume(st)
+  if (lines.length > 0) clearNotice($, st)
   return lines
 }
 
@@ -373,7 +382,7 @@ export const register: Register = (on, options) => {
   }
 
   on('session.start', async ($, e, next) => {
-    await Promise.allSettled([
+    const [tool] = await Promise.allSettled([
       $.tool.register({
         name: 'status',
         description:
@@ -388,6 +397,10 @@ export const register: Register = (on, options) => {
         argumentHint: '[show|hide]',
       }),
     ])
+    if (tool.status === 'rejected') {
+      const reason = tool.reason instanceof Error ? tool.reason.message : String(tool.reason)
+      logOnce($, st, 'tool-register', `the status pull tool could not register: ${reason}`)
+    }
     await refresh($, st, cfg)
     // A fresh load mid-session (a reload, a worker respawn, an enable, a --resume launch): the
     // earlier lines already reached Claude, so only a window at the edge is restated.
@@ -439,11 +452,7 @@ export const register: Register = (on, options) => {
         }
       }
       st.handoff.clear()
-      if ((isPersonTurn(st) || handingOff) && st.notice !== undefined) {
-        st.notice = undefined
-        st.reofferTimer = stopTimer(st.reofferTimer)
-        $.ui.invalidate('ui.render')
-      }
+      if (isPersonTurn(st) || handingOff) clearNotice($, st)
     }
     await refresh($, st, cfg)
     const lines = await takeLines($, st, cfg)

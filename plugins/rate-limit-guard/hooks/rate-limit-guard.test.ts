@@ -750,6 +750,90 @@ test('fail open: a failing write leaves the tool result and the line', async ($,
   expect(ownLines(called.context)).toHaveLength(1)
 })
 
+test('pull tool: a refused registration logs one line, and lines, band and writes carry on', async ($, on) => {
+  const logs: string[] = []
+  const { w } = world(on, {}, { HOME }, ['tool.register', 'ui.log'])
+  on('tool.register', () => {
+    throw new Error('refused by policy')
+  })
+  on('ui.log', ($: unknown, e: { text: string }) => (logs.push(e.text), { value: undefined }))
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  w.limits = limits(91)
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_5H])
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect((await ui.find({ type: 'Text', text: / 5h / }))?.text).toBe('[Opus 5.5] 5h 91% | 7d 7%')
+  await ui.unmount()
+  expect(bodies(w).map(b => b.rate_limits.five_hour.used_percentage)).toEqual([91])
+  expect(logs).toHaveLength(1)
+  expect(logs[0]).toMatch(/^rate-limit-guard: the status pull tool could not register: \S/)
+})
+
+test('pull tool: a registration refused at every session start is logged once', NO_WRITES, async ($, on) => {
+  const logs: string[] = []
+  world(on, {}, { HOME }, ['tool.register', 'ui.log'])
+  on('tool.register', () => {
+    throw new Error('refused by policy')
+  })
+  on('ui.log', ($: unknown, e: { text: string }) => (logs.push(e.text), { value: undefined }))
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  expect(logs.filter(l => l.startsWith('rate-limit-guard: the status pull tool could not register: '))).toHaveLength(1)
+})
+
+test('operator mode: a carrier with nothing due leaves a shown notice in place', OPERATOR, async ($, on) => {
+  const { w } = world(on)
+  await shownInTypedTurn($, w)
+  w.surfaces = []
+  expect(ownLines((await bash($)).context)).toEqual([])
+  expect(await noticeText($)).toBe(`rate-limit-guard notice: FYI, ${EDGE_5H}`)
+  expect(ownLines((await prompt($, 'sdk')).context)).toEqual([EDGE_5H])
+})
+
+for (const kind of ['sdk', 'scheduled-trigger']) {
+  test(`operator mode: a held line sent to Claude at a ${kind} turn clears the notice and offers nothing later`, OPERATOR, async ($, on) => {
+    const { w, clock } = world(on, { box: 'half typed' })
+    await prompt($, 'composer')
+    w.limits = limits(91)
+    await bash($)
+    await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+    expect(await noticeText($)).toBe(`rate-limit-guard notice: FYI, ${EDGE_5H}`)
+    expect(ownLines((await prompt($, kind)).context)).toEqual([EDGE_5H])
+    expect(await noticeText($)).toBeUndefined()
+    w.box = ''
+    await clock.advance(20_000)
+    expect(w.suggested).toEqual([])
+  })
+}
+
+const EDGE_7D = `rate-limit-guard: the 7-day window is at the 90% pause edge, resets at 2026-10-08 09:00 UTC ${SOURCE}`
+
+test('operator mode: a newer reading than the shown suggestion goes to Claude instead of the handed-off one', OPERATOR, async ($, on) => {
+  const { w } = world(on)
+  await shownInTypedTurn($, w, limits(87))
+  w.limits = limits(92)
+  await $.session.measure({ context: { window: 200_000 }, rateLimits: w.limits, changed: ['rateLimits'] })
+  expect(ownLines((await prompt($, 'sdk')).context)).toEqual([EDGE_5H])
+})
+
+test('operator mode: a handed-off window that left the reading sends no line', OPERATOR, async ($, on) => {
+  const { w } = world(on)
+  await shownInTypedTurn($, w, limits(87))
+  w.limits = limits(undefined)
+  await $.session.measure({ context: { window: 200_000 }, rateLimits: w.limits, changed: ['rateLimits'] })
+  expect(ownLines((await prompt($, 'sdk')).context)).toEqual([])
+})
+
+test('operator mode: a second shown suggestion keeps the first one handed off', OPERATOR, async ($, on) => {
+  const { w } = world(on)
+  await shownInTypedTurn($, w)
+  await prompt($, 'task-notification', { turnId: 'turn-1' })
+  w.limits = limits(91, 92)
+  expect(ownLines((await bash($)).context)).toEqual([])
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  expect(w.suggested).toEqual([`FYI, ${EDGE_5H}`, `FYI, ${EDGE_7D}`])
+  expect(ownLines((await prompt($, 'sdk')).context)).toEqual([EDGE_5H, EDGE_7D])
+})
+
 test(
   'composition: a second plugin beneath adds its own line and both arrive',
   {

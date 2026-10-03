@@ -83,8 +83,9 @@ notice and the suggestion there are untested.
 
 A `--bg` session reports its first prompt as typed, so in operator mode a `--bg` lane gets no line
 from that turn; its line reaches Claude at the lane's next turn no person started. A lane that
-wants the lines at once may start its session with its own options through `--settings`, which can set any key user settings can, including the plugin's `pluginConfigs`
-entry: `{"pluginConfigs": {"rate-limit-guard@<marketplace>": {"options":
+wants the lines at once may start its session with its own options through `--settings`, which can
+set any key user settings can, including the plugin's `pluginConfigs` entry:
+`{"pluginConfigs": {"rate-limit-guard@<marketplace>": {"options":
 {"rate_limit_report_mode": "automatic"}}}}` (a `--plugin-dir` copy is keyed `<name>@inline`).
 
 - **Pointer**: [settings: change a setting for one session](https://code.claude.com/docs/en/settings#change-a-setting-for-one-session)
