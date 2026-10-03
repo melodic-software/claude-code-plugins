@@ -145,7 +145,11 @@ Cost follows what is scanned, and precision never pays for it. Three rules, appl
 Agent tool's per-invocation `model` parameter. This skill names roles, never aliases: the map's
 defaults and their upstream basis belong to the multi-agent plugin. When `/multi-agent:route`
 resolves in this session, run `/multi-agent:route all session=<this session's model alias>` once per
-run and pass each stage's role `fanout` variant model, omitting it when `omit_model` is true:
+run. Pass the role's `fanout` variant model when the stage dispatches more than one agent and its
+`single` variant when it dispatches one (a one-lens run, a one-candidate wave), omitting the model
+when `omit_model` is true. A gate never runs on a weaker model than the hunters it checks: when the
+gate's resolved model (the session's, if omitted) is weaker than the hunters', pass the hunters'
+model to the gate instead.
 
 | Stage | Role | Why |
 |---|---|---|

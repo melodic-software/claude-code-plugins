@@ -7,7 +7,7 @@ All notable changes to the `bugs` plugin are documented here. Format follows
 
 ### Changed
 
-- `scan` takes each stage's model from the multi-agent role map (`/multi-agent:route`): hunters use the `retrieval` role, gates the `verifier` role, each through its `fanout` variant. Without the multi-agent plugin both stages inherit the session model, or run on `opus` under a frontier or unknown session, and the report says once that enabling multi-agent makes routing configurable. The skill no longer reads the loop-lane capability tiers.
+- `scan` takes each stage's model from the multi-agent role map (`/multi-agent:route`): hunters use the `retrieval` role, gates the `verifier` role, through the `single` variant for a one-agent stage and the `fanout` variant otherwise, and a gate never runs on a weaker model than the hunters. Without the multi-agent plugin both stages inherit the session model, or run on `opus` under a frontier or unknown session, and the report says once that enabling multi-agent makes routing configurable. The skill no longer reads the loop-lane capability tiers.
 
 ## [0.11.11] - 2026-10-02
 
