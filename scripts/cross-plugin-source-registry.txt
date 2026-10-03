@@ -342,3 +342,12 @@ lib/view-runtime.js
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/view-runtime.js -> plugins/*/lib/view-runtime.js
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/publish-gate.mjs. The review and visualization plugins carry the generated
+# copies.
+lib/publish-gate.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/publish-gate.mjs -> plugins/*/lib/publish-gate.mjs

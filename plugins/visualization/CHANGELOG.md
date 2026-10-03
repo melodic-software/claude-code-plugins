@@ -3,6 +3,30 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0] - 2026-10-03
+
+### Added
+
+- **`/visualization:present` builds slide decks through the claude.ai Slides Artifact type
+  ([#5867](https://github.com/melodic-software/claude-code-plugins/issues/5867)).** It writes the
+  markdown outline as the record, finds the Slides type through the Artifact tool's `quickstart` at
+  run time (never a stored type URL), and fills the deck as the type instructs. A design system is
+  used only when the user names one or the quickstart attaches a default. With no Slides type the
+  outline is delivered and the reason given.
+- `skills/present/scripts/check-deck.mjs` runs before the type's create call: it refuses a deck
+  folder inside a working tree or reached through a symlink, refuses a title that is not plain text
+  and prints the gated title for the create call, holds a K2 slide to a quote-aware allowlist of
+  text and layout elements, attributes, and uploaded image sources (failing closed on anything it
+  cannot parse), and runs the shared publish gate over every file. It resolves the medium layers
+  itself: a source repository that is not `PUBLIC`, or a file shaped like a credential, keeps the
+  deck local unless the user's argument, the plugin option, `~/.claude/rendered-views.md`, or an
+  untracked, gitignored overlay sets `medium: artifact`; a tracked team file never publishes.
+- `lib/publish-gate.mjs`, a generated copy of the shared publish gate.
+
+### Changed
+
+- `visualize` hands a slide deck to `present` instead of rendering it as a page.
+
 ## [0.10.2] - 2026-10-03
 
 ### Changed
