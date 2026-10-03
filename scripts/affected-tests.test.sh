@@ -1017,6 +1017,29 @@ else
   fail "node .mjs co-located (rc=$RC): $OUT"
 fi
 
+# --- R9: a wrapped Node suite brings its <stem>.test.sh --------------------
+# CI runs a Node suite with a sibling <stem>.test.sh only through that wrapper.
+# The suite here is reached through a MENTION of the changed file, not through
+# its stem, so R2 cannot find the wrapper and the walk stops at the suite.
+printf 'export const w = 3;\n' >"$repo/eco/wrapped.mjs"
+printf 'import { w } from "./wrapped.mjs";\n' >"$repo/eco/wrapped-cases.test.mjs"
+# shellcheck disable=SC2016 # deliberate: the emitted file must expand these, not this shell
+printf 'node "$(dirname "$0")/wrapped-cases.test.mjs"\n' >"$repo/eco/wrapped-cases.test.sh"
+
+run_sel "$repo" eco/wrapped.mjs
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/wrapped-cases.test.mjs && has_line "$OUT" eco/wrapped-cases.test.sh; then
+  ok "R9: a Node suite reached through a mention selects its sibling .test.sh wrapper"
+else
+  fail "R9 wrapper via mention (rc=$RC): $OUT"
+fi
+
+run_sel "$repo" eco/probe.mjs
+if [[ "$RC" -eq 0 ]] && [[ "$OUT" != *.test.sh* ]]; then
+  ok "R9: a Node suite with no sibling .test.sh adds no shell suite"
+else
+  fail "R9 without a wrapper (rc=$RC): $OUT"
+fi
+
 run_sel "$repo" eco/ps/Get-Thing.ps1
 if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/pstests/Get-Thing.Tests.ps1; then
   ok "powershell: a Pester suite in a mirrored tree is found by reference"

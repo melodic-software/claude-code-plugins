@@ -112,6 +112,12 @@
 #                    a `#` after them starts a comment. Suites whose comments
 #                    start with `#` (shell, Python, Pester) can declare. A glob
 #                    matching no file fails the run that changes its suite.
+#   R9 wrapper       a selected <stem>.test.js, .test.mjs or .test.cjs whose
+#                    directory holds <stem>.test.sh selects that wrapper too,
+#                    however the Node suite was reached. CI runs such a suite only
+#                    through its wrapper (scripts/run-outside-node-suites.sh
+#                    leaves it to the wrapper), so the Node suite alone runs
+#                    nothing. Applied after every other rule, before --shard.
 #
 # MATCHING. One file NAMES another when the basename stands in a line as a WHOLE
 # PATH TOKEN: bounded on both sides by a character outside [A-Za-z0-9_.-]. `/`
@@ -1320,6 +1326,13 @@ fi
 # an indirect reference and rejects the expanded key list as a variable name.
 declare -a selected=()
 if [[ ${#SUITES[@]} -gt 0 ]]; then
+  # R9. The key list is expanded once, before the loop adds to it.
+  for s in "${!SUITES[@]}"; do
+    case "$s" in
+    *.test.js | *.test.mjs | *.test.cjs) add_suite "${s%.test.*}.test.sh" "wraps $s" || true ;;
+    *) ;;
+    esac
+  done
   # Checked, and read from a file: a failing `sort` here would empty a
   # NON-EMPTY selection and report "every changed file is a no-suite class".
   if ! printf '%s\n' "${!SUITES[@]}" | sort -u >"$WORK_DIR/selected"; then
