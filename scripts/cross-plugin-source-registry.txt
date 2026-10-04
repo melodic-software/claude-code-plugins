@@ -312,6 +312,15 @@ scripts/docs-cache.sh
 # duplication audit: the root canonical and the copies.
 lib/docs-cache.sh -> plugins/*/scripts/docs-cache.sh
 
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/html2md.py, carried beside each copy of fetch-docs.sh, which runs it to
+# convert a page no markdown channel serves.
+scripts/html2md.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/html2md.py -> plugins/*/scripts/html2md.py
+
 # No dedicated check: a one-line `@AGENTS.md` CLAUDE.md shim beside an `audit`
 # skill's contributor AGENTS.md, carried by every plugin whose audit skill
 # keeps one (Claude Code reads CLAUDE.md, not AGENTS.md, so the shim is what

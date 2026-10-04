@@ -103,7 +103,7 @@
           "py"
         ]
       },
-      "degrade": "Without Python 3, /harness-config:audit-pass cannot assemble its findings, compute finding identities or write run state, and stops.",
+      "degrade": "Without Python 3, /harness-config:audit-pass cannot assemble its findings, compute finding identities or write run state, and stops. The docs fetch also needs it to convert a page that serves only HTML; without it such a page is recorded unread with reason no-python.",
       "install": {
         "docs": "https://www.python.org/downloads/",
         "brew": "python",

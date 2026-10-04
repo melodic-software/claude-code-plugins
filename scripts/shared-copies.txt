@@ -27,6 +27,8 @@ lib/fetch-docs.sh plugins/harness-config/scripts/fetch-docs.sh
 lib/fetch-docs.sh plugins/harness-ops/scripts/fetch-docs.sh
 lib/docs-cache.sh plugins/harness-config/scripts/docs-cache.sh
 lib/docs-cache.sh plugins/harness-ops/scripts/docs-cache.sh
+lib/html2md.py plugins/harness-config/scripts/html2md.py
+lib/html2md.py plugins/harness-ops/scripts/html2md.py
 lib/managed-scope.sh plugins/harness-config/lib/managed-scope.sh
 lib/managed-scope.sh plugins/harness-memory/lib/managed-scope.sh
 lib/managed-scope.sh plugins/harness-ops/lib/managed-scope.sh
