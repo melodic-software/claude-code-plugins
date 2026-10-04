@@ -58,6 +58,74 @@ judge::same_path() {
   [[ "$a" == "$b" ]]
 }
 
+# judge::read_rule <var> <dir>: set var to the Read allow rule for everything
+# under the directory. A rule path is absolute only with a leading `//`; one
+# `/` anchors at the primary working directory for a CLI flag, and on Windows
+# C:\a is matched as /c/a, so the rule is Read(//c/a/**). A Read rule also
+# covers Grep and Glob; path rules for those two are never consulted. The
+# rule is a gitignore pattern, so each \ * ? [ ] in the path is escaped with
+# a backslash and the rule names that one directory, as the rules Claude Code
+# writes itself are escaped.
+# https://code.claude.com/docs/en/permissions#read-and-edit,
+# https://git-scm.com/docs/gitignore#_pattern_format and
+# https://code.claude.com/docs/en/tools-reference (as of 2026-10-04; recheck
+# when the anchor table, the escaping of path rules or the tools a Read rule
+# covers changes).
+judge::read_rule() {
+  local p="$2" q="" c i
+  if ((JUDGE_WIN)); then
+    p="${p//\\//}"
+    [[ "$p" =~ ^([a-zA-Z]):(/.*)?$ ]] && p="/${BASH_REMATCH[1],,}${BASH_REMATCH[2]}"
+  fi
+  while [[ "$p" == */ && "$p" != / ]]; do p="${p%/}"; done
+  [[ "$p" == / ]] && p=""
+  for ((i = 0; i < ${#p}; i++)); do
+    c="${p:i:1}"
+    case "$c" in \\ | '*' | '?' | '[' | ']') q+=\\ ;; *) ;; esac
+    q+="$c"
+  done
+  printf -v "$1" 'Read(/%s/**)' "$q"
+}
+
+# judge::file_repo <file>: set FREPO to the git toplevel of the file's own
+# directory, never the hook's: a recorded repository can be the hook's
+# working directory's when the recorder misread a Windows path. Under Git Bash
+# a payload path may use backslashes, so the directory is taken at either
+# separator; a path with no separator has no directory to resolve, and is
+# never read as the working directory. FREPO_OUT is the toplevel when git
+# names one that does not hold the directory (core.worktree set elsewhere);
+# FREPO is then empty, as it is for a file in no repository. Cached per file
+# for the process.
+declare -gA JUDGE_FREPO=() JUDGE_FREPO_OUT=()
+judge::file_repo() {
+  local f="$1" d="" c top pd pt cands=("$1")
+  FREPO="" FREPO_OUT=""
+  [[ -n "$f" ]] || return 0
+  if [[ -n "${JUDGE_FREPO["$f"]+x}" ]]; then
+    FREPO="${JUDGE_FREPO["$f"]}" FREPO_OUT="${JUDGE_FREPO_OUT["$f"]}"
+    return 0
+  fi
+  ((JUDGE_WIN)) && cands=("${f//\\//}" "$f")
+  for c in "${cands[@]}"; do
+    [[ "$c" == */* ]] || continue
+    c="${c%/*}"
+    [[ -n "$c" ]] || c=/
+    [[ -d "$c" ]] && d="$c" && break
+  done
+  if [[ -n "$d" ]]; then
+    top="$(unset GIT_DIR GIT_WORK_TREE && git -C "$d" rev-parse --show-toplevel 2>/dev/null)"
+    top="${top//$'\r'/}"
+    if [[ -n "$top" ]]; then
+      if judge::phys pt "$top" && judge::phys pd "$d" && [[ "$pd" == "$pt" || "$pd" == "$pt/"* ]]; then
+        FREPO="$top"
+      else
+        FREPO_OUT="$top"
+      fi
+    fi
+  fi
+  JUDGE_FREPO["$f"]="$FREPO" JUDGE_FREPO_OUT["$f"]="$FREPO_OUT"
+}
+
 judge::log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" >>"$JUDGE_LOG" 2>/dev/null; }
 judge::now() { NOW="${EPOCHSECONDS:-$(date +%s)}"; }
 judge::sha() { if command -v sha256sum >/dev/null; then sha256sum -- "$@"; else shasum -a 256 -- "$@"; fi; }
@@ -143,17 +211,18 @@ judge::load() {
 # current text, so the same inputs give the same keys and the scanner runs
 # again only when one of them changed. A scan that failed is never cached.
 judge::derive() {
-  local file whole base_ok names lines repo tmpd rc n=0 re line cur marks=() b s e o name keep m text=() i b_start b_end
+  local file whole base_ok names lines tmpd rc n=0 re line cur marks=() b s e o name keep m text=() i b_start b_end
   local root cfg cfgs=() key="" h cache c=()
   KEYS="" HINT=""
-  testing::fields "$1" .file .whole .base_ok '.lines | join(",")' '.names | join("\n")' .repo || return 0
-  file="${FIELDS[0]}" whole="${FIELDS[1]}" base_ok="${FIELDS[2]:-0}" lines="${FIELDS[3]}" repo="${FIELDS[5]}"
+  testing::fields "$1" .file .whole .base_ok '.lines | join(",")' '.names | join("\n")' || return 0
+  file="${FIELDS[0]}" whole="${FIELDS[1]}" base_ok="${FIELDS[2]:-0}" lines="${FIELDS[3]}"
   names=$'\n'"${FIELDS[4]}"$'\n'
   if [[ ! -f "$file" ]]; then
     judge::log "skipped: $file no longer exists"
     return 0
   fi
-  root="${repo:-${CLAUDE_PROJECT_DIR:-}}"
+  judge::file_repo "$file"
+  root="${FREPO:-${CLAUDE_PROJECT_DIR:-}}"
   for cfg in "${HOME:-}/.claude/testing.yaml" "$root/docs/conventions/testing.md" "$root/.claude/testing.yaml" "$root/.claude/testing.local.yaml"; do
     [[ -f "$cfg" ]] && cfgs+=("$cfg")
   done
@@ -416,9 +485,17 @@ judge::pick() {
 # reason, UNKNOWN for every key) into one ledger file per key, each written to
 # a temp file and renamed. The run's sidecar <raw>.keys names the keys. False
 # when the output holds no usable result; a key the output leaves out gets no
-# verdict. Any later reader may harvest a raw file whose writer died.
+# verdict. A run whose result lists permission_denials (the authoritative
+# record of denied tool calls,
+# https://code.claude.com/docs/en/agent-sdk/typescript, as of 2026-10-04;
+# recheck when the result message's fields change) and that gives no key a
+# FLAG or PASS is a malfunction: it gives no verdict, and JUDGE_MUTED is 1. A
+# denial names a tool call, never a block, and one run judges every block of
+# the file, so a run with any FLAG or PASS keeps its UNKNOWN verdicts too.
+# Any later reader may harvest a raw file whose writer died.
 judge::harvest() {
   local raw="$1" dir="${1%/*}" kh json
+  JUDGE_MUTED=0
   [[ -f "$raw.keys" ]] || return 1
   [[ -n "${2:-}" || -s "$raw" ]] || return 1
   out="$(jq -rn --slurpfile meta "$raw.keys" --rawfile raw "$raw" --arg forced "${2:-}" '
@@ -430,22 +507,26 @@ judge::harvest() {
          elif ($e.result | type) == "string" then
            ($e.result | (index("{") // -1) as $i | (rindex("}") // -1) as $j
              | if $i < 0 or $j < $i then null else .[$i:$j + 1] | fromjson? end) as $v
-           | if ($v | type) == "object" then {verdicts: [$v.verdicts[]? | objects]} else null end
+           | if ($v | type) == "object" then {verdicts: [$v.verdicts[]? | objects],
+               denied: (($e.permission_denials | arrays | length > 0) // false)} else null end
          else null end end) as $r
     | if $r == null then empty else
-      $m.keys[] as $k
-      | (if $r.reason then {verdict: "UNKNOWN", reason: $r.reason}
-         else [$r.verdicts[] | select(.name == $k.name and ((.ordinal // $k.ordinal) | tostring) == ($k.ordinal | tostring))][0] end) as $v
-      | select($v != null)
+      [$m.keys[] as $k
+       | (if $r.reason then {verdict: "UNKNOWN", reason: $r.reason}
+          else [$r.verdicts[] | select(.name == $k.name and ((.ordinal // $k.ordinal) | tostring) == ($k.ordinal | tostring))][0] end)
+       | select(. != null) | {k: $k, v: .}] as $kv
+      | if $r.denied == true and all($kv[]; .v.verdict | IN("FLAG", "PASS") | not) then "! muted" else
+      $kv[] | .k as $k | .v as $v
       | ($v.verdict | IN("FLAG", "PASS", "UNKNOWN")) as $ok
       | "\($k.kh) \({file: $m.file, repo: $m.repo, name: $k.name, ordinal: $k.ordinal, start: $k.start, end: $k.end,
           verdict: (if $ok then $v.verdict else "UNKNOWN" end),
           evidence: [$v.evidence[]? | strings], source: ($v.source // "" | tostring), diff: ($v.diff // "" | tostring),
           reason: (if $ok then ($v.reason // "" | tostring) else "the judge returned no valid verdict" end),
           model: $m.model, effort: $m.effort, judged_at: (now | todate)} | tojson)"
-      end' 2>/dev/null)" || return 1
+      end end' 2>/dev/null)" || return 1
   [[ -n "$out" ]] || return 1
   while read -r kh json; do
+    [[ "$kh" == '!' ]] && JUDGE_MUTED=1 && continue
     printf '%s\n' "$json" >"$dir/.$kh.tmp" && mv -f "$dir/.$kh.tmp" "$dir/$kh.json"
   done <<<"$out"
 }
@@ -475,15 +556,26 @@ judge::section1() {
 # attempt.
 judge::run() {
   local info="$1" keys="$2" t="$3" hint="$4" res="${5:-}" dir file repo owner writers n budget raw sys prompt rc kh here
+  local rule denied
   testing::fields "$info" .file .repo .owner '.writers | tojson' || {
     judge::release_run "$res"
     return 0
   }
   file="${FIELDS[0]}" repo="${FIELDS[1]}" owner="${FIELDS[2]}" writers="${FIELDS[3]}"
   dir="$DATA/verdicts/$PKEY/${owner:-$SID}"
-  # The judge's reads are scoped to the repository; a test file in none is
-  # not judged rather than given its directory as the scope.
-  [[ -n "$repo" && -d "$repo" ]] || repo=""
+  # The judge's reads are scoped to the repository that holds the file; a
+  # test file in none is not judged rather than given its directory as the
+  # scope.
+  judge::file_repo "$file"
+  [[ -z "$repo" || "$repo" == "$FREPO" ]] || judge::log "repository: $file is in ${FREPO:-no repository}, not the recorded $repo"
+  repo="$FREPO"
+  if [[ -n "$FREPO_OUT" ]]; then
+    rc="the test file is outside the repository git names for it, $FREPO_OUT"
+    judge::log "malfunction: $rc: $file"
+    while read -r kh _; do [[ -z "$kh" ]] || judge::fail "$kh" "$rc"; done <<<"$keys"
+    judge::release_run "$res"
+    return 0
+  fi
   n=0
   while read -r kh _; do [[ -z "$kh" ]] || n=$((n + 1)); done <<<"$keys"
   budget="$((((n + 9) / 10) * 90))" && budget="$((budget / 100)).$(printf '%02d' $((budget % 100)))"
@@ -517,21 +609,36 @@ judge::run() {
       return 0
     }
     res="" # the judge starts: the run's reservation is kept
+    # The repository is the run's working directory, where reads need no
+    # rule; the absolute rule states the same scope. Not --add-dir: that
+    # would repeat the working directory, and an added directory also loads
+    # some of its own .claude/ configuration
+    # (https://code.claude.com/docs/en/permissions#additional-directories-grant-file-access-not-configuration).
+    judge::read_rule rule "$repo"
     testing::run_bounded "$t" "$raw" "$raw.err" env TEST_JUDGE_ACTIVE=1 "${TEST_JUDGE_CMD:-claude}" -p --model "$MODEL" \
-      --system-prompt "$sys" --tools Read,Grep,Glob \
-      --allowedTools "Read($repo/**)" "Grep($repo/**)" "Glob($repo/**)" \
+      --system-prompt "$sys" --tools Read,Grep,Glob --allowedTools "$rule" \
       --settings '{"disableAllHooks":true}' --setting-sources "" --strict-mcp-config \
       --disable-slash-commands --effort "$EFFORT" --max-budget-usd "$budget" \
       --no-session-persistence --output-format json "$prompt" </dev/null
     rc=$SCAN_RC
     cd "$here" || :
     grep -q '"error_max_budget_usd"' "$raw" 2>/dev/null && judge::log "malfunction: judge run on $file hit its \$$budget budget"
+    denied="$(jq -r 'objects | .permission_denials | arrays | select(length > 0)
+      | [.[] | (objects | .tool_name | strings) // "a tool"] | unique | join(", ")' "$raw" 2>/dev/null)"
     # A run cut at its bound gives no verdict, even if it printed one after
     # the watchdog killed its tools: that answer was made without them.
     if ((rc > 128)); then
       rc="judge timed out after $t s"
     else
-      judge::harvest "$raw" || rc="judge exited $rc with no usable result"
+      if ! judge::harvest "$raw"; then
+        rc="judge exited $rc with no usable result"
+        [[ -z "$denied" ]] || rc+="; it was denied $denied"
+      elif ((JUDGE_MUTED)); then
+        rc="the judge was denied ${denied:-a tool} and gave no test a FLAG or PASS, so its UNKNOWN verdicts are a malfunction, not a judgment"
+        judge::log "malfunction: judge run on $file: $rc"
+      elif [[ -n "$denied" ]]; then
+        judge::log "judge run on $file was denied $denied; it gave a FLAG or PASS, so its UNKNOWN verdicts stand"
+      fi
     fi
   fi
   while read -r kh _; do

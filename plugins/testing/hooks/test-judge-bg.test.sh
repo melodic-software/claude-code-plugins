@@ -26,15 +26,23 @@ check "the pending marker is removed" '[[ -z "$(find "$DATA/pending" -type f)" ]
 # The judge command: the fixed flags, from the repository, with the recursion
 # guard exported, never a real claude.
 args="$(stub_args 1)"
-for want in -p --model opus --effort medium --tools Read,Grep,Glob "Read($REPO/**)" "Grep($REPO/**)" "Glob($REPO/**)" \
+RTOP="$(git -C "$REPO" rev-parse --show-toplevel)"
+for want in -p --model opus --effort medium --tools Read,Grep,Glob \
   --settings '{"disableAllHooks":true}' --setting-sources --strict-mcp-config --disable-slash-commands \
   --max-budget-usd 0.90 --output-format json --no-session-persistence; do
   assert_contains "judge command carries $want" "$args" "$want"
 done
+# One absolute rule: `//` anchors at the filesystem root, where a single `/`
+# would anchor at the working directory; Grep and Glob are covered by it.
+after="$(sed -n '/^--allowedTools$/{n;p;n;p;}' <<<"$args")"
+want_after="Read(/$RTOP/**)"$'\n'"--settings"
+check "the one allow rule is the repository's absolute Read rule" '[[ "$after" == "$want_after" && "$RTOP" == /* ]]'
+assert_not_contains "no Grep path rule, which file checks never consult" "$args" "Grep(/"
+assert_not_contains "no Glob path rule" "$args" "Glob(/"
 assert_contains "the system prompt appends test-value section 1" "$args" "## 1. Every expected value names its independent source"
 assert_contains "the system prompt is the prompt file" "$args" "You are a test judge."
 assert_contains "the prompt names the block by ordinal, range and name" "$args" "block 1 3-5 adds"
-check "the judge runs from the repository with TEST_JUDGE_ACTIVE=1" '[[ "$(cat "$STUB_DIR"/call-*.env)" == "$REPO 1" ]]'
+check "the judge runs from the repository with TEST_JUDGE_ACTIVE=1" '[[ "$(cat "$STUB_DIR"/call-*.env)" == "$RTOP 1" ]]'
 
 # A second firing for a key with a verdict does nothing.
 record s1 w1b "$F" "$(blocks adds:1:3:5)"
