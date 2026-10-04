@@ -4,10 +4,12 @@
 
 Asked "what about mods?", do this in order:
 
-1. Read [ADR 0035](../../adr/0035-defer-claude-code-mods-with-five-go-criteria.md). It holds the
-   verdict (Defer), the three conditions that gate guard conversion, and the five go criteria.
-2. Run [go-no-go.md](go-no-go.md). Criteria 1 to 3 are the quick check for a Claude Code pin bump;
-   the full run is on demand. Any one criterion failing is no-go.
+1. Read [ADR 0052](../../adr/0052-adopt-claude-code-mods.md). It holds the verdict (Adopt), the
+   rule for choosing a mod, the packaging decisions, the replaced criterion 5, and the recheck
+   triggers. [ADR 0035](../../adr/0035-defer-claude-code-mods-with-five-go-criteria.md), which it
+   supersedes, holds the 2026-09-19 Defer and the five go criteria.
+2. Run [go-no-go.md](go-no-go.md). Criteria 1 to 3 and the replaced criterion 5 are the quick check
+   for a Claude Code pin bump; the full run is on demand.
 3. Consult this index for every link the verdict and the runbook rest on, and re-fetch what the
    runbook tells you to re-fetch.
 4. The frozen report is in [research-2026-09-19/](research-2026-09-19/). Treat it as dated evidence,
@@ -27,6 +29,35 @@ run first-party first; a claim's own basis label (`OBSERVED`, `SOURCE`, `BINARY`
 `COMMUNITY`, `INFERRED`) is carried in the report, not here. Recheck trigger for every row: a
 [go-no-go.md](go-no-go.md) run re-fetches it, and the row's date is refreshed with the outcome.
 
+The 2026-10-02 run at Claude Code **2.1.288** re-fetched `llms.txt`, `llms-full.txt`, the raw
+`mods/README.md`, the `mods/` commit history, the raw `CHANGELOG.md`, npm `latest`, the tags API
+and issue #92533. Those rows keep their 2026-09-19 description as the baseline; the 2026-10-02
+results are in go-no-go.md's
+[run record](go-no-go.md#run-record-2026-10-02-claude-code-21288). Links the 2026-10-02 run newly
+relies on are in [Official mods docs pages](#official-mods-docs-pages) and the two 2026-10-02 rows of
+[First-party source tree and binary](#first-party-source-tree-and-binary).
+
+## Official mods docs pages
+
+Each row was fetched on 2026-10-02 through the raw-markdown channel (the URL plus `.md`), each
+returning `http=200`, at Claude Code 2.1.288; `llms.txt` lists all ten. All ten were re-fetched on
+2026-10-03 for ADR 0052 and the mod-authoring convention, each again `http=200`. Recheck trigger for every
+row: a [go-no-go.md](go-no-go.md) run, where the replaced criterion 5 re-fetches all ten, or a
+page leaving `llms.txt`.
+
+| Link | What we used it for | As of | Used by |
+|---|---|---|---|
+| <https://code.claude.com/docs/en/plugins/mods/overview> | What a mod is, turning mods on or off and the minimum version, where mods run, the built-in roster, and the comparison with settings hooks. | 2026-10-02 | ADR 0052, go-no-go.md, `docs/conventions/mod-authoring/`, `docs/plugin-philosophy.md`, `harness-ops` inventory skill |
+| <https://code.claude.com/docs/en/plugins/mods/create> | Writing a mod, the per-build types and when they win over a page, `claude plugin validate`, and plugin naming. | 2026-10-02 | `docs/conventions/mod-authoring/` |
+| <https://code.claude.com/docs/en/plugins/mods/events> | Guarding a tool call, the order mods run in and where settings hooks sit in it, and a hook that fails. | 2026-10-02 | ADR 0052, `docs/conventions/mod-authoring/`, go-no-go.md (criterion 4) |
+| <https://code.claude.com/docs/en/plugins/mods/interface> | Drawing panes and bands; read only for the replaced criterion 5 grep. | 2026-10-02 | go-no-go.md |
+| <https://code.claude.com/docs/en/plugins/mods/api> | Adding a tool, the calls that show text without starting a turn, and reaching files, processes and the network. | 2026-10-02 | `docs/conventions/mod-authoring/` |
+| <https://code.claude.com/docs/en/plugins/mods/test> | `claude plugin test` and the test kit. | 2026-10-02 | `docs/conventions/mod-authoring/`, `scripts/test-plugin-mods.sh` |
+| <https://code.claude.com/docs/en/plugins/mods/troubleshoot> | Why a mod does nothing, the version floor, and a value lost after `/clear`. | 2026-10-02 | `docs/conventions/mod-authoring/`, `docs/conventions/hook-input-rewriting/`, experiments.md (E7) |
+| <https://code.claude.com/docs/en/plugins/mods/admin> | `allowManagedModsOnly` and the other organization controls. | 2026-10-02 | `docs/conventions/mod-authoring/` |
+| <https://code.claude.com/docs/en/plugins/mods/reference> | Files, the hook function, limits, and the settings and environment variables, `CLAUDE_CODE_PLUGIN_DIRS` among them. | 2026-10-02 | `docs/plugin-philosophy.md`, experiments.md (Desktop probe), `docs/conventions/mod-authoring/` |
+| <https://code.claude.com/docs/en/plugins/mods/gallery> | The interface elements with samples; read only for the replaced criterion 5 grep. | 2026-10-02 | go-no-go.md |
+
 ## First-party source tree and binary
 
 | Link | What we used it for | As of | Used by |
@@ -34,6 +65,8 @@ run first-party first; a claim's own basis label (`OBSERVED`, `SOURCE`, `BINARY`
 | <https://github.com/anthropics/claude-code/tree/main/mods> | The published source of the four shipped mods, `types/`, `tsconfig.json`. The surface link for the gate-run row. | 2026-09-19 | ADR 0035, `plugin-philosophy.md`, `research-what-mods-are.md` |
 | <https://github.com/anthropics/claude-code/blob/main/mods/README.md> | What a mod is, the four mods and their seating, the testing kit, noun contracts, and the early-access stability statement criterion 5 checks for. | 2026-09-19 | ADR 0035 (criterion 5), go-no-go.md, `research-what-mods-are.md` |
 | <https://github.com/anthropics/claude-code/blob/92ec78f2/mods/README.md> | The same file pinned at the research commit, so a later diff is exact. | 2026-09-19 | go-no-go.md |
+| <https://github.com/anthropics/claude-code/blob/6160717d/mods/README.md> | The README pinned at the newest `mods/` commit on 2026-10-02, for the next diff. `main` was at `1c229fcd` when the run fetched it. | 2026-10-02 | go-no-go.md |
+| <https://github.com/anthropics/claude-code/commit/6160717d> | The newest commit touching `mods/` on 2026-10-02, dated 2026-10-01: the new criterion 5 pin. | 2026-10-02 | go-no-go.md |
 | <https://raw.githubusercontent.com/anthropics/claude-code/main/mods/README.md> | Raw form, for the greppable criterion-5 check. | 2026-09-19 | go-no-go.md |
 | <https://raw.githubusercontent.com/anthropics/claude-code/92ec78f2/mods/README.md> | Raw form pinned at the research commit. | 2026-09-19 | `research-what-mods-are.md` |
 | <https://github.com/anthropics/claude-code/blob/main/mods/types/claude-code.d.ts> | The declarations: the event and noun catalog, the tiers, `HookBudget`, `Registration.catch`. Our count: 12,990 lines; its first line names Claude Code 2.1.277 as the writer. | 2026-09-19 | ADR 0035, `research-api-surface.md`, `research-what-mods-are.md` |

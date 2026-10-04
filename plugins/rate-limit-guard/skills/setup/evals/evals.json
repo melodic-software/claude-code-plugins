@@ -5,139 +5,110 @@
       "id": 1,
       "name": "checks-without-touching-settings",
       "prompt": "/rate-limit-guard:setup check",
-      "expected_output": "Reports jq presence, the installed shim state, the statusline wiring state, tee-file freshness against the 10-minute staleness rule, and the hook kill switch; prints the exact settings.json statusline edit for the operator; edits nothing.",
+      "expected_output": "Reports node, the module's state in this session, the snapshot file's freshness against the reader contract's staleness rule, the StopFailure hook, all seven options with their effective values, and the retired-tee detector's findings; edits nothing and prints no statusline wiring to add.",
       "files": [],
       "expectations": [
-        "Reads settings.json only; never writes settings, pluginConfigs, or the contract directory",
+        "Reads settings files only; never writes settings, pluginConfigs, a wrapper script, or the contract directory",
         "Reports PASS/FAIL/INFO with one remediation line per FAIL",
-        "Prints the settings.json edit naming the shim's fixed ~/.claude/rate-limit-guard/bin/ path, never a version-pinned plugin-cache path",
-        "Surfaces the dotfiles-tracking reminder for the operator-owned edit"
-      ]
-    },
-    {
-      "id": 2,
-      "name": "distinguishes-unconfigured-from-wrapper-missing",
-      "prompt": "/rate-limit-guard:setup check\n\nMy settings.json has no statusLine key at all.",
-      "expected_output": "States that no statusline is configured (as opposed to a wrapper missing from an existing command) and prints the standalone wiring variant, not the wrapping variant.",
-      "files": [],
-      "expectations": [
-        "Names the state as no-statusline-configured, not as a broken wrapper",
-        "Prints the standalone shim command with no wrapped command",
-        "Does not offer to apply the settings edit itself"
+        "Reports each of rate_limit_guard_enabled, rate_limit_lines_enabled, rate_limit_report_mode, rate_limit_line_threshold, rate_limit_approach_pct, rate_limit_line_data and rate_limit_guard_band as its own row with its value",
+        "Runs the retired-tee detector's three steps (stamps against the install record, cached versions holding a tee, the wiring routes)",
+        "Does not tell the person to wire a statusline shim or tee: the plugin needs no wiring"
       ]
     },
     {
       "id": 3,
       "name": "reads-absent-rate-limits-as-reactive-only",
-      "prompt": "/rate-limit-guard:setup check\n\nThe tee file is fresh but has no rate_limits key.",
-      "expected_output": "Reports the fresh-but-windowless snapshot as INFO — this auth exposes no subscription windows, consumers correctly run reactive-only — not as a failure to fix.",
+      "prompt": "/rate-limit-guard:setup check\n\nThe snapshot file is fresh but has no rate_limits key.",
+      "expected_output": "Reports the fresh but windowless snapshot as INFO (the sessions writing it see no subscription windows, so consumers run reactive-only, as the reader contract requires), not as a failure to fix.",
       "files": [],
       "expectations": [
-        "Classifies absent rate_limits on a fresh snapshot as expected fail-open behavior",
-        "Does not tell the operator to rewire or reinstall anything for it",
+        "Classifies absent rate_limits on a fresh snapshot as INFO: expected fail-open behavior under which consumers run reactive-only",
+        "Does not tell the person to rewire or reinstall anything for it",
         "Cites the reader contract as the owner of the fail-open rule"
       ]
     },
     {
-      "id": 4,
-      "name": "flags-legacy-version-pinned-wiring",
-      "prompt": "/rate-limit-guard:setup check\n\nMy settings.json statusLine command is: bash \"~/.claude/plugins/cache/melodic-software/rate-limit-guard/0.1.0/scripts/statusline-tee.sh\" ~/.claude/statusline/render.sh — and that file exists right now.",
-      "expected_output": "Names the wiring as legacy version-pinned even though the file exists today: it stops teeing at the next version bump and breaks the whole statusline once the old version directory is pruned. Prints the shim wiring as the fix, with apply first if the shim is not installed.",
-      "files": [],
-      "expectations": [
-        "Does not treat current file existence as evidence the wiring is healthy",
-        "Names both failure modes: silent tee stop on version bump, and statusline breakage after the ~14-day prune",
-        "Prints the shim-based replacement wiring and sequences apply before the settings edit when the shim is absent"
-      ]
-    },
-    {
-      "id": 5,
-      "name": "apply-installs-shim-byte-identically-and-idempotently",
-      "prompt": "/rate-limit-guard:setup apply",
-      "expected_output": "Copies the shipped statusline-shim.sh byte-identically to ~/.claude/rate-limit-guard/bin/statusline-shim.sh, reports the write (or reports no change on a second identical run), states that the shim is inert until the operator wires it, and prints the wiring edit as the next step.",
-      "files": [],
-      "expectations": [
-        "Writes only ~/.claude/rate-limit-guard/bin/statusline-shim.sh — never settings.json, rate-limits.json, stop-events.jsonl, or the sibling context-guard directory",
-        "Installed copy is byte-identical to the shipped source, not a rewritten or templated variant",
-        "Second identical apply reports no content change",
-        "States that installing the shim starts nothing until the settings.json wiring is applied by the operator"
-      ]
-    },
-    {
-      "id": 6,
-      "name": "composes-without-double-wrapping",
-      "prompt": "/rate-limit-guard:setup check\n\nMy statusLine command is already: bash ~/.claude/context-guard/bin/statusline-shim.sh ~/.claude/statusline/render.sh — I configured context-guard first. Both plugins are installed, but I have never run /rate-limit-guard:setup apply.",
-      "expected_output": "Runs scripts/compose-statusline-wiring.sh over the current statusLine value rather than peeling the sibling-shim prefix by hand, and reports what it printed. Because this plugin's own shim is not installed yet, it reports that and names apply as the remediation rather than printing wiring naming a file that does not exist.",
-      "files": [],
-      "expectations": [
-        "Invokes scripts/compose-statusline-wiring.sh with the current statusLine value and one --wrap per shim the wiring should carry, instead of recovering the renderer in prose",
-        "Never prints a combined form naming a shim path that is not installed; gates the combined --wrap list on the context-guard shim existing, or directs the operator to run that plugin's apply first",
-        "Explains that a duplicated tee runs and writes on every refresh and adds another ~0.6-0.9 s per refresh",
-        "Still edits nothing: the wiring the script printed is for the operator to apply"
-      ]
-    },
-    {
       "id": 7,
-      "name": "uninstall-order-unwrap-before-delete",
-      "prompt": "/rate-limit-guard:setup check\n\nHow do I back this out completely? I want to remove the plugin and everything it put on my machine.",
-      "expected_output": "Gives the two operator cleanup steps in a REQUIRED order: unwrap the statusLine command first, then delete ~/.claude/rate-limit-guard/.",
+      "name": "uninstall-order-unwire-before-delete",
+      "prompt": "/rate-limit-guard:setup check\n\nHow do I back this out completely? I want to remove the plugin and everything it put on my machine. My ~/.claude/settings.json statusLine command is still: bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh ~/.claude/statusline/render.sh from an older version.",
+      "expected_output": "Gives the statusLine edit that leaves ~/.claude/statusline/render.sh, then uninstalling the plugin and deleting ~/.claude/rate-limit-guard/, in that required order.",
       "files": [],
+      "narration": true,
       "expectations": [
-        "States the order explicitly and gives the reason: deleting the directory first leaves settings.json invoking a missing file, so bash exits 127 and the whole statusline goes down",
-        "Does not present the two steps as order-independent",
-        "Notes that uninstalling the plugin itself is safe on its own — the shim degrades to running the wrapped command"
+        "Prints the statusLine command after the edit as exactly ~/.claude/statusline/render.sh",
+        "States the order explicitly and gives the reason: deleting the directory first leaves settings.json invoking a missing file, so bash exits 127 and the whole status line goes down",
+        "Does not present the steps as order-independent",
+        "Applies neither the edit nor the deletion itself"
       ]
     },
     {
-      "id": 8,
-      "name": "rerun-does-not-compound-the-sh-c-wrap",
-      "prompt": "/rate-limit-guard:setup check\n\nMy statusLine command is already: bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh sh -c 'THEME=dark my-statusline --flag' — I ran this skill once before and applied what it printed. Both the shim and the plugin are installed.",
-      "expected_output": "Invokes scripts/compose-statusline-wiring.sh with --wrap 'bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh' and reports its result: the script exits 0 and prints wiring byte-identical to what is already in settings.json, so the operator has nothing to apply.",
+      "id": 12,
+      "name": "unwire-both-shims-keeps-the-renderer",
+      "prompt": "/rate-limit-guard:setup check\n\nI just updated. My ~/.claude/settings.json has \"statusLine\": {\"type\": \"command\", \"command\": \"bash ~/.claude/context-guard/bin/statusline-shim.sh bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh ~/.claude/statusline/render.sh\"}. ~/.claude/statusline/render.sh is my own status line script.",
+      "expected_output": "Reports the shim wiring as a retired-tee route and prints the edit for ~/.claude/settings.json: the command becomes ~/.claude/statusline/render.sh, with both guards' shims removed and the rest of the statusLine object kept. Prints the leftover-file deletes and the restart step. Applies nothing.",
       "files": [],
+      "narration": true,
       "expectations": [
-        "Runs scripts/compose-statusline-wiring.sh rather than peeling the shim prefix and the sh -c adapter in prose",
-        "Reports the script's composed value verbatim, carrying exactly one sh -c layer and one shim invocation",
-        "Reads the script's exit code: a non-zero exit is reported with the one-line reason it printed, never worked around by composing the edit by hand",
-        "Reports the wiring as already correct because the composed value equals the configured one, rather than presenting an identical line as a change to apply"
+        "Prints the command after the edit as exactly ~/.claude/statusline/render.sh",
+        "Removes the context-guard shim as well as this plugin's, since both tees retired together",
+        "Keeps the statusLine key and its type; does not remove the person's renderer",
+        "Tells the person to restart sessions and lanes started before the update",
+        "Does not edit settings.json itself"
       ]
     },
     {
-      "id": 9,
-      "name": "genuine-sh-c-renderer-is-not-peeled",
-      "prompt": "/rate-limit-guard:setup check\n\nI have never run this skill. My statusLine command is: sh -c 'ulimit -n' — I wrote that myself because ulimit is a shell builtin and will not run any other way. The plugin is installed.",
-      "expected_output": "Invokes scripts/compose-statusline-wiring.sh and reports its result: the script preserves the operator's own sh -c 'ulimit -n' and prints bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh sh -c 'ulimit -n'.",
+      "id": 13,
+      "name": "unwire-own-shim-keeps-the-renderer",
+      "prompt": "/rate-limit-guard:setup check\n\nMy ~/.claude/settings.json statusLine command is: bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh ~/.claude/statusline/render.sh",
+      "expected_output": "Prints the edit that leaves the command as ~/.claude/statusline/render.sh, names ~/.claude/settings.json as the file, and applies nothing.",
       "files": [],
+      "narration": true,
       "expectations": [
-        "Runs scripts/compose-statusline-wiring.sh rather than deciding in prose whether the sh -c layer was generated by an earlier run or written by the operator",
-        "Reports the script's composed value verbatim, with one shim invocation and exactly one sh -c layer",
-        "Attributes the preserved layer to the operator's own renderer, which is how the script treats a single sh -c over a merely-quoted command",
-        "Does not re-derive or second-guess the script's peel decision in prose"
+        "Prints the command after the edit as exactly ~/.claude/statusline/render.sh",
+        "Names ~/.claude/settings.json as the file the edit goes in",
+        "Does not remove the statusLine key, because a renderer remains",
+        "Does not edit settings.json itself"
       ]
     },
     {
-      "id": 10,
-      "name": "bare-quoting-is-not-a-wrap-trigger",
-      "prompt": "/rate-limit-guard:setup check\n\nI have never run this skill. My statusLine command is: my-statusline --format 'a | b' — the pipe is part of the format string, not a pipeline. The plugin is installed.",
-      "expected_output": "Invokes scripts/compose-statusline-wiring.sh and reports its result: the plain wrapped form, bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh my-statusline --format 'a | b', with no sh -c adapter.",
+      "id": 14,
+      "name": "unwire-keeps-a-quoted-renderer-argument",
+      "prompt": "/rate-limit-guard:setup check\n\nMy statusLine command is: bash ~/.claude/context-guard/bin/statusline-shim.sh bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh my-renderer --format 'a b'",
+      "expected_output": "Prints the edit that leaves the command as my-renderer --format 'a b', with the quoted argument unchanged, and applies nothing.",
       "files": [],
+      "narration": true,
       "expectations": [
-        "Runs scripts/compose-statusline-wiring.sh rather than testing the pipe for top-level syntax in prose",
-        "Reports the script's composed value verbatim, with no sh -c adapter",
-        "Cites the script's --explain wrap line (plain) as the evidence, not its own reading of the quoting",
-        "Does not add an adapter the script did not select"
+        "Prints the command after the edit as exactly my-renderer --format 'a b'",
+        "Keeps the single quotes around a b; does not requote, split or wrap the renderer in sh -c",
+        "Removes both guards' shims",
+        "Does not edit any settings file itself"
       ]
     },
     {
-      "id": 11,
-      "name": "bare-builtin-renderer-gets-a-shell",
-      "prompt": "/rate-limit-guard:setup check\n\nI have never run this skill. My statusLine command is: ulimit '-n' — I wrote it that way myself; the quotes are just habit. The plugin is installed.",
-      "expected_output": "Invokes scripts/compose-statusline-wiring.sh and reports its result: the script selects the shell-wrapped variant, bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh sh -c 'ulimit '\\''-n'\\''', because the command word resolves as a builtin rather than an executable.",
+      "id": 15,
+      "name": "unwire-shim-nested-in-sh-c-keeps-the-layer",
+      "prompt": "/rate-limit-guard:setup check\n\nMy statusLine command is: bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c 'bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh my-renderer --format '\\''a b'\\'''",
+      "expected_output": "Prints the edit that leaves the command as sh -c 'my-renderer --format '\\''a b'\\''': the outer context-guard shim removed, this plugin's shim removed from the start of the sh -c string, and the sh -c layer with its quotes and escapes kept. Applies nothing.",
       "files": [],
+      "narration": true,
       "expectations": [
-        "Runs scripts/compose-statusline-wiring.sh rather than deciding the wrap form in prose",
-        "Reports the script's composed value verbatim, already escaped, with no template quotes left for the operator to fix",
-        "Names the not-an-executable trigger as the reason, which is what the script's --explain wrap line reports",
-        "Does not justify the wrap by the presence of quotes; bare quoting is not a trigger and the script does not treat it as one"
+        "Prints the command after the edit as exactly sh -c 'my-renderer --format '\\''a b'\\'''",
+        "Removes the rate-limit-guard shim found inside the sh -c string",
+        "Keeps the sh -c layer and its escapes rather than peeling it to the bare renderer",
+        "Does not edit any settings file itself"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "own-status-line-without-a-tee-is-left-alone",
+      "prompt": "/rate-limit-guard:setup check\n\nMy statusLine command is: ~/.claude/statusline/render.sh. I never wired a rate-limit-guard tee, and there is no ~/.claude/rate-limit-guard/.last-write or spool directory.",
+      "expected_output": "Reports the retired-tee step as PASS and prints no statusLine edit; the person's own status line is theirs and the plugin no longer reads it.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports no retired-tee finding for a status line that names no shim or tee",
+        "Prints no statusLine edit and does not suggest wrapping the renderer",
+        "Does not edit settings.json"
       ]
     }
   ]

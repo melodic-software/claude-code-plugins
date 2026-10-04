@@ -276,14 +276,12 @@ GATE_ARM_JSON=""
 # Does this session own the record whose claim sidecar is <claim path>?
 #
 # The claim is an EXCLUSIVE CREATE — `set -o noclobber` on a `>` redirection,
-# i.e. open with O_CREAT|O_EXCL — the same primitive statusline-tee.sh uses for
-# its snapshot write, extended from a process-unique name to mutual exclusion on
-# a contended one. Read-then-write of the record itself cannot decide this:
+# i.e. open with O_CREAT|O_EXCL — used here for mutual exclusion on a contended
+# name rather than for a process-unique temp name. Read-then-write of the record itself cannot decide this:
 # two Stop invocations presenting the same fresh id both read it unclaimed, both
 # write, and the last rename wins, so BOTH honor the arm for that event while
 # the loser — possibly the legitimate lane — is refused on every later stop.
-# flock is not used: it is absent on macOS, the reason statusline-tee.sh already
-# records for avoiding it.
+# flock is not used: it is absent on macOS.
 #
 # FAIL DIRECTION: a store this hook cannot write leaves no claim file
 # at all and the arm is HONORED. Being gated is never the harm here; the harm is

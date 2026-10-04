@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"session_id\": \"s-1\", \"adopted_at\": \"2026-10-03T12:00:00Z\", \"id\": \"session-work-2\", \"key\": \"session-work:repeated-command\", \"title\": \"Repeated `npm run lint` with no edit between runs\", \"horizon\": \"now\", \"guard_metric\": \"a reused result differs from a fresh run\", \"revert_if\": \"the inputs changed since the earlier run\", \"route_suggested\": \"next-run\", \"route_taken\": \"next-run\", \"route_overridden\": false}\n",
+      "why": "one session-work adoption recorded for this session"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "adopted.jsonl is empty: nothing was recorded"
+    },
+    {
+      "answer": "{\"session_id\": \"s-1\", \"adopted_at\": \"2026-10-03T12:00:00Z\", \"id\": \"git-1\", \"route_suggested\": \"next-run\", \"route_taken\": \"next-run\", \"route_overridden\": false}\n",
+      "why": "the recorded adoption is from another area"
+    },
+    {
+      "answer": "{\"session_id\": \"s-1\", \"id\": \"session-work-2\", \"route_taken\": \"next-run\"}\n{\"session_id\": \"s-1\", \"id\": \"session-work-3\", \"route_taken\": \"next-run\"}\n",
+      "why": "two session-work adoptions where only the lint item was accepted"
+    },
+    {
+      "answer": "{\"session_id\": \"\", \"id\": \"session-work-2\", \"route_taken\": \"next-run\"}\n",
+      "why": "the record carries no session"
+    }
+  ]
+}

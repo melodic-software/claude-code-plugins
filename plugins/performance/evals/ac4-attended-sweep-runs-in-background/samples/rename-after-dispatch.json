@@ -1,0 +1,28 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Edit", "input": {"file_path": "src/widgets/list.ts", "old_string": "limit: number", "new_string": "limit: number, cursor?: string"}},
+        {"tool": "Agent", "input": {"subagent_type": "performance:go-faster-sweeper", "prompt": "MODE: attended"}},
+        {"tool": "Edit", "input": {"file_path": "src/widgets/list.ts", "old_string": "export function listWidgets", "new_string": "export function fetchWidgets"}}
+      ],
+      "why": "an earlier unrelated edit, then the dispatch, then the rename edit"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Edit", "input": {"file_path": "src/widgets/list.ts", "old_string": "export function listWidgets", "new_string": "export function fetchWidgets"}},
+        {"tool": "Agent", "input": {"subagent_type": "performance:go-faster-sweeper", "prompt": "MODE: attended"}}
+      ],
+      "why": "the rename edit comes before the dispatch"
+    },
+    {
+      "answer": [
+        {"tool": "Edit", "input": {"file_path": "src/widgets/list.ts", "old_string": "limit: number", "new_string": "limit: number, cursor?: string"}},
+        {"tool": "Agent", "input": {"subagent_type": "performance:go-faster-sweeper", "prompt": "MODE: attended"}}
+      ],
+      "why": "no rename edit at all, only an earlier unrelated edit"
+    }
+  ]
+}

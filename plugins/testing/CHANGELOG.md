@@ -3,12 +3,18 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.22.7] - 2026-10-04
+## [0.22.8] - 2026-10-04
 
 ### Fixed
 
 - `/testing:audit` no longer reads a C# test's own signature as an assertion. A test named `Diagnostics_CheckConnectionStrings`, or a theory with an `expected` parameter, whose body only prints is now reported as `rule-zero-assertion`. A mock-only test named `Verify_*` or `Check_*` can now report `rule-mock-only-oracle`, which gates only under `--strict` ([#6040](https://github.com/melodic-software/claude-code-plugins/issues/6040)).
 - A C# test whose body sits on its declaration line, `{ ... }` or `=> ...`, is now checked for `rule-weak-oracle`, `rule-snapshot-only` and `rule-inert-assertion`, as a multi-line body is. An async assertion a `Task`-returning expression body returns is awaited by the runner and is not reported ([#6040](https://github.com/melodic-software/claude-code-plugins/issues/6040)).
+
+## [0.22.7] - 2026-10-04
+
+### Changed
+
+- The README notes that an installed mod can stop this plugin's `PreToolUse` hooks from running and can approve a call they blocked, with links to the two mods events sections. Nothing the plugin runs changed.
 
 ## [0.22.6] - 2026-10-04
 

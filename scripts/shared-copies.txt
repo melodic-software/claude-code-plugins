@@ -13,6 +13,8 @@ lib/html-escape.mjs plugins/planning/lib/html-escape.mjs
 lib/html-escape.mjs plugins/review/lib/html-escape.mjs
 lib/context-zone.sh plugins/context-guard/scripts/context-zone.sh
 lib/context-zone.sh plugins/plugin-quality/scripts/context-zone.sh
+lib/context-zone.fixtures.mjs plugins/context-guard/scripts/context-zone.fixtures.mjs
+lib/context-zone.fixtures.mjs plugins/plugin-quality/scripts/context-zone.fixtures.mjs
 lib/index-regen.sh plugins/discovery/scripts/index-regen.sh
 lib/legacy-statusline-detect.md plugins/context-guard/skills/setup/reference/legacy-statusline-detect.md
 lib/legacy-statusline-detect.md plugins/rate-limit-guard/skills/setup/reference/legacy-statusline-detect.md
@@ -53,6 +55,8 @@ lib/state-key.sh plugins/context-budget/lib/state-key.sh
 lib/state-key.sh plugins/improvement/lib/state-key.sh
 lib/state-key.sh plugins/code-metrics/lib/state-key.sh
 lib/state-key.sh plugins/session-flow/lib/state-key.sh
+lib/state-key.sh plugins/performance/lib/state-key.sh
+plugins/session-flow/scripts/transcript_reader.py plugins/performance/lib/transcript_reader.py
 lib/rewrite-guard.sh plugins/bash-format/hooks/rewrite-guard.sh
 lib/rewrite-guard.sh plugins/biome-format/hooks/rewrite-guard.sh
 lib/rewrite-guard.sh plugins/eol-normalizer/hooks/rewrite-guard.sh
@@ -264,6 +268,9 @@ lib/prerequisites.ps1 plugins/markdown-format/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/multi-agent/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/multi-agent/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/multi-agent/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/performance/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/performance/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/performance/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/playwright/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/playwright/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/playwright/lib/prerequisites.ps1
@@ -322,5 +329,7 @@ lib/view-builder.mjs plugins/harness-ops/lib/view-builder.mjs
 lib/view-runtime.js plugins/harness-ops/lib/view-runtime.js
 lib/mermaid-gate.mjs plugins/visualization/lib/mermaid-gate.mjs
 lib/mermaid-gate.mjs plugins/architecture/lib/mermaid-gate.mjs
+lib/write-snapshot.mjs plugins/rate-limit-guard/lib/write-snapshot.mjs
+lib/write-snapshot.mjs plugins/context-guard/lib/write-snapshot.mjs
 lib/publish-gate.mjs plugins/review/lib/publish-gate.mjs
 lib/publish-gate.mjs plugins/visualization/lib/publish-gate.mjs

@@ -16,10 +16,11 @@ only entrance and is the router's one non-terminal edge.
 
 ## Zone input (presence-gated, conservative)
 
-When the `context-guard` plugin is enabled, resolve this session's zone word per its reader
-contract (the contract owns the snapshot path, staleness rule, and bands, so read them there; this
-router consumes only the resulting word, and inlines no band values). Plugin not enabled, absent
-snapshot, or `unknown` → assume degraded and lean on the judgment tests below (window position
+When the `context-guard` plugin is enabled, look up this session's zone word with its
+`mcp__context-guard__status` pull tool (the `zone` field), or resolve it from the snapshot per its
+reader contract (the contract owns the snapshot path, staleness rule, and bands, so read them
+there; this router consumes only the resulting word, and inlines no band values). Plugin not
+enabled, no tool and an absent snapshot, or `unknown` → assume degraded and lean on the judgment tests below (window position
 and response quality). If context-guard's evidence-degraded marker exists for this session, or
 the session is otherwise known to have been compacted, treat the context as degraded regardless
 of a smart zone word.
@@ -243,7 +244,8 @@ worker's spawn brief.
 ## Where the mechanism menu lives
 
 The menu of continuation mechanisms lives only in this user-invoked skill body, never in a hook or
-any model-injected text, and the router takes the zone WORD from `context-guard` and inlines no
-band values, so no remaining-context count reaches the model through it. The signals that license
+any model-injected text, and the router takes only the zone WORD from `context-guard`
+(`mcp__context-guard__status` or the snapshot) and inlines no band values, so the router never
+states or reasons from a remaining-context count; the tool's other figures are not its input. The signals that license
 a continuation are the ones named under Autonomy above: the user's own turn, an instrument that
 measures the window, and visible decay in the model's own output. A count is not a decay signal.
