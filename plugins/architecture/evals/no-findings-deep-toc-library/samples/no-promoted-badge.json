@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No deepening candidates; buildToc already hides parsing, slugging and nesting.",
+      "why": "no badge"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Candidate 1: slug.js. Badge: Worth exploring. Merge it into tree.js so nesting owns slugs.",
+      "why": "Worth exploring card"
+    },
+    {
+      "answer": "**Strong**: parse.js and tree.js are a shallow pair; combine them.",
+      "why": "Strong card"
+    }
+  ]
+}
