@@ -132,6 +132,12 @@ the report.
 - Recheck trigger: `gh pr list --json files` returns more than 100 files for one pull request,
   or `git merge-tree --write-tree` changes its exit status meanings.
 
+Brief the scan agents to list duplicate writers too: one durable key, path or table that more
+than one owner writes (the model's common-coupling entry). Use `value-sites.py find` for a literal
+key. A confirmed duplicate writer always goes to the route lane as a structural ledger entry and
+never into the apply batch; phase H hands off its ownership rule per the remediation catalog's
+"Duplicate writers" section.
+
 **C. Verify (hard gate).** Scan agents have a demonstrated error rate. Reproduce every
 finding against the actual artifacts before it reaches the ledger or the user. Confirm the
 edge exists, the mechanism is what the scan claims, and the depended-on side actually changes
@@ -175,7 +181,11 @@ never auto-merges.
 `rejected`). Schema in [`reference/ledger.md`](reference/ledger.md). For route-lane
 candidates: hand the top one to `/architecture:improve`, invoked via the Skill tool (if that plugin is installed), for
 design exploration, and file the rest by invoking `/work-items:track add` via the Skill tool when that plugin is
-installed, else the repo's own tracker, else present the list to the user. Close by reporting
+installed, else the repo's own tracker, else present the list to the user. For each confirmed
+duplicate writer, write the ownership-rule findings file under `<memory_dir>/coupling/<branch-slug>/`
+per [`reference/remediations.md`](reference/remediations.md) "Duplicate writers", name it in the
+ledger entry's `outcome`, and offer `/review:audit-enforceability <file>` when that skill is
+available; never invoke it unasked. Close by reporting
 what waits on the human first (the PR to merge, any candidate needing a decision), then the ledger
 path, what was applied, what was routed where, and the recommended next-run scope.
 

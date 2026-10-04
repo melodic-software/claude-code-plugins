@@ -37,6 +37,18 @@ coupled several ways at once.
    internal file layout, another module's non-published members, another repo's internal paths.
 2. **Common coupling**: units share mutable global state, such as a global variable, a singleton
    holder, a shared config object anyone mutates, a database table two applications both write.
+   The candidate to look for here is a **duplicate writer**: one durable value (a config key, a
+   file path, a database table or column, a cache key) that more than one place writes. The rule
+   it breaks is one writer per value: one owner writes it, and every other site reads it or asks
+   the owner to change it. With two writers, each must keep agreeing with the other on format,
+   defaults and timing, and either can overwrite what the other wrote. Find the write sites of
+   the key, path or table (assignments, file writes, `INSERT`/`UPDATE`/`DELETE` statements,
+   setter calls); for a literal key, run `value-sites.py find --old '<key>'` and keep the rows
+   whose code writes the value. Two or more write sites in different owners make the candidate;
+   several writes inside the one owning module are one writer, and any number of readers is not a
+   finding. A duplicate writer is always a structural ledger entry in the route lane, never part
+   of the apply batch: picking the owner changes who may write the value, so no consolidation is
+   behavior-preserving.
 3. **External coupling**: units share an externally imposed format, protocol, or device
    knowledge that neither owns, duplicated in each.
 4. **Control coupling**: one unit passes a flag that selects the other's behavior, such as

@@ -82,6 +82,37 @@ moves in lockstep with the first. The coupling remains, plus a layer.
   the owner declares, published names, or the artifact's root with the reader trusted to
   navigate.
 
+## Duplicate writers
+
+- **Give the value one writer**: for a duplicate writer (the model's common-coupling entry),
+  name one owner for the key, path or table; every other writer either calls the owner or
+  becomes a reader. This is route lane by definition: choosing the owner is a design decision,
+  and moving a write changes behavior when the writers disagree today.
+  *Not when:* the writers are the same owner split across layers (a migration that seeds a table
+  the owning service then writes), or the value is append-only by design (a log both sides add
+  lines to, with no line ever rewritten).
+- **Hand off the ownership rule.** Once phase C confirms a duplicate writer, the rule that
+  keeps it at one writer ("only `<owner>` writes `<value>`") goes to a findings file so a
+  deterministic check can be proposed for it:
+  - Write one file in the review-findings shape (frontmatter `type: review-findings`, a
+    `## Findings` table), defined at
+    <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/reference/findings-file-shape.md>.
+    One row per confirmed duplicate writer: `Location` is one write site outside the proposed
+    owner, `Finding` names the value and its other write sites, `Action` states the ownership
+    rule. Untrusted text (paths, values) stays in the cells, escaped per that file.
+  - Write it under `<memory_dir>/coupling/<branch-slug>/`, where `<memory_dir>` is the memory
+    root the ledger lives under (`.work/` by default) and `<branch-slug>` is the branch name
+    lowercased with every character outside `[a-z0-9._-]` replaced by `-`. Never write under
+    `<memory_dir>/reviews/`: the file is for the enforceability audit, not the review fix action.
+  - Follow the memory-tier write discipline: announce the path before writing; on the first
+    write, verify the memory root holds a `.gitignore` containing `*`, creating it (announced)
+    when absent; never edit the consumer's root `.gitignore`; write nothing when the memory root
+    is the repository root, and report the rows instead.
+  - The ledger entry's `outcome` and the run's report both name the file. When
+    `/review:audit-enforceability` is among the available skills, the report offers
+    `/review:audit-enforceability <file>`; it never invokes that skill unasked. Without it, the
+    report names the file and the proposed rule only.
+
 ## Sequencing rule
 
 Prefer the smallest mechanism that removes the change-transmission: rename/localize before
