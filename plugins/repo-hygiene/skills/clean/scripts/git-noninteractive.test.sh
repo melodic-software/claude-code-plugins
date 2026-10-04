@@ -327,6 +327,37 @@ log="$(log_of "$AUTO_YES")"
 assert_not_exit "auto OpenSSH wrapper does not reach a prompt" 124 "$rc"
 assert_contains "auto OpenSSH wrapper gets the enforced options first" "$log" "-o BatchMode=yes -o ConnectTimeout=5 -o BatchMode=no"
 
+# An explicit ssh variant is trusted without the -G probe, as git trusts it.
+EXPLICIT_ENV="$VAR_DIR/explicit-env/my-transport"
+make_recorder "$EXPLICIT_ENV" plain
+git config --file "$VAR_DIR/explicit-env.cfg" core.sshCommand "'$EXPLICIT_ENV'"
+rc=0
+run_variant "$VAR_DIR/explicit-env.cfg" GIT_SSH_VARIANT=ssh >/dev/null || rc=$?
+log="$(log_of "$EXPLICIT_ENV")"
+connect="$(printf '%s\n' "$log" | grep 'git-upload-pack' || true)"
+assert_not_contains "GIT_SSH_VARIANT=ssh skips the -G probe" "$log" " -G "
+assert_contains "GIT_SSH_VARIANT=ssh wrapper connects with the ssh options" "$connect" "-o BatchMode=yes -o ConnectTimeout=5"
+
+EXPLICIT_CFG="$VAR_DIR/explicit-cfg/my-transport"
+make_recorder "$EXPLICIT_CFG" plain
+git config --file "$VAR_DIR/explicit-cfg.cfg" core.sshCommand "'$EXPLICIT_CFG'"
+git config --file "$VAR_DIR/explicit-cfg.cfg" ssh.variant ssh
+rc=0
+run_variant "$VAR_DIR/explicit-cfg.cfg" >/dev/null || rc=$?
+log="$(log_of "$EXPLICIT_CFG")"
+connect="$(printf '%s\n' "$log" | grep 'git-upload-pack' || true)"
+assert_not_contains "ssh.variant=ssh skips the -G probe" "$log" " -G "
+assert_contains "ssh.variant=ssh wrapper connects with the ssh options" "$connect" "-o BatchMode=yes -o ConnectTimeout=5"
+
+# GIT_SSH is a path, not a command line: an apostrophe and a space stay in the one word.
+QUOTED_SSH="$VAR_DIR/it's here/ssh"
+make_recorder "$QUOTED_SSH" openssh
+rc=0
+run_variant "$VAR_DIR/none.cfg" GIT_SSH="$QUOTED_SSH" >/dev/null || rc=$?
+log="$(log_of "$QUOTED_SSH")"
+assert_not_exit "GIT_SSH with an apostrophe does not reach a prompt" 124 "$rc"
+assert_contains "GIT_SSH with an apostrophe runs with the ssh options" "$log" "$QUOTED_SSH -o BatchMode=yes -o ConnectTimeout=5"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1

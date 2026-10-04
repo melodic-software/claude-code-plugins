@@ -18,8 +18,8 @@
 # any configured -o, since OpenSSH keeps the first value it obtains for an option
 # (https://man.openbsd.org/ssh_config). plink and putty take Plink's -batch.
 # tortoiseplink already gets -batch from git, and simple takes no options. An
-# unrecognized basename gets the ssh options only when the command with them
-# passes the same -G probe.
+# explicit ssh variant is trusted as git trusts it; an unrecognized basename gets
+# the ssh options only when the command with them passes the same -G probe.
 
 # _clean_ssh_first_word <command> — sets the caller's ssh_word (the first word
 # as git's split_cmdline reads it) and ssh_word_end (its length in <command>).
@@ -54,7 +54,8 @@ _clean_ssh_first_word() {
 
 # _clean_ssh_command [repo] — prints the batch-mode ssh command for git's child.
 _clean_ssh_command() {
-  local repo="${1:-}" cmd="" variant="" base="" candidate ssh_word ssh_word_end
+  local repo="${1:-}" cmd="" variant="" explicit=0 base="" candidate ssh_word ssh_word_end
+  local sq="'" q="'\\''"
   local -a cfg=(git)
   [[ -n "$repo" ]] && cfg=(git -C "$repo")
   if [[ -n "${GIT_SSH_COMMAND:-}" ]]; then
@@ -63,7 +64,7 @@ _clean_ssh_command() {
     cmd="$("${cfg[@]}" config --get core.sshCommand 2>/dev/null || true)"
     cmd="${cmd//$'\r'/}"
     if [[ -z "$cmd" && -n "${GIT_SSH:-}" ]]; then
-      cmd="'${GIT_SSH//\'/\'\\\'\'}'"
+      cmd="'${GIT_SSH//$sq/$q}'"
     fi
   fi
   [[ -n "$cmd" ]] || cmd="ssh"
@@ -79,6 +80,7 @@ _clean_ssh_command() {
   auto | plink | putty | tortoiseplink | simple) ;;
   *) variant="ssh" ;;
   esac
+  [[ "$variant" == auto ]] || explicit=1
 
   if ! _clean_ssh_first_word "$cmd"; then
     printf '%s' "$cmd"
@@ -105,7 +107,7 @@ _clean_ssh_command() {
     ;;
   *)
     candidate="${cmd:0:ssh_word_end} -o BatchMode=yes -o ConnectTimeout=5${cmd:ssh_word_end}"
-    if [[ "$base" == ssh || "$base" == ssh.exe ]] ||
+    if ((explicit)) || [[ "$base" == ssh || "$base" == ssh.exe ]] ||
       sh -c "$candidate"' "$@"' "$candidate" -G git-noninteractive.invalid \
         </dev/null >/dev/null 2>&1; then
       printf '%s' "$candidate"
