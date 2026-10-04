@@ -3,13 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.48.2] - 2026-10-03
+## [0.48.3] - 2026-10-04
 
 ### Changed
 
 - **`/work-items:work-loop`'s paused wait reflects the mod writer.** rate-limit-guard's mod writes
   the snapshot in headless sessions too, so the Monitor armed on it wakes on the mod's writes under
   its machine-wide write floor; the scheduled wake still bounds how late an account switch is seen.
+
+## [0.48.2] - 2026-10-04
+
+### Changed
+
+- Shared `view-runtime.js` synced ([#6173](https://github.com/melodic-software/claude-code-plugins/issues/6173)); no change to this plugin's own behavior.
 
 ## [0.48.1] - 2026-10-03
 

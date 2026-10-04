@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.7.4] - 2026-10-04
+## [3.7.5] - 2026-10-04
 
 ### Fixed
 
@@ -11,6 +11,12 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   row now points at the mods overview's built-in roster as a cross-check and keeps the binary read
   as the source, because the binary registers built-ins the roster omits; the row's recheck trigger
   and as-of date moved to 2.1.288.
+
+## [3.7.4] - 2026-10-04
+
+### Changed
+
+- Shared `view-runtime.js` synced ([#6173](https://github.com/melodic-software/claude-code-plugins/issues/6173)); no change to this plugin's own behavior.
 
 ## [3.7.3] - 2026-10-04
 

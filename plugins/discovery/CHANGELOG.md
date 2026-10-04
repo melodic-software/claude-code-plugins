@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.28.6] - 2026-10-04
+
+### Fixed
+
+- Shared `view-runtime.js` synced ([#6173](https://github.com/melodic-software/claude-code-plugins/issues/6173)): pages built by `/discovery:blindspot` no longer say they saved a file. The claude.ai artifact viewer blocks a download the page starts itself without an error the page can see, so the page reported a save that never happened. The "Save as file" button now appears only on a page opened from `file://` or served by the session bridge on `127.0.0.1`, and after a download attempt the status reads "If no file was saved, select the text below and copy it." "Copy reply" and the selectable payload text are unchanged.
+
 ## [0.28.5] - 2026-10-04
 
 ### Fixed
