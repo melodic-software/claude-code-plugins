@@ -102,8 +102,9 @@ List open items and filter into buckets programmatically (adapter: "List items",
 
 Genre: reports and status, interactive. In an interactive session, after the table, read
 [context/board.md](context/board.md) and follow it: it resolves the `medium` key, then builds a
-page that groups the same items by state, blocker and label with a filter box. The table is the
-record; the page is a view of it. Item text is tracker text (K2), so only
+page that groups the same items by state, blocker and label with a filter box, and can connect to
+this session through `session-bridge` so the reader's moves and notes arrive as data and your replies
+show on the page. The table is the record; the page is a view of it. Item text is tracker text (K2), so only
 `scripts/build-board.mjs` writes the page, from its checked-in template (`templates/board.html`) and the items as escaped
 JSON data. Never hand-write the page or add script to it. A lane run, CI, or `medium: terminal`
 prints the table only. `context/board.md` writes the plugin's root directory as `<plugin-root>`,

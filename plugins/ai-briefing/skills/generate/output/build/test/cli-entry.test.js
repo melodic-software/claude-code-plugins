@@ -49,7 +49,8 @@ test("a missing briefing exits 1", () => {
 });
 
 test("argv writes slides-data.js and formats an ASCII-arrow window", () => {
-  const root = scratch("slides-");
+  // Named for the plugin: the build uses CLAUDE_PLUGIN_DATA only when it names ai-briefing.
+  const root = scratch("ai-briefing-slides-");
   const briefing = path.join(root, "briefing.md");
   const out = path.join(root, "slides-data.js");
   writeFileSync(

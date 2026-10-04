@@ -26,6 +26,7 @@
 # allowed-tools-pairing suite disables it. Every single-quoted `${…}` below is a
 # fixed string searched for VERBATIM in frontmatter or in the wrapper's source
 # text. Letting the shell expand one would make the assertion match nothing.
+# test-scope: plugins/prototype/skills/pressure-test/SKILL.md
 # shellcheck disable=SC2016
 set -uo pipefail
 

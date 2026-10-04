@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Discovery wrapper: scripts/run-plugin-tests.sh finds plugins/**/*.test.sh.
+# test-scope: plugins/autonomy/skills/setup/scripts/fixtures/prerequisite-resolution/* plugins/autonomy/generated/*
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

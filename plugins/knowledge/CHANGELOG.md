@@ -4,11 +4,25 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
-## [0.19.3] - 2026-10-03
+## [0.19.5] - 2026-10-04
 
 ### Fixed
 
 - `book-distill` spoke files (`context/templates.md`, `templates/checklist.md`) write `<plugin-data>` where they wrote a literal `${CLAUDE_PLUGIN_DATA}`. Those files are read as bytes, so the token reached the Bash tool unsubstituted. The skill body says `<plugin-data>` is `${CLAUDE_PLUGIN_DATA}` (substituted at load) and must be put in place before any path is used ([#6072](https://github.com/melodic-software/claude-code-plugins/issues/6072)).
+
+## [0.19.4] - 2026-10-03
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced ([#6084](https://github.com/melodic-software/claude-code-plugins/issues/6084)); no change to this plugin's lib.**
+  The prerequisite check now counts a Windows App Execution Alias (a Store or winget install on PATH) as found,
+  except App Installer's Python install stub. A `cli` or `runtime` entry can set `reject_store_alias` to skip aliases instead; no entry in this plugin does.
+
+## [0.19.3] - 2026-10-03
+
+### Changed
+
+- `skills/docpage-digest/scripts/check-html-rows.test.sh` and `skills/docpage-digest/scripts/extract_blog_body.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
 
 ## [0.19.2] - 2026-10-03
 

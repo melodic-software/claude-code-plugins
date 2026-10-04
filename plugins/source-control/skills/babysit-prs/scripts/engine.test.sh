@@ -5,6 +5,7 @@
 # the guarded wrappers (whose --allow-unpinned-head rejection is a shell
 # concern, not a Python one). SKIPs (exit 0) when Python 3.11+ is unavailable, matching the
 # repo test-runner convention for optional toolchains.
+# test-scope: plugins/source-control/*.md plugins/source-control/scripts/babysit-*.sh
 set -uo pipefail
 
 # Resolve before the cd: BASH_SOURCE is the path as invoked, so re-deriving it

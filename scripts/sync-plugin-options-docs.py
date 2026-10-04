@@ -7,7 +7,7 @@
 SINGLE SOURCE OF TRUTH: `plugins/<name>/.claude-plugin/plugin.json` -> `userConfig`.
 The block between the markers below is GENERATED. Never hand-edit it: add or change
 the option in the manifest and re-run this script. CI runs `--check` and rejects drift,
-the same contract `scripts/sync-hook-utils.sh` uses for the shared hook library.
+the same contract `scripts/sync-shared-copies.sh` uses for the shared hook library.
 
 Why a generated block rather than prose alone: a hand-written Configuration section
 carries nuance a generator cannot (see plugins/actionlint/README.md, which explains the

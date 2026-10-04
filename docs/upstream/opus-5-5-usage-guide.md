@@ -58,7 +58,7 @@ their own.
 | G1.1 The finish line in a request | Root `AGENTS.md` stop rule; `harness-config:audit-prompting-postures` P6 (finish line and both kinds of stop); `docs-hygiene:write-for-agents`; dispatch briefs in codebase-health, batch-simplify, coupling, mutation-testing, review:fanout, course-digest, architecture:improve; implementation and planning briefs | ADOPT |
 | G1.2 Thinking steers in prompts | `audit-instructions` I8-f (scoped to Opus 5.5 targets, because the Opus 5.5 page and the model-agnostic [Thinking and reasoning](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#thinking-and-reasoning) section disagree on thinking steers) and widened I8-c; `write-for-agents` defers to I8-f for the target model; the one live steer found (event-storming simulation) replaced; boris `autonomy.md` carries an amendment note | ADOPT |
 | G1.3 Adding to a running task | A user habit in the Claude Code UI, with no repository instruction to change | N/A |
-| G1.4 Excluded design styles | `audit-instructions` I26 extended; visualization, prototype, playgrounds, education (eli5, teach), and adhd:clarify name exclusions, extend the list when the user dislikes a choice, and render again | ADOPT |
+| G1.4 Excluded design styles | `audit-instructions` I26 extended; visualization, prototype, playgrounds, education (illustrate, teach), and adhd:clarify name exclusions, extend the list when the user dislikes a choice, and render again | ADOPT |
 
 ## Steering a long run
 

@@ -154,9 +154,10 @@ check actionlint,autonomy,bash-format,biome-format,harness-ops,context-budget,co
 
 # The prerequisites check, for a plugin whose `check` already means something
 # else (docs/conventions/prerequisites/). instruction-placement gates rule
-# globs, skill-quality gates a skill, toolchain builds and tests a project. A
-# hook notice names this skill where it would name `check`.
-check-prerequisites instruction-placement,skill-quality,toolchain
+# globs, skill-quality gates a skill, toolchain builds and tests a project;
+# animation has no `check` skill. A hook notice names this skill where it would
+# name `check`.
+check-prerequisites animation,instruction-placement,skill-quality,toolchain
 
 # Fixed verb meaning: mutates the target. disk-hygiene cleans an arbitrary
 # directory tree, repo-hygiene cleans a repository's caches and git metadata.

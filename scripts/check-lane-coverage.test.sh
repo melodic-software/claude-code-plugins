@@ -11,6 +11,7 @@
 # names steps of the real ci.yml, and an entry naming a step no fixture defines
 # is a stale opt-out by construction — so a fixture checked against it would fail
 # for a reason that has nothing to do with the case under test.
+# test-scope: .github/workflows/ci.yml
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

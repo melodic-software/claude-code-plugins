@@ -93,12 +93,12 @@
       "id": 8,
       "name": "boundary-routes-picture-request-to-the-visual-lane",
       "prompt": "ELI5 this, give me the picture version of what the previous message is saying",
-      "expected_output": "Recognizes this as a request to change the MEDIUM, a visual explainer that assumes zero prior knowledge, which is education:eli5's lane. It is neither a structure problem for this skill nor a prose altitude drop for education:explain, so routing it to the plain-language explainer is as wrong as handling it here. This skill does not render a diagram of its own under the guise of clarifying.",
+      "expected_output": "Recognizes this as a request to change the MEDIUM, a visual explainer that assumes zero prior knowledge, which is education:illustrate's lane. It is neither a structure problem for this skill nor a prose altitude drop for education:explain, so routing it to the plain-language explainer is as wrong as handling it here. This skill does not render a diagram of its own under the guise of clarifying.",
       "files": [],
       "expectations": [
-        "Recognizes 'ELI5' plus 'the picture version' as a medium request and routes to education:eli5, not education:explain",
+        "Recognizes 'ELI5' plus 'the picture version' as a medium request and routes to education:illustrate, not education:explain",
         "Does not produce a diagram or visual explainer itself, and does not treat the request as a cue to restructure the message instead",
-        "Keeps the three lanes distinct: structure here, prose altitude at education:explain, visual medium at education:eli5"
+        "Keeps the three lanes distinct: structure here, prose altitude at education:explain, visual medium at education:illustrate"
       ]
     }
   ]

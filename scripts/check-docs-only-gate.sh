@@ -58,7 +58,8 @@
 #                           fail-open, because it replaces that step's real
 #                           outcome with `success` on every docs-only diff.
 #   7. NO JOB-LEVEL IF    — a consumer carries no job-level condition other than
-#                           the contract-only gate or its draft form, pinned
+#                           the contract-only gate, its draft form, or a test
+#                           lane's ordered-skip form (property 12), pinned
 #                           below as exact literals. It reaches the output through `needs`, so it
 #                           runs only when the resolver succeeded — which is what
 #                           makes the output's domain exactly {'true','false'}
@@ -86,13 +87,22 @@
 #                           .outputs.<name> }}`, and never in a condition: its
 #                           value is not a polarity decision, and an empty one
 #                           must mean "the whole tree" to the script reading it.
-#                           The one other read is the test-bash matrix size,
-#                           pinned whole in MATRIX_READ with its four-leg
+#                           The other reads are the test lanes' matrix sizes,
+#                           each pinned whole in MATRIX_READS with its one-leg
 #                           default.
 #  11. A SKIP NEVER PASSES — the aggregate's `treat-skipped-as` is `fail`, a
 #                           draft's included: a draft runs no lane, and a green
 #                           draft ci-status is the newest one on the SHA from
 #                           the flip to ready until the lanes finish.
+#  12. A SKIP IS CHECKED  — a test lane `test-<x>` may skip as a job on its own
+#                           `run_<x>` row (the ordered-skip form, the draft gate
+#                           followed by `&& needs.<resolver>.outputs.run_<x> ==
+#                           'true'`), and only when the aggregate reads its
+#                           results from the step `id: lanes`, which turns a
+#                           skip into `success` only where the resolver
+#                           succeeded and that row is 'false'
+#                           (scripts/ci-ordered-skips.test.sh runs that step).
+#                           Any other skipped lane stays `skipped` and fails.
 #
 # FAIL CLOSED ON SHAPE. Like scripts/check-lane-coverage.sh, this reads the
 # workflow structurally rather than through a YAML library (the repo ships no
@@ -145,14 +155,16 @@ DETECT_STEP_ID="detect"
 #
 # `run_full` is the root: it is the only row derived from the detector, and
 # every other row narrows it. The narrowing rows read `steps.match.outputs`
-# (the change-detection action) through fromJSON with a `|| '{}'` default and
-# compare `!= 'false'`, never `== 'true'`, so an unset group runs the lane.
+# (the change-detection action) through fromJSON with a `|| '{}'` default, or
+# the test-lane plan (`steps.plan.outputs`), and compare `!= 'false'`, never
+# `== 'true'`, so an unset group or plan runs the lane.
 OUTPUT_NAME="run_full"
 OUTPUT_TABLE="\
 run_full${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' }}
 run_tests${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true }}
-run_node${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['node'] != 'false' }}
-run_python${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' }}
+run_bash${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.bash != 'false' }}
+run_python${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.python != 'false' }}
+run_node${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.node != 'false' }}
 run_workflows${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
 run_skill_checker${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
 run_manifests${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}"
@@ -160,14 +172,23 @@ run_manifests${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && f
 # exact expression and read only as a whole env entry (property 10). `lane_base`
 # is the ref every diff-scoped step diffs against: `origin/<base>` on a pull
 # request, the newest green push run's commit on a push, and empty (the whole
-# tree) on a schedule, a dispatch, or a push with no usable base.
+# tree) on a schedule, a dispatch, or a push with no usable base. The rest are
+# the test-lane plan of scripts/plan-test-lanes.sh.
 DATA_TABLE="\
 lane_base${TAB}\${{ steps.base.outputs.ref }}
-test_legs${TAB}\${{ steps.legs.outputs.legs }}
-test_needs${TAB}\${{ steps.legs.outputs.needs }}"
-# The one data read that is not an env entry: test-bash sizes its matrix from
-# `test_legs`, and an unset value falls back to the full four-leg fan-out.
-MATRIX_READ="leg: \${{ fromJSON(needs.${RESOLVER_JOB}.outputs.test_legs || '[0,1,2,3]') }}"
+bash_legs${TAB}\${{ steps.plan.outputs.bash_legs }}
+bash_plan${TAB}\${{ steps.plan.outputs.bash_plan }}
+bash_needs${TAB}\${{ steps.plan.outputs.bash_needs }}
+python_legs${TAB}\${{ steps.plan.outputs.python_legs }}
+python_plan${TAB}\${{ steps.plan.outputs.python_plan }}
+python_needs${TAB}\${{ steps.plan.outputs.python_needs }}
+node_packages${TAB}\${{ steps.plan.outputs.node_packages }}"
+# The data reads that are not env entries: each sharded test lane sizes its
+# matrix from its `<lane>_legs`. A leg reads its suites from the plan and fails
+# on none, so an unset value falls back to one leg that fails loud.
+MATRIX_READS="\
+leg: \${{ fromJSON(needs.${RESOLVER_JOB}.outputs.bash_legs || '[0]') }}
+leg: \${{ fromJSON(needs.${RESOLVER_JOB}.outputs.python_legs || '[0]') }}"
 # The single required context. Everything reachable from its `needs` is a
 # REQUIRED lane, and that closure is what decides whether a job-level condition
 # is a defect (check 5c) and whether a lane may opt out of coverage (check 8).
@@ -185,6 +206,13 @@ JOB_GATE="\${{ !(${CONTRACT_ONLY_PREDICATE}) }}"
 # The same gate with the draft term every lane carries: a draft pull request
 # runs no lane at all, and `ci-status` fails on the skipped lanes.
 JOB_GATE_DRAFT="\${{ !(${CONTRACT_ONLY_PREDICATE}) && github.event.pull_request.draft != true }}"
+# A test lane's ordered skip (property 12): the draft gate and the lane's own
+# row. `job_gate_skip <x>` is the one literal job `test-<x>` may carry.
+job_gate_skip() { printf '%s' "\${{ !(${CONTRACT_ONLY_PREDICATE}) && github.event.pull_request.draft != true && needs.${RESOLVER_JOB}.outputs.run_$1 == 'true' }}"; }
+# The aggregate step that checks every skip against the resolver, by id, and
+# the results input the aggregate must then read from it.
+SKIP_CHECK_STEP_ID="lanes"
+SKIP_CHECKED_RESULTS="\${{ steps.${SKIP_CHECK_STEP_ID}.outputs.results }}"
 REFERENCE_PREFIX="needs.${RESOLVER_JOB}.outputs."
 REFERENCE="${REFERENCE_PREFIX}${OUTPUT_NAME}"
 
@@ -453,6 +481,11 @@ parsed="$(
         sub(/^[[:blank:]]+treat-skipped-as:[[:blank:]]*/, "", sk)
         print "SKIPAS\t" job "\t" uncommented(sk)
       }
+      if ($0 ~ /^[[:blank:]]+results:/) {
+        rv = $0
+        sub(/^[[:blank:]]+results:[[:blank:]]*/, "", rv)
+        print "RESULTSIN\t" job "\t" uncommented(rv)
+      }
 
       if ($0 ~ /^        if:/ && mentions_output(uncommented($0))) {
         rest = $0
@@ -490,6 +523,7 @@ REC_STEPOUT=""
 REC_JOBIF=""
 REC_LANEOK=""
 REC_SKIPAS=""
+REC_RESULTSIN=""
 while IFS= read -r line; do
   [[ -n "$line" ]] || continue
   case "$line" in
@@ -508,6 +542,7 @@ while IFS= read -r line; do
   "JOBIF$TAB"*) REC_JOBIF+="${line#*"$TAB"}"$'\n' ;;
   "LANEOK$TAB"*) REC_LANEOK+="${line#*"$TAB"}"$'\n' ;;
   "SKIPAS$TAB"*) REC_SKIPAS+="${line#*"$TAB"}"$'\n' ;;
+  "RESULTSIN$TAB"*) REC_RESULTSIN+="${line#*"$TAB"}"$'\n' ;;
   # The awk pass emits no other record kind; a line that reaches here means the
   # two halves have drifted, which is not something to guess past.
   *)
@@ -814,7 +849,7 @@ while IFS="$TAB" read -r refjob reford kind text; do
   *)
     # A data output, read as a whole env entry or as the matrix size
     # (property 10).
-    if is_data_read "$text" || [[ "$text" == "$MATRIX_READ" ]]; then
+    if is_data_read "$text" || has_line "$MATRIX_READS"$'\n' "$text"; then
       continue
     fi
     # An aggregator feed entry, for some table output X:
@@ -972,15 +1007,45 @@ is_required() { [[ "$required_closure" == *$'\n'"$1"$'\n'* ]]; }
 # subtracts is a draft pull request, where every lane is skipped and the
 # aggregate fails.
 
+#
+# AND A TEST LANE'S ORDERED SKIP, `job_gate_skip <x>` on job `test-<x>` only,
+# whose `run_<x>` row the table names: the draft form followed by
+# `&& needs.<resolver>.outputs.run_<x> == 'true'`. Still no status-check
+# function, so the needs edge governs; what it subtracts is a change that gives
+# the lane no work. Check 12 holds the other half: the aggregate turns that
+# skip into `success` only against the same row.
+
+skip_lanes=""
 while IFS= read -r refjob; do
   [[ -n "$refjob" ]] || continue
   is_required "$refjob" || continue
   while IFS="$TAB" read -r cjob ctext; do
     [[ "$cjob" == "$refjob" ]] || continue
     [[ "$ctext" == "$JOB_GATE" || "$ctext" == "$JOB_GATE_DRAFT" ]] && continue
-    report "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER: job '$refjob' reads $OUTPUT_NAME, is reachable from ${AGGREGATE_JOB}.needs, and carries a job-level condition that is not the contract-only gate: if: $ctext. If that condition ever lets the job run when '$RESOLVER_JOB' did not succeed, $OUTPUT_NAME is the empty string, both sanctioned forms are false, and the lane reports success having run nothing. Gate the steps and let the needs edge decide whether the job runs at all. The only sanctioned job-level conditions here are exactly: $JOB_GATE, or $JOB_GATE_DRAFT"
+    if [[ "$refjob" == test-* ]] && table_has "run_${refjob#test-}" &&
+      [[ "$ctext" == "$(job_gate_skip "${refjob#test-}")" ]]; then
+      skip_lanes+="$refjob"$'\n'
+      continue
+    fi
+    report "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER: job '$refjob' reads $OUTPUT_NAME, is reachable from ${AGGREGATE_JOB}.needs, and carries a job-level condition that is not the contract-only gate: if: $ctext. If that condition ever lets the job run when '$RESOLVER_JOB' did not succeed, $OUTPUT_NAME is the empty string, both sanctioned forms are false, and the lane reports success having run nothing. Gate the steps and let the needs edge decide whether the job runs at all. The only sanctioned job-level conditions here are exactly: $JOB_GATE, or $JOB_GATE_DRAFT, or on a job test-<x> whose run_<x> row the table names: $(job_gate_skip '<x>')"
   done <<<"$REC_JOBIF"
 done <<<"$refjobs"
+
+# --- 12. A SKIP IS CHECKED -----------------------------------------------------
+#
+# A lane that may skip on its own row is only safe if the aggregate reads its
+# result through the step that compares the skip with that row. Reading the raw
+# `needs.*.result` instead would fail the skip (fail-closed, but every such
+# change red); reading anything else could pass a skip nothing checked.
+if [[ -n "$skip_lanes" ]]; then
+  agg_results="$(awk -F '\t' -v j="$AGGREGATE_JOB" '$1 == j { print $2 }' <<<"$REC_RESULTSIN")"
+  if [[ "$agg_results" != "$SKIP_CHECKED_RESULTS" ]]; then
+    report "A SKIP IS CHECKED: lane(s) [$(uniq_list "$skip_lanes")] skip on their own row, but job '$AGGREGATE_JOB' aggregates results: ${agg_results:-<none>}. It must read exactly $SKIP_CHECKED_RESULTS, the step that passes a skip only where '$RESOLVER_JOB' said the lane had no work."
+  fi
+  if ! awk -F '\t' -v j="$AGGREGATE_JOB" -v id="$SKIP_CHECK_STEP_ID" '$1 == j && $3 == id { f = 1 } END { exit !f }' <<<"$REC_STEPID"; then
+    report "A SKIP IS CHECKED: lane(s) [$(uniq_list "$skip_lanes")] skip on their own row, but job '$AGGREGATE_JOB' has no step 'id: $SKIP_CHECK_STEP_ID' to check those skips against '$RESOLVER_JOB'."
+  fi
+fi
 
 # --- 11. A SKIPPED LANE NEVER PASSES -----------------------------------------
 #
