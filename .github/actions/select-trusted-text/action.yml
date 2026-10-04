@@ -1,0 +1,41 @@
+name: Select trusted text
+description: >
+  Build a lane's prompt context from a PR (title, body, issue comments,
+  reviews, review comments, and the issues it closes with their comments),
+  keeping only items whose own author is on the trusted-actor list. Writes a
+  TrustedContext JSON file and logs only how many items of each kind it
+  dropped. Fails without writing the file when it cannot read everything.
+
+inputs:
+  pr-number:
+    description: The PR number, normally the trigger gate's `pr-number` output.
+    required: true
+  repository:
+    description: The repository that holds the PR, as owner/name.
+    required: false
+    default: ${{ github.repository }}
+  trusted-actors-path:
+    description: Path to the trusted-actor list, read from the base-SHA checkout.
+    required: false
+    default: .base/.github/standards/trusted-actors/trusted-actors.json
+  output-path:
+    description: Where to write the TrustedContext JSON file.
+    required: true
+  github-token:
+    description: >
+      Token that can read the PR, its comments and reviews, and the issues it
+      closes (the lane's App token).
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Filter the PR text
+      shell: bash
+      env:
+        PR_NUMBER: ${{ inputs.pr-number }}
+        REPOSITORY: ${{ inputs.repository }}
+        TRUSTED_ACTORS_PATH: ${{ inputs.trusted-actors-path }}
+        OUTPUT_PATH: ${{ inputs.output-path }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: node "$GITHUB_ACTION_PATH/select-trusted-text.mjs"

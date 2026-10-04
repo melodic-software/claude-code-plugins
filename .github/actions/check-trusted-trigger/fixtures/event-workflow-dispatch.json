@@ -1,0 +1,7 @@
+{
+  "inputs": { "pr-number": "42" },
+  "ref": "refs/heads/main",
+  "repository": { "id": 1, "full_name": "melodic-software/claude-code-plugins" },
+  "sender": { "login": "kyle-sexton", "id": 153232337, "type": "User" },
+  "workflow": ".github/workflows/pr-refine.yml"
+}

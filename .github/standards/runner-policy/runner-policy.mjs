@@ -1435,8 +1435,9 @@ function dynamicRoutingReferenceJobIds(workflow) {
 // strings execute, so the single-file surface diff alone cannot prove them
 // unchanged. Auto-approval closes that gap by comparing the git object each
 // reference names at the reviewed basis and at the candidate (see
-// commitRelativeObjects); the synchronous surface comparison used by the repin
-// lockstep fetches nothing, so it still rejects every such reference.
+// commitRelativeObjects), and so does the repin lockstep. The synchronous
+// reusableWorkflowSecuritySurfacesMatch fetches nothing, so it still rejects
+// every such reference.
 function isCommitRelativeReference(uses) {
   return typeof uses === "string" && (uses.startsWith("./") || uses.startsWith("$/"));
 }
@@ -1719,7 +1720,11 @@ function securitySurfaceDiffField(basis, candidate) {
   return undefined;
 }
 
-function assertReusableWorkflowDiffable(workflow, revisionLabel) {
+function assertReusableWorkflowDiffable(
+  workflow,
+  revisionLabel,
+  { allowCommitRelative = false } = {},
+) {
   const malformedJobs = malformedJobIds(workflow);
   if (malformedJobs.length > 0) {
     throw new ConfigurationError(
@@ -1732,6 +1737,9 @@ function assertReusableWorkflowDiffable(workflow, revisionLabel) {
       `${revisionLabel} revision job ${dynamicRoutingJobs[0]} references needs in a routing-relevant field, which cannot be safely diffed for auto-approval`,
     );
   }
+  if (allowCommitRelative) {
+    return;
+  }
   const localReferenceJobs = localReferenceJobIds(workflow);
   if (localReferenceJobs.length > 0) {
     throw new ConfigurationError(
@@ -1740,8 +1748,7 @@ function assertReusableWorkflowDiffable(workflow, revisionLabel) {
   }
 }
 
-// Shared by auditRepository auto-approval and claude-lanes repin lockstep: the
-// same bounded security surface comparison documented in README.md.
+// The bounded security surface comparison documented in README.md.
 export function reusableWorkflowSecuritySurfacesMatch({
   oldSource,
   newSource,
@@ -1752,7 +1759,43 @@ export function reusableWorkflowSecuritySurfacesMatch({
   const newWorkflow = parseWorkflow(newSource, workflowPath);
   assertReusableWorkflowDiffable(oldWorkflow, "old");
   assertReusableWorkflowDiffable(newWorkflow, "new");
+  return securitySurfacesMatch(oldWorkflow, newWorkflow, policy);
+}
 
+// The claude-lanes repin lockstep's same-path comparison: the surface
+// comparison above, plus the git object comparison auto-approval applies to
+// commit-relative references (commitRelativeObjects). A fetch or shape
+// failure throws ConfigurationError, which the caller treats as a decline.
+export async function reusableWorkflowSecuritySurfacesAndObjectsMatch({
+  oldSource,
+  newSource,
+  workflowPath,
+  oldRevision,
+  newRevision,
+  policy,
+  fetchImpl = fetch,
+  githubToken,
+}) {
+  const oldWorkflow = parseWorkflow(oldSource, workflowPath);
+  const newWorkflow = parseWorkflow(newSource, workflowPath);
+  assertReusableWorkflowDiffable(oldWorkflow, "old", { allowCommitRelative: true });
+  assertReusableWorkflowDiffable(newWorkflow, "new", { allowCommitRelative: true });
+  const surfaces = securitySurfacesMatch(oldWorkflow, newWorkflow, policy);
+  if (!surfaces.unchanged) {
+    return surfaces;
+  }
+  const repository = workflowPath.split("/", 2).join("/");
+  const reader = commitRelativeObjectReader(fetchImpl, githubToken);
+  const diffPath = commitRelativeObjectDiffPath(
+    await commitRelativeObjects(repository, oldRevision, oldWorkflow, reader),
+    await commitRelativeObjects(repository, newRevision, newWorkflow, reader),
+  );
+  return diffPath
+    ? { unchanged: false, diffField: `commit-relative reference ${diffPath}` }
+    : { unchanged: true };
+}
+
+function securitySurfacesMatch(oldWorkflow, newWorkflow, policy) {
   const oldSurface = reusableWorkflowSecuritySurface(oldWorkflow, policy);
   const newSurface = reusableWorkflowSecuritySurface(newWorkflow, policy);
   for (const [revisionLabel, surface] of [
