@@ -98,6 +98,20 @@
         "Output does NOT add a Decisions-so-far pointer for the wrongly scoped item",
         "Output does not move Not-yet-specified fog into Out-of-scope as a stand-in for sharpness"
       ]
+    },
+    {
+      "id": 9,
+      "name": "resolution-sweeps-invalidated-items-and-supersedes-wrong-decision",
+      "prompt": "/planning:wayfind work #200 'Map: billing overhaul'. We just resolved #44 'Decide invoice numbering': invoices are numbered per tenant, not globally. That makes open item #47 'Pick the global invoice sequence store' pointless. It also shows closed decision #39 'Share one invoice table across tenants' was wrong. The map's Not-yet-specified section says 'something feels off about how tenants share invoice data'; the resolution makes that sharp enough to chart as 'Choose per-tenant invoice storage'. Finish the close-out.",
+      "expected_output": "Work mode graduates #44 (resolution comment, Decisions-so-far pointer, close), charts 'Choose per-tenant invoice storage' as a typed item and deletes the matching fog prose from Not-yet-specified, then sweeps the map: #47 is closed as moot with a comment linking #44's resolution and gets no index line; #39 is not reopened or edited, a new decision item linking #39 is opened to revisit the table design, and #39's Decisions-so-far line is rewritten to point at the decision that supersedes it once that resolves.",
+      "files": [],
+      "expectations": [
+        "Output charts the newly sharp question as a typed item and deletes the tenant-sharing fog prose from Not-yet-specified rather than leaving it in both places",
+        "Output closes or rewrites #47 because its premise no longer holds, and a close carries a comment linking the #44 resolution",
+        "Output does not add a Decisions-so-far line for the moot #47",
+        "Output opens a new decision item that links #39 rather than reopening #39 or editing its resolution comment",
+        "Output says #39's Decisions-so-far line is rewritten to point at the superseding decision when that decision resolves, instead of leaving two live answers to the same question"
+      ]
     }
   ]
 }
