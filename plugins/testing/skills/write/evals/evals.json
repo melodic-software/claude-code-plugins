@@ -25,6 +25,58 @@
         "Does not skip the red step because the fix seems obvious",
         "Names the consuming project's test location and naming pattern rather than inventing a stack"
       ]
+    },
+    {
+      "id": 4,
+      "name": "round-trip-duration-format-routes-to-property-guidance",
+      "prompt": "Our config loader has format_duration, which turns a number of seconds into strings like '1h30m', and parse_duration, which reads them back. Add tests for both.",
+      "expected_output": "Routes to context/property-based.md because a formatter and its parser form a reverse pair. Writes a property whose oracle is the round trip: parsing the formatted string returns the original number of seconds for every generated non-negative duration. Also keeps a couple of literal examples such as 5400 seconds formatting as '1h30m'.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads context/property-based.md before writing the tests",
+        "Uses the round trip (parse of format equals the input) as the property's oracle",
+        "Does not build the expected string inside the test by repeating the formatter's arithmetic"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "rejects-property-that-reimplements-algorithm",
+      "prompt": "Review my property test for split_bill(total_cents, people): for any total and head count it asserts the result equals [total_cents // people] * people. Is that a good property? Fix it.",
+      "expected_output": "Rejects the oracle: the expected side repeats the splitting arithmetic, so a mistake shared by test and code still passes (and here it also drops the remainder cents). Points to /testing:test-value for the rule that an expected value needs a source outside the code under test, and replaces the oracle with conserved quantities: the shares sum to total_cents, there are exactly `people` shares, and no two shares differ by more than one cent.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Says the expected side reruns the algorithm under test and cannot catch a mistake both share",
+        "Points to testing:test-value for the independent-source rule",
+        "Proposes the shares-sum-to-total check or another invariant that does not recompute the split"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "python-repo-loads-only-python-reference",
+      "prompt": "This repository is Python only: a pyproject.toml and pytest, no package.json and no .csproj. Write a property-based test for normalize_tags, which lowercases, deduplicates and sorts a list of tags.",
+      "expected_output": "Routes to context/property-based.md, detects Python as the language of the code under test, and loads only context/property-based/python.md. Writes properties such as running normalize_tags on its own output changes nothing, and the output is sorted with no duplicates. Does not read the TypeScript or C# references.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Loads context/property-based/python.md",
+        "Does not load context/property-based/typescript.md or context/property-based/csharp.md",
+        "States that a second normalize_tags pass leaves the result unchanged"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "unsupported-language-loads-no-reference",
+      "prompt": "Our Go module has a Merge function for interval lists that should be commutative. Write a property-based test for it.",
+      "expected_output": "Routes to context/property-based.md and uses its language-neutral guidance: commutativity as the invariant, generators that build valid interval lists directly. Loads none of the Python, TypeScript or C# references because the code under test is in none of those languages, and checks which property library the module already uses instead of assuming one.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Uses the guidance in context/property-based.md",
+        "Loads no file under context/property-based/",
+        "States commutativity (merging a with b equals merging b with a) as the property"
+      ]
     }
   ]
 }

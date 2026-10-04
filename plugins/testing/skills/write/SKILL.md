@@ -43,8 +43,9 @@ Examples: /testing:write, /testing:write the new handler, /testing:write organiz
 |--------|-------------|
 | Writing new tests, TDD, "test this code" | [context/write.md](context/write.md) |
 | "Where should this test go", new test project decision, fixture patterns | [context/organize.md](context/organize.md) |
+| The code under test has an invariant: a round trip, idempotence, an order or size law, a simpler reference model, a parser or serializer | [context/property-based.md](context/property-based.md), with [context/write.md](context/write.md) for the cadence |
 
-Read the relevant context file before proceeding. Both draw on the consuming project's testing conventions for per-ecosystem naming, locations, and fixtures.
+Read the relevant context file before proceeding. The authoring and placement files draw on the consuming project's testing conventions for per-ecosystem naming, locations, and fixtures.
 
 ## Step 1: Prerequisites
 

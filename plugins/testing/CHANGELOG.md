@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Added
+
+- **`/testing:write` routes code with an invariant to property-based guidance.** A new Step 0 row loads `context/property-based.md` for a round trip, idempotence, an order or size law, a simpler reference model, or a parser or serializer: questions that find the rule a property checks, how to write generators and handle a failing case, the rule that the oracle never reruns the code under test (pointing at `/testing:test-value`), and how the audit's property-file exemption from `rule-recomputed-derived` applies. Per-language references for Hypothesis, fast-check, and FsCheck or CsCheck load only when the code under test is in that language.
+
 ## [0.22.6] - 2026-10-04
 
 ### Fixed
