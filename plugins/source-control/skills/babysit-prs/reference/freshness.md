@@ -25,9 +25,10 @@ missing from the branch), yet `mergeStateStatus` reported `BLOCKED`, never `BEHI
 only ever matched the literal string `BEHIND` could never open for that PR, a chicken-and-egg an
 automated queue cannot break out of on its own.
 
-`BEHIND` is also reported only where the base requires branches to be up to date. Under loose
-required status checks GitHub merges a behind head, so a behind head with every other gate met
-reads `CLEAN` (or `HAS_HOOKS`).
+A behind head can also read `CLEAN` or `HAS_HOOKS`, so the snapshot does not trust those states
+as proof of freshness on a base that does not enforce it; which base settings produce that is in
+the
+[loose-base and merge-queue record](#upstream-drift-record-for-the-loose-base-and-merge-queue-decisions).
 
 The snapshot engine closes both gaps with one narrow, evidence-based fallback: when
 `mergeStateStatus` is `BLOCKED`, `CLEAN`, or `HAS_HOOKS`, it compares the base ref against the
@@ -36,11 +37,10 @@ outstanding base commits (`status` in `behind`/`diverged` and `behind_by > 0`), 
 classified `branch_freshness.state == "behind"` (`source: "compare_api"`) exactly as if
 `mergeStateStatus` had reported `BEHIND` directly. A behind `CLEAN`/`HAS_HOOKS` head is the one
 exception: its base's rules are read too, and it is `behind` only when that read succeeds and
-shows no merge queue. On a queue base it stays `not_reported_behind`, because the queue tests the
-PR against the latest base itself and needs no branch update. On an unreadable rules answer it
-also stays `not_reported_behind` for that cycle: the refresh disarms auto-merge and its push
-reruns CI and the AI reviews, which a transient failure must not start on a queue base. The next
-snapshot reads the rules again. Any other cause of `BLOCKED`, a real merge conflict, a pending
+shows no merge queue. A queue base is exempt and stays `not_reported_behind`: the refresh is not
+ours to run there. An unreadable rules answer also stays `not_reported_behind` for that cycle: the
+refresh disarms auto-merge and its push reruns CI and the AI reviews, which a transient failure
+must not start on a queue base. The next snapshot reads the rules again. Any other cause of `BLOCKED`, a real merge conflict, a pending
 human review, anything else, is untouched: the fallback only ever flips these states to `behind`,
 never invents eligibility the compare API did not prove, and every other invariant below
 (conflict check, human-review stop, worker lease, unique head ref, the per-source-SHA refresh
@@ -76,21 +76,25 @@ observations, reproducible with the single-PR diagnostic below: read `mergeState
 refresh guarantee for `baseRefOid`, a GitHub changelog entry naming either, or a diagnostic run
 where `BLOCKED` no longer co-occurs with a positive `behind_by`.
 
-### Verification record for the loose-base and merge-queue claims
+### Upstream-drift record for the loose-base and merge-queue decisions
 
-**Claims.** A base with loose required status checks lets a behind head merge, and a base that
-requires a merge queue gives the same up-to-date guarantee without the branch being updated.
+The gate and the snapshot treat a base as enforcing freshness only when its rulesets carry a
+strict required-checks rule that lists at least one check, or a merge queue; on any other base
+they compare the head against the live base. Only rulesets are read, not classic branch
+protection.
 
-**Basis.** The strict and loose rows of
-[require status checks before merging](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches#require-status-checks-before-merging),
-and [about merge queues](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue#about-merge-queues).
-The rulesets field read for the strict setting is `strict_required_status_checks_policy` on a
-`required_status_checks` rule, as `GET /repos/{owner}/{repo}/rules/branches/{branch}` returns it.
-
-**Verified.** 2026-10-04, against both pages and a live rules read as of that day.
-
-**Recheck trigger.** Either page changing what the loose setting or a merge queue guarantees, or
-the rules endpoint renaming the strict field.
+- **Pointer**: when deciding which base settings make GitHub report `BEHIND`, merge a behind head,
+  or guarantee an up-to-date merge, fetch the
+  [require status checks before merging](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches#require-status-checks-before-merging)
+  section and
+  [about merge queues](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue#about-merge-queues)
+  live. When reading a base's strict setting from rulesets, fetch the
+  [rules for a branch](https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch)
+  endpoint live.
+- **As of**: 2026-10-04
+- **Recheck trigger**: either docs section changing what the loose or strict setting or a merge
+  queue guarantees, or the rules-for-a-branch endpoint renaming or reshaping the field the code
+  reads for the strict setting.
 
 ## Orchestrator-Only Refresh Procedure
 
@@ -149,8 +153,8 @@ base after the PR branched, including the tests that covered them, with CI green
 Treat `branch_freshness.state == "behind"` as a hard stop on the merge path even when GitHub
 reports `mergeStateStatus` `CLEAN`/`HAS_HOOKS`: under a non-strict ruleset, GitHub does not itself
 refuse a behind-base merge, so CLEAN does **not** imply an up-to-date base. The merge gate enforces
-this on its own: on a base whose rulesets require neither strict required checks (a strict rule
-that lists at least one required check) nor a merge queue, it compares an otherwise-ready head
+this on its own: on a base whose rulesets carry neither a strict required-checks rule that lists
+at least one check nor a merge queue, it compares an otherwise-ready head
 against the live base when it runs, and holds the head if it is behind or the compare cannot be
 read (`baseFreshness` in its output). Only rulesets are read: classic branch protection is not,
 so a base that is strict or queue-gated only through classic protection still gets the compare.

@@ -477,20 +477,19 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   So the gate keeps trusting `CLEAN` for mergeability; what can be up to 12 hours behind the base
   is the merge commit `pull_request` CI ran against. Only a strict up-to-date rule (`BEHIND`) proves
   the head is current at merge. Under a base whose rulesets carry neither that rule nor a merge
-  queue, a behind head still reads `CLEAN`, so when the gate runs on an otherwise-ready PR it
+  queue, `CLEAN` is not proof of freshness, so when the gate runs on an otherwise-ready PR it
   compares the head against the live base and holds it if it is behind or the compare cannot be
   read (`baseFreshness` in the output). The compare runs at gate time, including when the gate
   arms `--auto`; an auto-merge already armed is not re-checked if the base moves afterwards, a
   race that predates this check. The snapshot reports the same head
   `branch_freshness.state == "behind"`, and [freshness.md](freshness.md)'s refresh clears the
   hold; a compare that keeps failing holds the PR until a human acts. A merge-queue base makes no
-  compare: the queue tests the PR against the latest base itself. Only rulesets are read, not
-  classic branch protection. **Claim, basis, as of, recheck:** that
+  compare. Only rulesets are read, not classic branch protection. **Claim, basis, as of, recheck:** that
   regeneration rule,
   [changes to test merge commit generation](https://github.blog/changelog/2026-02-19-changes-to-test-merge-commit-generation-for-pull-requests),
   2026-10-02, and a GitHub changelog entry that changes test-merge regeneration or says it now
-  affects mergeability. The loose-base and merge-queue claims carry their own record in
-  [freshness.md](freshness.md#verification-record-for-the-loose-base-and-merge-queue-claims).
+  affects mergeability. The loose-base and merge-queue decisions carry their own record in
+  [freshness.md](freshness.md#upstream-drift-record-for-the-loose-base-and-merge-queue-decisions).
 - **`--self-logins @me,<self-logins>` rides on every merge form too**, read-only and mutating
   alike. `@me` resolves to your own `gh` login and the `babysit_self_logins` extras follow it; drop
   the trailing `,<self-logins>` when that value is empty. On the merge gate this flag is what
