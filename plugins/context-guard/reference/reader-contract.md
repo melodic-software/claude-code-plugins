@@ -265,21 +265,27 @@ skill's module check), none of the following runs except the PostCompact marker.
   line (a measurement, a tool call, a prompt, or a `/context-guard` or status-tool read), and not
   for a first reading already past `smart`, which has no earlier zone to name. A crossing already
   shown in an unattended turn is not offered again as a typed turn's suggestion. The
-  transcript line ends `more: /context-guard`, and the `/context-guard` status
-  output carries the router pointer and the docs link: the menu does not say which option fits
-  when, so the status output says to route the next step with `/session-flow:workflow` (if
-  installed). Without session-flow, we send the operator to the docs section on a filling context
-  and restate none of it. Pointer: for what to do when the context fills up, see
+  transcript line ends `more: /context-guard`. `/context-guard` replies with the verdict, its
+  figures and the settings in force only, because a command's reply is stored as a transcript row
+  Claude reads; it writes the router pointer and the docs link as a separate transcript line
+  Claude does not read. The menu does not say which option fits when, so that line says to route
+  the next step with `/session-flow:workflow` (if installed). Without session-flow, we send the
+  operator to the docs section on a filling context and restate none of it. Pointer: for the
+  command reply reaching the model and `$.ui.log` not, see the `CommandRunResult`, `CommandOutput`
+  and `ui.log` doc comments in the build's `claude-code/index.d.ts` types. As of: 2026-10-04.
+  Recheck trigger: either doc comment changes what the model reads. Pointer: for what to do when the context fills up, see
   <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>. As of: 2026-10-04.
   Recheck trigger: that section is renamed, moved or removed. **Neither the menu nor the router
   pointer ever reaches the model channel.** A menu injected into
   model context manufactures the model's own initiative to stop, summarize, or hand off. That is a
   live finding under I23 of `/harness-config:audit-instructions`,
-  whose Remediate clause prescribes exactly this shape: state the counter-steer plainly, and where
-  the harness must surface a budget, pair it with a reassurance rather than with an exit menu. The
+  whose Remediate clause says that where the harness must surface a budget, it pairs it with a
+  reassurance rather than with an exit menu. The module sends the verdict, one reassurance
+  clause, "Continuing is the user's call.", in `dumb` the save-state note that zone carries by
+  default, and any operator-configured `zones.json` action; it sends no counter-steer rule about
+  what a zone means. The
   measurement decides only *when to ask*; the model still decides whether to stop. The model
-  channel states that continuation is the operator's call, never that the operator has seen the
-  menu. No documented hook behavior tells a hook whether an operator is present, so a delivery
+  channel states that continuing is the user's call, never that the user has seen the menu. No documented hook behavior tells a hook whether an operator is present, so a delivery
   claim would be a fact the hook cannot know. Silent while the zone is unchanged, improving, or
   `unknown`. **Hysteresis**: the gate is the worst zone already *reported*, not the zone last
   *seen*. That marker decays only when the session returns to `smart`, the bottom of the ladder.

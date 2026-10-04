@@ -574,8 +574,10 @@ const USAGE = 'usage: /context-guard [band [on|off]]'
 const README = 'https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/context-guard/README.md'
 const DOCS = 'https://code.claude.com/docs/en/context-window#when-your-context-fills-up'
 
-// /context-guard with no argument: the verdict with its figures, the settings in force, and where
-// to go next. The person's channel only; Claude never reads it.
+// /context-guard with no argument: the verdict with its figures and the settings in force. The reply
+// is stored as a transcript row Claude reads, so it carries no menu, router pointer or link; those
+// go to a transcript line Claude does not read.
+const POINTER = `context-guard: next step: route it with /session-flow:workflow (if installed), or see ${DOCS} · more: ${README}`
 async function statusText($: EngineInterface, st: State, cfg: Config) {
   const { s, body, settings } = await refresh($, st)
   await showPending($, st, cfg)
@@ -593,8 +595,6 @@ async function statusText($: EngineInterface, st: State, cfg: Config) {
     `Bands: smart up to ${settings.bands.smart}%, acceptable up to ${settings.bands.acceptable}%; approach margin ${settings.margin} points; gate ${cfg.blocking ? `blocking, ${cfg.grace} grace calls` : 'advisory'}`,
     `This session: band row ${st.bandShown ? 'on' : 'off'}, zone-change toast ${cfg.toast ? 'on' : 'off'}`,
     `Settings: ${zones}`,
-    `Next step: route it with /session-flow:workflow (if installed), or see ${DOCS}`,
-    `More: ${README}`,
   ].join('\n')
 }
 
@@ -851,7 +851,11 @@ export const register: Register = (on, options) => {
 
   on('command.run', { command: 'context-guard' }, async ($, e, next) => {
     const [sub, arg, ...rest] = e.args.trim().toLowerCase().split(/\s+/).filter(Boolean)
-    if (sub === undefined) return { text: await statusText($, st, cfg) }
+    if (sub === undefined) {
+      const text = await statusText($, st, cfg)
+      $.ui.log(POINTER, { to: 'transcript' })
+      return { text }
+    }
     if (sub !== 'band' || rest.length > 0 || (arg !== undefined && arg !== 'on' && arg !== 'off')) return { text: USAGE }
     st.bandShown = arg === undefined ? !st.bandShown : arg === 'on'
     $.ui.invalidate('ui.render')

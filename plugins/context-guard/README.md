@@ -80,8 +80,9 @@ reading is already past `smart`, which gets only Claude's line. A crossing alrea
 unattended turn is not offered again in the next typed turn; Claude gets it at that turn's first
 carrier. On every surface but the terminal (the Desktop app, VS Code), where a toast may not show, the
 line is also drawn as one notice row above the prompt until the next typed prompt.
-`/context-guard` holds the route through `/session-flow:workflow` and
-[When your context fills up](https://code.claude.com/docs/en/context-window#when-your-context-fills-up).
+`/context-guard` writes the route through `/session-flow:workflow` and
+[When your context fills up](https://code.claude.com/docs/en/context-window#when-your-context-fills-up)
+as a transcript line Claude does not read.
 The menu never reaches Claude: an exit menu in model context manufactures the model's own
 initiative to stop, summarize, or hand off, which the instruction-audit catalog flags as check I23.
 
@@ -122,8 +123,9 @@ an `unknown` zone or a failing hook lets the call run.
 ### The command, the band row and the status tool
 
 `/context-guard` with no argument prints the verdict with its figures, the bands, approach margin
-and gate mode, the band and toast state, where `zones.json` lives and whether it is present, the
-continuation route and this README. `/context-guard band on` and `band off` set the band row for
+and gate mode, the band and toast state, and where `zones.json` lives and whether it is present.
+Claude reads that reply, as it reads any command's output, so the continuation route and this
+README's link go to a separate transcript line Claude does not read. `/context-guard band on` and `band off` set the band row for
 the session, and a bare `band` toggles it. The band row is off by default; `context_guard_band`
 turns it on. It shows `ctx <n>% (<zone>)` above the prompt, with `-` in place of the figure before
 the first response. Claude can

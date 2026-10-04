@@ -1081,7 +1081,7 @@ for (const [via, read] of [
     w.percent = 60
     await read($)
     expect(w.toasts).toEqual([TOAST('smart', 'acceptable')])
-    expect(w.logs).toEqual([MENU('smart', 'acceptable')])
+    expect(w.logs.filter(l => l.includes(' → '))).toEqual([MENU('smart', 'acceptable')])
     expect(own((await bash($)).context)).toEqual([crossing('acceptable')])
     expect(w.toasts).toHaveLength(1)
   })
@@ -1248,12 +1248,15 @@ test('command: no argument prints the status and details', BLOCKING(7), async ($
     'band row off',
     'zone-change toast on',
     '/srv/u/.claude/context-guard/zones.json (present)',
-    '/session-flow:workflow (if installed)',
-    'https://code.claude.com/docs/en/context-window#when-your-context-fills-up',
-    'https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/context-guard/README.md',
   ]) {
     expect(text).toContain(part)
   }
+  // The reply is a transcript row Claude reads, so the router pointer and the links go to a
+  // transcript line Claude does not read.
+  for (const part of ['session-flow', 'https://']) expect(text).not.toContain(part)
+  expect(w.logs).toEqual([
+    'context-guard: next step: route it with /session-flow:workflow (if installed), or see https://code.claude.com/docs/en/context-window#when-your-context-fills-up · more: https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/context-guard/README.md',
+  ])
 })
 
 test('command: the status says when zones.json is absent and the zone is unknown', async ($, on) => {
