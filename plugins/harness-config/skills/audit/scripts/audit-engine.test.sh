@@ -1209,6 +1209,32 @@ assert_eq "case 44: a non-boolean orphan is never removable" "warning" "$(jq -r 
 assert_eq "case 44: a rename pair keeps its tab" "1" "$(jq '[.rows[] | select(.claim=="possible-rename:ren\tx->ren\txy@mkt")] | length' <<<"$out")"
 assert_eq "case 44: a skipped marketplace keeps its tab" "skip" "$(jq -r '.rows[] | select(.claim=="drift-skipped:t\tb") | .status' <<<"$out")"
 
+# --- Case 44b: catalog renames, a null entry, and a heuristic pair --------------
+m="$(make_machine renames-map)"
+mkdir -p "$m/fixtures"
+jq -n --argjson c "$CLEAN_SETTINGS" '$c + {
+  extraKnownMarketplaces: {mkt: {source: {source: "github", repo: "o/r"}}},
+  enabledPlugins: {"old-name@mkt": true, "a@mkt": true, "gone@mkt": true, "frontend-design@mkt": false}
+}' >"$m/project/.claude/settings.json"
+printf '%s\n' '{"name":"mkt","plugins":[{"name":"unrelated"},{"name":"c"},{"name":"frontend-designer"}],"renames":{"old-name":"unrelated","a":"b","b":"c","gone":null}}' \
+  >"$m/fixtures/mkt.json"
+out=$(SETTINGS_AUDIT_ENGINE_FIXTURE_DIR="$m/project" SETTINGS_AUDIT_ENGINE_USER_DIR="$m/user" \
+  SETTINGS_AUDIT_ENGINE_INSTALLED_JSON="$m/registry.json" SETTINGS_AUDIT_ENGINE_BASELINE_FILE="$BASELINE" \
+  SETTINGS_AUDIT_ENGINE_DEBUG_DIR="$m/debug" SETTINGS_AUDIT_FIXTURE_DIR="$m/fixtures" CLAUDE_CODE_DEBUG_LOGS_DIR="" \
+  FETCH_DOCS_FIXTURE_DIR="$DOCS" SETTINGS_AUDIT_ENGINE_CLAUDE_BIN="$CLI" \
+  bash "$SCRIPT" --json 2>&1) || true
+assert_eq "case 44b: the map names unrelated" "1" "$(jq '[.rows[] | select(.claim=="possible-rename:old-name->unrelated@mkt")] | length' <<<"$out")"
+assert_contains "case 44b: catalog rename remediation" \
+  "$(jq -r '.rows[] | select(.claim=="possible-rename:old-name->unrelated@mkt") | .detail' <<<"$out")" \
+  "replace the key in this file, or open a Claude Code session in this checkout and commit the rewrite it makes"
+assert_eq "case 44b: the chain names c" "1" "$(jq '[.rows[] | select(.claim=="possible-rename:a->c@mkt")] | length' <<<"$out")"
+assert_eq "case 44b: a null entry is a removed row" "warning" "$(jq -r '.rows[] | select(.claim=="removed:gone@mkt") | .severity' <<<"$out")"
+assert_eq "case 44b: a null entry is not an orphan" "0" "$(jq '[.rows[] | select(.claim=="orphan-enabled:gone@mkt")] | length' <<<"$out")"
+assert_eq "case 44b: the heuristic pair is unchanged" "1" "$(jq '[.rows[] | select(.claim=="possible-rename:frontend-design->frontend-designer@mkt")] | length' <<<"$out")"
+assert_contains "case 44b: a heuristic pair stays a guess" \
+  "$(jq -r '.rows[] | select(.claim=="possible-rename:frontend-design->frontend-designer@mkt") | .detail' <<<"$out")" \
+  "may have been renamed"
+
 # --- Case 45: a category E row is never dropped silently -------------------------
 # The decoder and the row reader, with a stub row, fed the emit encoding directly.
 E_DEFS=""
