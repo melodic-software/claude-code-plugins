@@ -248,25 +248,27 @@ weight, and listing it as a hook repeats the same present-versus-active error.
 
 ## Instruction files
 
-A disk run adds `instruction_files`: every user and project file Claude Code reads as instructions.
-The project root is the git toplevel of the working directory (or of `--project-dir`), so a run
-from a subdirectory lists the same files. Each entry carries:
+A disk run adds `instruction_files`: every managed, user and project file Claude Code reads as
+instructions. The project root is the git toplevel of the working directory (or of
+`--project-dir`), so a run from a subdirectory lists the same files. Gitignored trees such as
+`node_modules/` are skipped, since a fresh clone lacks them; a gitignored `CLAUDE.local.md` is
+still listed. Each entry carries:
 
-- `path`: `~/`-relative for user files (`$CLAUDE_CONFIG_DIR/`-relative when the config dir is
+- `path`: `$MANAGED_POLICY_DIR/CLAUDE.md` for the managed-policy file in this OS's managed
+  location, `~/`-relative for user files (`$CLAUDE_CONFIG_DIR/`-relative when the config dir is
   outside the home directory), repo-relative for project files, never absolute;
-- `scope`: `user`, `project`, or `local` (a `CLAUDE.local.md`);
+- `scope`: `managed`, `user`, `project`, or `local` (a `CLAUDE.local.md`);
 - `kind`: `claude-md`, `claude-local-md`, `agents-md`, or `rule`;
 - `loads`: `launch`, `path-scoped` (a rule with `paths` frontmatter), `on-demand` (a file in a
-  subdirectory, read when Claude works there), or `not-by-default` (an `AGENTS.md` beside a
-  `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` that counts);
+  subdirectory, read when Claude works there), or `not-by-default` (an `AGENTS.md` with a
+  `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in its folder or any folder above it);
 - `bytes` and `sha256` of the file.
 
 Which file kinds exist and when each loads is the memory page's to say:
 <https://code.claude.com/docs/en/memory>, the file table and "When Claude Code reads AGENTS.md".
 As of 2026-10-03. Recheck when the memory page's file table changes. The script encodes the default
 loading only: it does not expand `@path` imports, apply `claudeMdExcludes` or the Project
-instructions setting, read directories above the git toplevel, or list the managed-policy
-`CLAUDE.md`, which sits at a fixed system path.
+instructions setting, or read directories above the git toplevel.
 
 Because no entry holds an absolute path, two runs over the same repository from different home
 directories (a cloud session and this machine) produce identical `instruction_files` when the

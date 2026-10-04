@@ -5638,8 +5638,8 @@ def scan_config_scope(root: Path) -> dict[str, Any]:
 
 
 # Instruction files, per https://code.claude.com/docs/en/memory (file table and
-# "When Claude Code reads AGENTS.md"). Managed-policy CLAUDE.md is not listed:
-# it sits at a fixed absolute system path, and entries carry no absolute path.
+# "When Claude Code reads AGENTS.md"). The managed-policy CLAUDE.md is shown
+# under a symbolic prefix, since its directory is a fixed per-OS system path.
 _INSTRUCTION_GLOBS = (
     ":(glob)**/CLAUDE.md",
     ":(glob)**/CLAUDE.local.md",
@@ -5647,7 +5647,18 @@ _INSTRUCTION_GLOBS = (
     ":(glob)**/.claude/rules/**/*.md",
 )
 _CLAUDE_MD_SET = ("CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md")
-_SCOPE_ORDER = {"user": 0, "project": 1, "local": 2}
+_SCOPE_ORDER = {"managed": 0, "user": 1, "project": 2, "local": 3}
+_MANAGED_DIRS = {
+    "Darwin": "/Library/Application Support/ClaudeCode",
+    "Linux": "/etc/claude-code",
+    "Windows": r"C:\Program Files\ClaudeCode",
+}
+
+
+def managed_policy_dir() -> Path | None:
+    """The managed-policy CLAUDE.md directory for this OS, per the memory page."""
+    found = _MANAGED_DIRS.get(platform.system())
+    return Path(found) if found else None
 
 
 def git_toplevel(path: Path) -> Path:
@@ -5665,12 +5676,18 @@ def git_toplevel(path: Path) -> Path:
 
 
 def _repo_instruction_paths(root: Path) -> list[str]:
-    """Repo-relative instruction-file paths: tracked, untracked and ignored
-    (CLAUDE.local.md is usually gitignored). Outside a repo, the root only."""
+    """Repo-relative instruction-file paths: tracked and untracked, skipping
+    ignored trees (a fresh clone lacks them), plus ignored CLAUDE.local.md
+    files, which are gitignored by design. Outside a repo, the root only."""
+    git = ["git", "-C", str(root), "ls-files", "-z", "--exclude-standard"]
     try:
         out = subprocess.run(
-            ["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--"]
-            + list(_INSTRUCTION_GLOBS),
+            [*git, "--cached", "--others", "--", *_INSTRUCTION_GLOBS],
+            capture_output=True,
+            check=True,
+        ).stdout
+        out += subprocess.run(
+            [*git, "--others", "--ignored", "--", ":(glob)**/CLAUDE.local.md"],
             capture_output=True,
             check=True,
         ).stdout
@@ -5712,11 +5729,10 @@ def _classify(rel: str, present: set[str]) -> tuple[str, str, str] | None:
         return "local", "claude-local-md", "launch" if root else "on-demand"
     if name == "CLAUDE.md":
         return "project", "claude-md", "launch" if root else "on-demand"
-    prefix = folder + "/" if folder else ""
-    counted = any(p in present for p in _CLAUDE_MD_SET) or any(
-        prefix + p in present for p in _CLAUDE_MD_SET
-    )
-    if counted:
+    # A CLAUDE.md-family file in this folder or any folder above it counts.
+    parts = folder.split("/") if folder else []
+    prefixes = ["/".join(parts[:i]) + "/" if i else "" for i in range(len(parts) + 1)]
+    if any(pre + p in present for pre in prefixes for p in _CLAUDE_MD_SET):
         return "project", "agents-md", "not-by-default"
     return "project", "agents-md", "launch" if root else "on-demand"
 
@@ -5741,16 +5757,27 @@ def _instruction_entry(
 
 
 def instruction_files(
-    project_root: Path, config_root: Path, home: Path
+    project_root: Path, config_root: Path, home: Path, managed_dir: Path | None
 ) -> list[dict[str, Any]]:
-    """Every user and project instruction file, with a path relative to the
-    home directory (`~/`) or the project root, never absolute, so two runs
-    from different homes over one repository compare equal."""
+    """Every managed, user and project instruction file, with a path relative
+    to a symbolic prefix, the home directory (`~/`) or the project root, never
+    absolute, so two runs from different homes over one repository compare
+    equal."""
     try:
         user_prefix = "~/" + config_root.relative_to(home).as_posix() + "/"
     except ValueError:
         user_prefix = "$CLAUDE_CONFIG_DIR/"
     entries: list[dict[str, Any]] = []
+    if managed_dir and (managed_dir / "CLAUDE.md").is_file():
+        entries.append(
+            _instruction_entry(
+                managed_dir / "CLAUDE.md",
+                "$MANAGED_POLICY_DIR/CLAUDE.md",
+                "managed",
+                "claude-md",
+                "launch",
+            )
+        )
     user = [config_root / "CLAUDE.md"]
     if (config_root / "rules").is_dir():
         user += sorted((config_root / "rules").rglob("*.md"))
@@ -6093,7 +6120,7 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             else {},
         }
         report["instruction_files"] = instruction_files(
-            git_toplevel(project_root), root, Path.home()
+            git_toplevel(project_root), root, Path.home(), managed_policy_dir()
         )
         if PLUGIN_LANE in report:
             report["builtin_plugin_state"] = builtin_plugin_state(

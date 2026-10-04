@@ -3189,76 +3189,84 @@ class TestInstructionFiles(unittest.TestCase):
         self.write(home, self.USER_FILES)
         return home
 
-    def run_from(self, cwd: pathlib.Path, home: pathlib.Path) -> list[dict]:
-        return inv.instruction_files(inv.git_toplevel(cwd), home / ".claude", home)
+    def run_from(
+        self, cwd: pathlib.Path, home: pathlib.Path, managed: str = "no-managed"
+    ) -> list[dict]:
+        return inv.instruction_files(
+            inv.git_toplevel(cwd), home / ".claude", home, self.base / managed
+        )
 
-    @staticmethod
-    def entry(path: str, scope: str, kind: str, loads: str, text: str) -> dict:
-        import hashlib
-
-        data = text.encode("utf-8")
-        return {
-            "path": path,
-            "scope": scope,
-            "kind": kind,
-            "loads": loads,
-            "bytes": len(data),
-            "sha256": hashlib.sha256(data).hexdigest(),
-        }
+    # (path, scope, kind, loads, bytes, sha256). Sizes and digests are of the
+    # fixture literals above, computed once with `printf ... | sha256sum`.
+    EXPECTED = [
+        ("~/.claude/CLAUDE.md", "user", "claude-md", "launch", 22,
+         "b68bf5a3bf6cd7ba582425bfa8d49cf8f22274c6ab92ce82a060860084744e06"),
+        ("~/.claude/rules/style.md", "user", "rule", "launch", 17,
+         "aac69e8e34486d0c1e5dc6c5bd0ad96e5f7f994d0212ac1b194fbe3e6b83d5dc"),
+        (".claude/rules/api.md", "project", "rule", "path-scoped", 53,
+         "4f532acd73cb3980b86f34ae91a293877f0521776c06603e9cbdb4f7a0107e8d"),
+        (".claude/rules/general.md", "project", "rule", "launch", 19,
+         "72d433284afca5119020b3d9fcb4a5cbba7a427b645ea239f6fbee61fd51aad3"),
+        # A CLAUDE.md at the root means AGENTS.md is not read by default.
+        ("AGENTS.md", "project", "agents-md", "not-by-default", 33,
+         "1f28c803a7e8f7bb3e5a8c6f7308d4d8d417ab690e22963cabee6831b8a22616"),
+        ("CLAUDE.md", "project", "claude-md", "launch", 11,
+         "336cc4fbf19beaada7ccf9986414fa91851a8d7a07dfb3ccbe800a69eed0ab49"),
+        ("billing/CLAUDE.md", "project", "claude-md", "on-demand", 27,
+         "c66a90ea02aa40c8d27920a5b65ff06bc509214556e106ef47690ac401d98eca"),
+        ("CLAUDE.local.md", "local", "claude-local-md", "launch", 28,
+         "940e71b8e94998d85dae0ee7a5d61edcabd1f411876e48a0c40469e385d6b0f8"),
+    ]  # fmt: skip
+    FIELDS = ("path", "scope", "kind", "loads", "bytes", "sha256")
 
     def test_every_documented_kind_is_listed_with_its_scope_and_loading(self) -> None:
         got = self.run_from(self.repo, self.make_home("home-a"))
-        u, r = self.USER_FILES, self.REPO_FILES
-        expected = [
-            self.entry(
-                "~/.claude/CLAUDE.md",
-                "user",
-                "claude-md",
-                "launch",
-                u[".claude/CLAUDE.md"],
-            ),
-            self.entry(
-                "~/.claude/rules/style.md",
-                "user",
-                "rule",
-                "launch",
-                u[".claude/rules/style.md"],
-            ),
-            self.entry(
-                ".claude/rules/api.md",
-                "project",
-                "rule",
-                "path-scoped",
-                r[".claude/rules/api.md"],
-            ),
-            self.entry(
-                ".claude/rules/general.md",
-                "project",
-                "rule",
-                "launch",
-                r[".claude/rules/general.md"],
-            ),
-            # A CLAUDE.md at the root means AGENTS.md is not read by default.
-            self.entry(
-                "AGENTS.md", "project", "agents-md", "not-by-default", r["AGENTS.md"]
-            ),
-            self.entry("CLAUDE.md", "project", "claude-md", "launch", r["CLAUDE.md"]),
-            self.entry(
-                "billing/CLAUDE.md",
-                "project",
-                "claude-md",
-                "on-demand",
-                r["billing/CLAUDE.md"],
-            ),
-            self.entry(
-                "CLAUDE.local.md",
-                "local",
-                "claude-local-md",
-                "launch",
-                r["CLAUDE.local.md"],
-            ),
-        ]
-        self.assertEqual(got, expected)
+        self.assertEqual(got, [dict(zip(self.FIELDS, row)) for row in self.EXPECTED])
+
+    def test_an_ignored_tree_is_not_listed(self) -> None:
+        # A fresh clone has no node_modules/, so listing its files would make
+        # a cloud-versus-local comparison report a false difference.
+        self.write(
+            self.repo,
+            {
+                ".gitignore": "CLAUDE.local.md\nnode_modules/\n",
+                "node_modules/pkg/CLAUDE.md": "Vendored notes.\n",
+                "node_modules/pkg/AGENTS.md": "Vendored agents.\n",
+            },
+        )
+        paths = [e["path"] for e in self.run_from(self.repo, self.make_home("home-a"))]
+        self.assertNotIn("node_modules/pkg/CLAUDE.md", paths)
+        self.assertNotIn("node_modules/pkg/AGENTS.md", paths)
+        self.assertIn("CLAUDE.local.md", paths)
+
+    def test_a_claude_md_in_any_ancestor_folder_counts_against_agents_md(self) -> None:
+        repo = self.base / "nested"
+        self.make_repo(
+            repo, {"a/CLAUDE.md": "Area notes.\n", "a/b/AGENTS.md": "Deep rules.\n"}
+        )
+        empty_home = self.base / "empty-home"
+        empty_home.mkdir()
+        got = {e["path"]: e["loads"] for e in self.run_from(repo, empty_home)}
+        self.assertEqual(
+            got, {"a/CLAUDE.md": "on-demand", "a/b/AGENTS.md": "not-by-default"}
+        )
+
+    def test_managed_policy_claude_md_is_listed_under_a_symbolic_prefix(self) -> None:
+        self.write(
+            self.base, {"managed/CLAUDE.md": "Follow the org security policy.\n"}
+        )
+        got = self.run_from(self.repo, self.make_home("home-a"), managed="managed")
+        self.assertEqual(
+            got[0],
+            {
+                "path": "$MANAGED_POLICY_DIR/CLAUDE.md",
+                "scope": "managed",
+                "kind": "claude-md",
+                "loads": "launch",
+                "bytes": 32,
+                "sha256": "0738965e30e4c9b125a4074ab0b3d3db368dd6bc611071770c3fa1bfe8682dec",
+            },
+        )
 
     def test_no_path_is_absolute(self) -> None:
         got = self.run_from(self.repo, self.make_home("home-a"))
@@ -3300,7 +3308,10 @@ class TestInstructionFiles(unittest.TestCase):
 
     def test_report_carries_the_array_on_a_disk_run(self) -> None:
         home = self.make_home("home-a")
-        with mock.patch.object(pathlib.Path, "home", return_value=home):
+        with (
+            mock.patch.object(pathlib.Path, "home", return_value=home),
+            mock.patch.object(inv, "managed_policy_dir", return_value=None),
+        ):
             report = inv.build_report(
                 inv_args(config_dir=str(home / ".claude"), project_dir=str(self.repo))
             )
