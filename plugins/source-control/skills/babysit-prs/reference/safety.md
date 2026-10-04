@@ -802,21 +802,25 @@ partition is the only class check, so the PR is already C2 (mechanical) or C3 (s
 `--auto`, a PR that is ready except for running checks gets
 `gh pr merge <N> --auto --squash --match-head-commit <pin>` instead of a hold, and only when:
 
-- both AI review checks, `review / claude-review-status` and the security lane's
-  `security-review / security-review` (matched by its whole name, never by the job segment alone),
+- both AI review checks, the review lane's `claude-review-status` (under `review /` or
+  `pr-review /`) and the security lane's `security-review / security-review` or
+  `pr-review-security / security-review` (matched by its whole name, never by the job segment
+  alone; both names hold while old and new callers coexist),
   report success on the live head, which is the pinned head (a missing, skipped, failed, or
   running check holds, and so does a head that moved off the pin). Any
   `claude-security-review-status` check the rollup also carries must succeed as well;
 - no review thread is unresolved, and every other gate blocker is clear.
 
-The gate's check names follow the lane jobs the ci-workflows reusables define.
+The gate's check names are `<caller job id> / <reusable job name>`: the caller components synced
+from standards supply the first part, the ci-workflows reusables the second.
 
-- **Pointer**: when a lane check name in a rollup does not match the gate's, fetch the job keys
-  in [claude-review.yml](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/claude-review.yml)
-  and [claude-security-review.yml](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/claude-security-review.yml)
-  live.
-- **As of**: 2026-10-03
-- **Recheck trigger**: a ci-workflows release that renames or adds a job in either reusable.
+- **Pointer**: when a lane check name in a rollup does not match the gate's, fetch the job names
+  in [pr-review.yml](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/pr-review.yml)
+  and [pr-review-security.yml](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/pr-review-security.yml)
+  and the caller job ids in standards `components/claude-lanes/` live.
+- **As of**: 2026-10-04
+- **Recheck trigger**: a ci-workflows release that renames or adds a job in either reusable, or a
+  standards change to a lane caller's job id.
 
 Any other running check does not hold the arm: GitHub waits out a running required check
 (`ci-status`) itself, and a non-required check never holds a merge.
