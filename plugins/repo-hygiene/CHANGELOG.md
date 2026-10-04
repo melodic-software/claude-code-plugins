@@ -7,7 +7,7 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
 ### Fixed
 
-- **The read-only scan stays off the network (#6039).** `scan.sh` no longer runs `git remote prune origin --dry-run`. `Git stale refs dry-run:` is `remote prune not measured`, including when `origin` is an unreachable SSH URL, and `clean-batch.sh --tier scan` does not open an SSH or credential prompt. `git ls-remote` (`git-branch-audit.sh --remote`), `git remote prune` (`git-prune.sh --apply`), and `git fetch` (`git-tree-reset.sh`) go through one helper that keeps the configured `core.sshCommand`, turns prompts off, and reports a remote-unreachable result instead of waiting on one.
+- **The read-only scan stays off the network (#6039).** `scan.sh` no longer runs `git remote prune origin --dry-run`. `Git stale refs dry-run:` is `remote prune not measured`, including when `origin` is an unreachable SSH URL, and `clean-batch.sh --tier scan` does not open an SSH or credential prompt. `git ls-remote` (`git-branch-audit.sh --remote`), `git remote prune` (`git-prune.sh --apply`), and `git fetch` (`git-tree-reset.sh`) go through one helper that keeps the ssh command git would run (`GIT_SSH_COMMAND`, `core.sshCommand`, or `GIT_SSH`), turns prompts off, and reports a remote-unreachable result instead of waiting on one. Batch options follow git's ssh variant: OpenSSH gets `-o BatchMode=yes -o ConnectTimeout=5` ahead of any configured `-o`, so a configured `BatchMode=no` cannot win; Plink gets `-batch`; TortoisePlink and `simple` commands get nothing added.
 
 ## [0.19.5] - 2026-10-03
 
