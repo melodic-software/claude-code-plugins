@@ -177,6 +177,16 @@ if [[ "$(grep -c '^  \[rule-zero-assertion\] ' <<<"$ctx3")" == 2 ]]; then ok "(c
 if [[ "$(grep -c '^Action \[rule-zero-assertion\]: ' <<<"$ctx3")" == 1 ]]; then ok "(c3) one Action for the rule"; else fail "(c3) one Action for the rule (got: $ctx3)"; fi
 assert_not_contains "(c3) no threshold in the context" "$ctx3" "threshold:"
 
+# (c4) twelve findings: ten listed, then one line counting the rest.
+{
+  echo "import { test } from 'vitest';"
+  for k in $(seq 1 12); do printf '%s\n' "test('t$k', () => {" "  sum($k, 0);" "});"; done
+} >"$REPO/src/many.test.ts"
+run Write "$REPO/src/many.test.ts" s-many
+ctx4="$(jq -r '.hookSpecificOutput.additionalContext' <<<"$out")"
+if [[ "$(grep -c '^  \[rule-zero-assertion\] ' <<<"$ctx4")" == 10 ]]; then ok "(c4) ten findings listed"; else fail "(c4) ten findings listed (got: $ctx4)"; fi
+if [[ "$(grep -cxF '  ... and 2 more (/testing:audit lists the rest)' <<<"$ctx4")" == 1 ]]; then ok "(c4) the rest counted, with the audit pointer"; else fail "(c4) the rest counted, with the audit pointer (got: $ctx4)"; fi
+
 # (d) an Edit touching only the good block leaves the bad block silent.
 EDIT_GOOD='{"structuredPatch":[{"oldStart":9,"oldLines":1,"newStart":9,"newLines":1,
   "lines":["-  expect(sum(1, 2)).toBe(4);","+  expect(sum(1, 2)).toBe(3);"]}]}'

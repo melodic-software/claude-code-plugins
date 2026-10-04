@@ -1483,6 +1483,10 @@ remedy() {
   printf '%s\n' "$out" | sed -n "s|^finding \[testing/audit/$2\].*Action: ||p" | head -1
 }
 C="$TMP_ROOT/corpus"
+a="$(remedy "$FIX/positive/cant-fail-js.test.js" rule-zero-assertion)"
+check_eq() { if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "got: $2"; fi; }
+check_eq "zero-assertion remedy is one sentence, no rationale tail" "$a" \
+  "Add an assertion on the observable behavior this test exercises."
 a="$(remedy "$C/js-playwright/bad/playwright-saved-unawaited.spec.ts" rule-inert-assertion)"
 assert_contains "inert remedy (js) says to await the matcher" "$a" "await (or return) the async matcher"
 assert_not_contains "inert remedy (js) offers no Python tuple advice" "$a" "tuple"

@@ -151,7 +151,13 @@ assert_contains "suite skip: test.describe.skip is named as an added skip" "$out
 block_on
 run Edit "$REPO/src/sum.test.ts" "$ADD_SKIP"
 assert_deny "(b) block rule on: an added skip is denied" "$out"
-assert_contains "(b) the deny reason names the marker" "$out" "test-change: <reason>"
+reason="$(jq -r '.hookSpecificOutput.permissionDecisionReason' <<<"$out")"
+deny_tail="Denied: rules.test-weaken-block is error. If the change is deliberate, retry the edit with a test-change: <reason> comment naming why the test goes; otherwise fix the code, not the test."
+if [[ "$reason" == "testing: sum.test.ts: this Edit weakens its tests:"$'\n'*$'\n'"$deny_tail" ]]; then
+  ok "(b) the deny reason is the lead, the change, then the short directive"
+else
+  fail "(b) the deny reason is the lead, the change, then the short directive (got: $reason)"
+fi
 run Edit "$REPO/src/sum.test.ts" "$ADD_SKIP_MARKED"
 assert_no_decision "(b) the marked edit has no decision" "$out"
 assert_contains "(b) the marked edit still gets context" "$out" '"additionalContext"'

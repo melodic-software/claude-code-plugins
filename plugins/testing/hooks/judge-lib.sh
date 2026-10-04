@@ -648,13 +648,6 @@ judge::run() {
   judge::release_run "$res"
 }
 
-# judge::label <verdict or info json fields: file name ordinal>: "<file>: <name>", with #n past the first.
-judge::label() {
-  local l="${1##*[/\\]}: $2"
-  (($3 > 1)) && l+=" #$3"
-  printf '%s' "$l"
-}
-
 # judge::quoted_in_repo <repo> <quote>...: true when every quote is verbatim
 # in a file of the repository, the judge's read scope: git grep over its
 # tracked and untracked (not ignored) files. One process per quote, and only

@@ -193,6 +193,20 @@ stop s6
 check "the 11th verdict is relayed at the next task end" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test PASS." ]]'
 check "the 11th was judged once, by the background job" '[[ "$(stub_calls)" == 2 ]]'
 
+# A blocking Stop with a key past the cap: the reason carries the verdicts,
+# and the count line, which the reason does not hold, stays a systemMessage.
+transcript s6b claude-sonnet-5
+EB="$REPO/src/elevenflag.test.ts"
+js_file "$EB" "a flag" t1 t2 t3 t4 t5 t6 t7 t8 t9 t10
+record s6b w1 "$EB" null
+stub_reset
+stop s6b
+check "blocking Stop past the cap: blocks on the 10 judged" \
+  '[[ "$(field .decision)" == block && "$(field .reason)" == "test judge: 10 tests (1 FLAG, 9 PASS, 0 UNKNOWN) in "* ]]'
+check "and keeps the count line as its only systemMessage" \
+  '[[ "$(field .systemMessage)" == "test judge: 1 more test is judged in the background, verdicts at the next task end." ]]'
+stop_jobs s6b
+
 # An 11th key whose job died is judged at the next task end.
 transcript s7 claude-sonnet-5
 cp "$E" "$REPO/src/eleven2.test.ts"
