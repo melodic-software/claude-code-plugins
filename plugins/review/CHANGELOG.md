@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.4] - 2026-10-04
+
+### Changed
+
+- The `architecture-guardian` agent's pattern-compliance check also verifies that a pattern matches its canonical definition and serves the principle it exists for; a shape copied from a popular template that defeats that principle is a violation.
+
 ## [0.40.3] - 2026-10-04
 
 ### Fixed
