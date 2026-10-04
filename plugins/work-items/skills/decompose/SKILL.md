@@ -51,18 +51,26 @@ Name things with the project's own domain terms (from its ubiquitous-language / 
 
 ### 2. Draft vertical slices
 
-Cut the plan into **tracer-bullet** items: each item is a thin vertical slice that runs end-to-end through every integration layer. An item confined to one layer (all the schema work, then all the UI work) is the shape to avoid.
+Each item is a **tracer-bullet** slice: one thin piece of behavior that works end to end once it
+merges. Cutting a plan by layer instead, one item per tier of the stack, yields items nobody can
+check on their own; this step exists to avoid that cut.
 
-**Vertical-slice rules:**
+**Prefactor slices come first.** Before cutting feature slices, look for restructuring that would
+make them smaller: extracting a seam, adding a compatibility shim, breaking up a module that does
+too much. Each such change is its own slice, published as a **blocker** of every slice it makes
+easier. Pick prefactors by structure, never by a size threshold.
 
-- Each slice carries one small behavior through every layer (domain, application, infrastructure, tests), with nothing left stubbed
-- Once merged, a slice can be shown working or checked by itself, without waiting for a later slice
-- Prefer many thin slices over few thick ones
-- Slices map to PLAN.md phases when source is a plan, but split phases that touch multiple independent concerns
+**Four checks for every draft slice.** Apply them in this order and reshape a slice that fails one
+before moving to the next:
 
-**Prefactor look-ahead.** Before slicing the feature work, look for changes that would make later slices easy. Kent Beck's order applies: restructure until the change is easy, then make it. Emit each as its own slice; a prefactor slice is a **blocker** of the slices it unblocks. Stay qualitative: a prefactor is a structural unblocker (extract a seam, introduce a compatibility shim, split a god-module), not a size heuristic.
+| Check | Passes when | On failure |
+|---|---|---|
+| One concern | The slice serves a single concern. From a PLAN.md source, a phase becomes one slice unless it mixes independent concerns | Split along the concerns |
+| End to end | Every layer the behavior needs, its tests included, is real in this slice and none is stubbed for later. A slice adding a retention setting, say, ships the config key, the cleanup job that honors it, and a test that runs the job | Add the missing layers, or narrow the behavior until it fits |
+| Proof on its own | After merge, someone can run or inspect it without any later slice | Narrow it until they can |
+| Window bar | A session that starts cold, reads the brief, and finishes the slice in **one fresh context window**. Judge this beside S/M/L, qualitatively; never set a token budget or a numeric window size | Split it |
 
-**Window bar.** Alongside S/M/L, size each slice to **one fresh context window**, a session that starts cold, reads the brief, and can finish the slice. A slice that cannot complete in one fresh window is too coarse: split it. Qualitative only; do not invent token budgets or numeric window sizes.
+When two cuts both pass, take the one with more, thinner slices.
 
 **Classify each slice:**
 
@@ -83,24 +91,35 @@ The human-gated label (default `needs-human`) is what keeps a slice out of auton
 | prototype | Feasibility or design-feel unknown | `/prototype:pressure-test` (feasibility, logic) or `/prototype:explore-directions` (design feel), when that plugin is enabled |
 | interview | Scope/contract ambiguity only the user can settle | `/planning:interview` |
 
-Build slices blocked on an unresolved decision list the investigation ticket in "Blocked by". Investigation tickets are HITL by default (their output is a decision a human confirms). Label them `needs-human`, never `agent-ready`.
+A build slice waiting on an unresolved decision names that investigation ticket as a blocker (its `--blocked-by` edge and its `## Depends on` body list). Investigation tickets are HITL by default (their output is a decision a human confirms). Label them `needs-human`, never `agent-ready`.
 
-### 2b. Wide refactors. Expand-contract exception
+### 2b. Wide refactors: expand, migrate, contract
 
-Mechanical changes with codebase-wide blast radius (rename a persisted column, change the type of a widely imported symbol, swap a serialization format) cannot land green as one vertical slice, a single-ticket attempt breaks every consumer at once. Sequence them **expand → migrate → contract**:
+Some changes are mechanical but reach so many call sites that one item would break every consumer
+at the same moment: moving every logging call onto a new structured-logging API, renaming a
+configuration key that dozens of packages read, or replacing a message envelope. No vertical slice
+fits them. Publish this item set instead, which keeps the default branch green after each merge:
 
-1. **Expand**, one ticket introduces the new form while the old one keeps working; lands green
-2. **Migrate**, one ticket per consumer batch moves call sites to the new form; each batch lands green independently
-3. **Contract**, one final ticket removes the old form once nothing references it
+| Item | Lands | Blocked by |
+|---|---|---|
+| Expand | The replacement, added next to the current form; every consumer still works | nothing |
+| Migrate, one item per consumer batch | That batch's call sites on the new form; merges green alone | Expand |
+| Contract | The old form removed, once no call site uses it | every migrate batch |
 
-Each step is its own ticket with blocking edges (expand blocks each migrate batch; all migrate batches block the contract). Caveat: shared integration points (a wire format, a persisted schema) may pin expand + contract to a coordinated window. Say so in the ticket body.
+When a shared integration point (a stored schema, a protocol other services speak) forces expand
+and contract into one coordinated release window, write that into both item bodies.
 
-**Integration-branch fallback.** Some migrate batches cannot each merge green into the default branch: a shared runtime, a coupled deploy, or a dual-write that cannot be isolated ties them together. For those, the expand → migrate → contract order stays, with two changes:
+**Fallback: one integration branch.** Use it only when migrate batches cannot each merge green into
+the default branch, because a shared runtime, a coupled deploy, or a dual write that cannot be
+isolated ties them together. The item set and its order stay as in the table, with two changes:
+every batch targets one shared **integration branch** instead of the default branch, and one more
+item, **integrate-and-verify**, comes last, blocked by every batch. CI has to pass at that item;
+nothing earlier promises green. Batches that can each merge green never take this fallback.
 
-- every batch targets **one integration branch** instead of the default branch;
-- one more item, **integrate-and-verify**, comes last and depends on every batch. CI must pass at that item; the batches before it carry no such promise.
-
-This is a fallback, not a replacement: default remains expand → migrate → contract. `/work-items:work` still provisions each item's worktree from the default branch and opens PRs against the default branch, so these fallback items are **not** executable on the standard work path. They require a separate integration-branch workflow (operator-driven shared branch and PR retarget). Do not rewrite `/work-items:work` to target the integration branch.
+`/work-items:work` provisions every item's worktree from the default branch and opens its PR
+against the default branch, so items on the integration branch cannot run on that path. They need
+a separate, operator-driven workflow (a shared branch, and PRs retargeted to it). Do not change
+`/work-items:work` to target the integration branch.
 
 ### 3. Present for approval
 
@@ -135,7 +154,7 @@ Iterate one question at a time until the user approves, never publish an unappro
 
 ### 4. Publish items
 
-For each approved slice, create a work item via the seam (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh create-item`; `/work-items:track add` is the canonical creation path). When a spec container was approved, create the **container first** ("Container lifecycle" below) and add `--parent "<container-id>"` to every slice's `create-item` so each is a native sub-item. **Publish in dependency order**, blockers first, so real IDs can fill the `--blocked-by` edges of dependents (native dependency edges, not just body text):
+For each approved slice, create a work item via the seam (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh create-item`; `/work-items:track add` is the canonical creation path). When a spec container was approved, create the **container first** ("Container lifecycle" below) and add `--parent "<container-id>"` to every slice's `create-item` so each is a native sub-item. **Publish every blocker before the slices that wait on it**, so real IDs exist to fill the `--blocked-by` edges of dependents (native dependency edges, not just body text):
 
 ```bash
 # AFK slices get the autonomous-eligible role label; HITL + investigation slices get the
@@ -169,29 +188,33 @@ Refs #<parent-item> (if source was an existing item)
      survives. Never write the memory-slice path: it is never committed, so the pointer would
      dangle. -->
 
-## What to build
-
-What a user of this slice can do once it lands, end to end, rather than a per-layer task list. Leave out file paths, which change before the item is picked up.
-<!-- Prototype snippets: when /prototype:pressure-test settled a state machine, reducer, schema or
-     type shape, paste that snippet here, labeled as prototype output; code fixes such a decision
-     where a sentence would leave room for doubt. -->
-
-## Acceptance criteria
-
-- [ ] Criterion 1
-- [ ] Criterion 2
-- [ ] Criterion 3
-
-## Blocked by
+## Depends on
 
 - #<blocker-item-number>
 
-Or "None — can start immediately" if no blockers.
+## Outcome
+
+<The one observable change a user gets when this slice merges, end to end.>
+<!-- Prototype output: when /prototype:pressure-test settled a data shape or a transition table,
+     paste the part of its logic module that fixes the decision and mark it as prototype output. -->
+
+## Done when
+
+- [ ] <a check someone can run or observe>
+- [ ] <a check someone can run or observe>
 ```
+
+Fill the sections this way:
+
+- **Depends on** mirrors the slice's `--blocked-by` edges, one line per blocker. A slice with none
+  gets the single line `- none: on the frontier now`.
+- **Outcome** describes behavior, not a per-layer task list, and names no file paths: paths move
+  before the item is picked up.
+- **Done when** holds the slice's acceptance criteria, each one a check with a pass or fail answer.
 
 A slice body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above and every acceptance criterion survive unchanged.
 
-Classify per taxonomy: the **issue type** from the slice nature. `Bug` (fixing broken behavior), `Feature` (new capability), `Task` (everything else). Set through the seam's `--type` on org repos (native Issue Type), or a `type:` label on personal / non-org repos; `area:` from the affected module; the autonomous-eligible label for AFK slices, the human-gated label for HITL + investigation slices. The seam records `--blocked-by` as a native dependency edge; the human-readable "Blocked by" body section mirrors it for readers.
+Classify per taxonomy: the **issue type** from the slice nature. `Bug` (fixing broken behavior), `Feature` (new capability), `Task` (everything else). Set through the seam's `--type` on org repos (native Issue Type), or a `type:` label on personal / non-org repos; `area:` from the affected module; the autonomous-eligible label for AFK slices, the human-gated label for HITL + investigation slices. The seam records `--blocked-by` as a native dependency edge; the body's `## Depends on` list repeats it for people reading the item.
 
 Items published here are **born triaged**: they enter the tracker classified, role-labeled, and briefed at creation, so `/work-items:triage` never re-processes them.
 

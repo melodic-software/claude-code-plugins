@@ -96,7 +96,7 @@ Show three buckets (oldest first, one-line summaries):
 2. **Raw marker**. bare `needs-triage`. Explicitly tagged for evaluation
 3. **`status:needs-info`, answered**: the reporter has replied after the last triage note, so it can be evaluated again
 
-List open items and filter into buckets programmatically (adapter: "List items", bare read). Apply the lane-infrastructure exclusion ("Scope: raw intake only") to that listing **before** bucketing, so a telemetry issue carrying the raw marker is filtered out rather than bucketed under it. **Defensive skip:** drop any item that already carries a native `blocked-by` edge *and* a prior triage comment (machine disclaimer or structured needs-info template), a stray re-label from another lane must not cost a full re-investigation. When the repo accepts requests in the form of outside PRs, list them in the same buckets with a `[PR]` or `[issue]` prefix on every line. Only PRs from outside contributors appear: a PR a collaborator is still working on is their work, not intake. That limit applies to this listing only; a PR named explicitly gets triaged whoever opened it. Present as a compact table.
+List open items and filter into buckets programmatically (adapter: "List items", bare read). Apply the lane-infrastructure exclusion ("Scope: raw intake only") to that listing **before** bucketing, so a telemetry issue carrying the raw marker is filtered out rather than bucketed under it. **Defensive skip:** drop any item that already carries a native `blocked-by` edge *and* a prior triage comment (machine disclaimer or a needs-info comment from an earlier pass, in any shape it was posted in), a stray re-label from another lane must not cost a full re-investigation. When the repo accepts requests in the form of outside PRs, list them in the same buckets with a `[PR]` or `[issue]` prefix on every line. Only PRs from outside contributors appear: a PR a collaborator is still working on is their work, not intake. That limit applies to this listing only; a PR named explicitly gets triaged whoever opened it. Present as a compact table.
 
 ### Board page
 
@@ -140,9 +140,9 @@ The autonomous branch is the mode the AI disclaimer already anticipates: a sessi
 Never interview anyone about the fix for a claim nobody has confirmed. Verification precedes questioning:
 
 - **Bug**: follow the steps in the report until the failure appears, and check that it is the failure described
-- **PR**: fetch the branch locally and run the relevant tests or commands, to show it behaves as the description says
+- **PR**: fetch the branch locally and run the tests or commands that cover the change, to show it behaves as the description says
 
-Report the result: confirmed (with the observed behavior / code path, the item is now **verified**, so the brief can rest on observed behavior), failed, or insufficient detail → `status:needs-info` with a structured comment (see "Needs-info template" in [context/apply-outcome.md](context/apply-outcome.md)).
+Report the result: confirmed (with the observed behavior / code path, the item is now **verified**, so the brief can rest on observed behavior), failed, or insufficient detail → `status:needs-info` with a structured comment (see "Needs-info comment" in [context/apply-outcome.md](context/apply-outcome.md)).
 
 ### 4. Interview (if needed)
 
@@ -152,7 +152,7 @@ Only after verification (or for enhancements, where the open question is scope, 
 
 Read [context/apply-outcome.md](context/apply-outcome.md) once the category and state are settled,
 before writing anything to the tracker: it owns the per-outcome mutation, the raw-intake marker
-rules that keep an item reachable, the comment bodies including the needs-info template, and what
+rules that keep an item reachable, the comment bodies including the needs-info comment, and what
 each outcome does to the item's labels. Every outcome is a transition off raw intake, never a layer
 on top of it.
 

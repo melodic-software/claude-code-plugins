@@ -24,7 +24,7 @@
       "expectations": [
         "Attempts reproduction of the reported failure BEFORE any interview — never asks about the fix for a claim nobody has confirmed",
         "Reports the verification result explicitly: confirmed (with observed behavior), failed, or insufficient detail",
-        "On insufficient detail applies `status:needs-info` with the structured template (established-so-far + specific actionable questions), not a bare 'please provide more info'",
+        "On insufficient detail applies `status:needs-info` with the structured needs-info comment (fact-seeking questions to the reporter, each saying what its answer decides, plus the list of what this pass already settled), not a bare 'please provide more info'",
         "A briefed outcome follows durability-over-precision: behavioral contracts and named interfaces, no file paths or line numbers, per the agent-brief reference",
         "Applies the autonomous-eligible role label (default `agent-ready`) only after the item is both verified and briefed"
       ]

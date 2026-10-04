@@ -7,7 +7,7 @@ tracker, so nothing below runs while the interview is still open.
 ## Contents
 
 - [Outcomes and their actions](#outcomes-and-their-actions)
-- [Needs-info template](#needs-info-template)
+- [Needs-info comment](#needs-info-comment)
 
 ## Outcomes and their actions
 
@@ -19,7 +19,7 @@ Every outcome is a **transition off raw**, not a layer on top of it. Applying an
 | Briefed, decision-defaulted | Same brief structure and durability rules; the brief states the RECOMMENDED answer and its maintainer-vetoable alternative. Apply labels + the autonomous-eligible role label (default `agent-ready`) + `status:ready`, and post a `Decision defaulted: X — veto before merge` comment whose next line is the answer's `Basis:` (the comment, not the brief, carries any `file:line`) |
 | Briefed, multi-surface mechanical stub | For mechanical-class (`work-class: mechanical`) work spanning 3+ surfaces: in place of a full brief, post a one-line `sites + fix pattern` comment and apply the autonomous-eligible role label (default `agent-ready`) + `status:ready`, the stub replaces the full brief but not the ready-to-work state, so the item is picked up like any other autonomous-eligible outcome. The brief durability rule still holds, name sites by interface / symbol / domain concept, **not file paths or line numbers** (recommended default: symbol-level naming) |
 | Briefed, human-gated | Same brief structure, plus why a human must act: a genuinely open decision (open design space, product intent, cross-repo policy, or a withheld consequential answer, stated as the open question plus the evidence that would settle it) or a capability blocker (external access, manual QA); apply labels + the human-gated role label (default `needs-human`) |
-| Needs more info | `status:needs-info` + needs-info template comment |
+| Needs more info | `status:needs-info` + the needs-info comment below |
 | Already implemented | Close pointing to where the behavior lives; do NOT ledger it (`docs/out-of-scope/` records rejections, not built features) |
 | Won't fix (bug) | Close with rationale comment |
 | Won't fix (enhancement) | Close with rationale comment; when the repo keeps `docs/out-of-scope/`, record the rejection in the matching concept file (re-read + append to "Prior requests", or create the concept file for a first rejection) and link it from the closing comment. An enhancement PR gets the same record as an issue, so a later PR for the rejected idea meets the earlier decision |
@@ -58,17 +58,27 @@ Label edits, comments, and closes route through the adapter's write mechanics (a
 - **Every routing outcome that keeps the item open clears the raw-intake marker in the same edit that applies the outcome's labels, no exceptions across the routing space.** `status:ready` (briefed/ready and decision-defaulted), the autonomous-eligible role label, the human-gated role label (default `needs-human`), `status:needs-decision`, and `status:needs-info` each **remove the raw marker**; never leave both the raw marker and a routing label present. A raw marker alongside any routing label is a contradiction, the open-only attention view reads it as still-raw and re-triages it every cycle, so an already-decided item re-enters the needs-triage queue as if it were unrouted intake and wastes a read-and-confirm pass. If an item shows both, the routed state is the truth; clear the stale raw marker.
 - **Close** (already implemented / wontfix / duplicate) drops the item from the open-only attention frontier, so the raw marker is moot, a closed item never re-triages.
 
-## Needs-info template
+## Needs-info comment
 
-When marking `status:needs-info`, post structured comment:
+When an item parks at `status:needs-info`, post one comment in this shape:
 
 ```markdown
-**What we've established so far:**
-- <preserved triage progress — verification results, decisions, what's known>
+**Triage paused: waiting on @<reporter>**
 
-**What we still need from you (@<reporter>):**
-1. <specific actionable question>
-2. <specific actionable question>
+Stopped at: <reproduction | scope | acceptance criteria>
+
+Questions:
+1. <one fact only the reporter can supply> (the answer decides <what triage does next>)
+2. <one fact only the reporter can supply> (the answer decides <what triage does next>)
+
+Settled, no need to repeat:
+- Reproduction: <reproduced, with the observed behavior | not reproduced, with what was run | not attempted, and why>
+- Decided: <facts and choices fixed in this pass, or "nothing yet">
 ```
 
-The comment keeps the triage done so far, so a reporter's reply resumes it instead of starting over. Ask concrete questions the reporter can act on; "please provide more info" does not qualify.
+Two rules decide whether the comment is ready to post:
+
+- **Every question names a fact.** A question the reporter cannot answer with one concrete fact,
+  such as a request for "more detail", is rewritten or dropped.
+- **The settled list is complete.** It holds every result and decision from this pass, so the next
+  pass reads it in step 1 and starts from there instead of redoing the work.
