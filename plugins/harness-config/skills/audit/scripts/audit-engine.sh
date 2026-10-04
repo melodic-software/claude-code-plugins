@@ -66,6 +66,7 @@
 #   SETTINGS_AUDIT_ENGINE_CONSENT_RECEIPTS_FILE  consent-receipts.json to read the receipt records from
 #   SETTINGS_AUDIT_ENGINE_DEBUG_DIR     directory of debug logs (else <user dir>/debug)
 #   SETTINGS_AUDIT_ENGINE_SKIP_DRIFT    set to 1 to skip the plugin-drift call
+#   SETTINGS_AUDIT_ENGINE_PROGRESS      set to 0 to drop the per-category progress lines on stderr
 #   FETCH_DOCS_FIXTURE_DIR              directory holding llms.txt and <slug>.md; when set,
 #                                       nothing is fetched and pages resolve through that llms.txt
 #   FETCH_DOCS_INDEX_URL                the docs index (default https://code.claude.com/docs/llms.txt)
@@ -123,36 +124,83 @@ sha256_hex() {
 
 US=$'\x1f'
 
-# anchor_for_excerpt <text>: the excerpt anchor for a surface with no heading
-# concept (a JSON settings file). Normalization is the v1 rule that applies to
-# such text: trailing whitespace stripped, internal runs collapsed to one space.
-# The duplicate discriminator is the fixed sentinel for a heading-free surface.
-anchor_for_excerpt() {
-  local norm e n
-  norm="$(printf '%s' "$1" | sed -E 's/[[:space:]]+$//; s/[[:space:]]+/ /g')"
-  e="$(printf '%s' "$norm" | sha256_hex | cut -c1-12)"
-  n="$(printf '\000' | sha256_hex | cut -c1-8)"
-  printf 'e:%s:%s' "$e" "$n"
+# A run hashes once per finding row, and on Windows every process costs tens to
+# hundreds of milliseconds, so a hash is one process: the text goes to a scratch
+# file and the tool reads it. sha256_hex above stays the stdin form for the
+# few callers that stream a file.
+HASH_FILE="$(mktemp 2>/dev/null)" || HASH_FILE=""
+if [[ -z "$HASH_FILE" ]]; then
+  echo "ERROR: could not create a temp file for hashing" >&2
+  exit 2
+fi
+trap 'rm -f "$HASH_FILE"' EXIT
+
+# sha256_to <var> <text>: the SHA-256 hex digest of <text>, into <var>.
+sha256_to() {
+  local _digest=""
+  printf '%s' "$2" >"$HASH_FILE" || return 1
+  if command -v sha256sum >/dev/null 2>&1; then
+    _digest="$(sha256sum <"$HASH_FILE")"
+  elif command -v shasum >/dev/null 2>&1; then
+    _digest="$(shasum -a 256 <"$HASH_FILE")"
+  elif command -v openssl >/dev/null 2>&1; then
+    _digest="$(openssl dgst -sha256 <"$HASH_FILE")"
+    _digest="${_digest##*= }"
+  fi
+  printf -v "$1" '%s' "${_digest:0:64}"
 }
 
-# finding_id <check> <claim> <surface> <anchor> [<surface> <anchor> ...]
-finding_id() {
-  local check="$1" claim="$2"
-  shift 2
-  local pairs=() s a
+# The duplicate discriminator below: the first 8 hex digits of SHA-256 over one
+# NUL byte, the fixed sentinel for a heading-free surface.
+ANCHOR_SENTINEL=6e340b9c
+
+# anchor_to <var> <text>: the excerpt anchor for a surface with no heading
+# concept (a JSON settings file). Normalization is the v1 rule that applies to
+# such text, line by line: trailing whitespace stripped, internal runs
+# collapsed to one space, and trailing line breaks dropped.
+anchor_to() {
+  local rest="$2" line norm="" e
+  while :; do
+    line="${rest%%$'\n'*}"
+    # Plain patterns only: an extglob +(...) match costs a large fraction of a
+    # second on a long hook command.
+    while [[ "$line" == *[[:space:]] ]]; do line="${line%[[:space:]]}"; done
+    line="${line//[[:space:]]/ }"
+    while [[ "$line" == *"  "* ]]; do line="${line//  / }"; done
+    norm+="$line"
+    [[ "$rest" == *$'\n'* ]] || break
+    rest="${rest#*$'\n'}"
+    norm+=$'\n'
+  done
+  while [[ "$norm" == *$'\n' ]]; do norm="${norm%$'\n'}"; done
+  sha256_to e "$norm"
+  printf -v "$1" 'e:%s:%s' "${e:0:12}" "$ANCHOR_SENTINEL"
+}
+
+# finding_id_to <var> <check> <claim> <surface> <anchor> [<surface> <anchor> ...]
+# The sites are joined as sorted lines; one site with no line break is its own
+# sorted list, so only several sites, or one spanning lines, reach sort.
+finding_id_to() {
+  local out="$1" check="$2" claim="$3"
+  shift 3
+  local pairs=() s a sorted line h
   while [[ $# -ge 2 ]]; do
     s="$1"
     a="$2"
     shift 2
     pairs+=("$s$US$a")
   done
-  local sorted
-  sorted="$(printf '%s\n' "${pairs[@]}" | LC_ALL=C sort)"
   local joined="$check$US$claim"
-  while IFS= read -r line; do
-    [[ -n "$line" ]] && joined+="$US$line"
-  done <<<"$sorted"
-  printf '%s' "$joined" | sha256_hex | cut -c1-16
+  if [[ ${#pairs[@]} -eq 1 && "${pairs[0]}" != *$'\n'* ]]; then
+    [[ -n "${pairs[0]}" ]] && joined+="$US${pairs[0]}"
+  else
+    sorted="$(printf '%s\n' "${pairs[@]}" | LC_ALL=C sort)"
+    while IFS= read -r line; do
+      [[ -n "$line" ]] && joined+="$US$line"
+    done <<<"$sorted"
+  fi
+  sha256_to h "$joined"
+  printf -v "$out" '%s' "${h:0:16}"
 }
 
 # --- Subcommands that expose the identity contract -------------------------
@@ -176,8 +224,8 @@ if [[ "${1:-}" == "anchor" ]]; then
     echo "ERROR: --excerpt required" >&2
     exit 2
   }
-  anchor_for_excerpt "$ex"
-  printf '\n'
+  anchor_to ex "$ex"
+  printf '%s\n' "$ex"
   exit 0
 fi
 
@@ -209,8 +257,8 @@ if [[ "${1:-}" == "finding-id" ]]; then
     echo "ERROR: --check, --claim and at least one --site are required" >&2
     exit 2
   }
-  finding_id "$check" "$claim" "${sites[@]}"
-  printf '\n'
+  finding_id_to fid "$check" "$claim" "${sites[@]}"
+  printf '%s\n' "$fid"
   exit 0
 fi
 
@@ -323,15 +371,27 @@ SURF_USER="user:settings.json"
 
 # --- Rows and findings -------------------------------------------------------
 
-ROWS=()
-FINDINGS=()
 ERROR_COUNT=0
 declare -A SUPPRESS_REASON=()
 declare -A SUPPRESS_DATE=()
 declare -A SUPPRESS_LAYER=()
-SUPPRESSED=()
 PERSONAL_ONLY=()
 MALFORMED=()
+
+# Every row is held as REC_WIDTH fields in REC and turned into JSON by one jq
+# pass at assembly: a jq per row was most of a large run's process starts.
+# Fields: kind (row | finding | suppressed), category, check, status, severity,
+# surface, claim, detail, anchor, finding_id, and the suppression's reason,
+# date and layer.
+REC=()
+REC_WIDTH=13
+
+# progress <category> <what>: one line on stderr as each category starts, so a
+# long run shows where it is. SETTINGS_AUDIT_ENGINE_PROGRESS=0 silences it.
+progress() {
+  [[ "${SETTINGS_AUDIT_ENGINE_PROGRESS:-1}" == "0" ]] && return 0
+  printf 'audit-engine: %s %s (%ss)\n' "$1" "$2" "$SECONDS" >&2
+}
 
 # row <category> <check-slug> <status> <severity> <surface> <claim> <detail> [<excerpt>|-]
 #   status: ok | finding | skip | not-inspectable
@@ -339,41 +399,24 @@ MALFORMED=()
 # suppression set the row is emitted as suppressed instead.
 row() {
   local cat="$1" slug="$2" status="$3" sev="$4" surface="$5" claim="$6" detail="$7" excerpt="${8:--}"
-  local check="harness-config/audit/$cat/$slug" anchor="" fid="" json
-  # Git Bash rewrites an argument holding `=/` before a native jq sees it; a
-  # claim or detail carries a key exactly as written, so conversion is off here.
-  local -x MSYS2_ARG_CONV_EXCL='*'
-  if [[ "$status" == "finding" ]]; then
-    if [[ "$excerpt" == "-" ]]; then
-      anchor="s:"
-    else
-      anchor="$(anchor_for_excerpt "$excerpt")"
-    fi
-    fid="$(finding_id "$check" "$claim" "$surface" "$anchor")"
-    if [[ -n "${SUPPRESS_REASON[$fid]:-}" ]]; then
-      json="$(jq -cn --arg cat "$cat" --arg check "$check" --arg st suppressed --arg sev "$sev" \
-        --arg surface "$surface" --arg claim "$claim" --arg detail "$detail" --arg anchor "$anchor" \
-        --arg fid "$fid" --arg reason "${SUPPRESS_REASON[$fid]}" --arg date "${SUPPRESS_DATE[$fid]}" \
-        --arg layer "${SUPPRESS_LAYER[$fid]}" \
-        '{category:$cat,check:$check,status:$st,severity:$sev,surface:$surface,claim:$claim,detail:$detail,anchor:$anchor,finding_id:$fid,suppressed:{reason:$reason,date:$date,layer:$layer}}')"
-      ROWS+=("$json")
-      SUPPRESSED+=("$json")
-      return 0
-    fi
-    [[ "$sev" == "error" ]] && ERROR_COUNT=$((ERROR_COUNT + 1))
-    json="$(jq -cn --arg cat "$cat" --arg check "$check" --arg st "$status" --arg sev "$sev" \
-      --arg surface "$surface" --arg claim "$claim" --arg detail "$detail" --arg anchor "$anchor" --arg fid "$fid" \
-      '{category:$cat,check:$check,status:$st,severity:$sev,surface:$surface,claim:$claim,detail:$detail,anchor:$anchor,finding_id:$fid}')"
-    ROWS+=("$json")
-    FINDINGS+=("$(jq -cn --arg check "$check" --arg claim "$claim" --arg surface "$surface" --arg anchor "$anchor" \
-      --arg fid "$fid" --arg sev "$sev" --arg detail "$detail" --arg cat "$cat" \
-      '{finding_id:$fid,identity:{check:$check,claim:$claim,sites:[{surface:$surface,"anchor/v1":$anchor}]},severity:$sev,category:$cat,detail:$detail,lane:"harness-config/audit",tier:"derived"}')")
+  local check="harness-config/audit/$cat/$slug" anchor="" fid=""
+  if [[ "$status" != "finding" ]]; then
+    REC+=(row "$cat" "$check" "$status" "$sev" "$surface" "$claim" "$detail" "" "" "" "" "")
     return 0
   fi
-  json="$(jq -cn --arg cat "$cat" --arg check "$check" --arg st "$status" --arg sev "$sev" \
-    --arg surface "$surface" --arg claim "$claim" --arg detail "$detail" \
-    '{category:$cat,check:$check,status:$st,severity:$sev,surface:$surface,claim:$claim,detail:$detail}')"
-  ROWS+=("$json")
+  if [[ "$excerpt" == "-" ]]; then
+    anchor="s:"
+  else
+    anchor_to anchor "$excerpt"
+  fi
+  finding_id_to fid "$check" "$claim" "$surface" "$anchor"
+  if [[ -n "${SUPPRESS_REASON[$fid]:-}" ]]; then
+    REC+=(suppressed "$cat" "$check" suppressed "$sev" "$surface" "$claim" "$detail" "$anchor" "$fid"
+      "${SUPPRESS_REASON[$fid]}" "${SUPPRESS_DATE[$fid]}" "${SUPPRESS_LAYER[$fid]}")
+    return 0
+  fi
+  [[ "$sev" == "error" ]] && ERROR_COUNT=$((ERROR_COUNT + 1))
+  REC+=(finding "$cat" "$check" "$status" "$sev" "$surface" "$claim" "$detail" "$anchor" "$fid" "" "" "")
 }
 
 # --- Scopes ------------------------------------------------------------------
@@ -528,7 +571,7 @@ load_suppression_layer() {
       anchor="${site#*$'\x1f'}"
       pairs+=("$surface" "$anchor")
     done
-    rec_id="$(finding_id "$check" "$claim" "${pairs[@]}")"
+    finding_id_to rec_id "$check" "$claim" "${pairs[@]}"
     if [[ "$rec_id" != "$id" ]]; then
       MALFORMED+=("$layer:$id constituents hash to $rec_id, not to the key")
       continue
@@ -562,7 +605,7 @@ if [[ -z "$DOCS_TMP" || ! -d "$DOCS_TMP" ]]; then
   echo "ERROR: could not create a temp directory for the docs pages" >&2
   exit 2
 fi
-trap 'rm -rf "$DOCS_TMP"' EXIT
+trap 'rm -rf "$DOCS_TMP"; rm -f "$HASH_FILE"' EXIT
 
 DOCS_INDEX_URL="${FETCH_DOCS_INDEX_URL:-https://code.claude.com/docs/llms.txt}"
 # Every control character but tab and newline, CR included, is dropped from the
@@ -597,6 +640,7 @@ DOCS_WANT=()
 while IFS= read -r slug; do DOCS_WANT+=("$slug"); done < <(unsupplied settings-reference env-vars)
 DOCS_INDEX_JSON="$(jq -cn --arg url "$DOCS_INDEX_URL" \
   '{url:$url,source:"",bytes:0,state:"not-needed",reason:"",sha256:null,content_type:null,lines:0,retrieved:null}')"
+progress docs "upstream pages"
 if [[ ${#DOCS_WANT[@]} -gt 0 ]]; then
   fetch_pages "$DOCS_MANIFEST" "${DOCS_WANT[@]}"
   DOCS_INDEX_JSON="$(jq -c --arg url "$DOCS_INDEX_URL" \
@@ -800,6 +844,8 @@ if [[ -n "$HP" ]]; then
 fi
 
 # --- Category A: schema and structure ----------------------------------------
+
+progress A "schema, structure and settings keys"
 
 SCHEMA_URL="https://json.schemastore.org/claude-code-settings.json"
 if [[ $PROJECT_OK -eq 1 ]]; then
@@ -1106,6 +1152,7 @@ fi
 # --- Hook inventory (delegated to check-hook-coverage.sh) ---------------------
 
 INVENTORY_JSON='{"inventory":"none","hooks":[],"plugins":[],"levers":[],"unreadable":[],"divergence":[]}'
+progress D "hook inventory (check-hook-coverage.sh)"
 if [[ -x "$SCRIPT_DIR/check-hook-coverage.sh" || -f "$SCRIPT_DIR/check-hook-coverage.sh" ]]; then
   inv_out="$(HOOK_COVERAGE_FIXTURE_DIR="$PROJECT_ROOT" HOOK_COVERAGE_USER_DIR="$USER_DIR" \
     HOOK_COVERAGE_INSTALLED_JSON="$INSTALLED_JSON" HOOK_COVERAGE_MANAGED_JSON="${SETTINGS_AUDIT_MANAGED_PATH:-}" \
@@ -1238,25 +1285,34 @@ ASK_BLOCKS_LANES="an ask rule prompts even in auto mode and is auto-denied under
 
 # --- Category B: permissions -------------------------------------------------
 
+progress B "permissions (${#BASELINE_ORDER[@]} baseline patterns)"
+
 if [[ $PROJECT_OK -eq 1 && ${#BASELINE_ORDER[@]} -gt 0 ]]; then
-  deny_json="$(jqf "$SETTINGS" -c '(.permissions.deny // [])')"
-  ask_json="$(jqf "$SETTINGS" -c '(.permissions.ask // [])')"
   allow_json="$(jqf "$SETTINGS" -c '(.permissions.allow // [])')"
+  # Whether each baseline pattern is in its list, one true/false line per
+  # pattern in BASELINE_ORDER, from one jq call.
+  b_args=()
+  for pat in "${BASELINE_ORDER[@]}"; do b_args+=("${BASELINE_FAMILY[$pat]}" "$pat"); done
+  b_present=()
+  while IFS= read -r present; do b_present+=("$present"); done < <(tr -d '\r' <"$SETTINGS" | ejq -r '
+    (.permissions.deny // []) as $deny | (.permissions.ask // []) as $ask
+    | $ARGS.positional as $a | range(0; $a | length; 2) as $i
+    | (if $a[$i] == "ask-rules" then $ask else $deny end) | index($a[$i + 1]) != null' --args "${b_args[@]}")
+  b_i=0
   for pat in "${BASELINE_ORDER[@]}"; do
     fam="${BASELINE_FAMILY[$pat]}"
+    present="${b_present[b_i]:-}"
+    b_i=$((b_i + 1))
     case "$fam" in
     ask-rules)
       target="ask"
-      list="$ask_json"
       sev=warning
       ;;
     *)
       target="deny"
-      list="$deny_json"
       sev=error
       ;;
     esac
-    present="$(jq -r --arg p "$pat" 'index($p) != null' <<<"$list")"
     if [[ "$present" == "true" ]]; then
       row B "baseline-$fam" ok none "$SURF_SETTINGS" "present-pattern:$pat" "$target carries $pat" -
       continue
@@ -1307,6 +1363,8 @@ if [[ $LOCAL_OK -eq 1 ]]; then
 fi
 
 # --- Category C: MCP servers -------------------------------------------------
+
+progress C "MCP servers"
 
 if [[ $MCP_OK -eq 1 ]]; then
   servers="$(jqf "$MCP" -r '.mcpServers // {} | keys[]')"
@@ -1369,8 +1427,9 @@ fi
 SECRET_RE='gh[pousr]_[A-Za-z0-9]{20,}|ghs_[0-9]+_eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+|github_pat_[A-Za-z0-9_]{20,}|eyJ[A-Za-z0-9_-]{15,}\.[A-Za-z0-9_-]{5,}|sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|xox[abp]-[A-Za-z0-9-]{10,}'
 
 resolve_hook_path() {
-  # resolve_hook_path <command> <plugin-path> -> the first token with placeholders expanded
-  local cmd="$1" ppath="$2" first="" c i inq=0
+  # resolve_hook_path <command> <plugin-path> <var>: the first token, with
+  # placeholders expanded, into <var>
+  local cmd="$1" ppath="$2" tok="" c i inq=0
   # The first shell word, read the way the shell would: whitespace ends it
   # only outside quotes, so "$CLAUDE_PROJECT_DIR/my hooks/x.sh" and the
   # common "${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh both stay whole, and the quote
@@ -1382,20 +1441,29 @@ resolve_hook_path() {
       continue
     fi
     if [[ $inq -eq 0 && "$c" == [[:space:]] ]]; then
-      [[ -n "$first" ]] && break
+      [[ -n "$tok" ]] && break
       continue
     fi
-    first+="$c"
+    tok+="$c"
   done
-  first="${first//\$\{CLAUDE_PROJECT_DIR\}/$PROJECT_ROOT}"
-  first="${first//\$CLAUDE_PROJECT_DIR/$PROJECT_ROOT}"
+  tok="${tok//\$\{CLAUDE_PROJECT_DIR\}/$PROJECT_ROOT}"
+  tok="${tok//\$CLAUDE_PROJECT_DIR/$PROJECT_ROOT}"
   if [[ -n "$ppath" ]]; then
-    first="${first//\$\{CLAUDE_PLUGIN_ROOT\}/$ppath}"
-    first="${first//\$CLAUDE_PLUGIN_ROOT/$ppath}"
+    tok="${tok//\$\{CLAUDE_PLUGIN_ROOT\}/$ppath}"
+    tok="${tok//\$CLAUDE_PLUGIN_ROOT/$ppath}"
   fi
-  printf '%s' "$first"
+  printf -v "$3" '%s' "$tok"
 }
 
+# secret_shaped <text>: true when the text holds a SECRET_RE token, matched in
+# the shell rather than a grep per hook.
+secret_shaped() {
+  local LC_ALL=C
+  [[ "$1" =~ $SECRET_RE ]]
+}
+PLACEHOLDER_RE='(^|[^"])\$(\{CLAUDE_(PROJECT_DIR|PLUGIN_ROOT|PLUGIN_DATA)\}|CLAUDE_(PROJECT_DIR|PLUGIN_ROOT|PLUGIN_DATA))'
+
+progress D "hook checks"
 declare -A HOOK_SEEN=()
 declare -A MATCHER_SEEN=()
 declare -A EVENT_SEEN=()
@@ -1419,8 +1487,9 @@ while IFS=$'\t' read -r src event matcher cmd timeout htype hif hargs; do
   # raw command still feeds the anchor, which stores only a hash.
   cmd_ref="$cmd"
   cmd_public=1
-  if [[ "$surface" == "$SURF_LOCAL" || "$surface" == "$SURF_USER" ]] || printf '%s' "$cmd" | LC_ALL=C grep -Eq "$SECRET_RE"; then
-    cmd_ref="cmd:$(anchor_for_excerpt "$cmd")"
+  if [[ "$surface" == "$SURF_LOCAL" || "$surface" == "$SURF_USER" ]] || secret_shaped "$cmd"; then
+    anchor_to cmd_ref "$cmd"
+    cmd_ref="cmd:$cmd_ref"
     cmd_public=0
   fi
   key="$src|$event|$matcher|$cmd|$hif"
@@ -1455,13 +1524,14 @@ while IFS=$'\t' read -r src event matcher cmd timeout htype hif hargs; do
   fi
   # Shell form (no args) with an unquoted placeholder.
   if [[ "$hargs" == "[]" || -z "$hargs" ]]; then
-    if printf '%s' "$cmd" | grep -Eq '(^|[^"])\$(\{CLAUDE_(PROJECT_DIR|PLUGIN_ROOT|PLUGIN_DATA)\}|CLAUDE_(PROJECT_DIR|PLUGIN_ROOT|PLUGIN_DATA))'; then
+    if [[ "$cmd" =~ $PLACEHOLDER_RE ]]; then
       row D placeholder-quoting finding warning "$surface" "unquoted-placeholder:$event:$cmd_ref" "a path placeholder in shell form is not wrapped in double quotes; a space in the path breaks the hook" "$event/$matcher/$cmd"
     fi
   fi
   # Path resolution for the first token when it is a path.
   ppath="${PLUGIN_PATH[$src]:-}"
-  first="$(resolve_hook_path "$cmd" "$ppath")"
+  first=""
+  resolve_hook_path "$cmd" "$ppath" first
   first_shown="$first"
   [[ $cmd_public -eq 1 ]] || first_shown="the resolved first token"
   case "$first" in
@@ -1561,24 +1631,27 @@ done < <(jqs -r '[.divergence[]? | . + {mk: (.plugin | split("@") | .[1] // "")}
 
 # --- Category E: plugins -------------------------------------------------------
 
+progress E "plugins"
+
 #
 # Plugin keys stay JSON from the file to the row: every comparison runs in jq,
 # and a row's fields come back base64-encoded, so a key carrying a carriage
 # return, a tab or `=/` reaches its claim exactly as written. Managed-scope
 # enabledPlugins is not merged here.
 
-# unb64_to <var> <field>: decode a base64 field into <var> byte for byte; `-`,
-# which base64 never produces, is the empty field. `-d` is GNU, macOS 13+ and
-# BusyBox; `--decode` and `-D` cover older BSD builds. Only the exit status is
-# trusted, since GNU prints partial output before rejecting bad input. Returns
-# 1 with <var> empty when no form decodes the field.
-unb64_to() {
-  local v opt
-  printf -v "$1" '%s' ""
-  [[ "$2" == "-" ]] && return 0
+# nul_fields <base64>: decode a base64 text of NUL-terminated fields into the
+# array NUL_FIELDS, one element per field, byte for byte, with one base64
+# process however many fields it carries. `-d` is GNU, macOS 13+ and BusyBox;
+# `--decode` and `-D` cover older BSD builds. Only the exit status is trusted,
+# since GNU prints partial output before rejecting bad input. Returns 1 with
+# NUL_FIELDS empty when no form decodes the text.
+NUL_FIELDS=()
+nul_fields() {
+  local opt x bin="$DOCS_TMP/fields.bin"
+  NUL_FIELDS=()
   for opt in -d --decode -D; do
-    if v="$(printf '%s' "$2" | base64 "$opt" 2>/dev/null)x"; then
-      printf -v "$1" '%s' "${v%x}"
+    if base64 "$opt" <<<"$1" >"$bin" 2>/dev/null; then
+      while IFS= read -r -d '' x; do NUL_FIELDS+=("$x"); done <"$bin"
       return 0
     fi
   done
@@ -1586,25 +1659,29 @@ unb64_to() {
 }
 
 # e_rows: emit one category E row per input line of seven base64 fields
-# (slug, status, severity, surface, claim, detail, excerpt). A line with
-# another field count, or a field that does not decode, becomes a
-# not-inspectable row rather than vanishing.
+# (slug, status, severity, surface, claim, detail, excerpt; `-`, which base64
+# never produces, is the empty field). A line with another field count, or a
+# field that does not decode, becomes a not-inspectable row rather than
+# vanishing. One jq decodes every line into a record of a verdict (`ok`, or the
+# field count) and the seven fields, so a row costs no process of its own; a
+# NUL a field decodes to is dropped, as a shell variable would drop it.
 E_ROW_BAD=0
 e_rows() {
-  local line f slug st sev surf claim detail ex
-  while IFS= read -r line; do
-    line="${line%$'\r'}"
-    [[ -n "$line" ]] || continue
-    read -r -a f <<<"$line"
-    if [[ ${#f[@]} -eq 7 ]] &&
-      unb64_to slug "${f[0]}" && unb64_to st "${f[1]}" && unb64_to sev "${f[2]}" &&
-      unb64_to surf "${f[3]}" && unb64_to claim "${f[4]}" && unb64_to detail "${f[5]}" &&
-      unb64_to ex "${f[6]}"; then
-      row E "$slug" "$st" "$sev" "$surf" "$claim" "$detail" "$ex"
+  local i
+  nul_fields "$(ejq -R -s -r '
+    def b64: test("^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$");
+    [split("\n")[] | sub("\r$"; "") | select(. != "") | [splits("[ \t]+") | select(. != "")]
+     | if length == 7 and all(.[]; . == "-" or b64)
+       then ["ok"] + map(if . == "-" then "" else @base64d | gsub("\u0000"; "") end)
+       else [length | tostring, "", "", "", "", "", "", ""] end]
+    | flatten | map(. + "\u0000") | add // "" | @base64')" || NUL_FIELDS=()
+  for ((i = 0; i + 7 < ${#NUL_FIELDS[@]}; i += 8)); do
+    if [[ "${NUL_FIELDS[i]}" == ok ]]; then
+      row E "${NUL_FIELDS[@]:i+1:7}"
     else
       E_ROW_BAD=$((E_ROW_BAD + 1))
       row E plugin-state not-inspectable none "settings" "row-undecodable:$E_ROW_BAD" \
-        "a category E row came back with ${#f[@]} fields or a field that does not decode, so the plugin check it carried went unreported" -
+        "a category E row came back with ${NUL_FIELDS[i]} fields or a field that does not decode, so the plugin check it carried went unreported" -
     fi
   done
 }
@@ -1626,32 +1703,39 @@ E_CTX="$(
 if [[ -n "$E_CTX" ]]; then
   # Each enabled plugin's direct dependencies come from the plugin.json at the
   # install path the hook inventory resolved for that exact key.
+  # The index and install path of every enabled plugin arrive in one base64
+  # text, and every readable plugin.json is parsed by one jq call, so the
+  # plugin count adds no process.
   DEP_RECS=""
-  while read -r di dpath_b64; do
-    [[ "$di" =~ ^[0-9]+$ ]] || continue
-    dpath_ok=1
-    unb64_to dpath "$dpath_b64" || dpath_ok=0
-    dpath="${dpath//\\//}"
-    rec=""
-    if [[ "$dpath_ok" -eq 0 ]]; then
-      rec="{\"i\":$di,\"deps\":null,\"why\":\"its install path could not be decoded\"}"
-    elif [[ -z "$dpath" ]]; then
-      rec="{\"i\":$di,\"deps\":null,\"why\":\"no install path resolved in the plugin inventory\"}"
-    elif [[ ! -e "$dpath/.claude-plugin/plugin.json" ]]; then
-      # The manifest is optional: a plugin without one declares no dependencies.
-      rec="{\"i\":$di,\"deps\":[]}"
-    elif [[ ! -f "$dpath/.claude-plugin/plugin.json" || ! -r "$dpath/.claude-plugin/plugin.json" ]]; then
-      rec="{\"i\":$di,\"deps\":null,\"why\":\"its plugin.json is not a readable file\"}"
-    else
-      rec="$(tr -d '\r' <"$dpath/.claude-plugin/plugin.json" | ejq -c --argjson i "$di" \
-        '{i: $i, deps: (if type == "object" then (.dependencies // []) else null end), why: "plugin.json is not an object or its dependencies is not an array"}')"
-      [[ -n "$rec" ]] || rec="{\"i\":$di,\"deps\":null,\"why\":\"its plugin.json is not valid JSON\"}"
-    fi
-    DEP_RECS+="$rec"$'\n'
-  done < <(printf '%s\n' "$E_CTX" | ejq -r "${E_ARGS[@]}" "$E_DEFS"'
-    . as $c | enabled | to_entries[] | .key as $i | .value as $k
+  dep_parse=()
+  nul_fields "$(printf '%s\n' "$E_CTX" | ejq -r "${E_ARGS[@]}" "$E_DEFS"'
+    . as $c | [enabled | to_entries[] | .key as $i | .value as $k
     | ([$c.inv.plugins[]? | select(type == "object" and .plugin == $k and (.status == "OK" or .status == "NO-HOOKS"))] | first | .path) as $p
-    | "\($i) \((if ($p | type) == "string" then $p else "" end) | @base64)"')
+    | ($i | tostring), (if ($p | type) == "string" then $p else "" end) | gsub("\u0000"; "") + "\u0000"] | add // "" | @base64')" || NUL_FIELDS=()
+  for ((j = 0; j + 1 < ${#NUL_FIELDS[@]}; j += 2)); do
+    di="${NUL_FIELDS[j]}"
+    dpath="${NUL_FIELDS[j + 1]//\\//}"
+    manifest="$dpath/.claude-plugin/plugin.json"
+    if [[ -z "$dpath" ]]; then
+      DEP_RECS+="{\"i\":$di,\"deps\":null,\"why\":\"no install path resolved in the plugin inventory\"}"$'\n'
+    elif [[ ! -e "$manifest" ]]; then
+      # The manifest is optional: a plugin without one declares no dependencies.
+      DEP_RECS+="{\"i\":$di,\"deps\":[]}"$'\n'
+    elif [[ ! -f "$manifest" || ! -r "$manifest" ]]; then
+      DEP_RECS+="{\"i\":$di,\"deps\":null,\"why\":\"its plugin.json is not a readable file\"}"$'\n'
+    else
+      text=""
+      IFS= read -r -d '' text <"$manifest"
+      dep_parse+=("$di" "${text//$'\r'/}")
+    fi
+  done
+  if [[ ${#dep_parse[@]} -gt 0 ]]; then
+    DEP_RECS+="$(printf '%s\0' "${dep_parse[@]}" | base64 | tr -d '\r\n' | ejq -R -c '
+      @base64d | split("\u0000")[:-1] as $f | range(0; $f | length; 2) as $j | ($f[$j] | tonumber) as $i
+      | (if ($f[$j + 1] | test("^\\s*$")) then null else (try ($f[$j + 1] | fromjson | {v: .}) catch null) end)
+      | if . == null then {i: $i, deps: null, why: "its plugin.json is not valid JSON"}
+        else .v | {i: $i, deps: (if type == "object" then (.dependencies // []) else null end), why: "plugin.json is not an object or its dependencies is not an array"} end')"
+  fi
 
   if e_out="$(printf '%s\n%s' "$E_CTX" "$DEP_RECS" | ejq -r -s "${E_ARGS[@]}" "$E_DEFS"'
     .[0] as $c | (.[1:] | map(select(type == "object"))) as $recs
@@ -1698,6 +1782,7 @@ DRIFT_STATE=skipped
 # marketplace is read from disk, and a repo-sourced one it cannot fetch comes
 # back as a skipped marketplace with its reason, reported below.
 if [[ "${SETTINGS_AUDIT_ENGINE_SKIP_DRIFT:-0}" != "1" && $PROJECT_OK -eq 1 && -f "$SCRIPT_DIR/check-plugin-drift.sh" ]]; then
+  progress E "plugin drift (check-plugin-drift.sh)"
   drift_tmp="$(mktemp)"
   NO_COLOR=1 CLAUDE_SETTINGS_FILE="$SETTINGS" SETTINGS_AUDIT_OUTPUT_JSON="$drift_tmp" \
     bash "$SCRIPT_DIR/check-plugin-drift.sh" >/dev/null 2>&1
@@ -1778,6 +1863,8 @@ fi
 
 # --- Category F: environment variables -----------------------------------------
 
+progress F "environment variables"
+
 if [[ $PROJECT_OK -eq 1 ]]; then
   if tr -d '\r' <"$SETTINGS" | LC_ALL=C grep -Eq "$SECRET_RE"; then
     row F secrets finding error "$SURF_SETTINGS" "secret-shaped-value" "a token-shaped value is present in the tracked settings file; move it to settings.local.json or a credential store" /env
@@ -1799,6 +1886,8 @@ if [[ $PROJECT_OK -eq 1 ]]; then
 fi
 
 # --- Category G: skill-listing measurement from an existing debug log ----------
+
+progress G "skill listing and skillOverrides"
 
 DEBUG_LOG=""
 # explicit: named by the operator or the session (a file path, per env-vars).
@@ -1941,6 +2030,8 @@ fi
 
 # --- Category H: model and effort values -----------------------------------------
 
+progress H "model and effort values"
+
 # value_documented <value> <accepted>: whether the value is one of the accepted
 # lines. A whole-string match: grep would read a multi-line value as several
 # patterns and pass "bogus<newline>high" on its second line. An accepted line
@@ -2057,6 +2148,8 @@ check_h() {
 
 # --- Category I: deep-link registration ------------------------------------------
 
+progress I "deep-link registration"
+
 check_i() {
   local file="$1" surface="$2"
   if [[ "$(jqf "$file" -r 'has("disableDeepLinkRegistration")')" == "true" ]]; then
@@ -2083,6 +2176,8 @@ check_enum() {
 
 # --- Category J: known-issues fix versions -----------------------------------------
 
+progress J "known-issues fix versions"
+
 # A known-issues.md table row that says "fixed in vX.Y.Z" (the form the file's
 # "Recording a fix version" section documents) is compared with the installed
 # Claude Code version; a row without that phrase has no fix version to check.
@@ -2103,9 +2198,29 @@ fi
 
 # --- Assemble ----------------------------------------------------------------------
 
-rows_json="$(printf '%s\n' "${ROWS[@]}" | jq -cs '.')"
-findings_json="$(if [[ ${#FINDINGS[@]} -gt 0 ]]; then printf '%s\n' "${FINDINGS[@]}" | jq -cs '.'; else echo '[]'; fi)"
-suppressed_json="$(if [[ ${#SUPPRESSED[@]} -gt 0 ]]; then printf '%s\n' "${SUPPRESSED[@]}" | jq -cs '.'; else echo '[]'; fi)"
+progress assemble "${#REC[@]} fields"
+# The row fields cross to jq as one base64 text of NUL-terminated fields: a
+# pipe has no argv cap, and base64 carries a carriage return or line break in
+# a key byte for byte through jq's text-mode stdin on Windows.
+rows_json='[]' findings_json='[]' suppressed_json='[]'
+if [[ ${#REC[@]} -gt 0 ]]; then
+  {
+    IFS= read -r rows_json
+    IFS= read -r findings_json
+    IFS= read -r suppressed_json
+  } < <(printf '%s\0' "${REC[@]}" | base64 | tr -d '\r\n' | ejq -R -c --argjson w "$REC_WIDTH" '
+    @base64d | split("\u0000")[:-1] as $f
+    | [range(0; $f | length; $w) | $f[. : . + $w]
+       | {kind: .[0], category: .[1], check: .[2], status: .[3], severity: .[4], surface: .[5], claim: .[6],
+          detail: .[7], anchor: .[8], finding_id: .[9], reason: .[10], date: .[11], layer: .[12]}
+       | {kind, row: ({category, check, status, severity, surface, claim, detail}
+           + (if .kind == "row" then {} else {anchor, finding_id} end)
+           + (if .kind == "suppressed" then {suppressed: {reason, date, layer}} else {} end)),
+          finding: (if .kind == "finding" then
+            {finding_id, identity: {check, claim, sites: [{surface, "anchor/v1": .anchor}]}, severity, category, detail,
+             lane: "harness-config/audit", tier: "derived"} else null end)}] as $all
+    | [$all[].row], [$all[] | .finding | select(. != null)], [$all[] | select(.kind == "suppressed") | .row]')
+fi
 personal_json="$(if [[ ${#PERSONAL_ONLY[@]} -gt 0 ]]; then printf '%s\n' "${PERSONAL_ONLY[@]}" | jq -R . | jq -cs '.'; else echo '[]'; fi)"
 malformed_json="$(if [[ ${#MALFORMED[@]} -gt 0 ]]; then printf '%s\n' "${MALFORMED[@]}" | jq -R . | jq -cs '.'; else echo '[]'; fi)"
 

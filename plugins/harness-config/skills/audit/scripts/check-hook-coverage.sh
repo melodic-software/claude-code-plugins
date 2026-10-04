@@ -94,6 +94,32 @@ jqs() { jq "$@" 2>/dev/null | tr -d '\r'; }
 # literal CR byte in its output is only ever the line terminator.
 jqn() { MSYS2_ARG_CONV_EXCL='*' jq -cn "$@" | tr -d '\r'; }
 
+# json_nodes <width> <jq-program> <field>...: one compact JSON node per line,
+# one for every <width> fields, from a single jq call, so a large inventory
+# costs one process per array rather than one per node (each is tens to
+# hundreds of milliseconds on Windows). The program sees each group as $f. The
+# fields cross as one base64 text of NUL-terminated strings, which has no argv
+# cap, needs no MSYS rewriting guard, and carries a CR in a value through jq's
+# text-mode stdin on Windows.
+json_nodes() {
+  local w="$1" prog="$2"
+  shift 2
+  [[ $# -gt 0 ]] || return 0
+  printf '%s\0' "$@" | base64 | tr -d '\r\n' |
+    jq -R -c --argjson w "$w" "@base64d | split(\"\\u0000\")[:-1] | range(0; length; \$w) as \$i | .[\$i : \$i + \$w] as \$f | $prog" |
+    tr -d '\r'
+}
+
+# print_nodes <node>...: the nodes of one --json array, laid out as the
+# emitter always has.
+print_nodes() {
+  local sep="" n
+  for n in "$@"; do
+    printf '%s\n    %s\n' "$sep" "$n"
+    sep=","
+  done
+}
+
 usage() {
   cat <<'EOF'
 check-hook-coverage.sh — enumerate the hooks actually installed for this project.
@@ -264,14 +290,19 @@ emit_rows() {
   else
     out="$(jqs -r "$HOOK_ROWS_JQ" "$input")"
   fi
-  local rc=$?
+  add_rows "$src" $? "$out"
+}
+
+# add_rows <source-label> <jq-exit> <rows>: record the rows one hook source
+# yielded, or the source as unreadable when its jq failed.
+add_rows() {
+  local src="$1" rc="$2" out="$3" line
   if [[ $rc -ne 0 ]]; then
     UNREADABLE+=("$src: hook config did not parse")
     PARTIAL=1
     return 0
   fi
   [[ -z "$out" ]] && return 0
-  local line
   while IFS= read -r line; do
     [[ -n "$line" ]] && ROWS+=("$src	$line")
   done <<<"$out"
@@ -349,75 +380,114 @@ done
 
 PLUGIN_STATUS=()
 
-resolve_install_path() {
-  # resolve_install_path <plugin-key> — echo the install directory, or nothing.
-  # installed_plugins.json maps "<plugin>@<marketplace>" to install records each
-  # carrying a version-pinned installPath and a scope; when several records exist,
-  # pick the one for this project with local > project > user precedence.
-  [[ -f "$INSTALLED_JSON" ]] || return 1
-  local project_norm="${PROJECT_ROOT//\\//}"
+# Every per-plugin step below runs in this shell and sets a variable rather
+# than printing into a command substitution, and every lookup a marketplace or
+# the registry answers for all plugins at once is made once: on Windows each
+# process costs tens to hundreds of milliseconds, and a large plugin set made
+# this loop most of an audit's run time.
+
+# nul_fields <base64>: decode a base64 text of NUL-terminated fields into the
+# array NUL_FIELDS, one element per field, byte for byte. Returns 1, with
+# NUL_FIELDS empty, when the text does not decode.
+NUL_FIELDS=()
+nul_fields() {
+  local x
+  NUL_FIELDS=()
+  base64 -d <<<"$1" >"$FIELDS_FILE" 2>/dev/null || base64 -D <<<"$1" >"$FIELDS_FILE" 2>/dev/null || return 1
+  while IFS= read -r -d '' x; do NUL_FIELDS+=("$x"); done <"$FIELDS_FILE"
+}
+FIELDS_FILE="$(mktemp 2>/dev/null)" || {
+  echo "ERROR: could not create a temp file" >&2
+  exit 2
+}
+trap 'rm -f "$FIELDS_FILE"' EXIT
+
+# installPath per enabled plugin key, from one read of installed_plugins.json.
+# The registry maps "<plugin>@<marketplace>" to install records each carrying a
+# version-pinned installPath and a scope; when several records exist, the one
+# for this project wins with local > project > user precedence.
+declare -A INSTALL_PATH=()
+if [[ -f "$INSTALLED_JSON" && ${#ENABLED[@]} -gt 0 ]]; then
+  project_norm="${PROJECT_ROOT//\\//}"
   project_norm="${project_norm%/}"
-  # shellcheck disable=SC2016  # $k/$project are jq --arg bindings, not shell variables
-  jqs -r --arg k "$1" --arg project "$project_norm" '
+  # shellcheck disable=SC2016  # $project is a jq --arg binding, not a shell variable
+  if nul_fields "$(jqs -r --arg project "$project_norm" '
     def rank($s): if $s == "local" then 3 elif $s == "project" then 2 elif $s == "user" then 1 else 0 end;
-    (.plugins // {})[$k] // []
-    | if type == "array" then . else [] end
-    | map(select(.installPath != null))
-    | map(. + {scope: (.scope // "user"), projectPath: ((.projectPath // "") | gsub("\\\\"; "/") | rtrimstr("/"))})
-    | map(select(
-        .projectPath == "" or .projectPath == $project
-        or (.projectPath as $pp | $project | startswith($pp + "/"))
-      ))
-    | sort_by(-(rank(.scope)))
-    | .[0].installPath // empty
-  ' "$INSTALLED_JSON"
+    . as $reg
+    | [$ARGS.positional[] as $k
+      | ($reg.plugins // {})[$k] // []
+      | if type == "array" then . else [] end
+      | map(select(.installPath != null))
+      | map(. + {scope: (.scope // "user"), projectPath: ((.projectPath // "") | gsub("\\\\"; "/") | rtrimstr("/"))})
+      | map(select(
+          .projectPath == "" or .projectPath == $project
+          or (.projectPath as $pp | $project | startswith($pp + "/"))
+        ))
+      | sort_by(-(rank(.scope)))
+      | (.[0].installPath // empty | tostring | gsub("\r"; "")) as $p
+      | $k, $p]
+    | map(gsub("\u0000"; "") + "\u0000") | add // "" | @base64
+  ' "$INSTALLED_JSON" --args "${ENABLED[@]}")"; then
+    for ((n = 0; n + 1 < ${#NUL_FIELDS[@]}; n += 2)); do
+      INSTALL_PATH["${NUL_FIELDS[n]}"]="${NUL_FIELDS[n + 1]}"
+    done
+  fi
+fi
+
+norm_path_to() {
+  # norm_path_to <var> <path>: forward slashes only, no trailing slash. Git
+  # Bash reports Windows paths with backslashes; the existence tests below
+  # need POSIX form.
+  local _np="${2//\\//}"
+  while [[ "$_np" == */ && ${#_np} -gt 1 ]]; do _np="${_np%/}"; done
+  while [[ "$_np" == *$'\n' ]]; do _np="${_np%$'\n'}"; done
+  printf -v "$1" '%s' "$_np"
 }
 
-norm_path() {
-  # norm_path <path>: forward slashes only, no trailing slash. Git Bash reports
-  # Windows paths with backslashes; the existence tests below need POSIX form.
-  local p="${1//\\//}"
-  while [[ "$p" == */ && ${#p} -gt 1 ]]; do p="${p%/}"; done
-  printf '%s\n' "$p"
-}
-
-join_path() {
-  # join_path <base> <path>: <path> as is when absolute, else under <base>.
-  # A leading ./ is dropped; an empty or "." path is <base> itself.
-  local base p
-  base="$(norm_path "$1")"
-  p="$(norm_path "$2")"
-  while [[ "$p" == ./* ]]; do p="${p#./}"; done
-  if [[ "$p" == /* || "$p" =~ ^[A-Za-z]:(/|$) ]]; then
-    printf '%s\n' "$p"
-  elif [[ -z "$p" || "$p" == "." ]]; then
-    printf '%s\n' "$base"
+join_path_to() {
+  # join_path_to <var> <base> <path>: <path> as is when absolute, else under
+  # <base>. A leading ./ is dropped; an empty or "." path is <base> itself.
+  local _base _p
+  norm_path_to _base "$2"
+  norm_path_to _p "$3"
+  while [[ "$_p" == ./* ]]; do _p="${_p#./}"; done
+  if [[ "$_p" == /* || "$_p" =~ ^[A-Za-z]:(/|$) ]]; then
+    printf -v "$1" '%s' "$_p"
+  elif [[ -z "$_p" || "$_p" == "." ]]; then
+    printf -v "$1" '%s' "$_base"
   else
-    printf '%s\n' "$base/$p"
+    printf -v "$1" '%s' "$_base/$_p"
   fi
 }
 
-canon_dir() {
-  # canon_dir <dir>: the physical path when the directory exists, else as given,
-  # so two spellings of one directory compare equal and a symlinked checkout is
-  # not reported as diverging from itself.
-  (cd -- "$1" 2>/dev/null && pwd -P) || printf '%s\n' "$1"
+canon_dir_to() {
+  # canon_dir_to <var> <dir>: the physical path when the directory exists, else
+  # as given, so two spellings of one directory compare equal and a symlinked
+  # checkout is not reported as diverging from itself.
+  local _here="$PWD"
+  if cd -P -- "$2" 2>/dev/null; then
+    printf -v "$1" '%s' "$PWD"
+    cd -- "$_here" || exit 2
+  else
+    printf -v "$1" '%s' "$2"
+  fi
 }
 
-resolve_marketplace_dir() {
-  # resolve_marketplace_dir <marketplace-name>: echo the directory a
-  # directory-source marketplace is loaded from, or nothing. Looked up in the
-  # extraKnownMarketplaces block of each settings scope read (project, then
-  # local, then user), then in the user dir's plugins/known_marketplaces.json.
-  # A relative path in a settings scope resolves against that file's base: the
-  # project root for project and local, the directory that contains the user
-  # config dir for user. known_marketplaces.json carries installLocation.
-  local name="$1" label i base rel known
+resolve_marketplace_dir_to() {
+  # resolve_marketplace_dir_to <var> <marketplace-name>: the directory a
+  # directory-source marketplace is loaded from; returns 1 when there is none.
+  # Looked up in the extraKnownMarketplaces block of each settings scope read
+  # (project, then local, then user), then in the user dir's
+  # plugins/known_marketplaces.json. A relative path in a settings scope
+  # resolves against that file's base: the project root for project and local,
+  # the directory that contains the user config dir for user.
+  # known_marketplaces.json carries installLocation.
+  local _name="$2" label i base rel known
   for label in project local user; do
     for i in "${!SCOPE_LABELS[@]}"; do
       [[ "${SCOPE_LABELS[$i]}" == "$label" ]] || continue
       # shellcheck disable=SC2016  # $n is a jq --arg binding, not a shell variable
-      rel="$(jqs -r --arg n "$name" '
+      rel="$(jqs -r --arg n "$_name" '
         ((.extraKnownMarketplaces // {})[$n] // {})
         | (.source // {})
         | select(type == "object" and .source == "directory")
@@ -425,7 +495,7 @@ resolve_marketplace_dir() {
       ' "${SCOPES[$i]}")"
       [[ -n "$rel" ]] || continue
       if [[ "$label" == "user" ]]; then base="$(dirname "$USER_DIR")"; else base="$PROJECT_ROOT"; fi
-      join_path "$base" "$rel"
+      join_path_to "$1" "$base" "$rel"
       return 0
     done
   done
@@ -433,47 +503,69 @@ resolve_marketplace_dir() {
   known="$USER_DIR/plugins/known_marketplaces.json"
   [[ -f "$known" ]] || return 1
   # shellcheck disable=SC2016  # $n is a jq --arg binding, not a shell variable
-  rel="$(jqs -r --arg n "$name" '
+  rel="$(jqs -r --arg n "$_name" '
     (.[$n] // {})
     | select(type == "object" and ((.source // {}) | type) == "object" and (.source // {}).source == "directory")
     | .installLocation // empty | tostring
   ' "$known")"
   [[ -n "$rel" ]] || return 1
-  norm_path "$rel"
+  norm_path_to "$1" "$rel"
 }
 
-resolve_marketplace_plugin_path() {
-  # resolve_marketplace_plugin_path <plugin-key>: echo the directory a
-  # directory-source marketplace loads this plugin from, or nothing. The
-  # marketplace's .claude-plugin/marketplace.json names each plugin and its
-  # `source`, a path relative to the marketplace directory; only a string
-  # source is a local path, so an object source (github, url) is left to the
-  # registry route.
-  local key="$1" plugin mkt mdir catalog src dir
-  [[ "$key" == *@* ]] || return 1
-  plugin="${key%@*}"
-  mkt="${key##*@}"
-  mdir="$(resolve_marketplace_dir "$mkt")" || return 1
-  [[ -n "$mdir" ]] || return 1
+# Per marketplace, read once: MKT_STATE is none (no directory-source catalog),
+# bad (its catalog does not parse) or ok; MKT_DIR its directory; MKT_SRC the
+# string source of the first catalog entry of each plugin name, keyed
+# "<marketplace><US><name>". The marketplace's .claude-plugin/marketplace.json
+# names each plugin and its `source`, a path relative to the marketplace
+# directory; only a string source is a local path, so an object source
+# (github, url) is left to the registry route.
+US=$'\x1f'
+declare -A MKT_STATE=() MKT_DIR=() MKT_SRC=()
+load_marketplace() {
+  local mkt="$1" mdir="" catalog n
+  MKT_STATE[$mkt]=none
+  resolve_marketplace_dir_to mdir "$mkt" || return 0
+  [[ -n "$mdir" ]] || return 0
   catalog="$mdir/.claude-plugin/marketplace.json"
-  [[ -f "$catalog" ]] || return 1
-  # A catalog that does not parse is exit 2, distinct from "plugin absent"
-  # (exit 1): the caller records it, since this function runs in a command
-  # substitution where a global assignment would be lost.
+  [[ -f "$catalog" ]] || return 0
   if ! tr -d '\r' <"$catalog" | jq empty 2>/dev/null; then
-    return 2
+    MKT_STATE[$mkt]=bad
+    return 0
   fi
-  # shellcheck disable=SC2016  # $n is a jq --arg binding, not a shell variable
-  src="$(jqs -r --arg n "$plugin" '
+  MKT_DIR[$mkt]="$mdir"
+  MKT_STATE[$mkt]=ok
+  # shellcheck disable=SC2016  # $e is a jq binding, not a shell variable
+  nul_fields "$(jqs -r '
     (.plugins // []) | if type == "array" then . else [] end
-    | map(select(type == "object" and .name == $n))
-    | .[0].source // empty
-    | if type == "string" then . else empty end
-  ' "$catalog")"
-  [[ -n "$src" ]] || return 1
-  dir="$(join_path "$mdir" "$src")"
-  [[ -d "$dir" ]] || return 1
-  printf '%s\n' "$dir"
+    | reduce (.[] | select(type == "object" and (.name | type) == "string")) as $e
+        ({}; if has($e.name) then . else .[$e.name] = $e.source end)
+    | [to_entries[] | select(.value | type == "string") | .key, (.value | gsub("\r"; ""))]
+    | map(gsub("\u0000"; "") + "\u0000") | add // "" | @base64
+  ' "$catalog")" || return 0
+  for ((n = 0; n + 1 < ${#NUL_FIELDS[@]}; n += 2)); do
+    MKT_SRC["$mkt$US${NUL_FIELDS[n]}"]="${NUL_FIELDS[n + 1]}"
+  done
+}
+
+marketplace_plugin_path_to() {
+  # marketplace_plugin_path_to <var> <plugin-key>: the directory a
+  # directory-source marketplace loads this plugin from. Returns 1 when there
+  # is none, and 2 when the marketplace's catalog does not parse.
+  local _key="$2" _plugin _mkt _dir
+  printf -v "$1" '%s' ""
+  [[ "$_key" == *@* ]] || return 1
+  _plugin="${_key%@*}"
+  _mkt="${_key##*@}"
+  [[ -n "${MKT_STATE[$_mkt]+x}" ]] || load_marketplace "$_mkt"
+  case "${MKT_STATE[$_mkt]}" in
+  bad) return 2 ;;
+  ok) ;;
+  *) return 1 ;;
+  esac
+  [[ -n "${MKT_SRC["$_mkt$US$_plugin"]:-}" ]] || return 1
+  join_path_to _dir "${MKT_DIR[$_mkt]}" "${MKT_SRC["$_mkt$US$_plugin"]}"
+  [[ -d "$_dir" ]] || return 1
+  printf -v "$1" '%s' "$_dir"
 }
 
 # Divergence rows: <plugin-key> <marketplace-dir-path> <registry-path>, one per
@@ -484,7 +576,7 @@ DIVERGENCE=()
 REGISTRY_FALLBACKS=0
 
 for key in ${ENABLED+"${ENABLED[@]}"}; do
-  mpath="$(resolve_marketplace_plugin_path "$key")"
+  marketplace_plugin_path_to mpath "$key"
   mrc=$?
   if [[ $mrc -eq 2 ]]; then
     # What the session loads from an unparsable catalog is unknown, so the
@@ -497,13 +589,16 @@ for key in ${ENABLED+"${ENABLED[@]}"}; do
       PARTIAL=1
     fi
   fi
-  rpath="$(norm_path "$(resolve_install_path "$key")")"
+  norm_path_to rpath "${INSTALL_PATH[$key]:-}"
   loaded_note=""
   if [[ -n "$mpath" ]]; then
     path="$mpath"
     loaded_note=" (loaded from marketplace directory)"
-    if [[ -n "$rpath" && "$(canon_dir "$mpath")" != "$(canon_dir "$rpath")" ]]; then
-      DIVERGENCE+=("$key	$mpath	$rpath")
+    if [[ -n "$rpath" ]]; then
+      mcanon="" rcanon=""
+      canon_dir_to mcanon "$mpath"
+      canon_dir_to rcanon "$rpath"
+      [[ "$mcanon" != "$rcanon" ]] && DIVERGENCE+=("$key	$mpath	$rpath")
     fi
   else
     REGISTRY_FALLBACKS=$((REGISTRY_FALLBACKS + 1))
@@ -558,8 +653,10 @@ for key in ${ENABLED+"${ENABLED[@]}"}; do
 
   if [[ $found -eq 0 && -f "$path/hooks/hooks.json" ]]; then
     if jq empty "$path/hooks/hooks.json" 2>/dev/null; then
-      raw="$(jqs -c "$PLUGIN_HOOK_NORMALIZE_JQ" "$path/hooks/hooks.json")"
-      emit_rows "plugin:$key" "$raw" --inline
+      # One jq normalizes and flattens the file; a value the normalization
+      # cannot take yields no rows.
+      out="$(jqs -r "(try ($PLUGIN_HOOK_NORMALIZE_JQ) catch empty) | $HOOK_ROWS_JQ" "$path/hooks/hooks.json")"
+      add_rows "plugin:$key" $? "$out"
       found=1
     else
       UNREADABLE+=("plugin:$key: hooks/hooks.json is not valid JSON")
@@ -593,64 +690,59 @@ if [[ $EMIT_JSON -eq 1 ]]; then
     printf '  "lever_state": "%s",\n' "$LEVER_STATE"
     printf '  "managed_scope": %s,\n' "$MANAGED_PRESENT"
     printf '  "project_root": %s,\n' "$(jqn --arg r "$PROJECT_ROOT" '$r')"
-    printf '  "hooks": ['
-    sep=""
+    # Each array's fields are split from their tab-joined records here, in the
+    # shell, and every node of the array is built by one json_nodes call.
+    fields=()
     for r in ${ROWS+"${ROWS[@]}"}; do
       IFS=$'\t' read -r src event matcher cmd extra <<<"$r"
-      printf '%s\n    ' "$sep"
-      # shellcheck disable=SC2016  # $x is a jq --argjson binding, not a shell variable
-      jqn --arg s "$src" --arg e "$event" --arg m "$matcher" --arg c "$cmd" --argjson x "${extra:-{\}}" \
-        '{source:$s,event:$e,matcher:$m,command:$c} + $x'
-      sep=","
+      fields+=("$src" "$event" "$matcher" "$cmd" "${extra:-{\}}")
     done
+    mapfile -t nodes < <(json_nodes 5 '{source: $f[0], event: $f[1], matcher: $f[2], command: $f[3]} + ($f[4] | fromjson)' ${fields+"${fields[@]}"})
+    printf '  "hooks": ['
+    print_nodes ${nodes+"${nodes[@]}"}
     printf '\n  ],\n'
-    printf '  "plugins": ['
-    sep=""
+    fields=()
     for p in ${PLUGIN_STATUS+"${PLUGIN_STATUS[@]}"}; do
       IFS=$'\t' read -r pk st note ppath <<<"$p"
-      printf '%s\n    ' "$sep"
-      jqn --arg k "$pk" --arg s "$st" --arg n "$note" --arg p "${ppath:-}" '{plugin:$k,status:$s,note:$n,path:$p}'
-      sep=","
+      fields+=("$pk" "$st" "$note" "${ppath:-}")
     done
+    mapfile -t nodes < <(json_nodes 4 '{plugin: $f[0], status: $f[1], note: $f[2], path: $f[3]}' ${fields+"${fields[@]}"})
+    printf '  "plugins": ['
+    print_nodes ${nodes+"${nodes[@]}"}
     printf '\n  ],\n'
-    printf '  "divergence": ['
-    sep=""
+    fields=()
     for d in ${DIVERGENCE+"${DIVERGENCE[@]}"}; do
       IFS=$'\t' read -r dk dl dc <<<"$d"
-      printf '%s\n    ' "$sep"
-      jqn --arg p "$dk" --arg l "$dl" --arg c "$dc" '{plugin:$p,loaded:$l,cached:$c}'
-      sep=","
+      fields+=("$dk" "$dl" "$dc")
     done
+    mapfile -t nodes < <(json_nodes 3 '{plugin: $f[0], loaded: $f[1], cached: $f[2]}' ${fields+"${fields[@]}"})
+    printf '  "divergence": ['
+    print_nodes ${nodes+"${nodes[@]}"}
     printf '\n  ],\n'
-    printf '  "levers": ['
-    sep=""
+    # A lever value that parses as JSON other than false or null is that JSON;
+    # anything else is the text as read.
+    fields=()
     for l in ${LEVERS+"${LEVERS[@]}"}; do
       IFS=$'\t' read -r sc lk lv <<<"$l"
-      printf '%s\n    ' "$sep"
-      if printf '%s' "$lv" | jq -e . >/dev/null 2>&1; then
-        jqn --arg s "$sc" --arg k "$lk" --argjson v "$lv" '{scope:$s,key:$k,value:$v}'
-      else
-        jqn --arg s "$sc" --arg k "$lk" --arg v "$lv" '{scope:$s,key:$k,value:$v}'
-      fi
-      sep=","
+      fields+=("$sc" "$lk" "$lv")
     done
+    mapfile -t nodes < <(json_nodes 3 '($f[2] | try fromjson catch null) as $v
+      | {scope: $f[0], key: $f[1], value: (if $v == null or $v == false then $f[2] else $v end)}' ${fields+"${fields[@]}"})
+    printf '  "levers": ['
+    print_nodes ${nodes+"${nodes[@]}"}
     printf '\n  ],\n'
-    printf '  "mod_plane": ['
-    sep=""
+    fields=()
     for l in ${MOD_PLANE+"${MOD_PLANE[@]}"}; do
       IFS=$'\t' read -r sc mk mv <<<"$l"
-      printf '%s\n    ' "$sep"
-      jqn --arg s "$sc" --arg k "$mk" --argjson v "$mv" '{scope:$s,key:$k,value:$v}'
-      sep=","
+      fields+=("$sc" "$mk" "$mv")
     done
+    mapfile -t nodes < <(json_nodes 3 '{scope: $f[0], key: $f[1], value: ($f[2] | fromjson)}' ${fields+"${fields[@]}"})
+    printf '  "mod_plane": ['
+    print_nodes ${nodes+"${nodes[@]}"}
     printf '\n  ],\n'
+    mapfile -t nodes < <(json_nodes 1 '$f[0]' ${UNREADABLE+"${UNREADABLE[@]}"})
     printf '  "unreadable": ['
-    sep=""
-    for u in ${UNREADABLE+"${UNREADABLE[@]}"}; do
-      printf '%s\n    ' "$sep"
-      jqn --arg m "$u" '$m'
-      sep=","
-    done
+    print_nodes ${nodes+"${nodes[@]}"}
     printf '\n  ]\n}\n'
   }
 else
