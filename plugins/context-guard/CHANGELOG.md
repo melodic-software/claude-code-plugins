@@ -9,7 +9,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- **Shorter lines to Claude.** Zone lines drop "Continuing is the user's call.", and the gate denial is one short sentence with no off-switch hint: `context-guard: Write denied: dumb zone, grace budget of 20 calls spent. Reads, Bash, Skill and handoff-path writes still run; /session-flow:handoff writes a save-point.` The README keeps the switches.
+- **Shorter lines to Claude.** Zone lines drop "Continuing is the user's call.", and the gate denial is one short sentence with no off-switch hint: `context-guard: Write denied: dumb zone, grace budget of 20 calls spent. Reads, Bash, Skill and handoff-path writes still run; /session-flow:handoff (if installed) writes a save-point.` The README keeps the switches.
 - **No smart verdict after a resume.** A resume or `/branch` restates the verdict only when it is past smart, as a reload already did.
 - **Debug log mirror.** Each line sent to Claude, and each gate denial, is written as sent to the debug log.
 - **Shorter status tool description.**

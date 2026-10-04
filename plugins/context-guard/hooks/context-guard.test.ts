@@ -623,7 +623,7 @@ test('/clear: nothing on the first prompt, and the new session starts a fresh cy
 
 const BLOCKING = (grace: number, extra: object = {}) => ({ options: { zone_hook_mode: 'blocking', zone_gate_grace_calls: grace, ...extra } })
 const denial = (tool: string, grace: number) =>
-  `context-guard: ${tool} denied: dumb zone, grace budget of ${grace} calls spent. Reads, Bash, Skill and handoff-path writes still run; /session-flow:handoff writes a save-point.`
+  `context-guard: ${tool} denied: dumb zone, grace budget of ${grace} calls spent. Reads, Bash, Skill and handoff-path writes still run; /session-flow:handoff (if installed) writes a save-point.`
 const writes = async ($: any, n: number, path?: string) => {
   const out: (string | undefined)[] = []
   for (let i = 0; i < n; i += 1) out.push((await write($, path)).deny)

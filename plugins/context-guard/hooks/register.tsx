@@ -714,7 +714,7 @@ async function gate($: EngineInterface, st: State, cfg: Config, e: ToolCallInput
   await emitTelemetry($, 'zone-gate', 'blocked', { zone: block, grace: cfg.grace, calls_seen: s.grace }, fire)
   return (
     `${PREFIX}${e.tool} denied: ${block} zone, grace budget of ${cfg.grace} calls spent. ` +
-    'Reads, Bash, Skill and handoff-path writes still run; /session-flow:handoff writes a save-point.'
+    'Reads, Bash, Skill and handoff-path writes still run; /session-flow:handoff (if installed) writes a save-point.'
   )
 }
 
