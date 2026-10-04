@@ -246,7 +246,6 @@ failure. The full decision order is in the report-check-run README.
 
 - A fork PR, whose read-only `GITHUB_TOKEN` cannot write checks: the report job's `if:` skips it.
 - A `pull_request` event sent by the lanes App (`AUTOMATION_LANES_APP_SENDER_ID`): both jobs skip.
-- A `no-pr` trigger stop with no head SHA.
 - Any event other than `pull_request` whose run job gated no head SHA: the fallback there would be
   `github.sha`, the dispatch ref, not the PR's commit. The report job notes it in its step summary.
 

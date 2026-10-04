@@ -44,21 +44,21 @@ and `head-sha` are cross-checks only. Any disagreement with the inputs is a fail
   2. No verdict, a malformed verdict, or one whose lane, activity, gate stop reason or `head-sha`
      differs from the inputs: failure.
   3. `config: invalid`: failure.
-  4. `gate-reason` `no-pr` with an empty `head-sha`: no check, exit 0.
-  5. Any other `gate-reason`: neutral with the reason mapped through
-     [`gate-skip-reasons.json`](gate-skip-reasons.json); an unmapped reason fails.
-  6. An unverified or missing signed-commit result when `can-commit` is not `false`,
+  4. A `gate-reason`: neutral with the reason mapped through
+     [`gate-skip-reasons.json`](gate-skip-reasons.json); an unmapped reason fails. A gate stop
+     carries no `head-sha`, so the check goes on `head-sha-fallback`.
+  5. An unverified or missing signed-commit result when `can-commit` is not `false`,
      `act-outcome` `failure`, or `dirty-tree: true`: failure. No skip reason overrides these.
-  7. A verdict `skip-reason`: neutral with that reason when `run-result` is `success` and
+  6. A verdict `skip-reason`: neutral with that reason when `run-result` is `success` and
      `act-outcome` is `success` (a script that exited 0 with a reason) or `skipped` (the act step
      never ran, so no head code wrote the verdict); failure otherwise.
-  8. `act-outcome` other than `success`: failure, since nothing explains the skip.
-  9. `run-result` other than `success`: failure.
-  10. Otherwise success.
+  7. `act-outcome` other than `success`: failure, since nothing explains the skip.
+  8. `run-result` other than `success`: failure.
+  9. Otherwise success.
 - Every neutral reason must be in `$defs/skip-reason` of `<base-path>/docs/conventions/pr-pipeline/pr-pipeline.schema.json`.
   A reason outside it, or an unreadable schema, turns the neutral into a failure.
 - `details_url` is this workflow run's page, built from the runner's own environment.
-- Exit 0 after posting or after the `no-pr` case; exit 1 on a refusal, a malformed repository,
+- Exit 0 after posting; exit 1 on a refusal, a malformed repository,
   head SHA, fallback SHA or non-empty PR head SHA, or a failed POST.
 
 ## Job contract
@@ -73,6 +73,9 @@ The job that uses this action:
   steps, never from the verdict.
 - Runs `check-signed-commits` itself unless `can-commit` is `false`, and lets this step run when
   that check fails, so a missing result is reported as a failure rather than nothing.
-- Excludes fork PRs in its `if:`, whose read-only `GITHUB_TOKEN` cannot write checks, and the
-  lanes App's own `synchronize` runs, which skip both jobs. These, and the `no-pr` case above, are
-  the only runs that post no check.
+- Excludes fork PRs in its `if:`, whose read-only `GITHUB_TOKEN` cannot write checks, and
+  `pull_request` events sent by the lanes App, which skip both jobs.
+- Skips this step on an event other than `pull_request` when the run job gated no `head-sha`: the
+  fallback there would be the dispatch ref, not the PR's commit.
+
+Those three are the only runs that post no check.

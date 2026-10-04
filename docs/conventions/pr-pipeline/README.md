@@ -200,8 +200,8 @@ A skip reports as a neutral check with one reason from the schema's `$defs/skip-
 work-class predicate missed), `prerequisite-missing`, `cost-gated`, `awaiting-human`,
 `superseded-sha`, `disabled-by-config` or `untrusted-trigger` (a fork, no same-repository PR, or an
 actor or author not on the trusted-actor list). Silence is not a skip, with three exceptions that
-post no check: a fork PR, whose read-only token cannot write checks; the lanes App's own
-`synchronize` runs; and a `no-pr` run with no head SHA.
+post no check: a fork PR, whose read-only token cannot write checks; a `pull_request` event sent
+by the lanes App; and a run on any other event whose run job gated no head SHA.
 
 Each review finding goes to an independent validator. Valid: fix it and reply with a citation.
 Invalid: reply with a cited disagreement. Unsure: escalate. A script resolves bot threads after
