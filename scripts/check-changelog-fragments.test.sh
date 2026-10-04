@@ -226,6 +226,17 @@ else
 fi
 rm -rf "$f"
 
+base_fixture f alpha
+release_branch "$f"
+git_test_config "$f" checkout -q main
+fragment "$f" alpha feat-x-0123abcd minor "### Added
+
+- Reworded after the release was cut."
+commit "$f" edit-consumed
+git_test_config "$f" checkout -q release/plugins
+expect "--check-release fails when a consumed fragment was edited on the base after the cut" 1 "EDITED FRAGMENT: .changes/alpha/feat-x-0123abcd.md" "$f" --check-release main
+rm -rf "$f"
+
 # --- usage ------------------------------------------------------------------------
 base_fixture f alpha
 expect "no arguments exits 2" 2 "usage" "$f"

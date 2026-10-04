@@ -12,7 +12,8 @@
 #       <base-ref>
 #   scripts/check-changelog-fragments.sh --check-release <base-ref>
 #       for the release pull request: <base-ref> holds no fragment this release
-#       left unconsumed for a plugin whose version it bumps
+#       left unconsumed for a plugin whose version it bumps, and no fragment it
+#       consumed has changed on <base-ref> since the release was cut
 #
 # Shipped files are everything under plugins/<name>/ except CHANGELOG.md and a
 # plugin.json edit to `version` alone: those two are what a release writes, so
@@ -161,8 +162,19 @@ for name in "${!bumped[@]}"; do
     exit 2
   fi
   while IFS= read -r path; do
-    [[ -n "$path" && -z "${consumed[$path]:-}" ]] || continue
-    echo "UNCONSUMED FRAGMENT: $path is on $base but this release bumps $name without it; rebuild the release from $base." >&2
+    [[ -n "$path" ]] || continue
+    if [[ -n "${consumed[$path]:-}" ]]; then
+      # Consumed, but only the content the release was cut from: an edit on the
+      # base since then is a change the release never aggregated.
+      if ! base_blob="$(git ls-tree "$base" -- "$path")" || ! cut_blob="$(git ls-tree "$merge_base" -- "$path")"; then
+        echo "$self: 'git ls-tree' failed reading $path; refusing to pass without checking." >&2
+        exit 2
+      fi
+      [[ "$base_blob" != "$cut_blob" ]] || continue
+      echo "EDITED FRAGMENT: $path changed on $base after this release consumed it; rebuild the release from $base." >&2
+    else
+      echo "UNCONSUMED FRAGMENT: $path is on $base but this release bumps $name without it; rebuild the release from $base." >&2
+    fi
     findings=$((findings + 1))
   done <<<"$pending"
 done

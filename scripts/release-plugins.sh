@@ -13,9 +13,10 @@
 #      committed;
 #   3. `version` changes in plugin.json only;
 #   4. every fragment of the plugin, `none` included, is deleted.
-# Prints one line per plugin. Nothing is written until every fragment and every
-# affected manifest and changelog has been checked. <date> defaults to today in
-# UTC.
+# Prints one line per plugin. Every new changelog and manifest is produced in a
+# temporary directory first, and the tree changes only once all of them exist.
+# A changelog that already carries the version about to be written (a run cut
+# short) is refused. <date> defaults to today in UTC.
 #
 # Fragment order comes from `git log`, so the release job needs the history of
 # .changes/ and refuses a shallow clone; an uncommitted fragment sorts after
@@ -116,14 +117,22 @@ for name in "${plugins[@]}"; do
     echo "$self: $changelog does not exist; refusing to invent one." >&2
     exit 2
   fi
+  if grep -qF -- "## [$new]" "$changelog"; then
+    echo "$self: $changelog already has a '## [$new]' entry, so an earlier release run was cut short; restore the tree (git checkout -- .) and run again." >&2
+    exit 2
+  fi
   old_version["$name"]="$version"
   new_version["$name"]="$new"
 done
 
-# Pass 2: write.
-tmp="$(mktemp)" || exit 2
-entry_file="$(mktemp)" || exit 2
-trap 'rm -f "$tmp" "$entry_file"' EXIT
+# Pass 2: produce every new file under $stage. Nothing in the tree changes until
+# all of them exist, so a failure here leaves the tree as it was.
+stage="$(mktemp -d)" || exit 2
+trap 'rm -rf "$stage"' EXIT
+targets=()
+staged=()
+deletions=()
+report=()
 for name in "${plugins[@]}"; do
   mapfile -t ordered < <(printf '%s' "${plugin_fragments[$name]}" | LC_ALL=C sort)
   paths=()
@@ -135,8 +144,8 @@ for name in "${plugins[@]}"; do
   done
 
   if [[ "${plugin_bump[$name]}" == none ]]; then
-    rm -f "${paths[@]}" || exit 2
-    echo "$name: no release; deleted ${#paths[@]} bump: none fragment(s): ${paths[*]}"
+    deletions+=("${paths[@]}")
+    report+=("$name: no release; deleted ${#paths[@]} bump: none fragment(s): ${paths[*]}")
     continue
   fi
 
@@ -162,35 +171,48 @@ for name in "${plugins[@]}"; do
         n = split(sections, s, " ")
         for (i = 1; i <= n; i++) if (s[i] in text) printf "\n### %s\n\n%s\n", s[i], text[s[i]]
       }
-    ' >"$entry_file" || exit 2
+    ' >"$stage/$name.entry" || exit 2
 
   # The entry is read from a file, not passed with -v, which would expand the
   # backslash escapes a release note can carry.
-  if ! awk -v ef="$entry_file" '
+  if ! awk -v ef="$stage/$name.entry" '
     BEGIN { while ((getline line < ef) > 0) entry = entry line "\n" }
     !done && /^##[ \t]+\[?[0-9]+\.[0-9]+/ { printf "%s\n", entry; done = 1 }
     { print }
     END { if (!done) printf "\n%s", entry }
-  ' "$changelog" >"$tmp" || ! cat "$tmp" >"$changelog"; then
-    echo "$self: could not write $changelog." >&2
+  ' "$changelog" >"$stage/$name.changelog"; then
+    echo "$self: could not produce the new $changelog." >&2
     exit 2
   fi
 
   if ! awk -v old="\"$old\"" -v new="\"$new\"" '
     !done && /^[ \t]*"version"[ \t]*:/ && (p = index($0, old)) { $0 = substr($0, 1, p - 1) new substr($0, p + length(old)); done = 1 }
     { print }
-  ' "$manifest" >"$tmp" || ! cat "$tmp" >"$manifest"; then
-    echo "$self: could not write $manifest." >&2
+  ' "$manifest" >"$stage/$name.manifest"; then
+    echo "$self: could not produce the new $manifest." >&2
     exit 2
   fi
-  if [[ "$(jq -r '.version' "$manifest")" != "$new" ]]; then
-    echo "$self: rewriting $manifest did not leave version $new." >&2
+  if [[ "$(jq -r '.version' "$stage/$name.manifest" 2>/dev/null)" != "$new" ]]; then
+    echo "$self: rewriting $manifest did not leave version $new; nothing was written." >&2
     exit 2
   fi
 
-  rm -f "${paths[@]}" || exit 2
-  echo "$name: $old -> $new (${plugin_bump[$name]}) from ${#paths[@]} fragment(s): ${paths[*]}"
+  targets+=("$changelog" "$manifest")
+  staged+=("$stage/$name.changelog" "$stage/$name.manifest")
+  deletions+=("${paths[@]}")
+  report+=("$name: $old -> $new (${plugin_bump[$name]}) from ${#paths[@]} fragment(s): ${paths[*]}")
 done
+
+# Pass 3: apply. Changelogs and manifests first and fragments last, so a run
+# cut short here is caught by the existing-entry check above on the next run.
+for i in "${!targets[@]}"; do
+  if ! cat "${staged[i]}" >"${targets[i]}"; then
+    echo "$self: could not write ${targets[i]}; restore the tree (git checkout -- .) before running again." >&2
+    exit 2
+  fi
+done
+rm -f "${deletions[@]}" || exit 2
+printf '%s\n' "${report[@]}"
 for name in "${plugins[@]}"; do
   rmdir ".changes/$name" 2>/dev/null || true
 done

@@ -204,6 +204,41 @@ else
 fi
 rm -rf "$f"
 
+# --- a failure producing a later plugin's files leaves the whole tree unchanged ---
+# beta's manifest has one line that starts with "version", but the first match on
+# it is the nested key, so the rewrite misses the top-level version. alpha sorts
+# first and has already been produced when beta fails.
+base_fixture f
+printf '{"name": "beta", "meta": {\n  "version": "0.4.0" }, "version": "0.4.0"}\n' >"$f/plugins/beta/.claude-plugin/plugin.json"
+add_fragment "$f" alpha a-11111111 minor "### Added
+
+- x"
+add_fragment "$f" beta b-22222222 patch "### Fixed
+
+- y"
+out="$(run_release "$f" 2>&1)"
+rc=$?
+if ((rc == 2)) && [[ -z "$(git -C "$f" status --porcelain)" ]]; then
+  ok "a failure producing a later plugin's files exits 2 and leaves the tree unchanged"
+else
+  fail "expected exit 2 and a clean tree, got rc=$rc: $out; status: $(git -C "$f" status --porcelain)"
+fi
+rm -rf "$f"
+
+# --- a rerun after a run cut short does not write a second entry ------------------
+base_fixture f
+add_fragment "$f" alpha a-11111111 minor "### Added
+
+- x"
+printf '\n## [1.3.0] - 2026-10-04\n' >>"$f/plugins/alpha/CHANGELOG.md"
+out="$(run_release "$f" 2>&1)"
+if [[ $? -eq 2 && "$out" == *"already has a '## [1.3.0]' entry"* ]]; then
+  ok "refuses to write a version the changelog already carries"
+else
+  fail "expected exit 2 naming the existing entry, got: $out"
+fi
+rm -rf "$f"
+
 # --- a shallow clone is refused, since commit order is unknown -------------------
 base_fixture f
 add_fragment "$f" alpha a-11111111 minor "### Added
