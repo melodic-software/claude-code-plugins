@@ -7,4 +7,4 @@ allowed_tools: [Read, Glob, Grep, Skill]
 expected_outcome: "The answer says the run refuses reads under the plugin's own directory whatever the Read grant, so only the hub SKILL.md reaches the model, and says to move the content cases depend on into SKILL.md"
 ---
 
-In my plugin eval, the with-plugin answers keep saying they couldn't open the skill's detailed reference, and the kept trace shows the Read of `skills/notes/reference/grading.md` failing with 'File is in a directory that is denied by your permission settings'. Read is in the case's allowed_tools. Why is this happening, and what should I change so the eval measures what the skill knows? Answer in under 150 words.
+On Claude Code 2.1.287, in my plugin eval, the with-plugin answers keep saying they couldn't open the skill's detailed reference, and the kept trace shows the Read of `skills/notes/reference/grading.md` failing with 'File is in a directory that is denied by your permission settings'. Read is in the case's allowed_tools. Why is this happening, and what should I change so the eval measures what the skill knows? Answer in under 150 words.

@@ -29,8 +29,8 @@ check "PostToolUse Write|Edit runs test-scan and test-judge-bg, PreToolUse runs 
     "$(jq -r "[.hooks.PreToolUse[].hooks[].args[-1]] | unique | join(\" \")" "$HOOKS")" == */test-weaken.sh ]]'
 
 # The judge rows: the background job on the same `if` rows as test-scan,
-# async; one Stop entry at timeout 240; one SessionStart entry. Every judge
-# row is gated on both options.
+# async; one Stop and one SubagentStop entry at timeout 240; one SessionStart
+# entry. Every judge row is gated on both options.
 judge() { jq -r "$1" "$HOOKS"; }
 check "test-judge-bg rows are async and match test-scan's if rows" \
   '[[ "$(judge "[.hooks.PostToolUse[].hooks[] | select(.args[-1] | endswith(\"/test-judge-bg.sh\")) | .async] | unique | tostring")" == "[true]" &&
@@ -38,10 +38,13 @@ check "test-judge-bg rows are async and match test-scan's if rows" \
 check "Stop: one entry, test-judge.sh, timeout 240" \
   '[[ "$(judge ".hooks.Stop | length")" == 1 && "$(judge ".hooks.Stop[0].hooks | length")" == 1 &&
     "$(judge ".hooks.Stop[0].hooks[0].args[-1]")" == */test-judge.sh && "$(judge ".hooks.Stop[0].hooks[0].timeout")" == 240 ]]'
+check "SubagentStop: one entry, the Stop hook's test-judge.sh, timeout 240" \
+  '[[ "$(judge ".hooks.SubagentStop | length")" == 1 && "$(judge ".hooks.SubagentStop[0].hooks | length")" == 1 &&
+    "$(judge ".hooks.SubagentStop[0].hooks[0].args[-1]")" == */test-judge.sh && "$(judge ".hooks.SubagentStop[0].hooks[0].timeout")" == 240 ]]'
 check "SessionStart: the judge entry first, test-judge-start.sh, then the node-notice entry" \
   '[[ "$(judge ".hooks.SessionStart | length")" == 2 && "$(judge ".hooks.SessionStart[1].hooks[0].command | contains(\"node-notice /testing:check\")")" == true && "$(judge ".hooks.SessionStart[0].hooks[0].args[-1]")" == */test-judge-start.sh ]]'
 check "every judge row is gated on test_guards_enabled and test_judge_enabled" \
-  '[[ "$(judge "[(.hooks.PostToolUse[].hooks[] | select(.args[-1] | endswith(\"/test-judge-bg.sh\"))), .hooks.Stop[].hooks[], .hooks.SessionStart[0].hooks[]
+  '[[ "$(judge "[(.hooks.PostToolUse[].hooks[] | select(.args[-1] | endswith(\"/test-judge-bg.sh\"))), .hooks.Stop[].hooks[], .hooks.SubagentStop[].hooks[], .hooks.SessionStart[0].hooks[]
       | .args[1:5] == [\"--require-true\", \"TEST_GUARDS_ENABLED\", \"--require-true\", \"TEST_JUDGE_ENABLED\"]] | unique | tostring")" == "[true]" ]]'
 check "the description names both options" \
   '[[ "$(judge .description)" == *test_guards_enabled* && "$(judge .description)" == *test_judge_enabled* ]]'
