@@ -1219,6 +1219,7 @@ corpus_files=(
   js-jest/good/jest-discount-checked.test.ts.fixture
   js-jest/good/jest-repaired-4b.test.ts.fixture
   js-jest/good/jest-repaired-oracles.test.ts.fixture
+  js-jest/good/jest-slug-literal.spec.cts.fixture
   js-jest/good/jest-slug-literal.test.js.fixture
   js-jest/good/jest-split-call.test.ts.fixture
   js-node-test/bad/node-test-config-rejects-unawaited.test.mjs.fixture
@@ -1270,6 +1271,7 @@ corpus_files=(
   js-vitest/bad/vitest-queue-poll-unawaited.test.ts.fixture
   js-vitest/bad/vitest-rows-loop-unchecked.test.ts.fixture
   js-vitest/bad/vitest-session-truthy.test.ts.fixture
+  js-vitest/bad/vitest-slug-prints.test.mts.fixture
   js-vitest/bad/vitest-total-bare-expect-one-line.test.ts.fixture
   js-vitest/bad/vitest-user-fixture-literal.test.ts.fixture
   js-vitest/good/vitest-cart-checked.test.ts.fixture
