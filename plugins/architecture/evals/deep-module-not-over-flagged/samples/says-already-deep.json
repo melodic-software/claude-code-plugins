@@ -3,6 +3,14 @@
     {
       "answer": "Price(order) is already deep: one entry point over roughly 600 lines of rules. The deletion test says removing it would just move the rules into every caller, so it is not a candidate.",
       "why": "names it deep and the deletion-test result"
+    },
+    {
+      "answer": "**Going only on your description, the pricing engine has no deepening candidate. It's already the deep module this check looks for.**\n\n- **Deleting it would push complexity outward:** without `Price`, every caller would have to know rule order, tax lookup and rounding.",
+      "why": "with-plugin wording from a real run: 'already the deep module' and 'push complexity outward'"
+    },
+    {
+      "answer": "**What your description suggests (unverified):** as described, this engine is already what the deepening lens aims for, not a candidate for it.\n- **Deletion test:** deleting the module would push pricing logic out into every caller.",
+      "why": "with-plugin wording from a real run: 'already what the deepening lens aims for' and 'push pricing logic out'"
     }
   ],
   "fail": [
@@ -13,6 +21,10 @@
     {
       "answer": "Candidate: split Price(order) into TaxPolicy, RoundingPolicy and RuleSet modules so each can be tested on its own.",
       "why": "proposes deepening without judging depth"
+    },
+    {
+      "answer": "Candidate (Worth exploring): the pricing engine is not deep enough yet. Pull TaxTable out behind its own interface so callers can push tax lookups through it.",
+      "why": "proposes deepening; mentions 'deep' and 'push' without judging it already deep"
     }
   ]
 }

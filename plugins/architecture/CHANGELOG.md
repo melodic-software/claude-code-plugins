@@ -11,7 +11,12 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   `evals/`, tagged `row19`: the `deep-module-not-over-flagged` case converted from `evals.json`, two
   scaffolded repositories whose modules are already deep (the reply must say there is no candidate
   and show no Strong or Worth exploring card), and a control repository with a shallow pass-through
-  chain that the reply must name. No skill text changed.
+  chain that the reply must name. No skill text changed. The cases carry no `tool_used: Skill`
+  grader: every prompt starts with `/architecture:improve`, which loads the skill without a Skill
+  tool call, so that grader failed every with-plugin run; the slash command guarantees the load,
+  and the cases measure the verdict, not triggering. The `says-already-deep` regex also matches
+  the with-plugin wording a paid run produced ("already the deep module", "would push complexity
+  outward").
 
 ## [0.22.1] - 2026-10-04
 
