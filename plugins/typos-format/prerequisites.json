@@ -12,7 +12,7 @@
           "typos"
         ]
       },
-      "degrade": "Without typos, the hook cannot spell-check edited files; edits still go through.",
+      "degrade": "Without typos, the hook cannot spell-check edited files.",
       "install": {
         "cargo": "cargo install typos-cli",
         "docs": "https://github.com/crate-ci/typos#install"
