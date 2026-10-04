@@ -120,7 +120,7 @@ Produce: `design-threads.md`
 
 ### Phase 3: Type Modeling
 
-Derive types from capabilities:
+Derive types from capabilities, applying the rules in [`reference/type-discipline.md`](reference/type-discipline.md). When the repository has a `tsconfig.json` or the change touches `.ts`, `.tsx`, `.mts` or `.cts` files, also read [`reference/type-discipline/typescript.md`](reference/type-discipline/typescript.md).
 
 - Records, enums, strongly-typed IDs, value objects
 - Contracts: interfaces with method signatures
@@ -132,6 +132,15 @@ Derive types from capabilities:
   the design artifacts directly
 
 Produce: `type-inventory.md`
+
+Before leaving Phase 3, answer these against the inventory. An answer that names a problem reopens that type as a design thread:
+
+- Which field combinations do these types admit that the domain rejects?
+- Where does each outside input become a domain type, and does any code after that point check the same input again?
+- Which casts, assertions or suppressions remain, and what check proves each one?
+- If a variant is added, which sites fail to compile and which would run on silently?
+- Which types restate a shape that a schema, spec or migration already owns?
+- Which strengthened types guard a value that can really be wrong, and which only add precision?
 
 Once type modeling stabilizes, run the `terminology` action for the cross-cutting naming review of the full inventory. Per-type naming during modeling is not a substitute for the whole-inventory pass.
 
