@@ -1,0 +1,44 @@
+{
+  "skill_name": "read-docs",
+  "evals": [
+    {
+      "id": 1,
+      "name": "reads-a-large-page-through-the-lookup",
+      "prompt": "What does the official Claude Code hooks docs page say about the exit code a PreToolUse hook uses to block a tool call? Read the page itself, not a summary.",
+      "expected_output": "Fetches the hooks page with fetch-docs.sh --cache, reads it with docs-cache.sh read, sees a section map because the page is over the whole-page threshold, slices the sections about exit codes and PreToolUse, and answers from the sliced text with section ids cited and a currency line giving the URL, format and validated time. It does not answer from a WebFetch extraction.",
+      "files": [],
+      "expectations": [
+        "The page is fetched with fetch-docs.sh using --cache, not with WebFetch",
+        "docs-cache.sh read is run on the cache_key from the fetch manifest before any slice",
+        "docs-cache.sh slice is run with the ids of the sections the answer cites, chosen by the model from the map",
+        "The answer cites the section ids or heading paths its claims come from",
+        "The answer closes with a currency line naming the URL, the format and the validated time or age"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "page-silent-on-the-asked-fact",
+      "prompt": "Using the Claude Code hooks docs page, tell me the maximum number of hooks Claude Code allows per event. Only use what the page says.",
+      "expected_output": "Reads the hooks page through the lookup, finds no stated per-event hook limit in the sections it read, and answers with 'not stated on the page' for that fact. Any guess about a limit appears only in a separate part labeled 'Inference (not from the page)', never in the page-backed answer. A note stored afterwards carries the 'not stated on the page' marking and no inference.",
+      "files": [],
+      "expectations": [
+        "The page-backed answer states 'not stated on the page' for the per-event hook limit",
+        "No number for the limit appears in the page-backed part of the answer",
+        "Any inference or outside knowledge about a limit is in a separate part labeled 'Inference (not from the page)'",
+        "If a note is stored, its text keeps 'not stated on the page' and contains no inference"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "verification-reads-raw-bytes-only",
+      "prompt": "Verify against the live docs that the settings page still documents the permissions.deny key. Do not trust anything cached from earlier sessions.",
+      "expected_output": "Fetches the settings page with fetch-docs.sh --cache --max-age 0 and reads it with docs-cache.sh read --raw or slice, never with a plain read that would print stored notes and summaries. The verdict rests on the raw page text.",
+      "files": [],
+      "expectations": [
+        "The fetch uses --max-age 0",
+        "The page is read with read --raw or slice, and no stored note or summary is used as evidence",
+        "The verdict quotes or cites the raw section text it rests on"
+      ]
+    }
+  ]
+}

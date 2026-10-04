@@ -275,6 +275,7 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 
 - Findings are ready to act on: `/planning:plan`.
 - A multi-topic or workflow-driven pass: `/discovery:research-deep`.
+- One upstream docs page settles the claim: `/discovery:read-docs <url-or-slug> [question]`.
 - The reasons behind a past decision: `/discovery:trace-intent <subject>`.
 
 ## See also

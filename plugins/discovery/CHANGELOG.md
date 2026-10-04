@@ -1,5 +1,26 @@
 # Changelog: discovery plugin
 
+## [0.29.0] - 2026-10-04
+
+### Added
+
+- **`/discovery:read-docs` reads one upstream docs page through the shared docs lookup and cache
+  ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).** It fetches the
+  page with `scripts/fetch-docs.sh --cache`, then reads it with `scripts/docs-cache.sh read`: a
+  page under the whole-page threshold comes back whole, a larger one as its section map plus the
+  stored section summaries and notes, and the model slices the sections it picks. The answer marks
+  each asked fact the page does not state as `not stated on the page`, keeps inference in a
+  separate labeled part, and ends with the page's URL, format and validated time. After reading,
+  it stores one-line section summaries and a note whose quoted spans the script checks against
+  the cited sections. Verification reads raw bytes only (`--max-age 0`, `read --raw`, `slice`).
+  The procedure lives in `reference/docs-lookup-procedure.md`, a generated copy of
+  `lib/docs-lookup-procedure.md` that other plugins can carry.
+- Shared `fetch-docs.sh`, `docs-cache.sh` and `html2md.py` synced into `scripts/`, and
+  `prerequisites.json` declares curl and jq (required by `/discovery:read-docs`) and Python 3
+  (optional: without it a page served only as HTML is recorded unread).
+- `/discovery:research` names `/discovery:read-docs` in its `## Next` for a claim one docs page
+  settles.
+
 ## [0.28.6] - 2026-10-04
 
 ### Fixed
