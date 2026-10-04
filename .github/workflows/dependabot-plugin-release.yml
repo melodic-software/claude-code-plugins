@@ -67,8 +67,8 @@ jobs:
           # that has not yet rebased still runs the landed implementation.
           bump_script=scripts/dependabot-plugin-bump.sh
           if git cat-file -e "origin/$BASE_REF:$bump_script" 2>/dev/null; then
-            git show "origin/$BASE_REF:$bump_script" > /tmp/dependabot-plugin-bump.sh
-            bump_script=/tmp/dependabot-plugin-bump.sh
+            git show "origin/$BASE_REF:$bump_script" > "$RUNNER_TEMP/dependabot-plugin-bump.sh"
+            bump_script="$RUNNER_TEMP/dependabot-plugin-bump.sh"
             chmod +x "$bump_script"
           fi
           bash "$bump_script" "origin/$BASE_REF" --pr "$PR_NUMBER" --title "$PR_TITLE"
