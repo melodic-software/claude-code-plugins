@@ -3,6 +3,13 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.5] - 2026-10-04
+
+### Fixed
+
+- The task-end test judge no longer blocks Stop when every relayed verdict is PASS, or UNKNOWN only because there is no repository or no judge class. The findings file and the systemMessage, with the counts and the path, are still written. A FLAG, or an UNKNOWN for any other reason, still blocks once with the relay template ([#6037](https://github.com/melodic-software/claude-code-plugins/issues/6037)).
+- Test files under the system temp directory (`TMPDIR`, `TMP`, `TEMP`, and `/tmp` and `/var/tmp` when none is set, which is the default on POSIX hosts), including its Windows long and 8.3 short drive spellings when Git Bash reports the temp variables as `/tmp`, and files in a Claude session scratchpad (`.../claude/<project>/<session>/scratchpad/`) are not recorded, so the judge does not run on those working copies ([#6037](https://github.com/melodic-software/claude-code-plugins/issues/6037)).
+
 ## [0.22.4] - 2026-10-03
 
 ### Fixed
