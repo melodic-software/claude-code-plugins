@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Behavioral tests for lib/view-builder.mjs and lib/view-runtime.js: both
 # profiles, the hostile-input corpus, the content security policy hashes, the
-# runtime sink lint, and the generated per-plugin copies. When a Chrome or
+# runtime sink lint, the validator and runtime element-list parity, and the
+# generated per-plugin copies. When a Chrome or
 # Chromium binary is found (CHROME, google-chrome, chromium, or Playwright's
 # headless shell) the built pages are also opened from file:// to prove the
 # runtime runs under the page's policy and hostile data stays text.
