@@ -3,11 +3,17 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.48.6] - 2026-10-04
+## [0.48.7] - 2026-10-04
 
 ### Changed
 
 - **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.48.6] - 2026-10-04
+
+### Changed
+
+- **`/work-items:triage` routes an undiagnosed bug to diagnosis ([#6279](https://github.com/melodic-software/claude-code-plugins/issues/6279)).** Step 3 separates a verified bug from a diagnosed one: an unknown root cause routes through `/debugging:debug` (or `/testing:diagnose` for a failing test) before any fix, and a report too unstructured to reproduce from is shaped with `/bugs:write` first. `## Next` gains the `/debugging:debug` route. The state machine and its exits are unchanged.
 
 ## [0.48.5] - 2026-10-04
 
