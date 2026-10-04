@@ -1888,7 +1888,7 @@
       },
       "component": {
         "plugin": "review",
-        "skill": "pr-explainer",
+        "skill": "explain-change",
         "kind": "skill"
       },
       "verdict": "defer",
@@ -3638,7 +3638,7 @@
       },
       "component": {
         "plugin": "review",
-        "skill": "pr-explainer",
+        "skill": "explain-change",
         "kind": "skill"
       },
       "reason": "The bundled skill publishes a concept walkthrough artifact; ours explains one pull request's diff as a local HTML page. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
@@ -3646,7 +3646,7 @@
       "date": "2026-09-29",
       "fingerprint": {
         "native": "ee7810cf18b855e5e36aa75172cf4c31",
-        "component": "63ae44d00e5c234af232712a7be70684"
+        "component": "10053c58c6784fb0bbb83d419b24331e"
       }
     },
     {
@@ -3677,7 +3677,7 @@
         "skill": "pull-request",
         "kind": "skill"
       },
-      "reason": "A PR review briefing artifact versus the PR lifecycle (prep, draft, ready, monitor, merge); the review-artifact pair is recorded against review:pr-explainer. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
+      "reason": "A PR review briefing artifact versus the PR lifecycle (prep, draft, ready, monitor, merge); the review-artifact pair is recorded against review:explain-change. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
       "as_of": "2.1.284",
       "date": "2026-09-29",
       "fingerprint": {
@@ -3710,7 +3710,7 @@
       },
       "component": {
         "plugin": "review",
-        "skill": "pr-explainer",
+        "skill": "explain-change",
         "kind": "skill"
       },
       "reason": "A cloud session that pushes fixes to a PR versus a local HTML explainer of a PR's diff. Shared PR vocabulary only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
@@ -3718,7 +3718,7 @@
       "date": "2026-09-29",
       "fingerprint": {
         "native": "f39025e988fce82f330acb9744b20684",
-        "component": "63ae44d00e5c234af232712a7be70684"
+        "component": "10053c58c6784fb0bbb83d419b24331e"
       }
     },
     {
@@ -4034,7 +4034,7 @@
       },
       "component": {
         "plugin": "review",
-        "skill": "pr-explainer",
+        "skill": "explain-change",
         "kind": "skill"
       },
       "reason": "Commits, pushes, and opens a PR versus explaining an existing PR's diff. Shared PR vocabulary only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
@@ -4042,7 +4042,7 @@
       "date": "2026-09-29",
       "fingerprint": {
         "native": "92aacf01567ffcb4a3cd5cf469d30a6b",
-        "component": "63ae44d00e5c234af232712a7be70684"
+        "component": "10053c58c6784fb0bbb83d419b24331e"
       }
     },
     {
@@ -4700,7 +4700,7 @@
       },
       "component": {
         "plugin": "review",
-        "skill": "pr-explainer",
+        "skill": "explain-change",
         "kind": "skill"
       },
       "reason": "Creates a pull request versus explaining an existing one. Shared PR vocabulary only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.",
@@ -4708,7 +4708,7 @@
       "date": "2026-09-29",
       "fingerprint": {
         "native": "e6b2d12aef15c09ed1976e7c697277f3",
-        "component": "63ae44d00e5c234af232712a7be70684"
+        "component": "10053c58c6784fb0bbb83d419b24331e"
       }
     },
     {

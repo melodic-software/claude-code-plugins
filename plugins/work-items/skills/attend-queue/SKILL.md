@@ -1,10 +1,10 @@
 ---
-description: "Attend the loop-lane human queue: escalated items and untriaged intake in one view, driven to resolution. Answers escalations via interview, comments answers back, ratifies first-drain C3 admissions, flips unblocked items autonomous-eligible. Never executes or merges. Use when: 'attend the queue', 'answer escalations', 'work the escalation queue', 'what needs my attention across the lanes', 'HITL queue', 'ratify admissions', 'clear the human queue'. Autonomous drain: /work-items:work-loop."
+description: "Attend the loop-lane human queue: drives escalated items to resolution and lists untriaged intake beside them, handing each intake row to /work-items:triage. Answers escalations via interview, comments answers back, ratifies first-drain C3 admissions, flips unblocked items autonomous-eligible. Never executes or merges. Use when: 'attend the queue', 'answer escalations', 'work the escalation queue', 'what needs my attention across the lanes', 'HITL queue', 'ratify admissions', 'clear the human queue'. Autonomous drain: /work-items:work-loop."
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: operator
-  summary: Drive escalated and untriaged items to resolution in one view
+  summary: Drive escalated items to resolution; hand untriaged intake to triage
   cadence: daily
 ---
 
