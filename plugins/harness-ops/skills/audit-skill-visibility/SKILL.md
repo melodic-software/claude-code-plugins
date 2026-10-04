@@ -167,14 +167,15 @@ an `enabledPlugins` scope sets it `true`; `defaultEnabled` does not decide an
 absent key at runtime. Basis: a fixture probe of `claude plugin list --json` on
 Claude Code 2.1.280 reported disabled every installed plugin no scope named,
 including one whose marketplace entry and one whose `plugin.json` set
-`defaultEnabled: true`. The settings reference agrees: an unlisted marketplace
-plugin starts `false` (<https://code.claude.com/docs/en/settings-reference#enabledplugins>).
-The manifest reference (<https://code.claude.com/docs/en/plugins-reference#defaultenabled>)
-states the opposite, so the engine follows the product and each such row's
-`provenance` says so. As of 2026-09-23, re-measured and both docs re-read
-2026-09-28. Recheck trigger: a Claude Code release that changes
-`claude plugin list`'s `enabled` answer for an absent key, or either doc
-section changing.
+`defaultEnabled: true`. The settings reference
+(<https://code.claude.com/docs/en/settings-reference#enabledplugins>) says a
+plugin with no entry at any scope falls back to its `defaultEnabled` value, and
+the manifest reference (<https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled>)
+agrees. Both contradict the measured runtime, so the engine follows the product
+and each such row's `provenance` says so. As of 2026-10-04 (settings and
+manifest references re-read); re-measured 2026-09-28. Recheck trigger: a
+Claude Code release that changes `claude plugin list`'s `enabled` answer for an
+absent key, or either doc section changing.
 
 Every `enabledPlugins` value must be a Boolean. A settings file holding one
 that is not contributes none of its `enabledPlugins` keys, `true` siblings

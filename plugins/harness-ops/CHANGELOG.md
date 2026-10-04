@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.8.1] - 2026-10-04
+
+### Fixed
+
+- **`/harness-ops:plugins` sync no longer prints every stale project path.** The `Stale project records` section groups the absent paths by parent directory, largest record count first, caps the rows it prints, with a `+N more` line for the rest, and names `stale-project-records.<marketplace>.json` in the run directory, which holds the full per-path list. The digest replaces the per-path `by_path` array with `paths`, `by_parent`, `more_parents` and `list_file`, so its line stays small however many paths are absent. Audit keeps no list and says so, a sync run whose list could not be written says that instead, and a run with no stale records writes no list. A digest saved before 3.8.1 still re-renders its per-path rows. The `defaultEnabled` links in the install-enable spoke and in `/harness-ops:audit-skill-visibility` now point at `plugins/manifest-reference`, and the skill's verification note beside that link no longer says the settings reference starts an unlisted plugin `false`: both references now say it falls back to `defaultEnabled`, which the measured runtime still contradicts (#6182).
+
 ## [3.8.0] - 2026-10-04
 
 ### Changed

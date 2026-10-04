@@ -183,7 +183,7 @@ disagree with that probe: the settings reference says a plugin with no entry at 
 back to its `defaultEnabled` value
 (<https://code.claude.com/docs/en/settings-reference#enabledplugins>), and the manifest reference
 says `defaultEnabled` decides it and defaults to `true`
-(<https://code.claude.com/docs/en/plugins-reference#defaultenabled>). As of 2026-10-04. Recheck
+(<https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled>). As of 2026-10-04. Recheck
 trigger: a Claude Code release that changes `claude plugin list`'s `enabled` answer for an unlisted
 plugin, or either doc section changing. The excluded field is a publisher's deliberate opt-in-required default (the marketplace
 entry's value overrides the plugin's own `plugin.json` field, per
