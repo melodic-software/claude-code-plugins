@@ -53,6 +53,8 @@ on:
       - .github/standards/runner-policy/policy.schema.json
       - .github/standards/runner-policy/repository-policy.schema.json
       - .github/standards/runner-policy/runner-policy.mjs
+      - .github/standards/trusted-actors/trusted-actors.json
+      - .github/standards/trusted-actors/trusted-actors.schema.json
       - .github/workflows/claude-review-hosted.yml
       - .github/workflows/claude-review.yml
       - .github/workflows/claude-security-review-hosted.yml
