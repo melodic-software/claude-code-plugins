@@ -3,6 +3,12 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.4] - 2026-10-04
+
+### Fixed
+
+- **The format pass no longer changes an associative-array key.** shfmt parses an unquoted subscript as arithmetic, since it cannot tell an associative array from an indexed one, and spaces it, so `${m[a-b]}` became `${m[a - b]}`, a different key ([#5791](https://github.com/melodic-software/claude-code-plugins/issues/5791)). When shfmt rewrites a file, the hook now compares the source text of every subscript before and after, from shfmt's syntax tree, including the blanks inside the brackets, since shfmt prints `${m[ key ]}` as the different key `${m[key]}`. If any subscript differs, it puts the original bytes back and names every changed subscript and its line in one notice on both channels, up to five and then a count. The notice says to quote the key if the array is associative and, if it is indexed, to write it as shfmt prints it, which holds on shfmt v3.13.0 too, where `${a[i + 1]}` prints as `${a[i+1]}`. An unspaced indexed expression such as `${a[i+1]}` is also left as written, because the hook cannot tell it from a key. A file the consumer will not change can take an `ignore = true` section in `.editorconfig`, which the hook already honors through `--apply-ignore`. The tree is read with `--to-json`, or with `-tojson` on a shfmt older than 3.8, since v3.4.3 and v3.5.1 change the key the same way and have no `--to-json`. When the tree cannot be read, or the two reads disagree on the number of subscripts, the file is left as written with a notice saying so. A file shfmt leaves unchanged reads no tree and costs no extra process; one it rewrites costs two more `shfmt` and two `jq` processes, about 7.5 ms on Linux (README, "Hook budget accounting").
+
 ## [0.10.3] - 2026-10-03
 
 ### Fixed

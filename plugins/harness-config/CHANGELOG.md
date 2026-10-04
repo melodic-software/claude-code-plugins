@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.8.1] - 2026-10-04
+
+### Fixed
+
+- `audit-engine.sh` quotes its associative-array keys that contain `-` or `|` (`settings-reference`, `env-vars`, `user-local`, and the `$src|$event` hook-event key), so shfmt no longer reads them as arithmetic and respaces them into different keys ([#5791](https://github.com/melodic-software/claude-code-plugins/issues/5791)). A bash-format rewrite of the file had broken 118 of the 463 `audit-engine.test.sh` checks. The file is now shfmt-clean under the repository `.editorconfig`.
+
 ## [1.8.0] - 2026-10-04
 
 ### Changed
