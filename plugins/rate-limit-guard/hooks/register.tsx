@@ -286,12 +286,7 @@ async function flushToasts($: EngineInterface, st: State, cfg: Config, held?: bo
       const body = toastBody(kind, event, st.reading?.get(kind), cfg)
       bodies.push(body)
       $.ui.log(`rate-limit-guard: ${body} · more: /${COMMAND}`, { to: 'transcript' })
-      if (!cfg.toast) continue
-      try {
-        $.ui.toast(body)
-      } catch (error) {
-        logOnce($, st, 'toast-failed', `toast did not show: ${error instanceof Error ? error.message : String(error)}`)
-      }
+      if (cfg.toast) $.ui.toast(body)
     }
     if (st.notice?.kind !== 'operator') {
       st.notice = { text: `rate-limit-guard: ${bodies.join('; ')} · more: /${COMMAND}`, kind: 'crossing' }

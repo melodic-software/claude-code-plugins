@@ -724,7 +724,7 @@ test('toast: with lines to Claude off, a rise to the edge still toasts and Claud
   expect(w.toasts).toEqual(['5h at the 90% pause edge · resets 21:00 UTC'])
 })
 
-// The engine drops a refused or throwing toast itself, so the plugin's catch is a guard no test can reach.
+// The engine drops a refused or throwing toast itself; it never throws into the module.
 test('toast: a refused toast leaves the line to Claude, the transcript line and the notice row, and the tool runs once', NO_WRITES, async ($, on) => {
   let runs = 0
   const { w } = world(on, {}, { HOME }, ['ui.toast', 'tool.call'])

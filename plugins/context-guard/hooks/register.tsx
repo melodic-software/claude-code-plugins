@@ -525,13 +525,8 @@ function showCrossing($: EngineInterface, st: State, cfg: Config, events: Event[
   }
   for (const e of due) e.shown = true
   if (!showable) return
-  if (cfg.toast) {
-    try {
-      $.ui.toast(toastText(crossed.from, to))
-    } catch (error) {
-      logOnce($, st, 'toast', `toast failed: ${error instanceof Error ? error.message : String(error)}`)
-    }
-  }
+  // The engine drops a failing toast itself; it never throws into the module.
+  if (cfg.toast) $.ui.toast(toastText(crossed.from, to))
   $.ui.invalidate('ui.render')
 }
 
