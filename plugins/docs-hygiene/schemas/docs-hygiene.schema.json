@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/docs-hygiene/schemas/docs-hygiene.schema.json",
+  "title": "Docs-hygiene team config",
+  "description": "Schema for a repository's docs/conventions/docs-hygiene.yaml, the team layer of the docs-hygiene plugin's settings. A key set here wins over the plugin's userConfig value of the same name. Keys and resolution: plugins/docs-hygiene/reference/config.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "compress_articles": {
+      "enum": ["keep", "cut"],
+      "default": "keep",
+      "description": "Whether /docs-hygiene:compress removes a, an and the. keep: articles stay, and compression runs on the in-session Edit backend with word-level cuts only. cut: articles may be removed, and the caveman backend runs when installed."
+    }
+  }
+}

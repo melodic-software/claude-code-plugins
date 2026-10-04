@@ -6,13 +6,13 @@ Canonical FLAVOR / CONTENT taxonomy for the `/docs-hygiene:compress` semantic-di
 
 ### Flavor (safe to cut)
 
-- Articles (a/an/the)
+- Articles (a/an/the), only when `compress_articles` is `cut`. Under the default, `keep`, an article is CONTENT for this run: every one stays, and a dropped article is reverted
 - Filler (just/really/basically/actually/simply)
 - Hedging (perhaps/somewhat/might)
 - Pleasantries
-- Redundant restatement of bold rule names (single-file Edit fallback only. Batch Phase A LATITUDE does not delete sentences.)
+- Redundant restatement of bold rule names (single-file Edit fallback under `compress_articles: cut` only. Batch Phase A LATITUDE does not delete sentences, and neither does any run under `keep`.)
 - "in order to" / "due to the fact that" verbose forms
-- Conversational connectives ("that said", "in other words") (Edit fallback; batch LATITUDE is word-level)
+- Conversational connectives ("that said", "in other words") (Edit fallback under `cut`; batch LATITUDE and every `keep` run are word-level)
 - Verbose verb phrases ("make use of" → "use")
 
 ### Content (NEVER cut)

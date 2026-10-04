@@ -24,19 +24,16 @@ Two layers:
    chatbot phrases, filler phrases, stacked hedging, citation artifacts, and more.
 2. A judgment rubric applied by the skill for tells no script can rule on: superficial analysis,
    promotional tone, vague attribution, elegant variation, false ranges, colon crutches,
-   abstract metaphor jargon, mechanism-free claims. (Significance inflation ships as a *script*
-   rule, not a rubric tell, because its stock-phrase core is mechanical.)
+   abstract metaphor jargon, figures of speech standing in for facts, over-compressed prose,
+   mechanism-free claims. (Significance inflation ships as a *script* rule, not a rubric tell,
+   because its stock-phrase core is mechanical.)
 
 The rule inventory in [`skills/audit/reference/catalog.md`](skills/audit/reference/catalog.md) is
 distilled from Wikipedia's
 ["Signs of AI writing"](https://en.wikipedia.org/wiki/Wikipedia:Signs_of_AI_writing)
-(revision-pinned, tracked under the upstream-drift convention), plus a set of additions from a
-second upstream tell inventory, deduplicated against it in the catalog's overlap map. Where those
-additions came from, and what was taken, deduplicated, and rejected, is recorded in the
-marketplace's upstream ledger,
-[`docs/upstream/cursor-pstack.md`](../../docs/upstream/cursor-pstack.md) (the row naming
-`ai-slop:audit`), which
-is also where the next drift recheck against upstream is decided. Fix-time rewrite guidance (plain
+(revision-pinned, tracked under the upstream-drift convention), plus a section of general-prose
+additions for writing outside Wikipedia, each placed against the Wikipedia entries in the
+catalog's overlap map. Fix-time rewrite guidance (plain
 speech, substitution guardrails, adding voice) lives in
 [`skills/audit/reference/rewrite-guide.md`](skills/audit/reference/rewrite-guide.md), which the
 `fix` action applies.

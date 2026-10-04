@@ -17,5 +17,14 @@
     "progressive-disclosure",
     "context-engineering",
     "refactoring"
-  ]
+  ],
+  "userConfig": {
+    "compress_articles": {
+      "type": "string",
+      "title": "Compress articles",
+      "description": "Whether /docs-hygiene:compress removes a, an and the. keep (default): articles stay, and compression runs on the in-session Edit backend with word-level cuts only. cut: articles may be removed, and the caveman backend runs when installed. docs/conventions/docs-hygiene.yaml overrides this.",
+      "default": "keep",
+      "options": ["keep", "cut"]
+    }
+  }
 }

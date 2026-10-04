@@ -53,8 +53,10 @@ Audit is a pure mechanical scan: no subagent dispatch, no edits. Per target, com
 | ≤ 3% (signals 1 OR 4 fire) | `SKIP` | "author-time-disciplined; empirical baseline 3/3 reverted; use `--force` only for targeted sub-3% diff" |
 | ≤ 3% (signal 6 fires) | `SKIP` | "flavor-token density N/kw < 5; disciplined-by-authorship; empirical baseline 9/9 reverted at 0.02-0.4%", with N inlined |
 | 3-7% (signals 2 OR 3 fire, no signal 1/4/6) | `UNCERTAIN` | "inline-code density H AND/OR cross-ref density H; flavor band narrow", with H values inlined |
-| 5-7% band under signal 5 alone | `COMPRESS` | "verbose-prose baseline (lower band); expected flavor cuts on filler/hedging/articles", since signal 5's 5-15% effect maps here and to ≥8% |
-| ≥ 8% (signal 5 fallback) | `COMPRESS` | "verbose-prose baseline; expected flavor cuts on filler/hedging/articles" |
+| 5-7% band under signal 5 alone | `COMPRESS` | "verbose-prose baseline (lower band); expected flavor cuts on filler/hedging; articles kept (compress_articles: keep)", or "...on filler/hedging/articles" under `cut`; signal 5's 5-15% effect maps here and to ≥8% |
+| ≥ 8% (signal 5 fallback) | `COMPRESS` | "verbose-prose baseline; expected flavor cuts on filler/hedging; articles kept (compress_articles: keep)", or "...on filler/hedging/articles" under `cut` |
+
+The article wording follows the run's resolved `compress_articles` value, passed as `audit-scan.sh --articles keep|cut` (default `keep`).
 
 ### Output table (audit action)
 

@@ -5,9 +5,6 @@ Fix-time guidance for `/ai-slop:audit fix`: what to write INSTEAD of a flagged t
 step 1, applied under the same semantic-diff guard as every rewrite (meaning over style: a
 rewrite that changes what a sentence asserts is skipped and recorded).
 
-Where this guide's material came from is recorded in the marketplace's upstream ledger,
-[`docs/upstream/cursor-pstack.md`](../../../../../docs/upstream/cursor-pstack.md).
-
 ## Non-evasion posture
 
 The source catalog's own upstream warns that its signs are descriptive, not prescriptive: "do
@@ -154,6 +151,19 @@ Rewrites that need more than a lookup:
   The ranked-punchline closer ("two observations, and one is load-bearing") becomes the
   observations themselves, ordered by importance. The ranking shows in the order, not in a
   self-grading clause.
+- **Figure for fact** (`rule-figure-for-fact`): write the claim the image stood for, with the
+  detail it left out. A comparison becomes the specific difficulty ("tuning retries is herding
+  cats" becomes "each service sets its own retry limit, so one change takes five pull
+  requests"). A small drama becomes the trigger and its consequence ("the on-call phone lights
+  up at 3 a.m." becomes "the nightly job fails and pages the on-call engineer"). A mood becomes
+  the behavior ("CI gets grumpy about lockfiles" becomes "CI fails when `package-lock.json` is
+  out of date"). A slogan becomes the rule, then `because` and its reason.
+- **Over-compression** (`rule-over-compression`): rebuild each sentence around a subject and a
+  verb, then add back what the reader had to guess. A symbol becomes the word it stood for ("→"
+  becomes "causes" or "then", "=" becomes "is"); steps are joined by the word that says how
+  they relate ("then", "because", "if"); team shorthand is expanded the first time the page uses
+  it ("cfg" becomes "configuration file"); and the articles go back in. The steps stay in their
+  order, and every value, name and threshold stays as written.
 
 ## Adding voice
 
@@ -186,8 +196,8 @@ Two more depend on the register:
 
 Deliberately leaving flaws in the prose is not a voice technique, and a fix pass never adds them.
 Planted imperfection changes how the text would score, not how it reads, so it fails this
-guide's improve-it-anyway test and is the evasion posture the guide refuses. The omission is
-deliberate; do not add such a technique.
+guide's improve-it-anyway test and is the evasion posture the guide refuses. It is left off the
+list on purpose; do not re-add it as a sixth technique.
 
 This section never overrides meaning preservation: voice is added in HOW a kept claim is
 phrased, never by inventing new claims during a fix pass.

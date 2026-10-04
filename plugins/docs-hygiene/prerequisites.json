@@ -5,14 +5,15 @@
       "kind": "runtime",
       "need": "optional",
       "for": [
-        "plugin"
+        "plugin",
+        "skill:setup"
       ],
       "detect": {
         "any": [
           "node"
         ]
       },
-      "degrade": "Without node, the prerequisites checker cannot run and no dependency is verified; the plugin's own skills are unaffected.",
+      "degrade": "Without node, the prerequisites checker cannot run and no dependency is verified, and /docs-hygiene:setup cannot validate or write docs/conventions/docs-hygiene.yaml; the other skills are unaffected.",
       "install": {
         "docs": "https://nodejs.org/en/download",
         "brew": "node",

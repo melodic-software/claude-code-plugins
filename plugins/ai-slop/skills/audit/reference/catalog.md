@@ -41,9 +41,6 @@ this file is licensed under
 [Creative Commons Attribution-ShareAlike 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
 (CC BY-SA 4.0), as the source requires.
 
-The provenance of the "General-prose additions" section is recorded in the marketplace's upstream
-ledger, [`docs/upstream/cursor-pstack.md`](../../../../../docs/upstream/cursor-pstack.md).
-
 ## Upstream-drift record
 
 This catalog's tell inventory derives from the pinned source revision named in the attribution
@@ -86,7 +83,7 @@ Wikipedia; the page's text is read at the pointer, not stored here.
 
 ## Inventory
 
-65 tells catalogued from the Wikipedia source revision, plus 7 in the "General-prose additions"
+65 tells catalogued from the Wikipedia source revision, plus 9 in the "General-prose additions"
 section and 4 in the "Model-era additions (repo-owned)" section at the end of this file. Entry
 marker: `### rule-<slug>: <name>`. The qualified id used
 in crosswalk rows and findings files is `ai-slop/audit/rule-<slug>`. Fields:
@@ -839,18 +836,17 @@ Era-bound tells the source dates to earlier model generations. Catalogued for co
 
 ## General-prose additions
 
-Tells the Wikipedia inventory lacks, taken from a second tell inventory whose source and pinned
-commit are recorded in the ledger named at the top of this file. An overlap map that accounts for
-every pattern in that inventory comes first, then the new entries.
+Tells the Wikipedia inventory lacks, for prose outside Wikipedia. The overlap map below places
+common general-prose patterns that an earlier entry already covers, and the new entries follow it.
 
 ### Overlap map
 
-Upstream patterns **catalogued by** a Wikipedia-derived entry, or routed to the rewrite guide
+Patterns **catalogued by** a Wikipedia-derived entry, or routed to the rewrite guide
 (fix-time guidance is not a tell inventory). "Catalogued" is deliberately weaker than "covered":
 a row pointing at a `recorded-only` entry is bookkeeping, not detection. Nothing runs it in
 either layer, and those rows say so.
 
-| Upstream pattern | Where it lives here |
+| Pattern | Where it lives here |
 |---|---|
 | Puffery | `rule-significance-inflation` |
 | Name-dropping | **Not detected. Deliberately out of scope for general prose.** `rule-canned-notability` records the Wikipedia-specific form and is `recorded-only`; its own entry says there is no general-prose analogue worth a rule. Not `rule-vague-attribution`, which is the opposite tell (naming *no* source, not naming many with no content) |
@@ -871,7 +867,7 @@ either layer, and those rows say so.
 | Decorative emojis | `rule-emoji-formatting` |
 | Curly quotes | `rule-curly-artifacts` |
 | Cutoff disclaimers | `rule-knowledge-cutoff-disclaimer` |
-| Adding soul (a voice list the second inventory has since removed); plain speech (mechanism over feeling, sentence splitting, active voice, adverbs) | `rewrite-guide.md` (rewrite disciplines, not detection tells); the mechanism-over-feeling test also flags via `rule-mechanism-free-claims` below |
+| Adding soul (voice); plain speech (mechanism over feeling, sentence splitting, active voice, adverbs) | `rewrite-guide.md` (rewrite disciplines, not detection tells); the mechanism-over-feeling test also flags via `rule-mechanism-free-claims` below |
 
 ### rule-chatbot-artifacts: Chat-turn residue and sycophancy
 
@@ -994,6 +990,34 @@ either layer, and those rows say so.
   not counted, since counting them would add suppression this entry never grants. An audit with no `cues.txt` (a single file, no fan-out) treats both cues as
   unsaturated.
 
+### rule-figure-for-fact: An image the reader must turn back into a claim
+
+- detectability: judgment
+- applicability: general-prose
+- v1: rubric
+- The writer had a plain claim and wrote a picture of it instead, so the reader has to work the
+  claim out again. Four kinds are reported:
+  - a comparison to an unrelated scene: "upgrading the ORM was like defusing a bomb", "tuning
+    retries is herding cats";
+  - a consequence told as a small drama: "skip the migration check and the on-call phone lights
+    up at 3 a.m.";
+  - a program, file or service credited with moods or opinions: "the scheduler hates overlapping
+    jobs", "CI gets grumpy about lockfiles";
+  - a slogan where the rule and its reason belong: "ship small, sleep well", "green builds or
+    bust".
+- Before reporting, write the literal sentence. Report the original when the literal one is about
+  as long and tells the reader something the picture hid, such as an error code, a count or a
+  step: "the scheduler hates overlapping jobs" hides "the scheduler skips a run while the previous
+  run of the same job is still going". The fix is in `rewrite-guide.md`.
+- Not reported: a field's own term that only looks figurative (a process forks, a queue drains, a
+  cache is warm, a thread starves), since each names a defined behavior, and quoted text, as for
+  every rubric tell. When a sentence's only figure is a noun from the list in
+  `rule-abstract-metaphor-jargon` ("seam", "load-bearing", "north star"), that rule takes the
+  finding and this one says nothing about the sentence.
+- Reported, from a billing runbook: "Let the cron job drift and the unpaid invoices pile up like
+  snow." Declined, from the same runbook: "The worker thread starves when the pool holds fewer
+  than four connections", where starvation is the scheduling term.
+
 ### rule-mechanism-free-claims: Feeling-words instead of mechanism
 
 - detectability: judgment
@@ -1004,11 +1028,37 @@ either layer, and those rows say so.
   when it gives the reader nothing to act on or check (no step, fact, or number), or when it is
   generic enough to fit any project's docs.
 
+### rule-over-compression: Clipped prose the reader has to rebuild
+
+- detectability: judgment
+- applicability: general-prose
+- v1: rubric
+- Prose for people, cut so short that the reader has to work out how its parts fit. Report it
+  when a reader cannot tell, without guessing:
+  - what a term stands for: team shorthand such as "cfg", "impl", "w/o" or "b/c" on a page
+    written for newcomers;
+  - how two steps connect: clauses lined up with no "then", "because" or "if", so order, cause
+    and condition all read the same;
+  - what a symbol means: "→", "=", "+" or "/" used for "causes", "is", "and" or "or"
+    ("rollback = previous tag");
+  - which thing is meant and who acts: a run of bare nouns with no article, subject or verb
+    ("image build, registry push, tag bump").
+- It applies to running prose for people: READMEs, guides, design docs and release notes. The fix
+  is in `rewrite-guide.md`; in a release note, "Auth svc moved to new IdP, sessions dropped,
+  re-login req'd" becomes "We moved the authentication service to the new identity provider.
+  Existing sessions ended, so every user has to sign in again."
+- Out of scope: tables, command and option references, code and code comments, commit subjects,
+  and operative lists kept terse for an agent reader (rules files, skill steps). A repository
+  that compresses agent-read files with `/docs-hygiene:compress` and its `compress_articles`
+  setting at `cut` drops articles there on purpose; that setting's default, `keep`, does not
+  produce this tell.
+- Reported, from a contributor guide: "Fork, branch per fix, PR w/ tests, wait CI green."
+  Declined: the same steps as a numbered checklist in a skill's operative instructions.
+
 ## Model-era additions (repo-owned)
 
 The repo-owned, evolving inventory of CURRENT-generation model-vocabulary tells, the layer
-neither the Wikipedia source page nor the second inventory behind the general-prose additions
-has absorbed yet (verified against both heads; see the model-era record below). This section is
+the Wikipedia source page has not absorbed yet (verified against its head; see the model-era record below). This section is
 this repository's own work, not adapted from the Wikipedia page, so the CC BY-SA statement at the
 top of this file (scoped to "the adapted material in this file") does not cover it; each entry
 cites the community sources it rests on. It exists to move faster than the upstream
@@ -1120,11 +1170,10 @@ README's "Updating the model-era inventory".
 ### Model-era record
 
 This section holds the model-vocabulary layer this repository tracks from community sources, and
-keeps it here because neither upstream inventory carried it when checked.
+keeps it here because the Wikipedia page did not carry it when checked.
 
 - **Pointer**: the per-entry sources named in each entry and in the record below; for the
-  absence check, the live Wikipedia page and the head of the second inventory (its source is in
-  the ledger named at the top of this file).
+  absence check, the live Wikipedia page.
 - **As of**: 2026-08-26
 - **Recheck trigger**: each `ai-slop` release, each new frontier-model generation, and, for
   `rule-model-era-vocabulary`, whether a second independent frequency pool has landed (the
@@ -1134,8 +1183,7 @@ keeps it here because neither upstream inventory carried it when checked.
   lower-bound ratio and Marek Suppa's independent count),
   anthropics/claude-code issue 53454 (maintainer-reproduced), Velitchkov's cliché catalog,
   crystl.dev's hacker-idiom catalog, and jola.dev's filter hook. Wikipedia "Signs of AI
-  writing" head revision 1371415133 (fetched 2026-08-26) and the second inventory's
-  head (last commit 2026-08-02) both carry none of it. Harness confound recorded on the metaphor
+  writing" head revision 1371415133 (fetched 2026-08-26) carries none of it. Harness confound recorded on the metaphor
   cues: the version-tracked Piebald-AI system-prompt mirror uses the word "load-bearing" in its
   progress-update instruction, so "load-bearing" in Claude Code output is partly prompt-primed
   rather than purely model-weight; the frequency spike aligns

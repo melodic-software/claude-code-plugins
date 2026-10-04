@@ -22,7 +22,7 @@
       "expectations": [
         "Reports a FAIL row with the install remediation (npm install --save-dev markdownlint-cli2 or a global install)",
         "Does not run npm, npx, or any download on the operator's behalf",
-        "Offers no apply action"
+        "Does not offer apply as a fix for the missing binary"
       ]
     },
     {
@@ -35,6 +35,59 @@
         "Treats a resolved shim that fails --version as FAIL",
         "Includes the execution error text in the remediation line",
         "Does not claim success from resolution alone"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "check-reports-effective-compress-articles",
+      "narration": true,
+      "prompt": "/docs-hygiene:setup check [markdownlint-cli2 resolves on PATH and prints its version. The repository has no docs/conventions/docs-hygiene.yaml. The docs-hygiene userConfig option compress_articles is set to cut, so the skill's userConfig line substitutes to cut.]",
+      "expected_output": "PASS rows for markdownlint-cli2 resolution and its --version run. setup-apply.mjs --check prints an INFO line that docs/conventions/docs-hygiene.yaml is absent. The effective compress_articles is cut, supplied by userConfig. Nothing is written.",
+      "files": [],
+      "expectations": [
+        "Runs setup-apply.mjs --check and reports the absent repository file as INFO, not WARN or FAIL",
+        "States compress_articles as cut and names userConfig as the supplying layer",
+        "Writes no file and edits no settings file"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "apply-shows-diff-before-changing-existing-file",
+      "narration": true,
+      "prompt": "/docs-hygiene:setup apply compress_articles=cut [The repository already has a tracked docs/conventions/docs-hygiene.yaml holding compress_articles: keep. The operator has not yet seen any diff.]",
+      "expected_output": "Runs check, then setup-apply.mjs compress_articles=cut, which exits 3 and prints a unified diff from keep to cut without writing. The skill shows that diff and asks the operator whether to write it; it re-runs with --yes only after an explicit yes, then re-runs check and reports the value it reads back.",
+      "files": [],
+      "expectations": [
+        "Shows the unified diff from keep to cut before anything is written",
+        "Does not pass --yes until the operator explicitly agrees to that diff",
+        "After the write, re-runs check and reports the value from check, not from the write"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "apply-refuses-a-file-needing-a-hand-edit",
+      "narration": true,
+      "prompt": "/docs-hygiene:setup apply compress_articles=keep [docs/conventions/docs-hygiene.yaml sets compress_articles twice: once to keep and once to cut.]",
+      "expected_output": "check reports a WARN that compress_articles is set 2 times. setup-apply.mjs refuses with one line, exits 1 and leaves the file untouched, because a key set twice needs a hand edit first. The skill reports the refusal and asks the operator to remove one of the two lines; it does not edit the file itself.",
+      "files": [],
+      "expectations": [
+        "Reports the duplicate key as a WARN naming the file and the key",
+        "Reports that apply refused and the file is unchanged",
+        "Does not edit docs/conventions/docs-hygiene.yaml by hand or with another tool to work around the refusal"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "check-invalid-repo-value-resolves-to-default-not-userconfig",
+      "narration": true,
+      "prompt": "/docs-hygiene:setup check [markdownlint-cli2 resolves on PATH and prints its version. docs/conventions/docs-hygiene.yaml holds compress_articles: drop. The docs-hygiene userConfig option compress_articles is set to cut, so SKILL.md's userConfig line substitutes to cut.]",
+      "expected_output": "setup-apply.mjs --check prints a WARN naming docs/conventions/docs-hygiene.yaml, compress_articles and drop, then WARN compress_articles: dropped. The repository layer is the highest, so with it dropped no valid layer sits above it, and the effective compress_articles is keep from the default, the value /docs-hygiene:compress resolves for the same files. The userConfig value cut is not used. Nothing is written.",
+      "files": [],
+      "expectations": [
+        "Reports a WARN that names docs/conventions/docs-hygiene.yaml, the key compress_articles and the value drop",
+        "States the effective compress_articles as keep from the default",
+        "Does not report cut from userConfig as the effective value",
+        "Writes nothing"
       ]
     }
   ]

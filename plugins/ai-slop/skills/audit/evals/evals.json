@@ -137,6 +137,35 @@
         "Both batches treat the terse rule line as out of rule-colon-crutch scope and report no colon-crutch finding for it",
         "The merged rubric report from `rubric-fanout.sh merge` carries no consistency: line and no consistency=flagged marker"
       ]
+    },
+    {
+      "id": 11,
+      "name": "over-compressed-human-prose-is-reported",
+      "prompt": "/ai-slop:audit evals/fixtures/over-compressed.md relative to the skill directory.",
+      "expected_output": "The two deployment paragraphs are reported under rule-over-compression in a README meant for people: 'w/' and 'cfg' are team shorthand, the steps 'Build image, push to registry, bump tag in values file' carry no word saying how they connect and no articles, and an arrow stands in for a condition ('crashloop → check cfg secret'). The report quotes the clipped text and suggests a rewrite with a subject and verb in each sentence, the connecting words, the expanded shorthand and the articles. The last paragraph, about REPORTS_DB_URL, is written in full sentences and gets no over-compression finding. The run is read-only.",
+      "files": [
+        "evals/fixtures/over-compressed.md"
+      ],
+      "expectations": [
+        "Reports at least one finding under rule-over-compression quoting text from the first or second paragraph",
+        "Names at least one of: the 'w/' or 'cfg' shorthand, the missing connecting words or articles, or the arrow, as something the reader has to work out",
+        "Reports no rule-over-compression finding for the paragraph about REPORTS_DB_URL",
+        "Edits no file"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "figure-for-fact-reported-beside-metaphor-jargon",
+      "prompt": "/ai-slop:audit evals/fixtures/figure-for-fact.md relative to the skill directory.",
+      "expected_output": "'the import crawls like rush-hour traffic' is reported under rule-figure-for-fact as a comparison to an unrelated scene that hides a literal claim (for example, committing every row in its own transaction makes the import too slow to finish in the release window). 'the seam where all the tuning happens' is reported under rule-abstract-metaphor-jargon, not under rule-figure-for-fact, because seam is a noun from that rule's list and is the sentence's only figure. The transaction sentence is literal and gets no finding from either rule.",
+      "files": [
+        "evals/fixtures/figure-for-fact.md"
+      ],
+      "expectations": [
+        "Reports the rush-hour traffic comparison under rule-figure-for-fact",
+        "Reports the seam sentence under rule-abstract-metaphor-jargon and does not also report it under rule-figure-for-fact",
+        "Reports nothing under either rule for the sentence about one transaction per 500 rows"
+      ]
     }
   ]
 }

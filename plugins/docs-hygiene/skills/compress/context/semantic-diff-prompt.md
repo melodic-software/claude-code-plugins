@@ -6,21 +6,24 @@ Agent tool prompt body + return-format contract for the default action. Loaded b
 
 Spawn one subagent per target file via `Agent` tool. Subagent type: `general-purpose`. Pass two file paths (original snapshot + condensed candidate) plus the prompt body below verbatim. Subagent returns categorized findings; main session decides revert vs ship.
 
-## Prompt body (paste into Agent tool `prompt` field verbatim, with `{ORIG}` / `{COND}` substituted)
+## Prompt body (paste into Agent tool `prompt` field verbatim, with `{ORIG}` / `{COND}` / `{ARTICLES}` substituted)
+
+`{ARTICLES}` is the run's resolved `compress_articles` value, `keep` or `cut` (SKILL.md "Articles"). Under `keep` the prompt classes a dropped article as SEMANTIC LOSS, so the revert pass restores it; under `cut` it is a FALSE POSITIVE and the cut stays.
 
 ```text
-Compare two markdown files and classify every textual difference. ORIGINAL is the snapshot; CONDENSED is the candidate produced by a compression pass that intends to drop FLAVOR (filler, hedging, articles, pleasantries, redundant restatement) while preserving CONTENT (directives, qualifiers, examples, thresholds, exceptions, cross-references, identifiers).
+Compare two markdown files and classify every textual difference. ORIGINAL is the snapshot; CONDENSED is the candidate produced by a compression pass that intends to drop FLAVOR (filler, hedging, pleasantries, redundant restatement, and articles only when ARTICLES is cut) while preserving CONTENT (directives, qualifiers, examples, thresholds, exceptions, cross-references, identifiers, and every article when ARTICLES is keep).
 
 ORIGINAL: {ORIG}
 CONDENSED: {COND}
+ARTICLES: {ARTICLES}
 
 For every difference, classify as exactly one of:
 
-  SEMANTIC LOSS: content removed/altered that changes what a reader must do, infer, or rely on. Includes: dropped directive ("must" → silence), narrowed qualifier ("ONLY X" → "X"), removed anti-example, removed threshold, removed exception clause, removed identifier, removed cross-reference, removed inline-code token.
+  SEMANTIC LOSS: content removed/altered that changes what a reader must do, infer, or rely on. Includes: dropped directive ("must" → silence), narrowed qualifier ("ONLY X" → "X"), removed anti-example, removed threshold, removed exception clause, removed identifier, removed cross-reference, removed inline-code token, and, when ARTICLES is keep, any dropped article ("the X" → "X"), since this run's setting keeps every article.
 
   AMBIGUITY: content removed/altered such that two readers could now infer different applicability. Includes: collapsed rule-unique rationale, dropped "why" that constrained scope, removed enumeration item where order mattered, merged distinct clauses that had different scopes.
 
-  FALSE POSITIVE: pure flavor cut, no content delta. Includes: article drop ("the X" → "X"), filler drop ("just", "really", "basically"), hedging drop ("perhaps", "might"), pleasantry drop, verbose-verb collapse ("make use of" → "use"), restatement removed.
+  FALSE POSITIVE: pure flavor cut, no content delta. Includes: article drop ("the X" → "X") only when ARTICLES is cut, filler drop ("just", "really", "basically"), hedging drop ("perhaps", "might"), pleasantry drop, verbose-verb collapse ("make use of" → "use"), restatement removed.
 
 Output schema (one block per finding, in CONDENSED line order):
 
