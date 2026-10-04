@@ -74,7 +74,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json id,number,headRefOid --jq '.[0] // empty')"
+          pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json id,number,headRefOid,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0] // empty')"
           if [ -z "$pr" ]; then
             echo "::error::No release pull request is open; run this workflow with action build first."
             exit 1
@@ -174,7 +174,7 @@ jobs:
         run: |
           main_sha="$(git rev-parse HEAD)"
           echo "main=$main_sha" >>"$GITHUB_OUTPUT"
-          pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json number,headRefOid,mergeable --jq '.[0] // empty')"
+          pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json number,headRefOid,mergeable,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0] // empty')"
           build=false
           if [ "$REBUILD" = true ]; then
             echo "The merge check found the release stale; rebuilding."
@@ -289,7 +289,7 @@ jobs:
             echo "Merge it only by running the \`release-plugins\` workflow with action \`merge\`, never the merge button: that run checks it against main's live tip first."
           } >"$body"
           title="chore(release): release $RELEASED plugins"
-          number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json number --jq '.[0].number // empty')"
+          number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')"
           if [ -n "$number" ]; then
             gh pr edit "$number" --repo "$GITHUB_REPOSITORY" --title "$title" --body-file "$body"
             echo "Updated release pull request #$number."
