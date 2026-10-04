@@ -431,8 +431,8 @@ Route the handoff by what the session produced. **A general (non-engineering) se
 
 - **Code change with unknowns about the codebase** → clear context, then codebase exploration (`/discovery:explore` if enabled. It reads the Brief as scope)
 - **Code change relying on external libs/APIs/best-practices** → external research (`/discovery:research` if enabled)
-- **Already understand the codebase and the externals** → `/planning:plan`
-- **Task is small and the contract IS the plan** → proceed directly to implementation
+- **Already understand the codebase and the externals** → `/planning:design` when the work is design-significant (new types or contracts, a new module or library, a package-topology, cross-module, or data-model change), whose handoff writes PLAN.md's `## Design` before `/planning:plan`; `/planning:plan` directly when no design question is open
+- **Task is small, not design-significant, and the contract IS the plan** → proceed directly to implementation. Small design-significant work still goes through `/planning:design` first
 - **Interview outgrew one session (branches keep opening faster than they close, or the user or harness asks for a pause)** → handoff now (`/session-flow:handoff` if enabled, otherwise write a resume note), clear, resume. The ledger + Brief survive; resume continues from the first open branch. Before the first resumed round, resolve the surface through `${CLAUDE_PLUGIN_ROOT}` again (never an absolute path copied from the handoff) and run `round.sh --dir '<memory_dir>/<topic-slug>/interview-surface' doctor --ledger <ledger>`, which lists what the running version needs and the ledger lacks ([`context/surface.md`](context/surface.md) "Resume")
 
 Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
@@ -465,8 +465,8 @@ the recommendation from this summary.
 
 ## Next
 
-- Contract locked: /planning:plan.
-- Design-significant threads remain: /planning:design.
+- Contract locked and the work is design-significant: /planning:design.
+- Contract locked with no design question open: /planning:plan.
 
 ## Spoke paths
 
@@ -487,7 +487,8 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 | Need codebase grounding | `/discovery:explore` (if enabled) | Reads PLAN.md Brief as scope |
 | Need external evidence | `/discovery:research` (if enabled) | Reads PLAN.md Brief as scope |
 | A question needs something built to react to | `/prototype:explore-directions` (look and feel) or `/prototype:pressure-test` (logic, state, data shape) (if enabled) | Mid-interview detour: confirm scope and checkpoint, build the throwaway, react to it, return and answer in one line |
-| Plan the implementation | `/planning:plan` | Reads PLAN.md Brief + explore + research findings |
+| Design types, contracts, module boundaries | `/planning:design` | Reads PLAN.md Brief; its handoff writes PLAN.md `## Design` |
+| Plan the implementation | `/planning:plan` | Reads PLAN.md Brief + `## Design` + explore + research findings |
 | Stress-test the plan | `/planning:devils-advocate` | Adversarial pass on `/planning:plan` output |
 | Validate the interview's answers via agents | `/planning:audit-answers` | Fresh validators challenge each answer in the filled ledger (hand-answered or auto-accepted); only the doubtful ones return as human questions. The Step 3 recap and `--procedure` check show the Q&A and that the procedure ran; this re-validates the answers, and neither duplicates the other |
 | Record a decision that earns an ADR | `/architecture:record-decision` (if enabled) | Owns ADR convention discovery, the no-convention offer-and-defer, and the write; without it the interview writes to the declared convention or defers |
