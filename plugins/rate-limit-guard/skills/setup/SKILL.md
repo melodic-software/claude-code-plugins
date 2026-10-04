@@ -29,7 +29,7 @@ qualify it:
   The plugin no longer needs any wiring. `check` finds a tee that still runs and prints the exact
   edit that removes it, keeping the person's own status line byte for byte, marked as theirs to
   apply.
-- **Native `userConfig`**: seven options whose only stored home is the `pluginConfigs` setup must
+- **Native `userConfig`**: eight options whose only stored home is the `pluginConfigs` setup must
   never write. Reconfigure through Claude Code's native flow, per the marketplace's
   plugin-reconfiguration convention
   (<https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/plugin-reconfiguration/README.md>,
@@ -127,11 +127,12 @@ are owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    |---|---|---|---|
    | `rate_limit_guard_enabled` | `${user_config.rate_limit_guard_enabled}` | `true` | `false` stops the StopFailure hook's records and the module's snapshot writes; lines, band and status tool continue. |
    | `rate_limit_lines_enabled` | `${user_config.rate_limit_lines_enabled}` | `true` | `false` sends Claude no lines and offers no operator-mode suggestions. |
-   | `rate_limit_report_mode` | `${user_config.rate_limit_report_mode}` | `automatic` | `automatic` sends the lines to Claude; `operator` holds them in a turn a person typed and offers them as a prompt suggestion plus a band notice. |
+   | `rate_limit_report_mode` | `${user_config.rate_limit_report_mode}` | `automatic` | `automatic` sends the lines to Claude; `operator` holds them in a turn a person typed and offers them as a prompt suggestion plus a notice row above the prompt. |
    | `rate_limit_line_threshold` | `${user_config.rate_limit_line_threshold}` | `90` | Window use at which Claude gets the threshold line. The loop lanes' pause edge stays 90 whatever this is. |
    | `rate_limit_approach_pct` | `${user_config.rate_limit_approach_pct}` | `85` | Window use for the one approach line; at or above the threshold, none is sent. |
    | `rate_limit_line_data` | `${user_config.rate_limit_line_data}` | `verdict,window,reset` | What a line carries beside its verdict: `percent`, `window`, `reset`. |
-   | `rate_limit_guard_band` | `${user_config.rate_limit_guard_band}` | `true` | `false` hides the band row; `/rate-limit-guard:band` shows or hides it for one session. |
+   | `rate_limit_guard_band` | `${user_config.rate_limit_guard_band}` | `false` | `true` draws the band row; `/rate-limit-guard band on` or `band off` sets it for one session. |
+   | `rate_limit_guard_toast` | `${user_config.rate_limit_guard_toast}` | `true` | `false` drops the toast when a window nears or reaches the threshold or resets; the transcript line stays. |
 
    - Any value still showing its literal `${user_config.<name>}` token (unset key, or a Claude
      Code without the substitution) → **UNKNOWN** for that row, never the default stated as fact.
