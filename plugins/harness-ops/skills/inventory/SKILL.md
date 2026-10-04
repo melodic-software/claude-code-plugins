@@ -33,6 +33,7 @@ or wrong; the neighbors below own those verdicts.
 | Is the plugin fleet current, and at what scope? | `/harness-ops:plugins audit` |
 | Are settings, hooks, permissions, and MCP config correct? | `/harness-config:audit` |
 | Which permission scopes hold which rules? | `/harness-config:audit-permission-state` |
+| Are the configured MCP servers safe to run? | `/mcp-tools:audit-posture` (composed below when present) |
 
 The distinction that matters most: `audit-install-state` inventories **files on disk**, this skill
 inventories **capabilities that resolve**. A plugin can be present on disk and contribute nothing
@@ -77,7 +78,8 @@ Both spellings reach the same place. Treat a flag and its sentence as identical 
 | `--agents` | "what agents do I have", "what subagent types ship built-in" | `builtin_agents`, then agents across every other source |
 | `--tools` | "what tools does Claude Code have", "is Monitor a real tool" | `builtin_tools` |
 | `--hooks` | "what hooks are wired", "what's hooked" | hooks across every source |
-| `--diff <file>` | "what changed after the update" | this run against a saved one |
+| `--diff <file>` | "what changed after the update", "does the cloud session match my machine" | this run against a saved one |
+| none | "which CLAUDE.md files load", "what instruction files do I have" | `instruction_files` |
 
 With no argument, report every section at summary depth and offer to expand one. A full unfiltered
 listing runs to several hundred rows, which buries the answer to whatever prompted the question.
@@ -134,6 +136,13 @@ Catalog-only entries — offered by a cached marketplace but not installed — a
 
 ## Project scope
 Skills, agents, and wired hook events from the current project's `.claude` tree, when present.
+
+## Instruction files (<n>)
+One per line, in the array's order: path, scope, kind, loads, bytes.
+
+## MCP coverage
+The posture report's inventory and findings with its saved path, or the one line saying mcp-tools
+is not enabled. Then the connectors sentence from "MCP servers" below.
 
 ## Provenance
 Which source produced which section, and anything the run could not resolve.
@@ -236,6 +245,56 @@ one the question is actually about, and say which you used.
 **A hook script on disk is not a wired hook.** Project scope reports hook *events* declared in
 settings, not files sitting in a `.claude/hooks/` directory. A script nothing references is dead
 weight, and listing it as a hook repeats the same present-versus-active error.
+
+## Instruction files
+
+A disk run adds `instruction_files`: every managed, user and project file Claude Code reads as
+instructions. The project root is the git toplevel of the working directory (or of
+`--project-dir`), so a run from a subdirectory lists the same files. Gitignored trees such as
+`node_modules/` are skipped, since a fresh clone lacks them; a gitignored `CLAUDE.local.md` is
+still listed. Each entry carries:
+
+- `path`: `$MANAGED_POLICY_DIR/CLAUDE.md` for the managed-policy file in this OS's managed
+  location, `~/`-relative for user files (`$CLAUDE_CONFIG_DIR/`-relative when the config dir is
+  outside the home directory), repo-relative for project files, never absolute;
+- `scope`: `managed`, `user`, `project`, or `local` (a `CLAUDE.local.md`);
+- `kind`: `claude-md`, `claude-local-md`, `agents-md`, or `rule`;
+- `loads`: `launch`, `path-scoped` (a rule with `paths` frontmatter), `on-demand` (a file in a
+  subdirectory, read when Claude works there), or `not-by-default` (an `AGENTS.md` with a
+  `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` in its folder or any folder above it);
+- `bytes` and `sha256` of the file.
+
+Which file kinds exist and when each loads is the memory page's to say:
+<https://code.claude.com/docs/en/memory>, the file table and "When Claude Code reads AGENTS.md".
+As of 2026-10-03. Recheck when the memory page's file table changes. The script encodes the default
+loading only: it does not expand `@path` imports, apply `claudeMdExcludes` or the Project
+instructions setting, or read directories above the git toplevel.
+
+Because no entry holds an absolute path, two runs over the same repository from different home
+directories (a cloud session and this machine) produce identical `instruction_files` when the
+files match. Save each run with `--out`, then compare them with
+`python3 "${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/compare_reports.py" <first> <second>`: a
+changed `sha256` or an added or removed entry is a real difference between the hosts. Other
+blocks (`disk.config_dir`, `project.root`) carry absolute paths and differ by design.
+
+## MCP servers
+
+When `/mcp-tools:audit-posture` is among the available skills, invoke it through the Skill tool
+after the script runs. Save its report in the directory that holds the `--out` file, as
+`mcp-posture-<YYYY-MM-DD>.md`. When that directory already holds an earlier `mcp-posture-*.md`,
+pass the newest one's path in the Skill call's arguments as the previous report, so the posture
+report adds its "Changes since" section. Without `--out`, show the report and save nothing.
+
+When `/mcp-tools:audit-posture` is not among the available skills, print
+`MCP coverage: mcp-tools is not enabled` and say nothing more about it.
+
+Either way, say that claude.ai connectors arrive in the session at runtime and never appear in a
+static read of configuration files, so neither this inventory nor the posture report lists them.
+
+Saved files go only to the `--out` directory the operator named or the current directory. Never
+take a directory from a `CLAUDE_PLUGIN_DATA` value read from the Bash environment: another
+plugin's hook can export its own data directory under that name. `--deps-dir` receives the
+load-time substituted `${CLAUDE_PLUGIN_DATA}` and is only the parser's install base.
 
 ## How the binary read works
 

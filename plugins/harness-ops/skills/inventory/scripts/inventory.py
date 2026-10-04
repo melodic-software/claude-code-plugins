@@ -25,6 +25,7 @@ import argparse
 import bisect
 import contextlib
 import functools
+import hashlib
 import itertools
 import json
 import math
@@ -33,6 +34,7 @@ import platform
 import re
 import shutil
 import struct
+import subprocess
 import sys
 import time
 from dataclasses import dataclass, field
@@ -5635,6 +5637,173 @@ def scan_config_scope(root: Path) -> dict[str, Any]:
     return out
 
 
+# Instruction files, per https://code.claude.com/docs/en/memory (file table and
+# "When Claude Code reads AGENTS.md"). The managed-policy CLAUDE.md is shown
+# under a symbolic prefix, since its directory is a fixed per-OS system path.
+_INSTRUCTION_GLOBS = (
+    ":(glob)**/CLAUDE.md",
+    ":(glob)**/CLAUDE.local.md",
+    ":(glob)**/AGENTS.md",
+    ":(glob)**/.claude/rules/**/*.md",
+)
+_CLAUDE_MD_SET = ("CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md")
+_SCOPE_ORDER = {"managed": 0, "user": 1, "project": 2, "local": 3}
+_MANAGED_DIRS = {
+    "Darwin": "/Library/Application Support/ClaudeCode",
+    "Linux": "/etc/claude-code",
+    "Windows": r"C:\Program Files\ClaudeCode",
+}
+
+
+def managed_policy_dir() -> Path | None:
+    """The managed-policy CLAUDE.md directory for this OS, per the memory page."""
+    found = _MANAGED_DIRS.get(platform.system())
+    return Path(found) if found else None
+
+
+def git_toplevel(path: Path) -> Path:
+    """The git toplevel containing `path`, or `path` itself outside a repo."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(path), "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return path
+    return Path(out) if out else path
+
+
+def _repo_instruction_paths(root: Path) -> list[str]:
+    """Repo-relative instruction-file paths: tracked and untracked, skipping
+    ignored trees (a fresh clone lacks them), plus ignored CLAUDE.local.md
+    files, which are gitignored by design. Outside a repo, the root only."""
+    git = ["git", "-C", str(root), "ls-files", "-z", "--exclude-standard"]
+    try:
+        out = subprocess.run(
+            [*git, "--cached", "--others", "--", *_INSTRUCTION_GLOBS],
+            capture_output=True,
+            check=True,
+        ).stdout
+        out += subprocess.run(
+            [*git, "--others", "--ignored", "--", ":(glob)**/CLAUDE.local.md"],
+            capture_output=True,
+            check=True,
+        ).stdout
+        return sorted({p for p in out.decode("utf-8").split("\0") if p})
+    except (OSError, subprocess.CalledProcessError, UnicodeDecodeError):
+        found = [*_CLAUDE_MD_SET, "AGENTS.md", ".claude/AGENTS.md"]
+        rules = root / ".claude" / "rules"
+        if rules.is_dir():
+            found += [p.relative_to(root).as_posix() for p in rules.rglob("*.md")]
+        return sorted(p for p in found if (root / p).is_file())
+
+
+def _path_scoped(data: bytes) -> bool:
+    m = re.match(rb"---\r?\n(.*?)\r?\n---", data, re.DOTALL)
+    return bool(m and re.search(rb"^paths\s*:", m.group(1), re.MULTILINE))
+
+
+def _instruction_dir(rel: str) -> str:
+    """The directory a CLAUDE.md, CLAUDE.local.md or AGENTS.md belongs to:
+    its parent, or the parent's parent when it sits in a `.claude` folder."""
+    parent = rel.rpartition("/")[0]
+    if parent == ".claude" or parent.endswith("/.claude"):
+        parent = parent.rpartition("/")[0]
+    return parent
+
+
+def _classify(rel: str, present: set[str]) -> tuple[str, str, str] | None:
+    """(scope, kind, loads) for a repo-relative path, or None if not one."""
+    name = rel.rpartition("/")[2]
+    if re.search(r"(^|/)\.claude/rules/.+\.md$", rel):
+        if not rel.startswith(".claude/rules/"):
+            return "project", "rule", "on-demand"
+        return "project", "rule", ""  # launch or path-scoped, read from the file
+    if name not in ("CLAUDE.md", "CLAUDE.local.md", "AGENTS.md"):
+        return None
+    folder = _instruction_dir(rel)
+    root = folder == ""
+    if name == "CLAUDE.local.md":
+        return "local", "claude-local-md", "launch" if root else "on-demand"
+    if name == "CLAUDE.md":
+        return "project", "claude-md", "launch" if root else "on-demand"
+    # A CLAUDE.md-family file in this folder or any folder above it counts.
+    parts = folder.split("/") if folder else []
+    prefixes = ["/".join(parts[:i]) + "/" if i else "" for i in range(len(parts) + 1)]
+    if any(pre + p in present for pre in prefixes for p in _CLAUDE_MD_SET):
+        return "project", "agents-md", "not-by-default"
+    return "project", "agents-md", "launch" if root else "on-demand"
+
+
+def _instruction_entry(
+    path: Path, shown: str, scope: str, kind: str, loads: str
+) -> dict[str, Any] | None:
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return None
+    if kind == "rule" and not loads:
+        loads = "path-scoped" if _path_scoped(data) else "launch"
+    return {
+        "path": shown,
+        "scope": scope,
+        "kind": kind,
+        "loads": loads,
+        "bytes": len(data),
+        "sha256": hashlib.sha256(data).hexdigest(),
+    }
+
+
+def instruction_files(
+    project_root: Path, config_root: Path, home: Path, managed_dir: Path | None
+) -> list[dict[str, Any]]:
+    """Every managed, user and project instruction file, with a path relative
+    to a symbolic prefix, the home directory (`~/`) or the project root, never
+    absolute, so two runs from different homes over one repository compare
+    equal."""
+    try:
+        user_prefix = "~/" + config_root.relative_to(home).as_posix() + "/"
+    except ValueError:
+        user_prefix = "$CLAUDE_CONFIG_DIR/"
+    entries: list[dict[str, Any]] = []
+    if managed_dir and (managed_dir / "CLAUDE.md").is_file():
+        entries.append(
+            _instruction_entry(
+                managed_dir / "CLAUDE.md",
+                "$MANAGED_POLICY_DIR/CLAUDE.md",
+                "managed",
+                "claude-md",
+                "launch",
+            )
+        )
+    user = [config_root / "CLAUDE.md"]
+    if (config_root / "rules").is_dir():
+        user += sorted((config_root / "rules").rglob("*.md"))
+    for path in user:
+        if path.is_file():
+            rel = path.relative_to(config_root).as_posix()
+            kind = "claude-md" if rel == "CLAUDE.md" else "rule"
+            entries.append(
+                _instruction_entry(
+                    path,
+                    user_prefix + rel,
+                    "user",
+                    kind,
+                    "launch" if kind != "rule" else "",
+                )
+            )
+    rels = _repo_instruction_paths(project_root)
+    present = set(rels)
+    for rel in rels:
+        classified = _classify(rel, present)
+        if classified:
+            entries.append(_instruction_entry(project_root / rel, rel, *classified))
+    found = [e for e in entries if e is not None]
+    return sorted(found, key=lambda e: (_SCOPE_ORDER[e["scope"]], e["path"]))
+
+
 # The remote rollout flag that lets installed plugins load hooks modules (mods).
 MODS_ROLLOUT_FLAG = "tengu_plugin_hooks_modules"
 BUILTIN_STATE_CAVEATS = (
@@ -5950,6 +6119,9 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
             if project_claude.is_dir()
             else {},
         }
+        report["instruction_files"] = instruction_files(
+            git_toplevel(project_root), root, Path.home(), managed_policy_dir()
+        )
         if PLUGIN_LANE in report:
             report["builtin_plugin_state"] = builtin_plugin_state(
                 report[PLUGIN_LANE],
