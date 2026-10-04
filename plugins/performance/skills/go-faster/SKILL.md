@@ -127,8 +127,9 @@ Adoptions outlive a compaction only on disk. After a compaction, re-read them wi
 can no longer check has expired. Carry adopted items into every subagent brief you write.
 
 Later findings: name each one's owner skill or steps. A speedup worth a numbered target goes through
-the performance chain; the next go-faster run re-measures the rest, and `findings.py compare`
-reports `cannot-quantify` when the conditions differ.
+the performance chain; the next go-faster run re-measures the rest. For git status timing,
+`findings.py compare` reports the change against the last run, or `cannot-quantify` when the
+conditions differ.
 
 ## Boundary
 

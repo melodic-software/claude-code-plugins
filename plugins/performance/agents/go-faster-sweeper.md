@@ -85,6 +85,7 @@ array) on stdin. The fields:
 | `horizon` | `now` or `later` |
 | `route` | `performance-chain` for a speedup worth a numbered target, else `next-run` |
 | `effect` | `none`, `fewer-checks`, `drops-check`, `lower-verification`, `lower-effort`, `lower-model`, `loosens-guard`, `delegation`, `parallelism`, `batching`; required on a `now` finding, else optional |
+| `conflicts_instruction` | `<file>:<line>` of the loaded instruction a speedup conflicts with; the finding is then `flag-only` |
 | `guard_metric`, `revert_if` | the reading that shows accuracy slipping, and the reading that ends a `now` adoption |
 | `confidence`, `citations` | the source's label (required, `HIGH`, on a `now` finding); `{url, as_of: YYYY-MM-DD, recheck}` for outside advice re-read this run; `as_of` is the run's date, the UTC date in `RUN`'s directory name (`runs/YYYYMMDDT...Z`), never your local date; `findings.py add` refuses any other |
 | `reason_code`, `reason` | `not-checked`: `no-data`, `owner-unavailable`, `needs-elevation`, `needs-setting`, `auth-gap` or `refused-by-guard`, and a reason under the rule in Rules; `flag-only`: why |

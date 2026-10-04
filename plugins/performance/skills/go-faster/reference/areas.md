@@ -192,7 +192,7 @@ them live when a command's output, or the files you find, do not match the entry
 - **Record**: one measured finding per hook event it flags: unit `elapsed-ms`, value the p95, tier
   E2 (a per-event total spans every matching hook), workload `hook latency, last 7 days`,
   `command` exactly `/harness-ops:observability latency`, `fix_owner`
-  `/harness-ops:audit-performance`, horizon `later`. Flags nothing: one measured finding for the
+  `/harness-ops:audit-performance`, horizon `later`, route `performance-chain`. Flags nothing: one measured finding for the
   slowest event it lists.
 - **Not checked**: no rows, or it cannot evaluate: `no-data`, reason "no hook latency rows;
   /harness-ops:observability says it needs <the telemetry it names>; set that up and rerun
@@ -320,7 +320,7 @@ them live when a command's output, or the files you find, do not match the entry
   workload `ci jobs, last 5 completed runs`, `command` its `command`. A second measured finding
   for run length from `run_length` (per run, latest job `completed_at` minus earliest job
   `started_at`, median): unit `ci-minutes`, same tier and workload. Both horizon `later`, route
-  `performance-chain`.
+  `performance-chain`, `fix_owner` `/performance:goal`.
 - **Not checked**: `runs_listed` is 0: `no-data`, reason "no completed CI runs in this
   repository; this area applies once this repository has completed GitHub Actions runs; this
   sweep reads GitHub Actions only".
@@ -337,7 +337,8 @@ them live when a command's output, or the files you find, do not match the entry
 - **Owner**: none.
 - **Record**: a measured finding for the slowest step by median duration across those runs
   (skipped steps excluded): unit `elapsed-ms`, tier E2, workload `ci steps, last 5 completed runs`,
-  title naming its `step` and its `job`, `command` its `command`. Classify the step: a
+  title naming its `step` and its `job`, `command` its `command`, horizon `later`, route
+  `performance-chain`, `fix_owner` `/performance:goal`. Classify the step: a
   verifying check (test, lint, build, type or security check) or a guard. A remedy that runs it on
   fewer changes is `effect: fewer-checks` with a `guard_metric`; one that drops or weakens it goes
   to `/overengineering:audit`; a step you cannot classify is `flag-only` with the reason.
@@ -361,7 +362,8 @@ them live when a command's output, or the files you find, do not match the entry
 - **Record**: a measured finding for open to first review from `first_review` (earliest review
   `submittedAt` minus `createdAt`, over PRs with a review), and one for open to merge from
   `open_to_merge` (`mergedAt` minus `createdAt`): median each, unit `wait-ms`, tier E2, workload
-  `merged PRs, last 20`, `command` its `command`, horizon `later`, route `next-run`. PR size is a
+  `merged PRs, last 20`, `command` its `command`, horizon `later`, route `next-run`, `fix_owner`
+  `/performance:goal`. PR size is a
   candidate only: `expected_size`
   `{count: <size value>, source_kind: repo-count, source: "merged PRs, last 20"}`.
 - **Not checked**: `prs` is 0: `no-data`, reason "no merged pull requests to time; this area
@@ -380,9 +382,10 @@ them live when a command's output, or the files you find, do not match the entry
 - **Owner**: none.
 - **Record**: a measured finding from `reruns`, unit `count`, value the runs among the 20 with
   `attempt` above 1, tier E2, workload `ci runs, last 20`, `fix_owner` `/testing:diagnose`,
-  `command` its `command`. A measured finding from `test_steps` for the median duration of steps
+  `command` its `command`, horizon `later`, route `next-run`. A measured finding from `test_steps` for the median duration of steps
   whose name contains `test` (any case), unit `elapsed-ms`, tier E2, workload
-  `ci steps, last 5 completed runs`, `command` its `command`. Running fewer tests per change is
+  `ci steps, last 5 completed runs`, `command` its `command`, horizon `later`, route
+  `performance-chain`, `fix_owner` `/performance:goal`. Running fewer tests per change is
   `effect: fewer-checks` with a `guard_metric`; deleting or weakening tests goes to
   `/overengineering:audit`.
 - **Not checked**: `runs_listed` is 0: `no-data`, reason "no completed CI runs in this
@@ -406,7 +409,8 @@ them live when a command's output, or the files you find, do not match the entry
   `errors` exceed one (unit `count`). A repeat whose cure changes only how this session works
   (reuse the earlier output while its inputs are unchanged) is horizon `now`, effect `batching`,
   confidence `HIGH` (a direct count), with `guard_metric` "a reused result differs from a fresh run" and `revert_if` "the inputs
-  changed since the earlier run". Everything else is `later`.
+  changed since the earlier run"; its route is `next-run`. Everything else is `later`, route
+  `next-run`, `fix_owner` `/performance:goal`.
 - **Not checked**: `TRANSCRIPT` `none` and `SESSION` `unknown`: `no-data`, reason "no transcript
   found for session unknown: the session id did not expand; this area reads only the live
   session's transcript". `TRANSCRIPT` `none` otherwise: `no-data`, reason "no transcript found
