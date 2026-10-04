@@ -1,6 +1,8 @@
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -71,5 +73,41 @@ describe("rebuildVisualFrames", () => {
       "| ~10m, estimated | `frames/slide.png` | interval_0021.png |",
       "| untimed | `frames/code.png` | scene_0003.png |",
     ]);
+  });
+
+  it("treats a missing frames directory as an empty synthesis tier", () => {
+    const sliceDir = fs.mkdtempSync(path.join(os.tmpdir(), "visual-frames-"));
+    tempDirs.push(sliceDir);
+    fs.mkdirSync(lanePath(sliceDir, LANES.keyFrames), { recursive: true });
+    fs.writeFileSync(
+      lanePath(sliceDir, LANES.keyFrames, "selection.json"),
+      JSON.stringify({ selectedFrames: [] }),
+    );
+
+    const body = fs.readFileSync(rebuildVisualFrames(sliceDir), "utf8");
+
+    expect(fs.existsSync(lanePath(sliceDir, LANES.keyFrames, "frames"))).toBe(false);
+    expect(body).toContain("**Synthesis count:** 0");
+    expect(body).not.toContain("`frames/");
+  });
+
+  it("exits 0 with no stack trace when key-frames/frames is missing", () => {
+    const sliceDir = fs.mkdtempSync(path.join(os.tmpdir(), "visual-frames-"));
+    tempDirs.push(sliceDir);
+    fs.mkdirSync(lanePath(sliceDir, LANES.keyFrames), { recursive: true });
+    fs.writeFileSync(
+      lanePath(sliceDir, LANES.keyFrames, "selection.json"),
+      JSON.stringify({ selectedFrames: [] }),
+    );
+    const script = fileURLToPath(new URL("./rebuild-visual-frames.js", import.meta.url));
+
+    const result = spawnSync(process.execPath, [script, sliceDir], { encoding: "utf8" });
+
+    expect(result.status).toBe(0);
+    expect(result.stderr).not.toContain("ENOENT");
+    expect(result.stderr).not.toContain("Error");
+    expect(
+      fs.readFileSync(lanePath(sliceDir, LANES.keyFrames, "visual-frames.md"), "utf8"),
+    ).toContain("**Synthesis count:** 0");
   });
 });

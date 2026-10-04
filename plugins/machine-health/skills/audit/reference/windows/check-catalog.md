@@ -537,6 +537,8 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   Get-ChildItem -LiteralPath $root -Directory -Force |
       ForEach-Object { Get-ChildItem -LiteralPath $_.FullName -Directory -Force } |
       Measure-Object
+  Get-ChildItem -Path (Join-Path $root '*\*\tasks\*.output') -File -Force |
+      Sort-Object Length -Descending | Select-Object -First 5 FullName, Length, LastWriteTimeUtc
   ```
 
 - **Root resolution:** first existing candidate wins, and the winner is recorded in
@@ -547,17 +549,41 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   `CLAUDE_CODE_TMPDIR` when set, then `%TEMP%`, then `%LOCALAPPDATA%\Temp`. The resolved path is
   normalized to its long form, because `%TEMP%` commonly carries an 8.3 short name.
 
+- **Background-task output listing:** before the walk, the check lists
+  `<root>/<project-key>/<session-id>/tasks/*.output` (exactly those three directory levels, never
+  recursive) and keeps the five largest in `detail.largest_task_outputs`, largest first. Each entry
+  carries `path` and `session_dir` (long form), `bytes`, `gb` and `last_write_utc`.
+  `detail.task_output_count` counts every match, `detail.task_output_over_count` counts every match
+  at or above the per-file threshold, and `detail.largest_task_output_gb` is the top entry's size.
+  Only directory listings and file metadata are read, never file contents: task output can hold
+  secrets. Each directory is streamed and the 20-second cap is tested per entry on the check's own
+  clock, so one `tasks` directory with millions of entries cannot hold the listing past it. Hitting
+  the cap sets `detail.task_output_truncated`, and the walk keeps at least 40 of its 60 seconds.
+  Whether the owning
+  session is still live is not inferred, because age cannot separate a live scratchpad from an
+  abandoned one (`/disk-hygiene:clean` safety model); `last_write_utc` is reported and the reader
+  judges.
+
 - **Severity rubric:**
-  - `WARN`: total ≥5 GB, **or** the oldest session directory is ≥14 days old.
-  - `INFO`: total ≥1 GB and neither WARN arm trips.
+  - `WARN`: total ≥5 GB, **or** the oldest session directory is ≥14 days old, **or** one task output
+    is ≥1 GB. The summary then names the largest such file by the longest form that fits the
+    240-character summary cap: full path, then the path under the root, then the file name, and says
+    how many more outputs are over the threshold. The full path is always in
+    `detail.largest_task_outputs`.
+  - `INFO`: total ≥1 GB and no WARN arm trips.
   - `OK`: total <1 GB, **or** the root does not exist.
   - `UNKNOWN`: the walk did not complete. Its 60-second budget was exceeded, **or** any path under
-    the root could not be read, **or** the walk threw. Partial figures still ship in `detail` so the
+    the root could not be read, **or** the walk threw, **or** the task-output listing hit its
+    20-second cap. A completed walk proves the totals but not that no unlisted output reached the
+    per-file threshold, so a cut-off listing takes this row too. Partial figures still ship in `detail` so the
     human sees the floor. An incomplete walk undercounts by an unbounded amount, so it cannot clear
     a threshold in either direction. An inaccessible multi-gigabyte session would otherwise read as
     `OK`. `ran_successfully = false` also keeps the run out of `checks_ran`, which is what keeps an
     undercounted `total_gb` from becoming a trend baseline that a later complete walk would exceed
-    by the merely-recovered difference.
+    by the merely-recovered difference. A task output ≥1 GB does not lift this to `WARN`:
+    `check-result.schema.json` requires `UNKNOWN` whenever `ran_successfully` is false. The task-output
+    list still ships in `detail`, and the summary names the largest file and says whether the
+    listing itself completed.
   - No `CRIT`. The tree is reclaimable cache with no data-loss or security consequence, and
     `reference/shared/severity-rubric.md` reserves `CRIT` for imminent-failure and security
     conditions while directing ambiguity to the lower level. `container-disk-usage`, the other
@@ -575,6 +601,23 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   threshold alone cannot see until the volume is already at risk. The contrast case is
   `$CLAUDE_JOB_DIR/tmp`, which has a documented cleanup owner and stays small indefinitely.
 
+- **Why a per-file arm, and why it runs before the walk:** a single runaway background-task output
+  can hold nearly all of the tree's bytes. A total-size verdict alone never says which file to
+  remove, and a tree that large is the one most likely to exhaust the walk budget. Listing three
+  directory levels costs one directory read per session, not per file, so the largest outputs are
+  named even when the walk cannot finish. The 1 GB threshold is this check's own decision. It holds
+  whether or not the running Claude Code version caps a task's output, because a runaway file from
+  an older version can still be on disk.
+  - **Probed layout:** `<root>/<project-key>/<session-id>/tasks/<task-id>.output` was observed on
+    live Windows sessions in
+    [#6036](https://github.com/melodic-software/claude-code-plugins/issues/6036). No docs page
+    names this path as of 2026-10-04.
+  - **Pointer**: when deciding whether background-task output can still grow without bound, fetch
+    [Interactive mode, "How backgrounding works"](https://code.claude.com/docs/en/interactive-mode#how-backgrounding-works)
+    live. **As of**: 2026-10-04. **Recheck trigger**: that section names where task output is
+    written or changes what it says about output size, or a probe finds `.output` files outside
+    `tasks/`.
+
 - **Remediation:** none. `machine-health` removes nothing here; `detail.remediation_route` names
   `disk-hygiene:clean`, which owns removal behind its own snapshot, tier approval, and live-handle
   checks. Its safety model treats a live session's scratchpad as an active working directory.
@@ -585,8 +628,12 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   into `detail.unreadable_dir_count` and noted, so totals are a lower bound, never silently short.
   The check is Windows-only: `scripts/macos/` and `scripts/linux/` are `NOT_IMPLEMENTED` stubs, so
   there is no POSIX implementation to register and the skill reports `UNKNOWN` wholesale on those
-  hosts. A POSIX port derives the root the same way, appending the Unix segment (`claude-{uid}`) to
-  `$CLAUDE_CODE_TMPDIR` then `$TMPDIR` then `/tmp`.
+  hosts. A POSIX port resolves its own base and per-user segment rather than copying the Windows
+  candidates, and lists the same `tasks/*.output` level beneath it.
+  - **Pointer**: when porting the root resolution to macOS or Linux, fetch the `CLAUDE_CODE_TMPDIR`
+    row of [Environment variables](https://code.claude.com/docs/en/env-vars) live; it gives the
+    per-OS default base and the segment appended on each OS. **As of**: 2026-10-04. **Recheck
+    trigger**: a macOS or Linux implementation of this check is started, or that row changes.
 
 ---
 

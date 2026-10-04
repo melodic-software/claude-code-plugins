@@ -46,6 +46,23 @@ export function buildSheetCheckboxes(count) {
 }
 
 /**
+ * Sheet-triage floor percent. `buildFloorsLine` uses this same computation.
+ *
+ * @param {string} contentClass
+ * @param {number} durationSec
+ * @param {number|string} sessionCount
+ * @returns {number}
+ */
+export function floorSheetTriagePct(contentClass, durationSec, sessionCount) {
+  const floors = outcomeFloors(
+    contentClass,
+    durationSec,
+    typeof sessionCount === "number" ? sessionCount : 1,
+  );
+  return Math.round(floors.minSheetTriageRatio * 100);
+}
+
+/**
  * Build the floors sentence once the content class is known (vision-plan.md present).
  *
  * @param {string} contentClass
@@ -60,7 +77,7 @@ export function buildFloorsLine(contentClass, durationHours, sessionCount, durat
     durationSec,
     typeof sessionCount === "number" ? sessionCount : 1,
   );
-  const sheetTriagePct = Math.round(floors.minSheetTriageRatio * 100);
+  const sheetTriagePct = floorSheetTriagePct(contentClass, durationSec, sessionCount);
   const densificationPct = Math.round(floors.minDensificationRatio * 100);
   return (
     `**Floors for this slice** (from \`vision-plan\` class \`${contentClass}\`, ${durationHours}h, ` +
@@ -134,12 +151,18 @@ export function initWatchChecklist(sliceDir, { force = false } = {}) {
   const floorsLine = visionPlanPresent
     ? buildFloorsLine(contentClass, durationHours, sessionCount, durationSec)
     : "**Floors for this slice:** deferred — pending `key-frames/vision-plan.md` (content class + floors set after the vision-plan lands; re-run with `--force`).";
+  // Item 4.9's percent comes from the same floors. Without a vision plan the
+  // class is unknown, so the item names the deferred floor rather than a number.
+  const floorSheetTriageText = visionPlanPresent
+    ? `${floorSheetTriagePct(contentClass, durationSec, sessionCount)}%`
+    : "the deferred floor";
 
   let template = fs.readFileSync(TEMPLATE_PATH, "utf8");
   const replacements = {
     "{{VIDEO_SLUG}}": videoSlug,
     "{{INIT_TIMESTAMP}}": new Date().toISOString(),
     "{{FLOORS_LINE}}": floorsLine,
+    "{{FLOOR_SHEET_TRIAGE}}": floorSheetTriageText,
     "{{CONTENT_CLASS}}": contentClass,
     "{{DURATION_HOURS}}": durationHours,
     "{{SESSION_COUNT}}": String(sessionCount),

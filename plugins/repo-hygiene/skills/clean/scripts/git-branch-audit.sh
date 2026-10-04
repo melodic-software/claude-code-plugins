@@ -143,6 +143,8 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/clean-common.sh source=lib/cleanup-paths.sh
 source "$SCRIPT_DIR/lib/clean-common.sh"
+# shellcheck source=lib/git-noninteractive.sh
+source "$SCRIPT_DIR/lib/git-noninteractive.sh"
 # shellcheck source=lib/batch-common.sh
 source "$SCRIPT_DIR/lib/batch-common.sh"
 
@@ -359,8 +361,8 @@ CURRENT_BRANCH="$(git -C "$REPO_ROOT" branch --show-current 2>/dev/null | tr -d 
 remote_audit() {
   local heads tip ref name tier reason pr_line ahead_line raw rows pick pr oid n origin_url
   local prot=0 merged=0 drift=0 nomerge=0 unknown=0 why=""
-  if ! heads="$(GIT_TERMINAL_PROMPT=0 git -C "$REPO_ROOT" ls-remote --heads origin 2>/dev/null </dev/null)"; then
-    printf 'RemoteError: git ls-remote --heads origin failed (no origin remote, unreachable, or unauthenticated)\n'
+  if ! heads="$(clean_git_noninteractive -C "$REPO_ROOT" ls-remote --heads origin 2>/dev/null)"; then
+    printf 'RemoteError: git ls-remote --heads origin failed (remote unreachable)\n'
     return
   fi
   heads="${heads//$'\r'/}"

@@ -1,0 +1,179 @@
+# yaml-language-server: $schema=../pr-pipeline.schema.json
+version: 1
+
+activities:
+  simplify:
+    skill: code-tidying:batch-simplify
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: false
+    inputs: [base-sha, head-sha, changed-paths]
+  fix-docs:
+    skill: ai-slop:audit
+    args: fix
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: false
+    inputs: [changed-paths]
+    applies-when:
+      paths: ["**/*.md"]
+  format:
+    skill: toolchain:lint
+    args: --fix
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: false
+    inputs: [changed-paths]
+  run-tests:
+    skill: toolchain:check
+    effect: read
+    gating: gate
+    reads-untrusted: false
+    inputs: [head-sha, changed-paths]
+  measure-coverage:
+    skill: code-metrics:audit-coverage
+    effect: read
+    gating: advisory
+    reads-untrusted: false
+    inputs: [head-sha, changed-paths]
+  claude:
+    skill: review:code-review
+    effect: publish-artifact
+    gating: gate
+    reads-untrusted: true
+    inputs: [pr, base-sha, head-sha]
+  review-security:
+    skill: review:security-review
+    effect: publish-artifact
+    gating: gate
+    reads-untrusted: true
+    inputs: [pr, base-sha, head-sha]
+  check-intent:
+    skill: verification:confirm
+    effect: read
+    gating: gate
+    reads-untrusted: true
+    inputs: [pr, issue, head-sha]
+  explain:
+    skill: review:explain-change
+    effect: publish-artifact
+    gating: advisory
+    reads-untrusted: true
+    inputs: [pr, base-sha, head-sha]
+  require-checks:
+    script: .github/scripts/require-checks.sh
+    effect: read
+    gating: gate
+    reads-untrusted: false
+    inputs: [pr, head-sha]
+  address-feedback:
+    skill: source-control:pull-request
+    args: comments
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: true
+    inputs: [pr, findings]
+  fix-ci:
+    skill: source-control:pull-request
+    args: monitor
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: true
+    inputs: [pr, head-sha]
+  update:
+    skill: source-control:resolve-conflicts
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: false
+    inputs: [pr, base-sha, head-sha]
+    applies-when:
+      events: [push, schedule, dequeued]
+  merge:
+    script: .github/scripts/merge-pr.sh
+    effect: merge
+    gating: advisory
+    reads-untrusted: false
+    inputs: [pr, head-sha]
+  check-default-branch:
+    skill: toolchain:check
+    effect: read
+    gating: advisory
+    reads-untrusted: false
+    scope: tree
+    inputs: [head-sha]
+  sweep-comments:
+    skill: review:fanout
+    effect: mutate-tracker
+    gating: advisory
+    reads-untrusted: true
+    inputs: [pr]
+
+lanes:
+  pr-refine:
+    stage: refine
+    slots:
+      - activity: simplify
+      - activity: fix-docs
+      - activity: format
+  pr-run-checks:
+    stage: verify
+    slots:
+      - activity: run-tests
+      - activity: measure-coverage
+        needs: [run-tests]
+  pr-review:
+    stage: verify
+    slots:
+      - activity: claude
+  pr-review-security:
+    stage: verify
+    slots:
+      - activity: review-security
+  pr-verify:
+    stage: verify
+    slots:
+      - activity: check-intent
+  pr-explain:
+    stage: verify
+    slots:
+      - activity: explain
+  pr-require-checks:
+    stage: verify
+    slots:
+      - activity: require-checks
+  pr-address-feedback:
+    stage: respond
+    slots:
+      - activity: address-feedback
+  pr-fix-ci:
+    stage: respond
+    slots:
+      - activity: fix-ci
+  pr-update:
+    stage: respond
+    slots:
+      - activity: update
+  pr-merge:
+    stage: merge
+    slots:
+      - activity: merge
+  post-merge-verify:
+    stage: post-merge
+    slots:
+      - activity: check-default-branch
+  post-merge-sweep-comments:
+    stage: post-merge
+    slots:
+      - activity: sweep-comments
+        enabled: false
+
+loop:
+  review-rounds: 2
+  no-progress: 3
+
+merge:
+  rung: C2
+  diff-check:
+    denied-paths: [".github/**", ".claude/**", "docs/conventions/pr-pipeline.yaml"]
+    max-changed-lines: 400
+  stack-landing: manual

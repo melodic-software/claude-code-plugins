@@ -23,7 +23,8 @@
 # Output (stdout): one JSON object.
 #   Single marketplace: {marketplace, project_root, catalog, catalog_versions,
 #     installed, enabled, missing_from_install, missing_from_user_install,
-#     missing_from_enabled, user_scope_orphans, divergences}
+#     missing_from_enabled, user_scope_orphans, delisted, delisted_project,
+#     delisted_settings_only, divergences}
 #     — or {marketplace: {name, error}} on a resolvable per-marketplace failure.
 #   missing_from_install is all-scope (catalog minus installed anywhere);
 #   missing_from_user_install is user-scope only (catalog minus user-scope
@@ -54,6 +55,27 @@
 #                        Excludes ids explicitly opted out (false) in any scope,
 #                        like the two missing_* arrays — a deliberate decline is
 #                        not a gap to report as action needed.
+#   delisted             user-scope installed ids absent from the catalog's
+#                        names. Keyed on catalog names, never catalog_versions
+#                        keys, because an object-sourced entry is absent from
+#                        that map on purpose and is still in the catalog. Empty
+#                        when the catalog's plugins array is empty or not an
+#                        array, so a blank catalog cannot mark the whole fleet
+#                        as delisted. Subtracted from update-candidates-user. A
+#                        saved report with no delisted field fails open: those
+#                        ids stay candidates. Every installed id absent from the
+#                        names, at any scope, is also subtracted from
+#                        missing_from_enabled, under the same empty-catalog guard.
+#   delisted_project     {id, scope} for each currentProject install absent from
+#                        the catalog's names, under the same guard. Subtracted
+#                        from update-candidates-project, with the same fail-open
+#                        for a saved report that lacks the field.
+#   delisted_settings_only  effective enabledPlugins keys at this marketplace
+#                        whose value is true, with no install record in any
+#                        scope, absent from the catalog's names. Same empty-
+#                        catalog guard. A false key is left out: it loads
+#                        nothing, and no CLI uninstall can clear a key that has
+#                        no install behind it.
 #   marketplace.source   the marketplace's recorded source flattened to one
 #                        line (a string source as-is, an object source as
 #                        `<kind>:<locator>`), or null; report text only.
@@ -82,14 +104,17 @@
 #                             fields: id
 #     update-candidates-user  installed[] at user scope whose   (Step 3 update)
 #                             catalog version is UNKNOWN or differs from the
-#                             installed one, minus any proven downgrade: a
-#                             SUPERSET of what actually needs updating, never an
-#                             authoritative "these are stale" list. It degrades
-#                             to exactly installed-user when no catalog version
-#                             resolves.
+#                             installed one, minus any proven downgrade and
+#                             minus delisted: a SUPERSET of what actually needs
+#                             updating, never an authoritative "these are stale"
+#                             list. An unknown catalog version stays a candidate.
+#                             An id the catalog no longer names does not. It
+#                             degrades to exactly installed-user when no catalog
+#                             version resolves and delisted is empty.
 #                             fields: id
 #     update-candidates-project  installed[] with currentProject  (Step 2 update)
-#                             true, minus any proven downgrade. The Step 2 sweep
+#                             true, minus any proven downgrade and minus
+#                             delisted_project. The Step 2 sweep
 #                             set: no catalog equality filter, because an in-repo
 #                             pin is often a deliberate local build the catalog
 #                             does not carry.
@@ -447,7 +472,9 @@ fi
 # source force-pushed or re-pointed, into a fleet rollback that the CLI still
 # prints as an update. Withholding needs proof, so anything unparsable or
 # unknown stays a candidate: the guard fails open exactly as the equality filter
-# above it does.
+# above it does. Delisted is the exception that is proved a different way: the
+# id is absent from the catalog's names, which does not depend on a version.
+# A report that carries no `delisted` field (// []) keeps the old fail-open.
 ids_selector_valid() {
   case "$1" in
   installed-user | update-candidates-user | update-candidates-project | downgrade-candidates | current-project | missing-user-install | missing-enabled | user-scope-orphans)
@@ -528,12 +555,20 @@ PROJECTION_PROGRAM='
   if $selector == "" then $block
     elif $selector == "installed-user" then ($block.installed[]? | select(.scope == "user") | .id)
     elif $selector == "update-candidates-user" then
-      ($block.catalog_versions as $cvs | $block.installed[]? | select(.scope == "user")
-       | select((($cvs[.id]) == null or ($cvs[.id]) != .version)
-                and (proven_downgrade(.version; $cvs[.id]) | not)) | .id)
+      ($block.catalog_versions as $cvs | ($block.delisted // []) as $delisted
+       | $block.installed[]? | select(.scope == "user")
+       | .id as $id
+       | select((($cvs[$id]) == null or ($cvs[$id]) != .version)
+                and (proven_downgrade(.version; $cvs[$id]) | not)
+                and ($delisted | index($id) | not))
+       | $id)
     elif $selector == "update-candidates-project" then
-      ($block.catalog_versions as $cvs | $block.installed[]? | select(.currentProject == true)
-       | select(proven_downgrade(.version; $cvs[.id]) | not) | "\(.id)\t\(.scope)")
+      ($block.catalog_versions as $cvs | ([($block.delisted_project // [])[].id]) as $delisted
+       | $block.installed[]? | select(.currentProject == true)
+       | .id as $id
+       | select((proven_downgrade(.version; $cvs[$id]) | not)
+                and ($delisted | index($id) | not))
+       | "\(.id)\t\(.scope)")
     elif $selector == "downgrade-candidates" then
       ($block.catalog_versions as $cvs | $block.installed[]?
        | select(.scope == "user" or .currentProject == true)
@@ -1076,8 +1111,24 @@ PASS3_PROGRAM='
   # deliberate opt-in-required default. No enabledPlugins entry anywhere for
   # one of these is the INTENDED state, not a completeness gap.
   | ([$catalog[0].plugins[]? | select(.defaultEnabled == false) | .name + "@" + $name]) as $default_disabled
-  | (($verifiable_ids - $known_at_mp) - $default_disabled) as $missing_from_enabled
   | (reduce $known_at_mp[] as $id ({}; . + {($id): $ctx.effective[$id]})) as $enabled_at_mp
+  # Delisted is proved from catalog NAMES, not catalog_versions keys. An
+  # object-sourced entry never reaches catalog_versions and must not look
+  # removed. A valid catalog whose plugins array is empty is not evidence that
+  # every install was removed, so that shape yields no delisted set. Only an
+  # install can take the uninstall remedy; a key with no install record is a
+  # settings entry, and only a true one loads anything.
+  | (if ($catalog[0].plugins | type) == "array" and ($catalog[0].plugins | length) > 0 then
+       {installed: ($user_installed_ids - $catalog_ids),
+        project: ([$installed[] | select(.currentProject == true)
+                   | select(.id as $i | $catalog_ids | index($i) | not)
+                   | {id, scope}] | unique),
+        any_installed: ($installed_ids - $catalog_ids),
+        settings_only: (([$enabled_at_mp | to_entries[] | select(.value == true) | .key]
+                         - $installed_ids) - $catalog_ids)}
+     else {installed: [], project: [], any_installed: [], settings_only: []} end) as $absent
+  # A delisted install takes the uninstall remedy, so enabling it would contradict the report.
+  | ((($verifiable_ids - $known_at_mp) - $default_disabled) - $absent.any_installed) as $missing_from_enabled
   # `versionsMatch` separates a benign multi-scope install (project and user
   # scope both pinned to the same version — normal, not actionable) from a
   # real version skew (some scope is behind another — the "run converge"
@@ -1101,6 +1152,9 @@ PASS3_PROGRAM='
       missing_from_user_install: $missing_from_user_install,
       missing_from_enabled: $missing_from_enabled,
       user_scope_orphans: $user_scope_orphans,
+      delisted: $absent.installed,
+      delisted_project: $absent.project,
+      delisted_settings_only: $absent.settings_only,
       divergences: $divergences
     } as $block
   | '"$PROJECTION_PROGRAM"

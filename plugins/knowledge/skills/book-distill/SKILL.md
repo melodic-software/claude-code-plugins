@@ -11,6 +11,10 @@ Transform technical books into structured skill reference files that provide the
 
 The reference files are written into a **target skill**, either an existing skill you extend or a new one you create, inside the consuming project (`${CLAUDE_PROJECT_DIR}/.claude/skills/<target-slug>/`). Name the target skill when you invoke the tool. **Slugify the target name** (lowercase alphanumerics and hyphens only. Strip `/`, `\`, and `..`) before building any path, and verify the resolved directory stays under `${CLAUDE_PROJECT_DIR}/.claude/skills/` before writing.
 
+The `context/` and `templates/` files write the plugin data directory as `<plugin-data>`. Put the `${CLAUDE_PLUGIN_DATA}` path this body shows in its place before a path from those files goes into a command or a file write.
+
+- **Pointer**: when deciding which plugin files may carry a `${…}` path and which need the placeholder, fetch <https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves> live. **As of**: 2026-10-04. **Recheck trigger**: that table adds supporting files to where a `${…}` reference resolves, or lists the Bash tool among the processes that receive the variables.
+
 **Example shape:** a testing skill distilled from two books, Beck's *Test-Driven Development by Example* and Khorikov's *Unit Testing*, producing ~14 reference files, with shared files where the authors overlap.
 
 ## Usage caution. Copyright

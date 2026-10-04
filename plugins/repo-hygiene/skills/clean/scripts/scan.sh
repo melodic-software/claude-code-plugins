@@ -8,7 +8,7 @@
 #   Tier: <caches|build|git>
 #   Total reclaimable: <bytes>
 #   Git worktrees: <count>
-#   Git stale refs dry-run: <summary line | none>
+#   Git stale refs dry-run: remote prune not measured
 #
 # Never deletes. Exit 0 always (graceful outside git repo).
 set -u
@@ -89,8 +89,9 @@ emit_tier "Build artifacts" "build" < <(clean_build_candidates "$REPO_ROOT")
 
 WT_COUNT="$(git worktree list 2>/dev/null | wc -l | tr -d ' ')"
 echo "Git worktrees: ${WT_COUNT:-0}"
-STALE_REFS="$(git remote prune origin --dry-run 2>/dev/null | head -5 | tr '\n' '; ')"
-echo "Git stale refs dry-run: ${STALE_REFS:-none}"
+# Local inventory only. A live `git remote prune` is git-prune.sh --apply, which
+# may contact the remote; this line must not.
+echo "Git stale refs dry-run: remote prune not measured"
 echo "Tier: git"
 
 printf 'Total reclaimable: %s\n' "$TOTAL_BYTES"

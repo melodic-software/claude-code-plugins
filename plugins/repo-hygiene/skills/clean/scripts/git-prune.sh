@@ -12,6 +12,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/clean-common.sh source=lib/cleanup-paths.sh
 source "$SCRIPT_DIR/lib/clean-common.sh"
+# shellcheck source=lib/git-noninteractive.sh
+source "$SCRIPT_DIR/lib/git-noninteractive.sh"
 
 DRY_RUN=1
 
@@ -63,7 +65,13 @@ for op in "${GIT_PRUNE_OPS[@]}"; do
     printf 'Planned: %s\n' "$op"
   else
     printf 'Running: %s\n' "$op" >&2
-    eval "$op"
+    if [[ "$op" == "git remote prune origin" ]]; then
+      if ! clean_git_noninteractive remote prune origin; then
+        printf 'RemoteUnreachable: remote unreachable (git remote prune origin)\n'
+      fi
+    else
+      eval "$op"
+    fi
   fi
 done
 
