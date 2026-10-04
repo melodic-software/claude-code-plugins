@@ -49,6 +49,29 @@ def _async(status: str, message: str = "") -> dict[str, Any]:
     return {"status": status, "details": {"message": message, "uuid": UUID}}
 
 
+def _queue(
+    *,
+    position: int | None = None,
+    state: str = "QUEUED",
+    required: bool = True,
+    merged: bool = False,
+    armed: bool = False,
+) -> dict[str, Any]:
+    """A GraphQL `PullRequest` merge-queue read; a position puts the PR in the queue."""
+    in_queue = position is not None
+    pull_request = {
+        "merged": merged,
+        "isInMergeQueue": in_queue,
+        "isMergeQueueEnabled": required,
+        "mergeQueueEntry": {"state": state, "position": position} if in_queue else None,
+        "autoMergeRequest": {"enabledAt": "2026-10-04T00:00:00Z"} if armed else None,
+    }
+    return {"data": {"repository": {"pullRequest": pull_request}}}
+
+
+NO_QUEUE = _queue(required=False, merged=True)
+
+
 class AsyncMergeHarness(unittest.TestCase):
     """Runs `main --merge` over a stubbed ready verdict and records gh calls."""
 
@@ -78,6 +101,7 @@ class AsyncMergeHarness(unittest.TestCase):
         head: str | None = HEAD,
         blockers: list[str] | None = None,
         stack_member: bool = False,
+        queue: list[dict[str, Any] | Exception] | None = None,
     ) -> int:
         if blockers is not None:
             ready = not blockers
@@ -109,6 +133,7 @@ class AsyncMergeHarness(unittest.TestCase):
         puts = list(put) if isinstance(put, list) else [put]
         poll_answers = list(polls or [])
         listings = list(stack_listings or [])
+        queue_answers = list(queue or [NO_QUEUE])
 
         def capture(cmd: list[str]) -> Any:
             self.captures.append(cmd)
@@ -129,9 +154,16 @@ class AsyncMergeHarness(unittest.TestCase):
                 if isinstance(listing, Exception):
                     raise listing
                 return {"number": 7, "pull_requests": listing}
+            if args[1] == "graphql":
+                self.queue_reads += 1
+                answer = queue_answers.pop(0)
+                if isinstance(answer, Exception):
+                    raise answer
+                return answer
             raise AssertionError(f"unexpected gh_json call: {args}")
 
         self.stack_reads = 0
+        self.queue_reads = 0
         ticks = iter(clock or [0.0] * 50)
         argv = [
             "babysit_merge.py",
@@ -307,6 +339,11 @@ class DirectMergeGoesThroughTheAsyncApi(AsyncMergeHarness):
         self.assertFalse(any("merge-async" in " ".join(c) for c in self.captures))
         [legacy] = self.captures
         self.assertEqual(legacy[:2], ["pr", "merge"])
+        self.assertEqual(
+            (self.output["action"], self.output["merged"]), ("merge", True)
+        )
+        self.assertNotIn("enqueued", self.output)
+        self.assertNotIn("mergeQueue", self.output)
 
     def test_unreadable_default_branch_keeps_gh_pr_merge(self) -> None:
         self._run(_proc(), default_branch=None)
@@ -461,6 +498,172 @@ class MergeQueueIsEnqueued(AsyncMergeHarness):
         )
         self.assertEqual(code, 10)
         self.assertFalse(any(c[:2] == ["pr", "merge"] for c in self.captures))
+
+
+class GhPrMergeOntoAQueueIsReportedQueued(AsyncMergeHarness):
+    """`gh pr merge` routes a merge on any base that has a merge queue into the
+    queue and exits 0, so a queue the rules read missed shows only in the PR's
+    own `isInMergeQueue` / `mergeQueueEntry` read back afterward."""
+
+    def test_a_merge_github_put_in_the_queue_is_queued_not_merged(self) -> None:
+        code = self._run(_proc(), base="release", queue=[_queue(position=2)])
+        self.assertEqual(code, 0)
+        self.assertEqual(self.output["action"], "enqueue")
+        self.assertFalse(self.output["merged"])
+        self.assertTrue(self.output["enqueued"])
+        self.assertEqual(self.output["mergeQueue"], {"state": "QUEUED", "position": 2})
+
+    def test_an_unreadable_queue_keeps_the_merge_report_and_names_the_failure(
+        self,
+    ) -> None:
+        code = self._run(
+            _proc(), base="release", queue=[RuntimeError("gh: (HTTP 502)")]
+        )
+        self.assertEqual((code, self.output["merged"]), (0, True))
+        self.assertIn("merge queue", self.output["merge"]["queueReadError"])
+
+    def test_a_queued_merge_is_recorded_for_later_runs(self) -> None:
+        state = tempfile.TemporaryDirectory()
+        self.addCleanup(state.cleanup)
+        self._run(
+            _proc(),
+            base="release",
+            queue=[_queue(position=1)],
+            extra=("--state-dir", state.name),
+        )
+        path = pathlib.Path(state.name) / merge.PENDING_MERGES_FILE
+        record = json.loads(path.read_text(encoding="utf-8"))["requests"][
+            "owner/repo#1"
+        ]
+        self.assertEqual((record["queued"], record["head"]), (True, HEAD))
+
+
+class QueuedPullRequestIsConfirmedLater(AsyncMergeHarness):
+    """An enqueue is not a merge: a later run reads the queue entry back and
+    reports it still queued, merged at the vetted head, or dequeued."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.state = tempfile.TemporaryDirectory()
+        self.addCleanup(self.state.cleanup)
+
+    def _enqueue(self) -> None:
+        code = self._run(
+            _proc(_async("enqueued")),
+            merge_action="merge_queue",
+            extra=("--state-dir", self.state.name),
+        )
+        self.assertEqual((code, self.output["enqueued"]), (0, True))
+        self.captures.clear()
+
+    def _later_run(self, answer: dict[str, Any] | Exception, **kwargs: Any) -> int:
+        return self._run(
+            _proc(_async("enqueued")),
+            merge_action="merge_queue",
+            queue=[answer],
+            extra=("--state-dir", self.state.name),
+            **kwargs,
+        )
+
+    def _records(self) -> dict[str, Any]:
+        path = pathlib.Path(self.state.name) / merge.PENDING_MERGES_FILE
+        return json.loads(path.read_text(encoding="utf-8"))["requests"]
+
+    def test_an_async_enqueue_is_recorded(self) -> None:
+        self._enqueue()
+        record = self._records()["owner/repo#1"]
+        self.assertEqual((record["queued"], record["head"]), (True, HEAD))
+
+    def test_a_pr_still_in_the_queue_reports_its_position_and_sends_nothing(
+        self,
+    ) -> None:
+        self._enqueue()
+        code = self._later_run(_queue(position=3, state="AWAITING_CHECKS"))
+        self.assertEqual((code, self.output["action"]), (10, "merge-pending"))
+        self.assertTrue(self.output["enqueued"])
+        self.assertFalse(self.output["merged"])
+        self.assertEqual(
+            self.output["mergeQueue"], {"state": "AWAITING_CHECKS", "position": 3}
+        )
+        self.assertIn("position 3", self.output["blockers"][0])
+        self.assertEqual(self.captures, [])
+        self.assertIn("owner/repo#1", self._records())
+
+    def test_a_pr_that_left_the_queue_merged_reports_the_merge(self) -> None:
+        self._enqueue()
+        code = self._later_run(
+            _queue(merged=True), ready=False, blockers=["state=MERGED (not OPEN)"]
+        )
+        self.assertEqual(code, 0)
+        self.assertTrue(self.output["merged"])
+        self.assertEqual(self.output["blockers"], [])
+        self.assertEqual(self.output["pendingMergeRequest"]["status"], "merged")
+        self.assertEqual(self._records(), {})
+
+    def test_a_queue_merge_at_another_head_escalates(self) -> None:
+        self._enqueue()
+        code = self._later_run(_queue(merged=True), landed_head="f" * 40)
+        self.assertEqual(code, 10)
+        self.assertIn("escalate", self.output["blockers"][0])
+        self.assertFalse(self.output["merged"])
+
+    def test_a_pr_that_left_the_queue_unmerged_is_reported_dequeued(self) -> None:
+        self._enqueue()
+        code = self._later_run(_queue())
+        self.assertEqual(code, 10)
+        self.assertTrue(self.output["dequeued"])
+        self.assertFalse(self.output["merged"])
+        self.assertNotEqual(self.output["action"], "merge-pending")
+        self.assertIn("dequeued", self.output["blockers"][0])
+        self.assertEqual(self.captures, [])
+        self.assertEqual(self._records(), {})
+
+    def test_an_unreadable_queue_keeps_the_record_and_holds(self) -> None:
+        self._enqueue()
+        code = self._later_run(RuntimeError("gh: Server Error (HTTP 502)"))
+        self.assertEqual((code, self.output["action"]), (10, "merge-pending"))
+        self.assertIn("could not be read", self.output["blockers"][0])
+        self.assertEqual(self.captures, [])
+        self.assertIn("owner/repo#1", self._records())
+
+
+class MergeQueueReadBack(unittest.TestCase):
+    def _read(self, payload: Any) -> dict[str, Any]:
+        with mock.patch.object(merge, "gh_json", return_value=payload) as gh_json:
+            result = merge.read_merge_queue("owner/repo", 5)
+        [args] = gh_json.call_args.args
+        self.assertEqual(args[:2], ["api", "graphql"])
+        self.assertIn("n=5", args)
+        return result
+
+    def test_a_queued_pull_request_reports_its_entry(self) -> None:
+        result = self._read(_queue(position=4, state="MERGEABLE"))
+        self.assertEqual(
+            (
+                result["readError"],
+                result["inQueue"],
+                result["position"],
+                result["state"],
+            ),
+            (None, True, 4, "MERGEABLE"),
+        )
+
+    def test_a_pull_request_armed_to_enter_the_queue_is_not_in_it(self) -> None:
+        result = self._read(_queue(armed=True))
+        self.assertEqual(
+            (result["inQueue"], result["queueRequired"], result["autoMergeArmed"]),
+            (False, True, True),
+        )
+
+    def test_a_response_without_the_pull_request_is_a_read_error(self) -> None:
+        self.assertIsNotNone(self._read({"data": {"repository": None}})["readError"])
+
+    def test_a_failed_read_is_a_read_error(self) -> None:
+        with mock.patch.object(
+            merge, "gh_json", side_effect=RuntimeError("not enabled for this session")
+        ):
+            result = merge.read_merge_queue("owner/repo", 5)
+        self.assertIn("not enabled for this session", result["readError"])
 
 
 def _listed(number: int, sha: str, *, merged: bool = False) -> dict[str, Any]:

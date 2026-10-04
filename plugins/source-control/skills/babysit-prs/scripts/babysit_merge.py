@@ -21,10 +21,14 @@ Contract enforced here (encoded as code, not convention):
   without the endpoint (404) falls back to `gh pr merge` for a direct merge.
   Under `--stacked-prs` every stack member, the bottom layer included, merges
   through the async API too (GitHub's required API for a stacked PR) and never
-  falls back. Any other base, and every `--auto` arm, keeps `gh pr merge`. A
-  request still pending at the poll bound is recorded under `--state-dir`
-  (GitHub offers no cancel), and every later run reports it as merge pending
-  until it finishes.
+  falls back. Any other base, and every `--auto` arm, keeps `gh pr merge`,
+  which GitHub routes into a merge queue on any base that has one: its result
+  is read back and a PR found in the queue is reported enqueued, with its
+  position. A request still pending at the poll bound is recorded under
+  `--state-dir` (GitHub offers no cancel), and every later run reports it as
+  merge pending until it finishes. A PR put in the queue is recorded the same
+  way, and every later run reports it queued until it merges or leaves the
+  queue (`dequeued`).
 - With `--stacked-prs`, a native stack layer is judged against the stack's
   trunk and every open layer below it runs the same gate, since the async
   merge lands them together. Without it a stack layer is held as before.
@@ -1686,6 +1690,95 @@ def pull_request_landed(repo: str, number: int) -> dict[str, Any]:
     return {"merged": merged, "head": head}
 
 
+MERGE_QUEUE_QUERY = (
+    "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
+    "pullRequest(number:$n){merged isInMergeQueue isMergeQueueEnabled "
+    "mergeQueueEntry{state position} autoMergeRequest{enabledAt}}}}"
+)
+
+
+def read_merge_queue(repo: str, number: int) -> dict[str, Any]:
+    """The PR's merge-queue standing as GitHub reports it now.
+
+    GraphQL-only: REST exposes neither queue membership nor position. Any
+    failure, the session's GraphQL refusal included, sets `readError`, and the
+    caller reports the queue standing as unconfirmed rather than absent.
+    """
+    owner, name = repo.split("/", 1)
+    try:
+        data = gh_json(
+            [
+                "api",
+                "graphql",
+                "-f",
+                f"query={MERGE_QUEUE_QUERY}",
+                "-F",
+                f"o={owner}",
+                "-F",
+                f"r={name}",
+                "-F",
+                f"n={number}",
+            ]
+        )
+    except (RuntimeError, json.JSONDecodeError) as exc:
+        return {"readError": f"could not read the merge queue: {exc}"}
+    pr = json_object(
+        json_object(json_object(json_object(data).get("data")).get("repository")).get(
+            "pullRequest"
+        )
+    )
+    flags = (pr.get("merged"), pr.get("isInMergeQueue"), pr.get("isMergeQueueEnabled"))
+    if not all(isinstance(flag, bool) for flag in flags):
+        return {"readError": "the merge queue read returned no pull request state"}
+    entry = pr.get("mergeQueueEntry")
+    entry = entry if is_json_object(entry) else None
+    return {
+        "readError": None,
+        "merged": pr["merged"],
+        "inQueue": pr["isInMergeQueue"] or entry is not None,
+        "queueRequired": pr["isMergeQueueEnabled"],
+        "autoMergeArmed": is_json_object(pr.get("autoMergeRequest")),
+        "state": entry.get("state") if entry else None,
+        "position": entry.get("position") if entry else None,
+    }
+
+
+def report_queue_routing(result: dict[str, Any], queue: dict[str, Any]) -> int:
+    """Correct a successful `gh pr merge` report for a base with a merge queue,
+    returning the exit code.
+
+    `gh pr merge` routes every merge on a queue base into the queue, `--auto`
+    or not, and exits 0 either way; a queue the rules read did not report is
+    therefore seen only here. A base without a queue keeps the report as it was.
+    """
+    if queue["readError"]:
+        result["merge"]["queueReadError"] = queue["readError"]
+        return 0
+    if queue["inQueue"]:
+        result["action"] = "enqueue"
+        result["merged"] = result["autoMergeEnabled"] = False
+        result["enqueued"] = True
+        result["mergeQueue"] = {"state": queue["state"], "position": queue["position"]}
+        return 0
+    if not queue["queueRequired"] or queue["merged"]:
+        return 0
+    result["merged"] = False
+    result["autoMergeEnabled"] = queue["autoMergeArmed"]
+    result["mergeQueue"] = {
+        "state": None,
+        "position": None,
+        "entersWhenReady": queue["autoMergeArmed"],
+    }
+    if queue["autoMergeArmed"]:
+        result["action"] = "auto-merge"
+        return 0
+    result["merge"]["message"] = (
+        "gh pr merge succeeded on a merge-queue base, but the pull request is not "
+        "queued, armed to enter the queue, or merged -- re-run the read-only check"
+    )
+    return 10
+
+
 def async_merge(
     repo: str,
     number: int,
@@ -1931,6 +2024,8 @@ def check_pending_request(repo: str, number: int, path: Path) -> dict[str, Any] 
         entry = _load_pending(path).get(key)
     if not is_json_object(entry):
         return None
+    if entry.get("queued"):
+        return check_queued_entry(repo, number, path, entry)
     current = read_async_merge(repo, number, str(entry.get("uuid") or ""))
     report = {
         **entry,
@@ -1950,6 +2045,37 @@ def check_pending_request(repo: str, number: int, path: Path) -> dict[str, Any] 
     return report
 
 
+def check_queued_entry(
+    repo: str, number: int, path: Path, entry: dict[str, Any]
+) -> dict[str, Any]:
+    """A recorded merge-queue entry as GitHub reports it now.
+
+    `queued` while the PR is still in the queue, `merged` once it landed
+    (checked against the recorded head), and `dequeued` when it left the queue
+    without merging. An unreadable queue, or a merge whose head cannot be read
+    back, keeps the record with status None.
+    """
+    key = f"{repo}#{number}"
+    queue = read_merge_queue(repo, number)
+    report: dict[str, Any] = {**entry, "status": None, "message": ""}
+    if queue["readError"]:
+        report["message"] = queue["readError"]
+        return report
+    if queue["inQueue"]:
+        report["status"] = "queued"
+        report["mergeQueue"] = {"state": queue["state"], "position": queue["position"]}
+        return report
+    if queue["merged"]:
+        report["status"] = "merged"
+        report["verification"] = verify_request_landed(repo, number, entry)
+        if report["verification"]["verified"] is None:
+            return report
+    else:
+        report["status"] = "dequeued"
+    update_pending(path, key, None)
+    return report
+
+
 def _record_pending(
     path: Path,
     repo: str,
@@ -1958,13 +2084,16 @@ def _record_pending(
     pin: str,
     result: dict[str, Any],
 ) -> None:
-    """Keep a request that is still live on GitHub; forget a finished one."""
+    """Keep a request that is still live on GitHub, or a PR it put in the merge
+    queue; forget a finished one."""
     key = f"{repo}#{number}"
     live = (
         bool(record.get("uuid")) and record.get("status") not in ASYNC_TERMINAL_STATUSES
     )
     entry: dict[str, Any] | None = None
-    if live:
+    if record.get("success") and record.get("status") == "enqueued":
+        entry = _queued_entry(pin)
+    elif live:
         entry = {
             "uuid": record["uuid"],
             "head": pin,
@@ -1981,6 +2110,21 @@ def _record_pending(
                     for layer, head in _evaluated_layers(result)
                 ],
             }
+    _write_pending(path, key, entry, result)
+
+
+def _queued_entry(pin: str) -> dict[str, Any]:
+    return {
+        "queued": True,
+        "head": pin,
+        "mergeAction": "merge_queue",
+        "requestedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+    }
+
+
+def _write_pending(
+    path: Path, key: str, entry: dict[str, Any] | None, result: dict[str, Any]
+) -> None:
     try:
         update_pending(path, key, entry)
     except (RuntimeError, OSError) as exc:
@@ -1988,6 +2132,53 @@ def _record_pending(
             f"could not record the pending merge request ({exc}); a later run will "
             "not know it is live"
         )
+
+
+def _queue_position(queue: dict[str, Any]) -> str:
+    position = queue.get("position")
+    where = "position unknown" if position is None else f"position {position}"
+    return f"{where}, state {queue.get('state') or 'unknown'}"
+
+
+def queued_entry_hold(
+    prior: dict[str, Any], verified: Any
+) -> tuple[str | None, str | None]:
+    """`(hold, reason)` for a recorded merge-queue entry. A hold with no reason
+    is a merge that may still land; `(None, None)` is a confirmed merge."""
+    status = prior.get("status")
+    since = prior.get("requestedAt")
+    if status == "queued":
+        queue = json_object(prior.get("mergeQueue"))
+        return (
+            f"in the merge queue ({_queue_position(queue)}) since {since} -- "
+            "queued, not merged; it may still land; no new request is sent",
+            None,
+        )
+    if status is None:
+        return (
+            f"the merge-queue entry recorded at {since} could not be read "
+            f"({prior.get('message')}) -- merge pending; it may still land; no new "
+            "request is sent",
+            None,
+        )
+    if status == "dequeued":
+        dequeued = (
+            f"left the merge queue without merging (queued at {since}): removed by "
+            "hand or through the API, a failed or timed-out queue check, or a "
+            "requirement it no longer meets -- dequeued, not merged; the record is "
+            "cleared and the next run gates it again"
+        )
+        return dequeued, dequeued
+    if verified is not True:
+        unconfirmed = "the merge-queue entry merged, but " + (
+            "the head it landed could not be read back -- unconfirmed; the record "
+            "is kept and re-checked next run"
+            if verified is None
+            else "the head it landed is not the head the gate evaluated -- "
+            "escalate to a human"
+        )
+        return unconfirmed, unconfirmed
+    return None, None
 
 
 def build_settle(logins: Iterable[str], minutes: str) -> ReviewSettleConfig | None:
@@ -2394,7 +2585,14 @@ def main() -> int:
         result["pendingMergeRequest"] = prior
         verified = json_object(prior.get("verification")).get("verified", True)
         hold = reason = None
-        if prior.get("corrupt"):
+        if prior.get("queued"):
+            hold, reason = queued_entry_hold(prior, verified)
+            if prior.get("status") == "queued":
+                result["enqueued"] = True
+                result["mergeQueue"] = prior.get("mergeQueue")
+            elif prior.get("status") == "dequeued":
+                result["dequeued"] = True
+        elif prior.get("corrupt"):
             hold = (
                 f"the recorded async merge request for this PR is corrupt "
                 f"({prior.get('message')}) -- merge pending until a human "
@@ -2577,8 +2775,13 @@ def main() -> int:
     }
     result["merged"] = proc.returncode == 0 and not arm_auto
     result["autoMergeEnabled"] = proc.returncode == 0 and arm_auto
+    exit_code = 0 if proc.returncode == 0 else 10
+    if proc.returncode == 0:
+        exit_code = report_queue_routing(result, read_merge_queue(repo, number))
+        if pending_path is not None and result.get("enqueued"):
+            _write_pending(pending_path, f"{repo}#{number}", _queued_entry(pin), result)
     print(json.dumps(result, indent=2))
-    return 0 if proc.returncode == 0 else 10
+    return exit_code
 
 
 if __name__ == "__main__":

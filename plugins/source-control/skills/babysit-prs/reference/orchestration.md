@@ -405,9 +405,11 @@ same-worktree protections.
   or no subagent tools to dispatch to: leave the thread unresolved, do not merge, and report the PR with the
   addressed-but-unresolvable thread named. Never resolve past a refusal, and never reach around the
   wrapper.
-- A merge the gate reported `"action": "enqueue"` (`enqueued: true`) is queued, not merged. Keep
-  the PR and its worktree, and let a later cycle read its state: `MERGED` ends it like any merge; a
-  PR still open and out of the queue goes back through the gate. A merge reported
+- A merge the gate reported `"action": "enqueue"` (`enqueued: true`) is queued, not merged,
+  whether the async API or `gh pr merge` put it there. Keep the PR and its worktree, and let a
+  later cycle's gate run read its queue entry: still queued (`mergeQueue.position`) is "queued,
+  may still land"; merged ends it like any merge; `dequeued: true` is reported as dequeued, and the
+  next cycle gates it again. A merge reported
   `status: pending`, or a later run reporting `"action": "merge-pending"`, is still live on GitHub
   and may land whatever the gate now says: report it as "merge may still land", keep the PR, and
   let the next cycle read it again. `mergeUnconfirmed: true` or `stackVerification.verified` other
