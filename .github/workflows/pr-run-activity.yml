@@ -281,6 +281,64 @@ jobs:
             --permission-mode dontAsk
             ${{ steps.stage-skill.outputs.claude-args }}
 
+      # The reply is untrusted model text: it is read with jq and printed as
+      # data, never interpolated into a command. The file path falls back to
+      # the action's fixed location (base-action/src/execution-file.ts:6-13).
+      - name: Show the skill's final reply
+        if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+        env:
+          EXECUTION_FILE: >-
+            ${{ steps.act-skill.outputs.execution_file
+            || format('{0}/claude-execution-output.json', runner.temp) }}
+        run: |
+          if [ ! -f "$EXECUTION_FILE" ]; then
+            echo "No execution file to summarize"
+            exit 0
+          fi
+          reply=$(jq -r '[.[] | select(.type == "result")] | last | (.result // "")[:4000] | gsub("`"; "'"'"'")' "$EXECUTION_FILE")
+          {
+            echo "### Skill reply"
+            echo
+            echo '```text'
+            printf '%s\n' "$reply"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      # On pull_request events the action replaces these paths with the base
+      # branch's copies when the PR head is untrusted (claude-code-action
+      # src/github/operations/restore-config.ts:26-35 lists them, :269-349
+      # restores them and unstages). Put back only what that restore changed,
+      # so a file the skill created or edited under them still shows as dirty.
+      - name: Undo the action's restore of base config paths
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'skill'
+          && steps.config.outputs.effect == 'read' && github.event.pull_request.base.ref != ''
+        env:
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          base="refs/remotes/origin/$BASE_REF"
+          if ! git rev-parse -q --verify "$base^{commit}" >/dev/null; then
+            echo "The action fetched no base branch, so it restored nothing"
+            exit 0
+          fi
+          same_as_base() {
+            git cat-file -e "$base:$1" 2>/dev/null && [ -f "$1" ] && [ ! -L "$1" ] &&
+              [ "$(git hash-object -- "$1")" = "$(git rev-parse "$base:$1")" ]
+          }
+          for path in .claude .mcp.json .claude.json .gitmodules .ripgreprc CLAUDE.md CLAUDE.local.md .husky; do
+            while IFS= read -r -d '' file; do
+              if ! git cat-file -e "$HEAD_SHA:$file" 2>/dev/null && same_as_base "$file"; then
+                rm -f -- "$file"
+              fi
+            done < <(git ls-tree -r -z --name-only "$base" -- "$path")
+            while IFS= read -r -d '' file; do
+              if { [ ! -e "$file" ] && [ ! -L "$file" ]; } || same_as_base "$file"; then
+                git checkout "$HEAD_SHA" -- "$file"
+              fi
+            done < <(git ls-tree -r -z --name-only "$HEAD_SHA" -- "$path")
+          done
+
       - name: Run the script activity
         id: act-script
         if: steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'script'

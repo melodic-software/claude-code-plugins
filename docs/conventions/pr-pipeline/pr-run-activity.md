@@ -104,6 +104,16 @@ plugin installs only from `$RUNNER_TEMP/base-marketplace`. Commits go through th
 are made against that branch, which may have moved since the gate; the push that moved it starts
 its own `synchronize` run, which gates the new head again.
 
+On PR events claude-code-action adds a second head-isolation layer beside `--setting-sources user`:
+when it treats the PR head as untrusted, it replaces `.claude`, `.mcp.json`, `CLAUDE.md` and its
+other listed config paths with the PR base branch's copies before Claude starts. For a `read`
+skill, the next step puts back only what that restore changed, so the dirty-tree check does not
+fail on the action's own edits, and a file the skill created or edited under those paths still
+counts as dirty.
+
+The job's step summary shows the skill's final reply (at most 4000 characters, backticks
+neutralized) for audit. It is model output, printed as data.
+
 ### Script activities
 
 The script runs from its base copy, with the PR head as its working directory, and must be
