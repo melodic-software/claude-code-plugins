@@ -264,7 +264,8 @@ jobs:
           else
             gh api -X POST "$refs" -f ref=refs/heads/release/plugins -f sha="$oid" --silent
           fi
-          gh api -X DELETE "$refs/heads/$stage" --silent
+          # The release already landed on release/plugins; a failed cleanup only leaves the staging branch, which the next run deletes first.
+          gh api -X DELETE "$refs/heads/$stage" --silent || echo "::warning::Could not delete $stage; the next run removes it."
           echo "Wrote release commit $oid."
       - name: Open or update the release pull request
         if: steps.decide.outputs.build == 'true' && steps.release.outputs.released != '0'
