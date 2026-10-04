@@ -3,6 +3,12 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.30] - 2026-10-04
+
+### Changed
+
+- The browser-automation offer's preference order points at the browser-tool rubric in `/testing:run-e2e` and applies its logged-in-browser row, with the WSL caveat for Claude in Chrome.
+
 ## [0.3.29] - 2026-10-04
 
 ### Changed

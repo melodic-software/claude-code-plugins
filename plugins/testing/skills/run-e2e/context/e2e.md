@@ -28,32 +28,66 @@ package publishes a 0.2 or 1.0 release, or when the binary the row invokes stops
 
 **If only orchestrator tooling available (no browser automation):** degrade to API + log verification and report that visual/UI testing is unavailable.
 
-## Token Optimization: CLI by default
+## Browser-tool rubric
 
-**Critical for context budget.** Playwright MCP streams snapshots and screenshots into context on every step; Playwright CLI writes them to disk so the agent reads only what it needs, a substantially smaller per-workflow token cost.
+This table is the one place that says which browser tool fits which job; other skills point here
+through `/testing:run-e2e`. Pick by the job, not by habit.
 
-| Approach | When to use | Token cost |
-|----------|------------|------------|
-| **Playwright CLI** (via `/playwright:playwright` when enabled) | Default: all navigation, interaction, snapshots, screenshots | Low: artifacts on disk, paths in context |
-| **Playwright MCP** | Opt-in for stateful exploratory flows needing a continuous in-context browser (check how the consuming project enables/disables it in its MCP config) | High: payloads stream into context |
-| **Orchestrator MCP + curl** | API-only verification, health checks, structured log inspection | Minimal |
-
-**CLI mechanics** (commands, sessions, snapshots, storage, tracing, network mocking, Windows quirks): see `/playwright:playwright`, when the playwright plugin is enabled. This skill (`/testing:run-e2e`) owns the broader orchestrator + API + UI story.
-
-## Browser-tool fit triage
-
-Browser-adjacent surfaces with overlapping but distinct fit. Pick by what evidence the change needs, not by what's most familiar.
-
-| Tool | When it fits | When it does NOT fit |
+| Job | Tool | Not for |
 |---|---|---|
-| Playwright CLI | **Default**: token-efficient capture, headless, deterministic Chromium; pre/post snapshots + screenshots + console + network | Real-Chrome-fingerprint flows; Lighthouse perf evidence |
-| Claude in Chrome (built-in CC feature) | GIF recording for multi-step demos; natural-language find on flaky locators; auth carry-through to real personal Chrome | Token-efficient autonomous E2E (use Playwright CLI instead); CI |
-| Chrome DevTools MCP (when configured) | Lighthouse audits; Core Web Vitals (LCP/FCP/TBT/CLS); performance traces; protocol-level network inspection | UI navigation/interaction flows (Playwright CLI is faster) |
-| Orchestrator MCP + `curl` | API-only verification; structured-log inspection; distributed-trace introspection | Anything user-facing |
+| Verify a change from a terminal coding agent (default) | Playwright CLI through `/playwright:playwright`, headless. It writes snapshots and screenshots to disk, so only paths enter context. On WSL2, Linux-side Chromium; headed through WSLg only when the user asks | A browser the user is logged into |
+| Long-running exploration that holds browser state across many steps | Playwright MCP, opt-in (check how the consuming project enables it in its MCP config) | Routine verification: it streams page payloads into context |
+| Deep performance or network debugging: traces, Core Web Vitals, Lighthouse, protocol-level requests | Chrome DevTools MCP, when configured; the CLI's `console` and `network` cover the basics | UI navigation flows |
+| A regression the suite must keep catching | A committed `@playwright/test` spec run in CI | One-off checks during development: drive the app once and keep the evidence |
+| The user's logged-in real browser, or a GIF demo | Claude in Chrome on a native host. From WSL it is documented as unsupported, and a live test is pending; until it reports, use the CLI's saved auth state or a persistent profile after one login | Autonomous runs; CI |
+| API-only checks, health, structured logs, traces | Orchestrator MCP + `curl` | Anything user-facing |
+
+Claude in Chrome from WSL. Pointer: the WSL note at the top of
+<https://code.claude.com/docs/en/chrome>; user reports of `claude --chrome` working from WSL are in
+the comments on <https://github.com/anthropics/claude-code/issues/79655>. As of: 2026-10-04. Recheck
+trigger: the page drops its WSL line, or the live test of `claude --chrome` from WSL reports.
+
+**CLI mechanics** (commands, sessions, snapshots, storage, tracing, network mocking, Windows quirks):
+see `/playwright:playwright`, when the playwright plugin is enabled.
 
 ## UI evidence contract
 
 For UI changes, capture verifiable evidence rather than asserting "looks right": pre/post accessibility snapshots, screenshots of the changed state, a console check (no new errors), and network verification (correct calls, status codes). An authored E2E/integration test asserting the user-visible behavior also satisfies the contract. When the consuming project documents its own evidence requirements, those govern.
+
+### Inspect the render
+
+A screenshot on disk is not an inspection. Agents verifying UI changes have reported "looks good"
+over misaligned or ugly buttons, clipped text, overlap and low contrast (user report, 2026-10-04).
+For every changed screen, run these checks in order and report each one's result, or why it did not
+run:
+
+1. **Accessibility scan.** Run axe (`@axe-core/playwright` with WCAG tags) when the project has
+   it; otherwise report the scan as not run and name the package. A clean scan is necessary, not
+   sufficient: no tool finds every failure, and in GDS's 2017 test, 29% of barriers were missed by
+   all ten tools combined. Report manual accessibility review as not performed unless a person did it.
+2. **Geometry.** Assert layout from the DOM at two or more viewport widths (a phone and a desktop
+   width): sibling controls' bounding boxes do not overlap; text does not clip (`scrollWidth` or
+   `scrollHeight` larger than the client size under hidden overflow); elements meant to align share
+   an edge or center; changed elements are in the viewport. An aria snapshot is not a layout check:
+   it records roles, names and text, and gave identical output for a broken and a correct layout in a
+   local probe (2026-10-04), where geometry checks caught both defects.
+3. **Pixel baseline**, when the project keeps one: `toHaveScreenshot`, with baselines generated and
+   compared in the same container, since rendering differs across hosts. A diff shows change, not
+   whether the change is a defect.
+4. **Look at it.** Read cropped, element-level screenshots at each width and check each against a
+   list: misaligned or inconsistent buttons, clipped or overlapping text, spacing, contrast,
+   anything unlike the design or the neighboring screens. Findings are leads: confirm each with a
+   step-2 check. "No issues found" is never a pass: in the DiffSpot benchmark the best vision model
+   found 40.7% of real visual changes.
+
+Evidence pointers, as of 2026-10-04:
+[Playwright accessibility testing](https://playwright.dev/docs/accessibility-testing) (automated
+scans cannot find every WCAG failure);
+[GDS tool audit](https://accessibility.blog.gov.uk/2017/02/24/what-we-found-when-we-tested-tools-on-the-worlds-least-accessible-webpage/);
+[DiffSpot, arXiv 2605.29615](https://arxiv.org/abs/2605.29615);
+[Playwright visual comparisons](https://playwright.dev/docs/test-snapshots) (same-environment
+baselines). Recheck trigger: a benchmark measures current vision models on UI defects, or an
+injected-defect eval in this repository reports catch rates per check.
 
 ### Recording tier (optional)
 
@@ -130,6 +164,7 @@ For each verified scenario:
 - Screenshot of the expected state
 - Console log check (no errors)
 - Network request verification (correct API calls, status codes)
+- The render checks in [Inspect the render](#inspect-the-render), each with its result
 
 When `recording` resolves to `gif`, record the sequence with Claude in Chrome's `gif_creator`; when it resolves to `video`, record via the playwright CLI. See the recording tier above. Under `off`, the screenshots are the evidence.
 
