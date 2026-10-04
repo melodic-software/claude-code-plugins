@@ -184,10 +184,10 @@ questions. Never equate them without normalizing:
   and we treat quality loss as tracking **absolute tokens in context, not window fraction**. It
   answers *distance to quality loss*. That is also why the token bands are absolute numbers
   selected by window class rather than percentages: 50% of a 1M window is a materially different
-  cognitive state than 50% of a 200k window. Pointer: for the degradation evidence, see the Chroma
-  context-rot report, <https://research.trychroma.com/context-rot>. As of: 2026-10-01. Recheck
-  trigger: Chroma revises or withdraws the report, or a newer study finds degradation tracking
-  window fraction.
+  cognitive state than 50% of a 200k window. This is a declared judgment: no published study
+  compares absolute tokens with window fraction, and Anthropic publishes no context-quality
+  threshold. As of: 2026-10-04. Recheck trigger: Anthropic publishes a context-quality threshold,
+  or a study compares the two.
 
 **Window-class selection:** use the band row whose class key is the **largest one ≤
 `context_window_size`**. A window smaller than every configured class has no row, so the token
@@ -316,8 +316,9 @@ skill's module check), none of the following runs except the PostCompact marker.
   including `unknown`. That implements this contract's own "evidence-degraded regardless of zone"
   rule, so the marker is never write-only.
 - **Status tool** `mcp__context-guard__status`: returns the session's latest figures (the last API
-  response's), its zone, whether the evidence is degraded, the bands in force and the gate state,
-  as JSON. A zone lookup for a session that has the module loaded; it has no switch.
+  response's), its zone, whether the evidence is degraded, the bands in force (the token edges of
+  the session's window class as `smart_max_tokens` and `acceptable_max_tokens`, `null` when the
+  token shape is not computable) and the gate state, as JSON. A zone lookup for a session that has the module loaded; it has no switch.
 
 Module state (last-seen zone, armed rank, gate counter) lives in the module's memory, per session
 id; it is plugin-private and not part of this contract. The module adds no new snapshot

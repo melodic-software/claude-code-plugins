@@ -123,7 +123,8 @@ an `unknown` zone or a failing hook lets the call run.
 
 ### The command, the band row and the status tool
 
-`/context-guard` with no argument prints the verdict with its figures, the bands, approach margin
+`/context-guard` with no argument prints the verdict with its figures, the percent bands beside the
+token bands of the session's window class (the worse of the two decides the zone), approach margin
 and gate mode, the band and toast state, and where `zones.json` lives and whether it is present.
 Claude reads that reply, as it reads any command's output, so the continuation route and this
 README's link go to a separate transcript line Claude does not read. `/context-guard band on` and `band off` set the band row for
