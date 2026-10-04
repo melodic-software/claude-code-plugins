@@ -557,6 +557,25 @@ assert_contains "PS dual sink: the one message names the token both guards honor
   "$GUARD_ERR" "the user adds ps-unparsable-special-construct to block_dangerous_git_allow; it clears block-dangerous-git too"
 assert_absent "PS dual sink: no kill switch in the deny reason" "$GUARD_ERR" "_enabled"
 
+# Two guards that refuse one call on different sink triggers each print their
+# own token: one token would not clear both. The same trigger prints once.
+SINK_ERR=$(bash -c '
+  . "$1/../lib/powershell/ps-command.sh"
+  PS_SINK_TRIGGER=special-construct
+  ps::print_unparsable_block_message x
+  ps::print_unparsable_git_block_message
+  PS_SINK_TRIGGER=launcher
+  ps::print_unparsable_git_block_message
+  ps::print_sink_budget_message
+  ps::print_sink_budget_message
+' _ "$HOOK_DIR" 2>&1)
+assert_eq "PS sink latch: the same trigger prints once" 1 \
+  "$(grep -c 'ps-unparsable-special-construct' <<<"$SINK_ERR")"
+assert_contains "PS sink latch: a second trigger still prints its token" \
+  "$SINK_ERR" "the user adds ps-unparsable-launcher"
+assert_eq "PS sink latch: the budget message prints once" 1 \
+  "$(grep -c 'five allowed sink shapes' <<<"$SINK_ERR")"
+
 # --- payload refusals several guards share print once per call --------------
 # Every fail-closed guard of the row refuses a NUL payload; the deny reason
 # carries the line once. An unparsable payload never reaches a guard under the

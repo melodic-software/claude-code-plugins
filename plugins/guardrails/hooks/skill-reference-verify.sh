@@ -88,8 +88,8 @@ esac
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
 [[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT=""
-hook::repo_root_to REPO_ROOT "$FILE_DIR"
+REPO_ROOT="" REPO_ROOT_RESOLVED=1
+hook::repo_root_to REPO_ROOT "$FILE_DIR" || REPO_ROOT_RESOLVED=0
 PLUGINS_DIR="$REPO_ROOT/plugins"
 
 # PLUGINS-ROOT GATE. Outside a marketplace repo there is no local authority.
@@ -886,9 +886,10 @@ emit_tel() {
 
 if ((${#UNRESOLVED[@]} > 0)); then
   # The file as the model names it: repo-relative when it sits under the root
-  # spelled the same way, else as given.
+  # spelled the same way, else as given. Outside a repo the root is the file's
+  # own directory, and a bare name would name a different file.
   show_file="$FILE"
-  [[ "$FILE" == "${REPO_ROOT%/}/"?* ]] && show_file="${FILE#"${REPO_ROOT%/}/"}"
+  ((REPO_ROOT_RESOLVED)) && [[ "$FILE" == "${REPO_ROOT%/}/"?* ]] && show_file="${FILE#"${REPO_ROOT%/}/"}"
   lines=""
   # Name the directories the search ACTUALLY covered, from the same skill_roots
   # the resolution used. Naming only `skills/` understates the search for a plugin

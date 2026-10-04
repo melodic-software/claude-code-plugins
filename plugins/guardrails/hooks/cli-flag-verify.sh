@@ -135,8 +135,8 @@ fi
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
 [[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT=""
-hook::repo_root_to REPO_ROOT "$FILE_DIR"
+REPO_ROOT="" REPO_ROOT_RESOLVED=1
+hook::repo_root_to REPO_ROOT "$FILE_DIR" || REPO_ROOT_RESOLVED=0
 
 # Known binaries to check. Override via the cli_flag_verify_bins userConfig option.
 # `git`, `npx`, and `npm` are intentionally EXCLUDED — all three have unreliable
@@ -512,9 +512,10 @@ emit_tel() {
 
 if ((${#FAILURES[@]} > 0)); then
   # The file as the model names it: repo-relative when it sits under the root
-  # spelled the same way, else as given.
+  # spelled the same way, else as given. Outside a repo the root is the file's
+  # own directory, and a bare name would name a different file.
   show_file="$FILE"
-  [[ "$FILE" == "${REPO_ROOT%/}/"?* ]] && show_file="${FILE#"${REPO_ROOT%/}/"}"
+  ((REPO_ROOT_RESOLVED)) && [[ "$FILE" == "${REPO_ROOT%/}/"?* ]] && show_file="${FILE#"${REPO_ROOT%/}/"}"
   lines=""
   for f in "${FAILURES[@]}"; do
     split_candidate_key "$f"

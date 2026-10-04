@@ -52,6 +52,7 @@ run_fake() {
   local content="$1" ext="${2:-sh}"
   local case_dir="$TEST_TMPDIR/fake-$((PASS + FAIL + 1))"
   mkdir -p "$case_dir/cache"
+  [[ "${3:-}" == repo ]] && git init -q "$case_dir"
   local target="$case_dir/target.$ext"
   printf '%s\n' "$content" >"$target"
   PATH="$FAKE_BIN_DIR:$PATH" \
@@ -98,7 +99,13 @@ OUT=$(run_fake 'faketool --bogus')
 RC=$?
 assert_exit "top-level fake flag → exit 0" 0 "$RC"
 ctx_contains "top-level fake flag → UNKNOWN_FLAG no chain" "$OUT" "  faketool --bogus"
-# The file is named repo-relative, never by its absolute path.
+# Outside a repository a bare name would name a different file: the path is
+# given as the payload spelled it.
+ctx_contains "outside a repo, the report names the file by its full path" "$OUT" \
+  "unknown flag(s) in $TEST_TMPDIR/fake-"
+
+# Inside a repository the file is named repo-relative.
+OUT=$(run_fake 'faketool --bogus' sh repo)
 ctx_contains "report names the file repo-relative" "$OUT" "unknown flag(s) in target.sh,"
 assert_absent "report does not name the absolute file" "$OUT" "$TEST_TMPDIR/"
 

@@ -2728,19 +2728,22 @@ ps::print_sink_token_line() {
   echo "False positive: the user adds ps-unparsable-${PS_SINK_TRIGGER:-<trigger>} to block_dangerous_git_allow; it clears $1 too." >&2
 }
 
-# The sink messages are printed once per call. Under run-guards.sh the guards
-# that print them share one shell and one deny reason, and the ones that can
-# print on the same shape honor the same token, so a second copy adds nothing.
-_PS_SINK_SAID=0
+# The sink messages are printed once per call and trigger. Under run-guards.sh
+# the guards that print them share one shell and one deny reason, and on the
+# same trigger they name the same token, so a second copy adds nothing. Two
+# guards that refuse on different triggers each print theirs: one token would
+# not clear both. $1 = the key: "budget", or empty for the current trigger.
+_PS_SINK_SAID=" "
 ps::_sink_once() {
-  ((_PS_SINK_SAID)) && return 1
-  _PS_SINK_SAID=1
+  local key="${1:-trigger:${PS_SINK_TRIGGER:-}}"
+  [[ "$_PS_SINK_SAID" == *" $key "* ]] && return 1
+  _PS_SINK_SAID+="$key "
 }
 
 # A PowerShell command still unreadable after the caller set aside five
 # allowed sink shapes. Printed to stderr by the caller before it exits 2.
 ps::print_sink_budget_message() {
-  ps::_sink_once || return 0
+  ps::_sink_once budget || return 0
   echo "BLOCKED: this PowerShell command is still unparsable after five allowed sink shapes were set aside, and could reach git. No allow token clears this; split it into smaller commands." >&2
 }
 
