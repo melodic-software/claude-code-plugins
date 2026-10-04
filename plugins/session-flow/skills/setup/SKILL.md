@@ -76,7 +76,9 @@ and note that re-enabling restores the FAIL semantics.
    (`worker_continuation`: `resume`, the default, unless the team wants each new unit in a fresh
    worker; `encode_policy`: `promote-when-must-hold`, the default, unless the team wants every
    lesson proposed at its strongest rung; `review_mining_prs`: `20`, the default, an unquoted
-   integer from 2 to 200). Never invent a key the schema does not list.
+   integer from 2 to 200; `wip_commit`: `false`, the default, unless the team wants a pause
+   handoff to make one local `chore(wip):` commit, an unquoted `true` or `false`). Never invent
+   a key the schema does not list.
 3. **Write.** One call with every value:
 
    ```bash
@@ -133,14 +135,15 @@ before and after, the diff when one was shown, the written path, and whether the
 ## Next
 
 `/session-flow:orchestrate`, which reads `worker_continuation`; `/session-flow:retro codify`,
-which reads `encode_policy` and `review_mining_prs`.
+which reads `encode_policy` and `review_mining_prs`; `/session-flow:handoff`, which reads
+`wip_commit`.
 
 ## Gotchas
 
 - **Prerequisites are the observer's, plus `gh` and `jq` for `retro codify reviews`.** The other
   session-flow skills need no installed tool. The repository settings are `worker_continuation`,
-  read by `/session-flow:orchestrate`, and `encode_policy` and `review_mining_prs`, read by
-  `/session-flow:retro codify`.
+  read by `/session-flow:orchestrate`, `encode_policy` and `review_mining_prs`, read by
+  `/session-flow:retro codify`, and `wip_commit`, read by `/session-flow:handoff`.
 - **The repository file reaches the team only once committed.** `apply` leaves it uncommitted on
   purpose, and the tracked-file pair says so.
 - **`observer_analysis_bare` and auth.** `--bare` drops the login credential state on OAuth-login

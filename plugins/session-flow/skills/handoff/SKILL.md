@@ -92,7 +92,9 @@ response, the save-point does not exist and STOP has not been reached.
 - [ ] `/clear`-then-paste instruction surfaced to the user
 - [ ] **STOP.** No further work items, no next phase, no follow-on skill, no commit/push. The
   session ends as far as the task is concerned. Reachable only once the box above is genuinely
-  ticked, never as the act that replaces it
+  ticked, never as the act that replaces it. The one exception to "no commit" is the opt-in
+  `chore(wip):` commit in "WIP commit on an explicit pause" below, made before the save-point is
+  written and never pushed
 
 **Not authorization to continue (these all stop):**
 
@@ -182,6 +184,66 @@ warns on the second copy.
 
 The constraints re-scan attestation is not a cumulative entry. It goes on the `Re-scan:` line of
 `## This session`, which is rewritten every hop, so it never accumulates.
+
+## WIP commit on an explicit pause
+
+`wip_commit` (default `false`) lets this skill make one local commit of the paused work before it
+writes the save-point. Every other handoff commits nothing.
+
+**When it applies.** Only when the turn that started this handoff is the user's own message in
+this session asking to pause the work (a `/session-flow:handoff` the user typed counts). These
+never commit, whatever the setting: a handoff another skill invokes (for example
+`/session-flow:keep-going` handing back at a usage limit), a handoff a hook or a context
+measurement suggested, a phase-boundary handoff (the phase's own commit belongs to the
+implementing skill), and a run whose brief gives `orchestrator` commit authority. For those,
+report `wip_commit: not applied (<reason>)` and go on.
+
+**Resolve the setting** once, lowest layer first, as
+[`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md)
+"Resolution" describes: the default `false`; the user option `${user_config.wip_commit}` (a
+literal, unexpanded placeholder means unset); then the repository's
+`docs/conventions/session-flow.yaml`, which wins when it sets the key, read only when the git root
+is neither `$HOME` nor an ancestor of it. Run
+`node "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs" --check --root "<git root>"`
+first, then read the key with
+`bash "${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse-concern-value.sh" "<git root>/docs/conventions/session-flow.yaml" wip_commit`.
+Only an unquoted `true` or `false` is valid. Any other value, `"true"` and `yes` included, is
+named with its file or option, the key and the value, and that layer is dropped: a valid higher
+layer still wins, otherwise `false`. The handoff never stops on it. Report one line, for example
+`wip_commit: true (docs/conventions/session-flow.yaml)`. Resolved `false`: commit nothing.
+
+**Refuse, commit nothing, and say why in the save-point** when any of these holds. Read each
+from git, one command per call:
+
+- A sequencer operation is in progress: `git rev-parse --git-path <name>` names an existing path
+  for `MERGE_HEAD`, `REBASE_HEAD`, `CHERRY_PICK_HEAD` or `REVERT_HEAD`, or for the `rebase-merge`
+  or `rebase-apply` directory. A commit now would conclude that operation under a pause subject.
+- HEAD is detached: `git symbolic-ref -q HEAD` prints nothing.
+- HEAD is the default branch: `git symbolic-ref refs/remotes/origin/HEAD` names the same branch
+  as HEAD. When that command fails (no origin HEAD), the default branch is unknown: refuse.
+- A path is partially staged: it appears in both `git diff --cached --name-only -z` and
+  `git diff --name-only -z`. The unstaged hunks are a choice the user made; staging them undoes it.
+- A path outside this work holds staged changes. A commit takes the whole index, so it would
+  carry that path along.
+
+**Otherwise commit.** The paths are the tracked files this work changed, the ones the save-point's
+"File roles in this work" section names. Paths are data: never type one into a command line.
+Write the list NUL-separated to a file with the Write tool, check each entry against
+`git diff --name-only -z` output, and stage with
+`git add -u --pathspec-from-file=<list> --pathspec-file-nul`, which never picks up an untracked
+file. A tracked file changed outside this work stays out of the commit, and
+the save-point lists it as left uncommitted. Commit with the subject
+`chore(wip): <one-line state of the work>` and the repository's usual body and trailer rules,
+with every commit hook running. When a hook rejects the commit, do not retry it with hooks
+skipped and do not reword it to get past the hook: unstage the paths this step staged
+(`git restore --staged --pathspec-from-file=<list> --pathspec-file-nul`, the list holding only
+the paths that had no staged change before), leave the
+work in the working tree, and state the hook's message in the save-point. Never push.
+
+**Record it.** Put the commit SHA and subject under "Side effects already applied", or the refusal
+and its reason there instead, and list every untracked path under "File roles in this work",
+since the commit left them out. On the prompt-only path, which writes no file, the same facts go
+into the resume prompt as one bullet.
 
 ## Produce the save-point
 
@@ -276,6 +338,9 @@ ticked. Emit the rails block before ending the turn, always.
   [`reference/pending-ci-caveat.md`](reference/pending-ci-caveat.md))
 - [ ] Redaction pass swept the file AND the prompt (secrets/tokens/credentials/PII replaced with
   shape markers)
+- [ ] `wip_commit` line reported ("WIP commit on an explicit pause"): not applied with its
+  reason, resolved `false`, refused with its reason, rejected by a hook, or committed with its
+  SHA under "Side effects already applied"; nothing pushed
 - [ ] TaskList captured with literal recreate calls in the environment section, from a live
   `TaskList` call this turn (OR an explicit statement that there is nothing to recreate)
 - [ ] Named subagents inventoried this turn: those this session spawned, and any leftover
@@ -344,6 +409,8 @@ ticked. Emit the rails block before ending the turn, always.
   is `UNVERIFIED (<check>)`, never "verified" (engine doc, "Claim provenance";
   [`reference/pending-ci-caveat.md`](reference/pending-ci-caveat.md))
 - [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
+- [ ] `wip_commit` line reported, as on the full path; a commit, refusal or hook rejection is one
+  bullet in the prompt, nothing pushed
 - [ ] If /export is available in your session (gate basis: **Verification record: `/export`** below), suggest that the person run it for a durable conversation copy at `<memory_dir>/exports/<YYYYMMDDTHHMMSSZ>-<topic>.txt` after verifying the memory root's self-ignore guard (a `.gitignore` containing `*`; create it and announce it when absent). This skill never invokes `/export` itself. Prompt-only writes no file. **`unattended`:** record the suggestion; do not ask.
 - [ ] Purpose text (when the invocation carried any) travels inline as the `Purpose:` line below
   the goal quote and above the remaining-work bullets (engine doc, "The purpose argument tailors
@@ -395,7 +462,9 @@ prompt, so the Skill tool never lists it. We found no switch that disables it.
 ## What this skill does NOT do
 
 - **Does not commit**. Handoff docs are durable task state, not source code. Commit ready code
-  changes separately; describe uncommitted work in the file-roles section
+  changes separately; describe uncommitted work in the file-roles section. The one exception is
+  the opt-in `chore(wip):` commit of tracked work on a user's pause request ("WIP commit on an
+  explicit pause" above); the handoff file itself is never committed
 - **Does not invoke `/clear`**. The user types `/clear`. The skill produces the save-point, emits
   the resume prompt, and stops
 - **Does not launch a background agent**. Background delegation is the sibling

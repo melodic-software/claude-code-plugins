@@ -271,6 +271,38 @@ run "$repo" --yes worker_continuation=respawn
 assert_true 'an invalid value on a key not being written is refused' code_is 1
 assert_true 'that refusal leaves the file unchanged' [ "$(cat "$repo/$REL")" = 'review_mining_prs: 1' ]
 
+# wip_commit takes an unquoted true or false.
+repo="$(new_repo)"
+run "$repo" wip_commit=true
+assert_true 'wip_commit=true writes' code_is 0
+assert_true 'wip_commit reads back as true' [ "$(bash "$READER" "$repo/$REL" wip_commit)" = true ]
+run "$repo" --check
+assert_true '--check prints wip_commit' out_has 'wip_commit: true'
+for pair in wip_commit=yes wip_commit=True wip_commit=1 wip_commit=on wip_commit=; do
+  repo="$(new_repo)"
+  run "$repo" "$pair"
+  assert_true "$pair exits 1" code_is 1
+  assert_true "$pair writes nothing" [ ! -e "$repo/docs" ]
+done
+for doc in 'wip_commit: "true"\n' "wip_commit: 'false'\n" 'wip_commit: yes\n' 'wip_commit: TRUE\n' 'wip_commit:\n'; do
+  repo="$(new_repo)"
+  seed "$repo" "$doc"
+  run "$repo" --check
+  assert_true "--check flags $(printf '%b' "$doc" | tr '\n' ' ')" code_is 1
+  assert_true "--check names wip_commit for $(printf '%b' "$doc" | tr '\n' ' ')" out_has 'wip_commit'
+  run "$repo" --yes wip_commit=false
+  assert_true "apply replaces $(printf '%b' "$doc" | tr '\n' ' ')" code_is 0
+  assert_true "the replaced file holds wip_commit: false for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(cat "$repo/$REL")" = 'wip_commit: false' ]
+done
+for doc in 'wip_commit: [true]\n' 'wip_commit: ""\n' 'wip_commit:\n  on: true\n'; do
+  repo="$(new_repo)"
+  seed "$repo" "$doc"
+  before="$(cat "$repo/$REL")"
+  run "$repo" --yes wip_commit=true
+  assert_true "apply refuses $(printf '%b' "$doc" | tr '\n' ' ')" code_is 1
+  assert_true "the file is unchanged for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(cat "$repo/$REL")" = "$before" ]
+done
+
 # --check: absent and valid.
 repo="$(new_repo)"
 run "$repo" --check

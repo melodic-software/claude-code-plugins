@@ -23,6 +23,11 @@
       "maximum": 200,
       "default": 20,
       "description": "How many of the repository's most recent merged pull requests /session-flow:retro codify reviews reads for review comments. A lesson is routed only when it recurs in two or more of them."
+    },
+    "wip_commit": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether /session-flow:handoff makes one local chore(wip): commit of tracked changes when the user asks in this session to pause. Never pushed, never on the default branch, detached HEAD, during a merge, rebase, cherry-pick or revert, or over a partially staged path, and never with commit hooks skipped. A quoted \"true\" is a string, not a boolean, so it is invalid."
     }
   }
 }

@@ -109,6 +109,9 @@ save-point already established rather than sweeping durable state; that is `orie
 delays or displaces the rails prompt. Work with no delineated units gets the prose blocks and no
 rail; units are never invented to fill one.
 
+With the `wip_commit` option on, a handoff you start to pause the work first makes one local
+`chore(wip):` commit of the tracked files the work changed, never pushed; see "Option details".
+
 ```shell
 /session-flow:handoff                 # auto-detect full vs prompt-only
 /session-flow:handoff prompt          # force prompt-only
@@ -483,6 +486,16 @@ default 20) is how many recent merged PRs `codify reviews` reads. Both resolve l
 `worker_continuation`, from the same `docs/conventions/session-flow.yaml`, and
 `/session-flow:setup apply` writes them.
 
+**`wip_commit`.** Read by `/session-flow:handoff`, and only when you ask in the session to pause.
+On (`true`), the handoff makes one local `chore(wip): <one-line state>` commit of the tracked files
+the work changed, records its SHA in the save-point and lists untracked paths there. It never
+pushes, never skips commit hooks (a rejecting hook leaves the work uncommitted and the save-point
+says so), and refuses on the default branch, a detached HEAD, during a merge, rebase, cherry-pick
+or revert, and over a partially staged path. A handoff another skill, a hook or a phase boundary
+starts never commits. Default `false`. It resolves like `worker_continuation`, from the same
+`docs/conventions/session-flow.yaml`, where only an unquoted `true` or `false` is valid, and
+`/session-flow:setup apply wip_commit=true` writes it.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -508,6 +521,7 @@ reads it from.
 | `worker_continuation` | string | `"resume"` | `CLAUDE_PLUGIN_OPTION_WORKER_CONTINUATION` | How /session-flow:orchestrate runs a worker's next unit: resume (default) continues the same worker; respawn starts a fresh worker with consolidated scope unless that worker holds state costly to move. A repository's worker_continuation in docs/conventions/session-flow.yaml wins. |
 | `encode_policy` | string | `"promote-when-must-hold"` | `CLAUDE_PLUGIN_OPTION_ENCODE_POLICY` | Where /session-flow:retro codify starts a lesson: promote-when-must-hold (default) writes an instruction line, moving to a checking rung only for a rule that must always hold; strongest-first proposes the strongest rung that can assert it. docs/conventions/session-flow.yaml wins. |
 | `review_mining_prs` | number<br>*min 2, max 200* | `20` | `CLAUDE_PLUGIN_OPTION_REVIEW_MINING_PRS` | How many recent merged pull requests /session-flow:retro codify reviews reads for review comments; default 20, from 2 to 200. A lesson is routed only when it recurs in two or more of them. A repository's review_mining_prs in docs/conventions/session-flow.yaml wins. |
+| `wip_commit` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_WIP_COMMIT` | When you ask to pause, /session-flow:handoff makes one local chore(wip): commit of the tracked work. Off by default. Never pushed or run with hooks skipped; refused on the default branch, a detached HEAD, mid-merge or rebase, or a partial staging. docs/conventions/session-flow.yaml wins. |
 
 ### How to set these
 

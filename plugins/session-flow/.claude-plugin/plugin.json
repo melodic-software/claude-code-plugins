@@ -135,6 +135,12 @@
       "default": 20,
       "min": 2,
       "max": 200
+    },
+    "wip_commit": {
+      "type": "boolean",
+      "title": "WIP commit on pause",
+      "description": "When you ask to pause, /session-flow:handoff makes one local chore(wip): commit of the tracked work. Off by default. Never pushed or run with hooks skipped; refused on the default branch, a detached HEAD, mid-merge or rebase, or a partial staging. docs/conventions/session-flow.yaml wins.",
+      "default": false
     }
   }
 }

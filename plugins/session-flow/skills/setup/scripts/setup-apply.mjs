@@ -95,14 +95,17 @@ const keys = Object.fromEntries(
 );
 const target = join(root, REL);
 
-// A key either lists its values (enum) or takes an unquoted integer within
-// the schema's minimum and maximum. A quoted number is a string, not an
-// integer, so it is invalid.
+// A key either lists its values (enum), takes an unquoted true or false
+// (boolean), or takes an unquoted integer within the schema's minimum and
+// maximum. A quoted number or boolean is a string, so it is invalid.
 function allowedText(spec) {
-  return spec.enum ? `one of ${spec.enum.join(", ")}` : `an integer from ${spec.minimum} to ${spec.maximum}`;
+  if (spec.enum) return `one of ${spec.enum.join(", ")}`;
+  if (spec.type === "boolean") return "an unquoted true or false";
+  return `an integer from ${spec.minimum} to ${spec.maximum}`;
 }
 function allows(spec, value, quoted = false) {
   if (spec.enum) return spec.enum.includes(value);
+  if (spec.type === "boolean") return !quoted && (value === "true" || value === "false");
   return !quoted && /^(0|[1-9][0-9]*)$/.test(value) && Number(value) >= spec.minimum && Number(value) <= spec.maximum;
 }
 

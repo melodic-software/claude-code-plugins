@@ -343,6 +343,177 @@
         "The compaction is left for the user to type; the response does not claim to have run `/compact` or `/clear`",
         "The recommendation names the evidence it rests on: the next work is the same refactor using this session's files"
       ]
+    },
+    {
+      "id": 25,
+      "name": "wip-commit-layer-user-only",
+      "narration": true,
+      "prompt": "/session-flow:handoff pause here, I'm done for tonight. My session-flow user option wip_commit is on, and this repository has no docs/conventions/session-flow.yaml. We're on feat/invoice-export (origin's default branch is main), no merge or rebase is in progress, nothing is staged, and I edited src/invoice/export.ts and src/invoice/export.test.ts this session.",
+      "expected_output": "The user asked to pause, so the WIP commit step applies. It reports wip_commit as true from the user option, treating the missing repository file as an unset layer. It stages the two tracked files this work changed with git add -u -- <paths>, commits once with a chore(wip): subject and hooks running, records the SHA under Side effects already applied, and pushes nothing. The save-point and rails prompt follow.",
+      "files": [],
+      "expectations": [
+        "States one line giving wip_commit as true and naming the user option as the supplying layer",
+        "Makes exactly one local commit whose subject starts with chore(wip):, staging tracked paths only (git add -u with the paths), never git add -A or git add .",
+        "Records the commit SHA under Side effects already applied in the save-point",
+        "Runs no git push and does not skip commit hooks"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "wip-commit-layer-docs-only",
+      "narration": true,
+      "prompt": "/session-flow:handoff let's pause, I need to step away. I never set session-flow's wip_commit option. The repository's docs/conventions/session-flow.yaml contains the single line `wip_commit: true`. Branch feat/tax-rounding, origin's default branch is main, nothing staged, no sequencer operation, and this session changed lib/tax/round.py.",
+      "expected_output": "The skill runs the setup check, reads wip_commit from docs/conventions/session-flow.yaml through the plugin's reader, reports it as true from that file, and makes one local chore(wip): commit of lib/tax/round.py with hooks running. It records the SHA in the save-point and pushes nothing.",
+      "files": [],
+      "expectations": [
+        "States one line giving wip_commit as true and naming docs/conventions/session-flow.yaml as the supplying layer",
+        "Makes one local commit with a chore(wip): subject covering lib/tax/round.py",
+        "Runs no git push"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "wip-commit-layer-docs-wins",
+      "narration": true,
+      "prompt": "/session-flow:handoff pause the work here please. My session-flow user option wip_commit is on, but the repository's docs/conventions/session-flow.yaml contains `wip_commit: false`. Branch feat/tax-rounding, origin's default branch is main, and lib/tax/round.py has uncommitted edits.",
+      "expected_output": "The repository value wins: the skill reports wip_commit as false from docs/conventions/session-flow.yaml and makes no commit. The uncommitted edits to lib/tax/round.py are described in the save-point's file-roles section, and the save-point and rails prompt are emitted as usual.",
+      "files": [],
+      "expectations": [
+        "States one line giving wip_commit as false and naming docs/conventions/session-flow.yaml as the supplying layer",
+        "Makes no commit; git commit is not run",
+        "Describes the uncommitted edits to lib/tax/round.py in the save-point"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "wip-commit-layer-default-off",
+      "narration": true,
+      "prompt": "/session-flow:handoff pausing for the weekend. I never set session-flow's wip_commit option and the repository has no docs/conventions/session-flow.yaml. Branch feat/invoice-export with uncommitted edits to src/invoice/export.ts.",
+      "expected_output": "With neither layer set, wip_commit resolves to its default false: the skill reports that line naming the default and makes no commit. The uncommitted edit is described in the save-point instead.",
+      "files": [],
+      "expectations": [
+        "States one line giving wip_commit as false and naming the default as the supplying layer",
+        "Makes no commit; git commit is not run",
+        "Describes the uncommitted edit to src/invoice/export.ts in the save-point"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "wip-commit-default-branch-refused",
+      "narration": true,
+      "prompt": "/session-flow:handoff pause, I'll pick this up tomorrow. wip_commit is true in docs/conventions/session-flow.yaml. I'm on main, which is also what `git symbolic-ref refs/remotes/origin/HEAD` points at, and I edited README.md and docs/setup.md this session.",
+      "expected_output": "HEAD is the default branch, so the skill refuses the WIP commit, runs no git commit, and records the refusal and its reason (the default branch) in the save-point. The edits stay uncommitted in the working tree and are described in the file-roles section.",
+      "files": [],
+      "expectations": [
+        "Refuses the WIP commit and names the default branch (main) as the reason",
+        "Runs no git commit and no git push",
+        "Records the refusal and its reason in the save-point"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "wip-commit-detached-head-refused",
+      "narration": true,
+      "prompt": "/session-flow:handoff pause here. wip_commit is on in my user option. I checked out a tag to bisect a bug, so HEAD is detached at v2.4.1, and I have local edits to src/cache/lru.go.",
+      "expected_output": "HEAD is detached, so the skill refuses the WIP commit, commits nothing, and says in the save-point that the refusal was for a detached HEAD. The edit to src/cache/lru.go stays in the working tree.",
+      "files": [],
+      "expectations": [
+        "Refuses the WIP commit and names the detached HEAD as the reason",
+        "Runs no git commit",
+        "Records the refusal and its reason in the save-point"
+      ]
+    },
+    {
+      "id": 31,
+      "name": "wip-commit-merge-refused",
+      "narration": true,
+      "prompt": "/session-flow:handoff pause, I'm out of time. wip_commit is true in docs/conventions/session-flow.yaml. I'm on feat/payments-retry in the middle of merging main into it: MERGE_HEAD exists and src/payments/retry.ts still has conflict markers.",
+      "expected_output": "A merge is in progress, so the skill refuses the WIP commit: committing now would conclude the merge with conflict markers under a pause subject. It runs no git add and no git commit and records the refusal and the in-progress merge in the save-point.",
+      "files": [],
+      "expectations": [
+        "Refuses the WIP commit and names the in-progress merge (MERGE_HEAD) as the reason",
+        "Runs neither git add nor git commit",
+        "Records the refusal and the unresolved conflict in src/payments/retry.ts in the save-point"
+      ]
+    },
+    {
+      "id": 32,
+      "name": "wip-commit-rebase-refused",
+      "narration": true,
+      "prompt": "/session-flow:handoff pause here. wip_commit is on. An interactive rebase of feat/search-ranking onto main stopped at the third of five commits for an edit, so the repository's rebase-merge directory exists, and I changed src/search/rank.rs.",
+      "expected_output": "A rebase is in progress (the rebase-merge directory exists), so the skill refuses the WIP commit, commits nothing, and records the refusal and the stopped rebase in the save-point so the next session can resume or abort it.",
+      "files": [],
+      "expectations": [
+        "Refuses the WIP commit and names the in-progress rebase as the reason",
+        "Runs no git commit and does not continue or abort the rebase",
+        "Records the refusal and the stopped rebase in the save-point"
+      ]
+    },
+    {
+      "id": 33,
+      "name": "wip-commit-cherry-pick-refused",
+      "narration": true,
+      "prompt": "/session-flow:handoff pausing now. My user option wip_commit is on. I'm on release/3.2 cherry-picking a fix from main and it stopped on a conflict, so CHERRY_PICK_HEAD exists; config/limits.yaml is the conflicted file.",
+      "expected_output": "A cherry-pick is in progress, so the skill refuses the WIP commit, commits nothing, and records the refusal and the stopped cherry-pick in the save-point.",
+      "files": [],
+      "expectations": [
+        "Refuses the WIP commit and names the in-progress cherry-pick (CHERRY_PICK_HEAD) as the reason",
+        "Runs no git commit",
+        "Records the refusal and its reason in the save-point"
+      ]
+    },
+    {
+      "id": 34,
+      "name": "wip-commit-partial-staging-refused",
+      "narration": true,
+      "prompt": "/session-flow:handoff pause please. wip_commit is true in docs/conventions/session-flow.yaml. Branch feat/report-filters, origin's default branch is main. I used git add -p on src/reports/filters.ts to stage two of its four hunks and left the other two unstaged on purpose.",
+      "expected_output": "src/reports/filters.ts is partially staged, so the skill refuses the WIP commit rather than sweeping the unstaged hunks in. It runs no git add and no git commit, leaves the index exactly as the user set it, and records the refusal and the partially staged path in the save-point.",
+      "files": [],
+      "expectations": [
+        "Refuses the WIP commit and names the partially staged path src/reports/filters.ts as the reason",
+        "Runs neither git add nor git commit, leaving the user's staged selection as it was",
+        "Records the refusal and its reason in the save-point"
+      ]
+    },
+    {
+      "id": 35,
+      "name": "wip-commit-hook-rejection",
+      "narration": true,
+      "prompt": "/session-flow:handoff pause, back on Monday. wip_commit is on in my user option. Branch feat/invoice-export, origin's default branch is main, nothing staged, and src/invoice/export.ts has edits. This repository's pre-commit hook runs the linter, and the linter currently fails on export.ts with an unused import.",
+      "expected_output": "The skill attempts one chore(wip): commit with hooks running. The pre-commit hook rejects it, so the skill does not retry with hooks skipped and does not change the code to satisfy the linter. It unstages what it staged, leaves the edit in the working tree, and records in the save-point that the hook rejected the commit, with the hook's message. Nothing is pushed.",
+      "files": [],
+      "expectations": [
+        "Does not retry the commit with hooks skipped (no --no-verify, no core.hooksPath override)",
+        "Leaves src/invoice/export.ts uncommitted and unstages what the WIP step staged",
+        "Records in the save-point that the pre-commit hook rejected the commit, with its message",
+        "Runs no git push"
+      ]
+    },
+    {
+      "id": 36,
+      "name": "wip-commit-keep-going-handoff-none",
+      "narration": true,
+      "prompt": "/session-flow:keep-going the worker hit the usage limit and the reset is hours away. Hand back so I can resume later. My session-flow user option wip_commit is on, and the worktree on feat/report-filters has uncommitted edits to src/reports/filters.ts.",
+      "expected_output": "keep-going hands back by invoking the handoff skill itself. That handoff was invoked by another skill, not started by a user turn asking to pause, so the WIP commit does not apply: the skill reports wip_commit as not applied with that reason and makes no commit. The uncommitted edits are described in the save-point.",
+      "files": [],
+      "expectations": [
+        "Reports that the WIP commit does not apply because another skill invoked the handoff",
+        "Makes no commit; git commit is not run",
+        "Describes the uncommitted edits to src/reports/filters.ts in the save-point"
+      ]
+    },
+    {
+      "id": 37,
+      "name": "wip-commit-phase-boundary-none",
+      "narration": true,
+      "prompt": "Phase 2 of the plan is done and the dispatch boundary says to clear before phase 3, so write the handoff for the phase boundary. wip_commit is true in docs/conventions/session-flow.yaml, and src/billing/ledger.ts still has edits from phase 2's last review fix.",
+      "expected_output": "This is a phase-boundary handoff, not a user's pause request, so the WIP commit does not apply: the skill reports wip_commit as not applied for that reason and makes no commit. The phase's own commit belongs to the implementing skill; the save-point describes the uncommitted edit.",
+      "files": [],
+      "expectations": [
+        "Reports that the WIP commit does not apply because this is a phase-boundary handoff",
+        "Makes no commit; git commit is not run",
+        "Describes the uncommitted edit to src/billing/ledger.ts in the save-point"
+      ]
     }
   ]
 }
