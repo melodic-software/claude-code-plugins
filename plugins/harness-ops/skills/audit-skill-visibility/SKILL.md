@@ -259,9 +259,10 @@ carries the arithmetic and its stamp.
 The entries come from every source on disk: plugin skills, commands and
 workflows, and with `--installed` the user's `~/.claude/skills`, the
 `.claude/skills` of the project and each parent up to the repository root, and
-the signed-in account's claude.ai-synced skills, each under its frontmatter
-`name` when it sets one and with `skillOverrides` applied. A personal skill
-shadows a project skill of the same name. Built-in and bundled skills ship
+the signed-in account's claude.ai-synced skills, each with `skillOverrides`
+applied. A user or project skill is listed under its frontmatter `name` when it
+sets one, a synced skill under its folder name, and a personal skill shadows a
+project skill of the same name. Built-in and bundled skills ship
 inside Claude Code and cannot be read from disk, so without a capture
 `coverage` is `enumerated-only`, the Markdown says what was not counted, and a
 row whose counted entries fit reports `fit-unconfirmed`, never `listing-fits`:

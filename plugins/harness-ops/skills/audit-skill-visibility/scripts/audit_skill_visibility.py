@@ -542,6 +542,10 @@ def collect_local_skills(
             and configured
             else leaf
         )
+        # Two folders declaring one `name` list once; the first in folder
+        # order is the one counted.
+        if any(e["qualified_name"] == name for e in entries):
+            continue
         entries.append(
             {
                 "qualified_name": name,

@@ -3118,6 +3118,17 @@ class NonPluginSkillTest(unittest.TestCase):
         self.assertEqual([e["qualified_name"] for e in entries], ["deploy"])
         self.assertEqual(entries[0]["skill_override"], "name-only")
 
+    def test_two_folders_declaring_one_name_are_counted_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._skill_dir(tmp, "deploy-a", 'name: deploy\ndescription: "x"')
+            self._skill_dir(tmp, "deploy-b", 'name: deploy\ndescription: "y"')
+            entries = engine.collect_local_skills(tmp, "user", {})
+        self.assertEqual(
+            [(e["qualified_name"], os.path.basename(os.path.dirname(e["path"])))
+             for e in entries],
+            [("deploy", "deploy-a")],
+        )
+
     def test_a_personal_skill_shadows_a_project_skill_of_the_same_name(self):
         with tempfile.TemporaryDirectory() as tmp:
             config_root = os.path.join(tmp, "config")
