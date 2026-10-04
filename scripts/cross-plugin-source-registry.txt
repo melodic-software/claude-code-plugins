@@ -164,6 +164,8 @@ lib/context-zone.fixtures.mjs -> plugins/*/scripts/context-zone.fixtures.mjs
 # No dedicated check: accepted. Each hooks module's root tsconfig extends that
 # plugin's generated .claude-plugin/types/tsconfig.json, so every plugin that
 # ships a mod commits the same one line; this script's own --check is the gate.
+# Canonical copy: plugins/rate-limit-guard/tsconfig.json; copy it into a plugin
+# that adds a mod, or into the other copies to fix a drift failure.
 tsconfig.json
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:

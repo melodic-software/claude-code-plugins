@@ -9,6 +9,7 @@
   "license": "MIT",
   "keywords": [
     "context-window",
+    "mod",
     "zones",
     "context-degradation",
     "session",
