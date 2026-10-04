@@ -58,10 +58,11 @@ export async function main({
   if (
     !REPOSITORY.test(env.GITHUB_REPOSITORY ?? "") ||
     !SHA.test(env.HEAD_SHA_FALLBACK ?? "") ||
-    !(!env.HEAD_SHA || SHA.test(env.HEAD_SHA))
+    !(!env.HEAD_SHA || SHA.test(env.HEAD_SHA)) ||
+    !(!env.PR_HEAD_SHA || SHA.test(env.PR_HEAD_SHA))
   ) {
     log(
-      "::error::report-check-run: repository, head-sha or head-sha-fallback is malformed",
+      "::error::report-check-run: repository, head-sha, head-sha-fallback or pr-head-sha is malformed",
     );
     return 1;
   }
@@ -76,6 +77,7 @@ export async function main({
       headSha: env.HEAD_SHA ?? "",
       signedCommits: signedCommitsFrom(env),
       headShaFallback: env.HEAD_SHA_FALLBACK,
+      prHeadSha: env.PR_HEAD_SHA ?? "",
       gateSkipReasons: JSON.parse(
         readFileSync(path.join(HERE, "gate-skip-reasons.json"), "utf8"),
       ),

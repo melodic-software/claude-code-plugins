@@ -14,8 +14,17 @@ inputs:
     description: The activity name, from the report job's own workflow_call input.
     required: true
   run-result:
-    description: "`needs.run.result`: `cancelled` posts neutral `superseded-sha`."
+    description: >
+      `needs.run.result`. `cancelled` posts neutral `superseded-sha` only when
+      pr-head-sha is a newer head; otherwise failure.
     required: true
+  pr-head-sha:
+    description: >
+      The PR's current head SHA, which the report job reads from the API at
+      report time. Empty or equal to the run's head makes a cancelled run a
+      failure.
+    required: false
+    default: ""
   act-outcome:
     description: The run job's act-outcome output (`steps.act.outcome`).
     required: false
@@ -70,6 +79,7 @@ runs:
         ACT_OUTCOME: ${{ inputs.act-outcome }}
         GATE_REASON: ${{ inputs.gate-reason }}
         HEAD_SHA: ${{ inputs.head-sha }}
+        PR_HEAD_SHA: ${{ inputs.pr-head-sha }}
         CAN_COMMIT: ${{ inputs.can-commit }}
         ALL_VERIFIED: ${{ inputs.all-verified }}
         VERDICT_PATH: ${{ inputs.verdict-path }}

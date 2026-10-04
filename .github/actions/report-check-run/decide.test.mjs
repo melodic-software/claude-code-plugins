@@ -104,8 +104,10 @@ test("success needs no signed-commit result when the activity cannot commit", ()
   assert.equal(report.conclusion, "success");
 });
 
-test("a cancelled run posts neutral superseded-sha even over a success verdict", () => {
-  const report = posted(decide(verdict(), inputs({ runResult: "cancelled" })));
+test("a cancelled run with a newer PR head posts neutral superseded-sha even over a success verdict", () => {
+  const report = posted(
+    decide(verdict(), inputs({ runResult: "cancelled", prHeadSha: OTHER })),
+  );
   assert.equal(report.conclusion, "neutral");
   assert.equal(report.head_sha, HEAD);
   assert.match(report.output.summary, /superseded-sha/);
@@ -115,12 +117,47 @@ test("a cancelled run with no verdict and no env head posts neutral superseded-s
   const report = posted(
     decide(
       null,
-      inputs({ runResult: "cancelled", actOutcome: "", headSha: "" }),
+      inputs({
+        runResult: "cancelled",
+        actOutcome: "",
+        headSha: "",
+        prHeadSha: OTHER,
+      }),
     ),
   );
   assert.equal(report.conclusion, "neutral");
   assert.equal(report.head_sha, FALLBACK);
   assert.match(report.output.summary, /superseded-sha/);
+});
+
+const NOT_SUPERSEDED = "The run was cancelled and no newer head superseded it.";
+
+test("a cancelled run whose PR head is still the run's head posts failure", () => {
+  const report = posted(
+    decide(verdict(), inputs({ runResult: "cancelled", prHeadSha: HEAD })),
+  );
+  assert.equal(report.conclusion, "failure");
+  assert.equal(report.head_sha, HEAD);
+  assert.equal(report.output.summary, NOT_SUPERSEDED);
+});
+
+test("a cancelled run with no PR head posts failure", () => {
+  for (const prHeadSha of ["", undefined]) {
+    const report = posted(
+      decide(verdict(), inputs({ runResult: "cancelled", prHeadSha })),
+    );
+    assert.equal(report.conclusion, "failure");
+    assert.equal(report.output.summary, NOT_SUPERSEDED);
+  }
+});
+
+test("a cancelled run with a PR head that is not 40 hex posts failure", () => {
+  for (const prHeadSha of ["abc", OTHER.toUpperCase(), `${OTHER}0`]) {
+    const report = posted(
+      decide(verdict(), inputs({ runResult: "cancelled", prHeadSha })),
+    );
+    assert.equal(report.conclusion, "failure");
+  }
 });
 
 test("no verdict artifact posts failure on the env head", () => {
@@ -367,7 +404,10 @@ test("a skip-reason outside the enum posts failure", () => {
 
 test("an unreadable enum (empty list) turns every neutral into failure", () => {
   const report = posted(
-    decide(verdict(), inputs({ runResult: "cancelled", skipReasons: [] })),
+    decide(
+      verdict(),
+      inputs({ runResult: "cancelled", prHeadSha: OTHER, skipReasons: [] }),
+    ),
   );
   assert.equal(report.conclusion, "failure");
 });
@@ -425,7 +465,7 @@ test("a ci-status activity part is refused", () => {
 test("a ci-status name is refused even for a cancelled run with no verdict", () => {
   const decision = decide(
     null,
-    inputs({ activity: "ci-status", runResult: "cancelled" }),
+    inputs({ activity: "ci-status", runResult: "cancelled", prHeadSha: OTHER }),
   );
   assert.equal(decision.kind, "refuse");
 });

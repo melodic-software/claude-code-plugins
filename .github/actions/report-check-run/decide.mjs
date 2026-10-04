@@ -7,6 +7,7 @@
 
 const NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/;
 const RESERVED_NAME = "ci-status";
+const SHA = /^[0-9a-f]{40}$/;
 const GATES = ["kill-switch", "trigger"];
 const CONFIG = new Set(["valid", "invalid", "not-read"]);
 const OUTCOME = new Set(["success", "failure", "skipped", "not-run"]);
@@ -41,7 +42,7 @@ function isVerdict(verdict) {
 
 export function decide(verdict, inputs) {
   const { lane, activity, runResult, actOutcome, signedCommits } = inputs;
-  const { gateReason, headSha, headShaFallback } = inputs;
+  const { gateReason, headSha, headShaFallback, prHeadSha } = inputs;
   const { gateSkipReasons, skipReasons } = inputs;
   if (
     ![lane, activity].every(
@@ -72,8 +73,13 @@ export function decide(verdict, inputs) {
           "The skip reason is not a member of the schema's skip-reason enum.",
         );
 
+  // A job timeout or a manual cancel also reads cancelled; only a newer PR head
+  // read at report time shows the run was superseded.
   if (runResult === "cancelled") {
-    return neutral("superseded-sha");
+    return SHA.test(prHeadSha ?? "") &&
+      prHeadSha !== (headSha || headShaFallback)
+      ? neutral("superseded-sha")
+      : failure("The run was cancelled and no newer head superseded it.");
   }
   if (verdict == null) {
     return failure("The run left no verdict.");

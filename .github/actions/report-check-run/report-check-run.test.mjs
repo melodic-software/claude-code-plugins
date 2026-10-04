@@ -172,10 +172,33 @@ test("lane and activity come from env: a mismatch with the verdict POSTs failure
   assert.equal(calls[0].body.conclusion, "failure");
 });
 
-test("a cancelled run POSTs neutral superseded-sha from env, whatever the verdict says", async () => {
-  const { calls } = await run({ RUN_RESULT: "cancelled" });
+test("a cancelled run with a newer PR head POSTs neutral superseded-sha from env, whatever the verdict says", async () => {
+  const { calls } = await run({
+    RUN_RESULT: "cancelled",
+    PR_HEAD_SHA: "e".repeat(40),
+  });
   assert.equal(calls[0].body.conclusion, "neutral");
   assert.match(calls[0].body.output.summary, /superseded-sha/);
+});
+
+test("a cancelled run whose PR head is the env head POSTs failure on it", async () => {
+  const { calls } = await run({ RUN_RESULT: "cancelled", PR_HEAD_SHA: HEAD });
+  assert.equal(calls[0].body.conclusion, "failure");
+  assert.equal(calls[0].body.head_sha, HEAD);
+});
+
+test("a cancelled run with no PR head POSTs failure", async () => {
+  const { calls } = await run({ RUN_RESULT: "cancelled" });
+  assert.equal(calls[0].body.conclusion, "failure");
+});
+
+test("a malformed PR head SHA exits non-zero with no API call", async () => {
+  const { code, calls } = await run({
+    RUN_RESULT: "cancelled",
+    PR_HEAD_SHA: "abc",
+  });
+  assert.equal(code, 1);
+  assert.equal(calls.length, 0);
 });
 
 test("a ci-status lane exits non-zero with no API call", async () => {

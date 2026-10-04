@@ -11,6 +11,7 @@ conclusion is `success`, `failure`, or `neutral` with one skip reason.
 | `lane` | required | The lane, from the report job's own `workflow_call` input |
 | `activity` | required | The activity, from the report job's own `workflow_call` input |
 | `run-result` | required | `needs.run.result` |
+| `pr-head-sha` | `''` | The PR's current head SHA, read from the API by the report job at report time |
 | `act-outcome` | `''` | The run job's `act-outcome` output (`steps.act.outcome`) |
 | `gate-reason` | `''` | The run job's gate stop reason output; empty when every gate proceeded |
 | `head-sha` | `''` | The run job's `head-sha` output; the check is posted on it |
@@ -37,7 +38,9 @@ and `head-sha` are cross-checks only. Any disagreement with the inputs is a fail
   not a convention name, exits 1 with no API call: `ci-status` is the single required check.
 - `head_sha` is the `head-sha` input, or `head-sha-fallback` when it is empty.
 - First match wins:
-  1. `run-result` `cancelled`: neutral `superseded-sha`.
+  1. `run-result` `cancelled`: neutral `superseded-sha` when `pr-head-sha` is a 40-hex SHA other
+     than the posted head SHA; failure otherwise. A job timeout or a manual cancel also reads
+     `cancelled`, so only a newer head shows the run was superseded.
   2. No verdict, a malformed verdict, or one whose lane, activity, gate stop reason or `head-sha`
      differs from the inputs: failure.
   3. `config: invalid`: failure.
@@ -56,7 +59,7 @@ and `head-sha` are cross-checks only. Any disagreement with the inputs is a fail
   A reason outside it, or an unreadable schema, turns the neutral into a failure.
 - `details_url` is this workflow run's page, built from the runner's own environment.
 - Exit 0 after posting or after the `no-pr` case; exit 1 on a refusal, a malformed repository,
-  head SHA or fallback SHA, or a failed POST.
+  head SHA, fallback SHA or non-empty PR head SHA, or a failed POST.
 
 ## Job contract
 
