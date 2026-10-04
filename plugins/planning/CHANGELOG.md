@@ -3,6 +3,15 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.67.3] - 2026-10-04
+
+### Fixed
+
+- **The `plan-reviewer` dispatch prompt caps the reviewer at 18 tool calls, reads a long plan in three chunked Reads, and always ends with the `### Summary` counts ([#6126](https://github.com/melodic-software/claude-code-plugins/issues/6126)).**
+  On a plan of about 1,000 lines the reviewer spent its 25 turns reading code and returned no report, so the session resumed it and paid for a second dispatch.
+  Two later reviews with these three lines in the brief both returned complete reports.
+  `maxTurns` stays the hard stop; the ceiling sits below it.
+
 ## [0.67.2] - 2026-10-04
 
 ### Fixed
