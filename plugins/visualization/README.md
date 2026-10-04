@@ -8,6 +8,7 @@ show it, then render it. It is a form-and-medium router, not a craft teacher.
 | Skill | What it does |
 |---|---|
 | `/visualization:visualize` | Infer the target from the conversation, pick a form (mermaid diagram, table, chart, ASCII/Unicode, code-shape sketch, or a rich page) and a medium (terminal, local HTML file, or published Artifact), and render it, asking only on genuine ambiguity |
+| `/visualization:present` | Write a markdown outline as the record, then fill a deck made from the account's claude.ai Slides Artifact type. `lib/publish-gate.mjs` keeps a private repository's or credential-shaped content local, and the outline is the fallback when the account has no Slides type |
 
 ## What it decides
 
@@ -22,7 +23,8 @@ Two decisions, then the output:
   | Quantities | A chart |
   | A small structural sketch | ASCII or Unicode |
   | Logic, a call path, a component or file tree, types, or a delta over code | A code-shape sketch (pseudocode, call tree, component tree, shallow file tree, types and signatures, diff), a fenced text form that stays in the terminal by default |
-  | A composite or interactive view, an infographic, or a short slide deck | A rich rendered page |
+  | A composite or interactive view, or an infographic | A rich rendered page |
+  | A slide deck | A hand-off to `/visualization:present` |
   | A visual layout the user would rather tweak by hand | A rich rendered page, with `/design` (the bundled `design` skill's hand-editable canvas, which the person runs) offered alongside it |
 
 - **Medium**. One of three ascending tiers, **inline terminal → local HTML file →

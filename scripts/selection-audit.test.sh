@@ -94,7 +94,7 @@ EOF
   (cd "$t" && SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-selector.sh" GITHUB_STEP_SUMMARY="$TMP_ROOT/summary.md" \
     bash "$AUDIT" trace --jobs 2 --out "$TMP_ROOT/out") >"$TMP_ROOT/trace.log" 2>&1 || rc=$?
   gaps="$(cat "$TMP_ROOT/out/gaps.tsv" 2>/dev/null)"
-  want=$'suites/reader.test.sh\tdata/hidden.txt\tno-suite: data/hidden.txt (recorded in the stub)\nsuites/zz-outside.test.sh\tdata/unmapped.txt\tunmapped: the full-corpus fallback does not run this suite'
+  want=$'suites/reader.test.sh\tdata/hidden.txt\tno-suite: data/hidden.txt (recorded in the stub)\nsuites/zz-outside.test.sh\tdata/unmapped.txt\tunmapped: the fallback corpus does not run this suite'
   if [[ "$rc" -eq 1 ]]; then
     ok "trace: exits 1 on a gap"
   else
@@ -208,6 +208,44 @@ if [[ -z "$(git -C "$r" worktree list | sed 1d)" ]]; then
   ok "replay: removes its worktree"
 else
   fail "replay left a worktree: $(git -C "$r" worktree list)"
+fi
+
+# A tree whose ci.yml plans its lanes with scripts/plan-test-lanes.sh: the
+# selector itself adds an unmapped file's language corpus (--unmapped-corpus,
+# exit 4), so a suite in that corpus is selected and one outside it is not.
+# shellcheck disable=SC2016 # workflow text, written literally
+printf '%s\n' '          scripts/plan-test-lanes.sh --base "$DIFF_BASE"' >"$r/.github/workflows/ci.yml"
+cat >"$r/scripts/affected-tests.sh" <<'EOF'
+#!/usr/bin/env bash
+# Stub selector: `odd2` is unmapped, and --unmapped-corpus adds its corpus, suites/y.test.sh.
+[[ "$1" == --unmapped-corpus ]] || exit 9
+for f in "$@"; do
+  case "$f" in
+  odd2)
+    echo "UNMAPPED: 1 changed file(s) map to no test suite:" >&2
+    echo suites/y.test.sh
+    exit 4
+    ;;
+  esac
+done
+exit 0
+EOF
+git -C "$r" add -A && git -C "$r" commit -qm "plan the lanes"
+planned_base="$(git -C "$r" rev-parse HEAD)"
+echo odd2 >"$r/odd2" && git -C "$r" add -A && git -C "$r" commit -qm "change odd2"
+rc=0
+out="$(cd "$r" && bash "$AUDIT" replay --suite suites/y.test.sh --good "$planned_base" --bad HEAD --out "$TMP_ROOT/rp5" 2>&1)" || rc=$?
+if [[ "$rc" -eq 0 && "$out" == *"| selected | change odd2 |"* ]]; then
+  ok "replay: in a planned tree, the unmapped file's language corpus selects its suites"
+else
+  fail "replay planned corpus: exit $rc: $out"
+fi
+rc=0
+out="$(cd "$r" && bash "$AUDIT" replay --suite suites/x.test.sh --good "$planned_base" --bad HEAD --out "$TMP_ROOT/rp6" 2>&1)" || rc=$?
+if [[ "$rc" -eq 1 && "$out" == *"| not selected (unmapped file: its language corpus does not run it) | change odd2 |"* ]]; then
+  ok "replay: in a planned tree, a suite outside the unmapped file's corpus is not selected"
+else
+  fail "replay planned outside the corpus: exit $rc: $out"
 fi
 
 # --- usage ---------------------------------------------------------------------

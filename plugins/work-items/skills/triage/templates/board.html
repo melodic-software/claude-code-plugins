@@ -62,7 +62,15 @@ details.view summary { cursor: pointer; font-weight: 600; }
 .row .sub { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; color: var(--muted); font-size: 0.85rem; }
 .kind { font-size: 0.75rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); }
 .labels { color: var(--muted); font-size: 0.85rem; overflow-wrap: anywhere; }
-input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.act { display: grid; gap: 0.5rem; }
+.act h2, .act h3 { margin-top: 0.5rem; }
+.pick { display: flex; gap: 0.5rem; align-items: baseline; }
+select, textarea, button { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 0.45rem 0.65rem; }
+textarea { min-height: 5rem; width: 100%; }
+button { cursor: pointer; background: var(--chip); color: var(--accent); font-weight: 600; }
+.replies { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.25rem; }
+.out { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--mono); font-size: 0.85rem; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 0.6rem; margin: 0; }
+input:focus-visible, summary:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { * { transition: none; animation: none; } }
 </style>
 </head>
@@ -133,6 +141,29 @@ input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); o
 </section>
 </div>
 </details>
+
+<section class="view act">
+<h2>Act on items</h2>
+<p class="meta">Tick items, pick where they go, and send them to the session, or copy the reply. The session weighs what you send as data and confirms any tracker change with you first. Ids name items by their place in this list.</p>
+<ol class="rows" data-rv-each="items">
+<li class="row"><label class="pick"><input type="checkbox" data-rv-pick=""><code data-rv-text="ref"></code> <span data-rv-text="title"></span></label></li>
+</ol>
+<div class="bar">
+<label for="move">Move to</label>
+<select id="move" data-rv-choice="move"><option value="verified">verified</option><option value="briefed">briefed</option><option value="needs-info">needs-info</option><option value="human-gated">human-gated</option><option value="close">close</option></select>
+</div>
+<label for="note">Note for the session</label>
+<textarea id="note" data-rv-note="note" placeholder="Why these items go there, or a question for the session"></textarea>
+<div class="bar">
+<button type="button" data-rv-send="triage">Send to the session</button>
+<button type="button" data-rv-copy="triage">Copy reply</button>
+</div>
+<p class="meta" role="status" data-rv-status=""></p>
+<p class="meta" data-rv-session=""></p>
+<h3>Session replies</h3>
+<ol class="replies" data-rv-replies=""></ol>
+<pre class="out" data-rv-out="" hidden></pre>
+</section>
 </main>
 </body>
 </html>

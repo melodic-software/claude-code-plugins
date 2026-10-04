@@ -3,6 +3,80 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.40.2] - 2026-10-03
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced ([#6084](https://github.com/melodic-software/claude-code-plugins/issues/6084)); no change to this plugin's lib.**
+  The prerequisite check now counts a Windows App Execution Alias (a Store or winget install on PATH) as found,
+  except App Installer's Python install stub. A `cli` or `runtime` entry can set `reject_store_alias` to skip aliases instead; no entry in this plugin does.
+
+## [0.40.1] - 2026-10-03
+
+### Changed
+
+- `/review:explain-change`'s publish gate and credential patterns moved to the shared
+  `lib/publish-gate.mjs` ([#5867](https://github.com/melodic-software/claude-code-plugins/issues/5867)),
+  which this plugin carries as a generated copy. The digest's gate decides as before.
+- The digest's overlay guard and project-root lookup moved to the same shared library; the overlay
+  is still ignored when tracked, symlinked, or under a `.claude` submodule.
+
+## [0.40.0] - 2026-10-03
+
+### Added
+
+- **The change digest answers the reader's questions through `session-bridge` ([#5869](https://github.com/melodic-software/claude-code-plugins/issues/5869)).**
+  The page gains an ask control, the session's connection status, and a list of its answers. A
+  question reaches the session as framed data, never as the user's message, and carries only the
+  reader's text and the builder's row ids. The page connects only when it stays a local file served
+  from `127.0.0.1`; a connected page is never published, and the publish gate is unchanged. With no
+  session, the page says so and its copy and save buttons still work. The skill still never posts to
+  the pull request: a question asking it to comment, approve, or merge gets a reply saying so.
+- **`build-digest.mjs --connect <origin> --dir <data_dir>`.** It writes only `<data_dir>/page.html`,
+  and only into a private view-bridge data dir outside any working tree whose session file names that
+  origin's port. A planted `page.html` link is replaced, not followed. `--out` is still refused.
+  `--dir` is refused when any part of its path is a link (`lnk/` and `lnk/.` included), and a
+  directory at `page.html` exits 2 with a refusal. The skill builds into the directory of the `page`
+  that `ensure-running` returns, so a temp path through a link still works, and the Python 3
+  prerequisite also detects `python`.
+- **`view-bridge/`**: the session-bridge view app, generated from `lib/session-bridge/`.
+  `prerequisites.json` declares curl and Python 3 for it.
+
+## [0.39.1] - 2026-10-03
+
+### Changed
+
+- Shared `view-builder.mjs`, `view-runtime.js` synced ([#5868](https://github.com/melodic-software/claude-code-plugins/issues/5868)); no change to this plugin's own behavior.
+
+## [0.39.0] - 2026-10-03
+
+### Added
+
+- **`/review:explain-change` checks its risk map with a fresh-context agent ([#5856](https://github.com/melodic-software/claude-code-plugins/issues/5856)).**
+  One subagent rates the pull request's risks from the diff alone, without the record or its
+  reasoning. Each row is marked `agreed`, `disputed` (kept, with the checker's level and reason),
+  `added` (an area only the checker named), or `unchecked`. The page shows a Check column.
+- **An optional quiz section.** `--quiz`, or a reader's request, adds three to five questions
+  with choices and answers to the record and the page. The reader ticks choices; the copied reply
+  carries only their builder ids. With no request, neither has a quiz section.
+- **A run-e2e recording link.** When `/testing:run-e2e` recorded the pull request's head, the
+  record links the recording and the page shows its path. Otherwise neither has the section.
+
+### Changed
+
+- **The digest publishes as an Artifact by default, for a public repository and a clean diff.**
+  `digest-policy.mjs` resolves `medium` to `artifact` when no layer sets it. Before publishing
+  that default, `digest-policy.mjs --publish-gate <visibility>` reads the diff: a repository that
+  is not public, or a hunk that looks like a credential (a private key header, an AWS, GitHub,
+  Anthropic, OpenAI, Slack, or Stripe token, or a quoted `password=`/`secret=` value), keeps the
+  page as a local file and names `medium: artifact` in `~/.claude/rendered-views.md` as the
+  opt-in. An explicit `medium: artifact` still publishes. Either way the session names claude.ai
+  as the destination, in the offer and before publishing. `medium: file` in a personal layer
+  keeps the page local.
+- **The risk-map checker is a read-only `Explore` agent.** It reads author-controlled diff text.
+- **The recording path is repo-relative.** The builder drops a recording whose path is absolute
+  or starts with `~`, so the page never shows a home directory.
+
 ## [0.38.1] - 2026-10-03
 
 ### Changed

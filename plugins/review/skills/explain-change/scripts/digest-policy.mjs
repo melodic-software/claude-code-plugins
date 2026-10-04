@@ -10,13 +10,15 @@
 //
 //   digest-policy.mjs [--event ready|review] [--blast-radius LEVEL]
 //                     [--policy off|offer|always] [--requested] < facts.json
+//   digest-policy.mjs --publish-gate <VISIBILITY> [--explicit] < diff
 // Exit 0 decided, 2 usage or unreadable facts.
 
 import { execFileSync } from "node:child_process";
-import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, relative, resolve, isAbsolute } from "node:path";
+import { join, relative, resolve, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
+import { SECRET_PATTERNS, findRoot, findSecret, overlayApplies, publishGate as sharedGate } from "../../../lib/publish-gate.mjs";
 
 export const DEFAULTS = Object.freeze({
   digest_policy: "offer",
@@ -35,7 +37,7 @@ export const CONFIG_PATHS = Object.freeze([
   ".claude/rendered-views.local.md",
   ".gitmodules",
 ]);
-export const MEDIUM_DEFAULT = "file";
+export const MEDIUM_DEFAULT = "artifact";
 const POLICIES = ["off", "offer", "always"];
 const MEDIUMS = ["terminal", "file", "artifact"];
 const LEVELS = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
@@ -52,17 +54,6 @@ const VALID = {
 };
 
 // ------------------------------------------------------------ layers
-
-function findRoot() {
-  if (process.env.CLAUDE_PROJECT_DIR) return resolve(process.env.CLAUDE_PROJECT_DIR);
-  let at = process.cwd();
-  for (;;) {
-    if (existsSync(join(at, ".git"))) return at;
-    const up = dirname(at);
-    if (up === at) return null;
-    at = up;
-  }
-}
 
 const real = (p) => {
   try {
@@ -195,39 +186,6 @@ function readTeamDigest(base, docsPath, dotPath, warnings) {
   return null;
 }
 
-/** An overlay applies only untracked and gitignored, so a pull request cannot ship one. */
-function overlayApplies(root, path, warnings) {
-  // Any tracked case variant counts: on a case-insensitive filesystem it is this file.
-  const rel = relative(root, path).split("\\").join("/");
-  if (gitOut(root, ["ls-files", "--", `:(icase)${rel}`])) {
-    warnings.push(`overlay ${path}: tracked in git, so a pull request could set it; layer ignored`);
-    return false;
-  }
-  const dir = join(root, ".claude");
-  // A submodule or tracked file at .claude itself is content a pull request controls.
-  const entries = (gitOut(root, ["ls-files", "-s", "-z", "--", ":(icase).claude"]) ?? "").split("\0");
-  if (entries.some((e) => e.split("\t")[1]?.toLowerCase() === ".claude") || existsSync(join(dir, ".git"))) {
-    warnings.push(`overlay ${path}: .claude is a submodule or tracked entry; layer ignored`);
-    return false;
-  }
-  if (isLink(dir) || isLink(path) || !within(real(path), join(real(root), ".claude"))) {
-    warnings.push(`overlay ${path}: .claude or the overlay is a symlink or resolves outside ${dir}; layer ignored`);
-    return false;
-  }
-  if (!git(root, ["check-ignore", "-q", "--", path])) {
-    warnings.push(`overlay ${path}: not gitignored, so it can reach team history`);
-  }
-  return true;
-}
-
-const isLink = (p) => {
-  try {
-    return lstatSync(p).isSymbolicLink();
-  } catch {
-    return false;
-  }
-};
-
 /** The review-digest surface, per-key over the shipped defaults. */
 export function resolveDigestConfig(baseOid) {
   const warnings = [];
@@ -353,7 +311,33 @@ export function decide(facts, options, config) {
   return { action, triggers, facts: { files: paths.length, changed_lines: changed } };
 }
 
+// ------------------------------------------------------------ publish gate
+
+export { SECRET_PATTERNS, findSecret };
+
+/**
+ * Where an `artifact` page actually goes, by the shared publish gate. A pull
+ * request always has a repository, so `NONE` counts as not PUBLIC here.
+ * @param {{explicit: boolean, visibility: string, diff: string}} input
+ */
+export function publishGate({ explicit, visibility, diff }) {
+  const known = visibility === "NONE" ? "UNKNOWN" : visibility;
+  return sharedGate({ explicit, visibility: known, text: diff, subject: "diff" });
+}
+
 // ------------------------------------------------------------ CLI
+
+function gateMain(argv) {
+  const [visibility, ...rest] = argv;
+  if (!visibility || rest.some((a) => a !== "--explicit")) {
+    process.stderr.write("usage: digest-policy.mjs --publish-gate <VISIBILITY> [--explicit] < diff\n");
+    return 2;
+  }
+  const diff = readFileSync(0, "utf8");
+  const result = publishGate({ explicit: rest.includes("--explicit"), visibility: visibility.toUpperCase(), diff });
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  return 0;
+}
 
 function parseArgs(argv) {
   const opts = { policy: null, event: "review", blastRadius: "", requested: false };
@@ -369,6 +353,7 @@ function parseArgs(argv) {
 }
 
 function main(argv) {
+  if (argv[0] === "--publish-gate") return gateMain(argv.slice(1));
   const opts = parseArgs(argv);
   if (!opts) {
     process.stderr.write(

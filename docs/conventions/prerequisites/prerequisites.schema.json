@@ -65,6 +65,10 @@
                 "properties": {
                   "any": { "$ref": "#/$defs/names" },
                   "local_bin": { "$ref": "#/$defs/relativePaths" },
+                  "reject_store_alias": {
+                    "type": "boolean",
+                    "description": "On Windows, skip PATH directories named WindowsApps, so a Microsoft Store App Execution Alias never counts as found. Default false."
+                  },
                   "version": {
                     "type": "object",
                     "additionalProperties": false,

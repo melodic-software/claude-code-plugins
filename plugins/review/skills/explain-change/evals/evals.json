@@ -54,6 +54,50 @@
         "Output offers the digest and names the triggers that fired",
         "Output does not build the page before the reader accepts"
       ]
+    },
+    {
+      "id": 6,
+      "name": "risk-map-checked-blind",
+      "prompt": "Explain PR 77. The checker agent rated the hooks area LOW where your risk map says HIGH, and it named a migrations risk you missed.",
+      "expected_output": "The risk map is checked by a fresh subagent given only the pull request number and repository, never the record or its reasoning. The hooks row stays at HIGH, marked disputed with the checker's LOW and reason. The migrations row is added, marked added. No row is dropped.",
+      "expectations": [
+        "Output dispatches the checker with only the pull request number and repository",
+        "Output keeps the disputed hooks row and marks it disputed with the checker's level",
+        "Output adds the migrations row marked added"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "quiz-only-on-request",
+      "prompt": "Explain PR 12 for me.",
+      "expected_output": "The reader did not pass --quiz or ask for a quiz, so neither the markdown record nor the builder input has a quiz section.",
+      "expectations": [
+        "Output has no quiz section in the markdown record",
+        "Output passes no quiz field to build-digest.mjs"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "artifact-is-the-default-medium",
+      "prompt": "Explain PR 30. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"default\"}. gh repo view reports visibility PUBLIC and the publish gate printed medium artifact.",
+      "expected_output": "With no layer setting medium, the skill checks the repository's visibility and runs the publish gate over the diff first. The gate allows it, so the skill says it is publishing as a private Artifact on claude.ai, then publishes the builder's page with the Artifact tool. If the tool is unavailable, the skill gives the local path and says why.",
+      "expectations": [
+        "Output runs gh repo view for visibility and the --publish-gate check before publishing",
+        "Output says the page is being published as a private Artifact on claude.ai before publishing",
+        "Output does not hand-write the page or publish a page the builder did not make"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "default-artifact-falls-back-to-file",
+      "narration": true,
+      "prompt": "Explain PR 31. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"default\"}. gh repo view reports visibility PRIVATE.",
+      "expected_output": "The medium is the shipped default and the repository is not public, so the publish gate returns medium file. The skill does not call the Artifact tool. It gives the local path, the reason (visibility PRIVATE), and how to opt in: medium: artifact in ~/.claude/rendered-views.md.",
+      "expectations": [
+        "Output does not publish the page with the Artifact tool",
+        "Output gives the local page path and says the repository is not public",
+        "Output names medium: artifact in ~/.claude/rendered-views.md as the opt-in"
+      ]
     }
   ]
 }

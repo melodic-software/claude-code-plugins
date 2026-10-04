@@ -47,7 +47,9 @@
       "kind": "runtime",
       "need": "optional",
       "for": [
-        "skill:interview"
+        "skill:interview",
+        "skill:plan",
+        "skill:brainstorm"
       ],
       "detect": {
         "any": [
@@ -55,7 +57,7 @@
           "python"
         ]
       },
-      "degrade": "Without Python 3, the interview surface (the browser round page and watcher) is unavailable and /planning:interview asks its questions inline.",
+      "degrade": "Without Python 3, the interview surface (the browser round page and watcher) is unavailable and /planning:interview asks its questions inline; the plan and brainstorm views cannot reach the session and close the loop with a copied reply.",
       "install": {
         "docs": "https://www.python.org/downloads/",
         "brew": "python",
@@ -76,7 +78,7 @@
           "curl"
         ]
       },
-      "degrade": "Without curl, the planning surface watcher does not start; the questions are answered in chat.",
+      "degrade": "Without curl, the planning surface and the plan and brainstorm view watchers do not start; the questions are answered in chat and the views close the loop with a copied reply.",
       "install": {
         "docs": "https://curl.se/download.html",
         "brew": "curl",
