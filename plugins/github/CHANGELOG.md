@@ -7,7 +7,7 @@ All notable changes to the `github` plugin are documented here. Format follows
 
 ### Changed
 
-- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+- **Upstream plugin doc links repointed to the split `plugins/` pages (#5962).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
 
 ## [0.3.27] - 2026-10-03
 
