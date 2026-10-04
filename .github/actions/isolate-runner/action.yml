@@ -1,0 +1,59 @@
+name: Isolate runner
+description: >
+  Before PR head code runs: for a skill, install the bubblewrap and socat that
+  CLAUDE_CODE_SUBPROCESS_ENV_SCRUB needs while sudo still works, failing
+  closed without bwrap; then remove sudo and docker access for the rest of the
+  job. Contract: docs/conventions/pr-pipeline/pr-run-activity.md, run job
+  steps 9 and 10.
+
+inputs:
+  install-subprocess-isolation:
+    description: "`true` for a skill activity."
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    # claude-code-action puts the OAuth token in Claude's env; without
+    # CLAUDE_CODE_SUBPROCESS_ENV_SCRUB every Bash child inherits it. The
+    # scrub's sandbox needs bubblewrap and socat, and the action installs it
+    # only for allowed_non_write_users.
+    - name: Install subprocess isolation
+      if: inputs.install-subprocess-isolation == 'true'
+      shell: bash
+      run: |
+        for i in 1 2 3; do
+          sudo apt-get update -qq &&
+            sudo apt-get install -y --no-install-recommends bubblewrap socat && break
+          echo "apt-get attempt $i failed, retrying..."
+          sleep 5
+        done
+        # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor.
+        if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+        fi
+        if ! command -v bwrap >/dev/null; then
+          echo "::error::bubblewrap is not installed; the skill's subprocesses cannot be isolated"
+          exit 1
+        fi
+
+    # Removes the documented route from head code to the job's secrets in
+    # runner memory (harden-runner's disable-sudo does the same): the docker
+    # socket becomes root-only, then the runner user's sudoers entry goes.
+    - name: Remove sudo and docker access
+      shell: bash
+      run: |
+        sock=/var/run/docker.sock
+        if [ -e "$sock" ]; then
+          sudo chmod 600 "$sock"
+        fi
+        sudo rm -f /etc/sudoers.d/runner
+        if sudo -n true 2>/dev/null; then
+          echo "::error::sudo still works for the runner user"
+          exit 1
+        fi
+        if [ -e "$sock" ] && { [ -r "$sock" ] || [ -w "$sock" ]; }; then
+          echo "::error::the docker socket is still open to the runner user"
+          exit 1
+        fi
