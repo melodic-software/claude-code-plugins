@@ -229,10 +229,8 @@ attestation is about this hop alone, and an entry here would be copied forward b
 
 **Compaction changes what "the conversation" is.** Detect it from a concrete signal, a compaction
 notice or summary turn actually present in this conversation, never inferred from the history
-merely feeling short or discontinuous. (The citing skill's "When to invoke" entry, "last turn had an
-unexpected compaction", names the common case that brings a session here, but compaction can also
-happen mid-session without being the reason `/session-flow:handoff` was invoked, so check for the signal itself,
-not the invocation reason.) Once that signal is present, the model-visible conversation is the
+merely feeling short or discontinuous. Compaction can happen mid-session without being the reason
+`/session-flow:handoff` was invoked, so check for the signal itself. Once that signal is present, the model-visible conversation is the
 summarizer's output, not the original turns, and a scan of what remains cannot find a caveat the
 summarizer already dropped. Exactly one of the following must be true when the section closes, and
 the `Re-scan:` line of section 15 must say which. Silence on this point reads as the first, so it

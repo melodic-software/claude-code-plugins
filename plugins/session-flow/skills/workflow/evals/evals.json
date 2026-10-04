@@ -150,7 +150,7 @@
     {
       "id": 13,
       "name": "continue-auto-cannot-invoke-built-in-terminals",
-      "prompt": "/workflow continue auto — nothing in this session is worth carrying forward, it is all throwaway debugging output.",
+      "prompt": "/workflow continue auto — nothing in this session is worth carrying forward, it is all throwaway debugging output, and the next work is unrelated to it.",
       "expected_output": "Question 4 selects `/clear`, but the built-in terminals stay the human's to type: `/clear` and `/compact` sit outside the small allowlist of Skill-invocable built-ins, so `auto` cannot carry them out however explicit the license. The router produces what it always produces — the recommendation, the evidence, and a note that this step is the human's.",
       "files": [],
       "expectations": [
