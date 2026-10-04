@@ -26,7 +26,7 @@ export const stickyNoteSchema = z.object({
 export function registerBulkTools(server: McpServer, api: MiroApi): void {
   server.tool(
     "miro_bulk_create_sticky_notes",
-    "Create multiple sticky notes at once (max 20 per call). Use this instead of miro_create_sticky_note when placing many notes — faster and rate-limit aware. Notes are created sequentially with no rollback: if a later note fails, the earlier ones remain on the board. Returns the count and IDs of created items.",
+    "Create multiple sticky notes at once (max 20 per call). Use this instead of miro_create_sticky_note when placing many notes: faster and rate-limit aware. Notes are created sequentially with no rollback: if a later note fails, the earlier ones remain on the board. Returns the count and IDs of created items.",
     {
       board_id: z.string().describe("The board ID"),
       sticky_notes: z
