@@ -12,8 +12,13 @@ All notable changes to the `explainer-video` plugin are documented here. Format 
   and `python`, the install the `SessionStart` message suggests still left no interpreter to hand over to. After the PATH
   names, `pydeps.py` now probes each `python.exe` that `py -0p` lists, with the same `PYTHONHOME` and `PYTHONPATH` scrub
   as the handover. The listing launches nothing, so the Python install manager never installs a runtime as a side effect.
-  Under Git Bash or Cygwin, the hook also starts `pydeps.py` with `py` when no `python` is on PATH, and `/explainer-video:check`
-  falls back to `py` the same way.
+  Under Git Bash or Cygwin, when no `python` is on PATH, the hook asks `py` only for `py -0p` and starts `pydeps.py` with a
+  listed `python.exe`, a 3.12 or 3.13 one first; when `py` lists none, it gives the missing-Python notice and launches
+  nothing, since a `py` launch with no runtime installed installs one. `/explainer-video:check` falls back to a listed
+  `python.exe` the same way.
+- **A free-threaded Python 3.13 (`python3.13t.exe`) is no longer taken for a supported one.** ModernGL publishes no
+  `cp313t` wheel, so its install failed even when a regular 3.13 came later in the list. The probe now skips a build with
+  `Py_GIL_DISABLED` set, on PATH and in the `py -0p` listing, and `pydeps.py` refuses to install under one.
 
 ## [0.2.3] - 2026-10-04
 

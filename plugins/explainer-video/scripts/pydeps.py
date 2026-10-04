@@ -23,11 +23,12 @@ import shlex
 import shutil
 import subprocess
 import sys
+import sysconfig
 import time
 from pathlib import Path
 
 PLUGIN = 'explainer-video'
-PYTHONS = ((3, 12), (3, 13))   # moderngl and glcontext publish no 3.14 wheel
+PYTHONS = ((3, 12), (3, 13))   # moderngl and glcontext publish no 3.14 wheel, nor a free-threaded (cp313t) one
 CANDIDATES = ('python3.13', 'python3.12', 'python3', 'python')
 REQUIREMENTS = Path(__file__).resolve().parent.parent / 'requirements.txt'
 PROBE = ('manim',)
@@ -45,6 +46,10 @@ class Broken(Exception):
 
 def supported(version):
     return tuple(version[:2]) in PYTHONS
+
+
+def free_threaded():
+    return bool(sysconfig.get_config_var('Py_GIL_DISABLED'))
 
 
 def wanted():
@@ -197,7 +202,8 @@ def check(data, requirements=REQUIREMENTS, probe=PROBE):
 
 
 def _runs_supported(path):
-    probe = f'import sys; raise SystemExit(sys.version_info[:2] not in {PYTHONS})'
+    probe = (f'import sys, sysconfig; raise SystemExit(sys.version_info[:2] not in {PYTHONS} '
+             'or bool(sysconfig.get_config_var("Py_GIL_DISABLED")))')
     try:
         return subprocess.run([path, '-c', probe], env=_foreign_env(), capture_output=True).returncode == 0
     except OSError:
@@ -249,10 +255,11 @@ def main(argv=None):
     if a.action == 'run' and not rest:
         ap.error('run needs a script after --')
     failed = 2 if a.action == 'run' else 1
-    if not supported(sys.version_info):
+    if not supported(sys.version_info) or free_threaded():
         where = 'on PATH or listed by the py launcher (py -0p)' if sys.platform == 'win32' else 'on PATH'
+        this = f'{sys.version_info[0]}.{sys.version_info[1]}{"t" if free_threaded() else ""}'
         sys.stderr.write(f'{PLUGIN}: Python {wanted()} is required and none is {where} (this is '
-                         f'{sys.version_info[0]}.{sys.version_info[1]}, {sys.executable}). Install one from '
+                         f'{this}, {sys.executable}). Install one from '
                          'https://www.python.org/downloads/ and start a new session.\n')
         return failed
     try:

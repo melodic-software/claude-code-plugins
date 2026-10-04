@@ -19,10 +19,27 @@ notice() {
   hook::emit_skip_notice SessionStart "$1"
 }
 
+# launcher_listed -> a python.exe that `py -0p` lists, as a POSIX path: the first tagged 3.12 or 3.13,
+# else the first listed, whose pydeps.py says what is required. Only lists: when no runtime is
+# installed, the Python install manager installs one on any py launch command.
+launcher_listed() {
+  local line path first="" re='^[[:space:]]*(-[^[:space:]]+)[[:space:]]+(\*[[:space:]]+)?([A-Za-z]:\\.*\.[Ee][Xx][Ee])'
+  while IFS= read -r line; do
+    [[ "${line%$'\r'}" =~ $re ]] || continue
+    path="$(cygpath -u "${BASH_REMATCH[3]}" 2>/dev/null || printf '%s' "${BASH_REMATCH[3]}")"
+    if [[ "${BASH_REMATCH[1]}" =~ ^-(V:)?3\.1[23](-[A-Za-z0-9]+)?$ ]]; then
+      printf '%s' "$path"
+      return 0
+    fi
+    [[ -n "$first" ]] || first="$path"
+  done < <(py -0p 2>/dev/null </dev/null)
+  [[ -n "$first" ]] && printf '%s' "$first"
+}
+
 # Any Python starts pydeps.py, which hands over to the first Python 3.12 or 3.13 on PATH or, on
 # Windows, listed by the py launcher, and says so when there is none. A zero-length WindowsApps
 # python alias opens the Store instead of running: skip it. The Python install manager's py is
-# such an alias too, and it runs.
+# such an alias too, and it runs, so it is only asked to list.
 candidates=(python3.13 python3.12 python3 python)
 case "${OSTYPE:-}" in
 msys* | cygwin*) candidates+=(py) ;;
@@ -31,13 +48,17 @@ esac
 py=""
 for candidate in "${candidates[@]}"; do
   resolved="$(command -v "$candidate" 2>/dev/null)" || continue
-  [[ "$candidate" != py && "$resolved" == *[Ww]indows[Aa]pps* && ! -s "$resolved" ]] && continue
+  if [[ "$candidate" == py ]]; then
+    py="$(launcher_listed)" || py=""
+    break
+  fi
+  [[ "$resolved" == *[Ww]indows[Aa]pps* && ! -s "$resolved" ]] && continue
   py="$candidate"
   break
 done
 
 if [[ -z "$py" ]]; then
-  notice "explainer-video: Python 3.12 or 3.13 was not found on PATH${candidates[4]:+ or as the py launcher}, so ManimCE is not installed and /explainer-video:produce will stop. Install Python 3.13 (https://www.python.org/downloads/) and start a new session."
+  notice "explainer-video: Python 3.12 or 3.13 was not found on PATH${candidates[4]:+ or listed by the py launcher (py -0p)}, so ManimCE is not installed and /explainer-video:produce will stop. Install Python 3.13 (https://www.python.org/downloads/) and start a new session."
   exit 0
 fi
 
