@@ -698,15 +698,15 @@ cycle whose report carries it, and that cycle's own consumption lands in the nex
 the series as a lagging one. Measure first; whether the data supports acting on it is a later,
 separately decided question. Three properties bound that decision, stated here once and held by
 citation from each lane body: the reading is a snapshot no fresher than the guard's staleness rule
-allows, from a **machine-local**, last-writer-wins tee that refreshes only while an interactive
-session renders a status line, so an unattended lane samples nothing, and an empty sample means
-unobserved rather than zero; the figures are **account-scope**, so the three-lane topology means
+allows, from a **machine-local**, last-writer-wins file that rate-limit-guard's mod writes in
+interactive and headless sessions alike, so an unattended lane samples wherever the guard is
+installed and mods are on, and an empty sample means unobserved rather than zero; the figures are **account-scope**, so the three-lane topology means
 concurrent lanes move the same windows and a per-cycle rise is one lane's own consumption only when
 that lane is the sole active session; and they are a **percentage of a subscription window, not a
 token count**, absent entirely for non-subscription auth. No lane claims a token count, because we
 found no session-total token field readable at a cycle boundary. The status line's cumulative
-*cost* field would attribute to a lane, but the guard's tee does not forward it; widening the tee
-is a guard-side change this invariant deliberately does not make. Pointer: for the fields a
+*cost* field would attribute to a lane, but the guard's snapshot does not carry it; widening the
+snapshot is a guard-side change this invariant deliberately does not make. Pointer: for the fields a
 session exposes, see [Available data](https://code.claude.com/docs/en/statusline#available-data).
 As of: 2026-07-28. Recheck trigger: a Claude Code release adds or changes a token or cost field in
 the status line input.
@@ -842,6 +842,14 @@ That reader contract is
 shipped with the `rate-limit-guard` plugin. This convention records the inline-floor rule so the
 values stay byte-identical across lanes and to that contract's own floor block.
 
+**Who writes the file, and what wakes a paused lane.** rate-limit-guard's mod writes the fixed-path
+file in interactive and headless sessions alike. A paused lane's Monitor on that file wakes on the
+mod's writes, and a machine-wide write floor bounds them: a reading whose whole-point percentages
+have not moved is rewritten no sooner than the floor interval after the file's last write, whichever
+session on the machine wrote it, while a whole-point move writes at once, so a lane's own turn that
+moves a window can wake it once.
+A lane may set the guard's report mode with `--settings`; this is optional.
+
 **A named check enforces the rule.** `scripts/check-loop-lane-floor-drift.sh` extracts the floor
 block from the reader contract and compares it against an explicit registry of every surface that
 inlines it: the three lane bodies, the `docs-hygiene` `extract-ssot` orchestrated mode, the
@@ -903,7 +911,7 @@ no machine, org size, or budget"
 multi-account machine is an ordinary team and multi-tenant shape, not an exotic one. Naming it a
 gap removes the false assurance that nothing is missing.
 
-**The resolution is account identity, and all three sides have landed.** The tee carries an
+**The resolution is account identity, and all three sides have landed.** The tee file carries an
 `account.email` field naming the account whose windows a snapshot describes, present whenever the
 writer could attribute the observation and absent rather than wrong when it could not
 (`plugins/rate-limit-guard/reference/reader-contract.md`, "Tee file shape"). Reader-side
@@ -911,17 +919,16 @@ invalidation of latched state is a **MUST** in the inlined floor's "Account swit
 lane records the account of the snapshot that tripped the pause (not the account `.claude.json`
 names at pause entry, because the snapshot can be up to 10 minutes old), reads
 `.oauthAccount.emailAddress` directly from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json` at pause entry
-and on every wake and Monitor tick (the tee is not the signal source, because a headless-only
-machine never refreshes it), and on a change drops the latch and resumes when the new account is
+and on every wake and Monitor tick, and on a change drops the latch and resumes when the new account is
 below the pause threshold, or re-latches against the new account's `resets_at`. One branch goes
-past "drop when the new account is below the threshold": when no fresh tee snapshot attributes the
+past "drop when the new account is below the threshold": when no fresh snapshot attributes the
 new account, its windows are unknown, so the lane drops the latch and runs reactive-only, the
 outcome the staleness rule already gives unknown windows. The lane-floor re-audit is satisfied by
 the drift gate: the floor block moved to every carrier together and
 `scripts/check-loop-lane-floor-drift.sh` fails when any copy differs.
 
 **Known gap: unattributable cases.** The gap narrows rather than closes. A switch the lane cannot
-attribute goes unseen: the tee field is absent whenever the writer could not attribute, a reader
+attribute goes unseen: the snapshot's field is absent whenever the writer could not attribute, a reader
 that cannot read `.oauthAccount.emailAddress` keeps its latch (fail-closed, never a spurious drop)
 until the latched pause ends, and a pause whose tripping snapshot has no `account.email` starts with
 no latched account and adopts the first account it reads, so a switch before that read goes unseen.

@@ -14,6 +14,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   shipped percentage bands silently instead of printing the malformed notice; an unknown key still
   warns. Its comments now name context-guard's mod, not the retired statusline tee, as the
   snapshot writer. Its resolver test now runs the shared fixture cases too.
+- **`/plugin-quality:setup` and the audit evidence packet name context-guard's mod as the snapshot
+  writer.** Setup no longer reads `statusLine` from every settings scope to tell a structural
+  `unknown` from a broken one: no snapshot means context-guard is not installed or mods are off,
+  and statusline wiring is never the remediation.
 
 ## [0.13.5] - 2026-10-03
 

@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.48.5] - 2026-10-03
+
+### Changed
+
+- **Rate-limit and zone lookups name the guards' pull tools.** `/session-flow:orchestrate` names rate-limit-guard's mod as the snapshot writer and `mcp__rate-limit-guard__status` as a source; headroom is unobservable only where mods are off or the guard is not installed, no longer in every cloud or headless session. `/session-flow:workflow` and `/session-flow:keep-going` look up the zone word with `mcp__context-guard__status` or the snapshot, and `/session-flow:keep-going` reads live `rate_limits` through `mcp__rate-limit-guard__status`.
+
 ## [0.48.4] - 2026-10-03
 
 ### Fixed

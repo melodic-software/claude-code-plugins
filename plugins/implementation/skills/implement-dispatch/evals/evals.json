@@ -178,7 +178,7 @@
       "id": 14,
       "name": "heavy-window-signal-routes-not-clears",
       "narration": true,
-      "prompt": "/implementation:implement-dispatch: interactive run, phase 3 of 5 in .work/search/PLAN.md was just verified and committed. A context-guard hook just reported the window is heavy. Phase 4 is worker-routed, same model.",
+      "prompt": "/implementation:implement-dispatch: interactive run, phase 3 of 5 in .work/search/PLAN.md was just verified and committed. A context-guard line just reported the window is heavy. Phase 4 is worker-routed, same model.",
       "expected_output": "Resident-vs-clear item (a) fires, but it no longer means a default clear: the orchestrator routes the next step with `/session-flow:workflow`, handing it .work/search/PLAN.md and phase 4, and clears to resume from the emitted prompt only if the router routes there. It does not restate the compact/clear/handoff rule itself.",
       "files": [],
       "expectations": [

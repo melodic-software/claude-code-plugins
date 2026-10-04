@@ -8,6 +8,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Changed
 
 - The README notes that an installed mod can stop this plugin's `PreToolUse` hooks from running and can approve a call they blocked, with links to the two mods events sections. Nothing the plugin runs changed.
+- `/source-control:babysit-loop`'s paused-wait reference says rate-limit-guard's mod writes the snapshot in headless sessions too, so the Monitor armed on it wakes on the mod's writes under its machine-wide write floor.
 
 ## [0.79.5] - 2026-10-03
 

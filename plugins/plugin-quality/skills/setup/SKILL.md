@@ -38,11 +38,10 @@ against that contract rather than restating it.
    - `unknown`, or the `${CLAUDE_SESSION_ID}` substitution surviving unexpanded → **conservative
      dispatch** (the audit's unknown row + visible notice). `unknown` carries no direction: it is
      a working state, not a defect and not evidence about the window either way. The
-     structural-versus-broken discriminator is on the writer side, so read `statusLine` from every
-     settings scope that can carry it (user, project, local, managed) per the context-guard reader
-     contract: no `statusLine` in any scope means this environment runs no statusline, and
-     statusline wiring is then the wrong remediation. Recommend the `context-guard` plugin's setup
-     only as an optional upgrade.
+     structural-versus-broken discriminator is on the writer side: the snapshot's writer is
+     context-guard's mod, so no snapshot means context-guard is not installed or mods are off in
+     this environment, and statusline wiring is never the remediation. Recommend the
+     `context-guard` plugin's setup only as an optional upgrade.
 3. **Convention home + effective config**. Run
    `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "${CLAUDE_PROJECT_DIR}"`
    and report by exit code; the four outcomes are distinct and never collapsed:
@@ -115,6 +114,6 @@ overlay channel).
 ## What this skill does NOT do
 
 - Run an audit (that is `/plugin-quality:audit`).
-- Install `gh` or `jq`, or wire the context-guard statusline (that plugin's own setup owns it).
+- Install `gh` or `jq`, or set up context-guard (that plugin's own setup owns it).
 - Write anything except the pointer-line region and the topic doc in `apply` (plus the gated
   retirement cleanup above).

@@ -98,9 +98,10 @@ told:
    and tighter specs), whether a capable advisor/verifier is on hand, current context pressure
    (delegate to protect a filling window; stay inline when it is roomy), and concurrent-session load
    / rate-limit headroom (thin headroom caps how many workers you run at once). **When rate-limit
-   headroom is unobservable**, the `rate-limit-guard` tee is absent, stale, or missing
-   `rate_limits`, which is the expected state in cloud / remote sessions with no statusline
-   producer (see rate-limit-guard's reader-contract, "Cloud / remote sessions"). Treat
+   headroom is unobservable**, `rate-limit-guard`'s pull tool `mcp__rate-limit-guard__status` is
+   unavailable and the snapshot its mod writes is absent, stale, or missing `rate_limits`, which is
+   the expected state only where mods are off or the guard is not installed (see
+   rate-limit-guard's reader-contract, "Cloud / remote sessions"). Treat
    headroom as **thin by default**: pick a small conservative concurrent-worker cap, prefer short
    waves over a wide tree, and do not invent window percentages. Scale further down on this
    session's own rate-limit errors or on live sibling-automation 429s already visible to the

@@ -244,10 +244,11 @@ Part-sourced, part authoring convention. The boundary is called out per factor.
   They scale the same underlying trade-offs (a fresh-context verifier is worth leaning on when one
   is on hand; a filling window is itself the context-protection trigger imperative 1 names; thin
   rate-limit headroom is a hard ceiling on parallel workers).
-- **Unobservable headroom → thin-by-default (cloud / remote).** The rate-limit-guard reader
-  contract classifies a missing, stale, or `rate_limits`-less tee as **unknown → reactive-only**,
-  and states that cloud / remote containers typically have no statusline producer so the tee path
-  is absent by expectation. Imperative 7's thin-by-default concurrent cap, sibling-429 backoff, and
+- **Unobservable headroom → thin-by-default.** The rate-limit-guard reader contract classifies a
+  missing, stale, or `rate_limits`-less snapshot as **unknown → reactive-only**. The guard's mod
+  writes that snapshot in interactive and headless sessions and serves the same reading through
+  the `mcp__rate-limit-guard__status` pull tool, so headroom is unobservable only where mods are
+  off or the guard is not installed. Imperative 7's thin-by-default concurrent cap, sibling-429 backoff, and
   "never invent window percentages" clauses are the orchestration consumption of that
   classification, not a second contract. Pointer:
   `plugins/rate-limit-guard/reference/reader-contract.md` ("Cloud / remote sessions", capability
