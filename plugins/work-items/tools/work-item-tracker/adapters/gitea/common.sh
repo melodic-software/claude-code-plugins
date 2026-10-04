@@ -424,8 +424,8 @@ wit_gitea_require_ok() {
 
 # wit_gitea_normalize_program — a jq program mapping ONE raw Gitea `Issue` into the
 # seam's normalized item object (CONTRACT.md "JSON output contract"). Expects jq args
-# $sv (schema version) and $bbc (this item's open-blocker count, computed by the caller
-# — see wit_gitea_blocked_by_count for why it cannot be derived from the Issue itself).
+# $sv (schema version) and $bbc (this item's blocker counts object, computed by the
+# caller — see wit_gitea_blocked_by_count for why it cannot be derived from the Issue).
 #
 # Field names verified against the Gitea `Issue` struct (modules/structs/issue.go) and
 # the generated swagger definition, not from memory:
@@ -452,13 +452,14 @@ readonly WIT_GITEA_NORMALIZE_PROGRAM='
     assignees: [ (.assignees // [])[] | .login // empty ],
     labels: [ (.labels // [])[] | .name // empty ],
     type: null,
-    blocked_by_count: $bbc,
+    blocked_by_count: $bbc.blocked_by_count,
+    blocked_by_wont_do_count: $bbc.blocked_by_wont_do_count,
     parent_id: null,
     url: (.html_url // "")
   }'
 
-# wit_gitea_blocked_by_count <owner> <repo> <index> — echo the number of OPEN issues
-# blocking that issue.
+# wit_gitea_blocked_by_count <owner> <repo> <index> — echo the blocker counts of that
+# issue as `{"blocked_by_count":N,"blocked_by_wont_do_count":M}`.
 #
 # Gitea's Issue object carries no dependency data at all, so this is a separate request
 # per item — `GET /issues/{index}/dependencies`, documented as "all issues that block
@@ -466,15 +467,16 @@ readonly WIT_GITEA_NORMALIZE_PROGRAM='
 # is the same edge read from the other end and would invert the meaning.
 #
 # The response is a full Issue array, so each blocker's own state comes back inline and
-# no second round-trip per blocker is needed. Only OPEN blockers count: counting closed
-# ones would keep an item off the frontier forever, since a blocker that was resolved
-# would still hold it back.
+# no second round-trip per blocker is needed. Gitea records no close reason, so a closed
+# blocker may be done or abandoned; per the contract an unknown reason keeps blocking.
+# Every blocker counts, and the closed ones count again as won't-do so the dependent is
+# re-triaged (CONTRACT.md "JSON output contract": close reason unsupported).
 #
 # COST: one extra request per item, including inside list-items. There is no bulk
 # dependency endpoint, so this is inherent to the provider rather than a shortcut not
 # taken — see this adapter's README.
 wit_gitea_blocked_by_count() {
-  local owner="$1" repo="$2" index="$3" page=1 total=0 got counts
+  local owner="$1" repo="$2" index="$3" page=1 total=0 closed=0 got counts
   while :; do
     wit_gitea_http GET "/repos/$owner/$repo/issues/$index/dependencies?page=$page&limit=$WIT_GITEA_PAGE_SIZE"
     # A repo with the dependencies unit disabled answers 404 here while the issue
@@ -482,7 +484,7 @@ wit_gitea_blocked_by_count() {
     # issue: reporting the ITEM as not-found because a repo unit is off would be a lie
     # about the item.
     if [[ "$WIT_GITEA_STATUS" == "404" ]]; then
-      printf '0'
+      printf '{"blocked_by_count":0,"blocked_by_wont_do_count":0}'
       return 0
     fi
     wit_gitea_require_ok "listing dependencies of $owner/$repo#$index"
@@ -491,10 +493,11 @@ wit_gitea_blocked_by_count() {
     # 65536 bytes at which a here-string hangs Git Bash (lib/hook-utils.sh
     # hook::json_complete). A body that is not an array counts as an empty page.
     counts="$(printf '%s' "$WIT_GITEA_BODY" |
-      jq -r '[length, ([.[] | select(.state != "closed")] | length)] | @tsv' 2>/dev/null)" || counts=""
+      jq -r '[length, ([.[] | select(.state == "closed")] | length)] | @tsv' 2>/dev/null)" || counts=""
     [[ "$counts" =~ ^[0-9]+$'\t'[0-9]+$ ]] || counts=$'0\t0'
     got="${counts%%$'\t'*}"
-    total=$((total + ${counts##*$'\t'}))
+    total=$((total + got))
+    closed=$((closed + ${counts##*$'\t'}))
     # A short page is the last page. This endpoint genuinely sends no total-count header —
     # `routers/api/v1/repo/issue_dependency.go` calls neither SetTotalCountHeader nor
     # SetLinkHeader, unlike the issue and label list handlers — so unlike those two there is
@@ -510,7 +513,7 @@ wit_gitea_blocked_by_count() {
     # make one item's count run unbounded.
     ((page * WIT_GITEA_PAGE_SIZE > WIT_GITEA_LIST_ITEMS_MAX)) && break
   done
-  printf '%s' "$total"
+  printf '{"blocked_by_count":%s,"blocked_by_wont_do_count":%s}' "$total" "$closed"
 }
 
 # wit_gitea_scope_parts <owner/repo> — split a scope entry, setting WIT_GITEA_OWNER and

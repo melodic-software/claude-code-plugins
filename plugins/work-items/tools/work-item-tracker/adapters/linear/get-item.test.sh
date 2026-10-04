@@ -95,6 +95,21 @@ assert_eq "blocked issue → exit 0" "0" "$rc"
 # excluded. Counting the completed one is the bug that keeps an item off the frontier
 # forever.
 assert_eq "counts open blocks relations only" "2" "$(jq -r '.blocked_by_count' <<<"$(lin_out)")"
+assert_eq "no closed-not-completed blocker → won't-do 0" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$(lin_out)")"
+
+# --- a blocker closed without completing (canceled, duplicate) still blocks ---
+# A canceled blocker will never be built, so its dependent leaves the frontier for
+# re-triage rather than graduating; won't-do counts it separately.
+lin_reset
+lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 12 started)" \
+  '{issues: {nodes: [($i | .inverseRelations.nodes = [
+      {type: "blocks", issue: {state: {type: "canceled"}}},
+      {type: "blocks", issue: {state: {type: "duplicate"}}},
+      {type: "blocks", issue: {state: {type: "completed"}}}
+    ])]}}')"
+lin_run "$S" "linear:acme/ENG#12" >/dev/null
+assert_eq "canceled and duplicate blockers still block" "2" "$(jq -r '.blocked_by_count' <<<"$(lin_out)")"
+assert_eq "canceled and duplicate blockers count as won't-do" "2" "$(jq -r '.blocked_by_wont_do_count' <<<"$(lin_out)")"
 
 # --- parent_id is fully qualified ---
 lin_reset

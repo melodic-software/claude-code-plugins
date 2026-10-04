@@ -59,15 +59,16 @@ rc="$(gitea_run "$S" "gitea:acme/webapp#12")"
 assert_eq "closed issue → exit 0" "0" "$rc"
 assert_eq "closed state normalized" "closed" "$(jq -r '.state' <<<"$(gitea_out)")"
 
-# --- blocked_by_count counts OPEN blockers only ---
-# Counting closed blockers is the bug that keeps an item off the frontier forever: the
-# blocker is resolved, but the item never becomes eligible.
+# --- a closed blocker keeps blocking: Gitea records no close reason ---
+# A closed Gitea issue may have been done or abandoned, and the API cannot tell them
+# apart, so a closed blocker still blocks and won't-do counts it for re-triage.
 gitea_reset_routes
 gitea_seed "/dependencies" 200 "$(jq -cn '[{number:1,state:"open"},{number:2,state:"closed"},{number:3,state:"open"}]')"
 gitea_seed "/issues/12" 200 "$(gitea_issue_json 12 open 'blocked one')"
 rc="$(gitea_run "$S" "gitea:acme/webapp#12")"
 assert_eq "blocked issue → exit 0" "0" "$rc"
-assert_eq "blocked_by_count counts only open blockers" "2" "$(jq -r '.blocked_by_count' <<<"$(gitea_out)")"
+assert_eq "blocked_by_count counts open and closed blockers" "3" "$(jq -r '.blocked_by_count' <<<"$(gitea_out)")"
+assert_eq "blocked_by_wont_do_count counts the closed blocker" "1" "$(jq -r '.blocked_by_wont_do_count' <<<"$(gitea_out)")"
 
 # A repo with the dependencies unit disabled answers 404 on that endpoint while the
 # issue itself exists. That must read as "no visible edges", never as a missing ITEM.

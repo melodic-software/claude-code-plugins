@@ -344,8 +344,8 @@ dispositions bind:
 | Unclassified | **Fail-closed human-gated** |
 
 **In-flight precondition (before any classification).** A frontier candidate that already has an
-open closing PR is work in flight, not a candidate. Apply `/work-items:work`'s "Exclude in-flight
-frontier candidates (open linked PR)" rule in
+open closing PR from its own repository (not a fork) is work in flight, not a candidate. Apply
+`/work-items:work`'s "Exclude in-flight frontier candidates (open linked PR)" rule in
 [`${CLAUDE_PLUGIN_ROOT}/skills/work/context/candidate-discovery.md`](${CLAUDE_PLUGIN_ROOT}/skills/work/context/candidate-discovery.md)
 as written, through the bound adapter's "Open linked PRs" operation: the closing-keyword linkage is
 the signal, a draft closing PR counts, a failed check excludes the candidate for this cycle, and a

@@ -68,14 +68,15 @@ assert_eq "mixed issue/PR page → exit 0" "0" "$rc"
 assert_eq "the pull request is dropped" "1" "$(jq -r '.items | length' <<<"$(gitea_out)")"
 assert_eq "the issue survives" "gitea:acme/webapp#12" "$(jq -r '.items[0].id' <<<"$(gitea_out)")"
 
-# --- blocker counts are per item, and count OPEN blockers only ---
+# --- blocker counts are per item; a closed blocker (no close reason) still blocks ---
 gitea_reset_routes
 gitea_seed "/issues/12/dependencies" 200 "$(jq -cn '[{number:1,state:"open"},{number:2,state:"closed"}]')"
 gitea_seed "/dependencies" 200 '[]'
 gitea_seed "/issues?" 200 "[$(gitea_issue_json 12 open 'blocked')]"
 rc="$(gitea_run "$S")"
 assert_eq "blocked item listed → exit 0" "0" "$rc"
-assert_eq "blocked_by_count is per item and open-only" "1" "$(jq -r '.items[0].blocked_by_count' <<<"$(gitea_out)")"
+assert_eq "blocked_by_count counts open and closed blockers" "2" "$(jq -r '.items[0].blocked_by_count' <<<"$(gitea_out)")"
+assert_eq "blocked_by_wont_do_count counts the closed one" "1" "$(jq -r '.items[0].blocked_by_wont_do_count' <<<"$(gitea_out)")"
 
 # --- an empty repository is an empty envelope, never an error ---
 gitea_reset_routes
@@ -229,8 +230,10 @@ rc="$(gitea_run "$S")"
 assert_eq "five items across two pages → exit 0" "0" "$rc"
 assert_eq "items come out in page order" "12 13 14 15 16" \
   "$(jq -r '[.items[].id | sub("^gitea:acme/webapp#"; "")] | join(" ")' <<<"$(gitea_out)")"
-assert_eq "each item carries its own open-blocker count" "3 2 1 0 1" \
+assert_eq "each item carries its own blocker count" "3 3 1 0 2" \
   "$(jq -r '[.items[].blocked_by_count | tostring] | join(" ")' <<<"$(gitea_out)")"
+assert_eq "each item carries its own won't-do count" "0 1 0 0 1" \
+  "$(jq -r '[.items[].blocked_by_wont_do_count | tostring] | join(" ")' <<<"$(gitea_out)")"
 gitea_write_binding
 
 # --- the per-item cost is the dependency request, not a fan-out of jq processes ---

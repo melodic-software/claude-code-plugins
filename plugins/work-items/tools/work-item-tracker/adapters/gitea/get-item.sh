@@ -33,7 +33,7 @@ wit_gitea_scope_in_scope "$SCOPE" ||
 wit_gitea_http GET "/repos/$WIT_ID_OWNER/$WIT_ID_REPO/issues/$WIT_ID_NUMBER"
 wit_gitea_require_ok "fetching $ID"
 
-# Gitea's Issue carries no dependency data, so the open-blocker count is a second
+# Gitea's Issue carries no dependency data, so the blocker counts are a second
 # request. get-item is the authoritative read, so it pays that cost rather than
 # reporting a count it did not compute.
 #

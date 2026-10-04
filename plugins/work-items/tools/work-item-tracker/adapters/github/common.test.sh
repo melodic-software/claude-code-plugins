@@ -134,6 +134,83 @@ EOF
   rm -rf "$EMIT_STUB"
 fi
 
+# --- a closed blocker unblocks only when it was completed ---
+# Issue N carries one blocker whose state and close reason the stub fixes per N. The
+# `gh --json blockedBy` projection has no stateReason, so the reason is served only
+# by `gh api graphql` (nodes by id); GH_STUB_GRAPHQL_FAIL makes that query fail.
+if command -v jq >/dev/null 2>&1; then
+  REASON_STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
+  cat >"$REASON_STUB/gh" <<'EOF'
+#!/usr/bin/env bash
+[[ "$1" == "--version" ]] && { echo "gh version 2.94.0 (test)"; exit 0; }
+printf '%s\n' "$*" >>"${GH_STUB_DIR:?}/calls.log"
+node() {
+  case "$1" in
+  1) printf '{"id":"I1","number":101,"state":"OPEN"}' ;;
+  2) printf '{"id":"I2","number":102,"state":"CLOSED"}' ;;
+  3) printf '{"id":"I3","number":103,"state":"CLOSED"}' ;;
+  4) printf '{"id":"I4","number":104,"state":"CLOSED"}' ;;
+  esac
+}
+issue() {
+  printf '{"number":%s,"title":"t","state":"OPEN","assignees":[],"labels":[],"blockedBy":{"nodes":[%s]},"url":"https://github.com/o/r/issues/%s"}' "$1" "$(node "$1")" "$1"
+}
+if [[ "$1 $2" == "issue view" ]]; then
+  issue "$3"
+elif [[ "$1 $2" == "issue list" ]]; then
+  printf '[%s,%s,%s,%s]' "$(issue 1)" "$(issue 2)" "$(issue 3)" "$(issue 4)"
+elif [[ "$1 $2" == "api graphql" ]]; then
+  [[ -z "${GH_STUB_GRAPHQL_FAIL:-}" ]] || { echo "HTTP 403: forbidden" >&2; exit 1; }
+  out=""
+  for a in "$@"; do
+    case "$a" in
+    "ids[]=I2") out+='{"id":"I2","stateReason":"COMPLETED"},' ;;
+    "ids[]=I3") out+='{"id":"I3","stateReason":"NOT_PLANNED"},' ;;
+    "ids[]=I4") out+='{"id":"I4","stateReason":"DUPLICATE"},' ;;
+    esac
+  done
+  printf '{"data":{"nodes":[%s]}}' "${out%,}"
+else
+  exit 90
+fi
+EOF
+  chmod +x "$REASON_STUB/gh"
+  emit() { GH_STUB_DIR="$REASON_STUB" PATH="$REASON_STUB:$PATH" wit_emit_item o r "$1" 2>/dev/null; }
+
+  : >"$REASON_STUB/calls.log"
+  OUT="$(emit 1)"
+  assert_eq "OPEN blocker blocks" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+  assert_eq "OPEN blocker is not won't-do" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
+  assert_not_contains "no closed blocker → no graphql reason query" "$(<"$REASON_STUB/calls.log")" "api graphql"
+
+  OUT="$(emit 2)"
+  assert_eq "CLOSED+COMPLETED blocker unblocks" "0" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+  assert_eq "CLOSED+COMPLETED blocker is not won't-do" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
+
+  OUT="$(emit 3)"
+  assert_eq "CLOSED+NOT_PLANNED blocker still blocks" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+  assert_eq "CLOSED+NOT_PLANNED blocker counts as won't-do" "1" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
+
+  OUT="$(emit 4)"
+  assert_eq "CLOSED+DUPLICATE blocker still blocks" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+  assert_eq "CLOSED+DUPLICATE blocker counts as won't-do" "1" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
+
+  OUT="$(GH_STUB_GRAPHQL_FAIL=1 emit 2)"
+  assert_eq "unknown close reason (query failed) still blocks" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+  assert_eq "unknown close reason counts as won't-do" "1" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
+
+  : >"$REASON_STUB/calls.log"
+  OUT="$(GH_STUB_DIR="$REASON_STUB" PATH="$REASON_STUB:$PATH" bash "$SCRIPT_DIR/list-items.sh" --repo o/r 2>/dev/null)"
+  assert_eq "list-items blocked_by_count per OPEN, COMPLETED, NOT_PLANNED, DUPLICATE" "1 0 1 1" \
+    "$(jq -r '[.items[].blocked_by_count] | map(tostring) | join(" ")' <<<"$OUT")"
+  assert_eq "list-items blocked_by_wont_do_count per OPEN, COMPLETED, NOT_PLANNED, DUPLICATE" "0 0 1 1" \
+    "$(jq -r '[.items[].blocked_by_wont_do_count] | map(tostring) | join(" ")' <<<"$OUT")"
+  assert_eq "list-items fetches every closed reason in one graphql query" "1" \
+    "$(grep -c 'api graphql' "$REASON_STUB/calls.log")"
+
+  rm -rf "$REASON_STUB"
+fi
+
 # The README's REST search filter: doc and test read the same text.
 README="$(dirname "${BASH_SOURCE[0]}")/README.md"
 FILTER="$(sed -n "/rest-search-filter:start/,/rest-search-filter:end/{s/^FILTER='\(.*\)'\$/\1/p}" "$README")"
@@ -141,5 +218,29 @@ assert_eq "README carries the REST search filter" "1" "$([[ -n "$FILTER" ]] && e
 ISSUES='[{"number":1,"title":"Fix Login Bug","state":"open"},{"number":2,"title":"Fix login bug","state":"closed","pull_request":{}},{"number":3,"title":"Other","state":"open"}]'
 assert_eq "REST search filter drops PRs, matches case-insensitively" $'1\tFix Login Bug\topen' \
   "$(jq -r --arg q "LOGIN fix" "$FILTER" <<<"$ISSUES")"
+
+# The README's open-linked-PR reductions: only an open PR whose head branch lives in the
+# item's own repository is in flight. A fork's `Closes #N` must not park the item.
+eval "$(sed -n '/open-linked-prs-filter:start/,/open-linked-prs-filter:end/{/^[A-Z_]*=/p}' "$README")"
+assert_eq "README carries the open-linked-PR reductions" "1" \
+  "$([[ -n "${PR_GATE:-}" && -n "${PR_READY_GATE:-}" && -n "${PR_REPORT:-}" ]] && echo 1 || echo 0)"
+pr_page() { # <nodes-json>: one page of the README's query for item o/r#1
+  jq -cn --argjson n "$1" '{data: {repository: {nameWithOwner: "o/r", issue: {closedByPullRequestsReferences: {nodes: $n}}}}}'
+}
+pr() { # <number> <state> <draft> <head nameWithOwner or null>
+  jq -cn --argjson n "$1" --arg s "$2" --argjson d "$3" --argjson h "$4" \
+    '{number: $n, state: $s, isDraft: $d, createdAt: "2026-10-01T00:00:00Z", headRepository: (if $h == null then null else {nameWithOwner: $h} end)}'
+}
+FORK_ONLY="$(pr_page "[$(pr 7 OPEN false '"stranger/r"'), $(pr 8 OPEN false null)]")"
+assert_eq "fork PR and deleted-fork PR are not in flight" "false" "$(jq -r "$PR_GATE" <<<"$FORK_ONLY")"
+assert_eq "fork PR does not satisfy the ready gate" "false" "$(jq -r "$PR_READY_GATE" <<<"$FORK_ONLY")"
+assert_eq "fork PR is not reported" "" "$(jq -r "$PR_REPORT" <<<"$FORK_ONLY")"
+SAME_DRAFT="$(pr_page "[$(pr 7 OPEN false '"stranger/r"'), $(pr 9 OPEN true '"o/r"'), $(pr 10 MERGED false '"o/r"')]")"
+assert_eq "same-repo draft PR is in flight" "true" "$(jq -r "$PR_GATE" <<<"$SAME_DRAFT")"
+assert_eq "same-repo draft PR fails the ready gate" "false" "$(jq -r "$PR_READY_GATE" <<<"$SAME_DRAFT")"
+assert_eq "only the same-repo open PR is reported" '{"number":9,"isDraft":true,"createdAt":"2026-10-01T00:00:00Z"}' \
+  "$(jq -r "$PR_REPORT" <<<"$SAME_DRAFT")"
+SAME_READY="$(pr_page "[$(pr 11 OPEN false '"o/r"')]")"
+assert_eq "same-repo ready PR passes the ready gate" "true" "$(jq -r "$PR_READY_GATE" <<<"$SAME_READY")"
 
 [[ $FAILED -eq 0 ]] || exit 1

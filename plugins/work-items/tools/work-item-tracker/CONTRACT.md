@@ -44,7 +44,7 @@ canonical with a project-root fallback (see "Adapter resolution"). Direction loc
   it resolves to), and `create-item` only when `--parent` or `--blocked-by` is passed.
   A plain `create-item` (title, body, labels, `--type`, repo) and `get-item` run on an older `gh`:
   `get-item` omits the native `--json` fields, so `parent_id` is `null`, `blocked_by_count`
-  is `0`, and `type` is `null`. `--type` is not a dispatcher floor: the GitHub adapter
+  and `blocked_by_wont_do_count` are `0`, and `type` is `null`. `--type` is not a dispatcher floor: the GitHub adapter
   drops the 2.94 `gh issue create --type` flag and applies the coarse `type:` label. The lease verbs (`claim`, `renew-lease`, `release`, `reclaim`) read
   assignees and comments only. `capabilities` never shells out. The dispatcher gates
   before dispatch.
@@ -205,7 +205,8 @@ core-side step below. The container is addressed by its qualified id, which carr
 there is no `--repo` flag. `--state` defaults to `all`.
 
 `list-frontier` is a CORE-side derivation (no provider has a native counterpart): it calls
-the adapter's `list-items` and filters `state == open` AND `blocked_by_count == 0` AND no
+the adapter's `list-items` and filters `state == open` AND `blocked_by_count == 0` (so a
+blocker closed as won't-do keeps its dependent off the frontier) AND no
 assignee AND not a container (a `work-map` item is never its own frontier item, see
 "Containers and state"). With `--autonomous`, items labeled `needs-human` are additionally
 excluded, as are items carrying a **human-floor work class**: `work-class: structural` (C4)
@@ -237,7 +238,7 @@ adapters/<provider>/list-items.sh [--state open|closed|all] [--repo <o>/<r>]
 adapters/<provider>/list-sub-items.sh <parent-id> [--state open|closed|all]
 ```
 
-- `list-items` returns RAW candidates (state, assignees, labels, open-blocker count) and
+- `list-items` returns RAW candidates (state, assignees, labels, blocker counts) and
   MUST have explicit pagination semantics: fetch up to the `limits.list_items_max`
   declared in its `capabilities.json` (never a client default, since `gh` truncates at 30
   silently). Exceeding the ceiling is a documented truncation, not an error.
@@ -306,6 +307,7 @@ Normalized item object:
   "labels": ["name"],
   "type": "Task",
   "blocked_by_count": 0,
+  "blocked_by_wont_do_count": 0,
   "parent_id": null,
   "url": "https://…"
 }
@@ -318,9 +320,18 @@ Normalized item object:
   the `local-markdown` adapter has no native-type registry, so `--type` is stored and
   echoed verbatim (an offline-parity scalar). Additive field: items predating it read
   as `null`.
-- `blocked_by_count` counts **open** blockers only. (Tier-0 verified 2026-07-12:
-  GitHub's `blockedBy.totalCount` keeps counting CLOSED blockers, which would break
-  frontier graduation, so the adapter counts `state == "OPEN"` nodes.)
+- `blocked_by_count` counts every blocker except one **closed as completed**. A blocker
+  closed for any other reason (won't do, duplicate) or for a reason the adapter cannot
+  read still blocks: the work it stood for was not done, so its dependent must not
+  graduate onto the frontier. `blocked_by_wont_do_count` counts those closed,
+  not-completed blockers again; a non-zero value means the dependent waits on nothing
+  that will finish and needs re-triage. Close-reason support per adapter: GitHub
+  (`stateReason`), Linear (state type `completed` versus `canceled`/`duplicate`) and
+  local-markdown (`state_reason`) read it; Jira and Gitea are **unsupported** (their
+  sections below say why) and count every closed blocker in both fields. (GitHub:
+  `blockedBy.totalCount` keeps counting closed blockers, and the `gh --json blockedBy`
+  projection has no `stateReason`, so the adapter reads each closed blocker's
+  `stateReason` through `gh api graphql` and unblocks only on `COMPLETED`.)
 - `parent_id` is a fully-qualified ID or `null`. Bulk `list-items` rows MAY carry
   `parent_id: null` when the provider's list surface omits parent data (GitHub's does);
   `get-item` is authoritative for parent linkage.
@@ -572,8 +583,10 @@ network tool (`gh`, `curl`); the conformance suite runs it in CI, offline.
   single-writer monotonic counter (max existing file number + 1). Frontmatter carries
   `id`/`title`/`state`/`assignees`/`labels`/`parent` as one-line JSON values
   (YAML-flow-compatible, robust to special characters). Dependency edges are
-  structured `Blocked by: <id>` body lines; `blocked_by_count` counts only blockers
-  whose file exists and is `open`. The lease is the same inline marker used
+  structured `Blocked by: <id>` body lines; `blocked_by_count` counts blockers whose
+  file exists and that are `open`, or `closed` with a `state_reason` other than
+  `completed` (`not_planned`, `duplicate`). A closed item with no `state_reason` was
+  completed. The lease is the same inline marker used
   everywhere (see "Lease protocol"), appended to the item file.
 - **Identity.** No authenticated provider user exists offline, so `claim` records the
   holder from `git config user.name` (falling back to `$USER`, then `local`) and
@@ -704,9 +717,11 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
   `statusCategory` key is in `done_category_keys`, else `open`; `assignees` is the single `assignee`'s
   `accountId` as a one-element array (empty when unassigned); `labels` is Jira `labels[]`
   verbatim (canonical role labels ride as ordinary labels; `list-frontier --autonomous` filters
-  them core-side); `type` is the issue-type name; `blocked_by_count` counts **open** inward
-  `blocked_by_link_type` links only (parity with the GitHub adapter's open-only count; the
-  linked issue's status is inlined in `issuelinks`, so no second round-trip); `parent_id` comes from
+  them core-side); `type` is the issue-type name; `blocked_by_count` counts **every** inward
+  `blocked_by_link_type` link and `blocked_by_wont_do_count` the done-category ones among
+  them: `issuelinks` inlines the linked issue's status but not its resolution, so a done
+  blocker's close reason is unknown and keeps blocking (close reason unsupported, see
+  "JSON output contract"); `parent_id` comes from
   `fields.parent` (subtask→parent universally, story→epic where the instance uses the unified
   parent field rather than the legacy Epic-Link custom field, a documented best-effort
   limitation deferred with the sub-item link-type question); `url` is `https://<site>/browse/<KEY>`.
@@ -778,6 +793,8 @@ from GitHub's API, and all documented in `adapters/gitea/README.md`:
   unknown one rather than dropping it.
 - `blocked_by_count` costs one extra request per item: the issue carries no dependency data and
   there is no bulk endpoint.
+- A closed issue records no close reason, so a closed blocker keeps blocking and counts in
+  `blocked_by_wont_do_count` (close reason unsupported).
 - `POST /issues/{index}/dependencies` makes the **URL** issue depend on the **body** issue; the
   sibling `/blocks` endpoint is the same edge inverted.
 - `limits.dependencies_per_type` is `null`: Gitea rejects only duplicate and circular edges and

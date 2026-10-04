@@ -253,13 +253,13 @@ done
 #
 # The read still has to fail the verb: the contract's item object requires
 # blocked_by_count, and there is no honest value to substitute — 0 is the frontier lie
-# this adapter counts open blockers to avoid. So propagate the read's own code, keeping
+# this adapter counts blockers to avoid. So propagate the read's own code, keeping
 # the seam's status vocabulary intact (8 stays "unavailable, back off", 4 stays auth).
 # What non-zero must NOT mean here is "nothing happened": name the created id on stderr
 # so a retry re-reads the item instead of filing a second one.
 BBC="$(wit_gitea_blocked_by_count "$WIT_GITEA_OWNER" "$WIT_GITEA_REPO" "$NUMBER")" || {
   RC=$?
-  printf 'create-item.sh: gitea:%s#%s WAS CREATED (blocker edges written); only its open-blocker count could not be read — re-read it with get-item, do not create it again\n' \
+  printf 'create-item.sh: gitea:%s#%s WAS CREATED (blocker edges written); only its blocker count could not be read — re-read it with get-item, do not create it again\n' \
     "$REPO" "$NUMBER" >&2
   exit "$RC"
 }
