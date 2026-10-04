@@ -76,12 +76,54 @@ while IFS= read -r row; do
     workflow=$((workflow + 1))
   else
     second=$(jq -r '.args[1]' <<<"$row")
+    # The verify rows skip bash when all three verifiers are switched off.
+    if [[ "$second" == "--skip-if-all-false" ]]; then
+      names=$(jq -r '.args[2]' <<<"$row")
+      [[ "$names" == "CLI_FLAG_VERIFY_ENABLED,SKILL_REFERENCE_VERIFY_ENABLED,STALE_PATH_VERIFY_ENABLED" ]] ||
+        fail "verify gate names $names, not the three verifier switches"
+      second=$(jq -r '.args[3]' <<<"$row")
+    fi
     [[ "$second" == *"/hooks/run-guards.sh" ]] || fail "args[1] is not run-guards.sh: $second"
     dispatcher=$((dispatcher + 1))
   fi
 done <<<"$rows"
 [[ "$dispatcher" -ge 8 ]] || fail "expected the dispatcher rows, found $dispatcher"
 [[ "$workflow" -eq 1 ]] || fail "expected one workflow row, found $workflow"
+
+# --- no launcher skip flag on a blocking row ----------------------------------
+# A --skip-* launcher flag decides in node, before any guard runs, that a row
+# has nothing to do. On a PreToolUse row, or a row that runs a block-* guard,
+# that would let a launcher edit switch a blocking guard off.
+skips_on_blocking() { # <hooks.json> -> one line per offending row
+  jq -r '.hooks | to_entries[] | .key as $event | .value[] | .hooks[]
+    | select(.args != null)
+    | select(any(.args[]; startswith("--skip-")))
+    | select($event == "PreToolUse" or any(.args[]; test("(^|/)block-[^/]*\\.sh$")))
+    | "\($event): \(.args | join(" "))"' "$1"
+}
+offenders=$(skips_on_blocking "$HOOKS_JSON") || fail "could not read $HOOKS_JSON"
+[[ -z "$offenders" ]] || fail "a blocking row carries a launcher skip flag: $offenders"
+
+bad_json="$TEST_TMPDIR/blocking-skip.json"
+cat >"$bad_json" <<'EOF'
+{"hooks": {
+  "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "node",
+    "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "--skip-if-all-false", "BLOCK_NO_VERIFY_ENABLED",
+      "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh", "block-no-verify.sh"]}]}],
+  "PostToolUse": [{"matcher": "Write|Edit", "hooks": [
+    {"type": "command", "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "--skip-unless-stdin-contains", "x",
+        "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh", "block-credential-read.sh"]},
+    {"type": "command", "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "--skip-if-all-false", "CLI_FLAG_VERIFY_ENABLED",
+        "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh", "cli-flag-verify.sh"]}]}]
+}}
+EOF
+caught=$(skips_on_blocking "$bad_json") || fail "could not read the blocking-skip fixture"
+[[ "$(grep -c . <<<"$caught")" -eq 2 ]] || fail "expected 2 blocking rows with a skip flag, got: $caught"
+grep -q '^PreToolUse: .*block-no-verify\.sh$' <<<"$caught" || fail "PreToolUse skip row not caught: $caught"
+grep -q '^PostToolUse: .*block-credential-read\.sh$' <<<"$caught" || fail "block-* skip row not caught: $caught"
+grep -q 'cli-flag-verify' <<<"$caught" && fail "an advisory verify row was flagged: $caught"
 
 # --- SessionStart node notice: shell form, needs no node ---------------------
 # The row's behavior, with and without node and under PowerShell, is run by

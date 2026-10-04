@@ -4,7 +4,7 @@
 #
 #   scripts/check-docs-only-gate.sh --check [<workflow>]
 #
-# Default workflow: .github/workflows/ci.yml.
+# Default workflow: .github/workflows/pr-require-checks.yml.
 #
 # WHY. The heavy lanes short-circuit on a diff confined to the docs-only
 # allowlist. That short-circuit is a fail-open shape by construction: getting it
@@ -135,7 +135,7 @@ usage() {
 }
 
 [[ "${1:-}" == "--check" ]] || usage
-WORKFLOW="${2:-.github/workflows/ci.yml}"
+WORKFLOW="${2:-.github/workflows/pr-require-checks.yml}"
 [[ $# -le 2 ]] || usage
 
 if [[ ! -f "$WORKFLOW" ]]; then
@@ -146,7 +146,7 @@ fi
 # The contract's literals, kept together so the whole of it reads as one block
 # rather than as constants scattered through the assertions.
 TAB="$(printf '\t')"
-RESOLVER_JOB="scope"
+RESOLVER_JOB="select-tests"
 DETECT_STEP_ID="detect"
 # The resolver publishes a TABLE of boolean-string outputs, not one. Every
 # polarity decision in the workflow lives in this table, and consumers only
@@ -156,7 +156,7 @@ DETECT_STEP_ID="detect"
 #
 # `run_full` is the root: it is the only row derived from the detector, and
 # every other row narrows it. The narrowing rows read `steps.match.outputs`
-# (the change-detection action) through fromJSON with a `|| '{}'` default, or
+# (the detect-changes action) through fromJSON with a `|| '{}'` default, or
 # the test-lane plan (`steps.plan.outputs`), and compare `!= 'false'`, never
 # `== 'true'`, so an unset group or plan runs the lane.
 OUTPUT_NAME="run_full"
@@ -994,12 +994,15 @@ is_required() { [[ "$required_closure" == *$'\n'"$1"$'\n'* ]]; }
 # `ci-lanes` commit status instead. The exemption is an exact-text match, not a
 # family of shapes: a variant is a different condition, and pinning the literal
 # is also what keeps every job's copy equal to each other. Their equality with
-# the `contract-only` default the `ci-status` composite resolves its
+# the `contract-only` default the `aggregate-results` composite resolves its
 # carry-forward branch on is NOT checked here and is checked nowhere else
-# either: ci-workflows tests its composite against its own ci.yml, not against
+# either: ci-workflows tests its composite against its own pr-require-checks.yml, not against
 # this repository's. It was verified by hand at pin
-# 906ae7ef379ea4d2b8497f64475dce1d3d8715c4 and must be re-verified whenever that
-# pin moves. A drifted copy that skipped the lanes while the composite still
+# 7446b5165511796b7b0d30b68d341689ebb8de61, path
+# .github/actions/pr-require-checks/aggregate-results: its `contract-only`
+# default is this predicate token for token, the caller passes no
+# `contract-only`, and run.sh still branches its carry-forward on that input. It
+# must be re-verified whenever that pin moves. A drifted copy that skipped the lanes while the composite still
 # aggregated would turn all-`skipped` into a pass with nothing executed.
 #
 # AND ITS DRAFT FORM, `$JOB_GATE_DRAFT`, pinned the same way: the contract-only

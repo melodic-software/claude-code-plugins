@@ -5,7 +5,7 @@
       "id": 1,
       "name": "detect-position-suggest-next",
       "prompt": "What step am I on? I've read the relevant code and written a plan the team approved, but haven't started coding.",
-      "expected_output": "Default mode shows the compact stage overview, detects the current position from evidence (explore done, plan written and approved → stage 3 satisfied), and suggests the next stage (implement) with rationale — routing to the consuming repo's implement skill if one exists, otherwise inline.",
+      "expected_output": "Default mode shows the compact stage overview, detects the current position from evidence (explore done, plan written and approved → plan stage satisfied), and suggests the next stage (implement) with rationale — routing to the consuming repo's implement skill if one exists, otherwise inline.",
       "files": [],
       "expectations": [
         "The skill detects the current position as post-plan (explore + plan done) and suggests implement as the next stage",

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Resolve the ref every diff-scoped step of ci.yml diffs against, for the
-# `scope` job's "Resolve the diff base" step.
+# Resolve the ref every diff-scoped step of pr-require-checks.yml diffs against,
+# for the `select-tests` job's "Resolve the diff base" step.
 #
 #   scripts/resolve-diff-base.sh
 #

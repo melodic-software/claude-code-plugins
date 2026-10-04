@@ -1,27 +1,27 @@
-name: test-windows
+name: pr-test-windows
 
 # The informational Windows lane, in its own workflow.
 #
-# WHY IT LEFT ci.yml. It is not in `ci-status.needs` and is not a required
+# WHY IT LEFT pr-require-checks.yml. It is not in `ci-status.needs` and is not a required
 # check, so nothing waits on it — but it is the longest job in the run at 355 to
-# 413 s against the required lanes' 330 s, and while it sat in ci.yml it held
+# 413 s against the required lanes' 330 s, and while it sat in pr-require-checks.yml it held
 # that RUN open. Time-to-green is measured to the run's completion, so an
 # advisory lane nobody gates on was setting the number. Out here it holds only
-# its own run open, and ci.yml finishes when its required lanes do.
+# its own run open, and pr-require-checks.yml finishes when its required lanes do.
 #
 # IT IS STILL INFORMATIONAL. Do not add this workflow to any required check and
 # do not wire it into `ci-status`. The doctrine that kept it out of the
 # aggregate is unchanged and is the reason a JOB-LEVEL gate is legal here: a
 # lane the aggregate cannot see costs a skipped informational run rather than a
 # false green. Inside the required closure the same condition would let a lane
-# report success having run nothing, which both of ci.yml's gates reject.
+# report success having run nothing, which both of pr-require-checks.yml's gates reject.
 #
-# THE SELECTION DECIDES WHAT RUNS. `scope-windows` runs
-# scripts/plan-test-lanes.sh, the planner ci.yml's `scope` runs, over the same
+# THE SELECTION DECIDES WHAT RUNS. `select-tests-windows` runs
+# scripts/plan-test-lanes.sh, the planner pr-require-checks.yml's `select-tests` runs, over the same
 # diff, and a Windows step runs only when the change selects its suite: each
 # step's key and the suites that start it are lines of
 # scripts/test-windows-plan.txt, and a job runs when one of its steps does. A
-# change to this file or to .github/actions/checkout-with-base/, a schedule run
+# change to this file or to .github/actions/download-full-history/, a schedule run
 # and a dispatch run every step. A push to main starts no run: the pull request
 # run already ran its Windows steps, every commit reaches main through the
 # merge queue, and the scheduled run covers what landed together.
@@ -30,13 +30,13 @@ name: test-windows
 # the required closure is also what makes it legal here: a workflow a path
 # filter never starts leaves no pending required check behind. The `paths`
 # list below is the union of the `shell`, `python` and `powershell` groups of
-# ci.yml's change-detection filter table, so a diff that touches none of them
+# pr-require-checks.yml's detect-changes filter table, so a diff that touches none of them
 # (docs only, say) starts no run. Keep it in step with those three groups.
 # GitHub reads at most the first 300 changed files for a `paths` filter, so a
 # larger diff whose matching files fall past that point starts no run; accepted
 # for an informational lane, and the scheduled run covers it.
 #
-# Draft pull requests run nothing: `scope-windows` gates on the draft flag and
+# Draft pull requests run nothing: `select-tests-windows` gates on the draft flag and
 # every other job needs it, and `ready_for_review` starts the run when the
 # draft flips. Contract-only events (`edited`, `labeled`, `unlabeled`) are not
 # triggers, since this lane reads nothing from the pull request body or labels.
@@ -46,7 +46,7 @@ name: test-windows
 on:
   # A dispatch runs every Windows step.
   workflow_dispatch:
-  # Every Windows step, at ci.yml's whole-tree hours: the net for a Windows
+  # Every Windows step, at pr-require-checks.yml's whole-tree hours: the net for a Windows
   # suite a change reaches through something the selector does not see.
   schedule:
     - cron: '17 9,16 * * *'
@@ -77,7 +77,7 @@ on:
 permissions:
   contents: read
 
-# Namespaced by `github.workflow`, which differs from ci.yml's, so the two
+# Namespaced by `github.workflow`, which differs from pr-require-checks.yml's, so the two
 # workflows never share a group.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
@@ -86,7 +86,7 @@ concurrency:
 jobs:
   # Which Windows jobs and steps this change runs, on a Linux runner: the
   # selector takes about 20 s there and several times that under Git Bash.
-  scope-windows:
+  select-tests-windows:
     # Not on a draft; always on schedule and dispatch, where the flag is absent.
     if: ${{ github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
@@ -100,7 +100,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
+        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
       - name: Plan the Windows steps the change selects
         id: plan
         env:
@@ -184,13 +184,13 @@ jobs:
   # PASS/FAIL/SKIPPED totals in each step's log say whether the probe fired or
   # the cases ran.
   # Pinned, not `windows-latest`: the runner policy forbids the floating
-  # `*-latest` labels outright, for the same reason ci.yml's lanes pin
+  # `*-latest` labels outright, for the same reason pr-require-checks.yml's lanes pin
   # ubuntu-24.04 — an image roll must be a reviewed commit, not a silent
   # Tuesday. Free: GitHub Actions is free for public repositories on standard
   # GitHub-hosted runners, Windows included.
   test-windows-rename-1:
-    needs: [scope-windows]
-    if: ${{ contains(fromJSON(needs.scope-windows.outputs.jobs || '[]'), 'test-windows-rename-1') }}
+    needs: [select-tests-windows]
+    if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-rename-1') }}
     runs-on: windows-2025
     timeout-minutes: 20
     defaults:
@@ -211,17 +211,17 @@ jobs:
       # case-sensitive runner, so a regression in either would ship green from
       # Linux alone. Shard 2 runs in `test-windows-rename-2`.
       - name: Test the file-name rename executor on Windows (shard 1 of 2)
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'plugins/docs-naming/skills/realign-file-names/scripts/apply-rename.test.sh')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/docs-naming/skills/realign-file-names/scripts/apply-rename.test.sh')
         env:
           APPLY_RENAME_TEST_SHARD: "1"
         run: bash plugins/docs-naming/skills/realign-file-names/scripts/apply-rename.test.sh
       - name: Test run-guards on Windows
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'plugins/guardrails/hooks/run-guards.test.sh')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/run-guards.test.sh')
         run: bash plugins/guardrails/hooks/run-guards.test.sh
 
   test-windows-rename-2:
-    needs: [scope-windows]
-    if: ${{ contains(fromJSON(needs.scope-windows.outputs.jobs || '[]'), 'test-windows-rename-2') }}
+    needs: [select-tests-windows]
+    if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-rename-2') }}
     runs-on: windows-2025
     timeout-minutes: 20
     defaults:
@@ -237,24 +237,24 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Test the file-name rename executor on Windows (shard 2 of 2)
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'plugins/docs-naming/skills/realign-file-names/scripts/apply-rename.test.sh')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/docs-naming/skills/realign-file-names/scripts/apply-rename.test.sh')
         env:
           APPLY_RENAME_TEST_SHARD: "2"
         run: bash plugins/docs-naming/skills/realign-file-names/scripts/apply-rename.test.sh
       - name: Test the piped early-exit grep gate on Windows
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'scripts/check-pipefail-grep-q.test.sh')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'scripts/check-pipefail-grep-q.test.sh')
         run: bash scripts/check-pipefail-grep-q.test.sh
       - name: Test the drive-root litter detector on Windows
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'scripts/check-drive-root-litter.test.sh')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'scripts/check-drive-root-litter.test.sh')
         run: bash scripts/check-drive-root-litter.test.sh
       - name: Test the MSYS-to-Windows emit helper on Windows
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'scripts/emit-windows-path.test.sh')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'scripts/emit-windows-path.test.sh')
         run: bash scripts/emit-windows-path.test.sh
       # Pester has no Linux lane. These are the suites affected-tests.sh names
       # and declines: machine-health's own runner here, and the kindle-dedrm
       # tests in `test-windows-lib`, which installs Pester itself. #3703.
       - name: Install Pester 5.7
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'plugins/machine-health/skills/audit/scripts/run-tests.ps1')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/machine-health/skills/audit/scripts/run-tests.ps1')
         shell: pwsh
         run: |
           $found = Get-Module -ListAvailable Pester | Where-Object { $_.Version -ge [version]'5.7.0' } | Select-Object -First 1
@@ -262,13 +262,13 @@ jobs:
             Install-Module Pester -MinimumVersion 5.7.0 -Force -Scope CurrentUser -SkipPublisherCheck
           }
       - name: Run machine-health Pester suites
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'plugins/machine-health/skills/audit/scripts/run-tests.ps1')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/machine-health/skills/audit/scripts/run-tests.ps1')
         shell: pwsh
         run: pwsh -NoProfile -NonInteractive -File plugins/machine-health/skills/audit/scripts/run-tests.ps1
 
   test-windows-secrets:
-    needs: [scope-windows]
-    if: ${{ contains(fromJSON(needs.scope-windows.outputs.jobs || '[]'), 'test-windows-secrets') }}
+    needs: [select-tests-windows]
+    if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-secrets') }}
     runs-on: windows-2025
     timeout-minutes: 20
     defaults:
@@ -284,14 +284,14 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Test secret-pattern-detection on Windows
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'plugins/guardrails/hooks/secret-pattern-detection.test.sh')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/secret-pattern-detection.test.sh')
         run: bash plugins/guardrails/hooks/secret-pattern-detection.test.sh
       - name: Test coverage-manifest on Windows
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'plugins/guardrails/hooks/coverage-manifest.test.sh')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/coverage-manifest.test.sh')
         run: bash plugins/guardrails/hooks/coverage-manifest.test.sh
       # A host-skip suite of #3683 (see the job comment above).
       - name: Test the skill-visibility audit on Windows
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'plugins/harness-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility.test.sh')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/harness-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility.test.sh')
         run: bash plugins/harness-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility.test.sh
       # GuardTests only, not the full hygiene module: two of its tests fail on
       # windows-2025 and are already green on Linux — the preview case expects
@@ -299,13 +299,13 @@ jobs:
       # handoff case compares path strings where 8.3 `RUNNER~1` differs from
       # the long `runneradmin`. The other nine classes gate on the Linux run.
       - name: Run disk-hygiene GuardTests on Windows
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'plugins/disk-hygiene/skills/clean/scripts/test_hygiene.py')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/disk-hygiene/skills/clean/scripts/test_hygiene.py')
         working-directory: plugins/disk-hygiene/skills/clean/scripts
         run: python -m unittest -v test_hygiene.GuardTests
 
   test-windows-guards:
-    needs: [scope-windows]
-    if: ${{ contains(fromJSON(needs.scope-windows.outputs.jobs || '[]'), 'test-windows-guards') }}
+    needs: [select-tests-windows]
+    if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-guards') }}
     runs-on: windows-2025
     timeout-minutes: 20
     defaults:
@@ -321,15 +321,15 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Test block-hook-bypass on Windows
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'plugins/guardrails/hooks/block-hook-bypass.test.sh')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/block-hook-bypass.test.sh')
         run: bash plugins/guardrails/hooks/block-hook-bypass.test.sh
       - name: Test hardcoded-path-check on Windows
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'plugins/guardrails/hooks/hardcoded-path-check.test.sh')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/hardcoded-path-check.test.sh')
         run: bash plugins/guardrails/hooks/hardcoded-path-check.test.sh
 
   test-windows-hooks:
-    needs: [scope-windows]
-    if: ${{ contains(fromJSON(needs.scope-windows.outputs.jobs || '[]'), 'test-windows-hooks') }}
+    needs: [select-tests-windows]
+    if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-hooks') }}
     runs-on: windows-2025
     timeout-minutes: 20
     defaults:
@@ -348,28 +348,28 @@ jobs:
       # run time, so a green step is only evidence once its log shows whether
       # the probe fired or the cases ran.
       - name: Test the markdown-format hook on Windows
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'plugins/markdown-format/hooks/markdown-format.test.sh')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/markdown-format/hooks/markdown-format.test.sh')
         run: bash plugins/markdown-format/hooks/markdown-format.test.sh
       - name: Test cloud-bootstrap plugin accounting on Windows
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), '.claude/hooks/cloud-bootstrap-plugins.test.sh')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), '.claude/hooks/cloud-bootstrap-plugins.test.sh')
         run: bash .claude/hooks/cloud-bootstrap-plugins.test.sh
       # The launcher test spawns a real Git Bash through node.exe, with stdin,
       # an argument and exit 2 passed through, and reads every hooks.json row
       # for the node exec form.
       - name: Test the guardrails exec-bash launcher on Windows
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'plugins/guardrails/hooks/exec-bash.test.sh')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/exec-bash.test.sh')
         run: bash plugins/guardrails/hooks/exec-bash.test.sh
       # The probe reads hook frontmatter with PyYAML and exits 2 when the
       # module is missing. requirements-ci.txt also pins a Linux-only zizmor
       # wheel, so this step installs only the PyYAML pin from that file.
       - name: Install the pinned YAML reader
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'scripts/check-exec-form-windows-probe.sh')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'scripts/check-exec-form-windows-probe.sh')
         run: python -m pip install --disable-pip-version-check "pyyaml==$(awk '/^pyyaml==/ { sub(/^pyyaml==/, ""); sub(/[[:space:]\\].*$/, ""); print; exit }' .github/requirements-ci.txt)"
       # Exec form on Windows is a real .exe plus an args array, with no shell.
       # REQUIRE_SPAWN makes a missing node.exe a failure here. A non-Windows
       # run of the same script skips that half and does not clear #90495.
       - name: Probe Windows exec-form args delivery
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'scripts/check-exec-form-windows-probe.sh')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'scripts/check-exec-form-windows-probe.sh')
         env:
           EXEC_FORM_WINDOWS_PROBE_REQUIRE_SPAWN: "1"
         run: bash scripts/check-exec-form-windows-probe.sh
@@ -378,17 +378,17 @@ jobs:
       # the real node.exe. The launcher test above is the one that spawns a
       # real Git Bash through node.exe.
       - name: Test the exec-form bash launcher resolver on Windows
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'lib/exec-bash.resolver.test.mjs')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'lib/exec-bash.resolver.test.mjs')
         run: node --test lib/exec-bash.resolver.test.mjs
       # The guards' snapshot writer under the real node.exe: rename over an
       # existing file, exclusive temp and lock files, and the sweep on NTFS.
       - name: Test the guards' snapshot writer on Windows
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'lib/write-snapshot.test.mjs')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'lib/write-snapshot.test.mjs')
         run: node --test lib/write-snapshot.test.mjs
 
   test-windows-lib:
-    needs: [scope-windows]
-    if: ${{ contains(fromJSON(needs.scope-windows.outputs.jobs || '[]'), 'test-windows-lib') }}
+    needs: [select-tests-windows]
+    if: ${{ contains(fromJSON(needs.select-tests-windows.outputs.jobs || '[]'), 'test-windows-lib') }}
     runs-on: windows-2025
     timeout-minutes: 20
     defaults:
@@ -404,21 +404,21 @@ jobs:
         with:
           python-version-file: .python-version
       - name: Test block-windows-drive-tmp on Windows
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'plugins/guardrails/hooks/block-windows-drive-tmp.test.sh')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/guardrails/hooks/block-windows-drive-tmp.test.sh')
         run: bash plugins/guardrails/hooks/block-windows-drive-tmp.test.sh
       - name: Run shared lib tests on Windows
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'lib/hook-utils.test.sh')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'lib/hook-utils.test.sh')
         run: bash lib/hook-utils.test.sh
       # pwsh directly, not the .test.sh wrapper: the wrapper SKIPs with exit 0
       # when pwsh is missing, which would read as green here. The selftest's
       # exit code is its failure count.
       - name: Run the gaming DLSS 5 selftest on Windows
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1')
         run: pwsh -NoProfile -NonInteractive -File plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1 -Verb selftest
       # `test-windows-rename-2` installs Pester for its own suite; this job runs
       # on a separate runner and installs it again.
       - name: Install Pester 5.7
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'plugins/kindle-dedrm/skills/manage/tests')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/kindle-dedrm/skills/manage/tests')
         shell: pwsh
         run: |
           $found = Get-Module -ListAvailable Pester | Where-Object { $_.Version -ge [version]'5.7.0' } | Select-Object -First 1
@@ -426,7 +426,7 @@ jobs:
             Install-Module Pester -MinimumVersion 5.7.0 -Force -Scope CurrentUser -SkipPublisherCheck
           }
       - name: Run kindle-dedrm Pester suites
-        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'plugins/kindle-dedrm/skills/manage/tests')
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/kindle-dedrm/skills/manage/tests')
         shell: pwsh
         run: |
           $config = New-PesterConfiguration

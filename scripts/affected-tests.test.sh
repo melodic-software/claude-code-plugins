@@ -8,7 +8,7 @@
 # against the LIVE repo — the derived shared-lib copy set and the real no-suite
 # list — because a synthetic fixture cannot show that the derivation still
 # tracks reality, which is the whole failure mode this tool exists to avoid.
-# test-scope: scripts/affected-tests* scripts/sync-*.sh .github/workflows/ci.yml
+# test-scope: scripts/affected-tests* scripts/sync-*.sh .github/workflows/pr-require-checks.yml
 # test-scope: plugins/github/skills/advise/S*.md plugins/planning/skills/interview/S*.md
 # test-scope: plugins/autonomy/reference/*.md
 set -uo pipefail
@@ -872,15 +872,15 @@ rm -rf "$repo"
 # Asserted as a SILENT no-suite exit (rc 0 AND an empty selection), not merely
 # rc 0: a path that some suite happens to name is selected by R3 long before the
 # no-suite list is consulted, which would pass a bare rc-0 check while proving
-# nothing about .github/*. That is not hypothetical — .github/workflows/ci.yml
+# nothing about .github/*. That is not hypothetical — .github/workflows/pr-require-checks.yml
 # is named by two suites and reaches exit 0 through R3, so it cannot serve as
 # this probe. Discovered by glob, never spelled: a path spelled here would make
 # this suite name it, and R3 would select this suite the same way.
 #
 # The candidate is additionally FILTERED to one that no grepped-language file
 # names at all, rather than assuming the sole `.github/*.yaml` qualifies: a
-# file some suite reaches through R3 reaches exit 0 the way ci.yml does, so it
-# cannot serve as this probe either.
+# file some suite reaches through R3 reaches exit 0 the way
+# pr-require-checks.yml does, so it cannot serve as this probe either.
 #
 # The filter is an INDEPENDENT oracle (a direct git grep for the basename), not
 # a call to affected-tests.sh: picking the probe with the tool under test would
@@ -1418,13 +1418,13 @@ else
 fi
 rm -rf "$repo3"
 
-# --- LIVE repo: ci.yml actually fans the selection out -----------------------
+# --- LIVE repo: pr-require-checks.yml actually fans the selection out -----------------------
 # The plan's legs only buy anything if the workflow both sizes its matrix from
 # them and has each leg run its own suites. Either half alone is silently
 # useless: a plan read by no matrix runs one leg, and a matrix whose legs do
 # not pick their own list runs nothing or everything. Pinned together, in the
 # job that owns them.
-live_ci="$REPO_ROOT/.github/workflows/ci.yml"
+live_ci="$REPO_ROOT/.github/workflows/pr-require-checks.yml"
 test_bash_block="$(awk '
   /^  [A-Za-z_][A-Za-z0-9_-]*:[[:blank:]]*(#.*)?$/ {
     job = $0; sub(/:.*$/, "", job); sub(/^  /, "", job)
@@ -1433,22 +1433,22 @@ test_bash_block="$(awk '
 ' "$live_ci")"
 # shellcheck disable=SC2016 # deliberate: these are workflow literals to match, not shell expansions.
 if grep -q 'run-plugin-tests\.sh --jobs 3 --suites-from "\$RUNNER_TEMP/leg-suites\.txt"' <<<"$test_bash_block" &&
-  grep -q "leg: \${{ fromJSON(needs\.scope\.outputs\.bash_legs || '\[0\]') }}" <<<"$test_bash_block" &&
+  grep -q "leg: \${{ fromJSON(needs\.select-tests\.outputs\.bash_legs || '\[0\]') }}" <<<"$test_bash_block" &&
   grep -q 'LEG: \${{ strategy\.job-index }}' <<<"$test_bash_block" &&
-  grep -q 'PLAN: \${{ needs\.scope\.outputs\.bash_plan }}' <<<"$test_bash_block" &&
+  grep -q 'PLAN: \${{ needs\.select-tests\.outputs\.bash_plan }}' <<<"$test_bash_block" &&
   grep -q "jq -r --arg leg \"\$LEG\" '\.\[\$leg\] // \[\] | \.\[\]' <<<\"\$PLAN\"" <<<"$test_bash_block"; then
-  ok "ci.yml test-bash sizes its matrix from the plan and runs each leg's suites three at a time"
+  ok "pr-require-checks.yml test-bash sizes its matrix from the plan and runs each leg's suites three at a time"
 else
-  fail "ci.yml test-bash no longer fans the planned selection across a matrix at --jobs 3"
+  fail "pr-require-checks.yml test-bash no longer fans the planned selection across a matrix at --jobs 3"
 fi
 
-# --- ci.yml never asks for more than the proven three ------------------------
+# --- pr-require-checks.yml never asks for more than the proven three ------------------------
 # #3694: at --jobs 4 three separate suites failed by producing empty output from
 # an external command. Three is the ceiling, on either path.
 if grep -qE -- '--jobs ([04-9]|[1-9][0-9]+)' "$live_ci"; then
-  fail "ci.yml passes a --jobs count other than 3: $(grep -oE -- '--jobs [0-9]+' "$live_ci" | sort -u | tr '\n' ' ')"
+  fail "pr-require-checks.yml passes a --jobs count other than 3: $(grep -oE -- '--jobs [0-9]+' "$live_ci" | sort -u | tr '\n' ' ')"
 else
-  ok "ci.yml asks for no more than the proven three concurrent suites (#3694)"
+  ok "pr-require-checks.yml asks for no more than the proven three concurrent suites (#3694)"
 fi
 
 # --- R7: the autonomy reference tree selects the plugin-contract suite -------
