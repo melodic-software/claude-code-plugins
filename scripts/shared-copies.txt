@@ -302,6 +302,9 @@ lib/prerequisites.ps1 plugins/toolchain/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/typos-format/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/typos-format/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/typos-format/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/user-interface/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/user-interface/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/user-interface/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/speech/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/speech/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/speech/lib/prerequisites.ps1

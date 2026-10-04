@@ -1,6 +1,6 @@
 {
   "name": "visualization",
-  "version": "0.11.3",
+  "version": "0.11.4",
   "description": "Visualization skills. visualize picks the form (mermaid diagram, markdown table, SVG/CSS chart, ASCII/Unicode art, or a rendered page) and the medium (terminal, local HTML file, or published Artifact) for what is in the conversation, asking only when the target is ambiguous. present builds a slide deck from the account's claude.ai Slides Artifact type behind a publish gate, with a markdown outline as the record. Chart craft and artifact design route to those capabilities when installed.",
   "author": {
     "name": "Melodic Software",
