@@ -15,6 +15,20 @@ body is a hardcoded assumption about a consumer that will not hold.
 Vendors named anywhere in this file are illustrations of what a category can contain. None is a
 requirement, a default, or a supported integration.
 
+## When the target handles a case the normal path never reaches
+
+Ask one question of the target before searching: does it only matter when something goes wrong? A
+branch that catches one specific error code, a hard-coded delay or cap with no derivation nearby,
+or a check for a value the type already rules out each answer yes. The reason for such code is
+often an outage, and the outage is recorded where the category searches below do not look by
+default.
+
+For a yes, the tracker search adds incident and follow-up tickets opened in the month before the
+commit that introduced the target, and the long-form documents search adds postmortems and incident
+reviews, queried with the error text or the constant's value as well as the symbol name. A matching
+follow-up ticket or postmortem action item is the citation. Finding none is a gap line, as in any
+category. For a target that matters on the normal path, the extra searches are skipped.
+
 ## Why only three
 
 Team chat, application observability, error tracking, and product analytics also carry intent

@@ -275,6 +275,18 @@
         "Lists the comment by file and line as open root-cause work, saying the double write is still in the code and its cause is unfixed",
         "Does not change the two cache_set calls and does not attempt the root-cause fix"
       ]
+    },
+    {
+      "id": 24,
+      "name": "kept-constraint-refuted-by-code-is-obsolete",
+      "prompt": "/code-tidying:dissolve-comments src/ledger.py\n\n(src/ledger.py is committed and tree-sitter is present for python. Above post_entry() it has '# Not safe to call from two threads: post_entry mutates the module-level _BALANCES dict'. The module no longer has a _BALANCES global: post_entry() now takes a Ledger instance and takes self._lock before writing self._balances. A second comment, '# Amounts are integer cents, never floats', sits above the amount parameter, and the function still accepts any number.)",
+      "narration": true,
+      "expectations": [
+        "Re-checks the thread-safety claim against the current code before keeping it and finds it false, citing the lock and the missing _BALANCES global by line",
+        "Reclassifies the thread-safety comment as class A (obsolete) and deletes it behind the COMMENT-ONLY proof",
+        "Keeps the integer-cents comment as class C, because nothing in the code refutes it",
+        "Names the evidence behind each verdict, and for a claim the code alone cannot settle uses /discovery:trace-intent when that skill is available or reports the claim as unverified and then applies the class-C criteria to it"
+      ]
     }
   ]
 }

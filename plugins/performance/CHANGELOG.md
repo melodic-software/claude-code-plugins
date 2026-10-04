@@ -3,6 +3,16 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Added
+
+- **A profile-to-family table in `reference/techniques.md` section F.** Each row starts from what a
+  profile or trace shows and names the change to try, its counter and the catalog rows that apply.
+  Deletion candidates come from reading callers rather than from the profile, and a rescheduled
+  change is judged by the wait it removes. `/performance:target` cites
+  section F when it names a candidate's mechanism.
+
 ## [0.5.2] - 2026-10-02
 
 ### Changed

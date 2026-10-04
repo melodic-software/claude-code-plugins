@@ -83,7 +83,7 @@ advisory to deterministic:
 
 | Level | Use when | Body form | Claude Code mechanism |
 |---|---|---|---|
-| High | Several approaches are valid; context decides | Advisory prose: goals, heuristics, the reason beside each | Instructions only; the model adapts |
+| High | Several approaches are valid; context decides | Advisory prose: goals and heuristics, each written as what to do | Instructions only; the model adapts |
 | Medium | One pattern is best, but a deviation does no harm | The pattern with named parameters | `$ARGUMENTS`, parsed in prose per [Argument surface](#argument-surface); a script with flags |
 | Low | The operation is fragile, or a sequence is mandatory | The exact command plus an instruction not to alter it | `${CLAUDE_SKILL_DIR}/scripts/...` with a matching `allowed-tools` Bash rule; or a hook, under the hook-budget rule |
 
@@ -91,6 +91,12 @@ Copyable checklists (a fenced `- [ ]` block the model copies into its response a
 belong to low-freedom procedures only. That is how a checklist and tip 4 of the playbook (avoid
 railroading) coexist: a fragile sequence earns the checklist, an open-field task gets information
 plus room to adapt. Decide the level per section, not per skill.
+
+At every level, write the instruction as the action. A reason earns a place beside it in two cases:
+a required step that reads as optional without one, and a narrow rule that would otherwise be
+applied everywhere. Background that changes no action (how the rule came about, who was bothered)
+is left out. When a rule stated this way is still missed, [Evaluation and iteration](#evaluation-and-iteration)
+covers testing a reasoned wording against it.
 
 The body states the gate between a validator and the next step; it cannot enforce it. When the
 cost of a skipped gate is high, a hook is the escalation: deterministic, independent of what the

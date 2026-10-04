@@ -181,6 +181,13 @@ there.
 Write the plan in one line: "Three variants of the settings page, switchable via `?variant=`, on
 the existing `/settings` route."
 
+**Optional reference pass.** It applies only while nothing fixes the look: no direction from the
+user and no host page under sub-shape A. Then, before step 2, ask whether the user wants one. If
+yes, collect a handful of comparable screens (other products doing the same job, plus the app's own
+nearest screens) and reduce them to two to four candidate directions, each named by its layout,
+density, color and type. The variants in step 2 follow the directions the user keeps; with the pass
+declined, step 2 starts as usual.
+
 ### 2. Generate radically different variants
 
 Each variant must respect:
@@ -219,6 +226,15 @@ Requirements:
 - Single shared component so both sub-shapes reuse it
 
 ### 5. Hand it over
+
+**Evidence per variant.** With `/playwright:playwright` among the available skills, load each
+variant in it, use its main control once (open the menu, submit the form, change the tab), and
+capture a screenshot; the handover pairs every variant key with its screenshot path. Without that
+skill, the handover says no screenshots exist.
+
+**Tradeoffs and a pick to start from.** Give every variant one line of strengths and one of costs,
+and close with the variant you would choose and why. That choice is advice: the reply template
+below still decides, and no variant is folded in before the user answers it.
 
 Surface the URL and variant keys. Interesting feedback is usually "I want the header from B with
 the sidebar from C". That's the actual design discovered. Close the handover with a

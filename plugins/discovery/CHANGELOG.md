@@ -1,5 +1,14 @@
 # Changelog: discovery plugin
 
+## [Unreleased]
+
+### Changed
+
+- **`trace-intent` searches incident records for code that only matters when something fails.**
+  For such a target, `context/evidence-categories.md` adds incident and follow-up tickets to the
+  tracker search and postmortems to the long-form documents search, queried by error text and
+  constant values as well as the symbol.
+
 ## [0.28.5] - 2026-10-04
 
 ### Fixed

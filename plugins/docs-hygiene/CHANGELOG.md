@@ -1,5 +1,14 @@
 # Changelog: docs-hygiene plugin
 
+## [Unreleased]
+
+### Changed
+
+- **`write-for-humans` reports new metaphor jargon.** After writing, a figurative noun the AI-tell
+  catalog does not list is named in the reply as a candidate for ai-slop's
+  `rule-abstract-metaphor-jargon`, when `/ai-slop:audit` is available. The skill never edits the
+  ai-slop catalog.
+
 ## [0.26.4] - 2026-10-03
 
 ### Changed

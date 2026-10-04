@@ -4,6 +4,17 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [Unreleased]
+
+### Changed
+
+- **`skill-authoring` ends with a closing report.** The last reply of a run that creates or changes
+  a skill lists the checks with their results (or not run), the choices made with their reasons,
+  and what the skill does.
+- **`skill-authoring`'s authoring guidance states the rule first.** An instruction says what to do,
+  and gives its reason only where it would mislead without one; the degrees-of-freedom table no
+  longer asks for a reason beside each high-freedom instruction.
+
 ## [0.19.3] - 2026-10-03
 
 ### Changed

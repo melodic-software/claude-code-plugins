@@ -151,6 +151,10 @@ ambiguity). "If exceeded" gets a subject: the request (ambiguity).
   when it is available in the session; its detector reports filler, stacked hedging, negative
   parallelism, and promotional tone by line. When it is not available, report that the AI-tell
   check did not run.
+- **Swapped out a figurative noun that ai-slop's catalog lacks?** With `/ai-slop:audit` among the
+  available skills, the reply ends with a candidate line for `rule-abstract-metaphor-jargon` giving
+  the noun, its sentence, and your literal replacement. The catalog itself is only changed by a
+  person who accepts the candidate. Without ai-slop, the replacement in the draft is enough.
 - **Repeated the same prose in another file. Even a second occurrence, or a recap of an SSOT that
   already exists?** Invoke `/docs-hygiene:extract-ssot` via the Skill tool. Creating a new shared
   home still waits for the third occurrence; below that it remedies the repetition in place.

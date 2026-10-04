@@ -16,6 +16,7 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
 - **`aggressive` keeps two more kinds of comment.** A comment on behavior a dependency, platform, vendor service or protocol forces, and a comment whose issue or RFC link explains a constraint, now survive `aggressive` within `class_c_max_lines`. Before, `aggressive` deleted another system's limit or an upstream's behavior as rationale. A survivor that names a workaround still needs a link or removal condition. `strip` is unchanged.
 - tidy's #14 example workaround comment carries a removal condition, so it no longer reads as an unjustified workaround.
+- **`dissolve-comments` re-checks a kept claim against the code.** Before a constraint, warning, contract or thread-safety comment is kept, step 5 reads the code it describes; a claim the code now contradicts is obsolete (class A) and is deleted or proposed under the mode's class-A rule. A claim the code cannot settle goes to `/discovery:trace-intent` when it is among the available skills; one still open is reported as unverified and then goes through the class-C criteria like any other comment.
 
 ## [0.28.4] - 2026-10-03
 

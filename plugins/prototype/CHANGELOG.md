@@ -3,6 +3,15 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Changed
+
+- **`explore-directions` adds three steps.** With no direction named and no host page fixing the
+  look, it offers an optional reference pass before building variants. When `/playwright:playwright`
+  is available, it screenshots every variant and uses its main control once before the handover.
+  The handover states each variant's strengths and costs and recommends one; the user still picks.
+
 ## [0.13.10] - 2026-10-03
 
 ### Changed

@@ -65,6 +65,11 @@ Trace past the headline event too: work no metric covers (background reloads, id
 still costs. For a field report with a recording, follow the diagnosis ladder before theorizing.
 See [diagnose](../../reference/techniques.md#e-diagnose).
 
+To name a candidate's mechanism, find the row of the profile-to-family table in
+[optimization patterns](../../reference/techniques.md#f-optimization-patterns-latency-catalog) that
+the evidence matches; a mechanism with no matching row is not named. A deletion candidate is the
+exception: it comes from reading the path's callers, so it ranks E3 until a measurement covers it.
+
 ## Name the counter, not just the duration
 
 For each ranked candidate, name the **drift-immune counter** that would settle it: process spawns,

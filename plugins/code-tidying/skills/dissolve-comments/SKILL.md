@@ -327,6 +327,13 @@ treatment as a proposal. It is the mode pull-request prep runs over a change's a
    (`#   hook::require jq PostToolUse my-plugin "$INPUT"`), which is a statement and still
    documentation. Reading decides: a line demonstrating how to call the thing the block documents is
    prose, whatever it parses as.
+   **Test each class-C statement about the code against the code itself.** Read the lines a
+   constraint, warning, contract or thread-safety comment describes. If they now say otherwise, the
+   comment is class A: list the lines that disagree and handle it like any class-A deletion. If the
+   lines leave the question open, `/discovery:trace-intent`, run for the function or variable the comment names, settles it when that
+   skill is among the available skills. A question still open after that is reported as unverified,
+   and the comment goes on to the criteria unchanged. Survivors under `aggressive` and `strip` are
+   tested the same way. Full rule: [reference/triage.md](reference/triage.md).
    **Criterion 2 is decided on evidence, never on impression.** For every class-C candidate whose
    content is rationale, run `git log -L <start>,<end>:<file>` over its own lines and check the
    repo's ADR or decision-log directory where one is declared; recoverable there **fails** the

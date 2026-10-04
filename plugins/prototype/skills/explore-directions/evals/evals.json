@@ -71,6 +71,53 @@
         "The response declines to promote the prototype variant directly to production as-is",
         "The response recommends rewriting / properly folding the winner in, citing the prototype constraints (no tests, minimal error handling) the variant was written under"
       ]
+    },
+    {
+      "id": 7,
+      "name": "unset-look-offers-reference-pass",
+      "prompt": "We are adding a trip-planning page to our hiking club's web app. Nothing like it exists in the app yet and I have no idea what it should look like. Show me some options.",
+      "expected_output": "Nothing fixes the look yet (no existing page, no stated direction), so before building any variant the skill offers a short reference pass: a few comparable trip or itinerary planners and the app's own nearest screens, summarized as candidate directions the user can pick from or skip. Once the user picks directions (or skips the pass), it builds three structurally different variants behind the switcher.",
+      "files": [],
+      "expectations": [
+        "Before writing any variant, the response offers a reference pass that looks at comparable planners or the app's own nearest screens",
+        "The reference findings are summarized as candidate directions the user can choose from, and the user may skip the pass",
+        "The response does not build variants until the user has picked directions or skipped the pass"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "set-direction-skips-reference-pass",
+      "prompt": "Our /billing page exists. Give me three layouts for it: a dense table, a card per invoice, and a timeline. Keep our existing design system.",
+      "expected_output": "The user has already named the directions, so the skill skips the reference pass and goes straight to sub-shape A: three variants on the existing /billing route behind the switcher, one per named direction.",
+      "files": [],
+      "expectations": [
+        "The response does not run or offer a reference pass, because the user already named the three directions",
+        "The response builds the three named layouts as variants on the existing /billing route"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "screenshots-each-variant-when-playwright-enabled",
+      "prompt": "The three dashboard variants are wired up on /reports?variant=A|B|C and the dev server is running at localhost:5173. The playwright plugin is enabled in this session. Hand them over.",
+      "expected_output": "Because /playwright:playwright is among the available skills, the skill captures a screenshot of each variant (A, B and C) and exercises its main interaction before the handover, then gives the user the screenshot paths with the URL and variant keys. When the playwright skill is not available it says the screenshots were not taken.",
+      "files": [],
+      "expectations": [
+        "The response invokes /playwright:playwright to screenshot every variant, not only the first",
+        "Each variant's main interaction is driven at least once before the handover",
+        "The handover lists the screenshot path for each variant beside its key"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "handover-gives-strengths-costs-and-a-pick",
+      "prompt": "The three variants of the recipe search page are built. Hand them over to me.",
+      "expected_output": "The handover lists each variant's tradeoffs (what it does well, what it costs), names one recommended variant with a one-line reason, and still leaves the choice to the user through the reply template. It does not fold the recommended variant in on its own.",
+      "files": [],
+      "expectations": [
+        "The handover states at least one strength and one cost for every variant",
+        "The handover names exactly one recommended variant and gives a reason for it",
+        "The response leaves the pick to the user (the reply template is still shown) and does not fold any variant in"
+      ]
     }
   ]
 }
