@@ -1232,6 +1232,10 @@ needs_check "audit would update" audit '{"in_repo":{"would_update":[{"id":"a@m",
 needs_check "audit withheld downgrade" audit \
   '{"user_sweep":{"withheld_downgrades":[{"id":"a@m","scope":"user","installed":"2","catalog":"1"}]}}' "Would withhold: 1 downgrade(s)" row
 needs_check "audit install gap" audit '{"install_gap":["b@m"]}' "not installed at user scope (policy none): b@m"
+# A sync run whose list file could not be written must not claim audit's reason.
+stale_unwritten='{"stale_project_records":{"total":1,"paths":1,"by_parent":[{"parent":"/g/","count":1,"paths":1}],"more_parents":0,"list_file":null}}'
+assert_contains "stale render: a sync run with no list file says it was not written" \
+  "$(needs_digest sync "$stale_unwritten" | jq -r -f "$SCRIPT_DIR/render-report.jq")" "  Full per-path list: not written this run"
 needs_check "audit enable gap" audit '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
 
 # --- an install that left userConfig options unset ---------------------------

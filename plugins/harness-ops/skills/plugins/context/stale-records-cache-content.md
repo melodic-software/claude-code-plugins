@@ -47,7 +47,7 @@ record or per path, because a hundred records naming a dozen directories is a re
 directories, and thousands of scratch directories under one temp root are a report about that root.
 `K` is `stale_project_records.total` and `P` is `stale_project_records.paths`, the distinct paths.
 Each `by_parent` entry is the `{parent, count, paths}` one row renders, largest record count first,
-at most 10 rows; `more_parents` counts the parents past that cap and renders as a `+N more` line.
+capped at `sync-run.sh`'s `STALE_PARENT_ROWS`; `more_parents` counts the parents past that cap and renders as a `+N more` line.
 The full `{path, count}` list is written to `stale-project-records.<marketplace>.json` in the run
 directory, `list_file` names it, and the render prints that path, so the digest line and the report
 stay the same size however many paths there are. Read that file to answer a question about a single
