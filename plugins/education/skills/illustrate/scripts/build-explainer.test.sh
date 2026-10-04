@@ -132,7 +132,7 @@ check("a cut label still exits 0", capped.status === 0, capped.stderr);
 check("the CLI warns once per cut label", warnings.length === 3, capped.stderr);
 check(
   "each warning names the diagram and the step",
-  /diagram 1 step 2\b/.test(warnings[0] ?? "") && /diagram 2 step 1\b/.test(warnings[1] ?? "") && /diagram 2 step 2\b/.test(warnings[2] ?? ""),
+  ["diagram 1 step 2:", "diagram 2 step 1:", "diagram 2 step 2:"].every((name, n) => (warnings[n] ?? "").includes(name)),
   capped.stderr,
 );
 const recordOnly = run(["--record", `${work}/only/r.md`], json);
