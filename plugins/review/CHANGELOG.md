@@ -7,7 +7,7 @@ All notable changes to the `review` plugin are documented here. Format follows
 
 ### Added
 
-- `/review:fanout` gains two `claude plugin eval` cases under `skills/fanout/plugin-evals/` (run with `--eval-dir skills/fanout/plugin-evals`): after correctness fixes, the fix pass's re-review covers only the fixed hunks, and it stops after one round, reporting any new finding. Both grant only `Skill`, so they measure what the hub carries.
+- `/review:fanout` gains two `claude plugin eval` cases under the plugin's `evals/`: after correctness fixes, the fix pass's re-review covers only the fixed hunks, and it stops after one round, reporting any new finding. Both grant `Read`, `Glob`, `Grep` and `Skill`, so the with-arm can load `context/fix-pass-mode.md`.
 
 ## [0.42.0] - 2026-10-04
 
