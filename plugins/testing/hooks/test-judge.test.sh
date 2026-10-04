@@ -840,17 +840,18 @@ check "an UNKNOWN that mentions a denial, with none listed, is still relayed" \
 # directory at either separator under Git Bash, never from the working
 # directory.
 rule_for() { P="$2" lib "$1" 'judge::read_rule R "$P"; printf %s "$R"'; }
-check 'msys: C:\a\b gives Read(//c/a/b/**)' '[[ "$(rule_for msys "C:\\a\\b")" == "Read(//c/a/b/**)" ]]'
+BS=\\
+check "msys: C:, a, b joined by backslashes give Read(//c/a/b/**)" '[[ "$(rule_for msys "C:${BS}a${BS}b")" == "Read(//c/a/b/**)" ]]'
 check "msys: C:/a/b/ and /c/a/b give the same rule" \
   '[[ "$(rule_for msys "C:/a/b/")" == "Read(//c/a/b/**)" && "$(rule_for msys /c/a/b)" == "Read(//c/a/b/**)" ]]'
 check "linux: /tmp/x/repo gives Read(//tmp/x/repo/**)" '[[ "$(rule_for linux-gnu /tmp/x/repo)" == "Read(//tmp/x/repo/**)" ]]'
 repo_for() { (cd "$REPO" && P="$2" lib "$1" 'judge::file_repo "$P"; printf %s "$FREPO"'); }
 RTOP="$(git -C "$REPO" rev-parse --show-toplevel)"
-check "msys: a backslash path resolves at its own directory" '[[ "$(repo_for msys "$REPO\\src\\x.test.ts")" == "$RTOP" ]]'
+check "msys: a backslash path resolves at its own directory" '[[ "$(repo_for msys "$REPO${BS}src${BS}x.test.ts")" == "$RTOP" ]]'
 check "linux: a backslash is part of the name, so that path's directory is $TMP, in no repository" \
-  '[[ -z "$(repo_for linux-gnu "$REPO\\src\\x.test.ts")" ]]'
+  '[[ -z "$(repo_for linux-gnu "$REPO${BS}src${BS}x.test.ts")" ]]'
 check "msys: a backslash-only path whose directory is missing is in no repository, not the working directory's" \
-  '[[ -z "$(repo_for msys "C:\\nowhere\\x.test.ts")" ]]'
+  '[[ -z "$(repo_for msys "C:${BS}nowhere${BS}x.test.ts")" ]]'
 # Re-review: the memory root itself, non-regular names, the write race and
 # the branch in the frontmatter.
 # fdir <repo> <branch>: FDIR as judge::findings_dir resolves it, within 5 s.
