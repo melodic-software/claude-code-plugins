@@ -387,7 +387,7 @@ Choose one authoritative owner for each value:
 | Tracked repository convention or rich team policy (structured, policy-floor, per-operator-keyed, or state) | A documented file under the consumer project |
 | Team-shared prose convention with no per-operator axis | A natural-language convention doc at the consumer's convention home, bound by the root instruction file's pointer line (config-cascade § Expression doctrine, ADR 0018) |
 | Personal project instruction | A documented, gitignored local overlay where the convention supports one |
-| Installed dependencies, cache, or generated machine state | `${CLAUDE_PLUGIN_DATA}` |
+| Installed dependencies, cache, or generated machine state | `${CLAUDE_PLUGIN_DATA}`; exception: the upstream docs cache several plugins share lives in a user-scope directory ([ADR 0053](adr/0053-share-a-user-scope-docs-cache-across-plugins.md)) |
 | Bundled plugin code and assets | `${CLAUDE_PLUGIN_ROOT}` |
 
 `userConfig` is not repository configuration. Claude Code reads its stored `pluginConfigs` values only
