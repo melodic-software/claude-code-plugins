@@ -39,6 +39,13 @@
       "title": "Branch-to-issue pattern (ERE)",
       "description": "Deprecated fallback: set branch_issue_pattern in .claude/source-control.md instead, which wins. A POSIX ERE whose last capture group extracts the numeric GitHub issue number from the branch name. Absent: the built-in <type>/<N>-<slug> (and routine-issue-<N>) convention."
     },
+    "pr_open_state": {
+      "type": "string",
+      "title": "PR open state",
+      "description": "State /source-control:pull-request create opens a PR in. draft (default) opens a draft that the ready action flips later; ready opens it for review at once. A repository's pr_open_state in docs/conventions/source-control.yaml wins over this value.",
+      "default": "draft",
+      "options": ["draft", "ready"]
+    },
     "fetch_logs_max_bytes": {
       "type": "number",
       "title": "CI log fetch size cap (bytes)",

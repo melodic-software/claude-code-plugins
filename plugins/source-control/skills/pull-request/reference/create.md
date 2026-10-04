@@ -501,6 +501,25 @@ The message names the exact missing heading(s) and the resolved config source (�
 
 ### 2.4.3 Create PR
 
+**Resolve the open state first.** `pr_open_state` decides whether the PR opens as a draft. Its
+levels are in [../../../reference/config-resolution.md](../../../reference/config-resolution.md),
+"YAML keys"; read it yourself, since no script resolves it:
+
+1. **Repository level.** When §2.4.1's `config-root.sh classify` printed `repo`, read
+   `docs/conventions/source-control.yaml` at the repo root (under `--pushed`, the target
+   worktree's root). If the file has a top-level `pr_open_state:` key, its value (quotes and a
+   trailing `# comment` removed) wins. Report the level as `repository
+   (docs/conventions/source-control.yaml)`.
+2. **Per-user level.** Otherwise take the substituted value from SKILL.md's "PR open state" line.
+   `ready` reports the level as `userConfig`.
+3. **Default.** Otherwise, including a substituted `draft` and the unsubstituted token, the state
+   is `draft` and the level is `default`.
+
+A value other than `draft` or `ready` at the level that supplied it is not used: say which level
+held which value, open the PR as a draft, and report the level as `default (invalid value at
+<level>)`. Set the flag for the commands below from the result: `DRAFT_FLAG=(--draft)` and
+`DRAFT_JSON=true` for `draft`; `DRAFT_FLAG=()` and `DRAFT_JSON=false` for `ready`.
+
 Append `${ATTRIBUTION}` (resolved in §2.4.1) to `$BODY` only now, after both §2.4.2 gates have
 passed against the attribution-free body, never earlier, per §2.4.1's note on why the footer stays
 out of the gated content:
@@ -525,10 +544,9 @@ if [[ -z "$BRANCH" ]]; then
   echo "Cannot create PR: not on a named branch (detached HEAD?)." >&2
   exit 1
 fi
-# --draft: every PR opens as a draft. Draft is the state in which no review
-# is owed; `/source-control:pull-request ready` performs the flip
-# (reference/ready-for-review.md).
-PR_URL=$(gh pr create --draft --head "$BRANCH" --title "<type>: <description>" --body "$BODY")
+# DRAFT_FLAG comes from the resolved pr_open_state above: (--draft) by
+# default, empty when the state is `ready`.
+PR_URL=$(gh pr create "${DRAFT_FLAG[@]}" --head "$BRANCH" --title "<type>: <description>" --body "$BODY")
 
 # Extract PR number from URL (gh pr create outputs the URL on success).
 # This number is the source of truth for the rest of this phase — pass it
@@ -536,7 +554,7 @@ PR_URL=$(gh pr create --draft --head "$BRANCH" --title "<type>: <description>" -
 PR_NUMBER=$(basename "$PR_URL")
 ```
 
-**`--draft` is not a preference here.** A draft is the state in which nothing is owed: review lanes that filter drafts skip it, and the flip out of draft is what asks for them, so opening ready-for-review claims a review that has not happened yet. The flip belongs to [ready-for-review.md](ready-for-review.md). A consuming project whose own convention opens PRs ready for review overrides this.
+**Why `draft` is the default.** A draft owes no review: review lanes that filter drafts skip it, and the flip out of draft is what asks for them, so opening ready for review claims a review that has not happened yet. The flip belongs to [ready-for-review.md](ready-for-review.md). A repository or user that wants PRs opened ready for review sets `pr_open_state: ready`; the PR then skips the base merge, security review and verify gate that `ready` runs before its flip.
 
 **Sandboxed sessions: open the PR over REST.** `gh pr create` sends a `RepositoryInfo` GraphQL query as its repo-info preamble, before it touches the pull-request API at all, so under the pinned-GraphQL restriction described in §2.4.0 it returns `HTTP 403` having created nothing. `POST /repos/{owner}/{repo}/pulls` is REST and works. It requires `head` and `base`, and `title` unless an existing `issue` is being converted; `body`, `draft`, and `maintainer_can_modify` are optional. Five differences from `gh pr create` matter:
 
@@ -553,7 +571,7 @@ PR_JSON=$(gh api --method POST "repos/{owner}/{repo}/pulls" \
   -f head="$BRANCH" \
   -f base="$BASE" \
   -f body="$BODY" \
-  -F draft=true)
+  -F draft="$DRAFT_JSON")
 PR_URL=$(printf '%s' "$PR_JSON" | jq -r '.html_url')
 PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r '.number')
 ```
@@ -580,7 +598,7 @@ Record the expected set for comparison in Phase 3.
 
 ## 2.6 Report and stop
 
-Report the PR URL, captured `<pr_number>`, and recorded list of expected CI workflows. Say that the PR is a draft and that `/source-control:pull-request ready` is what flips it. End Phase 2 there. The flip (Phase 2.5) and monitoring (Phase 3), if needed, are invoked explicitly via `/source-control:pull-request ready`, `/source-control:pull-request monitor`, or `/source-control:pull-request full`.
+Report the PR URL, captured `<pr_number>`, and recorded list of expected CI workflows. Report the open state and the level that supplied it (§2.4.3), for example `open state: draft (default)` or `open state: ready (repository (docs/conventions/source-control.yaml))`. For a draft, say that `/source-control:pull-request ready` is what flips it. End Phase 2 there. The flip (Phase 2.5) and monitoring (Phase 3), if needed, are invoked explicitly via `/source-control:pull-request ready`, `/source-control:pull-request monitor`, or `/source-control:pull-request full`.
 
 ## 2.7 `create --pushed`: PR-only entry for an orchestrated flow
 
@@ -620,16 +638,16 @@ BRANCH=$(git -C "$WT" branch --show-current)
 - **§2.4.3 (create):** `gh pr create` MUST pass `--head "$BRANCH"` explicitly, since the invoker is not on the branch:
 
   ```bash
-  PR_URL=$(gh pr create --draft --head "$BRANCH" --title "<type>: <description>" --body "$BODY")
+  PR_URL=$(gh pr create "${DRAFT_FLAG[@]}" --head "$BRANCH" --title "<type>: <description>" --body "$BODY")
   ```
 
-  `--draft` is as §2.4.3 states it.
+  `DRAFT_FLAG` and `DRAFT_JSON` come from §2.4.3's open-state step, which reads `docs/conventions/source-control.yaml` from `$WT`, not the session cwd.
 
   In a sandboxed session that 403s, substitute §2.4.3's REST form, and anchor it, because the `{owner}`/`{repo}` placeholders expand from the current directory, which here is not the target repository. Run it from the worktree, in the subshell form this section already uses for `resolve-remote.sh`:
 
   ```bash
   PR_JSON=$( cd "$WT" && gh api --method POST "repos/{owner}/{repo}/pulls" \
-    -f title="<type>: <description>" -f head="$BRANCH" -f base="$BASE" -f body="$BODY" -F draft=true )
+    -f title="<type>: <description>" -f head="$BRANCH" -f base="$BASE" -f body="$BODY" -F draft="$DRAFT_JSON" )
   ```
 
   `$BASE` needs its own resolution here: §2.2 is skipped in this mode, so nothing has set a default branch. Resolve it the same anchored way: `BASE=$( cd "$WT" && gh api "repos/{owner}/{repo}" --jq '.default_branch' )`.
@@ -640,7 +658,7 @@ BRANCH=$(git -C "$WT" branch --show-current)
   BASE_REPO="<base-owner>/<repo>"                # the PR's target, not the push destination
   PR_JSON=$(GH_REPO="$BASE_REPO" gh api --method POST "repos/{owner}/{repo}/pulls" \
     -f title="<type>: <description>" -f head="<fork-owner>:$BRANCH" \
-    -f base="$BASE" -f body="$BODY" -F draft=true)
+    -f base="$BASE" -f body="$BODY" -F draft="$DRAFT_JSON")
   ```
 
   `GH_REPO` overrides the cwd-derived placeholders outright, so this form needs no `cd` at all. On a triangular flow resolve `$BASE` through `GH_REPO` too, as `BASE=$(GH_REPO="$BASE_REPO" gh api "repos/{owner}/{repo}" --jq '.default_branch')`, not through the `cd "$WT"` form above, which would read the fork's default branch.

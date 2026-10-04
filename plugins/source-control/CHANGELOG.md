@@ -3,6 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Added
+
+- **`pr_open_state` chooses whether `/source-control:pull-request create` opens a draft.** `draft`
+  (the default, as before) or `ready`. The per-user value is the new `pr_open_state` `userConfig`
+  option; a repository sets it in `docs/conventions/source-control.yaml`, which wins and is
+  validated by the new `schemas/source-control.schema.json`. `create` reports which level supplied
+  the value, and a value other than `draft` or `ready` opens a draft. `.claude/source-control.md`
+  does not carry the key.
+
 ## [0.79.10] - 2026-10-04
 
 ### Changed

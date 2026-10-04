@@ -3,6 +3,7 @@
 ## Contents
 
 - [The config surface](#the-config-surface)
+- [YAML keys (`docs/conventions/source-control.yaml`)](#yaml-keys-docsconventionssource-controlyaml)
 - [Loop-lane keys (`babysit_loop_*`)](#loop-lane-keys-babysit_loop_)
 - [babysit-prs repository-policy keys](#babysit-prs-repository-policy-keys)
 - [The three layers](#the-three-layers)
@@ -132,6 +133,34 @@ Absent sections are absent, never empty.
   [commit-convention enforcement README](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/commit-convention/README.md).
   Drafting honors the same contract (a declared-but-broken pointer is surfaced as a config error,
   never silently re-read from markdown values a migration may have retired).
+
+## YAML keys (`docs/conventions/source-control.yaml`)
+
+A key added to this plugin after the YAML config home
+([ADR 0054](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0054-home-plugin-customization-in-docs-conventions-yaml.md))
+has no H2 in
+`.claude/source-control.md`. Its team value lives in `docs/conventions/source-control.yaml` at the
+repo root, a YAML mapping validated by
+[`schemas/source-control.schema.json`](../schemas/source-control.schema.json), and its per-user
+value is the `userConfig` option of the same name. No script reads these keys: the skill that uses
+one reads the file itself.
+
+- `pr_open_state`: the state `/source-control:pull-request create` opens a pull request in, `draft`
+  or `ready`. `draft` opens a draft, and `/source-control:pull-request ready` later merges the base,
+  runs the security review and the verify gate, and flips it. `ready` opens the PR for review at
+  once, so those checks run before the flip only if someone runs `prep` first. Resolution, lowest
+  first, where a later level wins:
+  1. the default, `draft`;
+  2. the `pr_open_state` `userConfig` value (the per-user level);
+  3. `pr_open_state` in `docs/conventions/source-control.yaml` (the repository level).
+
+  The repository level is read from the repo root as [The three layers](#the-three-layers) resolves
+  it, and is not applicable at the home directory or outside a git working tree. A value other than
+  `draft` or `ready` at either level is reported, naming the level, and resolves to `draft`: an
+  unknown value never opens a PR ready for review. A `pr_open_state` H2 in any
+  `source-control.md` layer is not read. `create` reports which level supplied the value. The
+  `userConfig` option declares `draft` as its default, so a substituted `draft` is reported as the
+  default level: the two give the same result.
 
 ## Loop-lane keys (`babysit_loop_*`)
 

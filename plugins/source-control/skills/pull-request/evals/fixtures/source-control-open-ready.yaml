@@ -1,0 +1,2 @@
+# Eval fixture: a repository's docs/conventions/source-control.yaml that opens PRs ready for review.
+pr_open_state: ready
