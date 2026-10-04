@@ -381,5 +381,76 @@ class LedgerTombstoneTests(unittest.TestCase):
             self.assertIn("owner/a#1", loaded.get("mutation_ledger", {}))
 
 
+LINT = {"type": "CheckRun", "name": "lint", "workflow_name": "ci"}
+LINT_NIGHTLY = {"type": "CheckRun", "name": "lint", "workflow_name": "nightly"}
+FIRST_HEAD = "a" * 40
+SECOND_HEAD = "b" * 40
+
+
+class FlakeRerunCapTests(unittest.TestCase):
+    """One rerun per PR, head SHA and check; the second failure is real."""
+
+    def record(
+        self, ledger: dict[str, object], key: str, head: str, check: dict
+    ) -> int:
+        return state.record_rerun(
+            ledger, key, head, check, recorded_at="2026-07-10T00:00:00Z"
+        )
+
+    def test_a_check_never_rerun_has_count_zero(self) -> None:
+        self.assertEqual(state.rerun_count({}, "owner/a#1", FIRST_HEAD, LINT), 0)
+
+    def test_the_first_rerun_is_recorded(self) -> None:
+        ledger: dict[str, object] = {}
+        self.assertEqual(self.record(ledger, "owner/a#1", FIRST_HEAD, LINT), 1)
+        self.assertEqual(state.rerun_count(ledger, "owner/a#1", FIRST_HEAD, LINT), 1)
+
+    def test_a_second_rerun_of_the_same_check_at_the_same_head_is_refused(self) -> None:
+        ledger: dict[str, object] = {}
+        self.record(ledger, "owner/a#1", FIRST_HEAD, LINT)
+        with self.assertRaises(RuntimeError):
+            self.record(ledger, "owner/a#1", FIRST_HEAD, LINT)
+        self.assertEqual(state.rerun_count(ledger, "owner/a#1", FIRST_HEAD, LINT), 1)
+
+    def test_a_new_head_gets_its_own_rerun(self) -> None:
+        ledger: dict[str, object] = {}
+        self.record(ledger, "owner/a#1", FIRST_HEAD, LINT)
+        self.assertEqual(state.rerun_count(ledger, "owner/a#1", SECOND_HEAD, LINT), 0)
+        self.assertEqual(self.record(ledger, "owner/a#1", SECOND_HEAD, LINT), 1)
+
+    def test_a_same_named_check_in_another_workflow_is_a_different_check(self) -> None:
+        ledger: dict[str, object] = {}
+        self.record(ledger, "owner/a#1", FIRST_HEAD, LINT)
+        self.assertEqual(
+            state.rerun_count(ledger, "owner/a#1", FIRST_HEAD, LINT_NIGHTLY), 0
+        )
+        self.assertEqual(self.record(ledger, "owner/a#1", FIRST_HEAD, LINT_NIGHTLY), 1)
+
+    def test_another_pr_at_the_same_head_and_check_is_counted_apart(self) -> None:
+        ledger: dict[str, object] = {}
+        self.record(ledger, "owner/a#1", FIRST_HEAD, LINT)
+        self.assertEqual(state.rerun_count(ledger, "owner/a#2", FIRST_HEAD, LINT), 0)
+
+    def test_a_recorded_rerun_survives_the_next_snapshot_save(self) -> None:
+        with tempfile.TemporaryDirectory() as state_dir:
+            path = state.state_path_for(state_dir)
+            save(path, make_snapshot([snapshot_pr("owner/a", 1)]))
+            loaded = state.load_state(path)
+            self.record(
+                loaded.setdefault("mutation_ledger", {}), "owner/a#1", FIRST_HEAD, LINT
+            )
+            state.write_state(path, loaded)
+            save(
+                path,
+                make_snapshot(
+                    [snapshot_pr("owner/a", 1)], generated_at="2026-07-10T01:00:00Z"
+                ),
+            )
+            ledger = state.load_state(path)["mutation_ledger"]
+            self.assertEqual(
+                state.rerun_count(ledger, "owner/a#1", FIRST_HEAD, LINT), 1
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

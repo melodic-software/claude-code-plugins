@@ -109,7 +109,13 @@ value and its unset fallback.
 
 - Read PR metadata, review comments, checks, and Actions logs.
 - Retry checks only when the failure is likely flaky, infrastructure-related, or already fixed by
-  a new commit.
+  a new commit, and at most once per check at one PR head (the Flake Cap in `orchestration.md`).
+  Record the rerun with `manage_feedback_ledger.py record-rerun --check-id <rerun-id>` before
+  triggering it, naming the check only by its hex id: the hex right after `rerun_id=` at the start
+  of that check's `failing check:` line in the snapshot. Copy only the id, never the GitHub name
+  that follows it. When the ledger exits 4, the check
+  already had its rerun at this head, so its failure is real: fix it or report it, never rerun it
+  again.
 - Edit, commit, and push to the PR branch only for clear branch-owned CI failures or actionable
   bot-review findings when the snapshot allows writes to the head repository, including
   bot-authored branches when needed for a CI fix.

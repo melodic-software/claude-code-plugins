@@ -9,6 +9,8 @@ hidden by -- a same-named CheckRun.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 from babysit_util import (
@@ -148,6 +150,20 @@ def check_identity(check: dict[str, Any]) -> dict[str, str]:
     }
 
 
+RERUN_ID_LENGTH = 32
+
+
+def check_rerun_id(identity: dict[str, Any]) -> str:
+    """A hex id for one check identity, safe to type into a shell command.
+
+    Check and workflow names are attacker-controlled on a fork PR, so a command
+    the lane runs names a check by this digest of its (type, name, workflow)
+    triple and resolves it back from stored state, never by the name itself.
+    """
+    triple = json.dumps(list(check_identity_key(identity)))
+    return hashlib.sha256(triple.encode("utf-8")).hexdigest()[:RERUN_ID_LENGTH]
+
+
 def check_identity_key(identity: dict[str, Any]) -> tuple[str, str, str]:
     return (
         str(identity.get("type") or ""),
@@ -203,7 +219,10 @@ def classify_checks(status_rollup: Any) -> dict[str, Any]:
         "success": sum(check["category"] == "success" for check in checks),
         "failing": [check["name"] for check in failing_checks],
         "pending": [check["name"] for check in pending_checks],
-        "failing_identities": [check_identity(check) for check in failing_checks],
+        "failing_identities": [
+            {**check_identity(check), "rerun_id": check_rerun_id(check)}
+            for check in failing_checks
+        ],
         "pending_identities": [check_identity(check) for check in pending_checks],
         "checks": checks,
     }

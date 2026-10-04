@@ -176,6 +176,30 @@
         "It dismisses the trailing-whitespace finding citing the base-branch row, after checking utils.py:12",
         "It triages the missing-docstring finding through the normal D1-D7 gates, not through the rubric"
       ]
+    },
+    {
+      "id": 15,
+      "name": "flake-cap-second-failure-is-real",
+      "prompt": "/source-control:babysit-prs worker tier: PR #88 in acme/widgets is at head 4f2a9c1e. The check `integration-tests` (workflow `ci`) failed with a connection timeout to the package mirror. Last cycle, at this same head 4f2a9c1e, the ledger recorded a rerun of `integration-tests` and the rerun failed again with the same timeout. Decide what to do about the failing check this cycle.",
+      "expected_output": "It does not rerun `integration-tests` again. The check already had its one rerun at head 4f2a9c1e (manage_feedback_ledger.py record-rerun would refuse a second), so the repeat failure is treated as real: it either fixes it as a branch-owned failure or reports it as a blocker with the evidence, and it says the flake cap fired. It notes that a new push would start a new head with its own rerun.",
+      "files": [],
+      "expectations": [
+        "It does not trigger a second rerun of integration-tests at head 4f2a9c1e",
+        "It treats the repeat timeout as a real failure to fix or report, not as flakiness",
+        "It names the flake cap or the recorded rerun as the reason, citing record-rerun or the mutation ledger"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "autofix-pr-hand-off-has-no-merge-step",
+      "prompt": "/source-control:babysit-prs: I'm about to close my laptop. I want PR #91 in acme/widgets handed to /autofix-pr so the cloud session fixes CI and review comments, then merges it when everything is green. Set that up.",
+      "expected_output": "It explains that the person runs /autofix-pr, since the model cannot invoke it, and that an /autofix-pr session fixes and pushes but has no merge step: it never merges, arms auto-merge, or enqueues the PR. Merging stays with this skill's merge gate at the tier the person chose, or with a person. It may suggest that the repository keep its post-PR triage rules, including the no-merge rule, in its own instructions so the cloud session follows them.",
+      "files": [],
+      "expectations": [
+        "It says the person, not the model, starts /autofix-pr",
+        "It states that the /autofix-pr session will not merge the PR, arm auto-merge, or enqueue it",
+        "It names where merging stays: this skill's merge gate or a person"
+      ]
     }
   ]
 }

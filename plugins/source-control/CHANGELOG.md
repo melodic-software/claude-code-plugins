@@ -20,6 +20,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
   both triage a recurring bot finding the same way. It never dismisses a security or data finding,
   and an `ask` row in a run with no one to answer leaves the thread open and reports it instead of
   prompting. Without the section, triage is unchanged.
+- **`/source-control:babysit-prs` reruns a failing check at most once per PR head.** The new
+  `manage_feedback_ledger.py record-rerun` records each rerun in the durable mutation ledger, keyed
+  by PR, head SHA and check, before the rerun is triggered, and refuses a second one for the same
+  check at the same head (exit 4): that failure is treated as real and fixed or reported. A new
+  head starts the count again. The command names the check by its hex id, which the snapshot
+  text prints first on each `failing check: rerun_id=<id> name="<name>"` line (check names are now
+  JSON-escaped, one check per line), never by its name, because a fork PR controls its job
+  names. `reference/native-autofix-pr.md` now states that an `/autofix-pr` session never
+  merges, and how a repository puts the same triage rules in front of that cloud session.
 
 ### Changed
 

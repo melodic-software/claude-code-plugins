@@ -63,6 +63,9 @@ Each line names a rule CI does not enforce; the linked file states it in full.
   [instruction economy](docs/plugin-philosophy.md#instruction-economy).
 - A hook false-positive fix lands with a stay-quiet test that fails before the fix:
   [hook-precision](docs/conventions/hook-precision/README.md#the-discipline).
+- Work on an open PR (CI results, review comments, `/autofix-pr` sessions, which never merge)
+  follows the post-PR triage rules:
+  [source-control](docs/conventions/source-control.md#post-pr-triage).
 
 <!-- BEGIN GENERATED: instruction-placement rules index -->
 

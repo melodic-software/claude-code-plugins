@@ -8,6 +8,7 @@
 - [Cross-PR Dependency Signaling](#cross-pr-dependency-signaling)
 - [Main Agent Responsibilities](#main-agent-responsibilities)
 - [Fix-Round Cap](#fix-round-cap)
+- [Flake Cap](#flake-cap)
 - [Merge Conflict Resolution](#merge-conflict-resolution)
 - [Worker Contract](#worker-contract)
 - [Worker Prompt Template](#worker-prompt-template)
@@ -453,6 +454,38 @@ as many rounds as it takes within the cycle. When a PR has both blocking and adv
 outstanding, only the advisory-finding rounds count against this ceiling; continue blocking-defect
 rounds uncapped.
 
+## Flake Cap
+
+A failing check gets one rerun per PR head. If it fails again on that same head, the failure is
+real: fix it as a branch-owned failure or report it, and do not rerun it a second time. A push
+that changes the head gives every check one new rerun, because the cap is counted per PR, head
+SHA, and check (type, name, and workflow).
+
+Whoever triggers the rerun, orchestrator or worker, records it first, write-ahead, under that
+PR's worker lease:
+
+```bash
+python "<skill-dir>/scripts/manage_feedback_ledger.py" record-rerun --pr owner/repo#42 --expected-head-sha <head-sha> --check-id <rerun-id> --lease-token <worker-token> --state-dir <state-dir> --apply
+```
+
+`<rerun-id>` is the 32-character lowercase hex `rerun_id` the snapshot lists for that check. In
+the text output each failing check has its own line, `failing check: rerun_id=<id> name="<name>"`,
+and the id is the hex right after `rerun_id=` at the start of that line; the name after it is
+JSON-escaped and is never a source for the id. In `--json` output it is the entry's `rerun_id`
+under `checks.failing_identities`. Copy only the hex id,
+never the name beside it. Never put a check or workflow name in this command or any other shell
+text: a fork PR names its own jobs, so the name is attacker-controlled, and double quotes still run
+`$(...)` and backticks inside it. The helper exits 2 if two different failing checks share the id;
+report that PR and record nothing. The helper resolves the id against the stored snapshot
+and accepts only a check that snapshot lists as failing at that head; it exits 2 on a malformed
+or unknown id. It exits 4 when the check already had its rerun at this head; treat exit 4 as the
+cap firing, not as a tool failure to retry. Without `--apply` it reports the same verdict and
+records nothing. The record lives in the durable mutation ledger, so a rerun from an earlier cycle
+or an earlier session counts.
+
+This cap counts reruns only. Fixing a failing check is uncapped, as the Fix-Round Cap above
+states.
+
 ## Merge Conflict Resolution
 
 This section's autonomous-resolution path applies only in worker and autopilot tiers: default
@@ -830,6 +863,9 @@ Each worker must:
   source-of-truth repo
 - stop and report, never resolve, a merge conflict discovered mid-fix-round; hand off to a
   dedicated fresh conflict worker instead (see Merge Conflict Resolution above)
+- rerun a failing check at most once per head, recording it first with
+  `manage_feedback_ledger.py record-rerun --check-id <rerun-id>` (Flake Cap above); a check the
+  ledger refuses with exit 4 failed after its rerun, so fix it or report it
 - commit and push only clear branch-owned fixes, except a conflict worker, which commits its
   resolution locally and never pushes (Merge Conflict Resolution above)
 - disarm auto-merge before every push (ahead of the pre-push head re-check) and again right after
@@ -943,7 +979,9 @@ or looping worker, not a normal limit on legitimate fix work. Keep iterating tow
 through as many advisory rounds as it takes, for as long as real progress is being made or real
 findings remain; only if the ledger reports the cap reached should you stop and report final
 state instead. Blocking defects, meaning failing CI, P0/P1, and regressions, are never capped; keep fixing
-those. If you hit a merge conflict, do not resolve it yourself. Stop, report which files and
+those. A failing check you judge flaky gets one rerun at this head, recorded first as the Flake
+Cap in this skill's orchestration reference describes; if the ledger refuses, the check already
+had its rerun, so fix it or report it. If you hit a merge conflict, do not resolve it yourself. Stop, report which files and
 what the conflicting hunks appear to be about, and leave it for a dedicated fresh
 conflict worker.
 

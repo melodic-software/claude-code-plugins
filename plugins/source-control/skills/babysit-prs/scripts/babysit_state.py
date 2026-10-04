@@ -40,6 +40,9 @@ STATE_FILE_NAME = "queue-state.json"
 # it gets a fresh chance to prove itself fixed.
 ERROR_QUARANTINE_THRESHOLD = 3
 ERROR_QUARANTINE_TTL_SECONDS = 24 * 60 * 60
+# Reruns allowed for one failing check at one PR head. A check that fails again
+# after its rerun is a real failure, fixed or reported, never rerun again.
+FLAKE_RERUN_CAP = 1
 
 
 def resolve_state_dir(value: str | None) -> Path:
@@ -297,6 +300,68 @@ def record_mutation_ledger_entry(
     )
     if merged:
         ledger[key] = merged
+
+
+def _check_rerun_key(check: dict[str, Any]) -> str:
+    # The same (type, name, workflow) triple babysit_checks keys identities by,
+    # serialized so no separator inside a check name can collide two checks.
+    return json.dumps(
+        [
+            str(check.get("type") or ""),
+            str(check.get("name") or ""),
+            str(check.get("workflow_name") or ""),
+        ]
+    )
+
+
+class FlakeCapReached(RuntimeError):
+    """The check already had its capped reruns at this head."""
+
+
+def rerun_count(
+    ledger: dict[str, Any], key: str, head_sha: str, check: dict[str, Any]
+) -> int:
+    """Reruns recorded for one check of PR `key` at `head_sha`."""
+    by_head = json_object(json_object(ledger.get(key)).get("check_reruns"))
+    record = json_object(
+        json_object(by_head.get(head_sha)).get(_check_rerun_key(check))
+    )
+    return int(record.get("count") or 0)
+
+
+def record_rerun(
+    ledger: dict[str, Any],
+    key: str,
+    head_sha: str,
+    check: dict[str, Any],
+    *,
+    recorded_at: str,
+    cap: int = FLAKE_RERUN_CAP,
+) -> int:
+    """Record one rerun in the mutation ledger and return the new count.
+
+    Refuses once `cap` reruns are recorded for this PR, head and check. A new
+    head starts at zero, so the cap never outlives the commit it judged.
+    """
+    count = rerun_count(ledger, key, head_sha, check)
+    if count >= cap:
+        raise FlakeCapReached(
+            f"flake cap reached for {key}: this check was already rerun {count} "
+            "time(s) at this head; treat the failure as real"
+        )
+    entry = ledger.setdefault(key, {})
+    by_head = entry.setdefault("check_reruns", {})
+    by_check = by_head.setdefault(head_sha, {})
+    by_check[_check_rerun_key(check)] = {
+        "check": {
+            "type": str(check.get("type") or ""),
+            "name": str(check.get("name") or ""),
+            "workflow_name": str(check.get("workflow_name") or ""),
+        },
+        "count": count + 1,
+        "last_rerun_at": recorded_at,
+    }
+    return count + 1
 
 
 def previous_with_ledger(
