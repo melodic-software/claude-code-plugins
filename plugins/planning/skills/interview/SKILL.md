@@ -98,7 +98,7 @@ The Q&A path of this skill is one engine wrapped in a stop condition and an outp
 3. **Climb-to-anchor**. Find the nearest `CLAUDE.md`, `AGENTS.md`, domain-vocabulary file, or module README by walking UP from the relevant directory toward repo root; let those shape questions instead of asking what is already documented
 4. **Immediate doc maintenance** *(engineering sessions only)*. When an answer resolves a domain
    term, invoke `/domain-driven-design:curate-language` via the Skill tool (if that plugin is enabled; else
-   record the term in the Brief's glossary notes) IMMEDIATELY between questions, not
+   record the term and its definition in the resolution field of the open-question register row that resolved it) IMMEDIATELY between questions, not
    batched at end. Route
    decisions, gotchas, and conventions to their proper homes (ADR, project rules, side note) in the
    same response. A general session writes no repo docs. It drives to a shared-understanding summary
@@ -186,7 +186,7 @@ When the task touches domain concepts, these behaviors activate during Q&A. The 
 - **domain scenario exploration**. Invent edge cases that probe concept boundaries ("what happens when a Customer cancels half an Order?")
 - **inline vocabulary update** *(engineering sessions only)*. When a term resolves, invoke
   `/domain-driven-design:curate-language` immediately (if that plugin is enabled; else
-  record the term in the Brief's glossary notes). That skill owns discovery-first
+  record the term and its definition in the resolution field of the open-question register row that resolved it). That skill owns discovery-first
   placement, the consumer's
   file shape, purity, canonical terms, rejected synonyms, and known-context routing; the interview
   resumes after the update
