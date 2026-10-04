@@ -1926,9 +1926,8 @@ else
   fail "typos-absent second run not silent: $OUT_NT2"
 fi
 
-# The missing-typos notice is a prerequisite: its latch key is the session
-# alone, so another agent in the same session stays silent, and the renewal on
-# the eighth skip keeps the install route.
+# The missing-typos notice latches per channel: the user is told once per
+# session, each agent's model once, and no skip after that renews it.
 run_nt_agent() {
   local session="$1" agent="$2" data="$3"
   (
@@ -1939,34 +1938,27 @@ run_nt_agent() {
   )
 }
 OUT_NT_AGENT=$(run_nt_agent test-notypos-1 other-agent "$NT_DATA")
-if [[ -z "$OUT_NT_AGENT" ]]; then
-  ok "typos-absent -> a different agent in the same session is silent (session-only latch)"
+if jq -e '(.hookSpecificOutput.additionalContext | contains("typos")) and (has("systemMessage") | not)' \
+  <<<"$OUT_NT_AGENT" >/dev/null 2>&1; then
+  ok "typos-absent -> a different agent in the same session tells its model only"
 else
-  fail "typos-absent: a second agent in the same session was not silent: $OUT_NT_AGENT"
+  fail "typos-absent: a second agent in the same session: want the model notice alone: $OUT_NT_AGENT"
 fi
 NT_RENEW_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
 NT_INSTALL_URL="https://github.com/crate-ci/typos#install"
 NT_RENEW_SILENT=1
-for i in 1 2 3 4 5 6 7; do
+for i in $(seq 1 16); do
   OUT_NT_RN=$(run_nt_agent test-notypos-renew "agent-$((i % 2))" "$NT_RENEW_DATA")
   if [[ $i -eq 1 ]]; then
     [[ "$OUT_NT_RN" == *"$NT_INSTALL_URL"* ]] || NT_RENEW_SILENT=0
-  elif [[ -n "$OUT_NT_RN" ]]; then
+  elif [[ $i -ge 3 && -n "$OUT_NT_RN" ]]; then
     NT_RENEW_SILENT=0
   fi
 done
 if [[ $NT_RENEW_SILENT -eq 1 ]]; then
-  ok "typos-absent -> skips 2-7 are silent whichever agent fires them"
+  ok "typos-absent -> after each agent's first skip, skips 3-16 are silent (no renewal)"
 else
-  fail "typos-absent: skips 2-7 across two agents were not silent (or the first notice lacked the install URL)"
-fi
-OUT_NT_RN8=$(run_nt_agent test-notypos-renew agent-0 "$NT_RENEW_DATA")
-if jq -e --arg url "$NT_INSTALL_URL" \
-  '(.systemMessage | contains($url) and contains("[8 skips this session]")) and (.hookSpecificOutput.additionalContext | contains($url))' \
-  <<<"$OUT_NT_RN8" >/dev/null 2>&1; then
-  ok "typos-absent -> the eighth skip renews the notice and keeps the install URL"
-else
-  fail "typos-absent: eighth-skip renewal missing the install URL or count: $OUT_NT_RN8"
+  fail "typos-absent: a skip after each agent's first notice was not silent (or the first notice lacked the install URL)"
 fi
 
 # jq-absent -> visible once per session and agent notice (input parsing gate).

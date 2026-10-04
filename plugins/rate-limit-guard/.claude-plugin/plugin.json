@@ -1,6 +1,6 @@
 {
   "name": "rate-limit-guard",
-  "version": "0.14.1",
+  "version": "0.14.3",
   "description": "Shared rate-limit guard for loop lanes and Claude: a hooks module writes the subscription rate-limit windows to a fixed machine-scope file and tells Claude where they stand at boundaries, a StopFailure hook records rate-limit stops reactively, and a reader contract fixes how consuming sessions pause and resume.",
   "author": {
     "name": "Melodic Software",
@@ -32,7 +32,10 @@
       "title": "Rate-limit report mode",
       "description": "automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a notice row above the prompt when the turn ends. Headless, loop and schedule turns get automatic lines either way.",
       "default": "automatic",
-      "options": ["automatic", "operator"]
+      "options": [
+        "automatic",
+        "operator"
+      ]
     },
     "rate_limit_line_threshold": {
       "type": "number",
