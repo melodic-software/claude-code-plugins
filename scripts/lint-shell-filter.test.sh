@@ -40,6 +40,7 @@ for p in \
   plugins/alpha/docs/notes.md \
   plugins/alpha/.claude-plugin/plugin.json \
   plugins/alpha/config/extra-hooks.json \
+  plugins/alpha/config/custom-hooks.conf \
   plugins/alpha/hooks/hooks.json \
   plugins/alpha/skills/s/SKILL.md \
   scripts/check-shell-portability.sh \

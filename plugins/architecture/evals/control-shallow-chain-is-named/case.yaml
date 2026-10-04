@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: control-shallow-chain-is-named
+context:
+  scaffold_script: scaffold.sh

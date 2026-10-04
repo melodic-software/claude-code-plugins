@@ -890,6 +890,9 @@ rm -rf "$repo"
 mapfile -t wf_candidates < <(cd "$REPO_ROOT" && git ls-files '.github/*.yaml' '.github/*.yml')
 wf_yaml=()
 for c in ${wf_candidates[@]+"${wf_candidates[@]}"}; do
+  # scripts/workflow-self-paths.test.sh declares `.github/workflows/*` (R8), so
+  # a workflow file selects that suite and cannot be the probe.
+  [[ "$c" == .github/workflows/* ]] && continue
   if ! (cd "$REPO_ROOT" && git grep -q -F -- "${c##*/}" \
     -- '*.sh' '*.bash' '*.js' '*.mjs' '*.cjs' '*.py' '*.ps1' '*.psm1') 2>/dev/null; then
     wf_yaml=("$c")

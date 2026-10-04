@@ -1,0 +1,22 @@
+// A Reqnroll step definitions file is claimed by the C# adapter. Its step
+// methods are not test starts, so it holds no test block to judge.
+using Reqnroll;
+using Xunit;
+
+[Binding]
+public class CheckoutStepDefinitions
+{
+    private decimal _total;
+
+    [When(@"the cart is checked out")]
+    public void WhenTheCartIsCheckedOut()
+    {
+        _total = Checkout.Run(Cart.Sample());
+    }
+
+    [Then(@"the total is (.*)")]
+    public void ThenTheTotalIs(decimal expected)
+    {
+        Assert.Equal(expected, _total);
+    }
+}
