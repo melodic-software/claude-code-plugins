@@ -478,12 +478,14 @@ judge::pick() {
 # verdict. A run whose result lists permission_denials (the authoritative
 # record of denied tool calls,
 # https://code.claude.com/docs/en/agent-sdk/typescript, as of 2026-10-04;
-# recheck when the result message's fields change) keeps its FLAG and PASS
-# verdicts, which validation checks, and gives no other: an UNKNOWN from a run
-# that could not read is a malfunction. Any later reader may harvest a raw
-# file whose writer died.
+# recheck when the result message's fields change) and that gives no key a
+# FLAG or PASS is a malfunction: it gives no verdict, and JUDGE_MUTED is 1. A
+# denial names a tool call, never a block, and one run judges every block of
+# the file, so a run with any FLAG or PASS keeps its UNKNOWN verdicts too.
+# Any later reader may harvest a raw file whose writer died.
 judge::harvest() {
   local raw="$1" dir="${1%/*}" kh json
+  JUDGE_MUTED=0
   [[ -f "$raw.keys" ]] || return 1
   [[ -n "${2:-}" || -s "$raw" ]] || return 1
   out="$(jq -rn --slurpfile meta "$raw.keys" --rawfile raw "$raw" --arg forced "${2:-}" '
@@ -499,20 +501,22 @@ judge::harvest() {
                denied: (($e.permission_denials | arrays | length > 0) // false)} else null end
          else null end end) as $r
     | if $r == null then empty else
-      $m.keys[] as $k
-      | (if $r.reason then {verdict: "UNKNOWN", reason: $r.reason}
-         else [$r.verdicts[] | select(.name == $k.name and ((.ordinal // $k.ordinal) | tostring) == ($k.ordinal | tostring))][0] end) as $v
-      | select($v != null)
-      | select($r.denied != true or ($v.verdict | IN("FLAG", "PASS")))
+      [$m.keys[] as $k
+       | (if $r.reason then {verdict: "UNKNOWN", reason: $r.reason}
+          else [$r.verdicts[] | select(.name == $k.name and ((.ordinal // $k.ordinal) | tostring) == ($k.ordinal | tostring))][0] end)
+       | select(. != null) | {k: $k, v: .}] as $kv
+      | if $r.denied == true and all($kv[]; .v.verdict | IN("FLAG", "PASS") | not) then "! muted" else
+      $kv[] | .k as $k | .v as $v
       | ($v.verdict | IN("FLAG", "PASS", "UNKNOWN")) as $ok
       | "\($k.kh) \({file: $m.file, repo: $m.repo, name: $k.name, ordinal: $k.ordinal, start: $k.start, end: $k.end,
           verdict: (if $ok then $v.verdict else "UNKNOWN" end),
           evidence: [$v.evidence[]? | strings], source: ($v.source // "" | tostring), diff: ($v.diff // "" | tostring),
           reason: (if $ok then ($v.reason // "" | tostring) else "the judge returned no valid verdict" end),
           model: $m.model, effort: $m.effort, judged_at: (now | todate)} | tojson)"
-      end' 2>/dev/null)" || return 1
+      end end' 2>/dev/null)" || return 1
   [[ -n "$out" ]] || return 1
   while read -r kh json; do
+    [[ "$kh" == '!' ]] && JUDGE_MUTED=1 && continue
     printf '%s\n' "$json" >"$dir/.$kh.tmp" && mv -f "$dir/.$kh.tmp" "$dir/$kh.json"
   done <<<"$out"
 }
@@ -616,10 +620,14 @@ judge::run() {
     if ((rc > 128)); then
       rc="judge timed out after $t s"
     else
-      judge::harvest "$raw" || rc="judge exited $rc with no usable result"
-      if [[ -n "$denied" ]]; then
-        rc="the judge was denied $denied, so its UNKNOWN verdicts are a malfunction, not a judgment"
+      if ! judge::harvest "$raw"; then
+        rc="judge exited $rc with no usable result"
+        [[ -z "$denied" ]] || rc+="; it was denied $denied"
+      elif ((JUDGE_MUTED)); then
+        rc="the judge was denied ${denied:-a tool} and gave no test a FLAG or PASS, so its UNKNOWN verdicts are a malfunction, not a judgment"
         judge::log "malfunction: judge run on $file: $rc"
+      elif [[ -n "$denied" ]]; then
+        judge::log "judge run on $file was denied $denied; it gave a FLAG or PASS, so its UNKNOWN verdicts stand"
       fi
     fi
   fi

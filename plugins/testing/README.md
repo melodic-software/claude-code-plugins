@@ -140,9 +140,11 @@ it is reported UNKNOWN, "no repository". The judge runs from the repository with
 `Read(//<repository>/**)` allow rule, which also covers Grep and Glob. A test file outside the
 repository git names for it (a `core.worktree` set elsewhere) is not judged: that is logged as a
 malfunction and the test is named as not judged. A run in which Claude Code denied the judge a
-tool call (the result's `permission_denials`) is a malfunction too: its UNKNOWN verdicts are
-dropped and those tests are named as not judged, so they do not stop the task, while its FLAG and
-PASS verdicts are validated as usual. A symbolic link inside the repository that points outside
+tool call (the result's `permission_denials`) and that gives no test a FLAG or PASS is a
+malfunction too: its UNKNOWN verdicts are dropped and those tests are named as not judged, so
+they do not stop the task. A denial names a tool call, not a test, and one run judges every
+in-doubt test of the file, so a denied run that gives any FLAG or PASS keeps all its verdicts,
+UNKNOWN included, and the denial is only logged. A symbolic link inside the repository that points outside
 it does not widen the judge's reach: its scoped Read is checked against the link's resolved target
 and refused, and its Grep does not follow a linked directory (probe R2-P15). A
 glob added only through the consumer settings entry `/testing:setup check` prints

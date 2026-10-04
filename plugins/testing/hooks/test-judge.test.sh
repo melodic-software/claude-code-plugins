@@ -810,20 +810,35 @@ check "that is logged as a malfunction" 'grep -qF "malfunction: the test file is
 check "it does not block, and the test is named as not judged" \
   '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"not judged, the judge failed for cw.test.ts: cwout"* ]]'
 
-# A run Claude Code denied a tool call (the result's permission_denials) is a
-# malfunction: its UNKNOWN is no verdict and is not relayed; its PASS, which
-# validation checks, is kept.
+# A run Claude Code denied a tool call (the result's permission_denials) that
+# gives no test a FLAG or PASS is a malfunction: its UNKNOWN verdicts are not
+# verdicts, and Stop is not blocked (#6099). This case stays quiet on purpose
+# and fails against a judge that relays those UNKNOWN verdicts.
 transcript dn1 claude-sonnet-5
 DN="$REPO/src/denied.test.ts"
-js_file "$DN" "deny me" keeps
+js_file "$DN" "deny me" "deny too"
 record dn1 w1 "$DN" null
 stub_reset
 STUB_MODE=denied stop dn1
-check "a run with a permission denial: its UNKNOWN is no verdict, its PASS is one" \
-  '[[ "$(stub_calls)" == 1 && -z "$(verdict_of dn1 "deny me")" && "$(verdict_of dn1 keeps)" == *"\"verdict\":\"PASS\""* ]]'
-check "a permission denial does not block Stop" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test (0 FLAG, 1 PASS, 0 UNKNOWN)"* ]]'
-assert_contains "the denied test is named as not judged" "$(field .systemMessage)" "not judged, the judge failed for denied.test.ts: deny me"
-check "the denial is logged as a malfunction" 'grep -qF "malfunction: judge run on $DN: the judge was denied Read" "$DATA/test-judge.log"'
+check "a denied run with only UNKNOWN verdicts: one run, and no verdict" '[[ "$(stub_calls)" == 1 && -z "$(verdict_files dn1)" ]]'
+check "it does not block Stop" '[[ "$(field .decision)" != block ]]'
+assert_contains "its tests are named as not judged" "$(field .systemMessage)" "not judged, the judge failed for denied.test.ts: deny me, denied.test.ts: deny too"
+check "the denial is logged as a malfunction" \
+  'grep -qF "malfunction: judge run on $DN: the judge was denied Read and gave no test a FLAG or PASS" "$DATA/test-judge.log"'
+# A denial names a tool call, not a block, and one run judges every block of
+# the file: when the run gives any FLAG or PASS, its UNKNOWN verdicts stand,
+# so one denied read cannot mute the other blocks.
+transcript dn3 claude-sonnet-5
+DM="$REPO/src/deniedmixed.test.ts"
+js_file "$DM" "deny one" keeps "deny two"
+record dn3 w1 "$DM" null
+stub_reset
+STUB_MODE=denied stop dn3
+check "a denied run with a PASS keeps both UNKNOWN verdicts and the PASS" \
+  '[[ "$(stub_calls)" == 1 && "$(verdict_of dn3 "deny one")" == *"\"verdict\":\"UNKNOWN\""* && "$(verdict_of dn3 "deny two")" == *"\"verdict\":\"UNKNOWN\""* && "$(verdict_of dn3 keeps)" == *"\"verdict\":\"PASS\""* ]]'
+check "its UNKNOWN verdicts block Stop" '[[ "$(field .decision)" == block && "$(field .reason)" == *"reviewed 3 tests (0 FLAG, 1 PASS, 2 UNKNOWN)"* ]]'
+check "the denial is logged, not as a malfunction" \
+  'grep -qF "judge run on $DM was denied Read; it gave a FLAG or PASS, so its UNKNOWN verdicts stand" "$DATA/test-judge.log" && ! grep -qF "malfunction: judge run on $DM" "$DATA/test-judge.log"'
 # The signal is the denial Claude Code records, not the judge's prose: an
 # UNKNOWN that only says a permission was denied, with none listed, stays a
 # verdict (a test of a permission error can need that sentence).
