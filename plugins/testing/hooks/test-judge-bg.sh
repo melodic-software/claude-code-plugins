@@ -30,8 +30,9 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 # shellcheck source=scanner-run.sh
 source "$HOOK_DIR/scanner-run.sh"
-testing::fields "$INPUT" .session_id .tool_use_id .transcript_path .cwd .tool_input.file_path || exit 0
-SID="${FIELDS[0]}" call="${FIELDS[1]}" TPATH="${FIELDS[2]}" pcwd="${FIELDS[3]}" file="${FIELDS[4]}"
+testing::fields "$INPUT" .session_id .tool_use_id .transcript_path .cwd .tool_input.file_path .agent_id || exit 0
+SID="${FIELDS[0]}" call="${FIELDS[1]}" TPATH="${FIELDS[2]}" pcwd="${FIELDS[3]}" file="${FIELDS[4]}" agent="${FIELDS[5]}"
+[[ "$agent" =~ ^[A-Za-z0-9_-]+$ ]] || agent=""
 [[ "$SID" =~ ^[A-Za-z0-9_-]+$ && "$call" =~ ^[A-Za-z0-9_-]+$ && -n "$TPATH" && -n "$file" ]] || exit 0
 testing::data_dir
 testing::pkey "${CLAUDE_PROJECT_DIR:-$pcwd}" "$TPATH" || exit 0
@@ -63,12 +64,13 @@ for i in "${!IFILES[@]}"; do
 done
 # No record for this write: test-scan skipped it (a gitignored or excluded
 # path) or has not written yet. Judge the whole file unless it is ignored; a
-# path the scanner excludes lists no block.
+# path the scanner excludes lists no block. A subagent's write keeps its
+# agent id among the writers, so the judge's class differs from its model.
 if [[ ! -f "$own" && -z "${TEST_JUDGE_HANDOFF:-}" ]]; then
   git -C "${file%/*}" check-ignore -q "$file" 2>/dev/null && exit 0
-  info="$(jq -cn --arg f "$file" --arg r "$(git -C "${file%/*}" rev-parse --show-toplevel 2>/dev/null)" --arg s "$SID" \
+  info="$(jq -cn --arg f "$file" --arg r "$(git -C "${file%/*}" rev-parse --show-toplevel 2>/dev/null)" --arg s "$SID" --arg a "$agent" \
     --argjson i "${info:-null}" '{file: $f, repo: (if $r == "" then null else $r end), names: [], base_ok: 0, lines: [],
-      writers: [{sid: $s, agent: ""}], owner: $s} + ($i // {}) + {whole: true}')"
+      writers: [{sid: $s, agent: $a}], owner: $s} + ($i // {}) + {whole: true}')"
 fi
 [[ -n "$info" ]] || exit 0
 

@@ -3,6 +3,40 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.18] - 2026-10-04
+
+### Added
+
+- The test judge now relays a subagent's judged tests to that subagent when it stops (a `SubagentStop` hook). The parent's Stop skips tests whose subagent is still running, and relays a finished subagent's tests that were never relayed. A background judge run keeps the subagent's identity, so the judge class is chosen to differ from the subagent's model as well as the main session's ([#6060](https://github.com/melodic-software/claude-code-plugins/issues/6060)).
+
+### Fixed
+
+- An UNKNOWN verdict blocks an attended Stop only when it started as a FLAG. A quote that is no longer in the file but was in the judged snapshot is reported as stale, not as made up ([#6206](https://github.com/melodic-software/claude-code-plugins/issues/6206)).
+- Identical test bodies in files that are otherwise the same are judged once per Stop and share the verdict, and a PASS is reused for such a body later in the session. A judge repair that changes only comments or blank lines is rejected. The `test_judge_model` description now notes that haiku was not part of the calibration ([#6044](https://github.com/melodic-software/claude-code-plugins/issues/6044)).
+
+## [0.22.17] - 2026-10-04
+
+### Added
+
+- `/testing:audit` scans C# Reqnroll step definition files (`*StepDefinitions.cs`) and template test files (`UnitTest*.cs`), and TypeScript `.mts` and `.cts` test files; the test hooks now reach them too. Reqnroll step attributes are not yet read as test starts ([#6040](https://github.com/melodic-software/claude-code-plugins/issues/6040)).
+- A new report-only rule, `rule-throw-only-oracle`, reports a C# test whose every assertion only checks that a value it bound, in one statement, to `new T(...)` with nothing chained or cast after it exists or has its own type, so only a throwing constructor can fail it. The test-scan hook counts it among the tests that check little ([#6040](https://github.com/melodic-software/claude-code-plugins/issues/6040)).
+- A bare `return;` before every assertion of a C# test is reported as `rule-conditional-assertion`, with xUnit, NUnit and MSTest skip calls offered instead; a `return` inside a filtered `catch`, a local function or a lambda is not reported ([#6040](https://github.com/melodic-software/claude-code-plugins/issues/6040)).
+
+### Fixed
+
+- A Python or Go test whose name or parameters contain an assertion word, such as `test_check_x` or `expected`, no longer counts as asserting, so a zero-assertion test is reported ([#6211](https://github.com/melodic-software/claude-code-plugins/issues/6211)).
+- Each `;`-separated statement on a line of C#, JavaScript, TypeScript, Python or bash is judged on its own, so a weak assertion after an inert one on the same line is reported ([#6218](https://github.com/melodic-software/claude-code-plugins/issues/6218)).
+- `rule-source-text-read` fires on Windows: git and Git Bash spell the repository path differently, and the scanner now compares them in one spelling.
+- The scanner reads C# names correctly under gawk 5.4.0, which fails to match one of its regular expressions.
+- A TypeScript non-null assertion before a division, `total! / count` or `total ! / count`, no longer hides the rest of the line as a regular expression, which caused a false zero-assertion and swallowed the next test.
+- A line of more than 16 statements, such as minified code, is judged whole, so its scan time stays linear in its length and the hooks' scan timeout is not reached.
+
+## [0.22.16] - 2026-10-04
+
+### Fixed
+
+- The test-judge suites pass every fixture path to jq with Git Bash path conversion off for that call (`record`, the stub judge, and each inline payload and verdict builder), so on Windows the fixtures write the same path form the expected project key hashes and the hooks under test read ([#6266](https://github.com/melodic-software/claude-code-plugins/issues/6266)). Linux runs are unchanged.
+
 ## [0.22.15] - 2026-10-04
 
 ### Fixed

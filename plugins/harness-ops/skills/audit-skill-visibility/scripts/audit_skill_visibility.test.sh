@@ -83,7 +83,10 @@ printf '{"version":2,"plugins":{"alpha@mkt":[{"scope":"project","version":"1.0.0
 # `projectPath` and CLAUDE_PROJECT_DIR are compared to each other, so both use
 # the one spelling; converting only one turns the project-scope record
 # not-applicable and changes what the assertion below measures.
-INST="$(CLAUDE_PROJECT_DIR="$REPO" "$PYTHON" "$ENGINE" --installed "$CFG" --render json)"
+# CLAUDE_CONFIG_DIR points at the fixture too: --installed also counts the
+# user's own skills and settings, and those must come from the fixture, never
+# from the developer's real ~/.claude.
+INST="$(CLAUDE_CONFIG_DIR="$CFG" CLAUDE_PROJECT_DIR="$REPO" "$PYTHON" "$ENGINE" --installed "$CFG" --render json)"
 read -r ENTRIES PLUGINS SKILLS <<EOF
 $(printf '%s' "$INST" | "$PYTHON" -c 'import json,sys; m=json.load(sys.stdin); f=m["fleet"]; print(f["manifest_entries"], f["plugins_resolved"], len(m["skills"]))')
 EOF

@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.10] - 2026-10-04
+
+### Changed
+
+- **Shorter lane-stop gate text (#6225).** The Stop block reason keeps every directive and the completion token in about half the length. The gate-off notices (stale arm record, enablement claimed only on the environment channel) and the missing-jq notice go to the user only and are shorter: on Stop, context for the model would continue the conversation for a notice only the operator can act on.
+
 ## [0.26.9] - 2026-10-04
 
 ### Changed

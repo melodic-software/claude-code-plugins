@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Scan complete: no deepening candidates. `tax` is already deep: compute_tax is its one entry point and the tests drive only it.",
+      "why": "explicit no-candidates line"
+    },
+    {
+      "answer": "I found nothing worth deepening here. The tax package hides its rate tables and rounding behind one function.",
+      "why": "nothing worth deepening"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Candidate 1 (Worth exploring): the rates and rounding helpers are separate files; merge them into one TaxPolicy module. Which candidate would you like to explore?",
+      "why": "invents a candidate"
+    }
+  ]
+}

@@ -67,6 +67,9 @@ mk plugins/orphan/o.test.js "require('./o.js');"
 mk plugins/ps/x.ps1 "function X {}"
 mk plugins/ps/x.Tests.ps1 ". \$PSScriptRoot/x.ps1"
 mk plugins/z/data.cfg "k=v"
+mk plugins/z/z.sh "echo z"
+mk .github/actions/download-full-history/action.yml "name: download-full-history"
+mk .github/actions/other/action.yml "name: other"
 mk docs/conventions/pr-pipeline/pr-pipeline.schema.json "{}"
 mk .python-version 3.14
 mk pyproject.toml "[project]"
@@ -178,8 +181,12 @@ is "$(key windows_steps)" '["plugins/ps/run.ps1"]' && is "$(key windows_jobs)" '
 check "a Pester suite starts the test-windows step a pattern names, and no Linux lane" $?
 
 plan -- plugins/z/data.cfg
-is "$(key unmapped)" 1 && is "$(suites bash | wc -l | tr -d ' ')" 12
-check "an unmapped data file runs the whole shell corpus and is counted" $?
+is "$(key unmapped)" 1 && is "$(key bash)" false && is "$(key python)" false
+check "an unmapped data file runs no corpus and is counted" $?
+
+plan -- plugins/z/z.sh
+is "$(key unmapped)" 1 && is "$(suites bash | wc -l | tr -d ' ')" 12 && is "$(key python)" false
+check "an unmapped shell file runs the whole shell corpus and is counted" $?
 
 # --- wider than the selection ------------------------------------------------
 
@@ -188,6 +195,14 @@ is "$(key bash_legs)" "[0,1,2,3,4,5]" && is "$(suites bash | wc -l | tr -d ' ')"
   is "$(suites python | wc -l | tr -d ' ')" 2 && is "$(key node_packages | wc -w | tr -d ' ')" 6 &&
   is "$(key windows_jobs)" "[]"
 check "a pr-require-checks.yml change runs every pr-require-checks.yml lane whole on 6 legs, and test-windows from the selection" $?
+
+plan -- .github/actions/download-full-history/action.yml
+is "$(key bash_legs)" "[0,1,2,3,4,5]" && is "$(key windows_jobs)" '["win-a","win-b"]'
+check "the local action every lane runs plans every lane whole" $?
+
+plan -- .github/actions/other/action.yml
+is "$(key bash)" false && is "$(key python)" false && is "$(key windows_jobs)" "[]"
+check "another local action plans no lane whole" $?
 
 plan -- .github/workflows/pr-test-windows.yml
 is "$(key windows_jobs)" '["win-a","win-b"]' && is "$(key bash)" false

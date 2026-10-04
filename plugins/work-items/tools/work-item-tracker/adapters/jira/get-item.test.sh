@@ -39,6 +39,7 @@ assert_eq "assignee accountId" "acc-1" "$(jq -r '.assignees[0]' <<<"$OUT")"
 assert_eq "labels verbatim" "backend,urgent" "$(jq -r '.labels | join(",")' <<<"$OUT")"
 assert_eq "type name" "Task" "$(jq -r '.type' <<<"$OUT")"
 assert_eq "blocked_by_count OPEN-only" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+assert_eq "blocked_by_wont_do_count is 0 (resolution unreadable)" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
 assert_eq "parent_id qualified" "jira:test.atlassian.net/SW2#100" "$(jq -r '.parent_id' <<<"$OUT")"
 assert_eq "url is browse link" "https://test.atlassian.net/browse/SW2-12345" "$(jq -r '.url' <<<"$OUT")"
 case "$OUT" in *$'\r'*) fail "stdout CR-free" "no CR" "CR present" ;; *) pass "stdout CR-free" ;; esac

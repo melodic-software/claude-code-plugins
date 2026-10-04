@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.8.6] - 2026-10-04
+## [3.8.8] - 2026-10-04
 
 ### Changed
 
@@ -14,6 +14,18 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 - **The docs cross-check never runs a `git` or `bash` planted in the working directory.** It resolves both from the absolute `PATH` entries only, where `shutil.which` on Windows searched the current directory first; the shared `fetch-docs.sh` also leaves a body over `max_page_bytes` (default 10 MiB) unread `too-large`, and `docs-cache.sh` refuses a summary or note shaped like its untrusted-data markers.
 
 - **`/harness-ops:inventory` reads its docs through the shared fetcher.** The docs cross-check fetches the commands, tools and changelog pages with `fetch-docs.sh` (identity-checked and cached, age reported) instead of its own `urllib` fetcher; a page that cannot be fetched, or a machine with no bash, is reported unread with its reason.
+
+## [3.8.7] - 2026-10-04
+
+### Fixed
+
+- `/harness-ops:audit-skill-visibility` judges listing fit on the whole rendered listing (names, colon-space joiners, newlines and exempt entries, reported as `floor_chars` and `listing_chars` beside `demand_chars` on every band row), not on descriptions alone, which reported "fits" for a listing at its cap. It counts plugin commands and workflows, and with `--installed` user, project (every parent up to the repository root) and claude.ai-synced skills under `skillOverrides`, user and project skills under their frontmatter `name`, a personal skill shadowing a same-named project one and a settings file Claude Code rejects contributing no overrides; reads block-scalar and escaped-quote descriptions at their loaded length; and charges each walk grant its colon-space joiner. New `--listing-capture <transcript.jsonl>` counts built-in skills from a session's recorded listing and flags a band row that says "fits" while the session shed descriptions. A row set by `SLASH_COMMAND_TOOL_CHAR_BUDGET` is labeled with that variable instead of a window it ignores. Without a read capture that covers the counted fleet a fit is reported as `fit-unconfirmed`, never `listing-fits`, since the uncounted built-in entries can still overflow the session's listing (#6262).
+
+## [3.8.6] - 2026-10-04
+
+### Changed
+
+- **Shorter hook text (#6225).** The hook-failure warning drops the status line about `hook_failure_audit_enabled` and the ambiguity rationale, and keeps the `/reload-plugins` or restart remedy for launch and ambiguous failures. The skill-usage logging notices go to the user only, and the invalid-destination notice names the actual fault: a `skill_usage_dir` that is not a contained relative path, or a `data-dir` scope without `CLAUDE_PLUGIN_DATA`. The Stop hook's missing-jq notice goes to the user only.
 
 ## [3.8.5] - 2026-10-04
 
