@@ -60,9 +60,11 @@ from a pipeline-shaped file.
    `.github/requirements-ci.txt` (the ci-workflows action takes one schema per call, so it cannot
    pick a schema per file). The step runs like the existing `check-jsonschema` steps: with
    `continue-on-error: true` and fed to the job's result aggregator, so a file that fails its
-   schema fails CI. Runtime readers run no validator; they fail closed on a value outside the key's
-   enum. Amended 2026-10-04 (user decision): the earlier text said validation "reports and does not
-   block", which the aggregator wiring of the cited steps already contradicted.
+   schema fails CI. Runtime readers run no validator. An invalid value never stops the run: the
+   reader names the file, key and value and drops that layer, so a valid higher layer still wins,
+   otherwise the key's default; a lower layer's value is never used. Amended 2026-10-04 (user
+   decisions): the earlier text said validation "reports and does not block", which the aggregator
+   wiring of the cited steps already contradicted, and that readers fail closed on an invalid value.
 8. **Layers**, lowest first: the plugin's `userConfig` < `~/.claude/<name>` < the repository YAML
    (or its `.claude/<name>` fallback) < the gitignored local overlay. `pluginConfigs` is read only
    from user and managed settings. Every resolver reports which layer supplied each value.
