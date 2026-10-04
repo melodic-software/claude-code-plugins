@@ -263,7 +263,8 @@ user message that arrives beside it.
   - nothing the reader can look up on demand: a `PATH` dump, an absolute path where a relative one
     serves, an allowlist the owning skill documents, rationale, provenance asides, disclaimers;
   - no boilerplate repeated per finding;
-  - one channel when one suffices, never the same text on both;
+  - one channel when only one reader acts on the text; the same text on both only when both
+    readers act on it, as with a missing-prerequisite notice;
   - one helper owns a message pattern several hooks send; each hook calls it instead of a copy.
 
 This section moves no hook to a different event. The guard mods' context and rate-limit lines are a
