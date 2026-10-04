@@ -76,14 +76,15 @@ notice_sh() { # <session-json> <args...>
   shift
   printf '%s' "$payload" | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$SH" "$LIB/prerequisites.sh" node-notice "$@"
 }
-notice_shape() { # reads a notice on stdin; prints ok when both channels name <plugin> and its check skill
-  node -e 'const j=JSON.parse(require("fs").readFileSync(0,"utf8"));const p=process.argv[1];process.stdout.write(j.systemMessage.startsWith(p+": node is not on PATH")&&j.systemMessage.includes("Run /"+p+":check to verify")&&j.hookSpecificOutput.hookEventName==="SessionStart"&&j.hookSpecificOutput.additionalContext.includes("/"+p+":check")?"ok":"bad")' "$1"
+notice_shape() { # reads a notice on stdin; prints ok when it is exactly the user-channel line for <plugin>
+  # Only the user can install node; a model copy would only relay "tell the user".
+  node -e 'const j=JSON.parse(require("fs").readFileSync(0,"utf8"));const p=process.argv[1];const want=p+": node is not on PATH, so hooks that launch through node (this plugin'"'"'s and others'"'"') do not run. Install Node.js (https://nodejs.org/en/download), restart Claude Code, then run /"+p+":check.";process.stdout.write(Object.keys(j).join()==="systemMessage"&&j.systemMessage===want?"ok":"bad")' "$1"
 }
 s1='{"session_id":"sess-1","hook_event_name":"SessionStart"}'
 
 out="$(notice_sh "$s1" /bash-format:check)"
 if [[ "$(printf '%s' "$out" | notice_shape bash-format)" == ok ]]; then
-  pass "sh node-notice: node absent prints one SessionStart notice on both channels naming the check skill"
+  pass "sh node-notice: node absent prints one SessionStart notice to the user naming the check skill"
 else
   fail "sh node-notice: node absent gave $out"
 fi
@@ -133,7 +134,7 @@ if [[ -n "${PWSH:-}" ]]; then
   }
   out="$(notice_ps "$s1" /bash-format:check)"
   if [[ "$(printf '%s' "$out" | notice_shape bash-format)" == ok ]]; then
-    pass "pwsh node-notice: node absent prints one SessionStart notice on both channels"
+    pass "pwsh node-notice: node absent prints one SessionStart notice to the user"
   else
     fail "pwsh node-notice: node absent gave $out"
   fi

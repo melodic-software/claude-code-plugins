@@ -1,6 +1,6 @@
 # Changelog: evals
 
-## [0.5.5] - 2026-10-04
+## [0.5.6] - 2026-10-04
 
 ### Fixed
 
@@ -8,6 +8,12 @@
 - **`plugin-eval` preflight checks the Docker credential store for symlinks.** When the backend is otherwise present and a case requests `Bash` or `PowerShell`, a symbolic link inside `$DOCKER_CONFIG` or `~/.docker` now reports `sandbox_backend: not-ready` with the paths, and the refusal names the links rather than a missing backend: Claude Code 2.1.289 refused every run of a `Bash`-granting pass on such a host (Docker Desktop's WSL integration creates the links) after the preflight had passed it. The route is to resolve the links or use another host, never to repoint `DOCKER_CONFIG`. New eval case `sandbox-docker-symlink`.
 - **`plugin-eval`'s spoke-read record no longer says the with-arm cannot read spoke files.** At 2.1.289 with-arm `Read` calls of `context/`, `reference/`, `actions/` and `templates/` files all succeeded across three plugins' suites, which fired the record's recheck trigger; the denial is now recorded for 2.1.270 and 2.1.287 only. Eval case `reference-read-denied` now names 2.1.287, and its `cause` grader accepts the 2.1.289 result.
 - **`plugin-eval` case authoring notes that a slash-command prompt skips the `Skill` tool call.** A `tool_used: Skill` grader then fails and the validity gate marks the run INVALID; drop the grader on slash-invoked cases or phrase the prompt in natural language. The note carries a recheck trigger.
+
+## [0.5.5] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
 
 ## [0.5.4] - 2026-10-04
 

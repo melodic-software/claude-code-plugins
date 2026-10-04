@@ -30,7 +30,7 @@
           "jq"
         ]
       },
-      "degrade": "Without jq, the desktop-notification hooks skip their work for the session and say so once.",
+      "degrade": "Without jq, the desktop-notification hooks skip their work.",
       "install": {
         "docs": "https://jqlang.org/download/"
       },
