@@ -141,11 +141,13 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
 `Write|Edit`, every `Bash` call) must not repeat on every invocation. Use `hook::require jq`
 (wraps `hook::notice_once` + `hook::emit_skip_notice`) for a missing-`jq` gate, or pair
 `hook::notice_once` with `hook::emit_skip_notice` directly for a non-`jq` prerequisite. A raw,
-unguarded `hook::emit_skip_notice` call on a broad-matcher hook is a conformance defect. The latch
-keys on session **and** agent: each subagent gets its own full first notice, because it does not
-share the parent's context and would otherwise never see why the hook skipped. After that the
-latch renews with a one-line notice every `HOOK_NOTICE_RENEW_EVERY` skips (default 8). A plugin
-README states this as "once per session and agent, renewed every eighth skip", never "once per session". The exception is a missing external binary: `hook::notice_once <key> <input> prerequisite` latches on the session alone and each renewal keeps the full notice with its install route, so the README states "once per session, renewed with the install route every eighth skip".
+unguarded `hook::emit_skip_notice` call on a broad-matcher hook is a conformance defect. The user
+notice fires once per session; the model notice fires once per agent, because a subagent does not
+share the parent's context and would otherwise never see why the hook skipped. Neither renews. The
+text says the notice will not repeat this session, never that the skip lasts the session: the hook
+probes again on every call. A plugin README states the cadence as "once per session". A missing
+external binary (`hook::notice_once <key> <input> prerequisite`) keeps the same cadence, with the
+install route in its user notice.
 
 **Important exit-code caveat:** a bare `echo "..." >&2; exit 0` skip is **not a notice**; only
 stdout JSON carries one. Pointer: for where exit-0 stderr goes, see
@@ -365,8 +367,8 @@ Fleet audits check, per wired producer hook:
 
 - Every `command`-type handler in its `hooks.json` declares a `statusMessage`.
 - Every missing-prerequisite skip path emits a `systemMessage` (via `hook::require jq` or
-  `hook::notice_once` + `hook::emit_skip_notice`), gated so it fires once per session and agent (renewed every eighth skip) on a broad
-  matcher.
+  `hook::notice_once` + `hook::emit_skip_notice`), gated on a broad matcher so the user notice
+  fires once per session and the model notice once per agent, with no renewal.
 - Any `systemMessage` that is neither a prerequisite-skip notice nor a content-mutation notice
   satisfies all three carve-out conditions, or is the one owner-approved exception named below,
   and its model-channel counterpart asserts no operator presence. Not mechanically gated, but reviewed per hook. No settings hook in the fleet meets all three
@@ -377,7 +379,7 @@ Fleet audits check, per wired producer hook:
   switches only the operator may flip (condition 1); stderr separately carries the verdict and the
   agent's remedy, names an operator option only as the operator's to set, and never says the
   operator has seen anything (condition 2 and the delivery rule). It fires once per session and
-  agent, with the latch's renewal declined, which limits repetition but is not a state transition,
+  agent, which limits repetition but is not a state transition,
   so it does not satisfy condition 3 and is admitted by the exception. Every other call site is
   a prerequisite skip or a content-mutation notice, so a second one is a signal to re-read the three
   conditions rather than to follow the precedent.
