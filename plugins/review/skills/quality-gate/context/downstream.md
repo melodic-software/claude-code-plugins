@@ -39,7 +39,53 @@ command that may not resolve
 4. **Verify every finding before presenting**: open the named file, confirm the caller or reader
    exists and behaves as claimed. Worker output is synthesis, not evidence, and this mode's findings
    point at files the diff never touched, so an unverified one sends a reviewer to the wrong place.
-5. **Present** the confirmed and cleared lists (Step 4) plus the cheapest-test handback.
+5. **Probe the safety fact** when Step 2 found one: resolve `downstream_probe` (below), then write
+   the probe and run it or report it (Step 2, "The probe"). The orchestrator does this after
+   verification, never the worker, whose brief stays read-only.
+6. **Present** the `downstream_probe` line, the confirmed and cleared lists (Step 4) and the
+   cheapest-test handback.
+
+## Resolve `downstream_probe`
+
+`run` or `report`, default `run`. It is a policy floor, not a later-layer key: `report` from any
+valid layer wins. Layers:
+
+1. The default, `run`.
+2. The user's option, rendered in SKILL.md as `${user_config.downstream_probe}` (this file arrives
+   unrendered, so take the value from SKILL.md's "Downstream probe setting"). A literal, unexpanded
+   placeholder means unset. The option's default is `run`, so a user value of `run` cannot be told
+   from an unset one and reads as the default.
+3. `downstream_probe` in the repository's `docs/conventions/review.yaml`, read from the **default
+   branch**, never from the working tree or the branch under review. Apply SKILL.md's root rule
+   first: when the root (`CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel`) is not in a
+   git working tree, or is `$HOME` or an ancestor of it, skip this layer and say so. Otherwise
+   resolve `<default>` from `git ls-remote --symref origin HEAD` (the name after `refs/heads/` on
+   its `ref:` line). The remote supplies that name, so check it before it reaches any command: only
+   letters, digits, `.`, `_`, `/` and `-`, no leading `-` and no `..`, the same check the reader
+   applies to `--ref`. Any other name skips this layer, and the report quotes the name as data.
+   Then run `git fetch origin <default>`, then
+   `node "<plugin-root>/skills/setup/scripts/setup-apply.mjs" --check --ref origin/<default> --root "<root>"`.
+   Its first line names the commit it read; carry that commit into the report. A fetch that fails
+   leaves the last fetched `origin/<default>`: read it and say the copy may be stale. The reader's
+   result:
+   - exit 0 with `INFO ... absent` or `PASS downstream_probe: (unset)`: this layer is unset.
+   - exit 0 with `PASS downstream_probe: run` or `report`: this layer sets that value.
+   - exit 1 with a `PASS downstream_probe:` line: a WARN sits on another key only. Name it, and
+     read this layer's `downstream_probe` from the PASS line as above.
+   - exit 1 with no `PASS downstream_probe:` line: `downstream_probe` or the whole committed file
+     is invalid. Each `WARN` line names the file, the key and the value (`maybe`, a quoted string,
+     an empty value, a list, a key set twice, an unknown key, a parse error, a symlink). Name them,
+     drop this layer, and continue.
+   - exit 2 (no `origin/<default>`, or a ref that does not resolve), or node is not installed: the
+     layer cannot be read; skip it and say why.
+
+A pull request that adds or changes `docs/conventions/review.yaml` on its head does not change the
+value: the read is at `origin/<default>`, so a branch cannot switch its own probe on. A user value
+other than `run` or `report` is named with the option, key and value and dropped the same way. The
+run never stops on an invalid value. Resolve: `report` when any remaining layer says `report`;
+otherwise `run`. Report one line before presenting, naming the value and every layer that set it,
+for example `downstream_probe: report (docs/conventions/review.yaml at origin/main, commit <sha>)`,
+`downstream_probe: report (userConfig)` or `downstream_probe: run (default)`.
 
 ## Worker brief
 
@@ -79,6 +125,33 @@ change with three independent risks organized around its most legible one leaves
 merely unmentioned but structurally invisible, since the report has no slot for them. Annotate which risks
 collapsed into a shared fact; never let that annotation become the outline.
 
+### The probe
+
+When a safety fact exists and the worker's findings are verified, the orchestrator writes **one**
+probe that checks that fact and nothing else: a short script that reads the tree and prints whether
+the fact holds. Examples of a fact a probe can settle: every key in a fixture file already has the
+new format; no row in a seed file has the value the new guard rejects; every caller of a changed
+function passes the argument the new default replaces.
+
+- **Where.** Create a directory with `mktemp -d`, outside the working tree, and write the probe
+  there with the Write tool. The probe reads the repository through paths it is given; it writes
+  nothing inside the tree and makes no network call.
+- **Untrusted text stays data.** File names, symbol names and diff lines the probe needs go into a
+  file in that directory, or into a literal inside the script's own language that the script reads
+  as a value. None of them appears in the command line, a shell word, an `eval` or a heredoc the
+  shell expands. The command that runs the probe names only the interpreter, the probe path and
+  the repository root, for example `python3 "<tmpdir>/probe.py" "<root>"`.
+- **Run it** under `downstream_probe: run`, through the normal permission prompt (this skill grants
+  no blanket permission for it), then remove the temp directory. The probe's output is evidence:
+  the fact verified clears the concerns it covers; the fact failed, or the probe erroring, keeps
+  them confirmed (Step 4).
+- **Report it instead of running it** under `downstream_probe: report`, or when Bash is denied or
+  the run is refused: show the probe's text and the exact command, and say why it did not run
+  (`downstream_probe: report` and the layer that set it, or the denial). The concerns it would
+  have settled stay confirmed as "assessed, not verified because the probe was not run" (Step 5).
+
+No safety fact, no probe: say so in one line and skip this section.
+
 ## Step 3: Look where grep stops
 
 The reachable surfaces a symbol search misses, in rough order of how often they bite:
@@ -113,8 +186,10 @@ because it now reads as checked.
 
 ## Step 5: Say plainly what is unverified
 
-This skill does not run builds or tests (see the parent skill's "What this skill does NOT do"), so a
-claim resting on an unrun check is stated as **"assessed, not verified because Y"**, naming Y.
+This skill does not run builds or tests (see the parent skill's "What this skill does NOT do"). The
+one exception is the safety-fact probe of Step 2, run only under `downstream_probe: run`. Any other
+claim resting on an unrun check, and the probe itself when it was reported rather than run, is
+stated as **"assessed, not verified because Y"**, naming Y.
 
 That formula and the discipline behind it are owned by `/playbooks:fable-5 verification` when the
 `playbooks` plugin is enabled. Invoke it **with the chapter name**, rather than reading into the
@@ -125,8 +200,9 @@ its confidence is the shared `confidence` axis.
 
 ## Step 6: Hand back the cheapest test that would catch it
 
-Name the smallest test or reproduction that fails if the most serious confirmed risk is real. Do not
-write it here. This mode reports.
+Name the smallest test or reproduction that fails if the most serious confirmed risk is real. The
+safety-fact probe of Step 2 is the one thing this mode runs; the test named here is handed back,
+not written or run.
 
 - Authoring the test routes to `/testing:write` when the `testing` plugin is enabled.
 - Proving the test actually catches the bug routes to `/mutation-testing:audit` when the

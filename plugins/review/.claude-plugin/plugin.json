@@ -23,6 +23,16 @@
       "title": "Ratchet offers",
       "description": "When on (default), /review:audit-enforceability stubs on a rung that counts violations offer /review:ratchet for a non-zero count once the rule exists. Off leaves the offer out. A repository's docs/conventions/review.yaml ratchet_offer wins over this option.",
       "default": true
+    },
+    "downstream_probe": {
+      "type": "string",
+      "title": "Downstream probe",
+      "description": "run (default): /review:quality-gate downstream mode writes one probe for its safety fact in a temp directory outside the tree and runs it. report: it shows the probe without running it. report here or in a repository's docs/conventions/review.yaml (default branch) wins over run.",
+      "default": "run",
+      "options": [
+        "run",
+        "report"
+      ]
     }
   }
 }

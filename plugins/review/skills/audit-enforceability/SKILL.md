@@ -118,7 +118,10 @@ the later layer wins:
    the granted command cannot write. It tells an absent key from a present but invalid one:
    - exit 0 with `INFO ... absent`, or `PASS ratchet_offer: (unset)`: this layer is unset.
    - exit 0 with `PASS ratchet_offer: true` or `false`: this layer sets that value.
-   - exit 1: the file is invalid. Each `WARN` line, or the one refusal line, names the file, the
+   - exit 1 with a `PASS ratchet_offer:` line: a WARN sits on another key only. Name it, and read
+     this layer's `ratchet_offer` from the PASS line as above.
+   - exit 1 with no `PASS ratchet_offer:` line: `ratchet_offer` or the whole file is invalid.
+     Each `WARN` line, or the one refusal line, names the file, the
      key and the value (an empty value, `null`, a quoted `"false"`, a list such as `[]`, a key set
      twice, an unknown key, a parse error). The layer is present and invalid: drop it and resolve
      `true` from the default, never from userConfig.

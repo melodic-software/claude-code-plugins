@@ -4,14 +4,23 @@
 //
 // Usage:
 //   setup-apply.mjs [--root <dir>] [--yes] <key>=<value> ...
-//   setup-apply.mjs [--root <dir>] --check
+//   setup-apply.mjs [--root <dir>] --check [--ref <ref>]
 //
 //   --root <dir>  repository root; default: git's toplevel for the current
 //                 directory. The file is always <root>/docs/conventions/review.yaml.
 //   --yes         the operator has seen the diff and confirmed it; needed to
 //                 change a file that already exists.
 //   --check       validate the existing file and print one INFO, PASS or WARN
-//                 line per finding; write nothing.
+//                 line per finding; write nothing. A WARN on one key's value
+//                 leaves a PASS line for every other key; a parse error or
+//                 an unknown key leaves none. Exit 1 on any WARN.
+//   --ref <ref>   with --check only: validate the file as committed at <ref>
+//                 instead of the working tree's copy, and print the commit
+//                 read. <ref> is a 40-hex commit id or origin/<name>, checked
+//                 before any git call; origin/<name> is read only from
+//                 refs/remotes/origin/<name>, matched exactly, and exits 2
+//                 when that ref is absent. A policy-floor key is read this way
+//                 from the default branch, so a branch cannot set its own.
 //
 // The allowed values of a key come from the schema: `true` and `false` for a
 // boolean key, the listed strings for an enum key. Each key may be given once.
@@ -76,18 +85,28 @@ const args = process.argv.slice(2);
 let root = "";
 let yes = false;
 let check = false;
+let ref = null;
 const pairs = [];
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
   if (a === "--root") {
     if (i + 1 >= args.length) die(2, "--root needs a directory");
     root = args[++i];
+  } else if (a === "--ref") {
+    if (i + 1 >= args.length) die(2, "--ref needs a commit id or origin/<name>");
+    ref = args[++i];
   } else if (a === "--yes") yes = true;
   else if (a === "--check") check = true;
   else if (/^[^=-][^=]*=/.test(a)) pairs.push(a);
-  else die(2, `unexpected argument: ${a}; usage: setup-apply.mjs [--root <dir>] [--yes] <key>=<value> ... | --check`);
+  else die(2, `unexpected argument: ${a}; usage: setup-apply.mjs [--root <dir>] [--yes] <key>=<value> ... | --check [--ref <ref>]`);
 }
 if (check && pairs.length) die(2, "--check takes no <key>=<value> arguments");
+if (ref !== null && !check) die(2, "--ref is a --check option; a write always targets the working tree");
+// Only a full commit id or origin/<name>: nothing git could read as an option,
+// a revision range, a path or a reflog expression.
+if (ref !== null && !(/^[0-9a-f]{40}$/.test(ref) || (/^origin\/[A-Za-z0-9._/-]+$/.test(ref) && !ref.includes("..") && !ref.startsWith("origin/-")))) {
+  die(2, `invalid --ref ${JSON.stringify(ref)}; expected a 40-hex commit id or origin/<name>`);
+}
 if (!check && !pairs.length) die(2, "nothing to write; pass at least one <key>=<value>");
 
 if (!root) {
@@ -128,7 +147,7 @@ const target = join(root, REL);
 
 // Refuse any path shape that could send a write somewhere other than
 // <root>/docs/conventions/review.yaml. Returns true when the target exists.
-function checkPath() {
+function checkRoot() {
   const realRoot = real(root);
   const home = homedir();
   if (home) {
@@ -142,6 +161,11 @@ function checkPath() {
       die(1, `the root ${root} is $HOME or an ancestor of it, not a repository; nothing written`);
     }
   }
+  return realRoot;
+}
+
+function checkPath() {
+  const realRoot = checkRoot();
   for (const part of ["docs", "docs/conventions"]) {
     const st = lstatOrNull(join(root, part));
     if (!st) return false;
@@ -216,7 +240,9 @@ function topLevelLines(text) {
 }
 
 // Validate a whole document. Returns { key, msg, fixable } problems; [] means
-// valid. key is the schema key a fixable problem sits on.
+// valid. key is the schema key a value problem sits on, null for a problem
+// with the whole file (a parse error, an unknown key); fixable marks a value
+// apply may overwrite.
 function validate(text) {
   const parsed = spawnSync("awk", ["-f", PARSER], {
     input: text,
@@ -226,7 +252,7 @@ function validate(text) {
   if (parsed.status !== 0) {
     const err = (parsed.stdout ?? "").split("\n").find((l) => l.startsWith("error\t")) ?? "error\t?\tunreadable";
     const [, line, msg] = err.split("\t");
-    return [{ msg: `line ${line}: ${msg}`, fixable: false }];
+    return [{ key: null, msg: `line ${line}: ${msg}`, fixable: false }];
   }
   const records = parsed.stdout
     .split("\n")
@@ -239,10 +265,10 @@ function validate(text) {
     });
   const tops = topLevelLines(text);
   const problems = [];
-  const bad = (msg, key = null) => problems.push({ key, msg, fixable: key !== null });
+  const bad = (msg, key = null, fixable = key !== null) => problems.push({ key, msg, fixable });
   const seen = new Set();
   for (const { key } of tops) {
-    if (seen.has(key)) bad(`key ${key} is set more than once`);
+    if (seen.has(key)) bad(`key ${key} is set more than once`, Object.hasOwn(keys, key) ? key : null, false);
     seen.add(key);
   }
   for (const key of new Set([...tops.map((t) => t.key), ...records.map((r) => r.top)])) {
@@ -255,9 +281,9 @@ function validate(text) {
     const { raw } = line;
     const shown = raw ? `${k}=${raw}` : k;
     if (records.some((r) => r.top === k && r.nested) || /^[[{]/.test(raw)) {
-      bad(`${shown} holds a map or a list; it takes one of ${values}`);
+      bad(`${shown} holds a map or a list; it takes one of ${values}`, k, false);
     } else if (raw === '""' || raw === "''") {
-      bad(`${shown} is an empty quoted string; it takes one of ${values}`);
+      bad(`${shown} is an empty quoted string; it takes one of ${values}`, k, false);
     } else if (raw === "") {
       bad(`${k} is empty; it takes one of ${values}`, k);
     } else if (/^(null|Null|NULL|~)$/.test(raw)) {
@@ -270,8 +296,44 @@ function validate(text) {
   return [...new Map(problems.map((p) => [p.msg, p])).values()];
 }
 
+// The file as committed at --ref: { sha, text }, text null when the commit has
+// no such path. Every git argument is the validated ref, a resolved object id
+// or a fixed string, passed without a shell.
+function readAtRef() {
+  checkRoot();
+  const git = (...a) => spawnSync("git", ["-C", root, ...a], { encoding: "utf8" });
+  // origin/<name> is read only from refs/remotes/origin/<name>, matched exactly
+  // by show-ref. rev-parse would apply its short-name lookup, where a local
+  // branch, a tag or a refs/... look-alike can win or stand in for it.
+  let commitish = ref;
+  if (ref.startsWith("origin/")) {
+    const shown = git("show-ref", "--verify", "--hash", "--end-of-options", `refs/remotes/${ref}`);
+    commitish = shown.status === 0 ? shown.stdout.trim() : "";
+    if (!/^[0-9a-f]{40}$/.test(commitish)) die(2, `--ref ${ref}: refs/remotes/${ref} does not exist`);
+  }
+  const rev = git("rev-parse", "--verify", "--quiet", "--end-of-options", `${commitish}^{commit}`);
+  const sha = rev.status === 0 ? rev.stdout.trim() : "";
+  if (!/^[0-9a-f]{40}$/.test(sha)) die(2, `--ref ${ref} does not resolve to a commit`);
+  const tree = git("ls-tree", "-z", "--full-tree", sha, "--", REL);
+  if (tree.status !== 0) die(1, `${REL} at ${ref} (${sha}): could not list it`);
+  const entry = tree.stdout.split("\0").find(Boolean);
+  if (!entry) return { sha, text: null };
+  const [mode, type, oid] = entry.split("\t")[0].split(" ");
+  if (type !== "blob" || !/^1006[0-7]{2}$/.test(mode)) {
+    process.stdout.write(`WARN ${REL} at ${ref} (${sha}): not a regular file (mode ${mode})\n`);
+    process.exit(1);
+  }
+  const blob = git("cat-file", "blob", oid);
+  if (blob.status !== 0) die(1, `${REL} at ${ref} (${sha}): could not read it`);
+  return { sha, text: blob.stdout };
+}
+
 let existing = null;
-if (checkPath()) {
+if (ref !== null) {
+  const at = readAtRef();
+  process.stdout.write(`INFO read ${REL} at ${ref}, commit ${at.sha}\n`);
+  existing = at.text;
+} else if (checkPath()) {
   try {
     existing = readFileSync(target, "utf8");
   } catch (e) {
@@ -284,16 +346,17 @@ if (check) {
     process.stdout.write(`INFO ${REL}: absent; every key resolves from userConfig or its default\n`);
     process.exit(0);
   }
+  // A bad value drops only its own key (ADR 0054 Decision 7): every other key
+  // still gets its PASS line. A problem with the whole file leaves no PASS.
   const problems = validate(existing);
-  if (problems.length) {
-    process.stdout.write(problems.map((p) => `WARN ${REL}: ${p.msg}\n`).join(""));
-    process.exit(1);
-  }
+  process.stdout.write(problems.map((p) => `WARN ${REL}: ${p.msg}\n`).join(""));
+  if (problems.some((p) => p.key === null)) process.exit(1);
   for (const k of Object.keys(keys)) {
+    if (problems.some((p) => p.key === k)) continue;
     const v = spawnSync("bash", [READER, "-", k], { input: existing, encoding: "utf8" }).stdout.trim();
     process.stdout.write(`PASS ${k}: ${v || "(unset)"}\n`);
   }
-  process.exit(0);
+  process.exit(problems.length ? 1 : 0);
 }
 
 const wanted = new Map();

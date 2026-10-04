@@ -285,6 +285,118 @@
         "Raises no finding for the console.log call",
         "Names, or acts on, the ESLint rules that already cover both"
       ]
+    },
+    {
+      "id": 23,
+      "name": "downstream-probe-userconfig-report-only",
+      "prompt": "/review:quality-gate downstream\n\nMy branch changes normalize_sku() in src/catalog/sku.py to lowercase every SKU before lookup. The safety fact is that every SKU in data/skus.csv is already lowercase. [origin/main has no docs/conventions/review.yaml. The downstream_probe userConfig option is set to report.]",
+      "expected_output": "Only the user layer sets the key, so downstream_probe resolves report from userConfig. The report names that layer, shows the probe that would count uppercase SKUs in data/skus.csv and the command that would run it, and does not run it. The lowercase-SKU fact stays assessed, not verified, because the probe was not run.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Output reports downstream_probe as report with userConfig as the supplying layer",
+        "Output shows the probe text and its command without running it",
+        "Output keeps the lowercase-SKU concern as assessed, not verified, rather than clearing it"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "downstream-probe-repository-report-only",
+      "prompt": "/review:quality-gate downstream\n\nMy branch changes normalize_sku() in src/catalog/sku.py to lowercase every SKU before lookup. The safety fact is that every SKU in data/skus.csv is already lowercase. [origin/main's committed docs/conventions/review.yaml is captured in evals/fixtures/review-downstream-probe-report.yaml relative to the skill directory. The downstream_probe userConfig option is unset: the skill text shows the literal placeholder.]",
+      "expected_output": "The user layer is unset and the repository file on the default branch says report, so downstream_probe resolves report from docs/conventions/review.yaml. The skill fetches origin's default branch, reads the file there with setup-apply.mjs --check --ref origin/main, and names the commit it read. The probe is shown, not run.",
+      "files": [
+        "evals/fixtures/review-downstream-probe-report.yaml"
+      ],
+      "expectations": [
+        "Output reports downstream_probe as report with docs/conventions/review.yaml at origin/main as the supplying layer",
+        "Output names the commit the repository value was read from",
+        "Output treats the unexpanded userConfig placeholder as unset, not as an invalid value",
+        "Output does not run the probe"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "downstream-probe-repository-report-beats-user-run",
+      "prompt": "/review:quality-gate downstream\n\nMy branch changes normalize_sku() in src/catalog/sku.py to lowercase every SKU before lookup. The safety fact is that every SKU in data/skus.csv is already lowercase. [origin/main's committed docs/conventions/review.yaml is captured in evals/fixtures/review-downstream-probe-report.yaml relative to the skill directory. The downstream_probe userConfig option is set to run.]",
+      "expected_output": "The user option's run equals the default and reads as the default. The key is a policy floor, so report from the repository file wins over run: downstream_probe resolves report, naming docs/conventions/review.yaml at origin/main. The probe is shown and not run.",
+      "files": [
+        "evals/fixtures/review-downstream-probe-report.yaml"
+      ],
+      "expectations": [
+        "Output reports downstream_probe as report, not run",
+        "Output names docs/conventions/review.yaml as the layer that set report",
+        "Output does not run the probe"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "downstream-probe-user-report-beats-repository-run",
+      "prompt": "/review:quality-gate downstream\n\nMy branch changes normalize_sku() in src/catalog/sku.py to lowercase every SKU before lookup. The safety fact is that every SKU in data/skus.csv is already lowercase. [origin/main's committed docs/conventions/review.yaml is captured in evals/fixtures/review-downstream-probe-run.yaml relative to the skill directory. The downstream_probe userConfig option is set to report.]",
+      "expected_output": "The repository file says run and the user option says report. A later layer would pick run, but this key is a policy floor: report in any layer wins, so downstream_probe resolves report from userConfig and the probe is shown, not run.",
+      "files": [
+        "evals/fixtures/review-downstream-probe-run.yaml"
+      ],
+      "expectations": [
+        "Output reports downstream_probe as report with userConfig as the layer that set it",
+        "Output does not let the repository's run override the user's report",
+        "Output does not run the probe"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "downstream-probe-neither-layer-runs-probe-outside-the-tree",
+      "prompt": "/review:quality-gate downstream\n\nMy branch changes normalize_sku() in src/catalog/sku.py to lowercase every SKU before lookup. The safety fact is that every SKU in data/skus.csv is already lowercase. [origin/main has no docs/conventions/review.yaml. The downstream_probe userConfig option is unset: the skill text shows the literal placeholder. Bash is allowed.]",
+      "expected_output": "Neither layer sets the key, so downstream_probe resolves run from the default. After the worker's findings are verified, the orchestrator creates a directory with mktemp -d outside the working tree, writes one probe there that checks data/skus.csv for uppercase SKUs, and runs it with a command naming only the interpreter, the probe path and the repository root. The probe's result decides whether the lowercase-SKU concern is cleared or stays confirmed, and the temp directory is removed.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Output reports downstream_probe as run with the default as the supplying layer",
+        "Output writes exactly one probe, in a mktemp -d directory outside the working tree",
+        "Output runs the probe with no SKU value, file name or diff text in the command line",
+        "Output uses the probe's result to clear or confirm the lowercase-SKU concern"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "downstream-probe-branch-change-to-review-yaml-is-ignored",
+      "prompt": "/review:quality-gate downstream\n\nMy branch changes normalize_sku() in src/catalog/sku.py to lowercase every SKU before lookup, and it also edits docs/conventions/review.yaml to the content of evals/fixtures/review-downstream-probe-run.yaml relative to the skill directory. The safety fact is that every SKU in data/skus.csv is already lowercase. [origin/main's committed docs/conventions/review.yaml is captured in evals/fixtures/review-downstream-probe-report.yaml. The downstream_probe userConfig option is unset: the skill text shows the literal placeholder.]",
+      "expected_output": "The branch's own edit to docs/conventions/review.yaml does not count: the repository value is read from origin/main after a fetch, where it says report. downstream_probe resolves report from docs/conventions/review.yaml at origin/main, the commit read is named, and the probe is shown, not run.",
+      "files": [
+        "evals/fixtures/review-downstream-probe-run.yaml",
+        "evals/fixtures/review-downstream-probe-report.yaml"
+      ],
+      "expectations": [
+        "Output reads the repository value at origin/main, not from the branch's working tree",
+        "Output reports downstream_probe as report and names the commit read",
+        "Output does not run the probe"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "downstream-probe-invalid-repository-value-is-named-and-dropped",
+      "prompt": "/review:quality-gate downstream\n\nMy branch changes normalize_sku() in src/catalog/sku.py to lowercase every SKU before lookup. The safety fact is that every SKU in data/skus.csv is already lowercase. [origin/main's committed docs/conventions/review.yaml is captured in evals/fixtures/review-downstream-probe-invalid.yaml relative to the skill directory. The downstream_probe userConfig option is unset: the skill text shows the literal placeholder. Bash is allowed.]",
+      "expected_output": "The committed file holds maybe, which is neither run nor report. The run names docs/conventions/review.yaml, the key downstream_probe and the value maybe, drops that layer, and continues: no other layer says report, so downstream_probe resolves run from the default and the review goes on.",
+      "files": [
+        "evals/fixtures/review-downstream-probe-invalid.yaml"
+      ],
+      "expectations": [
+        "Output names docs/conventions/review.yaml, downstream_probe and the invalid value maybe",
+        "Output continues the review instead of stopping",
+        "Output resolves run from the default"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "downstream-probe-bash-denied-reports-the-probe",
+      "prompt": "/review:quality-gate downstream\n\nMy branch changes normalize_sku() in src/catalog/sku.py to lowercase every SKU before lookup. The safety fact is that every SKU in data/skus.csv is already lowercase. [origin/main has no docs/conventions/review.yaml. The downstream_probe userConfig option is set to run. Every Bash call to run the probe is denied by the permission system.]",
+      "expected_output": "downstream_probe resolves run (default): the user option's run equals the default and reads as the default. The probe cannot run because Bash is denied. The skill shows the probe text and the command it would have run, says it did not run because Bash was denied, and keeps the lowercase-SKU concern as assessed, not verified, in the confirmed list.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Output shows the probe text and the command it would have run",
+        "Output says the probe did not run because Bash was denied",
+        "Output keeps the lowercase-SKU concern in the confirmed list as assessed, not verified"
+      ]
     }
   ]
 }

@@ -11,6 +11,11 @@
       "description": "When true, /review:audit-enforceability adds a Ratchet offer section to each proposal stub whose rung reports a violation count: once the rule exists, a non-zero count goes to /review:ratchet and a zero count lands the rule. False leaves the section out.",
       "type": "boolean",
       "default": true
+    },
+    "downstream_probe": {
+      "description": "Policy floor. run: /review:quality-gate downstream mode writes one probe for its single safety fact in a temporary directory outside the tree and runs it. report: it states the probe and does not run it. report in this file or in the user's option wins over run in the other. Read from the default branch's committed copy, so a pull request cannot change it for its own review.",
+      "enum": ["run", "report"],
+      "default": "run"
     }
   }
 }

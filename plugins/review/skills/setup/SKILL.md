@@ -44,15 +44,21 @@ file is absent (every key comes from `userConfig` or its default); PASS with eac
 it validates; WARN when it does not (a value outside the key's values, a quoted boolean, a key set
 twice, an empty value, an unknown key, a file that does not parse, or a map or list where one value
 belongs), quoting the file, key and value.
-A WARN never stops a review skill: the skill names the value and drops that layer, and `apply` is
-the fix.
+A WARN never stops a review skill: the skill names the value and drops that layer for the key the
+WARN names. Any whole-file problem prints no PASS line and drops the layer for every key: a parse
+error, an unknown key, or a refusal of the file itself (a symlink, a hard link, a path outside the
+repository, a target that is not a regular file, an unreadable file, a committed entry that is not
+a regular file). `apply` is the fix.
 
 **`apply`.**
 
 1. **Resolve the values.** With complete `<key>=<value>` arguments, use them. Otherwise ask one key
    at a time, recommendation first, from the table in `${CLAUDE_PLUGIN_ROOT}/reference/config.md` (`ratchet_offer`:
-   `true`, the default, unless the team does not want stubs to offer `/review:ratchet`). Never
-   invent a key the schema does not list.
+   `true`, the default, unless the team does not want stubs to offer `/review:ratchet`;
+   `downstream_probe`: `run`, the default, unless the team wants `/review:quality-gate downstream`
+   to state its probe without running it, in which case `report`). Never invent a key the schema
+   does not list. `downstream_probe` is a policy floor read from the default branch, so a value
+   written here takes effect once it is merged there.
 2. **Write.** One call with every value:
 
    ```bash

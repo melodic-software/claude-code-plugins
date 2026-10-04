@@ -410,6 +410,178 @@ one_line "case 19: a temp name already taken" "$out"
 assert_eq "case 19: a temp file this run did not create is kept" "someone else" \
   "$(cat "$R19P/docs/conventions/.review.yaml.4242.tmp")"
 
+# --- Case 20: downstream_probe takes run or report (the schema's enum) ---------
+R20="$(new_root c20)"
+run --root "$R20" downstream_probe=report >/dev/null
+assert_eq "case 20: downstream_probe=report exits 0" "0" "$?"
+assert_eq "case 20: the file holds downstream_probe: report" "1" "$(grep -cx 'downstream_probe: report' "$(yaml_of "$R20")")"
+out="$(run --root "$R20" --check)"
+assert_contains "case 20: --check reports downstream_probe" "$out" "PASS downstream_probe: report"
+assert_contains "case 20: --check reports the unset ratchet_offer" "$out" "PASS ratchet_offer: (unset)"
+for bad in maybe Run true ''; do
+  run --root "$(new_root "c20-$bad")" "downstream_probe=$bad" >/dev/null
+  assert_eq "case 20: downstream_probe=$bad exits 1" "1" "$?"
+done
+R20W="$(new_root c20w)"
+printf 'downstream_probe: maybe\n' >"$(yaml_of "$R20W")"
+out="$(run --root "$R20W" --check)"
+assert_eq "case 20: --check on downstream_probe: maybe exits 1" "1" "$?"
+assert_contains "case 20: the WARN names the key and the value" "$out" "downstream_probe=maybe"
+
+# --- Case 21: --check --ref reads the file as committed at a ref --------------
+# The fixture's origin/main commits downstream_probe: report; the working tree
+# (standing in for a pull request's head) says run. The ref read must report
+# the committed value and the commit it read.
+g() { git -C "$1" -c user.name=fixture -c user.email=fixture@example.invalid -c commit.gpgsign=false "${@:2}"; }
+R21="$TEST_TMPDIR/c21"
+mkdir -p "$R21/docs/conventions"
+g "$R21" init -q
+printf 'downstream_probe: report\n' >"$(yaml_of "$R21")"
+g "$R21" add docs/conventions/review.yaml
+g "$R21" commit -q -m base
+SHA21="$(g "$R21" rev-parse HEAD)"
+g "$R21" update-ref refs/remotes/origin/main "$SHA21"
+printf 'downstream_probe: run\n' >"$(yaml_of "$R21")"
+out="$(run --root "$R21" --check --ref origin/main)"
+assert_eq "case 21: --check --ref on a valid committed file exits 0" "0" "$?"
+assert_contains "case 21: the committed value is read, not the working tree's" "$out" "PASS downstream_probe: report"
+assert_contains "case 21: the commit read is reported" "$out" "$SHA21"
+out="$(run --root "$R21" --check --ref "$SHA21")"
+assert_eq "case 21: a 40-hex commit id is accepted" "0" "$?"
+assert_contains "case 21: a commit id reads the committed value" "$out" "PASS downstream_probe: report"
+
+g "$R21" rm -q -f docs/conventions/review.yaml
+g "$R21" commit -q -m absent
+g "$R21" update-ref refs/remotes/origin/main HEAD
+out="$(run --root "$R21" --check --ref origin/main)"
+assert_eq "case 21: a file absent at the ref exits 0" "0" "$?"
+assert_contains "case 21: a file absent at the ref is INFO absent" "$out" "absent"
+
+mkdir -p "$R21/docs/conventions"
+printf 'downstream_probe: maybe\n' >"$(yaml_of "$R21")"
+g "$R21" add docs/conventions/review.yaml
+g "$R21" commit -q -m invalid
+g "$R21" update-ref refs/remotes/origin/main HEAD
+out="$(run --root "$R21" --check --ref origin/main)"
+assert_eq "case 21: an invalid committed value exits 1" "1" "$?"
+assert_contains "case 21: the WARN names the committed key and value" "$out" "downstream_probe=maybe"
+
+g "$R21" rm -q -f docs/conventions/review.yaml
+mkdir -p "$R21/docs/conventions"
+ln -s ../../outside.yaml "$(yaml_of "$R21")"
+g "$R21" add docs/conventions/review.yaml
+g "$R21" commit -q -m symlink
+g "$R21" update-ref refs/remotes/origin/main HEAD
+out="$(run --root "$R21" --check --ref origin/main)"
+assert_eq "case 21: a committed symlink exits 1" "1" "$?"
+assert_contains "case 21: a committed symlink is a WARN" "$out" "WARN"
+
+# --- Case 22: --ref accepts only a commit id or origin/<name> -----------------
+PWNED22="$TEST_TMPDIR/pwned22"
+for bad in main HEAD~1 'origin/a..b' 'origin/-x' '--output=x' "origin/\$(touch $PWNED22)" 'origin/main:docs' ''; do
+  out="$(run --root "$R21" --check --ref "$bad")"
+  assert_eq "case 22: --ref '$bad' exits 2" "2" "$?"
+  one_line "case 22: --ref '$bad'" "$out"
+done
+assert_eq "case 22: no ref shape ran a substitution" "0" "$(exists "$PWNED22")"
+run --root "$R21" --check --ref origin/nope >/dev/null
+assert_eq "case 22: a ref that does not resolve exits 2" "2" "$?"
+run --root "$R21" --ref origin/main ratchet_offer=true >/dev/null
+assert_eq "case 22: --ref without --check exits 2" "2" "$?"
+run --root "$R21" --check --ref >/dev/null
+assert_eq "case 22: --ref with no value exits 2" "2" "$?"
+
+# --- Case 23: origin/<name> reads refs/remotes/origin/<name>, never a same-named ref
+# A pull request's head can be checked out as a local branch, or tagged, under
+# the name origin/main. Each shadow below commits downstream_probe: run; the
+# remote-tracking ref commits report, and only report may come back.
+R23="$TEST_TMPDIR/c23"
+mkdir -p "$R23/docs/conventions"
+g "$R23" init -q
+printf 'downstream_probe: report\n' >"$(yaml_of "$R23")"
+g "$R23" add docs/conventions/review.yaml
+g "$R23" commit -q -m base
+SHA23="$(g "$R23" rev-parse HEAD)"
+g "$R23" update-ref refs/remotes/origin/main "$SHA23"
+printf 'downstream_probe: run\n' >"$(yaml_of "$R23")"
+g "$R23" commit -q -a -m head
+# has_ref <root> <full ref>: 1 when the ref exists, else 0. Shadows are made
+# with update-ref, so a host setting such as tag.gpgsign cannot skip one.
+has_ref() { g "$1" show-ref --verify --quiet "$2" && echo 1 || echo 0; }
+for shadow in refs/heads/origin/main refs/tags/origin/main refs/origin/main; do
+  g "$R23" update-ref "$shadow" HEAD
+  assert_eq "case 23: the shadow $shadow exists" "1" "$(has_ref "$R23" "$shadow")"
+  out="$(run --root "$R23" --check --ref origin/main)"
+  assert_eq "case 23: with $shadow named origin/main, the read exits 0" "0" "$?"
+  assert_contains "case 23: with $shadow named origin/main, the value is the remote-tracking one" "$out" "PASS downstream_probe: report"
+  assert_contains "case 23: with $shadow named origin/main, the commit read is the remote-tracking one" "$out" "$SHA23"
+done
+
+# --- Case 25: with refs/remotes/origin/main absent, no look-alike ref stands in
+# Each shadow below would satisfy git's short-name lookup of
+# refs/remotes/origin/main. The documented result is exit 2: the layer cannot
+# be read and is skipped.
+R25="$TEST_TMPDIR/c25"
+mkdir -p "$R25/docs/conventions"
+g "$R25" init -q
+printf 'downstream_probe: run\n' >"$(yaml_of "$R25")"
+g "$R25" add docs/conventions/review.yaml
+g "$R25" commit -q -m head
+for shadow in refs/heads/refs/remotes/origin/main refs/tags/refs/remotes/origin/main \
+  refs/refs/remotes/origin/main refs/remotes/refs/remotes/origin/main \
+  refs/remotes/refs/remotes/origin/main/HEAD; do
+  g "$R25" update-ref "$shadow" HEAD
+  assert_eq "case 25: the shadow $shadow exists" "1" "$(has_ref "$R25" "$shadow")"
+  assert_eq "case 25: refs/remotes/origin/main is absent beside $shadow" "0" "$(has_ref "$R25" refs/remotes/origin/main)"
+  out="$(run --root "$R25" --check --ref origin/main)"
+  assert_eq "case 25: with only $shadow, the read exits 2" "2" "$?"
+  assert_eq "case 25: with only $shadow, no PASS line" "0" "$(printf '%s\n' "$out" | grep -c '^PASS')"
+  g "$R25" update-ref -d "$shadow"
+done
+
+# --- Case 24: a bad value drops only its own key; a bad file drops every key ----
+# ADR 0054 Decision 7 drops the layer an invalid value sits in, per key. A bad
+# ratchet_offer value must not void a valid downstream_probe: report, or the
+# policy floor would fall back to run.
+per_key() { # per_key <label> <ratchet_offer line(s)>
+  local r out
+  r="$(new_root "pk-$1")"
+  printf '%sdownstream_probe: report\n' "$2" >"$(yaml_of "$r")"
+  out="$(run --root "$r" --check)"
+  assert_eq "case 24: $1 still exits 1" "1" "$?"
+  assert_contains "case 24: $1 is a WARN" "$out" "WARN"
+  assert_contains "case 24: $1 keeps the valid key" "$out" "PASS downstream_probe: report"
+  assert_eq "case 24: $1 prints no PASS for the bad key" "0" "$(printf '%s\n' "$out" | grep -c '^PASS ratchet_offer')"
+}
+per_key "an out-of-list value" $'ratchet_offer: maybe\n'
+per_key "a quoted boolean" $'ratchet_offer: "false"\n'
+per_key "an empty value" $'ratchet_offer:\n'
+per_key "a null value" $'ratchet_offer: null\n'
+per_key "an empty quoted string" $'ratchet_offer: ""\n'
+per_key "a flow list" $'ratchet_offer: [true]\n'
+per_key "a block list" $'ratchet_offer:\n  - true\n'
+per_key "a key set twice" $'ratchet_offer: true\nratchet_offer: false\n'
+file_level() { # file_level <label> <file body>
+  local r out
+  r="$(new_root "fl-$1")"
+  printf '%s' "$2" >"$(yaml_of "$r")"
+  out="$(run --root "$r" --check)"
+  assert_eq "case 24: $1 exits 1" "1" "$?"
+  assert_eq "case 24: $1 prints no PASS line" "0" "$(printf '%s\n' "$out" | grep -c '^PASS')"
+}
+file_level "an unknown key" $'stray: 1\ndownstream_probe: report\n'
+file_level "a parse error" $'other: "open\ndownstream_probe: report\n'
+R24="$TEST_TMPDIR/c24"
+mkdir -p "$R24/docs/conventions"
+g "$R24" init -q
+printf 'ratchet_offer: maybe\ndownstream_probe: report\n' >"$(yaml_of "$R24")"
+g "$R24" add docs/conventions/review.yaml
+g "$R24" commit -q -m base
+g "$R24" update-ref refs/remotes/origin/main HEAD
+out="$(run --root "$R24" --check --ref origin/main)"
+assert_eq "case 24: a committed bad value exits 1" "1" "$?"
+assert_contains "case 24: a committed bad value keeps the valid key" "$out" "PASS downstream_probe: report"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

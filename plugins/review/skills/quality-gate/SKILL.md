@@ -3,7 +3,7 @@ description: "Single-lens review checkpoint between 'code works' and 'code is re
 argument-hint: "[self|code|architecture|security|spec|close-out|downstream|pr|criteria|slice|restatement]"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(git branch --show-current)", "Bash(git status --porcelain | head -20)", "Bash(gh pr list --json number,title,headRefName,baseRefName --limit 10 2>/dev/null || echo \"unknown\")", "Bash(gh pr list:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(gh api graphql:*)", "Bash(git ls-files --others --exclude-standard)", "Bash(git ls-remote --symref origin)", "Bash(git ls-remote --symref origin:*)", "Bash(git fetch origin)", "Bash(git fetch origin:*)", "Bash(git remote get-url:*)", "Bash(gh pr view:*)", "Bash(gh issue view:*)"]
+allowed-tools: ["Bash(git branch --show-current)", "Bash(git status --porcelain | head -20)", "Bash(gh pr list --json number,title,headRefName,baseRefName --limit 10 2>/dev/null || echo \"unknown\")", "Bash(gh pr list:*)", "Bash(git rev-parse:*)", "Bash(git merge-base:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)", "Bash(gh api graphql:*)", "Bash(git ls-files --others --exclude-standard)", "Bash(git ls-remote --symref origin)", "Bash(git ls-remote --symref origin:*)", "Bash(git fetch origin)", "Bash(git fetch origin:*)", "Bash(git remote get-url:*)", "Bash(gh pr view:*)", "Bash(gh issue view:*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs\" --check:*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs --check:*)"]
 shell: bash
 metadata:
   workflow-stage: review
@@ -70,6 +70,14 @@ Review is the quality checkpoint between "code works" and "code is ready." This 
 | "restatement review", "SSOT drift", markdown-heavy diff | **restatement** | [context/restatement.md](context/restatement.md) |
 
 Ambiguous → present the modes and ask. **Read the matching context file before proceeding.**
+
+**Downstream probe setting.** `downstream` mode reads one setting, `downstream_probe` (`run` or
+`report`, default `run`). The user's option is `${user_config.downstream_probe}`; a literal,
+unexpanded placeholder means unset. It is a policy floor: `report` from the user option or from
+the repository's `docs/conventions/review.yaml`, read from the default branch, wins. The resolution
+steps and the probe are in [context/downstream.md](context/downstream.md) ("Resolve
+`downstream_probe`" and Step 2); keys and level rule:
+[`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md).
 
 ## Step 0.5: Pre-flight gate (diff-consuming modes only)
 
@@ -142,7 +150,7 @@ Follow the selected context file. Two hard rules:
 
 ## What this skill does NOT do
 
-- **Does not run builds or tests**. Use the project's build/test tooling (or this plugin's `ecosystem-specialist` agent) separately
+- **Does not run builds or tests**. Use the project's build/test tooling (or this plugin's `ecosystem-specialist` agent) separately. One exception: `downstream` mode, under `downstream_probe: run`, runs the single probe it writes for its safety fact ([context/downstream.md](context/downstream.md) Step 2)
 - **Does not write or fix code**. It identifies issues; the implementer fixes them
 - **Does not fan out across many surfaces**. That is this plugin's `fanout` skill
 
@@ -155,6 +163,11 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
 <https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
 2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
+## Next
+
+`/verification:confirm`, when it is among the available skills, after an all-clear verdict, then
+PR creation; after fixes, a `self` re-run of this skill (Step 4).
 
 ## Gotchas
 
