@@ -32,7 +32,7 @@ your `PATH`.
   Native workflow diagnostics are unaffected; run the full integrations in CI.
 - **Graceful degrade.** When `actionlint` (or `jq`) is not on `PATH` the hook
   skips and says so, to both Claude (`additionalContext`) and you (`systemMessage`),
-  never a silent no-op. Each notice fires once per session and does not renew; the
+  never a silent no-op. Each notice fires once per session and agent and does not renew; the
   install route is on your copy only.
   A missing `node` is the exception: the hook does not launch, so it cannot say anything
   itself. The transcript shows a hook error notice, and lint does not run.
@@ -46,9 +46,9 @@ your `PATH`.
   finds Bash and runs the script. Absent: the hook does not launch and lint does not run.
   `/actionlint:setup check` reports it. [Install Node.js](https://nodejs.org/en/download).
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice, once per session. [Install jq](https://jqlang.org/download/).
+  visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).
 - **actionlint** on `PATH`. The linter itself. Absent: workflow lint skips
-  with a visible notice, once per session. See the
+  with a visible notice, once per session and agent. See the
   [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md).
   A SessionStart probe reports a missing `actionlint` once per session, from
   `prerequisites.json`, and the PostToolUse notice names the same install route. The two share

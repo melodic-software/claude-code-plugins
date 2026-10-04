@@ -44,7 +44,7 @@ pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAI
 table with one remediation line per FAIL. Do not modify anything.
 
 The lint pass and the format pass are independent; report each separately. Each skip notice
-appears once per session and does not repeat this session (README Requirements).
+appears once per session and agent and does not repeat this session (README Requirements).
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO. The hook exits through its enabled-gate before probing anything, so a deliberately

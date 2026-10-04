@@ -61,12 +61,12 @@ surfaces the syntax error back to Claude as advisory context.
 - **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`. Without
   node the hooks do not start and nothing is enforced.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice, once per session. [Install jq](https://jqlang.org/download/).
+  visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).
 - **goimports** on `PATH`. Like `typos-format`, `goimports` has no
   per-repo dependency-manager convention. It is conventionally
   `go install`ed to the machine-global `$GOPATH/bin`. It is never
   downloaded on the fly; if it is not present, the hook skips with a
-  visible notice, once per session; the user's copy carries the install route.
+  visible notice, once per session and agent; the user's copy carries the install route.
   [Install](https://pkg.go.dev/golang.org/x/tools/cmd/goimports):
   `go install golang.org/x/tools/cmd/goimports@latest` (requires a
   [Go toolchain](https://go.dev/dl/)).

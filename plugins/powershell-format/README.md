@@ -45,7 +45,7 @@ not inert data. A settings file may declare a
 pointing at PowerShell rule modules, and PSScriptAnalyzer **loads and runs** those
 modules' exported functions during analysis. The hook therefore never runs the
 analyzer under such a settings file without an explicit approval: it skips the
-format/lint run and reports a visible trust-gate notice, once per session. Your
+format/lint run and reports a visible trust-gate notice, once per session and agent. Your
 copy names the settings file and the approval marker to create; Claude's copy
 says the run was skipped and that approval is yours, without the command that
 grants it. To approve, review the settings file and every rule module it
@@ -81,7 +81,7 @@ directory outside the project.
   so without `node` the hooks do not launch and nothing is formatted, with no notice.
   [Install Node.js](https://nodejs.org/en/download).
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice, once per session. [Install jq](https://jqlang.org/download/).
+  visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).
 - **PowerShell 7+** (`pwsh`) on `PATH`
   ([install](https://learn.microsoft.com/powershell/scripting/install/installing-powershell)). The
   hook probes `pwsh` only; legacy Windows PowerShell 5.1 (`powershell.exe`) is not used. If absent,

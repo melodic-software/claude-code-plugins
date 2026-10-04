@@ -123,12 +123,12 @@ status, see <https://code.claude.com/docs/en/permissions#read-and-edit>. As of:
   trigger: that section starts listing Node as a dependency. A missing `node` is a hook launch
   error, not a skip notice, and `/typos-format:setup check` reports it.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice, once per session. [Install jq](https://jqlang.org/download/).
+  visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).
 - **typos** on `PATH`. Unlike Ruff or markdownlint-cli2, typos has no
   per-repo dependency-manager convention. It is a standalone Rust binary,
   installed at the machine level (cargo, Homebrew, Conda, pacman, or a
   pre-built binary). typos is never downloaded on the fly; if it is not
-  present, the hook skips with a visible notice, once per session; your copy carries the
+  present, the hook skips with a visible notice, once per session and agent; your copy carries the
   install route.
   [Install typos](https://github.com/crate-ci/typos#install). A SessionStart probe reports a
   missing `typos` once per session, from `prerequisites.json`, and the PostToolUse notice names
@@ -377,7 +377,7 @@ per-edit critical path, but it gives up more than it saves:
   classifier is sized against that budget.
 - **The missing-`typos` notice would go quiet.** Report-only findings already travel on
   `additionalContext` alone; this hook sets `systemMessage` only for a rewrite it applied (write
-  mode) and for the notice (once per session) that `typos` is not on `PATH`. As an async row,
+  mode) and for the notice (once per session and agent) that `typos` is not on `PATH`. As an async row,
   that notice would reach only Claude, once, and the skip would be invisible to the person who can
   install the binary.
 

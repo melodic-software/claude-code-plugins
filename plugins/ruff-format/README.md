@@ -54,12 +54,12 @@ own and runs only when your repo has opted into Ruff.
 - **Node.js** on `PATH`. Every hook row launches through `node hooks/exec-bash.mjs`, which
   finds Bash. A missing `node` is a hook launch error, not a skip notice.
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice, once per session. [Install jq](https://jqlang.org/download/).
+  visible notice, once per session and agent. [Install jq](https://jqlang.org/download/).
 - **Ruff** available to the repo. Installed in the repo's `.venv` (the hook
   resolves `.venv/bin/ruff`, or `.venv/Scripts/ruff.exe` on Windows, walking up
   from the edited file) or on `PATH`. Ruff is never downloaded on the fly; if
   it is not present while a Ruff config governs the repo, the hook skips with a
-  visible notice, once per session; the user's copy carries the install route.
+  visible notice, once per session and agent; the user's copy carries the install route.
   **Ruff 0.12+ is recommended**
   (tested against 0.15.20): earlier releases lack stabilized version-aware
   syntax errors, and on much older releases the flags the hook passes may be

@@ -66,7 +66,7 @@ config has chosen no Markdown style, so the hook does not run there at all
   `CLAUDE_PROJECT_DIR` is unset) a file outside every git working tree. From
   the session, a hook that linted a clean file and a hook that never linted
   look the same. Only missing prerequisites and the trust gate announce
-  themselves, each once per session. Silent in between. To tell the cases apart, wire a
+  themselves, each once per session and agent. Silent in between. To tell the cases apart, wire a
   [telemetry sink](../../docs/conventions/hook-telemetry/README.md) through
   `HOOK_TELEMETRY_SINK`: each run's envelope carries `status` `ok` for a lint
   that ran and `skipped` for every skip arm.
@@ -142,7 +142,7 @@ The hook requires the following tools:
 Missing prerequisites do not block an edit. Following Claude Code's
 [PostToolUse contract](https://code.claude.com/docs/en/hooks#posttooluse-decision-control),
 the hook exits `0` and reports a notice to both Claude (`additionalContext`)
-and you (`systemMessage`). Each notice is shown once per session and does not
+and you (`systemMessage`). Each notice is shown once per session and agent and does not
 renew. The `SessionStart` probe below uses the same notice key, so its notice is
 yours and Claude hears at the first per-edit skip.
 The binary probe re-runs on every Markdown edit and recovers mid-session when
@@ -182,7 +182,7 @@ load custom rules, Markdown-it plugins, and output formatters. Running it
 under such configuration executes code the repository supplies. The hook
 therefore never runs the linter under a code-loading configuration without an
 explicit approval: it skips the lint run and reports a visible trust-gate
-notice, once per session. Your copy names the risky files and the approval
+notice, once per session and agent. Your copy names the risky files and the approval
 marker to create; Claude's copy says the run was skipped and that approval is
 yours, without the command that grants it. To approve, review those files and
 their installed dependencies, then create the marker directory using the exact

@@ -60,7 +60,7 @@ formats on edit only when your repo has opted into Biome.
   tool break rather than a finding.
 - A **`biome.json`** or **`biome.jsonc`** in the repo, the opt-in.
 
-Each skip notice appears once per session; the missing-Biome notice's user copy carries the install
+Each skip notice appears once per session and agent; the missing-Biome notice's user copy carries the install
 route.
 
 A `SessionStart` probe reports a missing Biome binary before the first edit. It reads the tool's

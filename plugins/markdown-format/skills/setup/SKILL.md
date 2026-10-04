@@ -54,7 +54,7 @@ restores the FAIL semantics.
 2. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (for example telemetry's Bash builtin).
 3. **`jq`.** The pre-computed `jq` row, or the Bash probe when that row carries no result. FAIL if absent *and* the repository opted in per item 5: the
-   hook then skips with a visible notice, once per session (it does not repeat this
+   hook then skips with a visible notice, once per session and agent (it does not repeat this
    session), instead of formatting. Without
    that opt-in the hook decides the opt-in first and emits nothing at all, so report jq's
    absence as INFO there. The missing config, not jq, is why nothing happens.

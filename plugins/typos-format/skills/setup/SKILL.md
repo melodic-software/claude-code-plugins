@@ -69,10 +69,10 @@ restores the FAIL semantics. Node.js (step 8) is the exception: the enabled-gate
 1. **Bash version.** Check against the hook's documented floor (README Requirements),
    noting any features the hook degrades without (telemetry's `EPOCHREALTIME`, Bash 5.0+).
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
-   notice, once per session (it does not repeat this session), instead of running.
+   notice, once per session and agent (it does not repeat this session), instead of running.
 3. **typos binary.** The pre-computed `typos` row (the hook resolves PATH only, with no
    `.venv`-style per-repo convention). Report the resolved path and `typos --version` output when
-   found. FAIL when absent; the hook then skips with a visible notice, once per session (it does not
+   found. FAIL when absent; the hook then skips with a visible notice, once per session and agent (it does not
    repeat this session; your copy carries the install route), instead of running.
 4. **Consumer typos config (informational only).** The hook runs unconditionally and never
    gates on a config existing; typos resolves its own governing config (if any) directly from

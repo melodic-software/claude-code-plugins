@@ -82,7 +82,7 @@ and `.editorconfig` for formatting. It ships no rules of its own.
 
 ## Requirements
 
-Each missing-tool notice appears once per session; the `shellcheck` and `shfmt` notices carry
+Each missing-tool notice appears once per session and agent; the `shellcheck` and `shfmt` notices carry
 the install route on your copy only.
 
 - **Bash.** The hook is a Bash script. On native Windows, install
