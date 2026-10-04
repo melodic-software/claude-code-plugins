@@ -217,7 +217,7 @@ for round in 1 2 3; do
   assert_eq "edge: two real parallel writer processes leave one complete entry (round $round): it reads back whole" \
     "$(sed -n '2,10p' "$PAGE")" "$(dc "$S" slice "$KEY" 1)"
 
-  S="$TEST_TMPDIR/s-pard$round"
+  S="$TEST_TMPDIR/s-parread$round"
   racer "$S.go" "$SCRIPT" --cache-dir "$S" put "$URL" markdown "$PAGE" >/dev/null 2>&1 &
   p1=$!
   racer "$S.go" "$SCRIPT" --cache-dir "$S" put "$URL" markdown "$other" >/dev/null 2>&1 &
@@ -965,10 +965,10 @@ err="$(cfg bash "$SCRIPT" --whole-page-bytes 010 config 2>&1 >/dev/null)" || rc=
 assert_eq "config: a flag with a leading zero exits 2" "2 1" "$rc $(grep -c '^ERROR: --whole-page-bytes needs ' <<<"$err")"
 
 # An unknown key is inert: config reports it; nothing else notices.
-printf '%s\n' '{"colour": "blue", "ttl_seconds": 5}' >"$CFG_FILE"
+printf '%s\n' '{"shade": "blue", "ttl_seconds": 5}' >"$CFG_FILE"
 out="$(cfg bash "$SCRIPT" config)"
-assert_eq "config: an unknown key is reported as ignored, outside the layer lines" "ignored: colour (unknown key in the file)" \
-  "$(grep colour <<<"$out")"
+assert_eq "config: an unknown key is reported as ignored, outside the layer lines" "ignored: shade (unknown key in the file)" \
+  "$(grep shade <<<"$out")"
 assert_eq "config: an unknown key leaves the others" "ttl_seconds=5 layer=file" "$(grep '^ttl_seconds=' <<<"$out")"
 assert_eq "config: an unknown key adds no layer line" 9 "$(grep -c 'layer=' <<<"$out")"
 assert_eq "config: an unknown key warns nothing on other commands" "" "$(cfg bash "$SCRIPT" key "$URL" markdown 2>&1 >/dev/null)"
