@@ -2,7 +2,7 @@
 name: stage-normalizer
 description: "Runs one judgment stage of the /review:fanout normalization pipeline as its brief names it: Stage 0 extraction of reviewer output into records, or Stage 3 dedup. Holds Read only. Dispatched by /review:fanout and the /review:fanout-sweep workflow; not intended for direct ad-hoc use."
 tools: "Read"
-model: inherit
+model: inherit # reason: the fanout-sweep workflow and fanout skill pass model and effort per stage from the role map
 maxTurns: 10
 ---
 

@@ -108,6 +108,21 @@ test('every call names a plugin agent whose tools exclude Agent and Skill', asyn
   }
 })
 
+// The fan-out frontier guard (docs/plugin-philosophy.md): a stage running several agents never
+// runs them on the session's model, which may be the frontier one.
+const NON_FRONTIER = ['opus', 'sonnet', 'haiku']
+test('every fan-out (Review stage) agent pins a non-frontier model, or its call passes one', async () => {
+  const roles = { retrieval: { single: { model: 'sonnet', effort: 'low' } } }
+  const { calls } = await run({ diffBase: 'origin/main', slices: ['a.md', 'b.md'], roles })
+  const fanout = calls.filter(c => c.opts.phase === 'Review')
+  assert.equal(fanout.length, 6)
+  for (const c of fanout) {
+    const pinned = /^model:\s*([^\s#]+)/m.exec(frontmatter(c.opts.agentType))
+    const model = pinned && pinned[1] !== 'inherit' ? pinned[1] : c.opts.model
+    assert.ok(NON_FRONTIER.includes(model), `${c.opts.label} runs on ${model}, not a non-frontier model`)
+  }
+})
+
 test('named agents that pin effort pass neither model nor effort; an inheriting unpinned one passes the route', async () => {
   const roles = { retrieval: { single: { model: 'sonnet', effort: 'low' } } }
   const { calls } = await run({ diffBase: 'origin/main', slices: ['a.md'], roles })
