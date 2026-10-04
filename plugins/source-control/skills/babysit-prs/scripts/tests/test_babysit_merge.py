@@ -1318,6 +1318,46 @@ class AutoMergeArming(unittest.TestCase):
         )
         self.assertTrue(result["autoMerge"]["ready"], result["autoMerge"])
 
+    def test_renamed_security_caller_check_satisfies_the_security_lane(self) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
+                _check("pr-review / claude-review-status", "SUCCESS"),
+                _check("pr-review-security / security-review", "SUCCESS"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        self.assertTrue(result["autoMerge"]["ready"], result["autoMerge"])
+
+    def test_failing_renamed_security_caller_check_holds(self) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
+                _check("pr-review / claude-review-status", "SUCCESS"),
+                _check("pr-review-security / security-review", "FAILURE"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        self.assertFalse(result["autoMerge"]["ready"], result["autoMerge"])
+        self.assertIn(
+            "AI review check 'claude-security-review-status' has not "
+            "succeeded on the live head",
+            result["autoMerge"]["blockers"],
+        )
+
+    def test_other_callers_security_review_job_does_not_satisfy_renamed_lane(
+        self,
+    ) -> None:
+        result = self._evaluate(
+            [
+                _check("ci-status", None),
+                _check("pr-review / claude-review-status", "SUCCESS"),
+                _check("other / security-review", "SUCCESS"),
+            ],
+            mergeStateStatus="BLOCKED",
+        )
+        self.assertFalse(result["autoMerge"]["ready"], result["autoMerge"])
+
     def test_another_workflows_security_review_job_does_not_satisfy_the_lane(
         self,
     ) -> None:

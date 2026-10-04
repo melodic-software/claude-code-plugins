@@ -1,4 +1,4 @@
-name: claude-review
+name: pr-review-hosted
 
 # SYNC-MANAGED FILE: DO NOT EDIT IN THE CONSUMING REPOSITORY.
 # Source of truth: melodic-software/standards,
@@ -23,9 +23,10 @@ name: claude-review
 # `ubuntu-24.04` runner, which the standards `runner-policy` component admits
 # on a public repository. It is the hosted sibling of
 # components/claude-lanes/claude-review.yml, which names the private fleet
-# review label, and differs from it only in these comments and `runner`. The
-# workflow and job names are the same, so the check context is the same on
-# every target. A target manages one of the two, never both.
+# review label, and differs from it only in these comments, `runner` and the
+# workflow `name:`, which equals each file's stem. The job id is the same, so
+# the check context is the same on every target. A target manages one of the
+# two, never both.
 #
 # INTERIM: this per-visibility pair is removed when the runner choice moves
 # inside the ci-workflows reusable and runner-policy gains a cross-repo
@@ -69,7 +70,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  review:
+  pr-review:
     # A draft is work in progress and does not spend a review; the
     # ready_for_review trigger above is what delivers one when it is ready.
     if: github.event.pull_request.draft == false
@@ -79,7 +80,7 @@ jobs:
                              # reviewed-head marker comment
       id-token: write        # OIDC, mints the Claude GitHub App token (required
                              # even with an OAuth/API-key credential)
-    uses: melodic-software/ci-workflows/.github/workflows/claude-review.yml@0a99a32989ec1303fcbca233370f4210e888a0f4 # v0.32.0
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review.yml@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
     with:
       runner: ubuntu-24.04
     # Pass only the one named secret (least privilege) rather than

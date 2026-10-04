@@ -373,7 +373,8 @@ Fleet audits check, per wired producer hook:
   satisfies all three carve-out conditions, or is the one owner-approved exception named below,
   and its model-channel counterpart asserts no operator presence. Not mechanically gated, but reviewed per hook. No settings hook in the fleet meets all three
   today: `context-guard`'s operator menu, the site that did, now comes from its mod as a transcript
-  line (`$.ui.log`) and a band notice, neither of which reaches Claude, so it is no `systemMessage`.
+  line (`$.ui.log`) and a toast (`$.ui.toast`), with a notice row only on surfaces other than the
+  terminal, none of which reaches Claude, so it is no `systemMessage`.
   One site is admitted by owner-approved
   exception (#4679): `guardrails`' `block-hook-bypass.sh` operator-lever notice. That notice lists
   switches only the operator may flip (condition 1); stderr separately carries the verdict and the
@@ -405,15 +406,19 @@ quiet skip needs a sanctioned helper call or an explicit `# silent-skip-ok:` ann
 
 `context-guard`'s and `rate-limit-guard`'s mods add lines to tool results and prompts about the
 session's context and rate-limit windows, which the Frequency rule's "no countdown or budget line
-after tool results" would otherwise bar. They are admitted on this shape, and only on it:
+after tool results" would otherwise bar. They are admitted on this shape, and only on it (the owner
+amended the What bullet on 2026-10-04, dropping the standing-rule sentence):
 
 - **When.** One line per boundary crossing, one per approach margin (a set number of points before
   a boundary), and one restatement after a compaction, a resume, a `/branch`, a reload of the mod
   mid-session, or a `/clear`, only when the verdict is past the quiet one. Nothing on a call where
   no boundary moved.
-- **What.** Each line names its plugin and a verdict worded as a fact. It claims no authority and
-  gives no order. By default it carries no raw count; the operator can add figures through the
-  plugin's line-data option. The reading behind the verdict stays on the plugin's status tools.
+- **What.** Each line names its plugin and a verdict worded as a fact. The verdict names no action,
+  claims no authority and gives no order. `context-guard`'s boundary lines add that continuing is
+  the user's call, and may be followed by the dumb-zone save note or an operator-configured
+  `zones.json` action; `rate-limit-guard`'s lines carry the verdict only. By default a line carries
+  no raw count; the operator can add figures through the plugin's line-data option. The reading
+  behind the verdict stays on the plugin's status tools.
 - **Telemetry.** The guard mods emit an envelope only on a fire that acts: lines sent, an operator
   suggestion shown, a tool call denied. A fire that reached a decision and changed nothing emits
   none, which narrows the meaningful-outcome bullet above for these two producers.
