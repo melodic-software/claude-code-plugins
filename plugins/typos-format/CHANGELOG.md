@@ -3,6 +3,19 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.8] - 2026-10-04
+
+### Changed
+
+- **Hook text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** A report-only run reads `typos-format: <file> has N typo(s):` with no "report-only, NOT modified" status line; a write-mode run on a denied path adds why it was not rewritten in the heading. The residual heading loses "(advisory)". The allow-list pointer is one line, once per file, on each channel. An unchanged typo set on a re-edit sends nothing; it is sent again after a clean run, or after compaction or `/clear`, which a new `SessionStart` `compact|clear` row handles. A typos break reads `typos-format: typos failed on <file>:` and is sent once per distinct output. The missing-typos notice is composed from `prerequisites.json`, with the install route on the user's copy only, and no longer says it renews every eighth skip; its `degrade` text drops "edits still go through".
+
+## [0.9.7] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice and formatter probe rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
+
 ## [0.9.6] - 2026-10-04
 
 ### Changed

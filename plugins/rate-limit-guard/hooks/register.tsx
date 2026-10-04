@@ -547,7 +547,7 @@ export const register: Register = (on, options) => {
       $.tool.register({
         name: 'status',
         description:
-          "Read-only. This session's rate-limit windows and spend limit, with rate-limit-guard's verdict for each, as JSON.",
+          "Returns this session's plan rate-limit usage as JSON, from the last API response: `windows` keyed by kind (five_hour, seven_day, and any other window reported except the spend limit), each with `used_percentage`, `resets_at` and `verdict`; an overall `verdict`, the worst window's (`quiet`, `approach` at or above `approach_pct`, `edge` at or above `line_threshold`, or `unknown` when no window is reported); those two thresholds and `lanes_pause_edge`; and `spend_limit` when a gateway reports one. A window whose reset time has passed is left out. Call it when the user asks about usage limits or before starting long or parallel work. Do not poll it: by default rate-limit-guard adds a line to the next prompt or tool result when the 5-hour or 7-day window rises to approach or edge, or resets from edge. Read-only.",
         inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       }),
       $.command.register({

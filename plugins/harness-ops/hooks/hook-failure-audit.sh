@@ -14,7 +14,7 @@
 # kills a watched plugin's launch path does not take the detector with it. It
 # also covers the stale-session window no source-side gate can reach: hook
 # config is loaded at session start, so a session running when a fix lands on
-# disk keeps executing the dead config until restart — 22 further failures were
+# disk keeps executing the dead config until /reload-plugins or a restart; 22 further failures were
 # recorded in one live session AFTER the #2570 fix shipped (#2577).
 #
 # ADVISORY: never blocks, always exit 0. Registered on Stop, not
@@ -245,10 +245,31 @@ TAIL_BYTES="${HOOK_FAILURE_AUDIT_TAIL_BYTES:-2000000}"
 #   - launch failure        stderr carries an exec-failure signature. Signature
 #                           evidence decides this REGARDLESS of exit code.
 #   - completed non-zero    no signature, and exitCode is not 126 or 127.
+#   - stale config          no signature, exitCode 127, and the WHOLE stderr is
+#                           bash's missing-script-operand line: an optional
+#                           harness prefix, a shell token (`bash`, `sh`, or an
+#                           absolute path ending `/bash` or `/sh`), then
+#                           `<path>: No such file or directory`. Decided before
+#                           ambiguous. It is what a session prints when the
+#                           checkout behind a local-path marketplace deleted a
+#                           script the session's startup-loaded config still
+#                           names, and `/reload-plugins` is the remedy.
 #   - ambiguous             no signature, but exitCode is 126 or 127. Both
 #                           readings stay possible; the message says so plainly
 #                           and gives both remedies rather than picking one.
 # #2849's 126/127-OR-signature rule is too loose for the reason above.
+#
+# The attachment's `command` is the row's statusMessage whenever the row sets
+# one, which every row in this marketplace does, so the registered script is
+# usually not in the record at all. When `command` does look like a command line
+# (it names `${CLAUDE_PLUGIN_ROOT}` or a script file), the stale path's basename
+# must also be one of its tokens; basenames, because the same file appears as
+# `C:\...`, `C:/...`, mixed separators, or MSYS `/c/...`. A `line N:` segment
+# rules the class out: that is bash reporting a missing file from INSIDE a
+# script that did run. Accepted residual, resolved toward stale config: a
+# launched hook whose only stderr is a child `bash missing.sh` failure, and
+# which exits 127 with it, prints the same line and cannot be told apart when
+# `command` is a statusMessage.
 #
 # The signature set covers the exec-family wording and Claude Code's own
 # missing-executable wording (`executing hook command: Executable not found in
@@ -399,7 +420,19 @@ LINES=()
 # forgone saving is one fork on the warning path only: a turn with no failure
 # record exits above, before this line.
 SUMMARY=$(printf '%s' "$RECORDS" |
-  jq -cRs '[
+  jq -cRs '
+    def stale:
+      ((.stderr // "") | sub("[\\r\\n]+$"; "")) as $e
+      | (.command // "") as $c
+      | if .exitCode != 127 or ($e | test(": line [0-9]+: ")) then false
+        else ([$e | capture("^(?:Failed with non-blocking status code: )?(?:bash|sh|/[^:\\n]*/(?:bash|sh)): (?<p>[^\\n]+): No such file or directory$")?
+               | .p | split("/") | last | split("\\") | last] | first) as $b
+          | if $b == null or $b == "" then false
+            elif ($c | test("\\$\\{CLAUDE_PLUGIN_ROOT\\}|\\.(sh|bash|mjs|cjs|js|py|ps1)\\b")) # portability-ok: jq Oniguruma regex, not GNU grep or sed
+            then ($c | [splits("[\\s\"'"'"'/\\\\]+")] | any(. == $b)) # portability-ok: jq Oniguruma regex, not GNU grep or sed
+            else true end
+        end;
+    [
       split("\n")[] | fromjson?
       | select(.type? == "attachment") | .attachment
       | select(.type? == "hook_non_blocking_error")
@@ -409,6 +442,7 @@ SUMMARY=$(printf '%s' "$RECORDS" |
          class: (if ((.stderr // "")
                      | test("execvpe|execve\\(|exec format error|executing hook command: Executable not found in \\$PATH"; "i"))
                  then "launch"
+                 elif stale then "stale"
                  elif (.exitCode == 126 or .exitCode == 127) then "ambiguous"
                  else "completed" end),
          stderr: ((.stderr // "") | .[0:160])}
@@ -417,6 +451,7 @@ SUMMARY=$(printf '%s' "$RECORDS" |
     | map({hookName: .[0].hookName, command: .[0].command,
            count: length,
            launchCount: (map(select(.class == "launch")) | length),
+           staleCount: (map(select(.class == "stale")) | length),
            ambiguousCount: (map(select(.class == "ambiguous")) | length),
            completedCount: (map(select(.class == "completed")) | length),
            exitCode: last.exitCode, stderr: last.stderr})' 2>/dev/null)
@@ -475,6 +510,7 @@ DETAIL=$(jq -rn --argjson new "$NEW" --arg ph "$NO_STDERR_PLACEHOLDER" '
      else .stderr end) as $err |
     (if .exitCode == null then "?" else (.exitCode|tostring) end) as $ec |
     ([{n: .launchCount, label: "launch failure"},
+      {n: .staleCount, label: "stale config: registered script missing from disk"},
       {n: .ambiguousCount,
        label: "ambiguous: exit 126/127 with no exec-failure signature"},
       {n: .completedCount, label: "completed non-zero exit"}]
@@ -488,16 +524,17 @@ DETAIL=$(jq -rn --argjson new "$NEW" --arg ph "$NO_STDERR_PLACEHOLDER" '
 # value: a group whose only launch-failure record is not its last must still
 # raise the launch flag, and its own line above must still show the mix.
 #
-# All three flags come from ONE jq process over the same document rather than
-# three: a jq spawn is ~140 ms of fork() emulation on Windows Git Bash. `read`
-# assigns every name it is given even when the stream is short, so all three
+# All four flags come from ONE jq process over the same document rather than
+# four: a jq spawn is ~140 ms of fork() emulation on Windows Git Bash. `read`
+# assigns every name it is given even when the stream is short, so all four
 # stay defined under `set -u`. A Windows jq build ends the line with CRLF, and
 # the carriage return lands on the last name.
-read -r HAS_LAUNCH HAS_AMBIGUOUS HAS_COMPLETED < <(jq -rn --argjson new "$NEW" '
+read -r HAS_LAUNCH HAS_AMBIGUOUS HAS_COMPLETED HAS_STALE < <(jq -rn --argjson new "$NEW" '
   [([$new[] | .launchCount > 0]    | any),
    ([$new[] | .ambiguousCount > 0] | any),
-   ([$new[] | .completedCount > 0] | any)] | @tsv')
-HAS_COMPLETED="${HAS_COMPLETED%$'\r'}"
+   ([$new[] | .completedCount > 0] | any),
+   ([$new[] | .staleCount > 0]     | any)] | @tsv')
+HAS_STALE="${HAS_STALE%$'\r'}"
 
 # The diagnosis and the remedy are per-class, so several sentences can appear
 # when one warning batches records of different classes; the per-registration
@@ -511,14 +548,17 @@ MSG="harness-ops: ${TOTAL} hook failure(s) Claude Code did not show: ${DETAIL}."
 if [[ "$HAS_LAUNCH" == "true" ]]; then
   MSG="${MSG} A hook that fails to launch enforces nothing; the calls it guards ran unchecked (fail-open)."
 fi
+if [[ "$HAS_STALE" == "true" ]]; then
+  MSG="${MSG} A stale-config record means the hook's own script is missing from disk: this session is running hook config it loaded before the plugin changed, so that hook enforced nothing for the calls listed. Run /reload-plugins to load the current config, or restart the session."
+fi
 if [[ "$HAS_AMBIGUOUS" == "true" ]]; then
   MSG="${MSG} Exit 126/127 without an exec-failure signature can be the registered command or a command the hook ran. Both are possible: check the registered command, and read the hook's own logic."
 fi
 if [[ "$HAS_COMPLETED" == "true" ]]; then
   MSG="${MSG} A hook that exited non-zero with no exec-failure evidence enforced nothing; its exit status and stderr above say why."
 fi
-if [[ "$HAS_LAUNCH" == "true" || "$HAS_AMBIGUOUS" == "true" ]]; then
-  MSG="${MSG} Hook config changed mid-session loads only after a restart."
+if [[ "$HAS_STALE" != "true" && ("$HAS_LAUNCH" == "true" || "$HAS_AMBIGUOUS" == "true") ]]; then
+  MSG="${MSG} Hook config changed on disk mid-session is not loaded yet. Run /reload-plugins to load the current config, or restart the session."
 fi
 
 hook::emit_system_message "$MSG"

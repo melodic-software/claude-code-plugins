@@ -20,8 +20,8 @@ D/audit-sessions/
   itself is not stored because it encodes the working directory unredacted.
 - **One JSON file per session, replaced atomically.** Re-collecting a session rewrites its file, so
   a repeated run never double-counts. Collect skips a session whose transcript fingerprint is
-  unchanged, unless its record was written by another plugin version, under other excerpt
-  settings, or while redaction was failing closed and now is not (or the reverse); `--force`
+  unchanged, unless its record was written by a collector with another `collector_digest`, under
+  other excerpt settings, or while redaction was failing closed and now is not (or the reverse); `--force`
   re-ingests it regardless. Lowering `audit_sessions_excerpt_chars` to 0 therefore removes stored
   excerpts, titles and agent names on the next collect.
 - **Transcript text kept.** A record stores these strings from the transcript, each redacted before
@@ -70,7 +70,12 @@ D/audit-sessions/
 
 ## Schema versioning
 
-- Records carry `"schema": "session-record/v1"` and the plugin version that wrote them.
+- Records carry `"schema": "session-record/v1"`, the plugin version that wrote them
+  (`collector_version`, provenance only) and `collector_digest`: SHA-256 over the files that shape
+  a record, CRLF read as LF. Those files are `collect.py`, `census.py` and `redact.py`,
+  `vendor/gitleaks/gitleaks-rules.json`, and the plugin's `scripts/transcript_reader.py` and
+  `lib/state-key.sh` (`COLLECTOR_INPUTS` in `collect.py`). A record without the digest is
+  re-ingested once.
 - New fields are added within v1, and readers treat a missing field as null.
 - A breaking change moves the store to `store/v2/` and ships a v1-to-v2 migrator in `collect.py`.
   The store cannot be rebuilt from transcripts after Claude Code has swept them.

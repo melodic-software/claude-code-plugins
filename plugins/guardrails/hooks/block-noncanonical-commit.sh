@@ -7,7 +7,7 @@
 #   "<multi-line>"` flattens newlines unpredictably across shells, so a body
 #   that looked right in the tool call lands mangled in history. A multi-line
 #   message belongs on stdin — `git commit -F -` (or `--file -`), the form the
-#   /commit skill emits.
+#   /source-control:commit skill emits.
 #
 #   Only the actual-newline `-m` is the mangling hazard, so only it blocks
 #   (#2021): a wider gate denying every non-stdin `git commit`, single-line
@@ -18,13 +18,13 @@
 #   the body to a placeholder, so its content — multi-line by construction of
 #   the form — cannot be inspected, and the guard fails closed on it.
 #
-# WHY NOT `--trailer`: the trailer is POLICY, not mechanic. /commit itself
+# WHY NOT `--trailer`: the trailer is POLICY, not mechanic. /source-control:commit itself
 # omits it when the resolved trailer_policy is `none`, and a repo whose
 # convention forbids a co-author trailer is a documented, supported case.
 # Gating on it would permanently block the skill's own canonical output in that
 # configuration. Only the stdin form belongs in a gate.
 #
-# WHY NOT "did you type /commit": a hook cannot tell a skill-driven Bash call
+# WHY NOT "did you type /source-control:commit": a hook cannot tell a skill-driven Bash call
 # from an ad hoc one — the payload carries no originating-skill field, and the
 # upstream request to add one was declined. Gating on command SHAPE is what is
 # actually available, and is the better target anyway: it enforces the outcome
@@ -130,7 +130,7 @@ hook::buffer_stdin_to INPUT || {
 # (advisory hooks never block over a missing prerequisite) but makes the
 # degraded state visible to both the user (systemMessage) and the agent
 # (additionalContext), once per session and agent — see docs/conventions/hook-observability/.
-hook::require jq "PreToolUse" "guardrails-block-noncanonical-commit" "$INPUT"
+hook::require jq "PreToolUse" guardrails "$INPUT"
 
 # All three payload fields in ONE jq process (hook::jq_fields), not three. A jq
 # spawn is fork() emulation on Windows Git Bash and this guard runs on every
@@ -144,9 +144,7 @@ hook::jq_fields "$INPUT" '.tool_input.command' '.cwd' '.tool_name' || exit 0
 # A NUL byte in ANY field read above is fail-CLOSED (#2136): the helper strips NUL
 # bytes before matching, so a clean verdict would not reflect the bytes carried.
 if ((HOOK_JQ_FIELDS_NUL)); then
-  echo "BLOCKED: the payload carries a NUL byte, which a command cannot reliably carry." >&2
-  echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
-  echo "Fix: reissue the tool call without the embedded NUL." >&2
+  guard::refuse_nul
   exit 2
 fi
 
@@ -589,8 +587,7 @@ alias_reexpand_admit() {
   hook::git_alias_admit "$@"
   local rc=$?
   ((rc == 2)) || return "$rc"
-  echo "BLOCKED: checking this command's git alias chain needs more than $HOOK_ALIAS_WORK_MAX re-expansions — failing closed rather than stalling the guard." >&2
-  echo "Commit with \`git commit -F -\` (or the /commit skill), shorten the alias chain, or set the guardrails block_noncanonical_commit_enabled option to false to bypass." >&2
+  guard::refuse_alias_chain
   emit_tel "blocked" "alias-traversal-cap"
   exit 2
 }
@@ -672,8 +669,7 @@ check_segment() {
     # surface (fed by an ambient var, an inline/`env` prefix, an `export`, `set -a`, or a
     # nested `bash -c` in any wrapper); a commit smuggled through it cannot be verified,
     # and defining an alias this way on a guarded invocation is never canonical.
-    echo "BLOCKED: git alias '$sub' is defined via --config-env, so its expansion cannot be verified — failing closed." >&2
-    echo "Commit with \`git commit -F -\` (or the /commit skill), define aliases in git config, or set the guardrails block_noncanonical_commit_enabled option to false to bypass." >&2
+    guard::refuse_config_env_alias "$sub"
     emit_tel "blocked" "config-env-alias"
     exit 2
   fi
@@ -881,8 +877,8 @@ check_segment() {
 
   echo "BLOCKED: \`git commit -m\` with a multi-line message — a \`-m\` newline flattens" >&2
   echo "unpredictably across shells, so the body lands mangled in history." >&2
-  echo "Pipe the message via stdin instead: use the /commit skill (source-control" >&2
-  echo "plugin), or its canonical form directly:" >&2
+  echo "Pipe the message via stdin instead: use /source-control:commit, or its" >&2
+  echo "canonical form directly:" >&2
   if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     echo "  @'" >&2
     echo "  <subject>" >&2

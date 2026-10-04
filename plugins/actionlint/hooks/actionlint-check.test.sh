@@ -22,6 +22,9 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HOOK_DIR/actionlint-check.sh"
+# Claude Code sets the plugin root for every hook; the missing-tool notice reads
+# prerequisites.json from it.
+export CLAUDE_PLUGIN_ROOT="${HOOK_DIR%/*}"
 
 PASS=0
 FAIL=0
@@ -126,8 +129,57 @@ if printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null
   else
     ok "ctx free of consumer-specific policy prose"
   fi
+  # -oneline: one line per finding, no source excerpt or caret line, and the
+  # path is in the heading only.
+  if [[ "$CTX" == "actionlint: .github/workflows/violation.yml has findings:"$'\n'"  7:"* && "$(wc -l <<<"$CTX")" -eq 2 ]]; then
+    ok "violation -> one line per finding, path in the heading only"
+  else
+    fail "violation -> report shape: $CTX"
+  fi
 else
   fail "violation -> no additionalContext JSON: $OUT"
+fi
+
+# --- Case 3b: an unchanged finding set is sent once ---------------------------
+# With a data directory the set is sent on the first edit and not on the next;
+# telemetry still records it. A SessionStart compact resets the record, and a
+# clean run clears it, so the set is sent again when it returns.
+DELTA_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
+run_delta() {
+  run_hook_env "$1" CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true CLAUDE_PLUGIN_DATA="$DELTA_DATA" "${@:2}"
+}
+delta_ctx() { jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$1" 2>/dev/null; }
+D1=$(run_delta "$REPO/.github/workflows/violation.yml")
+TELD="$(mktemp "$WORK/teld.XXXXXX")"
+SINKD="$(make_sink "cat >\"$TELD\"")"
+D2=$(run_delta "$REPO/.github/workflows/violation.yml" HOOK_TELEMETRY_SINK="$SINKD")
+wait_for_sink "$TELD"
+if [[ "$(delta_ctx "$D1")" == *missing* && -z "$D2" ]]; then
+  ok "delta: an unchanged finding set is sent once, then nothing"
+else
+  fail "delta: first='$D1' second='$D2'"
+fi
+if [[ -s "$TELD" ]] && jq -e '.data.findings | map(test("missing")) | any' "$TELD" >/dev/null 2>&1; then
+  ok "delta: telemetry still records the finding the context left out"
+else
+  fail "delta: telemetry findings: $(cat "$TELD" 2>/dev/null)"
+fi
+printf '{"source":"compact"}' | env CLAUDE_PLUGIN_DATA="$DELTA_DATA" bash "$HOOK" --reset-digests
+D3=$(run_delta "$REPO/.github/workflows/violation.yml")
+if [[ "$(delta_ctx "$D3")" == *missing* ]]; then
+  ok "delta: SessionStart compact resets the record, so the set is sent again"
+else
+  fail "delta: after compact reset: '$D3'"
+fi
+VIOLATION_SRC="$(cat "$REPO/.github/workflows/violation.yml")"
+cp "$REPO/.github/workflows/clean.yml" "$REPO/.github/workflows/violation.yml"
+run_delta "$REPO/.github/workflows/violation.yml" >/dev/null
+printf '%s\n' "$VIOLATION_SRC" >"$REPO/.github/workflows/violation.yml"
+D4=$(run_delta "$REPO/.github/workflows/violation.yml")
+if [[ "$(delta_ctx "$D4")" == *missing* ]]; then
+  ok "delta: a finding that returns after a clean run is sent again"
+else
+  fail "delta: after clean run: '$D4'"
 fi
 
 # --- Case 4: workflow-shaped name OUTSIDE .github/workflows -> exit 0 silent -
@@ -319,7 +371,7 @@ run_absent() {
   (
     cd "$UNRELATED" || return 1
     printf '{"session_id":"test-absent-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/.github/workflows/clean.yml" |
-      env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$ABSENT_DATA" \
+      env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$ABSENT_DATA" CLAUDE_PLUGIN_ROOT="${HOOK_DIR%/*}" \
         CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true HOOK_TELEMETRY_SINK="$ABSENT_SINK" bash "$HOOK"
   )
 }
@@ -362,10 +414,11 @@ run_absent_as() {
 }
 MANIFEST="${HOOK_DIR%/*}/prerequisites.json"
 IFS=$'\t' read -r MF_NAME MF_CHECK MF_INSTALL < <(jq -r '.requires[0] | [.id, .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST")
-if jq -e --arg check "$MF_CHECK" --arg install "$MF_INSTALL" '.systemMessage | contains($check) and contains($install)' <<<"$OUT_ABS" >/dev/null 2>&1; then
-  ok "actionlint-absent -> first notice names /actionlint:check and the install route"
+if jq -e --arg check "$MF_CHECK" --arg install "$MF_INSTALL" '(.systemMessage | contains($check) and contains($install))
+    and (.hookSpecificOutput.additionalContext | startswith("actionlint: actionlint not on the hook PATH.") and contains($check) and (contains($install) | not))' <<<"$OUT_ABS" >/dev/null 2>&1; then
+  ok "actionlint-absent -> first notice names /actionlint:check; the install route reaches the user only"
 else
-  fail "actionlint-absent first notice lacks the check skill or install route: $OUT_ABS"
+  fail "actionlint-absent first notice: check skill or install route misplaced: $OUT_ABS"
 fi
 OUT_ABS3=$(run_absent_as "$ABSENT_DATA" test-absent-1 subagent-other)
 if jq -e '(.hookSpecificOutput.additionalContext | contains("actionlint")) and (has("systemMessage") | not)' \
@@ -449,7 +502,7 @@ if [[ $RC_MIN -eq 0 ]]; then ok "actionlint-absent (minimal PATH) -> exit 0"; el
 # The probed PATH goes to stderr (the debug log), never to a channel.
 if printf '%s' "$OUT_MIN" | jq -e '
   ((.hookSpecificOutput.additionalContext | contains("PATH probed:")) | not) and
-  (.hookSpecificOutput.additionalContext | contains("this notice does not repeat this session")) and
+  (.hookSpecificOutput.additionalContext | contains("No further notice this session")) and
   ((.systemMessage | contains("PATH probed:")) | not) and
   ((.hookSpecificOutput.additionalContext | contains("skipped for this session")) | not)
 ' >/dev/null 2>&1; then
@@ -484,6 +537,12 @@ if ln -s "$WORK/symlink-real" "$WORK/symlink-link" 2>/dev/null; then
     ok "symlinked root: no unreadable-target error from a basename-only target"
   else
     fail "symlinked root: actionlint got a nonexistent target: $CTX_SL"
+  fi
+  # The tool got the absolute path; the heading names the basename, never it.
+  if [[ "$CTX_SL" == "actionlint: violation.yml has findings:"$'\n'* && "$CTX_SL" != *"$WORK"* ]]; then
+    ok "symlinked root: the heading falls back to the basename, not the absolute path"
+  else
+    fail "symlinked root: heading fallback: $CTX_SL"
   fi
   # The redaction itself must still hold on the telemetry side: data.file is
   # the basename, never the absolute path that embeds the developer's username.
@@ -579,6 +638,12 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
 else
   fail "hooks.json launch-gate assertions need jq, $HOOKS_JSON and a hook::begin glob list made only of */.github/*workflows/*.<ext> patterns (begin='$BEGIN_LINE' off-shape=$OFF_SHAPE globs=(${SCRIPT_EXTS//$'\n'/ }) patterns: ${SCRIPT_PATTERNS//$'\n'/ })"
 fi
+# The SessionStart compact|clear row that resets the findings delta gate.
+if [[ "$(jq '[.hooks.SessionStart[] | select(.matcher == "compact|clear") | .hooks[] | select(.command == "node" and .args == ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/actionlint-check.sh", "--reset-digests"])] | length' "$HOOKS_JSON")" == "1" ]]; then
+  ok "hooks.json: one SessionStart compact|clear row runs the script with --reset-digests"
+else
+  fail "hooks.json: expected one SessionStart compact|clear --reset-digests row"
+fi
 
 # --- Gitignored path (#4671): not reported by default ------------------------
 # A missing-step expression is a real diagnostic; under an ignored tree it is
@@ -602,28 +667,12 @@ else
   fail "gitignored + opt-in: no diagnostic: $OUT"
 fi
 
-# --- Notice text is bound to prerequisites.json --------------------------------
-# The hook does not read the manifest at run time (parse cost on the per-edit hot
-# path), so this case is the binding: the manifest lists actionlint, jq and node,
-# and the hook's missing-binary notice call states the actionlint tool's name,
-# check and install, verbatim.
+# --- The manifest lists the plugin's tools --------------------------------------
 if jq -e '(.requires | map(.id)) == ["actionlint", "jq", "node"]' "$MANIFEST" >/dev/null 2>&1; then
   ok "manifest: declares exactly actionlint, jq and node"
 else
   fail "manifest: expected tools actionlint, jq and node: $(cat "$MANIFEST")"
 fi
-NOTICE_CALL="$(sed -n '/hook::tool_missing_notice_to AL_NOTICE/,/[^\\]$/p' "$HOOK")"
-# assert_hook_states <field> <needle>
-assert_hook_states() {
-  if [[ -n "$2" ]] && grep -qF -- "$2" <<<"$NOTICE_CALL"; then
-    ok "manifest binding: hook states the manifest's $1 ($2)"
-  else
-    fail "manifest binding: hook does not state the manifest's $1 (needle='$2')"
-  fi
-}
-assert_hook_states name "'$MF_NAME'"
-assert_hook_states check "$MF_CHECK"
-assert_hook_states install "$MF_INSTALL"
 
 # --- SessionStart probe honors actionlint_enabled ------------------------------
 # Runs the hooks.json SessionStart row as the harness spawns it: `node` with the

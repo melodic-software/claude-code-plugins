@@ -1,6 +1,6 @@
 {
   "name": "typos-format",
-  "version": "0.9.6",
+  "version": "0.9.8",
   "description": "Spell-check on edit via typos-cli, unconditionally. Report-only by default, honoring the consuming repo's own typos configuration when one is present.",
   "author": {
     "name": "Melodic Software",

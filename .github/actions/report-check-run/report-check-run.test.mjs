@@ -213,7 +213,7 @@ test("a ci-status activity exits non-zero with no API call", async () => {
   assert.equal(calls.length, 0);
 });
 
-test("an env gate reason no-pr with an empty env head SHA exits 0 with no API call", async () => {
+test("an env gate reason no-pr with an empty env head SHA POSTs neutral on the fallback head", async () => {
   const { code, calls } = await run({
     VERDICT_PATH: fixture("verdict-no-pr.json"),
     GATE_REASON: "no-pr",
@@ -221,7 +221,10 @@ test("an env gate reason no-pr with an empty env head SHA exits 0 with no API ca
     ACT_OUTCOME: "skipped",
   });
   assert.equal(code, 0);
-  assert.equal(calls.length, 0);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].body.conclusion, "neutral");
+  assert.equal(calls[0].body.head_sha, FALLBACK);
+  assert.equal(calls[0].body.output.summary, "Skip reason: untrusted-trigger");
 });
 
 test("a skip reason in the base schema's enum POSTs neutral", async () => {
