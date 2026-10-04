@@ -5,13 +5,13 @@
 #
 #   scripts/check-lane-coverage.sh --check [<workflow> [<aggregate-job-id> [<step-opt-out-list> [<peer-workflow-dir>]]]]
 #
-# Defaults: .github/workflows/ci.yml, the `ci-status` aggregate,
+# Defaults: .github/workflows/pr-require-checks.yml, the `ci-status` aggregate,
 # scripts/lane-coverage-step-opt-outs.txt, and .github/workflows as the peer
 # directory when the workflow is the default one (no peers otherwise).
 #
 # WHY. `ci-status` is the single check the org ci-gate ruleset keys on, and its
 # own comment calls its `needs` list "the single source of truth for the lane
-# list". Nothing enforced the other direction: a job DEFINED in ci.yml but
+# list". Nothing enforced the other direction: a job DEFINED in pr-require-checks.yml but
 # ABSENT from that list runs, reports, and turns red in the run list while
 # `ci-status` reports success — so it cannot gate a merge. `hook-utils-windows`
 # already states the doctrine in prose ("a lane missing from that list is
@@ -160,11 +160,11 @@ usage() {
 }
 
 [[ "${1:-}" == "--check" ]] || usage
-WORKFLOW="${2:-.github/workflows/ci.yml}"
+WORKFLOW="${2:-.github/workflows/pr-require-checks.yml}"
 AGGREGATE="${3:-ci-status}"
 STEP_OPT_OUTS="${4:-scripts/lane-coverage-step-opt-outs.txt}"
 PEER_DIR="${5:-}"
-[[ -n "$PEER_DIR" || "$WORKFLOW" != ".github/workflows/ci.yml" ]] || PEER_DIR=".github/workflows"
+[[ -n "$PEER_DIR" || "$WORKFLOW" != ".github/workflows/pr-require-checks.yml" ]] || PEER_DIR=".github/workflows"
 [[ $# -le 5 ]] || usage
 
 if [[ ! -f "$WORKFLOW" ]]; then
