@@ -264,7 +264,8 @@ section_content_to() {
     t="${LINKAGE_LINES[i]}"
     t="${t#"${t%%[![:space:]]*}"}"
     t="${t%"${t##*[![:space:]]}"}"
-    [[ "${t,,}" =~ ^##[[:space:]]+${heading_lc}$ ]] && {
+    # Quoted: a configured heading such as `What changed?` matches as text.
+    [[ "${t,,}" =~ ^##[[:space:]]+"${heading_lc}"$ ]] && {
       start=$((i + 1))
       break
     }

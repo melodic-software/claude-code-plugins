@@ -7,7 +7,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Fixed
 
-- **`/source-control:pull-request create` judges required sections the way CI does.** Its pre-create check now runs the `pr-body-linkage-gate.sh` hook's checker through `scripts/check-body-sections.sh`. A section holding only a code block, indented code, an inline code span, or an `# h1` is now caught as empty, and a lowercase `## summary` heading, or one with trailing spaces, is now accepted.
+- **`/source-control:pull-request create` judges required sections the way CI does.** Its pre-create check now runs the `pr-body-linkage-gate.sh` hook's checker through `scripts/check-body-sections.sh`. A section holding only a code block, indented code, an inline code span, or an `# h1` is now caught as empty, and a lowercase `## summary` heading, or one with trailing spaces, is now accepted. A configured heading such as `What changed?` is matched as text, not as a regular expression.
 
 ## [0.79.12] - 2026-10-04
 

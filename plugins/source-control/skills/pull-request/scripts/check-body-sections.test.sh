@@ -92,6 +92,10 @@ check_configured() {
 check_configured "configured heading present" PASS $'## Notes\nwritten' Notes
 check_configured "configured heading only in a fence" FAIL $'```\n## Notes\nwritten\n```' Notes
 check_configured "resolved none checks nothing" PASS ""
+# A configured heading is matched as text, never as a regex.
+check_configured "configured heading with ? present" PASS $'## What changed?\nwritten' 'What changed?'
+check_configured "configured heading with ( ) present" PASS $'## Fix (details)\nwritten' 'Fix (details)'
+check_configured "? does not make a letter optional" FAIL $'## What change\nwritten' 'What changed?'
 
 echo "check-body-sections: $PASS passed, $FAIL failed"
 ((FAIL == 0))
