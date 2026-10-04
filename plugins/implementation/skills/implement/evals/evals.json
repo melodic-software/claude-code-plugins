@@ -209,6 +209,47 @@
         "Treats the key rename as mechanical and builds a lever",
         "Diffs the lever's result on one hand-edited site before running it on the rest"
       ]
+    },
+    {
+      "id": 17,
+      "name": "per-unit-check-pilot",
+      "narration": true,
+      "prompt": "/implementation:implement execute Phase 3 of the approved plan at .work/telemetry-names/PLAN.md: rename the metric `queue_wait_ms` to `queue_wait_seconds` and divide each recorded value by 1000, at 14 emit sites across 8 files. A lever is built and already matches my hand edit of the first site. I'm reviewing each turn; branch feat/telemetry-names, clean tree. My per_unit_check option is unset and the repository (a git checkout, not the home directory) has no docs/conventions/implementation.yaml.",
+      "expected_output": "Resolves per_unit_check to pilot from the default and reports that layer in one line. Runs the lever on a small first batch of the emit sites, sized from the best-practices 'Fan out across files' section it links, runs the build check and the tests covering those sites, and only once that batch is green runs the lever on the remaining sites, followed by one check over all of them before the commit checkpoint.",
+      "files": [],
+      "expectations": [
+        "Reports per_unit_check: pilot with the default as the supplying layer",
+        "Checks a small first batch of sites before applying the lever to the rest",
+        "Runs one check over all sites after the remaining sites are changed",
+        "Does NOT run the build check after every one of the 14 sites"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "per-unit-check-every",
+      "narration": true,
+      "prompt": "/implementation:implement execute Phase 2 of the approved plan at .work/tz-aware/PLAN.md: replace `datetime.utcnow()` with `datetime.now(timezone.utc)` at 11 call sites across 6 modules. I'm reviewing each turn; branch feat/tz-aware, clean tree. My per_unit_check option is every; the repository (a git checkout, not the home directory) has no docs/conventions/implementation.yaml.",
+      "expected_output": "Resolves per_unit_check to every from the user option and reports that layer in one line. Once the lever or the hand edit is ready, applies it one unit at a time, runs the build check and the affected tests after each unit, and moves to the next unit only once that unit passes, then makes the commit checkpoint.",
+      "files": [],
+      "expectations": [
+        "Reports per_unit_check: every with the user option as the supplying layer",
+        "Runs the build check and affected tests after each unit",
+        "Leaves the next unit untouched while a unit's check is failing",
+        "Does NOT change all sites first and check only once at the end"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "per-unit-check-docs-block-wins",
+      "narration": true,
+      "prompt": "/implementation:implement execute Phase 1 of the approved plan at .work/sku-type/PLAN.md: change the `sku` parameter type from `str` to `Sku` in 16 function signatures across 9 files, using a lever already checked against my hand edit of the first signature. I'm reviewing each turn; branch feat/sku-type, clean tree. My per_unit_check option is pilot; the repository (a git checkout, not the home directory) has docs/conventions/implementation.yaml holding `per_unit_check: every`.",
+      "expected_output": "Resolves per_unit_check to every from docs/conventions/implementation.yaml, which wins over the user's pilot option, and reports that file as the supplying layer. Runs the lever one unit at a time with the build check and affected tests after each, instead of a first batch followed by one check at the end.",
+      "files": [],
+      "expectations": [
+        "Reports per_unit_check: every with docs/conventions/implementation.yaml as the supplying layer",
+        "Runs the build check and affected tests after each unit",
+        "Does NOT apply the user's pilot value"
+      ]
     }
   ]
 }

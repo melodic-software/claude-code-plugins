@@ -162,6 +162,7 @@ reads it from.
 | `verify_mechanical_phases` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_VERIFY_MECHANICAL_PHASES` | When on, /implementation:implement and /implementation:implement-dispatch send every phase, mechanical ones included, to a fresh-context verifier. Off (default) keeps the mechanical carve-out. True here or in a repository's docs/conventions/implementation.yaml wins. |
 | `drain_cadence` | string | `"on-arrival"` | `CLAUDE_PLUGIN_OPTION_DRAIN_CADENCE` | When /implementation:implement-dispatch reads worker returns. on-arrival (default): each return as it comes in. batched: held until the orchestrator step in progress finishes, for long multi-wave runs. A repository's docs/conventions/implementation.yaml drain_cadence key overrides this value. |
 | `code_writing` | string | `"inline"` | `CLAUDE_PLUGIN_OPTION_CODE_WRITING` | Who writes the code in /implementation:implement. inline (default): this session edits, unless the run is autonomous or the plan routes phases to workers. dispatch: implement-dispatch workers write every plan phase. A repository's docs/conventions/implementation.yaml code_writing key overrides it. |
+| `per_unit_check` | string | `"pilot"` | `CLAUDE_PLUGIN_OPTION_PER_UNIT_CHECK` | How /implementation:implement checks a change applied at three or more sites. pilot (default): apply it to a few units, check them, then apply the rest with one check at the end. every: check after each unit. A repository's docs/conventions/implementation.yaml per_unit_check key overrides it. |
 
 ### How to set these
 

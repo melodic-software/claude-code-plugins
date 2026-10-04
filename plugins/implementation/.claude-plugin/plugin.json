@@ -47,6 +47,16 @@
         "inline",
         "dispatch"
       ]
+    },
+    "per_unit_check": {
+      "type": "string",
+      "title": "Per-unit check",
+      "description": "How /implementation:implement checks a change applied at three or more sites. pilot (default): apply it to a few units, check them, then apply the rest with one check at the end. every: check after each unit. A repository's docs/conventions/implementation.yaml per_unit_check key overrides it.",
+      "default": "pilot",
+      "options": [
+        "pilot",
+        "every"
+      ]
     }
   }
 }

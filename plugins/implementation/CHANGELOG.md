@@ -55,6 +55,15 @@ All notable changes to the `implementation` plugin are documented here. Format f
   unit it dispatches one worker row for the lever instead of one row per unit. The setting has one
   home, the discipline plugin; implementation declares no key for it. Three eval cases cover the
   hand-off, the fan-out and an unavailable discipline skill.
+- **`per_unit_check` sets how a multi-site change is checked.** Once the lever or the hand edit
+  is ready, `/implementation:implement`'s multi-site step applies it under this key. `pilot` (the
+  default) changes a small first batch of units, checks them, then changes the rest with one check
+  at the end; the batch size points at the Claude Code best-practices "Fan out across files"
+  section. `every` checks each unit before the next. It is set per user in the new
+  `per_unit_check` user config option and per repository in `docs/conventions/implementation.yaml`
+  (schema `schemas/implementation.schema.json`), which wins; an invalid value is named and that
+  layer dropped, and the skill reports the supplying layer. Three eval cases cover the default
+  pilot, `every` and the repository file winning.
 
 ## [0.21.3] - 2026-10-04
 

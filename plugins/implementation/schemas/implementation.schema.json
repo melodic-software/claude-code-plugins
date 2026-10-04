@@ -21,6 +21,11 @@
       "description": "Who writes the code when /implementation:implement runs an approved plan. inline: the session edits, unless the run is autonomous or the plan routes phases to workers. dispatch: every phase goes to /implementation:implement-dispatch, which writes worker rows for phases the plan leaves to the main session. Overrides the user's code_writing option.",
       "enum": ["inline", "dispatch"],
       "default": "inline"
+    },
+    "per_unit_check": {
+      "description": "How /implementation:implement checks a change applied at three or more sites, once the lever or the hand edit is ready. pilot: apply it to a few units, check them, then apply the rest with one check at the end. every: run the check after each unit. Overrides the user's per_unit_check option.",
+      "enum": ["pilot", "every"],
+      "default": "pilot"
     }
   }
 }
