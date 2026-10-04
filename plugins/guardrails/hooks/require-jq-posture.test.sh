@@ -306,7 +306,7 @@ if ((JQ_HIDING_WORKS)); then
   # carries the jq line once, and no dropped notice document, on the first call
   # and on a later one.
   ROW_ARGS=()
-  while IFS= read -r arg; do ROW_ARGS+=("${arg##*/}"); done < <(jq -r '
+  while IFS= read -r arg; do ROW_ARGS+=("$arg"); done < <(jq -r '
     .hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[0].args[2:][]' "$HOOK_DIR/hooks.json")
   ROW_DATA="$TEST_TMPDIR/data-row"
   for call in first later; do
@@ -318,6 +318,7 @@ if ((JQ_HIDING_WORKS)); then
       "$(grep -c 'jq is not on PATH' <<<"$row_err")"
     assert_absent "jq HIDDEN, Bash row ($call call): no dropped document in the deny reason" \
       "$row_err" "run-guards: dropped"
+    assert_absent "jq HIDDEN, Bash row ($call call): the row's --lib resolves" "$row_err" "No such file"
   done
 
   # --- The kill switch still wins on a jq-less machine ------------------------

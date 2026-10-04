@@ -9,7 +9,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 - **A blocked force push no longer advises a form the same guard blocks ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** `git push --force`, `-f` and a `+refspec` said "use --force-with-lease", which `block-dangerous-git` denies without an expected value. They now name `--force-with-lease=<ref>:<full-sha>` or `--force-with-lease --force-if-includes`, both of which pass.
 - **Without jq, the Bash row's deny reason names jq once per call, not once per guard.** Five fail-closed guards each printed the same four lines, and the dispatcher echoed the dropped notice documents into the same deny reason. On a block, dropped documents are no longer echoed to stderr.
-- **`block-exported-msys-pathconv` no longer denies every call on Linux and macOS when jq is missing.** Its host check now runs before the jq gate, so a host where it checks nothing allows the call.
+- **`block-exported-msys-pathconv` no longer denies every call on Linux and macOS when jq is missing.** Its host check now runs first, so on a non-Windows host it exits 0 before its jq, NUL and payload-parse checks. The call-level verdict on such a payload is unchanged: the other guards still refuse it.
 - **Skill names in deny reasons and advisories are the plugin-qualified ones:** `/source-control:commit` and `/source-control:pull-request`, not `/commit` and `/pull-request`, which can resolve to a different skill.
 
 ### Changed

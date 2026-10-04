@@ -557,6 +557,20 @@ assert_contains "PS dual sink: the one message names the token both guards honor
   "$GUARD_ERR" "the user adds ps-unparsable-special-construct to block_dangerous_git_allow; it clears block-dangerous-git too"
 assert_absent "PS dual sink: no kill switch in the deny reason" "$GUARD_ERR" "_enabled"
 
+# --- payload refusals several guards share print once per call --------------
+# Every fail-closed guard of the row refuses a NUL payload; the deny reason
+# carries the line once. An unparsable payload never reaches a guard under the
+# dispatcher (its own stdin read refuses it first), and that refusal is one line too.
+NUL_PAYLOAD=$(jq -cn '{tool_name:"Bash",tool_input:{command:("git status" + ([0] | implode) + "x")}}')
+guard_invoke --via dispatched --payload "$NUL_PAYLOAD" --hook block-no-verify.sh \
+  --also block-dangerous-git.sh --also block-credential-read.sh --also block-root-delete-target.sh
+assert_exit "NUL payload: the row denies" 2 "$GUARD_RC"
+assert_eq "NUL payload: the refusal is printed once" 1 "$(grep -c 'NUL byte' <<<"$GUARD_ERR")"
+guard_invoke --via dispatched --payload '{"tool_name":"Bash","tool_input":"x"}' --hook block-no-verify.sh \
+  --also block-dangerous-git.sh --also block-credential-read.sh --also block-root-delete-target.sh
+assert_exit "unparsable payload: the row denies" 2 "$GUARD_RC"
+assert_eq "unparsable payload: one refusal line" 1 "$(grep -c 'BLOCKED' <<<"$GUARD_ERR")"
+
 # --- a real guard decides the same inside the dispatcher as alone ------------
 bypass=$(command_json 'git commit --no-verify -m x')
 alone_rc=0
