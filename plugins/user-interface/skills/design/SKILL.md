@@ -10,17 +10,98 @@ metadata:
 
 # Design a user interface
 
+Design for `$ARGUMENTS`, or for the interface the conversation is about.
+
 ## Step 1: Detect
 
-Run `node "${CLAUDE_PLUGIN_ROOT}/scripts/detect.mjs"` from the project root. It prints JSON with the
-project's design-system signals (`project`) and the routed tools that are installed (`installed`).
+Run from the project root:
 
-## Step 2: Route
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/detect.mjs"
+```
 
-Read `${CLAUDE_PLUGIN_ROOT}/reference/routing.json`. Its rows rank the routes for each concern.
-When `project` has signals for a concern, the project's own system leads that concern.
+It prints JSON:
+
+- `project`: the project's design signals (`tokens`, `packages`, `components_json`, `storybook`,
+  `docs`, `mcp_servers`).
+- `installed`: the routing ids present here, or `null` with a `reason` when the `claude` CLI could
+  not be read. On `null`, check the session's own skill listing for each id instead, and treat a
+  match on wording alone as a hint, not proof.
+- `reachable`: for each installed id, `true`, `false`, or `null` when only an account, a key or the
+  session can tell.
+
+## Step 2: The project leads
+
+For every concern where `project` has signals, or the codebase and conversation show an
+established look, the project's own system decides: its tokens, components, conventions, MCP
+servers and existing screens. Read them before proposing anything and name what you found.
+Suggest improvements; never override the existing look. A style-imposing tool (frontend-design,
+design-taste-frontend, ui-ux-pro-max) is offered only for a concern the project leaves undefined.
 
 ## Step 3: Pick the interface type
 
-List `${CLAUDE_PLUGIN_ROOT}/reference/types/` and read the file whose name matches the interface
-being designed.
+List `${CLAUDE_PLUGIN_ROOT}/reference/types/` and read every file whose name matches the interface
+being designed; a file may name another it builds on, so read that too. Then read
+`${CLAUDE_PLUGIN_ROOT}/reference/principles.md`. When no type file matches, apply the principles
+alone.
+
+## Step 4: Route each concern
+
+Read `${CLAUDE_PLUGIN_ROOT}/reference/routing.json`. For each concern the request touches, take
+its rows in rank order and use the first one for which all of these hold:
+
+- Its `id` is in `installed`, matched exactly. A `kind: tool` row (for example `/design`) is
+  checked against this session's own tool and skill listing instead.
+- Its `status` is not `deferred`.
+- It has no `style`, or the project is in that style (for example pixel art).
+- Its `reachable` is not `false`: a server that is listed but not connected is skipped.
+- Its `account` is `none`, or account-bound tools are enabled (now:
+  `${user_config.account_tools_enabled}`) and `reachable` is `true`. A `paid` row is suggested
+  only when no free row covers the concern.
+
+Invoke a skill route by its exact id; for a plugin route, use the skill it provides for the
+concern. Say which route you took and why.
+
+## Combine routes and settle conflicts
+
+- Routes that do not conflict combine within a concern: for example the project's tokens, an
+  installed component skill, and this plugin's accessibility floor.
+- When two routes conflict on the same decision, the higher rank wins (the project above all), and
+  you say which advice you set aside.
+- With nothing installed or reachable for a concern, answer from this plugin's own guidance, and
+  you may name the free tool that would help. Never install anything without the user's yes.
+
+## Rules that hold in every answer
+
+These apply whatever the route, and the type files give the detail:
+
+- **Project first**: Step 2.
+- **Not a TTY**: when output is piped, redirected or captured, emit no color, styling, cursor
+  movement, spinner or animation; print plain lines a script can parse.
+- **`NO_COLOR`**: when it is set and not empty, add no ANSI color, whatever its value, and never
+  carry meaning in color alone.
+- **Plain-text fallback**: with `TERM=dumb`, an unknown terminal, or no Nerd Font, use plain ASCII
+  in place of glyphs, box drawing and emoji (`[ok]`, `[!]`), and no color.
+- **Accessibility floor**: meaning never rests on color alone, text stays readable in light and dark
+  themes, motion can be turned off, and everything works from the keyboard.
+- **Establish the target**: for terminal work, find the operating systems, shells and terminals
+  first; default to Windows, macOS, Linux and WSL.
+
+## Fill gaps
+
+When the project lacks a piece the design needs (a token file, a short design-system note, a
+consistent error style), offer to create it in the project's own format, and create it only after
+the user agrees.
+
+## Next
+
+`/prototype:explore-directions`, to build throwaway variants of a layout once the direction is set.
+
+## Gotchas
+
+- `installed` lists only what detect can see. A plugin installed but disabled for this project does
+  not count, so do not route to it; tell the user it is installed and off.
+- A `null` in `reachable` is not a yes. Use the free routes, and say the account-bound one may work
+  once the user signs in.
+- The routing data ranks candidates; its `unconfirmed` rows have not yet been installed and tested
+  here. Say so when you route to one.

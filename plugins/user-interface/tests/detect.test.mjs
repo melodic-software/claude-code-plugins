@@ -84,6 +84,28 @@ describe("installed tools", () => {
   });
 });
 
+describe("reachable", () => {
+  const { installed, reachable } = detect(["--project", join(FIX, "with-ds"), ...seams]);
+
+  test("covers exactly the installed ids", () => {
+    assert.deepEqual(Object.keys(reachable).sort(), [...installed].sort());
+  });
+
+  test("an mcp server is reachable only when claude mcp list shows it connected", () => {
+    assert.equal(reachable.storybook, true);
+    assert.equal(reachable.magic, false);
+  });
+
+  test("a server known only from .mcp.json is unknown", () => {
+    assert.equal(reachable.shadcn, null);
+  });
+
+  test("an installed route that needs no account is reachable", () => {
+    assert.equal(reachable["frontend-design@claude-plugins-official"], true);
+    assert.equal(reachable["playgrounds:use"], true);
+  });
+});
+
 test("without the claude CLI, installed is null with a reason", () => {
   const out = detect(["--project", join(FIX, "no-ds"), "--home", HOME], { PATH: join(scratch, "empty-path") });
   assert.equal(out.installed, null);

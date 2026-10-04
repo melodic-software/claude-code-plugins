@@ -20,7 +20,20 @@ For each concern the order is:
 
 The routes live in [`reference/routing.json`](reference/routing.json), validated by
 [`reference/routing.schema.json`](reference/routing.schema.json).
-[`scripts/detect.mjs`](scripts/detect.mjs) reports what the project and machine have.
+[`scripts/detect.mjs`](scripts/detect.mjs) reports what the project and machine have, and which
+installed routes are reachable.
+
+## Guidance
+
+- [`reference/principles.md`](reference/principles.md): the working order, the usability heuristics,
+  and the accessibility floor every medium keeps.
+- [`reference/types/`](reference/types/): one file per interface type. The skill reads the file
+  that matches, so a new type is a new file.
+  - [`terminal.md`](reference/types/terminal.md): CLI output, TUIs, prompt themes, PowerShell,
+    banners; `NO_COLOR`, non-TTY output and plain-text fallbacks.
+  - [`mods.md`](reference/types/mods.md): Claude Code mod displays, building on terminal.md.
+  - [`web.md`](reference/types/web.md) and [`app.md`](reference/types/app.md): project-first rules
+    and pointers to platform guidelines.
 
 ## Options
 

@@ -9,5 +9,9 @@ All notable changes to the `user-interface` plugin are documented here. Format f
 
 - `design` skill: detects the project's design system and installed design tools, then routes each
   interface concern to the best present source, project first.
-- `reference/routing.json` and its schema, `scripts/detect.mjs`, and their tests.
+- `reference/routing.json` and its schema: 13 interface concerns, this repository's skills ranked
+  first, Mac-only and account-bound routes deferred.
+- `scripts/detect.mjs`: the project's design signals, the installed routes, and which are reachable.
+- Guidance: `reference/principles.md` (working order, heuristics, accessibility floor) and
+  `reference/types/` for terminal, mods, web and app.
 - `account_tools_enabled` option, "Account-bound tools", default on.

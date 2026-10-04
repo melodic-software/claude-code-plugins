@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Prints the project's design-system signals and the routed tools that are installed, as JSON:
-//   {"project": {...}, "installed": [row ids] | null, "reason"?: "why installed is null"}
+//   {"project": {...}, "installed": [row ids] | null, "reachable": {row id: true | false | null},
+//    "reason"?: "why installed is null"}
 // Usage: detect.mjs [--project DIR] [--home DIR] [--plugin-list-json FILE] [--mcp-list FILE]
 // The two list flags replace the live `claude plugin list --json` and `claude mcp list` calls.
 import { spawnSync } from "node:child_process";
@@ -71,8 +72,15 @@ function enabledPlugins(text) {
   return new Set(records.filter((r) => (r.scope === "user" ? r.enabled : r.projectEnabled)).map((r) => r.id));
 }
 
-/** Server names from `claude mcp list` lines shaped `name: target - status`. */
-const mcpNames = (text) => new Set(text.split("\n").map((l) => l.match(/^(.+?): .* - /)?.[1]).filter(Boolean));
+/** Server name to connected (true or false) from `claude mcp list` lines shaped `name: target - status`. */
+function mcpStatus(text) {
+  const status = new Map();
+  for (const line of text.split("\n")) {
+    const m = line.match(/^(.+?): .* - (.*)$/);
+    if (m) status.set(m[1], /Connected$/.test(m[2]) && !/Not connected$/i.test(m[2]));
+  }
+  return status;
+}
 
 function installed(rows, project) {
   const pluginText = fromFileOr(opts["plugin-list-json"], ["plugin", "list", "--json"]);
@@ -85,16 +93,27 @@ function installed(rows, project) {
   }
   const mcpText = fromFileOr(opts["mcp-list"], ["mcp", "list"]);
   if (mcpText instanceof Error) return { installed: null, reason: mcpText.message };
-  const servers = [...mcpNames(mcpText), ...project.mcp_servers];
+  const listed = mcpStatus(mcpText);
+  const servers = [...listed.keys(), ...project.mcp_servers];
+  const server = (row) => servers.find((s) => s === row.detect || s.endsWith(`:${row.detect}`));
   const skillDirs = [join(opts.home, ".claude/skills"), join(opts.project, ".claude/skills")];
 
   const present = (row) => {
     if (row.detect.includes("@")) return plugins.has(row.detect);
-    if (row.kind === "mcp") return servers.some((s) => s === row.detect || s.endsWith(`:${row.detect}`));
+    if (row.kind === "mcp") return server(row) !== undefined;
     if (row.kind === "skill") return skillDirs.some((d) => isDir(join(d, row.detect)));
     return false; // kind tool: only the session's own tool listing can tell
   };
-  return { installed: [...new Set(rows.filter(present).map((r) => r.id))] };
+  // true or false when this script can tell; null when only an account, a key or the session can.
+  const reach = (row) => {
+    if (row.kind === "mcp") return listed.get(server(row)) ?? null;
+    return row.account === "none" ? true : null;
+  };
+  const found = rows.filter(present);
+  return {
+    installed: [...new Set(found.map((r) => r.id))],
+    reachable: Object.fromEntries(found.map((r) => [r.id, reach(r)])),
+  };
 }
 
 const project = projectSignals();
