@@ -146,8 +146,7 @@ notice fires once per session; the model notice fires once per agent, because a 
 share the parent's context and would otherwise never see why the hook skipped. Neither renews. The
 text says the notice will not repeat this session, never that the skip lasts the session: the hook
 probes again on every call. A plugin README states the cadence as "once per session". A missing
-external binary keeps the same cadence, with the install route in its user notice from
-`hook::prereq_notice_to`.
+external binary keeps the same cadence, with the install route in its user notice.
 
 **Important exit-code caveat:** a bare `echo "..." >&2; exit 0` skip is **not a notice**; only
 stdout JSON carries one. Pointer: for where exit-0 stderr goes, see
