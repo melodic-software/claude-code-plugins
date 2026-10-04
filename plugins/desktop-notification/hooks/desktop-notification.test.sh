@@ -395,16 +395,15 @@ if [[ -z "$OUT_NOJQ2" ]]; then
 else
   fail "jq-absent second run not silent: $OUT_NOJQ2"
 fi
-# Runs 3..7 stay silent; run 8 renews the notice.
+# The notice is never renewed: runs 3..16 stay silent too.
 NOJQ_QUIET=1
-for _n in 3 4 5 6 7; do
+for _n in $(seq 3 16); do
   [[ -z "$(run_nojq)" ]] || NOJQ_QUIET=0
 done
-OUT_NOJQ8=$(run_nojq)
-if [[ $NOJQ_QUIET -eq 1 && "$OUT_NOJQ8" == *'"systemMessage"'* && "$OUT_NOJQ8" == *jq* ]]; then
-  ok "jq-absent -> runs 3..7 silent, run 8 renews the systemMessage notice"
+if [[ $NOJQ_QUIET -eq 1 ]]; then
+  ok "jq-absent -> runs 3..16 silent, the notice is not renewed"
 else
-  fail "jq-absent renewal (quiet=$NOJQ_QUIET run8=$OUT_NOJQ8)"
+  fail "jq-absent: a later run repeated the notice"
 fi
 
 echo

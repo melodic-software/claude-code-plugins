@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.48.9] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** The SessionStart notice for a missing node goes to the user only, in one shorter line. The jq `degrade` text in `prerequisites.json` no longer says the skip lasts the session or that the hook says so once.
+
 ## [0.48.8] - 2026-10-04
 
 ### Changed

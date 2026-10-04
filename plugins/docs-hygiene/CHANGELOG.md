@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.26.5] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
 ## [0.26.4] - 2026-10-03
 
 ### Changed
