@@ -32,6 +32,8 @@ docs/conventions/standards/README.md plugins/planning/reference/standards-contra
 docs/conventions/standards/README.md plugins/review/reference/standards-contract.md
 docs/conventions/standards/README.md plugins/improvement/reference/standards-contract.md
 docs/conventions/pr-scope-budget/README.md plugins/improvement/reference/pr-scope-budget.md
+docs/conventions/pr-scope-budget/README.md plugins/code-tidying/reference/pr-scope-budget.md
+docs/conventions/pr-scope-budget/README.md plugins/coupling/reference/pr-scope-budget.md
 lib/resolve-convention-home.sh plugins/harness-config/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/plugin-quality/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/architecture/lib/resolve-convention-home.sh

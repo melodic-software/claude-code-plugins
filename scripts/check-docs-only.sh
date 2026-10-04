@@ -29,7 +29,7 @@
 # not check its redirect, so the flag simply never reaches the consumer. That is
 # deliberate rather than overlooked, and it is why the workflow's guarantee is
 # built on the flag being UNSET rather than on this script's exit status — the
-# `scope` job derives its published output as `docs_only != 'true'`, so an
+# `select-tests` job derives its published output as `docs_only != 'true'`, so an
 # absent flag resolves toward running the full suite. Asserted by
 # scripts/check-docs-only-gate.test.sh, not by this paragraph.
 #

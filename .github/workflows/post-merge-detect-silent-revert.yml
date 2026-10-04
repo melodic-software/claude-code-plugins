@@ -1,4 +1,4 @@
-name: silent-revert-canary
+name: post-merge-detect-silent-revert
 
 # Post-merge canary for #2691: detect a merge that silently deleted content
 # another recently-merged commit had just added.
@@ -16,7 +16,7 @@ name: silent-revert-canary
 #     silent reverts. By the time the canary speaks, the merge has happened;
 #     the value is that a human learns within minutes instead of during a
 #     from-scratch content audit weeks later.
-#   * It is NOT in ci.yml and is NOT wired into that workflow's `ci-status`
+#   * It is NOT in pr-require-checks.yml and is NOT wired into that workflow's `ci-status`
 #     aggregate, which is the single required check the org ci-gate ruleset
 #     keys on. Adding it there would make a detection heuristic able to block
 #     merges, which is how canaries acquire a constituency for switching them
@@ -30,7 +30,7 @@ name: silent-revert-canary
 #     it, since all three branches were up to date with main in history and
 #     stale only in content. `strict` would have passed every one of them.
 #
-# No cancelling concurrency group on purpose. ci.yml cancels superseded runs to
+# No cancelling concurrency group on purpose. pr-require-checks.yml cancels superseded runs to
 # save minutes on a PR, but a cancelled canary is a silently missed detection --
 # exactly the false-green this lane exists to remove. Pushes to main are
 # infrequent enough that letting every run finish costs nothing worth saving.
@@ -44,7 +44,7 @@ permissions:
   contents: read
 
 jobs:
-  silent-revert-canary:
+  detect-silent-revert:
     name: Silent-revert canary
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -59,13 +59,13 @@ jobs:
       # reporting a clean run it did not earn. fetch-base is off because
       # this job never diffs against origin/$BASE_REF.
       - name: Deepen history
-        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
+        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
         with:
           fetch-base: "false"
 
       # Self-test first, unconditionally: a broken detector must not be able to
       # mask a real regression behind a green canary. Same never-skip,
-      # self-test-first shape as the ci.yml gates.
+      # self-test-first shape as the pr-require-checks.yml gates.
       - name: Test the silent-revert detector
         run: bash scripts/check-silent-revert.test.sh
 

@@ -820,12 +820,14 @@ if jq -e '(.systemMessage | contains("shellcheck")) and (.hookSpecificOutput.add
 else
   fail "shellcheck-absent: notice missing or malformed: $OUT_SC"
 fi
+# The probed PATH goes to stderr (the debug log), never to a channel.
 if jq -e '
-  (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
-  (.hookSpecificOutput.additionalContext | contains("there is no skip latch")) and
+  ((.hookSpecificOutput.additionalContext | contains("PATH probed:")) | not) and
+  ((.systemMessage | contains("PATH probed:")) | not) and
+  (.hookSpecificOutput.additionalContext | contains("this notice does not repeat this session")) and
   ((.hookSpecificOutput.additionalContext | contains("skipped for this session")) | not)
 ' <<<"$OUT_SC" >/dev/null 2>&1; then
-  ok "shellcheck-absent -> notice-only latch + PATH diagnostic (#2732)"
+  ok "shellcheck-absent -> notice-only latch, no PATH on either channel (#2732)"
 else
   fail "shellcheck-absent latch/PATH diagnostic wrong: $OUT_SC"
 fi

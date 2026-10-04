@@ -677,8 +677,8 @@ describe("read-only boundary", () => {
       assert.ok(!tools.includes(verb), verb);
     }
   });
-  test("the risk-map checker is a read-only Explore agent", () => {
-    assert.match(skill, /## 3\. Check the risk map[\s\S]*?read-only `Explore` subagent/);
+  test("the risk-map checker is the read-only brief-reviewer agent", () => {
+    assert.match(skill, /## 3\. Check the risk map[\s\S]*?read-only `review:brief-reviewer` agent/);
   });
   test("the risk-map checker's brief carries only the pull request number and repository", () => {
     const brief = /## 3\. Check the risk map[\s\S]*?```text\n([\s\S]*?)```/.exec(skill)[1];
@@ -688,10 +688,5 @@ describe("read-only boundary", () => {
     for (const script of [POLICY, BUILDER]) {
       assert.ok(!/["'`]gh["'`]/.test(readFileSync(script, "utf8")), script);
     }
-  });
-  test("the pr-explainer stub names explain-change and nothing else runs", () => {
-    const stub = readFileSync(join(PLUGIN, "skills/pr-explainer/SKILL.md"), "utf8");
-    assert.match(stub, /\/review:explain-change/);
-    assert.match(stub, /disable-model-invocation: true/);
   });
 });

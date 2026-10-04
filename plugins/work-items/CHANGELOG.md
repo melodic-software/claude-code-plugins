@@ -3,6 +3,31 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.9] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.48.8] - 2026-10-04
+
+### Changed
+
+- **`/work-items:attend-queue`'s description names triage as the owner of untriaged intake ([#6282](https://github.com/melodic-software/claude-code-plugins/issues/6282)).**
+  It drives escalations to resolution and hands each untriaged intake row to `/work-items:triage`; it no longer claims to resolve intake itself.
+
+## [0.48.7] - 2026-10-04
+
+### Changed
+
+- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** The work loop and the attend-queue skill now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limit-guard 0.14.0's reader contract.
+
+## [0.48.6] - 2026-10-04
+
+### Changed
+
+- **`/work-items:triage` routes an undiagnosed bug to diagnosis ([#6279](https://github.com/melodic-software/claude-code-plugins/issues/6279)).** Step 3 separates a verified bug from a diagnosed one: an unknown root cause routes through `/debugging:debug` (or `/testing:diagnose` for a failing test) before any fix, and a report too unstructured to reproduce from is shaped with `/bugs:write` first. `## Next` gains the `/debugging:debug` route. The state machine and its exits are unchanged.
+
 ## [0.48.5] - 2026-10-04
 
 ### Changed

@@ -1,6 +1,6 @@
 {
   "name": "context-guard",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Per-session context-window observability. A mod writes each session's context-window figures to a snapshot file and tells Claude its context zone (smart, acceptable or dumb, from bands in zones.json) at each crossing, approach and compaction; the person gets a toast and a transcript line. /context-guard prints status and toggles an optional band row. It answers a status tool. Optional blocking mode gates new mutating work in a blocked zone, except handoffs. A PostCompact hook leaves a marker.",
   "author": {
     "name": "Melodic Software",
@@ -33,7 +33,10 @@
       "title": "Zone report mode",
       "description": "automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a notice row when the turn ends. Headless, loop and schedule turns get automatic lines either way.",
       "default": "automatic",
-      "options": ["automatic", "operator"]
+      "options": [
+        "automatic",
+        "operator"
+      ]
     },
     "zone_line_data": {
       "type": "string",
@@ -46,7 +49,10 @@
       "title": "Zone gate mode",
       "description": "advisory (default) sends lines only; blocking also denies new Write, Edit, NotebookEdit, Agent and Workflow calls in the dumb zone past the grace budget, unless zones.json sets an action for the dumb zone. Handoff-path writes, reads, Bash and Skill stay allowed, and an unknown zone fails open.",
       "default": "advisory",
-      "options": ["advisory", "blocking"]
+      "options": [
+        "advisory",
+        "blocking"
+      ]
     },
     "zone_gate_grace_calls": {
       "type": "number",
@@ -59,7 +65,10 @@
       "title": "Blocking in unattended turns",
       "description": "post-compaction (default): in turns no person typed (headless, loop, schedule and notification turns) only a compacted session is blocked; same-as-typed blocks them as typed turns are.",
       "default": "post-compaction",
-      "options": ["post-compaction", "same-as-typed"]
+      "options": [
+        "post-compaction",
+        "same-as-typed"
+      ]
     },
     "context_guard_band": {
       "type": "boolean",
