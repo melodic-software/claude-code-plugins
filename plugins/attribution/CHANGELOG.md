@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.10.4] - 2026-10-04
+
+### Changed
+
+- **The copy rubric is now version 5 ([#6194](https://github.com/melodic-software/claude-code-plugins/issues/6194)).**
+  0.9.0 rewrote copy carve-out 2, conforming stamped records, without bumping the rubric's version.
+  Every copy-rubric score taken before version 5, including the 0.8.2 whole-set score, is invalid:
+  it must not drive fix eligibility, and it must be re-taken against version 5 before any precision
+  figure is cited. This change does not re-score the golden set.
+
 ## [0.10.3] - 2026-10-03
 
 ### Changed
