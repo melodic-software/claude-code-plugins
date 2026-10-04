@@ -323,9 +323,11 @@ whose coverage is incomplete) stays unticked; `min_age_basis` picks the timestam
 default, `atime`, or `ctime`. The entry is labeled in-flight. Paths that open issues, PRs, or handoffs
 reference can be passed to the scan as `--in-flight-refs`; they stay unticked the same way. `elevation: uac-prompt` (Windows only, user-global file or `--policy` only, never a
 project file) lets the skill offer an operator-approved elevated re-check for approved-tier paths
-that are contested only for `needs-elevation`; the default `never` keeps every elevation off. The
-elevation lane has not been proven in a Windows UAC pilot; see the
-[safety model](skills/clean/reference/safety-model.md#opt-in-elevation).
+that are contested only for `needs-elevation`; the default `never` keeps every elevation off. A native
+replica of the lane's elevated re-check passed a Windows UAC pilot on 2026-10-01, but the skill's
+shipped lane has not run end to end on Windows; see the
+[safety model](skills/clean/reference/safety-model.md#opt-in-elevation) for what was and was not
+covered.
 
 Without `--policy`, standing policy files layer over the baseline when present:
 `~/.claude/disk-hygiene.json` (user-global) first, then the consumer project's

@@ -76,6 +76,8 @@ const EXACT_GITHUB_TOKEN_EXPRESSIONS = new Set([
 const VISIBILITY_SCOPED_REUSABLE_WORKFLOW_PATHS = new Set([
   "melodic-software/ci-workflows/.github/workflows/claude-review.yml",
   "melodic-software/ci-workflows/.github/workflows/claude-security-review.yml",
+  "melodic-software/ci-workflows/.github/workflows/pr-review.yml",
+  "melodic-software/ci-workflows/.github/workflows/pr-review-security.yml",
 ]);
 const PUBLIC_REPOSITORY_DENYLISTED_REUSABLE_INPUTS = new Set(["standards-ref"]);
 const PUBLIC_REPOSITORY_DENYLISTED_REUSABLE_SECRETS = new Set([
@@ -422,6 +424,14 @@ async function readJson(filePath, location) {
 }
 
 function parseWorkflow(source, file) {
+  const workflow = parseYamlMapping(source, file);
+  if (!isMapping(workflow.jobs)) {
+    throw new Error(`${file} must contain a jobs mapping`);
+  }
+  return workflow;
+}
+
+function parseYamlMapping(source, file) {
   const document = parseDocument(source, {
     maxAliasCount: 0,
     merge: false,
@@ -432,14 +442,11 @@ function parseWorkflow(source, file) {
   if (document.errors.length > 0) {
     throw new Error(document.errors.map((error) => error.message).join("; "));
   }
-  const workflow = document.toJS({ maxAliasCount: 0 });
-  if (!isMapping(workflow)) {
+  const value = document.toJS({ maxAliasCount: 0 });
+  if (!isMapping(value)) {
     throw new Error(`${file} must contain a workflow mapping`);
   }
-  if (!isMapping(workflow.jobs)) {
-    throw new Error(`${file} must contain a jobs mapping`);
-  }
-  return workflow;
+  return value;
 }
 
 function stringsIn(value) {
@@ -980,6 +987,7 @@ function reusableWorkflowStatus(job, policy, workflow) {
 }
 
 const RAW_GITHUB_CONTENT_BASE = "https://raw.githubusercontent.com";
+const GITHUB_API_BASE = "https://api.github.com";
 
 function normalizeStructuralValue(value) {
   if (Array.isArray(value)) {
@@ -1421,39 +1429,275 @@ function dynamicRoutingReferenceJobIds(workflow) {
     .sort((left, right) => left.localeCompare(right));
 }
 
-// GitHub resolves every `uses:` reference that starts with `./` from the
-// same commit as the workflow file that contains it: a job-level
-// `./.github/workflows/<file>.yml` nested reusable workflow and a
-// step-level `./path/to/action` local action both change content when the
-// source repository moves to a new SHA even though the reference string
-// itself stays byte-identical. This diff only ever fetches the one workflow
-// file being compared, so a bumped SHA can change the nested workflow's
-// runners or secrets, or the local action's executable content, while every
-// compared field of the caller stays identical and the candidate silently
-// inherits the reviewed contract. A nested workflow could in principle be
-// fetched and diffed recursively, but a local action cannot: it is an
-// arbitrary directory of executable content (action metadata, scripts,
-// bundled JavaScript) with no single canonical file this fetcher could
-// prove unchanged. Any commit-relative reference, on either the candidate
-// or a reviewed basis, therefore makes the revision ineligible for
-// surface-diff auto-approval and requires a human contract entry instead.
+// Two `uses:` shapes resolve from the same commit as the reusable workflow
+// that contains them: a job-level `./.github/workflows/<file>.yml` nested
+// workflow and a step-level `$/path/to/action`. A SHA bump changes what those byte-identical reference
+// strings execute, so the single-file surface diff alone cannot prove them
+// unchanged. Auto-approval closes that gap by comparing the git object each
+// reference names at the reviewed basis and at the candidate (see
+// commitRelativeObjects); the synchronous surface comparison used by the repin
+// lockstep fetches nothing, so it still rejects every such reference.
+function isCommitRelativeReference(uses) {
+  return typeof uses === "string" && (uses.startsWith("./") || uses.startsWith("$/"));
+}
+
+// A step-level `./path` action is not commit-relative: GitHub resolves it from
+// the job's workspace, which holds whatever the job checked out (normally the
+// caller's repository). No object in the source repository proves that
+// content, so it stays ineligible for auto-approval.
+function isWorkspaceRelativeStep(step) {
+  return isMapping(step) && typeof step.uses === "string" && step.uses.startsWith("./");
+}
+
+function jobSteps(job) {
+  return Array.isArray(job.steps) ? job.steps : [];
+}
+
 function localReferenceJobIds(workflow) {
   const jobs = normalizedWorkflowJobs(workflow);
   return Object.keys(jobs)
     .filter((jobId) => {
       const job = jobs[jobId];
-      if (!isMapping(job)) {
-        return false;
-      }
-      if (typeof job.uses === "string" && job.uses.startsWith("./")) {
-        return true;
-      }
-      const steps = Array.isArray(job.steps) ? job.steps : [];
-      return steps.some(
-        (step) => isMapping(step) && typeof step.uses === "string" && step.uses.startsWith("./"),
+      return (
+        isMapping(job) &&
+        (isCommitRelativeReference(job.uses) ||
+          jobSteps(job).some((step) => isMapping(step) && isCommitRelativeReference(step.uses)))
       );
     })
     .sort((left, right) => left.localeCompare(right));
+}
+
+const COMMIT_RELATIVE_WORKFLOW_PATH = /^\.github\/workflows\/[A-Za-z0-9_.-]+\.ya?ml$/;
+const COMMIT_RELATIVE_ACTION_PATH = /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/;
+
+function commitRelativeStepReferences(steps, location) {
+  const references = [];
+  for (const step of steps) {
+    if (isWorkspaceRelativeStep(step)) {
+      throw new ConfigurationError(
+        `${location} uses the workspace-relative action ${step.uses}, whose content comes from the job's checked-out workspace and cannot be safely diffed for auto-approval`,
+      );
+    }
+    if (!isMapping(step) || typeof step.uses !== "string" || !step.uses.startsWith("$/")) {
+      continue;
+    }
+    const actionPath = step.uses.slice(2).replace(/\/+$/u, "");
+    if (
+      !COMMIT_RELATIVE_ACTION_PATH.test(actionPath) ||
+      actionPath.split("/").some((segment) => segment === "." || segment === "..")
+    ) {
+      throw new ConfigurationError(
+        `${location} uses ${step.uses}, which is not a plain repository directory path`,
+      );
+    }
+    references.push({ kind: "action", path: actionPath });
+  }
+  return references;
+}
+
+function commitRelativeWorkflowReferences(workflow, location) {
+  const jobs = normalizedWorkflowJobs(workflow);
+  const references = [];
+  for (const jobId of Object.keys(jobs).sort((left, right) => left.localeCompare(right))) {
+    const job = jobs[jobId];
+    if (!isMapping(job)) {
+      continue;
+    }
+    const jobLocation = `${location} job ${jobId}`;
+    if (typeof job.uses === "string" && job.uses.startsWith("$/")) {
+      throw new ConfigurationError(
+        `${jobLocation} uses ${job.uses}; GitHub documents $/ for actions only, so a job-level $/ reference cannot be safely diffed for auto-approval`,
+      );
+    }
+    if (isCommitRelativeReference(job.uses)) {
+      const workflowPath = job.uses.slice(2);
+      if (!COMMIT_RELATIVE_WORKFLOW_PATH.test(workflowPath)) {
+        throw new ConfigurationError(
+          `${jobLocation} uses ${job.uses}, which is not an exact .github/workflows/<file>.yml path`,
+        );
+      }
+      references.push({ kind: "workflow", path: workflowPath });
+    }
+    references.push(...commitRelativeStepReferences(jobSteps(job), jobLocation));
+  }
+  return references;
+}
+
+function errorText(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function fetchCommitTree(repository, revision, fetchImpl, githubToken) {
+  const label = `${repository}@${revision}`;
+  const headers = { accept: "application/vnd.github+json" };
+  if (githubToken) {
+    headers.authorization = `Bearer ${githubToken}`;
+  }
+  let body;
+  try {
+    const response = await fetchImpl(
+      `${GITHUB_API_BASE}/repos/${repository}/git/trees/${revision}?recursive=1`,
+      { headers },
+    );
+    if (!response.ok) {
+      throw new Error(`${response.status} ${response.statusText}`);
+    }
+    body = await response.json();
+  } catch (error) {
+    throw new ConfigurationError(`could not fetch the git tree of ${label}: ${errorText(error)}`);
+  }
+  if (!isMapping(body) || !Array.isArray(body.tree) || body.truncated !== false) {
+    throw new ConfigurationError(`the git tree of ${label} is truncated or malformed`);
+  }
+  const entries = new Map();
+  for (const entry of body.tree) {
+    if (
+      isMapping(entry) &&
+      typeof entry.path === "string" &&
+      typeof entry.type === "string" &&
+      typeof entry.sha === "string"
+    ) {
+      entries.set(entry.path, { type: entry.type, sha: entry.sha, mode: entry.mode });
+    }
+  }
+  return entries;
+}
+
+async function fetchRepositoryFile(repository, revision, filePath, fetchImpl) {
+  const label = `${repository}/${filePath}@${revision}`;
+  try {
+    const response = await fetchImpl(
+      `${RAW_GITHUB_CONTENT_BASE}/${repository}/${revision}/${filePath}`,
+    );
+    if (!response.ok) {
+      throw new Error(`${response.status} ${response.statusText}`);
+    }
+    return await response.text();
+  } catch (error) {
+    throw new ConfigurationError(`could not fetch ${label}: ${errorText(error)}`);
+  }
+}
+
+// One reader per audit. Trees are cached per (repository, commit): one
+// recursive-tree request answers every path lookup at that commit. File
+// content is cached per (repository, blob SHA), so a blob identical at the
+// basis and the candidate is fetched once. A rejected fetch stays cached, so
+// every later lookup against that commit fails closed the same way. A token,
+// when given, authenticates only the api.github.com tree requests.
+function commitRelativeObjectReader(fetchImpl, githubToken) {
+  const trees = new Map();
+  const files = new Map();
+  return {
+    tree(repository, revision) {
+      const key = `${repository}@${revision}`;
+      if (!trees.has(key)) {
+        trees.set(key, fetchCommitTree(repository, revision, fetchImpl, githubToken));
+      }
+      return trees.get(key);
+    },
+    file(repository, revision, filePath, blobSha) {
+      const key = `${repository}:${blobSha}`;
+      if (!files.has(key)) {
+        files.set(key, fetchRepositoryFile(repository, revision, filePath, fetchImpl));
+      }
+      return files.get(key);
+    },
+  };
+}
+
+// Returns path -> git object SHA for every commit-relative reference the
+// workflow reaches at `revision`, following nested workflows and composite
+// actions' own `$/` steps. Git object SHAs are content hashes: a tree SHA
+// covers every entry under the directory and a blob SHA covers the file's
+// bytes, so an identical SHA at two commits means identical directory
+// contents. A symlink or submodule inside an action directory, or action
+// metadata pointing outside it with `..`, could reach content the tree SHA
+// does not cover, so those decline. A composite `run:` step can still reach
+// outside the directory; that is the same accepted class as the top-level
+// `run:` bodies the surface diff does not compare. A missing path, a wrong
+// object type, an unreadable action.yml, or any fetch failure throws, and the
+// caller declines auto-approval.
+async function commitRelativeObjects(repository, revision, workflow, reader) {
+  const objects = new Map();
+  const pending = commitRelativeWorkflowReferences(workflow, `${repository}@${revision}`);
+  while (pending.length > 0) {
+    const { kind, path: objectPath } = pending.shift();
+    if (objects.has(objectPath)) {
+      continue;
+    }
+    const tree = await reader.tree(repository, revision);
+    const entry = tree.get(objectPath);
+    const expectedType = kind === "action" ? "tree" : "blob";
+    if (entry?.type !== expectedType) {
+      throw new ConfigurationError(
+        `commit-relative reference ${objectPath} is not a ${expectedType === "tree" ? "directory" : "file"} at ${repository}@${revision}`,
+      );
+    }
+    objects.set(objectPath, entry.sha);
+    const location = `${repository}/${objectPath}@${revision}`;
+    if (kind === "workflow") {
+      const source = await reader.file(repository, revision, objectPath, entry.sha);
+      let nested;
+      try {
+        nested = parseWorkflow(source, objectPath);
+      } catch (error) {
+        throw new ConfigurationError(`could not parse ${location}: ${error.message}`);
+      }
+      pending.push(...commitRelativeWorkflowReferences(nested, location));
+      continue;
+    }
+    const outsideEntry = [...tree].find(
+      ([entryPath, { type, mode }]) =>
+        entryPath.startsWith(`${objectPath}/`) && (mode === "120000" || type === "commit"),
+    );
+    if (outsideEntry) {
+      throw new ConfigurationError(
+        `${location} contains the symlink or submodule ${outsideEntry[0]}, whose target the directory tree SHA does not cover`,
+      );
+    }
+    const metadataPath = [`${objectPath}/action.yml`, `${objectPath}/action.yaml`].find(
+      (candidate) => tree.get(candidate)?.type === "blob",
+    );
+    if (!metadataPath) {
+      throw new ConfigurationError(`${location} has no action.yml or action.yaml`);
+    }
+    const source = await reader.file(
+      repository,
+      revision,
+      metadataPath,
+      tree.get(metadataPath).sha,
+    );
+    let action;
+    try {
+      action = parseYamlMapping(source, metadataPath);
+    } catch (error) {
+      throw new ConfigurationError(`could not parse ${location}: ${error.message}`);
+    }
+    if (!isMapping(action.runs)) {
+      throw new ConfigurationError(`${location} action metadata has no runs mapping`);
+    }
+    for (const field of ["main", "pre", "post", "image"]) {
+      const value = action.runs[field];
+      if (typeof value === "string" && value.split(/[\\/]/u).includes("..")) {
+        throw new ConfigurationError(
+          `${location} runs.${field} ${value} leaves the action directory`,
+        );
+      }
+    }
+    if (action.runs.using === "composite") {
+      if (!Array.isArray(action.runs.steps)) {
+        throw new ConfigurationError(`${location} composite runs.steps is not a list`);
+      }
+      pending.push(...commitRelativeStepReferences(action.runs.steps, location));
+    }
+  }
+  return objects;
+}
+
+function commitRelativeObjectDiffPath(basis, candidate) {
+  return [...new Set([...basis.keys(), ...candidate.keys()])]
+    .sort((left, right) => left.localeCompare(right))
+    .find((objectPath) => basis.get(objectPath) !== candidate.get(objectPath));
 }
 
 function securitySurfaceDiffField(basis, candidate) {
@@ -1608,10 +1852,12 @@ async function resolveAutoApprovedContracts({
   policy,
   workflowIndex,
   fetchImpl = fetch,
+  githubToken,
   now = () => new Date(),
 }) {
   const approved = new Map();
   const diagnostics = new Map();
+  const objectReader = commitRelativeObjectReader(fetchImpl, githubToken);
 
   const basesByWorkflowPath = new Map();
   for (const [reference, contract] of policy.approvedReusableWorkflowContracts) {
@@ -1678,12 +1924,17 @@ async function resolveAutoApprovedContracts({
       );
       continue;
     }
-    const localReferenceCandidateJobs = localReferenceJobIds(candidateWorkflow);
-    if (localReferenceCandidateJobs.length > 0) {
-      diagnostics.set(
-        reference,
-        `job ${localReferenceCandidateJobs[0]} uses a repository-local action or reusable workflow, which resolves from the bumped commit and cannot be safely diffed for auto-approval`,
+    const sourceRepository = parsed.workflow.split("/", 2).join("/");
+    let candidateObjects;
+    try {
+      candidateObjects = await commitRelativeObjects(
+        sourceRepository,
+        parsed.revision,
+        candidateWorkflow,
+        objectReader,
       );
+    } catch (error) {
+      diagnostics.set(reference, error.message);
       continue;
     }
     const candidateSurface = reusableWorkflowSecuritySurface(candidateWorkflow, policy);
@@ -1703,6 +1954,7 @@ async function resolveAutoApprovedContracts({
       left.revision.localeCompare(right.revision),
     )) {
       let basisSurface;
+      let basisObjects;
       try {
         const basisSource = await fetchReusableWorkflowSource(
           parsed.workflow,
@@ -1722,12 +1974,12 @@ async function resolveAutoApprovedContracts({
             `job ${dynamicRoutingBasisJobs[0]} references needs in a routing-relevant field, which cannot be safely diffed for auto-approval`,
           );
         }
-        const localReferenceBasisJobs = localReferenceJobIds(basisWorkflow);
-        if (localReferenceBasisJobs.length > 0) {
-          throw new ConfigurationError(
-            `job ${localReferenceBasisJobs[0]} uses a repository-local action or reusable workflow, which resolves from the bumped commit and cannot be safely diffed for auto-approval`,
-          );
-        }
+        basisObjects = await commitRelativeObjects(
+          sourceRepository,
+          basis.revision,
+          basisWorkflow,
+          objectReader,
+        );
         basisSurface = reusableWorkflowSecuritySurface(basisWorkflow, policy);
         const malformedBasisField = malformedWorkflowCallMappingField(basisSurface);
         if (malformedBasisField) {
@@ -1742,13 +1994,20 @@ async function resolveAutoApprovedContracts({
         continue;
       }
       const diffField = securitySurfaceDiffField(basisSurface, candidateSurface);
-      if (!diffField) {
-        matchingBases.push(basis);
+      if (diffField) {
+        declineReasons.push(
+          `${diffField} changed since the previously reviewed ${parsed.workflow}@${basis.revision}`,
+        );
         continue;
       }
-      declineReasons.push(
-        `${diffField} changed since the previously reviewed ${parsed.workflow}@${basis.revision}`,
-      );
+      const objectDiffPath = commitRelativeObjectDiffPath(basisObjects, candidateObjects);
+      if (objectDiffPath) {
+        declineReasons.push(
+          `commit-relative reference ${objectDiffPath} changed since the previously reviewed ${parsed.workflow}@${basis.revision}`,
+        );
+        continue;
+      }
+      matchingBases.push(basis);
     }
 
     if (basisFailures.length > 0) {
@@ -2827,6 +3086,7 @@ export async function auditRepository({
   githubRepository,
   disableAutoApproval = process.env.CI_RUNNER_POLICY_DISABLE_AUTO_APPROVAL === "true",
   fetchImpl = fetch,
+  githubToken = process.env.GITHUB_TOKEN,
 } = {}) {
   const resolvedRoot = path.resolve(root);
   const resolvedConfig = path.isAbsolute(configPath)
@@ -2858,7 +3118,12 @@ export async function auditRepository({
   const consumedRequiredReusableCallInputs = new Set();
   const workflowIndex = await repositoryWorkflowIndex(resolvedRoot);
   if (!disableAutoApproval) {
-    const autoApproval = await resolveAutoApprovedContracts({ policy, workflowIndex, fetchImpl });
+    const autoApproval = await resolveAutoApprovedContracts({
+      policy,
+      workflowIndex,
+      fetchImpl,
+      githubToken,
+    });
     if (autoApproval.approved.size > 0) {
       policy.approvedReusableWorkflowContracts = new Map([
         ...policy.approvedReusableWorkflowContracts,
