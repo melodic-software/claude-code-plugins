@@ -603,6 +603,89 @@ def test_titles_and_paths_outside_cwd_are_redacted(data_dir, multi):
     assert rec["edits"]["by_relpath"] == {"~/notes.md": 1}
 
 
+def write_records(project: Path, sid: str, lines: list[dict]) -> Path:
+    project.mkdir(parents=True, exist_ok=True)
+    path = project / f"{sid}.jsonl"
+    path.write_text("".join(json.dumps(r) + "\n" for r in lines), encoding="utf-8", newline="\n")
+    return path
+
+
+def turn(n: int, text: str, **fields) -> dict:
+    return {"type": "user", "uuid": f"u{n}", "timestamp": f"2026-09-25T10:{n:02d}:30Z",
+            "message": {"role": "user", "content": text}, **fields}
+
+
+def reply(n: int, **fields) -> dict:
+    return {"type": "assistant", "uuid": f"a{n}", "timestamp": f"2026-09-25T10:{n:02d}:00Z",
+            "message": {"id": f"m{n}", "model": "claude-opus-5-5", "content": [{"type": "text", "text": "ok"}]}, **fields}
+
+
+def test_records_carry_every_entrypoint_or_an_explicit_unknown(data_dir, tmp_path):
+    project = tmp_path / "projects" / "proj-e"
+    write_records(project, "e-cli", [turn(0, "hi", promptSource="typed", entrypoint="cli"), reply(1, entrypoint="cli")])
+    write_records(project, "e-sdk", [turn(0, "probe", promptSource="sdk", entrypoint="sdk-cli")])
+    write_records(project, "e-mixed", [turn(0, "go", entrypoint="sdk-cli"), reply(1, entrypoint="claude-desktop")])
+    write_records(project, "e-none", [turn(0, "hi", promptSource="typed")])
+    write_records(project, "e-odd", [turn(0, "hi", entrypoint="free text, not a name")])
+    assert collect(data_dir, tmp_path / "projects").returncode == 0
+    stored = {sid: rec["entrypoints"] for sid, rec in records(data_dir).items()}
+    assert stored == {
+        "e-cli": ["cli"],
+        "e-sdk": ["sdk-cli"],
+        "e-mixed": ["claude-desktop", "sdk-cli"],
+        "e-none": ["unknown"],
+        "e-odd": ["<other>"],
+    }
+
+
+def test_desktop_prompt_after_a_reminder_is_a_typed_turn_without_it(data_dir, tmp_path):
+    reminder = "<system-reminder>\nToday's date is 2026-10-04.\n</system-reminder>\n"
+    desktop = {"origin": {"kind": "human"}, "promptSource": "sdk", "entrypoint": "claude-desktop"}
+    write_records(
+        tmp_path / "projects" / "proj-d",
+        "d-1",
+        [turn(0, "start the refactor", **desktop), reply(1), turn(1, reminder + "retry, keep using sonnet", **desktop)],
+    )
+    assert collect(data_dir, tmp_path / "projects").returncode == 0
+    human = records(data_dir)["d-1"]["human"]
+    assert human["turns"] == 2
+    assert [(t["words"], t["excerpt"]) for t in human["flagged"]] == [(4, "retry, keep using sonnet")]
+
+
+def test_orphaned_transcript_is_not_a_second_session(data_dir, tmp_path):
+    project = tmp_path / "projects" / "proj-o"
+    write_records(project, "gold-0009", [turn(0, "current", promptSource="typed")])
+    write_records(project, "gold-0009.orphaned-1759500000000-ab12", [turn(0, "set aside", promptSource="typed")])
+    result = collect(data_dir, tmp_path / "projects")
+    assert result.returncode == 0, result.stdout + result.stderr
+    data = envelope(result)["data"]
+    assert (data["scanned"], data["ingested"], data["skipped_orphaned"], data["store_records"]) == (1, 1, 1, 1)
+    assert set(records(data_dir)) == {"gold-0009"}
+
+
+@pytest.mark.parametrize("source_kept", [True, False])
+def test_orphaned_record_an_earlier_collector_stored_is_purged(data_dir, tmp_path, source_kept):
+    project = tmp_path / "projects" / "proj-o"
+    write_records(project, "gold-0010", [turn(0, "current", promptSource="typed")])
+    assert collect(data_dir, tmp_path / "projects").returncode == 0
+    normal = next((data_dir / "audit-sessions" / "store" / "v1" / "sessions").glob("p-*/gold-0010.json"))
+    before = normal.read_bytes()
+    # The record an earlier collector wrote for the set-aside transcript, beside the real one.
+    orphan_id = "gold-0010.orphaned-1759500000000-cd34"
+    stale = json.loads(before)
+    stale["session_id"] = orphan_id
+    (normal.parent / f"{orphan_id}.json").write_text(json.dumps(stale), encoding="utf-8")
+    if source_kept:
+        write_records(project, orphan_id, [turn(0, "set aside", promptSource="typed")])
+    result = collect(data_dir, tmp_path / "projects")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert set(records(data_dir)) == {"gold-0010"}
+    assert normal.read_bytes() == before
+    data = envelope(result)["data"]
+    assert (data["purged_orphaned"], data["skipped_orphaned"], data["store_records"]) == (1, int(source_kept), 1)
+    assert envelope(collect(data_dir, tmp_path / "projects"))["data"]["purged_orphaned"] == 0
+
+
 # resolve_bash mirrors hooks/exec-bash.mjs; the filesystem is injected, as the JS tests do.
 WIN_ENV = {"ProgramFiles": "C:\\Program Files", "PATH": "C:\\Windows\\System32;\"D:\\tools\";C:\\Program Files\\WindowsApps"}
 

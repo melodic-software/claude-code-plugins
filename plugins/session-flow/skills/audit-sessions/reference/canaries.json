@@ -3,7 +3,7 @@
   "validated_against": "2.1.287",
   "verified": "2026-10-02",
   "recheck": "a Claude Code release that changes the transcript format, or a drift run that reports new or vanished keys",
-  "basis": "collect.py census over this machine's 104 sessions (2.1.275-2.1.287): each key below is on every record of its population in 2.1.284, 2.1.285 and 2.1.287, except effort (99.8%) and turn_duration (30-47% of system records); invariant:usage_split counted 16 groups, all in subagents, none in 2.1.287",
+  "basis": "collect.py census over this machine's 104 sessions (2.1.275-2.1.287): each key below is on every record of its population in 2.1.284, 2.1.285 and 2.1.287, except effort (99.8%) and turn_duration (30-47% of system records); invariant:usage_split counted 16 groups, all in subagents, none in 2.1.287. key_path:user:entrypoint was added 2026-10-04: it decides which sessions sweep sets aside as automated, and its feeds are the four metrics whose pooled and interactive-only medians the 2026-10-03 audit compared (764 sessions), all of which moved; no other metric was compared, so widen the feeds if a later comparison shows one moving; it was on every user record of headless 2.1.288 sessions, not yet checked over this machine's corpus",
   "canaries": [
     {"key": "key_path:assistant:message.id", "record_type": "assistant", "feeds": ["tokens.main", "tokens.sub"]},
     {"key": "usage_key:input_tokens", "record_type": "assistant", "feeds": ["tokens.main", "tokens.sub"]},
@@ -17,6 +17,7 @@
     {"key": "system_subtype:turn_duration", "record_type": "system", "feeds": ["time.active_s"]},
     {"key": "key_path:system:durationMs", "record_type": "system", "population": "system_subtype:turn_duration", "feeds": ["time.active_s"]},
     {"key": "key_path:system:hookInfos[].durationMs", "record_type": "system", "population": "system_subtype:stop_hook_summary", "feeds": ["hooks.stop_ms"]},
-    {"key": "key_path:user:message.content", "record_type": "user", "feeds": ["human.turns", "tools.interrupts", "context.clear_commands"]}
+    {"key": "key_path:user:message.content", "record_type": "user", "feeds": ["human.turns", "tools.interrupts", "context.clear_commands"]},
+    {"key": "key_path:user:entrypoint", "record_type": "user", "feeds": ["tokens.main", "tokens.sub", "time.active_s", "human.turns"]}
   ]
 }

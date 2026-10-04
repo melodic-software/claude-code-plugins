@@ -1,12 +1,15 @@
 # Sync Steps 4 and 5: install and enable
 
-Read this file only when the **fresh pre-Step-4 `fleet-state.sh` re-read** for the marketplace being
-swept, the live read [sync.md](sync.md)'s "Steps 4 and 5" section takes and saves as
-`$run_dir/pre-install.$mp.json`, has a non-empty `missing_from_user_install` **or** a non-empty
-`missing_from_enabled`, or when Step 1's refresh failed for that marketplace and the report has to
-name what these two steps deferred. On an already-current fleet both arrays are empty, both steps
-are no-ops, and none of this is reachable. The gate deliberately keys on that re-read rather than
-Step 1's older report, because state can change between the two; see sync.md for why.
+Read this file only when a digest block has a non-empty `install_gap` **or** a non-empty
+`enable_gap`, or `install_enable_deferred: true` because Step 1's refresh failed for that
+marketplace and the report names what these two steps deferred. `sync-run.sh` fills both gaps from
+the fresh pre-Step-4 re-read it saves as `pre-install.<mp>.json`, never from Step 1's older report.
+On an already-current fleet both gaps are empty, both steps are no-ops, and none of this is
+reachable.
+
+`sync-run.sh` runs these steps. The command blocks below describe what it runs, so a reader can
+check a digest row against the call behind it; they are not steps for the model to run. The one
+part the model runs is the `ask` prompt under Step 4.
 
 The steps below are the loop body of [sync.md](sync.md) Steps 2–5, run once per marketplace, and
 every rule that file states applies here unchanged: CLI-mediated mutation only, the per-marketplace

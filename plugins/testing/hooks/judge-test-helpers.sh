@@ -62,7 +62,10 @@ PKEY="$(printf '%s\n%s' "$REPO" "$TDIR" | sha256 | cut -c1-16)"
 # cwd and TEST_JUDGE_ACTIVE, then answers per STUB_MODE for every
 # `block <ordinal> <start>-<end> <name>` line of its prompt: FLAG (quoting the
 # block's first line, with a diff that edits it) when the name holds "flag",
-# else PASS. STUB_SLEEP delays the answer.
+# else PASS. STUB_SLEEP delays the answer. STUB_MODE=denied answers UNKNOWN,
+# "the Read permission was denied", for a name holding "deny" and lists a
+# Read in the result's permission_denials; deniedtext gives the same answer
+# with no denial listed.
 cat >"$TMP/judge-stub.sh" <<'EOF'
 #!/usr/bin/env bash
 n="$(date +%s)-$$-$RANDOM"
@@ -87,7 +90,7 @@ verdicts=()
 while read -r _ ord range name; do
   start="${range%-*}"
   first="$(sed -n "${start}p" "$file")"
-  verdict=PASS diff="" second=""
+  verdict=PASS diff="" second="" why=""
   if [[ "$name" == *flag* ]]; then
     verdict=FLAG
     sed "${start}s/\$/ \/\/ judged/" "$file" >"$STUB_DIR/mod"
@@ -97,12 +100,23 @@ while read -r _ ord range name; do
   badquote) first="this line is not in the file" ;;
   implquote) second="  ${STUB_IMPL_QUOTE:-}  " ;;
   otherfile) diff="$(printf 'other\n' | diff -u --label a/other.txt --label b/other.txt - <(printf 'changed\n'))" ;;
+  denied | deniedtext)
+    if [[ "$name" == *deny* ]]; then
+      verdict=UNKNOWN first=""
+      why="I could not read the test file because the Read permission was denied, so I have no evidence for this block."
+    fi
+    ;;
   esac
   verdicts+=("$(jq -cn --arg n "$name" --argjson o "$ord" --arg v "$verdict" --arg q "$first" --arg q2 "${second:-}" --arg d "$diff" \
-    '{name: $n, ordinal: $o, verdict: $v, evidence: ([$q] + if $q2 == "" then [] else [$q2] end), source: "stub", diff: $d}')")
+    --arg why "$why" '{name: $n, ordinal: $o, verdict: $v, evidence: ([$q] + if $q2 == "" then [] else [$q2] end), source: "stub", diff: $d}
+      + if $why == "" then {} else {reason: $why} end')")
 done < <(grep '^block ' <<<"$prompt")
 result="$(printf '%s\n' "${verdicts[@]}" | jq -cs '{verdicts: .}')"
-jq -cn --arg r "Here you go: $result" '{type: "result", subtype: "success", is_error: false, result: $r}'
+denials='[]'
+[[ "${STUB_MODE:-ok}" == denied ]] &&
+  denials="$(jq -cn --arg f "$file" '[{tool_name: "Read", tool_use_id: "toolu_stub", tool_input: {file_path: $f}}]')"
+jq -cn --arg r "Here you go: $result" --argjson d "$denials" \
+  '{type: "result", subtype: "success", is_error: false, result: $r, permission_denials: $d}'
 EOF
 chmod +x "$TMP/judge-stub.sh"
 
