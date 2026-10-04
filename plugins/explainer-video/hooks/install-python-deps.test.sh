@@ -105,6 +105,25 @@ else
   fail "failed install: rc=$RC installs=$(installs "$data") output=[$out]"
 fi
 
+# A handed-over child that dies at startup: the traceback's last line and a repair line, not the dump.
+root="$(new_plugin crash "$digest")"
+cat >"$root/scripts/pydeps.py" <<'EOF'
+import sys
+sys.stderr.write('Traceback (most recent call last):\n  File "pydeps.py", line 24, in <module>\n    import subprocess\n'
+                 "AttributeError: 'sys.flags' object has no attribute 'context_aware_warnings'\n")
+sys.exit(1)
+EOF
+data="$WORK/data-crash"
+run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")"
+out="$OUT"
+if [[ "$RC" -eq 0 && "$out" == *'"systemMessage"'* && "$out" == *'"additionalContext"'* &&
+  "$out" == *"the Python handover failed: AttributeError: 'sys.flags' object has no attribute 'context_aware_warnings'; repair with: "*"pydeps.py"*"install"*"--data-dir"* &&
+  "$out" != *Traceback* ]]; then
+  ok "a crashed handover surfaces the traceback's last line and a repair line, not the traceback"
+else
+  fail "crashed handover: rc=$RC output=[$out]"
+fi
+
 # No data directory (a host that sets none): nothing to install into, no output.
 root="$(new_plugin nodata "$digest")"
 run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA=
