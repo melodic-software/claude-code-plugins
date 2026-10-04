@@ -78,6 +78,20 @@ divergence's blast radius.
   fragmentation whether or not it is defensible on its merits, the burden is
   to say *why*, not merely to be right.
 
+### Where the established way is written down
+
+A project may record its chosen ways as paved paths: a standards index row
+whose Surface is `paved-path`, pointing at one file that names, per concern,
+the chosen way and the check that enforces it (the standards convention's
+"Paved paths" section, `docs/conventions/standards/README.md` in the
+marketplace repository). Read that file on demand, when the work in flight
+touches a concern it might list; do not load it otherwise. The index sits at
+`docs/standards/README.md` unless `.claude/standards.yaml` sets another
+`standards_dir`. A listed entry is the established way for that concern; a
+second way beside it is the finding above, and replacing it means updating
+the entry too. With no index or no `paved-path` row, find the established way
+in the codebase as before.
+
 ## Scope, the unlintable "approach" level
 
 This skill owns consistency of **how work is done** where judgment, not a

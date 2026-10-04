@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Added
+
+- **Paved paths reach the code reviewer.** The bundled standards contract moves to 1.1.0, which adds a `paved-path` index row kind. When the resolved index has one, `/review:quality-gate` and `/review:fanout` name its file in the `code-reviewer` agent's brief, and the agent reports a change that adds a second way for a listed concern as an advisory finding. The agent resolves no index itself. Not yet read by `/review:code-review`, the CI review lane.
+
 ## [0.40.2] - 2026-10-03
 
 ### Changed

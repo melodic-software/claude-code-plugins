@@ -12,6 +12,10 @@ All notable changes to the `planning` plugin are documented here. Format follows
   `reference/type-discipline/typescript.md` loads when the repository has a `tsconfig.json` or the change touches `.ts`, `.tsx`, `.mts` or `.cts` files; it parses through the schema library the manifest already declares (none named as a default), types the schema against a type written first, and falls back to a hand-written parse function with no new dependency.
   Phase 3 ends with an exit check written as questions against the type inventory; four eval cases cover the detection and the schema-library choice.
 
+### Changed
+
+- Shared `README.md` synced as `reference/standards-contract.md`; no change to this plugin's skills. The standards contract is now 1.1.0 and adds the `paved-path` index row kind, which planning resolves like any other row.
+
 ## [0.67.4] - 2026-10-04
 
 ### Changed

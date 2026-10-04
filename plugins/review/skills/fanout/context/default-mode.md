@@ -24,6 +24,16 @@ Deterministic diff-size thresholds, refined by a judgment layer. A 30-line chang
 | **medium** | 50–300 | small diff but security-sensitive, boundary-crossing, or high blast radius | small set + orchestrator plugin(s) (SKILL.md "Orchestrator plugins") + `architecture-guardian` when module/layer structure is touched |
 | **large** | >300 OR cross-cutting (many dirs / many ecosystems) | medium diff that is cross-cutting | medium set + the project's ownerless review-criteria docs as slice-subagents (`leaf-roster.md`) |
 
+## Paved-path brief
+
+Before dispatch, resolve the project's standards index through the "Resolution ladder" section of
+the plugin's contract binding
+[`reference/standards-contract.md`](../../../reference/standards-contract.md). When the index has a
+row whose Surface is `paved-path` (the binding's "Paved paths" section), add that row's file path to
+the `code-reviewer` leaf's brief as a file to read. Name the path; do not paste the file. With no
+such row, the brief names no paved-path file. A row whose file does not exist is reported in the run
+summary, never skipped silently.
+
 ## Tier transparency (mandatory)
 
 Before dispatch emit ONE line:

@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [Unreleased]
+
+### Added
+
+- `/discipline:reuse-or-replace` reads the project's paved-path file on demand: when the standards index has a `paved-path` row and the work touches a concern it lists, the listed entry is the established way, and replacing it includes updating the entry.
+
 ## [0.16.3] - 2026-10-02
 
 ### Fixed
