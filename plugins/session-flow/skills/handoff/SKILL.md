@@ -126,7 +126,6 @@ anywhere but a handoff, recommend that route and write no save-point. A user's e
   skill owns, not a byproduct of the others
 - About to pause for hours/overnight; want a clean resume
 - About to switch to a different task; this one isn't done
-- Last turn had an unexpected compaction
 - Crossing a boundary. Handing the work to a colleague, another repository or checkout, or
   another agent, or forking a mid-phase side task into its own session
 - Sharing state with another session or machine

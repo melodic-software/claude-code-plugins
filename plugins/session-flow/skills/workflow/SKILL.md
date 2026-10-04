@@ -128,8 +128,7 @@ its ordered router; recommend exactly one mechanism with its rationale, zone-inf
 context-guard's zone report (its `mcp__context-guard__status` tool, or its snapshot) has data and
 conservative when it does not. Mid-stage with a healthy window,
 skip this, the default is simply to continue. Mid-stage with a bloated window, walk the router
-too: on the same task it usually lands on `/compact <focus>`, typed by the user, but its earlier
-questions (two failed corrections, an already-compacted run that is degrading) come first.
+too.
 
 The router **suggests; it does not act**. The recommendation goes to the human with the evidence
 that drove it, and executing the routed mechanism takes an explicit per-invocation license

@@ -105,41 +105,40 @@ boundary.
    prefer continue when the next stage consumes this stage's reasoning verbatim, because a summary of the
    reasoning is not the reasoning; this never overrides a degraded zone, where the questions
    below choose the route.*
-4. **Is this session's context disposable: nothing in it is worth carrying forward, the next work
-   is unrelated work, or two corrections on the same issue have already failed?** → `/clear`.
-   *The cheapest reset, asked before any writing mechanism: capturing state nothing needs is pure
-   cost. Unrelated work is work that neither uses this stage's artifact or files nor serves the
-   same Original goal or work item. After two failed corrections we clear and restate the problem
-   rather than carry those attempts forward.*
-5. **Does the work leave this session, or is a finished spec or plan moving into execution?** →
+4. **Is this session's context disposable: the next work is unrelated and nothing from this
+   session carries over to anything, or two corrections on the same issue have already failed?**
+   → `/clear`. *The cheapest reset, asked before any writing mechanism: capturing state nothing
+   needs is pure cost. Unrelated work is work that neither uses this stage's artifact or files nor
+   serves the same Original goal or work item. After two failed corrections we clear and restate
+   the problem rather than carry those attempts forward.*
+5. **Does the work leave this session, is a finished spec or plan moving into execution, or is
+   the next work unrelated while something from this session still carries over?** →
    `session-flow:handoff`, then the user `/clear`s. *Leaving means another agent, another
    checkout, a colleague, another machine, or a break longer than the prompt cache lasts. We
-   execute a finished spec or plan in a new session. An attended run that
-   has already been compacted and whose output quality is now degrading also hands off to a fresh
-   session rather than compacting again; unattended runs leave auto-compact on (context-guard's
-   reader contract). This is the first mechanism that pays a write cost without a live
-   continuation attached: a handoff carries forward exactly the state that matters.* The skill
-   ships in this plugin, so it is never absent here; a handoff file is written through it, never
-   free-hand.
-6. **Fallthrough: the next work is the related next task** → `/compact <focus>`, typed by the
-   user, the focus naming what the summary must keep. *A related next task uses this stage's
-   artifact or files and serves the same Original goal or work item, so the session's context is
-   still its context.*
+   execute a finished spec or plan in a new session. Switching to unrelated work with a follow-up,
+   an open item or a finding still owed hands off rather than clears, so that state survives the
+   reset. This is the first mechanism that pays a write cost without a live continuation attached:
+   a handoff carries forward exactly the state that matters.* The skill ships in this plugin, so it
+   is never absent here; a handoff file is written through it, never free-hand.
+6. **Fallthrough: the next work is in the same phase or activity, or is the related next task** →
+   `/compact <focus>`, typed by the user, the focus naming what the summary must keep. *Compaction
+   is the default within a phase or activity, and it may repeat: a session already compacted
+   compacts again when the window needs it. A related next task uses this stage's artifact or files
+   and serves the same Original goal or work item, so the session's context is still its context.*
 
 **Timing.** Before stepping away for longer than the prompt cache lasts, route now: hand off before
 leaving.
 
 **Same-task boundaries.** Whether the next stage is the same task follows the stage boundary:
 
+- within one phase or activity → `/compact <focus>` each time the window needs it (question 6).
 - explore → plan stays in one session, `/compact <focus>` when the window needs it.
 - a finished spec or plan → execution moves to a fresh session (question 5).
 - implementation → review runs in fresh context, for example a reviewer subagent.
 - two failed corrections on one issue → `/clear` (question 4).
 
-We route by task: same task compacts with a focus, unrelated work clears, work that leaves the
-session hands off. The "rather than compacting again" clause in question 5 is our judgment; no
-source we read compares a second compaction with a handoff, and the workflow evals carry the case
-that would settle it.
+We route by task: same phase or task compacts with a focus, unrelated work hands off when
+anything carries over and clears when nothing does, work that leaves the session hands off.
 
 - **Pointer**: for when context fills up, see
   <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>; for managing
@@ -155,6 +154,20 @@ that would settle it.
 - **Recheck trigger**: either context page changes its `/compact` or `/clear` guidance, a
   best-practices section above changes how it splits sessions, or the cache-lifetime section
   changes.
+
+## Record decisions before suggesting a reset
+
+`/compact`, `/clear` and `session-flow:handoff` each drop conversation the next context will not
+see. Before suggesting any of them:
+
+1. Write every decision made this session, and every pending decision with its recommendation, to
+   a durable file the next context reads: the active plan or spec, else the workflow checklist
+   (SKILL.md, "Consumer conventions"); on a handoff route, the save-point carries them.
+2. Ask the pending decisions now, while the user is present, and record each answer or deferral
+   in that file.
+
+Only then name the mechanism. Never suggest compacting first and recording afterwards: a
+compaction summary is not a durable record, and a decision it drops is lost.
 
 ## Output shape: suggest by default
 
