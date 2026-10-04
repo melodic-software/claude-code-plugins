@@ -126,6 +126,20 @@ test("without the claude CLI, installed is null with a reason", () => {
   assert.deepEqual(out.project.tokens, []);
 });
 
+test("the claude CLI runs in the requested project, not the caller's directory", { skip: process.platform === "win32" && "the fake CLI is a sh script" }, () => {
+  const bin = join(scratch, "fake-bin");
+  mkdirSync(bin, { recursive: true });
+  // Reports the plugin as enabled for a project only when run from with-ds, as the real CLI scopes by cwd.
+  writeFileSync(
+    join(bin, "claude"),
+    `#!/bin/sh\n[ "$1" = plugin ] || exit 0\ncase "$PWD" in */with-ds) e=true ;; *) e=false ;; esac\n` +
+      `echo "[{\\"id\\":\\"frontend-design@claude-plugins-official\\",\\"scope\\":\\"project\\",\\"enabled\\":true,\\"projectEnabled\\":$e}]"\n`,
+    { mode: 0o755 },
+  );
+  const out = detect(["--project", join(FIX, "with-ds"), "--home", HOME], { PATH: `${bin}:${process.env.PATH}` });
+  assert.ok(out.installed.includes("frontend-design@claude-plugins-official"), JSON.stringify(out));
+});
+
 test("a malformed plugin list is reported, not thrown", () => {
   const bad = join(scratch, "bad.json");
   writeFileSync(bad, "{not json");

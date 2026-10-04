@@ -84,7 +84,8 @@ These apply whatever the route, and the type files give the detail:
 - **Not a TTY**: when output is piped, redirected or captured, emit no color, styling, cursor
   movement, spinner or animation; print plain lines a script can parse.
 - **`NO_COLOR`**: when it is set and not empty, add no ANSI color, whatever its value, and never
-  carry meaning in color alone.
+  carry meaning in color alone. The dated pointer record for this convention is in
+  `${CLAUDE_PLUGIN_ROOT}/reference/types/terminal.md`; when it and this line disagree, the record wins.
 - **Plain-text fallback**: with `TERM=dumb`, an unknown terminal, or no Nerd Font, use plain ASCII
   in place of glyphs, box drawing and emoji (`[ok]`, `[!]`), and no color.
 - **Theme-safe color**: use the terminal's named ANSI colors, not fixed 24-bit values, and set no

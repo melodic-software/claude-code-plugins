@@ -64,7 +64,7 @@ function projectSignals() {
 function claude(args) {
   const win = process.platform === "win32";
   const env = win ? { ...process.env, NoDefaultCurrentDirectoryInExePath: "1" } : process.env;
-  const r = spawnSync("claude", args, { encoding: "utf8", shell: win, env, timeout: 60_000 });
+  const r = spawnSync("claude", args, { cwd: opts.project, encoding: "utf8", shell: win, env, timeout: 60_000 });
   if (r.error || r.status !== 0) return new Error(`claude ${args.join(" ")} failed: ${r.error?.code ?? r.stderr?.trim() ?? r.status}`);
   return r.stdout;
 }

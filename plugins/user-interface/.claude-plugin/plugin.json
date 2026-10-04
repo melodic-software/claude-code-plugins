@@ -22,7 +22,7 @@
     "account_tools_enabled": {
       "type": "boolean",
       "title": "Account-bound tools",
-      "description": "Route to tools that need an account, login or API key (Claude Design, Figma, axe and similar) when they are installed and reachable. Set false to use only tools that need no account. A paid tool is suggested only when nothing free covers the concern.",
+      "description": "Route to tools that need an account, login or API key (Claude Design, Figma, axe) when installed and reachable; false uses only account-free tools. Paid tools only when nothing free fits. No effect yet: every account-bound route is still deferred until it is tested.",
       "default": true
     }
   }
