@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | CRITICAL | Correctness | The commit says every caller passes a signed-in user, but src/header.js:4 passes session.user, which is null until sign-in. With the `!user || !user.profile` check gone, displayName(null) throws TypeError reading `profile`, so the header breaks for every signed-out visitor. | src/display-name.js:2 | Restore the Guest fallback |",
+      "why": "names the input, refutes the claim, states the failure"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No issues found. The commit message explains the check was dead code, and the function is shorter now.",
+      "why": "accepts the dead-code claim"
+    },
+    {
+      "answer": "| 1 | SUGGESTION | Readability | A defensive check was removed; consider adding a JSDoc type for user. | src/display-name.js:1 | Add JSDoc |",
+      "why": "names the removal, not the input or the failure"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "No deepening candidates. The pricing engine is already deep and the ADR keeps its rules in-process.",
+      "why": "no badge at all"
+    },
+    {
+      "answer": "One Speculative note: the rounding table could live beside the tax tables. Badge: Speculative, because the interface is already small.",
+      "why": "Speculative only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Candidate 1, pricing engine. Badge: Strong. Split the rules into three modules.",
+      "why": "Strong badge on a deep module"
+    },
+    {
+      "answer": "**Worth exploring**: extract the tax tables behind a TaxPolicy seam.",
+      "why": "Worth exploring card"
+    }
+  ]
+}

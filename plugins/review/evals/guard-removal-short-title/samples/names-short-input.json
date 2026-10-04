@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "IMPORTANT: short titles now get an ellipsis too: shorten('Desk lamp') returns 'Desk lamp…'.",
+      "why": "names short titles"
+    },
+    {
+      "answer": "A title that already fits within the limit is no longer returned unchanged.",
+      "why": "paraphrase: fits within"
+    },
+    {
+      "answer": "Without the len(title) <= limit branch, a 40-character title loses its last character.",
+      "why": "names the boundary input"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "No self-review issues found in changed files. Slicing is safe, so the length check was redundant.",
+      "why": "agrees with the commit"
+    },
+    {
+      "answer": "SUGGESTION: the length check was removed; consider a docstring for shorten.",
+      "why": "near miss: names the check, not the input"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}

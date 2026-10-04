@@ -1,0 +1,17 @@
+# expect: rule-zero-assertion
+# expect: rule-weak-oracle
+# Names that read like checks are not assertions: the first two tests only
+# print, whatever their names and parameters say, and the one-line test's
+# only oracle passes for any user.
+from users import load_user
+from widgets import build_widget
+
+
+def test_check_widget_builds(expected="w"):
+    print(build_widget())
+
+
+def test_verify_widget_prints(): print(build_widget())
+
+
+def test_assert_user_loads(): assert load_user(1) is not None

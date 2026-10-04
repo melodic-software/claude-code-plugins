@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "No deepening candidates in this repository; `tax` is already deep.",
+      "why": "no badge"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Candidate 1: tax rate lookup. Badge: Worth exploring. Pull rate_for behind a RateProvider seam.",
+      "why": "Worth exploring card"
+    },
+    {
+      "answer": "[Strong] invoice.py and tax: merge the CLI into the package.",
+      "why": "Strong card"
+    }
+  ]
+}

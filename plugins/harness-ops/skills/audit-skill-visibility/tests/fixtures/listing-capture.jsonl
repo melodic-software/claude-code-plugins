@@ -1,0 +1,4 @@
+{"type":"user","message":{"role":"user","content":"hello"}}
+{"type":"attachment","attachment":{"type":"model","identity":{"modelId":"claude-fixture-1"}}}
+{"type":"attachment","attachment":{"type":"skill_listing","content":"- p:a: hello\n- builtin-x: Built-in skill text.\n- synced:y","skillCount":3,"isInitial":true,"names":["p:a","builtin-x","synced:y"]}}
+{"type":"assistant","message":{"role":"assistant","content":"ok"}}

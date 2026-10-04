@@ -4,6 +4,16 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.7.0] - 2026-10-04
+
+**Minor, additive.** One crosswalk row admits `testing:audit`'s new report-only rule:
+`testing/audit/rule-throw-only-oracle`, SUGGESTION, `Confidence` omitted, not auto-applicable. It
+fires when every assertion of a C# test checks only that a value the test built with `new` exists
+or has its type, so only a throwing constructor fails the test; it is argued on the same walk as
+`testing/audit/rule-weak-oracle`. The `testing:audit` adopter row counts it: remedies pinned 7 of
+13, with this rule's remedy pinned positive only and owed its negative assertion. No
+producer-owned field's rule, coexistence obligation, or enforceability verdict moves.
+
 ## [3.6.2] - 2026-10-01
 
 **Patch, docs-only.** The `attribution/audit/rule-stamp-expired` and
