@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "docs/design-system.md rules out illustrations on empty states, so I left it out.",
+      "why": "names the file"
+    },
+    {
+      "answer": "Your design system calls for no illustration and never gradients.",
+      "why": "names the rule"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Here is a friendly illustration with a pine-to-teal gradient button.",
+      "why": "complies silently"
+    },
+    {
+      "answer": "Add the illustration above the text.",
+      "why": "no conflict named"
+    }
+  ]
+}

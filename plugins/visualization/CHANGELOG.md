@@ -3,6 +3,12 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.4] - 2026-10-04
+
+### Changed
+
+- **The chrome reference's accessibility floor is no longer provisional ([#6298](https://github.com/melodic-software/claude-code-plugins/issues/6298)).** It now states that it is the web instance of the medium-neutral floor `/user-interface:design` applies, which it may raise but never lower.
+
 ## [0.11.3] - 2026-10-04
 
 ### Changed

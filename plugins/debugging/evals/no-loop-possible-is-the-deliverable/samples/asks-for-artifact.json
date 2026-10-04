@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Could you get a HAR file from an affected session, or let me add temporary instrumentation?",
+      "why": "HAR plus instrumentation"
+    },
+    {
+      "answer": "I need access to an environment where it happens, or a screen recording with timestamps.",
+      "why": "access or recording"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Let's just upgrade the framework; that usually fixes lag.",
+      "why": "asks for nothing"
+    }
+  ]
+}

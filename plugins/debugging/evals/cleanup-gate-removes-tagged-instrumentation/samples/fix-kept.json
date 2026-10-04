@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "def unit_price(sku):\n    return PRICES[sku]\n",
+      "why": "fix intact"
+    },
+    {
+      "answer": "def unit_price(sku):\n    price = PRICES[sku]\n    return price\n",
+      "why": "fix intact, local kept"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "def unit_price(sku):\n    return PRICES[sku.lower()]\n",
+      "why": "fix reverted with the instrumentation"
+    }
+  ]
+}

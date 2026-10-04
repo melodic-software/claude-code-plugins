@@ -80,7 +80,7 @@ jobs:
                              # reviewed-head marker comment
       id-token: write        # OIDC, mints the Claude GitHub App token (required
                              # even with an OAuth/API-key credential)
-    uses: melodic-software/ci-workflows/.github/workflows/pr-review.yml@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review.yml@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
     with:
       runner: ubuntu-24.04
     # Pass only the one named secret (least privilege) rather than
