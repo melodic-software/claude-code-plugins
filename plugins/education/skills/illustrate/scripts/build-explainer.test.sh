@@ -305,7 +305,7 @@ check(
 check("the skill states the short-label rule", skill.includes("Labels are capped at 40 characters"));
 const kindRows = ["flow", "stack", "hub", "timeline", "compare", "before-after"].filter((kind) => skill.includes(`| \`${kind}\` |`));
 check("the skill documents every kind the builder accepts", kindRows.length === 6, kindRows.join(","));
-check("the skill calls its diagrams diagrams, not pictures", !/small pictures|the pictures|each\s+picture/.test(skill));
+check("the skill calls its diagrams diagrams, not pictures", !/small pictures|the pictures|each\s+picture/.test(skill)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 
 if (failed > 0) process.exit(1);
 NODE
