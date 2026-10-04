@@ -21,7 +21,7 @@ Spawn 3–4 subagents in parallel via the Agent tool. Orthogonality is deliberat
 - **Optimize the common caller**: the dominant call site's default case becomes trivial
 - **Ports and adapters** (only when the candidate's dependency classification shows cross-seam dependencies): port at the seam, transport injected
 
-Brief each subagent with the concrete technical context, independent of the user-facing framing from step 1: file paths, coupling details, dependency category, and what sits behind the seam. Include [vocabulary.md](vocabulary.md) terms and the project's own glossary terms (if it maintains one) so every design names things consistently.
+Brief each subagent with the concrete technical context, independent of the user-facing framing from step 1: file paths, coupling details, dependency category, and what the seam hides. Include [vocabulary.md](vocabulary.md) terms and the project's own glossary terms (if it maintains one) so every design names things consistently.
 
 Every subagent returns the same six-part structure:
 

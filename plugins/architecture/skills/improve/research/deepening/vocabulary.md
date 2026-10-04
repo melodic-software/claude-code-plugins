@@ -1,44 +1,81 @@
 # Deepening Vocabulary
 
-Shared vocabulary for every suggestion the `deepening` lens makes. Use these terms exactly. Consistent language is the point.
+When the `deepening` lens names an architectural idea, it uses one of the eight terms below, with the
+meaning given here. Scan agents, report cards and interview turns all hold to this, so two findings
+that say "seam" mean the same thing. A near-synonym makes the reader ask whether a second idea is
+meant.
 
-Source: Ousterhout's "A Philosophy of Software Design", adapted for practical use.
+Basis: John Ousterhout, *A Philosophy of Software Design*, with "seam" taken from Michael Feathers,
+narrowed here for review work. The examples below use one running case: tax calculation in a
+billing system.
 
-## Terms
+## Naming the parts
 
-**Module**: anything with an interface and an implementation. Scale-agnostic: function, class, package, vertical slice. Avoid: unit, component, service.
+**Module**: whatever a finding is about, at whatever size. `parseInvoiceDate()` is a module, so is
+the `TaxCalculator` class, so is the `billing` package, and so is "export an invoice" taken from the
+button down to the database. Each has two sides, the interface callers see and the implementation
+they do not. Not: service, component, unit.
 
-**Interface**: everything a caller must know to use the module correctly. Includes type signature, invariants, ordering constraints, error modes, required configuration, performance characteristics. Avoid: API, signature (too narrow, type-level surface only).
+**Interface**: everything a caller has to get right to use the module, which comes down to three
+questions the caller asks:
 
-**Implementation**: what's inside a module. Distinct from **Adapter**: a thing can be a small adapter with a large implementation (Postgres repo) or a large adapter with a small implementation (in-memory fake). Use "adapter" when the seam is the topic; "implementation" otherwise.
+- What happens when it goes wrong, and how long will it take? Its failure modes and its speed.
+- What must stay true, and in what order do I call it? Its invariants and its call sequence.
+- What do I hand over and get back? Its types, plus any configuration that must exist first.
 
-**Depth**: leverage at the interface. A module is **deep** when large behavior sits behind a small interface. A module is **shallow** when the interface is nearly as complex as the implementation.
+Not: signature or API, and not the public methods of a class or the TypeScript `interface`
+keyword. Each of those answers only the last question.
 
-**Seam** (Feathers): a place where behavior can be altered without editing in that place. The location at which a module's interface lives. Choosing seam placement is its own design decision, distinct from what goes behind it. Avoid: boundary (overloaded with DDD's bounded context).
+**Implementation**: the lines and logic a module carries. Two questions keep it apart from an
+adapter. How much code is there? That measures the implementation. How many calls does the slot
+define? That measures the adapter. `DictTaxRates` answers forty lines and twenty calls;
+`ElasticInvoiceIndex` answers thousands of lines and three calls. A sentence about what plugs into a
+seam says adapter; a sentence about the code itself says implementation.
 
-**Adapter**: a concrete thing satisfying an interface at a seam. Describes role (what slot it fills), not substance (what's inside).
+**Seam**: a placement decision, made before anyone decides what goes on either side: the spot where
+one adapter comes out and another goes in with no edit at that spot (Feathers' sense). In the
+running example it is the `TaxRates` port: production plugs in the rates-service client, tests plug
+in `DictTaxRates`. A module's interface sits wherever its seam sits. Not: boundary, a word
+domain-driven design already spends on bounded contexts.
 
-**Leverage**: what callers get from depth. More capability per unit of interface they must learn. One implementation pays back across N call sites and M tests.
+**Adapter**: the code plugged in at a seam. It is named for the slot it fills (the rates-service
+adapter, the dictionary adapter), not for the work it does inside.
 
-**Locality**: what maintainers get from depth. Change, bugs, knowledge, and verification concentrate at one place rather than spreading across callers.
+## Judging a module
 
-## Principles
+**Depth**: what a caller gets back for what the interface makes it learn. **Deep** describes a module
+with a small interface over large behavior; **shallow** describes one whose interface is about
+the size of its implementation. Not: dividing implementation lines by interface lines, a score
+that padding the implementation would raise.
 
-- **Depth is a property of the interface, not the implementation.** A deep module can be internally composed of small, mockable, swappable parts. They just aren't part of the interface. A module can have **internal seams** (private, used by own tests) and **external seams** (at its interface).
-- **The deletion test.** Imagine deleting the module. If complexity vanishes, it was a pass-through. If complexity reappears across N callers, it was earning its keep.
-- **The interface is the test surface.** Callers and tests cross the same seam. If you want to test *past* the interface, the module is probably the wrong shape.
-- **One adapter = hypothetical seam. Two adapters = real seam.** Don't introduce a seam unless something actually varies across it.
+**Leverage**: the callers' share of depth. Once `TaxCalculator.quote(order)` hides the rate tables,
+rounding and exemptions, the checkout page, the invoice export and the refund job each make one
+call, and a single test suite covers what all three rely on.
 
-## Relationships
+**Locality**: the maintainers' share of depth. When a rounding defect is reported, the fix, the test
+that proves it, and the understanding of how rounding works all sit inside `TaxCalculator`, and none
+of the three callers changes.
 
-- A **Module** has exactly one **Interface**
-- **Depth** is a property of a **Module**, measured against its **Interface**
-- A **Seam** is where a **Module**'s **Interface** lives
-- An **Adapter** sits at a **Seam** and satisfies the **Interface**
-- **Depth** produces **Leverage** for callers and **Locality** for maintainers
+## How the terms relate
 
-## Rejected framings
+| Term | Relation |
+|---|---|
+| Module | has one interface, no more |
+| Seam | is the location of a module's interface |
+| Adapter | occupies a seam, fulfilling its interface |
+| Depth | belongs to a module and is judged against its interface |
+| Leverage, locality | are what depth produces, for callers and maintainers respectively |
 
-- **Depth as ratio of implementation-lines to interface-lines** (Ousterhout literal): rewards padding. We use depth-as-leverage
-- **"Interface" as TypeScript `interface` keyword or class's public methods**: too narrow; interface includes every fact a caller must know
-- **"Boundary"**: overloaded with DDD bounded context. Use **seam** or **interface**
+## Checks
+
+- **Two-adapter check.** Before adding a seam, name both adapters that will plug into it, usually a
+  production one and a test one. If only one can be named, the seam is speculation and stays out.
+- **Testing check.** A test is one more caller, so it uses the interface and nothing behind it.
+  When a test can only be written by reaching past the interface, take that as evidence the module
+  is cut in the wrong place.
+- **Internal parts do not count.** Depth is measured where callers stand. `TaxCalculator` may be
+  assembled from a dozen small, swappable functions, with **internal** seams that only its tests touch.
+  Those stay private; only the **external** seam, the interface, enters the judgment.
+- **The deletion test.** Ask what each caller would have to write if the module were removed. A
+  direct call to whatever the module wrapped means it only forwarded calls. The same logic, copied
+  into every caller, means it was doing real work.

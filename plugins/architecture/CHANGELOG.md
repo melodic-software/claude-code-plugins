@@ -10,6 +10,10 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 - **The enforcement ladder ships with `/architecture:improve`.** A generated copy of the enforcement-ladder convention sits at `skills/improve/research/enforcement-ladder.md`, carrying the rung list and the "Where boundary rules live" list that boundary reviews read.
 - **`/architecture:improve boundaries`.** A second lens reads the boundary rules a repository records, from the places the enforcement ladder's "Where boundary rules live" list names, and the project edges `/architecture:map-dependencies` cites, then reports each edge that crosses a rule. With no rule recorded it asks which directions are forbidden instead of inferring one. Each rule the user confirms goes to a review-findings file under `<memory_dir>/improve/<branch-slug>/` under the `architecture` dimension, and the report offers `/review:audit-enforceability` on it.
 
+### Changed
+
+- **The deepening lens's vocabulary, dependency categories, report format and phase text are in our own words.** `vocabulary.md`, `dependencies.md`, `html-report.md` and `actions/deepening.md` no longer share sentences with the upstream module-design text they were adapted from; examples use invoice, mail and shipping-rate domains, the diagram patterns are renamed (call flow, round-trip sequence, layer stack, size bars, collapsed call tree, boxes and arrows by hand), the `.deep` scaffold class takes the palette's slate, the Phase 2 closing question reads "Which candidate should we explore?", and the interview, the `agreed-shape` field and the Design-It-Twice brief all name "what the seam hides". Every term, rule, badge, category label and artifact field is unchanged.
+
 ## [0.22.1] - 2026-10-04
 
 ### Changed

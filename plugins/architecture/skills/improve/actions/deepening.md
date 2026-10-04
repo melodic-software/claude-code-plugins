@@ -1,6 +1,6 @@
 # Deepening lens (Ousterhout)
 
-The `deepening` action implements Ousterhout's "deepening" concept: finding shallow modules (interface nearly as complex as implementation) and proposing how to deepen them (small interface, large behavior behind it).
+The `deepening` action applies Ousterhout's idea of deep modules. It looks for shallow modules, whose interface is almost as complicated as the code behind it, and proposes how to make each one deep: a small interface over a lot of behavior.
 
 Three phases, with a verification gate (Phase 1.5) between the scan and the report. Each has a hard gate before the next.
 
@@ -19,38 +19,39 @@ current before the scan starts; this skill never merges or rebases on its own. A
 step (no remote, no `origin/HEAD`, offline) is an unknown freshness, said in one line, and the scan
 carries on.
 
-**Scope before scanning: YAGNI.** Deepening pays off by making future changes easier, so weight
-the scan toward where change keeps landing. A deepening opportunity in code nobody touches is
-leverage never cashed in. Decide *where* to look before looking:
+**Scope before scanning: YAGNI.** The return on deepening is cheaper change later, so it only
+arrives where code is still being changed; deepening a file no one edits buys nothing. Choose the
+area first, then scan it:
 
-- The user may name a direction in the invocation arguments or the conversation: a module, a
-  subsystem, a pain point. When they do, scope the scan to it and skip the inference below.
-- Otherwise, walk back the recent commit history to find the hot spots: the files and areas that
-  keep coming up. Let those paths pull the scan first. The **Recent commits** list gathered by
-  this skill's repository-context step is the starting evidence; when it runs thin, go deeper with a
-  longer `git log --oneline`. If the changes are scattered with no clear hot spot, widen the net.
+- When the invocation arguments or the conversation already point somewhere (a pain point, a
+  subsystem, a single module), that is the scope, and the history step below is skipped.
+- With no direction given, read recent history for the paths that change most often and scan
+  those first. Start from the **Recent commits** list this skill's repository-context step
+  gathers, and run a longer `git log --oneline` when that list is too short to show a pattern. When
+  no path changes noticeably more than the rest, history sets no priority and the scan covers the
+  whole area.
 
 The scope chosen here sets each scan subagent's assigned area.
 
 **Size the fan-out from the scope, not from a constant.** Dispatch one scan subagent per area the
-scope decomposed into, since the right width is a property of the repository being scanned, not of
+scope decomposed into, since the right width depends on the repository being scanned, not on
 the method. Name the count and the areas to the user before dispatching: scan cost rises with the
 subagent count, and the scan fan-out is the largest cost of a run.
 
-Read the project's domain glossary if it maintains one: the nearest `UBIQUITOUS-LANGUAGE.md` (or equivalent), found by walking UP from the directory being examined toward the repo root and stopping at the first match (the same way `.editorconfig` / `.gitignore` resolve).
+If the project keeps a domain glossary, read it: the nearest `UBIQUITOUS-LANGUAGE.md` (or equivalent), found by walking UP from the directory being examined toward the repo root and stopping at the first match (the same way `.editorconfig` / `.gitignore` resolve).
 
 Also read any architecture decision records (ADRs) in the area being examined. Give them the same discovery discipline as the glossary rather than one shallow glob. If the consuming project declares where its decisions live (a path in its `CLAUDE.md` / rules, or a documented convention), honor that. Otherwise walk the ladder of common homes in [../../../reference/adr-discovery.md](../../../reference/adr-discovery.md), from the examined directory up to the repo root. ADR placement varies widely; a single default glob misses most of them.
 
-Use the Agent tool with `subagent_type=Explore` (or any read-only exploration subagent available) to walk the codebase. Brief each scan subagent with the canonical template in [../research/deepening/scan-briefing.md](../research/deepening/scan-briefing.md): vocabulary primer, friction checklist, dependency categories, the two badge-acceptance heuristics, and the per-candidate return schema. Briefing from it keeps scan quality from varying run-to-run and calibrates confidence against the heuristics at scan time, not leaving it to Phase 2. Explore organically and note where friction appears:
+Walk the codebase through the Agent tool (`subagent_type=Explore`, or any read-only exploration subagent available). Brief each scan subagent with the canonical template in [../research/deepening/scan-briefing.md](../research/deepening/scan-briefing.md): vocabulary primer, friction checklist, dependency categories, the two badge-acceptance heuristics, and the per-candidate return schema. Briefing from it keeps scan quality from varying run-to-run and calibrates confidence against the heuristics at scan time, not leaving it to Phase 2. The scan follows what it finds rather than a fixed route, and records friction wherever it shows up:
 
-- Where does understanding one concept require bouncing between many small modules?
-- Where are modules **shallow**, with an interface nearly as complex as the implementation?
-- Where have pure functions been extracted for testability, but real bugs hide in how they're called (no **locality**)?
-- Where do tightly-coupled modules leak across their **seams**?
-- Where do bugs recur *at the seams between* several owned subsystems (e.g. frontend ↔ API ↔ CLI ↔ store) rather than inside any one? That is a signal to wrap them behind a single **deep** interface so one integration test exercises the whole flow instead of debugging each boundary.
-- Which parts of the codebase are untested, or hard to test through their current **interface**?
+- Code with no tests, or code whose current **interface** makes it hard to test.
+- Modules that are **shallow**: the interface asks almost as much of a caller as the implementation does.
+- A single idea whose logic is split over so many small modules that a reader has to open each of them to follow it.
+- Pure functions pulled out to make testing easy, while the defects sit in the code that calls them (no **locality**).
+- Defects that keep appearing *where* several owned subsystems meet (a web client, its API, a worker, its store) and not inside any of them. That points to putting them behind one **deep** interface, so a single integration test covers the whole path instead of each junction being debugged on its own.
+- Modules so tightly coupled that they leak across their **seams**.
 
-Apply the **deletion test** to anything suspected shallow: would deleting it concentrate complexity, or move it? "Concentrates" is the signal. Full vocabulary in [../research/deepening/vocabulary.md](../research/deepening/vocabulary.md).
+Put each suspect through the **deletion test** and record one of two results: "concentrates", when removing it would pull logic now spread over its callers into one module (the candidate signal), or "moves", when the same logic would only relocate. The terms are defined in [../research/deepening/vocabulary.md](../research/deepening/vocabulary.md).
 
 Classify each candidate's dependencies per [../research/deepening/dependencies.md](../research/deepening/dependencies.md). The category determines testing strategy.
 
@@ -67,9 +68,9 @@ Verification can be a second cheap read-only subagent pass or inline reproductio
 
 **Re-badge first.** Before rendering, map each surviving candidate's scan `confidence` to its `recommendation` badge (`strong` → `Strong`, `worth-exploring` → `Worth exploring`, `speculative` → `Speculative`), then re-badge against the two acceptance heuristics below (deletion-test acceptance form, two-adapter rule) and the Phase 1.5 verification result. Scan-time confidence is an input, not the final badge. A candidate whose `shallow-signal` failed to reproduce, or whose value rests on a one-adapter abstraction, cannot carry `Strong`. **Promotion closes the same gate:** if re-badging lifts a candidate the scan rated below `strong` up to `Strong`, apply the Phase 1.5 reproduction to its `shallow-signal` *before* it carries the badge. A `Strong` claim reaches the report reproduced no matter which way the badge was reached, so the Phase 1.5 guarantee holds across both the original strong set and any promotions.
 
-Write a self-contained HTML file to the OS temp directory: one file per run, via a secure temp-file primitive so the path is unpredictable and permissions are restrictive. On Unix/Linux, create a run directory with `mktemp -d "${TMPDIR:-/tmp}/deepening-review-XXXXXX"` and write `report.html` inside it. Carry the temp root in the positional template, the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing**. BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable. A directory plus a fixed filename is the form that keeps the Xs trailing while still yielding a meaningful `.html` name. On Windows, use a user-scoped temp under `%LOCALAPPDATA%\Temp` or equivalent. Resolve that one path deterministically. Never branch on an injected scratchpad path or `CLAUDE_JOB_DIR`. Open for user: `start <path>` on Windows, `open <path>` on macOS, `xdg-open <path>` on Linux. Report the absolute path. Do **not** delete the file after reporting: the path is the delivery mechanism and must stay readable for the user to open. It outlives the invocation and nothing documented reclaims the OS temp tree on a schedule, which is why one run writes one file and never an accumulating tree.
+The report is one self-contained HTML file under the OS temp directory, one per run, created via a secure temp-file primitive so the path is unpredictable and permissions are restrictive. On Unix/Linux, create a run directory with `mktemp -d "${TMPDIR:-/tmp}/deepening-review-XXXXXX"` and write `report.html` inside it. Carry the temp root in the positional template, the one form GNU and BSD `mktemp` accept identically, since `-p`/`--tmpdir`/`-t` differ between the dialects and a bare relative template silently creates the file in the **current directory**, the consumer's repository. Keep the `XXXXXX` placeholders **trailing**. BSD `mktemp` (macOS) substitutes only trailing Xs, so an extension after them is not portable. A directory plus a fixed filename is the form that keeps the Xs trailing while still yielding a meaningful `.html` name. On Windows, use a user-scoped temp under `%LOCALAPPDATA%\Temp` or equivalent. Resolve that one path deterministically. Never branch on an injected scratchpad path or `CLAUDE_JOB_DIR`. Show it to the user through the platform's opener: `start` (Windows), `open` (macOS) or `xdg-open` (Linux), each given the path. Report the absolute path. Do **not** delete the file after reporting: the path is the delivery mechanism and must stay readable for the user to open. It outlives the invocation and nothing documented reclaims the OS temp tree on a schedule, which is why one run writes one file and never an accumulating tree.
 
-**The rendered-views security baseline governs the report.** The baseline is owned by `docs/conventions/rendered-views/README.md` ("Security baseline") in the marketplace repository; its rules are repeated here because this skill runs where that file is not on disk. Everything taken from the scanned repository is untrusted data: escape `&`, `<`, `>`, `"`, and `'` in text and attribute positions; never interpolate unescaped content into `<script>` or `<style>`; never build an event-handler attribute from input. The report is self-contained: no external requests, no remote scripts, assets inline. The two additions specific to this report (which strings count as repository-derived, and no `<script>` inside SVG) live in [../research/deepening/html-report.md](../research/deepening/html-report.md). Build layout from an inline `<style>` block; draw diagrams as inline SVG or hand-built HTML/CSS: inline SVG node-and-edge for graph-shaped relationships, hand-built divs for editorial visuals (mass diagrams, cross-sections). <!-- contract-restatement: rendered-views-security-baseline -->
+**The rendered-views security baseline governs the report.** The baseline is owned by `docs/conventions/rendered-views/README.md` ("Security baseline") in the marketplace repository; its rules are repeated here because this skill runs where that file is not on disk. Everything taken from the scanned repository is untrusted data: escape `&`, `<`, `>`, `"`, and `'` in text and attribute positions; never interpolate unescaped content into `<script>` or `<style>`; never build an event-handler attribute from input. The report is self-contained: no external requests, no remote scripts, assets inline. The two additions specific to this report (which strings count as repository-derived, and no `<script>` inside SVG) live in [../research/deepening/html-report.md](../research/deepening/html-report.md). Build layout from an inline `<style>` block; draw diagrams as inline SVG or hand-built HTML/CSS: inline SVG node-and-edge for graph-shaped relationships, hand-built divs for the layer stacks and size bars that a node-and-edge drawing cannot show. <!-- contract-restatement: rendered-views-security-baseline -->
 
 **Another repository's files are not rendered to HTML until this lane is wired through the rendered-views escape helper.** When the scanned repository is not the user's own work (a freshly cloned third-party checkout, a vendored or fetched tree), skip the HTML report: the durable candidate artifact below is the deliverable, and say in one line why no page was produced. This is the baseline's third bullet applied to this skill; it overrides the report step above, not the scan.
 
@@ -82,11 +83,11 @@ Two acceptance heuristics gate the badge:
 - **Deletion test (acceptance form)**: would a future maintainer, finding this module gone, rebuild it substantially the same way? If not, the module boundary is arbitrary and the candidate is weak.
 - **Two-adapter rule**: an abstraction or port earns its existence only with two real consumers/adapters (typically production + test). A candidate whose value hinges on a one-adapter abstraction is speculative indirection. Badge it `Speculative` at best.
 
-End with a **Top recommendation** section. Full scaffold and diagram patterns in [../research/deepening/html-report.md](../research/deepening/html-report.md).
+The last section of the report is the **Top recommendation**. The scaffold and the diagram patterns are in [../research/deepening/html-report.md](../research/deepening/html-report.md).
 
-Use the project's domain glossary vocabulary for the domain, and [../research/deepening/vocabulary.md](../research/deepening/vocabulary.md) vocabulary for architecture.
+Domain nouns come from the project's glossary; architecture nouns come from [../research/deepening/vocabulary.md](../research/deepening/vocabulary.md).
 
-**Durable candidate artifact.** Alongside the HTML when one is produced (or standing alone, per the carve-out above), write a machine-readable candidate list that survives the session. The HTML, when produced, is the human-readable companion, ephemeral in the temp dir. Write it to the **memory tier**: `<memory_dir>/<topic-slug>/deepening-candidates-<YYYYMMDDTHHMMSSZ>.md`, default `.work/<topic-slug>/…`. `<memory_dir>` is `.work/` unless the consuming repo's `CLAUDE.md` or `.claude/rules` declares another working-docs root. `<topic-slug>` is the scan focus the user named (a module, a subsystem, a path), whether in the invocation arguments or the conversation, else the current branch name, kebab-case. On the session's first memory-tier write, verify the memory root contains a `.gitignore` with `*`, creating it with the Write tool (announced) when absent, never with a shell redirect, and never editing the consumer's root `.gitignore`; create the topic slice directory when absent. Tell the user the path. This file, not the HTML, is the durable handoff a planning step consumes. One entry per candidate:
+**Durable candidate artifact.** Alongside the HTML when one is produced (or standing alone, per the carve-out above), write a machine-readable candidate list that survives the session. The HTML, when produced, is the human-readable companion, ephemeral in the temp dir. Write it to the **memory tier**: `<memory_dir>/<topic-slug>/deepening-candidates-<YYYYMMDDTHHMMSSZ>.md`, default `.work/<topic-slug>/…`. `<memory_dir>` is `.work/` unless the consuming repo's `CLAUDE.md` or `.claude/rules` declares another working-docs root. `<topic-slug>` is the scan focus the user named (a path, a subsystem or a module), whether in the invocation arguments or the conversation, else the current branch name, kebab-case. On the session's first memory-tier write, verify the memory root contains a `.gitignore` with `*`, creating it with the Write tool (announced) when absent, never with a shell redirect, and never editing the consumer's root `.gitignore`; create the topic slice directory when absent. Tell the user the path. This file, not the HTML, is the durable handoff a planning step consumes. One entry per candidate:
 
 ```markdown
 ## <candidate title>
@@ -97,22 +98,22 @@ Use the project's domain glossary vocabulary for the domain, and [../research/de
 - recommendation: Strong | Worth exploring | Speculative
 - problem: <one sentence>
 - deepening: <one sentence of narrative naming the shallow-module friction, not an interface proposal; e.g. "three modules wrap a single call each, adding no behavior">
-- shallow-signal: <the concrete observation, evidence rather than narrative; e.g. "OrderHandler/OrderValidator/OrderRepo each forward their one argument unmodified (confirmed by reading all three)". Reproduced in Phase 1.5 for every `Strong` candidate; a runtime-claim candidate has its *claim* reproduced, not this signal, so unless it is also `Strong` the signal here is the scan's as-reported observation, not yet reproduced>
+- shallow-signal: <the concrete observation, evidence rather than narrative; e.g. "InvoiceController/InvoiceChecker/InvoiceStore each forward their one argument unmodified (confirmed by reading all three)". Reproduced in Phase 1.5 for every `Strong` candidate; a runtime-claim candidate has its *claim* reproduced, not this signal, so unless it is also `Strong` the signal here is the scan's as-reported observation, not yet reproduced>
 - signal-verified: <true only once Phase 1.5 reproduced *this signal*, i.e. every `Strong` candidate. A runtime-claim reproduction verifies the claim, not the shallow-signal, so a runtime-claim candidate left below `Strong` keeps `signal-verified: false`. This keeps the planning handoff from ever reading an unverified shallowness observation as verified>
-- agreed-shape: <optional; omitted until Phase 3. Filled when the user picks and the shape is grilled: interface entry points, what sits behind the seam, tests that survive. A candidate that goes to implementation without the interview loop carries `skipped: <reason>` here, for example `skipped: direct-to-implementation`, so the entry says which path it took>
+- agreed-shape: <optional; omitted until Phase 3. Filled when the user picks and the shape is grilled: interface entry points, what the seam hides, tests that survive. A candidate that goes to implementation without the interview loop carries `skipped: <reason>` here, for example `skipped: direct-to-implementation`, so the entry says which path it took>
 - graft-record: <optional; omitted unless the agreed shape is a hybrid from a Design-It-Twice fan-out. Then: what was taken from which design, and what was considered and left behind with its reason. The left-behind half is the higher-value half. It is what stops a later explorer re-proposing a shape this exploration already weighed and dropped. A hybrid recorded as a winner alone loses that permanently>
 - rejected-reason: <only if status is rejected and the reason would help a future explorer>
 ```
 
 End the file with two lines: `phase-1.5: downgraded=<n> dropped=<n> corrected=<n>` (the Phase 1.5 counts), then `top-recommendation: <candidate title>`.
 
-**ADR conflicts**: if a candidate contradicts an existing architecture decision record, surface only when friction is real enough to warrant revisiting. Mark clearly in the card.
+**ADR conflicts**: check each candidate against the recorded architecture decisions. One that contradicts a decision is dropped unless its friction would justify reopening that decision; one that stays names the decision on its card.
 
-Do NOT propose interfaces yet. After the report is written, the reply leads with the choice waiting on the user, naming the top recommendation, then the report and artifact paths: "Which of these would you like to explore?"
+Phase 2 proposes no interfaces. Once the report is written, the reply opens with the decision now up to the user, names the top recommendation, gives the report and artifact paths, and asks: "Which candidate should we explore?"
 
 ## Phase 3: Interview loop on selected candidates
 
-Once the user picks a candidate, walk the decision tree: constraints, dependencies, shape of the deepened module, what sits behind the seam, what tests survive. When the user selects several, interview each to its own agreed shape in turn; each is its own design fork. The skill still stops at the handoff and implements none of them.
+When the user has chosen a candidate, work through its decision tree in three groups: what the deepened module looks like (its shape, and what the seam hides), what it has to work within (its dependencies and constraints), and what will prove it (the tests that remain). When the user selects several, interview each to its own agreed shape in turn; each is its own design fork. The skill still stops at the handoff and implements none of them.
 
 Side effects inline as decisions crystallize:
 
@@ -131,7 +132,7 @@ Branch here when the user wants alternative interfaces for the selected candidat
 
 ### Handoff
 
-When the candidate's shape is agreed, update its entry in the candidate artifact to `status: agreed-shape` and fill `agreed-shape` (interface entry points, what sits behind the seam, tests that survive). **When the agreed shape is a hybrid grafted from a Design-It-Twice fan-out, fill `graft-record` in the same edit**: what was taken from which design, and what was considered and left behind with its reason. It is a sibling field, not part of `agreed-shape`, and this is the only step that writes it: skip it here and the left-behind half survives nowhere, which is the half that stops a later explorer re-proposing a shape this exploration already weighed and dropped. Hand off to a planning step, which consumes the `agreed-shape` entry to plan the implementation. If no dedicated planning tool is available in the project, summarize the agreed shape directly so implementation can proceed.
+When the candidate's shape is agreed, update its entry in the candidate artifact to `status: agreed-shape` and fill `agreed-shape` (interface entry points, what the seam hides, tests that survive). **When the agreed shape is a hybrid grafted from a Design-It-Twice fan-out, fill `graft-record` in the same edit**: what was taken from which design, and what was considered and left behind with its reason. It is a sibling field, not part of `agreed-shape`, and this is the only step that writes it: skip it here and the left-behind half survives nowhere, which is the half that stops a later explorer re-proposing a shape this exploration already weighed and dropped. Hand off to a planning step, which consumes the `agreed-shape` entry to plan the implementation. If no dedicated planning tool is available in the project, summarize the agreed shape directly so implementation can proceed.
 
 Before handing off, re-run the Phase 1 base-freshness check and report the behind count, so a base that moved during the interview surfaces now rather than at merge time.
 

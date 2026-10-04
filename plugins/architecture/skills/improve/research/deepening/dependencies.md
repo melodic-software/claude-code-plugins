@@ -1,41 +1,54 @@
 # Dependencies and Seams
 
-How to deepen a cluster of shallow modules safely, given dependencies. Uses vocabulary from [vocabulary.md](vocabulary.md).
+A deepening candidate is only safe to merge once its dependencies are known, because they decide how
+the merged module will be tested. Terms follow [vocabulary.md](vocabulary.md).
 
 ## Dependency categories
 
-When assessing a candidate for deepening, classify dependencies. Category determines testing strategy across the seam.
+Each dependency of a candidate gets one of four labels, and each label settles a single question:
+how does a test reach the deepened module? The labels in code font are the values the scan return
+and the candidate artifact use.
 
-### 1. In-process
+### In-process (`in-process`)
 
-Pure computation, in-memory state, no I/O. Always deepenable: merge the modules and test through the new interface directly. No adapter needed.
+The test calls the merged module directly. The dependency is logic or state held in memory with no
+I/O, so nothing has to be substituted and the candidate can always be deepened, with no adapter.
 
-### 2. Local-substitutable
+### Local-substitutable (`local-substitutable`)
 
-Dependencies with local test stand-ins (PGLite for Postgres, in-memory filesystem, SQLite for SQL Server). Deepenable if stand-in exists. Test with stand-in running in the test suite. Seam is internal; no port at the module's external interface.
+The test runs the module against a stand-in the suite starts locally: MinIO for S3, an SMTP catcher
+for the mail relay, an embedded copy of the database. A candidate whose dependency has no such
+stand-in cannot be deepened this way. The seam stays inside the module, and its external interface
+gains no port.
 
-### 3. Remote but owned (Ports and Adapters)
+### Remote but owned (`ports-and-adapters`)
 
-Own services across a network boundary (microservices, internal APIs). Define a **port** (interface) at the seam. Deep module owns logic; transport injected as **adapter**. Tests use in-memory adapter. Production uses HTTP/gRPC/queue adapter.
+The test plugs an in-memory adapter into a **port** the module declares, at the same **seam** where
+production plugs in the HTTP, gRPC or queue client for a service your organization runs elsewhere,
+such as an internal API or another microservice. All the logic stays in a single deep module, although
+part of the work happens over the network. A recommendation in this category names the port
+and both adapters, for example: "Declare a `ShippingQuotes` port; tests use a fake held in memory,
+production plugs in the HTTP client for the quotes service."
 
-Recommendation shape: "Define a port at the seam, implement an HTTP adapter for production and an in-memory adapter for testing, so logic sits in one deep module even though deployed across a network."
+### True external (`mock`)
 
-### 4. True external (Mock)
+The test passes the module a mock adapter through an injected port, because the dependency is a
+third-party service no one here controls, such as a shipping-rate API or a geocoding provider.
 
-Third-party services (Stripe, Twilio, etc.) you don't control. Deepened module takes external dependency as injected port; tests provide mock adapter.
+## Rules for seams
 
-## Seam discipline
-
-- **One adapter = hypothetical seam. Two adapters = real seam.** Don't introduce a port unless at least two adapters are justified (typically production + test). Single-adapter seam is indirection.
-- **Internal seams vs external seams.** Deep module can have internal seams (private, used by own tests) and external seam (at its interface). Don't expose internal seams through the interface.
+- **Count adapters before adding a port.** Production plus test makes two, which justifies the
+  port. A port that only production ever uses adds a hop and nothing else.
+- **Internal seams stay internal.** Seams that only the module's own tests use, inside the module,
+  are never exposed through its external interface.
 
 ## Replace, don't layer
 
-When deepening merges shallow modules behind a deep interface:
+When shallow modules are merged behind one deep interface, the test suite moves rather than grows.
+The new tests call the deepened interface and check only what a caller could see. Because nothing
+they assert depends on internal state, an internal refactor leaves them passing; one that fails on
+a refactor is testing behind the interface. With those tests in place, the old unit tests on each
+shallow module only repeat that coverage, and are **deleted**.
 
-- Old unit tests on shallow modules become waste once tests at the deepened interface exist, so **delete them**
-- Write new tests at the deepened module's interface. The **interface is the test surface**
-- Tests assert on observable outcomes through the interface, not internal state
-- Tests should survive internal refactors. They describe behavior, not implementation. If a test changes when implementation changes, it's testing past the interface
-
-This principle applies beyond the deepening lens: to any module consolidation that moves the test surface to a deeper interface. Choose test doubles at the deepened seam per the dependency category above.
+The rule is not limited to this lens: it applies to any consolidation that moves the test surface
+onto a deeper interface. The test doubles at the new seam follow the dependency category above.
