@@ -11,6 +11,7 @@ Run: python3 test_inventory.py
 
 from __future__ import annotations
 
+import argparse
 import json
 import pathlib
 import tempfile
@@ -3141,6 +3142,190 @@ class TestBuiltinPluginState(unittest.TestCase):
         self.assertIs(
             self.state()["plugins"]["cc-plugin-diff"]["enabled_setting"], False
         )
+
+
+class TestInstructionFiles(unittest.TestCase):
+    """Instruction files Claude Code loads, per the memory page's file table:
+    user CLAUDE.md and rules, project CLAUDE.md and rules, CLAUDE.local.md,
+    AGENTS.md, and the subdirectory files that load on demand."""
+
+    USER_FILES = {
+        ".claude/CLAUDE.md": "Prefer short answers.\n",
+        ".claude/rules/style.md": "Use plain words.\n",
+    }
+    REPO_FILES = {
+        "CLAUDE.md": "@AGENTS.md\n",
+        "AGENTS.md": "Run the tests before committing.\n",
+        "CLAUDE.local.md": "My sandbox is at port 8081.\n",
+        ".gitignore": "CLAUDE.local.md\n",
+        ".claude/rules/general.md": "Write tests first.\n",
+        ".claude/rules/api.md": '---\npaths:\n  - "src/api/**/*.ts"\n---\nValidate input.\n',
+        "billing/CLAUDE.md": "Amounts are integer cents.\n",
+        "billing/invoice.py": "TOTAL = 0\n",
+    }
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.base = pathlib.Path(tmp.name)
+        self.repo = self.base / "repo"
+        self.make_repo(self.repo, self.REPO_FILES)
+
+    @staticmethod
+    def write(root: pathlib.Path, files: dict[str, str]) -> None:
+        for rel, text in files.items():
+            path = root / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+
+    def make_repo(self, root: pathlib.Path, files: dict[str, str]) -> None:
+        import subprocess
+
+        self.write(root, files)
+        subprocess.run(["git", "init", "-q", str(root)], check=True)
+
+    def make_home(self, name: str) -> pathlib.Path:
+        home = self.base / name
+        self.write(home, self.USER_FILES)
+        return home
+
+    def run_from(self, cwd: pathlib.Path, home: pathlib.Path) -> list[dict]:
+        return inv.instruction_files(inv.git_toplevel(cwd), home / ".claude", home)
+
+    @staticmethod
+    def entry(path: str, scope: str, kind: str, loads: str, text: str) -> dict:
+        import hashlib
+
+        data = text.encode("utf-8")
+        return {
+            "path": path,
+            "scope": scope,
+            "kind": kind,
+            "loads": loads,
+            "bytes": len(data),
+            "sha256": hashlib.sha256(data).hexdigest(),
+        }
+
+    def test_every_documented_kind_is_listed_with_its_scope_and_loading(self) -> None:
+        got = self.run_from(self.repo, self.make_home("home-a"))
+        u, r = self.USER_FILES, self.REPO_FILES
+        expected = [
+            self.entry(
+                "~/.claude/CLAUDE.md",
+                "user",
+                "claude-md",
+                "launch",
+                u[".claude/CLAUDE.md"],
+            ),
+            self.entry(
+                "~/.claude/rules/style.md",
+                "user",
+                "rule",
+                "launch",
+                u[".claude/rules/style.md"],
+            ),
+            self.entry(
+                ".claude/rules/api.md",
+                "project",
+                "rule",
+                "path-scoped",
+                r[".claude/rules/api.md"],
+            ),
+            self.entry(
+                ".claude/rules/general.md",
+                "project",
+                "rule",
+                "launch",
+                r[".claude/rules/general.md"],
+            ),
+            # A CLAUDE.md at the root means AGENTS.md is not read by default.
+            self.entry(
+                "AGENTS.md", "project", "agents-md", "not-by-default", r["AGENTS.md"]
+            ),
+            self.entry("CLAUDE.md", "project", "claude-md", "launch", r["CLAUDE.md"]),
+            self.entry(
+                "billing/CLAUDE.md",
+                "project",
+                "claude-md",
+                "on-demand",
+                r["billing/CLAUDE.md"],
+            ),
+            self.entry(
+                "CLAUDE.local.md",
+                "local",
+                "claude-local-md",
+                "launch",
+                r["CLAUDE.local.md"],
+            ),
+        ]
+        self.assertEqual(got, expected)
+
+    def test_no_path_is_absolute(self) -> None:
+        got = self.run_from(self.repo, self.make_home("home-a"))
+        for item in got:
+            self.assertFalse(pathlib.PurePath(item["path"]).is_absolute(), item)
+        self.assertNotIn(str(self.base), json.dumps(got))
+
+    def test_project_root_is_the_git_toplevel_of_a_subdirectory(self) -> None:
+        home = self.make_home("home-a")
+        self.assertEqual(
+            self.run_from(self.repo / "billing", home), self.run_from(self.repo, home)
+        )
+
+    def test_two_homes_over_one_repository_produce_no_diff(self) -> None:
+        import compare_reports as cr
+
+        first = {
+            "instruction_files": self.run_from(self.repo, self.make_home("home-a"))
+        }
+        second = {
+            "instruction_files": self.run_from(self.repo, self.make_home("home-b"))
+        }
+        result = cr.compare(first, second)
+        self.assertEqual(result["changes"], [])
+        self.assertFalse(result["failed"])
+
+    def test_agents_md_loads_at_launch_when_no_claude_md_counts(self) -> None:
+        repo = self.base / "agents-only"
+        self.make_repo(
+            repo, {"AGENTS.md": "Use tabs.\n", "docs/AGENTS.md": "Docs rules.\n"}
+        )
+        empty_home = self.base / "empty-home"
+        empty_home.mkdir()
+        got = self.run_from(repo, empty_home)
+        self.assertEqual(
+            [(e["path"], e["loads"]) for e in got],
+            [("AGENTS.md", "launch"), ("docs/AGENTS.md", "on-demand")],
+        )
+
+    def test_report_carries_the_array_on_a_disk_run(self) -> None:
+        home = self.make_home("home-a")
+        with mock.patch.object(pathlib.Path, "home", return_value=home):
+            report = inv.build_report(
+                inv_args(config_dir=str(home / ".claude"), project_dir=str(self.repo))
+            )
+        self.assertEqual(
+            [e["path"] for e in report["instruction_files"]][:2],
+            ["~/.claude/CLAUDE.md", "~/.claude/rules/style.md"],
+        )
+
+
+def inv_args(**over: object) -> argparse.Namespace:
+    ns = argparse.Namespace(
+        binary=None,
+        config_dir=None,
+        project_dir=None,
+        binary_only=False,
+        disk_only=True,
+        docs=False,
+        docs_file=None,
+        changelog_file=None,
+        tools_docs_file=None,
+        reader="regex",
+    )
+    for key, value in over.items():
+        setattr(ns, key, value)
+    return ns
 
 
 if __name__ == "__main__":

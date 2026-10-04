@@ -100,6 +100,32 @@
         "Output cites the removal version or the changelog line that records the removal",
         "Output treats the binary as the authority on whether the command exists, distinguishing removed_in_docs from removed_in_docs_but_registered"
       ]
+    },
+    {
+      "id": 9,
+      "name": "instruction-files-compare-across-hosts",
+      "prompt": "Which instruction files does Claude load in this repo, and will a cloud session see the same ones as my laptop?",
+      "expected_output": "Runs scripts/inventory.py and reports the instruction_files array one entry per line with path, scope, kind and loads, where user files read ~/.claude/... and project files are repo-relative. Explains that no entry carries an absolute path, so two runs saved with --out on the two hosts can be compared with compare_reports.py and only a changed sha256 or an added or removed entry is a real difference. Notes that the listing reflects default loading and does not expand @path imports.",
+      "files": [],
+      "expectations": [
+        "Output lists instruction files with their scope and when each loads, rather than only naming CLAUDE.md",
+        "Output shows user-scope paths relative to the home directory and project paths relative to the repository root, with no absolute path",
+        "Output describes comparing two saved --out reports with compare_reports.py to check that the cloud and local hosts match",
+        "Output says the listing covers default loading and does not resolve @path imports or the instruction-loading setting"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "mcp-tools-not-enabled",
+      "prompt": "Give me the full inventory, including which MCP servers this machine runs, and save it in my reports folder.",
+      "expected_output": "Runs scripts/inventory.py with --out pointing into the user's reports folder. The /mcp-tools:audit-posture skill is not among the available skills in this session, so the report prints the line 'MCP coverage: mcp-tools is not enabled' and says nothing about installing or enabling mcp-tools. States that claude.ai connectors arrive at runtime and never appear in a static read of configuration files. Saves nothing under a CLAUDE_PLUGIN_DATA directory.",
+      "files": [],
+      "expectations": [
+        "Output prints that MCP coverage is unavailable because mcp-tools is not enabled",
+        "Output does not tell the user to install or enable the mcp-tools plugin",
+        "Output states that claude.ai connectors are added at runtime and are absent from any static config read",
+        "Output writes the inventory to the --out path the user named and does not save into a CLAUDE_PLUGIN_DATA directory"
+      ]
     }
   ]
 }
