@@ -1,0 +1,25 @@
+{
+  "requires": [
+    {
+      "id": "gh",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:go-faster"
+      ],
+      "detect": {
+        "any": [
+          "gh"
+        ]
+      },
+      "degrade": "Without gh, /performance:go-faster reports its GitHub areas (CI timing and pull request timing) as not checked; every other area still runs.",
+      "install": {
+        "docs": "https://cli.github.com/",
+        "brew": "gh",
+        "winget": "GitHub.cli",
+        "apt": "gh"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}

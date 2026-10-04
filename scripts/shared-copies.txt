@@ -266,6 +266,9 @@ lib/prerequisites.ps1 plugins/markdown-format/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/multi-agent/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/multi-agent/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/multi-agent/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/performance/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/performance/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/performance/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/playwright/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/playwright/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/playwright/lib/prerequisites.ps1
