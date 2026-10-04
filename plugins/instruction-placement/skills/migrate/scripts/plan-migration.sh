@@ -11,7 +11,8 @@
 #
 #   DIR       <path>  <state>  <claude-bytes>  <agents-bytes>
 #             One state per directory that carries a Claude-audience instruction
-#             file: content-in-claude, shim, shim-empty-target, agents-only,
+#             file: content-in-claude, shim, shim-noncanonical,
+#             shim-with-comment, shim-empty-target, agents-only,
 #             both-with-content, or zero-byte.
 #   BUDGET    <dir>  <cumulative-bytes>  <OK|OVER>
 #             AGENTS.md bytes summed along the root-to-directory path, against
@@ -51,8 +52,15 @@
 #
 # Directory states:
 #   content-in-claude   CLAUDE.md carries content; AGENTS.md is absent or empty
-#   shim                CLAUDE.md is nothing but @AGENTS.md, beside a non-empty
-#                       AGENTS.md: the target shape while shims are needed
+#   shim                CLAUDE.md is exactly `@AGENTS.md` (one line, trailing
+#                       newline optional), beside a non-empty AGENTS.md: the
+#                       target shape while shims are needed
+#   shim-noncanonical   CLAUDE.md is a lone import that loads like the shim but
+#                       is not byte-for-byte `@AGENTS.md` (`@./AGENTS.md`, CRLF
+#                       lines, blank lines or whitespace around it), beside a
+#                       non-empty AGENTS.md: Apply rewrites it to the exact line
+#   shim-with-comment   the import plus HTML comments, beside a non-empty
+#                       AGENTS.md: the comment still has to move or go
 #   shim-empty-target   CLAUDE.md is exactly `@AGENTS.md` (one line, trailing
 #                       newline optional), but AGENTS.md is absent or empty: the
 #                       import is already the target shape and there is no
@@ -232,7 +240,8 @@ ours_agents_bytes() {
 # Classify a CLAUDE.md by how far it is from the target shape, which is a file
 # that is EXACTLY `@AGENTS.md`. Prints one of:
 #
-#   shim               nothing but the import: already the target shape
+#   shim               nothing but the import. Whether it is the target shape
+#                      byte for byte is is_exact_shim's question
 #   shim-with-comment  the import plus HTML comments and nothing else. It loads
 #                      the same way, but the comment is content the migration
 #                      still has to move or delete, so it is not `shim` and it
@@ -279,6 +288,15 @@ classify_claude_md() {
   fi
 }
 
+# True when a CLAUDE.md is byte-for-byte the target shape: `@AGENTS.md`, with or
+# without its one trailing newline. classify_claude_md also calls `@./AGENTS.md`,
+# CRLF lines, blank lines and surrounding whitespace a shim, because each loads
+# the same way; none of them is the shape Apply writes.
+is_exact_shim() {
+  local file="$1" bytes="$2"
+  [[ "$bytes" -eq 10 || "$bytes" -eq 11 ]] && [[ "$(<"$file")" == "@AGENTS.md" ]]
+}
+
 # Every directory carrying a tracked CLAUDE.md or AGENTS.md, excluded trees
 # dropped. One awk pass, not one subshell per tracked file: Git Bash pays about
 # 140 ms a spawn, and a repository of a few thousand files turns a per-file
@@ -323,17 +341,19 @@ while IFS= read -r dir; do
     # The shim test runs before the content test: a bare import over an empty
     # AGENTS.md holds nothing to split, and `content-in-claude` would send the
     # operator through the full sequence for it. Only the exact target shape
-    # counts: classify_claude_md also calls `@./AGENTS.md`, a repeated import or
-    # CRLF lines a shim, and Apply does nothing for `shim-empty-target`, so
-    # those would never be rewritten to `@AGENTS.md`.
+    # counts: Apply does nothing for `shim-empty-target`, so any other import
+    # form would never be rewritten to `@AGENTS.md`.
     state="content-in-claude"
-    if [[ "$(classify_claude_md "$claude")" == "shim" && ("$cb" -eq 10 || "$cb" -eq 11) &&
-    "$(<"$claude")" == "@AGENTS.md" ]]; then
+    if [[ "$(classify_claude_md "$claude")" == "shim" ]] && is_exact_shim "$claude" "$cb"; then
       state="shim-empty-target"
     fi
   else
+    # remove-shims.sh takes `shim` as finished, so only the exact shape is.
     case "$(classify_claude_md "$claude")" in
-    shim) state="shim" ;;
+    shim)
+      state="shim-noncanonical"
+      is_exact_shim "$claude" "$cb" && state="shim"
+      ;;
     shim-with-comment) state="shim-with-comment" ;;
     *) state="both-with-content" ;;
     esac

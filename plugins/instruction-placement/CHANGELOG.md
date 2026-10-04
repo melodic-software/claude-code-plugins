@@ -3,6 +3,14 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.5] - 2026-10-04
+
+### Fixed
+
+- **`migrate` no longer treats a shim that only loads like `@AGENTS.md` as the finished target ([#5788](https://github.com/melodic-software/claude-code-plugins/issues/5788)).**
+  Beside a non-empty `AGENTS.md`, `plan-migration.sh` reported `@./AGENTS.md`, CRLF lines, or blank lines and whitespace around the import as `shim`. Apply does nothing for `shim`, so these files were never rewritten to the documented `@AGENTS.md`, and `remove-shims.sh` deleted them as finished.
+  The plan now reports them as `shim-noncanonical`, a new row in the Apply table that rewrites `CLAUDE.md` to exactly `@AGENTS.md`, and `remove-shims.sh` refuses them as not the target shape. A byte-exact `@AGENTS.md`, with or without its trailing newline, is still `shim`. This is the non-empty-`AGENTS.md` case of the 0.21.4 fix.
+
 ## [0.21.4] - 2026-10-04
 
 ### Fixed
