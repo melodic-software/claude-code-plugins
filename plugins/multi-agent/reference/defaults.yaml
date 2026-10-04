@@ -40,11 +40,14 @@ roles:
     workloads:
       research:
         effort: low
+      mechanical:
+        model: sonnet
     pointer: https://code.claude.com/docs/en/workflows#cost
     pointer_skill: /workflow-authoring (bundled first-party skill, agent() opts.model and opts.effort)
     pointer_cost: https://platform.claude.com/docs/en/about-claude/models/optimizing-for-cost-and-intelligence#orchestrator-strategy-delegate-bulk-work
-    as_of: 2026-10-02
-    recheck: a Claude Code release that edits the bundled /workflow-authoring skill or the workflows Cost section, or a new model row on the cost page
+    pointer_model_split: https://code.claude.com/docs/en/costs#choose-the-right-model
+    as_of: 2026-10-04
+    recheck: a Claude Code release that edits the bundled /workflow-authoring skill or the workflows Cost section, or a new model row on the cost page, or the costs page changes its model split
   verifier:
     model: inherit
     effort: high

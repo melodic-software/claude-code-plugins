@@ -6,11 +6,11 @@
       "name": "many-independent-items-is-a-workflow",
       "prompt": "I need every one of the 140 skill files under plugins/ checked for a missing ## Gotchas section and a one-line fix proposed for each. Should this be a workflow?",
       "narration": true,
-      "expected_output": "Runs scripts/workflow-availability.sh, checks that the Workflow tool is among the callable tools, and answers in two lines: `verdict: workflow` and a reason naming the 140 independent items. Writes no file and launches nothing.",
+      "expected_output": "Runs scripts/workflow-availability.sh, checks that the Workflow tool is among the callable tools, and answers in three lines: `verdict: workflow`, a reason naming the 140 independent items, and `shape: sections`. Writes no file and launches nothing.",
       "expectations": [
         "The bundled workflow-availability.sh is run before the verdict",
         "The verdict also rests on whether the Workflow tool is actually callable, not on the script alone",
-        "The output is the two-line verdict and reason, with the item count in the reason",
+        "The output is the verdict, reason and shape lines, with the item count in the reason and shape: sections",
         "No workflow is launched and no file is written"
       ]
     },
@@ -36,6 +36,31 @@
         "The verdict is single",
         "The reason names the small size and the dependent shape, not the topic",
         "No subagent or workflow is started"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "run-shape-race-rule",
+      "prompt": "I want four subagents to each write a fix for the same flaky test from the same brief, and then I'll keep the best one. How should this run?",
+      "narration": true,
+      "expected_output": "A `subagent` verdict (four delegated tasks fit the turn) with a third line `shape: race (no selection rule stated)`. The reason says the race must not start until a selection rule (first to pass a stated check, rank all, or best-of a stated criterion) is stated, because 'the best one' names no criterion.",
+      "expectations": [
+        "The verdict is subagent",
+        "A third line starts with shape: race",
+        "The answer says no selection rule was stated and asks for one before any agent is spawned",
+        "No agent is spawned"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "run-shape-single-no-line",
+      "prompt": "Should I fan out to fix a typo in one README heading?",
+      "narration": true,
+      "expected_output": "Exactly two lines: `verdict: single` and a reason naming the one-line edit. No `shape:` line, because a single-context task has no run shape.",
+      "expectations": [
+        "The verdict is single",
+        "No shape: line is printed",
+        "The output is exactly two lines"
       ]
     }
   ]

@@ -30,7 +30,7 @@ and an explicit yes.
 |---|---|---|
 | `roles.<role>.model` | `inherit`, or an alias: `opus`, `sonnet`, `haiku`, `fable`, `best` | per role |
 | `roles.<role>.effort` | `low`, `medium`, `high`, `xhigh`, `max` | per role |
-| `roles.<role>.workloads.<w>.model` / `.effort` | as above; `<w>` is `code`, `research` or `mechanical` | `worker.workloads.research.effort: low` |
+| `roles.<role>.workloads.<w>.model` / `.effort` | as above; `<w>` is `code`, `research` or `mechanical` | `worker.workloads.research.effort: low`, `worker.workloads.mechanical.model: sonnet` (opt out with `roles.worker.workloads.mechanical.model: inherit` in any layer) |
 | `frontier` | comma-separated aliases treated as frontier | `fable,best` |
 | `fanout.frontier_guard` | `true`, `false` | `true` |
 | `fanout.model` | an alias | `opus` |
@@ -48,6 +48,42 @@ for the model an agent with no `model` runs on, see
 `pointer*`, `as_of` and `recheck` record where each bundled default's basis
 lives. They are read from the bundled layer only, by
 `/multi-agent:audit-defaults`.
+
+## Tiering by difficulty
+
+Route a stage by how hard its work is, not by its topic. Mechanical work
+(renames, formatting, one transformation applied at many sites, log filtering)
+goes through the `mechanical` workload, which runs the worker on `sonnet` by
+default. The hardest stage that one agent runs (a final synthesis, a judge, a
+design decision) takes the role's `single` variant, which keeps the role's own
+model. Everything else takes the role's default for its workload. The bundled
+`mechanical` model rests on
+[costs: choose the right model](https://code.claude.com/docs/en/costs#choose-the-right-model),
+as of 2026-10-04; recheck when that section changes its model split.
+
+## Where effort applies
+
+Role effort reaches workflow `agent()` calls, which pass `opts.effort`
+explicitly. An Agent tool dispatch has no effort parameter: it runs at the
+dispatched agent's `effort` frontmatter, or at the session's level when the
+agent sets none. route reads no settings file, so the effort it prints is the
+level a caller asks for, before any cap. A loop lane's level is its own
+`lanes[].effort`, not the `orchestrator` role.
+
+## Hard cap
+
+`maxEffortLevel` is the consumer's hard cap over every role and every named
+agent's pinned effort. It can be set in any settings scope, the lowest value
+across scopes applies, and a per-model cap sits in that model's
+`modelSettings` entry. Any higher level, from a role, frontmatter or the
+session, runs at the cap. An organization effort limit for a model applies
+alongside it, and the lower of the two wins.
+
+- Pointer: [settings reference: `maxEffortLevel`](https://code.claude.com/docs/en/settings-reference#maxeffortlevel);
+  [model config: organization effort limits](https://code.claude.com/docs/en/model-config#organization-effort-limits)
+- As of: 2026-10-04
+- Recheck: either entry changes which scopes can set the cap, how scopes
+  combine, or which effort sources it covers.
 
 ## The fan-out guard
 

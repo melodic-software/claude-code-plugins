@@ -23,7 +23,8 @@ Keys, layers and the fan-out guard are owned by
 - `<role|all>`: one of `orchestrator`, `worker`, `verifier`, `retrieval`, or
   `all` for the whole map.
 - `code|research|mechanical`: optional workload; applies the role's
-  `workloads.<w>` keys (research lowers the worker's effort by default).
+  `workloads.<w>` keys (by default, research lowers the worker's effort and
+  mechanical runs the worker on `sonnet`).
 - `session=<alias>`: the session model's alias. When the caller did not pass
   one, fill it from your own model ID: the family name in it (`opus`,
   `sonnet`, `haiku`, `fable`) is the alias. When you cannot tell, omit it; the
@@ -50,7 +51,13 @@ role in this form:
 
 Write `inherit: omit the model option` wherever a variant's `omit_model` is
 true, so a caller copying the line passes no model and the agent runs on the
-session model. Then list every entry of `notes` (a skipped layer, a rejected
+session model. After the per-role lines, write this line as is:
+
+```text
+Effort above maxEffortLevel runs at the cap; see reference/config.md "Hard cap".
+```
+
+Then list every entry of `notes` (a skipped layer, a rejected
 value, an ignored key) as written. Exit 2 means an unknown role or argument:
 relay the valid roles from the error and stop.
 
@@ -86,5 +93,13 @@ Rechecks a default that looks wrong for the current models.
   `sonnet`, stays off a frontier session model without the guard; one whose
   dispatcher may raise it to the session tier is that dispatcher's rule to
   keep.
+- Role effort reaches a workflow `agent()` call only. The Agent tool takes no
+  effort parameter, so a generic Agent dispatch runs at the session's level
+  whatever the map says, and a named agent at its `effort` frontmatter. The
+  route output never reflects `maxEffortLevel`; the cap applies at run time
+  ("Where effort applies" in the config page linked under Purpose).
+- The `mechanical` workload runs the worker on `sonnet` by default, while
+  `code` keeps the role's model. A caller that wants the session model for
+  mechanical work sets `roles.worker.workloads.mechanical.model: inherit`.
 - Team and overlay layers resolve against the repository root of the working
   directory. Inside a second worktree, run from that worktree.
