@@ -396,6 +396,15 @@ rc=$?
 assert_eq "no safe body dir configured exits 4" 4 "$rc"
 assert_contains "no safe body dir message" "$out" "no safe body dir"
 
+# Another plugin's SessionStart hook can export its own data dir into every Bash
+# call as CLAUDE_PLUGIN_DATA; that must not widen the containment to it.
+FOREIGN="$TMP/codex-openai-codex"
+mkdir -p "$FOREIGN"
+cp "$BODY" "$FOREIGN/body.txt"
+out="$(CLAUDE_PLUGIN_DATA="$FOREIGN" bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$FOREIGN/body.txt" --dry-run 2>&1)"
+rc=$?
+assert_eq "a foreign CLAUDE_PLUGIN_DATA is no safe body dir (exits 4)" 4 "$rc"
+
 # ============================================================================
 # SECURITY (defense in depth) — an oversized body is refused
 # ============================================================================

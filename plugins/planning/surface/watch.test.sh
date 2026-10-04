@@ -9,6 +9,7 @@
 # (WAIT_FAILS=1), the one-watcher lease (a second watcher exits 3 naming the holder; a stale
 # lease is reclaimed after leaseTimeout), the fallback watcher id and a release mid-wait, and
 # round.sh stop ending the data dir's watch.sh (the lease records its pid).
+# test-scope: plugins/planning/surface/schema/*
 set -u
 # Every watcher in the suite is one session unless a case names another.
 export WATCH_ID=suite

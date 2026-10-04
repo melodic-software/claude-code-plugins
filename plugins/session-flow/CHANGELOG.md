@@ -1,5 +1,36 @@
 # Changelog: session-flow plugin
 
+## [0.48.4] - 2026-10-03
+
+### Fixed
+
+- **The `SessionStart` node-notice row no longer runs `powershell` on Linux.** It stopped at `${BASH_VERSION:+exit}`, which only bash sets; Claude Code runs hooks with `/bin/sh`, which is dash on Debian and Ubuntu (WSL included), so every session printed `powershell: not found`. The row now stops at `${PPID:+exit}`, which every POSIX shell sets.
+
+## [0.48.3] - 2026-10-03
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced ([#6084](https://github.com/melodic-software/claude-code-plugins/issues/6084)); no change to this plugin's lib.**
+  The prerequisite check now counts a Windows App Execution Alias (a Store or winget install on PATH) as found,
+  except App Installer's Python install stub. A `cli` or `runtime` entry can set `reject_store_alias` to skip aliases instead; no entry in this plugin does.
+
+## [0.48.2] - 2026-10-03
+
+### Changed
+
+- `scripts/save_point.test.sh` and `skills/audit-sessions/scripts/audit-sessions.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
+## [0.48.1] - 2026-10-03
+
+### Fixed
+
+- **`save_point.py` outside a git work tree no longer writes save-points into another plugin's data
+  directory.** Another plugin's SessionStart hook can export its own data directory as
+  `CLAUDE_PLUGIN_DATA` for every Bash call, and `new` and `memory-root` then resolved
+  `<that dir>/artifacts`. An inherited value is now used only when it names session-flow;
+  otherwise the data directory is derived from the script's installed cache path, as it already
+  was when the variable was unset.
+
 ## [0.48.0] - 2026-10-03
 
 ### Added

@@ -6,10 +6,12 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -89,6 +91,56 @@ class TestMalformedRegistry(unittest.TestCase):
             rc, _, err = run(["--data-dir", tmp, "stats"])
             self.assertEqual(rc, 2)
             self.assertIn("Invalid schema", err)
+
+
+class TestDataDirResolution(unittest.TestCase):
+    """Another plugin's SessionStart hook can export its own data dir into every
+    Bash call as CLAUDE_PLUGIN_DATA; the registry must never resolve there."""
+
+    def resolve(self, env_value: str, home: Path) -> Path:
+        with mock.patch.dict(os.environ, {"CLAUDE_PLUGIN_DATA": env_value}):
+            with mock.patch.object(Path, "home", return_value=home):
+                return rm.resolve_data_dir(None)
+
+    def test_inherited_value_naming_this_plugin_is_used(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            own = Path(tmp) / "harness-ops-melodic-software"
+            self.assertEqual(self.resolve(str(own), Path(tmp) / "home"), own.resolve())
+
+    def test_inherited_value_naming_another_plugin_is_ignored(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "home"
+            got = self.resolve(str(Path(tmp) / "codex-openai-codex"), home)
+            self.assertEqual(
+                got,
+                home / ".claude" / "plugins" / "data" / "harness-ops-melodic-software",
+            )
+
+    def test_explicit_flag_wins_over_any_inherited_value(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            flag = Path(tmp) / "explicit"
+            with mock.patch.dict(
+                os.environ, {"CLAUDE_PLUGIN_DATA": str(Path(tmp) / "harness-ops-x")}
+            ):
+                self.assertEqual(rm.resolve_data_dir(flag), flag.resolve())
+
+    def test_unsubstituted_placeholder_flag_is_refused(self) -> None:
+        for placeholder in ("${CLAUDE_PLUGIN_DATA}", "<plugin-data>"):
+            with self.assertRaises(SystemExit):
+                rm.resolve_data_dir(Path(placeholder))
+
+    def test_empty_flag_falls_through_like_an_absent_flag(self) -> None:
+        args = rm.build_parser().parse_args(["--data-dir", "", "stats"])
+        self.assertIsNone(args.data_dir)
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "home"
+            with mock.patch.dict(os.environ, {"CLAUDE_PLUGIN_DATA": ""}):
+                with mock.patch.object(Path, "home", return_value=home):
+                    got = rm.resolve_data_dir(args.data_dir)
+            self.assertEqual(
+                got,
+                home / ".claude" / "plugins" / "data" / "harness-ops-melodic-software",
+            )
 
 
 if __name__ == "__main__":

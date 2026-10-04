@@ -1,6 +1,6 @@
 {
   "name": "context-guard",
-  "version": "0.10.0",
+  "version": "0.10.4",
   "description": "Per-session context-window observability. A statusline wrapper writes each session's context_window fields to a snapshot file; a resolver classifies usage into smart, acceptable, and dumb zones from zones.json. Hooks report each move into a worse zone once: the continuation menu to the operator, and only the zone to the model, noting a zone is not a decay signal. Optional blocking mode gates new mutating work in the dumb zone, except handoffs. A PostCompact hook leaves a marker.",
   "author": {
     "name": "Melodic Software",

@@ -7,6 +7,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.9.3] - 2026-10-03
+
+### Fixed
+
+- **The `SessionStart` node-notice row no longer runs `powershell` on Linux.** It stopped at `${BASH_VERSION:+exit}`, which only bash sets; Claude Code runs hooks with `/bin/sh`, which is dash on Debian and Ubuntu (WSL included), so every session printed `powershell: not found`. The row now stops at `${PPID:+exit}`, which every POSIX shell sets.
+
+## [0.9.2] - 2026-10-03
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced ([#6084](https://github.com/melodic-software/claude-code-plugins/issues/6084)); no change to this plugin's lib.**
+  The prerequisite check now counts a Windows App Execution Alias (a Store or winget install on PATH) as found,
+  except App Installer's Python install stub. A `cli` or `runtime` entry can set `reject_store_alias` to skip aliases instead; no entry in this plugin does.
+
+## [0.9.1] - 2026-10-03
+
+### Fixed
+
+- The Windows PowerShell form of the optional Agent SDK install in `audit` and `setup` names the
+  plugin data directory through the `${CLAUDE_PLUGIN_DATA}` token Claude Code substitutes when the
+  skill loads, like the POSIX form beside it. It read `$env:CLAUDE_PLUGIN_DATA` at run time, which
+  an operator's PowerShell does not set, so the install went to `\sdk` at the drive root.
+
 ## [0.9.0] - 2026-10-03
 
 ### Added

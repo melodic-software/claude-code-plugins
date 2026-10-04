@@ -1,3 +1,4 @@
+# test-scope: plugins/source-control/skills/*/SKILL.md
 """Executes the guard contract in `guard_contract.py` against the real entry points.
 
 Every assertion here exercises a fact a consumer is told to rely on, and fails

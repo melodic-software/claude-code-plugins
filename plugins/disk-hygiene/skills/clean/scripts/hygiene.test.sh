@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Cross-platform contract wrapper for the stdlib Python test suite.
+# test-scope: plugins/disk-hygiene/skills/clean/SKILL.md plugins/disk-hygiene/skills/clean/reference/*.json plugins/disk-hygiene/hooks/*
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

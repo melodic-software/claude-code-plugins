@@ -6,6 +6,10 @@
 // state is the attention-view bucket; omit blockedBy when blockers were not read.
 //
 //   build-board.mjs --out <file>      writes the page, prints its path
+//   build-board.mjs --out <data_dir>/page.html --connect http://127.0.0.1:<port>
+//                                     the Claude-interactive page view-bridge serves
+//
+// The page's row id items-N names the Nth input item; nothing else identifies an item.
 //
 // Item text is tracker text (K2): it reaches the page only as JSON data that the
 // shared runtime renders as text. The markup is templates/board.html and nothing else.
@@ -54,19 +58,28 @@ function boardData(input) {
     bystate: group((row) => [row.state], "srows"),
     byblocker: group((row) => row.blockers, "brows"),
     bylabel: group((row) => row.labelList, "lrows"),
+    // Input order, so the page's row id items-N is the Nth item in the input.
+    items: rows.map(({ ref, title }) => ({ ref, title })),
   };
 }
 
 function main(argv) {
-  const out = argv[0] === "--out" ? argv[1] : undefined;
-  if (!out) {
-    console.error("usage: build-board.mjs --out <file>   (JSON on stdin)");
+  const args = {};
+  for (let i = 0; i < argv.length; i += 2) {
+    args[argv[i]] = argv[i + 1];
+  }
+  const out = args["--out"];
+  const ok = Object.entries(args).every(
+    ([key, value]) => ["--out", "--connect"].includes(key) && typeof value === "string" && value !== "",
+  );
+  if (!out || !ok) {
+    console.error("usage: build-board.mjs --out <file> [--connect <session-bridge origin>]   (JSON on stdin)");
     return 2;
   }
   try {
     const template = readFileSync(new URL("../templates/board.html", import.meta.url), "utf8");
     const data = boardData(JSON.parse(readFileSync(0, "utf8")));
-    writeFileSync(out, buildView({ profile: "interactive", template, data }));
+    writeFileSync(out, buildView({ profile: "interactive", template, data, connect: args["--connect"] ?? null }));
     console.log(out);
     return 0;
   } catch (err) {

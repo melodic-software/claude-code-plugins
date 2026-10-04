@@ -9,15 +9,15 @@ Decided when four plugins carried byte-identical `hooks/hook-utils.sh` copies, t
 threshold below, exceeded. The mechanism is **single source of truth at authoring time, plain copies
 at runtime**:
 
-- `lib/hook-utils.sh` is the only copy to edit. `scripts/sync-hook-utils.sh` propagates it into every
-  carrying plugin; a plugin opts in by committing an initial `hooks/hook-utils.sh` copy.
-- CI (`hook-utils-sync` lane) fails a PR when any plugin copy drifts from the source, and when the lib
+- `lib/hook-utils.sh` is the only copy to edit. `scripts/sync-shared-copies.sh` generates it into
+  every carrying plugin; a plugin opts in by registering its `hooks/hook-utils.sh` copy in
+  `scripts/shared-copies.txt`.
+- CI fails a PR when any plugin copy drifts from the source, and when the lib
   changed but a carrying plugin's manifest version did not: the plugin `version` is the update cache
   key, so an unbumped plugin never delivers the change to consumers. A bump that only carries a sync
   gets the standard CHANGELOG entry, "Shared `hook-utils.sh` synced (<link to the change>); no
-  change to this plugin's hooks." (the other `sync-*.sh` clusters name their own source file and
-  the directory their copies live in), not a
-  copy of another plugin's release note.
+  change to this plugin's hooks." (every cluster names its own source file and the directory its
+  copies live in), not a copy of another plugin's release note.
 - Runtime is untouched: each installed plugin stays self-contained under cache isolation, with no
   cross-plugin coupling and no change to the one-plugin install UX.
 
@@ -109,10 +109,10 @@ no dependency plugin (the alternative above); and no versioning of the copy or r
 since a format change migrates every copy in the same change.
 
 The html-escape cluster (`lib/html-escape.mjs`, one carrier: `review`) was the pilot: its hand-run
-`scripts/sync-html-escape.sh` is deleted and its copy is generated. Every other cluster except
-`hook-utils.sh` has since moved the same way: its copies are registered, regenerated, its
-`sync-*.sh` script and test are deleted, and its CI steps call the generator. `lib/hook-utils.sh`
-keeps `scripts/sync-hook-utils.sh` until its own change.
+`scripts/sync-html-escape.sh` is deleted and its copy is generated. Every other cluster has since
+moved the same way, `lib/hook-utils.sh` last: its copies are registered, regenerated, its
+`sync-*.sh` script and test are deleted, and its CI steps call the generator. No hand-run sync
+script and no shared sync-cluster helper remain.
 
 A canonical that lived inside one plugin moved to `lib/` when its cluster migrated, so that plugin's
 copy is generated like the rest and every copy of a library stays byte-identical to every other. A
@@ -151,11 +151,11 @@ is a per-library pooled minute there. That organization caps Actions spend at `$
 `prevent_further_usage` (melodic-software/github-iac ADR 0008), so the failure mode is not a line
 item but a hard stop on every private repository's hosted CI once the pool is gone.
 
-**They are now steps, not jobs.** Every shared-library gate, the `sync-hook-utils.sh` pair and the
-generator's `--check` and `--check-bump` (see the amendment above), runs as a step of
-`check-plugins`, the job that holds the plugin contracts across files, which performs that same
-deepen and base fetch once for every bump check. Adding a fourteenth shared source therefore adds a step to an existing job,
-and adding a job is the thing to justify rather than the default.
+**They are now steps, not jobs.** Every shared-library gate, the generator's `--check` and
+`--check-bump` (see the amendment above), runs as a step of `check-plugins`, the job that holds the
+plugin contracts across files, which performs that same deepen and base fetch once for every bump
+check. Adding a fourteenth shared source therefore adds a step to an existing job, and adding a job
+is the thing to justify rather than the default.
 
 One thing was lost and is worth naming rather than glossing. The old **job** name
 (`state-key-sync`, `index-regen-sync`) was the discriminator that said which library failed. Every

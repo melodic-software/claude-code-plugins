@@ -131,7 +131,7 @@ Parse `$ARGUMENTS` for the action (first token); remaining tokens are lane names
 
 Options: `--config FILE`, `--repo DIR`, `--no-pull`, `--no-update`, `--dry-run`,
 `--agents-json FILE` (read the session list from a file instead of the live CLI, offline/scripted reuse), `--data-dir DIR` (base dir for the per-lane
-launch-commit marker; default `$CLAUDE_PLUGIN_DATA`). Exit codes: `0` ok · `3`
+launch-commit marker; default an inherited `$CLAUDE_PLUGIN_DATA` only when it names harness-ops). Exit codes: `0` ok · `3`
 bad argument/config · `4` prerequisite missing or repo/config unresolved.
 
 ## Consume restart-requests

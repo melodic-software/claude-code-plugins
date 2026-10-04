@@ -315,8 +315,8 @@ detected and cleaned by one shared mechanism, never by bespoke prose per plugin:
 a record to its `retirements.yaml` (shipped inside the plugin, never in consumer
 repos). Records are never deleted and identity/detection fields stay frozen; the `status`
 demotion field may flip `active` to `report-only` (and back). The shared deterministic helper
-`lib/check-retirements.sh` (canonical under
-`plugins/harness-config/lib/`, synced byte-identical via `scripts/cross-plugin-source-registry.txt`)
+`lib/check-retirements.sh` (canonical at the repo root,
+generated into each carrying plugin by `scripts/sync-shared-copies.sh`)
 evaluates every record against the consumer repo. Detection is one fixed step in setup `check`;
 cleanup is per-record and operator-gated in `apply`; judgment-bearing `migrate` content stays with
 the model per the record's `successor` prose. No new setup verb. The owner doc

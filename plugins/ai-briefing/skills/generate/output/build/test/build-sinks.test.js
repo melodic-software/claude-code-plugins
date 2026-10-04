@@ -62,7 +62,8 @@ test("PPTX news/condensed sinks drop file:// hyperlinks and keep safe ones", asy
 	const evilNews = "file:///etc/passwd";
 	const evilCondensed = "file:///etc/shadow";
 
-	const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pptx-sink-"));
+	// Named for the plugin: the build uses CLAUDE_PLUGIN_DATA only when it names ai-briefing.
+	const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ai-briefing-pptx-sink-"));
 	try {
 		const dataDir = path.join(stateRoot, "default", "output", "build");
 		fs.mkdirSync(dataDir, { recursive: true });

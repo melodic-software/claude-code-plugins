@@ -3,11 +3,37 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.19.3] - 2026-10-03
+## [0.19.6] - 2026-10-04
 
 ### Fixed
 
 - **The read-only scan stays off the network (#6039).** `scan.sh` no longer runs `git remote prune origin --dry-run`. `Git stale refs dry-run:` is `remote prune not measured`, including when `origin` is an unreachable SSH URL, and `clean-batch.sh --tier scan` does not open an SSH or credential prompt. `git ls-remote` (`git-branch-audit.sh --remote`), `git remote prune` (`git-prune.sh --apply`), and `git fetch` (`git-tree-reset.sh`) go through one helper that keeps the configured `core.sshCommand`, turns prompts off, and reports a remote-unreachable result instead of waiting on one.
+
+## [0.19.5] - 2026-10-03
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced ([#6084](https://github.com/melodic-software/claude-code-plugins/issues/6084)); no change to this plugin's lib.**
+  The prerequisite check now counts a Windows App Execution Alias (a Store or winget install on PATH) as found,
+  except App Installer's Python install stub. A `cli` or `runtime` entry can set `reject_store_alias` to skip aliases instead; no entry in this plugin does.
+
+## [0.19.4] - 2026-10-03
+
+### Changed
+
+- `scripts/allowed-tools-pairing.test.sh` and `skills/clean/scripts/destructive-guard.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
+## [0.19.3] - 2026-10-03
+
+### Fixed
+
+- `clean-batch.sh` keeps its default batch plans in repo-hygiene's own data directory, whatever
+  `CLAUDE_PLUGIN_DATA` the Bash tool's shell holds. Another plugin's SessionStart hook can export
+  its own data directory under that name for every Bash call, and the batch dry-run then created
+  its `clean-batch/` plan directories there and pruned its own `run.*` directories older than 14
+  days inside it. The script now takes `--data-dir`, which the skill passes as
+  `"${CLAUDE_PLUGIN_DATA}"`, and without the flag accepts an inherited value only when it names
+  repo-hygiene.
 
 ## [0.19.2] - 2026-10-03
 

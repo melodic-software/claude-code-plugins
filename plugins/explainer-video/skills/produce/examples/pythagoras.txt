@@ -1,0 +1,7 @@
+Take a right triangle.
+
+Call its two short sides a and b.
+
+The square on the long side is a squared plus b squared.
+
+So the square on the long side equals the other two squares.

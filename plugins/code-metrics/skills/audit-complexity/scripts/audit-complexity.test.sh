@@ -6,6 +6,7 @@
 # PATH carries fake `lizard`, `radon`, `multimetric`, `gocognit` and
 # `shellmetrics` replaying the committed captures under
 # fixtures/tool-output/ (design T13; nothing executable is committed).
+# test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 

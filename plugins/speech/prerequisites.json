@@ -39,6 +39,16 @@
         "winget": "eSpeak-NG.eSpeak-NG (espeak-ng.exe must then be on PATH)"
       },
       "check": "/speech:check"
+    },
+    {
+      "id": "elevenlabs-api-key",
+      "kind": "env",
+      "need": "optional",
+      "for": ["skill:narrate"],
+      "detect": { "name": "ELEVENLABS_API_KEY" },
+      "degrade": "Without ELEVENLABS_API_KEY the elevenlabs backend of /speech:narrate does not run; the default kokoro backend still works and needs no key. The key stays in your environment: the plugin never stores, prints or logs it.",
+      "install": { "docs": "https://elevenlabs.io/app/settings/api-keys" },
+      "check": "/speech:check"
     }
   ]
 }

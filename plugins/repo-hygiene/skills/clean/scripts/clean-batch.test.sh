@@ -13,7 +13,8 @@ source "$SCRIPT_DIR/lib/test-helpers.sh"
 
 BATCH="$SCRIPT_DIR/clean-batch.sh"
 TEST_TMPDIR="$(mktemp -d)"
-export CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/plugin-data"
+# Named like the real per-plugin dir, so the inherited-value path is the one exercised.
+export CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/repo-hygiene-test"
 export HOME="$TEST_TMPDIR/home"
 mkdir -p "$HOME"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
@@ -725,6 +726,46 @@ if [[ "$entries" -eq 1 ]]; then
 else
   fail "exactly the cap entries are listed" 1 "$entries"
 fi
+
+# --- 6. another plugin's data dir is never used ---
+# Another plugin's SessionStart hook can export its own data dir into every Bash
+# call under the name CLAUDE_PLUGIN_DATA. The plan, and the pruning of old run.*
+# directories beside it, must not land there.
+FOREIGN="$TEST_TMPDIR/codex-openai-codex"
+OWN="$TEST_TMPDIR/repo-hygiene-melodic-software"
+FR_REPO="$(mkrepo foreignrepo)"
+out="$(CLAUDE_PLUGIN_DATA="$OWN" bash "$BATCH" --tier caches --repo "$FR_REPO")"
+OWN_PLAN="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
+assert_contains "an inherited value naming repo-hygiene places the default plan" "$OWN_PLAN" "$OWN/clean-batch/"
+SET_REL="$(dirname "$(dirname "${OWN_PLAN#"$OWN"/}")")"
+mkdir -p "$FOREIGN/$SET_REL/run.stale" "$FOREIGN/keep"
+touch "$FOREIGN/$SET_REL/run.stale/plan" "$FOREIGN/keep/state.json"
+touch -d "15 days ago" "$FOREIGN/$SET_REL/run.stale"
+out="$(CLAUDE_PLUGIN_DATA="$FOREIGN" bash "$BATCH" --tier caches --repo "$FR_REPO")"
+assert_not_contains "a foreign CLAUDE_PLUGIN_DATA does not receive the plan" "$out" "BatchPlan: $FOREIGN"
+assert_contains "a foreign CLAUDE_PLUGIN_DATA falls back to HOME" "$out" "BatchPlan: $HOME/.claude/plugins/data/repo-hygiene/"
+assert_file_exists "a stale run dir under a foreign CLAUDE_PLUGIN_DATA is not pruned" "$FOREIGN/$SET_REL/run.stale/plan"
+assert_file_exists "the foreign plugin's own files are untouched" "$FOREIGN/keep/state.json"
+foreign_entries="$(find "$FOREIGN/$SET_REL" -mindepth 1 -maxdepth 1 ! -name run.stale | wc -l | tr -d ' ')"
+if [[ "$foreign_entries" -eq 0 ]]; then
+  pass "nothing new is written under a foreign CLAUDE_PLUGIN_DATA"
+else
+  fail "nothing new is written under a foreign CLAUDE_PLUGIN_DATA" 1 "$foreign_entries"
+fi
+# Positive control: the same stale run dir in the plugin's own dir IS pruned, so
+# the survival above is the guard's doing, not a prune that never runs.
+mkdir -p "$OWN/$SET_REL/run.stale"
+touch "$OWN/$SET_REL/run.stale/plan"
+touch -d "15 days ago" "$OWN/$SET_REL/run.stale"
+out="$(CLAUDE_PLUGIN_DATA="$FOREIGN" bash "$BATCH" --tier caches --repo "$FR_REPO" --data-dir "$OWN")"
+assert_contains "--data-dir wins over a foreign value" "$out" "BatchPlan: $OWN/$SET_REL/run."
+assert_file_absent "--data-dir prunes a stale run dir in the plugin's own dir" "$OWN/$SET_REL/run.stale/plan"
+# shellcheck disable=SC2016 # the literal, unexpanded token is the input under test
+for placeholder in '${CLAUDE_PLUGIN_DATA}' '<plugin-data>'; do
+  rc=0
+  bash "$BATCH" --tier caches --repo "$FR_REPO" --data-dir "$placeholder" >/dev/null 2>&1 || rc=$?
+  assert_exit "an unsubstituted --data-dir ($placeholder) exits 2" 2 "$rc"
+done
 
 help_out="$(bash "$BATCH" --help)"
 assert_contains "--help says --batch-plan works with --dry-run" "$help_out" "--batch-plan FILE  with --dry-run"
