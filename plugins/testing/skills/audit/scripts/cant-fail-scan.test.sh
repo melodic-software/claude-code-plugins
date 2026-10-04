@@ -810,7 +810,18 @@ assert_contains "--blocks keeps the findings" "$out" "cant-fail-js.test.js:11: t
 assert_matches "--blocks lists blocks beside findings" "$out" '^block plugins/testing/skills/audit/evals/fixtures/positive/cant-fail-js\.test\.js:11-13 1 adds numbers$'
 run_file --file "$B/dup.test.ts" --blocks --check
 assert_exit "--blocks works only in the report mode (exit 2)" 2 "$rc"
-assert_contains "--blocks outside the report mode says so" "$out" "--blocks lists blocks in the report mode only"
+assert_contains "--blocks outside the report mode says so" "$out" "--blocks and --brief apply to the report mode only"
+
+# --brief: the hooks' form. Three recomputed-expectation findings carry one Action.
+run_file --file "$FIX/positive/cant-fail-js.test.js" --brief
+assert_exit "--brief completes (exit 0)" 0 "$rc"
+assert_finding_count "--brief keeps every finding" 5
+assert_matches "--brief finding line has no threshold or Action" "$out" \
+  "^finding \[rule-zero-assertion\] plugins/testing/skills/audit/evals/fixtures/positive/cant-fail-js\.test\.js:11: test 'adds numbers' has 0 assertion tokens$"
+if [[ "$(count_lines "$out" '^action \[rule-recomputed-expectation\] ')" == 1 ]]; then pass "--brief: one Action for three findings of a rule"; else fail "--brief: one Action for three findings of a rule" "$out"; fi
+if [[ "$(count_lines "$out" '^action \[')" == 3 ]]; then pass "--brief: one Action per distinct rule"; else fail "--brief: one Action per distinct rule" "$out"; fi
+run_file --file "$FIX/positive/cant-fail-js.test.js" --brief --check
+assert_exit "--brief works only in the report mode (exit 2)" 2 "$rc"
 
 printf '%s\n' "public class T {" "  [Fact]" "  public void Adds()" "  {" "    Assert.Equal(3, Sum(1, 2));" "  }" \
   "  [Fact]" "  public void Subs()" "    => Assert.Equal(1, Sub(3, 2));" "}" >"$B/BlocksTests.cs"

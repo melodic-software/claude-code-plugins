@@ -5,7 +5,7 @@
 # pipes hand-built PostToolUse payloads through the hook. Covers the option
 # gate (through the exec-form launcher), findings on a create, the once-per-
 # file-per-agent rules note, Edit scoping to the changed block, the scanner
-# timeout, gitignored paths, the doubtful-hit prompt (recomputed and derived
+# timeout, gitignored paths, one Action per rule (recomputed and derived
 # expectations, constant restatements), the lead for findings of tests that
 # can fail, the marker prune, the per-call dedup that keeps two
 # overlapping `if` rows from reporting twice, and the per-write session state
@@ -163,6 +163,20 @@ assert_not_contains "(c) same session and agent: no second note" "$out" "testing
 run Write "$REPO/src/sum.test.ts" s1 agent-2
 assert_contains "(c) a different agent_id gets the note" "$out" "testing:test-value"
 
+# (c2) a clean first write of a file gets no note: it has nothing to act on.
+printf '%s\n' "import { test, expect } from 'vitest';" "test('caps', () => {" "  expect(cap(60)).toBe(50);" "});" >"$REPO/src/quiet.test.ts"
+run Write "$REPO/src/quiet.test.ts" s-quiet
+assert_empty "(c2) clean first write: no context at all" "$out"
+
+# (c3) two findings of one rule: both listed, the Action once, no threshold.
+printf '%s\n' "import { test } from 'vitest';" "test('a', () => {" "  sum(1, 2);" "});" \
+  "test('b', () => {" "  sum(2, 2);" "});" >"$REPO/src/twice.test.ts"
+run Write "$REPO/src/twice.test.ts" s-twice
+ctx3="$(jq -r '.hookSpecificOutput.additionalContext' <<<"$out")"
+if [[ "$(grep -c '^  \[rule-zero-assertion\] ' <<<"$ctx3")" == 2 ]]; then ok "(c3) both findings listed"; else fail "(c3) both findings listed (got: $ctx3)"; fi
+if [[ "$(grep -c '^Action \[rule-zero-assertion\]: ' <<<"$ctx3")" == 1 ]]; then ok "(c3) one Action for the rule"; else fail "(c3) one Action for the rule (got: $ctx3)"; fi
+assert_not_contains "(c3) no threshold in the context" "$ctx3" "threshold:"
+
 # (d) an Edit touching only the good block leaves the bad block silent.
 EDIT_GOOD='{"structuredPatch":[{"oldStart":9,"oldLines":1,"newStart":9,"newLines":1,
   "lines":["-  expect(sum(1, 2)).toBe(4);","+  expect(sum(1, 2)).toBe(3);"]}]}'
@@ -212,16 +226,17 @@ fi
 run Write "$REPO/scratch/ignored.test.ts"
 assert_empty "(f) gitignored path: no output" "$out"
 
-# (g) a recomputed expectation asks where the expected value comes from.
+# (g) a recomputed expectation carries its Action and no order.
 run Write "$REPO/src/again.test.ts"
 assert_contains "(g) names rule-recomputed-expectation" "$out" "rule-recomputed-expectation"
-assert_contains "(g) asks for the expected value's source" "$out" "where the expected value"
+assert_contains "(g) carries the rule's Action" "$out" "Action [rule-recomputed-expectation]: State the expected value independently"
+assert_not_contains "(g) gives no order to state a source" "$out" "Before you continue"
 
-# (h) a constant restatement carries the same prompt, under a change-detector
+# (h) a constant restatement carries its Action, under a change-detector
 # lead rather than the can't-fail one.
 run Write "$REPO/src/limit.test.ts"
 assert_contains "(h) names rule-constant-restatement" "$out" "rule-constant-restatement"
-assert_contains "(h) asks for the expected value's source" "$out" "where the expected value"
+assert_contains "(h) carries the rule's Action" "$out" "Action [rule-constant-restatement]: "
 assert_contains "(h) leads with change detectors" "$out" "fail on harmless changes"
 assert_not_contains "(h) does not call a change detector a test that cannot fail" "$out" "tests that cannot fail"
 
@@ -245,10 +260,10 @@ else
 fi
 if [[ -f "$CLAUDE_PLUGIN_DATA/marks/call-call-1" ]]; then ok "prune: a fresh marker stays"; else fail "prune: a fresh marker stays"; fi
 
-# (i) a recomputed-derived expectation carries the doubtful-hit prompt.
+# (i) a recomputed-derived expectation carries its Action.
 run Write "$REPO/src/derived.test.ts"
 assert_contains "(i) names rule-recomputed-derived" "$out" "rule-recomputed-derived"
-assert_contains "(i) asks for the expected value's source" "$out" "where the expected value"
+assert_contains "(i) carries the rule's Action" "$out" "Action [rule-recomputed-derived]: "
 assert_contains "(i) leads with tests that check little" "$out" "tests that check little"
 assert_not_contains "(i) does not call a derived expectation a test that cannot fail" "$out" "tests that cannot fail"
 
@@ -256,7 +271,7 @@ assert_not_contains "(i) does not call a derived expectation a test that cannot 
 run Write "$REPO/src/weak.test.ts"
 assert_contains "(j) names rule-weak-oracle" "$out" "rule-weak-oracle"
 assert_not_contains "(j) does not call a weak oracle a test that cannot fail" "$out" "tests that cannot fail"
-assert_not_contains "(j) a weak oracle carries no doubtful-hit prompt" "$out" "where the expected value"
+assert_contains "(j) carries the weak-oracle Action" "$out" "Action [rule-weak-oracle]: "
 
 # Two overlapping `if` rows run the hook twice for one call; only one reports.
 run Write "$REPO/src/sum.test.ts" s1 "" dup-call

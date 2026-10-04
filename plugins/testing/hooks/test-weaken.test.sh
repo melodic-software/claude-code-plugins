@@ -127,7 +127,7 @@ run Edit "$REPO/src/sum.test.ts" "$DROP_EXPECT"
 if [[ $rc -eq 0 ]]; then ok "(a) exits 0"; else fail "(a) exit $rc"; fi
 assert_contains "(a) goes back through additionalContext" "$out" '"additionalContext"'
 assert_contains "(a) names the removed assertion" "$out" "expect(sum(2, 2)).toBe(4);"
-assert_contains "(a) asks for the reason" "$out" "reason"
+assert_not_contains "(a) states the facts, gives no order" "$out" "Before you continue"
 assert_no_decision "(a) no permissionDecision field while advisory" "$out"
 if jq -e . <<<"$out" >/dev/null 2>&1; then ok "(a) one JSON document"; else fail "(a) not JSON: $out"; fi
 
@@ -175,6 +175,18 @@ run Edit "$REPO/src/sum.bats" "$(edit_input '  [ "$output" = "3" ]' '  [ "$outpu
 assert_contains "bash-bats: a changed literal in a [ ] comparison is named" "$out" 'from \"3\" to \"4\"'
 run Edit "$REPO/src/sum_test.go" "$(edit_input $'\tif got != 3 {' $'\tif got != 3 && ok {')"
 assert_not_contains "go-testing: a compound condition is not read as a changed literal" "$out" "changed the expected"
+# Seven changed literals: five are named, then one "..." line.
+old7="" new7=""
+for k in 1 2 3 4 5 6 7; do
+  old7+="  expect(sum($k, 0)).toBe($k);"$'\n'
+  new7+="  expect(sum($k, 0)).toBe($((k + 10)));"$'\n'
+done
+printf "import { test, expect } from 'vitest';\n\ntest('ids', () => {\n%s});\n" "$old7" >"$REPO/src/seven.test.ts"
+run Edit "$REPO/src/seven.test.ts" "$(edit_input "$old7" "$new7")"
+ctx7="$(jq -r '.hookSpecificOutput.additionalContext' <<<"$out")"
+if [[ "$(grep -c '^- changed the expected value of ' <<<"$ctx7")" == 5 ]]; then ok "changed literals: five named"; else fail "changed literals: five named (got: $ctx7)"; fi
+assert_contains "changed literals: the rest elided" "$ctx7" $'\n- ...'
+assert_not_contains "changed literals: the sixth is not named" "$ctx7" "sum(6, 0)"
 
 # A removed test block is denied with the rule on.
 run Write "$REPO/src/sum.test.ts" "$(jq -cn --arg c "$(sed '/^test(.adds zero/,$d' "$REPO/src/sum.test.ts")" '{content: $c}')"
