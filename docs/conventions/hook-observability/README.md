@@ -4,7 +4,9 @@ Owner doc for the three observability surfaces every fleet hook declares or emit
 status label, a user-visible notice when a runtime prerequisite is missing, and the fleet's
 telemetry envelope. The [plugin philosophy](../../plugin-philosophy.md) owns the posture rule:
 advisory-versus-blocking, fail-open-versus-closed. This doc owns which of the three surfaces a
-given situation uses and how each is shaped.
+given situation uses and how each is shaped. A mod's lines to Claude and its telemetry follow the
+same rules ([mod-authoring](../mod-authoring/README.md#boundary)); `statusMessage` and
+`systemMessage` are settings-hook fields a mod does not have.
 
 The rules below are this convention's decisions. Where one depends on hook behavior Claude Code
 owns, it points at the section of the [hooks reference](https://code.claude.com/docs/en/hooks) to
@@ -214,7 +216,8 @@ restate that shape, only the adoption requirement: **every hook wired in a plugi
 emits it for each meaningful outcome it produces** (a check that ran and returned ok / blocked /
 skipped-for-cause). A pure inapplicability short-circuit before any check logic runs (wrong tool
 type, excluded path, missing prerequisite) does not need one; see the Conformance section below
-for the precise rule and why.
+for the precise rule and why. The guard mods emit on fewer outcomes, under a
+[recorded exception](#recorded-exception-the-guard-mods-lines-and-telemetry-owner-approved-2026-10-03).
 
 **Why a local file sink, not a real OTel exporter.** A hook process does not receive the session's
 `OTEL_*` exporter configuration, so it cannot emit real OpenTelemetry. The file-sink envelope is
@@ -252,7 +255,9 @@ arrives in the same place. Two rules follow.
   (system, administrator, user) and never presents itself as a message from the user.
 
 This section is documentation only: it measures no hook's emission rate and moves no hook to a
-different event.
+different event. The guard mods' context and rate-limit lines are a
+[recorded exception](#recorded-exception-the-guard-mods-lines-and-telemetry-owner-approved-2026-10-03)
+to the Frequency rule.
 
 - **Pointer**: for where `additionalContext` lands and how to phrase it, see
   <https://code.claude.com/docs/en/hooks#add-context-for-claude>; for the model behavior behind
@@ -332,15 +337,17 @@ Fleet audits check, per wired producer hook:
   matcher.
 - Any `systemMessage` that is neither a prerequisite-skip notice nor a content-mutation notice
   satisfies all three carve-out conditions, or is the one owner-approved exception named below,
-  and its model-channel counterpart asserts no operator presence. Not mechanically gated, but reviewed per hook. One site in the fleet meets all three:
-  `context-guard`'s `zone-crossing-inject.sh`. One further site is admitted by owner-approved
+  and its model-channel counterpart asserts no operator presence. Not mechanically gated, but reviewed per hook. No settings hook in the fleet meets all three
+  today: `context-guard`'s operator menu, the site that did, now comes from its mod as a transcript
+  line (`$.ui.log`) and a band notice, neither of which reaches Claude, so it is no `systemMessage`.
+  One site is admitted by owner-approved
   exception (#4679): `guardrails`' `block-hook-bypass.sh` operator-lever notice. That notice lists
   switches only the operator may flip (condition 1); stderr separately carries the verdict and the
   agent's remedy, names an operator option only as the operator's to set, and never says the
   operator has seen anything (condition 2 and the delivery rule). It fires once per session and
   agent, with the latch's renewal declined, which limits repetition but is not a state transition,
   so it does not satisfy condition 3 and is admitted by the exception. Every other call site is
-  a prerequisite skip or a content-mutation notice, so a third one is a signal to re-read the three
+  a prerequisite skip or a content-mutation notice, so a second one is a signal to re-read the three
   conditions rather than to follow the precedent.
 - Every path on which the hook rewrote file content names what it changed on the user channel,
   bounded by a per-run cap with the remainder reported as a count. Not mechanically gated, but
@@ -352,10 +359,48 @@ Fleet audits check, per wired producer hook:
   every current telemetry-emitting hook in the fleet is already shaped.
 - Agent-channel text follows the frequency and phrasing rules in
   [Text a hook adds for the model](#text-a-hook-adds-for-the-model-frequency-and-phrasing). Not
-  mechanically gated, but reviewed per hook.
+  mechanically gated, but reviewed per hook. One exception is recorded below.
 
 `scripts/check-silent-skips.sh` mechanically enforces the second point for the `command -v`-gated
 shapes it recognizes, **once its pending gate correction lands** (see the systemMessage section
 above). A bare stderr write does not actually satisfy the doctrine (exit-0 stderr is invisible
 per the exit-code caveat above), even though the gate does not yet reject it. After that correction, a
 quiet skip needs a sanctioned helper call or an explicit `# silent-skip-ok:` annotation.
+
+### Recorded exception: the guard mods' lines and telemetry (owner-approved, 2026-10-03)
+
+`context-guard`'s and `rate-limit-guard`'s mods add lines to tool results and prompts about the
+session's context and rate-limit windows, which the Frequency rule's "no countdown or budget line
+after tool results" would otherwise bar. They are admitted on this shape, and only on it:
+
+- **When.** One line per boundary crossing, one per approach margin (a set number of points before
+  a boundary), and one restatement after a compaction, a resume, a `/branch`, a reload of the mod
+  mid-session, or a `/clear` that leaves a verdict past the quiet one. Nothing on a call where no
+  boundary moved.
+- **What.** Each line is a verdict worded as a fact, naming its source (the plugin and the reading
+  it came from). It claims no authority and gives no order. By default it carries no raw count; the
+  operator can add figures through the plugin's line-data option.
+- **Telemetry.** The guard mods emit an envelope only on a fire that acts: lines sent, an operator
+  suggestion shown, a tool call denied. A fire that reached a decision and changed nothing emits
+  none, which narrows the meaningful-outcome bullet above for these two producers.
+
+Why the platform's own guidance supports the shape:
+
+- The context-awareness docs say the API tells some models their remaining context after each tool
+  call, and that Claude Opus 4.7 and later Opus models, Claude Sonnet 5.5 and Claude Fable 5 and 5.1
+  receive no such tag. On those models a boundary line is the session's only statement of where its
+  context stands.
+- The prompting guide says a token countdown after every tool result can make the model read a
+  genuine user message as an injection, and that an occasional one-turn reminder arrives far less
+  often. The guards' lines are the occasional kind: at most one per boundary per cycle.
+
+Both rest on Anthropic's pages alone.
+
+- **Pointer**: for context awareness, see
+  <https://platform.claude.com/docs/en/build-with-claude/context-windows#context-awareness>; for the
+  countdown and the occasional reminder, see
+  <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#mid-turn-user-messages-and-task-budgets>.
+- **As of**: 2026-10-03
+- **Recheck trigger**: the context-awareness section changes which models receive the injected
+  tags, or the prompting guide changes how often harness text after tool results may arrive before
+  the model treats it as an injection.

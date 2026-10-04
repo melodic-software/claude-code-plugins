@@ -194,7 +194,7 @@ An entry whose evidence does not resolve, or whose result was never verified, is
 
 The orchestrator stays resident across phase boundaries by default. Clear and resume from the emitted prompt only when one of these holds:
 
-- **(a) The harness or operator signals a heavy window**. A compaction notice, a context-guard hook, or the user saying the session is heavy. Route the next step with `/session-flow:workflow` rather than clearing by default, handing it the PLAN.md path and the next phase; clear and resume from the emitted prompt when it routes there. Do not poll your own context statistics to decide this; a budget reading is not a decay signal (see `/implementation:implement` Step 4, "Mid-phase")
+- **(a) The harness or operator signals a heavy window**. A compaction notice, a context-guard line, or the user saying the session is heavy. Route the next step with `/session-flow:workflow` rather than clearing by default, handing it the PLAN.md path and the next phase; clear and resume from the emitted prompt when it routes there. Do not poll your own context statistics to decide this; a budget reading is not a decay signal (see `/implementation:implement` Step 4, "Mid-phase")
 - **(b) The next phase is inline-routed** per the routing table (an inline-routed phase wants a fresh window for its own reads)
 - **(c) A model/domain switch is pending** for the next phase
 
