@@ -1,0 +1,30 @@
+# #300 Map: partner shipment feed
+
+State: open. Labels: work-map. Assignee: none.
+
+## Destination
+
+A PLAN to replace the nightly partner CSV drop with a push-based shipment-status change feed for
+our three logistics partners (Northwind Freight, Blue Heron, Kestrel Couriers), live before the
+2027 Q3 peak season.
+
+## Notes
+
+- The current CSV export job is `jobs/partner_csv_export.py`; partners load it at 02:00 UTC.
+- Partner complaint thread: status lag of up to 24 hours drives support tickets.
+
+## Decisions-so-far
+
+- Pick the change source (#301)
+- Decide event granularity (#302)
+
+## Not-yet-specified
+
+Something about how partners recover after a long outage feels unresolved, but nobody can phrase
+it yet: replay windows, backfill, or contract versioning might each be part of it.
+
+## Out-of-scope
+
+- Partner client SDKs or libraries: we publish a feed contract only and never ship client code
+  (Should we ship partner SDKs? #305)
+- Pricing and invoicing data: stays on the existing billing API

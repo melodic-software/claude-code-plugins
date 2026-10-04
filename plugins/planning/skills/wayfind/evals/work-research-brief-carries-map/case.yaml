@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: work-research-brief-carries-map
+description: Working a research item, the brief handed to the research step carries the map's destination, its decisions so far, and its out-of-scope lines, not the item alone
+tags: [wayfind, pocock-33]
+expected_outcome: The brief for 'Pick the change-feed wire format' names the destination (a push-based shipment feed for three partners before the 2027 Q3 peak), the settled change source (Debezium on Postgres logical replication) and per-status-change granularity, and the exclusion of partner client SDKs.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Use the wayfind skill in work mode on our decision map 'Map: partner shipment feed' (#300). The tracker is unreachable from here, so I exported the map issue and its sub-issues to the files under tracker-export/ in the working directory; read those instead of calling the tracker, and do not try to claim anything. Take the research item 'Pick the change-feed wire format' (#306). Before any research runs, show me the exact brief you would hand the research subagent, then stop."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: names-settled-change-source
+    type: regex
+    pattern: 'Debezium|logical replication'
+    flags: i
+    arm: both
+  - name: names-destination
+    type: regex
+    pattern: 'Q3|peak|Northwind|Blue Heron|Kestrel|three (?:logistics )?partners|CSV drop|nightly (?:partner )?CSV'
+    flags: i
+    arm: both
+  - name: names-sdk-exclusion
+    type: regex
+    pattern: 'SDK|client (?:librar|code)'
+    flags: i
+    arm: both
+  - name: brief-carries-map-context
+    type: llm
+    arm: both
+    criteria: "The answer contains a brief for researching the change-feed wire format (JSON lines, Avro with a schema registry, CloudEvents). PASS only if that brief itself, not only surrounding commentary, carries all three of the following from the map: (1) where the effort is going: a push-based shipment-status feed replacing the nightly partner CSV, for the three logistics partners or before the 2027 Q3 peak; (2) at least one decision already made: the change source is Debezium on Postgres logical replication, or events are one per shipment status change; (3) the out-of-scope line that partner client SDKs or libraries will not be shipped. FAIL if any of the three is missing from the brief, if the brief contains only the item's own question and candidates, or if no brief is shown."
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?wayfind"'

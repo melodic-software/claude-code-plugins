@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: work-brief-respects-out-of-scope
+description: A research item whose wording invites evaluating client libraries gets a brief that fences that question out, because the map's Out-of-scope section excludes partner SDKs
+tags: [wayfind, pocock-33]
+expected_outcome: The brief for 'Survey how partners will integrate the feed' tells the researcher that partner client SDKs or libraries are out of scope (the effort publishes a feed contract only), rather than asking it to evaluate which client libraries to build or ship.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Use the wayfind skill in work mode on our decision map 'Map: partner shipment feed' (#300). The tracker is unreachable from here, so I exported the map issue and its sub-issues to the files under tracker-export/ in the working directory; read those instead of calling the tracker, and do not try to claim anything. Take the research item 'Survey how partners will integrate the feed' (#308). Before any research runs, show me the exact brief you would hand the research subagent, then stop."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: sdk-fenced-out
+    type: regex
+    pattern: '(?:SDK|client (?:librar|code))[\s\S]{0,240}(?:out of scope|out-of-scope|excluded|exclusion|not (?:in scope|ship|build|provide)|never ship|won''t ship|will not ship)|(?:out of scope|out-of-scope|excluded|exclusion|not (?:in scope|ship|build|provide)|never ship|won''t ship|will not ship)[\s\S]{0,240}(?:SDK|client (?:librar|code))'
+    flags: i
+    arm: both
+  - name: brief-respects-out-of-scope
+    type: llm
+    arm: both
+    criteria: "The answer contains a brief for researching how the logistics partners will integrate a shipment-status feed. PASS only if the brief itself, not only surrounding commentary, tells the researcher that partner client SDKs or libraries are out of scope (the effort publishes a feed contract only and never ships client code), so the research does not recommend building or shipping client libraries. FAIL if the brief asks the researcher to evaluate, design, or recommend client SDKs or libraries for partners to be built or shipped by us without stating that exclusion, if the exclusion appears only outside the brief, or if no brief is shown."
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?wayfind"'
