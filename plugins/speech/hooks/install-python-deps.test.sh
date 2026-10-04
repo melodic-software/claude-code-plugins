@@ -91,15 +91,16 @@ else
   fail "second session: rc=$RC installs=$(installs "$data") output=[$out]"
 fi
 
-# A failed install (wrong hash): a notice on both channels with the reason and the repair line, exit 0, nothing left.
+# A failed install (wrong hash): a user notice with the reason and the repair line, exit 0, nothing left.
+# Nothing reaches the model: pydeps.py run prints the repair line when a skill runs.
 root="$(new_plugin bad "$(printf '0%.0s' {1..64})")"
 data="$WORK/data-bad"
 run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")"
 out="$OUT"
-if [[ "$RC" -eq 0 && "$out" == *'"systemMessage"'* && "$out" == *'"additionalContext"'* &&
-  "$out" == *'could not be installed'* && "$out" == *'pip install --require-hashes failed'* &&
+if [[ "$RC" -eq 0 && "$out" == *'"systemMessage"'* && "$out" != *'"additionalContext"'* &&
+  "$out" == *'not installed; '* && "$out" == *'pip install --require-hashes failed'* &&
   "$out" == *'Repair with:'* && "$(installs "$data")" == 0 ]]; then
-  ok "a failed install surfaces a notice on both channels with the repair line and installs nothing"
+  ok "a failed install surfaces a user notice with the repair line and installs nothing"
 else
   fail "failed install: rc=$RC installs=$(installs "$data") output=[$out]"
 fi
