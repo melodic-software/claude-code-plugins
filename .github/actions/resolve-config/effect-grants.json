@@ -1,0 +1,19 @@
+{
+  "read": { "contents": "read", "pull-requests": "read", "issues": "read" },
+  "publish-artifact": {
+    "contents": "read",
+    "pull-requests": "write",
+    "issues": "write"
+  },
+  "mutate-tracker": {
+    "contents": "read",
+    "pull-requests": "read",
+    "issues": "write"
+  },
+  "mutate-branch": {
+    "contents": "write",
+    "pull-requests": "write",
+    "issues": "write"
+  },
+  "merge": { "contents": "write", "pull-requests": "write", "issues": "write" }
+}

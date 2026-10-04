@@ -1,6 +1,6 @@
 {
   "name": "context-guard",
-  "version": "0.12.2",
+  "version": "0.12.3",
   "description": "Per-session context-window observability. A mod writes each session's context-window figures to a snapshot file and tells Claude its context zone (smart, acceptable or dumb, from bands in zones.json) at each crossing, approach and compaction; the person gets a toast and a transcript line. /context-guard prints status and toggles an optional band row. It answers a status tool. Optional blocking mode gates new mutating work in a blocked zone, except handoffs. A PostCompact hook leaves a marker.",
   "author": {
     "name": "Melodic Software",

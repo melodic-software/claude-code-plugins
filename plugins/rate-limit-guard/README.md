@@ -52,7 +52,7 @@ of a prompt; a crossing seen when a turn ends reaches Claude with the next promp
 | The window reaches the approach mark (90%) | once per window, "nearing the 95% pause edge" |
 | The window reaches the line threshold (95%) | once per window, "at the 95% pause edge", with the reset time |
 | The window resets (its reset time passes, or it leaves the reading) after reaching the threshold | once; the approach and threshold lines can then fire again |
-| After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict for every window, once |
+| After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict for each window at or above the approach mark, once; nothing when none is |
 | After `/clear`, and when the module loads into a session that already has turns (a `--resume` launch, a reload after an options change, a hooks-worker restart) | the verdict for each window at or above the threshold, once; nothing when none is |
 
 Use only rises within a window, so a reading that dips below a mark sends nothing and does not
@@ -61,7 +61,8 @@ line, its verdict only, for example `rate-limit-guard: 5-hour window at the 95% 
 at 2026-10-03 21:00 UTC.`. Every line carries its verdict; `rate_limit_line_data` chooses what
 goes with it: the window's name (`window`), its use (`percent`) and its reset time (`reset`). Without `window` the line says "a
 rate-limit window". A line never carries the account email or the session name. Subagents get no
-line. The line threshold is a line setting only: the loop lanes' pause edge stays 95% (see the
+line. Each line sent to Claude is also written as sent to the debug log (`claude --debug`). The
+line threshold is a line setting only: the loop lanes' pause edge stays 95% (see the
 [reader contract](reference/reader-contract.md)).
 
 ### Window changes shown to you
