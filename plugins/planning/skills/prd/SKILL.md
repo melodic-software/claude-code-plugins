@@ -328,7 +328,7 @@ Complementary to `/planning:devils-advocate`. Review checks structure and conven
 - **Does not run exploration or research**. Step 2's survey is a *fast grounding pass*, not deep work. If product framing requires deep external research (competitive analysis, market data), pause the PRD and recommend the research capability first
 - **Does not gate other skills**. Engineering-internal tasks skip `/planning:prd` entirely. Even product features can skip if intent is already locked elsewhere (existing roadmap doc, recent ADR, prior PRD)
 - **Does not adversarially attack the user's product idea**. Not the PRD's role. If the proposed feature has obvious product risk, surface it once in the *risks* section and continue. Pushback belongs in product review, not PRD authoring
-- **Does not write code, run tests, or modify anything outside the topic's contract and memory slices**. Pure product-intent skill
+- **Does not write code, run tests, or modify anything outside the topic's memory slice**, apart from pasting the locked PRD into the pull request body or linked issue. Pure product-intent skill
 - **Does not export Gherkin**. Named as a deferred extension point so its absence reads as a decision rather than an oversight: nothing here emits `.feature` files or `Given`/`When`/`Then` scenarios, and the EARS tags are a bracketed prefix vocabulary on a plain bullet, not a step grammar. A Gherkin export is a separate slice against a separate contract, and none of it is built here
 
 ## Composition with other skills
