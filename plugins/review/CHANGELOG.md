@@ -5,6 +5,11 @@ All notable changes to the `review` plugin are documented here. Format follows
 
 ## [0.41.0] - 2026-10-04
 
+### Added
+
+- **`/review:explain-change` names the bundled `artifact-pr-review` skill in a Boundary section ([#6282](https://github.com/melodic-software/claude-code-plugins/issues/6282)).**
+  Use that skill for a verdict on a pull request and this one to understand the change; the native-surfaces record now rules the pair `complementary`.
+
 ### Removed
 
 - **The `/review:pr-explainer` rename stub ([#6282](https://github.com/melodic-software/claude-code-plugins/issues/6282)).**

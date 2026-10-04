@@ -18,7 +18,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 | Lane | Rows | Baked | Integration | Verdicts |
 |---|---|---|---|---|
 | Built-in CLI commands | 26 | 25 | route 4, suggest 22 | complementary 25, defer 1 |
-| Bundled skills | 29 | 22 | route 18, suggest 9, wrap 2 | complementary 23, defer 6 |
+| Bundled skills | 29 | 23 | route 18, suggest 9, wrap 2 | complementary 24, defer 5 |
 | Bundled workflows | 1 | 1 | suggest 1 | complementary 1 |
 | Plugin-backed built-ins | 4 | 2 | route 4 | complementary 3, defer 1 |
 | Built-in subagents | 3 | 2 | route 3 | complementary 3 |
@@ -525,7 +525,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 
 ### `artifact-pr-review` → `review:explain-change`
 
-- **Verdict:** `defer`: Deferred: the bundled skill is gated on Artifact availability, so its presence is not determinable from this session's evidence. It publishes a PR review briefing as an Artifact; ours offers a self-contained local HTML explainer beside the markdown record. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.
+- **Verdict:** `complementary`: Different jobs: the bundled skill publishes a reviewer's briefing with a bottom line, a recommendation and judgment calls, and calls itself not a narrative walkthrough; ours explains the change to its reader (why, before and after, a fresh-context-checked risk map, annotated hunks, an optional quiz), never posts and gates nothing. Both can publish a private Artifact page, ours behind its publish gate, so the job separates them, not the medium. Re-ruled 2026-10-04 by operator direction on the orchestrator's recommendation, replacing the 2026-09-29 defer.
 - **Integration:** `route`
 - **Native surface:** `artifact-pr-review` (bundled skill; markers: gated)
 - **Our component:** `review:explain-change` (skill)
@@ -537,9 +537,12 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable
   - detect: origin discovered, score 0.5363, invocable_by model+user, recommended integration route-or-wrap
   - docs cross-check (commands reference, 2026-09-29): undocumented
+  - native description in binary v2.1.289 (string read 2026-10-04): unchanged job; its last clause now reads 'a published composed review page is updated ONLY through the acting loop's republish - never by editing its HTML directly'
+  - ours: plugins/review/skills/explain-change/SKILL.md:2 (digest of why, before and after, risk map, annotated hunks, optional quiz; never posts, never gates merge), :83 (view built in a temp directory, never beside the record), :87-98 (private Artifact publish behind the publish gate), :129-131 (never posts)
+  - docs cross-check (commands and skills references, 2026-10-04): undocumented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
-- **Recheck trigger:** a Claude Code release ungates the bundled `artifact-pr-review` skill, the commands reference documents it, or a live roster capture protocol exists for Artifact-gated skills (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section no · Native step no · suggest sentence no
+- **Recheck trigger:** a Claude Code release removes, renames, or ungates the bundled `artifact-pr-review` skill or changes its description, the commands reference documents it, or `/review:explain-change` adds a recommendation or verdict to its digest (verified 2026-10-04)
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
 
 ### `batch` → `implementation:implement-dispatch`
 
