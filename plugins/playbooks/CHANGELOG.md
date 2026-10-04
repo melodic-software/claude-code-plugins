@@ -6,6 +6,17 @@ only after that version increases.
 
 ## [Unreleased]
 
+### Added
+
+- **`described_problem` setting: `report` (default) or `fix`.** With `fix`, `fable-5` treats a
+  described problem as a request to fix it: it makes the change and presents the result. A question
+  or thinking out loud still gets an assessment only, and a destructive or outward-visible step
+  still waits for consent. It is set per user in the new `described_problem` user config option,
+  and per repository in the `described_problem` key of `docs/conventions/playbooks.yaml`, which
+  wins; the schema ships at `schemas/playbooks.schema.json` and the settings page at
+  `reference/config.md`. The skill states which layer supplied the value, and an invalid value
+  resolves `report`. The model-adaptation chapters do not read it.
+
 ### Changed
 
 - **`skill-authoring` states the one-skill-per-call rule in its own words.** The rule is unchanged.

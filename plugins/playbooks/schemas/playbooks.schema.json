@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/playbooks/schemas/playbooks.schema.json",
+  "title": "Playbooks team config",
+  "description": "Schema for a repository's docs/conventions/playbooks.yaml: the team layer of the playbooks plugin's settings. A value here overrides the same key in the plugin's userConfig. Contract: docs/adr/0054-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "described_problem": {
+      "description": "What the fable-5 playbook does when the user describes a problem without asking for a change. report: assess, report and offer the fix. fix: make the change and present the result; questions and thinking out loud stay assessments, and destructive or outward-visible steps still wait for consent.",
+      "enum": ["report", "fix"],
+      "default": "report"
+    }
+  }
+}

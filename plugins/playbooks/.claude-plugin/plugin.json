@@ -7,6 +7,15 @@
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
+  "userConfig": {
+    "described_problem": {
+      "type": "string",
+      "title": "Described problem",
+      "description": "What the fable-5 playbook does when you describe a problem without asking for a change: report (default, assess and offer the fix) or fix (make the change and show the result). A repository's docs/conventions/playbooks.yaml described_problem key overrides this value.",
+      "default": "report",
+      "options": ["report", "fix"]
+    }
+  },
   "keywords": [
     "playbooks",
     "knowledge",

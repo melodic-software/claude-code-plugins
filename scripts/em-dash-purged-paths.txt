@@ -386,6 +386,7 @@ plugins/planning/skills/interview/evals/fixtures/*/*.md
 # The playbooks plugin was purged whole; the Boris and model-adaptation chapters
 # keep their quoted upstream text inside the quotation exemption or a marker.
 plugins/playbooks/*.md
+plugins/playbooks/reference/config.md
 plugins/playbooks/reference/model-adaptation/*.md
 plugins/playbooks/skills/*/SKILL.md
 plugins/playbooks/skills/boris/reference/*.md
