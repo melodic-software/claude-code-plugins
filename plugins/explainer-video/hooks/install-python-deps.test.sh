@@ -124,6 +124,24 @@ else
   fail "crashed handover: rc=$RC output=[$out]"
 fi
 
+# The repair line is shell-quoted: a data directory with a space and a single quote re-parses to the same arguments.
+# The Git Bash and Cygwin branch prints a PowerShell line instead, which no POSIX shell re-parses.
+case "${OSTYPE:-}" in
+msys* | cygwin*) ;;
+*)
+  data="$WORK/data o'brien/x y"
+  run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$data"
+  out="$OUT"
+  repair="$("$py" -c 'import json, sys; print(json.loads(sys.stdin.read())["systemMessage"].split("repair with: ", 1)[1], end="")' <<<"$out")"
+  got="$(eval "set -- $repair" && printf '%s|%s|%s|%s|%s|%s' "$#" "$([[ -x "$1" ]] && echo exec)" "$2" "$3" "$4" "$5")"
+  if [[ "$got" == "5|exec|$root/scripts/pydeps.py|install|--data-dir|$data" ]]; then
+    ok "the repair line re-parses to the interpreter and a data directory holding a space and a single quote"
+  else
+    fail "repair line round-trip: repair=[$repair] got=[$got]"
+  fi
+  ;;
+esac
+
 # No data directory (a host that sets none): nothing to install into, no output.
 root="$(new_plugin nodata "$digest")"
 run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA=
