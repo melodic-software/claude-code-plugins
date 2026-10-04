@@ -203,32 +203,37 @@ _ask_prompt() {
   fi
 }
 
+# ask, ask_secret and write_env assign $KEY with printf -v, which writes the
+# innermost variable of that name: a helper local spelled like the key would
+# take the value instead of the caller. Their locals carry a __wiz_ prefix, a
+# name no wizard key or env-file entry is expected to use.
+
 # ask KEY "Prompt" — read a value into $KEY. Offers the existing .env value as
 # a default on re-runs (Enter keeps it). Visible input (non-secret), with
 # readline editing (-e) so arrow keys work.
 # shellcheck disable=SC2310  # fatal exits the script directly; set -e suppression is moot
 ask() {
-  local key="$1" prompt="$2" current input
-  _valid_key "$key"
-  current=$(_existing "$key" || true)
-  _ask_prompt "$prompt" "$current"
-  read -r -e -u 3 input || fatal "terminal closed while reading $key — aborting"
-  [[ -z "$input" && -n "$current" ]] && input="$current"
-  printf -v "$key" '%s' "$input"
+  local __wiz_key="$1" __wiz_prompt="$2" __wiz_current __wiz_input
+  _valid_key "$__wiz_key"
+  __wiz_current=$(_existing "$__wiz_key" || true)
+  _ask_prompt "$__wiz_prompt" "$__wiz_current"
+  read -r -e -u 3 __wiz_input || fatal "terminal closed while reading $__wiz_key — aborting"
+  [[ -z "$__wiz_input" && -n "$__wiz_current" ]] && __wiz_input="$__wiz_current"
+  printf -v "$__wiz_key" '%s' "$__wiz_input"
 }
 
 # ask_secret KEY "Prompt" — like ask, but input is hidden (no readline: -e
 # would echo, and -s must win).
 # shellcheck disable=SC2310  # fatal exits the script directly; set -e suppression is moot
 ask_secret() {
-  local key="$1" prompt="$2" current input
-  _valid_key "$key"
-  current=$(_existing "$key" || true)
-  _ask_prompt "$prompt" "$current"
-  read -rs -u 3 input || fatal "terminal closed while reading secret $key — aborting"
+  local __wiz_key="$1" __wiz_prompt="$2" __wiz_current __wiz_input
+  _valid_key "$__wiz_key"
+  __wiz_current=$(_existing "$__wiz_key" || true)
+  _ask_prompt "$__wiz_prompt" "$__wiz_current"
+  read -rs -u 3 __wiz_input || fatal "terminal closed while reading secret $__wiz_key — aborting"
   printf '\n'
-  [[ -z "$input" && -n "$current" ]] && input="$current"
-  printf -v "$key" '%s' "$input"
+  [[ -z "$__wiz_input" && -n "$__wiz_current" ]] && __wiz_input="$__wiz_current"
+  printf -v "$__wiz_key" '%s' "$__wiz_input"
 }
 
 # _check_env_ignored — warn loudly (once) when ENV_FILE is not gitignored in a
@@ -253,26 +258,26 @@ _check_env_ignored() {
 # store) is written through instead, so the link survives, its target gets the
 # key and keeps its own mode; that write is not atomic.
 write_env() {
-  local key="$1" value="$2" escaped tmp
-  _valid_key "$key"
+  local __wiz_key="$1" __wiz_value="$2" __wiz_escaped __wiz_tmp
+  _valid_key "$__wiz_key"
   _check_env_ignored # pre-flight: warn BEFORE the first value lands on disk
-  tmp=$(mktemp "${ENV_FILE}.XXXXXX") || fatal "mktemp failed next to $ENV_FILE"
-  _WIZARD_TMP="$tmp"
-  chmod 600 "$tmp"
-  escaped=${value//\'/\'\\\'\'}
-  if [[ -f "$ENV_FILE" ]]; then grep -vE "^${key}=" "$ENV_FILE" >"$tmp" || true; fi
-  printf "%s='%s'\n" "$key" "$escaped" >>"$tmp"
+  __wiz_tmp=$(mktemp "${ENV_FILE}.XXXXXX") || fatal "mktemp failed next to $ENV_FILE"
+  _WIZARD_TMP="$__wiz_tmp"
+  chmod 600 "$__wiz_tmp"
+  __wiz_escaped=${__wiz_value//\'/\'\\\'\'}
+  if [[ -f "$ENV_FILE" ]]; then grep -vE "^${__wiz_key}=" "$ENV_FILE" >"$__wiz_tmp" || true; fi
+  printf "%s='%s'\n" "$__wiz_key" "$__wiz_escaped" >>"$__wiz_tmp"
   if [[ -L "$ENV_FILE" ]]; then
     # umask 077: a dangling link's newly created target is owner-only too.
-    (umask 077 && cat -- "$tmp" >"$ENV_FILE") || fatal "couldn't write through the symlink $ENV_FILE"
-    rm -f -- "$tmp"
+    (umask 077 && cat -- "$__wiz_tmp" >"$ENV_FILE") || fatal "couldn't write through the symlink $ENV_FILE"
+    rm -f -- "$__wiz_tmp"
   else
-    mv -- "$tmp" "$ENV_FILE"
+    mv -- "$__wiz_tmp" "$ENV_FILE"
   fi
   _WIZARD_TMP=""
-  printf -v "$key" '%s' "$value"
-  WRITTEN_ENV+=("$key")
-  printf '  %s✓ wrote%s %s → %s\n' "$GREEN" "$RESET" "$key" "$ENV_FILE"
+  printf -v "$__wiz_key" '%s' "$__wiz_value"
+  WRITTEN_ENV+=("$__wiz_key")
+  printf '  %s✓ wrote%s %s → %s\n' "$GREEN" "$RESET" "$__wiz_key" "$ENV_FILE"
 }
 
 # ── GitHub Actions helpers ────────────────────────────────────────────────

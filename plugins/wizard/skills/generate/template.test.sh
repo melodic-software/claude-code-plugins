@@ -568,7 +568,7 @@ assert_not_contains "... and prints its own newline so the next output is not gl
 # pinned at the source, which is where the regression would actually land.
 ask_secret_read="$(awk '/^ask_secret\(\)/ { inside = 1 } inside && /read / { print; exit }' "$LIB")"
 assert_contains "ask_secret reads hidden and without readline, which would echo it back" \
-  "$ask_secret_read" "read -rs -u 3 input"
+  "$ask_secret_read" "read -rs -u 3 __wiz_input"
 ask_read="$(awk '/^ask\(\)/ { inside = 1 } inside && /read / { print; exit }' "$LIB")"
 assert_contains "ask keeps readline editing on the non-secret prompt" "$ask_read" "-e"
 
@@ -584,6 +584,23 @@ assert_contains "ask aborts at EOF instead of assigning empty" "$out" "terminal 
 assert_contains "... nonzero" "$out" "ask_rc=1"
 assert_contains "ask_secret aborts at EOF too" "$out" "terminal closed while reading secret TOKEN"
 assert_contains "... nonzero" "$out" "secret_rc=1"
+
+# A key spelled like one of a helper's own locals must still reach the caller:
+# printf -v resolves the name at the innermost scope, so a colliding local
+# would swallow the assignment. The names are every local each helper has ever
+# declared, the unprefixed set a wizard author can realistically pick.
+for helper in ask ask_secret write_env; do
+  for name in key prompt current input value escaped tmp; do
+    if [[ "$helper" == write_env ]]; then call="write_env $name typed-value >/dev/null"; else call="$helper $name P:"; fi
+    out="$(
+      case_run "$TTY_VALUE" <<BODY
+$call
+printf 'got=[%s]\n' "\${$name-unset}"
+BODY
+    )"
+    assert_contains "$helper sets a caller variable named '$name'" "$out" "got=[typed-value]"
+  done
+done
 
 # --- 8. GitHub Actions helpers ---------------------------------------------
 

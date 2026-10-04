@@ -17,6 +17,9 @@ All notable changes to the `wizard` plugin are documented here. Format follows
   temp file.
 - A terminal without a `clear` capability (`TERM=dumb`, no terminfo) no longer stops every
   generated wizard silently before its first prompt: `tput` failures are non-fatal.
+- `ask`, `ask_secret` and `write_env` now set a key named like one of their own locals (`key`,
+  `value`, `input`, `tmp` and the rest) in the caller instead of in the helper. Their locals carry a
+  `__wiz_` prefix.
 
 ## [0.6.2] - 2026-10-03
 
