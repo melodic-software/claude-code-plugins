@@ -1554,6 +1554,47 @@ assert_contains "disabled install: the enable command is in the report" "$REPORT
   "beta@market1: installed but not enabled; claude plugin enable beta@market1 -s user"
 assert_eq "disabled install: policy all enables nothing the publisher left off" "0" \
   "$(grep -c 'plugin enable' "$case_dir/claude.log" || true)"
+# Every install is already not enabled, so the policy clause does not tell the
+# user to disable it.
+assert_golden "disabled install: the report matches the golden" installed-all-disabled.txt "$REPORT_TEXT"
+
+# One install left off and one loading: the clause gives the disable remedy.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+catalog_plugin "$case_dir" market1 beta 0.1.0
+catalog_plugin "$case_dir" market1 gamma 0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"},
+  {"name": "beta", "source": "beta"}, {"name": "gamma", "source": "gamma"}]}'
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1
+  CLAUDE_STUB_INSTALL_DISABLED=beta@market1)
+report_of "$case_dir" --marketplace market1 --install-new all --journal-root "$case_dir/journal"
+assert_contains "mixed disabled install: the row gives the disable remedy beside the disabled id" "$REPORT_TEXT" \
+  "Installed: 2 new catalog plugin(s): beta@market1, gamma@market1 (policy install_new: all: the next sync reinstalls any of these you uninstall; to keep one out, disable it with claude plugin disable <id> -s user instead of uninstalling) (installed but not enabled: beta@market1)"
+
+# What the policy clause promises under install_new: all. beta is installed and
+# disabled, so it stays installed. gamma was uninstalled, which leaves neither a
+# record nor a key, so it is installed again. delta has a user-scope false and no
+# record, so it stays out.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+catalog_plugin "$case_dir" market1 beta 0.1.0
+catalog_plugin "$case_dir" market1 gamma 0.1.0
+catalog_plugin "$case_dir" market1 delta 0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"},
+  {"name": "beta", "source": "beta"}, {"name": "gamma", "source": "gamma"}, {"name": "delta", "source": "delta"}]}'
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {\"alpha@market1\": [{\"scope\": \"user\", \"installPath\": \"$case_dir/cache/alpha\", \"version\": \"0.1.0\"}],
+                \"beta@market1\": [{\"scope\": \"user\", \"installPath\": \"$case_dir/cache/beta\", \"version\": \"0.1.0\"}]}
+}"
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "beta@market1": false, "delta@market1": false}}'
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --install-new all --journal-root "$case_dir/journal"
+assert_exit "recurrence: exit 0" 0 "$REPORT_RC"
+assert_eq "recurrence: only the uninstalled plugin is installed again" "plugin install gamma@market1 -s user" \
+  "$(grep 'plugin install' "$case_dir/claude.log")"
 
 # An `ask` pick is the user's choice, so a pick the CLI installs disabled is then
 # enabled at user scope. The CLI notice decides, not the catalog: beta prints the
