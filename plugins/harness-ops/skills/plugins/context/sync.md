@@ -47,7 +47,8 @@ What the model still owns, because the script cannot:
   rendered value, and the model passes it as `--install-new`. On `ask` with a non-empty install gap
   the script reports the gap and STOPS before Step 4, because only the model can run the batched
   prompt; it then re-enters with `--only-install <ids> --run-dir <the digest's run_dir>`, which
-  performs Step 4 and Step 5 against the same run journal and re-emits the digest.
+  performs Step 4, Step 5, and, when this pass skipped it, Step 5b against the same run journal
+  and re-emits the digest.
 - **The journal root.** `${CLAUDE_PLUGIN_DATA}` substitutes in SKILL.md and not here, so SKILL.md
   passes the substituted path as `--journal-root`.
 - **The reload guidance.** Step 6's report is rendered by the script too (`render-report.jq`
@@ -61,21 +62,34 @@ kind; the script never fetches or pulls that checkout, because `claude plugin ma
 reads a directory as it is and the user owns it), the in-repo and user-scope sweep outcomes with each pair's
 direction, withheld downgrades, the install and enable gaps, what was installed and enabled, the
 installs whose CLI output named userConfig options left unset
-(`installed_with_unset_user_config[]`, one `{id, options_unset, required}` each), the project-scope
-enable rows, the normalizer result, the cache-content counts and stale ids, the catalog regression
+(`installed_with_unset_user_config[]`, one `{id, options_unset, required}` each), the ids whose
+install output said the plugin is disabled by default (`installed_disabled[]`), the user-scope
+installs the catalog's names no longer carry (`delisted[]`), the same for installs in the repo the
+run stands in (`delisted_project[]`, one `{id, scope}` each), the effective `true` `enabledPlugins`
+keys with no install record that those names no longer carry (`delisted_settings_only[]`; a
+catalog with an empty `plugins` array produces none of the three), the project-scope enable rows, the normalizer result, the cache-content counts and stale ids with the scope they cover (`cache_content.scope`, always `user`), the catalog regression
 interval, the three-snapshot divergence split, whether the sweep updated this plugin itself, the
 moved plugins whose installed build declares a monitor (`updated_with_monitors[]`, one
 `{id, scope, monitors}` each, read from the record's own cache directory in the post-sweep
-snapshot), and `timings`: seconds to three decimals for
-`pre_refresh_read`, `marketplace_update`, `in_repo_update`, `user_sweep`, `install_enable`,
-`cache_content_check`, `post_read`, and the marketplace's `total`, with `resolution` naming the
+snapshot), `catalog_last_updated` (the marketplace's `lastUpdated` as Step 2's `pre.<mp>.json` read
+it, after Step 1's refresh, on the first pass and on an `--only-install` re-entry alike; a
+background refresh can move the stamp again later in the run, so it dates the catalog as of
+Step 2, not every read), and `timings`: seconds to three decimals for
+`pre_refresh_read`, `marketplace_update`, `in_repo_update`, `user_sweep`, `pre_install_read` (the
+Steps 4 and 5 gate read, taken on every pass), `install_enable`, `cache_content_check`,
+`post_read`, `finalize` (version capture, the divergence and regression diffs, and the monitor
+count that build the block), `unattributed` (the rest of the block's time, between and around those
+steps), and the marketplace's `total`, which those keys sum to, with `resolution` naming the
 clock that produced them (`microseconds` from bash's `EPOCHREALTIME`, `nanoseconds` from a
-validated `date +%s.%N`, else `seconds`). A step this invocation did not run, because `audit`
-predicted it, the policy stopped before Step 4, or an `--only-install` re-entry reuses the first
-pass's result, reads `null`, never 0. The digest's top-level `timings.total` times the whole
-invocation, and its `cwd` is what the `In-repo:` row names when no project root resolved. Ids and
-counts only: the per-file cache detail and every snapshot stay in the run directory, which the
-digest names.
+validated `date +%s.%N`, else `seconds`). On the default-marketplace path the block's window opens
+at the resolving read, which is that marketplace's `pre_refresh_read`. A step this invocation did
+not run, because `audit` predicted it, the policy stopped before Step 4, or an `--only-install`
+re-entry reuses the first pass's result, reads `null`, never 0. The digest's top-level
+`timings.total` times the run from its start until the digest is about to be assembled (so it
+excludes the digest's own assembly, the render and the print), and `timings.outside_marketplaces`
+is the part of it no block's window covers (run setup and each block's assembly into the digest). Its `cwd` is what the `In-repo:` row names when no
+project root resolved. Ids and counts only: the per-file cache detail and every snapshot stay in
+the run directory, which the digest names.
 
 ## Concurrency
 
@@ -103,7 +117,8 @@ then reports as **not installed**. That is a genuine concurrent uninstall, not t
 just difference: when both the installed and the catalog version parse as a numeric
 major.minor.patch triple and the catalog's is lower, that id is a proven downgrade, and it is
 withheld from `update-candidates-user` and `update-candidates-project`, the two selectors the
-sweeps loop. `downgrade-candidates` is the selector that names them, one line of
+sweeps loop. Each numeric segment is read in base 10, so a leading zero does not change its rank
+and `08` and `09` compare as eight and nine. `downgrade-candidates` is the selector that names them, one line of
 `<id>\t<scope>\t<installed>\t<catalog>` each. The guard is proof-based and fails open the same way
 the equality pre-filter does: a version either side cannot parse, and a catalog version that is
 unknown, is not a proven downgrade and stays a sweep candidate.
@@ -480,8 +495,9 @@ just not internally disagreeing). Both are real staleness `divergences[]` cannot
 correct signal here is "is this entry present": just call `update`, letting the CLI report
 "already at the latest version" as a no-op when nothing changes.
 
-Filtered for proven downgrades and for **nothing else**: `update-candidates-project` withholds an
-id the catalog would move backward, and declines the catalog EQUALITY filter Step 3's selector
+Filtered for proven downgrades and delisted ids and for **nothing else**: `update-candidates-project`
+withholds an id the catalog would move backward and an id the catalog no longer names
+(`delisted_project`, the in-repo half of the delisted rule in Step 3), and declines the catalog EQUALITY filter Step 3's selector
 applies. The two filters are not the same kind of thing. Equality is an optimization, and it buys
 nothing here: the in-repo population is small (a handful of records, against Step 3's dozens), so
 the saving is negligible, while a project/local pin is far more likely than a user-scope install to
@@ -585,6 +601,27 @@ version resolved for every entry of some and for a small minority of others', so
 the pre-filter withholds nothing at all is an ordinary outcome, not a malfunction. Read a shrunken
 sweep as a bonus, never as evidence that the ids it skipped were checked.
 
+**An id the catalog no longer names is delisted, not a candidate.** `catalog_versions` is built
+only from entries whose version could be read, so an installed id the catalog dropped looks the
+same as one whose version did not parse: null, which fails open into the sweep. That fail-open
+stays for a version that did not parse. It does not stay for an id absent from the catalog's
+names. `delisted` is the user-scope installed ids minus those names. The names are the catalog's
+own plugin names, never the `catalog_versions` keys: an entry whose `source` is an object is absent
+from that map on purpose and is still in the catalog. `update-candidates-user` subtracts
+`delisted`, and in `sync` the render lists the ids under `Action needed` with `claude plugin
+uninstall <id> -s user`. An install in the repo the run stands in gets the same rule as
+`delisted_project`: `update-candidates-project` subtracts it, and the render gives one runnable
+`(cd "<project_root>" && claude plugin uninstall <id> -s <scope>)` row per record. No delisted
+install, at any scope, is in `missing_from_enabled`, so Step 5 never enables one. An effective `enabledPlugins` key at this marketplace that has no install
+record in any scope cannot take that remedy, because there is nothing to uninstall (the probe in
+[gotchas.md](gotchas.md#a-disabled-by-default-install-writes-false-and-only-an-install-record-can-be-uninstalled)). When its value
+is `true` and the names do not carry it, it goes to `delisted_settings_only`, and the render tells
+the user to remove the key from the settings file that sets it. A `false` key with no install
+loads nothing and is not reported. In `audit` both rows are labeled predictions against the
+unrefreshed catalog and carry no remedy command, because audit refreshes nothing and `sync` never
+runs the remedy itself. A valid catalog whose `plugins` array is empty produces neither set, so a
+blank catalog cannot mark the whole fleet.
+
 `installed-user` is available for a caller that deliberately wants every user-scope id, and **the
 sync algorithm does not use it.** An unconditional user-scope sweep is what turns a catalog that
 moved backward into a fleet rollback, and a marketplace whose Step 1 refresh failed is the likeliest
@@ -606,18 +643,12 @@ and on Windows a hand-written
 mutating step, so the concurrency rule already requires its own re-read; it is taken here, before
 either step decides whether it has anything to do, and saved as `pre-install.<mp>.json`.
 
-**Read [sync-install-enable.md](sync-install-enable.md) only when `pre-install.<mp>.json` has a
-non-empty `missing_from_user_install` or a non-empty `missing_from_enabled`, or when Step 1's
-refresh failed for this marketplace.** Both arrays are empty on an already-current fleet, which is
-the common case, and then both steps are no-ops with nothing to load.
-
-Gating on the Step 1 report instead would be a real hole, not a nicety: another session can
-uninstall a plugin or change enable state between Step 1 and here, and a gate keyed on the older
-report would then decline to load the spoke, skip the live pre-install and pre-enable reads the
-spoke mandates, and leave the new gap silently unresolved, while the step-level concurrency
-boundary this file opens with says the decision belongs to the step's own re-read. The progressive
-disclosure is kept; only the report it keys on moves. Step 4 reuses this file rather than reading
-again, so the honest gate costs nothing.
+The script takes that read on every pass and projects the digest's `install_gap` and `enable_gap`
+from it, so the gaps reflect state as of Step 4, not Step 1. **Read
+[sync-install-enable.md](sync-install-enable.md) only when a block's `install_gap` or `enable_gap`
+is non-empty, or its `install_enable_deferred` is true.** Both gaps are empty on an
+already-current fleet, which is the common case, and then both steps are no-ops with nothing to
+load.
 
 **Step 5 still takes its own re-read.** Step 4 mutates in between, installing and normalizing
 the user-scope `enabledPlugins` map, so `pre-install.<mp>.json` is stale by the time Step 5 runs and
@@ -642,19 +673,32 @@ spoke carries what to say about that; see Step 1 above for why.
 ## Step 5b: Cache content check
 
 Read-only, runs after Step 5's enables and before the report, and is the same call in `sync` and in
-`audit`. It is not gated on anything: an unchanged manifest version is exactly the case in which
+`audit`. It is not gated on a finding: an unchanged manifest version is exactly the case in which
 every earlier step reports success, so a check that only ran when something else looked wrong would
-never fire on the condition it exists to catch.
+never fire on the condition it exists to catch. The one gate is the `ask` stop: when the first pass
+stops before Step 4, this step is skipped there and runs on the `--only-install` re-entry, after
+that re-entry's installs and enables, so the picks are what gets checked. A first pass that did not
+stop writes the report, and a re-entry reuses it. The checker runs once per marketplace across the
+two invocations.
 
-**One call per marketplace.** `cache-content-check.sh --marketplace "$mp"` writes its JSON to
-`cache-content.<mp>.json`, and the stale ids come out of that same JSON, CR-stripped in the shell
-the way every id list in this algorithm is. A second call for the id list would recompute a
-fleet-wide byte comparison the first call already did, which is the most expensive read in the run.
+**One call per marketplace.** `cache-content-check.sh --marketplace "$mp" --scope user` writes its
+JSON to `cache-content.<mp>.json`, and the stale ids come out of that same JSON, CR-stripped in the
+shell the way every id list in this algorithm is. A second call for the id list would recompute a
+byte comparison over every user-scope install the first call already did, which is the most
+expensive read in the run.
+
+**The check covers user-scope installs only.** Project- and local-scope records, including the
+repo the run stands in, are not compared, so the digest carries `cache_content.scope` and the
+rendered row says `user-scope install(s)` rather than implying the whole fleet. The checker has
+`--scope project` and `--scope all`, but no filter that limits a project-scope check to one repo;
+extending Step 5b to the standing repo's records needs that filter first.
 
 In `sync` that redirect lands in the run journal beside the `fleet-state.sh` snapshots, so Step 6
 reads the finding rather than remembering it. In `audit` it lands in the throwaway scratch directory
-that run deletes, the same way `audit` handles every other report it writes. The `--only-install`
-re-entry reuses the report already in the run directory rather than checking again.
+that run deletes, the same way `audit` handles every other report it writes. When the first pass
+stopped before install, no report is there yet and the re-entry's own Step 5b writes it. Otherwise
+the `--only-install` re-entry reuses the report already in the run directory rather than checking
+again.
 
 The extraction is CR-safe by construction, for the reason [gotchas.md](gotchas.md) gives: on Windows
 a `jq -r … | while read` appends a `\r` to every id but the last, so the ids are captured and
@@ -684,7 +728,7 @@ does with each field and why, so a reader can check a rendered row against the f
 the model's one addition is the reload guidance at the end.
 
 **Every `<old> -> <new>` pair reaches the report already classified by direction.** Apply the same triple
-compare the guard uses: a pair whose new version is higher, or whose direction the compare cannot
+compare the guard uses, reading each numeric segment in base 10: a pair whose new version is higher, or whose direction the compare cannot
 read, goes under `Updated:`, with an unreadable one flagged `(direction unknown)`; a pair whose new
 version is lower goes under `Downgraded:`. A pair whose two versions differ as strings but whose
 triples tie, `1.2.3` to `1.2.3-beta`, goes under `Updated:` flagged `(direction unknown)` too,
@@ -726,28 +770,46 @@ marketplace against that marketplace's own three snapshots; a cross-marketplace 
 unrelated fleets.
 
 Report as
-`<N> actionable (<M> newly created by this run: <a> by the in-repo update, <b> by the user-scope
-sweep, <N-M> pre-existing)`. When the two intervals genuinely cannot be separated (a snapshot was
-missed), say `<M> newly created by this run` without splitting it, rather than assigning the whole
-delta to one step.
+`<N> actionable: <N-M> pre-existing, <M> newly created by this run (<a> by the in-repo update, <b>
+by the user-scope sweep)`, so each split follows the total it sums to. When a project root
+resolved, the line leads with this repo's count and then gives the same machine-wide split under
+`on this whole machine`, because `<N>` counts every repo's divergences and the here-count is a part
+of it, not a separate remainder. When a snapshot was missed the split cannot be computed, and the
+line says `not computed` rather than assigning the whole delta to one step.
 
 **Say when the sweep updated `harness-ops` itself.** Step 3 sweeps every user-scope id, which
 necessarily includes the plugin providing this skill. When it does, the algorithm that ran is the
 **pre-update** one: `${CLAUDE_PLUGIN_ROOT}` keeps resolving to the version loaded at session start,
 so every later `fleet-state.sh` call and every remaining step executes the old copy, and the report
-describes work done by a version the user no longer has installed. Current docs, `plugins-reference`
-(fetched 2026-08-22): "When a plugin updates mid-session, hook commands, monitors, MCP servers, and
-LSP servers keep using the previous version's path." This is not a crash risk, since the previous
-version directory is retained on a grace period and the running script does not vanish mid-run. It
-is a reporting obligation. The render emits the self-update note when the digest's `self_updated`
-is true.
+describes work done by a version the user no longer has installed. We treat this as a reporting
+obligation, not a crash risk: the previous version's directory stays on disk for a grace period, so
+the running script does not vanish mid-run. The render emits the self-update note when the digest's
+`self_updated` is true.
 
-**Name the monitors.** A monitor is not covered by `/reload-plugins`, so a moved plugin whose
-installed build declares one needs a session restart. The script reads each moved record's own
-cache directory from the post-sweep snapshot (`installPath`) and counts monitors declared inline
-under the manifest's `experimental.monitors` key, in the manifest file that key names, or in
-`monitors/monitors.json` at the plugin root; the render lists the ids under `Action needed` and
-attributes the restart requirement to the plugins reference.
+- **Pointer**: for which components keep the previous version's path after a mid-session update,
+  see the update paragraph under
+  [Which marketplaces and plugins auto-update](https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update);
+  for how long the previous version's directory is kept, see
+  [Cleanup of previous versions](https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions).
+- **As of**: 2026-10-04
+- **Recheck trigger**: either section changes which components keep the previous version's path,
+  or drops the delay before the previous version's directory is removed.
+
+**Name the monitors.** The script reads each moved record's own cache directory from the post-sweep
+snapshot (`installPath`) and counts the monitors that build declares; `monitor_count_at` in
+`sync-run.sh` holds the counting rule. The render lists the ids under `Action needed` and tells
+the user to restart the session for them, because we treat `/reload-plugins` as not switching an
+updated plugin's monitors.
+
+- **Pointer**: when the counting rule or the restart line is in question, fetch
+  [manifest reference, `monitors`](https://code.claude.com/docs/en/plugins/manifest-reference#monitors),
+  [How each key combines with its default location](https://code.claude.com/docs/en/plugins/manifest-reference#how-each-key-combines-with-its-default-location),
+  and the update paragraph under
+  [Which marketplaces and plugins auto-update](https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update)
+  live.
+- **As of**: 2026-10-04
+- **Recheck trigger**: one of those sections renames the monitors key, changes how it combines with
+  the default location, or changes what an updated plugin's monitors need to switch.
 
 End with the reload guidance per SKILL.md's Report section: recommend bare `/reload-plugins`, and
 state the recovery step rather than pre-judging which case will trigger it. That line is the

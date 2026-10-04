@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.19.6] - 2026-10-04
+
+### Fixed
+
+- `book-distill` spoke files (`context/templates.md`, `templates/checklist.md`) write `<plugin-data>` where they wrote a literal `${CLAUDE_PLUGIN_DATA}`. Those files are read as bytes, so the token reached the Bash tool unsubstituted. The skill body tells the agent to put the `${CLAUDE_PLUGIN_DATA}` path it shows in place of `<plugin-data>` before using a path from those files, and records the plugins-reference section that basis comes from with an as-of date and recheck trigger ([#6072](https://github.com/melodic-software/claude-code-plugins/issues/6072)).
+
 ## [0.19.5] - 2026-10-04
 
 ### Fixed

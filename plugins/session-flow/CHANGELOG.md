@@ -1,10 +1,28 @@
 # Changelog: session-flow plugin
 
-## [0.48.5] - 2026-10-03
+## [0.48.7] - 2026-10-03
 
 ### Changed
 
 - **Rate-limit and zone lookups name the guards' pull tools.** `/session-flow:orchestrate` names rate-limit-guard's mod as the snapshot writer and `mcp__rate-limit-guard__status` as a source; headroom counts as unobservable whenever no live reading is obtainable (mods off, the guard not installed, the tool's registration refused by policy, or a tool answer with no windows), no longer in every cloud or headless session. `/session-flow:workflow` and `/session-flow:keep-going` look up the zone word with `mcp__context-guard__status` or the snapshot, and `/session-flow:keep-going` reads live `rate_limits` through `mcp__rate-limit-guard__status`.
+
+## [0.48.6] - 2026-10-04
+
+### Fixed
+
+- **`/session-flow:audit-sessions` takes its medians and findings over interactive sessions only ([#6076](https://github.com/melodic-software/claude-code-plugins/issues/6076)).**
+  Each store record now carries the transcript's `entrypoint` values in `entrypoints`, or `["unknown"]`. Sweep sets aside a session whose entrypoints are all headless or Agent SDK ones (`sdk-cli`, `sdk-ts`, `sdk-py`), says how many in the report, and keeps a session with no known entrypoint, counted as unclassified; drift still reads every record. A new canary, `key_path:user:entrypoint`, withholds the four metrics whose medians automated sessions were measured to move if Claude Code stops writing the key.
+- **One interrupt in a session is no longer a `tools.interrupts` finding.** The threshold is now 1, so a session needs two.
+- **Claude Desktop prompts count as typed turns.** Desktop writes the person's prompts with `promptSource: sdk`, which the shared transcript reader rejected. A record whose `origin.kind` is `human` now counts whatever its `promptSource`, after one leading `<system-reminder>` block is dropped; `/session-flow:retro` counts them too. CLI records count as before.
+- **A transcript Claude Code set aside as `<session>.orphaned-*.jsonl` is no longer collected as a second session.** Collect skips it and reports the count in `skipped_orphaned`, and deletes a record an earlier version stored for one, even when the transcript is gone, reporting the count in `purged_orphaned`.
+
+## [0.48.5] - 2026-10-04
+
+### Fixed
+
+- **The private key, JWT, connection-string and email redaction patterns no longer take seconds to minutes on adversarial text ([#5951](https://github.com/melodic-software/claude-code-plugins/issues/5951)).**
+  The running-retro observer's ledger redaction and the `save_point.py` secret-shape scan re-scanned an unbounded run from every start position, so a long line with no `.`, `://` or `@`, or a repeated private key header, was quadratic. The JWT header is now capped at 512 characters, the URL scheme at 64, and the email local part and domain at the RFC 5321 limits of 64 and 255. The observer's private key body now stops at the next `-----BEGIN` and at 16384 characters, over twice the size of an 8192-bit RSA key.
+  Every realistic key, token, connection string and address is still redacted. A JWT whose header runs past the cap, as with an embedded `x5c` certificate chain, matches a linear fallback instead: the observer redacts the whole token, payload and signature included, and `save_point.py` still flags it, and the same holds for a `ghs_<APPID>_<JWT>` GitHub token.
 
 ## [0.48.4] - 2026-10-03
 

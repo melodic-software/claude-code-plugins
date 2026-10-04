@@ -255,23 +255,27 @@ Write the artifact in stages:
 2. Write each `RESEARCH-<section>.md` sidecar as its section settles, and update its row in the
    index.
 3. The final write, after the outcome gate below, replaces the marker line with
-   `Run status: complete`. Nothing earlier does. The parent's gate refuses an index still carrying
-   the marker, which is how a stop at the limit reaches the parent even when no payload does.
+   `Run status: complete` and sets the frontmatter's `accepted:` count, which counts the
+   claims in neither Gaps nor an unresolved Conflicts entry. Nothing earlier does. The parent's gate
+   refuses an index still carrying the marker, which is how a stop at the limit reaches the parent
+   even when no payload does.
 
 A by-value `RESEARCH.md` body carries `Run status: complete`, because by-value means the work
 finished; the parent writes it and grades it like any other.
 
 ## The outcome gate is split: you do not grade all of it
 
-Run the skill's outcome gate against your own artifacts before the final write. Three criteria are
+Run the skill's outcome gate against your own artifacts before the final write. Four criteria are
 **not yours to render a verdict on**, because grading them means judging the quality of your own
 choices, and you are the context that made them:
 
-- the criterion requiring ≥2 **independent** corroborators per claim (a floor below criterion 7),
+- the criterion requiring ≥2 **independent** corroborators per accepted claim (a floor below criterion 7),
   or a `single source` reason that holds for a first-party content claim,
 - the criterion requiring every accepted claim to be HIGH confidence, `HIGH (single source)`
-  included, and
-- the criterion requiring every accepted claim to follow jointly from its cited sources.
+  included,
+- the criterion requiring every accepted claim to follow jointly from its cited sources, and
+- the criterion requiring the index's `accepted:` count to match the accepted claims, with a
+  zero stated as inconclusive, because the accepted set is final only once the other three hold.
 
 The gate's Owner column is the authority; where this list and that column differ, the column wins.
 Assemble the evidence those criteria need, since per-claim source URLs with their tier, publishing
@@ -302,7 +306,7 @@ applicability: pass         # pass | fail, mirrors check-source-applicability.py
 verification: pending       # never anything else; you render no verdict on your own confidence
 verification_request:
   target: <the same path as artifact: above>
-  criterion: "independent corroboration with every single-publisher claim labeled and not accepted, HIGH confidence, and joint-inference validity per accepted claim"
+  criterion: "independent corroboration with every single-publisher claim labeled and not accepted, HIGH confidence, and joint-inference validity per accepted claim, and an accepted-claim count that states a zero"
   worker: fresh-context subagent
 gate_owed: "the full post-dispatch acceptance gate, not only check-dispatch-artifact.sh, check-coverage-complete.sh and check-source-applicability.py: it also owes the discovery:research-verifier dispatch and project fit. Source: the discovery plugin's skills/research/SKILL.md 'Post-dispatch acceptance gate' and reference/parent-contract.md 'Running the acceptance gate'"
 open_questions:

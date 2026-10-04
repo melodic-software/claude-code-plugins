@@ -629,8 +629,8 @@ acquire_page() {
 }
 acquire_page settings-reference
 acquire_page env-vars
-SR="${PAGE_FILE[settings-reference]:-}"
-EV="${PAGE_FILE[env-vars]:-}"
+SR="${PAGE_FILE["settings-reference"]:-}"
+EV="${PAGE_FILE["env-vars"]:-}"
 
 # The CLI. A seam that is set but names nothing is unreadable, never a fall
 # back to the claude on PATH.
@@ -753,7 +753,7 @@ done
 # version documents (a soft 404, a reshaped page) did not parse, and every row
 # resting on it is not-inspectable rather than a run of undocumented keys.
 SR_UNREAD_WHY="settings-reference was not read this run"
-if [[ -n "$SR" && ( -z "${SR_KEY[permissions]:-}" || -z "${SR_KEY[enabledPlugins]:-}" ) ]]; then
+if [[ -n "$SR" && (-z "${SR_KEY[permissions]:-}" || -z "${SR_KEY[enabledPlugins]:-}") ]]; then
   SR=""
   SR_UNREAD_WHY="settings-reference was read but has no heading for permissions or enabledPlugins, so it did not parse"
   DOCS_PAGES_JSON="$(jq -c 'map(if .slug == "settings-reference" then .state = "unparsed" | .reason = "no-key-headings" else . end)' <<<"$DOCS_PAGES_JSON")"
@@ -904,7 +904,10 @@ CR_KEY=() CR_OWNER=() CR_SCOPES=() CR_MEANING=() CR_ON=() CR_IN=() CR_AMB=()
 cr_load() {
   local i crj scopes_json why="" f=() n
   for i in "${!KP_KEY[@]}"; do
-    [[ "${KP_KEY[$i]}" == "${KP_LEAF[$i]}" ]] && { CR_STATE=wanted; break; }
+    [[ "${KP_KEY[$i]}" == "${KP_LEAF[$i]}" ]] && {
+      CR_STATE=wanted
+      break
+    }
   done
   [[ "$CR_STATE" == wanted ]] || return 0
   if [[ ! -f "$CR_FILE" || ! -r "$CR_FILE" ]]; then
@@ -1426,8 +1429,8 @@ while IFS=$'\t' read -r src event matcher cmd timeout htype hif hargs; do
   fi
   HOOK_SEEN[$key]=1
   # Event name against the hooks page's Event table: one row per source and event.
-  if [[ -z "${EVENT_SEEN[$src|$event]:-}" ]]; then
-    EVENT_SEEN[$src|$event]=1
+  if [[ -z "${EVENT_SEEN["$src|$event"]:-}" ]]; then
+    EVENT_SEEN["$src|$event"]=1
     if [[ -z "$HP" ]]; then
       row D hook-event not-inspectable none "$surface" "hook-event-page-not-read:$event" "$HP_UNREAD_WHY; whether $event is a hook event is not decided" -
     elif [[ -n "${HOOK_EVENTS[$event]:-}" ]]; then
@@ -1909,7 +1912,7 @@ g_overrides "$LOCAL_OK" "$LOCAL" "$SURF_LOCAL"
 # there reach no other project. Read whatever the project root, as the
 # user-local scope; when it is the local scope instead, category A already
 # reported it unreadable or invalid.
-G_UL_STATE="${SCOPE_STATE[user-local]:-}"
+G_UL_STATE="${SCOPE_STATE["user-local"]:-}"
 if [[ -z "$G_UL_STATE" && -n "$USER_DIR" && -f "$LOCAL" && "$LOCAL" -ef "$USER_DIR/settings.local.json" ]]; then
   G_UL_STATE=local
 fi
@@ -1993,9 +1996,9 @@ fallback_cap() {
   t="${t,,}"
   [[ "$t" =~ (at\ most|up\ to|no\ more\ than)\ ([0-9]+|one|two|three|four|five|six|seven|eight|nine|ten)(\ [a-z]+){0,2}\ models ]] || return 0
   case "${BASH_REMATCH[2]}" in
-    one) echo 1 ;; two) echo 2 ;; three) echo 3 ;; four) echo 4 ;; five) echo 5 ;;
-    six) echo 6 ;; seven) echo 7 ;; eight) echo 8 ;; nine) echo 9 ;; ten) echo 10 ;;
-    *) echo "${BASH_REMATCH[2]}" ;;
+  one) echo 1 ;; two) echo 2 ;; three) echo 3 ;; four) echo 4 ;; five) echo 5 ;;
+  six) echo 6 ;; seven) echo 7 ;; eight) echo 8 ;; nine) echo 9 ;; ten) echo 10 ;;
+  *) echo "${BASH_REMATCH[2]}" ;;
   esac
 }
 

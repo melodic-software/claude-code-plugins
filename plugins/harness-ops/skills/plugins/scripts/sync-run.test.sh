@@ -92,8 +92,15 @@ case "$verb" in
 "plugin marketplace")
   mp="${4:-}"
   if [[ -n "${CLAUDE_STUB_REFRESH_FAIL_MP:-}" && "$mp" == "$CLAUDE_STUB_REFRESH_FAIL_MP" ]]; then
-    echo "Failed to clone marketplace repository" >&2
+    echo "Checking for updates to marketplace $mp…"
+    echo "✘ Failed to clone marketplace repository"
     exit 1
+  fi
+  # A refresh rewrites the marketplace's lastUpdated, as the real one does.
+  if [[ -n "${CLAUDE_STUB_REFRESH_STAMP:-}" ]]; then
+    jq --arg mp "$mp" --arg t "$CLAUDE_STUB_REFRESH_STAMP" '.[$mp].lastUpdated = $t' \
+      "$FLEET_STATE_MARKETPLACES_JSON" >"$FLEET_STATE_MARKETPLACES_JSON.next" &&
+      mv "$FLEET_STATE_MARKETPLACES_JSON.next" "$FLEET_STATE_MARKETPLACES_JSON"
   fi
   echo "Successfully updated marketplace: $mp"
   ;;
@@ -101,7 +108,8 @@ case "$verb" in
   id="${3:-}"
   scope="${5:-user}"
   if [[ -n "${CLAUDE_STUB_UPDATE_FAIL_ID:-}" && "$id" == "$CLAUDE_STUB_UPDATE_FAIL_ID" ]]; then
-    echo "Plugin \"$id\" not found"
+    echo "Checking for updates for plugin \"$id\" at ${scope} scope…"
+    echo "✘ Failed to update plugin \"$id\": Plugin not found"
     exit 1
   fi
   if [[ -n "${CLAUDE_STUB_NOOP_ID:-}" && "$id" == "$CLAUDE_STUB_NOOP_ID" ]]; then
@@ -128,6 +136,17 @@ case "$verb" in
   # by a hyphen here; the parser keys on the words before it).
   [[ -z "${CLAUDE_STUB_INSTALL_UNSET:-}" ]] ||
     echo "$CLAUDE_STUB_INSTALL_UNSET - run /plugin configure ${3:-} in Claude Code, or pass --config KEY=VALUE."
+  # A disabled-by-default notice. The padding sits in front so the notice is
+  # past the 400 characters the digest keeps, and classification has to read
+  # the untruncated output to see it.
+  if [[ -n "${CLAUDE_STUB_INSTALL_DISABLED:-}" ]]; then
+    printf '%400s\n' 'install progress'
+    echo "This plugin is disabled by default"
+  fi
+  if [[ -n "${CLAUDE_STUB_INSTALL_FAIL_ID:-}" && "${3:-}" == "$CLAUDE_STUB_INSTALL_FAIL_ID" ]]; then
+    echo "✘ Failed to install plugin \"${3:-}\""
+    exit 1
+  fi
   ;;
 "plugin enable")
   echo "Enabled ${3:-}"
@@ -343,6 +362,12 @@ assert_eq "failed update: NOT recorded as updated" "0" \
   "$(jq -r '.marketplaces[0].user_sweep.updated | length' <<<"$out")"
 assert_eq "failed update: the CLI's own status is kept" "1" \
   "$(jq -r '.marketplaces[0].user_sweep.failed[0].rc' <<<"$out")"
+rendered=$(run_sync "$case_dir" --marketplace market1 --journal-root "$case_dir/journal" --render)
+bullet=$(printf '%s\n' "$rendered" | grep 'update failed' || true)
+assert_contains "failed update: the bullet carries the failure reason" "$bullet" \
+  "update failed (exit 1): alpha@market1 -s user: ✘ Failed to update plugin"
+assert_eq "failed update: the progress line is not the reported reason" "0" \
+  "$(printf '%s\n' "$bullet" | grep -c 'Checking for updates' || true)"
 
 # ============================================================================
 # Case: a first-pass update failure survives an `--only-install` re-entry. The
@@ -440,8 +465,9 @@ assert_eq "--only-install: and the run's flag is carried into the second digest"
 
 # ============================================================================
 # Case: an install gap under the `ask` policy stops before Step 4, and the narrow
-# --only-install re-entry then installs and enables against the SAME run directory
-# without re-running the cache checker
+# --only-install re-entry then installs and enables against the SAME run directory.
+# The first pass skips the cache check; the re-entry runs it once the installs
+# have landed.
 # ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -464,7 +490,9 @@ assert_eq "ask: stops before Step 4" "true" \
 assert_eq "ask: the gap is reported" "beta@market1" \
   "$(jq -r '.marketplaces[0].install_gap[0]' <<<"$out")"
 assert_eq "ask: nothing installed" "0" "$(grep -c 'plugin install' "$case_dir/claude.log")"
-assert_eq "ask: the checker still ran exactly once" "1" "$(wc -l <"$case_dir/cc.log" | tr -d ' ')"
+assert_eq "ask: the checker does not run before the installs" "0" "$(wc -l <"$case_dir/cc.log" | tr -d ' ')"
+assert_eq "ask: stopping before Step 4 leaves the cache check null" "null" \
+  "$(jq -c '.marketplaces[0].timings.cache_content_check' <<<"$out")"
 
 run_dir=$(jq -r '.run_dir' <<<"$out")
 # The documented form carries no marketplace argument: the re-entry takes its
@@ -480,17 +508,19 @@ assert_eq "--only-install: the first pass's sweep row survives into the second d
   "$(jq -r '.marketplaces[0].user_sweep.updated[0].id' <<<"$out2")"
 assert_eq "--only-install: and its project_root does too" "$(jq -r '.marketplaces[0].project_root' <<<"$out")" \
   "$(jq -r '.marketplaces[0].project_root' <<<"$out2")"
-assert_eq "--only-install: the checker is NOT run a second time" "1" \
+assert_eq "--only-install: the checker runs once, after the installs" "1" \
   "$(wc -l <"$case_dir/cc.log" | tr -d ' ')"
-assert_eq "--only-install: the cache finding survives into the second digest" "alpha@market1" \
+assert_eq "--only-install: the cache finding is from that check" "alpha@market1" \
   "$(jq -r '.marketplaces[0].cache_content.stale_ids[0]' <<<"$out2")"
 # Timings follow what each invocation actually ran: the first pass stopped before
-# Step 4, the re-entry ran Steps 4 and 5 and the post read but none of Steps 1-3
-# and not the checker.
+# Step 4 and skipped the cache check, the re-entry ran Steps 4 and 5, the cache
+# check, and the post read, and none of Steps 1-3.
 assert_eq "ask: stopping before Step 4 leaves install_enable null, not 0" "null" \
   "$(jq -c '.marketplaces[0].timings.install_enable' <<<"$out")"
-assert_eq "--only-install: the steps the first pass ran read null" "null null null null" \
-  "$(jq -r '.marketplaces[0].timings | [.marketplace_update, .in_repo_update, .user_sweep, .cache_content_check] | map(tostring) | join(" ")' <<<"$out2")"
+assert_eq "--only-install: the steps the first pass ran read null" "null null null" \
+  "$(jq -r '.marketplaces[0].timings | [.marketplace_update, .in_repo_update, .user_sweep] | map(tostring) | join(" ")' <<<"$out2")"
+assert_eq "--only-install: the cache check it ran is timed" "number" \
+  "$(jq -r '.marketplaces[0].timings.cache_content_check | type' <<<"$out2")"
 assert_eq "--only-install: the steps it ran are timed" "number number number" \
   "$(jq -r '.marketplaces[0].timings | [.install_enable, .post_read, .total] | map(type) | join(" ")' <<<"$out2")"
 run_sync "$case_dir" --only-install beta@market2 --run-dir "$run_dir" --marketplace market2 >/dev/null
@@ -766,22 +796,34 @@ esac
 "
   chmod +x "$case_dir/stubs/date"
 }
-# Every non-null timing is a non-negative number, and the marketplace total is at
-# least the sum of its steps.
+# Every non-null timing is a non-negative number, the marketplace total is at
+# least the sum of its steps, and the steps plus the named remainder account for
+# every second of it, at both levels.
 assert_timings_shape() {
   local label="$1" digest="$2" t
   t=$(jq -c '.marketplaces[0].timings' <<<"$digest")
-  assert_eq "$label: the timings object carries the eight step keys and resolution" \
-    "cache_content_check,in_repo_update,install_enable,marketplace_update,post_read,pre_refresh_read,resolution,total,user_sweep" \
+  assert_eq "$label: the timings object carries the nine step keys, the remainder and resolution" \
+    "cache_content_check,finalize,in_repo_update,install_enable,marketplace_update,post_read,pre_install_read,pre_refresh_read,resolution,total,unattributed,user_sweep" \
     "$(jq -r 'keys | join(",")' <<<"$t")"
   assert_eq "$label: every non-null timing is a non-negative number" "true" \
     "$(jq -r 'del(.resolution) | [.[] | select(. != null)] | all(type == "number" and . >= 0)' <<<"$t")"
   assert_eq "$label: the total is at least the sum of the steps" "true" \
     "$(jq -r '. as $t | [.pre_refresh_read, .marketplace_update, .in_repo_update, .user_sweep,
-        .install_enable, .cache_content_check, .post_read] | map(select(. != null)) | (add // 0) <= $t.total' <<<"$t")"
-  assert_eq "$label: the whole invocation is timed at top level with the same clock" "true" \
+        .pre_install_read, .install_enable, .cache_content_check, .post_read, .finalize]
+        | map(select(. != null)) | (add // 0) <= $t.total' <<<"$t")"
+  assert_eq "$label: the steps plus unattributed sum to the marketplace total" "true" \
+    "$(jq -r '. as $t | [.pre_refresh_read, .marketplace_update, .in_repo_update, .user_sweep,
+        .pre_install_read, .install_enable, .cache_content_check, .post_read, .finalize, .unattributed]
+        | map(select(. != null)) | (add // 0) - $t.total | . < 0.0015 and . > -0.0015' <<<"$t")"
+  assert_eq "$label: the post-read work is a named step" "number" "$(jq -r '.finalize | type' <<<"$t")"
+  assert_eq "$label: the pre-install read is a named step" "number" "$(jq -r '.pre_install_read | type' <<<"$t")"
+  assert_eq "$label: the run is timed at top level with the same clock" "true" \
     "$(jq -r '(.timings.total | type == "number") and .timings.total >= .marketplaces[0].timings.total
         and .timings.resolution == .marketplaces[0].timings.resolution' <<<"$digest")"
+  assert_eq "$label: the marketplace totals plus outside_marketplaces sum to the run total" "true" \
+    "$(jq -r '(0.0015 * ((.marketplaces | length) + 1)) as $tol
+        | ([.marketplaces[].timings.total] | add) + .timings.outside_marketplaces - .timings.total
+        | . < $tol and . > -$tol' <<<"$digest")"
 }
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -795,8 +837,10 @@ write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source":
 write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
 setup_case "$case_dir"
 EXTRA_ENV=(CLAUDE_STUB_NEW_VERSION=0.2.0)
+wall_s=${EPOCHREALTIME:-0}
 out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
 assert_exit "timings: exit 0" 0 $?
+wall_e=${EPOCHREALTIME:-0}
 assert_timings_shape "timings" "$out"
 assert_contains "timings: the resolution names a rung of the ladder" \
   " microseconds nanoseconds seconds " " $(jq -r '.marketplaces[0].timings.resolution' <<<"$out") "
@@ -805,6 +849,12 @@ assert_eq "timings: the sync steps that ran are all timed" "number number number
 assert_eq "timings: an already-current install and enable set leaves install_enable null" "null" \
   "$(jq -c '.marketplaces[0].timings.install_enable' <<<"$out")"
 if [[ -n "${EPOCHREALTIME:-}" ]]; then
+  # The run clock stops before the digest is assembled, so the total leaves out at
+  # least that jq, the report write and the print, which the wall clock around the
+  # whole invocation includes.
+  assert_eq "timings: the run total stops short of the whole invocation (it excludes the digest assembly)" "true" \
+    "$(jq -rn --arg ws "$wall_s" --arg we "$wall_e" --argjson total "$(jq '.timings.total' <<<"$out")" \
+      '$total < (($we | tonumber) - ($ws | tonumber))')"
   assert_eq "timings: a bash with EPOCHREALTIME reports microseconds" "microseconds" \
     "$(jq -r '.marketplaces[0].timings.resolution' <<<"$out")"
 fi
@@ -845,6 +895,38 @@ assert_exit "date rung: exit 0" 0 $?
 assert_eq "date rung: without EPOCHREALTIME the run reports the date rung the host has" "$expected_rung" \
   "$(jq -r '.marketplaces[0].timings.resolution' <<<"$out")"
 assert_timings_shape "date rung" "$out"
+
+# The default-marketplace path: the resolving read runs in main, before the
+# loop body, and it is that marketplace's pre_refresh_read. A wrapper slows only
+# that zero-argument read, so a block window that opened after it would report
+# a total below the sum of its own steps.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.2.0
+mkdir -p "$case_dir/self/.claude-plugin"
+write "$case_dir/self/.claude-plugin/plugin.json" '{"name":"alpha","version":"0.1.0"}'
+self_root=$(norm_path "$case_dir/self")
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {\"alpha@market1\": [{\"scope\": \"user\", \"installPath\": \"$self_root\", \"version\": \"0.1.0\"}]}
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+setup_case "$case_dir"
+write "$case_dir/stubs/slow-fleet-state.sh" "#!/usr/bin/env bash
+if [[ \$# -eq 0 ]]; then sleep 1; fi
+exec bash \"$SCRIPT_DIR/fleet-state.sh\" \"\$@\"
+"
+chmod +x "$case_dir/stubs/slow-fleet-state.sh"
+EXTRA_ENV=(CLAUDE_PLUGIN_ROOT="$case_dir/self" SYNC_RUN_FLEET_STATE="$case_dir/stubs/slow-fleet-state.sh"
+  CLAUDE_STUB_NEW_VERSION=0.2.0)
+out=$(run_sync "$case_dir" --install-new none --journal-root "$case_dir/journal")
+assert_exit "default path: exit 0" 0 $?
+assert_eq "default path: the default marketplace resolved" "market1" "$(jq -r '.marketplaces[0].name' <<<"$out")"
+assert_eq "default path: the resolving read is timed as pre_refresh_read" "true" \
+  "$(jq -r '.marketplaces[0].timings.pre_refresh_read >= 1' <<<"$out")"
+assert_timings_shape "default path" "$out"
 
 # ============================================================================
 # Cases: the Step 6 report is rendered by the script. Golden files under
@@ -915,10 +997,10 @@ assert_eq "render: the renderer carries no user_config placeholder token" "0" \
   "$(grep -c -F '${user_config' "$SCRIPT_DIR/render-report.jq")"
 # The Timing row's shape, asserted here because the golden elides its figures.
 out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" --render)
-assert_contains "render: the marketplace Timing row names the slowest step and the clock" \
-  "$(printf '%s\n' "$out" | grep -E '^Timing: [0-9.]+s this marketplace; slowest step [a-z_]+ [0-9.]+s \((microseconds|nanoseconds|seconds)\)$' | head -n 1)" "Timing: "
-assert_contains "render: the run Timing row times the whole invocation" \
-  "$(printf '%s\n' "$out" | grep -E '^Timing: [0-9.]+s whole invocation \((microseconds|nanoseconds|seconds)\)$')" "whole invocation"
+assert_contains "render: the marketplace Timing row names the slowest step, the remainder and the clock" \
+  "$(printf '%s\n' "$out" | grep -E '^Timing: [0-9.]+s this marketplace; slowest step [a-z_]+ [0-9.]+s; [0-9.]+s outside the named steps \((microseconds|nanoseconds|seconds)\)$' | head -n 1)" "Timing: "
+assert_contains "render: the run Timing row names the run total and its remainder" \
+  "$(printf '%s\n' "$out" | grep -E '^Timing: [0-9.]+s run total; [0-9.]+s outside the marketplace blocks \((microseconds|nanoseconds|seconds)\)$')" "run total"
 
 # --- a withheld downgrade, with the source named as the likely cause --------
 CASE_NUM=$((CASE_NUM + 1))
@@ -1049,6 +1131,9 @@ needs_check() {
 }
 failed_row='{"id":"a@m","scope":"user","rc":1,"output":"$ x\nboom"}'
 needs_check "failed update" sync "{\"user_sweep\":{\"failed\":[$failed_row]}}" "update failed (exit 1): a@m"
+blank_row='{"id":"a@m","scope":"user","rc":1,"output":"$ x\n\r\nboom"}'
+needs_check "failed update with a blank first line" sync "{\"user_sweep\":{\"failed\":[$blank_row]}}" \
+  "update failed (exit 1): a@m -s user: boom"
 needs_check "withheld downgrade" sync \
   '{"user_sweep":{"withheld_downgrades":[{"id":"a@m","scope":"user","installed":"2","catalog":"1"}]}}' "downgrade withheld: 1"
 needs_check "deferred install gap" sync '{"install_enable_deferred":true,"install_gap":["b@m"]}' "install gap deferred"
@@ -1135,14 +1220,14 @@ case_dir=$(new_case_dir)
 golden_fixture "$case_dir" 0.3.0 0.1.0 true
 mkdir -p "$case_dir/cache/alpha/.claude-plugin"
 write "$case_dir/cache/alpha/.claude-plugin/plugin.json" \
-  '{"name": "alpha", "version": "0.3.0", "experimental.monitors": [{"name": "watch", "command": "tail -F x", "description": "x"}]}'
+  '{"name": "alpha", "version": "0.3.0", "experimental": {"monitors": [{"name": "watch", "command": "tail -F x", "description": "x"}]}}'
 EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NEW_VERSION=0.3.0 CC_STUB_CLEAN=1)
 report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
-assert_eq "monitors: an inline experimental.monitors array on the updated build is counted" \
+assert_eq "monitors: a nested experimental.monitors array on the updated build is counted" \
   '[{"id":"alpha@market1","scope":"user","monitors":1}]' \
   "$(jq -c '.marketplaces[0].updated_with_monitors' <<<"$REPORT_DIGEST")"
 assert_contains "monitors: the report calls the restart out under Action needed" "$REPORT_TEXT" \
-  "  - monitor(s) declared by updated plugin(s): alpha@market1 (1); monitors require a session restart per plugins-reference, /reload-plugins does not cover them"
+  "  - monitor(s) declared by updated plugin(s): alpha@market1 (1); restart the session to run the updated monitors, /reload-plugins does not switch them"
 # The directory convention, and a manifest path string, count the same way.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir2=$(new_case_dir)
@@ -1158,11 +1243,11 @@ CASE_NUM=$((CASE_NUM + 1))
 case_dir3=$(new_case_dir)
 golden_fixture "$case_dir3" 0.3.0 0.1.0 true
 mkdir -p "$case_dir3/cache/alpha/.claude-plugin"
-write "$case_dir3/cache/alpha/.claude-plugin/plugin.json" '{"name": "alpha", "version": "0.3.0", "experimental.monitors": "./mon.json"}'
+write "$case_dir3/cache/alpha/.claude-plugin/plugin.json" '{"name": "alpha", "version": "0.3.0", "experimental": {"monitors": "./mon.json"}}'
 write "$case_dir3/cache/alpha/mon.json" '[{"name": "a", "command": "x", "description": "x"}]'
 EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir3" CLAUDE_STUB_NEW_VERSION=0.3.0 CC_STUB_CLEAN=1)
 out=$(run_sync "$case_dir3" --marketplace market1 --install-new none --journal-root "$case_dir3/journal")
-assert_eq "monitors: a manifest path string under experimental.monitors is followed" "1" \
+assert_eq "monitors: a manifest path string under nested experimental.monitors is followed" "1" \
   "$(jq -r '.marketplaces[0].updated_with_monitors[0].monitors' <<<"$out")"
 # No monitor anywhere: the field is empty and the report carries no call-out.
 CASE_NUM=$((CASE_NUM + 1))
@@ -1175,7 +1260,30 @@ report_of "$case_dir4" --marketplace market1 --install-new none --journal-root "
 assert_eq "monitors: a build with no monitor is not listed" "[]" \
   "$(jq -c '.marketplaces[0].updated_with_monitors' <<<"$REPORT_DIGEST")"
 assert_eq "monitors: and the report has no Action needed section for it" "0" \
-  "$(printf '%s\n' "$REPORT_TEXT" | grep -c 'monitor')"
+  "$(printf '%s\n' "$REPORT_TEXT" | grep -c 'monitor' || true)"
+# A top-level monitors key counts, and a nested empty array replaces the default file.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir5=$(new_case_dir)
+golden_fixture "$case_dir5" 0.3.0 0.1.0 true
+mkdir -p "$case_dir5/cache/alpha/.claude-plugin" "$case_dir5/cache/alpha/monitors"
+write "$case_dir5/cache/alpha/.claude-plugin/plugin.json" \
+  '{"name": "alpha", "version": "0.3.0", "monitors": [{"name": "a", "command": "x", "description": "x"}, {"name": "b", "command": "y", "description": "y"}, {"name": "c", "command": "z", "description": "z"}]}'
+write "$case_dir5/cache/alpha/monitors/monitors.json" '[{"name": "ignored", "command": "x", "description": "x"}]'
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir5" CLAUDE_STUB_NEW_VERSION=0.3.0 CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir5" --marketplace market1 --install-new none --journal-root "$case_dir5/journal")
+assert_eq "monitors: a top-level monitors array is counted" "3" \
+  "$(jq -r '.marketplaces[0].updated_with_monitors[0].monitors' <<<"$out")"
+CASE_NUM=$((CASE_NUM + 1))
+case_dir6=$(new_case_dir)
+golden_fixture "$case_dir6" 0.3.0 0.1.0 true
+mkdir -p "$case_dir6/cache/alpha/.claude-plugin" "$case_dir6/cache/alpha/monitors"
+write "$case_dir6/cache/alpha/.claude-plugin/plugin.json" \
+  '{"name": "alpha", "version": "0.3.0", "experimental": {"monitors": []}}'
+write "$case_dir6/cache/alpha/monitors/monitors.json" '[{"name": "a", "command": "x", "description": "x"}, {"name": "b", "command": "y", "description": "y"}]'
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir6" CLAUDE_STUB_NEW_VERSION=0.3.0 CC_STUB_CLEAN=1)
+out=$(run_sync "$case_dir6" --marketplace market1 --install-new none --journal-root "$case_dir6/journal")
+assert_eq "monitors: a nested empty array replaces the default file" "[]" \
+  "$(jq -c '.marketplaces[0].updated_with_monitors' <<<"$out")"
 
 # --- errors[] render under Action needed, exit status unchanged --------------
 CASE_NUM=$((CASE_NUM + 1))
@@ -1312,6 +1420,243 @@ out=$(env PATH="$nojq_bin" "$nojq_bin/bash" "$SCRIPT" --marketplace market1 --jo
 rc=$?
 assert_exit "run without jq: exit 2" 2 "$rc"
 assert_contains "run without jq: actionable notice" "$out" "jq required"
+
+# ============================================================================
+# Case: version_direction reads every segment in base 10
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+version_direction_of() {
+  local pair="$1"
+  SYNC_RUN_VERSION_DIRECTION="$pair" bash "$SCRIPT" --marketplace market1 \
+    --journal-root "$case_dir/journal" 2>"$case_dir/vd.err"
+}
+got=$(version_direction_of $'2026.09.30\t2026.10.01')
+assert_eq "version_direction: 2026.09.30 -> 2026.10.01 is forward" "forward" "$got"
+assert_eq "version_direction: that forward pair writes nothing to stderr" "" "$(cat "$case_dir/vd.err")"
+got=$(version_direction_of $'1.010.0\t1.9.0')
+assert_eq "version_direction: 1.010.0 -> 1.9.0 is backward" "backward" "$got"
+got=$(version_direction_of $'2026.10.08\t2026.10.08')
+assert_eq "version_direction: 2026.10.08 -> 2026.10.08 is same" "same" "$got"
+assert_eq "version_direction: 2026.10.08 -> 2026.10.08 writes nothing to stderr" "" "$(cat "$case_dir/vd.err")"
+
+# ============================================================================
+# Case: an install the CLI reports as disabled by default is not a plain install
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+catalog_plugin "$case_dir" market1 beta 0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1
+  CLAUDE_STUB_INSTALL_DISABLED=1)
+report_of "$case_dir" --marketplace market1 --install-new all --journal-root "$case_dir/journal"
+assert_exit "disabled install: exit 0" 0 "$REPORT_RC"
+assert_eq "disabled install: the digest names the id" '["beta@market1"]' \
+  "$(jq -c '.marketplaces[0].installed_disabled' <<<"$REPORT_DIGEST")"
+assert_eq "disabled install: the stored output was truncated before the notice" "false" \
+  "$(jq -r '.marketplaces[0].installed[0].output | contains("disabled by default")' <<<"$REPORT_DIGEST")"
+assert_contains "disabled install: the row says it is installed but not enabled" "$REPORT_TEXT" \
+  "installed but not enabled: beta@market1"
+assert_contains "disabled install: the enable command is in the report" "$REPORT_TEXT" \
+  "beta@market1: installed but not enabled; claude plugin enable beta@market1 -s user"
+
+# A failed install that printed the notice installed nothing, so it is not installed_disabled.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+catalog_plugin "$case_dir" market1 beta 0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1
+  CLAUDE_STUB_INSTALL_DISABLED=1 CLAUDE_STUB_INSTALL_FAIL_ID=beta@market1)
+report_of "$case_dir" --marketplace market1 --install-new all --journal-root "$case_dir/journal"
+assert_eq "failed disabled install: not installed_disabled" '[]' \
+  "$(jq -c '.marketplaces[0].installed_disabled' <<<"$REPORT_DIGEST")"
+assert_contains "failed disabled install: reported as a failed install" "$REPORT_TEXT" \
+  "install failed (exit 1): beta@market1"
+assert_eq "failed disabled install: no enable remedy" "0" \
+  "$(grep -c 'installed but not enabled' <<<"$REPORT_TEXT" || true)"
+
+# ============================================================================
+# Case: a user-scope install absent from the catalog is delisted, in sync and audit
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.1.0
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [{\"scope\": \"user\", \"installPath\": \"$case_dir/cache/alpha\", \"version\": \"0.1.0\"}],
+    \"provenance@market1\": [{\"scope\": \"user\", \"installPath\": \"$case_dir/cache/provenance\", \"version\": \"0.4.0\"}]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "provenance@market1": true, "ghost@market1": true, "declined@market1": false}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
+assert_exit "delisted sync: exit 0" 0 "$REPORT_RC"
+assert_eq "delisted sync: only the absent install takes the uninstall remedy" \
+  '["provenance@market1"]' \
+  "$(jq -c '.marketplaces[0].delisted' <<<"$REPORT_DIGEST")"
+assert_eq "delisted sync: a true key with no install is settings-only" \
+  '["ghost@market1"]' \
+  "$(jq -c '.marketplaces[0].delisted_settings_only' <<<"$REPORT_DIGEST")"
+assert_eq "delisted sync: the absent install is not swept" "0" \
+  "$(grep -c 'plugin update provenance@market1' "$case_dir/claude.log" || true)"
+assert_contains "delisted sync: the report gives the uninstall remedy" "$REPORT_TEXT" \
+  "delisted, absent from the catalog: provenance@market1; uninstall each with \`claude plugin uninstall <id> -s user\`"
+assert_contains "delisted sync: the settings-only key gets the settings remedy" "$REPORT_TEXT" \
+  "enabled in settings, not installed, and absent from the catalog: ghost@market1; remove each key from enabledPlugins in the settings file that sets it"
+assert_eq "delisted sync: a false key with no install is not reported" "0" \
+  "$(grep -c 'declined@market1' <<<"$REPORT_TEXT" || true)"
+CASE_NUM=$((CASE_NUM + 1))
+case_dir2=$(new_case_dir)
+cp -r "$case_dir"/. "$case_dir2"/
+: >"$case_dir2/claude.log"
+: >"$case_dir2/cc.log"
+write "$case_dir2/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [{\"scope\": \"user\", \"installPath\": \"$case_dir2/cache/alpha\", \"version\": \"0.1.0\"}],
+    \"provenance@market1\": [{\"scope\": \"user\", \"installPath\": \"$case_dir2/cache/provenance\", \"version\": \"0.4.0\"}]
+  }
+}"
+write "$case_dir2/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir2/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir2" CC_STUB_CLEAN=1)
+report_of "$case_dir2" --marketplace market1 --audit --install-new none
+assert_exit "delisted audit: exit 0" 0 "$REPORT_RC"
+assert_eq "delisted audit: the absent install is not a would-update" "0" \
+  "$(jq -r '[.marketplaces[0].user_sweep.would_update[]?.id] | map(select(. == "provenance@market1")) | length' <<<"$REPORT_DIGEST")"
+assert_contains "delisted audit: the report names it as a prediction" "$REPORT_TEXT" \
+  "delisted, absent from the unrefreshed catalog: provenance@market1 (audit prediction; sync names any still absent after its refresh, with the remedy)"
+assert_contains "delisted audit: the settings-only key is a prediction too" "$REPORT_TEXT" \
+  "enabled in settings, not installed, and absent from the unrefreshed catalog: ghost@market1 (audit prediction"
+assert_eq "delisted audit: no unqualified uninstall command" "0" \
+  "$(grep -c 'claude plugin uninstall' <<<"$REPORT_TEXT" || true)"
+
+# ============================================================================
+# Case: an in-repo install absent from the catalog is not swept by Step 2
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.1.0
+proj=$(norm_path "$case_dir")
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [{\"scope\": \"user\", \"installPath\": \"$case_dir/cache/alpha\", \"version\": \"0.1.0\"}],
+    \"stale@market1\": [{\"scope\": \"project\", \"projectPath\": \"$proj\", \"installPath\": \"$case_dir/cache/stale\", \"version\": \"0.2.0\"}]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
+assert_exit "delisted in-repo sync: exit 0" 0 "$REPORT_RC"
+assert_eq "delisted in-repo sync: the digest carries it with its scope" \
+  '[{"id":"stale@market1","scope":"project"}]' \
+  "$(jq -c '.marketplaces[0].delisted_project' <<<"$REPORT_DIGEST")"
+assert_eq "delisted in-repo sync: not swept" "0" \
+  "$(grep -c 'plugin update stale@market1' "$case_dir/claude.log" || true)"
+assert_eq "delisted in-repo sync: not enabled" "0" \
+  "$(grep -c 'plugin enable stale@market1' "$case_dir/claude.log" || true)"
+assert_contains "delisted in-repo sync: the report gives the uninstall command" "$REPORT_TEXT" \
+  "delisted in this repo, absent from the catalog: (cd \"<case>\" && claude plugin uninstall stale@market1 -s project)"
+: >"$case_dir/claude.log"
+report_of "$case_dir" --marketplace market1 --audit --install-new none
+assert_contains "delisted in-repo audit: the report names it as a prediction" "$REPORT_TEXT" \
+  "delisted in this repo, absent from the unrefreshed catalog: stale@market1 (project) (audit prediction"
+assert_eq "delisted in-repo audit: not a would-update" "0" \
+  "$(jq -r '[.marketplaces[0].in_repo.would_update[]?.id] | map(select(. == "stale@market1")) | length' <<<"$REPORT_DIGEST")"
+
+# ============================================================================
+# Case: catalog_last_updated is the stamp after Step 1's refresh, on the first
+# pass and on the `--only-install` re-entry
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+catalog_plugin "$case_dir" market1 beta 0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+EXTRA_ENV=(CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1 CLAUDE_STUB_REFRESH_STAMP=2026-02-02T00:00:00Z)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new ask --journal-root "$case_dir/journal")
+assert_exit "catalog stamp: exit 0" 0 $?
+assert_eq "catalog stamp: the digest carries the stamp the refresh wrote" "2026-02-02T00:00:00Z" \
+  "$(jq -r '.marketplaces[0].catalog_last_updated' <<<"$out")"
+run_dir=$(jq -r '.run_dir' <<<"$out")
+assert_eq "catalog stamp: the pre-refresh snapshot still holds the older stamp" "2026-01-01T00:00:00Z" \
+  "$(jq -r '.marketplace.lastUpdated' "$run_dir/pre-refresh.market1.json")"
+out=$(run_sync "$case_dir" --only-install beta@market1 --run-dir "$run_dir")
+assert_exit "catalog stamp re-entry: exit 0" 0 $?
+assert_eq "catalog stamp re-entry: the re-emitted digest keeps the post-refresh stamp" "2026-02-02T00:00:00Z" \
+  "$(jq -r '.marketplaces[0].catalog_last_updated' <<<"$out")"
+
+# ============================================================================
+# Case: the cache-content check names the scope it covered, in the digest and
+# in every rendered row
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+EXTRA_ENV=(CLAUDE_STUB_NOOP_ID=alpha@market1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_exit "cache scope: exit 0" 0 $?
+assert_eq "cache scope: the checker is asked for user scope explicitly" "1" \
+  "$(grep -c -- '--scope user' "$case_dir/cc.log")"
+assert_eq "cache scope: the digest names the scope checked" "user" \
+  "$(jq -r '.marketplaces[0].cache_content.scope' <<<"$out")"
+assert_eq "cache scope: the always-zero project-path counter is not carried" "false" \
+  "$(jq -r '.marketplaces[0].cache_content | has("skipped_absent_project_paths")' <<<"$out")"
+cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 10, "match": 7, "stale_content": 0,
+  "unverifiable": 3, "stale": [], "stale_ids": []}}' | jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_contains "cache scope: the unverifiable-only row names user scope" "$cache_text" \
+  "Cache content: 3 of 10 user-scope install(s) unverifiable"
+cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 10, "match": 7, "stale_content": 1,
+  "unverifiable": 2, "stale": [{"id": "a@m", "version": "1.0.0", "files_differ": 2}], "stale_ids": ["a@m"]}}' |
+  jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_contains "cache scope: the stale row names user scope" "$cache_text" \
+  "Cache content: 1 user-scope install(s) whose cache files disagree"
+assert_contains "cache scope: the checked sub-line names user scope" "$cache_text" \
+  "(checked 10 user-scope install(s): 7 match, 2 unverifiable"
+
+# ============================================================================
+# Case: the Divergences split follows the total it sums to, with and without a
+# project root
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+split_divergences='{"post": 67, "pre_existing": 24, "new_total": 43, "new_by_interval": {"in_repo": 5, "user_sweep": 38}}'
+div_text=$(needs_digest sync "{\"divergences\": $split_divergences}" | jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_golden "divergence split, no project root: the report matches the golden" divergence-split-no-root.txt "$div_text"
+div_text=$(needs_digest sync "{\"divergences\": $split_divergences, \"project_root\": \"/w/repo\",
+  \"in_repo_records\": 4, \"divergences_here\": 3}" | jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_golden "divergence split, project root: the report matches the golden" divergence-split-project-root.txt "$div_text"
+# The number each split follows is the sum of its parts, in both variants.
+for variant in no-root project-root; do
+  assert_eq "divergence split, $variant: the split sums to the count it follows" "true" \
+    "$(grep '^Divergences:' "$GOLDEN_DIR/divergence-split-$variant.txt" |
+      sed -E 's/.* ([0-9]+) actionable: ([0-9]+) pre-existing, ([0-9]+) newly created by this run \(([0-9]+) by the in-repo update, ([0-9]+) by the user-scope sweep\).*/\1 \2 \3 \4 \5/' |
+      awk '{print ($1 == $2 + $3 && $3 == $4 + $5) ? "true" : "false"}')"
+done
+
+# ============================================================================
+# Case: in audit, `would run:` marks the calls sync would make; a remedy sync
+# never runs itself reads as it does in sync, and the header says which is which
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+remedy_text=$(needs_digest audit '{"source_checkout": {"path": "/src", "state": "tracking", "branch": "main",
+  "upstream": "origin/main", "ahead": 0, "behind": 2, "dirty": false},
+  "project_enable_rows": [{"id": "p@m", "project_path": "/w/repo"}]}' | jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_eq "audit remedies: the header scopes the prefix to calls sync would make" \
+  "Audit (read-only): every call sync would make is a prediction, prefixed would run:" \
+  "$(head -n 1 <<<"$remedy_text")"
+assert_contains "audit remedies: the git pull remedy is unprefixed" "$remedy_text" \
+  "and the catalog is read from it as it is: run \`git -C '/src' pull --ff-only\`"
+assert_contains "audit remedies: the project-scope enable remedy is unprefixed" "$remedy_text" \
+  "  - project-scope enable gap: (cd \"/w/repo\" && claude plugin enable p@m -s project)"
 
 # ============================================================================
 if ((FAILED > 0)); then

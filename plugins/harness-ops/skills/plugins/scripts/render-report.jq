@@ -10,7 +10,9 @@
 # Every section, conditional row, annotation and `Action needed` bullet is
 # derived from a digest field; nothing here is judgment, so the report cannot
 # misstate a number, an id, or a scope the digest carries. In audit mode every
-# line that would be a mutation carries the `would run:` prefix, and the
+# call sync would make carries the `would run:` prefix. A remedy sync never runs
+# itself (the `git -C … pull`, a project-scope enable) is the operator's in both
+# modes and carries no prefix, since sync would not run it either. The
 # `Would withhold` row appears beside `Would update` whether or not a downgrade
 # was found. Errors in a block's `errors[]` render under that block's
 # `Action needed`; the run's own `errors[]` render under the trailing one.
@@ -22,6 +24,18 @@ def secs: if . == null then "n/a" else "\(.)s" end;
 # The first line of a journaled CLI output that is the CLI's own, not the
 # `$ <command>` echo the journal opens with.
 def first_line: (. // "") | split("\n") | map(select(startswith("$ ") | not)) | (.[0] // "");
+# Capture-time classification lives in .reason. This fallback is the same rule
+# as sync-run.sh's cli_outcome_line for a row that has no reason yet: CRs
+# dropped, `$` and empty lines skipped, then the first ✘ / Failed / Error line,
+# else the first line left. Not the last line, which can be a userConfig note.
+def outcome_line:
+  (. // "") | gsub("\r"; "") | split("\n")
+  | map(select((startswith("$ ") | not) and . != "")) as $lines
+  | ([$lines[] | select(startswith("✘") or contains("Failed") or contains("Error"))][0])
+    // $lines[0] // "";
+def reported:
+  if (.reason | type) == "string" and .reason != "" then .reason
+  else (.output | outcome_line) end;
 def pair: "\(.old) → \(.new)" + (if .direction == "unknown" then " (direction unknown)" else "" end);
 def scoped: "\(.id) (\(.scope))";
 def ids: map(.id) | join(", ");
@@ -33,7 +47,8 @@ def key_count: (capture("keys=(?<k>[0-9]+)") // {k: "?"}) | .k;
 
 # The slowest timed step of a block's timings object, or null.
 def slowest_step:
-  [to_entries[] | select(.key != "total" and .key != "resolution" and .value != null)]
+  [to_entries[]
+   | select(.key != "total" and .key != "resolution" and .key != "unattributed" and .value != null)]
   | if length == 0 then null else max_by(.value) end;
 
 def block($d):
@@ -54,13 +69,20 @@ def block($d):
      - (.project_enable_rows | map(.id))) as $enable_unfilled
   | (if $audit then
        (($would | length) > 0 or ($withheld | length) > 0
-        or (.install_gap | length) > 0 or (.enable_gap | length) > 0)
+        or (.install_gap | length) > 0 or (.enable_gap | length) > 0
+        or ((.delisted // []) | length) > 0
+        or ((.delisted_project // []) | length) > 0
+        or ((.delisted_settings_only // []) | length) > 0)
      else
        (($failed | length) > 0 or ($withheld | length) > 0
         or .install_enable_deferred == true or .stopped_before_install == true
         or ($installed_failed | length) > 0 or ($enabled_failed | length) > 0
         or (.errors | length) > 0 or ($enable_unfilled | length) > 0
-        or ($install_left | length) > 0)
+        or ($install_left | length) > 0
+        or ((.installed_disabled // []) | length) > 0
+        or ((.delisted // []) | length) > 0
+        or ((.delisted_project // []) | length) > 0
+        or ((.delisted_settings_only // []) | length) > 0)
      end) as $needs
   | .timings as $t
   | .source_checkout as $src
@@ -82,7 +104,7 @@ def block($d):
       (if $audit then
          "  would run: claude plugin marketplace update \(.name) (audit: predicted against the unrefreshed catalog, lastUpdated \(.catalog_last_updated // "unknown"); a lower bound on what sync would update)"
        elif .refresh.rc != null and .refresh.rc != 0 then
-         "  refresh failed (exit \(.refresh.rc)): \(.refresh.output | first_line)"
+         "  refresh failed (exit \(.refresh.rc)): \(.refresh | reported)"
        else empty end),
 
       # In-repo: a fixed row with three variants, picked by two digest fields.
@@ -129,6 +151,9 @@ def block($d):
        elif ($installed_ok | length) > 0 then
          "Installed: \($installed_ok | length) new catalog plugin(s): \($installed_ok | ids)"
          + (if $d.install_new == "all" then " (policy install_new: all, meaning these reinstall on every sync unless you also disable them)" else "" end)
+         + (if ((.installed_disabled // []) | length) > 0 then
+              " (installed but not enabled: \(.installed_disabled | join(", ")))"
+            else "" end)
        else empty end),
 
       (if ($norm | test("^normalized keys=")) then
@@ -145,16 +170,17 @@ def block($d):
        else empty end),
 
       # Divergences: actionable only (versionsMatch false), split by interval.
+      # The split is machine-wide, so it follows the machine-wide count it sums to.
       (.divergences as $v
        | if $v.post == null then
            "Divergences: not computed (\($v.note // "a snapshot was missing"))"
          else
-           ("(\($v.new_total) newly created by this run: \($v.new_by_interval.in_repo) by the in-repo update, \($v.new_by_interval.user_sweep) by the user-scope sweep, \($v.pre_existing) pre-existing)") as $split
+           ("\($v.post) actionable: \($v.pre_existing) pre-existing, \($v.new_total) newly created by this run (\($v.new_by_interval.in_repo) by the in-repo update, \($v.new_by_interval.user_sweep) by the user-scope sweep)") as $split
            | if $v.post == 0 then "Divergences: 0 actionable"
              elif .project_root != null and .divergences_here != null then
-               "Divergences: \(.divergences_here) behind here → run `/harness-ops:plugins converge`; \($v.post - .divergences_here) more elsewhere on this machine \($split)"
+               "Divergences: \(.divergences_here) behind here → run `/harness-ops:plugins converge`; on this whole machine \($split)"
              else
-               "Divergences: \($v.post) actionable \($split) → run `/harness-ops:plugins converge`"
+               "Divergences: \($split) → run `/harness-ops:plugins converge`"
              end
          end),
 
@@ -174,15 +200,16 @@ def block($d):
        else empty end),
 
       (.cache_content as $c
+       | ("\($c.scope // "user")-scope install(s)") as $installs
        | if $c == null then empty
          elif ($c.stale_content // 0) > 0 then
-           "Cache content: \($c.stale_content) install(s) whose cache files disagree with their recorded gitCommitSha",
+           "Cache content: \($c.stale_content) \($installs) whose cache files disagree with their recorded gitCommitSha",
            ($c.stale[] | if .files_differ == null then "  - \(.id)" else "  - \(.id) \(.version): \(.files_differ) file(s) differ" end),
-           (if ($c.unverifiable // 0) > 0 then "  (checked \($c.checked): \($c.match) match, \($c.unverifiable) unverifiable; unverifiable is not a pass)" else empty end),
+           (if ($c.unverifiable // 0) > 0 then "  (checked \($c.checked) \($installs): \($c.match) match, \($c.unverifiable) unverifiable; unverifiable is not a pass)" else empty end),
            "  Remediation: remove that version's directory under the plugin cache, then re-run",
            "  `claude plugin update <id>@<marketplace>`, which recreates it from the clone."
          elif ($c.unverifiable // 0) > 0 then
-           "Cache content: \($c.unverifiable) of \($c.checked) install(s) unverifiable (recorded commit not in the local marketplace clone); no disagreement found among the rest"
+           "Cache content: \($c.unverifiable) of \($c.checked) \($installs) unverifiable (recorded commit not in the local marketplace clone); no disagreement found among the rest"
          else empty end),
 
       (if $t == null then "Timing: n/a"
@@ -190,6 +217,7 @@ def block($d):
          ($t | slowest_step) as $slow
          | "Timing: \($t.total | secs) this marketplace"
            + (if $slow == null then "" else "; slowest step \($slow.key) \($slow.value)s" end)
+           + (if $t.unattributed == null then "" else "; \($t.unattributed)s outside the named steps" end)
            + " (\($t.resolution))"
        end),
 
@@ -216,9 +244,30 @@ def block($d):
           else empty end),
          (.project_enable_rows[]
           | "project-scope enable gap: (cd \"\(.project_path)\" && claude plugin enable \(.id) -s project)\n    Writes that repo's committed .claude/settings.json; review the diff before committing"),
-         ($failed[] | "update failed (exit \(.rc)): \(.id) -s \(.scope): \(.output | first_line)"),
-         ($installed_failed[] | "install failed (exit \(.rc)): \(.id): \(.output | first_line)"),
-         ($enabled_failed[] | "enable failed (exit \(.rc)): \(.id) -s \(.scope): \(.output | first_line)"),
+         ($failed[] | "update failed (exit \(.rc)): \(.id) -s \(.scope): \(reported)"),
+         ($installed_failed[] | "install failed (exit \(.rc)): \(.id): \(reported)"),
+         ($enabled_failed[] | "enable failed (exit \(.rc)): \(.id) -s \(.scope): \(reported)"),
+         ((.installed_disabled // [])[]
+          | "\(.): installed but not enabled; claude plugin enable \(.) -s user"),
+         (if ((.delisted // []) | length) == 0 then empty
+          elif $audit then
+            "delisted, absent from the unrefreshed catalog: \(.delisted | join(", ")) (audit prediction; sync names any still absent after its refresh, with the remedy)"
+          else
+            "delisted, absent from the catalog: \(.delisted | join(", ")); uninstall each with `claude plugin uninstall <id> -s user`"
+          end),
+         (if ((.delisted_project // []) | length) == 0 then empty
+          elif $audit then
+            "delisted in this repo, absent from the unrefreshed catalog: \(.delisted_project | map(scoped) | join(", ")) (audit prediction; sync names any still absent after its refresh, with the remedy)"
+          else
+            (.project_root // "?") as $root
+            | (.delisted_project[] | "delisted in this repo, absent from the catalog: (cd \"\($root)\" && claude plugin uninstall \(.id) -s \(.scope))")
+          end),
+         (if ((.delisted_settings_only // []) | length) == 0 then empty
+          elif $audit then
+            "enabled in settings, not installed, and absent from the unrefreshed catalog: \(.delisted_settings_only | join(", ")) (audit prediction; sync names any still absent after its refresh, with the remedy)"
+          else
+            "enabled in settings, not installed, and absent from the catalog: \(.delisted_settings_only | join(", ")); remove each key from enabledPlugins in the settings file that sets it"
+          end),
          (if (.user_scope_orphans | length) > 0 then
             "user-scope orphan(s), a project/local record with no user-scope install: \(.user_scope_orphans | join(", "))"
           else empty end),
@@ -227,7 +276,7 @@ def block($d):
             + (if .required != null then " (\(.required) required)" else "" end)
             + "; run /plugin configure \(.id) in Claude Code, or pass --config KEY=VALUE"),
          (if (.updated_with_monitors | length) > 0 then
-            "monitor(s) declared by updated plugin(s): \(.updated_with_monitors | map("\(.id) (\(.monitors))") | join(", ")); monitors require a session restart per plugins-reference, /reload-plugins does not cover them"
+            "monitor(s) declared by updated plugin(s): \(.updated_with_monitors | map("\(.id) (\(.monitors))") | join(", ")); restart the session to run the updated monitors, /reload-plugins does not switch them"
           else empty end),
          (if ($norm | test("^refused:")) then
             "user-scope enabledPlugins reorder refused: \($norm | first_line)"
@@ -245,13 +294,16 @@ def block($d):
 
 . as $d
 | [
-    (if $d.mode == "audit" then "Audit (read-only): every mutating call below is a prediction, prefixed would run:" else empty end),
+    (if $d.mode == "audit" then "Audit (read-only): every call sync would make is a prediction, prefixed would run:" else empty end),
     ($d.marketplaces[] | block($d)),
     (if ($d.marketplaces | length) == 0 then "Marketplace: none resolved for this run" else empty end),
     "",
     (if $d.mode == "audit" then "Run: audit scratch directory, removed on exit"
      else "Run journal: \($d.run_dir)" end),
-    "Timing: \($d.timings.total | secs) whole invocation (\($d.timings.resolution))",
+    "Timing: \($d.timings.total | secs) run total"
+    + (if $d.timings.outside_marketplaces == null then ""
+       else "; \($d.timings.outside_marketplaces)s outside the marketplace blocks" end)
+    + " (\($d.timings.resolution))",
     ([
        (if $d.install_new_invalid != null then
           "install_new value \"\($d.install_new_invalid)\" is not all, none, or ask; this run used ask"

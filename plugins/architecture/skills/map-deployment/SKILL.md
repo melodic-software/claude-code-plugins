@@ -177,8 +177,14 @@ Shipped readers, every one that is present:
 - Both YAML readers refuse anchors, aliases, the `<<` merge key, duplicate keys, a tab in the
   indentation, and more than one document. Their `containerDefinitions` given as anything but a
   non-empty list (absent, empty, a JSON string, a function) places one container whose image is
-  `unresolved:containerDefinitions`. A second service on a task definition another service already
-  runs is listed as unmapped; the containers are placed once, on the first service's cluster.
+  `unresolved:containerDefinitions`.
+- A task definition that two or more ECS services run, in the Terraform, CloudFormation or Pulumi
+  YAML reader, is placed once per service: each service puts every container on its own cluster
+  with its own desired count, named `<container>@<service>`. The service part is the resource's
+  address in the file (the Terraform label, the CloudFormation logical ID, the Pulumi resource
+  name), not its `name` property, so the placement keeps one name in every environment and is
+  diffed like any other container. A task definition one service runs keeps the plain container
+  name. A `containers.json` name matches its `@<service>` placements.
 
 A Pulumi project of any other runtime (`nodejs`, `python`, `go`, `dotnet`, ...), Helm (a
 `Chart.yaml`, a Terraform `helm_release`, or a `kubernetes:helm.sh/` resource in a Pulumi YAML
@@ -316,7 +322,8 @@ hand-written; the publish destination comes from the `medium` cascade key. Proce
   (its Deployment relationships section),
   <https://likec4.dev/dsl/deployment/views/>, plus `likec4@1.59.4 validate` exiting 0 on the
   golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/` (`deployment-compose.c4`,
-  `deployment-kubernetes.c4`), which `collect-deployment.test.sh` diffs against. As of:
+  `deployment-kubernetes.c4`, `deployment-ecs-shared.c4`), which `collect-deployment.test.sh` diffs
+  against. As of:
   2026-09-29. Recheck when either page changes that syntax or a newer `likec4` release ships: set
   `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
 - **Labels cannot leave the block.** Quotes, backticks, backslashes, and line breaks are stripped
@@ -388,8 +395,11 @@ hand-written; the publish destination comes from the `medium` cascade key. Proce
   as `unresolved:<expression>`. A `for` or `copy` loop is placed once, an `if` or `condition` is
   ignored, a `resourceId` with scope arguments matches nothing, and `Microsoft.App/jobs` is not
   mapped. A child resource nested in its parent (a Bicep `resource` inside a body, an ARM
-  `resources` array inside a resource) is never mapped: it is listed under its full type, such as
-  `Microsoft.Web/sites/slots`, and a slot's own image is not placed. A container app or container
+  `resources` array inside a resource) is listed under its full type, such as
+  `Microsoft.Storage/storageAccounts/blobServices`. A `Microsoft.Web/sites/slots` nested in its site,
+  or naming it as its Bicep `parent`, whose fx version reads `DOCKER|` is the exception: it places
+  the container `<site>/<slot>`, its full resource name, on the site's `serverFarmId`, with its own
+  `appSettings`. Any other slot, including a top-level ARM one, is listed. A container app or container
   group whose containers are an expression, an empty list, or absent places one container named for
   the resource, its image `unresolved:<expression>` or `unresolved:containers`. Every other resource
   type, and a site whose fx version does not read `DOCKER|` (listed as `Microsoft.Web/sites`), is
@@ -412,6 +422,15 @@ hand-written; the publish destination comes from the `medium` cascade key. Proce
   <https://learn.microsoft.com/azure/azure-resource-manager/bicep/child-resource-name-type> and
   <https://learn.microsoft.com/azure/azure-resource-manager/templates/child-resource-name-type>.
   As of: 2026-09-30. Recheck when either page changes the single-segment rule or the nesting depth.
+- **A slot with its own image is placed on its site's plan.** A `DOCKER|` slot places as
+  `<site>/<slot>` on the site's App Service plan, naming it by its full resource name, whether it is
+  nested in the site or names it with a Bicep `parent`. **Pointer**: when deciding how a child's full
+  name is written, or where a slot runs, fetch
+  [Bicep child resource name and type](https://learn.microsoft.com/azure/azure-resource-manager/bicep/child-resource-name-type),
+  [ARM child resource name and type](https://learn.microsoft.com/azure/azure-resource-manager/templates/child-resource-name-type)
+  and [App Service plans](https://learn.microsoft.com/azure/app-service/overview-hosting-plans)
+  live. **As of**: 2026-10-04. **Recheck trigger**: a read of any of those pages diverges from the
+  placement above.
 - **Terraform values are resolved, never evaluated.** `var.X` resolves from a module call argument,
   then the root's tfvars files, then the variable `default`, and `${var.X}` inside a string the
   same way. A variable declared `sensitive = true`, or named for a credential, is redacted wherever
@@ -425,9 +444,18 @@ hand-written; the publish destination comes from the `medium` cascade key. Proce
   ECS task definition with no `container_definitions` places one container, its image
   `unresolved:container_definitions`. A resource with an empty body (`resource "aws_s3_bucket" "b" {}`)
   is placed or listed as unmapped like any other. A `.tf.json` block type or label written as an
-  array of objects (`"resource": [{...}]`) reads like the object form. A second `aws_ecs_service`
-  on a task definition another service already runs is listed as unmapped; the containers are
-  placed once, on the first service's cluster.
+  array of objects (`"resource": [{...}]`) reads like the object form.
+- **One task definition, several services.** Each service that runs a shared task definition places
+  the task definition's containers on its own cluster with its own desired count, named
+  `<container>@<service>`. The `@` separates the two parts, and a label prints it as `(at)`, like
+  any other. **Pointer**: when deciding whether the cluster and the count belong to the service, or
+  whether `@` can appear in a container or service name, fetch
+  [task definitions](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definitions.html),
+  [services](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_services.html),
+  [`name`](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_ContainerDefinition.html#ECS-Type-ContainerDefinition-name)
+  and [`serviceName`](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_CreateService.html#ECS-CreateService-request-serviceName)
+  live. **As of**: 2026-10-04. **Recheck trigger**: a read of any of those sections diverges from
+  the placement above.
 - **Helm reached through IaC is still Helm.** Claim: the Terraform Helm provider declares a release
   as `resource "helm_release"`, and the Pulumi Kubernetes provider as the type
   `kubernetes:helm.sh/v3:Release`. Basis:

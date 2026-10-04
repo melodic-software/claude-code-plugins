@@ -1031,7 +1031,8 @@ if [[ -n "$containers_file" ]]; then
   while IFS= read -r cname || [[ -n "$cname" ]]; do
     [[ -n "$cname" ]] || continue
     placed="no"
-    if grep -F -q "\"container\":\"$(json_escape "$cname")\"" "$PLACES"; then
+    # An ECS container that two or more services run is placed as <name>@<service>.
+    if grep -F -q -e "\"container\":\"$(json_escape "$cname")\"" -e "\"container\":\"$(json_escape "$cname")@" "$PLACES"; then
       placed="yes"
     fi
     printf '{"catalog":"%s","placed":"%s"}\n' "$(json_escape "$cname")" "$placed" >>"$CATALOG"

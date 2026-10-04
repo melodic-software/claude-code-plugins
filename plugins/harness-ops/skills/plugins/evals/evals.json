@@ -54,13 +54,13 @@
     {
       "id": 5,
       "name": "divergence-report-collapses-bulk-names-conflicts",
-      "prompt": "Audit my plugins — I have 29 plugins with an actionable version divergence between project and user scope, plus 2 more that are multi-scope but pinned to the identical version, and one plugin id that fleet-state.sh reports under unknown/orphaned (present in enabledPlugins but no matching catalog entry).",
-      "expected_output": "The report's Divergences line collapses the 29 actionable (version-behind) entries into one bulk count and names `/harness-ops:plugins converge` as the fix — it does NOT list all 29 individually, and it does NOT count the 2 same-version multi-scope installs as actionable (versionsMatch: true is benign). The one unknown/orphaned plugin id gets its own per-row detail line under Action needed as a genuine conflict, distinct from the bulk divergence count.",
+      "prompt": "Audit my plugins — I have 29 plugins with an actionable version divergence between project and user scope, plus 2 more that are multi-scope but pinned to the identical version, and one plugin id that fleet-state.sh reports under delisted_settings_only (true in enabledPlugins, no install record, and no matching catalog entry).",
+      "expected_output": "The report's Divergences line collapses the 29 actionable (version-behind) entries into one bulk count and names `/harness-ops:plugins converge` as the fix — it does NOT list all 29 individually, and it does NOT count the 2 same-version multi-scope installs as actionable (versionsMatch: true is benign). The one delisted_settings_only plugin id gets its own per-row detail line under Action needed as a genuine conflict, distinct from the bulk divergence count.",
       "files": [],
       "expectations": [
         "The 29 actionable divergences are collapsed into a single bulk-count line, not enumerated one by one",
         "The 2 same-version (versionsMatch: true) multi-scope installs are excluded from the actionable divergence count",
-        "The unknown/orphaned plugin id gets an individual per-row detail line under Action needed, separate from the bulk divergence line",
+        "The delisted_settings_only plugin id gets an individual per-row detail line under Action needed, separate from the bulk divergence line",
         "The response never claims to detect or report an enable-state mismatch (true in one scope, false in another) — fleet-state.sh only exposes the merged effective value, not each scope's raw enabledPlugins map"
       ]
     },
@@ -160,8 +160,8 @@
     {
       "id": 13,
       "name": "rendered-report-is-pasted-not-restated",
-      "prompt": "/harness-ops:plugins audit: sync-run.sh --audit --render printed the digest line and then the rendered report, whose rows read `Would update: 3 plugin(s)` with three `would run: claude plugin update … -s user` lines, `Would withhold: 1 downgrade(s)` naming gamma@market1 0.5.0 → 0.1.0, `Divergences: 2 behind here → run /harness-ops:plugins converge; 5 more elsewhere on this machine (…)`, and a `Timing:` row.",
-      "expected_output": "The response pastes the rendered report as printed and appends exactly one line of its own: the reload guidance, stated as the docs' two-step (run /reload-plugins; if it warns that the next message would re-read the conversation, run /reload-plugins --force). It does not retype, paraphrase, or recompute any count, id, scope, or version the render already carries (the 3, the 1, gamma's versions, the 2 and 5 of the Divergences split), does not add rows the render omitted, and does not compute its own Divergences split from the digest. It also does not add a monitor call-out of its own: that bullet is the render's, under Action needed, when the digest's updated_with_monitors is non-empty.",
+      "prompt": "/harness-ops:plugins audit: sync-run.sh --audit --render printed the digest line and then the rendered report, whose rows read `Would update: 3 plugin(s)` with three `would run: claude plugin update … -s user` lines, `Would withhold: 1 downgrade(s)` naming gamma@market1 0.5.0 → 0.1.0, `Divergences: 2 behind here → run /harness-ops:plugins converge; on this whole machine 7 actionable: …`, and a `Timing:` row.",
+      "expected_output": "The response pastes the rendered report as printed and appends exactly one line of its own: the reload guidance, stated as the docs' two-step (run /reload-plugins; if it warns that the next message would re-read the conversation, run /reload-plugins --force). It does not retype, paraphrase, or recompute any count, id, scope, or version the render already carries (the 3, the 1, gamma's versions, the 2 and 7 of the Divergences line), does not add rows the render omitted, and does not compute its own Divergences split from the digest. It also does not add a monitor call-out of its own: that bullet is the render's, under Action needed, when the digest's updated_with_monitors is non-empty.",
       "files": [],
       "expectations": [
         "The response reproduces the rendered report verbatim rather than summarizing it in its own words",

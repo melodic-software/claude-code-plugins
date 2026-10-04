@@ -116,12 +116,65 @@ assert_contains "an AGENTS.md with no CLAUDE.md" "$OUT" "DIR	agentsonly	agents-o
 assert_contains "both carrying content" "$OUT" "DIR	both	both-with-content"
 assert_contains "two empty files" "$OUT" "DIR	empty	zero-byte"
 
+# A bare import over an empty or missing AGENTS.md holds nothing to split, so it
+# is not content-in-claude. A comment above the import is still content, and so
+# is any import that is not exactly `@AGENTS.md`: Apply does nothing for
+# shim-empty-target, so a noncanonical form must stay in the state that rewrites it.
+mkdir -p "$REPO/shimempty" "$REPO/shimmissing" "$REPO/commentempty" "$REPO/shimnonl" \
+  "$REPO/dotslash" "$REPO/twice" "$REPO/crlf"
+printf '@AGENTS.md' >"$REPO/shimnonl/CLAUDE.md"
+printf '@./AGENTS.md\n' >"$REPO/dotslash/CLAUDE.md"
+printf '@AGENTS.md\n@AGENTS.md\n' >"$REPO/twice/CLAUDE.md"
+printf '@AGENTS.md\r\n' >"$REPO/crlf/CLAUDE.md"
+printf '@AGENTS.md\n' >"$REPO/shimempty/CLAUDE.md"
+printf '' >"$REPO/shimempty/AGENTS.md"
+printf '@AGENTS.md\n' >"$REPO/shimmissing/CLAUDE.md"
+printf '<!-- note -->\n@AGENTS.md\n' >"$REPO/commentempty/CLAUDE.md"
+printf '' >"$REPO/commentempty/AGENTS.md"
+commit_all "$REPO" "shims over an empty or missing AGENTS.md"
+OUT=$(bash "$SCRIPT" --root "$REPO" --home "$TMP/nohome")
+assert_contains "a shim over a zero-byte AGENTS.md is its own state" "$OUT" "DIR	shimempty	shim-empty-target	11	0"
+assert_contains "a shim over a missing AGENTS.md is too" "$OUT" "DIR	shimmissing	shim-empty-target	11	0"
+assert_not_contains "and neither is content-in-claude" "$OUT" "DIR	shimempty	content-in-claude"
+assert_contains "a commented import over an empty AGENTS.md still has a note to move" "$OUT" "DIR	commentempty	content-in-claude"
+assert_contains "a canonical import without a trailing newline is shim-empty-target" "$OUT" "DIR	shimnonl	shim-empty-target	10	0"
+assert_contains "@./AGENTS.md over an empty AGENTS.md is rewritten, not done" "$OUT" "DIR	dotslash	content-in-claude"
+assert_not_contains "and is not shim-empty-target" "$OUT" "DIR	dotslash	shim-empty-target"
+assert_contains "a repeated import over an empty AGENTS.md is content-in-claude" "$OUT" "DIR	twice	content-in-claude"
+assert_contains "a CRLF import over an empty AGENTS.md is content-in-claude" "$OUT" "DIR	crlf	content-in-claude"
+assert_contains "a shim with a non-empty AGENTS.md is unchanged" "$OUT" "DIR	shimmed	shim	"
+
 # An HTML-comment note above the import does not stop it being a shim: the
 # comment is content the target shape removes, not a different load state.
 printf '<!-- see AGENTS.md -->\n@AGENTS.md\n' >"$REPO/shimmed/CLAUDE.md"
 commit_all "$REPO" "comment above the import"
 OUT=$(bash "$SCRIPT" --root "$REPO" --home "$TMP/nohome")
 assert_contains "a comment above the import is still a shim" "$OUT" "DIR	shimmed	shim"
+
+# Over a non-empty AGENTS.md, only a byte-exact `@AGENTS.md` is the finished
+# shape: remove-shims.sh takes `shim` as done, so an import that merely loads the
+# same way must be reported as the state Apply rewrites.
+CANON="$TMP/canonical"
+make_repo "$CANON"
+mkdir -p "$CANON/dotslash" "$CANON/crlf" "$CANON/padded" "$CANON/nonl" "$CANON/nl"
+printf '# Root\n' >"$CANON/AGENTS.md"
+printf '@AGENTS.md\n' >"$CANON/CLAUDE.md"
+for d in dotslash crlf padded nonl nl; do printf '# %s\n' "$d" >"$CANON/$d/AGENTS.md"; done
+printf '@./AGENTS.md\n' >"$CANON/dotslash/CLAUDE.md"
+printf '@AGENTS.md\r\n' >"$CANON/crlf/CLAUDE.md"
+printf '\n  @AGENTS.md  \n\n' >"$CANON/padded/CLAUDE.md"
+printf '@AGENTS.md' >"$CANON/nonl/CLAUDE.md"
+printf '@AGENTS.md\n' >"$CANON/nl/CLAUDE.md"
+commit_all "$CANON" "canonical and noncanonical shims over a non-empty AGENTS.md"
+OUT=$(bash "$SCRIPT" --root "$CANON" --home "$TMP/nohome")
+assert_contains "@./AGENTS.md over a non-empty AGENTS.md is shim-noncanonical" "$OUT" "DIR	dotslash	shim-noncanonical	13	"
+assert_not_contains "and is not the finished shim" "$OUT" "DIR	dotslash	shim	"
+assert_contains "a CRLF import over a non-empty AGENTS.md is shim-noncanonical" "$OUT" "DIR	crlf	shim-noncanonical	12	"
+assert_not_contains "and is not the finished shim" "$OUT" "DIR	crlf	shim	"
+assert_contains "blank lines and whitespace around the import are shim-noncanonical" "$OUT" "DIR	padded	shim-noncanonical	"
+assert_contains "the canonical import without a trailing newline is shim" "$OUT" "DIR	nonl	shim	10	"
+assert_contains "the canonical import with its trailing newline is shim" "$OUT" "DIR	nl	shim	11	"
+assert_contains "the canonical root import is shim" "$OUT" "DIR	.	shim	11	"
 
 # --- Case 3: other tools' directories are never reported ---
 

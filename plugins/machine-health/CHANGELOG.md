@@ -3,6 +3,25 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.1] - 2026-10-04
+
+### Fixed
+
+- **`claude-temp-root` walk streams each directory instead of listing it whole first ([#6036](https://github.com/melodic-software/claude-code-plugins/issues/6036)).**
+  The walk read each directory to the end with `Get-ChildItem` before its per-entry budget test ran, so one directory with hundreds of thousands of entries, or on a slow share, held it past the 60-second budget toward the orchestrator's 90-second kill.
+  Every level of the walk is now streamed and tested per entry, the same way the 0.16.0 task-output listing is.
+  What the walk counts is unchanged: hidden and system files, reparse points skipped below the session level, and unreadable paths counted and reported as `UNKNOWN`.
+  On a walk cut off by the budget, `detail.project_key_count` now counts only the project keys reached, so it is a floor like the other partial figures.
+
+## [0.16.0] - 2026-10-04
+
+### Added
+
+- **`claude-temp-root` names runaway background-task output files ([#6036](https://github.com/melodic-software/claude-code-plugins/issues/6036)).**
+  Before its walk, the check lists `<root>/<project-key>/<session-id>/tasks/*.output` from metadata alone and reports the five largest in `detail.largest_task_outputs`.
+  One output of 1 GB or more is now a `WARN` whose summary names the file and counts every other output over the threshold (`detail.task_output_over_count`). When the walk runs out of budget, the result stays `UNKNOWN` but the list and the named file still ship.
+  The listing streams each directory and tests its 20-second cap per entry, so one huge `tasks` directory cannot hold it past the cap. A listing cut off at the cap is `UNKNOWN` even when the walk completes, because the outputs it never reached could be over the threshold.
+
 ## [0.15.2] - 2026-10-03
 
 ### Changed

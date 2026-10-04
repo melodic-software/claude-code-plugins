@@ -43,6 +43,7 @@ def record(session_id: str, **values) -> dict:
         "subagents": {"count": v["subagents.count"]},
         "stop_hooks": {"ms_p90": v["hooks.stop_ms"]},
         "census": v.get("census", {}),
+        **({"entrypoints": v["entrypoints"]} if "entrypoints" in v else {}),
     }
 
 
@@ -113,8 +114,8 @@ def test_finding_names_outlier_sessions_worst_first(data_dir):
     write_store(
         data_dir,
         record("calm", **{"human.turns": 14}),
-        record("busy", **{"human.turns": 15, "tools.interrupts": 1}),
-        record("worst", **{"human.turns": 40, "tools.interrupts": 2}),
+        record("busy", **{"human.turns": 15, "tools.interrupts": 2}),
+        record("worst", **{"human.turns": 40, "tools.interrupts": 3}),
     )
     env = envelope(sweep(data_dir))
     turns = findings_by_metric(env)["human.turns"]
@@ -125,6 +126,57 @@ def test_finding_names_outlier_sessions_worst_first(data_dir):
     assert turns["route"] == "retro-codify" and turns["confidence"] == "heuristic"
     assert turns["basis"] == "sweep-rules.json:human.turns" and turns["degraded"] is False
     assert findings_by_metric(env)["tools.interrupts"]["evidence"] == [{"session_id": "worst"}, {"session_id": "busy"}]
+
+
+def test_one_interrupt_is_not_a_finding_and_two_are(data_dir):
+    write_store(data_dir, record("one", **{"tools.interrupts": 1}))
+    assert "tools.interrupts" not in findings_by_metric(envelope(sweep(data_dir)))
+    write_store(data_dir, record("two", **{"tools.interrupts": 2}))
+    finding = findings_by_metric(envelope(sweep(data_dir)))["tools.interrupts"]
+    assert finding["evidence"] == [{"session_id": "two"}] and finding["threshold"] == 1
+
+
+def test_automated_sessions_are_set_aside_from_medians_and_findings(data_dir):
+    write_store(
+        data_dir,
+        record("cli", entrypoints=["cli"], **{"tokens.main": 10, "human.turns": 3}),
+        record("headless", entrypoints=["sdk-cli"], **{"tokens.main": 10**7, "tools.interrupts": 5}),
+    )
+    result = sweep(data_dir)
+    assert result.returncode == 0, result.stdout + result.stderr
+    env = envelope(result)
+    data = env["data"]
+    assert data["metrics"]["tokens.main"] == {"value": 10, "unit": "tokens", "n": 1}
+    assert data["metrics"]["human.turns"]["value"] == 3
+    assert data["findings"] == []
+    assert (data["window"]["sessions"], data["window"]["automated_set_aside"]) == (1, 1)
+    assert "1 automated set aside" in env["summary"]
+    md = sweep(data_dir, "--format", "md").stdout
+    assert "Sessions: 1 (start to now)" in md and "1 automated session set aside" in md
+
+
+def test_session_class_reads_every_entrypoint_and_keeps_unknowns(data_dir):
+    write_store(
+        data_dir,
+        record("no-field", **{"tokens.main": 1}),
+        record("unknown", entrypoints=["unknown"], **{"tokens.main": 2}),
+        record("resumed-in-desktop", entrypoints=["claude-desktop", "sdk-cli"], **{"tokens.main": 3}),
+        record("agent-sdk", entrypoints=["sdk-py", "sdk-ts"], **{"tokens.main": 10**7}),
+    )
+    data = envelope(sweep(data_dir))["data"]
+    assert data["metrics"]["tokens.main"]["n"] == 3
+    window = data["window"]
+    assert (window["sessions"], window["automated_set_aside"], window["unclassified"]) == (3, 1, 2)
+    md = sweep(data_dir, "--format", "md").stdout
+    assert "2 sessions without an entrypoint kept" in md
+
+
+def test_drift_still_reads_automated_sessions(data_dir):
+    headless = record("headless", entrypoints=["sdk-cli"])
+    headless["unknown"] = {"record_types": {"relocated": 1}}
+    write_store(data_dir, record("cli", entrypoints=["cli"]), headless)
+    data = envelope(sweep(data_dir))["data"]
+    assert data["drift"]["counts"]["unknown-record-type"] == 1
 
 
 def test_impact_sums_excess_over_threshold_in_its_unit(data_dir):
@@ -155,7 +207,7 @@ def test_metrics_without_a_canary_are_listed_unchecked(data_dir):
 
 
 def test_suggested_skill_absent_from_catalog_renders_not_installed(data_dir):
-    write_store(data_dir, record("s1", **{"tools.interrupts": 1, "tokens.sub": 10**6}))
+    write_store(data_dir, record("s1", **{"tools.interrupts": 2, "tokens.sub": 10**6}))
     plain = findings_by_metric(envelope(sweep(data_dir)))
     assert plain["tokens.sub"]["suggested_skill"] == "/harness-ops:observability"
     env = envelope(sweep(data_dir, "--catalog", "session-flow:retro"))
@@ -169,7 +221,7 @@ def test_suggested_skill_absent_from_catalog_renders_not_installed(data_dir):
 
 
 def test_catalog_entries_match_with_or_without_leading_slash(data_dir):
-    write_store(data_dir, record("s1", **{"tools.interrupts": 1}))
+    write_store(data_dir, record("s1", **{"tools.interrupts": 2}))
     found = findings_by_metric(envelope(sweep(data_dir, "--catalog", "/session-flow:retro")))
     assert found["tools.interrupts"]["suggested_skill"] == "/session-flow:retro"
 
@@ -242,7 +294,7 @@ def test_md_renders_metrics_and_findings_from_the_same_data(data_dir):
 
 
 def test_md_names_each_findings_sessions_worst_first(data_dir):
-    write_store(data_dir, record("s-low", **{"tools.interrupts": 1}), record("s-high", **{"tools.interrupts": 3}), record("s-none"))
+    write_store(data_dir, record("s-low", **{"tools.interrupts": 2}), record("s-high", **{"tools.interrupts": 3}), record("s-none"))
     findings = sweep(data_dir, "--format", "md").stdout.split("## Findings", 1)[1].split("## Drift", 1)[0]
     line = next(row for row in findings.splitlines() if row.startswith("- `tools.interrupts`"))
     assert line.index("s-high") < line.index("s-low") and "s-none" not in line
@@ -273,8 +325,8 @@ def test_write_report_writes_a_pair_appends_history_and_keeps_20(data_dir):
 def test_scope_project_filters_on_identity_and_keys_reports(data_dir):
     write_store(
         data_dir,
-        record("mine", **{"identity": "github.com/o/r", "tools.interrupts": 1}),
-        record("theirs", **{"identity": "github.com/o/other", "tools.interrupts": 1}),
+        record("mine", **{"identity": "github.com/o/r", "tools.interrupts": 2}),
+        record("theirs", **{"identity": "github.com/o/other", "tools.interrupts": 2}),
     )
     result = sweep(data_dir, "--scope", "project", "--state-key", "github.com/o/r/abcd1234", "--write-report")
     assert result.returncode == 0, result.stdout + result.stderr

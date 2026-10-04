@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.7.1] - 2026-10-04
+## [3.7.4] - 2026-10-04
 
 ### Fixed
 
@@ -11,6 +11,24 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   row now points at the mods overview's built-in roster as a cross-check and keeps the binary read
   as the source, because the binary registers built-ins the roster omits; the row's recheck trigger
   and as-of date moved to 2.1.288.
+
+## [3.7.3] - 2026-10-04
+
+### Fixed
+
+- **`/harness-ops:plugins` sync report rows say what their numbers cover, and its timings account for the run up to the digest.** The `Divergences:` split now follows the total it sums to (`67 actionable: 24 pre-existing, 43 newly created by this run (…)`); with a project root the line leads with this repo's count and gives the machine-wide split under `on this whole machine`, instead of trailing a run-wide split after the "more elsewhere" remainder it did not add up to. Each marketplace's `timings` gains `pre_install_read` (the Steps 4-5 gate read), `finalize` (version capture, the divergence and regression diffs, and the monitor count, which used to run after the block's clock stopped), and `unattributed`, so the steps and the remainder sum to the block's `total`; on the default-marketplace path the block's window opens at the resolving read, so its `pre_refresh_read` is inside the total. The run's `timings` gains `outside_marketplaces`, the part of `total` no marketplace block's window covers (run setup and each block's assembly into the digest); `total` stops before the digest is assembled, since a digest cannot time its own assembly without a second `jq` process, so it leaves out that assembly, the render and the print. Both `Timing:` rows render the remainder, and the run row reads `run total` rather than `whole invocation`. `catalog_last_updated` is read after Step 1's refresh, on the first pass and on an `--only-install` re-entry, rather than from the pre-refresh snapshot. The cache-content check is asked for user scope explicitly, the digest carries `cache_content.scope` in place of the always-zero `skipped_absent_project_paths`, and the rendered row counts `user-scope install(s)`. `SKILL.md` no longer asks for an audit concurrency caveat the render never prints, the Steps 4-5 spoke gate is stated in digest fields (`install_gap`, `enable_gap`, `install_enable_deferred`) with the obsolete snapshot-gate rationale dropped, and the spoke says its command blocks describe what `sync-run.sh` runs. The audit report's first line (`every call sync would make is a prediction`), `SKILL.md` and the render's header comment now state that the `would run:` prefix marks calls `sync` would make, so a remedy `sync` never runs (the `git -C … pull --ff-only`, a project-scope enable) is unprefixed in both modes, and `sync.md`'s self-update paragraph points at the loading docs instead of quoting them ([#6056](https://github.com/melodic-software/claude-code-plugins/issues/6056)).
+
+## [3.7.2] - 2026-10-04
+
+### Fixed
+
+- The inventory parser accepts an inherited `CLAUDE_PLUGIN_DATA` only when the last path segment is `harness-ops` or starts with `harness-ops-`. A lookalike such as `harness-opsx-foo` is ignored, so an install does not land in another directory that merely shares the prefix ([#6072](https://github.com/melodic-software/claude-code-plugins/issues/6072)).
+
+## [3.7.1] - 2026-10-04
+
+### Fixed
+
+- **`/harness-ops:plugins` sync reports the CLI's own failure line, a default-disabled install, and a plugin the catalog no longer names.** A failed update or marketplace refresh classifies the outcome line from the untruncated CLI output, so a progress line is not the reason under Action needed. An install the CLI reports as disabled by default is named as installed but not enabled, with the enable command. A user-scope install absent from the catalog's names is delisted, withheld from the user-scope sweep, and given an uninstall remedy. An effective `true` `enabledPlugins` key with no install record and no catalog entry is named separately with a settings remedy, since there is nothing to uninstall, and a `false` key with no install is not reported. In `audit` both rows are labeled predictions and carry no command. A catalog whose `plugins` array is empty is not treated as a delisting. A project- or local-scope install in the current repo that the catalog no longer names is withheld from the in-repo sweep and named with its runnable uninstall command, and no delisted install at any scope is enabled by Step 5. An install that exited nonzero is never named as installed but not enabled, and the report's fallback outcome line skips blank lines as the capture-time classifier does. Monitor counts read the nested `experimental.monitors` value or a top-level `monitors` value, and `monitors/monitors.json` only when neither key is present; the monitors bullet still asks for a session restart. On an `ask` re-entry the cache-content check runs after the installs when the first pass stopped before them. Version comparison reads every segment in base 10. The install-enable note no longer says an uninstall keeps the `false` entry; `context/gotchas.md` records the probe.
 
 ## [3.7.0] - 2026-10-04
 

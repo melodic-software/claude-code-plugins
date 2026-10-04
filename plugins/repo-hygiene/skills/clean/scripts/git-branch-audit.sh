@@ -143,6 +143,8 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/clean-common.sh source=lib/cleanup-paths.sh
 source "$SCRIPT_DIR/lib/clean-common.sh"
+# shellcheck source=lib/git-noninteractive.sh
+source "$SCRIPT_DIR/lib/git-noninteractive.sh"
 # shellcheck source=lib/batch-common.sh
 source "$SCRIPT_DIR/lib/batch-common.sh"
 
@@ -359,8 +361,8 @@ CURRENT_BRANCH="$(git -C "$REPO_ROOT" branch --show-current 2>/dev/null | tr -d 
 remote_audit() {
   local heads tip ref name tier reason pr_line ahead_line raw rows pick pr oid n origin_url
   local prot=0 merged=0 drift=0 nomerge=0 unknown=0 why=""
-  if ! heads="$(GIT_TERMINAL_PROMPT=0 git -C "$REPO_ROOT" ls-remote --heads origin 2>/dev/null </dev/null)"; then
-    printf 'RemoteError: git ls-remote --heads origin failed (no origin remote, unreachable, or unauthenticated)\n'
+  if ! heads="$(clean_git_noninteractive -C "$REPO_ROOT" ls-remote --heads origin 2>/dev/null)"; then
+    printf 'RemoteError: git ls-remote --heads origin failed (remote unreachable)\n'
     return
   fi
   heads="${heads//$'\r'/}"
@@ -609,7 +611,7 @@ remote_families_report() {
   printf 'RemoteSummary: branches=%s candidate=%s keep=%s keep-unique=%s keep-undetermined=%s no-rule=%s\n' \
     "$n_total" "$n_cand" "$n_keep" "$n_unique" "$n_unknown" "$n_na"
   printf 'Families: agent=%s claude=%s plan=%s stranded=%s pre-wipe=%s none=%s\n' \
-    "${n_fam[agent]:-0}" "${n_fam[claude]:-0}" "${n_fam[plan]:-0}" "${n_fam[stranded]:-0}" "${n_fam[pre-wipe]:-0}" "${n_fam[none]:-0}"
+    "${n_fam[agent]:-0}" "${n_fam[claude]:-0}" "${n_fam[plan]:-0}" "${n_fam[stranded]:-0}" "${n_fam["pre-wipe"]:-0}" "${n_fam[none]:-0}"
 }
 [[ $REMOTE_FAMILIES -eq 1 ]] && {
   remote_families_report

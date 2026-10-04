@@ -1,12 +1,15 @@
 # Sync Steps 4 and 5: install and enable
 
-Read this file only when the **fresh pre-Step-4 `fleet-state.sh` re-read** for the marketplace being
-swept, the live read [sync.md](sync.md)'s "Steps 4 and 5" section takes and saves as
-`$run_dir/pre-install.$mp.json`, has a non-empty `missing_from_user_install` **or** a non-empty
-`missing_from_enabled`, or when Step 1's refresh failed for that marketplace and the report has to
-name what these two steps deferred. On an already-current fleet both arrays are empty, both steps
-are no-ops, and none of this is reachable. The gate deliberately keys on that re-read rather than
-Step 1's older report, because state can change between the two; see sync.md for why.
+Read this file only when a digest block has a non-empty `install_gap` **or** a non-empty
+`enable_gap`, or `install_enable_deferred: true` because Step 1's refresh failed for that
+marketplace and the report names what these two steps deferred. `sync-run.sh` fills both gaps from
+the fresh pre-Step-4 re-read it saves as `pre-install.<mp>.json`, never from Step 1's older report.
+On an already-current fleet both gaps are empty, both steps are no-ops, and none of this is
+reachable.
+
+`sync-run.sh` runs these steps. The command blocks below describe what it runs, so a reader can
+check a digest row against the call behind it; they are not steps for the model to run. The one
+part the model runs is the `ask` prompt under Step 4.
 
 The steps below are the loop body of [sync.md](sync.md) Steps 2–5, run once per marketplace, and
 every rule that file states applies here unchanged: CLI-mediated mutation only, the per-marketplace
@@ -89,6 +92,19 @@ remedy rather than leaving it in the scrollback. The whole output also lands in 
 per [sync.md](sync.md)'s "Run journal" section: this is a mutating call, and its output is the only
 record of what it said.
 
+**An install the CLI reports as disabled by default is installed and not loading.** `sync-run.sh`
+classifies that notice from the untruncated CLI output into the digest's `installed_disabled[]`,
+and the render says the plugin is installed but not enabled and gives `claude plugin enable <id>
+-s user`. The classification keys off the CLI's line, never the catalog's `defaultEnabled`: we
+observed the two disagree for one plugin.
+
+- **Pointer**: when the notice's wording or the `enabledPlugins` entry such an install leaves is in
+  question, read the probe in [gotchas.md](gotchas.md#a-disabled-by-default-install-writes-false-and-only-an-install-record-can-be-uninstalled)
+  and rerun it; no docs page states that entry as of 2026-10-04.
+- **As of**: 2026-10-04 (Claude Code 2.1.289)
+- **Recheck trigger**: a disabled-by-default install stops printing the notice `sync-run.sh`
+  matches, or a docs page starts to state what such an install writes to `enabledPlugins`.
+
 ### After any install: normalize user-scope `enabledPlugins` key order
 
 Claude Code's settings writer appends each new `enabledPlugins` key at the end of the map rather
@@ -164,12 +180,16 @@ still says `defaultEnabled` decides it and defaults to `true`
 trigger: a Claude Code release that changes `claude plugin list`'s `enabled` answer for an unlisted
 plugin, or either doc section changing. The excluded field is a publisher's deliberate opt-in-required default (the marketplace
 entry's value overrides the plugin's own `plugin.json` field, per
-[metadata precedence](https://code.claude.com/docs/en/plugins-reference#metadata-precedence));
-no explicit `enabledPlugins` entry for one of those ids is the *intended* state, not a completeness
-gap. Never run `enable` for it. This only catches the
+[metadata precedence](https://code.claude.com/docs/en/plugins-reference#metadata-precedence)).
+Whatever entry the install leaves for that id, none or an explicit `false` (the probe Step 4's
+disabled-install record points at), the id is off by the publisher's choice, not a
+completeness gap, and `missing_from_enabled` excludes it either way. Never run `enable` for it. This only catches the
 default recorded in the marketplace entry; a plugin whose `defaultEnabled: false` lives only in its
 own `plugin.json`, with no mirrored marketplace-entry override, is a known residual gap (`fleet-state.sh`
 reads the marketplace's catalog file, never each installed plugin's own manifest).
+`missing_from_enabled` also excludes every installed id the catalog's names no longer carry (the
+delisted installs in [sync.md](sync.md)): the report tells the user to uninstall those, so enabling
+one would contradict it.
 
 Consider each remaining id in each *verifiable* scope where it has an install record (from
 `installed[]`) but no raw entry in that scope's own `enabledPlugins` map: **`user` scope, or

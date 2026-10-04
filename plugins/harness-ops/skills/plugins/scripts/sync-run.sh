@@ -47,14 +47,16 @@
 # space-separated list of fully-qualified `<name>@<marketplace>` ids to install
 # (empty is legal and means install nothing), against the run directory the first
 # invocation reported. It runs Step 4, the normalizer, Step 5, and the post re-read,
-# reuses the cache-content report the first invocation already wrote, and re-emits
-# the full digest. The cache checker therefore runs exactly ONCE per marketplace
-# across both invocations.
+# and re-emits the full digest. When the first pass stopped before install it
+# skipped Step 5b, and this re-entry runs that check after the installs land.
+# When the first pass already ran Step 5b, the re-entry reuses that report. The
+# cache checker therefore runs exactly ONCE per marketplace across both
+# invocations, on the pass that follows the installs.
 #
 # Output (stdout): one compact JSON object, also written to `<run_dir>/digest.json`,
 # followed under `--render` by a blank line and the rendered report.
 #   {run_dir, cwd, mode, allow_downgrade, install_new, install_new_invalid,
-#    timings:{total,resolution}, marketplaces:[…], errors:[…]}
+#    timings:{total,outside_marketplaces,resolution}, marketplaces:[…], errors:[…]}
 #   Each marketplace block: {name, timings, catalog_last_updated, catalog_source,
 #    source_checkout, auto_update, refresh:{rc,output,predicted}, project_root,
 #    in_repo:{updated,failed,would_update},
@@ -63,15 +65,29 @@
 #    install_enable_deferred, stopped_before_install, enable_gap, enabled,
 #    project_enable_rows, normalize, cache_content, catalog_regression,
 #    divergences, divergences_here, in_repo_records, in_repo_ids,
-#    stale_project_records, user_scope_orphans, self_updated,
+#    stale_project_records, user_scope_orphans, installed_disabled, delisted,
+#    delisted_project, delisted_settings_only, self_updated,
 #    updated_with_monitors, errors}
 #   `installed_with_unset_user_config[]` is `{id, options_unset, required}` for
 #   each install this run performed whose CLI output named userConfig options
-#   the user has not set; `updated_with_monitors[]` is `{id, scope, monitors}`
-#   for each plugin this run moved whose installed manifest declares a monitor.
+#   the user has not set. `installed_disabled[]` is the ids whose install exited
+#   0 and whose output said the plugin is disabled by default, classified before
+#   the 400-character truncation. `delisted[]` is the user-scope installs the
+#   catalog's names no longer carry, `delisted_project[]` the `{id, scope}` of
+#   each install in the repo the run stands in that those names no longer carry,
+#   and `delisted_settings_only[]` the effective `true` enabledPlugins keys at
+#   this marketplace with no install record that the names no longer carry; a
+#   catalog with an empty plugins array produces none of the three.
+#   `updated_with_monitors[]` is `{id, scope, monitors}` for each plugin this
+#   run moved whose installed manifest declares a monitor.
+#   `catalog_last_updated` is the marketplace's lastUpdated as Step 2's read saw
+#   it, after Step 1's refresh; a background refresh can move it later in the run.
+#   `timings` holds one key per step plus `unattributed`, the rest of the block's
+#   `total`, so the steps and the remainder sum to it.
 #   `in_repo_records` counts the project/local records belonging to the repo the
 #   run stands in, whether or not any of them moved; `stale_project_records` is
-#   `{total, by_path:[{path,count}]}`; `cache_content.stale[]` is
+#   `{total, by_path:[{path,count}]}`; `cache_content.scope` is `user`, the only
+#   records Step 5b compares, and `cache_content.stale[]` is
 #   `{id, version, files_differ}` per stale install. `source_checkout` is null
 #   unless the source is `directory`; then it is `{path, state, branch, upstream,
 #   ahead, behind, dirty}` with `state` one of tracking, no_upstream, detached,
@@ -96,6 +112,8 @@
 #   SYNC_RUN_CACHE_CHECK     path to cache-content-check.sh
 #   SYNC_RUN_NORMALIZE       path to normalize-enabled-plugins.sh
 #   SYNC_RUN_CLAUDE_BIN      the `claude` CLI to invoke (default: `claude` on PATH)
+#   SYNC_RUN_VERSION_DIRECTION  testing only: "old<TAB>new" prints version_direction
+#                            and exits before any fleet read
 
 # `set -e` is deliberately absent: it would abort a `{ …; } | tee` pipeline whose
 # CLI element failed before `${PIPESTATUS[0]}` is read, and that status is what
@@ -374,16 +392,19 @@ version_direction() {
   local old="$1" new="$2"
   local ore_ok=0 nre_ok=0
   local o1 o2 o3 n1 n2 n3
+  # Base 10 on every capture. A bare ((08)) is an octal error that makes the
+  # pair "unknown", and a longer leading-zero segment such as 010 is octal
+  # with no error and the wrong rank. sync.md's triple compare is decimal.
   if [[ "$old" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
-    o1=${BASH_REMATCH[1]}
-    o2=${BASH_REMATCH[2]}
-    o3=${BASH_REMATCH[3]}
+    o1=$((10#${BASH_REMATCH[1]}))
+    o2=$((10#${BASH_REMATCH[2]}))
+    o3=$((10#${BASH_REMATCH[3]}))
     ore_ok=1
   fi
   if [[ "$new" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
-    n1=${BASH_REMATCH[1]}
-    n2=${BASH_REMATCH[2]}
-    n3=${BASH_REMATCH[3]}
+    n1=$((10#${BASH_REMATCH[1]}))
+    n2=$((10#${BASH_REMATCH[2]}))
+    n3=$((10#${BASH_REMATCH[3]}))
     nre_ok=1
   fi
   if [[ "$ore_ok$nre_ok" != "11" ]]; then
@@ -402,6 +423,13 @@ version_direction() {
     if [[ "$old" == "$new" ]]; then echo "same"; else echo "unknown"; fi
   fi
 }
+
+# Testing only. "old<TAB>new" prints version_direction and exits before any
+# fleet read, so a leading-zero segment can be asserted without a catalog.
+if [[ -n "${SYNC_RUN_VERSION_DIRECTION:-}" ]]; then
+  version_direction "${SYNC_RUN_VERSION_DIRECTION%%$'\t'*}" "${SYNC_RUN_VERSION_DIRECTION#*$'\t'}"
+  exit 0
+fi
 
 # That id's version in a saved fleet-state report, at that scope. Empty when the
 # report does not carry the record.
@@ -492,6 +520,43 @@ cli_move_result() {
   *"updated from"*) printf -v "$__var" '%s' "updated" ;;
   *"already at the latest version"*) printf -v "$__var" '%s' "noop" ;;
   *) printf -v "$__var" '%s' "other" ;;
+  esac
+}
+
+# The line the report should show for a CLI call, classified from the
+# UNTRUNCATED output. The digest keeps 400 characters, and the first line that
+# is not the journal's `$ <command>` echo is often a progress line, so the
+# failure reason has to be picked before truncation. The last line is the wrong
+# fallback: it can be a userConfig note or a truncated tail. The first line
+# that starts with ✘ or contains Failed or Error wins; otherwise the first
+# non-`$` line, which is what the report used to show unconditionally.
+cli_outcome_line() {
+  local text="$1" line fallback=""
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line//$'\r'/}"
+    [[ "$line" == '$ '* ]] && continue
+    [[ -z "$line" ]] && continue
+    if [[ -z "$fallback" ]]; then
+      fallback="$line"
+    fi
+    if [[ "$line" == ✘* || "$line" == *Failed* || "$line" == *Error* ]]; then
+      printf '%s' "$line"
+      return 0
+    fi
+  done <<<"$text"
+  printf '%s' "$fallback"
+}
+
+# Whether the install's own output says the plugin was left disabled. Classified
+# from the untruncated output: install_one keeps 400 characters, and the notice
+# can sit past that. The catalog's defaultEnabled field is not the signal,
+# because the CLI's line and that field can disagree. The CLI writes an explicit
+# enabledPlugins false for this case.
+install_disabled_notice() {
+  local text="$1"
+  case "$text" in
+  *"disabled by default"* | *"Disabled by default"*) return 0 ;;
+  *) return 1 ;;
   esac
 }
 
@@ -641,12 +706,13 @@ reset_marketplace_state() {
   WITHHELD=() DOWNGRADED=() INSTALLED_ROWS=() ENABLED_ROWS=() PROJECT_ROWS=()
   INSTALL_GAP="[]" ENABLE_GAP="[]" NORMALIZE_JSON="null" CACHE_JSON="null"
   SELF_UPDATED="false" INSTALL_DEFERRED="false" STOPPED_BEFORE_INSTALL="false"
-  REFRESH_RC="null" REFRESH_OUT="" REFRESH_PREDICTED="false" REFRESH_FAILED=0
+  REFRESH_RC="null" REFRESH_OUT="" REFRESH_REASON="" REFRESH_PREDICTED="false" REFRESH_FAILED=0
   CATALOG_LAST_UPDATED="" PROJECT_ROOT_JSON="null"
   # Step stamps (start, end) for this marketplace; an empty pair is a step this
   # invocation did not run and reads `null` in the digest, never 0.
   T_PRR_S="" T_PRR_E="" T_MU_S="" T_MU_E="" T_IR_S="" T_IR_E="" T_US_S="" T_US_E=""
-  T_IE_S="" T_IE_E="" T_CC_S="" T_CC_E="" T_PR_S="" T_PR_E="" T_MP_S="" T_MP_E=""
+  T_PI_S="" T_PI_E="" T_IE_S="" T_IE_E="" T_CC_S="" T_CC_E="" T_PR_S="" T_PR_E=""
+  T_FN_S="" T_MP_S="" T_MP_E=""
   CACHE_CHECK_RAN=0
 }
 reset_marketplace_state
@@ -668,11 +734,13 @@ persist_first_pass_rows() {
     --argjson us_failed "$us_f" \
     --arg refresh_rc "$REFRESH_RC" \
     --arg refresh_out "$REFRESH_OUT" \
+    --arg refresh_reason "$REFRESH_REASON" \
     --arg refresh_predicted "$REFRESH_PREDICTED" \
     '{errors: $errors, ir_failed: $ir_failed, us_failed: $us_failed,
       refresh: {rc: (if $refresh_rc == "null" or $refresh_rc == "" then null
                      else ($refresh_rc | tonumber? // $refresh_rc) end),
                 output: $refresh_out,
+                reason: $refresh_reason,
                 predicted: ($refresh_predicted == "true")}}'
   printf '%s\n' "$persisted" >"$RUN_DIR/first-pass.$mp.json"
 }
@@ -700,6 +768,7 @@ restore_first_pass_rows() {
   # Steps 4 and 5: that flag is the first-pass defer gate, and restoring it
   # would skip the install the caller just confirmed.
   jq_to REFRESH_OUT -r '.refresh.output // ""' "$sidecar"
+  jq_to REFRESH_REASON -r '.refresh.reason // ""' "$sidecar"
   jq_to REFRESH_PREDICTED -r 'if .refresh.predicted == true then "true" else "false" end' "$sidecar"
   jq_to REFRESH_RC -r 'if .refresh.rc == null then "null" else (.refresh.rc | tostring) end' "$sidecar"
 }
@@ -731,7 +800,7 @@ run_marketplace() {
   # that updated plugins.
   ((ONLY_INSTALL_MODE == 1)) || : >"$RUN_DIR/moves.$mp.tsv"
 
-  local rc dg_rc id scope old new result row out
+  local rc dg_rc id scope old new result row out reason
 
   local pre_refresh="$RUN_DIR/pre-refresh.$mp.json"
 
@@ -750,10 +819,11 @@ run_marketplace() {
         return 0
       fi
     elif [[ "$mp" == "$MAIN_READ_MP" ]]; then
+      # That read ran before this function, so the block's window opens where it did.
       T_PRR_S="$MAIN_READ_S"
       T_PRR_E="$MAIN_READ_E"
+      T_MP_S="$MAIN_READ_S"
     fi
-    jq_to CATALOG_LAST_UPDATED -r '.marketplace.lastUpdated // ""' "$pre_refresh"
 
     if [[ "$MODE" == "audit" ]]; then
       # Predicted, not run: the step's timing stays null.
@@ -767,16 +837,17 @@ run_marketplace() {
       clock_into T_MU_E
       REFRESH_RC="$CLI_RC"
       trunc REFRESH_OUT "$CLI_OUT"
+      REFRESH_REASON=$(cli_outcome_line "$CLI_OUT")
       if ((CLI_RC != 0)); then
         REFRESH_FAILED=1
-        mp_error "marketplace refresh failed (exit $CLI_RC); catalog may be stale, install/enable maintenance deferred"
+        mp_error "marketplace refresh failed (exit $CLI_RC): ${REFRESH_REASON}; catalog may be stale, install/enable maintenance deferred"
       fi
     fi
   else
     # The re-entry reports the whole run, so the fields Steps 1-3 filled come back
     # off their saved snapshots rather than reading as absent.
-    [[ -f "$pre_refresh" ]] && jq_to CATALOG_LAST_UPDATED -r '.marketplace.lastUpdated // ""' "$pre_refresh"
     if [[ -f "$RUN_DIR/pre.$mp.json" ]]; then
+      jq_to CATALOG_LAST_UPDATED -r '.marketplace.lastUpdated // ""' "$RUN_DIR/pre.$mp.json"
       jq_to PROJECT_ROOT_JSON -c '.project_root' "$RUN_DIR/pre.$mp.json"
       [[ -n "$PROJECT_ROOT_JSON" ]] || PROJECT_ROOT_JSON="null"
     fi
@@ -801,6 +872,9 @@ run_marketplace() {
       emit_marketplace_block "$mp"
       return 0
     fi
+    # Step 1's refresh rewrites the stamp, so it is read after that refresh, never
+    # off the pre-refresh snapshot.
+    jq_to CATALOG_LAST_UPDATED -r '.marketplace.lastUpdated // ""' "$RUN_DIR/pre.$mp.json"
     jq_to PROJECT_ROOT_JSON -c '.project_root' "$RUN_DIR/pre.$mp.json"
     [[ -n "$PROJECT_ROOT_JSON" ]] || PROJECT_ROOT_JSON="null"
 
@@ -823,9 +897,11 @@ run_marketplace() {
         fi
         run_cli "claude plugin update $id -s $scope" plugin update "$id" -s "$scope"
         if ((CLI_RC != 0)); then
+          reason=$(cli_outcome_line "$CLI_OUT")
           trunc out "$CLI_OUT"
           IR_FAILED+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --argjson rc "$CLI_RC" \
-            --arg out "$out" '{id: $id, scope: $sc, rc: $rc, output: $out}')")
+            --arg out "$out" --arg reason "$reason" \
+            '{id: $id, scope: $sc, rc: $rc, output: $out, reason: $reason}')")
           continue
         fi
         cli_reported_version new "$CLI_OUT"
@@ -872,9 +948,10 @@ run_marketplace() {
         fi
         run_cli "claude plugin update $id -s user" plugin update "$id" -s user
         if ((CLI_RC != 0)); then
+          reason=$(cli_outcome_line "$CLI_OUT")
           trunc out "$CLI_OUT"
           US_FAILED+=("$(jq -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
-            '{id: $id, rc: $rc, output: $out}')")
+            --arg reason "$reason" '{id: $id, rc: $rc, output: $out, reason: $reason}')")
           continue
         fi
         cli_reported_version new "$CLI_OUT"
@@ -896,9 +973,10 @@ run_marketplace() {
         run_cli "claude plugin update $id -s $scope   # downgrade $old -> $new" \
           plugin update "$id" -s "$scope"
         if ((CLI_RC != 0)); then
+          reason=$(cli_outcome_line "$CLI_OUT")
           trunc out "$CLI_OUT"
           US_FAILED+=("$(jq -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
-            '{id: $id, rc: $rc, output: $out}')")
+            --arg reason "$reason" '{id: $id, rc: $rc, output: $out, reason: $reason}')")
           continue
         fi
         # Through the move ledger like every other mutation, so the direction
@@ -918,6 +996,9 @@ run_marketplace() {
   fi
 
   # ---- Steps 4 and 5 — install and enable, gated on the FRESH pre-install read ---
+  # Timed as its own step: it runs on every pass, while `install_enable` stays
+  # null when the gate below finds nothing to do or the `ask` policy stops.
+  clock_into T_PI_S
   fleet_read "$mp" "$RUN_DIR/pre-install.$mp.json" pre-install
   rc=$?
   if ((rc == 0)); then
@@ -940,6 +1021,7 @@ run_marketplace() {
   local gap_count enable_gap_count
   jq_to gap_count -r 'length' <<<"$INSTALL_GAP"
   jq_to enable_gap_count -r 'length' <<<"$ENABLE_GAP"
+  clock_into T_PI_E
 
   if ((REFRESH_FAILED == 1)); then
     # Step 4 derives installations from the catalog and Step 5 consults catalog
@@ -959,14 +1041,22 @@ run_marketplace() {
     clock_into T_IE_E
   fi
 
-  # ---- Step 5b — cache content check, exactly once per marketplace ---------------
-  clock_into T_CC_S
-  cache_content_block "$mp"
-  if ((CACHE_CHECK_RAN == 1)); then
-    clock_into T_CC_E
+  # ---- Step 5b — cache content check, once per marketplace, after the installs ----
+  # An `ask` pass that stopped before Step 4 has not installed the picks yet, so
+  # a check here would miss them and the re-entry would reuse that verdict. Skip
+  # it; the re-entry runs this step once the installs have landed. A pass that
+  # did not stop writes the report, and a later re-entry reuses that file.
+  if [[ "$STOPPED_BEFORE_INSTALL" == "true" ]]; then
+    :
   else
-    # The re-entry reuses the first pass's finding; the checker did not run here.
-    T_CC_S=""
+    clock_into T_CC_S
+    cache_content_block "$mp"
+    if ((CACHE_CHECK_RAN == 1)); then
+      clock_into T_CC_E
+    else
+      # The re-entry reuses the first pass's finding; the checker did not run here.
+      T_CC_S=""
+    fi
   fi
 
   # ---- post re-read, then the report inputs Step 6 reads back --------------------
@@ -974,6 +1064,7 @@ run_marketplace() {
   fleet_read "$mp" "$RUN_DIR/post.$mp.json" post
   clock_into T_PR_E
 
+  clock_into T_FN_S
   finalize_moves "$mp"
 
   local own
@@ -998,12 +1089,19 @@ run_marketplace() {
 # caller's success test, so the row shape lives in one place across both entry
 # paths below.
 install_one() {
-  local id="$1" out unset_cfg="null"
+  local id="$1" out unset_cfg="null" reason="" disabled="false"
   run_cli "claude plugin install $id -s user" plugin install "$id" -s user
+  # Classify before truncation: the digest row keeps 400 characters, and both
+  # the failure reason and the disabled-by-default notice can sit past that.
+  reason=$(cli_outcome_line "$CLI_OUT")
+  if install_disabled_notice "$CLI_OUT"; then
+    disabled="true"
+  fi
   trunc out "$CLI_OUT"
   unset_user_config_of unset_cfg "$CLI_OUT"
   INSTALLED_ROWS+=("$(jq -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
-    --argjson unset "$unset_cfg" '{id: $id, rc: $rc, output: $out, unset_user_config: $unset}')")
+    --argjson unset "$unset_cfg" --argjson disabled "$disabled" --arg reason "$reason" \
+    '{id: $id, rc: $rc, output: $out, unset_user_config: $unset, disabled_by_default: $disabled, reason: $reason}')")
 }
 
 # --- Step 4 — install new catalog plugins, per the caller's rendered policy -------
@@ -1117,7 +1215,7 @@ run_enable_step() {
 }
 
 enable_one() {
-  local id="$1" scope="$2" out
+  local id="$1" scope="$2" out reason=""
   if [[ "$MODE" == "audit" ]]; then
     predict_cli "claude plugin enable $id -s $scope"
     ENABLED_ROWS+=("$(jq -c -n --arg id "$id" --arg sc "$scope" \
@@ -1125,9 +1223,11 @@ enable_one() {
     return 0
   fi
   run_cli "claude plugin enable $id -s $scope" plugin enable "$id" -s "$scope"
+  reason=$(cli_outcome_line "$CLI_OUT")
   trunc out "$CLI_OUT"
   ENABLED_ROWS+=("$(jq -c -n --arg id "$id" --arg sc "$scope" --argjson rc "$CLI_RC" --arg out "$out" \
-    '{id: $id, scope: $sc, rc: $rc, output: $out, predicted: false}')")
+    --arg reason "$reason" \
+    '{id: $id, scope: $sc, rc: $rc, output: $out, reason: $reason, predicted: false}')")
 }
 
 # --- Step 5b — cache content check ------------------------------------------------
@@ -1140,7 +1240,7 @@ cache_content_block() {
 
   if [[ ! -f "$report" ]]; then
     CACHE_CHECK_RAN=1
-    "$CACHE_CHECK" --marketplace "$mp" >"$report" 2>"$RUN_DIR/.cc-err"
+    "$CACHE_CHECK" --marketplace "$mp" --scope user >"$report" 2>"$RUN_DIR/.cc-err"
     rc=$?
   fi
 
@@ -1148,10 +1248,11 @@ cache_content_block() {
   # names, and one file count. All three directions are summed, because the row
   # says the cache DISAGREES with the recorded sha and a file only in the tree or
   # only in the cache disagrees exactly as much as one whose bytes changed.
-  # `stale_ids` stays alongside it for readers that only need the ids.
+  # `stale_ids` stays alongside it for readers that only need the ids. `scope`
+  # names which records the counts cover: project and local records are not
+  # compared.
   if ((rc == 0)) && jq -e 'has("checked")' "$report" >/dev/null 2>&1; then
-    jq_to CACHE_JSON -c '{checked, match, stale_content, unverifiable,
-      skipped_absent_project_paths,
+    jq_to CACHE_JSON -c '{scope: (.scope // "user"), checked, match, stale_content, unverifiable,
       stale_ids: [.installs[]? | select(.verdict == "stale-content") | .id],
       stale: [.installs[]? | select(.verdict == "stale-content")
               | {id, version, files_differ: ((.differing // 0) + (.missing_from_cache // 0)
@@ -1163,7 +1264,7 @@ cache_content_block() {
   # The JSON is unusable, so the id list is projected with the checker's own `--ids`
   # form rather than left unknown.
   CACHE_CHECK_RAN=1
-  "$CACHE_CHECK" --marketplace "$mp" --ids >"$RUN_DIR/cache-stale-ids.$mp.txt" 2>>"$RUN_DIR/.cc-err"
+  "$CACHE_CHECK" --marketplace "$mp" --scope user --ids >"$RUN_DIR/cache-stale-ids.$mp.txt" 2>>"$RUN_DIR/.cc-err"
   rc=$?
   json_lines ids "$RUN_DIR/cache-stale-ids.$mp.txt"
   mp_error "cache-content JSON unusable; stale ids taken from the checker's --ids form (exit $rc)"
@@ -1172,8 +1273,8 @@ cache_content_block() {
   # tell an empty finding from a missing field.
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to CACHE_JSON -c -n --argjson ids "$ids" \
-    '{checked: null, match: null, stale_content: ($ids | length), unverifiable: null,
-      skipped_absent_project_paths: null, stale_ids: $ids,
+    '{scope: "user", checked: null, match: null, stale_content: ($ids | length), unverifiable: null,
+      stale_ids: $ids,
       stale: ($ids | map({id: ., version: null, files_differ: null})),
       source: "ids-fallback"}'
 }
@@ -1243,6 +1344,7 @@ report_extras() {
   done
   if [[ -z "$src" ]]; then
     jq_to "$__var" -c -n '{auto_update: null, catalog_source: null, user_scope_orphans: [],
+      delisted: [], delisted_project: [], delisted_settings_only: [],
       stale_project_records: {total: null, by_path: []},
       in_repo_records: null, in_repo_ids: [], divergences_here: null}'
     return 0
@@ -1261,6 +1363,9 @@ report_extras() {
     | {auto_update: .marketplace.autoUpdate,
        catalog_source: (.marketplace.source // null),
        user_scope_orphans: (.user_scope_orphans // []),
+       delisted: (.delisted // []),
+       delisted_project: (.delisted_project // []),
+       delisted_settings_only: (.delisted_settings_only // []),
        stale_project_records: {total: ($absent | length),
                                by_path: ($absent | group_by(.projectPath)
                                          | map({path: .[0].projectPath, count: length}))},
@@ -1314,40 +1419,76 @@ source_checkout() {
 }
 
 # --- monitors in the plugins this run moved ---------------------------------------
-# A plugin updated mid-session keeps running its previous version, and the
-# reload command does not cover monitors, so the report names every moved
-# plugin whose installed build declares one. The manifest is read from the
-# record's own cache directory in the post-sweep snapshot, which is the build
-# the update left in place.
-#   Claim: a plugin declares monitors either inline under the manifest's
-#     `experimental.monitors` key, as a manifest path string under that key,
-#     or in `monitors/monitors.json` at the plugin root; "monitors require a
-#     session restart".
-#   Basis: code.claude.com/docs/en/plugins-reference (Monitors).
-#   As of: 2026-09-11.
-#   Recheck: the reference renames the key, drops the directory convention, or
-#     says `/reload-plugins` picks monitors up.
+# A plugin updated mid-session keeps running its previous version's monitors
+# until the session restarts, so the report names every moved plugin whose
+# installed build declares one. The manifest is read from the record's own
+# cache directory in the post-sweep snapshot, which is the build the update
+# left in place.
+#   Claim: a plugin declares monitors under the nested experimental.monitors
+#     value or, when that key is absent, a top-level monitors value, as an
+#     inline array or a path. monitors/monitors.json counts only when neither
+#     key is present, because a present key replaces that file. An updated
+#     plugin's monitors need a session restart; /reload-plugins does not switch
+#     them.
+#   Basis: https://code.claude.com/docs/en/plugins/manifest-reference#monitors,
+#     https://code.claude.com/docs/en/plugins/manifest-reference#how-each-key-combines-with-its-default-location
+#     and https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update
+#   As of: 2026-10-04.
+#   Recheck: the reference renames either key, stops a declared key from
+#     replacing monitors/monitors.json, or the loading page stops requiring a
+#     restart for an updated plugin's monitors.
 monitor_count_at() {
   # `__mc_*` names: the caller passes its own variable name in $1, and a local
   # of the same name here would shadow it, so nothing here is called `n`.
-  local __mc_var="$1" __mc_root="$2" __mc_manifest="$2/.claude-plugin/plugin.json" __mc_n="0" __mc_spec=""
+  local __mc_var="$1" __mc_root="$2" __mc_manifest="$2/.claude-plugin/plugin.json"
+  local __mc_n="0" __mc_spec="" __mc_kind="" __mc_path=""
   printf -v "$__mc_var" '%s' "0"
   [[ -d "$__mc_root" ]] || return 0
   if [[ -f "$__mc_manifest" ]]; then
+    # Nested experimental.monitors wins over a top-level monitors key, the same
+    # order as (.experimental.monitors // .monitors). Presence is has(), not
+    # //: an empty array is a declared value and must not fall through to the
+    # default file, and neither must an explicit null.
     # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-    jq_to __mc_spec -r '."experimental.monitors" // "" | if type == "array" then "array:\(length)" else tostring end' \
-      "$__mc_manifest" 2>/dev/null || __mc_spec=""
-    case "$__mc_spec" in
-    array:*) __mc_n="${__mc_spec#array:}" ;;
-    "") ;;
+    if ! jq_to __mc_spec -c '
+      if (.experimental | type) == "object" and (.experimental | has("monitors")) then
+        {present: true, value: .experimental.monitors}
+      elif has("monitors") then
+        {present: true, value: .monitors}
+      else {present: false} end' "$__mc_manifest" 2>/dev/null; then
+      __mc_kind="unreadable"
+    else
+      jq_to __mc_kind -r 'if .present == true then "true" else "false" end' <<<"$__mc_spec" 2>/dev/null || __mc_kind="unreadable"
+    fi
+    case "$__mc_kind" in
+    true)
+      # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+      jq_to __mc_n -r '
+        .value
+        | if type == "array" then "array:\(length)"
+          elif type == "string" then "path:\(.)"
+          else "other" end' <<<"$__mc_spec" 2>/dev/null || __mc_n="other"
+      case "$__mc_n" in
+      array:*) __mc_n="${__mc_n#array:}" ;;
+      path:*)
+        __mc_path="${__mc_n#path:}"
+        __mc_path="${__mc_path#./}"
+        __mc_n="0"
+        [[ -f "$__mc_root/$__mc_path" ]] &&
+          jq_to __mc_n -r 'if type == "array" then length else 0 end' "$__mc_root/$__mc_path" 2>/dev/null
+        ;;
+      *) __mc_n="0" ;;
+      esac
+      ;;
+    false) ;;
     *)
-      __mc_spec="${__mc_spec#./}"
-      [[ -f "$__mc_root/$__mc_spec" ]] &&
-        jq_to __mc_n -r 'if type == "array" then length else 0 end' "$__mc_root/$__mc_spec" 2>/dev/null
+      # Unreadable manifest: a key may be present and we cannot see it, so the
+      # default file is not a safe fallback.
+      __mc_kind="unreadable"
       ;;
     esac
   fi
-  if [[ "$__mc_n" == "0" && -f "$__mc_root/monitors/monitors.json" ]]; then
+  if [[ "$__mc_kind" != "true" && "$__mc_kind" != "unreadable" && -f "$__mc_root/monitors/monitors.json" ]]; then
     jq_to __mc_n -r 'if type == "array" then length else 0 end' "$__mc_root/monitors/monitors.json" 2>/dev/null || __mc_n="0"
   fi
   [[ "$__mc_n" =~ ^[0-9]+$ ]] || __mc_n="0"
@@ -1378,8 +1519,9 @@ monitor_rows() {
 # --- one marketplace block --------------------------------------------------------
 emit_marketplace_block() {
   local mp="$1"
-  local ir_u ir_f ir_w us_u us_f us_w wh dg inst en pr errs unset_cfg monitors
-  clock_into T_MP_E
+  local ir_u ir_f ir_w us_u us_f us_w wh dg inst en pr errs unset_cfg installed_disabled monitors
+  # A marketplace abandoned on a failed read reaches here without finalize_moves.
+  [[ -n "$T_FN_S" ]] || clock_into T_FN_S
   # Written on the first pass only. The re-entry reads this sidecar; overwriting
   # it after restore would drop the first-pass failures from a later re-entry.
   if ((ONLY_INSTALL_MODE == 0)); then
@@ -1409,18 +1551,23 @@ emit_marketplace_block() {
   # The two Action-needed sources.
   jq_to unset_cfg -c '[.[] | select(.unset_user_config != null)
     | {id, options_unset: .unset_user_config.options_unset, required: .unset_user_config.required}]' <<<"$inst"
+  jq_to installed_disabled -c '[.[] | select(.rc == 0 and .disabled_by_default == true) | .id]' <<<"$inst"
   # A field that could not be computed becomes an empty object, never an empty
   # string: an empty --argjson would take the whole digest down with it.
   [[ -n "$div" ]] || div='{}'
   [[ -n "$extras" ]] || extras='{}'
   [[ -n "$reg_rows" ]] || reg_rows='[]'
 
+  # The window closes here, after every read above, so the `finalize` step
+  # carries their cost; only the jq below and the append fall outside it.
+  clock_into T_MP_E
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
   jq_to block -c -n \
     --arg name "$mp" \
     --arg lastUpdated "$CATALOG_LAST_UPDATED" \
     --argjson refresh_rc "${REFRESH_RC:-null}" \
     --arg refresh_out "$REFRESH_OUT" \
+    --arg refresh_reason "$REFRESH_REASON" \
     --argjson refresh_predicted "$REFRESH_PREDICTED" \
     --argjson project_root "$PROJECT_ROOT_JSON" \
     --argjson ir_u "$ir_u" --argjson ir_f "$ir_f" --argjson ir_w "$ir_w" \
@@ -1433,14 +1580,17 @@ emit_marketplace_block() {
     --arg reg_interval "$reg_interval" --argjson reg_rows "$reg_rows" \
     --argjson div "$div" --argjson self_updated "$SELF_UPDATED" \
     --argjson extras "$extras" --argjson checkout "${checkout:-null}" \
-    --argjson unset_cfg "${unset_cfg:-[]}" --argjson monitors "${monitors:-[]}" \
+    --argjson unset_cfg "${unset_cfg:-[]}" --argjson installed_disabled "${installed_disabled:-[]}" \
+    --argjson monitors "${monitors:-[]}" \
     --arg t_prr_s "$T_PRR_S" --arg t_prr_e "$T_PRR_E" \
     --arg t_mu_s "$T_MU_S" --arg t_mu_e "$T_MU_E" \
     --arg t_ir_s "$T_IR_S" --arg t_ir_e "$T_IR_E" \
     --arg t_us_s "$T_US_S" --arg t_us_e "$T_US_E" \
+    --arg t_pi_s "$T_PI_S" --arg t_pi_e "$T_PI_E" \
     --arg t_ie_s "$T_IE_S" --arg t_ie_e "$T_IE_E" \
     --arg t_cc_s "$T_CC_S" --arg t_cc_e "$T_CC_E" \
     --arg t_pr_s "$T_PR_S" --arg t_pr_e "$T_PR_E" \
+    --arg t_fn_s "$T_FN_S" \
     --arg t_mp_s "$T_MP_S" --arg t_mp_e "$T_MP_E" \
     --arg resolution "$CLOCK_RESOLUTION" \
     --argjson errors "$errs" '
@@ -1453,19 +1603,26 @@ emit_marketplace_block() {
       if $s == "" or $e == "" then null else ([0, ((ms($s; $e) | floor) / 1000)] | max) end;
     def dur_up($s; $e):
       if $s == "" or $e == "" then null else ([0, ((ms($s; $e) | ceil) / 1000)] | max) end;
-    $extras + {name: $name,
-     timings: {pre_refresh_read: dur($t_prr_s; $t_prr_e),
-               marketplace_update: dur($t_mu_s; $t_mu_e),
-               in_repo_update: dur($t_ir_s; $t_ir_e),
-               user_sweep: dur($t_us_s; $t_us_e),
-               install_enable: dur($t_ie_s; $t_ie_e),
-               cache_content_check: dur($t_cc_s; $t_cc_e),
-               post_read: dur($t_pr_s; $t_pr_e),
-               total: dur_up($t_mp_s; $t_mp_e),
-               resolution: $resolution},
+    {pre_refresh_read: dur($t_prr_s; $t_prr_e),
+     marketplace_update: dur($t_mu_s; $t_mu_e),
+     in_repo_update: dur($t_ir_s; $t_ir_e),
+     user_sweep: dur($t_us_s; $t_us_e),
+     pre_install_read: dur($t_pi_s; $t_pi_e),
+     install_enable: dur($t_ie_s; $t_ie_e),
+     cache_content_check: dur($t_cc_s; $t_cc_e),
+     post_read: dur($t_pr_s; $t_pr_e),
+     finalize: dur($t_fn_s; $t_mp_e)} as $steps
+    | dur_up($t_mp_s; $t_mp_e) as $total
+    # The time between and around the named steps, so the steps plus this
+    # remainder account for the whole total.
+    | (if $total == null then null
+       else [0, ((($total * 1000) - ([$steps[] | select(. != null)] | add // 0) * 1000) | round) / 1000]
+            | max end) as $unattributed
+    | $extras + {name: $name,
+     timings: ($steps + {unattributed: $unattributed, total: $total, resolution: $resolution}),
      catalog_last_updated: (if $lastUpdated == "" then null else $lastUpdated end),
      source_checkout: $checkout,
-     refresh: {rc: $refresh_rc, output: $refresh_out, predicted: $refresh_predicted},
+     refresh: {rc: $refresh_rc, output: $refresh_out, reason: $refresh_reason, predicted: $refresh_predicted},
      project_root: $project_root,
      in_repo: {updated: $ir_u, failed: $ir_f, would_update: $ir_w},
      user_sweep: {updated: $us_u, failed: $us_f, would_update: $us_w,
@@ -1474,6 +1631,7 @@ emit_marketplace_block() {
      install_gap: $install_gap,
      installed: $inst,
      installed_with_unset_user_config: $unset_cfg,
+     installed_disabled: $installed_disabled,
      install_enable_deferred: $deferred,
      stopped_before_install: $stopped,
      enable_gap: $enable_gap,
@@ -1612,8 +1770,15 @@ jq_to DIGEST -c -n \
   {run_dir: $run_dir, cwd: $cwd, mode: $mode, allow_downgrade: $allow_downgrade,
    install_new: $install_new,
    install_new_invalid: (if $install_new_invalid == "" then null else $install_new_invalid end),
-   timings: {total: ([0, (((($t_run_e | tonumber) - ($t_run_s | tonumber)) * 1000 | ceil) / 1000)] | max),
-             resolution: $resolution},
+   timings: (([0, (((($t_run_e | tonumber) - ($t_run_s | tonumber)) * 1000 | ceil) / 1000)] | max) as $total
+             | {total: $total,
+                # Run setup and the per-block assembly: the part of the total no
+                # block window covers. The clock stops before this jq runs, since a digest
+                # cannot time its own assembly without a second jq process.
+                outside_marketplaces: ([0, ((($total * 1000)
+                                             - ([$marketplaces[].timings.total | numbers] | add // 0) * 1000)
+                                            | round) / 1000] | max),
+                resolution: $resolution}),
    marketplaces: $marketplaces, errors: $errors}'
 
 printf '%s\n' "$DIGEST" >"$RUN_DIR/digest.json"

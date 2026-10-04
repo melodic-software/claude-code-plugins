@@ -30,6 +30,8 @@ import babysit_merge as merge
 from repo_config_fake import RepoConfigFake
 
 HEAD = "a" * 40
+# The base compare the freshness hold reads for an otherwise-ready PR.
+UP_TO_DATE = {"status": "ahead", "ahead_by": 1, "behind_by": 0}
 STALE = "b" * 40
 REVIEWER = "chatgpt-codex-connector"
 PR_NUMBER = 1629
@@ -103,6 +105,8 @@ class SettleHarness(unittest.TestCase):
 
         def gh_json(args: list[str]) -> Any:
             calls.append(args)
+            if args[0] == "api" and "/compare/" in args[1]:
+                return UP_TO_DATE
             if args[:2] == ["pr", "view"]:
                 base = pr if pr is not None else _pr()
                 if check_starts is not None:
@@ -445,6 +449,8 @@ class ReviewCorpusIsFetchedOnce(unittest.TestCase):
         )
 
         def gh_json(args: list[str]) -> Any:
+            if args[0] == "api" and "/compare/" in args[1]:
+                return UP_TO_DATE
             if args[:2] == ["pr", "view"]:
                 return pr
             if args[0] == "api" and "/rules/branches/" in args[1]:

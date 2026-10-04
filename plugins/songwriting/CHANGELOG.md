@@ -3,6 +3,14 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.6.4] - 2026-10-04
+
+### Fixed
+
+- **`object-writer` returns exactly one pivot sentence ([#6031](https://github.com/melodic-software/claude-code-plugins/issues/6031)).**
+  The return contract now makes the pivot-chain sentence a single sentence and the last line of the return, with nothing after it.
+  Writers at every effort level had returned two to four. The object-writing eval cases that grade the return (5 to 8) gain an expectation for it.
+
 ## [1.6.3] - 2026-10-03
 
 ### Changed

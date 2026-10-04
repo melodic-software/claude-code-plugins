@@ -3,12 +3,32 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.79.6] - 2026-10-03
+## [0.79.9] - 2026-10-03
 
 ### Changed
 
 - The README notes that an installed mod can stop this plugin's `PreToolUse` hooks from running and can approve a call they blocked, with links to the two mods events sections. Nothing the plugin runs changed.
 - `/source-control:babysit-loop`'s paused-wait reference says rate-limit-guard's mod writes the snapshot in headless sessions too, so the Monitor armed on it wakes on the mod's writes under its machine-wide write floor.
+
+## [0.79.8] - 2026-10-04
+
+### Fixed
+
+- **The babysit merge gate holds a `CLEAN` head that is behind its base ([#5955](https://github.com/melodic-software/claude-code-plugins/issues/5955)).**
+  Under loose required status checks GitHub reports a behind head `CLEAN`. The gate made no base compare of its own and the snapshot compared only a `BLOCKED` head, so the gate could squash-merge a behind head and drop base commits. When the gate runs on a PR that is otherwise ready (or held only by running checks), it now compares the head against the live base and holds it if it is behind or the compare cannot be read, and reports the result as `baseFreshness`. The check runs at gate time, including when the gate arms `--auto`; an auto-merge already armed is not re-checked if the base moves afterwards, a race that predates this change. The gate makes no compare on a base whose rulesets require up-to-date branches (a strict `required_status_checks` rule that lists at least one check) or a merge queue; classic branch protection is not read. The queue snapshot now compares every `BLOCKED`, `CLEAN`, or `HAS_HOOKS` PR on every cycle and reports a behind `CLEAN` or `HAS_HOOKS` head as `branch_freshness.state == "behind"` so the guarded refresh can clear the hold. For that head it also reads the base's rules, and it reports the head behind only when the read succeeds and shows no merge queue: on a failed read the head stays not behind for that cycle, so a transient failure cannot start a refresh (which disarms auto-merge and reruns CI and the AI reviews) on a queue base. A compare that keeps failing on a loose base holds the PR until a human acts. The review-request candidate skips a head the snapshot reports `behind`, matching the live re-check in `request_review.py`.
+
+## [0.79.7] - 2026-10-04
+
+### Fixed
+
+- **The babysit merge gate reports a PR GitHub put in a merge queue as queued, and confirms it on later runs ([#5953](https://github.com/melodic-software/claude-code-plugins/issues/5953)).**
+  `gh pr merge` adds a PR to the queue on any base that has one, `--auto` or not, and exits 0, so a queue the branch-rules read missed was reported as `autoMergeEnabled` or `merged`. After every successful `gh pr merge` the gate now reads the PR's queue state back and reports `action: enqueue`, `enqueued: true`, and `mergeQueue` with the entry's state and position. With `--state-dir`, an enqueue from either the async API or `gh pr merge` is recorded, and every later run reports it still queued (merge pending, nothing sent), merged at the vetted head, or `dequeued` when it left the queue without merging. A queue base whose read-back shows the PR neither queued, armed, nor merged is re-read briefly, then reported `action: merge-pending` with `ready: false` and `mergeQueue.unconfirmed: true` and recorded, so later runs confirm it without sending another merge, and the second later run that still sees nothing reports it `dequeued`. A base without a merge queue reports as before.
+
+## [0.79.6] - 2026-10-04
+
+### Fixed
+
+- The pull-request body linkage gate tests unset an inherited `CLAUDE_PLUGIN_DATA` before they run. The missing-jq case no longer writes a skip-notice into another plugin's data directory ([#6072](https://github.com/melodic-software/claude-code-plugins/issues/6072)).
 
 ## [0.79.5] - 2026-10-03
 

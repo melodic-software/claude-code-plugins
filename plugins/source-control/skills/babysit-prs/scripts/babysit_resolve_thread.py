@@ -702,7 +702,7 @@ def verify_fix_commit(repo: str, number: int, sha: str) -> tuple[bool, str]:
     ):
         return False, "refused-evidence-unverifiable"
     # Every segment interpolated into the compare path is FORMAT-VALIDATED first,
-    # matching `babysit_gh.fetch_blocked_base_compare`'s rule for the identical
+    # matching `babysit_gh.fetch_base_compare`'s rule for the identical
     # call shape. Two of the three arrive in an API response body, so "the API
     # said so" is their only provenance: a crafted or compromised response
     # carrying path syntax would otherwise redirect this request to an

@@ -89,6 +89,15 @@ def _env(packages):
     return {**os.environ, 'PYTHONPATH': str(packages)}
 
 
+def _foreign_env(extra=None):
+    """The environment for a different interpreter than this one. PYTHONHOME and PYTHONPATH name this interpreter's
+    stdlib and module path, and a uv-managed Windows trampoline sets PYTHONHOME with a UV_INTERNAL__ marker beside
+    it: passed on, a 3.12 or 3.13 child loads a 3.14 stdlib and dies on its first import."""
+    keep = {k: v for k, v in os.environ.items()
+            if k not in ('PYTHONHOME', 'PYTHONPATH') and not k.startswith('UV_INTERNAL__')}
+    return {**keep, **(extra or {})}
+
+
 def loads(packages, probe):
     """Readiness is a load probe: the packages must import, not merely be present."""
     r = subprocess.run([sys.executable, '-S', '-c', 'import ' + ', '.join(probe)],
@@ -195,7 +204,7 @@ def interpreter():
         if not found or (Path(found).stat().st_size == 0 and 'windowsapps' in found.lower()):
             continue
         probe = f'import sys; raise SystemExit(sys.version_info[:2] not in {PYTHONS})'
-        if subprocess.run([found, '-c', probe], capture_output=True).returncode == 0:
+        if subprocess.run([found, '-c', probe], env=_foreign_env(), capture_output=True).returncode == 0:
             return found
     return None
 
@@ -206,7 +215,7 @@ def main(argv=None):
         chosen = interpreter()
         if chosen and Path(chosen).resolve() != Path(sys.executable).resolve():
             return subprocess.run([chosen, str(Path(__file__).resolve()), *argv],
-                                  env={**os.environ, HANDED_OVER: chosen}).returncode
+                                  env=_foreign_env({HANDED_OVER: chosen})).returncode
     rest = argv[argv.index('--') + 1:] if '--' in argv else []
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument('action', choices=('install', 'run', 'check'))
