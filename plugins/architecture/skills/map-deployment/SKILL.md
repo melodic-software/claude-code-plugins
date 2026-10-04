@@ -177,8 +177,14 @@ Shipped readers, every one that is present:
 - Both YAML readers refuse anchors, aliases, the `<<` merge key, duplicate keys, a tab in the
   indentation, and more than one document. Their `containerDefinitions` given as anything but a
   non-empty list (absent, empty, a JSON string, a function) places one container whose image is
-  `unresolved:containerDefinitions`. A second service on a task definition another service already
-  runs is listed as unmapped; the containers are placed once, on the first service's cluster.
+  `unresolved:containerDefinitions`.
+- A task definition that two or more ECS services run, in the Terraform, CloudFormation or Pulumi
+  YAML reader, is placed once per service: each service puts every container on its own cluster
+  with its own desired count, named `<container>@<service>`. The service part is the resource's
+  address in the file (the Terraform label, the CloudFormation logical ID, the Pulumi resource
+  name), not its `name` property, so the placement keeps one name in every environment and is
+  diffed like any other container. A task definition one service runs keeps the plain container
+  name. A `containers.json` name matches its `@<service>` placements.
 
 A Pulumi project of any other runtime (`nodejs`, `python`, `go`, `dotnet`, ...), Helm (a
 `Chart.yaml`, a Terraform `helm_release`, or a `kubernetes:helm.sh/` resource in a Pulumi YAML
@@ -316,7 +322,8 @@ hand-written; the publish destination comes from the `medium` cascade key. Proce
   (its Deployment relationships section),
   <https://likec4.dev/dsl/deployment/views/>, plus `likec4@1.59.4 validate` exiting 0 on the
   golden blocks in `${CLAUDE_PLUGIN_ROOT}/lib/likec4-golden/` (`deployment-compose.c4`,
-  `deployment-kubernetes.c4`), which `collect-deployment.test.sh` diffs against. As of:
+  `deployment-kubernetes.c4`, `deployment-ecs-shared.c4`), which `collect-deployment.test.sh` diffs
+  against. As of:
   2026-09-29. Recheck when either page changes that syntax or a newer `likec4` release ships: set
   `LIKEC4_VALIDATE=1` when running the test to re-run the CLI.
 - **Labels cannot leave the block.** Quotes, backticks, backslashes, and line breaks are stripped
@@ -425,9 +432,18 @@ hand-written; the publish destination comes from the `medium` cascade key. Proce
   ECS task definition with no `container_definitions` places one container, its image
   `unresolved:container_definitions`. A resource with an empty body (`resource "aws_s3_bucket" "b" {}`)
   is placed or listed as unmapped like any other. A `.tf.json` block type or label written as an
-  array of objects (`"resource": [{...}]`) reads like the object form. A second `aws_ecs_service`
-  on a task definition another service already runs is listed as unmapped; the containers are
-  placed once, on the first service's cluster.
+  array of objects (`"resource": [{...}]`) reads like the object form.
+- **One task definition, several services.** Claim: a task definition is the blueprint of a task's
+  containers, and a service runs and maintains a desired number of its tasks in one cluster, so the
+  cluster and the count belong to the service. Basis:
+  <https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definitions.html> and
+  <https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_services.html>. Claim: a
+  container name and a service name allow only letters, numbers, underscores and hyphens, so the `@`
+  of `<container>@<service>` cannot be part of either. Basis: `name` in
+  <https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_ContainerDefinition.html> and
+  `serviceName` in <https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_CreateService.html>.
+  As of: 2026-10-04. Recheck when those pages change what a service owns or the allowed characters.
+  A label prints the `@` as `(at)`, like any other.
 - **Helm reached through IaC is still Helm.** Claim: the Terraform Helm provider declares a release
   as `resource "helm_release"`, and the Pulumi Kubernetes provider as the type
   `kubernetes:helm.sh/v3:Release`. Basis:

@@ -2316,17 +2316,50 @@ unm_fixture pulumi-td-empty Pulumi.yaml $'name: p\nruntime: yaml\nresources:\n  
 unm_check "$TEST_TMPDIR/unm-pulumi-td-empty"
 assert_contains "a Pulumi task definition with an empty list places one" "$unm_rec" '"container":"td","env":"default","tool":"pulumi-yaml","node":"default","compute":"","image":"unresolved:containerDefinitions"'
 
-# A second ECS service on a task definition another service already runs is listed, not dropped.
-unm_fixture tf-shared-td main.tf "$tf_ecs"$'\nresource "aws_ecs_service" "api2" {\n  name            = "api2"\n  task_definition = aws_ecs_task_definition.api.arn\n}'
+# Each ECS service on a shared task definition places its containers on its own cluster with its own
+# desired count, named <container>@<service resource name> so the placements stay distinct.
+tf_shared=$'variable "two_count" {\n  default = 5\n}\nresource "aws_ecs_cluster" "a" {\n  name = "a"\n}\nresource "aws_ecs_cluster" "b" {\n  name = "b"\n}\nresource "aws_ecs_task_definition" "api" {\n  family                = "api"\n  container_definitions = jsonencode([{ name = "api", image = "acme/api:1", environment = [{ name = "MODE", value = "web" }] }, { name = "proxy", image = "acme/proxy:1" }])\n}\nresource "aws_ecs_service" "one" {\n  name            = "one"\n  cluster         = aws_ecs_cluster.a.id\n  task_definition = aws_ecs_task_definition.api.arn\n  desired_count   = 2\n}\nresource "aws_ecs_service" "two" {\n  name            = "api-two"\n  cluster         = aws_ecs_cluster.b.id\n  task_definition = aws_ecs_task_definition.api.arn\n  desired_count   = var.two_count\n}'
+unm_fixture tf-shared-td main.tf "$tf_shared" prod.tfvars 'two_count = 5' staging.tfvars 'two_count = 1'
 unm_check "$TEST_TMPDIR/unm-tf-shared-td"
-assert_contains "a Terraform service sharing a task definition keeps the root drawn" "$unm_rec" '"status": "drawn"'
-assert_contains "a second Terraform service on one task definition is listed" "$unm_rec" '{"tool":"terraform","type":"aws_ecs_service","evidence":"main.tf"}'
-unm_fixture cfn-shared-td template.yaml $'Resources:\n  Td:\n    Type: AWS::ECS::TaskDefinition\n    Properties:\n      ContainerDefinitions:\n        - Name: api\n          Image: acme/api:1\n  One:\n    Type: AWS::ECS::Service\n    Properties:\n      TaskDefinition: !Ref Td\n  Two:\n    Type: AWS::ECS::Service\n    Properties:\n      TaskDefinition: !Ref Td'
+assert_contains "a Terraform root with a shared task definition is drawn" "$unm_rec" '"status": "drawn"'
+assert_contains "the first Terraform service places the container on its cluster with its count" "$unm_rec" '"container":"api@one","env":"prod","tool":"terraform","node":"prod/aws_ecs_cluster.a","compute":"prod/aws_ecs_cluster.a","image":"acme/api:1","replicas":"2"'
+assert_contains "the second Terraform service places the container on its own cluster with its own count" "$unm_rec" '"container":"api@two","env":"prod","tool":"terraform","node":"prod/aws_ecs_cluster.b","compute":"prod/aws_ecs_cluster.b","image":"acme/api:1","replicas":"5"'
+assert_contains "every container of the shared task definition is placed per service" "$unm_rec" '"container":"proxy@two","env":"prod","tool":"terraform","node":"prod/aws_ecs_cluster.b"'
+assert_contains "a parameter belongs to each service's placement" "$unm_rec" '"parameter":"MODE","env":"prod","tool":"terraform","container":"api@two","value":"web"'
+assert_not_contains "a shared task definition places no unqualified container" "$unm_rec" '"container":"api","env"'
+assert_not_contains "the service suffix is the resource label, not the name attribute" "$unm_rec" 'api@api-two'
+assert_not_contains "the second Terraform service is no longer listed" "$unm_rec" '"type":"aws_ecs_service"'
+assert_contains "a Terraform shared task definition lists nothing" "$unm_sum" "unmapped=0"
+assert_contains "the per-service desired count is diffed between environments" "$unm_rec" '"change":"replicas","left":"prod","right":"staging","tool":"terraform","container":"api@two","detail":"5 -> 1"'
+assert_not_contains "the other service's placement is not a difference" "$unm_rec" '"container":"api@one","detail"'
+assert_contains "the likec4 label prints the service suffix label-safe" "$unm_md" "= container 'api(at)two' {"
+bash "$RENDER" --record "$TEST_TMPDIR/unm-tf-shared-td.json" --out "$TEST_TMPDIR/unm-tf-shared-td-prod" --dialect likec4 --env prod >/dev/null
+assert_likec4_golden "deployment-ecs-shared.c4" "$TEST_TMPDIR/unm-tf-shared-td-prod/deployment.md"
+printf '{\n  "schema_version": 1,\n  "containers": [\n    {"name":"api"},\n    {"name":"ap"}\n  ]\n}\n' >"$TEST_TMPDIR/shared-containers.json"
+bash "$COLLECT" --repo "$TEST_TMPDIR/unm-tf-shared-td" --out "$TEST_TMPDIR/shared-cat.json" --generated-on 2026-09-28 --containers "$TEST_TMPDIR/shared-containers.json"
+shared_cat="$(cat "$TEST_TMPDIR/shared-cat.json")"
+assert_contains "a catalog container placed once per service counts as placed" "$shared_cat" '{"catalog":"api","placed":"yes"}'
+assert_contains "a catalog name that only prefixes a container is not placed" "$shared_cat" '{"catalog":"ap","placed":"no"}'
+
+unm_fixture tf-one-service main.tf "$tf_ecs"
+unm_check "$TEST_TMPDIR/unm-tf-one-service"
+assert_contains "a task definition with one service keeps the plain container name" "$unm_rec" '"container":"api","env":"default","tool":"terraform","node":"default/aws_ecs_cluster.c"'
+assert_not_contains "a task definition with one service carries no service suffix" "$unm_rec" 'api@'
+
+unm_fixture cfn-shared-td template.yaml $'Resources:\n  A:\n    Type: AWS::ECS::Cluster\n  B:\n    Type: AWS::ECS::Cluster\n  Td:\n    Type: AWS::ECS::TaskDefinition\n    Properties:\n      ContainerDefinitions:\n        - Name: api\n          Image: acme/api:1\n          Environment:\n            - Name: MODE\n              Value: web\n  One:\n    Type: AWS::ECS::Service\n    Properties:\n      Cluster: !Ref A\n      DesiredCount: 2\n      TaskDefinition: !Ref Td\n  Two:\n    Type: AWS::ECS::Service\n    Properties:\n      ServiceName: api-two\n      Cluster: !GetAtt B.Arn\n      DesiredCount: 5\n      TaskDefinition: !Ref Td'
 unm_check "$TEST_TMPDIR/unm-cfn-shared-td"
-assert_contains "a second CloudFormation service on one task definition is listed" "$unm_rec" '{"tool":"cloudformation","type":"AWS::ECS::Service","evidence":"template.yaml"}'
-unm_fixture pulumi-shared-td Pulumi.yaml $'name: p\nruntime: yaml\nresources:\n  td:\n    type: aws:ecs:TaskDefinition\n    properties:\n      containerDefinitions:\n        - name: api\n          image: acme/api:1\n  one:\n    type: aws:ecs:Service\n    properties:\n      taskDefinition: ${td.arn}\n  two:\n    type: aws:ecs:Service\n    properties:\n      taskDefinition: ${td.arn}'
+assert_contains "the first CloudFormation service places the container on its cluster" "$unm_rec" '"container":"api@One","env":"default","tool":"cloudformation","node":"default/A","compute":"default/A","image":"acme/api:1","replicas":"2"'
+assert_contains "the second CloudFormation service places the container on its own cluster" "$unm_rec" '"container":"api@Two","env":"default","tool":"cloudformation","node":"default/B","compute":"default/B","image":"acme/api:1","replicas":"5"'
+assert_contains "a CloudFormation parameter belongs to each service's placement" "$unm_rec" '"parameter":"MODE","env":"default","tool":"cloudformation","container":"api@Two","value":"web"'
+assert_not_contains "the second CloudFormation service is no longer listed" "$unm_rec" '"type":"AWS::ECS::Service"'
+assert_not_contains "a CloudFormation shared task definition places no unqualified container" "$unm_rec" '"container":"api","env"'
+
+unm_fixture pulumi-shared-td Pulumi.yaml $'name: p\nruntime: yaml\nresources:\n  a:\n    type: aws:ecs:Cluster\n  b:\n    type: aws:ecs:Cluster\n  td:\n    type: aws:ecs:TaskDefinition\n    properties:\n      containerDefinitions:\n        fn::toJSON:\n          - name: api\n            image: acme/api:1\n  one:\n    type: aws:ecs:Service\n    properties:\n      cluster: ${a.arn}\n      desiredCount: 2\n      taskDefinition: ${td.arn}\n  two:\n    type: aws:ecs:Service\n    properties:\n      name: api-two\n      cluster: ${b.arn}\n      desiredCount: 5\n      taskDefinition: ${td.arn}'
 unm_check "$TEST_TMPDIR/unm-pulumi-shared-td"
-assert_contains "a second Pulumi service on one task definition is listed" "$unm_rec" '{"tool":"pulumi-yaml","type":"aws:ecs:Service","evidence":"Pulumi.yaml"}'
+assert_contains "the first Pulumi service places the container on its cluster" "$unm_rec" '"container":"api@one","env":"default","tool":"pulumi-yaml","node":"default/a","compute":"default/a","image":"acme/api:1","replicas":"2"'
+assert_contains "the second Pulumi service places the container on its own cluster" "$unm_rec" '"container":"api@two","env":"default","tool":"pulumi-yaml","node":"default/b","compute":"default/b","image":"acme/api:1","replicas":"5"'
+assert_not_contains "the second Pulumi service is no longer listed" "$unm_rec" '"type":"aws:ecs:Service"'
+assert_not_contains "a Pulumi shared task definition places no unqualified container" "$unm_rec" '"container":"api","env"'
 
 # .tf.json blocks written as arrays of objects read like the object form.
 unm_fixture tfjson-array main.tf.json '{"resource":[{"aws_s3_bucket":{"b":{}}}]}'
