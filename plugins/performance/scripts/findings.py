@@ -47,7 +47,8 @@ transcript-counts describes the session's work before the latest go-faster invoc
 command, or a Skill call to go-faster), never the invocation's own setup calls: per-tool calls,
 errors and wait_ms, repeated_reads, repeated_commands, skills, tokens, typed_turns, elapsed_ms
 (first to last record before the invocation) and subagents (those started before it). A tool call
-made before the invocation keeps its wait even when its result lands after it. With no invocation,
+made before the invocation keeps its wait even when its result lands after it. A tool's wait_ms is
+the wall-clock union of its calls' use-to-result spans, so parallel calls count once. With no invocation,
 everything counts. records and bad_lines count the whole file. A repeated command is keyed by its
 full text but shown with secret-shaped values (credential headers, Bearer values, token or password
 variables, flags and arguments, URL credentials, signed-URL signatures, known token prefixes)
@@ -828,6 +829,16 @@ def code_span(name: object) -> str:
     return f"`{cut(' '.join(inert(str(name)).split()))}`"
 
 
+def union_seconds(spans: list[tuple[float, float]]) -> float:
+    """Length of the union of [start, end] spans: parallel calls wait on one wall clock."""
+    total, reach = 0.0, float("-inf")
+    for start, end in sorted(spans):
+        if end > (low := max(start, reach)):
+            total += end - low
+            reach = end
+    return total
+
+
 def transcript_counts(path: Path) -> dict:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
     sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
@@ -864,25 +875,29 @@ def transcript_counts(path: Path) -> dict:
                     continue
                 call["error"] = bool(block.get("is_error"))
                 if call["at"] is not None and stamp is not None:
-                    call["wait_ms"] = round((stamp - call["at"]) * 1000)
+                    call["until"] = stamp
     prior_calls = list(calls.values())[:cut_call]
     prior = records[:cut_record]
     tools: dict[str, dict[str, int]] = {}
     reads: dict[str, int] = {}
     commands: dict[str, int] = {}
     skills: dict[str, int] = {}
+    waits: dict[str, list[tuple[float, float]]] = {}
     for call in prior_calls:
         name, args = call["name"], call["args"]
         tool = tools.setdefault(name, {"calls": 0, "errors": 0, "wait_ms": 0})
         tool["calls"] += 1
         tool["errors"] += call.get("error", False)
-        tool["wait_ms"] += call.get("wait_ms", 0)
+        if "until" in call:
+            waits.setdefault(name, []).append((call["at"], call["until"]))
         if name == "Read" and isinstance(args.get("file_path"), str):
             reads[args["file_path"]] = reads.get(args["file_path"], 0) + 1
         if name == "Bash" and isinstance(args.get("command"), str):
             commands[args["command"]] = commands.get(args["command"], 0) + 1
         if name == "Skill" and isinstance(args.get("skill"), str):
             skills[args["skill"]] = skills.get(args["skill"], 0) + 1
+    for name, spans in waits.items():
+        tools[name]["wait_ms"] = round(union_seconds(spans) * 1000)
     ledger = tr.UsageLedger()
     for record in prior:
         ledger.add(record)

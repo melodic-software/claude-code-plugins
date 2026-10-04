@@ -767,6 +767,19 @@ assert_eq "model: the go-faster call is not a skill invocation of prior work" '{
 assert_eq "model: tokens stop before the invoking message" "5" "$(q .tokens.output)"
 assert_eq "model: elapsed spans the records before the invoking message" "4000" "$(q .elapsed_ms)"
 
+# Parallel calls: two Agent calls launched in one message at 10:00:01 both return at 10:05:01. The
+# wall clock waited 300 s once, not twice; a later Agent call (10:06:00 to 10:06:30) adds 30 s.
+PA="$WORK/parallel.jsonl"
+{
+  printf '{"type":"assistant","timestamp":"2026-10-03T10:00:01.000Z","message":{"id":"p1","content":[{"type":"tool_use","id":"w1","name":"Agent","input":{"prompt":"a"}},{"type":"tool_use","id":"w2","name":"Agent","input":{"prompt":"b"}}],"usage":{"input_tokens":10,"output_tokens":5}}}\n'
+  printf '{"type":"user","timestamp":"2026-10-03T10:05:01.000Z","message":{"content":[{"type":"tool_result","tool_use_id":"w1","is_error":false},{"type":"tool_result","tool_use_id":"w2","is_error":false}]}}\n'
+  printf '{"type":"assistant","timestamp":"2026-10-03T10:06:00.000Z","message":{"id":"p2","content":[{"type":"tool_use","id":"w3","name":"Agent","input":{"prompt":"c"}}],"usage":{"input_tokens":10,"output_tokens":5}}}\n'
+  printf '{"type":"user","timestamp":"2026-10-03T10:06:30.000Z","message":{"content":[{"type":"tool_result","tool_use_id":"w3","is_error":false}]}}\n'
+} >"$PA"
+run transcript-counts "$PA"
+assert_eq "overlapping waits of one tool count the wall clock once" "3 330000" \
+  "$(q '"\(.tools.Agent.calls) \(.tools.Agent.wait_ms)"')"
+
 # --- 29. a data folder that cannot be written is its own exit code, never "in flight" ---
 # The data folder sits under a regular file, so no folder can be made there on any platform. Git
 # Bash cannot convert a path through a regular file and would hand Python the raw POSIX spelling,
