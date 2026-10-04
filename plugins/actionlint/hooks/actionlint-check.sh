@@ -71,6 +71,7 @@ fi
 # composed from prerequisites.json. Telemetry (opt-in) also records a "skipped"
 # status so a consumer sink can observe the coverage gap.
 if ! command -v actionlint >/dev/null 2>&1; then
+  AL_MODEL="" AL_USER=""
   if hook::prereq_notice_to AL_MODEL AL_USER actionlint "$INPUT"; then
     hook::emit_skip_notice PostToolUse "$AL_MODEL" "$AL_USER"
   fi

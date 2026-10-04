@@ -150,6 +150,7 @@ fi
 # No binary available: a skip notice once per channel, composed from
 # prerequisites.json, not a silent gap.
 if [[ -z "$TYPOS_BIN" ]]; then
+  TYPOS_MODEL="" TYPOS_USER=""
   if hook::prereq_notice_to TYPOS_MODEL TYPOS_USER typos "$INPUT"; then
     hook::emit_skip_notice PostToolUse "$TYPOS_MODEL" "$TYPOS_USER"
   fi
@@ -316,6 +317,7 @@ if [[ $SCAN_RC -eq 0 ]]; then
   # there is nothing to disclose; typos ran, so the rewrite verdict is a
   # known false rather than an omitted key. The empty set clears the delta
   # record, so typos that come back are reported again.
+  # shellcheck disable=SC2034 # a clean run has no report; the call clears the record
   CLEAN_CTX=""
   hook::findings_to CLEAN_CTX "" "" --delta "$INPUT" "$FILE"
   hook::finish --changed false ok findings array '[]' applied array '[]'

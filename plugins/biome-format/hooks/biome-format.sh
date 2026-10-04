@@ -128,6 +128,7 @@ fi
 # The repo opted in via a Biome config but no binary is available → visible
 # once-per-session skip notice, not a silent gap (dim-9 doctrine).
 if [[ -z "$BIOME_BIN" ]]; then
+  BIOME_MODEL="" BIOME_USER=""
   if hook::prereq_notice_to BIOME_MODEL BIOME_USER biome "$INPUT"; then
     hook::emit_skip_notice PostToolUse "$BIOME_MODEL" "$BIOME_USER"
   fi

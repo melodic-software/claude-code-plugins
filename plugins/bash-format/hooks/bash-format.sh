@@ -120,6 +120,7 @@ ran_any=0
 # the end. append_notice <model-text> [<user-text>]; either may be "".
 MODEL_NOTICE=""
 USER_NOTICE=""
+SHFMT_MODEL="" SHFMT_USER="" SC_MODEL="" SC_USER=""
 append_notice() {
   if [[ -n "$1" ]]; then
     [[ -n "$MODEL_NOTICE" ]] && MODEL_NOTICE+=" "

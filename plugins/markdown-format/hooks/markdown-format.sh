@@ -632,6 +632,7 @@ else
   # lasts the session (#2740). The install route is the user's, and scoped
   # (#2868): `npm i -D` only inside a repository, otherwise a durable
   # user-scope directory already on the probed PATH.
+  MD_MODEL="" MD_USER=""
   if hook::prereq_notice_to MD_MODEL MD_USER markdownlint-cli2 "$INPUT" \
     --where "not on the hook PATH or as a contained repository-local node_modules/.bin executable" \
     --install "$(markdownlint_skip_remediation)"; then

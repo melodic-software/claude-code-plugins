@@ -726,6 +726,7 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
     fail "hooks.json: expected one exec-form SessionStart prerequisites probe row behind --run-if-unset-or-true RUFF_FORMAT_ENABLED, found $PROBE_COUNT"
   fi
   # The SessionStart compact|clear row that resets the findings delta gate.
+  # shellcheck disable=SC2016 # the CLAUDE_PLUGIN_ROOT placeholders are literal manifest text
   RESET_SEL='.event == "SessionStart" and .matcher == "compact|clear" and .command == "node" and .args == ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/ruff-format.sh", "--reset-digests"]'
   if [[ "$(jq "[.[] | select($RESET_SEL)] | length" <<<"$HANDLERS")" == "1" ]]; then
     ok "hooks.json: one SessionStart compact|clear row runs the script with --reset-digests"

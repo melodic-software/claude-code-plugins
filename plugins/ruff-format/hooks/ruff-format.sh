@@ -152,6 +152,7 @@ fi
 # The repo opted in via a Ruff config but no binary is available: a skip notice
 # once per channel, composed from prerequisites.json, not a silent gap.
 if [[ -z "$RUFF_BIN" ]]; then
+  RUFF_MODEL="" RUFF_USER=""
   if hook::prereq_notice_to RUFF_MODEL RUFF_USER ruff "$INPUT"; then
     hook::emit_skip_notice PostToolUse "$RUFF_MODEL" "$RUFF_USER"
   fi

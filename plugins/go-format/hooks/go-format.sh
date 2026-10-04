@@ -145,6 +145,7 @@ hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_GO_FORMAT_LINT_GITIGNORED:
 # builtin, and the exec below looks the name up on PATH itself, so nothing here
 # needs the resolved path.
 if ! command -v goimports >/dev/null 2>&1; then
+  GO_MODEL="" GO_USER=""
   if hook::prereq_notice_to GO_MODEL GO_USER goimports "$INPUT"; then
     hook::emit_skip_notice PostToolUse "$GO_MODEL" "$GO_USER"
   fi
