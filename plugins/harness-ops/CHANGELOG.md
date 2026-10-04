@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.8.4] - 2026-10-04
+## [3.8.5] - 2026-10-04
 
 ### Added
 
@@ -18,6 +18,12 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 
 - A stale hook config now prints a notice that names it and suggests `/reload-plugins` (#6247).
 - The latency action names a route when it cannot evaluate (#6259).
+
+## [3.8.4] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
 
 ## [3.8.3] - 2026-10-04
 

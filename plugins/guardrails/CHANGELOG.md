@@ -3,13 +3,19 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.47.8] - 2026-10-04
+## [0.47.9] - 2026-10-04
 
 ### Changed
 
 - The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
 - The verify rows start the launcher with `--skip-if-all-false` over the three verifier options, so an edit with all three verifiers off starts node only and no bash (#6252). A test fails if a PreToolUse or `block-*` guard row carries a skip flag.
 - The shared `exec-bash.mjs` launcher copy also gains `--skip-unless-stdin-contains`; no guardrails row uses it (#6253).
+
+## [0.47.8] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
 
 ## [0.47.7] - 2026-10-04
 

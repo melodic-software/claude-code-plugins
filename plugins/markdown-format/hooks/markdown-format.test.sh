@@ -2963,7 +2963,7 @@ fi
 # such a path, and hook::repo_root reads an empty hint as `.`, the hook process
 # CWD, where the `dirname` it replaced answered `/`. An empty extraction fails
 # loudly so a refactor that moves the block cannot pass by testing nothing.
-FILE_DIR_LINES="$(awk 'index($0, "FILE_DIR=\"${FILE%/*}\"") { p = 1 } index($0, "REPO_ROOT=") { p = 0 } p' "$HOOK_DIR/hook-utils.sh")"
+FILE_DIR_LINES="$(awk 'index($0, "FILE_DIR=\"${FILE%") { p = 1 } index($0, "REPO_ROOT=") { p = 0 } p' "$HOOK_DIR/hook-utils.sh")"
 if [[ -z "$FILE_DIR_LINES" ]]; then
   fail "root-level: FILE_DIR block not found in hook-utils.sh"
 else
