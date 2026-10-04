@@ -91,8 +91,8 @@ judge::file_repo() {
   local f="$1" d="" c top pd pt cands=("$1")
   FREPO="" FREPO_OUT=""
   [[ -n "$f" ]] || return 0
-  if [[ -n "${JUDGE_FREPO[$f]+x}" ]]; then
-    FREPO="${JUDGE_FREPO[$f]}" FREPO_OUT="${JUDGE_FREPO_OUT[$f]}"
+  if [[ -n "${JUDGE_FREPO["$f"]+x}" ]]; then
+    FREPO="${JUDGE_FREPO["$f"]}" FREPO_OUT="${JUDGE_FREPO_OUT["$f"]}"
     return 0
   fi
   ((JUDGE_WIN)) && cands=("${f//\\//}" "$f")
@@ -113,7 +113,7 @@ judge::file_repo() {
       fi
     fi
   fi
-  JUDGE_FREPO[$f]="$FREPO" JUDGE_FREPO_OUT[$f]="$FREPO_OUT"
+  JUDGE_FREPO["$f"]="$FREPO" JUDGE_FREPO_OUT["$f"]="$FREPO_OUT"
 }
 
 judge::log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" >>"$JUDGE_LOG" 2>/dev/null; }
