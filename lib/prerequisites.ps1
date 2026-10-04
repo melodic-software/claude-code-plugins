@@ -36,8 +36,8 @@ if ($args.Count -gt 0 -and $args[0] -eq 'node-notice') {
     $plugin = ($check.TrimStart('/') -split ':')[0]
     if (-not $plugin) { $plugin = 'plugin' }
     if (-not $check) { $check = 'the plugin check skill' }
-    $msg = "${plugin}: node is not on PATH, so the hooks of this plugin and of every other plugin that launches through node cannot start and do nothing. Install Node.js from https://nodejs.org/en/download and restart Claude Code. Run $check to verify. This notice shows once per session."
-    [Console]::Out.WriteLine('{"systemMessage":"' + $msg + '","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"WARNING: ' + $msg + ' Tell the user."}}')
+    $msg = "${plugin}: node is not on PATH, so hooks that launch through node (this plugin's and others') do not run. Install Node.js (https://nodejs.org/en/download), restart Claude Code, then run $check."
+    [Console]::Out.WriteLine('{"systemMessage":"' + $msg + '"}')
     exit 0
 }
 if ($null -eq $node) {

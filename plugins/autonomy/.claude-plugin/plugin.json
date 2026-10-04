@@ -1,6 +1,6 @@
 {
   "name": "autonomy",
-  "version": "0.26.6",
+  "version": "0.26.7",
   "description": "Contracts for governed autonomous agent operation: role topology, binding seam, telemetry, return accounting, trigger dispatch, a per-work-class guardrail matrix, a standing-routine catalog, and a runner charter. A guided setup skill writes an org's binding, wires OTLP telemetry (file default), human-attested return capture, and signal adapters behind one governed dispatch entrypoint, binds the guardrail matrix to isolation substrates after a live probe, and schedules routines.",
   "author": {
     "name": "Melodic Software",

@@ -1,0 +1,31 @@
+version: 1
+activities:
+  run-tests:
+    script: scripts/run-tests.sh
+    effect: read
+    gating: gate
+    reads-untrusted: false
+  measure-coverage:
+    skill: code-metrics:audit-coverage
+    args: --diff
+    effect: read
+    gating: advisory
+    reads-untrusted: false
+    applies-when:
+      paths: ["src/**"]
+  fix-docs:
+    skill: ai-slop:audit
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: false
+lanes:
+  pr-run-checks:
+    stage: verify
+    slots:
+      - activity: run-tests
+      - activity: measure-coverage
+        needs: [run-tests]
+  pr-refine:
+    stage: refine
+    slots:
+      - activity: fix-docs
