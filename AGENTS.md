@@ -2,11 +2,11 @@
 
 ## Open a pull request as a draft
 
-Open every pull request as a draft and flip it to ready when the work is done: a draft skips the
-test lanes and both AI review lanes, and once it is ready they run again on every push. None of
-their checks is required; `ci-status` is the only one. Flip with
-`/source-control:pull-request ready`, which merges the base, reviews and verifies the merged head,
-and then marks it ready.
+Open every pull request as a draft and flip it to ready when the work is done and the user or the
+task says to (the stop list below): a draft skips the test lanes and both AI review lanes, and once
+it is ready they run again on every push. None of their checks is required; `ci-status` is the
+only one. Flip with `/source-control:pull-request ready`, which merges the base, reviews and
+verifies the merged head, and then marks it ready.
 
 Title every pull request in Conventional Commits form, `<type>[(<scope>)]: <subject>`;
 `ci-status` fails any other title.
