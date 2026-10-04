@@ -8,3 +8,17 @@ self-hosted-runner:
   labels:
     - melodic-ubuntu-24.04-x64
     - melodic-review-ubuntu-24.04-x64
+
+# `$/` is the same-release reference to a sibling action in this repository's
+# reusables. actionlint 1.7.12 parses `uses:` as `{owner}/{repo}@{ref}` and
+# rejects it with `ref is missing`; the pattern matches only that message for a
+# `$/<path>` with a non-empty path, so a bare `$/` or an `owner/repo/path` with
+# no ref still fails.
+# Remove when rhysd/actionlint#732 ships and the pinned actionlint is bumped
+# (https://github.com/rhysd/actionlint/issues/732).
+# Trade-off: actionlint cannot resolve the local action, so `with:` input
+# validation is lost for `$/` steps.
+paths:
+  .github/workflows/**/*.{yml,yaml}:
+    ignore:
+      - 'specifying action "\$/[^"]+" in invalid format because ref is missing'
