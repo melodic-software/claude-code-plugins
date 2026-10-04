@@ -292,6 +292,56 @@ def test_injected_prefixes_are_not_typed_turns(prefix):
     assert transcript_reader.is_typed_turn(user([{"type": "text", "text": f"  {prefix}"}])) is False
 
 
+REMINDER = "<system-reminder>\nToday's date is 2026-10-04.\n</system-reminder>\n"
+
+
+def desktop(content: object, **fields) -> dict:
+    """A Claude Desktop user record: typed by the person, yet written with promptSource sdk."""
+    return user(content, origin={"kind": "human"}, promptSource="sdk", **fields)
+
+
+@pytest.mark.parametrize(
+    ("record", "text"),
+    [
+        (desktop("retry, keep using sonnet"), "retry, keep using sonnet"),
+        (desktop(REMINDER + "retry, keep using sonnet"), "retry, keep using sonnet"),
+        (desktop([{"type": "text", "text": REMINDER}, {"type": "text", "text": "retry"}]), "retry"),
+    ],
+    ids=["plain", "leading-reminder", "reminder-block"],
+)
+def test_desktop_human_prompts_are_typed_turns(record, text):
+    assert transcript_reader.is_typed_turn(record) is True
+    assert transcript_reader.typed_text(record) == text
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        desktop(REMINDER),
+        desktop(REMINDER + REMINDER + "retry"),
+        desktop(REMINDER + "<command-name>/clear</command-name>"),
+        desktop(REMINDER + "[Request interrupted by user]"),
+        desktop("<system-reminder>never closed retry"),
+        user("retry", promptSource="sdk"),
+        user(REMINDER + "retry"),
+        user(REMINDER + "retry", promptSource="typed"),
+    ],
+    ids=[
+        "reminder-only",
+        "second-reminder",
+        "reminder-then-command",
+        "reminder-then-interrupt",
+        "unclosed-reminder",
+        "sdk-without-origin",
+        "cli-reminder-led",
+        "cli-typed-reminder-led",
+    ],
+)
+def test_reminder_strip_and_sdk_source_need_a_human_origin(record):
+    assert transcript_reader.is_typed_turn(record) is False
+    assert transcript_reader.typed_text(record) is None
+
+
 @pytest.mark.parametrize(
     ("record", "typed"),
     [

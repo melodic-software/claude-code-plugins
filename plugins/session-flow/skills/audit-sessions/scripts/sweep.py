@@ -9,7 +9,10 @@
 
 Reads only the `session-record/v1` files `collect.py` wrote; it never opens a transcript. Each
 rule in `reference/sweep-rules.json` names one metric: per-session metrics report their median and
-raise one finding listing every session above the threshold; a null threshold reports only. A
+raise one finding listing every session above the threshold; a null threshold reports only.
+Metrics and findings cover interactive sessions: a session whose stored entrypoints are all
+headless or Agent SDK ones (`census.session_class`) is set aside and counted, one with no known
+entrypoint is kept and counted, and the drift check reads every record. A
 metric fed by a lost drift canary (census.py) is withheld. Prints one JSON envelope (or markdown)
 on stdout; exit 0 pass, 1 warning (a metric degraded), 2 error. Stdlib only; Python 3.10+.
 """
@@ -23,6 +26,7 @@ import os
 import re
 import statistics
 import sys
+from collections import Counter
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -228,7 +232,14 @@ def render_md(data: dict) -> str:
     window = data["window"]
     span = f"{window['since'] or 'start'} to {window['until'] or 'now'}"
     versions = ", ".join(window["cc_versions"]) or "none"
-    lines = [f"# Session audit ({data['scope']})", "", f"Sessions: {window['sessions']} ({span}); Claude Code {versions}", ""]
+    sessions = f"Sessions: {window['sessions']} ({span}); Claude Code {versions}"
+    if window.get("automated_set_aside"):
+        n = window["automated_set_aside"]
+        sessions += f"; {n} automated session{'s' * (n != 1)} set aside"
+    if window.get("unclassified"):
+        n = window["unclassified"]
+        sessions += f"; {n} session{'s' * (n != 1)} without an entrypoint kept"
+    lines = [f"# Session audit ({data['scope']})", "", sessions, ""]
     lines += ["## Metrics", "", "| Metric | Value (per-session median) | Unit | n |", "|---|---|---|---|"]
     for metric, row in data["metrics"].items():
         value = "unavailable (canary lost)" if row.get("degraded") else _fmt(row["value"])
@@ -339,11 +350,20 @@ def main(argv: list[str] | None = None) -> int:
     else:
         scope, key = "machine", "machine"
     records = [r for r in records if in_window(r, args.since, args.until)]
-    window = {"since": args.since and args.since.isoformat(), "until": args.until and args.until.isoformat()}
+    classes = Counter(census.session_class(r) for r in records)
+    records = [r for r in records if census.session_class(r) != "automated"]
+    window = {
+        "since": args.since and args.since.isoformat(),
+        "until": args.until and args.until.isoformat(),
+        "automated_set_aside": classes["automated"],
+        "unclassified": classes["unknown"],
+    }
     fed = {metric for canary in canaries for metric in canary["feeds"]}
     catalog = {name.lstrip("/") for name in args.catalog} if args.catalog else None
     data = build_data(records, rules, drift, fed, scope, window, catalog)
     summary = f"{len(records)} sessions, {len(data['findings'])} findings"
+    if classes["automated"]:
+        summary += f"; {classes['automated']} automated set aside"
     status, code = "pass", 0
     if drift["degraded_metrics"]:
         status, code = "warning", 1

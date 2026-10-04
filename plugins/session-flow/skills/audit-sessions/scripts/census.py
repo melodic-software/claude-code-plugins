@@ -17,7 +17,8 @@ the classifier compares Claude Code versions:
 - `unknown-record-type`: a record type the collector's reader does not know, with its count.
 
 Only versions holding `min_count` records take part, and the `unknown` version bucket (records
-without a `version`) never does. The drift defaults and `write_atomic` live here too, so both
+without a `version`) never does. The drift defaults, `session_class` (a record's stored
+`entrypoints` read as automated, interactive or unknown) and `write_atomic` live here too, so both
 scripts share one store layer without `sweep.py` importing `collect.py` and its reader.
 Stdlib only; Python 3.10+.
 """
@@ -48,6 +49,12 @@ SECTIONS = frozenset(
     }
 )
 UNKNOWN_VERSION = "unknown"
+UNKNOWN_ENTRYPOINT = "unknown"
+# Transcript `entrypoint` values of headless (`claude -p`) and Agent SDK runs. The transcript key is
+# undocumented; its values match the `app.entrypoint` telemetry attribute. Pointer:
+# https://code.claude.com/docs/en/monitoring-usage#standard-attributes (as of 2026-10-04; recheck
+# when that row adds an SDK entrypoint or a drift run reports the entrypoint canary lost).
+AUTOMATED_ENTRYPOINTS = frozenset({"sdk-cli", "sdk-ts", "sdk-py"})
 DEFAULT_MIN_COUNT = 20
 DEFAULT_VERSIONS = 3
 # Sessions the newest version needs before a missing canary counts as lost.
@@ -103,6 +110,18 @@ def load_records(data_dir: Path) -> tuple[list[dict], int]:
         else:
             skipped += 1
     return records, skipped
+
+
+def session_class(record: dict) -> str:
+    """`automated` when every stored entrypoint is an SDK one, `unknown` when none is known, else `interactive`.
+
+    A session resumed interactively after a headless start carries both and counts as interactive.
+    """
+    values = record.get("entrypoints")
+    known = [v for v in values if isinstance(v, str) and v != UNKNOWN_ENTRYPOINT] if isinstance(values, list) else []
+    if not known:
+        return "unknown"
+    return "automated" if all(v in AUTOMATED_ENTRYPOINTS for v in known) else "interactive"
 
 
 def load_canaries(path: Path) -> dict:
