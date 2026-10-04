@@ -37,7 +37,7 @@ type Config = {
   blockUnattended: boolean
   band: boolean
 }
-// The tee's snapshot body: reference/reader-contract.md "Snapshot file shape".
+// The snapshot body: reference/reader-contract.md "Snapshot file shape".
 type Snapshot = {
   captured_at: string
   session_id: string
@@ -491,7 +491,7 @@ function stopTimer(timer: Timer | undefined) {
   return undefined
 }
 
-// The tee's standalone status line, as a band row: [<model>] ctx <n>% (<zone>).
+// The band row: [<model>] ctx <n>% (<zone>).
 export const bandText = (r: Reading | undefined, model: string | undefined) => {
   const zone = r?.zone === undefined ? '' : ` (${r.degraded && r.zone === 'dumb' ? 'dumb, compacted' : r.zone})`
   return `[${model || 'Claude'}] ctx ${r?.percent === undefined ? '-' : `${r.percent}%${zone}`}`
@@ -715,7 +715,7 @@ export const register: Register = (on, options) => {
 
   on('turn.start', async ($, e, next) => {
     st.reofferTimer = stopTimer(st.reofferTimer)
-    // Keeps the snapshot fresh through one long tool call or subagent run, as the tee's renders did.
+    // Keeps the snapshot fresh through one long tool call or subagent run.
     st.writeTimer ??= $.clock.every(WRITE_TIMER_MS, () => {
       void queueWrite($, st, true)
     })

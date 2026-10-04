@@ -12,7 +12,7 @@
           "node"
         ]
       },
-      "degrade": "Without node, the context-guard hooks cannot launch and the module writes no snapshot, so they do nothing.",
+      "degrade": "Without node, the PostCompact marker hook cannot launch and the module writes no snapshot, so file readers read unknown; the module's zone lines, gate, band row and status tool still run.",
       "install": {
         "docs": "https://nodejs.org/en/download"
       },
@@ -48,7 +48,6 @@
       "kind": "cli",
       "need": "required",
       "for": [
-        "hook:post-compact-mark.sh",
         "skill:setup"
       ],
       "detect": {
@@ -56,7 +55,7 @@
           "jq"
         ]
       },
-      "degrade": "Without jq, the context-guard hooks skip their work for the session and say so once.",
+      "degrade": "Without jq, the setup check's zone resolver prints unknown and setup apply cannot merge into an existing zones.json. No hook and no part of the module uses jq.",
       "install": {
         "docs": "https://jqlang.org/download/"
       },

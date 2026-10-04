@@ -1142,7 +1142,7 @@ test('telemetry: no sink set, nothing dispatched', BLOCKING(0), async ($, on) =>
 const TARGET = `${CTX}/sess-1.json`
 const bodies = (w: World) => w.runs.map(r => JSON.parse(String(r.stdin)))
 
-test('snapshot: the tee contract body on stdin, the per-session target and --prune in argv', async ($, on) => {
+test('snapshot: the snapshot body the helper reads on stdin, the per-session target and --prune in argv', async ($, on) => {
   const { w } = world(on)
   await bash($)
   expect(w.runs.map(r => r.argv)).toEqual([['node', expect.stringMatching(/\/lib\/write-snapshot\.mjs$/), TARGET, '--prune']])

@@ -1,7 +1,7 @@
 {
   "name": "context-guard",
-  "version": "0.10.4",
-  "description": "Per-session context-window observability. A statusline wrapper writes each session's context_window fields to a snapshot file; a resolver classifies usage into smart, acceptable, and dumb zones from zones.json. Hooks report each move into a worse zone once: the continuation menu to the operator, and only the zone to the model, noting a zone is not a decay signal. Optional blocking mode gates new mutating work in the dumb zone, except handoffs. A PostCompact hook leaves a marker.",
+  "version": "0.11.0",
+  "description": "Per-session context-window observability. A mod writes each session's context-window figures to a snapshot file and tells Claude its context zone (smart, acceptable or dumb, from bands in zones.json) at each crossing, approach and compaction, noting a zone is not a decay signal; the operator gets the continuation menu. It draws a band row and answers a status tool. Optional blocking mode gates new mutating work in a blocked zone, except handoffs. A PostCompact hook leaves a marker.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -9,8 +9,6 @@
   "license": "MIT",
   "keywords": [
     "context-window",
-    "statusline",
-    "tee",
     "zones",
     "context-degradation",
     "session",
