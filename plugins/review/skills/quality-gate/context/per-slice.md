@@ -7,7 +7,7 @@ Dispatches this plugin's `brief-reviewer` agent to review changed files against 
 When `slice <name>` is selected:
 
 1. Find the project's criteria document for `<name>`. Common shapes: `review/<name>.md`, `review/<name>/README.md`, `docs/review/<name>.md`. Glob before dispatching; if no criteria document exists for `<name>`, say so and list the criteria documents that DO exist (or suggest `criteria` mode when the project has none).
-2. Spawn the `brief-reviewer` agent (`review:brief-reviewer`) with this prompt template, never a general-purpose subagent: that one can spawn agents and invoke skills, so a slice reviewer could rediscover a review skill and fan out.
+2. Spawn the `brief-reviewer` agent (`review:brief-reviewer`) with this prompt template, never a general-purpose subagent, so a slice reviewer cannot rediscover a review skill and fan out.
 
 ```text
 You are a specialist reviewer for <SLICE-NAME> concerns.

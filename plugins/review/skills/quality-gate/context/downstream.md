@@ -32,7 +32,7 @@ command that may not resolve
 1. **Gather inputs**: the resolved review diff base (SKILL.md "Shared inputs") and the changed
    symbol list from Step 1.
 2. **Choose the worker**: this plugin's `brief-reviewer` agent (`review:brief-reviewer`), never a
-   general-purpose subagent, which can spawn agents and invoke skills. This mode has no checklist
+   general-purpose subagent, so the worker cannot fan out. This mode has no checklist
    agent, unlike `architecture` and `security`: its checks are not a fixed per-ecosystem baseline
    but a search shaped by what the diff changed, so the brief below carries the specifics and
    `brief-reviewer` runs it as given.

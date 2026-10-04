@@ -141,7 +141,7 @@ an explicit skip is the honest output.
 ## Step 2: Run the lens
 
 **Dispatch policy is this skill's standing rule.** A fresh-context `review:brief-reviewer` agent runs
-the comparison, never a general-purpose subagent, which can spawn agents and invoke skills; the orchestrator verifies each returned finding against the actual diff and the actual
+the comparison, never a general-purpose subagent, so the worker cannot fan out; the orchestrator verifies each returned finding against the actual diff and the actual
 spec text before presenting. A worker's report is synthesis, not evidence.
 
 Give the worker the resolved spec text, the review diff base, and the finding-class table. Ask for

@@ -41,13 +41,13 @@ const MAX_CONCURRENT = Number.isInteger(input.maxConcurrent)
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 const MODELS = ['inherit', 'opus', 'sonnet', 'haiku', 'fable', 'best']
 const FALLBACK_ROLES = {
-  retrieval: { single: { model: 'sonnet', effort: 'low' }, fanout: { model: 'sonnet', effort: 'low' } },
+  retrieval: { single: { model: 'sonnet', effort: 'low' } },
 }
 const passed = input.roles && typeof input.roles === 'object' ? input.roles : {}
 const R = {}
 for (const role of Object.keys(FALLBACK_ROLES)) {
   R[role] = {}
-  for (const v of ['single', 'fanout']) {
+  for (const v of ['single']) {
     const got = passed[role] && passed[role][v]
     const ok = got && MODELS.includes(got.model) && EFFORTS.includes(got.effort)
     if (got && !ok) log('roles.' + role + '.' + v + ' is not a {model alias, effort} pair: using the built-in fallback')

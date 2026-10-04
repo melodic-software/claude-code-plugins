@@ -21,6 +21,14 @@ severity-ranked, deduplicated findings report, and the other review skills liste
 | `stage-normalizer` | Fanout findings pipeline Stage 0 (extraction) and Stage 3 (dedup). Holds `Read` only, because it reads untrusted reviewer output; inherits the model so role routing applies |
 | `lane-verifier` | Hunter or verifier subagent for the CI lanes (`/review:code-review`, `/review:security-review`). Its tools exclude `Agent` and `Skill`, so it cannot re-invoke the lane's skill; inherits the model and pins no effort, so the lane's choice holds |
 
+No review skill dispatches a general-purpose or `Explore` subagent: every subagent a review skill
+starts is one of these nine, so no reviewer can spawn agents or invoke a review skill and fan out.
+
+- **Pointer**: when checking which tools a built-in subagent holds, fetch
+  [create custom subagents: built-in subagents](https://code.claude.com/docs/en/sub-agents#built-in-subagents)
+  live. **As of**: 2026-10-04. **Recheck trigger**: that section changes a built-in subagent's
+  tool list.
+
 The first six declare persistent per-project memory (`memory: local`, stored under
 `.claude/agent-memory-local/` and never checked into version control) so they can learn a
 codebase's patterns across sessions without dirtying the consumer repo's tracked tree. Two
@@ -29,9 +37,10 @@ limits apply:
 - **Memory needs auto memory.** With `autoMemoryEnabled: false` or
   `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in your settings, the `memory` field has no effect: nothing
   persists across sessions and each agent's `## Memory` section does nothing.
-- **"Read-only" is an instruction, not a tool boundary.** None of the nine lists `Write` or `Edit`,
-  but with auto memory on the harness enables both so the agent can manage its memory files,
-  and nothing scopes them to the memory directory. `permissionMode` cannot narrow a plugin
+- **"Read-only" is an instruction, not a tool boundary.** None of the first six lists `Write` or
+  `Edit`, but with auto memory on the harness enables both so the agent can manage its memory
+  files, and nothing scopes them to the memory directory. The last three declare no `memory`
+  field, so auto memory grants them neither. `permissionMode` cannot narrow a plugin
   subagent either. Bash is a second unenforced write path for every agent except `stage-normalizer`, and
   `ecosystem-specialist` runs build and test commands that write artifacts. Keeping writes to
   the memory directory and off the reviewed code is the agents' own convention.

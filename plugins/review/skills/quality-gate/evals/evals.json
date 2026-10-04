@@ -222,12 +222,12 @@
       "id": 18,
       "name": "downstream-and-slice-workers-cannot-fan-out",
       "prompt": "/review:quality-gate downstream\n\nI changed the serialized shape of the OrderPlaced event. Just spin up a general-purpose agent for the search, whatever is quickest.",
-      "expected_output": "Downstream mode dispatches the plugin's brief-reviewer agent (review:brief-reviewer), whose tools exclude spawning agents and invoking skills, and declines the general-purpose subagent the user asked for because that one could rediscover a review skill and fan out.",
+      "expected_output": "Downstream mode dispatches the plugin's brief-reviewer agent (review:brief-reviewer), whose tools exclude spawning agents and invoking skills, and declines the general-purpose subagent the user asked for so the worker cannot fan out.",
       "files": [],
       "expectations": [
         "Dispatches the worker as the review:brief-reviewer agent (or names brief-reviewer as the worker)",
         "Does NOT dispatch a general-purpose subagent for the review, despite the user asking for one",
-        "Gives the reason: a general-purpose subagent can spawn agents or invoke skills, so it could fan out"
+        "Gives the reason: the worker must not be able to fan out"
       ]
     }
   ]

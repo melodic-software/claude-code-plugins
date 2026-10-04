@@ -74,4 +74,4 @@ Key = normalized file path + line-proximity bucket (±3 lines), NOT category. Fi
 
 ## Model assignment
 
-Stages 0 and 3 are judgment steps and run as `review:stage-normalizer` agent calls: Stage 0 for parse fidelity, Stage 3 for semantic merge. They read untrusted reviewer output, so they never run as a general-purpose subagent, which can spawn agents and invoke skills; `stage-normalizer` holds Read only. Stages 1, 2, and 4 are table lookups and a sort; apply them directly on the main thread, never through a model call.
+Stages 0 and 3 are judgment steps and run as `review:stage-normalizer` agent calls: Stage 0 for parse fidelity, Stage 3 for semantic merge. They read untrusted reviewer output, so they run as `stage-normalizer`, which holds Read only, never as a general-purpose subagent. Stages 1, 2, and 4 are table lookups and a sort; apply them directly on the main thread, never through a model call.
