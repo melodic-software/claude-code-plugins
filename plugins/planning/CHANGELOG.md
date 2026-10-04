@@ -9,7 +9,8 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **`interview` (SKILL.md and `context/loop.md`), `plan` and `prd` no longer say the Brief, PLAN.md or PRD is branch-tracked with git log as its history ([#5783](https://github.com/melodic-software/claude-code-plugins/issues/5783)).**
   Since #5719 these files live in the uncommitted memory slice, so each pivot or restart note now says the dated note is the document's only history and the copy published to the pull request body or linked issue carries it.
-  The interview edit sits in the digested Step 1 section; `interview-defenses.test.sh` re-pins that one digest.
+  The interview Step 4 persist line no longer has the commit message carry the pivot rationale; it names the note as the Brief's only history.
+  Both interview edits sit in digested sections; `interview-defenses.test.sh` re-pins the Step 1 and Step 4 digests.
 
 ## [0.67.1] - 2026-10-03
 

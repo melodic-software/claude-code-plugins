@@ -540,6 +540,7 @@ pin_section "loop.md Step 4 section is unchanged (it twins the USER-RESERVED arb
 
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
 # The resume branch runs `round.sh doctor` before the first resumed round; it reports and resolves nothing.
+# The start-fresh note is the Brief's only history and its published PR-body or issue copy carries it; it touches no assumption, gap or Brief rule.
 pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as governing the two rules below)" \
   "$SKILL" \
   "### Step 1. Survey before you ask" \
@@ -553,11 +554,12 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
 # The Brief cross-check also passes `--procedure`, which only adds a check on the Brief's
 # template headings; it retires no row and relaxes no rule.
 # The cross-check names `brief=unconfirmed` and the fresh-Confirm rule; it adds a halt and retires no row.
+# The start-fresh line names the scope-change note as the Brief's only history; it touches no assumption, gap or Brief rule.
 pin_section "SKILL.md Step 4 section is unchanged (the Brief's assumption machinery lives here)" \
   "$SKILL" \
   "### Step 4. Persist the contract" \
   "### Step 5. Hand off" \
-  "94f688154723dd4995c221b9ee0d952c3e8961158d5b3661e38b32ddd3a3d465"
+  "8553a145d1912e1bfff5a0078e01ea02122e5aed81f12f1c9316aa2b9ba3552e"
 pin_section "SKILL.md Step 1.5 section is unchanged (auto-guard + unattended + \`lock\` routing live here)" \
   "$SKILL" \
   "### Step 1.5. Auto-detect (default action only)" \
