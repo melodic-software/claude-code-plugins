@@ -16,6 +16,12 @@ All notable changes to the `review` plugin are documented here. Format follows
 - `/review:quality-gate` slice, downstream, spec, close-out and restatement (large-diff batch) modes, `/review:fanout` criteria slices, the `/review:fanout-sweep` workflow's slice agents, and the `/review:explain-change` risk-map check dispatch `brief-reviewer` instead of a general-purpose or `Explore` subagent; self mode drops its general-purpose fallback for `code-reviewer`; fanout's Stage 0 and Stage 3 and the workflow's extractor dispatch `stage-normalizer`; the `/review:code-review` and `/review:security-review` CI lanes dispatch their hunters and verifiers as `lane-verifier`. A general-purpose subagent can spawn agents and invoke skills (and `Explore` keeps the skill tool), so a reviewer could rediscover a review skill and fan out; no path in these skills dispatches one now.
 - `/review:fanout-sweep` slices keep `brief-reviewer`'s pinned model and effort instead of the routed `roles.verifier.fanout` variant, and the workflow's returned `roles` now carries only `extract`.
 
+## [0.40.4] - 2026-10-04
+
+### Changed
+
+- The `architecture-guardian` agent's pattern-compliance check also verifies that a pattern matches its canonical definition and serves the principle it exists for; a shape copied from a popular template that defeats that principle is a violation.
+
 ## [0.40.3] - 2026-10-04
 
 ### Fixed

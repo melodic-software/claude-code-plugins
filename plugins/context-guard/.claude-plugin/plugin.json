@@ -1,7 +1,7 @@
 {
   "name": "context-guard",
-  "version": "0.11.1",
-  "description": "Per-session context-window observability. A mod writes each session's context-window figures to a snapshot file and tells Claude its context zone (smart, acceptable or dumb, from bands in zones.json) at each crossing, approach and compaction, noting a zone is not a decay signal; the operator gets the continuation menu. It draws a band row and answers a status tool. Optional blocking mode gates new mutating work in a blocked zone, except handoffs. A PostCompact hook leaves a marker.",
+  "version": "0.12.0",
+  "description": "Per-session context-window observability. A mod writes each session's context-window figures to a snapshot file and tells Claude its context zone (smart, acceptable or dumb, from bands in zones.json) at each crossing, approach and compaction; the person gets a toast and a transcript line. /context-guard prints status and toggles an optional band row. It answers a status tool. Optional blocking mode gates new mutating work in a blocked zone, except handoffs. A PostCompact hook leaves a marker.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -31,7 +31,7 @@
     "zone_report_mode": {
       "type": "string",
       "title": "Zone report mode",
-      "description": "automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a band notice when the turn ends. Headless, loop and schedule turns get automatic lines either way.",
+      "description": "automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a notice row when the turn ends. Headless, loop and schedule turns get automatic lines either way.",
       "default": "automatic",
       "options": ["automatic", "operator"]
     },
@@ -64,7 +64,13 @@
     "context_guard_band": {
       "type": "boolean",
       "title": "Context band row",
-      "description": "Draws the context figure and zone in a row above the prompt. On by default; /context-guard:band shows or hides it for the session.",
+      "description": "Draws the context figure and zone in a row above the prompt. Off by default. Turn it on in /config, or for one session with /context-guard band on.",
+      "default": false
+    },
+    "context_guard_toast": {
+      "type": "boolean",
+      "title": "Zone-change toast",
+      "description": "Shows a short toast when the session crosses into a worse context zone, beside the transcript line that records it. On by default; off, only the transcript line remains.",
       "default": true
     }
   }
