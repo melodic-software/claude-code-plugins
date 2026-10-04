@@ -5,11 +5,17 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.13.4] - 2026-10-04
+## [0.13.5] - 2026-10-04
 
 ### Fixed
 
 - **The resolver test's shared-fixture cases no longer depend on how fast they run ([#6214](https://github.com/melodic-software/claude-code-plugins/issues/6214)).** `context-zone.test.sh` pins the clock it lays the cases out with and the clock the resolver reads to the same instant, the one the TypeScript fixture run uses. Before, the seconds spent resolving earlier cases could carry `captured_at @now+62` and `@now-598` across their 60 s and 600 s edges on a slow runner. No change to the resolver.
+
+## [0.13.4] - 2026-10-04
+
+### Fixed
+
+- **The reader contract no longer routes a session to the user-only setup skill.** When the `status` tool is present but no fresh snapshot follows a tool call, `reference/reader-contract.md` and `reference/cloud-headless-capture.md` now say to run `/context-guard:check` for what the session can check itself and to ask the operator to run `/context-guard:setup check` for the rest, instead of invoking setup through the Skill tool, which refuses it (#5984).
 
 ## [0.13.3] - 2026-10-04
 
