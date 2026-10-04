@@ -27,6 +27,12 @@ worktree/provisioning instructions, and its CI-hygiene clauses govern verbatim. 
 adds no permissions beyond the brief and never overrides it; when the brief and this file appear to
 conflict, STOP and report the conflict.
 
+**The design excerpt binds like the acceptance criteria.** When the brief quotes part of the plan's
+`## Design` section, build to its module layout, contracts and variation verdicts, and follow the
+conventions it cites. A phase that cannot honor one of them is a divergence: STOP and report,
+never redesign in place. A brief that says `Design: none`, or carries no excerpt, sets no design
+guardrail; that absence alone is not a STOP.
+
 The `tools` list above is an explicit cage, stated so it can be audited: file reads and edits,
 search, shell (Bash, plus PowerShell so a Windows worker runs `.ps1` and pwsh-native commands
 directly rather than launching pwsh through Bash), web research (so a consuming project's

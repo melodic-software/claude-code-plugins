@@ -20,6 +20,14 @@ trap 'rm -rf "$TMP"' EXIT
 
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_CONFIG 2>/dev/null || true
+# Never read the developer's real settings or inherit a budget override: every
+# settings file the reporter can see is a fixture under $TMP.
+unset SLASH_COMMAND_TOOL_CHAR_BUDGET CLAUDE_PROJECT_DIR CHECK_SKILL_SKILLS_ROOT \
+  CHECK_SKILL_LISTING_BUDGET_CHARS CHECK_SKILL_LISTING_CONTEXT_TOKENS \
+  CHECK_SKILL_LISTING_BUDGET_FRACTION CHECK_SKILL_LISTING_CHARS_PER_TOKEN \
+  CHECK_SKILL_LISTING_MAX_DESC_CHARS 2>/dev/null || true
+export HOME="$TMP/home"
+export CLAUDE_CONFIG_DIR="$TMP/home/.claude"
 git -C "$TMP" init -q
 git -C "$TMP" config user.email test@example.com
 git -C "$TMP" config user.name test
@@ -516,6 +524,141 @@ if [[ $rc -eq 0 ]] && grep -q 'CHECK-LISTING-BUDGET: OK' <<<"$out"; then
   pass "non-git no-args form honors CHECK_SKILL_SKILLS_ROOT"
 else
   fail "non-git CHECK_SKILL_SKILLS_ROOT should report OK (rc=$rc): $out"
+fi
+
+# --- Budget resolution from settings (--from-settings) ------------------------
+#
+# BIG_ROOT holds 27 skills whose 1600-char descriptions the per-entry cap trims
+# to 1536 each: 27 x 1536 = 41472 chars. At skillListingBudgetFraction 0.05 the
+# band is 200000 x 4 x 0.05 = 40000 (over by 1472) and 1000000 x 4 x 0.05 =
+# 200000 (within), so the two rows must carry different verdicts.
+BIG_ROOT="$TMP/big/skills"
+long_desc="$(printf '%1600s' '' | tr ' ' 'x')"
+for i in $(seq 1 27); do
+  make_skill "$BIG_ROOT" "big-$i" "$long_desc"
+done
+write_fraction() {
+  mkdir -p "$(dirname "$1")"
+  printf '{"skillListingBudgetFraction": %s}\n' "$2" >"$1"
+}
+# run_cfg <project-dir> <config-dir> [args...]: each case gets its own fixture
+# project and config dirs, so no case sees another's settings files. Source
+# paths are matched by their tail: a native Windows jq reports a C:/ spelling.
+run_cfg() {
+  local proj="$1" cfg="$2"
+  shift 2
+  (cd "$TMP" && CLAUDE_PROJECT_DIR="$proj" CLAUDE_CONFIG_DIR="$cfg" bash "$SUT" "$@")
+}
+
+# 21. A user-scope fraction of 0.05 names its file and reports both window rows.
+CFG21="$TMP/s21/config"
+write_fraction "$CFG21/settings.json" 0.05
+out="$(run_cfg "$TMP/s21/project" "$CFG21" --from-settings "$BIG_ROOT" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q 'fraction:  0\.05 (settings:.*/s21/config/settings\.json)' <<<"$out" &&
+  grep -qF 'budget:    40000 chars (reconstructed: 200000 tokens x 4 chars/token x 0.05): WARN, over by 1472 chars' <<<"$out" &&
+  grep -qF 'budget:    200000 chars (reconstructed: 1000000 tokens x 4 chars/token x 0.05): OK' <<<"$out" &&
+  grep -q 'over 1 of 2 budgets at the configured fraction 0.05' <<<"$out"; then
+  pass "--from-settings reads a user-scope fraction and reports a verdict per window"
+else
+  fail "--from-settings should report 40000 (WARN) and 200000 (OK) from the user settings file (rc=$rc): $out"
+fi
+
+# 22. Precedence: project local beats shared project beats user.
+P22="$TMP/s22/project"
+CFG22="$TMP/s22/config"
+write_fraction "$P22/.claude/settings.local.json" 0.03
+write_fraction "$P22/.claude/settings.json" 0.02
+write_fraction "$CFG22/settings.json" 0.05
+out="$(run_cfg "$P22" "$CFG22" --from-settings "$BIG_ROOT" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q 'fraction:  0\.03 (settings:.*/s22/project/\.claude/settings\.local\.json)' <<<"$out" &&
+  grep -qF 'budget:    24000 chars' <<<"$out" &&
+  grep -qF 'budget:    120000 chars' <<<"$out"; then
+  pass "--from-settings takes the project-local fraction over project and user"
+else
+  fail "project settings.local.json should win (0.03 -> 24000/120000) (rc=$rc): $out"
+fi
+rm "$P22/.claude/settings.local.json"
+out="$(run_cfg "$P22" "$CFG22" --from-settings "$BIG_ROOT" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q 'fraction:  0\.02 (settings:.*/s22/project/\.claude/settings\.json)' <<<"$out" &&
+  grep -qF 'budget:    16000 chars' <<<"$out" &&
+  grep -qF 'budget:    80000 chars' <<<"$out"; then
+  pass "--from-settings takes the shared project fraction over the user one"
+else
+  fail "project settings.json should beat user settings (0.02 -> 16000/80000) (rc=$rc): $out"
+fi
+
+# 23. SLASH_COMMAND_TOOL_CHAR_BUDGET is the budget regardless of settings.
+out="$(cd "$TMP" && CLAUDE_PROJECT_DIR="$P22" CLAUDE_CONFIG_DIR="$CFG22" \
+  SLASH_COMMAND_TOOL_CHAR_BUDGET=12345 bash "$SUT" --from-settings "$BIG_ROOT" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -qF 'budget:    12345 chars (env:SLASH_COMMAND_TOOL_CHAR_BUDGET)' <<<"$out" &&
+  [[ "$(grep -c 'budget:    ' <<<"$out")" -eq 1 ]]; then
+  pass "SLASH_COMMAND_TOOL_CHAR_BUDGET fixes the budget over the settings fraction"
+else
+  fail "SLASH_COMMAND_TOOL_CHAR_BUDGET=12345 should be the only budget row (rc=$rc): $out"
+fi
+
+# 24. Without the flag (the default consumer CI measures) settings and the env
+#     budget are ignored, and the summary does not call the default configured.
+out="$(cd "$TMP" && CLAUDE_PROJECT_DIR="$P22" CLAUDE_CONFIG_DIR="$CFG22" \
+  SLASH_COMMAND_TOOL_CHAR_BUDGET=12345 bash "$SUT" "$BIG_ROOT" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -qF 'budget:    8000 chars (documented default (SLASH_COMMAND_TOOL_CHAR_BUDGET fallback))' <<<"$out" &&
+  grep -q 'over budget by 33472 at the documented default budget' <<<"$out" &&
+  ! grep -q 'configured' <<<"$out" &&
+  ! grep -q 'fraction:' <<<"$out"; then
+  pass "default-consumer mode ignores settings and env, and never says configured"
+else
+  fail "no flag should report the 8000 default, over by 33472, without 'configured' (rc=$rc): $out"
+fi
+
+# 25. CHECK_SKILL_LISTING_BUDGET_FRACTION alone is applied as the band, not
+#     silently dropped in favor of the 8000 default.
+out="$(CHECK_SKILL_LISTING_BUDGET_FRACTION=0.05 run "$BIG_ROOT" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -qF 'fraction:  0.05 (override (CHECK_SKILL_LISTING_BUDGET_FRACTION))' <<<"$out" &&
+  grep -qF 'budget:    40000 chars' <<<"$out" &&
+  grep -qF 'budget:    200000 chars' <<<"$out" &&
+  ! grep -qF 'budget:    8000 chars' <<<"$out"; then
+  pass "a fraction override without a window reports the 200k/1M band"
+else
+  fail "CHECK_SKILL_LISTING_BUDGET_FRACTION alone should give 40000/200000 (rc=$rc): $out"
+fi
+
+# 26. --from-settings with no settings file falls back to the documented 0.01:
+#     8000 and 40000, both exceeded by 41472, and labeled the default.
+out="$(run_cfg "$TMP/s26/project" "$TMP/s26/config" --from-settings "$BIG_ROOT" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q 'fraction:  0.01 (documented default' <<<"$out" &&
+  grep -qF 'budget:    8000 chars' <<<"$out" &&
+  grep -qF 'budget:    40000 chars' <<<"$out" &&
+  grep -q 'over 2 of 2 budgets at the documented default fraction 0.01' <<<"$out" &&
+  ! grep -q 'configured' <<<"$out"; then
+  pass "--from-settings with no settings reports the documented-default band"
+else
+  fail "no settings file should give the 0.01 band 8000/40000 labeled default (rc=$rc): $out"
+fi
+
+# 27. Malformed settings JSON is an environment error, not a silent default.
+CFG27="$TMP/s27/config"
+mkdir -p "$CFG27"
+printf '{"skillListingBudgetFraction": \n' >"$CFG27/settings.json"
+out="$(run_cfg "$TMP/s27/project" "$CFG27" --from-settings "$BIG_ROOT" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 ]] && grep -q 'could not parse settings JSON' <<<"$out"; then
+  pass "malformed settings JSON exits 2"
+else
+  fail "malformed settings JSON should exit 2 (rc=$rc): $out"
 fi
 
 # An option-shaped argument is reported as an unknown option, not a missing root.

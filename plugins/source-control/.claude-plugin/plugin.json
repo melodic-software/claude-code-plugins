@@ -1,6 +1,6 @@
 {
   "name": "source-control",
-  "version": "0.79.15",
+  "version": "0.79.17",
   "description": "Git and GitHub delivery: /commit (convention-checked subject, Co-authored-by trailer, surgical staging), /pull-request (prep, create, CI monitoring, review triage, merge, CI logs), /babysit-prs (safe-by-default PR fleet loop, opt-in worker and autopilot tiers), /babysit-loop (merge lane; merge is human until the repo adopts it), /worktree, /resolve-conflicts (intent-first), /check, and /setup (layered source-control.md convention config; Conventional Commits by default).",
   "author": {
     "name": "Melodic Software",

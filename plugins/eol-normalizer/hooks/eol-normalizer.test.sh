@@ -216,7 +216,7 @@ if [[ "$(cr_count "$REPO/seed.sh")" == "2" ]]; then ok "pre: seed.sh seeded with
 OUT=$(run_hook "$REPO/seed.sh")
 RC=$?
 if [[ $RC -eq 0 ]]; then ok "LF arm .sh -> exit 0"; else fail "LF arm .sh exit $RC"; fi
-if [[ "$OUT" == *'"systemMessage"'* && "$OUT" == *'normalized line endings to LF'* ]]; then ok "LF arm .sh -> mutation disclosure on stdout"; else fail "LF arm stdout missing disclosure: $OUT"; fi
+if [[ "$OUT" == *'"systemMessage"'* && "$(jq -r .systemMessage <<<"$OUT")" == 'eol-normalizer: line endings in seed.sh set to LF.' ]]; then ok "LF arm .sh -> mutation disclosure on stdout"; else fail "LF arm stdout missing disclosure: $OUT"; fi
 if [[ "$(cr_count "$REPO/seed.sh")" == "0" ]]; then ok "LF arm CRLF .sh -> 0 CR (every OS)"; else fail "LF arm .sh CR=$(cr_count "$REPO/seed.sh")"; fi
 
 # --- Case 2: unspecified (.png) -> no-op, every OS ---------------------------
@@ -239,6 +239,7 @@ OUT=$(run_hook "$REPO/gap.txt")
 RC=$?
 if [[ $RC -eq 0 ]]; then ok "CRLF arm .txt -> exit 0"; else fail "CRLF arm .txt exit $RC"; fi
 if [[ "$(cr_count "$REPO/gap.txt")" == "2" ]]; then ok "CRLF arm LF .txt -> 2 CR (every OS)"; else fail "CRLF arm .txt CR=$(cr_count "$REPO/gap.txt") (expected 2)"; fi
+if [[ "$(jq -r '.systemMessage // empty' <<<"$OUT")" == 'eol-normalizer: line endings in gap.txt set to CRLF.' ]]; then ok "CRLF arm .txt -> disclosure names the CRLF target"; else fail "CRLF arm .txt disclosure: $OUT"; fi
 
 # --- Case 5: text=auto binary guard — NUL content never rewritten ------------
 # Under a broad `* text=auto eol=lf` rule, check-attr resolves eol=lf for
@@ -347,7 +348,7 @@ rm -f "$TEL3"
 # Fresh file: tel2.sh was already normalized in the telemetry stub-sink case above.
 printf 'echo r\r\n' >"$REPO/tel2b.sh"
 OUT_LF=$(run_hook_env "$REPO/tel2b.sh" CLAUDE_PLUGIN_OPTION_EOL_NORMALIZER_ENABLED=true)
-if [[ "$OUT_LF" == *'"systemMessage"'* && "$OUT_LF" == *'normalized line endings to LF'* ]]; then
+if [[ "$OUT_LF" == *'"systemMessage"'* && "$(jq -r .systemMessage <<<"$OUT_LF")" == 'eol-normalizer: line endings in tel2b.sh set to LF.' ]]; then
   ok "mutation disclosure: LF normalization names target ending"
 else
   fail "mutation disclosure: LF out=$OUT_LF"
@@ -550,7 +551,7 @@ fi
 # such a path, and hook::repo_root reads an empty hint as `.`, the hook process
 # CWD, where the `dirname` it replaced answered `/`. An empty extraction fails
 # loudly so a refactor that moves the block cannot pass by testing nothing.
-FILE_DIR_LINES="$(awk 'index($0, "FILE_DIR=\"${FILE%/*}\"") { p = 1 } index($0, "REPO_ROOT=") { p = 0 } p' "$HOOK_DIR/hook-utils.sh")"
+FILE_DIR_LINES="$(awk 'index($0, "FILE_DIR=\"${FILE%") { p = 1 } index($0, "REPO_ROOT=") { p = 0 } p' "$HOOK_DIR/hook-utils.sh")"
 if [[ -z "$FILE_DIR_LINES" ]]; then
   fail "root-level: FILE_DIR block not found in hook-utils.sh"
 else
