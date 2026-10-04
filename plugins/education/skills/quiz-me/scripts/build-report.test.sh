@@ -82,6 +82,37 @@ check("a known section anchor renders its name", page.includes("If missed, rerea
 check("the answer key is collapsed", /<details>[ \t\r\n]*<summary>Answer key<\/summary>/.test(page));
 check("an empty model still validates", validateRenderedPage(buildReportPage({})).ok);
 
+// Authors put the correct answer first; the rendered order must not keep it there.
+const firstAuthored = Array.from({ length: 12 }, (_, i) => ({
+  question: `question-${i}`,
+  choices: [`right-${i}`, `wrong-${i}-a`, `wrong-${i}-b`, `wrong-${i}-c`],
+  answer: `right-${i}`,
+  section: "done",
+}));
+const shuffledPage = buildReportPage({ questions: firstAuthored });
+const keyPart = shuffledPage.slice(shuffledPage.indexOf("<summary>Answer key</summary>"));
+const positions = firstAuthored.map((row, i) => {
+  const block = shuffledPage.match(new RegExp(`<p>question-${i}</p><ol>(.*?)</ol>`));
+  const rendered = block ? [...block[1].matchAll(/<li>(.*?)<\/li>/g)].map((m) => m[1]) : [];
+  check(
+    `question ${i} renders every authored choice once`,
+    rendered.length === 4 && [...rendered].sort().join() === [...row.choices].sort().join(),
+    rendered.join(","),
+  );
+  const position = rendered.indexOf(row.answer) + 1;
+  check(
+    `the key for question ${i} names the choice where its answer rendered`,
+    keyPart.includes(`<p>Choice ${position}: right-${i}</p>`),
+  );
+  return position;
+});
+check("the correct choice is not always rendered first", positions.some((p) => p !== 1), positions.join(","));
+check("rebuilding keeps the same choice order", shuffledPage === buildReportPage({ questions: firstAuthored }));
+check(
+  "a free-answer key renders the answer alone",
+  buildReportPage({ questions: [{ question: "q", answer: "free text" }] }).includes("<p>free text</p>"),
+);
+
 const source = readFileSync(builderPath, "utf8");
 const pageFn = source.slice(source.indexOf("export function buildReportPage"), source.indexOf("function fail"));
 const stray = (pageFn.match(/\$\{[^}]+\}/g) ?? []).filter(
