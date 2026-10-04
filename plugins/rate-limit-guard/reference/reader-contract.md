@@ -238,13 +238,8 @@ owner-only (0700) and writes the contract file owner-only (0600).
   killed writer is swept by the next write once it is older than 60 seconds. A cleanup tool should
   leave these alone: one may belong to a live concurrent write, and the helper reclaims them itself.
 
-Left by versions before 0.12.0, which wrote the snapshot through a statusline tee, and safe to
-delete after unwiring that tee (`/rate-limit-guard:setup` prints the steps): `.last-write`,
-`spool/`, `.tee-disabled`, `.statusline-tee-path` (under
-`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/rate-limit-guard/`, which differs from the contract directory
-under a relocated `CLAUDE_CONFIG_DIR`), and `bin/statusline-shim.sh`.
-The helper also sweeps a `.rate-limits.json.tmp.<pid>.<random>` staging file those versions left
-once it is older than 60 seconds.
+The helper also sweeps a `.rate-limits.json.tmp.<pid>.<random>` staging file, the name older
+versions used, once it is older than 60 seconds.
 
 ## Invariants and boundaries
 

@@ -18,21 +18,6 @@ after the reset. Three parts:
   fixed file path, the 95%-of-either-window pause threshold, the staleness rule, pause-end
   semantics, capability-detect fail-open, and drain-then-pause.
 
-## Upgrading from a version with the statusline tee
-
-Versions before 0.12.0 wrote the file through a statusline tee and a shim you wired into your own
-`statusLine`. The module replaces both, and the plugin needs no wiring. After updating:
-
-1. Run `/rate-limit-guard:setup`. It finds a tee that still runs (by the stamp files a tee writes
-   and the cached plugin versions that still hold one) and every route that reaches it: a
-   `statusLine` naming the shim or tee, a wrapper script such as a dotfiles status line
-   entrypoint, or an installed shim copy.
-2. Follow the unwire steps it prints. It shows your `statusLine` command with only the guard shims
-   removed, so your own status line renderer stays exactly as it was, and the leftover files to
-   delete. It never edits your settings or scripts itself.
-3. Stop and restart sessions and lanes started before the update: they keep running what they
-   loaded.
-
 ## The module
 
 The module tells Claude where the account stands against its rate limits, tells you when a window
