@@ -2605,8 +2605,8 @@ def _watchdog_fire(deadline: float) -> None:
       outcome the guard would have reached (a defer emits no decision at all
       and lets the command run) and strictly less blocking than ``exit 2``;
     * ``belt`` mode denies, always. Belt is the skill-frontmatter deployment,
-      where Bash is deny-by-default and ``_engine_gate_relevant`` is never
-      consulted — a marker-free ``rm -rf`` would have been DENIED there, not
+      where Bash is deny-by-default and ``_engine_gate_relevant`` never
+      decides the verdict — a marker-free ``rm -rf`` would have been DENIED there, not
       deferred, so downgrading it to a prompt on "the host was slow" would
       convert a deny-by-default guard into one the operator is invited to
       wave through. Belt is also the DEFAULT (``resolve_mode`` falls back to
@@ -2742,7 +2742,7 @@ def _watchdog_fire(deadline: float) -> None:
         # have been the plugin-level defer", and that holds ONLY in engine-gate
         # mode. The skill-frontmatter registration passes no `--mode` and
         # `resolve_mode()` defaults to `belt`, where Bash is deny-by-default and
-        # `_engine_gate_relevant` is never consulted at all — so in belt mode a
+        # `_engine_gate_relevant` never decides the verdict — so in belt mode a
         # marker-free `rm -rf /some/dir` would have been DENIED, not deferred.
         # Downgrading that to `ask` would turn a deny-by-default guard into a
         # prompt the operator is invited to approve, on nothing more than "the
