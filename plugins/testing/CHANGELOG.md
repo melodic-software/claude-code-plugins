@@ -3,12 +3,18 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.22.8] - 2026-10-04
+## [0.22.9] - 2026-10-04
 
 ### Fixed
 
 - `/testing:audit` no longer reads a C# test's own signature as an assertion. A test named `Diagnostics_CheckConnectionStrings`, or a theory with an `expected` parameter, whose body only prints is now reported as `rule-zero-assertion` ([#6040](https://github.com/melodic-software/claude-code-plugins/issues/6040)).
 - A C# test whose body sits on its declaration line, `{ ... }` or `=> ...`, is now checked for `rule-weak-oracle`, `rule-snapshot-only` and `rule-inert-assertion`, as a multi-line body is. An async assertion a `Task`-returning expression body returns is awaited by the runner and is not reported; in an `async` test the expression's value is discarded, so it is ([#6040](https://github.com/melodic-software/claude-code-plugins/issues/6040)).
+
+## [0.22.8] - 2026-10-04
+
+### Changed
+
+- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
 
 ## [0.22.7] - 2026-10-04
 

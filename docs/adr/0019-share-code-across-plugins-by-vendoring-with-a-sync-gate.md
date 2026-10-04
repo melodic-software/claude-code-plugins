@@ -27,14 +27,14 @@ Alternatives weighed (docs verified 2026-07-03):
   `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_PLUGIN_DATA}`; no variable or documented mechanism exposes a
   *dependency's* install path, and cache directories are per-version (with a commit-SHA suffix for
   tag-resolved dependencies), so computing the path is unsupported by design
-  (<https://code.claude.com/docs/en/plugins-reference#plugin-caching-and-file-resolution>;
+  (<https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk>;
   <https://code.claude.com/docs/en/plugin-dependencies>). **Recheck trigger:** Claude Code
   ships a documented dependency-path variable; that would also allow sharing the lib beyond this
   marketplace.
 - **Marketplace-internal symlinks: rejected (amended 2026-10-02, was deferred).** Documented
   mechanism: a symlink from a plugin to a file elsewhere in the same marketplace is dereferenced at
   install, copying the target's content into the cache: native SSOT with no sync script
-  (<https://code.claude.com/docs/en/plugins-reference#share-files-within-a-marketplace-with-symlinks>).
+  (<https://code.claude.com/docs/en/plugins/host-marketplace#share-files-within-a-marketplace-with-symlinks>).
   Rejected because default Git for Windows does not create symlinks: it ships with symlink support
   disabled (<https://gitforwindows.org/symbolic-links.html>), and with `core.symlinks` false Git
   checks a symlink out as a small plain file containing the link text

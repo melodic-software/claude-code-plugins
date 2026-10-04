@@ -10,9 +10,6 @@
 4b10aeebd6e7f9861f2fca9710ca3143b24d8613:plugins/architecture/lib/likec4-golden/deployment-kubernetes.c4:generic-api-key:21
 097e014ebe3a9fa9a58c23eeecfec50049253daa:plugins/disk-hygiene/lib/test_guard_decision_log.py:private-key:180
 097e014ebe3a9fa9a58c23eeecfec50049253daa:plugins/disk-hygiene/lib/test_guard_decision_log.py:jwt:197
-# Fake credentials in the go-faster redaction tests, split in a later commit so the tree holds none.
-6af7a21c7b3cdfb5d09c38da106e8b3cf39aee3f:plugins/performance/scripts/findings.test.sh:curl-auth-header:920
-6af7a21c7b3cdfb5d09c38da106e8b3cf39aee3f:plugins/performance/scripts/findings.test.sh:generic-api-key:921
 # The vendored gitleaks rules file: this rule's regex is a literal prefix that
 # matches itself. A commit-less line is checked in git scans as well as dir
 # scans, so it survives the squash merge that replaces the adding commit.

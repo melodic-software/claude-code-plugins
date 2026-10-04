@@ -36,7 +36,7 @@ is built around that constraint, not around reading `/mcp` connection status dir
 Official contracts:
 
 - <https://code.claude.com/docs/en/plugins-reference#user-configuration>
-- <https://code.claude.com/docs/en/plugins-reference#default-enablement>
+- <https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled>
 - <https://code.claude.com/docs/en/mcp>
 
 ## Task
@@ -111,9 +111,10 @@ agent carries the enabled plugin with no registered marketplace to resolve it fr
 **The enable step is not optional.** Both plugins ship `defaultEnabled: false`, so they install
 DISABLED. The install seeds the key but leaves the MCP server, and therefore every `dometrain`
 tool, unavailable until `dometrain-mcp` is enabled ([Default
-enablement](https://code.claude.com/docs/en/plugins-reference#default-enablement), which also notes
-`claude plugin enable` auto-detects the scope when `-s` is omitted; passing it explicitly keeps the
-sequence deterministic in CI). A bootstrap that stops after `install` looks successful and delivers
+enablement](https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled)).
+[`claude plugin enable`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-enable)
+auto-detects the scope when `-s` is omitted; passing it explicitly keeps the sequence deterministic
+in CI. A bootstrap that stops after `install` looks successful and delivers
 no tools.
 
 **Rotating or clearing the key** belongs to `dometrain-mcp`: `/plugin configure

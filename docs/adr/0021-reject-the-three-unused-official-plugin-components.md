@@ -32,11 +32,11 @@ explicit recheck trigger; no implementation issues emitted (zero accepted).
   knowledge plugin's extraction tooling) is owned by its publish issue #1373; the `bin/`-vs-`scripts/`
   call belongs there, not duplicated here. **Recheck trigger:** a shipped plugin has a script the consumer
   invokes as a bare command (not an internal helper). Upstream:
-  <https://code.claude.com/docs/en/plugins-reference#standard-plugin-layout>.
+  <https://code.claude.com/docs/en/plugins/manifest-reference#standard-layout>.
 - **`subagentStatusLine`** (plugin `settings.json`): **REJECT.** Purely cosmetic: it re-formats the
   subagent panel row with no functional capability, so it does not clear the default-REJECT bar; its
   richest inputs (per-row model + context-window size for a context percentage) additionally require a
   recent Claude Code minimum. Candidate home was harness-ops. **Recheck trigger:** a concrete operational
   need for custom subagent-row data during orchestration, not a presentation preference. Upstream:
   <https://code.claude.com/docs/en/statusline#subagent-status-lines>,
-  <https://code.claude.com/docs/en/plugins-reference#standard-plugin-layout>.
+  <https://code.claude.com/docs/en/plugins/manifest-reference#standard-layout>.
