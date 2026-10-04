@@ -162,7 +162,7 @@ check(
   "the skill routes the page through the builder",
   skill.includes("build-explainer.mjs") && skill.includes("Do not hand-write the HTML"),
 );
-check("the skill states the short-label rule", skill.includes("Box labels are a few words; detail goes in `text`."));
+check("the skill states the short-label rule", skill.includes("Step labels are capped at 40 characters."));
 
 if (failed > 0) process.exit(1);
 NODE

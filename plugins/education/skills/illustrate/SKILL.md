@@ -56,9 +56,8 @@ the same thing.
   system up across several small diagrams, each adding one box.
 - **`kind`** is `flow` (boxes joined by arrows, in order) or `stack` (boxes one above the next,
   such as layers). Default `flow`. A flow of more than four steps is drawn one step per line.
-- **Box labels are a few words; detail goes in `text`.** The builder cuts a step label over 40
-  characters at a word and warns on stderr; when it warns, shorten the label and move the detail
-  into that diagram's `text` lines.
+- **Step labels are capped at 40 characters.** The builder cuts a longer label at a word and warns
+  on stderr; when it warns, move the detail into that diagram's `text` lines.
 - **`caption`** is the one-line takeaway: what the reader should conclude from the diagram.
   `text` is short scaffolding under it.
 - **`terms`** defines every word a reader of the chosen preset may not know. **`sources`** lists
