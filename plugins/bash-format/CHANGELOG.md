@@ -3,6 +3,12 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.4] - 2026-10-04
+
+### Fixed
+
+- **The format pass no longer changes an associative-array key.** shfmt parses an unquoted subscript as arithmetic, since it cannot tell an associative array from an indexed one, and spaces it, so `${m[a-b]}` became `${m[a - b]}`, a different key ([#5791](https://github.com/melodic-software/claude-code-plugins/issues/5791)). When shfmt rewrites a file, the hook now compares the source text of every subscript before and after, from `shfmt --to-json`. If any subscript differs, it puts the original bytes back and names the subscript, its line, and the quoted form on both channels. A file shfmt leaves unchanged costs no extra process. An unspaced indexed expression such as `${a[i+1]}` is also left as written, because the hook cannot tell it from a key; writing it spaced lets the file format.
+
 ## [0.10.3] - 2026-10-03
 
 ### Fixed

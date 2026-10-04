@@ -116,6 +116,61 @@ append_notice() {
   NOTICE+="$1"
 }
 
+# Subscript guard. shfmt parses an unquoted array subscript as arithmetic,
+# because a static parser cannot tell an associative array from an indexed one,
+# and spaces its operators: `${m[a-b]}` becomes `${m[a - b]}`, a different key
+# (mvdan/sh#956 and the "Caveats" section of the mvdan/sh README). The guard
+# compares the source text of every subscript before and after the rewrite, in
+# syntax-tree order, and puts the original bytes back when any of them differs.
+# The tree is the same on both sides, because shfmt reads the spaced and the
+# unspaced form as one expression, so the subscripts pair up one to one.
+# Offsets are bytes, so the slicing runs under LC_ALL=C. A file holding a NUL
+# byte cannot be held in a bash variable and is not guarded; a shfmt whose
+# --to-json fails yields no subscripts, and its rewrite stands.
+SUBSCRIPT_ORIG=""
+SUBSCRIPT_GUARD=0
+subscript_guard_begin() {
+  local LC_ALL=C
+  SUBSCRIPT_GUARD=0
+  # read returns 0 only when it stopped at a NUL before end of file.
+  IFS= read -r -d '' SUBSCRIPT_ORIG <"$1" && return 0
+  SUBSCRIPT_GUARD=1
+}
+
+# Prints "start end line" for each array subscript of the script on stdin.
+subscript_spans() {
+  shfmt --to-json --filename "$1" 2>/dev/null |
+    jq -r '.. | objects | select(.Index? | type == "object") | .Index | "\(.Pos.Offset) \(.End.Offset) \(.Pos.Line)"' 2>/dev/null
+}
+
+subscript_guard_end() {
+  local file="$1" LC_ALL=C new="" span s e l was now i
+  local -a before=() after=()
+  ((SUBSCRIPT_GUARD)) || return 0
+  IFS= read -r -d '' new <"$file"
+  [[ "$new" == "$SUBSCRIPT_ORIG" ]] && return 0
+  while IFS= read -r span; do before+=("$span"); done < <(subscript_spans "$file" <<<"$SUBSCRIPT_ORIG")
+  ((${#before[@]})) || return 0
+  while IFS= read -r span; do after+=("$span"); done < <(subscript_spans "$file" <<<"$new")
+  for ((i = 0; i < ${#before[@]}; i++)); do
+    span="${before[i]}"
+    s="${span%% *}" span="${span#* }"
+    e="${span%% *}" l="${span#* }"
+    was="${SUBSCRIPT_ORIG:s:e-s}"
+    now=""
+    if [[ -n "${after[i]:-}" ]]; then
+      span="${after[i]}"
+      s="${span%% *}" span="${span#* }"
+      e="${span%% *}"
+      now="${new:s:e-s}"
+    fi
+    [[ "$was" == "$now" ]] && continue
+    printf '%s' "$SUBSCRIPT_ORIG" >"$file"
+    append_notice "bash-format: shfmt would rewrite the array subscript [$was] on line $l of $FILE_BASE as [$now], a different key if the array is associative, so $FILE_BASE was left as written. Quote the key ([\"$was\"]) if the array is associative; write the expression spaced ([$now]) if it is indexed."
+    return 0
+  done
+}
+
 # Tool path for shfmt/ShellCheck. On Windows/MSYS, Claude Code may hand the
 # hook a POSIX mount path (`/c/...`), a mixed drive path (`C:/...`), or a
 # backslash Win32 path. GHC-based ShellCheck opens paths via openBinaryFile and
@@ -181,6 +236,7 @@ if shell_editorconfig_opt_in; then
       # Content-mutation disclosure (#1596): shfmt rewrites structural layout
       # only; name the rewrite on the user channel and stay silent on no-op paths.
       hook::rewrite_guard_begin "$_fmt_target"
+      subscript_guard_begin "$_fmt_target"
       if probe_err=$(shfmt --apply-ignore --version 2>&1 >/dev/null); then
         shfmt --apply-ignore -w "$_fmt_target" 2>/dev/null
       elif [[ "$probe_err" == *apply-ignore* ]] &&
@@ -189,6 +245,7 @@ if shell_editorconfig_opt_in; then
       else
         append_notice "bash-format: shfmt capability probe failed unexpectedly (${probe_err%%$'\n'*}) — formatting skipped for this file, opt-outs preserved."
       fi
+      subscript_guard_end "$_fmt_target"
       ran_any=1
     fi
   elif hook::notice_once "bash-format-shfmt" "$INPUT" prerequisite; then

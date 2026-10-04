@@ -28,6 +28,17 @@ and `.editorconfig` for formatting. It ships no rules of its own.
   It runs with no parser/printer flags, so your `.editorconfig` is authoritative,
   and with `--apply-ignore` so an `ignore = true` section (e.g. for generated or
   vendored scripts) is honored even on a single edited file.
+- **A rewrite that would change an array subscript is put back.** shfmt parses an
+  unquoted subscript as arithmetic and spaces it, because it cannot know the
+  array is associative, so `${m[a-b]}` would become the different key
+  `${m[a - b]}` (see the Caveats section of the
+  [mvdan/sh README](https://github.com/mvdan/sh#caveats) and
+  [mvdan/sh#956](https://github.com/mvdan/sh/issues/956); checked 2026-10-04 against
+  shfmt v3.14.1; recheck when a shfmt release changes how it reads subscripts). When
+  shfmt rewrites the file, the hook compares every subscript's source text before
+  and after. If any differs, the hook restores the file byte for byte and names the
+  subscript. Quote an associative key (`${m["a-b"]}`); write an indexed expression
+  spaced (`${a[i + 1]}`). A file shfmt leaves unchanged costs no extra process.
 - **Advisory, never blocking.** The hook always exits `0`. Findings are reported
   via `additionalContext`; they never reject the edit. Make a commit hook or CI
   your hard gate.

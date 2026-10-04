@@ -299,6 +299,53 @@ EOF
   else
     fail "[**/*.sh] path-prefixed -> shell file not formatted: $(cat "$REPO_PATHGLOB/src/x.sh")"
   fi
+
+  # Subscript guard (#5791). shfmt reads an unquoted subscript as arithmetic
+  # and spaces it, so `${m[a-b]}` would become `${m[a - b]}`, a different key
+  # of an associative array. The unindented if-block makes shfmt rewrite the
+  # file; the guard must put every byte back and name the subscript.
+  REPO_SUB="$WORK/subscript-guard"
+  new_repo "$REPO_SUB"
+  printf 'root = true\n[*.sh]\nindent_style = space\nindent_size = 2\n' >"$REPO_SUB/.editorconfig"
+  # shellcheck disable=SC2016  # the subscripts must stay literal in the emitted fixture
+  printf '#!/usr/bin/env bash\ndeclare -A m=([a-b]=1)\nif true; then\necho "${m[a-b]}"\nfi\n' >"$REPO_SUB/assoc.sh"
+  cp "$REPO_SUB/assoc.sh" "$WORK/subscript-guard.expected"
+  OUT=$(run_hook "$REPO_SUB/assoc.sh")
+  if cmp -s "$REPO_SUB/assoc.sh" "$WORK/subscript-guard.expected"; then
+    ok "unquoted hyphenated subscript -> shfmt rewrite put back byte for byte"
+  else
+    fail "unquoted hyphenated subscript -> key rewritten: $(cat "$REPO_SUB/assoc.sh")"
+  fi
+  MSG=$(printf '%s' "$OUT" | jq -r '.systemMessage // empty' 2>/dev/null)
+  CTX=$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+  if [[ "$MSG" == *"array subscript [a-b] on line 2 of assoc.sh as [a - b]"* && "$CTX" == *'["a-b"]'* ]]; then
+    ok "subscript guard names the subscript, its line and the quoted form on both channels"
+  else
+    fail "subscript guard notice missing or malformed: $OUT"
+  fi
+  if [[ "$MSG" != *reformatted* ]]; then
+    ok "subscript guard -> no reformatted disclosure for a file left as written"
+  else
+    fail "subscript guard -> disclosed a rewrite it put back: $MSG"
+  fi
+
+  # MUST stay quiet: a quoted key and an already-spaced indexed expression are
+  # left alone by shfmt, so the rest of the file is formatted and no subscript
+  # notice is raised.
+  # shellcheck disable=SC2016  # the subscripts must stay literal in the emitted fixture
+  printf '#!/usr/bin/env bash\ndeclare -A m=(["a-b"]=1)\na=(1 2)\ni=0\nif true; then\necho "${m["a-b"]}" "${a[i + 1]}" "${a[$i]}"\nfi\n' >"$REPO_SUB/quoted.sh"
+  OUT=$(run_hook "$REPO_SUB/quoted.sh")
+  # shellcheck disable=SC2016  # the pattern matches the literal subscripts
+  if grep -q '^  echo "${m\["a-b"\]}" "${a\[i + 1\]}" "${a\[$i\]}"$' "$REPO_SUB/quoted.sh"; then
+    ok "quoted key and spaced index -> file formatted, subscripts untouched"
+  else
+    fail "quoted key and spaced index -> not formatted as expected: $(cat "$REPO_SUB/quoted.sh")"
+  fi
+  if [[ "$OUT" != *"array subscript"* && "$OUT" == *reformatted* ]]; then
+    ok "quoted key and spaced index -> subscript guard stays quiet"
+  else
+    fail "quoted key and spaced index -> unexpected output: $OUT"
+  fi
 else
   echo "  (shfmt absent -- gate cases skipped)"
 fi
