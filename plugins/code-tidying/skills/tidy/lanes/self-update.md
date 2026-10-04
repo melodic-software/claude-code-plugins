@@ -37,7 +37,7 @@ Summary of what this lane CANNOT modify, even though the files are technically i
 - **The Lane catalog + lane-resolution sections**: the `.claude/tidy-lanes/` consumer contract is a published interface
 - **Lane scope globs**: every lane file's `## Scope` block
 - **Watch-for tidying lists**: the lane files' `## Watch-for patterns` blocks
-- **`${CLAUDE_PLUGIN_ROOT}/reference/pr-scope-budget.md`**: a generated copy of the shared PR scope budget convention; its numbers change in the convention, never in a tidy
+- **`<plugin-root>/reference/pr-scope-budget.md`**: a generated copy of the shared PR scope budget convention; its numbers change in the convention, never in a tidy
 
 If during a self-update run you find drift in any of the EXTRA HARD areas: **clean exit, NO PR, report what was found to the user.** The user reviews and decides.
 
