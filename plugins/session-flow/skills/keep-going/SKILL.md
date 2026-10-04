@@ -192,8 +192,10 @@ For any "is it stuck / check the monitor / poke it":
   the record below holds its as-of date and recheck trigger. This skill has no
   in-session account-identity signal, so a captured message never drives a
   still-blocked verdict by itself: re-check live before handing back. When no
-  live reading is obtainable (no pull tool: mods off or the guard not
-  installed), ask the operator which account is active and whether it has
+  live reading is obtainable (mods off, the guard not installed, the
+  tool's registration refused by policy, or a tool answer with no windows,
+  `verdict: "unknown"`, as under API-key or enterprise auth), ask the
+  operator which account is active and whether it has
   headroom, as in the exit `2` path. Never invent a window and never conclude
   still-blocked.
 

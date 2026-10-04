@@ -37,10 +37,14 @@ against that contract rather than restating it.
    - `smart` / `acceptable` / `dumb` → **zone-informed dispatch** (report the zone too).
    - `unknown`, or the `${CLAUDE_SESSION_ID}` substitution surviving unexpanded → **conservative
      dispatch** (the audit's unknown row + visible notice). `unknown` carries no direction: it is
-     a working state, not a defect and not evidence about the window either way. The
-     structural-versus-broken discriminator is on the writer side: the snapshot's writer is
-     context-guard's mod, so no snapshot means context-guard is not installed or mods are off in
-     this environment, and statusline wiring is never the remediation. Recommend the
+     a working state, not a defect and not evidence about the window either way. Tell
+     structural absence from breakage per the context-guard reader contract, "Sessions with no
+     writer (`unknown` is structural)": the discriminator is whether `mcp__context-guard__status`
+     is in this session's tool list. Tool absent (mods off, the plugin not enabled, a WSL session
+     of the Desktop app, or a policy refused the tool): structural, report "no instrument in this
+     environment". Tool present but no fresh snapshot after a tool call: a real defect, usually a
+     missing `node` or an unwritable `~/.claude/context-guard/context/`; point at
+     `/context-guard:setup check`. Statusline wiring is never the remediation. Recommend the
      `context-guard` plugin's setup only as an optional upgrade.
 3. **Convention home + effective config**. Run
    `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "${CLAUDE_PROJECT_DIR}"`

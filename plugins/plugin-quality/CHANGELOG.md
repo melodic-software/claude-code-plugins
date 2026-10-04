@@ -16,8 +16,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   snapshot writer. Its resolver test now runs the shared fixture cases too.
 - **`/plugin-quality:setup` and the audit evidence packet name context-guard's mod as the snapshot
   writer.** Setup no longer reads `statusLine` from every settings scope to tell a structural
-  `unknown` from a broken one: no snapshot means context-guard is not installed or mods are off,
-  and statusline wiring is never the remediation.
+  `unknown` from a broken one; it follows the context-guard reader contract: no
+  `mcp__context-guard__status` tool is structural, and the tool present with no fresh snapshot
+  after a tool call is a real defect. Statusline wiring is never the remediation.
 
 ## [0.13.5] - 2026-10-03
 
