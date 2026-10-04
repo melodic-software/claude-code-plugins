@@ -273,6 +273,37 @@ assert_contains "write_env fails on an invalid key" "$out" "rc=1"
 assert_contains "... with a diagnosable message" "$out" "invalid key name: 'bad-key'"
 assert_contains "... before the env file is created" "$out" "env:ABSENT"
 
+# A key that names the library's own state would be overwritten by the helper's
+# printf -v: `write_env ENV_FILE x` would send every later write to a file
+# named x. Every top-level global the library assigns must be refused, so a new
+# global added without extending _assignable_key fails here.
+lib_globals="$(grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$LIB" | tr -d '=' | sort -u)"
+out="$(
+  case_run "$TTY_EOF" <<BODY
+for k in $(tr '\n' ' ' <<<"$lib_globals") __wiz_key __wiz_value RESET; do
+  if (_assignable_key "\$k") >/dev/null 2>&1; then printf 'accept:%s\n' "\$k"; else printf 'reject:%s\n' "\$k"; fi
+done
+(_assignable_key STRIPE_KEY) && echo "plain:accepted"
+BODY
+)"
+for k in $lib_globals __wiz_key __wiz_value RESET; do
+  assert_contains "_assignable_key refuses the library name '$k'" "$out" "reject:$k"
+done
+assert_contains "... and accepts an ordinary key" "$out" "plain:accepted"
+
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+(write_env ENV_FILE elsewhere)
+printf 'rc=%s\n' "$?"
+printf 'env_file=[%s]\n' "$ENV_FILE"
+if [[ -e .env || -e elsewhere ]]; then echo "files:CREATED"; else echo "files:ABSENT"; fi
+BODY
+)"
+assert_contains "write_env refuses a key naming library state" "$out" "rc=1"
+assert_contains "... with a diagnosable message" "$out" "reserved key name: 'ENV_FILE'"
+assert_contains "... leaving ENV_FILE alone" "$out" "env_file=[.env]"
+assert_contains "... and writing nothing" "$out" "files:ABSENT"
+
 # --- 4. write_env and _existing --------------------------------------------
 
 # The fixture starts from a world-readable hand-written env file, which is the
@@ -321,6 +352,144 @@ assert_contains "write_env upserts rather than appending" "$out" "k_lines=1"
 assert_contains "... keeping the newest value" "$out" "k=[three]"
 assert_contains "... and leaving other keys alone" "$out" "other=[keep]"
 assert_contains "write_env leaves no staging temp file behind" "$out" "leftovers=0"
+
+# A stage that writes a value and later reads it back (`write_env K "$x"` then
+# `set_secret K "$K"`) must see what it wrote, the same as after ask.
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+write_env WRITTEN_ONLY 'from-write-env' >/dev/null
+printf 'shell=[%s]\n' "${WRITTEN_ONLY-unset}"
+BODY
+)"
+assert_contains "write_env also sets the shell variable it names" "$out" "shell=[from-write-env]"
+
+# A symlinked env file (a shared secret store) must receive the write: the link
+# survives, the target gets the key and keeps its other lines and its mode.
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+mkdir store
+printf "STORED='kept'\n" >store/secrets.env
+chmod 640 store/secrets.env
+ln -s store/secrets.env .env
+write_env NEW_KEY 'via-link' >/dev/null
+if [[ -L .env ]]; then echo "link:kept"; else echo "link:replaced"; fi
+printf 'target=[%s]\n' "$(tr '\n' ' ' <store/secrets.env)"
+printf 'target_mode=[%s]\n' "$(ls -l store/secrets.env | cut -c1-10)"
+shopt -s nullglob
+leftovers=(.env.*)
+printf 'leftovers=%s\n' "${#leftovers[@]}"
+BODY
+)"
+assert_contains "write_env keeps a symlinked env file a symlink" "$out" "link:kept"
+assert_contains "... writes the new key into the link target" "$out" "NEW_KEY='via-link'"
+assert_contains "... keeps the target's existing lines" "$out" "STORED='kept'"
+assert_contains "... leaves the target's mode alone" "$out" "target_mode=[-rw-r-----]"
+assert_contains "... and leaves no staging temp file behind" "$out" "leftovers=0"
+
+# A symlinked env file whose target sits OUTSIDE the project (a hostile repo
+# shipping `.env -> ~/.bashrc`) must name the real destination and get an
+# explicit yes before anything lands there. The outside target is a sibling of
+# the case directory, reached through a two-hop relative chain so the resolver's
+# loop is exercised. The fixture's confirm answer is the only input: a declined
+# or unanswerable gate must leave the target byte-identical and exit nonzero.
+OUTSIDE_LINK_SETUP='outside="$(mktemp -d "${CASE_DIR%/*}/outside.XXXXXX")"
+printf "export PATH=/usr/bin\n" >"$outside/bashrc"
+cp "$outside/bashrc" "$outside/before"
+ln -s "$outside/bashrc" hop
+ln -s hop .env
+_drain_tty() { :; }
+'
+out="$(
+  case_run "$TTY_N" <<BODY
+$OUTSIDE_LINK_SETUP
+(write_env LEAKED 'typed-secret')
+printf 'rc=%s\n' "\$?"
+if cmp -s "\$outside/bashrc" "\$outside/before"; then echo "target:UNCHANGED"; else echo "target:CHANGED"; fi
+printf 'resolved=[%s]\n' "\$(cd -P "\$outside" && pwd -P)/bashrc"
+BODY
+)"
+assert_contains "declining an outside symlink target writes nothing" "$out" "target:UNCHANGED"
+assert_contains "... and exits nonzero" "$out" "rc=1"
+resolved="$(printf '%s\n' "$out" | sed -n 's/^resolved=\[\(.*\)\]$/\1/p')"
+assert_contains "... after naming the resolved destination" "$out" "outside this project: $resolved"
+
+out="$(
+  case_run "$TTY_EOF" <<BODY
+$OUTSIDE_LINK_SETUP
+(write_env LEAKED 'typed-secret')
+printf 'rc=%s\n' "\$?"
+if cmp -s "\$outside/bashrc" "\$outside/before"; then echo "target:UNCHANGED"; else echo "target:CHANGED"; fi
+BODY
+)"
+assert_contains "an outside symlink target with no answer available writes nothing" "$out" "target:UNCHANGED"
+assert_contains "... and exits nonzero" "$out" "rc=1"
+
+# The gate must come BEFORE the secret is typed, not after: a declined
+# ask_secret never shows its prompt.
+out="$(
+  case_run "$TTY_N" <<BODY
+$OUTSIDE_LINK_SETUP
+(ask_secret TOKEN "Paste the secret:")
+printf 'rc=%s\n' "\$?"
+BODY
+)"
+assert_contains "ask_secret asks about an outside symlink target first" "$out" "outside this project"
+assert_not_contains "... and a decline aborts before the secret prompt" "$out" "Paste the secret:"
+assert_contains "... nonzero" "$out" "rc=1"
+
+out="$(
+  case_run "$TTY_Y" <<BODY
+$OUTSIDE_LINK_SETUP
+write_env FIRST 'one' >/dev/null
+write_env SECOND 'two' >/dev/null
+printf 'rc=%s\n' "\$?"
+if [[ -L .env ]]; then echo "link:kept"; else echo "link:replaced"; fi
+printf 'target=[%s]\n' "\$(tr '\n' ' ' <"\$outside/bashrc")"
+BODY
+)"
+assert_contains "a confirmed outside symlink target is written through" "$out" "SECOND='two'"
+assert_contains "... keeping its existing lines" "$out" "export PATH=/usr/bin"
+assert_contains "... asking once per env file (one y answers both writes)" "$out" "FIRST='one'"
+assert_contains "... and the link survives" "$out" "link:kept"
+
+# The yes covers one resolved target, not the ENV_FILE name: a link repointed
+# to a different outside file after the first confirmed write must ask again,
+# and a decline there leaves the new target untouched.
+TTY_Y_N="$(tty_fixture y-n y n)"
+out="$(
+  case_run "$TTY_Y_N" <<BODY
+$OUTSIDE_LINK_SETUP
+write_env FIRST 'one' >/dev/null
+printf "OTHER=1\n" >"\$outside/second"
+cp "\$outside/second" "\$outside/second.before"
+ln -sfn "\$outside/second" hop
+(write_env SECOND 'two')
+printf 'rc=%s\n' "\$?"
+if cmp -s "\$outside/second" "\$outside/second.before"; then echo "second:UNCHANGED"; else echo "second:CHANGED"; fi
+printf 'resolved=[%s]\n' "\$(cd -P "\$outside" && pwd -P)/second"
+BODY
+)"
+resolved="$(printf '%s\n' "$out" | sed -n 's/^resolved=\[\(.*\)\]$/\1/p')"
+assert_contains "a link repointed after a confirmed write asks again" "$out" "outside this project: $resolved"
+assert_contains "... and a decline leaves the new target untouched" "$out" "second:UNCHANGED"
+assert_contains "... exiting nonzero" "$out" "rc=1"
+
+# Inside the project the write-through stays silent: the EOF fixture would make
+# any confirmation prompt abort.
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+mkdir store
+printf "STORED='kept'\n" >store/secrets.env
+ln -s store/secrets.env hop
+ln -s hop .env
+write_env NEW_KEY 'via-link'
+printf 'rc=%s\n' "$?"
+printf 'target=[%s]\n' "$(tr '\n' ' ' <store/secrets.env)"
+BODY
+)"
+assert_contains "a symlink target inside the project is written without a prompt" "$out" "NEW_KEY='via-link'"
+assert_not_contains "... and draws no outside-the-project disclosure" "$out" "outside this project"
+assert_contains "... exiting 0" "$out" "rc=0"
 
 # The escaping contract: what write_env stores must read back byte-identical
 # through _existing AND through a plain dotenv-style shell read.
@@ -535,7 +704,7 @@ assert_not_contains "... and prints its own newline so the next output is not gl
 # pinned at the source, which is where the regression would actually land.
 ask_secret_read="$(awk '/^ask_secret\(\)/ { inside = 1 } inside && /read / { print; exit }' "$LIB")"
 assert_contains "ask_secret reads hidden and without readline, which would echo it back" \
-  "$ask_secret_read" "read -rs -u 3 input"
+  "$ask_secret_read" "read -rs -u 3 __wiz_input"
 ask_read="$(awk '/^ask\(\)/ { inside = 1 } inside && /read / { print; exit }' "$LIB")"
 assert_contains "ask keeps readline editing on the non-secret prompt" "$ask_read" "-e"
 
@@ -551,6 +720,23 @@ assert_contains "ask aborts at EOF instead of assigning empty" "$out" "terminal 
 assert_contains "... nonzero" "$out" "ask_rc=1"
 assert_contains "ask_secret aborts at EOF too" "$out" "terminal closed while reading secret TOKEN"
 assert_contains "... nonzero" "$out" "secret_rc=1"
+
+# A key spelled like one of a helper's own locals must still reach the caller:
+# printf -v resolves the name at the innermost scope, so a colliding local
+# would swallow the assignment. The names are every local each helper has ever
+# declared, the unprefixed set a wizard author can realistically pick.
+for helper in ask ask_secret write_env; do
+  for name in key prompt current input value escaped tmp; do
+    if [[ "$helper" == write_env ]]; then call="write_env $name typed-value >/dev/null"; else call="$helper $name P:"; fi
+    out="$(
+      case_run "$TTY_VALUE" <<BODY
+$call
+printf 'got=[%s]\n' "\${$name-unset}"
+BODY
+    )"
+    assert_contains "$helper sets a caller variable named '$name'" "$out" "got=[typed-value]"
+  done
+done
 
 # --- 8. GitHub Actions helpers ---------------------------------------------
 
@@ -757,6 +943,30 @@ BODY
 rc=$?
 assert_exit "a successful wizard exits 0 under set -e (EXIT trap keeps its status)" 0 "$rc"
 assert_contains "... having run to completion" "$out" "reached-end"
+
+# --- 11. A terminal without the clear capability -----------------------------
+
+# _clear only acts on a terminal, so this case needs a pty: util-linux `script`
+# provides one. TERM=dumb has no `clear` entry, so `tput clear` exits nonzero;
+# under set -e that must not kill the wizard before its first prompt.
+if script -qec true /dev/null </dev/null >/dev/null 2>&1; then
+  dumb_case="$(
+    case_build strict <<'BODY'
+_drain_tty() { :; }
+banner "Dumb terminal"
+echo "reached-first-prompt"
+BODY
+  )"
+  out="$(
+    cd "$(mktemp -d "$TEST_TMPDIR/dir.XXXXXX")" &&
+      TERM=dumb WIZARD_TEST_TTY="$TTY_BLANK" script -qec "bash $(printf '%q' "$dumb_case"); echo rc=\$?" /dev/null </dev/null 2>&1 | tr -d '\r'
+  )"
+  assert_contains "a TERM=dumb wizard reaches its first prompt" "$out" "Ready to start?"
+  assert_contains "... and gets past it under set -e" "$out" "reached-first-prompt"
+  assert_contains "... exiting 0" "$out" "rc=0"
+else
+  skip_case "TERM=dumb case: util-linux script (pty) unavailable"
+fi
 
 # --- Tally ------------------------------------------------------------------
 

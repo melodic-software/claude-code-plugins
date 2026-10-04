@@ -112,6 +112,20 @@ test('adds', () => {
 });
 EOF
 
+cat >"$REPO/src/WidgetTests.cs" <<'EOF'
+using Xunit;
+
+public class WidgetTests
+{
+    [Fact]
+    public void Constructor_BuildsAWidget()
+    {
+        var widget = new Widget("w");
+        Assert.NotNull(widget);
+    }
+}
+EOF
+
 cp "$REPO/src/sum.test.ts" "$REPO/scratch/ignored.test.ts"
 
 # payload <tool> <file> <session> <agent> <tool_use_id> <tool_response json>;
@@ -293,6 +307,13 @@ run Write "$REPO/src/weak.test.ts"
 assert_contains "(j) names rule-weak-oracle" "$out" "rule-weak-oracle"
 assert_not_contains "(j) does not call a weak oracle a test that cannot fail" "$out" "tests that cannot fail"
 assert_contains "(j) carries the weak-oracle Action" "$out" "Action [rule-weak-oracle]: "
+
+# (k) a throw-only oracle fails when the constructor throws, so it checks
+# little and is not called a test that cannot fail.
+run Write "$REPO/src/WidgetTests.cs"
+assert_contains "(k) names rule-throw-only-oracle" "$out" "rule-throw-only-oracle"
+assert_contains "(k) leads with tests that check little" "$out" "tests that check little"
+assert_not_contains "(k) does not call a throw-only oracle a test that cannot fail" "$out" "tests that cannot fail"
 
 # Two overlapping `if` rows run the hook twice for one call; only one reports.
 run Write "$REPO/src/sum.test.ts" s1 "" dup-call

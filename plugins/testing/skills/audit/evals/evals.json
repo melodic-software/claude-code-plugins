@@ -206,6 +206,17 @@
         "Output reports testing/audit/rule-weak-oracle with the fired threshold",
         "Output proposes asserting the exact saved value instead of only that a row exists"
       ]
+    },
+    {
+      "id": 18,
+      "name": "throw-only-oracle-constructed-value",
+      "prompt": "Our widget tests build a Widget with new and then Assert.NotNull and Assert.IsType on it. Audit them.",
+      "expected_output": "Runs the detector and reports testing/audit/rule-throw-only-oracle: a value built with new is never null and is always its own type, so the tests fail only if the constructor throws. Proposes asserting what the constructor sets (the widget's name) and notes that a smoke test kept to prove wiring records that with a cant-fail-ok: annotation, and that the rule is report-only.",
+      "files": ["evals/fixtures/corpus/cs-xunit/bad/WidgetConstructedNotNullTests.cs.fixture"],
+      "expectations": [
+        "Output reports testing/audit/rule-throw-only-oracle with the fired threshold",
+        "Output proposes asserting a value the constructor sets instead of only that the widget exists"
+      ]
     }
   ]
 }

@@ -1,0 +1,66 @@
+// good-for: rule-conditional-assertion
+// A return inside a catch with a when filter guards a run the test cannot
+// make (a trial license), a return after the assertion ends nothing early, and
+// a return inside a local function or a lambda ends only that callable.
+using System;
+using System.Collections.Generic;
+using Xunit;
+
+public class ReportTrialGuardTests
+{
+    [Fact]
+    public void Render_WritesOnePage()
+    {
+        try
+        {
+            var pdf = Renderer.Render("a");
+            Assert.Equal(1, pdf.Pages);
+        }
+        catch (Exception ex) when (IsTrialFailure(ex))
+        {
+            return;
+        }
+    }
+
+    [Fact]
+    public void Export_KeepsTheName()
+    {
+        Document doc;
+        try { doc = Exporter.Open("a.docx"); }
+        catch (LicenseException ex) when (ex.IsTrial) { return; }
+        Assert.Equal("a.docx", doc.Name);
+    }
+
+    [Fact]
+    public void Print_SendsOneJob()
+    {
+        Assert.Equal(1, Printer.Send("a").Jobs);
+        return;
+    }
+
+    [Fact]
+    public void Print_SkipsEmptyJobs()
+    {
+        var sent = 0;
+        void Send(string job) { if (job == "") return; sent++; }
+        Send("");
+        Send("a");
+        Assert.Equal(1, sent);
+    }
+
+    [Fact]
+    public void Print_RecordsPositiveJobs()
+    {
+        var seen = new List<int>();
+        Action<int> record = x =>
+        {
+            if (x < 0) return;
+            seen.Add(x);
+        };
+        record(-1);
+        record(2);
+        Assert.Equal(new[] { 2 }, seen);
+    }
+
+    private static bool IsTrialFailure(Exception ex) => ex is LicenseException;
+}

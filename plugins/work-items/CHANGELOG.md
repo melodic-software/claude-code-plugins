@@ -3,6 +3,34 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.2] - 2026-10-04
+
+### Added
+
+- **`blocked_by_wont_do_count` on every normalized item.** It counts blockers closed as
+  not planned or as a duplicate. A non-zero value means the item waits on work that will never
+  finish and needs re-triage. Generated adapters emit it too.
+
+### Fixed
+
+- **A blocker closed as won't-do no longer unblocks its dependents.** `blocked_by_count` now
+  also counts blockers closed as not planned or duplicate, so an unattended loop no longer
+  picks work whose prerequisite was abandoned. The GitHub adapter reads each closed blocker's
+  `stateReason` through `gh api graphql` (a `null` reason still resolves; a failed query keeps
+  the blocker blocking); Linear unblocks only on the `completed` state type, and only while
+  `done_state_types` lists it; local-markdown
+  reads an optional `state_reason` frontmatter field. Jira and Gitea record no readable close
+  reason, so they keep counting a closed blocker as resolved.
+- **A fork's closing PR no longer parks an item as in flight.** The GitHub "Open linked PRs"
+  reductions count only open PRs whose head branch lives in the item's own repository, so an
+  outsider's `Closes #N` PR does not hold the item off the frontier for the stale window.
+
+## [0.49.1] - 2026-10-04
+
+### Changed
+
+- `work-loop`'s `reference/paused-wait.md` no longer restates the lane pause floor as a bare `95`: the account-switch resume and re-latch steps point at the inlined floor's **Pause threshold (fixed)**, so a floor change cannot leave them stale.
+
 ## [0.49.0] - 2026-10-04
 
 ### Added

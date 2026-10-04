@@ -1,0 +1,8 @@
+# expect: rule-inert-assertion
+# Two statements on one line: the assert after the call tests a non-empty
+# tuple, which is always true, so it never fails.
+from billing import total
+
+
+def test_total_adds_lines():
+    result = total([1, 2]); assert (result == 3, "total is 3")

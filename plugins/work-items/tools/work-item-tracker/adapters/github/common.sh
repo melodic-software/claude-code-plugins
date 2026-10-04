@@ -250,7 +250,10 @@ readonly WIT_ITEM_JQ='{
   assignees: [(.assignees // [])[] | .login],
   labels: [(.labels // [])[] | .name],
   type: (.issueType.name // null),
-  blocked_by_count: ([(.blockedBy.nodes // [])[] | select(.state == "OPEN")] | length),
+  blocked_by_count: ([(.blockedBy.nodes // [])[] | select(.state != "CLOSED" or .reasonRead == false
+    or .stateReason == "NOT_PLANNED" or .stateReason == "DUPLICATE")] | length),
+  blocked_by_wont_do_count: ([(.blockedBy.nodes // [])[] | select(.state == "CLOSED"
+    and (.stateReason == "NOT_PLANNED" or .stateReason == "DUPLICATE"))] | length),
   parent_id: (
     if (.parent // null) != null and (.parent.url // null) != null
     then (.parent.url
@@ -261,9 +264,47 @@ readonly WIT_ITEM_JQ='{
   url: .url
 }'
 
+# wit_gh_annotate_blocker_reasons — stdin: one issue object or an array of them, as
+# `gh --json ...,blockedBy` returns it; stdout: the same JSON with `stateReason` set
+# on every CLOSED blocker node. That projection carries no stateReason, so the
+# reasons come from `gh api graphql` nodes(ids:), one query per 100 closed blockers
+# and none when there is no closed blocker. Each CLOSED node also gets `reasonRead`:
+# false when its query failed, answered with a blank or unparsable body, or returned
+# no node for it. A failed query is not
+# fatal, but WIT_ITEM_JQ keeps an unread blocker blocking (fail closed). A node read
+# with a null stateReason (issues closed before GitHub recorded reasons) is resolved.
+wit_gh_annotate_blocker_reasons() {
+  local json ids n i reasons='[]' out page args id
+  json="$(cat)"
+  ids="$(printf '%s' "$json" | jq -c '[(if type == "array" then .[] else . end)
+    | (.blockedBy.nodes // [])[] | select(.state == "CLOSED") | .id] | unique')"
+  n="$(jq 'length' <<<"$ids")"
+  for ((i = 0; i < n; i += 100)); do
+    args=()
+    while IFS= read -r id; do
+      args+=(-f "ids[]=$id")
+    done <<<"$(jq -r --argjson i "$i" '.[$i:$i + 100][]' <<<"$ids")"
+    # shellcheck disable=SC2016  # GraphQL query — $ids is a GraphQL variable, not a bash expansion
+    if out="$(gh api graphql -f query='query($ids:[ID!]!){nodes(ids:$ids){... on Issue{id stateReason}}}' \
+      "${args[@]}" 2>/dev/null)" &&
+      page="$(jq -ce '[(.data.nodes // [])[] | select(. != null)]' <<<"$out" 2>/dev/null)"; then
+      reasons="$(jq -cn --argjson acc "$reasons" --argjson page "$page" '$acc + $page')"
+    else
+      echo "wit_gh_annotate_blocker_reasons: close-reason query failed; closed blockers keep blocking" >&2
+    fi
+  done
+  printf '%s' "$json" | jq -c --argjson r "$reasons" '
+    (reduce $r[] as $x ({}; .[$x.id] = $x.stateReason)) as $by_id
+    | def ann: if (.blockedBy.nodes // null) == null then .
+        else .blockedBy.nodes |= map(if .state == "CLOSED"
+          then .id as $i | .stateReason = $by_id[$i] | .reasonRead = ($by_id | has($i)) else . end) end;
+    if type == "array" then map(ann) else ann end'
+}
+
 # wit_emit_item <owner> <repo> <number> — fetch the issue and emit the normalized
 # item object (CONTRACT.md "JSON output contract"). blocked_by_count counts OPEN
-# blockers only (closed blockers stay in blockedBy.totalCount — Tier-0 verified).
+# blockers, blockers closed NOT_PLANNED or DUPLICATE, and closed blockers whose reason
+# could not be read; blocked_by_wont_do_count counts the NOT_PLANNED and DUPLICATE ones.
 # gh >= 2.94 reads through `gh issue view --json` (issueType/blockedBy/parent).
 # Older gh reads REST, which sandboxed sessions serve where GraphQL 403s, and maps
 # the REST shape onto the same fields; type comes from .type, and parent and
@@ -274,7 +315,8 @@ wit_emit_item() {
   if wit_gh_has_native_surface; then
     wit_run_gh read issue view "$number" -R "$owner/$repo" \
       --json number,title,state,assignees,labels,issueType,blockedBy,parent,url
-    jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$owner/$repo" "$WIT_ITEM_JQ" <<<"$WIT_GH_OUT"
+    printf '%s' "$WIT_GH_OUT" | wit_gh_annotate_blocker_reasons |
+      jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$owner/$repo" "$WIT_ITEM_JQ"
   else
     wit_run_gh read api "repos/$owner/$repo/issues/$number"
     if jq -e 'has("pull_request")' <<<"$WIT_GH_OUT" >/dev/null; then
