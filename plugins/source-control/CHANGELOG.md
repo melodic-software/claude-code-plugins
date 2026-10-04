@@ -3,17 +3,23 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.79.13] - 2026-10-04
+## [0.79.14] - 2026-10-04
 
 ### Changed
 
 - **Shorter hook text (#6225).** Both PR-contract gates print one shared block message (`linkage::block_message` in `pr-linkage-validator.sh`): the problems found and one sentence naming the required shape, in place of two drifted ten-line templates. The negated-closer and missing-closing-line problems are one line each. The worktree containment block is one sentence and no longer names its kill switch. The worktree claim hook is silent after a successful claim and names the worktree when another session already holds it. The four hooks share one missing-jq notice per session.
 
-## [0.79.12] - 2026-10-04
+## [0.79.13] - 2026-10-04
 
 ### Changed
 
 - **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing node goes to the user only, in one shorter line. The jq `degrade` text in `prerequisites.json` no longer says the skip lasts the session or that the hook says so once.
+
+## [0.79.12] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve.
 
 ## [0.79.11] - 2026-10-04
 

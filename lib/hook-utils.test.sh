@@ -1464,22 +1464,43 @@ else
   fail "stdin_cut_short_notice" "got '$cut16' stderr '$(cat "$cut16_err")'"
 fi
 
+# --- Test 16e2: hook::notice_once user latch under a race --------------------
+# Agents of one session that hit the same key at once: exactly one of them owns
+# the user notice, and each still owns its own model notice.
+DATA16R="$(mktemp -d)"
+for i in $(seq 1 12); do
+  (
+    CLAUDE_PLUGIN_DATA="$DATA16R" hook::notice_once race "{\"session_id\":\"sess-r\",\"agent_id\":\"agent-$i\"}"
+    # shellcheck disable=SC2031 # notice_once just set both in this subshell
+    printf '%s%s\n' "$HOOK_NOTICE_TO_USER" "$HOOK_NOTICE_TO_MODEL" >"$DATA16R/out.$i"
+  ) &
+done
+wait
+race16_user="$(cat "$DATA16R"/out.* | cut -c1 | grep -c 1)"
+race16_model="$(cat "$DATA16R"/out.* | cut -c2 | grep -c 1)"
+if [[ "$race16_user" == 1 && "$race16_model" == 12 ]]; then
+  ok "notice_once: racing agents send the user notice once and each its model notice"
+else
+  fail "notice_once race: want 1 user, 12 model" "got $race16_user user, $race16_model model"
+fi
+rm -rf "$DATA16R"
+
 # --- Test 16f: hook::once_per_file -------------------------------------------
 DATA16F="$(mktemp -d)"
-opf16() { CLAUDE_PLUGIN_DATA="$DATA16F" hook::once_per_file "$@" && printf 0 || printf 1; }
-opf16_got="$(opf16 hint "$INPUT_AGENT_A" /r/a.md)$(opf16 hint "$INPUT_AGENT_A" /r/a.md)$(opf16 hint "$INPUT_AGENT_A" /r/b.md)"
-opf16_got+="$(opf16 hint "$INPUT_AGENT_B" /r/a.md)$(opf16 hint "$INPUT_S1" /r/a.md)$(opf16 other "$INPUT_AGENT_A" /r/a.md)"
-if [[ "$opf16_got" == "010000" ]]; then
+once_file16() { CLAUDE_PLUGIN_DATA="$DATA16F" hook::once_per_file "$@" && printf 0 || printf 1; }
+once_file16_got="$(once_file16 hint "$INPUT_AGENT_A" /r/a.md)$(once_file16 hint "$INPUT_AGENT_A" /r/a.md)$(once_file16 hint "$INPUT_AGENT_A" /r/b.md)"
+once_file16_got+="$(once_file16 hint "$INPUT_AGENT_B" /r/a.md)$(once_file16 hint "$INPUT_S1" /r/a.md)$(once_file16 other "$INPUT_AGENT_A" /r/a.md)"
+if [[ "$once_file16_got" == "010000" ]]; then
   ok "once_per_file: once per (key, session, agent, file)"
 else
-  fail "once_per_file: want 010000 (first, repeat, other file, other agent, other session, other key)" "got $opf16_got"
+  fail "once_per_file: want 010000 (first, repeat, other file, other agent, other session, other key)" "got $once_file16_got"
 fi
 # Two paths that fold to the same marker name are still two files.
-opf16_got="$(opf16 fold "$INPUT_AGENT_A" '/r/x y.md')$(opf16 fold "$INPUT_AGENT_A" /r/x_y.md)"
-if [[ "$opf16_got" == "00" ]]; then
+once_file16_got="$(once_file16 fold "$INPUT_AGENT_A" '/r/x y.md')$(once_file16 fold "$INPUT_AGENT_A" /r/x_y.md)"
+if [[ "$once_file16_got" == "00" ]]; then
   ok "once_per_file: paths that fold to one marker name stay distinct"
 else
-  fail "once_per_file: folded paths" "got $opf16_got"
+  fail "once_per_file: folded paths" "got $once_file16_got"
 fi
 rm -rf "$DATA16F"
 if (
@@ -1680,7 +1701,7 @@ cat >"$ROOT17A/prerequisites.json" <<'JSON'
   ]
 }
 JSON
-pn17() {
+prereq17() {
   local data="$1"
   shift
   (
@@ -1692,47 +1713,47 @@ pn17() {
   )
 }
 DATA17A="$(mktemp -d)"
-pn17_got="$(pn17 "$DATA17A")"
-pn17_want=$'0\ndemo-fmt: biome not on the hook PATH or at node_modules/.bin/biome. Without biome, edits are not formatted. No further notice this session; /demo-fmt:check diagnoses.\n'
-pn17_want+="demo-fmt: biome not on the hook PATH or at node_modules/.bin/biome. Without biome, edits are not formatted. Install (npm: npm i -D @biomejs/biome). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; /demo-fmt:check diagnoses."
-if [[ "$pn17_got" == "$pn17_want" ]]; then
+prereq17_got="$(prereq17 "$DATA17A")"
+prereq17_want=$'0\ndemo-fmt: biome not on the hook PATH or at node_modules/.bin/biome. Without biome, edits are not formatted. No further notice this session; /demo-fmt:check diagnoses.\n'
+prereq17_want+="demo-fmt: biome not on the hook PATH or at node_modules/.bin/biome. Without biome, edits are not formatted. Install (npm: npm i -D @biomejs/biome). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; /demo-fmt:check diagnoses."
+if [[ "$prereq17_got" == "$prereq17_want" ]]; then
   ok "prereq_notice_to: the local_bin path joins the where-phrase; the latch key is <plugin>-<id>"
 else
-  fail "prereq_notice_to: default texts" "got '$pn17_got'"
+  fail "prereq_notice_to: default texts" "got '$prereq17_got'"
 fi
 if [[ -f "$DATA17A/skip-notices/demo-fmt-biome.s17a.user" && -f "$DATA17A/skip-notices/demo-fmt-biome.s17a.a1" ]]; then
   ok "prereq_notice_to: latches on the key prerequisites.mjs probe writes"
 else
   fail "prereq_notice_to: latch key" "$(ls "$DATA17A/skip-notices" 2>&1)"
 fi
-pn17_got="$(pn17 "$DATA17A")"
+prereq17_got="$(prereq17 "$DATA17A")"
 # (the command substitution drops the two empty text lines' newlines)
-if [[ "$pn17_got" == 1 ]]; then
+if [[ "$prereq17_got" == 1 ]]; then
   ok "prereq_notice_to: not due again in the same agent → 1 and empty texts"
 else
-  fail "prereq_notice_to: second call" "got '$pn17_got'"
+  fail "prereq_notice_to: second call" "got '$prereq17_got'"
 fi
 rm -rf "$DATA17A"
 DATA17A="$(mktemp -d)"
-pn17_got="$(pn17 "$DATA17A" --label demo-hook --where 'not found by the probe' --install 'Install it in the repository: npm i -D x.')"
-if [[ "$pn17_got" == $'0\ndemo-hook: biome not found by the probe. '* &&
-  "$pn17_got" == *$'\ndemo-hook: biome not found by the probe. Without biome, edits are not formatted. Install it in the repository: npm i -D x. Hooks read'* &&
+prereq17_got="$(prereq17 "$DATA17A" --label demo-hook --where 'not found by the probe' --install 'Install it in the repository: npm i -D x.')"
+if [[ "$prereq17_got" == $'0\ndemo-hook: biome not found by the probe. '* &&
+  "$prereq17_got" == *$'\ndemo-hook: biome not found by the probe. Without biome, edits are not formatted. Install it in the repository: npm i -D x. Hooks read'* &&
   -f "$DATA17A/skip-notices/demo-hook-biome.s17a.user" ]]; then
   ok "prereq_notice_to: --label, --where and --install override the defaults"
 else
-  fail "prereq_notice_to: overrides" "got '$pn17_got'"
+  fail "prereq_notice_to: overrides" "got '$prereq17_got'"
 fi
-pn17_err() { # the stderr of one due call
+prereq17_err() { # the stderr of one due call
   local m u
   {
     CLAUDE_PLUGIN_ROOT="$ROOT17A" CLAUDE_PLUGIN_DATA="" PATH="/x/bin:$PATH" \
       hook::prereq_notice_to m u biome '{"session_id":"s17e"}' "$@" >/dev/null
   } 2>&1
 }
-if [[ "$(pn17_err)" == "PATH probed: /x/bin:"* && -z "$(pn17_err --no-path)" ]]; then
+if [[ "$(prereq17_err)" == "PATH probed: /x/bin:"* && -z "$(prereq17_err --no-path)" ]]; then
   ok "prereq_notice_to: the PATH goes to stderr, and --no-path keeps it off"
 else
-  fail "prereq_notice_to: PATH line" "default='$(pn17_err)' no-path='$(pn17_err --no-path)'"
+  fail "prereq_notice_to: PATH line" "default='$(prereq17_err)' no-path='$(prereq17_err --no-path)'"
 fi
 rm -rf "$DATA17A" "${ROOT17A%/*}"
 
