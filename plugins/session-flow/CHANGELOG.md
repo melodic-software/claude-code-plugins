@@ -6,6 +6,12 @@
 
 - **The workflow ladder gains a Design stage plus conditional PRD and Decompose stages ([#6278](https://github.com/melodic-software/claude-code-plugins/issues/6278)).** Stages now run explore, research, PRD, contract, design, plan, decompose, implement, test, review, verify, then ship and an optional retro, each new stage with its trigger and skip conditions. The stage definitions, checklist template, spec-first table, quick-retro table, and README match the renumbered ladder. A conditional stage whose trigger does not hold is marked SKIPPED on its checklist box, so the leftover-checklist sweep does not read it as unfinished.
 
+## [0.48.9] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve.
+
 ## [0.48.8] - 2026-10-04
 
 ### Changed

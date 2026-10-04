@@ -16,6 +16,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - **A Tier C early exit from `/planning:design` goes through `/planning:design-handoff`.** It used to invoke `/planning:plan` directly, so PLAN.md never got the one-line `## Design` record of the early exit and its reason. `/planning:plan` writes that record too when it documents an early exit itself, and its anatomy line now lists the Design section.
 - **The skill cheat sheet lists `/planning:prd`, `/planning:design`, and `/planning:design-handoff` under the ladder's PRD and Design stages.** Their `workflow-stage` metadata moves from `contract` and `plan` to `prd` and `design`.
 
+## [0.67.7] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve. `/planning:interview`'s "Ground before recommending" states the new bar.
+
 ## [0.67.6] - 2026-10-04
 
 ### Changed
