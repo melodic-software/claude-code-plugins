@@ -93,7 +93,10 @@ jobs:
           HEAD_SHA: ${{ steps.pr.outputs.head }}
         run: |
           git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main' "$HEAD_SHA"
+          main_sha="$(git rev-parse HEAD)"
           git checkout -q --detach "$HEAD_SHA"
+          # Run main's copy of the gate, never the head's: the head is the branch under review.
+          git checkout -q "$main_sha" -- scripts
           rc=0
           scripts/check-changelog-fragments.sh --check-release origin/main || rc=$?
           case "$rc" in
@@ -189,9 +192,11 @@ jobs:
             head="$(jq -r .headRefOid <<<"$pr")"
             git fetch --no-tags origin "$head"
             git checkout -q --detach "$head"
+            # Run main's copy of the gate, without the App token: the head is the branch under review.
+            git checkout -q "$main_sha" -- scripts
             rc=0
-            scripts/check-changelog-fragments.sh --check-release "$main_sha" || rc=$?
-            git checkout -q --detach "$main_sha"
+            env -u GH_TOKEN scripts/check-changelog-fragments.sh --check-release "$main_sha" || rc=$?
+            git checkout -q -f --detach "$main_sha"
             case "$rc" in
             0) echo "Release pull request #$(jq -r .number <<<"$pr") consumes every pending fragment for the plugins it bumps; leaving it alone." ;;
             1) build=true ;;
