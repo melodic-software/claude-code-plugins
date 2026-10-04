@@ -1,0 +1,66 @@
+{
+  "skill_name": "improve",
+  "evals": [
+    {
+      "id": 1,
+      "name": "no-args-asks-target-and-focus",
+      "prompt": "We've been editing src/orders/OrderService.cs for a while and the pricing loop is getting hard to read. /improvement:improve",
+      "expected_output": "Infers from the conversation that the target is the pricing loop in src/orders/OrderService.cs and that the focus is readability, then asks the user in one message to confirm or correct the target, the focus, and a one-sentence statement of what done looks like, offering the inferred values as recommended answers. Makes no edit, branch, or PR before the user answers.",
+      "files": [],
+      "expectations": [
+        "Infers a target from the conversation instead of scanning the whole repository",
+        "Asks for target, focus, and done in a single message with the inferred values as recommended answers",
+        "Performs no edit, branch, commit, or PR before the user answers"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "explicit-target-ships-one-small-pr",
+      "prompt": "/improvement:improve plugins/example/scripts/report.sh --focus standards",
+      "expected_output": "Resolves the repo's written standards through the standards contract's resolution ladder plus the path-scoped rules governing the script, lists candidate gaps each with a Basis citing the standard's file and line, picks the single smallest complete improvement within the PR scope budget, verifies it with the project's checks, commits it, and opens one draft PR whose body names the gap, the standard, and the verification. Other gaps found are listed as candidates in the PR body, not fixed.",
+      "files": [],
+      "expectations": [
+        "Uses the explicit target and focus without asking for them again",
+        "Every candidate gap carries a Basis that cites a standard's file and line, a fetched URL, or is labeled judgment",
+        "Ships exactly one improvement, within the PR scope budget's hard cap, as a draft PR",
+        "Runs the project's checks before committing and does not ship a failing change"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "ranked-list-routes-to-find",
+      "prompt": "What should we improve in this repo? Give me a ranked list of options.",
+      "expected_output": "Routes to /improvement:find, not /improvement:improve, because the ask is for ranked options rather than one shipped improvement.",
+      "files": [],
+      "expectations": [
+        "Invokes /improvement:find for the ranked-options ask",
+        "Does not invoke /improvement:improve or make any edit"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "unattended-skips-upstream-and-throttles",
+      "prompt": "Run /improvement:improve --unattended on plugins/example/. This is a scheduled run with no user present.",
+      "expected_output": "Asks no question. Counts open PRs on improve branches and stops with a report if three or more are open. Otherwise measures the target against the repo's written standards only, without fetching upstream guidance, ships one draft PR or reports that no gap was found, and files any overflow as a deduplicated work item.",
+      "files": [],
+      "expectations": [
+        "Asks the user nothing",
+        "Checks the open improve-PR count before working and stops at the throttle limit",
+        "Does not fetch upstream guidance or invoke a research skill",
+        "Opens at most one draft PR and never merges or marks it ready"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "too-big-hands-off-to-plan",
+      "prompt": "/improvement:improve the checkout feature --focus currency. I'm here to answer questions.",
+      "expected_output": "Researches current upstream guidance for the checkout feature's stack, finds that the most valuable improvement exceeds the PR scope budget's hard cap, and does not grow a PR past it: it offers a smaller complete slice that fits or a handoff to /planning:plan for the whole change, and lets the user choose.",
+      "files": [],
+      "expectations": [
+        "Grounds the currency focus in current upstream guidance with cited sources",
+        "Does not open a PR that exceeds the scope budget's hard cap",
+        "Offers a smaller complete slice or /planning:plan and waits for the user's choice"
+      ]
+    }
+  ]
+}
