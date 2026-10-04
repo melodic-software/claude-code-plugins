@@ -237,15 +237,17 @@ defaults is coincidence, not validation.
 - **Pointer**: when re-deriving a band edge, fetch live: the 1M `smart` edge,
   [Context Arena, 8 needles](https://contextarena.ai/?needles=8), Claude Opus 5 (max) row; the 1M
   `acceptable` edge's cap, [Cursor's Claude Opus 5.5 page](https://cursor.com/docs/models/claude-opus-5-5),
-  "Context window" field; the 200k row, [AI Hero, "Smart Zone"](https://www.aihero.dev/ai-coding-dictionary/smart-zone)
-  and [Geoffrey Huntley, "Ralph"](https://ghuntley.com/ralph/); the absence of per-length data,
-  the [Opus 5.5 system card](https://www-cdn.anthropic.com/fc1b44717c85dc068bc6ba5024219938094694bd/Claude%20Opus%205.5%20System%20Card.pdf)
+  "Context window" field; the absence of per-length data, the
+  [Opus 5.5 system card](https://www-cdn.anthropic.com/fc1b44717c85dc068bc6ba5024219938094694bd/Claude%20Opus%205.5%20System%20Card.pdf)
   section 8.10 and the [Fable 5.1 system card](https://www-cdn.anthropic.com/0339e6a7c5c7b87f5c07798616dc32c215d14235/Claude%20Fable%205.1%20&%20Claude%20Mythos%205.1%20System%20Card.pdf)
-  section 8.11.
+  section 8.11. For the 200k row, correlate with [AI Hero, "Smart Zone"](https://www.aihero.dev/ai-coding-dictionary/smart-zone)
+  and [Geoffrey Huntley, "Ralph"](https://ghuntley.com/ralph/); no docs page covers where quality
+  degrades on a 200K window as of 2026-10-04.
 - **As of**: 2026-10-04
 - **Recheck trigger**: Opus 5.5, Fable 5.1 or Sonnet 5.5 appear on Context Arena; a new or revised
   Anthropic system card publishes per-length scores; Cursor changes Opus 5.5's default context
-  window; or the AI Hero entry or Huntley's post revises its stated range.
+  window; or a docs page starts covering where quality degrades on a 200K window, at which point the
+  200k row's pointer moves there.
 
 ## The module (first shipped consumer)
 
