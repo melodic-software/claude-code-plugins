@@ -496,7 +496,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "2b77fde9f862a71b1201bbd7af95b575d159892e511cc4267853bec1ad7c6368"
+  "7eedd384182f31c5becd3904e692ca0c30b7a70251a5100164c3a0de5ab336cc"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -630,7 +630,7 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "a4f75e319b64f1bb8bddc48f5f58fec33e8b4e0b7ba1d06ddfb0a8a930182fdb"
+  "a018902c52d8e8b35339925b39af5f3e5477d77eb8fd28eb95f518d7b1fae167"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
