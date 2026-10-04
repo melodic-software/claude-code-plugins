@@ -50,7 +50,7 @@ of a prompt; a crossing seen when a turn ends reaches Claude with the next promp
 | When | Line |
 |---|---|
 | The window reaches the approach mark (90%) | once per window, "nearing 95%" |
-| The window reaches the line threshold (95%) | once per window, "at 95%", with the reset time and "Keep working." |
+| The window reaches the line threshold (95%) | once per window, "at or above 95%", with the reset time and "Keep working." |
 | The window resets (its reset time passes, or it leaves the reading) after reaching the threshold | once; the approach and threshold lines can then fire again |
 | After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict for every window, once |
 | After `/clear`, and when the module loads into a session that already has turns (a `--resume` launch, a reload after an options change, a hooks-worker restart) | the verdict for each window at or above the threshold, once; nothing when none is |
