@@ -126,7 +126,7 @@ done
 root="$(new_plugin nopython "$digest")"
 out="$(env PATH="$tools" CLAUDE_PLUGIN_DATA="$(native "$WORK/data-nopython")" "$tools/bash" "$root/hooks/install-python-deps.sh" <<<'{}')"
 rc=$?
-if [[ "$rc" -eq 0 && "$out" == *'"systemMessage"'* && "$out" == *'Python 3.12 or later was not found'* ]]; then
+if [[ "$rc" -eq 0 && "$out" == *'"systemMessage"'* && "$out" != *'"additionalContext"'* && "$out" == *'Python 3.12 or later was not found'* ]]; then
   ok "no Python 3.12 on PATH surfaces a notice naming the floor"
 else
   fail "no python: rc=$rc output=[$out]"

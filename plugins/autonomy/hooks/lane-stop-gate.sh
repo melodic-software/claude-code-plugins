@@ -27,7 +27,7 @@
 # missing jq, or a non-Stop event it allows the stop. An unreadable or malformed
 # TRUSTED CONFIG source likewise contributes no verdict — the default (off)
 # applies — but an enablement claimed only on the untrusted env channel gets a
-# visible notice, once per session and agent, rather than a silent disengage.
+# notice to the user, once per session, rather than a silent disengage.
 #
 # CONFIG IS READ FROM TRUSTED SOURCES ONLY (#1784). The gate never reads
 # `CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_*` straight off the environment as a

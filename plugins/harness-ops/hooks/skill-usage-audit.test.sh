@@ -159,6 +159,8 @@ BADSCOPE_OUTPUT=$(env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$PROJS" \
   bash "$HOOK" <<<"$INPUT" 2>/dev/null)
 assert_contains "unknown scope emits visible advisory" "$BADSCOPE_OUTPUT" \
   "unknown skill_usage_scope"
+assert_eq "unknown scope advisory does not reach the model" "" \
+  "$(jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$BADSCOPE_OUTPUT" 2>/dev/null)"
 assert_eq "unknown scope falls back to repo store" "research" \
   "$(jq -r '.skill' "$PROJS/.claude/observability/skill-usage.jsonl" 2>/dev/null)"
 
@@ -169,6 +171,21 @@ NODATA_OUTPUT=$(env -u HOOK_TELEMETRY_SINK -u CLAUDE_PLUGIN_DATA CLAUDE_PROJECT_
 assert_contains "data-dir scope without CLAUDE_PLUGIN_DATA says so" \
   "$(jq -r '.systemMessage // empty' <<<"$NODATA_OUTPUT" 2>/dev/null)" \
   "scope \"data-dir\" needs CLAUDE_PLUGIN_DATA"
+assert_eq "data-dir advisory does not reach the model" "" \
+  "$(jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$NODATA_OUTPUT" 2>/dev/null)"
+
+# --- A destination that cannot be created: user notice only ---------------
+PROJN="$TEST_TMPDIR/projn"
+mkdir -p "$PROJN/.claude" "$TEST_TMPDIR/nodest-data"
+: >"$PROJN/.claude/observability" # a file where the store directory belongs
+NODEST_OUTPUT=$(env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$PROJN" \
+  CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/nodest-data" \
+  bash "$HOOK" <<<"$INPUT" 2>/dev/null)
+assert_contains "uncreatable destination emits a user advisory" \
+  "$(jq -r '.systemMessage // empty' <<<"$NODEST_OUTPUT" 2>/dev/null)" \
+  "could not be created safely"
+assert_eq "uncreatable destination advisory does not reach the model" "" \
+  "$(jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$NODEST_OUTPUT" 2>/dev/null)"
 
 # --- Kill switch suppresses both outputs -----------------------------------
 PROJ5="$TEST_TMPDIR/proj5"
