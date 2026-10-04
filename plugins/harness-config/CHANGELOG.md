@@ -66,6 +66,9 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 
 ### Fixed
 
+- **A malformed summary file no longer hides the other summaries.** `scripts/docs-cache.sh` parses
+  each summary file on its own and skips one that is not JSON with a warning on stderr, as it
+  already did for notes.
 - **The curl prerequisite no longer claims the audit runs from cached docs.** Without curl, a fresh
   cache entry is used with its age when one exists; otherwise the page is reported unread.
 - **The docs cache works under a long cache directory on Windows.** Entry and pointer names are now
@@ -113,6 +116,12 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   "Adjust effort level" section sliced from the cache entry** instead of scanning the whole page.
   Its output lines and exit codes are unchanged, and the hash equals the earlier one on the
   committed fixture and on the live page.
+
+## [1.9.1] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
 
 ## [1.9.0] - 2026-10-04
 

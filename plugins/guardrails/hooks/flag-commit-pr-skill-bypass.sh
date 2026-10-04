@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PreToolUse hook: advisory guard for direct `gh pr create` calls that bypass
-# this marketplace's own canonical `/pull-request create` skill
+# this marketplace's own `/source-control:pull-request` skill
 # (source-control plugin).
 # Triggered on Bash and PowerShell tool calls.
 #
@@ -20,7 +20,7 @@
 # health, not the advisory content it would otherwise flag.
 #
 # WHAT IT FLAGS:
-#   gh pr create — invoked at all. /pull-request create's value is PROCESS
+#   gh pr create — invoked at all. /source-control:pull-request's value is PROCESS
 #                 (rebase onto default, unrelated-changes triage, closing-
 #                 keyword gate, attribution footer) — there is no command-shape
 #                 signature to gate on, so every direct invocation is flagged.
@@ -94,7 +94,7 @@ hook::buffer_stdin_to INPUT || exit 0
 # hook::require jq fails OPEN (this hook never blocks either way) but makes
 # the degraded state visible to both the user (systemMessage) and the agent
 # (additionalContext), once per session and agent — see docs/conventions/hook-observability/.
-hook::require jq "PreToolUse" "guardrails-flag-commit-pr-skill-bypass" "$INPUT"
+hook::require jq "PreToolUse" guardrails "$INPUT"
 
 # Both payload fields in ONE jq process (hook::jq_fields), not two. A jq spawn is
 # fork() emulation on Windows Git Bash and this hook runs on every Bash/PowerShell
@@ -249,11 +249,11 @@ MESSAGES=()
 FORMS=()
 
 # `gh pr create` at a command position. No command-shape signature separates
-# skill-driven from ad hoc — /pull-request create's value is process (rebase,
-# unrelated-changes triage, closing-keyword gate, attribution footer), so any
-# direct invocation is flagged.
+# skill-driven from ad hoc — /source-control:pull-request's value is process
+# (rebase, unrelated-changes triage, closing-keyword gate, attribution footer),
+# so any direct invocation is flagged.
 if [[ "$STRIPPED_LC" =~ (^|[[:space:];&|()]+)gh[[:space:]]+pr[[:space:]]+create([[:space:]]|$) ]]; then
-  MESSAGES+=("direct \`gh pr create\` — prefer \`/pull-request create\` (source-control plugin), which rebases onto the default branch, triages unrelated uncommitted changes, gates on a closing-issue keyword, and assembles the attribution footer before creating the PR.")
+  MESSAGES+=("Direct \`gh pr create\` skips /source-control:pull-request (rebase onto the default branch, closing-keyword gate, attribution footer).")
   FORMS+=("gh-pr-create-bypass")
 fi
 
@@ -262,11 +262,15 @@ if ((${#MESSAGES[@]} == 0)); then
   exit 0
 fi
 
-CONTEXT="Commit/PR skill composition (advisory): "
-for m in "${MESSAGES[@]}"; do
-  CONTEXT+="$m "
-done
-hook::emit_channels PreToolUse "${CONTEXT% }" ""
+# Once per session and agent: the agent that was told once does not need the
+# same pointer on its next PR.
+if hook::notice_once guardrails-gh-pr-create "$INPUT" && [[ "$HOOK_NOTICE_TO_MODEL" == 1 ]]; then
+  CONTEXT=""
+  for m in "${MESSAGES[@]}"; do
+    CONTEXT+="$m "
+  done
+  hook::emit_channels PreToolUse "${CONTEXT% }" ""
+fi
 
 emit_tel
 exit 0

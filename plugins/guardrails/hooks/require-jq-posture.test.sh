@@ -35,7 +35,7 @@
 # is `builtin command -v jq` still resolving — proof that the LOOKUP was hidden
 # and the tool itself was not removed.
 #
-# lib/hook-utils.test.sh and require-jq-notice-isolation.test.sh both record
+# lib/hook-utils.test.sh and secret-pattern-detection.test.sh both record
 # that real jq-removal "is not portably simulable" via an isolated bin dir
 # (which cannot host bash + coreutils across Git Bash and Linux). That is true
 # of the bin-dir approach, and is exactly why this one overrides the lookup.
@@ -248,7 +248,7 @@ if ((JQ_HIDING_WORKS)); then
     "$hidden_err" "jq"
   assert_contains "the jq-hidden denial points at the documented install route" \
     "$hidden_err" "https://jqlang.org/download/"
-  assert_contains "the jq-hidden denial names the kill switch that bypasses it" \
+  assert_absent "the jq-hidden denial (a model-facing reason) does not name the kill switch, the user's lever" \
     "$hidden_err" "block_dangerous_git_enabled"
   assert_absent "the jq-hidden denial is NOT the fail-open skip notice" \
     "$hidden_err" "hook skipped for this session"
@@ -272,7 +272,7 @@ if ((JQ_HIDING_WORKS)); then
     "DENY" "$n_bypass_hidden"
   assert_eq "jq HIDDEN, safe command: DENY (the disclosed cost)" \
     "DENY" "$n_safe_hidden"
-  assert_contains "block-no-verify's jq-hidden denial names its own kill switch" \
+  assert_absent "block-no-verify's jq-hidden denial does not name its kill switch" \
     "$(cat "$ERR_NV" 2>/dev/null)" "block_no_verify_enabled"
 
   # --- POSTURE CONTROL: an advisory guard must be UNCHANGED ------------------
@@ -299,6 +299,27 @@ if ((JQ_HIDING_WORKS)); then
   if ((checked_advisory == 0)); then
     bad "no advisory hook was exercised as a posture control — the scoping claim is unmeasured"
   fi
+
+  # --- The shipped Bash row says it once per call -----------------------------
+  # Every fail-closed guard of the row denies without jq, and they run in one
+  # process under run-guards.sh; their joined stderr is ONE deny reason. It
+  # carries the jq line once, and no dropped notice document, on the first call
+  # and on a later one.
+  ROW_ARGS=()
+  while IFS= read -r arg; do ROW_ARGS+=("$arg"); done < <(jq -r '
+    .hooks.PreToolUse[] | select(.matcher == "Bash|PowerShell") | .hooks[0].args[2:][]' "$HOOK_DIR/hooks.json")
+  ROW_DATA="$TEST_TMPDIR/data-row"
+  for call in first later; do
+    row_err=$(cd "$HOOK_DIR" && BASH_ENV="$HIDE_JQ" CLAUDE_PLUGIN_DATA="$ROW_DATA" CLAUDE_PLUGIN_ROOT="$HOOK_DIR/.." \
+      bash run-guards.sh "${ROW_ARGS[@]}" <<<"$(payload "$SAFE")" 2>&1 >/dev/null)
+    row_rc=$?
+    assert_exit "jq HIDDEN, Bash row ($call call): denies" 2 "$row_rc"
+    assert_eq "jq HIDDEN, Bash row ($call call): the jq line appears once" 1 \
+      "$(grep -c 'jq is not on PATH' <<<"$row_err")"
+    assert_absent "jq HIDDEN, Bash row ($call call): no dropped document in the deny reason" \
+      "$row_err" "run-guards: dropped"
+    assert_absent "jq HIDDEN, Bash row ($call call): the row's --lib resolves" "$row_err" "No such file"
+  done
 
   # --- The kill switch still wins on a jq-less machine ------------------------
   # Fail-closed must not mean unbypassable: hook::check_enabled runs before the

@@ -43,9 +43,8 @@ for what it requires and how it resolves things.
 pre-computed tool rows, run the remaining probes via Bash, and report a PASS/FAIL/INFO
 table with one remediation line per FAIL. Do not modify anything.
 
-The lint pass and the format pass are independent; report each separately. The `jq` skip notice
-appears once per session and agent; the `shellcheck` and `shfmt` notices appear once per session,
-shared by all agents. Each renews every eighth skip (README Requirements).
+The lint pass and the format pass are independent; report each separately. Each skip notice
+appears once per session and agent and does not repeat this session (README Requirements).
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO. The hook exits through its enabled-gate before probing anything, so a deliberately

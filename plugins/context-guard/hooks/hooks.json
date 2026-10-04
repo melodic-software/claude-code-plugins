@@ -1,9 +1,10 @@
 {
-  "description": "Records the post-compaction marker. The module reports context-zone crossings to Claude, gates new mutating work in blocking mode, draws the band row, serves a status tool and writes the per-session snapshot.",
+  "description": "Records the post-compaction marker. The module reports context-zone crossings to Claude and, as a toast and a transcript line, to the person, gates new mutating work in blocking mode, answers /context-guard, draws an optional band row, serves a status tool and writes the per-session snapshot.",
   "modules": ["./register.tsx"],
   "hooks": {
     "SessionStart": [
       {
+        "matcher": "startup|resume|clear|fork",
         "hooks": [
           {
             "type": "command",

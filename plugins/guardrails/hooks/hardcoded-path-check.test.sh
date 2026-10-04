@@ -79,6 +79,22 @@ RC=$?
 assert_exit "windows home → exit 2" 2 "$RC"
 assert_contains "windows → message" "$OUT" "Windows user path"
 
+# The report names the file project-relative, and a matched line is capped at
+# 160 characters: one minified line must not carry the whole file into the deny
+# reason.
+LONG_LINE="var a=\"$(printf 'x%.0s' {1..600})\";cd ${LINUX_HOME};var b=\"$(printf 'y%.0s' {1..600})\";"
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "$LONG_LINE")" 2>&1)
+RC=$?
+assert_exit "minified line with a linux home → exit 2" 2 "$RC"
+assert_contains "report names the file project-relative" "$OUT" "path(s) in fixture.txt:"
+assert_absent "report does not name the absolute file" "$OUT" "$FIXTURE"
+longest=$(awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }' <<<"$OUT")
+if ((longest <= 160)); then
+  ok "no report line exceeds 160 characters (longest $longest)"
+else
+  bad "a report line is $longest characters, over the 160 cap"
+fi
+
 # A content string may legitimately encode a NUL, and the payload fields are read
 # NUL-separated. hook::jq_fields strips NUL jq-side so the delimiter cannot
 # collide with content; without that the field count came back wrong, this hook's
@@ -792,7 +808,7 @@ RC=$?
 assert_exit "MCP create_or_update_file: Linux user path → exit 2" 2 "$RC"
 assert_contains "MCP create_or_update_file: names the label" "$OUT" "Linux user path detected"
 assert_contains "MCP create_or_update_file: names the repo path" "$OUT" "src/app.py"
-assert_contains "MCP create_or_update_file: says there is no local file to fix" "$OUT" "goes straight to a repository"
+assert_contains "MCP create_or_update_file: names the GitHub destination" "$OUT" "content bound for GitHub"
 
 OUT=$(bash "$HOOK" <<<"$(mcp_single_json "src/app.py" "p = '${MAC_HOME}'")" 2>&1)
 RC=$?

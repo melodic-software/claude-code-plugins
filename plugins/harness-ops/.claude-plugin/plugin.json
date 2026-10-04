@@ -1,6 +1,6 @@
 {
   "name": "harness-ops",
-  "version": "3.8.3",
+  "version": "3.8.6",
   "description": "Claude Code operations: audit-skill-visibility (skills the listing budget hides), inventory (all commands, skills, agents, tools, plugins), audit-install-state (~/.claude), audit-performance (slowness), audit-native-overlap (skills duplicating built-ins), observability (telemetry), known-issues (Claude bugs, status), changelog, prerequisites, check, machine-profile, plugins (update the fleet), morning-brief, lanes (background loop sessions), setup. Plus opt-in hook event logs.",
   "author": {
     "name": "Melodic Software",
@@ -35,7 +35,11 @@
       "title": "New-plugin install policy",
       "description": "What the plugins skill's sync action does with catalog plugins not yet installed. ask (default) offers them in one batched multi-select prompt, then installs and enables each pick, including one the CLI installs disabled; all installs every one automatically; none reports them and never installs.",
       "default": "ask",
-      "options": ["ask", "all", "none"]
+      "options": [
+        "ask",
+        "all",
+        "none"
+      ]
     },
     "skill_usage_audit_enabled": {
       "type": "boolean",
@@ -48,7 +52,11 @@
       "title": "Skill-usage log scope",
       "description": "Where the skill-usage store lives. repo (default) keeps it in the project tree, out of git status via a machine-local .git/info/exclude entry; user puts the skill_usage_dir subpath under $HOME as one cross-repo store; data-dir uses ${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>.",
       "default": "repo",
-      "options": ["repo", "user", "data-dir"]
+      "options": [
+        "repo",
+        "user",
+        "data-dir"
+      ]
     },
     "skill_usage_dir": {
       "type": "string",

@@ -73,7 +73,7 @@ hook::buffer_stdin_to INPUT || exit 0
 # (this hook never blocks) but makes the degraded state visible to both the
 # user (systemMessage) and the agent (additionalContext), once per session and
 # agent — see docs/conventions/hook-observability/.
-hook::require jq "PostToolUse" "guardrails-cli-flag-verify" "$INPUT"
+hook::require jq "PostToolUse" guardrails "$INPUT"
 
 FILE=""
 hook::read_file_path_to FILE "$INPUT" || exit 0
@@ -110,18 +110,19 @@ esac
 [[ -n "$SCAN_CONTENT" ]] || exit 0
 
 # Bundled verifier missing (install corruption, not a consumer-facing
-# prerequisite) — fail open, don't block, but make it visible once per session
-# and agent rather than a fully silent skip (docs/conventions/hook-observability/).
+# prerequisite) — fail open, don't block, but tell the user once per session
+# rather than skip silently (docs/conventions/hook-observability/). The model
+# cannot reinstall a plugin, so it is not told; the path goes to the debug log.
 CFV_SHARED="$PLUGIN_ROOT/lib/verification/cli-flag-cache.sh"
 if [[ ! -x "$VERIFIER" || ! -f "$CFV_SHARED" ]]; then
   if hook::notice_once "guardrails-cli-flag-verifier" "$INPUT"; then
     if [[ ! -x "$VERIFIER" ]]; then
-      cfv_missing="bundled verifier missing at $VERIFIER"
+      echo "cli-flag-verify: bundled verifier missing at $VERIFIER" >&2
     else
-      cfv_missing="bundled verifier library missing at $CFV_SHARED"
+      echo "cli-flag-verify: bundled verifier library missing at $CFV_SHARED" >&2
     fi
-    hook::emit_skip_notice "PostToolUse" \
-      "guardrails/cli-flag-verify: $cfv_missing — CLI-flag verification disabled for this session (reinstall the guardrails plugin to restore it)."
+    hook::emit_skip_notice PostToolUse "" \
+      "guardrails: cli-flag-verify is off: its bundled verifier is missing. Reinstall guardrails."
   fi
   exit 0
 fi
@@ -134,8 +135,8 @@ fi
 FILE_DIR="${FILE%/*}"
 [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR="."
 [[ -n "$FILE_DIR" ]] || FILE_DIR=/
-REPO_ROOT=""
-hook::repo_root_to REPO_ROOT "$FILE_DIR"
+REPO_ROOT="" REPO_ROOT_RESOLVED=1
+hook::repo_root_to REPO_ROOT "$FILE_DIR" || REPO_ROOT_RESOLVED=0
 
 # Known binaries to check. Override via the cli_flag_verify_bins userConfig option.
 # `git`, `npx`, and `npm` are intentionally EXCLUDED — all three have unreliable
@@ -510,8 +511,12 @@ emit_tel() {
 }
 
 if ((${#FAILURES[@]} > 0)); then
-  hook::ctx_append "cli-flag-verify: ${#FAILURES[@]} unknown flag(s) in $FILE"
-  hook::ctx_append "The binary's own --help does not list them. Confirm before relying on the flag:"
+  # The file as the model names it: repo-relative when it sits under the root
+  # spelled the same way, else as given. Outside a repo the root is the file's
+  # own directory, and a bare name would name a different file.
+  show_file="$FILE"
+  ((REPO_ROOT_RESOLVED)) && [[ "$FILE" == "${REPO_ROOT%/}/"?* ]] && show_file="${FILE#"${REPO_ROOT%/}/"}"
+  lines=""
   for f in "${FAILURES[@]}"; do
     split_candidate_key "$f"
     if [[ -n "$KEY_CHAIN" ]]; then
@@ -521,15 +526,13 @@ if ((${#FAILURES[@]} > 0)); then
       disp="$KEY_BIN $KEY_FLAG"
       helpref="$KEY_BIN --help"
     fi
-    hook::ctx_append "  UNKNOWN_FLAG: $disp (not found in '$helpref')"
-    hook::ctx_append "    fix:   run '$helpref' and confirm the flag exists"
-    hook::ctx_append "    skip:  add $KEY_BIN to the guardrails cli_flag_verify_skip_bins option"
+    lines+="$disp (not in '$helpref')"$'\n'
   done
-  hook::ctx_append ""
-  hook::ctx_append "Detect-then-judge: this is a prompt for your verdict, not a determination."
-  hook::ctx_append "A flag taken from a subagent's report or from recall has not been checked"
-  hook::ctx_append "against this binary. A flag added upstream more recently than the installed"
-  hook::ctx_append "binary is correct as written."
+  cfv_ctx=""
+  hook::findings_to cfv_ctx \
+    "cli-flag-verify: unknown flag(s) in $show_file, unverified, not proven wrong: the installed --help may predate the flag." \
+    "$lines" --max 10
+  hook::ctx_append "$cfv_ctx"
   hook::ctx_flush PostToolUse
 fi
 

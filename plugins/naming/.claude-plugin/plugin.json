@@ -1,6 +1,6 @@
 {
   "name": "naming",
-  "version": "0.5.9",
+  "version": "0.5.10",
   "description": "Generates and evaluates fresh name candidates for an identifier, file, module, skill, repo, or domain term (naming:name-it-better). It distills a context brief, runs blind fresh-context generators from distinct lenses (responsibility-literal, moment-of-use, domain-lore), and scores a shortlist against the org's naming criteria. The human always picks; it never locks a name. An optional tournament mode adds elimination rounds with independent judges for high-stakes names.",
   "author": {
     "name": "Melodic Software",

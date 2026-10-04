@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0] - 2026-10-04
+
+### Added
+
+- **The implement-dispatch brief carries the phase's design excerpt ([#6278](https://github.com/melodic-software/claude-code-plugins/issues/6278)).** Brief item 11 quotes the part of PLAN.md's `## Design` section the phase touches, or says `Design: none`, since a worker's worktree has no memory slice. Both implementer agents now treat that excerpt as binding like the acceptance criteria, and a phase that cannot honor it stops and reports.
+
 ## [0.21.3] - 2026-10-04
 
 ### Changed

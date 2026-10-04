@@ -551,7 +551,7 @@ if [[ -z "$PYTHON" ]]; then
   fi
 fi
 
-_NO_PYTHON='no Python 3 interpreter resolved on this host (python3, python and py -3 are missing, below the engine floor, or the Windows App Execution Alias stub)'
+_NO_PYTHON='no usable Python 3 (python3, python, py -3)'
 _NO_PYTHON_FIX='Install Python 3 ahead of WindowsApps on PATH, then run /disk-hygiene:check.'
 
 # Set `_MODE_VALUE` to the guard's `--mode`, read the way the guard's own
@@ -592,18 +592,19 @@ _no_python_noticed() {
 _guard_without_python() {
   _guard_mode_value "$@"
   if [[ "$_MODE_VALUE" != "engine-gate" ]]; then
-    printf '%s\n' "disk-hygiene: destructive guard could not run: $_NO_PYTHON, so this call was not checked. The /disk-hygiene:clean belt denies every Bash and PowerShell call it cannot check. $_NO_PYTHON_FIX" >&2
+    printf '%s\n' "disk-hygiene: denied: $_NO_PYTHON, so the /disk-hygiene:clean belt cannot check any Bash or PowerShell call. $_NO_PYTHON_FIX" >&2
     exit 2
   fi
   ((_BUFFERED_STDIN)) || _read_payload
   if [[ -z "${_PAYLOAD//[[:space:]]/}" || "${_PAYLOAD,,}" == *hygiene.py* ]]; then
-    printf '%s\n' "disk-hygiene: destructive guard could not run: $_NO_PYTHON, so this command, which names the disk-hygiene engine (hygiene.py), was not checked against its kill switch and authorized roots, and is denied. $_NO_PYTHON_FIX" >&2
+    printf '%s\n' "disk-hygiene: denied: $_NO_PYTHON, so this hygiene.py call cannot be checked. $_NO_PYTHON_FIX" >&2
     exit 2
   fi
+  # The user hears this once; the model hears it as the deny reason the first
+  # time it names the engine.
   _no_python_noticed && exit 0
-  local notice="disk-hygiene: destructive guard could not run: $_NO_PYTHON. Commands that name no disk-hygiene engine script proceed unchecked this session; any command naming hygiene.py is denied. Shown once per session. $_NO_PYTHON_FIX"
-  printf '{"systemMessage":"%s","hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"%s"}}\n' \
-    "$notice" "$notice"
+  printf '{"systemMessage":"%s"}\n' \
+    "disk-hygiene: $_NO_PYTHON; hygiene.py commands are denied this session. $_NO_PYTHON_FIX"
   exit 0
 }
 
@@ -612,11 +613,15 @@ if [[ -z "$PYTHON" ]]; then
   guard) _guard_without_python "$@" ;;
   context)
     printf '{"decision":"block","reason":"%s"}\n' \
-      "disk-hygiene: /disk-hygiene:clean cannot run here: $_NO_PYTHON. The engine needs one, and without it the skill's guard denies every Bash and PowerShell call. $_NO_PYTHON_FIX"
+      "disk-hygiene: /disk-hygiene:clean cannot run: $_NO_PYTHON. $_NO_PYTHON_FIX"
     ;;
   monitor)
+    # Once per session, sharing the guard's notice marker: a user the guard
+    # already told hears nothing more at task end.
+    ((_BUFFERED_STDIN)) || _read_payload
+    _no_python_noticed && exit 0
     printf '{"systemMessage":"%s"}\n' \
-      "disk-hygiene: destructive guard could not run this session: $_NO_PYTHON. It reported each call as it happened: calls under the /disk-hygiene:clean belt and commands naming hygiene.py were denied, and other guarded Bash/PowerShell commands proceeded unchecked. $_NO_PYTHON_FIX"
+      "disk-hygiene: $_NO_PYTHON, so this session's guarded calls were denied or ran unchecked. $_NO_PYTHON_FIX"
     ;;
   *) ;;
   esac
