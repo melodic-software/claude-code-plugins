@@ -58,8 +58,8 @@ same triggers. These stamps are probe results with a date, not standing facts.
   Zones below).
 - **Default token bands (over occupancy = `total_input_tokens` + `total_output_tokens`, uppers
   inclusive, selected by window class as described under "Occupancy and combination rule"):**
-  window class **200000**: `smart` ≤ **100000** < `acceptable` ≤ **160000** < `dumb`;
-  window class **1000000**: `smart` ≤ **200000** < `acceptable` ≤ **400000** < `dumb`.
+  window class **200000**: `smart` ≤ **100000** < `acceptable` ≤ **150000** < `dumb`;
+  window class **1000000**: `smart` ≤ **128000** < `acceptable` ≤ **250000** < `dumb`.
 - **Token-shape version floor (fixed):** the token shape is computable only when the snapshot's
   `cli_version` is present, purely numeric dotted, and **≥ 2.1.132**, the release from which the
   token fields mean current occupancy rather than cumulative session totals.
@@ -225,12 +225,22 @@ also marks the token shape not-computable**. That is corrupt or forged data, and
 a version field cannot (there is no writer authentication, so `cli_version` is untrusted like
 every other snapshot value). The bundled resolver implements both gates.
 
-**Band provenance:** all shipped band numbers are **declared judgment defaults with named
-anchors**, not benchmark-derived constants. The 1M row's anchor is an informal range a named staff
-member gave and hedged as task-dependent; the 200k row is declared judgment near practitioner
-folklore values, but deliberately below them. Both rows carry equally low confidence;
-`zones.json` is the correction path, and the numeric agreement of the 200k row's percentage
-translation with the shipped 50/75 percentage defaults is coincidence, not validation.
+**Band provenance:** the shipped token bands are **declared judgment anchored on measured
+data**, not benchmark-derived constants. The 1M row's `smart` edge, 128000, is the last measured
+strong point for a current Claude model on long-context retrieval (Claude Opus 5 (max), 8-needle
+MRCR: 91.3% at 128K; AUC 97.5% to 128K, 45.7% to 1M). Its `acceptable` edge, 250000, is judgment
+between that point and a 300K cap in practice. The 200k row's `acceptable` edge, 150000, sits at
+the top of the practitioner consensus of about 125-150K. `zones.json` is the correction path, and
+the numeric agreement of the 200k row's percentage translation with the shipped 50/75 percentage
+defaults is coincidence, not validation.
+
+- **Pointer**: [Context Arena, 8 needles](https://contextarena.ai/?needles=8); practitioner
+  consensus: Matt Pocock's AI Hero smart-zone entry, Geoffrey Huntley (about 150K); Cursor caps
+  Opus 5.5 at 300K. Anthropic's system cards (Opus 5.5, 2026-09-22; Fable 5.1, 2026-09-01) publish
+  no score-by-context-length table.
+- **As of**: 2026-10-04
+- **Recheck trigger**: Opus 5.5, Fable 5.1 or Sonnet 5.5 appear on Context Arena, or a system card
+  publishes per-length scores.
 
 ## The module (first shipped consumer)
 
@@ -435,8 +445,8 @@ window was managed. Lowering the window moves the trigger, so the bands in `zone
 with it, normalized into the percentage shape. A 400000-token window on a 1M-class model puts the
 trigger at **40% of the full window**, which is *inside* the shipped `smart` band (≤ 50), so
 auto-compact would fire while every zone still reads green. Keeping bands below that trigger means
-pulling the percentage bands under 40, not comparing 400000 against the same-looking `dumb`
-occupancy number. Those two 400000s are different quantities.
+pulling the percentage bands under 40, not comparing 400000 against the token bands' occupancy edges,
+which measure a different quantity.
 
 That diagnostic reading is adopted; the prescription that usually travels with it is not. **Leave
 auto-compact enabled.** Disabling it is a defensible operator choice on an attended machine, but it
@@ -481,8 +491,8 @@ what the human sees and what consumers decide on. Zones say *where you are*; con
   "smart_max_used_percentage": 50,
   "acceptable_max_used_percentage": 75,
   "token_bands": {
-    "200000": { "smart_max_tokens": 100000, "acceptable_max_tokens": 160000 },
-    "1000000": { "smart_max_tokens": 200000, "acceptable_max_tokens": 400000 }
+    "200000": { "smart_max_tokens": 100000, "acceptable_max_tokens": 150000 },
+    "1000000": { "smart_max_tokens": 128000, "acceptable_max_tokens": 250000 }
   }
 }
 ```
