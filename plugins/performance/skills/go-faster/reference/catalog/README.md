@@ -10,8 +10,8 @@ settle the claim.
 Each catalog file holds one markdown table. Its columns, in this order:
 
 - `class`: the bottleneck class, named in a few words.
-- `area`: one or more area slugs separated by `, `, or `all` for a measurement-method row that
-  applies to every area.
+- `area`: one or more area slugs separated by a comma and a space (`git, ci-cd`), or `all` for a
+  measurement-method row that applies to every area.
 - `cause`: why the class costs time, a clause.
 - `measure`: how to observe the cost on this machine, a clause.
 - `remedy`: the change that removes or shrinks the cost, a clause.

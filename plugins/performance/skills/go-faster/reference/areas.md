@@ -77,7 +77,7 @@ Each entry gives:
   `not-checked`, `no-data`: when the call listed nothing (`runs_listed` or `prs` is 0), with the
   area's own reason below. Otherwise count the excluded items: the number's `excluded`, plus
   `runs_excluded` for a `ci-timing` number. Above 0: reason "every timed sample was excluded
-  (<that count> excluded): their timestamps were missing or unparseable; this area times only items
+  (<that count> excluded): their timestamps were missing or unparsable; this area times only items
   whose GitHub timestamps parse". Zero: reason "the runs
   or pull requests read had no job, step or review to time". Never run
   `gh run list`, `gh api` or `gh pr list` yourself, and never save gh output to a file. Exit 1

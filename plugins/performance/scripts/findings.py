@@ -36,7 +36,7 @@ exits 3 like any other denied write.
 ci-timing and pr-timing run gh with the caller's environment (GH_CONFIG_DIR included), keep its
 output in memory and write nothing to disk. Each number is an object with value, unit, samples
 and command, the gh line(s) to cite; value is null when samples is 0, and excluded counts the
-items left out because a timestamp it needs is missing or unparseable. Skipped jobs and steps
+items left out because a timestamp it needs is missing or unparsable. Skipped jobs and steps
 count toward no queue wait or step duration. Median: the middle of the sorted samples; with an
 even count, the mean of the two middle ones. A gh call that fails, is missing, or prints
 something other than JSON exits 1 with one line naming the call. A job or step name is the
@@ -1095,7 +1095,7 @@ def span_ms(start: object, end: object) -> int | None:
 
 
 def stat(samples: Sequence[float], unit: str, command: str, excluded: int = 0) -> dict:
-    """One number to record; excluded counts items whose timestamps were missing or unparseable."""
+    """One number to record; excluded counts items whose timestamps were missing or unparsable."""
     return {
         "value": median(samples),
         "unit": unit,
@@ -1218,7 +1218,7 @@ def pr_timing(limit: int) -> dict:
             no_first += 1
             continue
         # A pending review has no submittedAt; one stamped before the PR opened is not a wait.
-        # An unparseable stamp could be the earliest review, so the PR is left out.
+        # An unparsable stamp could be the earliest review, so the PR is left out.
         stamps = [
             r.get("submittedAt")
             for r in pr.get("reviews") or []

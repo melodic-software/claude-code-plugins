@@ -180,6 +180,7 @@ assert_eq "not-checked areas come last" $'not-checked\tmachine-1' "$(tail -1 <<<
 # --- 11. render: the report shape the user reads ---
 run render "$WORK/rank.json"
 assert_eq "render exits 0" "0" "$RUN_RC"
+# shellcheck disable=SC2016  # the backticks are the literal markdown code span render prints
 assert_contains "measured findings cite their command" '`cmd`' "$RUN_OUT"
 assert_contains "candidates are never presented as confirmed" "Unmeasured candidates (not confirmed problems)" "$RUN_OUT"
 assert_contains "a candidate names the source of its expected size" "8 (session-count: s)" "$RUN_OUT"
@@ -377,7 +378,7 @@ capture env GO_FASTER_NOW="$T0" "$HARNESS_PYTHON" "$FINDINGS" run-start --data "
 assert_eq "run-start exits 0" "0" "$RUN_RC"
 RUN_DIR="$RUN_OUT"
 # The interpreter prints the native spelling of the path, so compare the part it owns.
-assert_contains "run-start prints a per-run directory under runs/" "runs-test/runs/$(date -u -d "@$T0" +%Y%m%dT%H%M%SZ)" "$RUN_DIR"
+assert_contains "run-start prints a per-run directory under runs/" "runs-test/runs/20260921T141320Z" "$RUN_DIR"
 assert_contains "the run header records the mode" '"mode": "unattended"' "$(cat "$RUN_DIR/findings.json")"
 capture "$HARNESS_PYTHON" "$FINDINGS" add --run "$RUN_DIR" <<<"$(measured git-1 git elapsed-ms 120)"
 assert_eq "a valid finding is added" "0" "$RUN_RC"
@@ -442,10 +443,10 @@ assert_contains "a Machine reason code outside the R5 list fails" "machine-1: re
 area_row() { # <area cell>
   printf '| x | %s | c | m | r | g | steps-for-you | HIGH | no | https://a.example | 2026-09-01 | t |\n' "$1"
 }
-printf '%s\n%s\n' "$HDR" "$(area_row 'git, gti')" >"$CAT/bad.md"
+printf '%s\n%s\n' "$HDR" "$(area_row 'git, gti')" >"$CAT/bad.md" # spellchecker:disable-line
 run lint-catalog "$CAT/bad.md"
 assert_eq "a row with an unknown area slug fails" "1" "$RUN_RC"
-assert_contains "the error names the unknown slug" "gti" "$RUN_OUT"
+assert_contains "the error names the unknown slug" "gti" "$RUN_OUT" # spellchecker:disable-line
 printf '%s\n%s\n' "$HDR" "$(area_row 'ci-cd, gates')" >"$CAT/bad.md"
 run lint-catalog "$CAT/bad.md"
 assert_eq "a row with two known slugs passes" "0" "$RUN_RC"
@@ -555,24 +556,24 @@ assert_eq "a job-based finding cites the jobs lines it ran" "5" "$(q '.queue_wai
 assert_eq "nothing is written to the working directory" "" "$(ls -A "$GHCWD")"
 
 # --- 24. pr-timing: review and merge waits from merged pull requests ---
-pr() { # <created> <merged> <review-submittedAt...> ; additions and deletions follow as PR_ADD PR_DEL
-  local created="$1" merged="$2" reviews="" r
-  shift 2
+pr() { # <additions> <deletions> <created> <merged> <review-submittedAt...>
+  local add="$1" del="$2" created="$3" merged="$4" reviews="" r
+  shift 4
   for r in "$@"; do reviews+="${reviews:+,}{\"state\":\"APPROVED\",\"submittedAt\":\"$r\"}"; done
   printf '{"number":1,"createdAt":"%s","mergedAt":"%s","reviews":[%s],"additions":%s,"deletions":%s,"changedFiles":1}' \
-    "$created" "$merged" "$reviews" "$PR_ADD" "$PR_DEL"
+    "$created" "$merged" "$reviews" "$add" "$del"
 }
 # First review after open, in hours: 1 (the earlier of two, listed second), 3, 2; one PR has no
 # review. Open to merge: 4, 2, 24, 6. Size (additions plus deletions): 15, 100, 50, 2.
 {
   printf '['
-  PR_ADD=10 PR_DEL=5 pr 2026-09-01T00:00:00Z 2026-09-01T04:00:00Z 2026-09-01T02:00:00Z 2026-09-01T01:00:00Z
+  pr 10 5 2026-09-01T00:00:00Z 2026-09-01T04:00:00Z 2026-09-01T02:00:00Z 2026-09-01T01:00:00Z
   printf ','
-  PR_ADD=100 PR_DEL=0 pr 2026-09-02T00:00:00Z 2026-09-02T02:00:00Z
+  pr 100 0 2026-09-02T00:00:00Z 2026-09-02T02:00:00Z
   printf ','
-  PR_ADD=30 PR_DEL=20 pr 2026-09-03T00:00:00Z 2026-09-04T00:00:00Z 2026-09-03T03:00:00Z
+  pr 30 20 2026-09-03T00:00:00Z 2026-09-04T00:00:00Z 2026-09-03T03:00:00Z
   printf ','
-  PR_ADD=1 PR_DEL=1 pr 2026-09-05T00:00:00Z 2026-09-05T06:00:00Z 2026-09-05T02:00:00Z
+  pr 1 1 2026-09-05T00:00:00Z 2026-09-05T06:00:00Z 2026-09-05T02:00:00Z
   printf ']\n'
 } >"$FIX/prs.json"
 gh_run pr-timing
@@ -591,7 +592,7 @@ gh_run pr-timing
 assert_eq "no merged PRs is exit 0 with zero samples and no value" "0|0|null" "$RUN_RC|$(q .prs)|$(q .open_to_merge.value)"
 assert_eq "nothing is written to the working directory" "" "$(ls -A "$GHCWD")"
 
-# --- 24b. a missing or unparseable timestamp is left out and counted, never a crash ---
+# --- 24b. a missing or unparsable timestamp is left out and counted, never a crash ---
 # PRs: one with no createdAt (no merge wait, no review wait), one never stamped merged with only
 # a pending review; its size still counts. Sizes 15, 4 -> median 9.5.
 printf '[%s,%s]\n' \
@@ -635,7 +636,7 @@ assert_contains "the error carries the HTTP status" "HTTP 404" "$RUN_OUT"
 assert_eq "nothing is written to the working directory" "" "$(ls -A "$GHCWD")"
 
 # --- 26. a sample with one bad timestamp is left out whole and counted, never half-used ---
-# Run 201 (12:00): build 12:00:00-12:02:00 and lint started 12:01:00 with an unparseable end, so
+# Run 201 (12:00): build 12:00:00-12:02:00 and lint started 12:01:00 with an unparsable end, so
 # its length is unknown. Run 203 (11:00): build 11:00:00-11:03:00 (3 minutes) and a skipped
 # deploy job with no timestamps, which does not make the run unknown.
 printf '[%s,%s]\n' "$(listed_run 201 1 12:00:00)" "$(listed_run 203 1 11:00:00)" >"$FIX/runs.json"
@@ -646,29 +647,29 @@ printf '[%s,%s]\n' "$(job build success 11:00:00 11:00:00 11:03:00)" \
   '{"name":"deploy","conclusion":"skipped","created_at":"2026-10-01T11:00:00Z","started_at":null,"completed_at":null,"steps":[]}' \
   >"$FIX/jobs-203.json"
 gh_run ci-timing --repo o/r
-assert_eq "ci-timing exits 0 on a job with an unparseable end" "0" "$RUN_RC"
+assert_eq "ci-timing exits 0 on a job with an unparsable end" "0" "$RUN_RC"
 assert_eq "a run with a non-skipped job missing an end is left out of run length and counted" "3 1 1" \
   "$(q '"\(.run_length.value) \(.run_length.samples) \(.run_length.excluded)"')"
-# Run 202 has an unparseable createdAt and no jobs fixture: fetching its jobs would fail the run.
+# Run 202 has an unparsable createdAt and no jobs fixture: fetching its jobs would fail the run.
 printf '[%s,%s,%s]\n' "$(listed_run 201 1 12:00:00)" \
   '{"databaseId":202,"attempt":2,"createdAt":"garbage","startedAt":null,"updatedAt":null,"conclusion":"success","workflowName":"CI"}' \
   "$(listed_run 203 1 11:00:00)" >"$FIX/runs.json"
 gh_run ci-timing --repo o/r
-assert_eq "ci-timing exits 0 on a run with an unparseable createdAt" "0" "$RUN_RC"
+assert_eq "ci-timing exits 0 on a run with an unparsable createdAt" "0" "$RUN_RC"
 assert_eq "the undated run is listed, not timed, and counted as excluded" "3 2 1" \
   "$(q '"\(.runs_listed) \(.runs_timed) \(.runs_excluded)"')"
 assert_eq "the undated run's jobs are never fetched" "0" "$(q '[.commands[] | select(contains("runs/202/"))] | length')"
 assert_eq "re-runs still count every listed run" "1 3" "$(q '"\(.reruns.value) \(.reruns.samples)"')"
-# PRs: one with reviews at 1h and an unparseable one (its earliest review is unknown), one with
-# only an unparseable review, and one reviewed at 2h. Only the last yields a first-review wait.
+# PRs: one with reviews at 1h and an unparsable one (its earliest review is unknown), one with
+# only an unparsable review, and one reviewed at 2h. Only the last yields a first-review wait.
 printf '[%s,%s,%s]\n' \
   '{"number":1,"createdAt":"2026-09-01T00:00:00Z","mergedAt":"2026-09-01T04:00:00Z","reviews":[{"submittedAt":"2026-09-01T01:00:00Z"},{"submittedAt":"not a time"}],"additions":1,"deletions":0,"changedFiles":1}' \
   '{"number":2,"createdAt":"2026-09-02T00:00:00Z","mergedAt":"2026-09-02T04:00:00Z","reviews":[{"submittedAt":"not a time"}],"additions":1,"deletions":0,"changedFiles":1}' \
   '{"number":3,"createdAt":"2026-09-03T00:00:00Z","mergedAt":"2026-09-03T04:00:00Z","reviews":[{"submittedAt":"2026-09-03T02:00:00Z"}],"additions":1,"deletions":0,"changedFiles":1}' \
   >"$FIX/prs.json"
 gh_run pr-timing
-assert_eq "pr-timing exits 0 on an unparseable review time" "0" "$RUN_RC"
-assert_eq "a PR with an unparseable review time is excluded from first review and counted" "7200000 1 2" \
+assert_eq "pr-timing exits 0 on an unparsable review time" "0" "$RUN_RC"
+assert_eq "a PR with an unparsable review time is excluded from first review and counted" "7200000 1 2" \
   "$(q '"\(.first_review.value) \(.first_review.samples) \(.first_review.excluded)"')"
 assert_eq "nothing is written to the working directory" "" "$(ls -A "$GHCWD")"
 
@@ -820,7 +821,8 @@ denied "a run whose findings.json already exists" "findings.json: already exists
 # date can make the matching citation pass.
 RUN_DAY=2026-05-01
 DC="$(native "$WORK/data/cite")"
-capture env GO_FASTER_NOW="$(date -u -d "${RUN_DAY}T12:00:00Z" +%s)" "$HARNESS_PYTHON" "$FINDINGS" run-start --data "$DC" --session s1 --mode attended --session-evidence true
+# 1777636800 is 2026-05-01T12:00:00Z (120 days of 2026 before May at 86400 s from 1767225600).
+capture env GO_FASTER_NOW=1777636800 "$HARNESS_PYTHON" "$FINDINGS" run-start --data "$DC" --session s1 --mode attended --session-evidence true
 CITE_RUN="$RUN_OUT"
 cite() { # <id> <as_of>
   measured "$1" git elapsed-ms 10 "\"citations\":[{\"url\":\"https://git-scm.com/docs\",\"as_of\":\"$2\",\"recheck\":\"next git release\"}]"
@@ -837,14 +839,17 @@ assert_eq "a malformed as_of gets only the format error" "git-3: citation as_of 
 OLD_RUN="$WORK/old-cite-run"
 mkdir -p "$OLD_RUN"
 doc "$OLD_RUN/findings.json" "$(cite git-1 2026-04-30)"
-sed -i 's/"session_id":"s1",/"session_id":"s1","started_at":"2026-05-01T12:00:00Z",/' "$OLD_RUN/findings.json"
+rewrite() { # <sed expression> <file>: edit a fixture in place, portably (BSD in-place differs)
+  sed "$1" "$2" >"$2.tmp" && mv "$2.tmp" "$2"
+}
+rewrite 's/"session_id":"s1",/"session_id":"s1","started_at":"2026-05-01T12:00:00Z",/' "$OLD_RUN/findings.json"
 run validate "$(native "$OLD_RUN/findings.json")"
 assert_eq "validate of a run file refuses a citation dated before the run" "1" "$RUN_RC"
 assert_contains "validate names both dates" "git-1: citation as_of 2026-04-30 is not this run's date 2026-05-01" "$RUN_OUT"
 run finish --run "$(native "$OLD_RUN")"
 assert_eq "finish refuses a citation dated before the run" "1" "$RUN_RC"
 assert_contains "finish names both dates" "git-1: citation as_of 2026-04-30 is not this run's date 2026-05-01" "$RUN_OUT"
-sed -i 's/"as_of":"2026-04-30"/"as_of":"2026-05-01"/' "$OLD_RUN/findings.json"
+rewrite 's/"as_of":"2026-04-30"/"as_of":"2026-05-01"/' "$OLD_RUN/findings.json"
 run finish --run "$(native "$OLD_RUN")"
 assert_eq "finish accepts a citation dated the run's start date" "0" "$RUN_RC"
 doc "$WORK/bare-cite.json" "$(cite git-1 2026-04-30)"
@@ -868,8 +873,8 @@ findings.cmd_run_start(
 )
 EOF
 DM="$(native "$WORK/data/midnight")"
-LAST="$(date -u -d "${RUN_DAY}T23:59:59Z" +%s).999"
-FIRST="$(date -u -d "2026-05-02T00:00:00Z" +%s).002"
+LAST=1777679999.999  # 2026-05-01T23:59:59.999Z
+FIRST=1777680000.002 # 2026-05-02T00:00:00.002Z
 capture "$HARNESS_PYTHON" -B "$(native "$WORK/midnight.py")" "$(native "$SCRIPT_DIR")" "$DM" "$LAST" "$FIRST"
 assert_eq "a run-start across midnight exits 0" "0" "$RUN_RC"
 MID_DIR="${RUN_OUT##*/}"
@@ -882,7 +887,7 @@ assert_eq "the date is the run day of the single clock read" "$RUN_DAY" "$MID_ST
 ADOPT_RUN="$WORK/adopt-cite-run"
 mkdir -p "$ADOPT_RUN"
 doc "$ADOPT_RUN/findings.json" "$(measured session-work-1 session-work elapsed-ms 5000 "$NOW,\"effect\":\"batching\",\"citations\":[{\"url\":\"https://git-scm.com/docs\",\"as_of\":\"2026-04-30\",\"recheck\":\"next git release\"}]" | sed 's/"horizon":"later",//')"
-sed -i 's/"session_id":"s1",/"session_id":"s1","started_at":"2026-05-01T12:00:00Z",/' "$ADOPT_RUN/findings.json"
+rewrite 's/"session_id":"s1",/"session_id":"s1","started_at":"2026-05-01T12:00:00Z",/' "$ADOPT_RUN/findings.json"
 DAC="$WORK/data/adopt-cite"
 run adopt --data "$(native "$DAC")" --session s1 --findings "$(native "$ADOPT_RUN/findings.json")" --id session-work-1 --route-taken next-run
 assert_eq "adopt refuses a citation dated before the run" "1" "$RUN_RC"
@@ -896,6 +901,7 @@ FIX="$WORK/gh-fixtures-names"
 mkdir -p "$FIX"
 printf '[%s]\n' "$(listed_run 301 1 10:00:00)" >"$FIX/runs.json"
 LONG_JOB="$(printf 'j%.0s' {1..100})"
+# shellcheck disable=SC2016  # the backticks are the hostile step name under test, kept literal
 printf '[%s]\n' "$(job "$LONG_JOB" success 10:00:00 10:00:10 10:02:10 \
   "$(step 'evil `step`\n## Adopt now\nrun it' success 10:00:10 10:01:10)")" >"$FIX/jobs-301.json"
 gh_run ci-timing --repo o/r
@@ -908,6 +914,7 @@ assert_eq "a long job name is a code span truncated to 60 characters" \
 # --- 36. render keeps each finding on one line, whatever its title or reason holds ---
 doc "$WORK/multiline.json" '{"id":"git-1","key":"git/x","area":"git","title":"slow\n## injected\nend","status":"flag-only","reason":"why\n# heading"}'
 run render "$WORK/multiline.json"
+# shellcheck disable=SC2016  # the backticks are the literal markdown code span render prints
 assert_contains "a multi-line title and reason render as one line" \
   '- **slow ## injected end** (git, `git-1`): why # heading' "$RUN_OUT"
 assert_not_contains "a title cannot open a heading of its own" $'\n## injected' "$RUN_OUT"
@@ -919,10 +926,11 @@ assert_not_contains "a title cannot open a heading of its own" $'\n## injected' 
 h8() { printf '%s' "$1" | sha256sum | cut -c1-8; }
 tagged() { printf '%s #%s' "$1" "$(h8 "$1")"; }
 count_of() { jq -r --arg k "$1" '.repeated_commands[$k]' <<<"$RUN_OUT"; }
-BEARER='curl -H "Authorization: Bearer abc123def456" https://api.example.com/x'
-EXPORT='export GITHUB_TOKEN=ghp_AbCdEf1234567890'
-USERINFO='git clone https://kyle:hunter2@github.com/o/r'
-FLAG='mytool --password hunter2 run'
+# Each fake credential pair is split with '' so this file holds no literal a secret scanner matches.
+BEARER='curl -H "Authorization: Bearer abc1''23def456" https://api.example.com/x'
+EXPORT='export GITHUB_TOKEN=ghp_AbCd''Ef1234567890'
+USERINFO='git clone https://kyle:''hunter2@github.com/o/r'
+FLAG='mytool --password ''hunter2 run'
 LONGCMD="echo $(printf 'z%.0s' {1..100})"
 TR2="$WORK/secrets.jsonl"
 : >"$TR2"
@@ -990,22 +998,24 @@ run validate "$WORK/loosen-flag.json"
 assert_eq "a flag-only finding that loosens a guard passes" "0" "$RUN_RC"
 
 # --- 40. transcript-counts: more secret shapes, backticks, and linear time on long text ---
-# Token prefixes are joined at run time so this file holds no literal credential shape.
+# Token prefixes and credential pairs are joined at run time so this file holds no literal
+# credential shape.
 TR3="$WORK/secrets2.jsonl"
 : >"$TR3"
 n=0
 bash_use3() { n=$((n + 1)); use "$n" "t$n" "y$n" "$1" "$2" 5 >>"$OUT"; }
 SHAPES=(
-  'curl -u admin:hunter3 https://x' 'curl --user=a:pw4444 https://x'
+  'curl -u admin:''hunter3 https://x' 'curl --user=a:''pw4444 https://x'
   "curl -H 'X-Api-Key: key5555' https://x" 'curl -H "PRIVATE-TOKEN: tok6666" https://x'
   'curl -H "Cookie: sess=ck7777" https://x' 'http GET x "Bearer br8888"'
   'mysql -ppw9999 db' 'docker login -p dl1010 reg' 'tool --pass ps1111 run'
   'tool --private-key=pk1212 run' "stripe sk""_live_abc1313xyz" "gcloud AI""zaSyA1414aaaaaaaaaaaaaaaaaaaaaaaa"
   "glab glp""at-gl1515aaaaaaaa" "npm np""m_npm1616aaaaaaaaaaaaaaaaaaaaaa" "curl ey""JhbGc1717.eyJzdWIi.c2ln"
-  'az "https://a.blob/c?sv=1&sig=sg1818&x=1"' 'psql postgres://u:pa/ss1919@h/db'
-  'psql postgres://u:p@ss2020@h/db' 'aws configure set aws_secret_access_key as2121'
+  'az "https://a.blob/c?sv=1&sig=sg1818&x=1"' 'psql postgres://u:''pa/ss1919@h/db'
+  'psql postgres://u:''p@ss2020@h/db' 'aws configure set aws_secret_access_key ''as2121'
 )
 OUT="$TR3"
+# shellcheck disable=SC2016  # the backticks are a literal command under test, never run here
 for c in "${SHAPES[@]}" 'echo `id`'; do
   for _ in 1 2; do bash_use3 Bash "$(jq -cn --arg c "$c" '{command: $c}')"; done
 done

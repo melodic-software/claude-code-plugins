@@ -179,6 +179,8 @@ assert_eq "an invalid percentile list is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the bad entry" "BENCH_PERCENTILES entry '0'" "$RUN_OUT"
 
 # --- 8. a serial run picks each iteration's arm order at random, and records it ---
+# The two-letter arm-order tokens below read as misspellings to typos.
+# spellchecker:off
 # A fixed AB, BA, AB pattern can line up with periodic interference; randomized
 # multiple interleaved trials give every round a fresh random order. The rule
 # documented in ab.sh: one byte per iteration from PERF_AB_ORDER_SOURCE, even
@@ -187,6 +189,7 @@ assert_contains "the refusal names the bad entry" "BENCH_PERCENTILES entry '0'" 
 ORDER_DIR="$(mktemp -d)"
 ORDER_FIXTURE="$ORDER_DIR/order-bytes"
 ORDER_LOG="$ORDER_DIR/arm-log"
+trap 'rm -f "$ORDER_FIXTURE" "$ORDER_LOG"; rmdir "$ORDER_DIR" 2>/dev/null' EXIT
 # Bytes 0 1 1 0 3 3 2 4 5 6 7 7 8 10 9 11 12 13 14 14: more than 16, so the
 # multi-line read path runs, and with repeats, so a collapsed read would show.
 printf '\000\001\001\000\003\003\002\004\005\006\007\007\010\012\011\013\014\015\016\016' >"$ORDER_FIXTURE"
@@ -222,9 +225,6 @@ run_ordered
 assert_eq "an order source shorter than the iterations is refused" "2" "$RUN_RC"
 assert_contains "the refusal names the order source" "PERF_AB_ORDER_SOURCE" "$RUN_OUT"
 
-rm -f "$ORDER_FIXTURE" "$ORDER_LOG"
-rmdir "$ORDER_DIR"
-
 # The default source is the OS random device; only the shape is checkable.
 run_ab --a "$NOOP" --b "$NOOP" --iterations 6 --warmup 0 --min-pairs 6
 assert_eq "a run with the default order source exits 0" "0" "$RUN_RC"
@@ -233,6 +233,7 @@ if printf '%s\n' "$RUN_OUT" | grep -Eq '^arm_order=(AB|BA)( (AB|BA)){5}$'; then
 else
   fail "the default source records one AB or BA per iteration" "arm_order= with 6 tokens" "$RUN_OUT"
 fi
+# spellchecker:on
 
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
 echo "OK: ab interleaving and refusals"
