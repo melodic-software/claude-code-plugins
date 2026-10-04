@@ -187,6 +187,7 @@ test("a valid config writes ResolvedConfig and the selected activity's outputs",
     slots: '["run-tests","measure-coverage"]',
     kind: "script",
     effect: "read",
+    gating: "gate",
     skill: "",
     script: "scripts/run-tests.sh",
     model: "",
@@ -208,8 +209,8 @@ test("a mutate-branch activity can commit; args stay in the file only", async ()
   assert.equal(await main({ env, github: noApi }), 0);
   const outputs = readOutputs(env.GITHUB_OUTPUT);
   assert.deepEqual(
-    [outputs.contents, outputs["can-commit"], outputs.skill],
-    ["write", "true", "ai-slop:audit"],
+    [outputs.contents, outputs["can-commit"], outputs.skill, outputs.gating],
+    ["write", "true", "ai-slop:audit", "advisory"],
   );
   assert.equal(Object.hasOwn(outputs, "args"), false);
 });

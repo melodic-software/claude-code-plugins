@@ -136,7 +136,10 @@ Each activity declares:
 - `effect`: one of `read`, `mutate-branch`, `mutate-tracker`, `publish-artifact`, `merge`. The
   runner derives ordering from it, takes the token grant from
   [`effect-grants.json`](../../../.github/actions/resolve-config/effect-grants.json), and fails a
-  `read` activity that leaves the working tree dirty.
+  `read` activity that leaves the working tree dirty. An activity that runs head code (tests,
+  linters, builds) takes effect `read`, because a write-effect activity must not execute head
+  code; a fix-and-push lane waits on a split design (a read-only run, then a separate
+  signed-commit step).
 - `gating`: `gate` feeds `ci-status`; `advisory` is reported only. `ci-status` stays the only
   required check.
 - `reads-untrusted`: whether it reads issue, PR, comment, web or CI-log text. Ingested text is

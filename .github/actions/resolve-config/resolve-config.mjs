@@ -103,6 +103,7 @@ function outputsFor({ lane, selected }) {
     ...outputs,
     kind: selected.kind,
     effect: selected.effect,
+    gating: selected.gating,
     skill: selected.skill ?? "",
     script: selected.script ?? "",
     model: selected.model ?? "",

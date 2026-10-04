@@ -19,6 +19,11 @@ Additive, except one tightening: the activity names `run` and `report` are now r
   `.github/actions/resolve-config/lane-rules.json`, and each effect's App token grant is in
   `effect-grants.json` beside it.
 - The reader rejects any `extends:` value and the activity names `run` and `report`.
+- `resolve-config` outputs the selected activity's `gating`.
+- An activity that runs head code (tests, linters, builds) takes effect `read`; a write-effect
+  activity must not execute head code.
+- The example config drops the `format` slot (`toolchain:lint --fix`, `mutate-branch`), which ran
+  head code with a write token.
 
 ## 1.0.0 - 2026-10-03
 

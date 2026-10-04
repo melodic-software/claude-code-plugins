@@ -17,13 +17,6 @@ activities:
     inputs: [changed-paths]
     applies-when:
       paths: ["**/*.md"]
-  format:
-    skill: toolchain:lint
-    args: --fix
-    effect: mutate-branch
-    gating: advisory
-    reads-untrusted: false
-    inputs: [changed-paths]
   run-tests:
     skill: toolchain:check
     effect: read
@@ -116,7 +109,6 @@ lanes:
     slots:
       - activity: simplify
       - activity: fix-docs
-      - activity: format
   pr-run-checks:
     stage: verify
     slots:

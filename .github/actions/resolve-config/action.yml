@@ -60,6 +60,9 @@ outputs:
   effect:
     description: The activity's effect.
     value: ${{ steps.resolve.outputs.effect }}
+  gating:
+    description: "`gate` or `advisory`: whether the activity's verdict feeds ci-status."
+    value: ${{ steps.resolve.outputs.gating }}
   skill:
     description: "`<plugin>:<skill>`, empty for a script."
     value: ${{ steps.resolve.outputs.skill }}

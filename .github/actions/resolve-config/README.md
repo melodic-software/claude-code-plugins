@@ -59,8 +59,9 @@ when a `labels`, `events` or `work-classes` predicate misses. Its `grant` is the
 `effect-grants.json`.
 
 Step outputs: `enabled` and `slots` (a JSON list of names); with `activity`, also `kind`,
-`effect`, `skill`, `script`, `model`, `max-turns`, `reads-untrusted`, `applies`, `skip-reason`,
-`contents`, `pull-requests`, `issues` and `can-commit` (`false` only when `contents` is `read`).
+`effect`, `gating` (`gate` or `advisory`), `skill`, `script`, `model`, `max-turns`,
+`reads-untrusted`, `applies`, `skip-reason`, `contents`, `pull-requests`, `issues` and
+`can-commit` (`false` only when `contents` is `read`).
 `args` is free text and stays in the file.
 
 ## Job contract

@@ -547,7 +547,7 @@ function resolveEveryExampleSlot(vocabulary) {
 
 test("the README example validates and resolves for each of its lanes", () => {
   const results = resolveEveryExampleSlot(VOCABULARY);
-  assert.equal(Object.keys(results).length, 16);
+  assert.equal(Object.keys(results).length, 15);
   assert.deepEqual(
     [
       results["pr-review / claude"].model,
@@ -572,5 +572,5 @@ test("integration: the README example resolves against the synced standards voca
   const results = resolveEveryExampleSlot(
     JSON.parse(readFileSync(LIVE_VOCABULARY, "utf8")),
   );
-  assert.equal(Object.keys(results).length, 16);
+  assert.equal(Object.keys(results).length, 15);
 });
