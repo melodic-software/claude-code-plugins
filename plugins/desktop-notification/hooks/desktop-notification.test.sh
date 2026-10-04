@@ -365,8 +365,7 @@ if printf '%s' "$PROG" | grep -q 'display notification (item 2 of argv)'; then o
 # --- jq-absent -> visible notice, once per session and agent (dim-9 doctrine) -
 # Without jq the hook can neither classify the notification nor emit its
 # terminalSequence; the skip must surface via systemMessage (the Notification
-# event has no additionalContext channel) once per session and agent,
-# renewed every eighth skip.
+# event has no additionalContext channel) once per session, not renewed.
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue

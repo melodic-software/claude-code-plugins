@@ -3,11 +3,42 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.12.2] - 2026-10-04
+## [0.14.2] - 2026-10-04
 
 ### Changed
 
 - **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing node goes to the user only, in one shorter line.
+
+## [0.14.1] - 2026-10-04
+
+### Changed
+
+- **No quiet window restated.** After a compaction, a resume or `/branch`, only windows at or above the approach mark are restated; a session with only quiet windows gets nothing.
+- **Debug log mirror.** Each line sent to Claude is written as sent to the debug log.
+- **Shorter status tool description.**
+
+## [0.14.0] - 2026-10-04
+
+### Changed
+
+- **The lane pause edge is 95%, the line threshold defaults to 95 and the approach mark to 90.** Loop lanes now pause when either window reports `used_percentage >= 95`, and Claude's lines read `at the 95% pause edge` and `nearing the 95% pause edge`. At 90 a lane stopped with a tenth of the window unused; drain-then-pause still lets in-flight work finish below 100. The marks are judgment defaults: Anthropic publishes no subscription-window warning threshold. A `rate_limit_line_threshold` or `rate_limit_approach_pct` set in settings keeps its value.
+
+## [0.13.0] - 2026-10-04
+
+### Added
+
+- **A window-change toast and its option.** When a window rises from an earlier reading to the approach mark or the line threshold, or resets after reaching it, the module shows a 4-second toast such as `5h at the 90% pause edge · resets 21:00 UTC` and writes one transcript line ending `· more: /rate-limit-guard`. A window's first reading and a restatement are never toasted, and the toast does not depend on `rate_limit_lines_enabled`. `rate_limit_guard_toast` (default `true`) turns the toast off and keeps the transcript line.
+
+### Changed
+
+- **The band row is off by default.** `rate_limit_guard_band` now defaults to `false`; a stored `true` keeps it on. The row drops the model id and shows `5h <x>% | 7d <y>%`.
+- **The band command is `/rate-limit-guard band on|off`.** `/rate-limit-guard:band show|hide` never resolved, because both guards registered the bare name `band` and the second registration replaced the first. The module now registers one command, `/rate-limit-guard`: no argument prints each window's use, verdict and reset, the line threshold and approach mark, the band and toast state, the snapshot path and a README link; `band on` and `band off` set the row for the session, and a bare `band` toggles it. Its replies carry no plugin prefix, since Claude Code already shows them under the plugin's name. Any other command name, `/band` included, passes to the next plugin.
+- **The notice row shows only off the terminal in automatic mode.** A window change draws a row above the prompt only in the Desktop app, VS Code and mobile, where toast drawing is unverified. Operator mode's notice keeps one row on every surface. The row and a shown suggestion are the person's channel for a held line, so it gets a toast and a transcript line only when the person never had either: its first offer could not show, or a survey hid the row until the line went to Claude. Each row carries the plugin name once, however many windows it names, and wraps rather than being cut off.
+- **Lines to Claude carry the verdict only.** The source note is gone, for example `rate-limit-guard: 5-hour window at the 90% pause edge, resets at 2026-10-03 21:00 UTC.`, and the approach line reads "nearing the 90% pause edge".
+
+### Fixed
+
+- The 0.12.0 entry and earlier README text named `/rate-limit-guard:band show|hide`, which never existed as a working command; use `/rate-limit-guard band on|off`.
 
 ## [0.12.1] - 2026-10-04
 

@@ -1,0 +1,135 @@
+name: pr-check-managed-files-hosted
+
+# SYNC-MANAGED FILE: DO NOT EDIT IN THE CONSUMING REPOSITORY.
+# Source of truth: melodic-software/standards,
+# components/managed-files-guard/managed-files-guard.yml (the
+# `managed-files-guard-caller` component in distribution/sync-manifest.yml).
+# Downstream edits are overwritten by the next sync PR; change the component
+# upstream, or move the component to `locally-owned` in the manifest to
+# customize.
+#
+# Thin caller for the org's check-managed-files composite action
+# (melodic-software/ci-workflows, ci-workflows#208). The action resolves this
+# repository's sync-manifest-managed destination paths from the standards ref
+# it is given and fails the pull request when the diff hand-edits one of them
+# (ADR-0007: a managed file is byte-exact with its standards source; the fix
+# path is a standards change, never a downstream edit). Pull requests opened
+# by the sync itself (labeled `standards-sync`, or authored by
+# `melodic-standards-sync[bot]`) are exempt inside the action.
+#
+# ADVISORY during soak (standards#496): this check is NOT aggregated into
+# `ci-status` and is not a required context. Promotion is a per-target
+# decision taken after a clean soak, recorded in the component README.
+#
+# Hosted-only shape: `runs-on` names the approved hosted label directly, so the
+# same bytes serve public and un-enrolled private targets. A private target
+# enrolled for local CI routing takes the fleet-routed sibling,
+# components/managed-files-guard/managed-files-guard-fleet.yml, instead.
+
+# The guard fails only on an exact managed destination path, so the workflow
+# runs only when the pull request touches one. `paths` is the sorted union of
+# every sync target's managed destinations (`sync-manifest.sh dest-paths`),
+# this workflow and its sibling included; the contract test fails when the
+# manifest moves that union and this list does not follow. `types` restates
+# the documented pull_request default.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - .chezmoidata/claude-permissions.json
+      - .claude/cloud-bootstrap.sh
+      - .claude/rules/pr-body-contract.md
+      - .claude/settings.json
+      - .editorconfig
+      - .editorconfig-checker.json
+      - .gitattributes
+      - .github/actionlint.yaml
+      - .github/actions/check-comment-markers/comment-hygiene-patterns.sh
+      - .github/actions/check-machine-paths/machine-path-patterns.sh
+      - .github/standards/github-actions-conventions/vocabulary.json
+      - .github/standards/github-actions-conventions/vocabulary.schema.json
+      - .github/standards/pyright/pyrightconfig.json
+      - .github/standards/runner-policy/package-lock.json
+      - .github/standards/runner-policy/package.json
+      - .github/standards/runner-policy/policy.json
+      - .github/standards/runner-policy/policy.schema.json
+      - .github/standards/runner-policy/repository-policy.schema.json
+      - .github/standards/runner-policy/runner-policy.mjs
+      - .github/standards/trusted-actors/trusted-actors.json
+      - .github/standards/trusted-actors/trusted-actors.schema.json
+      - .github/workflows/pr-check-managed-files-hosted.yml
+      - .github/workflows/pr-check-managed-files.yml
+      - .github/workflows/pr-review-hosted.yml
+      - .github/workflows/pr-review-security-hosted.yml
+      - .github/workflows/pr-review-security.yml
+      - .github/workflows/pr-review.yml
+      - .gitleaks.toml
+      - .golangci.yml
+      - .lefthook/base.yml
+      - .lefthook/dotnet-format-staged.mjs
+      - .lefthook/dotnet.yml
+      - .lefthook/powershell.yml
+      - .lefthook/psscriptanalyzer-staged.ps1
+      - .lefthook/psscriptanalyzer-target.ps1
+      - .lefthook/python.yml
+      - .lefthook/shellcheck.yml
+      - .markdownlint-cli2.jsonc
+      - .node-version
+      - .shellcheckrc
+      - PSScriptAnalyzerSettings.psd1
+      - REVIEW.md
+      - _typos.toml
+      - docs/adr/README.md
+      - docs/adr/adr-template.md
+      - dot_markdownlint-cli2.jsonc
+      - eng/dotnet-analysis/Directory.Build.props
+      - eng/dotnet-analysis/dotnet.globalconfig
+      - lychee.toml
+      - plugins/guardrails/lib/path-detection/machine-path-patterns.sh
+      - ruff.toml
+      - tools/mcp-launcher/dispatch.js
+      - tools/mcp-launcher/launcher.js
+      - tools/shared/comment-hygiene/comment-hygiene-patterns.sh
+      - tools/shared/path-detection/machine-path-patterns.sh
+
+permissions:
+  contents: read
+
+# Canonical block from the standards `concurrency-policy` component: a newer
+# push to the same pull request cancels the in-flight guard run; the
+# `run_id` fallback keeps non-PR runs unique and never canceled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  pr-check-managed-files:
+    # Equal to the job id so the check context is `pr-check-managed-files`;
+    # zizmor's pedantic `anonymous-definition` audit flags an unnamed job.
+    name: pr-check-managed-files
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The guard diffs base...head; a shallow checkout has no base to
+          # diff against, and the action fails closed on a diff it cannot see.
+          fetch-depth: 0
+      - name: Guard managed files
+        # Pinned to the ci-workflows release that carries the close of the
+        # guard's fail-open on an unreadable diff (ci-workflows#530). A release
+        # now contains that commit, so the pin-comment takes the convention's
+        # release-tag form rather than the short-SHA fallback
+        # (components/managed-files-guard/README.md).
+        uses: melodic-software/ci-workflows/.github/actions/check-managed-files@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        with:
+          # `main` for the soak, per the action's own input contract ("Pin to
+          # a full SHA in callers once soak completes"): the guard must read
+          # the manifest that is live for this repository, and a fixed
+          # standards SHA would stop tracking target roster and component
+          # changes the moment it landed. `standards-ref` is a workflow input
+          # naming a ref of a different repository, so the ci-workflows
+          # pin-comment convention does not apply to it.
+          standards-ref: main

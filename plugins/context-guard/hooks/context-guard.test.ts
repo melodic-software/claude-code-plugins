@@ -5,12 +5,16 @@ const T0 = 1_791_050_400_000
 const HOME = '/srv/u'
 const CTX = '/srv/u/.claude/context-guard/context'
 const ZONES = '/srv/u/.claude/context-guard/zones.json'
-const SRC = '(a measurement from the last API response)'
-const STEER =
-  "A zone is a measurement, not an instruction: degradation shows in the work itself (drift, repetition, dropped constraints), never in a zone word, and continuation is the operator's call."
 const SAVE = 'context-guard (default for the dumb zone): compaction distance is short, so each expensive conclusion goes to a durable note as it stabilizes.'
-const crossing = (from: string, to: string) => `context-guard: this session crossed from the ${from} into the ${to} context zone ${SRC}. ${STEER}`
-const DEGRADED = 'dumb (evidence-degraded: this session was compacted)'
+// Each zone with its rank of three, as the lines name it.
+const VERDICT = {
+  smart: 'smart zone (1 of 3)',
+  acceptable: 'acceptable zone (2 of 3)',
+  dumb: 'dumb zone (3 of 3)',
+  degraded: 'dumb zone (3 of 3, compacted)',
+} as const
+type Verdict = keyof typeof VERDICT
+const crossing = (to: Verdict) => `context-guard: ${VERDICT[to]}.`
 
 type World = {
   percent: number | undefined
@@ -27,7 +31,9 @@ type World = {
   files: Record<string, { text: string; mtimeMs: number }>
   runs: { argv: readonly string[]; stdin?: string }[]
   suggested: string[]
+  suggestCalls: number
   logs: string[]
+  toasts: string[]
   below: string[]
   ran: string[]
   exits: (number | 'throw')[]
@@ -53,7 +59,9 @@ const world = (stub: any, init: Partial<World> = {}, env: Record<string, string>
     files: {},
     runs: [],
     suggested: [],
+    suggestCalls: 0,
     logs: [],
+    toasts: [],
     below: [],
     ran: [],
     exits: [],
@@ -107,7 +115,12 @@ const world = (stub: any, init: Partial<World> = {}, env: Record<string, string>
     return { value: undefined }
   })
   on('prompt.read', () => ({ value: { text: w.box, cursor: w.box.length } }))
+  on('ui.toast', ($: unknown, e: { text: string }) => {
+    w.toasts.push(e.text)
+    return { value: undefined }
+  })
   on('prompt.suggest', ($: unknown, e: { text: string }) => {
+    w.suggestCalls += 1
     if (w.shown && w.box === '') w.suggested.push(e.text)
     return { isShown: w.shown && w.box === '' }
   })
@@ -163,30 +176,30 @@ test('lines: one line at each crossing into a worse zone, appended after the con
   }
   expect(seen).toEqual([
     ['below'],
-    ['below', crossing('smart', 'acceptable')],
+    ['below', crossing('acceptable')],
     ['below'],
-    ['below', `${crossing('acceptable', 'dumb')} ${SAVE}`],
+    ['below', `${crossing('dumb')} ${SAVE}`],
     ['below'],
   ])
 })
 
-test('lines: a first reading already past smart crosses from unobserved', async ($, on) => {
+test('lines: a first reading already past smart gets the crossing line', async ($, on) => {
   const { w } = world(on)
-  expect(await walk($, w, [80])).toEqual([[`${crossing('unobserved', 'dumb')} ${SAVE}`]])
+  expect(await walk($, w, [80])).toEqual([[`${crossing('dumb')} ${SAVE}`]])
 })
 
 test('lines: a dip below a boundary is not a new cycle', async ($, on) => {
   const { w } = world(on)
-  expect((await walk($, w, [30, 60, 80, 70, 80, 60, 80])).flat()).toEqual([crossing('smart', 'acceptable'), `${crossing('acceptable', 'dumb')} ${SAVE}`])
+  expect((await walk($, w, [30, 60, 80, 70, 80, 60, 80])).flat()).toEqual([crossing('acceptable'), `${crossing('dumb')} ${SAVE}`])
 })
 
-test('lines: a return to smart opens a new cycle, and the line names the zone it came from', async ($, on) => {
+test('lines: a return to smart opens a new cycle', async ($, on) => {
   const { w } = world(on)
   expect((await walk($, w, [30, 60, 30, 60, 80, 30, 80])).flat()).toEqual([
-    crossing('smart', 'acceptable'),
-    crossing('smart', 'acceptable'),
-    `${crossing('acceptable', 'dumb')} ${SAVE}`,
-    `${crossing('smart', 'dumb')} ${SAVE}`,
+    crossing('acceptable'),
+    crossing('acceptable'),
+    `${crossing('dumb')} ${SAVE}`,
+    `${crossing('dumb')} ${SAVE}`,
   ])
 })
 
@@ -194,11 +207,11 @@ test('lines: an unknown reading sends nothing and leaves the last zone as it was
   const { w } = world(on)
   expect(await walk($, w, [30, 60, undefined, 60, undefined, 80])).toEqual([
     [],
-    [crossing('smart', 'acceptable')],
+    [crossing('acceptable')],
     [],
     [],
     [],
-    [`${crossing('acceptable', 'dumb')} ${SAVE}`],
+    [`${crossing('dumb')} ${SAVE}`],
   ])
 })
 
@@ -207,7 +220,7 @@ test('lines: main-thread calls dispatched together after a crossing carry one li
   await bash($)
   w.percent = 60
   const results = await Promise.all([bash($), bash($), bash($)])
-  expect(results.flatMap(r => own(r.context))).toEqual([crossing('smart', 'acceptable')])
+  expect(results.flatMap(r => own(r.context))).toEqual([crossing('acceptable')])
 })
 
 test('lines: a subagent tool call carries no line, and the next main-thread call does', async ($, on) => {
@@ -215,7 +228,7 @@ test('lines: a subagent tool call carries no line, and the next main-thread call
   await bash($)
   w.percent = 60
   expect(own((await bash($, 'agent-1')).context)).toEqual([])
-  expect(own((await bash($)).context)).toEqual([crossing('smart', 'acceptable')])
+  expect(own((await bash($)).context)).toEqual([crossing('acceptable')])
 })
 
 test('lines: a failed tool result carries no line, and the next call does', async ($, on) => {
@@ -225,14 +238,14 @@ test('lines: a failed tool result carries no line, and the next call does', asyn
   w.isError = true
   expect(own((await bash($)).context)).toEqual([])
   w.isError = false
-  expect(own((await bash($)).context)).toEqual([crossing('smart', 'acceptable')])
+  expect(own((await bash($)).context)).toEqual([crossing('acceptable')])
 })
 
 test('lines: a crossing seen at a prompt is appended to the prompt context', async ($, on) => {
   const { w } = world(on)
   await prompt($)
   w.percent = 60
-  expect((await prompt($, 'sdk', { context: ['theirs'] })).context).toEqual(['theirs', crossing('smart', 'acceptable')])
+  expect((await prompt($, 'sdk', { context: ['theirs'] })).context).toEqual(['theirs', crossing('acceptable')])
 })
 
 test('lines: a reading session.measure carries reaches Claude at the next carrier', async ($, on) => {
@@ -242,18 +255,24 @@ test('lines: a reading session.measure carries reaches Claude at the next carrie
   await $.session.measure({ context: { window: 200_000, percent: 60, tokens: 120_000 }, rateLimits: [], changed: ['context'] } as any)
   // The prompt itself reads nothing, so only the measure can have seen the crossing.
   w.percent = undefined
-  expect(own((await prompt($)).context)).toEqual([crossing('smart', 'acceptable')])
+  expect(own((await prompt($)).context)).toEqual([crossing('acceptable')])
 })
 
-test('lines: the default line carries the verdict and no number, session id or path', async ($, on) => {
+test('lines: the default line carries the verdict and its rank, and no figure, session id or path', async ($, on) => {
   const { w } = world(on)
   const lines = (await walk($, w, [60, 80])).flat()
   expect(lines).toHaveLength(2)
   for (const line of lines) {
-    expect(line).not.toMatch(/\d/)
+    expect(line.replace(/\(\d of 3\)/, '')).not.toMatch(/\d/)
     expect(line).not.toContain('sess-1')
-    expect(line).toContain('context zone')
+    expect(line).not.toContain('/')
+    expect(line).not.toContain("user's call")
   }
+})
+
+test('lines: a crossing that lands inside the approach margin says so once, in the crossing line', async ($, on) => {
+  const { w } = world(on)
+  expect(await walk($, w, [30, 72])).toEqual([[], [approach('acceptable', 'dumb')]])
 })
 
 test(
@@ -277,13 +296,13 @@ test(
     w.percent = 60
     const context = (await bash($)).context ?? []
     expect(context).toContain('other-mod line')
-    expect(own(context)).toEqual([crossing('smart', 'acceptable')])
+    expect(own(context)).toEqual([crossing('acceptable')])
   },
 )
 
 // ---- Approach lines, zones.json additions and line data --------------------------------------
 
-const approach = (zone: string, toward: string) => `context-guard: this session is in the ${zone} context zone, approaching ${toward} ${SRC}.`
+const approach = (zone: Verdict, toward: string) => `context-guard: ${VERDICT[zone]}, nearing ${toward}.`
 const zonesFile = (w: World, zones: unknown, mtimeMs = 1) => {
   w.files[ZONES] = { text: typeof zones === 'string' ? zones : JSON.stringify(zones), mtimeMs }
 }
@@ -292,43 +311,43 @@ test('approach: one line 5 points before each boundary, then the crossing', asyn
   const { w } = world(on)
   expect(await walk($, w, [30, 45, 47, 60, 70, 72, 76])).toEqual([
     [],
-    [approach('smart', 'the acceptable zone')],
+    [approach('smart', 'acceptable')],
     [],
-    [crossing('smart', 'acceptable')],
-    [approach('acceptable', 'the dumb zone')],
+    [crossing('acceptable')],
+    [approach('acceptable', 'dumb')],
     [],
-    [`${crossing('acceptable', 'dumb')} ${SAVE}`],
+    [`${crossing('dumb')} ${SAVE}`],
   ])
 })
 
 test('approach: once per boundary per cycle; a return to smart opens it again', async ($, on) => {
   const { w } = world(on)
   expect((await walk($, w, [46, 44, 46, 60, 30, 46])).flat()).toEqual([
-    approach('smart', 'the acceptable zone'),
-    crossing('smart', 'acceptable'),
-    approach('smart', 'the acceptable zone'),
+    approach('smart', 'acceptable'),
+    crossing('acceptable'),
+    approach('smart', 'acceptable'),
   ])
 })
 
 test('approach: a reading that jumps past a boundary gets only the crossing', async ($, on) => {
   const { w } = world(on)
-  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('smart', 'acceptable')])
+  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('acceptable')])
 })
 
 test('zones.json: approach_margin moves the approach line, and 0 turns it off', async ($, on) => {
   const { w } = world(on)
   zonesFile(w, { approach_margin: 10 })
-  expect((await walk($, w, [30, 39, 41])).flat()).toEqual([approach('smart', 'the acceptable zone')])
+  expect((await walk($, w, [30, 39, 41])).flat()).toEqual([approach('smart', 'acceptable')])
   zonesFile(w, { approach_margin: 0 }, 2)
-  expect((await walk($, w, [70, 74, 75])).flat()).toEqual([crossing('smart', 'acceptable')])
+  expect((await walk($, w, [70, 74, 75])).flat()).toEqual([crossing('acceptable')])
 })
 
 test('zones.json: custom edges move the crossings, and a later edit takes effect at the next call', async ($, on) => {
   const { w } = world(on)
   zonesFile(w, { smart_max_used_percentage: 30, acceptable_max_used_percentage: 60 })
-  expect((await walk($, w, [20, 31])).flat()).toEqual([crossing('smart', 'acceptable')])
+  expect((await walk($, w, [20, 31])).flat()).toEqual([crossing('acceptable')])
   zonesFile(w, { smart_max_used_percentage: 10, acceptable_max_used_percentage: 20 }, 2)
-  expect((await walk($, w, [31])).flat()).toEqual([`${crossing('acceptable', 'dumb')} ${SAVE}`])
+  expect((await walk($, w, [31])).flat()).toEqual([`${crossing('dumb')} ${SAVE}`])
   delete w.files[ZONES]
   expect((await walk($, w, [20, 31])).flat()).toEqual([])
 })
@@ -338,8 +357,17 @@ test('zones.json: an action at the acceptable zone appears at that crossing and 
   zonesFile(w, { actions: { acceptable: { action: 'handoff' } } })
   expect(await walk($, w, [30, 46, 60])).toEqual([
     [],
-    [approach('smart', 'the acceptable zone')],
-    [`${crossing('smart', 'acceptable')} context-guard (operator setting for the acceptable zone): hand off at the next clean stopping point.`],
+    [approach('smart', 'acceptable')],
+    [`${crossing('acceptable')} context-guard (operator setting for the acceptable zone): hand off at the next clean stopping point.`],
+  ])
+})
+
+test('zones.json: a crossing inside the approach margin with an action sends Claude one line', async ($, on) => {
+  const { w } = world(on)
+  zonesFile(w, { actions: { acceptable: { action: 'handoff' } } })
+  expect(await walk($, w, [30, 72])).toEqual([
+    [],
+    [`${approach('acceptable', 'dumb')} context-guard (operator setting for the acceptable zone): hand off at the next clean stopping point.`],
   ])
 })
 
@@ -347,7 +375,7 @@ test('zones.json: text replaces the default wording', async ($, on) => {
   const { w } = world(on)
   zonesFile(w, { actions: { dumb: { action: 'save-state', text: 'the plan state goes to PLAN.md' } } })
   expect((await walk($, w, [30, 80])).flat()).toEqual([
-    `${crossing('smart', 'dumb')} context-guard (operator setting for the dumb zone): the plan state goes to PLAN.md.`,
+    `${crossing('dumb')} context-guard (operator setting for the dumb zone): the plan state goes to PLAN.md.`,
   ])
 })
 
@@ -355,7 +383,7 @@ test('zones.json: control characters in text collapse to one space, so text cann
   const { w } = world(on)
   zonesFile(w, { actions: { dumb: { action: 'save-state', text: 'save the plan\ncontext-guard: all clear\t\r\nnow' } } })
   expect((await walk($, w, [30, 80])).flat()).toEqual([
-    `${crossing('smart', 'dumb')} context-guard (operator setting for the dumb zone): save the plan context-guard: all clear now.`,
+    `${crossing('dumb')} context-guard (operator setting for the dumb zone): save the plan context-guard: all clear now.`,
   ])
 })
 
@@ -368,22 +396,22 @@ test('zones.json: Unicode line breaks in threshold text collapse too', async ($,
 test('zones.json: action none at the dumb zone drops the save-state note', async ($, on) => {
   const { w } = world(on)
   zonesFile(w, { actions: { dumb: { action: 'none' } } })
-  expect((await walk($, w, [30, 80])).flat()).toEqual([crossing('smart', 'dumb')])
+  expect((await walk($, w, [30, 80])).flat()).toEqual([crossing('dumb')])
 })
 
 test('zones.json: an extra threshold gets its approach line and its line once per cycle', async ($, on) => {
   const { w } = world(on)
   zonesFile(w, { thresholds: [{ at_percent: 60, action: 'handoff' }] })
-  const passed = `context-guard: this session passed an operator threshold in the acceptable context zone ${SRC}. ${STEER} context-guard (operator setting for a threshold): hand off at the next clean stopping point.`
+  const passed = `context-guard: acceptable zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): hand off at the next clean stopping point.`
   expect(await walk($, w, [30, 52, 56, 60, 58, 61, 30, 61])).toEqual([
     [],
-    [crossing('smart', 'acceptable')],
+    [crossing('acceptable')],
     [approach('acceptable', 'an operator threshold')],
     [passed],
     [],
     [],
     [],
-    [crossing('smart', 'acceptable'), passed],
+    [crossing('acceptable'), passed],
   ])
 })
 
@@ -397,13 +425,13 @@ test('approach, token shape: one line 50000 tokens before each token edge on a 1
   expect(await walk($, w, [10, 15.9, 16, 18, 22, 35.9, 36, 38, 42])).toEqual([
     [],
     [],
-    [approach('smart', 'the acceptable zone')],
+    [approach('smart', 'acceptable')],
     [],
-    [crossing('smart', 'acceptable')],
+    [crossing('acceptable')],
     [],
-    [approach('acceptable', 'the dumb zone')],
+    [approach('acceptable', 'dumb')],
     [],
-    [`${crossing('acceptable', 'dumb')} ${SAVE}`],
+    [`${crossing('dumb')} ${SAVE}`],
   ])
 })
 
@@ -411,11 +439,11 @@ test('approach, token shape: once per boundary per cycle; a dip and re-climb sen
   const { w } = world(on, { window: 1_000_000 })
   zonesFile(w, TOKEN_EDGES)
   expect((await walk($, w, [16, 12, 16, 22, 36, 30, 36, 42, 10, 16])).flat()).toEqual([
-    approach('smart', 'the acceptable zone'),
-    crossing('smart', 'acceptable'),
-    approach('acceptable', 'the dumb zone'),
-    `${crossing('acceptable', 'dumb')} ${SAVE}`,
-    approach('smart', 'the acceptable zone'),
+    approach('smart', 'acceptable'),
+    crossing('acceptable'),
+    approach('acceptable', 'dumb'),
+    `${crossing('dumb')} ${SAVE}`,
+    approach('smart', 'acceptable'),
   ])
 })
 
@@ -425,17 +453,17 @@ test('approach, token shape: approach_margin moves the lines, in points of the w
   expect(await walk($, w, [10, 10.9, 11, 22, 30.9, 31])).toEqual([
     [],
     [],
-    [approach('smart', 'the acceptable zone')],
-    [crossing('smart', 'acceptable')],
+    [approach('smart', 'acceptable')],
+    [crossing('acceptable')],
     [],
-    [approach('acceptable', 'the dumb zone')],
+    [approach('acceptable', 'dumb')],
   ])
 })
 
 test('approach, token shape: the margin scales with the window (5 points of 2000000 is 100000 tokens)', async ($, on) => {
   const { w } = world(on, { window: 2_000_000 })
   zonesFile(w, TOKEN_EDGES)
-  expect(await walk($, w, [5, 5.4, 5.5])).toEqual([[], [], [approach('smart', 'the acceptable zone')]])
+  expect(await walk($, w, [5, 5.4, 5.5])).toEqual([[], [], [approach('smart', 'acceptable')]])
 })
 
 test('approach, token shape: a 200000 window keeps the percentage-shape lines', async ($, on) => {
@@ -443,12 +471,12 @@ test('approach, token shape: a 200000 window keeps the percentage-shape lines', 
   zonesFile(w, { token_bands: { '200000': { smart_max_tokens: 100_000, acceptable_max_tokens: 160_000 }, ...TOKEN_EDGES.token_bands } })
   expect(await walk($, w, [30, 45, 47, 60, 70, 72, 76])).toEqual([
     [],
-    [approach('smart', 'the acceptable zone')],
+    [approach('smart', 'acceptable')],
     [],
-    [crossing('smart', 'acceptable')],
-    [approach('acceptable', 'the dumb zone')],
+    [crossing('acceptable')],
+    [approach('acceptable', 'dumb')],
     [],
-    [`${crossing('acceptable', 'dumb')} ${SAVE}`],
+    [`${crossing('dumb')} ${SAVE}`],
   ])
 })
 
@@ -466,20 +494,20 @@ test('approach, token shape: an unknown window size sends no token-shape approac
 test('zones.json: invalid additions fall back to the defaults', async ($, on) => {
   const { w } = world(on)
   zonesFile(w, { approach_margin: -3, actions: { dumb: { action: 'explode' } }, thresholds: [{ at_percent: 'x', action: 'handoff' }, { at_percent: 40 }] })
-  expect((await walk($, w, [30, 45, 80])).flat()).toEqual([approach('smart', 'the acceptable zone'), `${crossing('smart', 'dumb')} ${SAVE}`])
+  expect((await walk($, w, [30, 45, 80])).flat()).toEqual([approach('smart', 'acceptable'), `${crossing('dumb')} ${SAVE}`])
 })
 
 test('line data: percent, tokens and window are carried when configured', { options: { zone_line_data: 'zone, percent, tokens, window' } }, async ($, on) => {
   const { w } = world(on)
   expect((await walk($, w, [30, 60])).flat()).toEqual([
-    `context-guard: this session crossed from the smart into the acceptable context zone, 60% of the window used, 120000 tokens in context, a 200000-token window ${SRC}. ${STEER}`,
+    `context-guard: acceptable zone (2 of 3), 60% of the window used, 120000 tokens in context, a 200000-token window. Continuing is the user's call.`,
   ])
 })
 
 for (const data of ['', 'bogus', 'zone']) {
   test(`line data: "${data}" carries the verdict alone`, { options: { zone_line_data: data } }, async ($, on) => {
     const { w } = world(on)
-    expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('smart', 'acceptable')])
+    expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('acceptable')])
   })
 }
 
@@ -495,7 +523,7 @@ test('switch: context_guard_hooks_enabled false sends no line', { options: { con
 
 // ---- Restatement: compaction, resume, reload, /clear -------------------------------------------
 
-const restated = (zone: string, tail = '') => `context-guard: this session is in the ${zone} context zone ${SRC}. ${STEER}${tail}`
+const restated = (zone: Verdict, tail = '') => `context-guard: ${VERDICT[zone]}.${tail}`
 const compact = ($: any, trigger: string, extra: object = {}) => $.session.compact({ trigger, messages: MESSAGES, ...extra } as any)
 
 test('compaction: the verdict is restated once as the evidence-degraded dumb zone, with the save-state note', async ($, on) => {
@@ -503,11 +531,11 @@ test('compaction: the verdict is restated once as the evidence-degraded dumb zon
   await walk($, w, [30, 60])
   await compact($, 'manual')
   w.percent = undefined
-  expect(own((await prompt($)).context)).toEqual([restated(DEGRADED, ` ${SAVE}`)])
+  expect(own((await prompt($)).context)).toEqual([restated('degraded', ` ${SAVE}`)])
   expect(own((await prompt($)).context)).toEqual([])
   expect(own((await bash($)).context)).toEqual([])
   await compact($, 'auto')
-  expect(own((await bash($)).context)).toEqual([restated(DEGRADED, ` ${SAVE}`)])
+  expect(own((await bash($)).context)).toEqual([restated('degraded', ` ${SAVE}`)])
 })
 
 test('compaction: a precompute dispatch restates nothing and degrades nothing', async ($, on) => {
@@ -515,7 +543,7 @@ test('compaction: a precompute dispatch restates nothing and degrades nothing', 
   await walk($, w, [30])
   await compact($, 'precompute')
   expect(own((await prompt($)).context)).toEqual([])
-  expect((await walk($, w, [60])).flat()).toEqual([crossing('smart', 'acceptable')])
+  expect((await walk($, w, [60])).flat()).toEqual([crossing('acceptable')])
 })
 
 test('compaction: a subagent compaction restates nothing', async ($, on) => {
@@ -537,15 +565,24 @@ test('compaction: the settings hook marker alone forces the degraded dumb zone, 
   const { w } = world(on)
   await walk($, w, [30])
   w.files[`${CTX}/sess-1.compacted`] = { text: '{}', mtimeMs: 1 }
-  expect((await walk($, w, [10, 12])).flat()).toEqual([`${crossing('smart', DEGRADED)} ${SAVE}`])
+  expect((await walk($, w, [10, 12])).flat()).toEqual([`${crossing('degraded')} ${SAVE}`])
 })
 
-test('resume: the verdict is restated once after an in-process resume', async ($, on) => {
+test('resume: a smart verdict is not restated after an in-process resume', async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30])
   await $.session.end({ reason: 'resume', sessionId: 'sess-1', resume: { id: 'sess-1' } } as any)
   w.sid = 'sess-2'
-  expect(own((await prompt($)).context)).toEqual([restated('smart')])
+  expect(own((await prompt($)).context)).toEqual([])
+  expect(own((await bash($)).context)).toEqual([])
+})
+
+test('resume: a verdict past smart is restated once after an in-process resume', async ($, on) => {
+  const { w } = world(on)
+  await walk($, w, [30, 60])
+  await $.session.end({ reason: 'resume', sessionId: 'sess-1', resume: { id: 'sess-1' } } as any)
+  w.sid = 'sess-2'
+  expect(own((await prompt($)).context)).toEqual([restated('acceptable')])
   expect(own((await prompt($)).context)).toEqual([])
 })
 
@@ -563,13 +600,13 @@ test('reload: a load with earlier turns past smart restates the verdict once, wi
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
   expect(own((await prompt($)).context)).toEqual([restated('acceptable')])
   expect((await walk($, w, [62])).flat()).toEqual([])
-  expect((await walk($, w, [80])).flat()).toEqual([`${crossing('acceptable', 'dumb')} ${SAVE}`])
+  expect((await walk($, w, [80])).flat()).toEqual([`${crossing('dumb')} ${SAVE}`])
 })
 
 test('reload: the first load of a session sends nothing', async ($, on) => {
   world(on, { turns: 0, percent: 60 })
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
-  expect(own((await prompt($)).context)).toEqual([crossing('unobserved', 'acceptable')])
+  expect(own((await prompt($)).context)).toEqual([crossing('acceptable')])
 })
 
 test('/clear: nothing on the first prompt, and the new session starts a fresh cycle', async ($, on) => {
@@ -579,14 +616,14 @@ test('/clear: nothing on the first prompt, and the new session starts a fresh cy
   w.sid = 'sess-2'
   w.percent = 2
   expect(own((await prompt($, 'composer')).context)).toEqual([])
-  expect((await walk($, w, [60])).flat()).toEqual([crossing('smart', 'acceptable')])
+  expect((await walk($, w, [60])).flat()).toEqual([crossing('acceptable')])
 })
 
 // ---- The gate: blocking mode in the mod -----------------------------------------------------
 
 const BLOCKING = (grace: number, extra: object = {}) => ({ options: { zone_hook_mode: 'blocking', zone_gate_grace_calls: grace, ...extra } })
 const denial = (tool: string, grace: number) =>
-  `context-guard blocking mode (operator setting for the dumb zone): this session is in the dumb context zone and the grace budget of ${grace} matched calls is spent, so new ${tool} work is denied. Handoff-path writes, read-only tools, Bash and Skill calls stay allowed; /session-flow:handoff (if installed) writes a save-point this gate exempts. zone_hook_mode advisory turns the gate off.`
+  `context-guard: ${tool} denied: dumb zone, grace budget of ${grace} calls spent. Reads, Bash, Skill and handoff-path writes still run; /session-flow:handoff (if installed) writes a save-point.`
 const writes = async ($: any, n: number, path?: string) => {
   const out: (string | undefined)[] = []
   for (let i = 0; i < n; i += 1) out.push((await write($, path)).deny)
@@ -674,7 +711,7 @@ for (const [grace, kind] of [
 test('options: zone_line_data with an unknown item loads, carries the verdict alone and logs one line', { options: { zone_line_data: 'zone, percent, bogus' } }, async ($, on) => {
   const { w } = world(on)
   await load($)
-  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('smart', 'acceptable')])
+  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('acceptable')])
   expect(optionLines(w)).toEqual([dataLine('"bogus"')])
 })
 
@@ -705,7 +742,7 @@ test('options: zone_report_mode outside its list loads as automatic', { options:
   const { w } = world(on)
   await load($)
   await prompt($, 'composer')
-  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('smart', 'acceptable')])
+  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('acceptable')])
   expect(w.suggested).toEqual([])
   expect(optionLines(w)).toEqual([])
 })
@@ -792,7 +829,38 @@ test('gate: a block action in zones.json arms it without zone_hook_mode, and an 
   await prompt($, 'composer')
   expect((await write($)).deny).toBeUndefined()
   expect((await writes($, 19)).every(d => d === undefined)).toBe(true)
-  expect((await write($)).deny).toContain('the grace budget of 20 matched calls is spent')
+  expect((await write($)).deny).toBe(denial('Write', 20))
+})
+
+// The debug log holds exactly what Claude was told, line for line.
+const debugWorld = (on: any, init: object = {}) => {
+  const debug: string[] = []
+  const { w } = world(on, init, { HOME }, ['ui.log'])
+  on('ui.log', ($: unknown, e: { text: string; to?: string }) => {
+    ;(e.to === 'debug' ? debug : w.logs).push(e.text)
+    return { value: undefined }
+  })
+  return { w, debug }
+}
+
+test('debug mirror: each line sent to Claude at a tool call or a prompt is written to the debug log as sent', async ($, on) => {
+  const { w, debug } = debugWorld(on)
+  await bash($)
+  w.percent = 60
+  const atTool = own((await bash($)).context)
+  w.percent = 80
+  const atPrompt = own((await prompt($)).context)
+  expect(atTool).toEqual([crossing('acceptable')])
+  expect(atPrompt).toEqual([`${crossing('dumb')} ${SAVE}`])
+  expect(debug.filter(l => l.startsWith('context-guard: ') && l.includes('zone ('))).toEqual([...atTool, ...atPrompt])
+})
+
+test('debug mirror: a gate denial is written to the debug log as sent', BLOCKING(0), async ($, on) => {
+  const { debug } = debugWorld(on, { percent: 80 })
+  await prompt($, 'composer')
+  const deny = (await write($)).deny
+  expect(deny).toBe(denial('Write', 0))
+  expect(debug).toContain(deny)
 })
 
 test('gate: an action other than block at the dumb zone in zones.json leaves blocking mode inert', BLOCKING(0), async ($, on) => {
@@ -806,13 +874,13 @@ test('gate: a block action at the acceptable zone gates there', async ($, on) =>
   const { w } = world(on, { percent: 60 })
   zonesFile(w, { actions: { acceptable: { action: 'block' } } })
   await prompt($, 'composer')
-  expect(await writes($, 21)).toEqual([...Array(20).fill(undefined), expect.stringContaining('this session is in the acceptable context zone')])
+  expect(await writes($, 21)).toEqual([...Array(20).fill(undefined), denial('Write', 20).replace('dumb zone', 'acceptable zone')])
 })
 
 test('gate: blocking mode adds its sentence to the dumb-zone line, before the save-state note', BLOCKING(20), async ($, on) => {
   const { w } = world(on)
   expect((await walk($, w, [30, 80])).flat()).toEqual([
-    `${crossing('smart', 'dumb')} context-guard (operator setting for the dumb zone): new Write, Edit, NotebookEdit, Agent and Workflow calls are denied past the grace budget; handoff-path writes, reads, Bash and Skill calls stay allowed. ${SAVE}`,
+    `${crossing('dumb')} context-guard (operator setting for the dumb zone): new Write, Edit, NotebookEdit, Agent and Workflow calls are denied past the grace budget; handoff-path writes, reads, Bash and Skill calls stay allowed. ${SAVE}`,
   ])
 })
 
@@ -830,35 +898,68 @@ test('gate: fails open when the reading throws', BLOCKING(0), async ($, on) => {
 
 const OPERATOR = { options: { zone_report_mode: 'operator' } }
 const MENU = (from: string, to: string) =>
-  `context-guard: context zone ${from} → ${to}. Response quality can degrade as context fills (bands tunable: zones.json). Continuation options, yours to choose: continue; /compact; /clear; /session-flow:handoff (if installed) or a hand-written resume note, then /clear. To pick one, route the next step with /session-flow:workflow (if installed); without it, see https://code.claude.com/docs/en/context-window#when-your-context-fills-up.`
-const notice = async ($: any) => {
-  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
-  const found = await ui.find({ type: 'Text', text: /notice/ })
+  `context-guard: ${from} → ${to} · options: continue, /compact, /clear, or /session-flow:handoff then /clear · more: /context-guard`
+const TOAST = (from: string, to: string) => `${from} → ${to} · continue, /compact, /clear or handoff`
+type Surface = 'terminal' | 'desktop' | 'vscode'
+// The notice row: the one Text carrying the plugin's prefix, which every notice starts or follows FYI with.
+const notice = async ($: any, surface: Surface = 'terminal') => {
+  const ui = await $.ui.mount({ ...BAND, surface })
+  const found = await ui.findAll({ type: 'Text', text: /context-guard:/ })
   await ui.unmount()
-  return found?.text
+  expect(found.length).toBeLessThanOrEqual(1)
+  return found[0]?.text as string | undefined
 }
+const prefixes = (row: string | undefined) => (row ?? '').split('context-guard:').length - 1
 
-test('operator mode: a typed turn holds the line and offers it at turn end with an empty box, with a band notice', OPERATOR, async ($, on) => {
+test('operator mode: a typed turn holds the line and offers it at turn end with an empty box, with a notice row', OPERATOR, async ($, on) => {
   const { w } = world(on)
   await prompt($, 'composer')
   w.percent = 60
   expect(own((await bash($)).context)).toEqual([])
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  const offered = `FYI, ${crossing('smart', 'acceptable')}`
+  const offered = `FYI, ${crossing('acceptable')}`
   expect(w.suggested).toEqual([offered])
-  expect(await notice($)).toBe(`context-guard notice: ${offered}`)
+  expect(await notice($)).toBe(offered)
   expect(own((await prompt($, 'composer')).context)).toEqual([])
   expect(await notice($)).toBeUndefined()
 })
 
-test('operator mode: with text in the box only the notice shows, and the offer comes back once the box empties', OPERATOR, async ($, on) => {
+test('operator mode: the held line shows as one row with one prefix on every surface, and is never toasted', OPERATOR, async ($, on) => {
+  const { w } = world(on)
+  await prompt($, 'composer')
+  w.percent = 60
+  await bash($)
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  for (const surface of ['terminal', 'desktop', 'vscode'] as const) {
+    const row = await notice($, surface)
+    expect(row).toBe(`FYI, ${crossing('acceptable')}`)
+    expect(prefixes(row)).toBe(1)
+  }
+  expect(w.toasts).toEqual([])
+})
+
+test('operator mode: two held lines show as one row with one prefix, and reach Claude unchanged when handed off', OPERATOR, async ($, on) => {
+  const { w } = world(on)
+  zonesFile(w, { thresholds: [{ at_percent: 60, action: 'handoff' }] })
+  await prompt($, 'composer')
+  w.percent = 61
+  await bash($)
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  const passed = `context-guard: acceptable zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): hand off at the next clean stopping point.`
+  const row = await notice($)
+  expect(row).toBe(`FYI, ${crossing('acceptable')} acceptable zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): hand off at the next clean stopping point.`)
+  expect(prefixes(row)).toBe(1)
+  expect(own((await prompt($, 'scheduled-trigger')).context)).toEqual([crossing('acceptable'), passed])
+})
+
+test('operator mode: with text in the box no suggestion is offered and only the notice shows; the offer comes once the box empties', OPERATOR, async ($, on) => {
   const { w, clock } = world(on, { box: 'half typed' })
   await prompt($, 'composer')
   w.percent = 60
   await bash($)
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  expect(w.suggested).toEqual([])
-  expect(await notice($)).toBe(`context-guard notice: FYI, ${crossing('smart', 'acceptable')}`)
+  expect(w.suggestCalls).toBe(0)
+  expect(await notice($)).toBe(`FYI, ${crossing('acceptable')}`)
   w.box = ''
   await clock.advance(5_000)
   expect(w.suggested).toHaveLength(1)
@@ -896,7 +997,7 @@ test('operator mode: a typed turn with no drawing surface gets the automatic lin
   const { w } = world(on, { surfaces: [] })
   await prompt($, 'composer')
   w.percent = 60
-  expect(own((await bash($)).context)).toEqual([crossing('smart', 'acceptable')])
+  expect(own((await bash($)).context)).toEqual([crossing('acceptable')])
 })
 
 // A shown suggestion nobody took (a --bg launch turn reads as typed) is handed to Claude at the next
@@ -913,7 +1014,7 @@ for (const kind of ['scheduled-trigger', 'task-notification', 'sdk']) {
   test(`hand-off: a shown suggestion not taken reaches Claude at the next ${kind} turn, once, and clears the notice`, OPERATOR, async ($, on) => {
     const { w } = world(on)
     await shownThenUntaken($, w)
-    expect((await prompt($, kind, { context: ['theirs'] })).context).toEqual(['theirs', crossing('smart', 'acceptable')])
+    expect((await prompt($, kind, { context: ['theirs'] })).context).toEqual(['theirs', crossing('acceptable')])
     expect(await notice($)).toBeUndefined()
     expect(own((await prompt($, kind)).context)).toEqual([])
     expect(own((await bash($)).context)).toEqual([])
@@ -933,14 +1034,14 @@ test('hand-off: a prompt delivered into a running turn changes nothing', OPERATO
   await shownThenUntaken($, w)
   expect(own((await prompt($, 'task-notification', { turnId: 'turn-1' })).context)).toEqual([])
   expect(await notice($)).toBeDefined()
-  expect(own((await prompt($, 'scheduled-trigger')).context)).toEqual([crossing('smart', 'acceptable')])
+  expect(own((await prompt($, 'scheduled-trigger')).context)).toEqual([crossing('acceptable')])
 })
 
 test('hand-off: a restatement due at the same prompt merges with the held line into one', OPERATOR, async ($, on) => {
   const { w } = world(on)
   await shownThenUntaken($, w)
   await compact($, 'auto')
-  expect(own((await prompt($, 'scheduled-trigger')).context)).toEqual([restated(DEGRADED, ` ${SAVE}`)])
+  expect(own((await prompt($, 'scheduled-trigger')).context)).toEqual([restated('degraded', ` ${SAVE}`)])
 })
 
 test('operator mode: a suggestion that cannot show goes to Claude at the next prompt', OPERATOR, async ($, on) => {
@@ -949,62 +1050,274 @@ test('operator mode: a suggestion that cannot show goes to Claude at the next pr
   w.percent = 60
   await bash($)
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  expect(own((await prompt($, 'composer')).context)).toEqual([crossing('smart', 'acceptable')])
+  expect(own((await prompt($, 'composer')).context)).toEqual([crossing('acceptable')])
 })
 
-test('menu: a crossing in automatic mode shows the operator the continuation menu, never Claude', async ($, on) => {
+const measure = ($: any, percent: number) =>
+  $.session.measure({ context: { window: 200_000, percent, tokens: percent * 2_000 }, rateLimits: [], changed: ['context'] } as any)
+
+test('menu: a crossing read with the turn\'s final answer reaches the person before the next prompt, and Claude at the next carrier with no second toast', async ($, on) => {
+  const { w } = world(on)
+  await bash($)
+  w.percent = 60
+  await measure($, 60)
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  expect(w.toasts).toEqual([TOAST('smart', 'acceptable')])
+  expect(w.logs).toEqual([MENU('smart', 'acceptable')])
+  expect(await notice($, 'desktop')).toBe(MENU('smart', 'acceptable'))
+  expect(own((await prompt($, 'sdk')).context)).toEqual([crossing('acceptable')])
+  expect(w.toasts).toHaveLength(1)
+  expect(w.logs).toHaveLength(1)
+})
+
+test('menu: a crossing read after a pending restatement reaches the person at once and gives Claude the current verdict', async ($, on) => {
+  const { w } = world(on, { turns: 3, percent: 60 })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await measure($, 60)
+  w.percent = 80
+  await measure($, 80)
+  expect(w.toasts).toEqual([TOAST('acceptable', 'dumb')])
+  expect(w.logs).toEqual([MENU('acceptable', 'dumb')])
+  expect(own((await prompt($, 'sdk')).context)).toEqual([`${crossing('dumb')} ${SAVE}`])
+  expect(w.toasts).toHaveLength(1)
+})
+
+test('operator mode: a crossing shown at the end of an unattended turn is not offered again in the next typed turn, and Claude gets its line', OPERATOR, async ($, on) => {
+  const { w } = world(on)
+  await prompt($, 'sdk')
+  await bash($)
+  w.percent = 60
+  await measure($, 60)
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  expect(own((await prompt($, 'composer')).context)).toEqual([crossing('acceptable')])
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  expect(w.suggested).toEqual([])
+  expect(await notice($)).toBeUndefined()
+  expect(w.toasts).toEqual([TOAST('smart', 'acceptable')])
+  expect(w.logs).toEqual([MENU('smart', 'acceptable')])
+})
+
+test('operator mode: a shown crossing recorded before a pending restatement merges into it, and the restatement is offered, not the stale crossing', OPERATOR, async ($, on) => {
+  const { w } = world(on)
+  await prompt($, 'sdk')
+  await bash($)
+  w.percent = 60
+  await measure($, 60)
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  await compact($, 'manual')
+  expect(own((await prompt($, 'composer')).context)).toEqual([])
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  expect(w.suggested).toEqual([`FYI, ${restated('degraded', ` ${SAVE}`)}`])
+})
+
+for (const [via, read] of [
+  ['/context-guard', ($: any) => cmd($)],
+  ['the status tool', ($: any) => $.tool.call({ tool: 'mcp__context-guard__status' } as any)],
+] as const) {
+  test(`menu: a crossing first read by ${via} reaches the person in that call, and Claude at the next carrier with no second toast`, async ($, on) => {
+    const { w } = world(on)
+    await bash($)
+    w.percent = 60
+    await read($)
+    expect(w.toasts).toEqual([TOAST('smart', 'acceptable')])
+    expect(w.logs.filter(l => l.includes(' → '))).toEqual([MENU('smart', 'acceptable')])
+    expect(own((await bash($)).context)).toEqual([crossing('acceptable')])
+    expect(w.toasts).toHaveLength(1)
+  })
+}
+
+test('menu: a crossing read with the final answer of a turn operator mode holds is not toasted', OPERATOR, async ($, on) => {
+  const { w } = world(on)
+  await prompt($, 'composer')
+  await bash($)
+  w.percent = 60
+  await measure($, 60)
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  expect(w.toasts).toEqual([])
+  expect(w.logs).toEqual([])
+  expect(w.suggested).toEqual([`FYI, ${crossing('acceptable')}`])
+})
+
+test('menu: a first reading already past smart gives the person no toast and no transcript line, and Claude its line', async ($, on) => {
+  const { w } = world(on)
+  expect((await walk($, w, [80])).flat()).toEqual([`${crossing('dumb')} ${SAVE}`])
+  expect(w.toasts).toEqual([])
+  expect(w.logs).toEqual([])
+  expect(await notice($, 'desktop')).toBeUndefined()
+})
+
+test('menu: a crossing in automatic mode gives the person one transcript line and one toast, never Claude', async ($, on) => {
   const { w } = world(on)
   const lines = (await walk($, w, [30, 47, 60])).flat()
   expect(w.logs).toEqual([MENU('smart', 'acceptable')])
-  expect(await notice($)).toBe(`context-guard notice: ${MENU('smart', 'acceptable')}`)
+  expect(w.toasts).toEqual([TOAST('smart', 'acceptable')])
+  expect(w.toasts[0]).not.toContain('context-guard')
   expect(lines.join(' ')).not.toContain('/compact')
+})
+
+test('menu: after a crossing a terminal mount returns only what the hooks beneath drew', async ($, on) => {
+  const { w } = world(on)
+  await walk($, w, [30, 60])
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  const texts = (await ui.findAll({ type: 'Text' })).map((t: { text: string }) => t.text)
+  await ui.unmount()
+  expect(texts).toEqual(['drawn beneath'])
+})
+
+test('menu: on desktop and vscode a crossing draws one notice row with one prefix, cleared at the next typed prompt', async ($, on) => {
+  const { w } = world(on)
+  await walk($, w, [30, 60])
+  for (const surface of ['desktop', 'vscode'] as const) {
+    const row = await notice($, surface)
+    expect(row).toBe(MENU('smart', 'acceptable'))
+    expect(prefixes(row)).toBe(1)
+  }
   await prompt($, 'composer')
-  expect(await notice($)).toBeUndefined()
+  expect(await notice($, 'desktop')).toBeUndefined()
+})
+
+test('menu: the toast option off keeps the transcript line and drops only the toast', { options: { context_guard_toast: false } }, async ($, on) => {
+  const { w } = world(on)
+  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('acceptable')])
+  expect(w.logs).toEqual([MENU('smart', 'acceptable')])
+  expect(w.toasts).toEqual([])
+})
+
+test('menu: a toast that fails drops neither Claude\'s line nor the transcript line', async ($, on) => {
+  let tried = 0
+  const { w } = world(on, {}, { HOME }, ['ui.toast'])
+  // A stub that throws is skipped; with no implementation left the engine drops the toast itself.
+  on('ui.toast', () => {
+    tried += 1
+    throw new Error('toast unavailable')
+  })
+  expect((await walk($, w, [30, 60, 30, 60])).flat()).toEqual([crossing('acceptable'), crossing('acceptable')])
+  expect(tried).toBe(2)
+  expect(w.logs).toEqual([MENU('smart', 'acceptable'), MENU('smart', 'acceptable')])
 })
 
 test('menu: shown with zone lines off, not with the hooks switch off', { options: { zone_lines_enabled: false } }, async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30, 80])
   expect(w.logs).toEqual([MENU('smart', 'dumb')])
+  expect(w.toasts).toEqual([TOAST('smart', 'dumb')])
 })
 
 test('menu: the hooks switch off shows nothing', { options: { context_guard_hooks_enabled: false } }, async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30, 80])
   expect(w.logs).toEqual([])
-  expect(await notice($)).toBeUndefined()
+  expect(w.toasts).toEqual([])
+  expect(await notice($, 'desktop')).toBeUndefined()
+})
+
+test('menu: a crossing into the compacted dumb zone names it so in the toast', async ($, on) => {
+  const { w } = world(on)
+  await walk($, w, [30])
+  w.files[`${CTX}/sess-1.compacted`] = { text: '{}', mtimeMs: 1 }
+  await walk($, w, [10])
+  expect(w.toasts).toEqual([TOAST('smart', 'dumb (compacted)')])
 })
 
 const bandRow = async ($: any, surface: 'terminal' | 'desktop' = 'terminal') => {
   const ui = await $.ui.mount({ ...BAND, surface })
-  const found = await ui.find({ type: 'Text', text: / ctx / })
+  const found = await ui.find({ type: 'Text', text: /^ctx / })
   const beneath = await ui.find({ type: 'Text', text: 'drawn beneath' })
   await ui.unmount()
   return { row: found?.text, beneath: beneath !== undefined }
 }
 
-test('band: a dash before a reading, the figure and zone after, kept above what is drawn beneath', async ($, on) => {
+const BAND_ON = { options: { context_guard_band: true } }
+
+test('band: a dash before a reading, the figure and zone after, kept above what is drawn beneath', BAND_ON, async ($, on) => {
   const { w } = world(on, { percent: undefined })
-  for (const surface of ['terminal', 'desktop'] as const) expect(await bandRow($, surface)).toEqual({ row: '[Opus 5.5] ctx -', beneath: true })
+  for (const surface of ['terminal', 'desktop'] as const) expect(await bandRow($, surface)).toEqual({ row: 'ctx -', beneath: true })
   w.percent = 23
   await bash($)
-  for (const surface of ['terminal', 'desktop'] as const) expect(await bandRow($, surface)).toEqual({ row: '[Opus 5.5] ctx 23% (smart)', beneath: true })
+  for (const surface of ['terminal', 'desktop'] as const) expect(await bandRow($, surface)).toEqual({ row: 'ctx 23% (smart)', beneath: true })
   w.files[`${CTX}/sess-1.compacted`] = { text: '{}', mtimeMs: 1 }
   await bash($)
-  expect((await bandRow($)).row).toBe('[Opus 5.5] ctx 23% (dumb, compacted)')
+  expect((await bandRow($)).row).toBe('ctx 23% (dumb, compacted)')
 })
 
-test('band: the option hides it and the band command shows and hides it', { options: { context_guard_band: false } }, async ($, on) => {
+test('band: off by default, so a terminal mount returns only what is drawn beneath', async ($, on) => {
+  world(on)
+  await bash($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  const texts = (await ui.findAll({ type: 'Text' })).map((t: { text: string }) => t.text)
+  await ui.unmount()
+  expect(texts).toEqual(['drawn beneath'])
+})
+
+const cmd = ($: any, args = '') => $.command.run({ command: 'context-guard', args } as any)
+
+test('command: band on, band off and a bare band toggle the row for the session', async ($, on) => {
   world(on)
   await bash($)
   expect((await bandRow($)).row).toBeUndefined()
-  expect((await $.command.run({ command: 'band', args: 'show' } as any)).text).toBe('context-guard: band row shown for this session')
-  expect((await bandRow($)).row).toBe('[Opus 5.5] ctx 30% (smart)')
-  expect((await $.command.run({ command: 'band', args: '' } as any)).text).toBe('context-guard: band row hidden for this session')
+  expect((await cmd($, 'band on')).text).toBe('band row on for this session')
+  expect((await bandRow($)).row).toBe('ctx 30% (smart)')
+  expect((await cmd($, 'band on')).text).toBe('band row on for this session')
+  expect((await cmd($, 'band off')).text).toBe('band row off for this session')
+  expect((await bandRow($)).row).toBeUndefined()
+  expect((await cmd($, 'band')).text).toBe('band row on for this session')
+  expect((await cmd($, ' BAND ')).text).toBe('band row off for this session')
+})
+
+test('command: an unknown argument gets the usage line and changes nothing', async ($, on) => {
+  world(on)
+  for (const args of ['bnad', 'band show', 'band on now']) {
+    expect((await cmd($, args)).text).toBe('usage: /context-guard [band [on|off]]')
+  }
   expect((await bandRow($)).row).toBeUndefined()
 })
 
-test('status tool: a refused registration is logged once, and lines, gate, band and writes carry on', BLOCKING(0), async ($, on) => {
+test('command: no argument prints the status and details', BLOCKING(7), async ($, on) => {
+  const { w } = world(on, { percent: 60 })
+  zonesFile(w, { approach_margin: 4 })
+  const text = String((await cmd($)).text)
+  // Claude Code puts the plugin's name before a command's reply, so the reply carries none of its own.
+  expect(text.startsWith('acceptable zone (2 of 3), ')).toBe(true)
+  expect(text).not.toContain('context-guard: ')
+  for (const part of [
+    '60% of a 200000-token window used (120000 tokens)',
+    // The token band of the session's window class is shown beside the percent band, since the
+    // worse of the two decides the zone.
+    'Bands (the worse decides): smart up to 50% and 100000 tokens, acceptable up to 75% and 160000 tokens',
+    'approach margin 4 points',
+    'gate blocking, 7 grace calls',
+    'band row off',
+    'zone-change toast on',
+    '/srv/u/.claude/context-guard/zones.json (present)',
+  ]) {
+    expect(text).toContain(part)
+  }
+  // The reply is a transcript row Claude reads, so the router pointer and the links go to a
+  // transcript line Claude does not read.
+  for (const part of ['session-flow', 'https://']) expect(text).not.toContain(part)
+  expect(w.logs).toEqual([
+    'context-guard: next step: route it with /session-flow:workflow (if installed), or see https://code.claude.com/docs/en/context-window#when-your-context-fills-up · more: https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/context-guard/README.md',
+  ])
+})
+
+test('command: the status says when zones.json is absent and the zone is unknown', async ($, on) => {
+  world(on, { percent: undefined })
+  const text = String((await cmd($)).text)
+  expect(text.startsWith('zone unknown, ')).toBe(true)
+  expect(text).toContain('/srv/u/.claude/context-guard/zones.json (absent)')
+})
+
+for (const other of ['band', 'rate-limit-guard']) {
+  test(`command: /${other} passes to the hooks beneath`, async ($, on) => {
+    world(on)
+    const seen: string[] = []
+    on('command.run', ($: unknown, e: { command: string }) => (seen.push(e.command), { text: 'beneath' }))
+    expect((await $.command.run({ command: other, args: 'on' } as any)).text).toBe('beneath')
+    expect(seen).toEqual([other])
+  })
+}
+
+test('status tool: a refused registration is logged once, and lines, gate, band and writes carry on', BLOCKING(0, { context_guard_band: true }), async ($, on) => {
   const debug: string[] = []
   const { w } = world(on, {}, { HOME }, ['tool.register', 'ui.log', 'tool.list'])
   on('tool.register', () => {
@@ -1020,19 +1333,21 @@ test('status tool: a refused registration is logged once, and lines, gate, band 
   await prompt($, 'composer')
   expect(debug.filter(l => l.includes('status tool'))).toHaveLength(1)
   expect(debug.filter(l => l.includes('status tool'))[0]).toMatch(/^context-guard: the status tool could not register: /)
-  expect((await walk($, w, [30, 80])).flat()).toEqual([`${crossing('smart', 'dumb')} context-guard (operator setting for the dumb zone): new Write, Edit, NotebookEdit, Agent and Workflow calls are denied past the grace budget; handoff-path writes, reads, Bash and Skill calls stay allowed. ${SAVE}`])
+  expect((await walk($, w, [30, 80])).flat()).toEqual([`${crossing('dumb')} context-guard (operator setting for the dumb zone): new Write, Edit, NotebookEdit, Agent and Workflow calls are denied past the grace budget; handoff-path writes, reads, Bash and Skill calls stay allowed. ${SAVE}`])
   expect((await write($)).deny).toBe(denial('Write', 0))
   expect(w.runs.length).toBeGreaterThan(0)
-  expect((await bandRow($)).row).toBe('[Opus 5.5] ctx 80% (dumb)')
+  expect((await bandRow($)).row).toBe('ctx 80% (dumb)')
 })
 
-test('session.start registers the status tool and the band command', async ($, on) => {
+test('session.start registers the status tool and one command named after the plugin', async ($, on) => {
   const registered: string[] = []
+  const hints: (string | undefined)[] = []
   world(on, {}, { HOME }, ['tool.register', 'command.register'])
   on('tool.register', ($: unknown, e: { name: string }) => (registered.push(e.name), { value: { tool: e.name } }))
-  on('command.register', ($: unknown, e: { name: string }) => (registered.push(`/${e.name}`), { value: { command: e.name } }))
+  on('command.register', ($: unknown, e: { name: string; argumentHint?: string }) => (registered.push(`/${e.name}`), hints.push(e.argumentHint), { value: { command: e.name } }))
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
-  expect(registered.sort()).toEqual(['/band', 'status'])
+  expect(registered.sort()).toEqual(['/context-guard', 'status'])
+  expect(hints).toEqual(['[band [on|off]]'])
 })
 
 test('/clear: the first prompt after it registers the status tool again when it is gone', async ($, on) => {
@@ -1049,7 +1364,7 @@ test('/clear: the first prompt after it registers the status tool again when it 
   await $.session.end({ reason: 'clear', sessionId: 'sess-1', resume: { id: 'sess-1' } } as any)
   listed = []
   await prompt($, 'composer')
-  expect(registered.sort()).toEqual(['/band', 'status'])
+  expect(registered.sort()).toEqual(['/context-guard', 'status'])
 })
 
 test('pull tool: the latest figures and zone, with no line attached, whatever the switches', { options: { context_guard_hooks_enabled: false } }, async ($, on) => {
@@ -1064,7 +1379,7 @@ test('pull tool: the latest figures and zone, with no line attached, whatever th
     total_input_tokens: 120_000,
     total_output_tokens: 900,
     context_window_size: 200_000,
-    bands: { smart_max_used_percentage: 50, acceptable_max_used_percentage: 75 },
+    bands: { smart_max_used_percentage: 50, acceptable_max_used_percentage: 75, smart_max_tokens: 100_000, acceptable_max_tokens: 160_000 },
     approach_margin: 5,
     gate: { mode: 'advisory', grace_calls: 20, calls_counted: 0 },
   })
@@ -1397,7 +1712,7 @@ test('snapshot: falls back to USERPROFILE when HOME is unset, and writes nothing
 
 test('snapshot: no home directory, no write, and the lines still arrive', async ($, on) => {
   const { w } = world(on, {}, {})
-  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('smart', 'acceptable')])
+  expect((await walk($, w, [30, 60])).flat()).toEqual([crossing('acceptable')])
   expect(w.runs).toEqual([])
 })
 
@@ -1415,10 +1730,10 @@ test('fallback: where $.process.run is unavailable, nothing is written, it is lo
   w.percent = 60
   const called = await bash($)
   expect(called.text).toBe('ok')
-  expect(own(called.context)).toEqual([crossing('smart', 'acceptable')])
+  expect(own(called.context)).toEqual([crossing('acceptable')])
   // A stub that throws is skipped, so the engine answers that nothing implements process.run.
-  expect(debug).toHaveLength(1)
-  expect(debug[0]).toMatch(/^context-guard: snapshot write did not run: /)
+  expect(debug.filter(l => l.includes('snapshot'))).toHaveLength(1)
+  expect(debug.find(l => l.includes('snapshot'))).toMatch(/^context-guard: snapshot write did not run: /)
 })
 
 test('snapshot: a failed write is logged once; a skip by rule is not', async ($, on) => {
@@ -1436,7 +1751,7 @@ test('snapshot: a failed write is logged once; a skip by rule is not', async ($,
     w.percent = p
     await bash($)
   }
-  expect(debug).toEqual(['context-guard: snapshot write failed (exit 1): write-snapshot: rename failed'])
+  expect(debug.filter(l => l.includes('snapshot'))).toEqual(['context-guard: snapshot write failed (exit 1): write-snapshot: rename failed'])
 })
 
 test('fail open: a throw after the tool ran leaves its result and the context beneath, and the tool runs once', async ($, on) => {

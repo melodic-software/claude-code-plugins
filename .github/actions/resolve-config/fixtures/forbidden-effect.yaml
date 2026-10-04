@@ -1,0 +1,12 @@
+version: 1
+activities:
+  fix-tests:
+    script: scripts/fix-tests.sh
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: false
+lanes:
+  pr-run-checks:
+    stage: verify
+    slots:
+      - activity: fix-tests

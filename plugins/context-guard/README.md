@@ -6,9 +6,9 @@ degraded context **before** quality slips, instead of guessing. Four parts:
 
 - **The module** (`hooks/register.tsx`), a mod: a hooks module Claude Code runs in its own process.
   It tells Claude when the session crosses into a worse context zone, runs the optional blocking
-  gate, draws a band row, answers the `mcp__context-guard__status` tool, and writes the snapshot
-  file. It needs Claude Code 2.1.287 or later; older builds are unsupported. See
-  [The module](#the-module).
+  gate, shows the person a toast at a crossing, answers `/context-guard` and the
+  `mcp__context-guard__status` tool, draws an optional band row, and writes the snapshot file. It
+  needs Claude Code 2.1.287 or later; older builds are unsupported. See [The module](#the-module).
 - **Zone resolver** (`scripts/context-zone.sh`). `context-zone.sh <session_id>` prints exactly one
   word: `smart` / `acceptable` / `dumb` / `unknown`. Two band shapes, combined conservatively (the
   worse computable zone wins): percentage bands over `used_percentage` (shipped defaults
@@ -51,36 +51,49 @@ options and `zones.json`:
 
 | When | Line |
 |---|---|
-| The session first reaches a worse zone this cycle | once per zone, "crossed from the <zone> into the <zone> context zone" |
-| The session comes within `approach_margin` points (5) of a zone edge or a `zones.json` threshold; where a token band edge decides the crossing, within that many points of the window in tokens | once per boundary, "is in the <zone> context zone, approaching ..." |
-| The session passes a `zones.json` threshold | once per threshold, with the threshold's action |
-| After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict, once; after a compaction it is `dumb (evidence-degraded: this session was compacted)` |
+| The session first reaches a worse zone this cycle | once per zone, "acceptable zone (2 of 3)." |
+| The session comes within `approach_margin` points (5) of a zone edge or a `zones.json` threshold; where a token band edge decides the crossing, within that many points of the window in tokens | once per boundary, "acceptable zone (2 of 3), nearing dumb." |
+| The session passes a `zones.json` threshold | once per threshold, "past an operator threshold", with the threshold's action |
+| After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict, once, only when it is past `smart`; after a compaction it is `dumb zone (3 of 3, compacted)` |
 | When the module loads into a session that already has turns (a `--resume` launch, a reload after an options change, a hooks-worker restart) | the verdict, once, only when it is past `smart` |
 | After `/clear` | nothing: the new session starts in `smart` and a fresh cycle |
 
 A dip below a boundary sends nothing and starts no new cycle; only a return to `smart` does. An
-`unknown` reading sends nothing and changes nothing. Every line carries its zone word and its
-source, the last API response. Crossing, restatement and threshold lines also carry the note that
-a zone is a measurement, not an instruction, worded as facts; an approach line carries only the
-zone and the boundary it approaches. A crossing or restatement in `dumb` also carries the
-save-state note. `zone_line_data` adds figures (percent, tokens, window); by
-default a line carries none, and it never carries a session id. A configured action's sentence
+`unknown` reading sends nothing and changes nothing. Every line carries only the verdict: the zone
+word and its rank of three. A crossing or restatement inside the
+approach margin of the next zone adds ", nearing <zone>", and an approach line that would repeat
+it is not sent. A crossing or restatement in `dumb` also carries the save-state note. Lines due at
+one carrier: a crossing or restatement recorded before a pending restatement merges into it; a
+crossing recorded after it is the newer verdict and replaces it. `zone_line_data` adds figures (percent, tokens,
+window) and then "Continuing is the user's call."; by default a line carries neither, and it never carries a session id. A configured action's sentence
 (`zones.json` `actions` and `thresholds`, see the [reader contract](reference/reader-contract.md))
-appears at its crossing, never before. Subagents get no line.
+appears at its crossing, never before. Subagents get no line. Each line sent to Claude, and each
+gate denial, is also written as sent to the debug log (`claude --debug`).
 
-The operator gets the continuation menu (continue, `/compact`, `/clear`, handoff-then-`/clear`, and
-the route through `/session-flow:workflow` or
-[When your context fills up](https://code.claude.com/docs/en/context-window#when-your-context-fills-up))
-as a transcript line Claude does not read and a band notice until the next typed prompt. The menu
-never reaches Claude: an exit menu in model context manufactures the model's own initiative to stop,
-summarize, or hand off, which the instruction-audit catalog flags as check I23.
+At a crossing the person gets the continuation menu (continue, `/compact`, `/clear`,
+`/session-flow:handoff` then `/clear`) as a 4-second toast, such as
+`smart → acceptable · continue, /compact, /clear or handoff`, and one transcript line Claude does
+not read, ending `more: /context-guard`. `context_guard_toast` turns the toast off; the transcript
+line stays. Both come right after the response, tool call, prompt or status read (`/context-guard`
+or the status tool) that showed the crossing, even when Claude's line waits for the next prompt. A
+turn [operator mode](#operator-mode) holds gets neither, and neither does a session whose first
+reading is already past `smart`, which gets only Claude's line. A crossing already shown in an
+unattended turn is not offered again in the next typed turn; Claude gets it at that turn's first
+carrier. On every surface but the terminal (the Desktop app, VS Code, mobile), where a toast may not
+show, the line is also drawn as one notice row above the prompt until the next typed prompt.
+`/context-guard` writes the route through `/session-flow:workflow` and
+[When your context fills up](https://code.claude.com/docs/en/context-window#when-your-context-fills-up)
+as a transcript line Claude does not read.
+The menu never reaches Claude: an exit menu in model context manufactures the model's own
+initiative to stop, summarize, or hand off, which the instruction-audit catalog flags as check I23.
 
 ### Operator mode
 
 With `zone_report_mode` set to `operator`, a turn a person started by typing (or through the
 Remote Control bridge) gets no line. When that turn ends, the line is offered as the prompt box's
-suggestion (Tab takes it) and shown as a notice in the band; with text in the box, only the notice
-shows, and the suggestion is offered again once the box is empty. Where nobody can take a
+suggestion (Tab takes it) and shown as one notice row above the prompt, on every surface and never
+as a toast; with text in the box, only the notice shows, and the suggestion is offered again once
+the box is empty. Where nobody can take a
 suggestion, the line goes to Claude as in automatic mode: `-p` and SDK turns, `/loop` and scheduled
 turns, task notifications, a session with no drawing surface, and a suggestion the session reports
 it cannot show. A suggestion that was shown but not taken goes to Claude as the ordinary line at
@@ -108,11 +121,16 @@ compacted session is blocked, unless `zone_block_unattended` is `same-as-typed`.
 blocked zone, an `unknown` reading, and a compaction each reset the budget. The gate fails open:
 an `unknown` zone or a failing hook lets the call run.
 
-### Band row and status tool
+### The command, the band row and the status tool
 
-The band row above the prompt shows `[<model>] ctx <n>% (<zone>)`, with `-` in place of the
-figure before the first response. `context_guard_band` turns it off;
-`/context-guard:band show`, `hide`, or no argument (toggle) changes it for the session. Claude can
+`/context-guard` with no argument prints the verdict with its figures, the percent bands beside the
+token bands of the session's window class (the worse of the two decides the zone), approach margin
+and gate mode, the band and toast state, and where `zones.json` lives and whether it is present.
+Claude reads that reply, as it reads any command's output, so the continuation route and this
+README's link go to a separate transcript line Claude does not read. `/context-guard band on` and `band off` set the band row for
+the session, and a bare `band` toggles it. The band row is off by default; `context_guard_band`
+turns it on. It shows `ctx <n>% (<zone>)` above the prompt, with `-` in place of the figure before
+the first response. Claude can
 call `mcp__context-guard__status` for the exact figures from the last API response, the zone,
 whether a compaction degraded the evidence, the bands and the gate state. Where the session
 refuses the tool's registration (an organization policy can refuse a user mod's tools), the module
@@ -280,7 +298,8 @@ The `userConfig` options:
 | `zone_hook_mode` | `advisory` (default) or `blocking`; see [Blocking gate](#blocking-gate). |
 | `zone_gate_grace_calls` | Blocking's grace budget (default 20). |
 | `zone_block_unattended` | `post-compaction` (default) or `same-as-typed`: what unattended turns get in blocking. |
-| `context_guard_band` | The band row (default `true`). |
+| `context_guard_band` | The band row (default `false`); `/context-guard band on` turns it on for one session. |
+| `context_guard_toast` | The toast at a zone crossing (default `true`); the transcript line stays when it is off. |
 
 The module reads its options when it loads. Claude Code reloads a module when its options change,
 so a change takes effect from the next event, with no restart. The PostCompact marker hook reads
@@ -320,12 +339,13 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `context_guard_hooks_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED` | Runs the module's zone lines and blocking gate and the PostCompact marker hook. On by default; off, none of them acts. Snapshot writes continue either way. |
 | `zone_lines_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_ZONE_LINES_ENABLED` | Sends Claude one line when the session crosses into a worse context zone, approaches a boundary, or passes a zones.json threshold, and restates the zone after a compaction, a resume or a reload. On by default. |
-| `zone_report_mode` | string | `"automatic"` | `CLAUDE_PLUGIN_OPTION_ZONE_REPORT_MODE` | automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a band notice when the turn ends. Headless, loop and schedule turns get automatic lines either way. |
+| `zone_report_mode` | string | `"automatic"` | `CLAUDE_PLUGIN_OPTION_ZONE_REPORT_MODE` | automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a notice row when the turn ends. Headless, loop and schedule turns get automatic lines either way. |
 | `zone_line_data` | string | `"zone"` | `CLAUDE_PLUGIN_OPTION_ZONE_LINE_DATA` | Comma list of what a line carries beside its zone, which every line has: percent, tokens and window. Default zone. |
 | `zone_hook_mode` | string | `"advisory"` | `CLAUDE_PLUGIN_OPTION_ZONE_HOOK_MODE` | advisory (default) sends lines only; blocking also denies new Write, Edit, NotebookEdit, Agent and Workflow calls in the dumb zone past the grace budget, unless zones.json sets an action for the dumb zone. Handoff-path writes, reads, Bash and Skill stay allowed, and an unknown zone fails open. |
 | `zone_gate_grace_calls` | number | `20` | `CLAUDE_PLUGIN_OPTION_ZONE_GATE_GRACE_CALLS` | Blocking only: matched tool calls allowed after the session first reaches a blocked zone, before the gate denies. Default 20; 0 denies the first matched call; a value that is not a whole number from 0 to 999999999 reads as 20. |
 | `zone_block_unattended` | string | `"post-compaction"` | `CLAUDE_PLUGIN_OPTION_ZONE_BLOCK_UNATTENDED` | post-compaction (default): in turns no person typed (headless, loop, schedule and notification turns) only a compacted session is blocked; same-as-typed blocks them as typed turns are. |
-| `context_guard_band` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_BAND` | Draws the context figure and zone in a row above the prompt. On by default; /context-guard:band shows or hides it for the session. |
+| `context_guard_band` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_BAND` | Draws the context figure and zone in a row above the prompt. Off by default. Turn it on in /config, or for one session with /context-guard band on. |
+| `context_guard_toast` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_TOAST` | Shows a short toast when the session crosses into a worse context zone, beside the transcript line that records it. On by default; off, only the transcript line remains. |
 
 ### How to set these
 

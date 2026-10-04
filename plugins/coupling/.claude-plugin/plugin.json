@@ -1,6 +1,6 @@
 {
   "name": "coupling",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Iteratively reduces coupling in documents, code modules, applications, or repositories: scans for change-transmitting dependencies against a coupling model (strength ladder, connascence, volatility), verifies each finding, applies a budgeted batch of safe behavior-preserving reductions, and keeps a ledger so structural candidates route to design and later runs resume. When a value changes, it finds and classifies every site stating it and converts setup sites to references.",
   "author": {
     "name": "Melodic Software",

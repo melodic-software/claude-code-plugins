@@ -1,10 +1,16 @@
 # Changelog: docs-hygiene plugin
 
-## [0.26.5] - 2026-10-04
+## [0.26.6] - 2026-10-04
 
 ### Changed
 
 - **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.26.5] - 2026-10-04
+
+### Changed
+
+- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** Orchestrated `extract-ssot` runs now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limit-guard 0.14.0's reader contract.
 
 ## [0.26.4] - 2026-10-03
 
