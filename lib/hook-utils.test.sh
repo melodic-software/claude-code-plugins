@@ -1471,6 +1471,7 @@ DATA16R="$(mktemp -d)"
 for i in $(seq 1 12); do
   (
     CLAUDE_PLUGIN_DATA="$DATA16R" hook::notice_once race "{\"session_id\":\"sess-r\",\"agent_id\":\"agent-$i\"}"
+    # shellcheck disable=SC2031 # notice_once just set both in this subshell
     printf '%s%s\n' "$HOOK_NOTICE_TO_USER" "$HOOK_NOTICE_TO_MODEL" >"$DATA16R/out.$i"
   ) &
 done

@@ -8,9 +8,18 @@ convention, with its boundary and adopters, is
   user for a decision.
 - **Grounding bar.** Local: read the affected code, config, or document and
   list its consumers and blast radius, including other repositories that use a
-  shared artifact. External: current consensus across tiered sources (official
-  docs, then authoritative articles and recognized experts, then community),
-  with the date or version each reflects and any credible dissent named.
+  shared artifact. External: tiered sources, with the date or version each
+  reflects and any credible dissent named. For a tool, version, or API:
+  official docs, then authoritative articles and recognized experts, then
+  community. For a design pattern: the canonical source that defines it (the
+  Gang of Four, Fowler's catalogs, Enterprise Integration Patterns, the DDD
+  books) and recognized experts who build on it. Recency never discounts a
+  canonical pattern definition.
+- **Popularity is not correctness.** A pattern's use in templates, samples,
+  or popular repositories shows adoption, not that it is right. Check it
+  against the principle it claims to serve, and say so when a common pattern
+  fails that check. A book cited from recall is recall; a canonical catalog
+  page fetched this session verifies the pattern's definition.
 - **Consequential** means cross-repo, shared infrastructure, irreversible or
   costly to reverse, or security. A consequential recommendation must clear the
   bar; any other may rest on judgment if its label says so.

@@ -283,9 +283,9 @@ hook::notice_once() {
   hook::_state_dir_to dir skip-notices || return 0
   local model="$dir/${key}.${session}.${agent}" user="$dir/${key}.${session}.user"
   hook::_claim "$model"
-  case $? in 1) HOOK_NOTICE_TO_MODEL=0 ;; 2) return 0 ;; esac
+  case $? in 1) HOOK_NOTICE_TO_MODEL=0 ;; 2) return 0 ;; *) ;; esac
   hook::_claim "$user"
-  case $? in 1) HOOK_NOTICE_TO_USER=0 ;; 2) return 0 ;; esac
+  case $? in 1) HOOK_NOTICE_TO_USER=0 ;; 2) return 0 ;; *) ;; esac
   if [[ "$HOOK_NOTICE_TO_USER" == 1 ]]; then
     return 0
   elif [[ "$HOOK_NOTICE_TO_MODEL" == 1 ]]; then

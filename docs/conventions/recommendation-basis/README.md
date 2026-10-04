@@ -14,8 +14,8 @@
 - [Versioning](#versioning)
 
 Owner doc for **how a recommendation is grounded before it is presented and labeled when it is**.
-A recommendation is grounded in the affected code and in current external consensus, carries a
-visible `Basis:` label (or, when consequential and unsettled, is withheld as an open question),
+A recommendation is grounded in the affected code and in authoritative external sources, never in
+popularity alone, carries a visible `Basis:` label (or, when consequential and unsettled, is withheld as an open question),
 and, when later evidence changes it, is re-stated as old → new → why.
 
 Several skills already practice parts of this under their own names (see
@@ -53,10 +53,20 @@ Before a recommendation is presented, it is grounded on two sides:
   consumers and blast radius: callers, dependents, and other repositories that consume a shared
   artifact (for example, every repo that pins a shared action or reusable workflow). A
   recommendation about a shared surface that names no consumers has not cleared the bar.
-- **External.** Establish the current consensus across tiered sources: official documentation
-  first, then authoritative articles and recognized experts, then community sources. Note the date
-  or version each source reflects, and name any credible dissent rather than averaging it away.
-  Tier, corroboration, and recency carry the meanings do-your-research gives them.
+- **External.** Ground in tiered sources. For a tool, version, or API: official documentation
+  first, then authoritative articles and recognized experts, then community sources. For a design
+  pattern: the canonical source that defines it (for example the Gang of Four's *Design Patterns*,
+  Fowler's catalogs, *Enterprise Integration Patterns*, the DDD books by Evans, Vernon, and
+  Khononov) and recognized experts who build on it. Note the date or version each source reflects,
+  and name any credible dissent rather than averaging it away. Recency applies to tools, versions,
+  and APIs, never to a canonical pattern definition. Tier, corroboration, and recency carry the
+  meanings do-your-research gives them.
+- **Popularity is not correctness.** How widely a pattern is used is evidence of adoption, not
+  that it is right. Before recommending a pattern found in a template, sample, or popular
+  repository, check it against the principle it claims to serve, and say so when a common pattern
+  fails that check. A book cited from recall with no captured page is still recall; a canonical
+  catalog page fetched this session (for example under `martinfowler.com/eaaCatalog/` or
+  `enterpriseintegrationpatterns.com/patterns/`) verifies the pattern's definition.
 
 **Consequential recommendations must clear the bar.** A recommendation is consequential when it
 is cross-repo, touches shared infrastructure, is irreversible or costly to reverse, or affects
@@ -100,7 +110,7 @@ narrowly" in
 
 When a quick read will not settle the bar, ground through `/discovery:explore` for the local side
 (affected code, consumers, blast radius) and `/discovery:research` for the external side
-(consensus, recency, dissent), when the `discovery` plugin is installed. Without it, do the same
+(authoritative sources, recency, dissent), when the `discovery` plugin is installed. Without it, do the same
 reads and fetches inline. A recommendation still unsettled after that takes the `judgment` outcome
 when it is not consequential and the withheld outcome when it is (see [Basis label](#basis-label)).
 
