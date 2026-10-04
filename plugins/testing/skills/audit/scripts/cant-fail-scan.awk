@@ -1692,7 +1692,8 @@ function open_block(line, name) {
   CD = CR_N = CR_LOOPS = CR_BR = CA_IN = CA_OUT = CA_LINE = 0
   COND_NEXT = SRC_PEND = SIG = PM_NAME = CS_SIG = ""
   CS_RET = CS_WRAP = CS_HEAD = 0
-  SIG_OPEN = LEXER == "python"
+  SIG_OPEN = PY_HEAD = LEXER == "python"
+  PY_D = 0
   SH_ACT = SH_FN = PS_PEND = 0
 }
 
@@ -1709,6 +1710,12 @@ function append_block(m, r,    bm, br) {
   # parameters are code, and a test named Check_x or a parameter named
   # expected would read as an assertion. Only the body after it is judged.
   if (LEXER == "cs" && !body_open && !expr_body) { cs_cut(m, r); bm = CUT_M; br = CUT_R }
+  # The same for a Python def and a Go func: the start line, and a Python
+  # signature split over lines, are judged from the body on.
+  else if (PY_HEAD || (LEXER == "go" && FNR == block_line)) {
+    decl_cut(m, r); bm = CUT_M; br = CUT_R
+    if (has(bm, R_MOCKC)) file_mock = 1
+  }
   block_masked = block_masked bm "\n"
   block_last = FNR
   LINE_IN_TEST = 1
@@ -1716,16 +1723,15 @@ function append_block(m, r,    bm, br) {
   if (SIG_OPEN) { SIG = SIG " " m; if (index(SIG, "(") && delta(SIG, "(", ")") <= 0) SIG_OPEN = 0 }
   if (r ~ R_EXEMPT) block_exempt = 1
   if (R_RAW != "" && !block_raw) {
-    if ((BW2 " " BW1 " " r) ~ R_RAW) block_raw = 1
-    BW2 = BW1; BW1 = r
+    if ((BW2 " " BW1 " " br) ~ R_RAW) block_raw = 1
+    BW2 = BW1; BW1 = br
   }
-  # The start line names the test; in python and go that name is code, and a
-  # test named check_x would read as an assertion. cs has cut its signature.
+  # cs, python and go have cut the start line's signature to its body.
   OR_S0 = OR_S
-  if (FNR != block_line || LEXER == "js" || LEXER == "pwsh" || LEXER == "cs") oracle_line(bm, br)
+  if (FNR != block_line || LEXER != "bash") oracle_line(bm, br)
   if (LEXER != "bash") { cond_scan(m); bind_scan(m, r) }
   else sh_act_scan(m)
-  if (FNR != block_line || LEXER == "cs") inert_scan(bm, br)
+  if (FNR != block_line || LEXER == "cs" || LEXER == "python" || LEXER == "go") inert_scan(bm, br)
   src_scan(m, r)
   if (LEXER == "js" || LEXER == "python") g8_bind(m, r)
   if (m !~ /^[[:space:]]*$/) { prev_code = code_tail(m, r); block_code_last = FNR }
@@ -1789,6 +1795,30 @@ function cs_cut(m, r,    i, j, k, n) {
   if (brace_delta(m) > 0) return
   for (k = length(CUT_M); k > n; k--) if (substr(CUT_M, k, 1) == "}") break
   if (k > n) { CUT_M = substr(CUT_M, 1, k - 1) " " substr(CUT_M, k + 1); CUT_R = substr(CUT_R, 1, k - 1) " " substr(CUT_R, k + 1) }
+}
+
+# A Python def or Go func start line cut to its body, in CUT_M and CUT_R: the
+# signature blanked through the ":" (Python, outside brackets, so a split
+# signature stays blank until its ") -> None:") or the "{" (Go) that opens the
+# body, as cs_cut blanks a C# signature. A Go body that closes on this line
+# loses its "}" too, so a one-line if reads whole.
+function decl_cut(m, r,    i, n, c, k, d) {
+  n = length(m); k = n; d = 0
+  for (i = 1; i <= n; i++) {
+    c = substr(m, i, 1)
+    if (LEXER == "python") {
+      if (c == "(" || c == "[" || c == "{") PY_D++
+      else if (c == ")" || c == "]" || c == "}") PY_D--
+      else if (c == ":" && PY_D <= 0) { k = i; PY_HEAD = 0; break }
+    } else if (c == "(") d++
+    else if (c == ")") d--
+    else if (c == "{" && d == 0) { k = i; break }
+  }
+  CUT_M = blanks(k) substr(m, k + 1)
+  CUT_R = blanks(k) substr(r, k + 1)
+  if (LEXER != "go" || brace_delta(m) > 0) return
+  for (i = n; i > k; i--) if (substr(CUT_M, i, 1) == "}") break
+  if (i > k) { CUT_M = substr(CUT_M, 1, i - 1) " " substr(CUT_M, i + 1); CUT_R = substr(CUT_R, 1, i - 1) " " substr(CUT_R, i + 1) }
 }
 
 function cs_method_name(s,    t) {
@@ -1940,7 +1970,9 @@ function brace_decl() {
   else if (LEXER == "go") masked = mask_go(raw)
   else masked = mask_cs(raw)
 
-  if (has(masked, R_MOCKC)) file_mock = 1
+  # A Python or Go test's name is no mock: append_block reads its start line
+  # from the body on.
+  if (has(masked, R_MOCKC) && !((LEXER == "python" || LEXER == "go") && has(masked, R_START))) file_mock = 1
   if (INVENTORY) inv_line()
   LINE_IN_TEST = 0
   if (SHELL_LEX) sh_assign(masked)

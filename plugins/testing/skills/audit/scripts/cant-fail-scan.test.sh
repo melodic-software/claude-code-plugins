@@ -1170,6 +1170,7 @@ corpus_files=(
   cs-xunit/good/SlugifyLiteralTests.cs.fixture
   cs-xunit/good/WidgetTypeOraclesTests.cs.fixture
   go-testing/bad/go_add_deepequal_derived_test.go.fixture
+  go-testing/bad/go_check_named_runs_test.go.fixture
   go-testing/bad/go_handler_source_text_test.go.fixture
   go-testing/bad/go_query_diff_itself_test.go.fixture
   go-testing/bad/go_render_snapshot_test.go.fixture
@@ -1178,6 +1179,7 @@ corpus_files=(
   go-testing/bad/go_slugify_runs_test.go.fixture
   go-testing/bad/go_user_nil_check_test.go.fixture
   go-testing/good/go_cart_helper_test.go.fixture
+  go-testing/good/go_check_named_asserts_test.go.fixture
   go-testing/good/go_codec_fuzz_test.go.fixture
   go-testing/good/go_export_skipped_test.go.fixture
   go-testing/good/go_hash_bench_test.go.fixture
@@ -1297,6 +1299,7 @@ corpus_files=(
   pwsh-pester/good/pester-sum-it-skip.Tests.ps1.fixture
   pwsh-pester/good/pester-sum-set-itresult.Tests.ps1.fixture
   pwsh-pester/good/pester-sum-should-be.Tests.ps1.fixture
+  py-pytest/bad/test_pytest_check_named_runs.py.fixture
   py-pytest/bad/test_pytest_limit_restated.py.fixture
   py-pytest/bad/test_pytest_order_fixture_literal.py.fixture
   py-pytest/bad/test_pytest_parametrize_split_runs.py.fixture
@@ -1310,6 +1313,7 @@ corpus_files=(
   py-pytest/bad/test_pytest_user_not_none.py.fixture
   py-pytest/bad/test_pytest_views_source_text.py.fixture
   py-pytest/good/test_pytest_ast_parse_source.py.fixture
+  py-pytest/good/test_pytest_check_named_asserts.py.fixture
   py-pytest/good/test_pytest_deterministic_report.py.fixture
   py-pytest/good/test_pytest_exec_tool_script.py.fixture
   py-pytest/good/test_pytest_helper_check_returncode.py.fixture
@@ -1338,6 +1342,7 @@ corpus_files=(
   py-unittest/bad/test_unittest_render_snapshot.py.fixture
   py-unittest/bad/test_unittest_slugify_runs.py.fixture
   py-unittest/bad/test_unittest_total_recomputed.py.fixture
+  py-unittest/bad/test_unittest_validate_named_runs.py.fixture
   py-unittest/bad/test_unittest_views_source_text.py.fixture
   py-unittest/good/test_unittest_config_literal.py.fixture
   py-unittest/good/test_unittest_deterministic_call.py.fixture
@@ -1350,6 +1355,7 @@ corpus_files=(
   py-unittest/good/test_unittest_skipunless.py.fixture
   py-unittest/good/test_unittest_skipunless_split.py.fixture
   py-unittest/good/test_unittest_slugify.py.fixture
+  py-unittest/good/test_unittest_validate_named_asserts.py.fixture
 )
 on_disk="$(cd "$CORPUS" && find . -type f -name '*.fixture' | sed 's|^\./||' | sort)"
 listed="$(printf '%s\n' "${corpus_files[@]}" | sort)"
