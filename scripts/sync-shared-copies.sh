@@ -6,6 +6,8 @@
 #                                                      canonical source generates; never writes
 #   scripts/sync-shared-copies.sh --check-bump <ref>   fail if a canonical changed vs <ref> but a
 #                                                      carrying plugin's manifest version did not
+#                                                      move (or, in fragment mode, it added no
+#                                                      fragment whose bump is not none)
 #   scripts/sync-shared-copies.sh --print-manifest     emit each canonical and its copies as data
 #
 # Each line of scripts/shared-copies.txt registers one copy: `<canonical> <copy>`.
@@ -17,6 +19,8 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$script_dir/.."
 # shellcheck source=lib/gate-entry.sh
 . "$script_dir/lib/gate-entry.sh" || exit 2
+# shellcheck source=lib/changelog-fragments.sh
+. "$script_dir/lib/changelog-fragments.sh" || exit 2
 
 registry="scripts/shared-copies.txt"
 self="scripts/sync-shared-copies.sh"
@@ -144,7 +148,7 @@ check_copy() {
 }
 
 check_bump() {
-  local base="$1" src copy rest manifest base_version head_version stale=0 changed=0 src_changed
+  local base="$1" src copy rest manifest base_version head_version stale=0 changed=0 src_changed rc
   gate_entry::require_base "$base" "error: base ref $base does not resolve to a commit."
   for src in "${srcs[@]}"; do
     src_changed=0
@@ -160,7 +164,11 @@ check_bump() {
       base_version=$(git show "$base:$manifest" 2>/dev/null | jq -r '.version // empty' || true)
       [[ -n "$base_version" ]] || continue
       head_version=$(jq -r '.version // empty' "$manifest")
-      if [[ "$head_version" == "$base_version" ]]; then
+      rc=0
+      # shellcheck disable=SC2310  # the non-zero return IS the answer; rc 2 exits below
+      changelog_fragments::bump_delivered "$base" "${rest%%/*}" "$base_version" "$head_version" || rc=$?
+      ((rc < 2)) || exit 2
+      if ((rc == 1)); then
         echo "STALE VERSION: $src or its copy $copy changed vs $base but $manifest is still $head_version" >&2
         rest="${rest#*/}"
         echo "  A bump that only carries the change gets the CHANGELOG entry: Shared \`$(basename "$src")\` synced (<link to the change>); no change to this plugin's ${rest%%/*}." >&2

@@ -197,6 +197,7 @@ publish destination comes from the `medium` cascade key. Procedure:
 
 - A hop leaves the process at Publish or Send: `/architecture:map-events`.
 - The trace settles a decision worth keeping: `/architecture:record-decision`.
+- The trace shows a hop or contract to redesign: `/planning:design integration`.
 
 ## Gotchas
 

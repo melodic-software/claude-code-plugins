@@ -5,7 +5,7 @@
 # pipes hand-built PostToolUse payloads through the hook. Covers the option
 # gate (through the exec-form launcher), findings on a create, the once-per-
 # file-per-agent rules note, Edit scoping to the changed block, the scanner
-# timeout, gitignored paths, the doubtful-hit prompt (recomputed and derived
+# timeout, gitignored paths, one Action per rule (recomputed and derived
 # expectations, constant restatements), the lead for findings of tests that
 # can fail, the marker prune, the per-call dedup that keeps two
 # overlapping `if` rows from reporting twice, and the per-write session state
@@ -177,6 +177,41 @@ assert_not_contains "(c) same session and agent: no second note" "$out" "testing
 run Write "$REPO/src/sum.test.ts" s1 agent-2
 assert_contains "(c) a different agent_id gets the note" "$out" "testing:test-value"
 
+# (c2) a clean first write of a file gets no note: it has nothing to act on.
+printf '%s\n' "import { test, expect } from 'vitest';" "test('caps', () => {" "  expect(cap(60)).toBe(50);" "});" >"$REPO/src/quiet.test.ts"
+run Write "$REPO/src/quiet.test.ts" s-quiet
+assert_empty "(c2) clean first write: no context at all" "$out"
+
+# (c3) two findings of one rule: both listed, the Action once, no threshold.
+printf '%s\n' "import { test } from 'vitest';" "test('a', () => {" "  sum(1, 2);" "});" \
+  "test('b', () => {" "  sum(2, 2);" "});" >"$REPO/src/twice.test.ts"
+run Write "$REPO/src/twice.test.ts" s-twice
+ctx3="$(jq -r '.hookSpecificOutput.additionalContext' <<<"$out")"
+if [[ "$(grep -c '^  \[rule-zero-assertion\] ' <<<"$ctx3")" == 2 ]]; then ok "(c3) both findings listed"; else fail "(c3) both findings listed (got: $ctx3)"; fi
+if [[ "$(grep -c '^Action \[rule-zero-assertion\]: ' <<<"$ctx3")" == 1 ]]; then ok "(c3) one Action for the rule"; else fail "(c3) one Action for the rule (got: $ctx3)"; fi
+assert_not_contains "(c3) no threshold in the context" "$ctx3" "threshold:"
+
+# (c4) twelve findings: ten listed, then one line counting the rest.
+{
+  echo "import { test } from 'vitest';"
+  for k in $(seq 1 12); do printf '%s\n' "test('t$k', () => {" "  sum($k, 0);" "});"; done
+} >"$REPO/src/many.test.ts"
+run Write "$REPO/src/many.test.ts" s-many
+ctx4="$(jq -r '.hookSpecificOutput.additionalContext' <<<"$out")"
+if [[ "$(grep -c '^  \[rule-zero-assertion\] ' <<<"$ctx4")" == 10 ]]; then ok "(c4) ten findings listed"; else fail "(c4) ten findings listed (got: $ctx4)"; fi
+if [[ "$(grep -cxF '  ... and 2 more (/testing:audit lists the rest)' <<<"$ctx4")" == 1 ]]; then ok "(c4) the rest counted, with the audit pointer"; else fail "(c4) the rest counted, with the audit pointer (got: $ctx4)"; fi
+
+# (c5) ten findings with 2 KB test names still fit the 10000-character context cap.
+long="$(printf 'n%.0s' $(seq 1 2000))"
+{
+  echo "import { test } from 'vitest';"
+  for k in $(seq 1 10); do printf '%s\n' "test('$long$k', () => {" "  sum($k, 0);" "});"; done
+} >"$REPO/src/long.test.ts"
+run Write "$REPO/src/long.test.ts" s-long
+ctx5="$(jq -r '.hookSpecificOutput.additionalContext' <<<"$out")"
+if ((${#ctx5} < 10000)); then ok "(c5) context stays under 10000 characters"; else fail "(c5) context is ${#ctx5} characters"; fi
+assert_contains "(c5) a cut context says where the rest is" "$ctx5" "(truncated; /testing:audit lists the rest)"
+
 # (d) an Edit touching only the good block leaves the bad block silent.
 EDIT_GOOD='{"structuredPatch":[{"oldStart":9,"oldLines":1,"newStart":9,"newLines":1,
   "lines":["-  expect(sum(1, 2)).toBe(4);","+  expect(sum(1, 2)).toBe(3);"]}]}'
@@ -226,16 +261,17 @@ fi
 run Write "$REPO/scratch/ignored.test.ts"
 assert_empty "(f) gitignored path: no output" "$out"
 
-# (g) a recomputed expectation asks where the expected value comes from.
+# (g) a recomputed expectation carries its Action and no order.
 run Write "$REPO/src/again.test.ts"
 assert_contains "(g) names rule-recomputed-expectation" "$out" "rule-recomputed-expectation"
-assert_contains "(g) asks for the expected value's source" "$out" "where the expected value"
+assert_contains "(g) carries the rule's Action" "$out" "Action [rule-recomputed-expectation]: State the expected value independently"
+assert_not_contains "(g) gives no order to state a source" "$out" "Before you continue"
 
-# (h) a constant restatement carries the same prompt, under a change-detector
+# (h) a constant restatement carries its Action, under a change-detector
 # lead rather than the can't-fail one.
 run Write "$REPO/src/limit.test.ts"
 assert_contains "(h) names rule-constant-restatement" "$out" "rule-constant-restatement"
-assert_contains "(h) asks for the expected value's source" "$out" "where the expected value"
+assert_contains "(h) carries the rule's Action" "$out" "Action [rule-constant-restatement]: "
 assert_contains "(h) leads with change detectors" "$out" "fail on harmless changes"
 assert_not_contains "(h) does not call a change detector a test that cannot fail" "$out" "tests that cannot fail"
 
@@ -259,10 +295,10 @@ else
 fi
 if [[ -f "$CLAUDE_PLUGIN_DATA/marks/call-call-1" ]]; then ok "prune: a fresh marker stays"; else fail "prune: a fresh marker stays"; fi
 
-# (i) a recomputed-derived expectation carries the doubtful-hit prompt.
+# (i) a recomputed-derived expectation carries its Action.
 run Write "$REPO/src/derived.test.ts"
 assert_contains "(i) names rule-recomputed-derived" "$out" "rule-recomputed-derived"
-assert_contains "(i) asks for the expected value's source" "$out" "where the expected value"
+assert_contains "(i) carries the rule's Action" "$out" "Action [rule-recomputed-derived]: "
 assert_contains "(i) leads with tests that check little" "$out" "tests that check little"
 assert_not_contains "(i) does not call a derived expectation a test that cannot fail" "$out" "tests that cannot fail"
 
@@ -270,7 +306,7 @@ assert_not_contains "(i) does not call a derived expectation a test that cannot 
 run Write "$REPO/src/weak.test.ts"
 assert_contains "(j) names rule-weak-oracle" "$out" "rule-weak-oracle"
 assert_not_contains "(j) does not call a weak oracle a test that cannot fail" "$out" "tests that cannot fail"
-assert_not_contains "(j) a weak oracle carries no doubtful-hit prompt" "$out" "where the expected value"
+assert_contains "(j) carries the weak-oracle Action" "$out" "Action [rule-weak-oracle]: "
 
 # (k) a throw-only oracle fails when the constructor throws, so it checks
 # little and is not called a test that cannot fail.
@@ -514,6 +550,78 @@ assert_jq "Bash state: a changed file with no hunks records blocks:null, the who
 bash_run bs-4 "$two"
 check_two="$(rec sb bs-4-1) $(rec sb bs-4-2)"
 if [[ "$check_two" == *"/sb/bs-4-1.json "*"/sb/bs-4-2.json" ]]; then ok "Bash state: two test files in one call leave two records"; else fail "Bash state: two test files in one call leave two records ($check_two)"; fi
+
+# A test file a checkout, pull or merge brought in is unchanged from HEAD in
+# its own repository, as git diff sees it, and git last moved HEAD with that
+# checkout, pull or merge: the session did not write it, so it is neither
+# scanned nor recorded. One the call changed, or one HEAD lacks, is.
+gc() { git -C "$1" -c commit.gpgsign=false -c user.name=t -c user.email=t@t "${@:2}"; }
+HR="$TMP/headrepo"
+mkdir -p "$HR/src"
+git -C "$HR" init -q
+cp "$REPO/src/sum.test.ts" "$HR/src/kept.test.ts"
+cp "$REPO/src/sum.test.ts" "$HR/src/also.test.ts"
+git -C "$HR" add -A
+gc "$HR" commit -qm init
+git -C "$HR" checkout -q -b work
+# The hunk covers the zero-assertion test body (line 5), so a scan would report it.
+BODY='[{"oldStart":5,"oldLines":1,"newStart":5,"newLines":1,"lines":["-  sum(1, 2);","+  sum(1, 2);"]}]'
+bash_run hd-1 "$(diff_of edit "$HR/src/kept.test.ts" "$BODY")"
+assert_not_contains "Bash HEAD: a test file identical to HEAD is not scanned" "$out" "rule-zero-assertion"
+assert_empty "Bash HEAD: a test file identical to HEAD gives no output" "$out"
+assert_empty "Bash HEAD: a test file identical to HEAD leaves no record" "$(rec sb hd-1-1)"
+printf '%s\n' "test('more', () => {" "  sum(2, 2);" "});" >>"$HR/src/kept.test.ts"
+bash_run hd-2 "$(diff_of edit "$HR/src/kept.test.ts" "$ADD_ALL")"
+assert_contains "Bash HEAD: an edited tracked test file is recorded" "$(rec sb hd-2-1)" "/sb/hd-2-1.json"
+cp "$REPO/src/sum.test.ts" "$HR/src/fresh.test.ts"
+bash_run hd-3 "$(diff_of created "$HR/src/fresh.test.ts" "$ADD_ALL")"
+assert_contains "Bash HEAD: an untracked new test file is recorded" "$(rec sb hd-3-1)" "/sb/hd-3-1.json"
+# The repository is the file's own, found at either separator: a
+# backslash-only path (a Windows path) to a file identical to HEAD stays quiet.
+b=$'\\'
+if command -v cygpath >/dev/null; then BS="$(cygpath -w "$HR/src/also.test.ts")"; else BS="${HR//\//$b}${b}src${b}also.test.ts"; fi
+out="$(bash_payload hd-4 "$(diff_of edit "$BS" "$ADD_ALL")" | bash "$BASH_HOOK" 2>&1)"
+assert_empty "Bash HEAD: a backslash path to a file identical to HEAD is not scanned" "$out"
+assert_empty "Bash HEAD: a backslash path to a file identical to HEAD leaves no record" "$(rec sb hd-4-1)"
+# A tracked test edited and committed in one call matches HEAD afterwards, but
+# a commit last moved HEAD, so it is still recorded for the judge.
+cp "$REPO/src/sum.test.ts" "$HR/src/mine.test.ts"
+git -C "$HR" add src/mine.test.ts
+gc "$HR" commit -qm mine
+printf '%s\n' "test('mine', () => {" "  sum(3, 3);" "});" >>"$HR/src/mine.test.ts"
+gc "$HR" commit -qm weaken src/mine.test.ts
+bash_run hd-6 "$(diff_of edit "$HR/src/mine.test.ts" "$ADD_ALL")"
+assert_contains "Bash HEAD: a test edited and committed in one call is recorded" "$(rec sb hd-6-1)" "/sb/hd-6-1.json"
+# Test files a merge brought in stay quiet, and do not take the cap's slots
+# from a new test file the same call wrote.
+git -C "$HR" checkout -q -b side
+for i in 1 2 3 4; do cp "$REPO/src/sum.test.ts" "$HR/src/p$i.test.ts"; done
+git -C "$HR" add src/p1.test.ts src/p2.test.ts src/p3.test.ts src/p4.test.ts
+gc "$HR" commit -qm side
+git -C "$HR" checkout -q work
+gc "$HR" merge -q --no-edit side
+bash_run hd-7 "$(diff_of edit "$HR/src/p1.test.ts" "$BODY")"
+assert_empty "Bash HEAD: a test file a merge brought in gives no output" "$out"
+assert_empty "Bash HEAD: a test file a merge brought in leaves no record" "$(rec sb hd-7-1)"
+cp "$REPO/src/sum.test.ts" "$HR/src/new.test.ts"
+five="$(jq -cn --arg d "$HR/src" --argjson h "$ADD_ALL" '[range(1; 5) | "\($d)/p\(.).test.ts"] + ["\($d)/new.test.ts"]
+  | {changedFiles: ., moreFiles: 0, files: map({filePath: ., hunks: $h})}')"
+bash_run hd-8 "$five"
+assert_jq "Bash HEAD: a new test file after four merged ones is still recorded" "$(rec sb hd-8-1)" '.file == "'"$HR"'/src/new.test.ts"'
+# A file committed with CRLF line endings under core.autocrlf=true is
+# unchanged to git, though hash-object's eol filter hashes it differently.
+CR="$TMP/crlfrepo"
+mkdir -p "$CR/src"
+git -C "$CR" init -q
+git -C "$CR" config core.autocrlf false
+printf '%s\r\n' "import { test, expect } from 'vitest';" "import { sum } from './sum';" "" "test('adds', () => {" "  sum(1, 2);" "});" >"$CR/src/crlf.test.ts"
+git -C "$CR" add -A
+gc "$CR" commit -qm init
+git -C "$CR" checkout -q -b work
+git -C "$CR" config core.autocrlf true
+out="$(bash_payload hd-5 "$(diff_of edit "$CR/src/crlf.test.ts" "$BODY")" | bash "$BASH_HOOK" 2>&1)"
+assert_empty "Bash HEAD: a CRLF test file unchanged under core.autocrlf=true is not scanned" "$out"
+assert_empty "Bash HEAD: a CRLF test file unchanged under core.autocrlf=true leaves no record" "$(rec sb hd-5-1)"
 
 # A working copy under the temp root, or in a Claude session scratchpad, is
 # not a test the session authored: no judge record (#6037). The skip root is

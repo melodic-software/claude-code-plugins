@@ -85,7 +85,15 @@ run_hook() {
 # --- source-control enabled: bypass shapes fire ------------------------------
 out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$ENABLED_PROJECT")
 assert_contains "gh pr create fires" "$out" "gh pr create"
-assert_contains "names the /pull-request skill" "$out" "/pull-request create"
+assert_contains "names the source-control pull-request skill" "$out" "/source-control:pull-request"
+
+# Once per session and agent: the second PR in the same session is not told again.
+LATCH_DATA="$TEST_TMPDIR/latch-data"
+PR_PAYLOAD=$(jq -c '. + {session_id: "s-latch"}' <<<"$(command_json 'gh pr create --title x --body y')")
+out=$(run_hook "$PR_PAYLOAD" "$ENABLED_PROJECT" CLAUDE_PLUGIN_DATA="$LATCH_DATA")
+assert_contains "latch: the first gh pr create in a session is flagged" "$out" "/source-control:pull-request"
+out=$(run_hook "$PR_PAYLOAD" "$ENABLED_PROJECT" CLAUDE_PLUGIN_DATA="$LATCH_DATA")
+assert_silent "latch: the second gh pr create in the same session stays quiet" "$out"
 
 # --- git commit is not this hook's concern -----------------------------------
 # block-noncanonical-commit.sh owns it and BLOCKS on the stdin-form mechanic.

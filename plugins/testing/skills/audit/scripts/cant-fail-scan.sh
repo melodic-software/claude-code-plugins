@@ -125,6 +125,9 @@
 #                <ordinal> <name>` per examined test block (in --lines scope);
 #                the ordinal tells same-named blocks apart and is the block's
 #                identity with its name, since line numbers drift
+#   --brief      with the default mode: finding lines with no threshold or
+#                Action, then one `action [rule-<slug>] <text>` line per
+#                distinct Action; the form the hooks pass to the agent
 #   --help
 #
 # Scan-root resolution: $CANT_FAIL_SCAN_ROOT (sanctioned operator lever, not a
@@ -151,7 +154,7 @@ usage() {
   cat <<'EOF'
 cant-fail-scan.sh — detect tests that cannot fail.
 
-Usage: cant-fail-scan.sh [--file <path> [--lines <list>]] [--blocks | --check [--strict] | --findings | --count | --help]
+Usage: cant-fail-scan.sh [--file <path> [--lines <list>]] [[--blocks] [--brief] | --check [--strict] | --findings | --count | --help]
        cant-fail-scan.sh --file <path> --inventory <text> [--inventory <text>...]
 
   (no arg)    print one finding line per detection, then the coverage block; exit 0 (2 on scan gap)
@@ -168,6 +171,8 @@ Usage: cant-fail-scan.sh [--file <path> [--lines <list>]] [--blocks | --check [-
               (a list like 12,20-24), for an edit hook scoped to what the edit changed
   --blocks    also print `block <file>:<start>-<end> <ordinal> <name>` per examined test
               block (within --lines); the ordinal tells same-named blocks apart
+  --brief     finding lines with no threshold or Action, then one `action [rule-<slug>] <text>`
+              line per distinct Action
   --inventory <text>
               with --file, repeatable: no rules; for the n-th <text>, one record per line
               `n<TAB>test|assertion|skip<TAB><count><TAB><line>`, one per equality with a
@@ -196,6 +201,7 @@ FILE=""
 LINES=""
 INV_TEXTS=()
 list_blocks=0
+brief=0
 blk_lines=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -204,6 +210,7 @@ while [[ $# -gt 0 ]]; do
     exit 0
     ;;
   --blocks) list_blocks=1 ;;
+  --brief) brief=1 ;;
   --check) mode="check" ;;
   --findings) mode="findings" ;;
   --count) mode="count" ;;
@@ -263,8 +270,8 @@ LOADER="$SCRIPT_DIR/adapter-load.awk"
 require_readable "$LOADER" 'adapter loader'
 ADAPTER_DIR="$SCRIPT_DIR/../adapters"
 
-if ((list_blocks)) && [[ "$mode" != report ]]; then
-  printf 'ERROR: --blocks lists blocks in the report mode only\n' >&2
+if ((list_blocks || brief)) && [[ "$mode" != report ]]; then
+  printf 'ERROR: --blocks and --brief apply to the report mode only\n' >&2
   exit 2
 fi
 if [[ (-n "$LINES" || "$mode" == inventory) && -z "$FILE" ]]; then
@@ -926,7 +933,7 @@ action_of() {
   case "$1" in
   inert-assertion | constant-restatement | source-text-read | conditional-assertion | recomputed-derived | snapshot-only | weak-oracle | throw-only-oracle) return 0 ;;
   zero-assertion)
-    printf 'Repair, not pruning: add an assertion on the observable behavior this test exercises; today it passes vacuously and its coverage claim is false.'
+    printf 'Add an assertion on the observable behavior this test exercises.'
     ;;
   recomputed-expectation)
     printf 'State the expected value independently (a literal or precomputed constant) instead of recomputing it with the same expression, so the assertion can discriminate. A determinism contract, f(x) == f(x) on purpose, records that with a cant-fail-ok: annotation.'
@@ -1159,7 +1166,21 @@ emit_findings_file() {
 }
 
 print_findings_lines() {
-  local i
+  local i a
+  if ((brief)); then
+    # One Action per distinct rule and text: inert-assertion's differs by language.
+    local -A seen=()
+    for i in ${f_rule[@]+"${!f_rule[@]}"}; do
+      printf 'finding [rule-%s] %s: %s\n' "${f_rule[$i]}" "${f_loc[$i]}" "${f_detail[$i]}"
+    done
+    for i in ${f_rule[@]+"${!f_rule[@]}"}; do
+      a="$(action_of "${f_rule[$i]}" "${f_lang[$i]}")"
+      [[ -n "$a" && -z "${seen["${f_rule[$i]}|$a"]:-}" ]] || continue
+      seen["${f_rule[$i]}|$a"]=1
+      printf 'action [rule-%s] %s\n' "${f_rule[$i]}" "$a"
+    done
+    return 0
+  fi
   for i in ${f_rule[@]+"${!f_rule[@]}"}; do
     printf 'finding [%s] %s: %s (%s). Action: %s\n' \
       "$(rule_id "${f_rule[$i]}")" "${f_loc[$i]}" "${f_detail[$i]}" \

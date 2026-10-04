@@ -1,13 +1,16 @@
 {
   "name": "planning",
-  "version": "0.67.6",
+  "version": "0.69.0",
   "userConfig": {
     "surface": {
       "type": "string",
       "title": "Interview question surface",
       "description": "Where /planning:interview renders its question rounds: terminal (default, inline in the conversation) or page (a local 127.0.0.1 page the session watches, where each question is answered and every save reaches the session). Applies only to /planning:interview.",
       "default": "terminal",
-      "options": ["terminal", "page"]
+      "options": [
+        "terminal",
+        "page"
+      ]
     },
     "use_ask_user_question": {
       "type": "boolean",

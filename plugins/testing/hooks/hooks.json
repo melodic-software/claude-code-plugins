@@ -1376,6 +1376,8 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
               "--require-true",
               "TEST_GUARDS_ENABLED",
+              "--skip-unless-stdin-contains",
+              "bashEditDiff",
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan-bash.sh"
             ],
             "timeout": 10,
@@ -2156,6 +2158,7 @@
         ]
       },
       {
+        "matcher": "startup|resume|clear|fork",
         "hooks": [
           {
             "type": "command",

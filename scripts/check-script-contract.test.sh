@@ -67,6 +67,7 @@ REGISTRY=(
   "check-adr-numbers.sh|-|-|adr_numbers"
   "check-all-skills-verb-contract.sh|-|-|-"
   "check-changed-skills.sh|-|-|-"
+  "check-changelog-fragments.sh|-|--check|changelog_fragments"
   "check-changelog-parity.sh|-|--check|changelog_parity"
   "check-conformance-registry.sh|-|-|-"
   "check-cross-plugin-source-drift.sh|-|-|-"
@@ -397,6 +398,17 @@ recipe::changelog_parity() { # <clean|violation>
   capture run_in "$f" bash scripts/check-changelog-parity.sh --check
 }
 
+recipe::changelog_fragments() { # <clean|violation>
+  local listed=alpha
+  [[ "$1" == violation ]] && listed=""
+  fixture_tree::build f --sut "$SELF_DIR/check-changelog-fragments.sh" --plugins || return 2
+  mkdir -p "$f/plugins/alpha/.claude-plugin" "$f/.changes/alpha"
+  printf '%s\n' '{"name":"alpha","version":"0.1.0"}' >"$f/plugins/alpha/.claude-plugin/plugin.json"
+  printf '%s\n' "$listed" >"$f/scripts/fragment-plugins.txt"
+  printf -- '---\nbump: none\n---\n\nTests only.\n' >"$f/.changes/alpha/feat-x-0123abcd.md"
+  capture run_in "$f" bash scripts/check-changelog-fragments.sh --check
+}
+
 recipe::pipefail_grep_q() { # <clean|violation>
   # shellcheck disable=SC2016  # literal shell source for the fixture; nothing here should expand
   local body='grep -q x <<<"$v"'
@@ -418,6 +430,7 @@ declare -A VIOLATION_NEEDLE=(
   [queue_front_matter]='VIOLATION:'
   [html_assets]='MISSING:'
   [changelog_parity]='MISSING CHANGELOG:'
+  [changelog_fragments]='NOT IN FRAGMENT MODE:'
   [docs_naming]='is not lower-kebab-case'
   [adr_numbers]='0001: docs/adr/0001-first.md, docs/adr/0001-second.md'
   [spoke_plugin_root]='plugins/demo/skills/audit/context/step.md: contains'

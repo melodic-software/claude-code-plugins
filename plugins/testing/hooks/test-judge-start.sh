@@ -2,7 +2,8 @@
 # SessionStart hook: the task-end test judge's catch-up. It names, once, the
 # ledger verdicts of this project's sessions whose last write is over an hour
 # old and that were never relayed (the session ended mid-task), as a
-# systemMessage with the findings file, then marks them relayed. A session
+# systemMessage with the findings file, then marks them relayed. A set that
+# is all PASS is marked relayed and not named. A session
 # active within the hour is left to the Stop hook of its /clear or fork
 # successor, which this hook marks: source `clear` or `fork` writes
 # successors/<pkey>/<session_id> holding the start time. Exits 0 on every path.
@@ -52,9 +53,14 @@ for d in "$DATA/verdicts/$PKEY"/*/; do
   done
 done
 ((RELAY_N)) || exit 0
+# All PASS: nothing to act on. Recorded as relayed so it is never named.
+if ((RELAY_F + RELAY_U == 0)); then
+  judge::mark_relayed "${marks[@]}"
+  exit 0
+fi
 
 judge::findings
 judge::counts
 judge::mark_relayed "${marks[@]}"
-jq -cn --arg m "test judge: an earlier session ended before these verdicts were shown: $COUNTS. Findings: $FINDINGS" \
+jq -cn --arg m "test judge: an earlier session's verdicts: $COUNTS${FINDINGS_SHOWN:+ in $FINDINGS_SHOWN}" \
   '{systemMessage: $m}' >&3

@@ -140,7 +140,7 @@ fi
 # ponytail: patch line numbers go stale if another PostToolUse hook reformats
 # the file before this read; the scan then scopes to shifted blocks.
 SCANNER="${TEST_SCAN_SCANNER:-$HOOK_DIR/../skills/audit/scripts/cant-fail-scan.sh}"
-testing::run_scanner "${TEST_SCAN_TIMEOUT:-8}" "$out_file" --file "$FILE" "${scope[@]}" --blocks
+testing::run_scanner "${TEST_SCAN_TIMEOUT:-8}" "$out_file" --file "$FILE" "${scope[@]}" --blocks --brief
 rc=$SCAN_RC
 
 if ((rc != 0)); then
@@ -167,7 +167,7 @@ if grep -q '^  test files: 0 examined' "$out_file"; then
 fi
 state_write blocks
 
-findings="$(grep '^finding \[' "$out_file")"
+findings="$(sed -n 's/^finding \[/[/p' "$out_file")"
 ctx=""
 FINDINGS_JSON='[]'
 if [[ -n "$findings" ]]; then
@@ -180,16 +180,19 @@ if [[ -n "$findings" ]]; then
     grep -qv -e rule-constant-restatement -e rule-source-text-read <<<"$findings" ||
       lead="has tests that fail on harmless changes (change detectors):"
   fi
-  hook::findings_to ctx "testing: $FILE_BASE $lead" "$findings" FINDINGS_JSON
-  if [[ "$findings" == *rule-recomputed-expectation* || "$findings" == *rule-constant-restatement* || "$findings" == *rule-recomputed-derived* ]]; then
-    ctx+=$'\n'"Before you continue, state where the expected value in each flagged assertion comes from (a spec, a bug report, a hand-computed literal). If it comes from running the code under test, replace it with a value worked out independently."
-  fi
+  hook::findings_to ctx "testing: $FILE_BASE $lead" "$findings" FINDINGS_JSON \
+    --max 10 --more "/testing:audit lists the rest"
+  # One Action per rule, after the findings it covers.
+  actions="$(sed -n 's/^action \[\([^]]*\)\] /Action [\1]: /p' "$out_file")"
+  [[ -z "$actions" ]] || ctx+=$'\n'"$actions"
+  # The skill pointer once per (session, agent, file), and only beside findings.
+  # CLAUDE_PLUGIN_DATA is set for the consumer settings entry, which has none,
+  # so both entries share one latch.
+  CLAUDE_PLUGIN_DATA="$DATA" hook::once_per_file testing-note "$INPUT" "$FILE" &&
+    ctx+=$'\n'"/testing:test-value covers where expected values come from."
 fi
 
-key="$(printf '%s|%s|%s' "$session" "$agent" "$FILE" | cksum)"
-if mark "$DATA/marks/note-${key%% *}"; then
-  ctx+="${ctx:+$'\n'}Tests here should fail when the behavior they cover breaks. Load the testing:test-value skill for where expected values must come from and what makes a test worth keeping."
-fi
+# --max bounds the line count, not line length: a finding carries its test name.
+((${#ctx} < 10000)) || ctx="${ctx:0:9800}"$'\n'"(truncated; /testing:audit lists the rest)"
 
-((${#ctx} < 10000)) || ctx="${ctx:0:9800}"$'\n'"(truncated; run /testing:audit for the full list)"
 hook::finish --context "$ctx" ok findings array "$FINDINGS_JSON"

@@ -1569,7 +1569,7 @@ rdt_ar 'a prefix cannot widen the listed roots' 2 "$RDT_KEY='$RDT_AR,$RDT_AO' rm
 guard_invoke --cwd / --command "rm -rf '$RDT_AO/x'" -- "HOME=$RDT_AH" "$RDT_KEY=$RDT_AR"
 assert_exit 'allowed roots: a delete outside every root blocks' 2 "$GUARD_RC"
 assert_contains 'allowed roots: the message names the key' "$GUARD_ERR" 'block_root_delete_target_allowed_roots'
-assert_contains 'allowed roots: the message says the agent cannot set it' "$GUARD_ERR" 'the agent cannot set it'
+assert_contains 'allowed roots: the message says only the user can set it' "$GUARD_ERR" 'only the user can'
 
 # PowerShell judges the same targets through the same arm.
 rdt_arp() { # <label> <want> <command> [roots]

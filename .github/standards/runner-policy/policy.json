@@ -1455,6 +1455,16 @@
         "contents": "read",
         "security-events": "write"
       }
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-automerge-dependabot.yml@69e506b7c119517ef1dfc421479232b386b93a52": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "write",
+        "pull-requests": "write"
+      }
     }
   },
   "approvedHostedRunnerLabels": ["ubuntu-24.04", "windows-2025"],
