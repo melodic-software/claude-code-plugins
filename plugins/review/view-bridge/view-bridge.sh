@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# GENERATED from lib/session-bridge/view-bridge.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
+# Runs view_bridge.py (beside this script) with the first Python 3 that actually runs.
+#   bash view-bridge.sh --dir DATA_DIR <command> ...
+# session-bridge.conf names this script as CONTROL, so wake.sh runs its apply.
+# Probes python3, then python. A zero-length file (the Windows Store alias stub) or a
+# candidate that is not Python 3 or cannot run a trivial program is skipped. Exits 2 when none runs.
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+for name in python3 python; do
+  candidate=$(command -v "$name" 2>/dev/null) || continue
+  [[ -s "$candidate" ]] || continue
+  "$candidate" -c "import sys; sys.exit(0 if sys.version_info[0] >= 3 else 1)" >/dev/null 2>&1 || continue
+  # shellcheck disable=SC2093  # exec on the first candidate that runs is the point of the loop
+  exec "$candidate" "$here/view_bridge.py" "$@"
+done
+echo "missing prerequisite: python3 (no python3 or python on PATH runs)" >&2
+exit 2

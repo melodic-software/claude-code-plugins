@@ -1,0 +1,34 @@
+# The steps of .github/workflows/test-windows.yml and the selected suites that
+# start each one, read by scripts/plan-test-lanes.sh. One line per step key:
+#
+#   <job> <key> [<pattern>...]
+#
+# The key is the suite the step runs, or the runner it calls. A step runs when
+# any pattern matches a suite the change selects (a glob over the repo-relative
+# path, `*` crossing `/`); with no pattern the key itself is the one. A job runs
+# when any of its steps does, and the whole tree runs every line. A key in two
+# jobs (the rename shards) runs in both. scripts/plan-test-lanes.test.sh checks
+# that these lines and the workflow's step conditions name the same keys.
+test-windows-rename-1 plugins/docs-naming/skills/realign-file-names/scripts/apply-rename.test.sh
+test-windows-rename-1 plugins/guardrails/hooks/run-guards.test.sh
+test-windows-rename-2 plugins/docs-naming/skills/realign-file-names/scripts/apply-rename.test.sh
+test-windows-rename-2 scripts/check-pipefail-grep-q.test.sh
+test-windows-rename-2 scripts/check-drive-root-litter.test.sh
+test-windows-rename-2 scripts/emit-windows-path.test.sh
+test-windows-rename-2 plugins/machine-health/skills/audit/scripts/run-tests.ps1 plugins/machine-health/*.Tests.ps1
+test-windows-secrets plugins/guardrails/hooks/secret-pattern-detection.test.sh
+test-windows-secrets plugins/guardrails/hooks/coverage-manifest.test.sh
+test-windows-secrets plugins/harness-ops/skills/audit-skill-visibility/scripts/audit_skill_visibility.test.sh
+test-windows-secrets plugins/disk-hygiene/skills/clean/scripts/test_hygiene.py
+test-windows-guards plugins/guardrails/hooks/block-hook-bypass.test.sh
+test-windows-guards plugins/guardrails/hooks/hardcoded-path-check.test.sh
+test-windows-hooks plugins/markdown-format/hooks/markdown-format.test.sh
+test-windows-hooks .claude/hooks/cloud-bootstrap-plugins.test.sh
+test-windows-hooks plugins/guardrails/hooks/exec-bash.test.sh
+test-windows-hooks scripts/check-exec-form-windows-probe.sh scripts/check-exec-form-windows-probe.test.sh plugins/guardrails/hooks/exec-bash.test.sh
+test-windows-hooks lib/exec-bash.resolver.test.mjs lib/exec-bash.resolver.test.mjs lib/exec-bash.resolver.test.sh
+test-windows-hooks lib/write-snapshot.test.mjs lib/write-snapshot.test.mjs lib/write-snapshot.test.sh
+test-windows-lib plugins/guardrails/hooks/block-windows-drive-tmp.test.sh
+test-windows-lib lib/hook-utils.test.sh
+test-windows-lib plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1 plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.test.sh
+test-windows-lib plugins/kindle-dedrm/skills/manage/tests plugins/kindle-dedrm/*.Tests.ps1

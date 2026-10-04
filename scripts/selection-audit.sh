@@ -20,7 +20,10 @@
 #       errors and no selecting commit is INCONCLUSIVE, not a miss.
 #
 # An unmapped file counts as selecting a suite only when ci.yml's UNMAPPED
-# fallback runs that suite (see fallback_corpus).
+# fallback runs that suite: in a tree whose ci.yml plans its test lanes with
+# scripts/plan-test-lanes.sh, the corpus of the file's language, which the
+# selector adds itself under --unmapped-corpus; in an older tree, the corpus
+# fallback_corpus reads from ci.yml.
 #
 #   scripts/selection-audit.sh red-replay --run-id ID [--repo OWNER/REPO]
 #       For a failed ci run on main: read the failing suites from its job logs
@@ -81,7 +84,15 @@ reads() {
     }' "$1" | sort -u
 }
 
-# fallback_corpus: the suites ci.yml's UNMAPPED fallback runs, one per line,
+# planned: this tree's ci.yml takes its test lanes from scripts/plan-test-lanes.sh,
+# whose selection already holds an unmapped file's language corpus.
+planned() { grep -q 'scripts/plan-test-lanes\.sh' .github/workflows/ci.yml 2>/dev/null; }
+
+# unmapped_flag: the selector flag that answers for an unmapped file the way
+# this tree's ci.yml does.
+unmapped_flag() { if planned; then echo --unmapped-corpus; else echo --allow-unmapped; fi; }
+
+# fallback_corpus: the suites an older ci.yml's UNMAPPED fallback runs, one per line,
 # read from the commands in that branch of ci.yml rather than assumed. Of its
 # runners only run-plugin-tests.sh runs a suite of this corpus (it lists what
 # it discovers); run-outside-node-suites.sh runs Node packages' npm test.
@@ -89,6 +100,7 @@ reads() {
 # branch or the list cannot be read.
 fallback_corpus() {
   local block
+  planned && return 0
   block="$(awk '/grep -q .\^UNMAPPED:/ { f = 1 } f && /^[[:space:]]*else$/ { exit } f' \
     .github/workflows/ci.yml 2>/dev/null)"
   [[ -n "$block" ]] || return 1
@@ -131,8 +143,9 @@ select_one() {
     : >"$out/sel/$key.out"
     return 0
   fi
-  timeout 120 bash "$SELECTOR" --explain --allow-unmapped -- "$file" \
+  timeout 120 bash "$SELECTOR" --explain "$AUDIT_UNMAPPED_FLAG" -- "$file" \
     >"$out/sel/$key.out" 2>"$out/sel/$key.err" || rc=$?
+  [[ "$rc" -eq 4 && "$AUDIT_UNMAPPED_FLAG" == --unmapped-corpus ]] && rc=0
   [[ "$rc" -eq 0 ]] || echo "not checked: selector exit $rc" >>"$out/sel/$key.err"
 }
 
@@ -168,7 +181,8 @@ cmd_trace() {
   fi
   ((${#suites[@]})) || die "no suites to trace"
 
-  export AUDIT_DEADLINE=0 AUDIT_SELECT_GRACE=$((budget * 2 / 5))
+  AUDIT_UNMAPPED_FLAG="$(unmapped_flag)"
+  export AUDIT_DEADLINE=0 AUDIT_SELECT_GRACE=$((budget * 2 / 5)) AUDIT_UNMAPPED_FLAG
   ((budget > 0)) && AUDIT_DEADLINE=$(($(date +%s) + budget * 3 / 5))
   export -f trace_one select_one reads
   export ROOT SELECTOR
@@ -203,7 +217,7 @@ cmd_trace() {
     if grep -q '^not checked' "$out/sel/$key.err"; then
       echo "not checked: $(sed -n 's/^not checked: //p' "$out/sel/$key.err" | head -n1)"
     elif grep -q '^UNMAPPED:' "$out/sel/$key.err"; then
-      echo "unmapped: CI falls back to the full corpus"
+      echo "unmapped: CI runs its fallback corpus"
     elif [[ -s "$out/sel/$key.out" ]]; then
       echo "selects $(wc -l <"$out/sel/$key.out") other suite(s)"
     else
@@ -218,7 +232,7 @@ cmd_trace() {
     FILENAME ~ /selected.tsv$/ { sel[$1 SUBSEP $2] = 1; next }
     FILENAME ~ /verdicts.tsv$/ { v[$1] = $2; next }
     v[$2] ~ /^not checked/ || (($2 SUBSEP $1) in sel) { next }
-    v[$2] ~ /^unmapped/ { if ($1 in fb) next; print $1 "\t" $2 "\tunmapped: the full-corpus fallback does not run this suite"; next }
+    v[$2] ~ /^unmapped/ { if ($1 in fb) next; print $1 "\t" $2 "\tunmapped: the fallback corpus does not run this suite"; next }
     { print $1 "\t" $2 "\t" v[$2] }
   ' "$out/fallback" "$out/selected.tsv" "$out/verdicts.tsv" "$out/edges.tsv" | sort >"$out/gaps.tsv"
 
@@ -257,7 +271,7 @@ cmd_trace() {
 
 # replay_rows <suite> <good> <bad> <worktree>: one TSV row per commit.
 replay_rows() {
-  local suite="$1" good="$2" bad="$3" wt="$4" c verdict rc fallback
+  local suite="$1" good="$2" bad="$3" wt="$4" c verdict rc fallback flag
   local -a files
   for c in $(git rev-list --first-parent --reverse "$good..$bad"); do
     mapfile -t files < <(git diff --name-only "$c^" "$c")
@@ -266,10 +280,14 @@ replay_rows() {
       continue
     }
     rc=0
-    (cd "$wt" && bash scripts/affected-tests.sh --allow-unmapped -- "${files[@]}") \
+    flag="$(cd "$wt" && unmapped_flag)"
+    (cd "$wt" && bash scripts/affected-tests.sh "$flag" -- "${files[@]}") \
       >"$wt.out" 2>"$wt.err" || rc=$?
+    [[ "$rc" -eq 4 && "$flag" == --unmapped-corpus ]] && rc=0
     if grep -qxF -- "$suite" "$wt.out"; then
       verdict="selected"
+    elif grep -q '^UNMAPPED:' "$wt.err" && [[ "$flag" == --unmapped-corpus ]]; then
+      verdict="not selected (unmapped file: its language corpus does not run it)"
     elif grep -q '^UNMAPPED:' "$wt.err"; then
       if ! fallback="$(cd "$wt" && fallback_corpus)"; then
         verdict="error: cannot derive the unmapped fallback's suites"

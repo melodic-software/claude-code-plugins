@@ -114,20 +114,22 @@ concurrency:
 # says what a job does: `lint` runs linters over source, `check` holds a
 # repository contract across files, `test` executes code. The domain says over
 # what: `repo`, `shell`, `plugins`, `skills`, or the ecosystem a test job runs
-# (`bash`). One resolver, `scope`, five working jobs, `lint-repo`,
-# `lint-shell`, `check-plugins`, `check-skills` and `test-bash`, and one
-# aggregate, `ci-status`, whose name, like this workflow's and this file's, is
-# what the org ci-gate ruleset and its verifiers read. No ordinals, no tool
-# name for a multi-tool job, no runner OS for a portable lane, and no job name
-# another workflow here also uses. A gate step keeps its `id`, its aggregator
-# key, in whichever job it runs.
+# (`bash`, `python`, `node`). One resolver, `scope`, seven working jobs,
+# `lint-repo`, `lint-shell`, `check-plugins`, `check-skills`, `test-bash`,
+# `test-python` and `test-node`, and one aggregate, `ci-status`, whose name,
+# like this workflow's and this file's, is what the org ci-gate ruleset and its
+# verifiers read. No ordinals, no tool name for a multi-tool job, no runner OS
+# for a portable lane, and no job name another workflow here also uses. A gate
+# step keeps its `id`, its aggregator key, in whichever job it runs.
 #
 # A DOMAIN IS A JOB ONLY WHEN THAT SHORTENS THE CRITICAL PATH BY MORE THAN A
-# JOB COSTS: about 15 s of fixed setup bare, about 40 s with a toolchain. A
-# smaller domain rides a neighbour as steps, which is why the Node sub-projects
-# and the disk-hygiene module are steps of `test-bash`. The informational
-# Windows lane runs in .github/workflows/test-windows.yml: nothing gates on
-# it, and in this file it held the run open past its own required lanes.
+# JOB COSTS: about 15 s of fixed setup bare, about 40 s with a toolchain. The
+# three test lanes are jobs for a different reason: each runs only when the
+# change selects suites of its ecosystem, and skips otherwise, so a change to
+# shell code starts no Python or Node runner and a C# or docs change starts
+# none. The informational Windows lane runs in
+# .github/workflows/test-windows.yml: nothing gates on it, and in this file it
+# held the run open past its own required lanes.
 #
 # EVERY JOB'S TIMEOUT IS ceil(max(1.5 x p95, 1.1 x max) / 60) MINUTES, at least
 # 3 and never above 16, from the job's wall over 117 pull-request and 100 push
@@ -135,13 +137,17 @@ concurrency:
 # (the case a checker change and the scheduled run pay). Until a job has runs
 # of its own, its wall is the sum of the measured seconds of the steps it
 # holds, plus the setup of the job whose toolchain it copies. Job, p95 / max
-# seconds, minutes: scope 24 / 35 plus the selector (up to 21 s measured), 3;
+# seconds, minutes: scope 24 / 35 plus the planner (up to 21 s measured), 3;
 # lint-repo 244 / 265, 7, sized for its whole-tree load (the push runs);
 # lint-shell 345 / 385 with a whole-repository ShellCheck, 9; check-plugins
 # 110 / 120, 3; check-skills at most 585 / 645, the wall of a measured job
-# that ran all of its steps and more, 15; test-bash per leg at most 357 / 593,
-# the same bound, 11; ci-status 9 / 42, 3. A job that outgrows its timeout is
-# made faster or split, not given a longer one.
+# that ran all of its steps and more, 15; test-bash per leg about 230 on the
+# whole tree (171 s of suites estimated from scripts/suite-seconds.txt, a 158 s
+# suite among them, plus about 55 s of setup), 9; test-python per leg about
+# 260, the 199 s planning server suite plus setup, 7; test-node about 50 (31 s
+# of package chains measured on a warm npm cache), sized for a cold install, 5;
+# ci-status 9 / 42, 3. A job that outgrows its timeout is made faster or split,
+# not given a longer one.
 jobs:
   # Single resolution of the diff scope. Every gated step reads a
   # `needs.scope.outputs.*` row instead of re-running the detector, so the
@@ -208,18 +214,27 @@ jobs:
     outputs:
       run_full: ${{ steps.detect.outputs.docs_only != 'true' }}
       run_tests: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true }}
-      run_node: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['node'] != 'false' }}
-      run_python: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['python'] != 'false' }}
+      # Whether each test lane has work, from the plan below. A lane whose row
+      # is 'false' skips as a job, and `ci-status` passes that skip only
+      # against this row.
+      run_bash: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.bash != 'false' }}
+      run_python: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.python != 'false' }}
+      run_node: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.node != 'false' }}
       run_workflows: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
       run_skill_checker: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
       run_manifests: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}
       # VALUES, not gates: the ref every diff-scoped step diffs against (empty
-      # for the whole tree), read only as an env entry; the test-bash matrix
-      # as a JSON list of leg numbers; and what each leg installs, a JSON map
-      # from leg number to the optional toolchains its slice needs.
+      # for the whole tree), read only as an env entry; and the plan of each
+      # test lane: its matrix as a JSON list of leg numbers, the suites of
+      # each leg, and the optional toolchains each leg installs.
       lane_base: ${{ steps.base.outputs.ref }}
-      test_legs: ${{ steps.legs.outputs.legs }}
-      test_needs: ${{ steps.legs.outputs.needs }}
+      bash_legs: ${{ steps.plan.outputs.bash_legs }}
+      bash_plan: ${{ steps.plan.outputs.bash_plan }}
+      bash_needs: ${{ steps.plan.outputs.bash_needs }}
+      python_legs: ${{ steps.plan.outputs.python_legs }}
+      python_plan: ${{ steps.plan.outputs.python_plan }}
+      python_needs: ${{ steps.plan.outputs.python_needs }}
+      node_packages: ${{ steps.plan.outputs.node_packages }}
     steps:
       # A FULL RUN MARKS ITS SHA IN FLIGHT BEFORE ANYTHING ELSE. A contract-only
       # run on this SHA reads the newest bot-written `ci-lanes` status once and
@@ -254,53 +269,21 @@ jobs:
       - name: Fetch base
         uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
       # THE DIFF BASE, RESOLVED ONCE. A pull request diffs against its base
-      # branch. A push diffs against the commit of the newest green push run
-      # that HEAD descends from, not against its parent: a push run coalesced
-      # away while pending, or a red one, leaves its commits in the next range,
-      # so a break stays in every later range until a run passes. A push with no
-      # such run in the last 50, or whose range touches the shared test
-      # machinery (this workflow, the actions it calls, the suite runner and
-      # selector, scripts/lib/, the toolchain pins), and every schedule or
-      # dispatch run, get no base: the whole tree.
+      # branch. A push diffs against the newest commit on HEAD's first-parent
+      # line with a green push run, not against its parent: a push run
+      # coalesced away while pending, or a red one, leaves its commits in the
+      # next range, so a break stays in every later range until a run passes.
+      # A push with no such commit, or whose range touches the shared test
+      # machinery (this workflow, the actions it calls, the suite runner, the
+      # selector and planner, the resolver, scripts/lib/, the toolchain pins),
+      # and every schedule or dispatch run, get no base: the whole tree.
+      # scripts/resolve-diff-base.sh holds the rules and logs why it chose.
       - name: Resolve the diff base
         id: base
         env:
           GH_TOKEN: ${{ github.token }}
           BASE_REF: ${{ github.base_ref }}
-        run: |
-          case "$GITHUB_EVENT_NAME" in
-          pull_request)
-            echo "ref=origin/$BASE_REF" >>"$GITHUB_OUTPUT"
-            exit 0
-            ;;
-          push) ;;
-          *)
-            echo "::notice::A $GITHUB_EVENT_NAME run tests the whole tree."
-            exit 0
-            ;;
-          esac
-          whole() {
-            echo "::notice::$1; this push run tests the whole tree."
-            exit 0
-          }
-          shas=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=$GITHUB_REF_NAME&event=push&status=success&per_page=50" \
-            --jq '.workflow_runs[].head_sha') || whole "The green push runs could not be listed"
-          base=''
-          for sha in $shas; do
-            if git merge-base --is-ancestor "$sha" HEAD 2>/dev/null; then
-              base="$sha"
-              break
-            fi
-          done
-          [ -n "$base" ] || whole "No green push run among the last 50 is an ancestor of $GITHUB_SHA"
-          infra=$(git diff --name-only "$base" HEAD -- .github/workflows/ci.yml .github/actions \
-            '.github/requirements-ci*.txt' 'scripts/run-plugin-tests*' 'scripts/affected-tests*' \
-            'scripts/run-outside-node-suites*' 'scripts/outside-node-*.txt' scripts/lib \
-            .shellcheckrc .node-version .python-version package.json package-lock.json) ||
-            whole "git diff $base failed"
-          [ -z "$infra" ] || whole "The range since $base touches the shared test machinery: ${infra//$'\n'/ }"
-          echo "Diff base: $base, the commit of the newest green push run HEAD descends from."
-          echo "ref=$base" >>"$GITHUB_OUTPUT"
+        run: scripts/resolve-diff-base.sh
       - name: Test the docs-only detector
         run: bash scripts/check-docs-only.test.sh
       - name: Detect a docs-only diff
@@ -313,11 +296,11 @@ jobs:
       # Every group repeats the toolchain and configuration paths on purpose: a
       # pull request touching only a lockfile, only a workflow file or only the
       # ShellCheck configuration changes what every lane would find, so it must
-      # run every lane rather than none. `shell`, `docs` and `powershell` feed
-      # no output today: `shell` and `powershell` are, with `python`, the
+      # run every lane rather than none. `shell`, `python`, `docs` and
+      # `powershell` feed no output: `shell`, `python` and `powershell` are the
       # groups the path filters of .github/workflows/test-windows.yml repeat,
-      # and the three unread groups exist so the group set matches the program
-      # plan and a consumer can be added without touching the resolver.
+      # and the unread groups exist so a consumer can be added without touching
+      # the resolver. The test lanes read the plan below, not a group.
       # Patterns are ROOT-ANCHORED gitignore rules, and the action rejects `!`,
       # `?` and `+` outright.
       #
@@ -350,27 +333,6 @@ jobs:
               **/*.bash
               plugins/docs-naming/skills/generate-file-name-gate/**
               .claude/docs-naming.json
-            node:
-              .github/**
-              scripts/**
-              package.json
-              package-lock.json
-              pyproject.toml
-              uv.lock
-              requirements*.txt
-              .node-version
-              .python-version
-              .shellcheckrc
-              **/package.json
-              **/package-lock.json
-              **/*.js
-              **/*.cjs
-              **/*.mjs
-              **/*.ts
-              plugins/miro/**
-              plugins/ai-briefing/skills/generate/**
-              plugins/knowledge/skills/video-digest/**
-              plugins/knowledge/skills/course-digest/**
             python:
               .github/**
               scripts/**
@@ -434,67 +396,32 @@ jobs:
               plugins/*/.claude-plugin/**
               scripts/check-manifest-duplicate-keys*
               .python-version
-      # THE test-bash FAN-OUT IS SIZED FROM THE SELECTION it will run: one leg
-      # per 25 suites, one to four. Every leg derives the same selection again
-      # and keeps its shard, so this count only sizes the matrix. Four whenever
-      # there is nothing to count: the whole tree, an UNMAPPED file (the legs
-      # fall back to the full corpus), or a selector that failed here. One on a
-      # docs-only diff, where every leg reports not applicable. Skipped on a
-      # draft, where test-bash does not run. Never fails this job: a wrong
-      # size costs runners, not coverage.
-      - name: Plan the test-bash fan-out
-        id: legs
-        if: github.event.pull_request.draft != true
+      # THE TEST LANES ARE PLANNED HERE, ONCE. scripts/plan-test-lanes.sh runs
+      # the affected-suite selector over the diff and gives each test lane its
+      # suites, packed into legs by suite-seconds, and each leg the optional
+      # toolchains its suites need; its header states every rule. A lane the
+      # plan gives nothing skips as a job. No diff base plans the whole tree.
+      # An UNMAPPED file adds the whole corpus of its language and is recorded
+      # as a warning, so its rate is countable per run. A planner that fails
+      # fails this job and so every lane: there is no plan to run, and a
+      # guessed one could leave a selected suite unrun. Skipped on a draft and
+      # on a docs-only diff, where no test lane runs.
+      - name: Plan the test lanes
+        id: plan
+        if: github.event.pull_request.draft != true && steps.detect.outputs.docs_only != 'true'
         env:
           DIFF_BASE: ${{ steps.base.outputs.ref }}
-          DOCS_ONLY: ${{ steps.detect.outputs.docs_only }}
         run: |
-          legs=4
-          if [ -n "$DIFF_BASE" ] && [ "$DOCS_ONLY" = true ]; then
-            legs=1
-          elif [ -n "$DIFF_BASE" ]; then
-            if scripts/affected-tests.sh --with-always --base "$DIFF_BASE" >"$RUNNER_TEMP/selection.txt" 2>/dev/null; then
-              suites=$(grep -c . "$RUNNER_TEMP/selection.txt" || true)
-              legs=$(((suites + 24) / 25))
-              legs=$((legs < 1 ? 1 : legs > 4 ? 4 : legs))
-              echo "The selection holds $suites suite(s): $legs leg(s)."
-            else
-              echo "No selection to count (an UNMAPPED file, or the selector failed): four legs."
-            fi
+          if ! scripts/plan-test-lanes.sh ${DIFF_BASE:+--base "$DIFF_BASE"} >"$RUNNER_TEMP/plan.txt"; then
+            echo "::error::scripts/plan-test-lanes.sh failed; no test lane can run without its plan."
+            exit 1
           fi
-          list=0
-          for ((i = 1; i < legs; i++)); do list+=",$i"; done
-          echo "legs=[$list]" >>"$GITHUB_OUTPUT"
-          # WHAT EACH LEG INSTALLS. A leg keeps every legs-th suite of the sorted
-          # selection, the same partition affected-tests.sh --shard takes, so
-          # its slice is known here: the animation wheels, the inventory's
-          # parser packages and the DuckDB CLI are installed only on a leg whose
-          # slice has a suite that needs them. With no counted selection every
-          # leg installs everything ("all"), and so does a leg the map does not
-          # name. An under-install is loud, not quiet: those suites fail rather
-          # than skip without their dependency (ANIMATION_REQUIRE_DEPS,
-          # INVENTORY_REQUIRE_ACORN).
-          needs='{}'
-          if [ -n "${suites:-}" ]; then
-            needs=$(awk -v legs="$legs" '
-              { leg = (NR - 1) % legs }
-              /^plugins\/animation\// { has[leg, "animation"] = 1 }
-              /^plugins\/harness-ops\/skills\/inventory\// { has[leg, "inventory"] = 1 }
-              /^plugins\/harness-ops\// { has[leg, "duckdb"] = 1 }
-              END {
-                printf "{"
-                for (l = 0; l < legs; l++) {
-                  s = ""
-                  if ((l, "animation") in has) s = s "animation "
-                  if ((l, "inventory") in has) s = s "inventory "
-                  if ((l, "duckdb") in has) s = s "duckdb "
-                  printf "%s\"%d\":\"%s\"", (l ? "," : ""), l, s
-                }
-                printf "}"
-              }' "$RUNNER_TEMP/selection.txt")
+          cat "$RUNNER_TEMP/plan.txt" >>"$GITHUB_OUTPUT"
+          unmapped=$(sed -n 's/^unmapped=//p' "$RUNNER_TEMP/plan.txt")
+          if [ "${unmapped:-0}" != 0 ]; then
+            echo "::warning::$unmapped changed file(s) map to no suite; the plan runs the whole corpus of each one's language."
+            printf 'affected-tests fallback: %s unmapped file(s)\n' "$unmapped" >>"$GITHUB_STEP_SUMMARY"
           fi
-          echo "needs=$needs" >>"$GITHUB_OUTPUT"
-          echo "Per-leg installs: $needs"
 
   # Public repository: every lane runs on GitHub-hosted ubuntu-24.04 (free for
   # public repositories); the local-runner selector is not permitted here.
@@ -1544,8 +1471,8 @@ jobs:
         run: python3 scripts/check-manifest-duplicate-keys.py
 
       # The root npm install, for the steps below that read it: htmlhint and the
-      # claude CLI from node_modules/.bin, and node for the launcher resolver,
-      # the prerequisite gate and the counter ceilings. Gated like those steps,
+      # claude CLI from node_modules/.bin, and node for the prerequisite gate
+      # and the counter ceilings. Gated like those steps,
       # so a docs-only diff does not pay for it.
       - name: Set up Node
         if: needs.scope.outputs.run_tests == 'true'
@@ -1631,14 +1558,6 @@ jobs:
             exit 0
           fi
           scripts/check-standards-contract-bump.sh "origin/$BASE_REF"
-
-      - name: Test the exec-form bash launcher resolver
-        if: needs.scope.outputs.run_tests == 'true'
-        run: node --test lib/exec-bash.resolver.test.mjs
-
-      - name: Test the guards' snapshot writer
-        if: needs.scope.outputs.run_tests == 'true'
-        run: node --test lib/write-snapshot.test.mjs
 
       - name: Check for unregistered or drifted cross-plugin source clusters
         if: needs.scope.outputs.run_tests == 'true'
@@ -2016,65 +1935,52 @@ jobs:
             portability-lint=${{ steps.portability.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 
-  # THE CONTRACT SUITES: the affected selection of the plugin contract corpus,
-  # and two small domains that ride here as steps, the four Node sub-projects
-  # and the Python disk-hygiene module. Each of those two is under 30 s of work
-  # per run (measured: 15 to 32 s and 8 to 14 s), and a job of its own would
-  # cost more in setup (about 40 s with a toolchain) than it takes off any leg.
-  # One checkout, one Node toolchain, one Python toolchain, one ShellCheck
-  # install per leg.
+  # THE TEST LANES RUN WHAT THE SELECTION SAYS. `scope` plans them once
+  # (scripts/plan-test-lanes.sh): the shell suites the change selects go to
+  # `test-bash`, its Python suites to `test-python`, and the Node packages they
+  # reach to `test-node`; a Node suite with a sibling .test.sh runs through
+  # that wrapper in `test-bash`, and a Pester suite in test-windows.yml. The
+  # whole tree (a schedule, a dispatch, a push with no usable base, or a change
+  # to this workflow or its actions) runs every suite of every lane.
   #
-  # The job skips only on a contract-only event or a draft (see `lint-repo`);
-  # otherwise only the inner steps are gated, and a docs-only diff reports an
-  # honest evaluated-and-not-applicable success through the reporter at the
-  # foot of the job.
+  # ORDERED SKIPS. Each test lane carries the contract-only and draft gates and
+  # one more term, its own `run_<lane>` row of `scope`: a lane the plan gives no
+  # work skips as a job instead of paying a runner and a queue slot to report
+  # nothing. `ci-status` passes such a skip only where `scope` succeeded and
+  # its row for that lane says 'false'; any other skipped lane is red
+  # (scripts/check-docs-only-gate.sh pins both halves).
+  #
+  # ONE TO SIX LEGS, SIZED FROM THE SELECTION. The plan packs the selected
+  # suites into legs of about 120 suite-seconds each (scripts/suite-seconds.txt),
+  # longest first onto the least-loaded leg, at most six, and six on the whole
+  # tree. A leg costs about 45 s of setup before it runs a suite, so the count
+  # follows the work rather than a fixed fan-out. The job key stays one entry in
+  # `ci-status.needs` at any size. `fail-fast: false` because a leg is a slice
+  # of one selection: cancelling the others on the first failure would hide
+  # every other failure behind whichever leg lost the race.
+  #
+  # Three suites at a time per leg, not four (scripts/run-plugin-tests.sh
+  # --jobs 3). The runner has 4 vCPUs and the suites are spawn-bound, so four
+  # looked like the shape that pays, but at four three separate suites failed
+  # across two runs by producing EMPTY output from an external command on a
+  # path with no clock in it. See #3694. The suites that assert wall-clock
+  # ceilings run one at a time regardless, from
+  # scripts/run-plugin-tests-serial.txt, and the plan weighs them three times.
   test-bash:
     needs: [scope]
-    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
-    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
+    # The contract-only gate, verbatim, the draft gate (see `ci-status`), and
+    # this lane's ordered skip.
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.scope.outputs.run_bash == 'true' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 11
-    # ONE TO FOUR LEGS, SIZED FROM THE SELECTION. The job key stays one entry in
-    # `ci-status.needs` at any size; the contract suites are partitioned across
-    # up to four runners instead of executed by one: the affected selection on a
-    # pull request or a push, the full corpus on the whole tree (#3705). The
-    # `scope` job sizes the fan-out at one leg per 25 selected suites, up to
-    # four, and four whenever it has no selection to count (the whole tree, an
-    # UNMAPPED file): a leg costs about 45 s of setup before it runs a suite, so
-    # a 10-suite selection on four runners paid for three idle ones. The
-    # dominant step was measured at 435 s p50 running 146 to 165 suites strictly
-    # sequentially, so more runners was the first lever. The second is
-    # `--jobs 3` on the selector path below: the selector hands its selection
-    # to run-plugin-tests.sh, which is what the whole-tree path and the
-    # UNMAPPED fallback already did, so both paths run three suites at a time on
-    # the same runner through the same worker and the same
-    # scripts/run-plugin-tests-serial.txt. Three, never four (#3694).
-    #
-    # `fail-fast: false` because a leg is a slice of one test corpus: cancelling
-    # the other three on the first failure would hide every other failure in the
-    # same change set behind whichever leg lost the race.
-    #
-    # The shard spec is read from `strategy.job-index` and `strategy.job-total`,
-    # not from `matrix.leg`. The matrix key exists to SIZE the fan-out; the
-    # runtime pair is what the shard arithmetic uses, so the numerator and the
-    # denominator come from the same place and cannot drift from each other or
-    # from the matrix that produced them.
-    #
-    # EVERY STEP AFTER THE CONTRACT SUITES IS ASSIGNED TO ONE LEG, through a
-    # `[ "$LEG" = $((<group> % LEGS)) ] || exit 0` first line rather than a step
-    # condition: scripts/check-docs-only-gate.sh accepts exactly one condition
-    # shape on a gated step, and a step that exits 0 reports success, never
-    # `skipped`. The two groups (2: the disk-hygiene module, 3: the four Node
-    # sub-projects) are whole on one leg because their steps depend on each
-    # other in order, and the modulo folds them onto the legs there are, so
-    # every step runs EXACTLY ONCE per run at any size.
+    timeout-minutes: 9
     strategy:
       fail-fast: false
       matrix:
-        leg: ${{ fromJSON(needs.scope.outputs.test_legs || '[0,1,2,3]') }}
+        leg: ${{ fromJSON(needs.scope.outputs.bash_legs || '[0]') }}
     env:
       LEG: ${{ strategy.job-index }}
-      LEGS: ${{ strategy.job-total }}
+      PLAN: ${{ needs.scope.outputs.bash_plan }}
+      LEG_PLAN: ${{ needs.scope.outputs.bash_needs }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -2082,24 +1988,18 @@ jobs:
           persist-credentials: false
       - name: Fetch base
         uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
-      # One setup-node for the root package and all four sub-projects, keyed on
-      # every lockfile any of them installs from, so a change to any one of
-      # them invalidates the cache the others share.
+      # Node, Python, ShellCheck, shfmt, Biome and Ruff are declared here so
+      # hosted and local runs exercise the same contract suites instead of
+      # inheriting different image tool inventories.
       - name: Set up Node
-        if: needs.scope.outputs.run_tests == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: |
             package-lock.json
-            plugins/miro/server/package-lock.json
-            plugins/ai-briefing/skills/generate/output/build/package-lock.json
-            plugins/knowledge/skills/video-digest/extraction/package-lock.json
-            plugins/knowledge/skills/course-digest/extraction/package-lock.json
             plugins/harness-ops/skills/inventory/scripts/js/package-lock.json
       - name: Set up Python
-        if: needs.scope.outputs.run_tests == 'true'
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version-file: .python-version
@@ -2108,36 +2008,27 @@ jobs:
             .github/requirements-ci.txt
             .github/requirements-ci-animation.txt
       - name: Install and verify ShellCheck toolchain
-        if: needs.scope.outputs.run_tests == 'true'
         # This canonical action also makes the exact ShellCheck version
-        # available to the later bash-format contract tests in this same job.
-        # It verifies the install on one small file that sources nothing; the
+        # available to the bash-format contract suites in this same job. It
+        # verifies the install on one small file that sources nothing; the
         # ShellCheck gate in `lint-shell` is what lints the repository.
         uses: melodic-software/ci-workflows/.github/actions/shellcheck@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
           files: scripts/aggregate-hygiene-results.sh
           rcfile: .shellcheckrc
-      # Contract tests gate independently of the CLI validate step in
-      # `check-plugins`: a validate-infra problem (e.g. the CLI needing auth)
-      # can never mask a real contract-test failure. The eval-coverage gate's
-      # suite reads `shfmt --to-json` and exits 2 when shfmt is missing, so this
-      # job installs the same v3.14.1 pin as check-skills. Node, Python,
-      # ShellCheck, Biome, and Ruff are declared here so hosted and local runs
-      # exercise the same contract suites instead of inheriting different image
-      # tool inventories.
-      #
-      # The shfmt and DuckDB downloads are cached by version (four red main runs
-      # in two weeks were these downloads failing), and a miss retries transient
-      # failures. `--no-progress-meter` instead of `-s` keeps curl's "Will
-      # retry" warning in the log. The SHA-256 check runs on a hit too.
+      # The eval-coverage gate's suite reads `shfmt --to-json` and exits 2 when
+      # shfmt is missing, so this job installs the same v3.14.1 pin as
+      # check-skills. The shfmt and DuckDB downloads are cached by version (four
+      # red main runs in two weeks were these downloads failing), and a miss
+      # retries transient failures. `--no-progress-meter` instead of `-s` keeps
+      # curl's "Will retry" warning in the log. The SHA-256 check runs on a hit
+      # too.
       - name: Restore the pinned tool downloads
-        if: needs.scope.outputs.run_tests == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ci-tools
           key: ci-tools-${{ runner.os }}-shfmt-v3.14.1-duckdb-v1.5.5
       - name: Install pinned shfmt
-        if: needs.scope.outputs.run_tests == 'true'
         env:
           SHFMT_VERSION: v3.14.1
           SHFMT_SHA256: 76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf
@@ -2153,13 +2044,12 @@ jobs:
           export PATH="$HOME/.local/bin:$PATH"
           shfmt --version
           test "$(shfmt --version)" = "$SHFMT_VERSION"
-      # The animation wheels and the inventory's parser packages go only on a
-      # leg whose slice needs them, per the `scope` job's plan (`test_needs`):
-      # a leg it does not name, or no plan at all, installs everything.
+      # The animation wheels (numpy and opencv; the speech suites need their
+      # numpy) and the inventory's parser packages go only on a leg whose suites
+      # need them, per the plan (`LEG_PLAN`). An under-install is loud, not
+      # quiet: those suites fail rather than skip without their dependency
+      # (ANIMATION_REQUIRE_DEPS, SPEECH_REQUIRE_DEPS, INVENTORY_REQUIRE_ACORN).
       - name: Install locked plugin test toolchains
-        if: needs.scope.outputs.run_tests == 'true'
-        env:
-          LEG_PLAN: ${{ needs.scope.outputs.test_needs }}
         run: |
           # Dependabot bumps the animation wheels here (its /.github pip entry) and the plugin's
           # lock (its /plugins/animation entry) in separate pull requests, so a one-sided bump
@@ -2167,11 +2057,12 @@ jobs:
           diff <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.in | sort) \
                <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' .github/requirements-ci-animation.txt | sort) \
             || { echo "::error::.github/requirements-ci-animation.txt and plugins/animation/requirements.in pin different versions; bump the two together"; exit 1; }
-          leg_needs=$(jq -r --arg leg "$LEG" '.[$leg] // "all"' <<<"${LEG_PLAN:-"{}"}" 2>/dev/null) || leg_needs=all
+          leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
+            { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           echo "This leg installs: ${leg_needs:-the base toolchains only}"
           npm ci
           requirements=(--requirement .github/requirements-ci.txt)
-          if [[ "$leg_needs" == all || "$leg_needs" == *animation* ]]; then
+          if [[ "$leg_needs" == *animation* ]]; then
             requirements+=(--requirement .github/requirements-ci-animation.txt)
           fi
           python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
@@ -2179,23 +2070,19 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           # The inventory's parser packages, installed the way a first
           # --reader=parser run installs them (npm ci from the committed
-          # lockfile, here into the checkout's .work/), so test_fixture_parse.py
-          # and test_parser_reader.py run instead of skipping.
-          if [[ "$leg_needs" == all || "$leg_needs" == *inventory* ]]; then
+          # lockfile, here into the checkout's .work/).
+          if [[ "$leg_needs" == *inventory* ]]; then
             python plugins/harness-ops/skills/inventory/scripts/parser_reader.py --install
           fi
       # The harness-ops observability suites (prune-otel-store, hook-latency,
       # session-compare) query fixture stores with the DuckDB CLI and skip those
       # cases without it, so the plan names every harness-ops suite for it.
       - name: Install DuckDB CLI
-        if: needs.scope.outputs.run_tests == 'true'
         env:
           DUCKDB_VERSION: v1.5.5
           DUCKDB_SHA256: c61f21485e6e41d3a0c28ce9904ea18346309cf427b4cf9479bc3564348dc885
-          LEG_PLAN: ${{ needs.scope.outputs.test_needs }}
         run: |
-          leg_needs=$(jq -r --arg leg "$LEG" '.[$leg] // "all"' <<<"${LEG_PLAN:-"{}"}" 2>/dev/null) || leg_needs=all
-          if [[ "$leg_needs" != all && "$leg_needs" != *duckdb* ]]; then
+          if [[ "$(jq -r --arg leg "$LEG" '.[$leg] // ""' <<<"$LEG_PLAN")" != *duckdb* ]]; then
             echo "No suite on this leg reads DuckDB."
             exit 0
           fi
@@ -2208,129 +2095,147 @@ jobs:
           gunzip "$RUNNER_TEMP/duckdb/duckdb.gz"
           chmod +x "$RUNNER_TEMP/duckdb/duckdb"
           echo "$RUNNER_TEMP/duckdb" >> "$GITHUB_PATH"
-      # ONLY THE SUITES THE DIFF AFFECTS, on a pull request and on a push.
-      # affected-tests.sh derives the covering suites from the files changed
-      # since the `scope` job's diff base and runs them; with no base (a
-      # schedule or dispatch run, or a push that could not use one) the full
-      # corpus runs. Its exit contract decides what happens next, and each
-      # branch is deliberate:
-      #
-      #   0  selected and green, or nothing to do.
-      #   3  every shell suite it selected ran, but it also selected suites in
-      #      other ecosystems whose runner it will not guess. Those suites are
-      #      RUN HERE rather than waved through: the steps further down this
-      #      job cover four Node sub-projects and one Python module, which is
-      #      2 of this tree's 40 Python suites, so treating exit 3 as success
-      #      would report a pass over suites that never executed. That is the
-      #      precise thing the selector's own header refuses to do.
-      #   1  an unmapped changed file OR a failing suite. Only the first is
-      #      recoverable, and it announces itself with UNMAPPED: on stderr:
-      #      nothing here knows what covers that file, so fall back to the full
-      #      corpus and record the fallback so its rate is countable per run.
-      #   *  anything else fails.
-      #
-      # Three suites at a time, not four. The runner has 4 vCPUs and the suites
-      # are spawn-bound, so four looked like the shape that pays, but at four
-      # three separate suites failed across two runs by producing EMPTY output
-      # from an external command on a path with no clock in it. Serialising
-      # each one in turn only moves the symptom to the next suite, so the job
-      # count is the lever rather than the allowlist. See #3694. The default
-      # stays 1 for Windows dev boxes; the suites that assert wall-clock
-      # ceilings run one at a time regardless, from
-      # scripts/run-plugin-tests-serial.txt.
-      #
-      # SHARDED ACROSS THE MATRIX. `--shard <leg>/<legs>` narrows the SELECTION
-      # after the selector has derived it in full, so every leg answers the same
-      # unmapped question and the union of the four legs is exactly the suite
-      # set one job used to run. A leg that draws nothing exits 0 in about a
-      # second, which is what the short-circuit path needs: if a leg SKIPPED
-      # instead, the matrix result would be `skipped` and `ci-status`, which is
-      # fail-closed on `skipped`, would red the pull request.
-      #
-      # The whole tree, and the UNMAPPED fallback, run the full corpus through
-      # run-plugin-tests.sh with the same `--shard`, which partitions its
-      # discovered suites the same way, so the four legs run it once between
-      # them.
-      - name: Run plugin contract tests
-        if: needs.scope.outputs.run_tests == 'true'
+      # A leg with no suites is a broken plan, never "nothing to do": the plan
+      # makes no more legs than it has suites.
+      - name: Run this leg's shell suites
         env:
-          DIFF_BASE: ${{ needs.scope.outputs.lane_base }}
           # Empty on every event but a dispatch that asked for the lanes, which
           # is what the gate in the bench suite reads as "stay deferred".
           BENCH_LANES: ${{ inputs.bench_lanes && '1' || '' }}
           # The animation suites fail on a missing numpy or opencv here instead of skipping green.
           ANIMATION_REQUIRE_DEPS: '1'
+          # The speech suite fails on a missing numpy here instead of skipping green.
+          SPEECH_REQUIRE_DEPS: '1'
           # The inventory parser suites fail on a missing acorn here instead of skipping green.
           INVENTORY_REQUIRE_ACORN: '1'
           # The code-tidying eval fixtures fail on a missing tree-sitter here instead of skipping green.
           CODE_TIDYING_REQUIRE_TREE_SITTER: '1'
         run: |
-          if [ -z "$DIFF_BASE" ]; then
-            scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"
-            # The shell corpus is sharded above. The outside-Node packages are
-            # a fixed pair, so one leg runs them once on the whole-tree path (#3703).
-            if [ "$LEG" = $((3 % LEGS)) ]; then
-              scripts/run-outside-node-suites.sh
-            fi
-            exit 0
+          jq -r --arg leg "$LEG" '.[$leg] // [] | .[]' <<<"$PLAN" >"$RUNNER_TEMP/leg-suites.txt"
+          if [ ! -s "$RUNNER_TEMP/leg-suites.txt" ]; then
+            echo "::error::the plan gives leg $LEG no suites; a leg exists only to run some."
+            exit 1
           fi
-          err="$RUNNER_TEMP/affected-tests.err"
-          set +e
-          scripts/affected-tests.sh --run --jobs 3 --shard "$LEG/$LEGS" --with-always --base "$DIFF_BASE" 2>"$err"
-          status=$?
-          set -e
-          cat "$err" >&2
-          case "$status" in
-            0)
-              ;;
-            3)
-              # The selector prints the suites it declined to run under a
-              # "NOT RUN:" heading, one indented path each. Run the Python ones
-              # with the pinned pytest: it collects unittest.TestCase suites as
-              # well as pytest-style ones, and each of these files puts its own
-              # module directory on sys.path, so no per-suite runner has to be
-              # guessed. Node suites outside the four sub-projects run through
-              # each package's own npm test. Pester is the test-windows lane.
-              # Eval fixtures are excluded. #3703.
-              notrun=$(awk '/^NOT RUN:/{f=1} f && /^  - /{sub(/^  - /,""); print}' "$err")
-              py=$(printf '%s\n' "$notrun" | grep -E '\.py$' || true)
-              rest=$(printf '%s\n' "$notrun" | grep -Ev '(^$|\.py$)' || true)
-              if [ -n "$py" ]; then
-                printf '%s\n' "$py" | tr '\n' '\0' | xargs -0 python -m pytest -q -o tmp_path_retention_policy=none --
-              fi
-              if [ -n "$rest" ]; then
-                printf '%s\n' "$rest" >"$RUNNER_TEMP/outside-node-paths.txt"
-                scripts/run-outside-node-suites.sh --paths "$RUNNER_TEMP/outside-node-paths.txt"
-              fi
-              ;;
-            1)
-              if grep -q '^UNMAPPED:' "$err"; then
-                summary=$(grep -m1 '^UNMAPPED:' "$err")
-                echo "::warning::$summary Falling back to the full contract corpus."
-                printf 'affected-tests fallback: %s\n' "$summary" >> "$GITHUB_STEP_SUMMARY"
-                scripts/run-plugin-tests.sh --jobs 3 --shard "$LEG/$LEGS"
-                # Same fixed pair the whole-tree path runs once on leg 3 (#3703).
-                if [ "$LEG" = $((3 % LEGS)) ]; then
-                  scripts/run-outside-node-suites.sh
-                fi
-              else
-                exit 1
-              fi
-              ;;
-            *)
-              exit "$status"
-              ;;
-          esac
+          scripts/run-plugin-tests.sh --jobs 3 --suites-from "$RUNNER_TEMP/leg-suites.txt"
 
-      # SUITES ARE NOT STEPS. The suites of scripts/ and lib/ (gate self-tests,
-      # the shared libraries, the selector's own) are corpus suites: the
-      # contract-test step above runs them when the selector reaches them, and
-      # every one of them on the whole tree. The few whose cases assert against
-      # the live repository rather than fixtures ride every selection through
-      # `--with-always` (scripts/affected-tests-always.txt). What follows are
-      # the Node sub-projects and the disk-hygiene module, each assigned to one
-      # leg.
-      #
+  # THE PYTHON SUITES THE CHANGE SELECTS, one pytest process per module, on one
+  # to four legs of about 180 suite-seconds (one module at a time). Every module
+  # on the whole tree or after a change to a Python pin. The pinned pytest
+  # collects unittest.TestCase suites as well as pytest-style ones, the
+  # disk-hygiene module among them. Suites in different directories import
+  # same-named helpers (`from conftest import ...`), and a shared process hands
+  # each the first one loaded, hence a process per module. Node and the root
+  # npm install come too: Python suites run the claude CLI from
+  # node_modules/.bin and the inventory's parser packages through node.
+  test-python:
+    needs: [scope]
+    # The contract-only gate, verbatim, the draft gate (see `ci-status`), and
+    # this lane's ordered skip (see `test-bash`).
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.scope.outputs.run_python == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    strategy:
+      fail-fast: false
+      matrix:
+        leg: ${{ fromJSON(needs.scope.outputs.python_legs || '[0]') }}
+    env:
+      LEG: ${{ strategy.job-index }}
+      PLAN: ${{ needs.scope.outputs.python_plan }}
+      LEG_PLAN: ${{ needs.scope.outputs.python_needs }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch base
+        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            plugins/harness-ops/skills/inventory/scripts/js/package-lock.json
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: .python-version
+          cache: pip
+          cache-dependency-path: |
+            .github/requirements-ci.txt
+            .github/requirements-ci-animation.txt
+      - name: Install locked plugin test toolchains
+        run: |
+          # The same pin-equality check test-bash makes: a Python pin change runs this lane.
+          diff <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' plugins/animation/requirements.in | sort) \
+               <(grep -oE '^[A-Za-z0-9._-]+==[^ ]+' .github/requirements-ci-animation.txt | sort) \
+            || { echo "::error::.github/requirements-ci-animation.txt and plugins/animation/requirements.in pin different versions; bump the two together"; exit 1; }
+          leg_needs=$(jq -er --arg leg "$LEG" '.[$leg]' <<<"$LEG_PLAN") ||
+            { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
+          echo "This leg installs: ${leg_needs:-the base toolchains only}"
+          npm ci
+          requirements=(--requirement .github/requirements-ci.txt)
+          if [[ "$leg_needs" == *animation* ]]; then
+            requirements+=(--requirement .github/requirements-ci-animation.txt)
+          fi
+          python -m pip install --user --only-binary=:all: --require-hashes "${requirements[@]}"
+          echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          # test_fixture_parse.py and test_parser_reader.py run instead of skipping.
+          if [[ "$leg_needs" == *inventory* ]]; then
+            python plugins/harness-ops/skills/inventory/scripts/parser_reader.py --install
+          fi
+      - name: Run this leg's Python suites
+        env:
+          ANIMATION_REQUIRE_DEPS: '1'
+          INVENTORY_REQUIRE_ACORN: '1'
+          CODE_TIDYING_REQUIRE_TREE_SITTER: '1'
+        run: |
+          jq -r --arg leg "$LEG" '.[$leg] // [] | .[]' <<<"$PLAN" >"$RUNNER_TEMP/leg-suites.txt"
+          if [ ! -s "$RUNNER_TEMP/leg-suites.txt" ]; then
+            echo "::error::the plan gives leg $LEG no suites; a leg exists only to run some."
+            exit 1
+          fi
+          tr '\n' '\0' <"$RUNNER_TEMP/leg-suites.txt" |
+            xargs -0 -r -t -n1 python -m pytest -q -o tmp_path_retention_policy=none --
+
+  # THE NODE PACKAGES THE CHANGE REACHES: the four sub-projects with their own
+  # install, typecheck, lint and test chains (the miro MCP server, the
+  # ai-briefing build, the video-digest and course-digest extraction pipelines)
+  # and the packages of scripts/outside-node-packages.txt. A package runs when
+  # a file under it, its test facade or a `file:` dependency changed, when a
+  # selected Node suite sits under it, on a Node pin, and on the whole tree
+  # (`PACKAGES`). A step for a package the plan does not name exits 0 on
+  # its first line. One job: the chains measure 31 s together.
+  test-node:
+    needs: [scope]
+    # The contract-only gate, verbatim, the draft gate (see `ci-status`), and
+    # this lane's ordered skip (see `test-bash`).
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.scope.outputs.run_node == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      PACKAGES: ${{ needs.scope.outputs.node_packages }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # One setup-node for every package, keyed on every lockfile they install
+      # from, so a change to any one of them invalidates the cache the others
+      # share.
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            plugins/miro/server/package-lock.json
+            plugins/ai-briefing/skills/generate/output/build/package-lock.json
+            plugins/knowledge/skills/video-digest/extraction/package-lock.json
+            plugins/knowledge/skills/course-digest/extraction/package-lock.json
+
       # The miro plugin ships a Node MCP server as TypeScript source. Claude Code
       # starts src/launch.ts, which installs the runtime dependencies from the
       # committed lockfile into the plugin data directory on first launch. The
@@ -2339,34 +2244,29 @@ jobs:
       # but cannot install or serve MCP is caught here, not on a consumer's
       # machine.
       - name: Install dependencies
-        if: needs.scope.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
+          [[ " $PACKAGES " == *" plugins/miro/server "* ]] || exit 0
           npm ci
         working-directory: plugins/miro/server
       - name: Typecheck
-        if: needs.scope.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
+          [[ " $PACKAGES " == *" plugins/miro/server "* ]] || exit 0
           npm run typecheck
         working-directory: plugins/miro/server
       - name: Lint
-        if: needs.scope.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
+          [[ " $PACKAGES " == *" plugins/miro/server "* ]] || exit 0
           npm run lint
         working-directory: plugins/miro/server
       - name: Test
-        if: needs.scope.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
+          [[ " $PACKAGES " == *" plugins/miro/server "* ]] || exit 0
           npm test
         working-directory: plugins/miro/server
       - name: Smoke-test the MCP server over stdio, installed on demand
-        if: needs.scope.outputs.run_node == 'true'
         working-directory: plugins/miro/server
         run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
+          [[ " $PACKAGES " == *" plugins/miro/server "* ]] || exit 0
           export CLAUDE_PLUGIN_DATA="$RUNNER_TEMP/miro-plugin-data"
           rm -rf "${CLAUDE_PLUGIN_DATA:?}"
           for run in first second; do
@@ -2389,37 +2289,30 @@ jobs:
       # installs (install-links via the package's .npmrc), so manifest/lockfile
       # drift breaks `npm ci` only on a clean install.
       - name: Install dependencies
-        if: needs.scope.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
+          [[ " $PACKAGES " == *" plugins/knowledge/skills/video-digest/extraction "* ]] || exit 0
           bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh install
       - name: Typecheck
-        if: needs.scope.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
+          [[ " $PACKAGES " == *" plugins/knowledge/skills/video-digest/extraction "* ]] || exit 0
           bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh build
       - name: Test
-        if: needs.scope.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
+          [[ " $PACKAGES " == *" plugins/knowledge/skills/video-digest/extraction "* ]] || exit 0
           bash plugins/knowledge/skills/video-digest/scripts/run-tests.sh test
 
       # ai-briefing's build/render pipeline is a Node package (native
       # `node --test` suite) no other lane installs or runs — including
       # test/url-policy.test.js, which asserts the SSRF gate (lib/url-policy.js)
       # that decides which URLs the briefing validator is allowed to
-      # dereference. Without these steps that suite runs locally only, so a
-      # future refactor could silently break the predicate with nothing red in
-      # CI (#1488).
+      # dereference (#1488).
       - name: Install dependencies
-        if: needs.scope.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
+          [[ " $PACKAGES " == *" plugins/ai-briefing/skills/generate/output/build "* ]] || exit 0
           bash plugins/ai-briefing/skills/generate/scripts/run-tests.sh install
       - name: Test
-        if: needs.scope.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
+          [[ " $PACKAGES " == *" plugins/ai-briefing/skills/generate/output/build "* ]] || exit 0
           bash plugins/ai-briefing/skills/generate/scripts/run-tests.sh test
 
       # The knowledge plugin's course-digest extraction pipeline is a Node
@@ -2428,36 +2321,30 @@ jobs:
       # pulled in as file: dependencies via the package's .npmrc
       # install-links=true (#1507).
       - name: Install dependencies
-        if: needs.scope.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
+          [[ " $PACKAGES " == *" plugins/knowledge/skills/course-digest/extraction "* ]] || exit 0
           bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh install
       - name: Typecheck
-        if: needs.scope.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
+          [[ " $PACKAGES " == *" plugins/knowledge/skills/course-digest/extraction "* ]] || exit 0
           bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh build
       - name: Test
-        if: needs.scope.outputs.run_node == 'true'
         run: |
-          [ "$LEG" = $((3 % LEGS)) ] || exit 0
+          [[ " $PACKAGES " == *" plugins/knowledge/skills/course-digest/extraction "* ]] || exit 0
           bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh test
 
-      # #2871: the full test_hygiene module. Its ten TestCase classes need a
-      # check that cannot take hygiene.test.sh's SKIP-when-Python-absent path.
-      # The Windows lane stays GuardTests-only (NT allowlist, plus two failures
-      # named there). Suite is not host-destructive (tempdir fixtures; no live
-      # drive-root scans). Measured 317 OK.
-      - name: Run disk-hygiene tests
-        if: needs.scope.outputs.run_python == 'true'
-        working-directory: plugins/disk-hygiene/skills/clean/scripts
+      # The packages of scripts/outside-node-packages.txt, each through its own
+      # `npm test` (#3703); the runner takes a package directory as a path
+      # under that package.
+      - name: Test the other Node packages
         run: |
-          [ "$LEG" = $((2 % LEGS)) ] || exit 0
-          python -m unittest -v test_hygiene
-
-      - name: Report not applicable to a docs-only diff
-        if: needs.scope.outputs.run_tests == 'false'
-        run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the plugin contract suite and the sub-project builds cannot be affected — reporting success."
+          tr ' ' '\n' <<<"$PACKAGES" | grep -Fxf <(grep -v '^#' scripts/outside-node-packages.txt | grep .) \
+            >"$RUNNER_TEMP/outside-node-paths.txt" || true
+          if [ ! -s "$RUNNER_TEMP/outside-node-paths.txt" ]; then
+            echo "The plan names none of these packages."
+            exit 0
+          fi
+          scripts/run-outside-node-suites.sh --paths "$RUNNER_TEMP/outside-node-paths.txt"
 
   ci-status:
     needs:
@@ -2467,6 +2354,8 @@ jobs:
       - check-plugins
       - check-skills
       - test-bash
+      - test-python
+      - test-node
     # Fail-closed through execution: !cancelled() (never a success-guard) so a
     # lane failure still runs this required aggregate and the aggregation below
     # turns it red. A success-guard would skip the job, and a skipped required
@@ -2568,6 +2457,35 @@ jobs:
           fi
           echo "::error::draft: lanes not run. Mark the pull request ready to lint and test this SHA."
           exit 1
+      # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>` skips as a job
+      # when `scope`'s `run_<x>` row says the change gives it no work. Its
+      # `skipped` becomes `success` for the aggregate only when `scope`
+      # succeeded and that row is exactly 'false'; every other result passes
+      # through as it is, so a skip that hid work stays `skipped` and the
+      # aggregate fails it. Pinned by scripts/ci-ordered-skips.test.sh, which
+      # runs this body.
+      - name: Check each skipped lane against scope
+        id: lanes
+        if: ${{ !cancelled() }}
+        env:
+          LANES: ${{ toJSON(needs) }}
+        run: |
+          results=$(jq -r '
+            .scope as $s
+            | to_entries
+            | map(.key as $lane | .value.result as $r
+                | if $r == "skipped" and $s.result == "success"
+                    and ($lane | test("^test-[a-z]+$"))
+                    and ($s.outputs["run_" + ($lane | ltrimstr("test-"))] == "false")
+                  then "success" else $r end)
+            | join(" ")' <<<"$LANES")
+          if [ -z "$results" ]; then
+            echo "::error::no lane results could be read."
+            exit 1
+          fi
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$LANES"
+          echo "Results after the ordered-skip check: $results"
+          echo "results=$results" >>"$GITHUB_OUTPUT"
       - name: Aggregate lane results
         # `!cancelled()` so a failing pr-contract step does not skip the
         # aggregation: the job still fails on the contract step's exit code, and
@@ -2575,10 +2493,10 @@ jobs:
         if: ${{ !cancelled() }}
         uses: melodic-software/ci-workflows/.github/actions/ci-status@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
         with:
-          # Derived from the needs graph above — the single source of truth for
-          # the lane list. Adding a lane to needs automatically extends this
-          # check.
-          results: ${{ join(needs.*.result, ' ') }}
+          # Every lane of the needs graph above — the single source of truth
+          # for the lane list — through the ordered-skip check. Adding a lane
+          # to needs automatically extends this check.
+          results: ${{ steps.lanes.outputs.results }}
           # A `skipped` lane is red, a draft's included (see `Fail a draft`).
           treat-skipped-as: fail
           # A CONTRACT-ONLY RUN NEVER WAITS. It reads the newest bot-written

@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.6.4] - 2026-10-02
+## [3.6.7] - 2026-10-02
 
 ### Fixed
 
@@ -11,6 +11,26 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   row now points at the mods overview's built-in roster as a cross-check and keeps the binary read
   as the source, because the binary registers built-ins the roster omits; the row's recheck trigger
   and as-of date moved to 2.1.288.
+
+## [3.6.6] - 2026-10-03
+
+### Fixed
+
+- **The `SessionStart` node-notice row no longer runs `powershell` on Linux.** It stopped at `${BASH_VERSION:+exit}`, which only bash sets; Claude Code runs hooks with `/bin/sh`, which is dash on Debian and Ubuntu (WSL included), so every session printed `powershell: not found`. The row now stops at `${PPID:+exit}`, which every POSIX shell sets.
+
+## [3.6.5] - 2026-10-03
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced ([#6084](https://github.com/melodic-software/claude-code-plugins/issues/6084)); no change to this plugin's lib.**
+  The prerequisite check now counts a Windows App Execution Alias (a Store or winget install on PATH) as found,
+  except App Installer's Python install stub. A `cli` or `runtime` entry can set `reject_store_alias` to skip aliases instead; no entry in this plugin does.
+
+## [3.6.4] - 2026-10-03
+
+### Changed
+
+- Shared `view-builder.mjs`, `view-runtime.js` synced ([#5868](https://github.com/melodic-software/claude-code-plugins/issues/5868)); no change to this plugin's own behavior.
 
 ## [3.6.3] - 2026-10-03
 
