@@ -5,21 +5,20 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "git log --oneline -5"
+            "command": "BASE=$(git merge-base HEAD MERGE_HEAD); git log -p \"$BASE\"..MERGE_HEAD -- a.py"
+          }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/a.py",
+            "content": "y\n"
           }
         },
         {
           "tool": "Bash",
           "input": {
-            "command": "git show abc123"
-          }
-        },
-        {
-          "tool": "Edit",
-          "input": {
-            "file_path": "/w/a.py",
-            "old_string": "x",
-            "new_string": "y"
+            "command": "git add a.py && GIT_EDITOR=true git merge --continue"
           }
         }
       ]
@@ -35,31 +34,9 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "git log -p main..HEAD -- a.py"
+            "command": "git show abc123"
           }
         },
-        {
-          "tool": "Edit",
-          "input": {
-            "file_path": "/w/a.py",
-            "old_string": "x",
-            "new_string": "y"
-          }
-        },
-        {
-          "tool": "Edit",
-          "input": {
-            "file_path": "/w/b.py",
-            "old_string": "x",
-            "new_string": "y"
-          }
-        }
-      ]
-    }
-  ],
-  "fail": [
-    {
-      "answer": [
         {
           "tool": "Edit",
           "input": {
@@ -71,11 +48,29 @@
         {
           "tool": "Bash",
           "input": {
+            "command": "git -C /w add a.py"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add a.py"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
             "command": "git log --oneline"
           }
         }
       ],
-      "why": "edited before reading history"
+      "why": "staged the resolution before reading history"
     },
     {
       "answer": [
@@ -86,11 +81,16 @@
           }
         },
         {
-          "tool": "Edit",
+          "tool": "Write",
           "input": {
             "file_path": "/w/a.py",
-            "old_string": "x",
-            "new_string": "y"
+            "content": "y\n"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add a.py"
           }
         }
       ],
@@ -103,9 +103,16 @@
           "input": {
             "command": "git log --oneline"
           }
+        },
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/a.py",
+            "content": "y\n"
+          }
         }
       ],
-      "why": "never edited"
+      "why": "never staged a resolution"
     }
   ]
 }
