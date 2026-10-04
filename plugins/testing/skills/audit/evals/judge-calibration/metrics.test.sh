@@ -337,8 +337,11 @@ mkdir -p "$SW/cases/case-1/test" "$SW/cases/case-1/src" "$SW/cases/case-2"
 printf 'it("adds", () => {\n  expect(add(1, 2)).toBe(3);\n});\n\nit("flag restates", () => {\n  expect(add(1, 2)).toBe(1 + 2);\n});\n' \
   >"$SW/cases/case-1/test/add.test.ts.fixture"
 printf 'export const add = (a, b) => a + b;\n' >"$SW/cases/case-1/src/add.ts.fixture"
+# The stub's FLAG diff edits a block's first line, here the whole file's: it
+# must be code, since a diff that changes only a comment (a shebang) is not a
+# repair and validation makes it UNKNOWN.
 # shellcheck disable=SC2016 # the case file holds a literal $(...)
-printf '#!/usr/bin/env bash\nfail() { exit 1; }\n[[ "$(echo a)" == a ]] || fail\n' >"$SW/cases/case-2/flag.test.sh.fixture"
+printf 'fail() { exit 1; }\n[[ "$(echo a)" == a ]] || fail\n' >"$SW/cases/case-2/flag.test.sh.fixture"
 {
   header
   row c1 seed tune PASS "" "" "" cases/case-1/test/add.test.ts.fixture adds

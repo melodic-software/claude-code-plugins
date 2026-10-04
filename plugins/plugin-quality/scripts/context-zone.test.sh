@@ -413,10 +413,32 @@ fi
 # --- Shared fixture: every case of context-zone.fixtures.mjs through this copy -
 # The same cases run through the mod's TypeScript resolver in its plugin tests,
 # so the two resolvers give the same word and the same notices. node lays out
-# each case's home (snapshot and zones.json, captured_at relative to its clock)
-# and prints one record per case; the resolver then runs on each.
+# each case's home (snapshot and zones.json, captured_at relative to FX_NOW)
+# and prints one record per case; the resolver then runs on each with its clock
+# pinned to FX_NOW too. A live clock let the seconds spent resolving earlier
+# cases carry the @now+62 and @now-598 cases across their 60 s and 600 s edges.
+# FX_NOW is long past, so a pin that stopped reaching the resolver fails every
+# fresh case instead of passing on the wall clock.
 FIXTURE="$SCRIPT_DIR/context-zone.fixtures.mjs"
 FX="$WORK/fixture"
+FX_NOW=1791050400 # 2026-10-03T18:00:00Z, the NOW of hooks/zone.test.ts
+# resolve_pinned <home> <sid> <stderr-file> → stdout word. The resolver's one
+# clock read is printf's %()T; the shim answers FX_NOW to it.
+resolve_pinned() {
+  local home="$1" sid="$2" err="$3"
+  (
+    # shellcheck disable=SC2329,SC2059,SC2154 # imported by the child bash, not called here; forwards the caller's format verbatim; PINNED_NOW is set on the child's command line
+    printf() {
+      if [[ "${1:-}" == "-v" && "${3:-}" == *'%('*')T'* ]]; then
+        builtin printf -v "$2" '%s' "$PINNED_NOW"
+        return
+      fi
+      builtin printf "$@"
+    }
+    export -f printf
+    PINNED_NOW="$FX_NOW" HOME="$home" bash "$ZONE" "$sid" 2>"$err"
+  )
+}
 if ! command -v node >/dev/null 2>&1; then
   fail "fixture: node is needed to read $FIXTURE"
 else
@@ -424,7 +446,7 @@ else
   FX_LAYOUT='
     import { mkdirSync, writeFileSync } from "node:fs";
     import { pathToFileURL } from "node:url";
-    const [, fixture, root] = process.argv;
+    const [, fixture, root, at] = process.argv;
     const cases = (await import(pathToFileURL(fixture).href)).default;
     const iso = (s) => new Date(s * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
     const text = (v, now) => {
@@ -435,7 +457,7 @@ else
       }
       return JSON.stringify(v);
     };
-    const now = Math.floor(Date.now() / 1000);
+    const now = Number(at);
     const out = [];
     cases.forEach((c, i) => {
       const home = `${root}/${i}`;
@@ -448,12 +470,12 @@ else
     });
     process.stdout.write(out.join("\n") + "\n");
   '
-  if FX_LIST=$(node --input-type=module -e "$FX_LAYOUT" "$FIXTURE" "$FX"); then
+  if FX_LIST=$(node --input-type=module -e "$FX_LAYOUT" "$FIXTURE" "$FX" "$FX_NOW"); then
     fx_cases=0
     fx_failed=0
     while IFS=$'\x1f' read -r fx_i fx_sid fx_word fx_notices fx_name; do
       fx_cases=$((fx_cases + 1))
-      fx_got=$(HOME="$FX/$fx_i" bash "$ZONE" "$fx_sid" 2>"$FX/$fx_i.err")
+      fx_got=$(resolve_pinned "$FX/$fx_i" "$fx_sid" "$FX/$fx_i.err")
       fx_got_notices=""
       grep -q 'zones.json malformed' "$FX/$fx_i.err" && fx_got_notices="percent"
       grep -q 'token_bands malformed' "$FX/$fx_i.err" && fx_got_notices="${fx_got_notices:+$fx_got_notices,}token_bands"
