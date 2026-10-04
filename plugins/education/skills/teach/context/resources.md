@@ -1,59 +1,90 @@
 # Resources Format
 
-`RESOURCES.md` lists the sources a learning workspace trusts. Lesson content comes from these
-sources rather than from model recall, and practical judgment comes from the communities the file
-names.
+`RESOURCES.md` serves four readers in a workspace:
+
+| Reader | Uses the file to |
+|---|---|
+| `explain` and `exercise`, while writing | Find the source behind each claim. A claim with no row here gets a fetched, admitted source first; model recall is never the source |
+| The coach, when a question turns on practical judgment | Send the learner to a community in the Wisdom table, after giving its own best answer |
+| SKILL.md "Staleness" | Re-fetch the row a stale lesson or `reference.md` cites inline, and update from it |
+| The next search for sources | Start from the Not Yet Covered list |
+
+The two tables follow the pedagogy's layers ([pedagogy.md](pedagogy.md)): something to read or
+watch is Knowledge; somewhere the learner tries skills on other people is Wisdom.
+
+## Admitting a row
+
+A source gets a row only when it passes every test below.
+
+1. **Fetched this turn.** A fetch in this session showed the page says what the row will claim. A
+   title remembered from training is a lead to fetch, not a row. In codebase mode a file Read this
+   turn passes without a fetch (see "Codebase mode").
+2. **Someone accountable stands behind it.** It passes when it comes from the project or standards
+   body that owns the subject, from published peer-reviewed research, or from a named practitioner
+   whose work others in the field cite. A page whose purpose is selling a product fails, however
+   instructional it looks.
+3. **For a community: moderated, and on the mission's questions.** A forum, list, class or club
+   passes when someone enforces its standards and its members answer the kind of question the
+   mission raises.
+4. **The "Go here when" cell can be filled.** If you cannot name the question that should send the
+   learner to it, the row is not ready; a later session cannot use a link it has no reason to open.
+
+## Upkeep
+
+- **Re-run admission when a lesson touches a row.** A row that would fail any of the four tests
+  today comes out of the table in that session. The table has no ranking to demote it to, and a
+  short table the learner trusts serves the mission better than a long one.
+- **Name the holes.** A mission area with no source that passes admission goes on the Not Yet
+  Covered list.
+- **Record a declined community.** When the learner says they will not join communities, put that
+  line at the top of the Wisdom section, and later sessions stop offering them.
 
 ## Template
 
 ```markdown
-# {Topic} Resources
+# Resources: {Topic}
 
-## Knowledge
+## Knowledge Sources
 
-- [{Type}: _{Title}_, {Author}]({URL})
-  {One line: its subject, and the question that should send the learner to it.}
+| Source | Covers | Go here when |
+|---|---|---|
+| [{Title}]({URL}), {author}, {kind: book, course, docs page, paper} | {subject} | {the question that sends the learner here} |
 
-## Wisdom (Communities)
+## Wisdom Communities
 
-- [{Name}]({URL})
-  {One line: what kind of help you get here.}
+| Community | Go here for |
+|---|---|
+| [{Name}]({URL}) | {the help the learner gets there} |
 
-## Gaps
+## Not Yet Covered
 
-- {A part of the mission no trusted source covers yet}
+- {A mission area with no admitted source yet}
 ```
 
-## Rules
+Example Wisdom rows, one from a PostgreSQL query-plan workspace and one from a sailing workspace:
 
-| Concern | Rule |
+| Community | Go here for |
 |---|---|
-| Trust | Favor primary sources, recognized experts, peer-reviewed research and tightly moderated communities. Leave out promotional material that poses as teaching |
-| Notes | Give each link a one-line note naming its subject and the situation that sends a learner to it; a link with no note is hard to use later |
-| Grouping | Sort entries into Knowledge and Wisdom, following the K-S-W framework |
-| Gaps | When the mission needs an area no good source covers, list it under `## Gaps`; later searches start from that list |
-| Upkeep | A source later found wrong, shallow or off the mission is deleted, not moved down the list. Quality of the list matters more than its length |
-| Communities | When the user opts out of joining communities, write that down so later sessions stop proposing them |
+| [PostgreSQL project bug tracker and its triage threads]({URL}) | Checking whether a planner behavior you hit is a known defect before you design around it |
+| [Class association's published race protest decisions archive]({URL}) | Reading how rules disputes about right of way were decided, to test your own reading of a rule |
 
-## Verification
+A workspace written before this layout may use bulleted entries under other headings; read it by
+meaning and convert it when the file is next edited.
 
-Resources MUST be verified against the source this turn: fetch and confirm URLs before adding. Training-recall recommendations are unverified synthesis; verify before listing.
+## Codebase mode
 
-**Scope by mode:** the fetch-and-confirm rule applies to EXTERNAL entries. In codebase mode, Repo Sources are the verification. Files Read this turn need no fetch, and a Repo-Sources-only `RESOURCES.md` is compliant; add external Knowledge/Wisdom entries only when the mission needs sources beyond the repo.
-
-RESOURCES entries double as the **rot re-verify anchor**: lessons and references cite them inline, and the Staleness check (SKILL.md "Staleness") re-fetches the cited source to refresh a stale durable artifact.
-
-## Codebase Mode
-
-For `/education:teach codebase`, resources include repo-internal sources discovered per SKILL.md "Codebase mode". Record what discovery located so later sessions reuse it instead of re-deriving the repo's structure:
+For `/education:teach codebase`, the file also records what SKILL.md "Codebase mode" discovery
+found, so later sessions reuse it instead of surveying the repository again:
 
 ```markdown
 ## Repo Sources
 
-- {path to a convention / architecture doc}: {what it establishes}
-- {path to a source module / library}: {the pattern it embodies}
-- {path to a reference implementation or example}: {why it is exemplary}
-- {path to representative tests}: {expected behavior they demonstrate}
+- {path to a convention or architecture doc}: {the rule it sets}
+- {path to a source module or library}: {the pattern it shows}
+- {path to a reference implementation or example}: {why it is the one to copy}
+- {path to representative tests}: {the behavior they pin down}
 ```
 
-These are primary sources (files Read this turn), higher trust than any external doc.
+Repo Sources are files Read this turn, so they are primary sources, ranked above any external page,
+and need no fetch. A `RESOURCES.md` holding only Repo Sources is complete; add Knowledge or Wisdom
+rows only when the mission reaches past the repository.
