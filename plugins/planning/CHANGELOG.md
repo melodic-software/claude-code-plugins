@@ -22,6 +22,10 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - Shared `README.md` synced as `reference/standards-contract.md`; no change to this plugin's skills. The standards contract is now 1.1.0 and adds the `paved-path` index row kind, which planning resolves like any other row.
 - **Passages adapted from an upstream course are reworded in our own words.** `design`'s test-seam thread, `plan`'s ADR admission test, `prd`'s durability rule and prototype-snippet exception, and `interview`'s relentless-mode framing and two Q&A gotchas no longer share phrasing with the upstream skills they came from. Every rule is unchanged. `interview`'s SKILL.md and `context/loop.md` still carry shared phrasing in sections `tests/interview-defenses.test.sh` digests; they are left for an attended edit.
 
+### Fixed
+
+- **`/planning:interview`'s fallback for a resolved domain term now names a real home.** Without `/domain-driven-design:curate-language`, the term and its definition go in the resolution field of the open-question register row that resolved it; the Brief has no glossary heading for the old "Brief's glossary notes" to point at.
+
 ## [0.67.6] - 2026-10-04
 
 ### Changed
