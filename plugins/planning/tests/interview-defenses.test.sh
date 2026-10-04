@@ -649,7 +649,7 @@ pin_section "audit-answers Step 1 section is unchanged (the never-auto floor, he
   "$AUDIT" \
   "### Step 1. Assemble the answer set, holding the never-auto floor" \
   "### Step 2. Dispatch fresh-context validators" \
-  "08a4752216efdc690cca29b0c77808b9d994b8599dc3f539eff7afda83fde8a8"
+  "f447baca75915f8f0b0f98a7700c9bb9e5c82b4b75d45403192ca33fd2022d79"
 pin_section "audit-answers Step 4 section is unchanged (hedged rows always reach the human)" \
   "$AUDIT" \
   "### Step 4. Merge and triage" \
