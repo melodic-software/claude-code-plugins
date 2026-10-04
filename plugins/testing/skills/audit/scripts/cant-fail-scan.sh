@@ -865,7 +865,7 @@ action_of() {
     printf 'Make the assertion evaluate: await (or return) the async matcher so it settles before the test ends, and call a matcher on every expect(...).'
     ;;
   inert-assertion:cs)
-    printf 'Make the assertion evaluate: await the async assertion (await Assert.ThrowsAsync<...>(...)), chain a matcher after .Should() (.Should().Be(...)), and assert a condition the code computes rather than a literal true.'
+    printf 'Make the assertion evaluate: await the async assertion (await Assert.ThrowsAsync<...>(...)), chain a matcher after .Should() (.Should().Be(...)), and assert a condition the code computes rather than a literal true or a typeof or nameof constant.'
     ;;
   inert-assertion:python)
     printf "Make the assertion evaluate: write assert cond, msg without the tuple's parentheses, and call the mock's assert_* method (m.assert_called_once_with(...)) instead of the plain attribute."

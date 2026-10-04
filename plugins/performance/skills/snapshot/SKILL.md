@@ -167,7 +167,7 @@ Run the bundled harness from the Bash tool; do not hand-roll a timing loop:
 bash "${CLAUDE_PLUGIN_ROOT}/scripts/ab.sh" --a '<baseline command>' --b '<candidate command>' --iterations 20 --percentiles 50,95
 ```
 
-It alternates the arms within one run, flips the order each iteration, and reports the median of
+It alternates the arms within one run, randomizes the order each iteration, and reports the median of
 per-pair ratios (`ratio.py`) alongside per-arm percentiles (`summarize.py`). It also refuses what a
 hand-rolled loop gets wrong: an arm whose probe exits 127 (a command that never ran, which a loop
 records as a fast clean sample), a drive-letter path in an arm, a ratio from too few pairs, and a

@@ -11,7 +11,7 @@ metadata:
 
 ## Purpose
 
-Explain one thing as a series of small pictures. The output is a **markdown record** plus
+Explain one thing as a series of small diagrams. The output is a **markdown record** plus
 views of it: an **interactive page** by default, and a **video** when the explainer-video plugin
 is installed and the reader wants one. The record is the deliverable; every view renders it.
 
@@ -54,10 +54,22 @@ the same thing.
 
 - **One idea per diagram.** If a diagram needs a paragraph to be read, it is two diagrams. Build a
   system up across several small diagrams, each adding one box.
-- **`kind`** is `flow` (boxes joined by arrows, in order) or `stack` (boxes one above the next,
-  such as layers). Default `flow`. A flow of more than four steps is drawn one step per line.
-- **Step labels are capped at 40 characters.** The builder cuts a longer label at a word and warns
-  on stderr; when it warns, move the detail into that diagram's `text` lines.
+- **`kind`** follows the shape of the idea. Each kind reads its own fields in place of `steps`:
+
+  | `kind` | The idea's shape | Fields |
+  |---|---|---|
+  | `flow` | Ordered steps | `steps`; more than four are drawn one step per line |
+  | `stack` | Layers | `steps`, top layer first |
+  | `hub` | Branches off one center | `center`, `branches` |
+  | `timeline` | Dated events | `points`: `[{"when":"","label":""}]` |
+  | `compare` | Options side by side | `columns`: `[{"heading":"","items":[""]}]`, 2 to 4 columns |
+  | `before-after` | A change | `before`, `after` |
+
+  A missing `kind` is `flow`. The builder refuses an unknown `kind`, or a `compare` outside 2 to 4
+  columns, and names the diagram.
+- **Labels are capped at 40 characters**: steps, the hub's `center` and `branches`, a point's
+  `label`, a column's `items`, and `before` and `after`. The builder cuts a longer label at a word
+  and warns on stderr; when it warns, move the detail into that diagram's `text` lines.
 - **`caption`** is the one-line takeaway: what the reader should conclude from the diagram.
   `text` is short scaffolding under it.
 - **`terms`** defines every word a reader of the chosen preset may not know. **`sources`** lists
@@ -96,8 +108,8 @@ source. Do not hand-write the HTML, do not pre-escape values, and do not add scr
 user dislikes the look, say the look is fixed rather than hand-writing a replacement page.
 `--check <page.html>` flags a page that bypassed the builder or was edited after it.
 
-The page shows the pictures, a searchable word list, and the sources. The reader ticks each
-picture that is still unclear, adds a question, and copies a short reply such as
+The page shows the diagrams, a searchable word list, and the sources. The reader ticks each
+diagram that is still unclear, adds a question, and copies a short reply such as
 `picked: diagrams-2`. When that reply comes back, `diagrams-2` is the second diagram: explain it
 again with smaller steps.
 

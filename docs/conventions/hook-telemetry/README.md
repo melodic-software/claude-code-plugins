@@ -48,7 +48,7 @@ Every event, from every hook, carries these seven fields. All are required and a
 | `schema_version` | string (SemVer) | Version of this envelope contract. |
 | `timestamp` | string (RFC 3339, UTC) | Instant the hook finished. True UTC: the `Z` is not a local-time lie. |
 | `hook` | string | Producer hook id, e.g. `markdown-format`. **Not** CC's `hook_name` (event:matcher). Keys data-schema discovery. |
-| `hook_event` | string | The triggering event: `PostToolUse`, `SessionStart`, `ConfigChange`, `WorktreeCreate`, … A **free string**, not an enum, because the event vocabulary grows and custom events exist. |
+| `hook_event` | string | The triggering event: `PostToolUse`, `SessionStart`, `ConfigChange`, `WorktreeCreate`, …, or for a mod its event, such as `tool.call`. A **free string**, not an enum, because the event vocabulary grows and custom events exist. |
 | `status` | string | Universal execution outcome (documented value set, not a closed enum). See below. |
 | `duration_ms` | integer (≥ 0) | **This hook's** runtime in milliseconds. Not CC's aggregate `total_duration_ms`. |
 | `data` | object | Per-hook payload; always present (at minimum `{}`). See "Per-hook data". |
@@ -57,6 +57,8 @@ Every event, from every hook, carries these seven fields. All are required and a
 
 Four optional spine fields, each copied verbatim from the hook payload by `hook::emit_telemetry` when
 the payload carries the key with a plain id (`[A-Za-z0-9._-]+`), and omitted otherwise, never guessed.
+A mod's emitter takes the same keys from the mod event and `$.session.id()` under the same plain-id
+rule; a mod event carries no `prompt_id`, so its envelopes have none.
 They sit between `duration_ms` and `data`. A hierarchy, coarsest first:
 
 | Field | Source | Joins to |
@@ -167,6 +169,12 @@ under `${CLAUDE_PLUGIN_ROOT}`, so there is no shared library to import. The firs
 copy and add a drift-check in the same change**: copy once, then consolidate, so the two copies never drift
 unwatched. This mirrors the standards-repo "adopt by copy" pattern.
 
+A mod emits from its own hooks module instead, in TypeScript: context-guard's
+`hooks/register.tsx` builds the same envelope, resolves `HOOK_TELEMETRY_SINK` by the rules above
+(a relative path joins onto the session's project root, else `CLAUDE_PROJECT_DIR`), and starts the
+sink fire-and-forget through `$.process.run`. Its envelope is checked by the plugin's own
+`claude plugin test` cases rather than by `check_envelope`.
+
 ## Consuming (sink side)
 
 A repo **subscribes** by setting `HOOK_TELEMETRY_SINK` (relative, committed in `settings.json`) to an
@@ -238,6 +246,6 @@ where the formatter every writer calls lives:
 | `autonomy` plugin | `lane-stop-gate` | `data/lane-stop-gate.schema.json` |
 | `disk-hygiene` plugin | `destructive-guard` | `data/destructive-guard.schema.json` |
 | `disk-hygiene` plugin | `guard-launch-monitor` | `data/guard-launch-monitor.schema.json` |
-| `context-guard` plugin | `zone-crossing-inject` (two producers: PostToolBatch and UserPromptSubmit, per the schema) | `data/zone-crossing-inject.schema.json` |
-| `context-guard` plugin | `zone-gate` | `data/zone-gate.schema.json` |
+| `context-guard` plugin (mod) | `zone-crossing-inject` (events `tool.call`, `prompt.submit` and `turn.complete`, per the schema) | `data/zone-crossing-inject.schema.json` |
+| `context-guard` plugin (mod) | `zone-gate` (event `tool.call`) | `data/zone-gate.schema.json` |
 | `context-guard` plugin | `post-compact-mark` | `data/post-compact-mark.schema.json` |

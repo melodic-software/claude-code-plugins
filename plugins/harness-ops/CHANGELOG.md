@@ -9,6 +9,39 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 
 - **`/harness-ops:inventory` lists instruction files and composes the MCP posture audit.** A disk run adds `instruction_files`: the managed-policy `CLAUDE.md` (as `$MANAGED_POLICY_DIR/CLAUDE.md`), user `CLAUDE.md` and rules, project `CLAUDE.md`, `AGENTS.md`, `CLAUDE.local.md`, project rules and the subdirectory files that load on demand, skipping gitignored trees other than `CLAUDE.local.md`, each with `path` (home- or repo-relative, never absolute), `scope`, `kind`, `loads`, `bytes` and `sha256`. The project root is the git toplevel of the working directory, so runs from two home directories over one repository compare equal through `compare_reports.py`, which is how a cloud session and a local one are checked for parity. When `/mcp-tools:audit-posture` is among the available skills, the skill runs it, saves its report beside the `--out` file and passes the previous saved report for its "Changes since" section; otherwise it prints `MCP coverage: mcp-tools is not enabled`. The report states that claude.ai connectors arrive at runtime and never appear in a static config read.
 
+## [3.8.1] - 2026-10-04
+
+### Fixed
+
+- **`/harness-ops:plugins` sync no longer prints every stale project path.** The `Stale project records` section groups the absent paths by parent directory, largest record count first, caps the rows it prints, with a `+N more` line for the rest, and names `stale-project-records.<marketplace>.json` in the run directory, which holds the full per-path list. The digest replaces the per-path `by_path` array with `paths`, `by_parent`, `more_parents` and `list_file`, so its line stays small however many paths are absent. Audit keeps no list and says so, a sync run whose list could not be written says that instead, and a run with no stale records writes no list. A digest saved before 3.8.1 still re-renders its per-path rows. The `defaultEnabled` links in the install-enable spoke and in `/harness-ops:audit-skill-visibility` now point at `plugins/manifest-reference`, and the skill's verification note beside that link no longer says the settings reference starts an unlisted plugin `false`: both references now say it falls back to `defaultEnabled`, which the measured runtime still contradicts (#6182).
+
+## [3.8.0] - 2026-10-04
+
+### Changed
+
+- **`/harness-ops:plugins` sync under `install_new: ask` installs and enables what the user picks.** The prompt is worded "install and enable", and a pick the CLI reports as disabled by default is enabled at user scope right after its install, so no user-scope `false` is left for it and the report lists it under `Enabled:` rather than as installed but not enabled. Only those picks are enabled, since `enable` exits 1 for a plugin that is already enabled. `install_new: all` is unchanged: such an install stays off and is reported with the enable command. The install-enable spoke now cites the settings reference's current wording, that a plugin with no `enabledPlugins` entry falls back to its `defaultEnabled` value (#6187).
+
+## [3.7.6] - 2026-10-04
+
+### Changed
+
+- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+
+## [3.7.5] - 2026-10-04
+
+### Fixed
+
+- `inventory` no longer says Claude Code publishes no roster of built-in plugins. Its upstream-facts
+  row now points at the mods overview's built-in roster as a cross-check and keeps the binary read
+  as the source, because the binary registers built-ins the roster omits; the row's recheck trigger
+  and as-of date moved to 2.1.288.
+
+## [3.7.4] - 2026-10-04
+
+### Changed
+
+- Shared `view-runtime.js` synced ([#6173](https://github.com/melodic-software/claude-code-plugins/issues/6173)); no change to this plugin's own behavior.
+
 ## [3.7.3] - 2026-10-04
 
 ### Fixed

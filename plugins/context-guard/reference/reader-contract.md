@@ -6,19 +6,20 @@
 - [Snapshot file shape](#snapshot-file-shape)
 - [Capability detection (fail-open)](#capability-detection-fail-open)
 - [Occupancy and combination rule](#occupancy-and-combination-rule)
-- [Zone-crossing hooks (first shipped consumer)](#zone-crossing-hooks-first-shipped-consumer)
+- [The module (first shipped consumer)](#the-module-first-shipped-consumer)
 - [Evidence-degraded marker](#evidence-degraded-marker)
 - [Zone is not a compaction indicator](#zone-is-not-a-compaction-indicator)
 - [Zones (machine-scope tuning, optional)](#zones-machine-scope-tuning-optional)
 - [Session-id discovery (how a consumer learns its own id)](#session-id-discovery-how-a-consumer-learns-its-own-id)
 - [Idle sessions](#idle-sessions)
-- [Cloud and headless sessions (`unknown` is structural)](#cloud-and-headless-sessions-unknown-is-structural)
+- [Sessions with no writer (`unknown` is structural)](#sessions-with-no-writer-unknown-is-structural)
 - [Invariants and boundaries](#invariants-and-boundaries)
 - [Consumers](#consumers)
 
 The consumer-facing contract for the per-session context-window snapshots this plugin produces.
-The writer is the plugin's `scripts/statusline-tee.sh`; `scripts/context-zone.sh` is the bundled
-resolver over the same data. Readers are sibling-plugin sessions (e.g. an audit skill deciding
+The writer is the plugin's module (`hooks/register.tsx`, a Claude Code mod), which writes through
+`lib/write-snapshot.mjs` in interactive, `-p` and `--bg` sessions alike.
+`scripts/context-zone.sh` is the bundled resolver over the same data. Readers are sibling-plugin sessions (e.g. an audit skill deciding
 whether to dispatch deep work to a fresh subagent). An installed plugin cannot read a sibling
 plugin's files at runtime, so **consumers inline the operable floor below verbatim** and cite this
 file for provenance only.
@@ -29,21 +30,21 @@ staleness value, and the default zone bands. Inlined copies in consumers must st
 grep-matches its inlined values against this file.
 
 **Recheck trigger for every dated record in this file:** re-read the record's pointer, re-derive
-the decision, and re-date the record when any of these change. The statusline stdin schema,
-meaning the `context_window` field names, the `used_percentage` formula, and the top-level
-`version` field. The auto-compact trigger,
+the decision, and re-date the record when any of these change. The status line's documented
+`context_window` fields, whose names and meanings the snapshot keeps, including the
+`used_percentage` formula, and the session usage and version the mods API reports, which the
+module maps onto them. The auto-compact trigger,
 meaning whether a default threshold is published as a number, and which models and environments
 compact before the model's context limit. The four surfaces in the tunable table below
 (`autoCompactWindow`, `CLAUDE_CODE_AUTO_COMPACT_WINDOW`, `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE`,
 `autoCompactEnabled`), including their units, ranges, and precedence. The skills substitution table
 that documents `${CLAUDE_SESSION_ID}`. The published statements about how a 1M window behaves
-across its length, which the band rationale cites when it declines a folklore number. The cloud and
-headless finding, meaning whether a configured statusline runs in those environments and which
-fields hook stdin carries. A release note touching the status line, compaction, settings, or skills
-is the usual way one of the first four moves; a prompting-guide revision or a change to the hooks
-page moves the last two. The empirical stamps, the transcript-history check and the cloud and
-headless measurements, are re-run rather than re-read, on the same triggers. These stamps are probe
-results with a date, not standing facts.
+across its length, which the band rationale cites when it declines a folklore number. Where mods
+run, which decides where a snapshot can be written at all. A release note touching the status
+line, mods, compaction, settings, or skills is the usual way one of the first four moves; a
+prompting-guide revision or a change to the mods overview moves the last two. The empirical stamps,
+the transcript-history check and the capture measurements, are re-run rather than re-read, on the
+same triggers. These stamps are probe results with a date, not standing facts.
 
 ## Operable floor (consumers inline these values verbatim)
 
@@ -73,9 +74,14 @@ results with a date, not standing facts.
 
 ## Snapshot file shape
 
-One JSON object per session, rewritten atomically on every statusline refresh (temp file + rename,
-so a reader never sees torn JSON). Files are **per-session**, not machine-scope last-writer-wins:
-concurrent sessions each own the file named by their `session_id`.
+One JSON object per session, rewritten atomically by the module (temp file + rename, so a reader
+never sees torn JSON). Files are **per-session**, not machine-scope last-writer-wins: concurrent
+sessions each own the file named by their `session_id`.
+
+The module writes after every tool call, at each measurement after a response, from a 15-second
+timer that runs only while a turn runs, and when the session ends. Each write runs
+`node lib/write-snapshot.mjs`, so where `node` is missing or the module cannot start a process,
+nothing is written and readers read `unknown`, as with no file.
 
 ```json
 {
@@ -98,23 +104,34 @@ concurrent sessions each own the file named by their `session_id`.
 }
 ```
 
-- `captured_at`: ISO-8601 UTC write time; always present. Drives the staleness rule. A refresh
-  whose other fields are unchanged rewrites the snapshot at most once per 60 seconds (the writer's
-  no-change floor), so `captured_at` can trail the latest refresh by up to that much, well inside
-  the 10-minute window.
-- `session_id`: always present (the tee refuses to write without one); also the filename stem,
-  sanitized to `[A-Za-z0-9_-]`.
-- `cli_version`: the statusline payload's top-level `version` (the Claude Code version), copied
-  only when it is a string; absent otherwise, never guessed. It gates the token shape (see "Version
+- `captured_at`: ISO-8601 UTC write time; always present. Drives the staleness rule. A write
+  whose other fields are unchanged since the last one happens at most once per 60 seconds (the
+  writer's no-change floor), and the timer ticks every 15 seconds, so during a turn `captured_at`
+  trails the latest reading by up to 75 seconds, well inside the 10-minute window.
+- `session_id`: always present; also the filename stem. The module writes only for an id of
+  `[A-Za-z0-9_-]`, and an id outside that class gets no file.
+- `cli_version`: the Claude Code version the session reports, present only when it is a
+  non-empty string; absent otherwise, never guessed. It gates the token shape (see "Version
   floor"), so an absent one is not a defect. It just leaves the percentage shape standing alone.
-- `context_window`: copied **verbatim** from the statusline payload, so upstream field additions
-  flow through without a plugin change. The key is absent when the session's statusline payload
-  carried none. A null `used_percentage`, `remaining_percentage`, or `current_usage` is a normal
+- `context_window`: always present, built from the session's live usage in the status line's field
+  names and meanings: `total_input_tokens` and `total_output_tokens` (absent before the session's
+  first response), `context_window_size`, `used_percentage`, `remaining_percentage` and
+  `current_usage`. A field the status line adds later does not appear here until the module maps
+  it. A null `used_percentage`, `remaining_percentage`, or `current_usage` is a normal
   state, not a defect; the capability table below says what each one does to the zone, and a null
-  `current_usage` after `/compact` is why that row resolves `unknown`. Pointer: for the field set
-  and when each field is null, see <https://code.claude.com/docs/en/statusline#available-data>.
-  As of: 2026-08-10. Recheck trigger: a release note or that section changes the `context_window`
+  `current_usage` after `/compact` is why that row resolves `unknown`. A body with null figures
+  never replaces a file that has them. Pointer: for the field meanings and when each field is
+  null, see <https://code.claude.com/docs/en/statusline#available-data>.
+  As of: 2026-10-03. Recheck trigger: a release note or that section changes the `context_window`
   fields or the states in which they are null.
+- **File modes and siblings.** The snapshot file is owner-only (`0600`) and the directory `0700`
+  where POSIX modes work. For each write the writer creates a lock file,
+  `.<session_id>.json.lock`, and removes it when the write ends; one is left behind only when that
+  removal fails, and the next write steals it once it is 60 seconds old. It writes through a temp
+  file, `.<session_id>.json.tmp.w<pid>-<hex>`, removed after the rename. A `.<session_id>.json.last` file is one that versions before 0.11.0
+  left behind; the writer's hourly prune deletes it, and every lock file, after 14 days. Readers
+  read only `<session_id>.json` and `<session_id>.compacted` and ignore every file whose name
+  starts with a dot.
 - Treat all values as **untrusted data**: parse with a JSON parser; validate any value against its
   documented format before handing it to a lenient parser (the bundled resolver format-gates
   `captured_at` to strict ISO-8601 before date parsing, and requires the embedded `session_id` to
@@ -187,10 +204,10 @@ only since Claude Code **2.1.132**. Before that they were cumulative session tot
 misfire the token bands badly. Cumulative semantics are **not observable from the numbers**: a
 cumulative 170k in a 200k window is a perfectly plausible current occupancy, sits inside the
 window, and resolves `dumb` while the live context may be smart-zone. So the token shape requires
-an explicit version signal: the snapshot's `cli_version`, which the tee copies from the
-statusline payload's top-level `version` field, the Claude Code version (Pointer:
-<https://code.claude.com/docs/en/statusline#available-data>. As of: 2026-08-10. Recheck trigger:
-that section renames or drops the `version` field). **The token shape is computable only when
+an explicit version signal: the snapshot's `cli_version`, the Claude Code version the session
+reports to the module (Pointer: `$.session.version()` in
+<https://code.claude.com/docs/en/plugins/mods/reference#mods-api-methods>. As of: 2026-10-03,
+Claude Code 2.1.288. Recheck trigger: that table renames or drops the method). **The token shape is computable only when
 `cli_version` is present, purely numeric dotted, and ≥ 2.1.132**; absent, malformed, or older
 leaves the percentage shape to stand alone.
 
@@ -215,18 +232,33 @@ folklore values, but deliberately below them. Both rows carry equally low confid
 `zones.json` is the correction path, and the numeric agreement of the 200k row's percentage
 translation with the shipped 50/75 percentage defaults is coincidence, not validation.
 
-## Zone-crossing hooks (first shipped consumer)
+## The module (first shipped consumer)
 
-The plugin itself ships hooks over the interface this contract defines, the first shipped consumer:
+The plugin's module (`hooks/register.tsx`, a Claude Code mod; Claude Code 2.1.287 or later) is the
+first shipped consumer. It decides from the live session's figures, the same ones it writes to the
+snapshot, through a TypeScript copy of the resolver's band function; the shared fixture
+`scripts/context-zone.fixtures.mjs` (generated from the repo's `lib/context-zone.fixtures.mjs`)
+holds the two resolvers to the same word and notices. Where mods cannot load (see the setup
+skill's module check), none of the following runs except the PostCompact marker.
 
-- **Advisory injection** (`PostToolBatch` + `UserPromptSubmit`): on a transition into a zone worse
-  than any this session has already reported, report the crossing on **two channels with two
-  audiences**. The **model channel** (`additionalContext`) carries the determination and a
-  counter-steer: the reading is a measurement rather than an instruction, real
-  degradation shows up in the model's own output and never in a zone word, and the model is told to
-  keep working the task in hand. In `dumb` it also carries a note to write each expensive
-  conclusion to a durable note against a short compaction distance. The **operator channel**
-  (`systemMessage`) carries the same crossing plus the continuation menu that is the human's call
+- **Zone lines** (on each tool result of the main conversation and each prompt): on a transition
+  into a zone worse than any this session has already reported, report the crossing on **two
+  channels with two audiences**. The **model channel** (the `context` a `tool.call` or
+  `prompt.submit` hook adds) carries the zone word and a counter-steer worded as facts with their
+  source: the reading is a measurement rather than an instruction, degradation shows in the work
+  itself and never in a zone word, and continuation is the operator's call. In `dumb` it also
+  carries the save-state note, labeled as the dumb zone's default. A line carries no figure
+  unless `zone_line_data` adds one (percent, tokens, window), and never a session id. Beside the
+  crossings the module sends one approach line per boundary per cycle (`approach_margin`
+  percentage points before it), one line per `thresholds` entry passed, the verdict restated once
+  after a compaction (not a `precompute` one) and after an in-process resume, and, on a reload or a
+  worker respawn (a load with earlier turns), the verdict only when it is past `smart`. After
+  `/clear` it sends nothing: the new session starts in `smart`. Lines go to the main conversation
+  only, never to a subagent. In `operator` report mode a turn a person typed holds the lines and
+  offers them as the prompt box's suggestion plus a band notice when the turn ends; headless,
+  loop, schedule and notification turns get the lines either way. The **operator channel** (a
+  transcript line Claude does not read, and a band notice) carries the same crossing plus the
+  continuation menu that is the human's call
   to make (continue / `/compact` / `/clear` / handoff-then-`/clear`, with a hand-written resume
   note as the standalone-install fallback). The menu does not say which option fits when: it says
   to route the next step with `/session-flow:workflow` (if installed). Without session-flow, we
@@ -256,21 +288,29 @@ The plugin itself ships hooks over the interface this contract defines, the firs
   same observation, so a session oscillating there re-announces `acceptable` once per down-up cycle;
   the hook sees one word per observation, never the occupancy behind it, and separating those two
   cases needs a numeric deadband or a dwell the single-observation recovery could not survive.
-- **Blocking gate** (`PreToolUse`, only when the `zone_hook_mode` userConfig option is
-  `blocking`): denies new `Write|Edit|NotebookEdit|Agent|Workflow` calls on a **fresh dumb-zone
-  snapshot** past a small grace budget. Fail-open on `unknown`; handoff-path writes, read-only
-  tools, Bash, and Skill invocations are never gated, so a durable handoff is always writable.
-- **PostCompact marker**: writes the evidence-degraded marker file (below) and re-arms the
-  blocking gate's grace budget (compaction opens a fresh window, hence a fresh budget rather than
-  a disarmed gate).
-- **Both zone consumers honor the marker**: when the marker exists, the injection hook and the
-  blocking gate treat the session's effective zone as **dumb** regardless of the resolved word,
-  including a green post-compaction reading and including `unknown`. That implements this
-  contract's own "evidence-degraded regardless of zone" rule, so the marker is never write-only.
+- **Blocking gate** (in the module, when `zone_hook_mode` is `blocking` or `zones.json` sets a
+  `block` action): denies new `Write|Edit|NotebookEdit|Agent|Workflow` calls in the blocked zone
+  past a small grace budget. In a turn a person typed the block applies; in headless, loop,
+  schedule and notification turns only a compacted session is blocked, unless
+  `zone_block_unattended` is `same-as-typed`. Fail-open on `unknown`; handoff-path writes,
+  read-only tools, Bash, and Skill invocations are never gated, so a durable handoff is always
+  writable. Leaving the blocked zone, an `unknown` reading and a compaction each reset the budget.
+- **PostCompact marker** (a settings hook, so it runs where mods are off): writes the
+  evidence-degraded marker file (below).
+- **Both zone consumers honor the marker**: when the marker exists, or the module saw the
+  compaction itself, the lines and the blocking gate treat the session's effective zone as
+  **dumb** regardless of the resolved word, including a green post-compaction reading and
+  including `unknown`. That implements this contract's own "evidence-degraded regardless of zone"
+  rule, so the marker is never write-only.
+- **Status tool** `mcp__context-guard__status`: returns the session's latest figures (the last API
+  response's), its zone, whether the evidence is degraded, the bands in force and the gate state,
+  as JSON. A zone lookup for a session that has the module loaded; it has no switch.
 
-Hook state (last-seen zone, gate counters) lives under `${CLAUDE_PLUGIN_DATA}`, which is
-plugin-private and not part of this contract. The hooks consume that interface through the same
-resolver consumers re-implement; they add no new snapshot semantics.
+Module state (last-seen zone, armed rank, gate counter) lives in the module's memory, per session
+id; it is plugin-private and not part of this contract. The module adds no new snapshot
+semantics. For the mods API it uses, see <https://code.claude.com/docs/en/plugins/mods/overview>.
+As of: 2026-10-03, Claude Code 2.1.288. Recheck trigger: that page or its events reference changes
+`tool.call`, `prompt.submit` or `session.compact`.
 
 ## Evidence-degraded marker
 
@@ -288,7 +328,7 @@ loss does not expire with time in the same session. The marker is part of this c
 documented interface (fixed path, same character-class and trust rules as snapshots); it closes
 the documented gap
 that the snapshot alone cannot reveal compaction. Housekeeping: the writer hook prunes sibling
-markers older than 14 days on each write, the same cutoff the tee applies to snapshots, far
+markers older than 14 days on each write, the same cutoff the snapshot writer applies, far
 above any live session's horizon, so a marker is never deleted out from under the session it
 describes.
 
@@ -409,8 +449,8 @@ compaction-timing choice on its own terms.
 
 The statusline payload's `prompt_cache.last_miss_cause` names why the last cache miss happened.
 `plugins/context-guard/scripts/prompt-cache-cause.py` reads that object from a statusline JSON
-payload and prints the cause names. The tee snapshot still copies `context_window` and does not
-copy `prompt_cache`; pass the live payload to the script. The script prints whatever cause names
+payload and prints the cause names. The snapshot carries `context_window` only, never
+`prompt_cache`; pass the live payload to the script. The script prints whatever cause names
 `last_miss_cause.causes` carries, with no fixed list of its own, and prints `null` when the object
 is null. Pointer: for the object and its cause names, see
 <https://code.claude.com/docs/en/statusline#last-miss-cause>. As of: 2026-09-28. Recheck trigger:
@@ -437,9 +477,11 @@ what the human sees and what consumers decide on. Zones say *where you are*; con
 Validity is **per shape, independently**:
 
 - **Percentage keys:** both values numeric, `0 < smart_max < acceptable_max ≤ 100`. Malformed
-  (unparsable file, non-numeric, inverted, out of range, or the keys simply absent from an
-  otherwise-parsable file) → shipped percentage defaults with a visible stderr notice from the
-  resolver.
+  (unparsable file, not an object, non-numeric, inverted, out of range, one key without the
+  other, or both absent from an object holding a key outside `token_bands`, `actions`,
+  `approach_margin` and `thresholds`) → shipped percentage defaults with a visible stderr notice
+  from the resolver. An object with neither key and only those four keys keeps the shipped
+  percentage defaults silently.
 - **`token_bands` (optional):** when present, an object whose every key is a decimal window-class
   string and every value carries numeric `smart_max_tokens` and `acceptable_max_tokens` with
   `0 < smart < acceptable ≤ class`. Malformed as a whole → shipped token bands with its own
@@ -448,6 +490,34 @@ Validity is **per shape, independently**:
 
 Unrecognized keys are permitted and preserved (the setup skill's `apply` seeds/refreshes this
 file idempotently; the resolver only reads it).
+
+**The module's keys (optional).** The module reads three more keys; the resolver ignores them, and
+an absent or invalid one means its default, so a file without them keeps working:
+
+```json
+{
+  "approach_margin": 5,
+  "actions": {
+    "acceptable": { "action": "none" },
+    "dumb": { "action": "save-state" }
+  },
+  "thresholds": [{ "at_percent": 60, "action": "handoff" }]
+}
+```
+
+- `approach_margin`: percentage points before each boundary (each zone edge and each threshold)
+  for the one approach line; a number from 0 (no approach lines) to below 100. Default 5. Where a
+  token band edge sits below the percentage edge, that boundary's approach line comes the same
+  points of the window early in tokens (50000 tokens at 5 on a 1000000-token window); with no
+  known window size there is no token-shape approach line.
+- `actions.<zone>`: `action` is `none`, `save-state`, `handoff` or `block`; optional `text`
+  replaces the default wording. The action's sentence appears at that zone's crossing and
+  restatement, never on an approach line, labeled "operator setting for the <zone> zone".
+  Defaults: `none` everywhere except `save-state` at `dumb`. `block` arms the gate in that zone.
+  An action set for `dumb` takes the place of `zone_hook_mode: blocking` there.
+- `thresholds`: extra boundaries at a percentage that is not a zone edge (`at_percent`, 0 to
+  100), each with an `action` and optional `text`; each fires once per cycle like a zone
+  boundary and has its own approach line. A `block` threshold arms the gate once passed.
 
 **Consumers read `zones.json` directly** (it is a shared data file): under plugin cache isolation a
 consumer cannot invoke this plugin's `context-zone.sh`, so it re-implements the band lookup:
@@ -473,30 +543,41 @@ id. It takes the **unknown/conservative path** exactly as if the snapshot were a
 
 ## Idle sessions
 
-The statusline only refreshes on activity: a live-but-idle session's snapshot goes stale by the
-10-minute rule and resolves `unknown` until the next interaction refreshes it. That is correct
-fail-open behavior, not a bug. An idle session asking for a zone gets a fresh snapshot within one
-statusline refresh of waking. The writer's stale-file pruning cutoff (14 days) is deliberately far
-above the staleness window, so idle sessions' files are never deleted out from under them.
+The module writes only while something happens: after a tool call, after a response, during a
+turn and at the session's end. A live-but-idle session's snapshot therefore goes stale by the
+10-minute rule and resolves `unknown` until the next turn writes it again. That is correct
+fail-open behavior, not a bug. An idle session asking for a zone gets a fresh snapshot from its
+next tool call, which the question itself usually is. A session that has ended keeps its last real
+reading on disk until it ages out. The writer's stale-file pruning cutoff (14 days) is deliberately
+far above the staleness window, so idle sessions' files are never deleted out from under them.
 
-## Cloud and headless sessions (`unknown` is structural)
+## Sessions with no writer (`unknown` is structural)
 
-The single capture channel is the statusline tee, so **a session that never runs a statusline has
-no instrument at all**. No snapshot is ever written for it, and this contract resolves `unknown`
-for that session permanently. Cloud and headless sessions are that case by default: no `statusLine`
-is configured there, and configuring one does not help. Measured 2026-08-21 in both, a `statusLine`
-written into the session's own user settings was never invoked.
+The single capture channel is the module, so **a session where the module does not run has no
+instrument at all**. No snapshot is written for it, and this contract resolves `unknown` for that
+session permanently. The module runs in interactive, `-p`, SDK and `--bg` sessions alike; it does
+not run:
 
-This is not a degraded install and not a missing dependency. It is the absence of the only
-documented surface that **delivers per-session context-window occupancy to a local writer**: as of
-**2026-08-21**, our channel inventory found no hook event whose stdin reports the main session's
-window; the one token-bearing hook payload describes a *subagent's* request. Two
-other channels do carry live occupancy for the running session, the OpenTelemetry
-`claude_code.api_request` log event and the session transcript, and neither can be turned into a
-snapshot; `reference/cloud-headless-capture.md` records why in full. That file is the writer-side
-channel inventory: every channel checked, its live URL, the date read, what it does and does not
-carry, and what would have to change upstream. Re-check it when Claude Code's hooks, statusline,
-settings or telemetry reference changes; the finding is dated, not permanent.
+- **In a WSL session of the Desktop app**, where plugins are not available.
+- **Where mods are off**: Claude Code older than 2.1.287, `disableAllHooks`, `--bare`,
+  `--safe-mode`, an organization's `allowManagedModsOnly`, mods switched off remotely, or after the
+  hooks worker crashed. The PostCompact marker, a settings hook, still runs there wherever
+  settings hooks do.
+- **Where the plugin is not enabled** for the session, for example a project that disables it in
+  `enabledPlugins`, or a cloud session the plugin does not reach. A cloud session that does load
+  the plugin runs its hooks, per the table at the pointer below; no run of this plugin in a cloud
+  session has been made.
+
+- **Pointer**: [mods overview: where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run)
+  and [turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off).
+- **As of**: 2026-10-03, Claude Code 2.1.288.
+- **Recheck trigger**: that table changes a row, or that section changes what stops a mod.
+
+This is not a degraded install and not a missing dependency. Before the module, the only writer
+was a statusline tee, and `reference/cloud-headless-capture.md` records the channel inventory made
+then: every channel checked, its live URL, the date read, what it does and does not carry, and why
+the OpenTelemetry `claude_code.api_request` event and the session transcript, which do carry live
+occupancy, still cannot supply a snapshot.
 
 **What a consumer must do.** Nothing changes about the resolution rules. `unknown` still means
 take the conservative route. What changes is how a consumer *reports* it:
@@ -519,26 +600,17 @@ take the conservative route. What changes is how a consumer *reports* it:
   makes itself, and must not present that trigger as instrument-backed.
 
 **Telling structural absence from breakage.** Both print `unknown`, and the discriminator is on the
-writer side: the statusline runs only where a `statusLine` command is configured *and* the
-environment is one that runs it. Read `statusLine` from every scope that can carry it: user
-`~/.claude/settings.json`, project `.claude/settings.json`, local `.claude/settings.local.json`,
-and managed settings, where `statusLine` is also a valid key.
+writer side: whether the module runs in the session. A session with the module loaded has the
+`mcp__context-guard__status` tool in its own tool list (deferred names included).
 
-- **No `statusLine` in any scope** is structural, and offering statusline wiring as the remediation
-  is wrong in an environment that runs no statusline.
-- **A `statusLine` configured but the status line disabled** is also structural, and the
-  remediation is policy or trust rather than wiring. Check `disableAllHooks`,
-  `allowManagedHooksOnly`, and folder trust before anything else: either key, or an untrusted
-  folder, can disable or narrow the status line with no warning, so this state looks exactly like
-  a broken install unless it is checked first. The dated record for both settings keys is
-  `cloud-headless-capture.md`, branch 3 of "Distinguishing structural absence from breakage".
-- **A `statusLine` configured, not disabled, in an environment that does not run a statusline**
-  (cloud, headless `claude -p`, other terminal-less) is also structural: the command exists, is
-  not policy-disabled, and is still never invoked (the measurement above). Report as "no
-  instrument in this environment", never as a defect.
-- **A `statusLine` configured, not disabled, in an environment that runs a statusline, and no
-  fresh snapshot** is a real defect (wiring, installed shim, or `jq`). Invoke
+- **The tool is absent** (the module does not run here, or a policy refused its tool): structural.
+  Report "no instrument in this environment" or "mods off", and never offer a fix the session
+  cannot apply.
+- **The tool is present, and after a tool call there is still no fresh snapshot**: a real defect,
+  usually a missing `node` or an unwritable `~/.claude/context-guard/context/`. Invoke
   `/context-guard:setup` via the Skill tool with `check` for the diagnosis.
+- **The tool is present and answers**: its zone is the module's live reading, and a consumer may
+  use it in place of the file.
 
 ## Invariants and boundaries
 
@@ -560,7 +632,9 @@ and managed settings, where `statusLine` is also a valid key.
 
 ## Consumers
 
-- The plugin's own zone-crossing hooks (first shipped consumer, see "Zone-crossing hooks").
+- The plugin's own module (first shipped consumer, see "The module"), and through it the
+  `mcp__context-guard__status` tool, which any session with the module loaded can call as its
+  zone lookup.
 - The `plugin-quality` audit skill (context-gate: zone-informed dispatch and evidence-flush
   decisions, conservative on `unknown`). It resolves the zone through a generated copy
   of this plugin's `scripts/context-zone.sh`. Its co-located `zones-inline-drift.test.sh` lane,

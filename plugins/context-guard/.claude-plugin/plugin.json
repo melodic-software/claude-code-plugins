@@ -1,7 +1,7 @@
 {
   "name": "context-guard",
-  "version": "0.10.4",
-  "description": "Per-session context-window observability. A statusline wrapper writes each session's context_window fields to a snapshot file; a resolver classifies usage into smart, acceptable, and dumb zones from zones.json. Hooks report each move into a worse zone once: the continuation menu to the operator, and only the zone to the model, noting a zone is not a decay signal. Optional blocking mode gates new mutating work in the dumb zone, except handoffs. A PostCompact hook leaves a marker.",
+  "version": "0.11.1",
+  "description": "Per-session context-window observability. A mod writes each session's context-window figures to a snapshot file and tells Claude its context zone (smart, acceptable or dumb, from bands in zones.json) at each crossing, approach and compaction, noting a zone is not a decay signal; the operator gets the continuation menu. It draws a band row and answers a status tool. Optional blocking mode gates new mutating work in a blocked zone, except handoffs. A PostCompact hook leaves a marker.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -9,8 +9,7 @@
   "license": "MIT",
   "keywords": [
     "context-window",
-    "statusline",
-    "tee",
+    "mod",
     "zones",
     "context-degradation",
     "session",
@@ -19,24 +18,54 @@
   "userConfig": {
     "context_guard_hooks_enabled": {
       "type": "boolean",
-      "title": "Zone and compaction hooks",
-      "description": "Runs the zone-crossing injection, blocking gate, and PostCompact marker hooks. On by default; off, every one of them exits without acting.",
+      "title": "Zone lines, gate and compaction marker",
+      "description": "Runs the module's zone lines and blocking gate and the PostCompact marker hook. On by default; off, none of them acts. Snapshot writes continue either way.",
       "default": true
+    },
+    "zone_lines_enabled": {
+      "type": "boolean",
+      "title": "Zone lines to Claude",
+      "description": "Sends Claude one line when the session crosses into a worse context zone, approaches a boundary, or passes a zones.json threshold, and restates the zone after a compaction, a resume or a reload. On by default.",
+      "default": true
+    },
+    "zone_report_mode": {
+      "type": "string",
+      "title": "Zone report mode",
+      "description": "automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a band notice when the turn ends. Headless, loop and schedule turns get automatic lines either way.",
+      "default": "automatic",
+      "options": ["automatic", "operator"]
+    },
+    "zone_line_data": {
+      "type": "string",
+      "title": "Zone line data",
+      "description": "Comma list of what a line carries beside its zone, which every line has: percent, tokens and window. Default zone.",
+      "default": "zone"
     },
     "zone_hook_mode": {
       "type": "string",
-      "title": "Zone hook mode",
-      "description": "advisory (default) injects guidance only; blocking also denies new Write, Edit, NotebookEdit, Agent, and Workflow calls on a fresh dumb-zone snapshot past the grace budget. Handoff-path writes, reads, Bash, and Skill stay allowed, and an unknown zone fails open.",
+      "title": "Zone gate mode",
+      "description": "advisory (default) sends lines only; blocking also denies new Write, Edit, NotebookEdit, Agent and Workflow calls in the dumb zone past the grace budget, unless zones.json sets an action for the dumb zone. Handoff-path writes, reads, Bash and Skill stay allowed, and an unknown zone fails open.",
       "default": "advisory",
       "options": ["advisory", "blocking"]
     },
     "zone_gate_grace_calls": {
       "type": "number",
       "title": "Blocking-gate grace budget (calls)",
-      "description": "Blocking mode only: matched tool calls allowed after the session first resolves dumb, before the gate denies. Default 20; 0 denies the first matched call.",
-      "default": 20,
-      "min": 0,
-      "max": 999999999
+      "description": "Blocking only: matched tool calls allowed after the session first reaches a blocked zone, before the gate denies. Default 20; 0 denies the first matched call; a value that is not a whole number from 0 to 999999999 reads as 20.",
+      "default": 20
+    },
+    "zone_block_unattended": {
+      "type": "string",
+      "title": "Blocking in unattended turns",
+      "description": "post-compaction (default): in turns no person typed (headless, loop, schedule and notification turns) only a compacted session is blocked; same-as-typed blocks them as typed turns are.",
+      "default": "post-compaction",
+      "options": ["post-compaction", "same-as-typed"]
+    },
+    "context_guard_band": {
+      "type": "boolean",
+      "title": "Context band row",
+      "description": "Draws the context figure and zone in a row above the prompt. On by default; /context-guard:band shows or hides it for the session.",
+      "default": true
     }
   }
 }

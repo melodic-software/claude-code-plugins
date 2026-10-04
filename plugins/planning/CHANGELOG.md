@@ -16,6 +16,18 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - Shared `README.md` synced as `reference/standards-contract.md`; no change to this plugin's skills. The standards contract is now 1.1.0 and adds the `paved-path` index row kind, which planning resolves like any other row.
 
+## [0.67.6] - 2026-10-04
+
+### Changed
+
+- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+
+## [0.67.5] - 2026-10-04
+
+### Fixed
+
+- Shared `view-runtime.js` synced ([#6173](https://github.com/melodic-software/claude-code-plugins/issues/6173)): pages built by `/planning:plan` and `/planning:brainstorm` no longer say they saved a file. The claude.ai artifact viewer blocks a download the page starts itself without an error the page can see, so the page reported a save that never happened. The "Save as file" button now appears only on a page opened from `file://` or served by the session bridge on `127.0.0.1`, and after a download attempt the status reads "If no file was saved, select the text below and copy it." "Copy reply" and the selectable payload text are unchanged.
+
 ## [0.67.4] - 2026-10-04
 
 ### Changed

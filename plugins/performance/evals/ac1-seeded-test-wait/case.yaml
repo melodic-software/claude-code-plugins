@@ -1,0 +1,55 @@
+schema_version: "1.1"
+name: ac1-seeded-test-wait
+description: 'Source: plan acceptance criterion AC1. The resumed transcript is a session with seven tool calls before the sweep, three of them `npm test` runs that waited 95, 98 and 92 seconds; the sweep must rank that wait at the top of session-work. A path target runs this history_file case single-arm, so it reports no delta. The scaffold stages the history in the workspace, where go-faster reads it and keeps its data folder. A run needs --scaffold, --allow-tools Bash WebFetch and a sandbox backend.'
+tags: [go-faster, session-history, routine]
+plugins: ["../.."]
+expected_outcome: 'AC1. The fixture is this session''s transcript: seven tool calls before the sweep, three `npm test` runs that waited 95, 98 and 92 seconds. The session-work area''s top time finding is the Bash wait of 285000 wait-ms, tier E1, workload `transcript counts`, with the transcript-counts line as its reproduce command and a fix owner (a /plugin:skill, or steps for you). A second measured finding counts the repeated `npm test` command at 3.'
+context:
+  scaffold_script: scaffold.sh
+  history_file: ac1-seeded-test-wait.jsonl
+execution:
+  prompt: /performance:go-faster
+  allowed_tools: [Bash, Read, Grep, Glob, Skill, Agent, WebFetch]
+  max_turns: 100
+  timeout_seconds: 1800
+  env:
+    EVAL_GO_FASTER_DATA: go-faster-data
+    EVAL_GO_FASTER_TRANSCRIPT: go-faster-history.jsonl
+graders:
+  - name: bash-wait-finding-measured
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: The report has a measured session-work finding with value 285000 and unit wait-ms whose title names the Bash tool or the `npm test` runs. FAIL otherwise.'
+  - name: bash-wait-listed-first
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: Among session-work findings in the ''Measured: elapsed time'' section, that Bash wait finding (value 285000, unit wait-ms) is listed first. FAIL otherwise.'
+  - name: bash-wait-tier-e1
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: That finding (the session-work Bash wait of 285000 wait-ms) states tier E1. FAIL otherwise.'
+  - name: bash-wait-reproduce-command
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: That finding''s (the session-work Bash wait of 285000 wait-ms) ''Reproduce:'' command is a `findings.py transcript-counts` line. FAIL otherwise.'
+  - name: bash-wait-fix-owner
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: That finding''s (the session-work Bash wait of 285000 wait-ms) ''Fix:'' is a slash command of the form /<plugin>:<skill> (any plugin and skill, for example /performance:goal), or ''steps for you:'' followed by at least one step. FAIL otherwise.'
+  - name: npm-test-repeat-counted
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: The report has a measured finding with unit count and value 3 for the repeated `npm test` command. FAIL otherwise.'
+  - name: not-a-setup-scan
+    type: regex
+    pattern: 'No session evidence yet: setup scan only\.'
+    match: not_contains
+    target: last_message
+  - name: transcript-counted
+    type: tool_used
+    tool: Bash
+    input_match: 'transcript-counts'
+  - name: sweeper-dispatched
+    type: tool_used
+    tool: Agent
+    input_match: 'go-faster-sweeper'

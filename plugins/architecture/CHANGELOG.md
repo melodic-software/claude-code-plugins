@@ -9,6 +9,12 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 
 - **The enforcement ladder ships with `/architecture:improve`.** A generated copy of the enforcement-ladder convention sits at `skills/improve/research/enforcement-ladder.md`, carrying the rung list and the "Where boundary rules live" list that boundary reviews read.
 
+## [0.22.1] - 2026-10-04
+
+### Changed
+
+- Shared `view-runtime.js` synced ([#6173](https://github.com/melodic-software/claude-code-plugins/issues/6173)); no change to this plugin's own behavior.
+
 ## [0.22.0] - 2026-10-04
 
 ### Added

@@ -1,0 +1,15 @@
+// expect: rule-zero-assertion
+// The body only prints. "Check" in the test's own name is not an assertion
+// call, so the declaration line must not count as one.
+using System;
+using Xunit;
+
+public class DiagnosticsCheckPrintsOnlyTests
+{
+    [Fact]
+    public void Diagnostics_CheckConnectionStrings()
+    {
+        var settings = AppSettings.Load("appsettings.json");
+        Console.WriteLine(settings.ConnectionStrings.Count);
+    }
+}

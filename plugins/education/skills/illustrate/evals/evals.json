@@ -95,6 +95,28 @@
         "Does not produce a record, page, or diagram for a plain-language prose request",
         "Recognizes the medium boundary and routes to education:explain"
       ]
+    },
+    {
+      "id": 9,
+      "name": "branches-off-one-center-pick-the-hub-kind",
+      "prompt": "/education:illustrate Linus Torvalds: his main project and the side projects he started alongside it",
+      "expected_output": "Grounds the topic from a primary source, then draws the side projects as one diagram of kind hub: the main project (the Linux kernel) as the center and each side project (such as Git and Subsurface) as a branch. It does not draw the side projects as a flow, so no arrow claims they happened in sequence, and no caption has to explain away what the arrows mean.",
+      "files": [],
+      "expectations": [
+        "The diagram of the main project and its side projects has kind hub, with the main project as center and the side projects as branches",
+        "Does not use a flow or a stack for the side projects, and adds no caption or text line saying the arrows do not mean a sequence"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "dated-releases-pick-the-timeline-kind",
+      "prompt": "/education:illustrate the release history of Python 3, from 3.0 to 3.12",
+      "expected_output": "Grounds the release dates from a primary source such as the Python documentation or PEP release schedules, then draws the releases as one diagram of kind timeline: one point per release, its year or date in when and the version with its headline change in label. It does not draw the releases as a wrapping flow of boxes, and every point carries a date rather than only some labels.",
+      "files": [],
+      "expectations": [
+        "The diagram of the releases has kind timeline, with one point per release",
+        "Every point carries its date in when, not folded into some labels and missing from others"
+      ]
     }
   ]
 }

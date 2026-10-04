@@ -9,20 +9,16 @@ self-hosted-runner:
     - melodic-ubuntu-24.04-x64
     - melodic-review-ubuntu-24.04-x64
 
-# actionlint 1.7.12 (the ci-workflows composite's current pin) rejects the
-# GA `concurrency.queue` key (upstream gap:
-# https://github.com/rhysd/actionlint/issues/654). GitHub accepts and
-# honors the key at both workflow and job level — verified by live probe
-# runs. Suppression scoped to exactly that one syntax-check message.
-#
-# REMOVAL TRIGGER: delete this ignore when rhysd/actionlint#654 ships in the
-# pinned actionlint version. The file itself stays either way, because the
-# self-hosted-runner block above is permanent for as long as the fleet labels
-# are written literally.
+# `$/` is the same-release reference to a sibling action in this repository's
+# reusables. actionlint 1.7.12 parses `uses:` as `{owner}/{repo}@{ref}` and
+# rejects it with `ref is missing`; the pattern matches only that message for a
+# `$/<path>` with a non-empty path, so a bare `$/` or an `owner/repo/path` with
+# no ref still fails.
+# Remove when rhysd/actionlint#732 ships and the pinned actionlint is bumped
+# (https://github.com/rhysd/actionlint/issues/732).
+# Trade-off: actionlint cannot resolve the local action, so `with:` input
+# validation is lost for `$/` steps.
 paths:
-  .github/workflows/**/*.yml:
+  .github/workflows/**/*.{yml,yaml}:
     ignore:
-      - 'unexpected key "queue" for "concurrency" section'
-  .github/workflows/**/*.yaml:
-    ignore:
-      - 'unexpected key "queue" for "concurrency" section'
+      - 'specifying action "\$/[^"]+" in invalid format because ref is missing'

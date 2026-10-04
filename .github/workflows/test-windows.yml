@@ -42,8 +42,7 @@ name: test-windows
 # lane is not one.
 
 on:
-  # Present for parity with ci.yml, which takes a dispatch to run its bench
-  # lanes. This lane has none; a dispatch here runs every Windows step.
+  # A dispatch runs every Windows step.
   workflow_dispatch:
   # Every Windows step, at ci.yml's whole-tree hours: the net for a Windows
   # suite a change reaches through something the selector does not see.
@@ -404,6 +403,11 @@ jobs:
       - name: Test the exec-form bash launcher resolver on Windows
         if: contains(fromJSON(needs.scope-windows.outputs.steps), 'lib/exec-bash.resolver.test.mjs')
         run: node --test lib/exec-bash.resolver.test.mjs
+      # The guards' snapshot writer under the real node.exe: rename over an
+      # existing file, exclusive temp and lock files, and the sweep on NTFS.
+      - name: Test the guards' snapshot writer on Windows
+        if: contains(fromJSON(needs.scope-windows.outputs.steps), 'lib/write-snapshot.test.mjs')
+        run: node --test lib/write-snapshot.test.mjs
 
   test-windows-lib:
     needs: [scope-windows]

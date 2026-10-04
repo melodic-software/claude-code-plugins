@@ -18,6 +18,12 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 - tidy's #14 example workaround comment carries a removal condition, so it no longer reads as an unjustified workaround.
 - **`dissolve-comments` re-checks a kept claim against the code.** Before a constraint, warning, contract or thread-safety comment is kept, step 5 reads the code it describes; a claim the code now contradicts is obsolete (class A) and is deleted or proposed under the mode's class-A rule. A claim the code cannot settle goes to `/discovery:trace-intent` when it is among the available skills; one still open is reported as unverified and then goes through the class-C criteria like any other comment.
 
+## [0.28.5] - 2026-10-04
+
+### Changed
+
+- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+
 ## [0.28.4] - 2026-10-03
 
 ### Changed

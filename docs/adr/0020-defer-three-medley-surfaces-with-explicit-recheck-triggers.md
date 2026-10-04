@@ -17,8 +17,8 @@ convention), so a contributor who touches a deferred surface finds the trigger w
   2026-07-12 as not a plugin component, so these may be removed entirely rather than migrated.
   Re-verified 2026-07-27: the no-native-slot premise no longer holds: plugins now ship workflow
   scripts via a `workflows/` directory
-  (<https://code.claude.com/docs/en/plugins-reference#standard-plugin-layout>) or the `workflows`
-  manifest field (<https://code.claude.com/docs/en/plugins-reference#component-path-fields>), and a
+  (<https://code.claude.com/docs/en/plugins/manifest-reference#standard-layout>) or the `workflows`
+  manifest field (<https://code.claude.com/docs/en/plugins/manifest-reference#path-only-fields>), and a
   plugin workflow runs plugin-namespaced
   (<https://code.claude.com/docs/en/workflows#distribute-a-workflow-in-a-plugin>), but the deferral
   stands on the usage question alone. **Recheck trigger:** the engines survive the next usage review

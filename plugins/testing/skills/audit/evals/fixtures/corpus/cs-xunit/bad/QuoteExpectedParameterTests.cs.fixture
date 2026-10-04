@@ -1,0 +1,23 @@
+// expect: rule-zero-assertion
+// The theory takes an expected value and never compares against it. The
+// parameter name in the signature is not an expect call. The fact before it
+// asserts, so the theory's signature is read after another test has closed.
+using System;
+using Xunit;
+
+public class QuoteExpectedParameterTests
+{
+    [Fact]
+    public void Quote_OneSeat_CostsTen()
+    {
+        Assert.Equal(10.0m, Quote.For(1).Total);
+    }
+
+    [Theory]
+    [InlineData(2, 20.0)]
+    public void Quote_PricesEachSeat(int seats, decimal expected)
+    {
+        var quote = Quote.For(seats);
+        Console.WriteLine(quote.Total);
+    }
+}

@@ -11,6 +11,12 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
 - `/discipline:reuse-or-replace` reads the project's paved-path file on demand: when the standards index has a `paved-path` row and the work touches a concern it lists, the listed entry is the established way, and replacing it includes updating the entry.
 
+## [0.16.4] - 2026-10-04
+
+### Changed
+
+- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+
 ## [0.16.3] - 2026-10-02
 
 ### Fixed

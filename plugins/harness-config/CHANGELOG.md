@@ -11,6 +11,21 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 
 - **`/harness-config:audit-automation-gaps` reads the enforcement hierarchy from the shared enforcement ladder.** The skill carries a generated copy of the enforcement-ladder convention at `context/enforcement-ladder.md` and points at it instead of listing the levels inline. The ladder adds a `make-impossible` rung above compiler settings and a `canonical-helper` rung below the linters. A consuming repository's own order in its project instructions still overrides the default.
 
+## [1.9.0] - 2026-10-04
+
+### Added
+
+- **`audit-instructions` rows I38 and I39** (`criteria.md` 1.28.0), both unscoped. I38 flags an
+  instruction that stops the model writing user-facing updates while it works ("hold all findings
+  for the final response", "don't narrate"), on the Sonnet 5.5 and Fable 5.1 guides; a contract for
+  the final message's shape is not a finding. I39 flags two directives in one instruction surface
+  that contradict each other with nothing arbitrating, on the memory page's consistency guidance;
+  I15 keeps its cross-surface unit unchanged. `instruction-scan.sh` seeds I38 and adds scratchpad
+  phrasing to I10 (a `<scratchpad>` tag, or a scratchpad paired with working a problem out, never a
+  scratchpad storage path). I39 is lane-only and, like I15, one
+  finding with two sites, so a change to either line changes its id. Two eval cases and a fixture cover each row firing
+  and staying quiet ([#5772](https://github.com/melodic-software/claude-code-plugins/issues/5772)).
+
 ## [1.8.1] - 2026-10-04
 
 ### Fixed

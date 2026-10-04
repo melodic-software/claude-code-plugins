@@ -1,6 +1,6 @@
 ---
-version: 1.27.0
-last-updated: 2026-10-02
+version: 1.28.0
+last-updated: 2026-10-04
 ---
 
 # Instruction-Audit Criteria
@@ -48,6 +48,8 @@ Look up a specific check by ID: run `grep -n '^### I<N>:'` over this file.
   - [I35: Settled-answers instruction where later steps revise earlier ones](#i35-settled-answers-instruction-where-later-steps-revise-earlier-ones)
   - [I36: Tool-discouraging language](#i36-tool-discouraging-language)
   - [I37: Harness text after every tool result](#i37-harness-text-after-every-tool-result)
+  - [I38: Progress-update suppressor](#i38-progress-update-suppressor)
+  - [I39: Contradiction inside one file](#i39-contradiction-inside-one-file)
 - [Stopping condition](#stopping-condition)
 - [Out-of-catalog defects](#out-of-catalog-defects)
 - [AGENTS.md content-home advisory](#agentsmd-content-home-advisory)
@@ -167,7 +169,7 @@ non-memory surfaces (skill bodies, agent definitions, hook instruction text, out
 memory-layer surfaces (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md, `.claude/rules/`,
 `~/.claude/rules/`) their findings route to the `harness-memory` plugin's `audit` skill when it is
 installed, and fall back to the official include/exclude guidance (I1–I5 source below) when it is
-not. Checks I6–I12, I16–I28, I30, and I35–I37 apply to all surfaces. I15 also applies to all
+not. Checks I6–I12, I16–I28, I30, and I35–I39 apply to all surfaces. I15 also applies to all
 surfaces, but its unit is a pair, so Phase B2 answers it rather than a per-surface lane. I13, I14,
 I29, I31, I32, I33, and I34 name narrower surface sets in their own rows, and a lane runs each only
 on the surfaces its row names.
@@ -770,7 +772,11 @@ promotion gate unmet, see "Unscoping considered" below).
 
 - **Detect:** instructions asking the model to put its internal reasoning into the reply itself,
   whether by showing, repeating, writing out, or narrating it. The deterministic pre-scan marks
-  show-your-thinking phrasing.
+  show-your-thinking phrasing, and scratchpad phrasing: a `<scratchpad>` tag, or a scratchpad
+  paired with thinking, reasoning, or working a problem out. We read a scratchpad rule of that kind
+  as the same request, reasoning written into the reply. **Must NOT flag:** a scratchpad directory
+  or file that holds intermediate artifacts, such as a session scratchpad path or a ledger file;
+  that is storage, not reasoning in the reply.
 - **Remediate:** remove them; where reasoning visibility is genuinely needed, read structured
   `thinking` blocks through the surface that already exposes them: in Claude Code, `Ctrl+O` verbose
   mode and the `showThinkingSummaries: true` setting (model configuration); on the API,
@@ -830,6 +836,14 @@ promotion gate unmet, see "Unscoping considered" below).
   declines reasoning extraction.
 - **Re-justified 2026-10-01 against the current models:** `fable-5` stays, since Fable 5 is a
   current model (see "Tokens of models that are no longer current").
+- **Scratchpad form added 2026-10-04.** The vendor post on what a task costs on Opus 5.5 names a
+  removed "scratchpad rule" without defining it; mapping it to this row is our judgment. On
+  `opus-5-5` the guide section that covers reasoning written into the response as a stand-in for
+  thinking is the pointer. Pointer: [Opus 5.5 guide, prompts written for thinking
+  disabled](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5-5#prompts-written-for-thinking-disabled).
+  As of: 2026-10-04 (our probe: the guide's raw `.md`, hash as in I8-c). Recheck trigger: that
+  section stops covering reasoning written into the response, or a guide names the scratchpad
+  form itself.
 
 ### I11: CLI over MCP where equivalent
 
@@ -2290,6 +2304,73 @@ states the claim; promotion gate unmet).
   As of: 2026-10-01. Recheck trigger: a second model guide covering the same topic, which meets
   the promotion gate and unscopes the row, or that section changing which kinds of per-step text
   it covers.
+
+### I38: Progress-update suppressor
+
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all. Unscoped.
+Promotion gate MET: two model guides state the claim (see Source).
+
+- **Detect:** an instruction that keeps the model from writing user-facing updates while it works,
+  such as "hold all findings for the final response", "don't narrate", or "no interim updates". We
+  treat such a line as written for models that over-narrated: on current models it leaves long
+  runs silent.
+- **Remediate:** remove the line first, then re-test. Where more updates are still wanted, say when
+  user-facing text is wanted and what each update holds (a line before the first tool call, a
+  short recap at the end), rather than restoring a blanket rule. Verify per Deletion tiers (a
+  consequential removal needs a closed watch, an editorial one does not).
+- **Must NOT flag:** a contract for the shape of the final message, such as a return block with
+  no preamble or a report that leads with what the human owes; it says nothing about text between
+  tool calls, and the posture catalog's P11 covers the end-of-run report. A component whose
+  interim text no person reads, such as a dispatched worker whose parent reads only its final
+  message. "Narrate" used to mean "describe as", such as "do not narrate the diagram as complete".
+  A document *about* the pattern, on the audience test I8-b applies.
+- **Adjacent rows:** I8-e flags the opposite calibration, a forced status rhythm; one line is
+  never both. I8-b flags severity gates that drop findings from the output; a line that defers
+  findings to the final response drops none, so it is this row's, not I8-b's, even though the
+  canonical phrase names findings.
+- **Source:** Sonnet 5.5 guide, "User-facing progress updates", and Fable 5.1 guide, "Ask for
+  user-facing progress updates": each prescribes removing such lines, which meets the promotion
+  gate. The Opus 5.5 guide's "User-facing progress updates" states the mechanism (between-tool
+  notes return as thinking blocks) but not the removal. Correlate: the vendor `prompt-audit`
+  procedure's update-suppressor row, read at the commit
+  [bundled-claude-api.md](bundled-claude-api.md) pins. Pointer: [Sonnet 5.5 guide, user-facing
+  progress
+  updates](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#user-facing-progress-updates)
+  and [Fable 5.1 guide, ask for user-facing progress
+  updates](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1#ask-for-user-facing-progress-updates).
+  As of: 2026-10-04 (our probe: the Sonnet 5.5 guide's raw `.md`, 27,655 bytes, MD5
+  `8882d6ac74e44290ce4b4475ee1ce1c8`; the Fable 5.1 guide's raw `.md`, 55,050 bytes, MD5
+  `201e051e3710e130ca3505b647da53a3`). Recheck trigger: either section stops prescribing the
+  removal, which re-opens the scoping question, since the gate then rests on one guide.
+
+### I39: Contradiction inside one file
+
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all. Unscoped.
+
+- **Detect:** two directives in one instruction surface that constrain the same act and prescribe
+  incompatible actions for at least one input that triggers both, with nothing in the surface
+  arbitrating between them. A file and the files it pulls in by `@path` import count as one
+  surface here, the same resolution I15 applies before pairing, so a contradiction between a
+  `CLAUDE.md` and its import is reported once, under this row.
+- **Why it is not I15:** I15's unit is a pair of surfaces, and its pre-scan drops two directives in
+  the same file by construction (its must-not-flag case 1). That case stands; this row covers what
+  it leaves out.
+- **Must NOT flag:** the lane cases I15 applies to a pair, read inside one surface: a deference
+  clause, a general rule with a narrower exception, different scopes of one topic, a scope
+  declaration, disjoint conditions, and the same word with two referents. Each is listed with its
+  gate in the must-not-flag set of [conflict-criteria.md](conflict-criteria.md). Also a document
+  *about* the pattern, on the audience test I8-b applies.
+- **Remediate:** quote both lines. Propose keeping one and removing or rewording the other where the
+  surface's own text shows which is current; otherwise report the pair as `unresolved` and say what
+  the operator has to decide.
+- **Reporting:** one finding per pair, with both lines as its two sites, the pairwise row I15 uses.
+  I39 is lane-only (no pre-scan seed); each lane brief restates the Must NOT flag fences above.
+- **Source:** memory, "Write effective instructions", its consistency guidance (contradicting
+  instructions and an arbitrary pick), which names no same-file limit. Pointer: [memory: write
+  effective
+  instructions](https://code.claude.com/docs/en/memory#write-effective-instructions). As of:
+  2026-10-04. Recheck trigger: that guidance gains a same-file limit, or stops calling a
+  contradiction a defect.
 
 ---
 

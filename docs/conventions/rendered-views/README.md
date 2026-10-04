@@ -233,14 +233,21 @@ from the one the browser runs. It checks the runtime body by hash before any oth
      rendering are the controls that hold in both hosts: both refuse bindings on
      `<style>`, `<head>`, `<meta>`, `<title>`, `<html>`, and form controls, so data stays
      body text the host's policy cannot be asked to police. The page's policy is defense
-     in depth that holds from `file://`. The host also blocks downloads, so the runtime
-     shows every payload as selectable text when the reader copies or saves.
+     in depth that holds from `file://`. The host also blocks any download the page starts
+     itself and gives the page no sign that it did, so the runtime removes every
+     `data-rv-download` button except on `file://` and the session bridge on `127.0.0.1`,
+     never says a file was saved, and shows every payload as selectable text when the
+     reader copies or saves.
    - **Basis:** the builder's sample page, published 2026-10-02 and read back: the
      stored page sits inside the host's `<body>`. In headless Chromium, the same page
      wrapped that way ran a runtime that did not match its hash; unwrapped, from
-     `file://`, the policy blocked it (`lib/view-builder.test.sh`).
-   - **Recheck:** the artifact host stops wrapping pages, or lets a page declare its
-     own policy.
+     `file://`, the policy blocked it (`lib/view-builder.test.sh`). The download block:
+     the [artifacts docs](https://code.claude.com/docs/en/artifacts#offer-a-file-download),
+     fetched 2026-10-04, and the HTML
+     [download algorithm](https://html.spec.whatwg.org/multipage/links.html#downloading-hyperlinks),
+     which returns without an error when the document's downloads are sandboxed.
+   - **Recheck:** the artifact host stops wrapping pages, lets a page declare its own
+     policy, or lets a page start its own download.
 8. **A generator marker naming the profile.** The page carries the builder's generator
    marker, which names the profile it was validated against, and the validator selects
    the profile from it: `rv-gen:view-builder-interactive` selects the interactive

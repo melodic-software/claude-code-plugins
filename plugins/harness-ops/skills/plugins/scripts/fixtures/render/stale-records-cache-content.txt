@@ -4,8 +4,8 @@ Updated: 1 plugin(s)
   - delta@market1 (project): 0.1.0 → 0.2.0
 Divergences: 0 actionable
 Stale project records: 3 record(s) across 2 path(s) not present on this machine
-  - <case>/gone-a: 2 record(s)
-  - <case>/gone-b: 1 record(s)
+  - <case>/: 3 record(s) across 2 path(s)
+  Full per-path list: <run_dir>/stale-project-records.market1.json
   (not counted as divergences: converge cannot cd into a path that is not present. A path can also
    be absent because a volume is unmounted or a share is offline, so this is an observation, not a
    verdict that the directory is gone for good.)

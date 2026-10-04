@@ -14,6 +14,12 @@ All notable changes to the `multi-agent` plugin are documented here. Format foll
 
 - **The `mechanical` workload runs the worker on `sonnet` by default** (`roles.worker.workloads.mechanical.model: sonnet`); `code` and `research` keep the role's model. Opt out with `roles.worker.workloads.mechanical.model: inherit` in any layer.
 
+## [0.4.4] - 2026-10-03
+
+### Changed
+
+- The README notes that an installed mod can stop this plugin's `PreToolUse` hooks from running and can approve a call they blocked, with links to the two mods events sections. Nothing the plugin runs changed.
+
 ## [0.4.3] - 2026-10-03
 
 ### Fixed

@@ -22,7 +22,6 @@ plugins/harness-ops/skills/plugins/context/scope-semantics.md 1 # justified: the
 plugins/harness-ops/skills/plugins/context/sync.md 1 # justified: the sentence says the variable keeps resolving to the version loaded at session start; it names the token and runs nothing
 plugins/code-tidying/skills/dissolve-comments/reference/safety.md 1 # justified: the sentence says where the token is substituted and where it is not; the literal text is the subject
 plugins/code-tidying/skills/dissolve-comments/reference/scope.md 1 # justified: the note says this file's paths are not written through the token; the literal text is the subject
-plugins/context-guard/skills/setup/reference/statusline-edit.md 1 # justified: the sentence names the token as a path the wiring target must never be; it runs nothing
 plugins/disk-hygiene/skills/clean/reference/safety-model.md 7 # justified: the prose names the substitution Claude Code performs on a skill-frontmatter hook's args; the token is described, never run from here
 plugins/dometrain/skills/sync/context/update.md 1 # justified: the prose says what the variable resolves to in a normal session; the sentence names the token and does not run it
 plugins/event-storming/skills/simulation/reference/agentic-simulation.md 1 # justified: the sentence names the token as the read-only install directory a session archive is never written into; it runs nothing

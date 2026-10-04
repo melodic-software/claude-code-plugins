@@ -6,6 +6,18 @@
 
 - **The enforcement ladder ships with `/session-flow:retro`.** A generated copy of the enforcement-ladder convention sits at `skills/retro/reference/enforcement-ladder.md`: the strongest-first rung list and codify's selection rule, for routing a repeated correction to a rung.
 
+## [0.48.8] - 2026-10-04
+
+### Changed
+
+- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+
+## [0.48.7] - 2026-10-03
+
+### Changed
+
+- **Rate-limit and zone lookups name the guards' pull tools.** `/session-flow:orchestrate` names rate-limit-guard's mod as the snapshot writer and `mcp__rate-limit-guard__status` as a source; headroom counts as unobservable whenever no live reading is obtainable (mods off, the guard not installed, the tool's registration refused by policy, or a tool answer with no windows), no longer in every cloud or headless session. `/session-flow:workflow` and `/session-flow:keep-going` look up the zone word with `mcp__context-guard__status` or the snapshot, and `/session-flow:keep-going` reads live `rate_limits` through `mcp__rate-limit-guard__status`.
+
 ## [0.48.6] - 2026-10-04
 
 ### Fixed
