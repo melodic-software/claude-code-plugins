@@ -1149,6 +1149,7 @@ corpus_files=(
   cs-xunit/bad/ParserAsyncWrappedExpressionThrowsTests.cs.fixture
   cs-xunit/bad/QuoteExpectedParameterTests.cs.fixture
   cs-xunit/bad/SlugifyTests.cs.fixture
+  cs-xunit/bad/UnitTest1.cs.fixture
   cs-xunit/bad/WidgetAlwaysTrueTests.cs.fixture
   cs-xunit/bad/WidgetExpressionAlwaysFalseTests.cs.fixture
   cs-xunit/bad/WidgetInertBesideWeakOneLineTests.cs.fixture
@@ -1157,6 +1158,7 @@ corpus_files=(
   cs-xunit/bad/WidgetTypeofNotNullTests.cs.fixture
   cs-xunit/bad/WorkerRunAsyncTests.cs.fixture
   cs-xunit/good/AnalyzerHarnessRunAsyncTests.cs.fixture
+  cs-xunit/good/CheckoutStepDefinitions.cs.fixture
   cs-xunit/good/DiagnosticsCheckAssertsTests.cs.fixture
   cs-xunit/good/HttpStatusFieldTests.cs.fixture
   cs-xunit/good/InvoiceMailerTests.cs.fixture

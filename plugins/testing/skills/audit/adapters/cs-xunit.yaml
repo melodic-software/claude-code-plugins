@@ -6,7 +6,8 @@
 id: cs-xunit
 language: cs
 block_model: brace
-files: ['*Test.cs', '*Tests.cs']
+# Reqnroll step definitions and the project template's UnitTest1.cs too.
+files: ['*Test.cs', '*Tests.cs', '*StepDefinitions.cs', 'UnitTest*.cs']
 # Test attributes; the method signature that follows opens the block.
 test_start:
   - '^[[:space:]]*\[[[:space:]]*(Fact|Theory|Test([^A-Za-z0-9_]|$)|TestMethod|TestCase|DataTestMethod)'
