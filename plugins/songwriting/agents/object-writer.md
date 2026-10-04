@@ -108,6 +108,11 @@ summary ("I covered smell") is not evidence and will be rejected.
    unreliable over the return channel and belongs on disk regardless.
 2. Return **only**: the file path, then the seven channel names each marked `strong` / `thin` /
    `absent`, then one sentence on where the pivot chain took you and how far from the seed.
+   **That sentence is the last line of the return and a single sentence: one terminal period, no
+   second sentence, no clause-by-clause recap of the chain, nothing after it.** Writers at every
+   effort level returned two to four pivot sentences here
+   ([#6031](https://github.com/melodic-software/claude-code-plugins/issues/6031)); the chain
+   itself belongs in the file.
 
 File format:
 
