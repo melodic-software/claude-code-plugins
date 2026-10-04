@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.26.5] - 2026-10-04
+
+### Changed
+
+- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** Orchestrated `extract-ssot` runs now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limit-guard 0.14.0's reader contract.
+
 ## [0.26.4] - 2026-10-03
 
 ### Changed

@@ -4,7 +4,7 @@ import type { EngineInterface, PromptOrigin, Register, SessionRateLimit, Timer }
 const CONTRACT_DIR = 'rate-limit-guard'
 const SNAPSHOT_FILE = 'rate-limits.json'
 const HELPER = 'lib/write-snapshot.mjs'
-const PAUSE_EDGE = 90
+const PAUSE_EDGE = 95
 const FLOOR_MS = 300_000
 const WRITE_TIMER_MS = 60_000
 const REOFFER_MS = 5_000
@@ -108,7 +108,7 @@ export const parseConfig = (options: Record<string, unknown>): Config => {
     lines: options.rate_limit_lines_enabled !== false,
     operator: options.rate_limit_report_mode === 'operator',
     threshold: number('rate_limit_line_threshold', PAUSE_EDGE),
-    approach: number('rate_limit_approach_pct', 85),
+    approach: number('rate_limit_approach_pct', 90),
     data,
     band: options.rate_limit_guard_band === true,
     toast: options.rate_limit_guard_toast !== false,

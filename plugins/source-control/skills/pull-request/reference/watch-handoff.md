@@ -36,7 +36,7 @@ launch decision uses the tee file, the threshold, the pause end and the stalenes
 applies to a watcher that later pauses.
 
 - **Tee file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
-- **Pause threshold (fixed):** pause when **either** window reports `used_percentage >= 90`
+- **Pause threshold (fixed):** pause when **either** window reports `used_percentage >= 95`
 - **Pause end:** the **tripped** window's `resets_at`; when **both** windows trip, the **later**
   `resets_at`
 - **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale. Treat
@@ -57,8 +57,8 @@ applies to a watcher that later pauses.
   with no latched account there is no switch to detect. Read `.claude.json` at pause entry and on
   every re-evaluation (each Monitor tick and each wake). When it differs from the latched account,
   re-evaluate at once against the new account's windows, taken from a fresh tee snapshot whose
-  `account.email` equals the new account: below 90, drop the latched pause and resume; at or above
-  90, keep pausing and re-latch the pause end and the latched account against the new account's
+  `account.email` equals the new account: below 95, drop the latched pause and resume; at or above
+  95, keep pausing and re-latch the pause end and the latched account against the new account's
   `resets_at`; with no fresh or attributable snapshot, treat the windows as **unknown**, drop the
   latch, and fall back to reactive-only. An unreadable, absent, or malformed state file, or a
   missing key, means **cannot attribute**: keep the existing latch, never a spurious drop. Never
