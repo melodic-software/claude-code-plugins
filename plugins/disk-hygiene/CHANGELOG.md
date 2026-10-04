@@ -3,6 +3,14 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.4] - 2026-10-04
+
+### Fixed
+
+- **The guard decision record's JWT, connection-string and private key redaction patterns are now linear on adversarial text.**
+  Each re-scanned an unbounded run from every start position, so on a long run with no `.` or `://`, or a repeated private key header, the pattern alone took 20 to 40 seconds; the record itself stayed fast only because it scans the first 4096 characters. The JWT header is now capped at 512 characters and the URL scheme at 64, and the private key body stops at the next `-----BEGIN` and at 16384 characters, over twice the size of an 8192-bit RSA key. The same bounds landed in session-flow for [#5951](https://github.com/melodic-software/claude-code-plugins/issues/5951).
+  Every realistic token, connection string and key is still redacted.
+
 ## [0.43.3] - 2026-10-03
 
 ### Fixed

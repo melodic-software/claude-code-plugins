@@ -93,8 +93,13 @@ REDACTED = "<redacted>"
 # plus env-var assignments whose names look like credentials, including
 # PowerShell `$env:AZURE_CLIENT_SECRET='...'`.
 _SECRET_SHAPES: tuple[re.Pattern[str], ...] = (
+    # The body stops at the next BEGIN and at 16384 characters, so each
+    # header scans a bounded run; unbounded, a repeated header is
+    # quadratic. An 8192-bit RSA key is about 6.5 KB as PEM or OpenSSH.
     re.compile(
-        r"-----BEGIN[^-]+PRIVATE KEY-----.*?-----END[^-]+PRIVATE KEY-----",
+        r"-----BEGIN[^-]{1,64}PRIVATE KEY-----"
+        r"(?:(?!-----BEGIN).){0,16384}?"
+        r"-----END[^-]{1,64}PRIVATE KEY-----",
         re.DOTALL,
     ),
     re.compile(r"\b(?:sk|rk|pk)-[A-Za-z0-9_-]{16,}"),
@@ -106,13 +111,15 @@ _SECRET_SHAPES: tuple[re.Pattern[str], ...] = (
     ),
     re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
-    re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
+    # The bounded JWT header and URL scheme keep each start position's scan
+    # short; unbounded, a long run with no `.` or `://` is quadratic.
+    re.compile(r"\beyJ[A-Za-z0-9_-]{10,512}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
     re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._+/=-]{8,}"),
     re.compile(
         r"(?i)\b(?:bearer|token|api[_-]?key|secret|password|passwd|pwd)"
         r"['\"]?\s*[:=]\s*['\"]?[A-Za-z0-9._+/=-]{8,}"
     ),
-    re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s:@/]+:[^\s:@/]+@[^\s]+"),
+    re.compile(r"\b[a-z][a-z0-9+.-]{0,63}://[^\s:@/]+:[^\s:@/]+@[^\s]+"),
     # One attempt per name, consumed possessively: two open-ended runs around the
     # keyword backtrack in cubic time on a name like `KEYKEY...`.
     re.compile(

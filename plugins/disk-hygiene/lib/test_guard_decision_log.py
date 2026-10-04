@@ -173,6 +173,52 @@ class GuardDecisionLogTests(unittest.TestCase):
                 )
                 self.assertLess(time.monotonic() - start, 1.0)
 
+    def test_secret_shapes_finish_promptly_on_adversarial_text(self) -> None:
+        # MAX_SCAN_CHARS keeps the record path short; these shapes made the
+        # JWT, connection string and private key patterns themselves take
+        # 20 to 40 seconds.
+        header = "-----BEGIN a PRIVATE KEY-----"
+        for text in (
+            "-eyJ" * 75000,
+            "a." * 150000,
+            "a." * 32 + "a@" + "a." * 150000,
+            header * 20000,
+            header + "-----END" * 70000,
+            "-----BEGIN" + "a" * 600000,
+        ):
+            with self.subTest(text=text[:40]):
+                start = time.monotonic()
+                decision_log._redact_secrets(text)
+                self.assertLess(time.monotonic() - start, 1.0)
+
+    def test_bounded_secret_shapes_still_redact_realistic_secrets(self) -> None:
+        redacted = decision_log.REDACTED
+        # Header, payload and signature spell FAKE.
+        jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal"
+        long_header = "eyJ" + "A" * 509 + ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal"
+        # A 4096-bit RSA PKCS#8 PEM is about 3.2 KB in 64-character lines
+        # (RFC 7468); this body spells FAKE.
+        body = "\n".join(["FAKE" * 16] * 52)
+        pems = [
+            f"-----BEGIN {label}PRIVATE KEY-----\n{body}\n"
+            f"-----END {label}PRIVATE KEY-----"
+            for label in ("", "RSA ", "OPENSSH ")
+        ]
+        self.assertGreater(len(pems[0]), 3200)
+        for secret in (
+            jwt,
+            long_header,
+            "postgres://u:p@h/db",
+            "postgresql+psycopg2://user:FAKEpass@db.example.com:5432/app",
+            "m" * 64 + "://u:p@h",
+            *pems,
+        ):
+            with self.subTest(secret=secret[:40]):
+                record = decision_log.build_record(
+                    hook="h", decision="deny", rule="r", command=f"echo {secret} x"
+                )
+                self.assertEqual(f"echo {redacted} x", record["command"])
+
     def test_secret_cut_at_the_scan_bound_stays_out_of_the_record(self) -> None:
         # Two redacted assignments shrink the scanned text to a few dozen
         # characters, which would pull a token cut at the bound into view.
