@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.5] - 2026-10-03
+
+### Changed
+
+- The README notes that an installed mod can stop this plugin's `PreToolUse` hooks from running and can approve a call they blocked, with links to the two mods events sections. Nothing the plugin runs changed.
+
 ## [0.47.4] - 2026-10-03
 
 ### Fixed

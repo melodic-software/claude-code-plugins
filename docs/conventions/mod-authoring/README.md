@@ -1,97 +1,127 @@
 # Mod authoring: writing a hooks module in a marketplace plugin
 
-Owner doc for **how a plugin in this marketplace would ship a mod**: a hooks module of function
-hooks that Claude Code calls in its own process. Anthropic owns the mods API and ships the
-authoring guide inside Claude Code; this doc covers only what that guide cannot know about this
-repository.
-
-## Mods are deferred
-
-This doc does not authorize a mod. [ADR 0035](../../adr/0035-defer-claude-code-mods-with-five-go-criteria.md)
-still defers mods: no plugin under `plugins/` gains a `modules` key until all five go criteria in
-the [Mods row of the Native-first table](../../plugin-philosophy.md) hold, checked with
-[go-no-go.md](../../upstream/claude-code-mods/go-no-go.md). The pilot in
-[#5777](https://github.com/melodic-software/claude-code-plugins/issues/5777) is how those criteria
-get evaluated, and it stays under `.work/` until they pass. The rest of this doc is the how-to for
-when they do, and for that pilot.
+Owner doc for **how a plugin in this marketplace ships a mod**: a hooks module of function hooks
+that Claude Code calls in its own process. Anthropic owns the mods API and its docs; this doc points
+at them and keeps only the facts about this repository, or found by its probes, that they do not
+state. [ADR 0052](../../adr/0052-adopt-claude-code-mods.md) records the decisions: when to choose a
+mod, one mod per plugin, the 2.1.287 floor, and what is committed.
 
 ## Boundary
 
-- **The API itself**: events, `$` methods, render sites, limits. The built-in `plugin-authoring`
-  skill and the upstream pages below own it. This doc restates none of it.
-- **Settings hooks** (`hooks` in `hooks.json`, shell or HTTP): the `hook-*` conventions own their
-  cost, precision, input rewriting, observability and telemetry, starting with
+- **The API itself** (events, `$` methods, render sites, limits): the built-in `plugin-authoring`
+  skill and the upstream pages below. This doc restates none of it.
+- **Settings hooks** (`hooks` in `hooks.json`): the `hook-*` conventions, starting with
   [hook-budget](../hook-budget/README.md).
-- **Stamps on upstream facts**: [upstream-drift](../upstream-drift/README.md) owns the four-part
-  record each claim below carries.
+- **Three `hook-*` conventions also bind a mod**: what it tells Claude, by the frequency and
+  phrasing rules of [hook-observability](../hook-observability/README.md#text-a-hook-adds-for-the-model-frequency-and-phrasing);
+  its telemetry, as [hook-telemetry](../hook-telemetry/README.md) envelopes; and its process cost,
+  under [hook-budget](../hook-budget/README.md#mods-a-third-enforcement-form). Each records where a
+  mod differs: the guard mods' lines and telemetry are a recorded exception in hook-observability,
+  and a mod's budget is enforced by `claude plugin test` counts rather than strace.
+- **Record shape** for each pointer below: [upstream-drift](../upstream-drift/README.md).
 
 ## Before writing or changing a mod
 
-1. **Load the built-in `plugin-authoring` skill** (`/plugin-authoring`, or the Skill tool). Claude
-   Code regenerates it for each build with that build's type declarations, so it is the authority
-   for what the running version supports. A copy of the API in this repository would drift every
-   release.
-2. **Read the upstream pages** for the parts you touch, as raw markdown:
-   [overview](https://code.claude.com/docs/en/plugins/mods/overview.md),
-   [create](https://code.claude.com/docs/en/plugins/mods/create.md),
-   [reference](https://code.claude.com/docs/en/plugins/mods/reference.md),
-   [test](https://code.claude.com/docs/en/plugins/mods/test.md),
-   [admin](https://code.claude.com/docs/en/plugins/mods/admin.md),
-   [troubleshoot](https://code.claude.com/docs/en/plugins/mods/troubleshoot.md). When a page and the skill's
-   declaration files disagree, the declaration files win.
+1. Load the built-in `plugin-authoring` skill. Claude Code regenerates it for each build, so it
+   describes the build you run.
+2. Read the upstream pages for the parts you touch, raw markdown at the page URL plus `.md`:
+   [overview](https://code.claude.com/docs/en/plugins/mods/overview),
+   [create](https://code.claude.com/docs/en/plugins/mods/create),
+   [events](https://code.claude.com/docs/en/plugins/mods/events),
+   [interface](https://code.claude.com/docs/en/plugins/mods/interface),
+   [api](https://code.claude.com/docs/en/plugins/mods/api),
+   [reference](https://code.claude.com/docs/en/plugins/mods/reference),
+   [test](https://code.claude.com/docs/en/plugins/mods/test),
+   [admin](https://code.claude.com/docs/en/plugins/mods/admin),
+   [troubleshoot](https://code.claude.com/docs/en/plugins/mods/troubleshoot),
+   [gallery](https://code.claude.com/docs/en/plugins/mods/gallery).
+3. Run `claude plugin validate` on the plugin; its `hooks:` and `calls:` lines show what the module
+   hooks and which `$` methods it calls.
 
-## Settings hook or mod
+- **Pointer**: for which source wins when a page and the per-build types disagree, see
+  [create: get the types for your build](https://code.claude.com/docs/en/plugins/mods/create#get-the-types-for-your-build);
+  for the `hooks:` and `calls:` lines, see
+  [create: check what Claude Code reads from your mod](https://code.claude.com/docs/en/plugins/mods/create#check-what-claude-code-reads-from-your-mod).
+- **As of**: 2026-10-03, Claude Code 2.1.288
+- **Recheck trigger**: either section moves, or `claude plugin validate` stops listing hooks and
+  calls.
 
-Use a **settings hook** when a script can block, allow, rewrite or log an event: guards,
-formatters, loggers. It runs where mods do not load (under an organization's
-`allowManagedModsOnly`, or on a Claude Code older than the minimum below), and the repo's shell
-test and budget tooling covers it.
+## Mod, settings hook, or skill
 
-Use a **mod** only for what a settings hook cannot do: draw a pane, band, status entry or toast;
-register a command or tool; rewrite a prompt section, turn or model request; or read in-process
-state such as `$.session.usage()`. A mod that replaces an existing hook keeps
-the hook as the fallback until the mod's behavior is verified in every session type the plugin
-serves.
+Apply ADR 0052's rule for choosing a mod, which starts from upstream's comparison table.
 
-Basis: the overview's "Compare mods, settings hooks, skills, and MCP servers" table ("Pick it
-when ... You want a pane, a band above the prompt, a custom command, or to rewrite an event" for a
-mod; "You want to block, allow, or log an event with a script you already have" for a settings
-hook); the admin page's `allowManagedModsOnly` row ("No installed mods, with hooks untouched").
-Verified 2026-10-01 against Claude Code 2.1.287. Recheck trigger: that table changes either
-"Pick it when" cell, a release lets a settings hook draw in the interface, or
-`allowManagedModsOnly` starts stopping settings hooks.
+- **Pointer**: see
+  [overview: compare mods, settings hooks, skills, and MCP servers](https://code.claude.com/docs/en/plugins/mods/overview#compare-mods-settings-hooks-skills-and-mcp-servers).
+- **As of**: 2026-10-03, Claude Code 2.1.288
+- **Recheck trigger**: the comparison table changes a "Pick it when" cell.
 
-## Packaging
+## Where a mod runs and how it is switched off
 
-- The module lives in the plugin's `hooks/` directory and is named by `hooks/hooks.json`:
-  `"modules": ["./register.ts"]`, one path relative to `hooks.json`. The same file can keep
-  settings hooks under `hooks`.
-- `types/index.d.ts`, named by `types` in `plugin.json`, when the mod uses `$.state` or adds a
-  namespace. Tests are `*.test.ts` or `*.test.tsx` beside the module.
-- The plugin name must not start with `claude-`; `claude plugin validate` rejects it.
-- `scripts/validate-plugins.sh` runs `claude plugin validate --json` on every plugin and
-  `claude plugin test` on every plugin whose `hooks.json` names `modules`. Under ADR 0035 none
-  does, so the test step skips; it exists so the first mod that clears the go criteria is tested.
+State in the plugin's README which session types it was tested in. A plugin with `PreToolUse`
+settings hooks says in its README that a mod can keep them from running and can approve a call they
+blocked. Setting `CLAUDE_CODE_PLUGIN_DIRS` in `~/.claude/settings.json` to load a mod in the Desktop
+app is a user-scope change and needs the user's approval.
 
-Basis: the reference page's "Files" table ("`modules`: an array with one path, relative to this
-file, to the hooks module") and the create page ("`claude plugin validate` fails a name that looks
-like one of Anthropic's own, such as one that starts with `claude-`"). Verified 2026-10-01 against
-Claude Code 2.1.287. Recheck trigger: the "Files" table changes a row, or `claude plugin validate`
-accepts or rejects a different name shape.
+- **Pointer**: for session types, see
+  [overview: where mods run](https://code.claude.com/docs/en/plugins/mods/overview#where-mods-run);
+  for switches and the minimum version, see
+  [overview: turn mods on or off](https://code.claude.com/docs/en/plugins/mods/overview#turn-mods-on-or-off);
+  for settings hooks in the chain, see
+  [events: where settings hooks run in the order](https://code.claude.com/docs/en/plugins/mods/events#where-settings-hooks-run-in-the-order)
+  and
+  [events: approve or refuse a tool call before the user is asked](https://code.claude.com/docs/en/plugins/mods/events#approve-or-refuse-a-tool-call-before-the-user-is-asked);
+  for `CLAUDE_CODE_PLUGIN_DIRS`, see
+  [reference: settings and environment variables](https://code.claude.com/docs/en/plugins/mods/reference#settings-and-environment-variables).
+- **As of**: 2026-10-03, Claude Code 2.1.288. `--bg` sessions and the Desktop app were not probed.
+- **Recheck trigger**: the where-mods-run table changes a row, the minimum version changes, or the
+  settings-hooks section changes where plugin `PreToolUse` hooks run.
 
-## Version floor and stability
+## Packaging in this repository
 
-- Mods need Claude Code **2.1.287** or later; older versions predate mods being on by default.
-  State the minimum in the plugin's README with the version you tested against.
-- The API is early access. The types header reads "EARLY ACCESS: this surface may change between
-  releases without notice", and the create page says "The events and methods can change between
-  releases".
-- **Recheck on every Claude Code release** that touches mods: reload `plugin-authoring`, run
-  `claude plugin validate` and `claude plugin test` on each mod, and re-stamp this doc. CI runs
-  `claude plugin test` only when its pinned CLI is at least 2.1.287 and skips with a notice
-  otherwise, so a local run on the current release is the check that counts.
+- Lay out the plugin as the reference page's files table says. Commit the root `tsconfig.json`
+  Claude Code writes; never commit `.claude-plugin/types/`.
+- Declare Claude Code 2.1.287 as the floor in the plugin's README with the version tested against.
+- `scripts/validate-plugins.sh` runs `claude plugin validate --json` on every plugin, then
+  `scripts/test-plugin-mods.sh`, which runs `claude plugin test` on every plugin whose `hooks.json`
+  names `modules`. CI runs it with the CLI pinned in `package.json`; a local run on the current
+  release catches a release newer than the pin.
 
-Basis: the overview ("Mods require Claude Code v2.1.287 or later, and they're on by default"), the
-troubleshoot page ("Your version predates mods being on by default"), and the
-`plugin-authoring` skill's `types/claude-code.d.ts` line 4 in 2.1.287. Verified 2026-10-01. Recheck
-trigger: the overview changes its minimum version, or the types header drops "EARLY ACCESS".
+- **Pointer**: for the files, see
+  [reference: files](https://code.claude.com/docs/en/plugins/mods/reference#files); for names
+  `validate` refuses and the tested-version note, see
+  [create: share your mod](https://code.claude.com/docs/en/plugins/mods/create#share-your-mod).
+- **As of**: 2026-10-03, Claude Code 2.1.288
+- **Recheck trigger**: the files table changes a row, or `validate` accepts or rejects a different
+  name shape.
+
+## Before relying on `$.process` or `session.start`
+
+A mod that starts programs or restores state at session start reads these two upstream statements
+first: `$.process` is declared CLI only, and `session.start` does not fire again after `/clear`,
+`/resume` or `/branch`.
+
+- **Pointer**: for `$.process`, see the doc comment on `process` in
+  [`mods/types/claude-code.d.ts`](https://github.com/anthropics/claude-code/blob/main/mods/types/claude-code.d.ts)
+  (the build's own `.claude-plugin/types/claude-code/index.d.ts` carries the same comment); for
+  `session.start`, see
+  [reference: session](https://code.claude.com/docs/en/plugins/mods/reference#session) and
+  [interface: load a saved value again after `/clear`](https://code.claude.com/docs/en/plugins/mods/interface#load-a-saved-value-again-after-clear).
+- **As of**: 2026-10-03, Claude Code 2.1.288 (the public types file's first line names 2.1.277)
+- **Recheck trigger**: a pin bump whose types change the `process` doc comment, or the Session table
+  changes its `session.start` row.
+
+## The `tool.call` context rule
+
+A `tool.call` hook that adds context appends to what `next` returned:
+`context: [...(result.context ?? []), line]`. Returning `context: [line]` makes the engine skip that
+hook's answer whenever a mod below it attached a line, so the line is lost. The types state only
+that `context` is kept whole from `next`; neither the types nor the docs state the consequence, that
+the engine skips the hook's answer and logs `hook failed closed`. The evidence for it is
+[E9](../../upstream/claude-code-mods/experiments.md#e9-two-mods-adding-toolcall-context-2026-10-03).
+
+- **Pointer**: for "Kept whole from `next`", see the doc comment on the `tool.call` result's
+  `context` in
+  [`mods/types/claude-code.d.ts`](https://github.com/anthropics/claude-code/blob/main/mods/types/claude-code.d.ts).
+- **As of**: 2026-10-03, Claude Code 2.1.288 (the public types file's first line names 2.1.277)
+- **Recheck trigger**: re-run E9 on a pin bump whose types change that comment, or when a docs page
+  states the consequence.

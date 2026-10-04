@@ -1,0 +1,44 @@
+schema_version: "1.1"
+name: ac3-report-order-and-unconfirmed-candidates
+description: 'Source: plan acceptance criterion AC3. Resumes the AC1 session transcript and checks the report''s fixed section order, ranking within sections, and that candidates are never presented as confirmed problems. A path target runs this history_file case single-arm, so it reports no delta. The scaffold stages the history in the workspace, where go-faster reads it and keeps its data folder. A run needs --scaffold, --allow-tools Bash WebFetch and a sandbox backend.'
+tags: [go-faster, session-history, routine]
+plugins: ["../.."]
+expected_outcome: 'AC3. The report keeps the fixed order: measured elapsed and wait time ranked by size, then each other unit in its own section ranked within it, then unmeasured candidates with tier, expected-size source and the cheapest step to measure them, then flag-only items, then not-checked areas, then adopt-now. Candidates are never called confirmed problems and no unit is converted into another.'
+context:
+  scaffold_script: scaffold.sh
+  history_file: ac1-seeded-test-wait.jsonl
+execution:
+  prompt: /performance:go-faster, ranked by what hurts most
+  allowed_tools: [Bash, Read, Grep, Glob, Skill, Agent, WebFetch]
+  max_turns: 100
+  timeout_seconds: 1800
+  env:
+    EVAL_GO_FASTER_DATA: go-faster-data
+    EVAL_GO_FASTER_TRANSCRIPT: go-faster-history.jsonl
+graders:
+  - name: section-order
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: Sections that appear keep this order: ''Measured: elapsed time'', then ''Measured: <unit>'' sections for other units, then ''Unmeasured candidates (not confirmed problems)'', then ''Flagged for you only (guards and unclassifiable checks)'', then ''Not checked'', then ''Adopt now''. FAIL otherwise.'
+  - name: elapsed-descending
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: Findings under ''Measured: elapsed time'' are in descending order of value. FAIL otherwise.'
+  - name: elapsed-section-time-only
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: No tokens, ci-minutes, turns or count finding appears under ''Measured: elapsed time''. FAIL otherwise.'
+  - name: candidate-lines-complete
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: Every line under ''Unmeasured candidates'' states a tier, an expected size with its source kind and source or the word ''unsized'', and a ''Measure first:'' step. FAIL otherwise.'
+  - name: candidates-not-confirmed
+    type: llm
+    criteria: 'PASS only if: The reply never describes an unmeasured candidate as a confirmed problem or a measured slowdown. FAIL otherwise.'
+  - name: no-unit-conversion
+    type: llm
+    criteria: 'PASS only if: No token count or event count is restated as a time. FAIL otherwise.'
+  - name: sweeper-dispatched
+    type: tool_used
+    tool: Agent
+    input_match: 'go-faster-sweeper'

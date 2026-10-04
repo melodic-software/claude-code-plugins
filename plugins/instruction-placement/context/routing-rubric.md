@@ -46,10 +46,12 @@ absent at the moment it was needed, not how the sentence is worded.
 
 **Two structural denies, from the mechanics rather than from consequence:**
 
-- **Creation-governing content is denied the `paths:` destination.** Path scoping triggers on read,
-  and creating a new file is not a read, so a rule governing how new files are made would not fire
-  in the case it exists for. It may still route to a subtree destination, or stay. This is a deny of
-  one *destination*, not of the candidate.
+- **Creation-governing content is denied the `paths:` destination.** Before Claude Code 2.1.288 path
+  scoping triggered on Read only, so creating a new file never fired the rule. From 2.1.288 a Write
+  to a matching path fires it, but most likely after the file is written, a timing not yet measured
+  (`verified-mechanics.md`, the write-trigger gap). Either way a rule governing how new files are
+  made may not be in context for the creation it exists for. It may still route to a subtree
+  destination, or stay. This is a deny of one *destination*, not of the candidate.
 - **A candidate whose body is only an `@import` is never routed to a path-scoped rule.** The import
   inlines at session start and defeats the scoping, producing a move that reads as a saving and is
   not one.

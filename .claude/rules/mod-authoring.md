@@ -1,13 +1,15 @@
 ---
-description: "Mods stay deferred under ADR 0035: no plugin gains a `modules` key until its five go criteria pass; when they do, load the built-in `plugin-authoring` skill and the upstream mods docs first"
+description: "Mods: before adding or changing a hooks module, load the built-in `plugin-authoring` skill and follow the mod-authoring convention, which points at the upstream mods pages and ADR 0052"
 paths:
   - "plugins/*/hooks/**"
 ---
 
 # Mod authoring
 
-[ADR 0035](../../docs/adr/0035-defer-claude-code-mods-with-five-go-criteria.md) defers mods: do not
-add `"modules"` to a plugin's `hooks/hooks.json` until all five of its go criteria pass. Once they
-do, load the built-in `plugin-authoring` skill and the upstream mods pages before writing or
-changing the hooks module, and follow the
-[mod-authoring convention](../../docs/conventions/mod-authoring/README.md).
+Mods: before adding `"modules"` to a plugin's `hooks/hooks.json` or changing a hooks module, load
+the built-in `plugin-authoring` skill and read the
+[mod-authoring convention](../../docs/conventions/mod-authoring/README.md). It points at the
+upstream mods pages (as of Claude Code 2.1.288, rechecked on each pin bump) and lists the facts
+they do not state, such as appending to the `context` a `tool.call` hook's `next` returned.
+[ADR 0052](../../docs/adr/0052-adopt-claude-code-mods.md) records when to choose a mod and how it
+is packaged.

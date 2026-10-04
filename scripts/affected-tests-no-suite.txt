@@ -111,6 +111,18 @@ scripts/sync-plugin-options-docs.py
 # tree are already covered by the *.json and *.md entries above.
 plugins/miro/server/*
 
+# Plugin mods: a hooks module (`register.tsx`), the TypeScript it imports, and
+# its `*.test.ts` tests. None is one of the four suite conventions this tool
+# selects. The lane covering them is the "Validate plugin and catalog manifests"
+# step of .github/workflows/ci.yml: scripts/validate-plugins.sh ends by running
+# scripts/test-plugin-mods.sh, which runs `claude plugin test` on every plugin
+# whose hooks/hooks.json lists `modules`. Precondition: that script exits 0 with
+# a skip line when `claude` is not on PATH or predates `claude plugin test`
+# (2.1.287), so the coverage holds only where the pinned CLI resolves.
+plugins/*/hooks/register.tsx
+plugins/*/hooks/*.test.ts
+plugins/context-guard/hooks/zone.ts
+
 # Session-local working docs and this checkout's own Claude Code configuration
 # prose. Ships to no one; the hooks under .claude/hooks/ are NOT covered by
 # this line — they carry their own *.test.sh and are selected normally.

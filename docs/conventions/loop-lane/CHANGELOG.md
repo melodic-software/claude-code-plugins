@@ -5,6 +5,17 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [10.1.0] - 2026-10-03
+
+Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
+
+- **Rate-limit snapshot writer (§4, §6).** rate-limit-guard's mod writes the snapshot file in
+  interactive and headless sessions, so an unattended lane samples it; the status-line tee that
+  wrote it only where a status line rendered is gone. A paused lane wakes on the mod's writes under
+  its machine-wide write floor. Setting the guard's report mode with `--settings` is optional.
+- **Account-switch read (§6).** The rule to read `.claude.json` directly stays; the reason that a
+  headless-only machine never refreshes the snapshot is removed, because it no longer holds.
+
 ## [10.0.0] - 2026-10-02
 
 Major. The §3 capability-tier roles change, which changes which model an unattended lane's

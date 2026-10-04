@@ -100,8 +100,9 @@ itself the thing this skill removes.
 
 Step 5 continues the main task in **this** session, and that is only right
 when this session's context is still fit for the work. When the
-`context-guard` plugin is enabled, resolve this session's zone word per
-its reader contract before continuing (the contract owns the snapshot
+`context-guard` plugin is enabled, look up this session's zone word with
+its `mcp__context-guard__status` pull tool, or resolve it per its reader
+contract, before continuing (the contract owns the snapshot
 path, staleness rule, and bands. Read them there; this skill consumes
 only the resulting word and inlines no band values). Never substitute
 your own estimate of the remaining window for the instrument's reading,
@@ -183,15 +184,18 @@ For any "is it stuck / check the monitor / poke it":
 - The limit **message text** (e.g. `resets 3:45pm`) is a capture bound to the
   account that emitted it. Two live readings of the *current* account count:
   the `/usage` view, which the operator relays because the model cannot open
-  it, and the statusline `rate_limits` object, which this skill reads only when
-  a statusline or hook exposes it to the session. For which fields that object
-  carries and who receives it, see
+  it, and the session's `rate_limits` windows, which this skill reads through
+  rate-limit-guard's `mcp__rate-limit-guard__status` pull tool when the guard
+  is installed and mods are on. For which fields the statusline `rate_limits`
+  object carries and who receives it, see
   [statusline: Available data](https://code.claude.com/docs/en/statusline#available-data);
   the record below holds its as-of date and recheck trigger. This skill has no
   in-session account-identity signal, so a captured message never drives a
   still-blocked verdict by itself: re-check live before handing back. When no
-  live reading is obtainable (headless, subagent, cloud, no statusline
-  producer), ask the operator which account is active and whether it has
+  live reading is obtainable (mods off, the guard not installed, the
+  tool's registration refused by policy, or a tool answer with no windows,
+  `verdict: "unknown"`, as under API-key or enterprise auth), ask the
+  operator which account is active and whether it has
   headroom, as in the exit `2` path. Never invent a window and never conclude
   still-blocked.
 
