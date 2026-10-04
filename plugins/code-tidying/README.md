@@ -2,8 +2,8 @@
 
 A Claude Code plugin for **structure-only** codebase improvement, applying Kent
 Beck's *Tidy First?* discipline agentically: small named tidyings, separated
-from behavioral changes by commit and by PR, under a research-backed scope
-budget (≤200 LOC / ≤8 files target; ≤400 / ≤15 hard cap).
+from behavioral changes by commit and by PR, under the shared PR scope budget
+shipped as [`reference/pr-scope-budget.md`](reference/pr-scope-budget.md).
 
 Six skills, one capability:
 
@@ -112,7 +112,7 @@ personal variation is limited to lane names the team does not track: an uncommit
 
 ## Works in any repo
 
-- Self-contained: taxonomy, scope-budget research, exclusion lists, lane
+- Self-contained: taxonomy, scope budget, exclusion lists, lane
   templates, and the throttle script all ship inside the plugin under
   `${CLAUDE_PLUGIN_ROOT}`. The bundled scripts require **Bash 4.3+** (they use
   `mapfile`, case-conversion expansions, and namerefs). On native Windows, install

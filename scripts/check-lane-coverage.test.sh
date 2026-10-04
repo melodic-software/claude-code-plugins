@@ -8,10 +8,10 @@
 # test identity into the CALLER's repo config.
 #
 # Every fixture run passes its OWN step opt-out list. The repository's real list
-# names steps of the real ci.yml, and an entry naming a step no fixture defines
+# names steps of the real pr-require-checks.yml, and an entry naming a step no fixture defines
 # is a stale opt-out by construction — so a fixture checked against it would fail
 # for a reason that has nothing to do with the case under test.
-# test-scope: .github/workflows/ci.yml
+# test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -158,7 +158,7 @@ steps_of() {
   done
 }
 
-# The aggregator feed rows for the named ids, in the shape ci.yml uses.
+# The aggregator feed rows for the named ids, in the shape pr-require-checks.yml uses.
 # shellcheck disable=SC2016 # deliberate: ${{ }} is workflow syntax, not a shell expansion
 feed_of() {
   local id
@@ -197,7 +197,7 @@ expect "every job in needs passes" 0 "all 2 lane(s) reachable" \
 # whose 6- and 8-space lines this structural parser must fall through rather
 # than read as job keys or as needs entries. It is pinned here because
 # check-lane-coverage.sh exits 2 on any shape it does not model, and an
-# inconclusive gate on the real ci.yml would block every pull request.
+# inconclusive gate on the real pr-require-checks.yml would block every pull request.
 write_workflow "$scratch/sharded.yml" "  gamma:
     runs-on: ubuntu-24.04
     strategy:
@@ -476,9 +476,9 @@ expect "a missing peer directory exits 2" 2 "peer workflow directory not found" 
 
 # --- the real workflow ------------------------------------------------------
 
-expect "the repository's own ci.yml is fully covered" 0 "reachable from ci-status.needs" --check
-expect "no ci.yml check name is shared with another workflow here" 0 "no check name shared with" --check
-expect "every gate step in the repository's own ci.yml is fed or opted out" 0 \
+expect "the repository's own pr-require-checks.yml is fully covered" 0 "reachable from ci-status.needs" --check
+expect "no pr-require-checks.yml check name is shared with another workflow here" 0 "no check name shared with" --check
+expect "every gate step in the repository's own pr-require-checks.yml is fed or opted out" 0 \
   "gate step(s) fed to the aggregator" --check
 
 test_harness::report

@@ -9,6 +9,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **`/planning:interview` tries to answer each question itself before asking, and offers to connect a system it cannot reach ([#6204](https://github.com/melodic-software/claude-code-plugins/issues/6204)).** A new shared step, `context/self-answer.md`, checks each candidate question against the codebase (ADRs, docs, and question-specific git history included), then connected tools such as MCP servers, then research for external facts. A fact it finds is stated with its `Basis:` and an `answered-from-<source>` tag, recorded in the ledger's new `## Self-answered facts` section, and gets no register row. A fact held by a named system that is not connected gets one offer to connect it, naming the system, the questions it would settle, and how to connect; once connected, the agent looks the answers up. Unattended runs record the missing access as a named blocker and never wait. Decisions still go to the user, and the auto-guard is unchanged. The interview's frontier gate and assumption sweep use the step, and `/planning:design`, `/planning:prd`, `/planning:questionnaire`, and `/planning:audit-answers` cite it.
 
+## [0.67.8] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
 ## [0.67.7] - 2026-10-04
 
 ### Changed
