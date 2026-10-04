@@ -3,6 +3,21 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.3] - 2026-10-04
+
+### Fixed
+
+- `write_env` now sets the shell variable it names, as `ask` and `ask_secret` do, so a stage can
+  read back a value it wrote.
+- `write_env` on a symlinked `.env` no longer replaces the link with a regular file holding the
+  target's secrets. It writes through the link, so the target gets the key and keeps its mode.
+  We chose this over resolving the link, which needs `realpath` (missing on older macOS) or a
+  hand-rolled `readlink` loop, and whose rename would change the target's inode and mode. The cost
+  is that a symlinked write is not atomic; a regular `.env` keeps the atomic rename from a `0600`
+  temp file.
+- A terminal without a `clear` capability (`TERM=dumb`, no terminfo) no longer stops every
+  generated wizard silently before its first prompt: `tput` failures are non-fatal.
+
 ## [0.6.2] - 2026-10-03
 
 ### Changed

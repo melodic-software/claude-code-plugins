@@ -17,13 +17,15 @@ set -euo pipefail
 # ──────────────────────────────────────────────────────────────────────────
 
 if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]]; then
-  BOLD=$(tput bold)
-  DIM=$(tput dim)
-  RESET=$(tput sgr0)
-  BLUE=$(tput setaf 4)
-  GREEN=$(tput setaf 2)
-  YELLOW=$(tput setaf 3)
-  RED=$(tput setaf 1)
+  # `|| true`: a terminfo entry may lack a capability, and tput then exits
+  # nonzero, which set -e would turn into a silent exit before any prompt.
+  BOLD=$(tput bold || true)
+  DIM=$(tput dim || true)
+  RESET=$(tput sgr0 || true)
+  BLUE=$(tput setaf 4 || true)
+  GREEN=$(tput setaf 2 || true)
+  YELLOW=$(tput setaf 3 || true)
+  RED=$(tput setaf 1 || true)
 else
   BOLD=""
   DIM=""
@@ -57,8 +59,8 @@ WRITTEN_VAR=()    # variable names set this run
 SKIPPED=()        # things we couldn't do (e.g. gh missing, gh errors)
 
 # Temp-file hygiene: write_env stages its rewrite in a mktemp file alongside
-# ENV_FILE (same filesystem, so the final mv is an atomic rename); the trap
-# removes it if the wizard dies mid-write.
+# ENV_FILE (same filesystem, so the final mv of a regular file is an atomic
+# rename); the trap removes it if the wizard dies mid-write.
 _WIZARD_TMP=""
 # if-form, not `[[ ]] &&`: a false condition must not leave a nonzero status
 # for the EXIT trap under set -e, which would turn a successful run into exit 1.
@@ -73,10 +75,12 @@ _valid_key() {
 }
 
 # _clear — wipe the terminal so only the current step is on screen. No-op when
-# output isn't a terminal, so piped logs stay readable.
+# output isn't a terminal, so piped logs stay readable. Best effort: a terminal
+# without a clear capability (TERM=dumb, no terminfo) makes tput exit nonzero,
+# and that must never stop the wizard.
 _clear() {
   [[ -t 1 ]] || return 0
-  if command -v tput >/dev/null 2>&1; then tput clear; else printf '\033[2J\033[3J\033[H'; fi
+  if command -v tput >/dev/null 2>&1; then tput clear 2>/dev/null || true; else printf '\033[2J\033[3J\033[H'; fi
 }
 
 # banner "Title" — opening frame: what this wizard does.
@@ -242,24 +246,31 @@ _check_env_ignored() {
 }
 
 # write_env KEY VALUE — upsert KEY='VALUE' into ENV_FILE (creates it; replaces
-# any existing line). Idempotent. The value is written single-quoted with
-# embedded single quotes escaped, so shells and dotenv loaders read it back
-# verbatim; the file is chmod 600 after every write.
+# any existing line) and set $KEY in the shell, as ask does. Idempotent. The
+# value is written single-quoted with embedded single quotes escaped, so shells
+# and dotenv loaders read it back verbatim. A regular file is replaced by an
+# atomic rename of a 0600 temp file. A symlinked ENV_FILE (a shared secret
+# store) is written through instead, so the link survives, its target gets the
+# key and keeps its own mode; that write is not atomic.
 write_env() {
   local key="$1" value="$2" escaped tmp
   _valid_key "$key"
   _check_env_ignored # pre-flight: warn BEFORE the first value lands on disk
-  touch "$ENV_FILE"
-  chmod 600 "$ENV_FILE"
   tmp=$(mktemp "${ENV_FILE}.XXXXXX") || fatal "mktemp failed next to $ENV_FILE"
   _WIZARD_TMP="$tmp"
   chmod 600 "$tmp"
   escaped=${value//\'/\'\\\'\'}
-  grep -vE "^${key}=" "$ENV_FILE" >"$tmp" || true
+  if [[ -f "$ENV_FILE" ]]; then grep -vE "^${key}=" "$ENV_FILE" >"$tmp" || true; fi
   printf "%s='%s'\n" "$key" "$escaped" >>"$tmp"
-  mv -- "$tmp" "$ENV_FILE"
+  if [[ -L "$ENV_FILE" ]]; then
+    # umask 077: a dangling link's newly created target is owner-only too.
+    (umask 077 && cat -- "$tmp" >"$ENV_FILE") || fatal "couldn't write through the symlink $ENV_FILE"
+    rm -f -- "$tmp"
+  else
+    mv -- "$tmp" "$ENV_FILE"
+  fi
   _WIZARD_TMP=""
-  chmod 600 "$ENV_FILE"
+  printf -v "$key" '%s' "$value"
   WRITTEN_ENV+=("$key")
   printf '  %s✓ wrote%s %s → %s\n' "$GREEN" "$RESET" "$key" "$ENV_FILE"
 }

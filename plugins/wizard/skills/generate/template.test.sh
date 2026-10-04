@@ -322,6 +322,39 @@ assert_contains "... keeping the newest value" "$out" "k=[three]"
 assert_contains "... and leaving other keys alone" "$out" "other=[keep]"
 assert_contains "write_env leaves no staging temp file behind" "$out" "leftovers=0"
 
+# A stage that writes a value and later reads it back (`write_env K "$x"` then
+# `set_secret K "$K"`) must see what it wrote, the same as after ask.
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+write_env WRITTEN_ONLY 'from-write-env' >/dev/null
+printf 'shell=[%s]\n' "${WRITTEN_ONLY-unset}"
+BODY
+)"
+assert_contains "write_env also sets the shell variable it names" "$out" "shell=[from-write-env]"
+
+# A symlinked env file (a shared secret store) must receive the write: the link
+# survives, the target gets the key and keeps its other lines and its mode.
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+mkdir store
+printf "STORED='kept'\n" >store/secrets.env
+chmod 640 store/secrets.env
+ln -s store/secrets.env .env
+write_env NEW_KEY 'via-link' >/dev/null
+if [[ -L .env ]]; then echo "link:kept"; else echo "link:replaced"; fi
+printf 'target=[%s]\n' "$(tr '\n' ' ' <store/secrets.env)"
+printf 'target_mode=[%s]\n' "$(ls -l store/secrets.env | cut -c1-10)"
+shopt -s nullglob
+leftovers=(.env.*)
+printf 'leftovers=%s\n' "${#leftovers[@]}"
+BODY
+)"
+assert_contains "write_env keeps a symlinked env file a symlink" "$out" "link:kept"
+assert_contains "... writes the new key into the link target" "$out" "NEW_KEY='via-link'"
+assert_contains "... keeps the target's existing lines" "$out" "STORED='kept'"
+assert_contains "... leaves the target's mode alone" "$out" "target_mode=[-rw-r-----]"
+assert_contains "... and leaves no staging temp file behind" "$out" "leftovers=0"
+
 # The escaping contract: what write_env stores must read back byte-identical
 # through _existing AND through a plain dotenv-style shell read.
 out="$(
@@ -757,6 +790,30 @@ BODY
 rc=$?
 assert_exit "a successful wizard exits 0 under set -e (EXIT trap keeps its status)" 0 "$rc"
 assert_contains "... having run to completion" "$out" "reached-end"
+
+# --- 11. A terminal without the clear capability -----------------------------
+
+# _clear only acts on a terminal, so this case needs a pty: util-linux `script`
+# provides one. TERM=dumb has no `clear` entry, so `tput clear` exits nonzero;
+# under set -e that must not kill the wizard before its first prompt.
+if script -qec true /dev/null </dev/null >/dev/null 2>&1; then
+  dumb_case="$(
+    case_build strict <<'BODY'
+_drain_tty() { :; }
+banner "Dumb terminal"
+echo "reached-first-prompt"
+BODY
+  )"
+  out="$(
+    cd "$(mktemp -d "$TEST_TMPDIR/dir.XXXXXX")" &&
+      TERM=dumb WIZARD_TEST_TTY="$TTY_BLANK" script -qec "bash $(printf '%q' "$dumb_case"); echo rc=\$?" /dev/null </dev/null 2>&1 | tr -d '\r'
+  )"
+  assert_contains "a TERM=dumb wizard reaches its first prompt" "$out" "Ready to start?"
+  assert_contains "... and gets past it under set -e" "$out" "reached-first-prompt"
+  assert_contains "... exiting 0" "$out" "rc=0"
+else
+  skip_case "TERM=dumb case: util-linux script (pty) unavailable"
+fi
 
 # --- Tally ------------------------------------------------------------------
 
