@@ -482,6 +482,7 @@ def test_validate_flags_a_github_app_installation_token_in_jwt_form(tmp_path):
         "-eyJ" * 75000,
         "a." * 150000,
         "a." * 32 + "a@" + "a." * 150000,
+        "-----BEGIN a PRIVATE KEY-----" * 20000,
     ],
     ids=[
         "dash",
@@ -491,11 +492,13 @@ def test_validate_flags_a_github_app_installation_token_in_jwt_form(tmp_path):
         "jwt-header",
         "scheme",
         "scheme-at",
+        "private-key",
     ],
 )
 def test_secret_shape_scan_of_an_adversarial_line_finishes_promptly(line):
     # Shapes that made the GitHub token, JWT and connection string patterns
-    # backtrack for seconds to minutes.
+    # here, or the observer's private key pattern, backtrack for seconds to
+    # minutes.
     start = time.monotonic()
     for pattern, _ in _save_point_module().SECRET_SHAPES:
         pattern.search(line)

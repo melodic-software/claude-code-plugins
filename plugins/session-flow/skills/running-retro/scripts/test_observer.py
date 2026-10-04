@@ -873,6 +873,24 @@ class Redaction(unittest.TestCase):
                     pattern.sub("x", text)
                 self.assertLess(time.monotonic() - start, 1.0)
 
+    def test_private_key_pattern_finishes_promptly_on_adversarial_text(self):
+        # A repeated header made the unbounded body scan take about 38 seconds.
+        (key,) = (
+            p
+            for p, marker in observer._REDACTIONS
+            if marker == "<REDACTED: private key>"
+        )
+        header = "-----BEGIN a PRIVATE KEY-----"
+        for text in (
+            header * 20000,
+            header + "-----END" * 70000,
+            "-----BEGIN" + "a" * 600000,
+        ):
+            with self.subTest(text=text[:40]):
+                start = time.monotonic()
+                key.sub("x", text)
+                self.assertLess(time.monotonic() - start, 1.0)
+
     def test_bounded_patterns_still_redact_realistic_secrets(self):
         r = observer._redact
         # Header, payload and signature spell FAKE.
@@ -891,6 +909,17 @@ class Redaction(unittest.TestCase):
         local = "l" * 64
         domain = ".".join(["d" * 63] * 3) + ".example"
         self.assertEqual("<REDACTED: email>", r(f"{local}@{domain}"))
+        # A 4096-bit RSA PKCS#8 PEM is about 3.2 KB in 64-character lines
+        # (RFC 7468); this body spells FAKE.
+        body = "\n".join(["FAKE" * 16] * 52)
+        for label in ("", "RSA ", "OPENSSH "):
+            with self.subTest(label=label):
+                pem = (
+                    f"-----BEGIN {label}PRIVATE KEY-----\n{body}\n"
+                    f"-----END {label}PRIVATE KEY-----"
+                )
+                self.assertGreater(len(pem), 3200)
+                self.assertEqual("key <REDACTED: private key> x", r(f"key {pem} x"))
 
 
 class ResultParsing(unittest.TestCase):

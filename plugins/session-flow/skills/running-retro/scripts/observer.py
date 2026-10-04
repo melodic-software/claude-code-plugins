@@ -904,8 +904,13 @@ def _extract_result(stdout: str) -> str:
 # pass, matching running-retro's "redact on the ledger write too" mandate.
 _REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
     (
+        # The body stops at the next BEGIN and at 16384 characters, so each
+        # header scans a bounded run; unbounded, a repeated header is
+        # quadratic. An 8192-bit RSA key is about 6.5 KB as PEM or OpenSSH.
         re.compile(
-            r"-----BEGIN[^-]+PRIVATE KEY-----.*?-----END[^-]+PRIVATE KEY-----",
+            r"-----BEGIN[^-]{1,64}PRIVATE KEY-----"
+            r"(?:(?!-----BEGIN).){0,16384}?"
+            r"-----END[^-]{1,64}PRIVATE KEY-----",
             re.DOTALL,
         ),
         "<REDACTED: private key>",
