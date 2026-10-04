@@ -3,6 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.79.13] - 2026-10-04
+
+### Changed
+
+- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** The babysit loop and the pull-request watch handoff now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limit-guard 0.14.0's reader contract.
+
+## [0.79.12] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve.
+
 ## [0.79.11] - 2026-10-04
 
 ### Fixed
