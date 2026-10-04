@@ -3,6 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.68.0] - 2026-10-04
+
+### Added
+
+- **PLAN.md carries a `## Design` section, written by `/planning:design-handoff` ([#6278](https://github.com/melodic-software/claude-code-plugins/issues/6278)).** On a passed gate the handoff writes module layout, contracts, variation verdicts, and the conventions followed into PLAN.md, so design decisions reach the plan, the implementer's brief, and decomposed tickets instead of staying in the unpublished design directory. `/planning:plan` keeps the section, audits every phase against it in Step 2, and its `## Next` now names implement, implement-dispatch, and decompose.
+
+### Fixed
+
+- **`/planning:interview` Step 5 routes design-significant work to `/planning:design`.** The "contract IS the plan" shortcut to implementation no longer skips design for small design-significant work, and Step 5 now matches the skill's `## Next`.
+- **`/planning:design` no longer calls decompose's design-label reading unimplemented.** The `## Next` and relationship rows name the PLAN.md `## Design` path, and the wayfind order matches the workflow ladder's design, PRD, and decompose stages.
+
 ## [0.67.6] - 2026-10-04
 
 ### Changed

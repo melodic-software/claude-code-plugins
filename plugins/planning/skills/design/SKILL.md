@@ -85,7 +85,7 @@ Parse `$ARGUMENTS` for scope and action:
 
 Design exploration is iterative, not strictly sequential. Phases may interleave. Track which phases have produced artifacts and which have outstanding questions.
 
-All artifacts live in `<memory_dir>/<topic-slug>/design/` (default `.work/`), never committed: the gate files (`design-threads.md`, `design-resolution.md`) and the working design exploration docs stay together, because `/planning:plan`'s gate reads them from there. Placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). Paste the design's durable content (decisions, typed contracts, topology) into the pull request body or the linked issue. Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:interview` and `/planning:plan`). Skip artifact creation for read-only actions (`status`).
+All artifacts live in `<memory_dir>/<topic-slug>/design/` (default `.work/`), never committed: the gate files (`design-threads.md`, `design-resolution.md`) and the working design exploration docs stay together, because `/planning:plan`'s gate reads them from there. Placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). `/planning:design-handoff` writes the design's durable content (module layout, contracts, variation verdicts, conventions followed) into PLAN.md's `## Design` section, the copy that reaches the plan, the implementer's brief, and the pull request body or linked issue where PLAN.md is published. Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:interview` and `/planning:plan`). Skip artifact creation for read-only actions (`status`).
 
 ### Phase 1: Problem Space Decomposition
 
@@ -261,7 +261,7 @@ This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolv
 
 ## Next
 
-/planning:design-handoff gates the finished design for /planning:plan.
+/planning:design-handoff gates the finished design and writes it into PLAN.md's `## Design` for /planning:plan.
 
 ## Relationship to other skills
 
@@ -270,7 +270,7 @@ This plugin ships the step-2 resolver at `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolv
 | `/planning:interview` | **Before.** `/planning:interview` locks the brief (scope + constraints). `/planning:design` explores the solution space within those constraints |
 | `/domain-driven-design:curate-language` | **During.** Owns active project-glossary updates whenever design resolves domain language; it does not own type or boundary design |
 | `/visualization:visualize` (if enabled) | **During.** Owns visual-form choice and mermaid craft for a typed artifact's fenced block; this skill selects the dialect and emits the plainest correct form when that plugin is not enabled |
-| `/work-items:decompose` (if enabled) | **After.** The intended reader of a typed artifact's `scope` and `dialect` label, which it will use to inline the artifact into the spec container with a provenance note. That reading is not implemented in decompose yet, so the label is currently inert everywhere: it is written here so the consuming change has a stable shape to land against |
+| `/work-items:decompose` (if enabled) | **After.** Reads a typed artifact's `scope` and `dialect` label to inline the artifact into the spec container with a provenance note, and quotes each slice's part of PLAN.md's `## Design` into that slice's body |
 | `/discovery:explore` (if enabled) | **Before.** Exploration maps existing code. `/planning:design` creates what SHOULD exist |
 | `/discovery:research` (if enabled) | **Before + parallel.** Research gathers external facts. `/planning:design` synthesizes them. Deferred research items can run in parallel |
 | `/planning:design-handoff` | **The gate.** Owns the design→plan gate criteria and the plan-ready summary; this skill's `handoff` action delegates to it |
