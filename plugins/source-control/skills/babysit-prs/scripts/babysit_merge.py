@@ -42,6 +42,9 @@ Contract enforced here (encoded as code, not convention):
   A self-authored PR onto an unprotected NON-default base (a stack layer, or any
   feature-onto-feature merge) is held: the default branch's required checks never
   governed it. `--stacked-prs` replaces that hold for a native stack layer only.
+- A head behind its base is held on a base that requires neither up-to-date
+  branches nor a merge queue, where GitHub reports a behind head `CLEAN`. One
+  base compare per otherwise-ready PR proves it; an unreadable compare holds.
 - A merge is held while a configured review bot still owes the LIVE head a
   review (`--review-bot-logins` with `--review-settle-minutes`, both or
   neither). A reviewer that re-reviews on push posts minutes after the head
@@ -67,7 +70,8 @@ Contract enforced here (encoded as code, not convention):
   refuses the run at exit 2.
 
 Readiness is gated on GitHub's own `mergeStateStatus == CLEAN` (which integrates
-required checks, up-to-date, approvals, and conversation resolution) plus
+required checks, approvals, conversation resolution, and up-to-date where the
+base requires it) plus
 explicit cross-checks so the *reason* for a block is always reported: the
 effective branch rules (`rules/branches`), the review decision, unresolved
 review threads, and the status-check rollup.
@@ -112,6 +116,8 @@ from babysit_classify import (
 from babysit_feedback import latest_reviews_by_author
 from babysit_gh import (
     GraphQLUnavailableError,
+    compare_shows_behind,
+    fetch_base_compare,
     fetch_issue_comments,
     fetch_pull_request_commits,
     fetch_pull_request_review_comments,
@@ -342,6 +348,9 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
       `effectiveRules` and the unmet-required blocker. Two rulesets may
       legitimately require the same context, hence the dedupe; the sort makes
       the reported set stable regardless of the order rulesets are returned in.
+    * `requireUpToDate` (strict required status checks) is the OR: one active
+      strict rule that lists a required check is enough for GitHub to report
+      a behind head BEHIND.
     * `requiredApprovingReviews` takes the max and `requireThreadResolution`
       the OR. That is the fail-closed direction whatever GitHub's own
       composition rule turns out to be: max/OR can only ever over-report, which
@@ -354,6 +363,7 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
         "requireSignatures": False,
         "requireLinearHistory": False,
         "mergeQueueRequired": False,
+        "requireUpToDate": False,
     }
     try:
         # `{branch}` is one path parameter. Percent-encode it, including `/`,
@@ -379,11 +389,19 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
             # A context-less entry is dropped rather than carried: it names no
             # check to reconcile, and a None would sort-crash the union and
             # surface downstream as a literal "None" required context.
-            required_contexts.update(
+            rule_contexts = [
                 str(c["context"])
-                for c in params.get("required_status_checks", [])
+                for c in json_array(params.get("required_status_checks"))
                 if is_json_object(c) and c.get("context")
-            )
+            ]
+            required_contexts.update(rule_contexts)
+            # The strict setting "will not take effect unless at least one status
+            # check is enabled" (https://docs.github.com/en/rest/repos/rules).
+            if (
+                params.get("strict_required_status_checks_policy") is True
+                and rule_contexts
+            ):
+                summary["requireUpToDate"] = True
         elif rtype == "pull_request":
             # Absence and unreadability are different facts. No key means the
             # rule requires no reviews, which is 0. A key holding anything this
@@ -1439,6 +1457,34 @@ def evaluate(
                 "governed this merge -- held (pass --allow-unprotected to override)"
             )
 
+    # CLEAN proves an up-to-date head only where the base requires one: under
+    # loose required checks GitHub merges a behind head, and a squash of it can
+    # drop base commits. A merge queue tests the PR against the latest base
+    # itself, so a queue base needs no compare. Evaluated after every other
+    # hold but a running check, for the per-cycle cost reason above, and before
+    # `--auto` arms over those running checks.
+    freshness: dict[str, Any] = {"checked": False, "compare": None, "behind": None}
+    if (
+        not merge_queue_required
+        and not rules.get("requireUpToDate")
+        and all(b in waiting for b in blockers)
+    ):
+        compare = fetch_base_compare(repo, base_ref, str(head or ""), run_json=gh_json)
+        behind = compare_shows_behind(compare)
+        freshness = {"checked": True, "compare": compare, "behind": behind}
+        if compare is None:
+            blockers.append(
+                f"head could not be compared against base {base_ref!r} -- the base "
+                "does not require up-to-date branches, so CLEAN does not prove this "
+                "head current; freshness is UNPROVEN, held"
+            )
+        elif behind:
+            blockers.append(
+                f"head is {compare['behind_by']} commit(s) behind base {base_ref!r}, "
+                "which does not require up-to-date branches -- refresh the branch "
+                "before merging"
+            )
+
     # The layers below a stack layer land with it, so each runs the full gate --
     # only once this PR is otherwise ready, for the same per-cycle cost reason.
     stack_result: dict[str, Any] = {
@@ -1517,6 +1563,7 @@ def evaluate(
         "expectedHead": expected_head,
         "headMatches": head_matches,
         "effectiveRules": rules,
+        "baseFreshness": freshness,
         "requiredSignatures": signature_result,
         "requiredChecks": required_check_status,
         "graphqlAvailable": graphql_available,
