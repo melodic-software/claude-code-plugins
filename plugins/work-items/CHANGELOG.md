@@ -24,6 +24,12 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   reductions count only open PRs whose head branch lives in the item's own repository, so an
   outsider's `Closes #N` PR does not hold the item off the frontier for the stale window.
 
+## [0.48.5] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve.
+
 ## [0.48.4] - 2026-10-04
 
 ### Changed

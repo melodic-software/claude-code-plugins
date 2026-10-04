@@ -37,14 +37,19 @@ mod, one mod per plugin, the 2.1.287 floor, and what is committed.
    [gallery](https://code.claude.com/docs/en/plugins/mods/gallery).
 3. Run `claude plugin validate` on the plugin; its `hooks:` and `calls:` lines show what the module
    hooks and which `$` methods it calls.
+4. A mod Claude writes in the session's dev-mods folder hot-reloads after the enable prompt; see
+   [create: ask Claude for a mod](https://code.claude.com/docs/en/plugins/mods/create#ask-claude-for-a-mod).
+5. To change an existing mod, start Claude with `--plugin-dir` on the mod's directory so edits
+   reload in the same session; see
+   [create: change a mod with Claude](https://code.claude.com/docs/en/plugins/mods/create#change-a-mod-with-claude).
 
 - **Pointer**: for which source wins when a page and the per-build types disagree, see
   [create: get the types for your build](https://code.claude.com/docs/en/plugins/mods/create#get-the-types-for-your-build);
   for the `hooks:` and `calls:` lines, see
   [create: check what Claude Code reads from your mod](https://code.claude.com/docs/en/plugins/mods/create#check-what-claude-code-reads-from-your-mod).
-- **As of**: 2026-10-03, Claude Code 2.1.288
-- **Recheck trigger**: either section moves, or `claude plugin validate` stops listing hooks and
-  calls.
+- **As of**: 2026-10-04, Claude Code 2.1.289
+- **Recheck trigger**: a linked create section moves, hot reload changes, or
+  `claude plugin validate` stops listing hooks and calls.
 
 ## Mod, settings hook, or skill
 
