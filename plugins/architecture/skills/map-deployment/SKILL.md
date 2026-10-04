@@ -422,10 +422,15 @@ hand-written; the publish destination comes from the `medium` cascade key. Proce
   <https://learn.microsoft.com/azure/azure-resource-manager/bicep/child-resource-name-type> and
   <https://learn.microsoft.com/azure/azure-resource-manager/templates/child-resource-name-type>.
   As of: 2026-09-30. Recheck when either page changes the single-segment rule or the nesting depth.
-  Claim: a child's full name is `<parent>/<child>`, and a Bicep child outside its parent names it
-  with `parent: <symbol>`. Basis: the same two pages. Claim: every deployment slot of an app runs on
-  the app's App Service plan. Basis: <https://learn.microsoft.com/azure/app-service/overview-hosting-plans>.
-  As of: 2026-10-04. Recheck when those pages change the name form, `parent`, or where a slot runs.
+- **A slot with its own image is placed on its site's plan.** A `DOCKER|` slot places as
+  `<site>/<slot>` on the site's App Service plan, naming it by its full resource name, whether it is
+  nested in the site or names it with a Bicep `parent`. **Pointer**: when deciding how a child's full
+  name is written, or where a slot runs, fetch
+  [Bicep child resource name and type](https://learn.microsoft.com/azure/azure-resource-manager/bicep/child-resource-name-type),
+  [ARM child resource name and type](https://learn.microsoft.com/azure/azure-resource-manager/templates/child-resource-name-type)
+  and [App Service plans](https://learn.microsoft.com/azure/app-service/overview-hosting-plans)
+  live. **As of**: 2026-10-04. **Recheck trigger**: a read of any of those pages diverges from the
+  placement above.
 - **Terraform values are resolved, never evaluated.** `var.X` resolves from a module call argument,
   then the root's tfvars files, then the variable `default`, and `${var.X}` inside a string the
   same way. A variable declared `sensitive = true`, or named for a credential, is redacted wherever
@@ -440,17 +445,17 @@ hand-written; the publish destination comes from the `medium` cascade key. Proce
   `unresolved:container_definitions`. A resource with an empty body (`resource "aws_s3_bucket" "b" {}`)
   is placed or listed as unmapped like any other. A `.tf.json` block type or label written as an
   array of objects (`"resource": [{...}]`) reads like the object form.
-- **One task definition, several services.** Claim: a task definition is the blueprint of a task's
-  containers, and a service runs and maintains a desired number of its tasks in one cluster, so the
-  cluster and the count belong to the service. Basis:
-  <https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definitions.html> and
-  <https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_services.html>. Claim: a
-  container name and a service name allow only letters, numbers, underscores and hyphens, so the `@`
-  of `<container>@<service>` cannot be part of either. Basis: `name` in
-  <https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_ContainerDefinition.html> and
-  `serviceName` in <https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_CreateService.html>.
-  As of: 2026-10-04. Recheck when those pages change what a service owns or the allowed characters.
-  A label prints the `@` as `(at)`, like any other.
+- **One task definition, several services.** Each service that runs a shared task definition places
+  the task definition's containers on its own cluster with its own desired count, named
+  `<container>@<service>`. The `@` separates the two parts, and a label prints it as `(at)`, like
+  any other. **Pointer**: when deciding whether the cluster and the count belong to the service, or
+  whether `@` can appear in a container or service name, fetch
+  [task definitions](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definitions.html),
+  [services](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs_services.html),
+  [`name`](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_ContainerDefinition.html#ECS-Type-ContainerDefinition-name)
+  and [`serviceName`](https://docs.aws.amazon.com/AmazonECS/latest/APIReference/API_CreateService.html#ECS-CreateService-request-serviceName)
+  live. **As of**: 2026-10-04. **Recheck trigger**: a read of any of those sections diverges from
+  the placement above.
 - **Helm reached through IaC is still Helm.** Claim: the Terraform Helm provider declares a release
   as `resource "helm_release"`, and the Pulumi Kubernetes provider as the type
   `kubernetes:helm.sh/v3:Release`. Basis:
