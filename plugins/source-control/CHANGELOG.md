@@ -3,6 +3,13 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.79.8] - 2026-10-04
+
+### Fixed
+
+- **The babysit merge gate holds a `CLEAN` head that is behind its base ([#5955](https://github.com/melodic-software/claude-code-plugins/issues/5955)).**
+  Under loose required status checks GitHub reports a behind head `CLEAN`. The gate made no base compare of its own and the snapshot compared only a `BLOCKED` head, so the gate could squash-merge a behind head and drop base commits. When the gate runs on a PR that is otherwise ready (or held only by running checks), it now compares the head against the live base and holds it if it is behind or the compare cannot be read, and reports the result as `baseFreshness`. The check runs at gate time, including when the gate arms `--auto`; an auto-merge already armed is not re-checked if the base moves afterwards, a race that predates this change. The gate makes no compare on a base whose rulesets require up-to-date branches (a strict `required_status_checks` rule that lists at least one check) or a merge queue; classic branch protection is not read. The queue snapshot now compares every `BLOCKED`, `CLEAN`, or `HAS_HOOKS` PR on every cycle and reports a behind `CLEAN` or `HAS_HOOKS` head as `branch_freshness.state == "behind"` so the guarded refresh can clear the hold. For that head it also reads the base's rules, and it reports the head behind only when the read succeeds and shows no merge queue: on a failed read the head stays not behind for that cycle, so a transient failure cannot start a refresh (which disarms auto-merge and reruns CI and the AI reviews) on a queue base. A compare that keeps failing on a loose base holds the PR until a human acts. The review-request candidate skips a head the snapshot reports `behind`, matching the live re-check in `request_review.py`.
+
 ## [0.79.7] - 2026-10-04
 
 ### Fixed

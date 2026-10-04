@@ -26,6 +26,8 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import babysit_merge as merge
 
 HEAD = "a" * 40
+# The base compare the freshness hold reads for an otherwise-ready PR.
+UP_TO_DATE = {"status": "ahead", "ahead_by": 1, "behind_by": 0}
 PR_NUMBER = 2157
 CI_GATE = ["pr-title / pr-title", "do-not-merge / do-not-merge", "ci-status"]
 SECURITY_GATE = ["security-review / security-review"]
@@ -172,6 +174,8 @@ class AnEmptyLaterRuleCannotUnprotectTheBase(unittest.TestCase):
 
     def _evaluate(self, *rules: dict[str, Any]) -> dict[str, Any]:
         def gh_json(args: list[str]) -> Any:
+            if args[0] == "api" and "/compare/" in args[1]:
+                return UP_TO_DATE
             if args[:2] == ["pr", "view"]:
                 return _pr()
             if args[0] == "api" and "/rules/branches/" in args[1]:
