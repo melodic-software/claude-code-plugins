@@ -114,6 +114,9 @@ _SECRET_SHAPES: tuple[re.Pattern[str], ...] = (
     # The bounded JWT header and URL scheme keep each start position's scan
     # short; unbounded, a long run with no `.` or `://` is quadratic.
     re.compile(r"\beyJ[A-Za-z0-9_-]{10,512}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
+    # A header past the bound: the whole run, dots included, in one match.
+    # After the JWT rule, since a long payload segment also starts `eyJ`.
+    re.compile(r"\beyJ[A-Za-z0-9_-]{513}[A-Za-z0-9_.-]*"),
     re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._+/=-]{8,}"),
     re.compile(
         r"(?i)\b(?:bearer|token|api[_-]?key|secret|password|passwd|pwd)"

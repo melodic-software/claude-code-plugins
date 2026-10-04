@@ -180,6 +180,9 @@ class GuardDecisionLogTests(unittest.TestCase):
         header = "-----BEGIN a PRIVATE" " KEY-----"
         for text in (
             "-eyJ" * 75000,
+            "eyJ" + "A" * 600000,
+            ("eyJ" + "A" * 600) * 1000,
+            ("-eyJ" * 127 + " ") * 600,
             "a." * 150000,
             "a." * 32 + "a@" + "a." * 150000,
             header * 20000,
@@ -196,6 +199,13 @@ class GuardDecisionLogTests(unittest.TestCase):
         # Header, payload and signature spell FAKE.
         jwt = "eyJhbGciOiJIUzI1NiJ9" ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal"
         long_header = "eyJ" + "A" * 509 + ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal"
+        # Headers past the bound, as with an embedded x5c chain, are redacted
+        # whole, payload and signature included.
+        past_bound = [
+            "eyJ" + "A" * size + ".eyJzdWIiOiJGQUtFIn0" ".FAKEsignatureNOTreal"
+            for size in (513, 4000)
+        ]
+        long_payload = "eyJhbGciOiJIUzI1NiJ9" ".eyJ" + "B" * 2000 + ".FAKEsignature"
         # A 4096-bit RSA PKCS#8 PEM is about 3.2 KB in 64-character lines
         # (RFC 7468); this body spells FAKE.
         body = "\n".join(["FAKE" * 16] * 52)
@@ -208,6 +218,8 @@ class GuardDecisionLogTests(unittest.TestCase):
         for secret in (
             jwt,
             long_header,
+            *past_bound,
+            long_payload,
             "postgres://u:p@h/db",
             "postgresql+psycopg2://user:FAKEpass@db.example.com:5432/app",
             "m" * 64 + "://u:p@h",
