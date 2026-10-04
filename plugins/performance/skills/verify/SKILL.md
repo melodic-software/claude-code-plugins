@@ -105,6 +105,38 @@ when the harness never ran; prefer it to a hand-built pair of arms.
 
 State the target as **met** or **not met**, with the measurement that explains why.
 
+### Before the verdict: what limits the number
+
+Nothing in a printed figure tells a sound run from a broken one. Before the report states `MET` or
+`NOT MET`, the verifier fills two lines from its own runs:
+
+- **`Limiter:`** what stops the after arm from doing better: a fixed sleep or poll interval, the
+  harness or load driver, a lock both arms queue on, a saturated core, disk or network throughput.
+  For a counter it is what keeps the count at its after value, often the floor the goal recorded.
+  Profile an extra run, or record OS counters while it runs (a profiler slows what it watches), and
+  trace the busiest frames to their code path. These profiling runs locate the limiter; they are
+  not reported measurements.
+  Reading the source can suggest a limiter; only a measured run confirms one. A flat counter after
+  a change is a reason to look for the limiter, not proof the change did nothing: the cost it
+  removed may not have been the one holding the number.
+- **`Ruled out:`** at least one other thing the number could reflect, each with the evidence that
+  excludes it. Spread between runs is checked against the snapshot's interleaved pairs; arms on
+  different build modes or flags against the snapshot's `Rig:` line, and arms that took different code
+  paths against its `Path (<arm>):` lines; a cache
+  the after arm found warm against a cold-start run of each arm; failed or skipped work against
+  the error and work counts
+  ([harness-integrity rule 8](${CLAUDE_PLUGIN_ROOT}/reference/harness-integrity.md#8-a-frozen-harness-prints-its-error-and-work-counts)).
+
+Check the bound with arithmetic too: the saving is capped by how long the changed code ran in the
+before arm. If the old code ran for 300 ms of a 2 s run, the after arm can be at most 300 ms
+faster; a bigger saving says the after arm did less work or read from a cache, which needs
+explaining before any verdict. On a `/performance:climb` branch, compare the limiter with the
+mechanism the kept attempts named: a gain whose limiter sits elsewhere moved something the
+hypothesis did not describe.
+
+A report that cannot fill one of the two lines writes `unknown` on that line, lists the gap under
+`Not covered:`, and is not `MET`.
+
 ```text
 Target:      <realistic> / <ideal>        Floor: <value>
 Counter:     <before> -> <after>          [headline] [unproven, when Correlation is]
@@ -118,6 +150,8 @@ Deployed:    same as measured
              | n/a (no install record for this subject)
 Duration:    <p50/p95 before> -> <after>  [or: REFUSED, <reason from is_measurable>]
 Rig:         <hardware>, <runtime mode>, <throttling>, <run count>, <timestamp>
+Limiter:     <resource or bound, the evidence, the code path> | unknown
+Ruled out:   <alternative explanation: evidence that excludes it>, one or more | unknown
 Verdict:     MET | NOT MET | UNMEASURABLE
 Behavior:    UNCHANGED (differential: N inputs, modes covered: <list>)
              | CHANGED: <what changed>    [ranked above the performance claim]
@@ -149,6 +183,9 @@ Rules that bind the report:
 - **`Cost:` sits beside the gain it buys.** Whether a large diff is worth a small win is the
   human's call; the report makes the trade visible.
 - **Never round a miss into a win.** A target missed by 8% is not met.
+- **`Limiter:` and `Ruled out:` come before the verdict.** When the limiter is something other
+  than the change, the report says so: a result held by the harness or a shared resource is not
+  evidence about the change.
 - **`Deployed:` is required and never changes the verdict.** `MET`, `NOT MET`, and `UNMEASURABLE`
   describe the measurement. When `Deployed:` differs, the report carries the `Open follow-up:` line
   and no done, shipped, or live language until a post-install re-measurement agrees. A worktree-only

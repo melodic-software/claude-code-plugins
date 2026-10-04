@@ -7,6 +7,13 @@ All notable changes to the `performance` plugin are documented here. Format foll
 
 ### Added
 
+- **`/performance:verify` names what limits the number before the verdict.** The report gains
+  `Limiter:` (the resource or bound holding the result, from a profiled run that is not reported)
+  and `Ruled out:` (at least one other explanation and the evidence that excludes it), plus a
+  bound check that a saving cannot exceed the changed code's share of the run. A report that cannot
+  fill one of the two lines is not `MET`. Two eval cases cover a result held by something other than the
+  change and a saving past the changed code's share.
+
 - **A profile-to-family table in `reference/techniques.md` section F.** Each row starts from what a
   profile or trace shows and names the change to try, its counter and the catalog rows that apply.
   Deletion candidates come from reading callers rather than from the profile, and a rescheduled
