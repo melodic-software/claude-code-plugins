@@ -1906,14 +1906,14 @@ fi
 # shellcheck disable=SC2016 # the ${CLAUDE_PLUGIN_ROOT} placeholders are literal manifest text
 PROBE_ARGS_WANT='[["${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs","probe","${CLAUDE_PLUGIN_ROOT}","--run-if-unset-or-true","MARKDOWN_FORMAT_ENABLED"]]'
 if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
-  PROBE_ARGS_GOT="$(jq -c '[.hooks.SessionStart[]? | select(.matcher == null) | .hooks[]? | select(.args) | .args]' "$HOOKS_JSON")"
+  PROBE_ARGS_GOT="$(jq -c '[.hooks.SessionStart[]? | select(.matcher != "compact|clear") | .hooks[]? | select(.args) | .args]' "$HOOKS_JSON")"
   if [[ "$PROBE_ARGS_GOT" == "$PROBE_ARGS_WANT" ]]; then
     ok "hooks.json: SessionStart probe is gated by --run-if-unset-or-true MARKDOWN_FORMAT_ENABLED"
   else
     fail "hooks.json SessionStart args: got $PROBE_ARGS_GOT, want $PROBE_ARGS_WANT"
   fi
   # The SessionStart compact|clear row that resets the findings delta gate.
-  RESET_ARGS_GOT="$(jq -c '[.hooks.SessionStart[]? | select(.matcher != null) | {matcher, args: [.hooks[]? | .args]}]' "$HOOKS_JSON")"
+  RESET_ARGS_GOT="$(jq -c '[.hooks.SessionStart[]? | select(.matcher // "" | test("compact")) | {matcher, args: [.hooks[]? | .args]}]' "$HOOKS_JSON")"
   # shellcheck disable=SC2016 # the ${CLAUDE_PLUGIN_ROOT} placeholders are literal manifest text
   RESET_ARGS_WANT='[{"matcher":"compact|clear","args":[["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","${CLAUDE_PLUGIN_ROOT}/hooks/markdown-format.sh","--reset-digests"]]}]'
   if [[ "$RESET_ARGS_GOT" == "$RESET_ARGS_WANT" ]]; then
