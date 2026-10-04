@@ -38,6 +38,8 @@ activities:
     inputs: [head-sha, changed-paths]
   claude:
     skill: review:code-review
+    model: opus
+    max-turns: 100
     effect: publish-artifact
     gating: gate
     reads-untrusted: true
