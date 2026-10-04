@@ -57,8 +57,8 @@ jobs:
         with:
           persist-credentials: false
       # The suites read what they read only when their tools are present, so
-      # the toolchains match ci.yml's test-bash lane (Node, Python, ShellCheck,
-      # shfmt, the inventory parser packages, DuckDB); a suite that skips for a
+      # the toolchains match ci.yml's test-bash and test-python lanes (Node,
+      # Python, ShellCheck, shfmt, the inventory parser packages, DuckDB); a suite that skips for a
       # missing tool reads less and can hide a gap, never invent one.
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0

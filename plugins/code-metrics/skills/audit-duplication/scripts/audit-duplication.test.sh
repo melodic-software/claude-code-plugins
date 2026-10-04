@@ -20,6 +20,7 @@
 # scripts/cross-plugin-source-registry.txt. It runs only when a real `jscpd`
 # already resolves on PATH, which this plugin never installs, and otherwise
 # prints a visible SKIP line.
+# test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 

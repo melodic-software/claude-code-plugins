@@ -83,6 +83,19 @@ build({ items: [{ number: 1, title: "t" }] });
 const bare = JSON.parse(/id="rv-data">([^]*?)<\/script>/.exec(readFileSync(`${work}/board.html`, "utf8"))[1]);
 check("an item with no labels and no state groups as no label, untriaged", bare.bylabel[0].name === "no label" && bare.bystate[0].name === "untriaged");
 check("an item whose blockers were not read is neither blocked nor unblocked", bare.byblocker[0].name === "blockers not read");
+check(
+  "the act list holds every item in input order, ref and title only",
+  JSON.stringify(data.items) === JSON.stringify(items.slice(0, 3).map((item, i) => ({ ref: `#${i + 1}`, title: item.title }))),
+);
+
+// Claude-interactive build.
+const connected = spawnSync("node", [builder, "--out", `${work}/bridged.html`, "--connect", "http://127.0.0.1:8765"], { input: JSON.stringify({ items }), encoding: "utf8" });
+const bridgedPage = connected.status === 0 ? readFileSync(`${work}/bridged.html`, "utf8") : "";
+check("--connect builds a page that passes the interactive profile", connected.status === 0 && validateView(bridgedPage).ok, connected.stderr);
+check("--connect names the origin in connect-src", bridgedPage.includes("connect-src http://127.0.0.1:8765\">"));
+const offOrigin = spawnSync("node", [builder, "--out", `${work}/x.html`, "--connect", "https://evil.example"], { input: "{}", encoding: "utf8" });
+check("--connect to a non-loopback origin exits 1", offOrigin.status === 1, offOrigin.status);
+check("an unknown flag exits 2", spawnSync("node", [builder, "--out", `${work}/x.html`, "--open", "x"], { input: "{}", encoding: "utf8" }).status === 2);
 
 // Hostile tracker text.
 const evil = build({ repo: hostile[0], generated: hostile[1], title: hostile[3], items });
@@ -97,6 +110,7 @@ check("the data block holds the hostile text as JSON", JSON.parse(/id="rv-data">
 
 // Failure exits.
 check("input that is not JSON exits 1", build("not json").status === 1);
+check("a --connect with no value exits 2", spawnSync("node", [builder, "--out", `${work}/x.html`, "--connect"], { input: "{}", encoding: "utf8" }).status === 2);
 check("no --out exits 2", spawnSync("node", [builder], { input: "{}", encoding: "utf8" }).status === 2);
 check("an empty board still builds", build({}).status === 0);
 
@@ -114,6 +128,8 @@ if (!chrome) {
   check("browser: rows render with builder ids", dom.includes('id="bystate-1-srows-1"') && dom.includes('id="bylabel-1-lrows-1"'));
   check("browser: no hostile script or handler ran", !/<title>pwned|<html[^>]*pwned/.test(dom));
   check("browser: hostile markup stays text", !/<img|<svg onload|<b>pwned/i.test(dom) && dom.includes("&lt;img src=x"));
+  check("browser: act rows carry builder ids as their pick values", dom.includes('id="items-1"') && dom.includes('value="items-7"'));
+  check("browser: with no session the board says so and stays usable", dom.includes("No session is connected."));
 }
 
 if (failed) {

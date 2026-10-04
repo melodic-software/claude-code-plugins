@@ -17,6 +17,7 @@
 #     check against the stamp's version arm. The suite never probes the host CLI,
 #     so the result does not depend on where it runs; unset skips that arm with a
 #     counted skip.
+# test-scope: plugins/source-control/*
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

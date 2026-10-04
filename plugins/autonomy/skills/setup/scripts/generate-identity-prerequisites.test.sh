@@ -2,6 +2,7 @@
 # Unit tests for generate-identity-prerequisites.mjs. Cases are named in the
 # co-located manifest; this harness builds throwaway trees where needed and
 # drives generate / --check / drift / leaf↔emission parity.
+# test-scope: plugins/autonomy/reference/routines/*.md
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

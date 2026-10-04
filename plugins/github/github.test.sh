@@ -7,6 +7,7 @@
 #     (fixture lives here, independent of the file it checks)
 #   - recipe non-hollow contract: every primary-tier recipe carries the six contract sections
 #     and a >=10-question audit checklist
+# test-scope: plugins/github/*
 set -uo pipefail
 
 # mapfile (area oracle below) needs bash >= 4; on bash 3.x it fails silently under

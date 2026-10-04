@@ -1173,7 +1173,7 @@ def _outside_git(tmp_path: Path) -> Path:
 
 def test_new_without_memory_dir_outside_git_uses_plugin_data_env(tmp_path):
     cwd = _outside_git(tmp_path)
-    data = tmp_path / "plugin-data"
+    data = tmp_path / "session-flow-test"
     memory = data / "artifacts"
     memory.mkdir(parents=True)
     env = {**_base_env(), "CLAUDE_PLUGIN_DATA": str(data)}
@@ -1218,9 +1218,38 @@ def test_new_without_memory_dir_outside_git_and_no_data_dir_refuses(tmp_path):
     assert not (cwd / ".work").exists()
 
 
+def test_new_without_memory_dir_ignores_another_plugins_data_env(tmp_path):
+    # Another plugin's SessionStart hook can export its own data dir into every
+    # Bash call as CLAUDE_PLUGIN_DATA; the derivation from the cache path wins.
+    cwd = _outside_git(tmp_path)
+    config = tmp_path / "config"
+    version_dir = config / "plugins" / "cache" / "my.market" / "session-flow" / "1.2.3"
+    shutil.copytree(
+        SCRIPT.parent,
+        version_dir / "scripts",
+        ignore=shutil.ignore_patterns("tests", "__pycache__"),
+    )
+    memory = config / "plugins" / "data" / "session-flow-my-market" / "artifacts"
+    memory.mkdir(parents=True)
+    (memory / ".gitignore").write_text("*\n", encoding="utf-8")
+    foreign = tmp_path / "codex-openai-codex"
+    (foreign / "artifacts").mkdir(parents=True)
+    (foreign / "artifacts" / ".gitignore").write_text("*\n", encoding="utf-8")
+    env = {**_base_env(), "CLAUDE_PLUGIN_DATA": str(foreign)}
+    result = run(
+        *_no_memory_dir_args(tmp_path),
+        env=env,
+        cwd=cwd,
+        script=version_dir / "scripts" / "save_point.py",
+    )
+    assert result.returncode == 0, err(result)
+    assert out(result).strip() == real_posix(memory / "handoffs" / HOP1)
+    assert not (foreign / "artifacts" / "handoffs").exists()
+
+
 def test_memory_root_outside_git_prints_the_plugin_data_artifacts(tmp_path):
     cwd = _outside_git(tmp_path)
-    data = tmp_path / "plugin-data"
+    data = tmp_path / "session-flow-test"
     env = {**_base_env(), "CLAUDE_PLUGIN_DATA": str(data)}
     result = run("memory-root", env=env, cwd=cwd)
     assert result.returncode == 0, err(result)

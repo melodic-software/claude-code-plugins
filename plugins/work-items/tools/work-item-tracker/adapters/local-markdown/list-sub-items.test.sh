@@ -3,6 +3,7 @@
 # local-markdown store: direct-child enumeration with state
 # filtering and parent stamping, the container-scoped frontier (list-frontier
 # --parent), and container exclusion from every frontier. Runs in CI, offline.
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/local-markdown/*
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 set -uo pipefail
 

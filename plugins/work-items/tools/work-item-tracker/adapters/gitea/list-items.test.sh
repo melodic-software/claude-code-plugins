@@ -2,6 +2,7 @@
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 # list-items: offline contract tests. Pagination, PR exclusion, and the per-item
 # blocker count are all driven through a mocked curl — no live Gitea call.
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/gitea/*
 set -uo pipefail
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/list-items.sh"
 D="$(dirname "$S")"
