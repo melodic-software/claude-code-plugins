@@ -39,11 +39,10 @@ ok() {
   PASS=$((PASS + 1))
 }
 
-# --- Notice text is bound to prerequisites.json --------------------------------
-# The hook does not read the manifest at run time (parse cost on the per-edit hot
-# path), so this case is the binding: the manifest lists ruff, jq and node,
-# and the hook's missing-binary notice call and .venv walk state that tool's
-# name, check, install and local_bin, verbatim.
+# --- The .venv walk is bound to prerequisites.json ------------------------------
+# The missing-binary notice is composed from the manifest at run time; the .venv
+# walk is not, so this case is the binding: the manifest lists ruff, jq and node,
+# and the walk states ruff's local_bin verbatim.
 MANIFEST="${HOOK_DIR%/*}/prerequisites.json"
 if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
   if jq -e '(.requires | map(.id)) == ["ruff", "jq", "node"] and .requires[0].detect.local_bin == [".venv/bin/ruff"]' "$MANIFEST" >/dev/null 2>&1; then
@@ -51,8 +50,7 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
   else
     fail "manifest: expected tools ruff, jq and node with local_bin .venv/bin/ruff: $(cat "$MANIFEST")"
   fi
-  IFS=$'\t' read -r MF_NAME MF_LOCAL MF_CHECK MF_INSTALL < <(jq -r '.requires[0] | [.id, .detect.local_bin[0], .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST")
-  NOTICE_CALL="$(sed -n '/hook::tool_missing_notice_to RUFF_NOTICE/,/[^\\]$/p' "$HOOK")"
+  MF_LOCAL="$(jq -r '.requires[0].detect.local_bin[0]' "$MANIFEST")"
   WALK_FN="$(sed -n '/^ruff_venv_bin_here()/,/^}/p' "$HOOK")"
   # assert_hook_states <field> <needle> <haystack>
   assert_hook_states() {
@@ -62,9 +60,6 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
       fail "manifest binding: hook does not state the manifest's $1 (needle='$2')"
     fi
   }
-  assert_hook_states name "'$MF_NAME'" "$NOTICE_CALL"
-  assert_hook_states check "$MF_CHECK" "$NOTICE_CALL"
-  assert_hook_states install "$MF_INSTALL" "$NOTICE_CALL"
   assert_hook_states local_bin "$MF_LOCAL" "$WALK_FN"
 else
   fail "manifest binding needs jq and $MANIFEST"
@@ -265,7 +260,7 @@ if grep -q '^x = 1$' "$REPO/src/fmt.py" && grep -q '^y = 2$' "$REPO/src/fmt.py";
 else
   fail "gate ON -> file not formatted: $(cat "$REPO/src/fmt.py")"
 fi
-if printf '%s' "$OUT" | grep -q 'ruff-format: auto-fixed and/or reformatted'; then
+if printf '%s' "$OUT" | jq -e '.systemMessage == "ruff-format: reformatted fmt.py."' >/dev/null 2>&1; then
   ok "format case -> user-channel mutation disclosure"
 else
   fail "format case -> missing systemMessage disclosure: $OUT"
@@ -341,7 +336,7 @@ RC=$?
 if [[ $RC -eq 0 ]]; then ok "syntax error -> exit 0 (advisory)"; else fail "syntax error exit $RC"; fi
 if printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null 2>&1; then
   CTX=$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext')
-  if printf '%s' "$CTX" | grep -qi 'has Ruff findings' && printf '%s' "$CTX" | grep -qi 'syntax'; then
+  if printf '%s' "$CTX" | grep -qi 'has findings' && printf '%s' "$CTX" | grep -qi 'syntax'; then
     ok "syntax error -> surfaced as a finding (not a tool break)"
   else
     fail "syntax error -> not in findings branch: $CTX"
@@ -364,6 +359,57 @@ if printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/nul
   ok "unused import still reported as a finding"
 else
   fail "unused import not reported: $OUT"
+fi
+if [[ "$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null)" == $'ruff-format: imp.py has findings:\n  1:8: F401 [*] `os` imported but unused' ]]; then
+  ok "finding lines drop the path prefix the heading already names"
+else
+  fail "finding report shape: $OUT"
+fi
+
+# --- Case 4c2: an unchanged finding set is sent once --------------------------
+# With a data directory, the F401 above is sent on the first edit and not on
+# the next; telemetry still records it. A clean run clears the record, so the
+# finding is sent again when it returns, and so is it after a SessionStart
+# compact or clear resets the records.
+DELTA_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
+run_delta() {
+  run_hook_env "$1" CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED=true CLAUDE_PLUGIN_DATA="$DELTA_DATA" "${@:2}"
+}
+delta_ctx() { jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$1" 2>/dev/null; }
+printf 'import os\n' >"$REPO/delta.py"
+D1=$(run_delta "$REPO/delta.py")
+TELD="$(mktemp)"
+SINKD="$(make_sink "cat >\"$TELD\"")"
+D2=$(run_delta "$REPO/delta.py" HOOK_TELEMETRY_SINK="$SINKD")
+wait_for_sink "$TELD"
+if [[ "$(delta_ctx "$D1")" == *F401* && -z "$D2" ]]; then
+  ok "delta: an unchanged finding set is sent once, then nothing"
+else
+  fail "delta: first='$D1' second='$D2'"
+fi
+if [[ -s "$TELD" ]] && jq -e '.data.findings | map(test("F401")) | any' "$TELD" >/dev/null 2>&1; then
+  ok "delta: telemetry still records the finding the context left out"
+else
+  fail "delta: telemetry findings: $(cat "$TELD" 2>/dev/null)"
+fi
+printf '{"source":"compact"}' | env CLAUDE_PLUGIN_DATA="$DELTA_DATA" bash "$HOOK" --reset-digests
+D3=$(run_delta "$REPO/delta.py")
+if [[ "$(delta_ctx "$D3")" == *F401* ]]; then
+  ok "delta: SessionStart compact resets the record, so the set is sent again"
+else
+  fail "delta: after compact reset: '$D3'"
+fi
+printf '{"source":"resume"}' | env CLAUDE_PLUGIN_DATA="$DELTA_DATA" bash "$HOOK" --reset-digests
+D4=$(run_delta "$REPO/delta.py")
+if [[ -z "$D4" ]]; then ok "delta: SessionStart resume keeps the record"; else fail "delta: after resume: '$D4'"; fi
+printf 'x = 1\n' >"$REPO/delta.py"
+run_delta "$REPO/delta.py" >/dev/null
+printf 'import os\n' >"$REPO/delta.py"
+D5=$(run_delta "$REPO/delta.py")
+if [[ "$(delta_ctx "$D5")" == *F401* ]]; then
+  ok "delta: a finding that returns after a clean run is sent again"
+else
+  fail "delta: after clean run: '$D5'"
 fi
 
 # --- Case 4d: target-version-aware syntax error ------------------------------
@@ -535,14 +581,17 @@ run_nr() {
     cd "$UNRELATED" || return 1
     printf '{"session_id":"test-noruff-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_NR/app.py" |
       env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$NR_DATA" \
-        CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED=true bash "$HOOK"
+        CLAUDE_PLUGIN_ROOT="${HOOK_DIR%/*}" CLAUDE_PLUGIN_OPTION_RUFF_FORMAT_ENABLED=true bash "$HOOK"
   )
 }
 OUT_NR=$(run_nr)
 RC_NR=$?
 if [[ $RC_NR -eq 0 ]]; then ok "ruff-absent -> exit 0"; else fail "ruff-absent exit $RC_NR"; fi
-if jq -e '(.systemMessage | contains("ruff")) and (.hookSpecificOutput.additionalContext | contains("Ruff config"))' <<<"$OUT_NR" >/dev/null 2>&1; then
-  ok "ruff-absent with governing config -> visible notice on both channels"
+# The manifest's where, degrade and check reach the model; its install route
+# reaches the user only.
+if jq -e '(.hookSpecificOutput.additionalContext | startswith("ruff-format: ruff not on the hook PATH or at .venv/bin/ruff. Without ruff,") and contains("/ruff-format:check") and (contains("pip install") | not))
+    and (.systemMessage | contains("pip install ruff"))' <<<"$OUT_NR" >/dev/null 2>&1; then
+  ok "ruff-absent with governing config -> manifest notice, install route on the user channel only"
 else
   fail "ruff-absent: notice missing or malformed: $OUT_NR"
 fi
@@ -676,6 +725,14 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
   else
     fail "hooks.json: expected one exec-form SessionStart prerequisites probe row behind --run-if-unset-or-true RUFF_FORMAT_ENABLED, found $PROBE_COUNT"
   fi
+  # The SessionStart compact|clear row that resets the findings delta gate.
+  RESET_SEL='.event == "SessionStart" and .matcher == "compact|clear" and .command == "node" and .args == ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/ruff-format.sh", "--reset-digests"]'
+  if [[ "$(jq "[.[] | select($RESET_SEL)] | length" <<<"$HANDLERS")" == "1" ]]; then
+    ok "hooks.json: one SessionStart compact|clear row runs the script with --reset-digests"
+  else
+    fail "hooks.json: expected one SessionStart compact|clear --reset-digests row"
+  fi
+  HANDLERS="$(jq -c "[.[] | select(($RESET_SEL) | not)]" <<<"$HANDLERS")"
   HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
   HANDLER_GROUPS="$(jq -r '[.[] | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
   GROUPS_OFF="$(jq -r '[.[] | select(.event != "PostToolUse" or ((.matcher | split("|") | sort | unique) != ["Edit", "Write"])) | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
