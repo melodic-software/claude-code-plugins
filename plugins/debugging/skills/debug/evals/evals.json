@@ -86,6 +86,70 @@
         "Log lines and other session text reach the page only as data in that JSON, after secrets are redacted",
         "The publish destination comes from the medium key of the rendered-views cascade, with file as the default when unset"
       ]
+    },
+    {
+      "id": 8,
+      "name": "belief-checked-before-third-fix",
+      "prompt": "/debugging:debug the nightly invoice export still drops rows. My loop replays last night's batch and fails every time. Fix one raised the database write timeout, fix two wrapped the insert in a retry; both assumed the database was timing out, and both still fail the loop. What should the third fix be?",
+      "expected_output": "Names the belief behind both attempts (the database is timing out) in a single sentence, then proposes checking that belief with the replay loop before any third fix. It treats this as advisory: the replay loop stays the gate, and it does not refuse to continue.",
+      "files": [],
+      "expectations": [
+        "Names the belief behind both attempts (the database is timing out) in one sentence before any third fix is proposed",
+        "Proposes checking that belief directly (for example whether any write actually times out) rather than another fix built on it",
+        "Does NOT propose a third timeout, retry or similar fix built on the database-timeout belief before that belief is checked",
+        "Keeps the replay loop as the pass/fail gate and does not present the belief check as a hard stop"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "uneven-load-gets-tally-script",
+      "prompt": "/debugging:debug six thumbnail workers share one queue, but workers 2 and 5 hit their memory limit every night while the other four sit mostly idle. I have a loop that replays last night's queue against a local cluster.",
+      "expected_output": "Writes a small script that tallies jobs or memory per worker and runs it on each replay pass, then compares the passes. If workers 2 and 5 lead in every pass, the next hypothesis is the code that picks a worker for a job. Any fix targets that picking code, not the memory limit or the worker count.",
+      "files": [],
+      "expectations": [
+        "Produces a script, run on each replay pass, that tallies load (jobs, bytes or memory) per worker, rather than a one-off manual reading",
+        "Compares tallies across passes and names the worker-selection code (scheduling, routing or hashing) as the next hypothesis when the same workers lead every pass",
+        "Does NOT propose raising the memory limit or adding workers as the fix; any proposed fix changes how a worker is picked for a job"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "failure-after-restart-suspects-stale-state",
+      "prompt": "/debugging:debug the desktop sync client ran fine all week. Since the machine rebooted this morning it fails on launch with 'unable to open profile'. No code or version changed.",
+      "expected_output": "Still builds a launch loop first, then ranks stored state above any code hypothesis (serialized state from the previous run, caches, config, lock files) and rules each in or out by renaming it and relaunching.",
+      "files": [],
+      "expectations": [
+        "Builds or asks for a reproduction loop (launching the client and checking for the error) before testing hypotheses",
+        "Lists persistent state (lock files, caches, config or settings files, serialized state) as the first-ranked hypotheses",
+        "Proposes a cheap test for each, such as moving the file aside and relaunching",
+        "Does NOT start by hypothesizing a code defect when no code changed"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "ruled-out-edits-dropped-before-commit",
+      "prompt": "/debugging:debug the cause turned out to be a wrong timezone in the report scheduler, and the regression test now passes. Earlier, while testing a connection-pool hypothesis that the logs ruled out, I raised the pool size from 10 to 40 and added a retry wrapper around the query. Can I commit everything now?",
+      "expected_output": "Edits made for the connection-pool hypothesis, which the logs ruled out, are dropped before the commit: the pool-size change and the retry wrapper come out. The commit carries only the timezone fix and its regression test, and the PR description shows the loop failing before the fix and passing after it.",
+      "files": [],
+      "expectations": [
+        "Requires reverting the pool size change and removing the retry wrapper before the fix commit",
+        "Gives the reason: those edits were made for the connection-pool hypothesis, which the logs ruled out, so they are dropped before the commit",
+        "Does NOT approve committing the pool-size change or retry wrapper together with the timezone fix",
+        "Asks for the failing loop output from before the fix and the passing output after it in the PR description or report"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "diagnosis-only-stops-at-confirmed-hypothesis",
+      "prompt": "/debugging:debug just tell me why the CSV importer rejects files that start with a byte-order mark. Do not change the importer; I will write the fix myself.",
+      "expected_output": "Builds a loop, confirms a hypothesis, and stops there: reports the cause at file:line with the loop output that confirms it, removes any instrumentation it added, and makes no fix and no regression test.",
+      "files": [],
+      "expectations": [
+        "Builds a reproduction loop and confirms one hypothesis with evidence",
+        "Reports the cause with a file:line location and the confirming loop output",
+        "Does NOT edit the importer code or write a fix or regression test",
+        "Removes any instrumentation it added during the diagnosis"
+      ]
     }
   ]
 }

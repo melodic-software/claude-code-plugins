@@ -119,6 +119,12 @@ If you cannot state the prediction, the hypothesis is a vibe. Discard or sharpen
 
 Ground the ranking in real repo state before you rank: recent commits in the affected area, open issues, architecture decision records, banned-symbol entries, known-issue or quirks notes, and the project instruction files and ADRs nearest the affected file. A hypothesis that contradicts a documented constraint ranks low; one that matches a recent change ranks high.
 
+**Restart with no code change.** Put stored state at the top of the ranking, checked in this order: serialized state the previous run wrote, caches, config the new process loads, lock files. Each costs one step to rule in or out: rename it, relaunch, run the loop.
+
+**Uneven load.** If one worker, host, shard or tenant suffers far more than its peers, write a small script that tallies the symptom per actor and run it on every loop pass; a number read once off a dashboard cannot be compared between passes. Then compare the tallies. A leader that changes from pass to pass is noise. A leader that never changes points at the scheduling, routing or hashing code that picks it, and that code is the next hypothesis to test.
+
+**Pick the test that rules out more.** When two tests cost about the same, run the one whose result eliminates more of the remaining hypotheses.
+
 **Show the ranked list to the user before testing.** They often have domain knowledge that re-ranks instantly ("we just deployed a change that touches #3"), or know hypotheses they have already ruled out. Cheap checkpoint, big time saver. Do not block on it. Proceed with your ranking if the user is AFK.
 
 ## Phase 4: Instrument
@@ -160,6 +166,10 @@ If a correct seam exists:
 
 Keep the fix diff focused on the root cause. Leave surrounding cleanup out of this change, even in files you touched. If the fix reveals a design problem, note it for a separate refactor commit or the Phase 6 architectural recommendation.
 
+Before the fix commit, diff the tree against where the session started and drop every edit made for a hypothesis now marked refuted, such as a guard, a retry or a raised limit. The commit holds the confirmed cause's fix and its regression test, nothing else.
+
+**Worked example: a load imbalance.** The Phase 3 tally shows export workers 2 and 5 claim most of the large jobs in every pass. The defect is in how a worker gets picked, so the fix goes there: for example, claim by least current work, cap the large jobs one worker may hold, or hash on a key with more spread. Raising the busy workers' memory limit or adding more workers leaves the picking code as it was, so treat either as a symptom fix.
+
 ## Phase 6: Cleanup + post-mortem
 
 Required before declaring done:
@@ -169,6 +179,7 @@ Required before declaring done:
 - All `[DEBUG-...]` instrumentation removed (`grep -r "\[DEBUG-` returns nothing in source)
 - Throwaway prototypes deleted (or moved to a clearly-marked sandbox location)
 - The hypothesis that turned out correct is stated in the **commit message / PR description**, so the next debugger learns
+- Two runs of the Phase 1 loop, redacted, appear in the user report and the PR description: red before the fix, green after. If the red run is missing, for example because the loop was built after a hotfix, that gap is written down along with the substitute evidence used
 - If the loop revealed a recurring class of bug, record it in your project's known-issues / quirks notes
 - Confirm the fix outcome: run the mechanical build/test/lint, then check the original symptom is resolved with no regression, and record the evidence. The context that produced the fix converges on approval rather than detection, so beyond those objective checks the outcome verdict should be rendered by an agent that did NOT produce the fix. If your environment has an outcome-verification capability, use it; otherwise dispatch a fresh-context verifier with the symptom, the fix diff, and pass/fail criteria. Boundary: `/debugging:debug` DOES the fix + regression test; a verifier VERIFIES the outcome
 
@@ -210,8 +221,17 @@ four-part records live in [reference/native-debug.md](reference/native-debug.md)
 - **Does not fix the symptom**. A null check at the call site is fixing the symptom; finding why the value is null is fixing the cause
 - **Does not refactor mid-fix**. Keep the diff focused. Architectural findings go to Phase 6
 - **Does not re-derive a known classification**. When the symptom matches a shape your environment already classifies (a known-error taxonomy, a test-investigation routine), lean on that instead of re-deriving it
+- **Does not ship a workaround in place of the cause**. When a change needs comment prose to explain why its odd behavior is required, read that as a sign the cause is still unfound and go back to Phase 3. A workaround that ships anyway carries a tracking link or a removal condition in its comment; the code-tidying comment-residue audit flags one with neither as `unjustified-workaround`
+- **Does not fix when the user asked only for a diagnosis**. Stop once a hypothesis is confirmed: report the cause at file:line with the loop output that confirms it, remove the Phase 4 instrumentation, and change no other code. Without that request, fixing is the default
+
+## Next
+
+- Fixed with a regression test: /verification:confirm fix.
+- Stopped at a diagnosis on request: /implementation:implement fix.
 
 ## When to escalate
+
+**Second failed fix.** Name the belief behind every attempt so far in a single sentence, then check that belief directly with the loop, once a second fix fails the Phase 1 loop and before a third is written. If the symptom is skewed across actors, run the Phase 3 tally first. This step is advisory; Phase 1 stays the only hard gate.
 
 If after 3 hypothesis-test cycles no candidate is panning out:
 

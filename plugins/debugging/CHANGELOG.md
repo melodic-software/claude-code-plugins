@@ -3,6 +3,12 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Added
+
+- `/debugging:debug` names the belief behind every attempt in one sentence and checks it once a second fix fails (advisory; Phase 1 stays the only hard gate); tallies a symptom that is uneven across workers or hosts with a script run on every loop pass; ranks stored state first when a failure follows a restart with no code change; and prefers the test that rules out more hypotheses. Edits made for a refuted hypothesis are dropped before the fix commit, a load imbalance is fixed in the code that picks a worker, and the report and PR description show the red and green loop runs. On a request for a diagnosis only, it stops at the confirmed hypothesis with no fix. A shipped workaround needs a tracking link or removal condition (the `unjustified-workaround` shape), and a new `## Next` section names `/verification:confirm fix` and `/implementation:implement fix`.
+
 ## [0.8.1] - 2026-10-03
 
 ### Changed
