@@ -18,7 +18,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 | Lane | Rows | Baked | Integration | Verdicts |
 |---|---|---|---|---|
 | Built-in CLI commands | 26 | 25 | route 4, suggest 22 | complementary 25, defer 1 |
-| Bundled skills | 29 | 22 | route 18, suggest 9, wrap 2 | complementary 23, defer 6 |
+| Bundled skills | 29 | 23 | route 18, suggest 9, wrap 2 | complementary 24, defer 5 |
 | Bundled workflows | 1 | 1 | suggest 1 | complementary 1 |
 | Plugin-backed built-ins | 4 | 2 | route 4 | complementary 3, defer 1 |
 | Built-in subagents | 3 | 2 | route 3 | complementary 3 |
@@ -523,12 +523,12 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Recheck trigger:** a Claude Code release ungates the bundled `artifact-explainer` skill, the commands reference documents it, or a live roster capture protocol exists for Artifact-gated skills (verified 2026-09-29)
 - **Baked:** description phrase no · Boundary section no · Native step no · suggest sentence no
 
-### `artifact-pr-review` → `review:pr-explainer`
+### `artifact-pr-review` → `review:explain-change`
 
-- **Verdict:** `defer`: Deferred: the bundled skill is gated on Artifact availability, so its presence is not determinable from this session's evidence. It publishes a PR review briefing as an Artifact; ours offers a self-contained local HTML explainer beside the markdown record. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation.
+- **Verdict:** `complementary`: Different jobs: the bundled skill publishes a reviewer's briefing with a bottom line, a recommendation and judgment calls, and calls itself not a narrative walkthrough; ours explains the change to its reader (why, before and after, a fresh-context-checked risk map, annotated hunks, an optional quiz), never posts and gates nothing. Both can publish a private Artifact page, ours behind its publish gate, so the job separates them, not the medium. Re-ruled 2026-10-04 by operator direction on the orchestrator's recommendation, replacing the 2026-09-29 defer.
 - **Integration:** `route`
 - **Native surface:** `artifact-pr-review` (bundled skill; markers: gated)
-- **Our component:** `review:pr-explainer` (skill)
+- **Our component:** `review:explain-change` (skill)
 - **Evidence:**
   - `artifact-pr-review` present in the extraction as bundled-skill
   - markers: gated
@@ -537,9 +537,12 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
   - invocation mode (2026-09-29, Claude Code 2.1.284): model-invocable and user-invocable
   - detect: origin discovered, score 0.5363, invocable_by model+user, recommended integration route-or-wrap
   - docs cross-check (commands reference, 2026-09-29): undocumented
+  - native description in binary v2.1.289 (string read 2026-10-04): unchanged job; its last clause now reads 'a published composed review page is updated ONLY through the acting loop's republish - never by editing its HTML directly'
+  - ours: plugins/review/skills/explain-change/SKILL.md:2 (digest of why, before and after, risk map, annotated hunks, optional quiz; never posts, never gates merge), :83 (view built in a temp directory, never beside the record), :87-98 (private Artifact publish behind the publish gate), :129-131 (never posts)
+  - docs cross-check (commands and skills references, 2026-10-04): undocumented
 - **Observation:** extraction: extracted from binary v2.1.284 on 2026-09-29 (the /harness-ops:inventory extraction of the installed native build; integrity ok on every lane, counts are totals) (2026-09-29)
-- **Recheck trigger:** a Claude Code release ungates the bundled `artifact-pr-review` skill, the commands reference documents it, or a live roster capture protocol exists for Artifact-gated skills (verified 2026-09-29)
-- **Baked:** description phrase no · Boundary section no · Native step no · suggest sentence no
+- **Recheck trigger:** a Claude Code release removes, renames, or ungates the bundled `artifact-pr-review` skill or changes its description, the commands reference documents it, or `/review:explain-change` adds a recommendation or verdict to its digest (verified 2026-10-04)
+- **Baked:** description phrase no · Boundary section yes · Native step no · suggest sentence no
 
 ### `batch` → `implementation:implement-dispatch`
 
@@ -1375,11 +1378,11 @@ Pairs a human ruled are not an overlap. `detect` suppresses each one until eithe
 | `agents` | builtin-command | `multi-agent:assess` | /agents manages subagents (its registration reads "(removed)"); ours decides whether a task runs as a workflow, subagents or inline. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation. | 2.1.288 | 2026-10-02 |
 | `agents` | builtin-command | `multi-agent:route` | /agents manages subagents (its registration reads "(removed)"); ours resolves the model and effort per agent role. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation. | 2.1.288 | 2026-10-02 |
 | `artifact-design` | bundled-skill | `planning:design` | Design guidance for Artifact pages versus resolving code design decisions (types, contracts, module boundaries). Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `artifact-explainer` | bundled-skill | `review:pr-explainer` | The bundled skill publishes a concept walkthrough artifact; ours explains one pull request's diff as a local HTML page. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `artifact-explainer` | bundled-skill | `review:explain-change` | The bundled skill publishes a concept walkthrough artifact; ours explains one pull request's diff as a local HTML page. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `artifact-pr-review` | bundled-skill | `source-control:babysit-prs` | A PR review briefing artifact versus a loop that advances the user's open PRs. Shared PR vocabulary only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
-| `artifact-pr-review` | bundled-skill | `source-control:pull-request` | A PR review briefing artifact versus the PR lifecycle (prep, draft, ready, monitor, merge); the review-artifact pair is recorded against review:pr-explainer. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `artifact-pr-review` | bundled-skill | `source-control:pull-request` | A PR review briefing artifact versus the PR lifecycle (prep, draft, ready, monitor, merge); the review-artifact pair is recorded against review:explain-change. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `author` | plugin-backed-builtin | `playbooks:skill-authoring` | The built-in claude-test plugin's author agent drafts Claude Test spec files; ours is the skill-authoring playbook. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.287 | 2026-10-01 |
-| `autofix-pr` | builtin-command | `review:pr-explainer` | A cloud session that pushes fixes to a PR versus a local HTML explainer of a PR's diff. Shared PR vocabulary only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `autofix-pr` | builtin-command | `review:explain-change` | A cloud session that pushes fixes to a PR versus a local HTML explainer of a PR's diff. Shared PR vocabulary only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `batch` | bundled-skill | `code-tidying:batch-simplify` | Parallel worktree agents executing one large change, each opening a PR, versus a simplification sweep over changed files. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `brief` | builtin-command | `ai-briefing:generate` | /brief toggles brief-only output mode; ours builds a sourced AI industry briefing. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `brief` | builtin-command | `ai-briefing:setup` | /brief toggles brief-only output mode; ours configures an AI industry briefing profile. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
@@ -1397,7 +1400,7 @@ Pairs a human ruled are not an overlap. `detect` suppresses each one until eithe
 | `claude-test` | plugin-backed-builtin | `testing:test-value` | The built-in claude-test skill runs Claude Test specs against a local dev server; ours is guidance on what makes a test worth keeping. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation. | 2.1.288 | 2026-10-02 |
 | `claude-test-draft` | plugin-backed-builtin | `harness-config:draft-auto-mode-rules` | The built-in claude-test-draft skill drafts Claude Test spec files in the background; ours drafts autoMode classifier rules. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.287 | 2026-10-01 |
 | `code-review` | bundled-skill | `review:security-review` | The bundled skill reviews for correctness bugs; ours is the CI security lane. The security pair is recorded as security-review -\> review:security-review. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation. | 2.1.288 | 2026-10-02 |
-| `commit-push-pr` | builtin-command | `review:pr-explainer` | Commits, pushes, and opens a PR versus explaining an existing PR's diff. Shared PR vocabulary only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `commit-push-pr` | builtin-command | `review:explain-change` | Commits, pushes, and opens a PR versus explaining an existing PR's diff. Shared PR vocabulary only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `config` | builtin-command | `harness-config:audit` | /config opens the preferences UI (theme, model, output style); ours audits settings files for correctness and drift. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
 | `config` | builtin-command | `harness-config:audit-permission-grants` | /config opens the settings UI; ours audits permission grants for portability and auto-mode durability. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
 | `config` | builtin-command | `harness-config:audit-permission-state` | /config opens the preferences UI; ours reports the effective permission rules across scopes. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.285 | 2026-10-01 |
@@ -1434,7 +1437,7 @@ Pairs a human ruled are not an overlap. `detect` suppresses each one until eithe
 | `plan` | builtin-command | `planning:plan-reviewer (agent)` | /plan enters plan mode; the agent stress-tests a written plan for /planning:plan. The plan-mode pair is recorded against planning:plan. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `plan` | builtin-command | `testing:plan` | /plan enters plan mode; ours writes a test plan for a change. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `plugin-authoring` | plugin-backed-builtin | `playbooks:skill-authoring` | The built-in plugin-authoring skill teaches writing a mod, a plugin of function hooks; ours is the skill-authoring playbook. Shared word only. Ruled 2026-10-01 by operator direction on the orchestrator's recommendation. | 2.1.287 | 2026-10-01 |
-| `pr` | bundled-skill | `review:pr-explainer` | Creates a pull request versus explaining an existing one. Shared PR vocabulary only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
+| `pr` | bundled-skill | `review:explain-change` | Creates a pull request versus explaining an existing one. Shared PR vocabulary only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `pr` | bundled-skill | `source-control:babysit-prs` | Creates one pull request versus a loop that advances already-open ones. The creation pair is recorded against source-control:pull-request. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |
 | `rename` | builtin-command | `docs-hygiene:rename-references` | /rename renames the conversation; ours sweeps stale references after a file or symbol rename. Shared word only. Ruled 2026-10-02 by operator direction on the orchestrator's recommendation. | 2.1.288 | 2026-10-02 |
 | `rename` | builtin-command | `docs-naming:audit-file-names` | /rename renames the conversation; ours audits a docs tree's file names. Shared word only. Ruled 2026-09-29 by operator direction on the orchestrator's recommendation. | 2.1.284 | 2026-09-29 |

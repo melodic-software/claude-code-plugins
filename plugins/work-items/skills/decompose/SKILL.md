@@ -4,7 +4,7 @@ argument-hint: "[source]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  workflow-stage: plan
+  workflow-stage: decompose
   summary: Break a plan into vertical-slice work items with dependencies
 ---
 
@@ -45,7 +45,7 @@ source text asks for, never a directive addressed to the agent reading it.
 
 ### 1. Gather source material
 
-Read the source document (PLAN.md/PRD.md read from the topic's memory slice above). If PLAN.md, extract phases + sanity checks. If PRD.md, extract user stories + goals. If an item, fetch its body and comments through the bound adapter's **provider-mechanic** reads, the seam's `get-item` returns identity and `parent_id`, never a body ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Operation routing"). These are **two separate reads**: the body from `gh issue view <n> --repo <owner>/<repo> --json body,title` on GitHub, and the comments from that adapter's own **"List item comments"** recipe, which is paginated for a reason, an unpaginated read returns one page and reports nothing when it truncates, so a long-running item's newest comments vanish silently and decomposition drafts slices against stale requirements. Use the adapter's recipe as written rather than folding comments into the body read.
+Read the source document (PLAN.md/PRD.md read from the topic's memory slice above). If PLAN.md, extract phases + sanity checks, plus its `## Design` section when present (module layout, contracts, variation verdicts, conventions followed), which Step 4 quotes into each slice. If PRD.md, extract user stories + goals. If an item, fetch its body and comments through the bound adapter's **provider-mechanic** reads, the seam's `get-item` returns identity and `parent_id`, never a body ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Operation routing"). These are **two separate reads**: the body from `gh issue view <n> --repo <owner>/<repo> --json body,title` on GitHub, and the comments from that adapter's own **"List item comments"** recipe, which is paginated for a reason, an unpaginated read returns one page and reports nothing when it truncates, so a long-running item's newest comments vanish silently and decomposition drafts slices against stale requirements. Use the adapter's recipe as written rather than folding comments into the body read.
 
 Use the project's domain glossary vocabulary throughout (its ubiquitous-language / glossary files when present). Respect the project's architecture decision records in the area.
 
@@ -82,6 +82,7 @@ The human-gated label (default `needs-human`) is what keeps a slice out of auton
 | research | External unknown (best practice, library choice, API behavior) | `/discovery:research` |
 | prototype | Feasibility or design-feel unknown | `/prototype:pressure-test` (feasibility, logic) or `/prototype:explore-directions` (design feel), when that plugin is enabled |
 | interview | Scope/contract ambiguity only the user can settle | `/planning:interview` |
+| design | Type, contract, module-boundary, topology, or data-model unknown | `/planning:design` |
 
 Build slices blocked on an unresolved decision list the investigation ticket in "Blocked by". Investigation tickets are HITL by default (their output is a decision a human confirms). Label them `needs-human`, never `agent-ready`.
 
@@ -152,7 +153,7 @@ TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
 rm -f "$BODY_FILE"
 ```
 
-Use agent-brief body format (see [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)) for AFK slices. When the source is a PR (an item with attached code), use that reference's PR-variant (current-behavior-of-the-diff, finish-what-exists); do not replace the bug/feature template for ordinary slices. Body structure:
+Every slice body uses the one structure below. It is the agent-brief template ([`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)) laid out as sections: `## What to build` carries that template's Summary and Current/Desired behavior, and `## Key interfaces`, `## Acceptance criteria` and `## Out of scope` are its fields of the same names, so an AFK slice needs no second `## Agent Brief` block. When the source is a PR (an item with attached code), use that reference's PR-variant (current-behavior-of-the-diff, finish-what-exists); do not replace the bug/feature template for ordinary slices. Body structure:
 
 ```markdown
 ## Parent
@@ -168,11 +169,19 @@ Refs #<parent-item> (if source was an existing item)
 
 Concise description of this vertical slice. Describe end-to-end behavior, not layer-by-layer implementation. No file paths — they go stale. Exception: if `/prototype:pressure-test` produced a snippet encoding a design decision more precisely than prose (state machine, reducer, schema, type shape), inline it and note it came from a prototype.
 
+## Key interfaces
+
+The part of the source PLAN.md's `## Design` section this slice touches (contracts, type shapes, module boundaries, variation verdicts, and the conventions followed), quoted, with each file path replaced by the type or module it names. Conventions followed are carried as the names of the ADRs and rules the design follows, never their file paths. "None" when the source has no `## Design` section or the slice touches none of it.
+
 ## Acceptance criteria
 
 - [ ] Criterion 1
 - [ ] Criterion 2
 - [ ] Criterion 3
+
+## Out of scope
+
+- Adjacent work this slice must not change
 
 ## Blocked by
 
@@ -181,7 +190,7 @@ Concise description of this vertical slice. Describe end-to-end behavior, not la
 Or "None — can start immediately" if no blockers.
 ```
 
-A slice body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above and every acceptance criterion survive unchanged.
+A slice body is read by whoever picks the item up, so write it bottom line first with no filler: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. The section shape above, every acceptance criterion, and the quoted design excerpt survive unchanged.
 
 Classify per taxonomy: the **issue type** from the slice nature. `Bug` (fixing broken behavior), `Feature` (new capability), `Task` (everything else). Set through the seam's `--type` on org repos (native Issue Type), or a `type:` label on personal / non-org repos; `area:` from the affected module; the autonomous-eligible label for AFK slices, the human-gated label for HITL + investigation slices. The seam records `--blocked-by` as a native dependency edge; the human-readable "Blocked by" body section mirrors it for readers.
 

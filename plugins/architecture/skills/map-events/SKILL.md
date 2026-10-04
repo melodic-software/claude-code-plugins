@@ -122,6 +122,7 @@ hand-written; the publish destination comes from the `medium` cascade key. Proce
 - Trace one entry point up to the broker: `/architecture:map-flow <entry>`.
 - The question is which deployables bind the broker: `/architecture:map-containers`.
 - The view settles a decision worth keeping: `/architecture:record-decision`.
+- An orphan or a new message needs its contract decided: `/planning:design integration`.
 
 ## Gotchas
 

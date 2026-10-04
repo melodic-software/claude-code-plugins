@@ -1,6 +1,6 @@
 {
   "name": "code-tidying",
-  "version": "0.28.5",
+  "version": "0.28.8",
   "description": "Code tidying and comment hygiene. tidy hunts a rotated lane for Beck-style tidyings and ships one PR. batch-simplify sweeps a branch, time window, or repo in dependency-ordered waves. dissolve-comments deletes zero-information comments and moves the rest into names (safe, aggressive, strip modes). audit-comment-residue flags history, plan, conversational, and ticket residue. audit-dead-code finds dead code with knip, vulture, gopls, and grep. setup scaffolds tidy lanes.",
   "author": {
     "name": "Melodic Software",
@@ -25,14 +25,22 @@
       "title": "Hard path exclusions",
       "description": "How tidy, dissolve-comments, and batch-simplify treat the GLOBAL HARD path list. enforce (default) drops a listed path before triage; advisory reports it per path and never blocks, so a run may edit lint config, agent config, CI workflows, and hook chains.",
       "default": "enforce",
-      "options": ["enforce", "advisory"]
+      "options": [
+        "enforce",
+        "advisory"
+      ]
     },
     "comment_posture": {
       "type": "string",
       "title": "Comment posture",
       "description": "How dissolve-comments treats a kept comment. strict (default) rewrites one over class_c_max_lines terser; balanced reports it instead; conservative applies class-A deletions only and proposes the rest; aggressive keeps only exempt surfaces, paired records, and terse warnings.",
       "default": "strict",
-      "options": ["strict", "balanced", "conservative", "aggressive"]
+      "options": [
+        "strict",
+        "balanced",
+        "conservative",
+        "aggressive"
+      ]
     },
     "class_c_max_lines": {
       "type": "number",

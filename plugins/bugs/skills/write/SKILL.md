@@ -116,7 +116,7 @@ Filename: derive a slug from the title (kebab-case, ~40-char cap), prefix an ISO
 After emitting the report, recommend the next step; do not invoke it yourself:
 
 - **File it as a work item.** When the `work-items` plugin is installed and a tracker binding resolves, hand the report to `/work-items:track add` (pass the report summary via `--context`); it owns dedupe, the body template, the issue type, and the argv-safe write, so do not call the tracker directly beside it. Map the severity onto the tracker's priority labels if it has them. Without `work-items`, in a GitHub repository with the `gh` CLI: `--body-file` needs a report file on disk (in `--file` mode use the emitted report path; in stdout mode save the report first, offering to re-run the write step or Write it to a temp file). Run `gh issue create --type Bug --body-file <report>` and let `gh` prompt for the title interactively. If filing non-interactively, never interpolate the reporter's title text into the command string: write the title to a file first, then run `gh issue create --type Bug --title "$(cat <title-file>)" --body-file <report>`, because the command-substitution result is a quoted argument value and is not re-parsed, so backticks or `$( )` inside the reporter's text cannot execute. `--type Bug` sets the native GitHub Issue Type (an org-repo feature, the same one the work-items lanes set); on a repo without native Issue Types, drop the flag and add a `type: bug` label instead when the repo defines one. If a work-item tracker MCP tool is available and neither path applies, use it.
-- **A fix is next.** If your project provides an investigation or implementation workflow, route there; otherwise scope the fix separately.
+- **A fix is next.** Diagnose first when the root cause is unknown (`/debugging:debug` when the `debugging` plugin is installed); when the report already names the cause, go straight to the fix (`/implementation:implement` when the `implementation` plugin is installed). Without those plugins, route to your project's own investigation or implementation workflow, or scope the fix separately.
 - **The report is the deliverable** (Slack, PR comment, hand-off). Done; copy/paste the stdout.
 
 ## Severity rubric
@@ -160,6 +160,12 @@ This skill never runs `/bug` on the person's behalf.
 **Availability is never assumed.** This section states what to do when the person can run
 `/bug`, never that it is present in their host. The four-part records live in
 [context/native-bug.md](context/native-bug.md).
+
+## Next
+
+- The report is ready to file: `/work-items:track add`.
+- The defect is ready to diagnose, its root cause unknown: `/debugging:debug`.
+- The report already names the root cause: `/implementation:implement`.
 
 ## Gotchas
 

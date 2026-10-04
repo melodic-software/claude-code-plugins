@@ -1,0 +1,12 @@
+version: 1
+activities:
+  explain:
+    script: scripts/explain.sh
+    effect: read
+    gating: gate
+    reads-untrusted: false
+lanes:
+  pr-explain:
+    stage: verify
+    slots:
+      - activity: explain

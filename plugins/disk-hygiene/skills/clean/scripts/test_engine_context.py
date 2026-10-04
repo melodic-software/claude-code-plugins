@@ -88,7 +88,7 @@ class EngineContextTest(unittest.TestCase):
             ["engine_context.py", "--plugin-root", str(self.plugin_root)]
         )
         python = re.search(r'^hook_python: "([^"]+)"$', text, re.MULTILINE)
-        data_root = re.search(r'^data_root: "([^"]+)" \(from the ', text, re.MULTILINE)
+        data_root = re.search(r'^data_root: "([^"]+)"$', text, re.MULTILINE)
         assert python and data_root, text
         engine = SCRIPT_DIR / "hygiene.py"
         command = (
@@ -101,7 +101,7 @@ class EngineContextTest(unittest.TestCase):
         text = self.context(
             ["engine_context.py", "--plugin-root", str(self.plugin_root)]
         )
-        data_root = re.search(r'^data_root: "([^"]+)" \(from the ', text, re.MULTILINE)
+        data_root = re.search(r'^data_root: "([^"]+)"$', text, re.MULTILINE)
         assert data_root, text
         engine = SCRIPT_DIR / "hygiene.py"
         command = (
@@ -110,7 +110,24 @@ class EngineContextTest(unittest.TestCase):
         )
         self.assertEqual("deny", self.guard_decision(command))
 
-    def test_note_names_the_channel_that_supplied_the_data_root(self) -> None:
+    def test_note_names_the_engine_path_the_guard_admits(self) -> None:
+        text = self.context(
+            ["engine_context.py", "--plugin-root", str(self.plugin_root)]
+        )
+        engine = re.search(r'^engine: "([^"]+)"$', text, re.MULTILINE)
+        python = re.search(r'^hook_python: "([^"]+)"$', text, re.MULTILINE)
+        data_root = re.search(r'^data_root: "([^"]+)"$', text, re.MULTILINE)
+        assert engine and python and data_root, text
+        self.assertEqual(
+            (SCRIPT_DIR / "hygiene.py").resolve(), Path(engine.group(1)).resolve()
+        )
+        command = (
+            f'"{python.group(1)}" "{engine.group(1)}" scan --target t --output '
+            f'"{data_root.group(1)}/runs/r/snapshot.json" --data-root "{data_root.group(1)}"'
+        )
+        self.assertEqual("allow", self.guard_decision(command))
+
+    def test_note_reports_the_data_root_each_channel_supplies(self) -> None:
         derived = (self.plugin_root.parents[3] / "data").as_posix()
         cases = {
             "plugin-cache layout": (
@@ -130,10 +147,7 @@ class EngineContextTest(unittest.TestCase):
         }
         for channel, (argv, expected) in cases.items():
             with self.subTest(channel=channel):
-                self.assertIn(
-                    f'data_root: "{expected}" (from the {channel})',
-                    self.context(argv),
-                )
+                self.assertIn(f'data_root: "{expected}"\n', self.context(argv) + "\n")
 
     def test_env_data_root_is_never_reported(self) -> None:
         elsewhere = self.plugin_root.parents[4] / "checkout"

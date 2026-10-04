@@ -32,7 +32,7 @@ run_win() {
   assert_exit "$label" "$expected" "$rc"
   if ((expected == 2)); then
     assert_contains "$label → message" "$out" "MSYS_NO_PATHCONV"
-    assert_contains "$label → fix names the prefix form" "$out" "PER-COMMAND PREFIX"
+    assert_contains "$label → fix names the prefix form" "$out" "scope it to one command as a prefix"
   fi
 }
 
@@ -57,6 +57,23 @@ run_posix_host() {
 # --- 1. Host gate ------------------------------------------------------------
 run_posix_host "Linux host: exported suppressor allowed" 'export MSYS_NO_PATHCONV=1; git status'
 run_posix_host "Linux host: ordinary command allowed" 'echo hello'
+
+# The host gate runs before the fail-closed jq gate: with jq missing, a host
+# where this guard checks nothing allows the call and says nothing. jq is
+# hidden by the BASH_ENV shim require-jq-posture.test.sh documents.
+HIDE_JQ="$TEST_TMPDIR/hide-jq.sh"
+# shellcheck disable=SC2016  # the shim's own expansions run in the hook's shell
+printf '%s\n' \
+  'command() { local a; for a in "$@"; do [[ "$a" == jq ]] && return 1; done; builtin command "$@"; }' \
+  'jq() { return 127; }' >"$HIDE_JQ"
+rc=0
+env OSTYPE=linux-gnu BASH_ENV="$HIDE_JQ" bash "$HOOK" <<<"$(command_json 'git status')" \
+  >"$TEST_TMPDIR/nojq.out" 2>"$TEST_TMPDIR/nojq.err" || rc=$?
+assert_exit "Linux host, jq hidden: allowed (host gate before the jq gate)" 0 "$rc"
+assert_silent "Linux host, jq hidden: stays quiet" "$(cat "$TEST_TMPDIR/nojq.out" "$TEST_TMPDIR/nojq.err")"
+rc=0
+env OSTYPE=msys BASH_ENV="$HIDE_JQ" bash "$HOOK" <<<"$(command_json 'git status')" >/dev/null 2>&1 || rc=$?
+assert_exit "control: Windows host, jq hidden: still denied" 2 "$rc"
 
 # --- 2. The defect shape (blocked) -------------------------------------------
 run_win "export MSYS_NO_PATHCONV=1 (blocked)" 'export MSYS_NO_PATHCONV=1; git status' 2
