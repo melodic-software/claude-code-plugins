@@ -5,6 +5,7 @@
 .github/actions/check-kill-switch
 .github/actions/check-signed-commits
 .github/actions/check-trusted-trigger
+.github/actions/report-check-run
 .github/actions/select-trusted-text
 plugins/knowledge/vendor/repo-analysis
 plugins/knowledge/vendor/video-digestion

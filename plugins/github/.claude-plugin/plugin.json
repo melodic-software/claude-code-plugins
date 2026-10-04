@@ -1,6 +1,6 @@
 {
   "name": "github",
-  "version": "0.3.28",
+  "version": "0.3.29",
   "description": "GitHub admin-plane audit, advice, and guided setup over the authenticated user's own gh CLI: billing and cost control, security posture, rulesets and settings drift, Actions policy, and every other org/repo/enterprise settings area. Grounded in live state and current official GitHub docs (zero vendored knowledge); read-only by default, every mutation user-in-loop.",
   "author": {
     "name": "Melodic Software",

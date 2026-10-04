@@ -1,4 +1,4 @@
-name: Checkout with base
+name: Download full history
 description: >
   Deepen a just-checked-out worktree to full history and fetch
   origin/$BASE_REF on pull_request events. A same-repo composite cannot

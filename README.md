@@ -156,7 +156,7 @@ local command**. The gap is discoverability, not a missing runner: every gate be
 | `purged-em-dashes` | `scripts/check-purged-em-dashes.sh` | In-repo. |
 | `changelog-parity` | `scripts/check-changelog-parity.sh --check` | In-repo; add `--check-bump origin/main` for the version-bump check. A bare run exits 2 with a usage message. |
 | `shell-portability` | `scripts/check-shell-portability.sh origin/main` | In-repo; `--all` scans the whole tree. A bare run exits 2 with a usage message. |
-| `machine-specific-paths` | `EXTENSIONS='<extensions>' EXCLUDE='<excludes>' bash <ci-workflows-checkout>/.github/actions/machine-specific-paths/check-machine-specific-paths.sh` | Run from this repo's root. See [Running `machine-specific-paths` locally](#running-machine-specific-paths-locally). |
+| `machine-specific-paths` | `EXTENSIONS='<extensions>' EXCLUDE='<excludes>' bash <ci-workflows-checkout>/.github/actions/check-machine-paths/check-machine-specific-paths.sh` | Run from this repo's root. See [Running `machine-specific-paths` locally](#running-machine-specific-paths-locally). |
 
 There is no single script that runs the whole hygiene set. `scripts/aggregate-hygiene-results.sh`
 consumes CI step outcomes; it does not run the gates. A pre-commit hook or a make target that
@@ -167,9 +167,9 @@ wraps the runnable rows is a later tooling decision, not this record.
 - **Basis:** the #3522 owner decision (document running the composite's script from a
   `ci-workflows` checkout). Verified: the script runs standalone and needs only `EXTENSIONS` and
   `EXCLUDE`.
-- **As of:** `ci-workflows` v0.30.2 (`a267a27f7a321452267e20c82d57699b6c057cb0`), the pin in
-  `.github/workflows/ci.yml`.
-- **Recheck:** the `ci.yml` pin moves, or the composite's entry script changes its environment
+- **As of:** `ci-workflows` v0.35.0 (`69e506b7c119517ef1dfc421479232b386b93a52`), the pin in
+  `.github/workflows/pr-require-checks.yml`.
+- **Recheck:** the `pr-require-checks.yml` pin moves, or the composite's entry script changes its environment
   contract.
 
 #### Running `machine-specific-paths` locally
@@ -178,7 +178,7 @@ The gate is a composite in `melodic-software/ci-workflows`. Its entry script run
 sources `machine-path-patterns.sh` from its own directory, so run it in place from a `ci-workflows`
 checkout.
 
-1. In the `Check for machine-specific paths` step of `.github/workflows/ci.yml`, read the pinned SHA
+1. In the `Check for machine-specific paths` step of `.github/workflows/pr-require-checks.yml`, read the pinned SHA
    from the `uses:` line and the `:(exclude)...` pathspecs from the `exclude:` input.
 2. Check out `ci-workflows` at that SHA:
    `git -C <ci-workflows-checkout> switch --detach <sha>` (or add a worktree at the SHA).
