@@ -152,7 +152,7 @@ def block($d):
          "Installed: \($installed_ok | length) new catalog plugin(s): \($installed_ok | ids)"
          + (if $d.install_new != "all" then ""
             elif (($installed_ok | map(.id)) - (.installed_disabled // []) | length) == 0 then
-              " (policy install_new: all: the next sync reinstalls any of these you uninstall; leaving them installed and not enabled keeps them off)"
+              " (policy install_new: all: the next sync reinstalls any of these you uninstall; leaving them installed and not enabled keeps them off unless a project or local setting enables them)"
             else
               " (policy install_new: all: the next sync reinstalls any of these you uninstall; to keep one out, disable it with claude plugin disable <id> -s user instead of uninstalling)"
             end)

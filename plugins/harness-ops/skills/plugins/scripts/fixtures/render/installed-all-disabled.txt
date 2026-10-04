@@ -1,6 +1,6 @@
 Marketplace: market1: needs update (autoUpdate: on)
 In-repo: 0: <case> has no project/local installs
-Installed: 1 new catalog plugin(s): beta@market1 (policy install_new: all: the next sync reinstalls any of these you uninstall; leaving them installed and not enabled keeps them off) (installed but not enabled: beta@market1)
+Installed: 1 new catalog plugin(s): beta@market1 (policy install_new: all: the next sync reinstalls any of these you uninstall; leaving them installed and not enabled keeps them off unless a project or local setting enables them) (installed but not enabled: beta@market1)
 Divergences: 0 actionable
 Timing: <elided>
 Action needed:
