@@ -234,7 +234,8 @@ to mint, and every skill job references the Claude OAuth token. Two routes reach
   route.
 
 Both are mitigations, not a fix: the full fix is a token broker that keeps the App key off any
-runner that runs head code. That design is open for a decision.
+runner that runs head code. The broker is decided and not yet built; until it lands, no live lane
+runs head code or holds a write effect.
 
 The verdict is written after head code ran in the same job, so it is never trusted: its lane,
 activity, gate stop reason and `head-sha` must match the values above or the check fails, and its
