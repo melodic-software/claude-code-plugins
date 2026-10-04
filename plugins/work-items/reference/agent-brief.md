@@ -77,7 +77,7 @@ The brief can be the issue body itself or posted as a comment (prefixed with `##
 
 ### Key interfaces from a design
 
-When the item comes from a plan whose PLAN.md has a `## Design` section, **Key interfaces** quotes the part of that section the item touches (contracts, type shapes, module boundaries, variation verdicts) rather than paraphrasing it, with each file path replaced by the type or module it names. The quote is the design guardrail the executing agent works within; the design directory it came from is never published.
+When the item comes from a plan whose PLAN.md has a `## Design` section, **Key interfaces** quotes the part of that section the item touches (contracts, type shapes, module boundaries, variation verdicts, and the conventions followed) rather than paraphrasing it, with each file path replaced by the type or module it names. Conventions followed are carried as the names of the ADRs and rules the design follows, never their file paths. The quote is the design guardrail the executing agent works within; the design directory it came from is never published.
 
 ### PR-variant briefs
 

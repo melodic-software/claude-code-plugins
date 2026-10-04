@@ -11,6 +11,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Fixed
 
+- **Decomposed slices and agent briefs carry the design's conventions followed.** Key interfaces now quote the conventions as ADR and rule names, never file paths, so a ticket agent gets the same guardrails a dispatched worker does.
 - **The skill cheat sheet lists `/work-items:decompose` under the workflow ladder's Decompose stage.** Its `workflow-stage` metadata moves from `plan` to `decompose`.
 
 ## [0.48.5] - 2026-10-04

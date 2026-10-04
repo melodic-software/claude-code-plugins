@@ -53,7 +53,8 @@ tier: C
 reason: <one line, e.g. single-file bugfix, docs-only>
 ---
 
-Optional: type sketch pointer if tier B, linking to type-inventory.md
+Tier B (required): the type sketch, inline or as a link to type-inventory.md.
+/planning:design-handoff quotes it into PLAN.md's `### Contracts`.
 ```
 
 ## Gates

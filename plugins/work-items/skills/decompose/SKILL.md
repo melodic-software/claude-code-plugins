@@ -171,7 +171,7 @@ Concise description of this vertical slice. Describe end-to-end behavior, not la
 
 ## Key interfaces
 
-The part of the source PLAN.md's `## Design` section this slice touches (contracts, type shapes, module boundaries, variation verdicts), quoted, with each file path replaced by the type or module it names. "None" when the source has no `## Design` section or the slice touches none of it.
+The part of the source PLAN.md's `## Design` section this slice touches (contracts, type shapes, module boundaries, variation verdicts, and the conventions followed), quoted, with each file path replaced by the type or module it names. Conventions followed are carried as the names of the ADRs and rules the design follows, never their file paths. "None" when the source has no `## Design` section or the slice touches none of it.
 
 ## Acceptance criteria
 

@@ -61,7 +61,7 @@ Approval: <attended: approved by <who> on <date>; unattended: standing mandate <
 ```
 
 An early-exit design (`design-resolution.md`) writes `## Design` as one line naming the early
-exit and its reason. `## Design` is how the design decisions reach a cleared session, a dispatched
+exit and its reason; a Tier B early exit adds a `### Contracts` subsection quoting its type sketch. `## Design` is how the design decisions reach a cleared session, a dispatched
 worker's brief, and the published plan; the design directory itself is never published. A phase
 cites the subsection it implements rather than paraphrasing it.
 

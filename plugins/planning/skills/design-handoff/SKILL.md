@@ -39,7 +39,7 @@ Read `design-threads.md` in the topic's design slice (`<memory_dir>/<topic-slug>
 
 A thread that is unresolved AND untagged is a silent gap → **FAIL**: list the offending thread(s), route back by invoking `/planning:design` via the Skill tool (its design-threads and discussion rounds) to resolve or tag, and do NOT hand off. This is a binary check read off `design-threads.md`, not a "did we cover enough?" recap. A producing model rubber-stamps its own recap, so the gate must be read off the file rather than judged from memory.
 
-If `design-threads.md` does not exist, check for `design-resolution.md` at the same path (the `/planning:design` early-exit artifact). Early-exit slices hand off on that artifact alone. Neither present → FAIL: no design evidence; route back by invoking `/planning:design` via the Skill tool.
+If `design-threads.md` does not exist, check for `design-resolution.md` at the same path (the `/planning:design` early-exit artifact). Early-exit slices hand off on that artifact alone. A `tier: B` artifact with no type sketch → FAIL: route back by invoking `/planning:design` via the Skill tool to record one. A `type-inventory.md` on its own is not a gate artifact. Neither present → FAIL: no design evidence; route back by invoking `/planning:design` via the Skill tool.
 
 ## Coverage report (advisory)
 
@@ -94,7 +94,9 @@ memory:
   follows. Never a memory-slice path: PLAN.md is published, and that path would dangle
 
 An early exit (`design-resolution.md`) writes the section as one line naming the early exit and
-its reason. Re-read PLAN.md from disk before writing and replace only the `## Design` section;
+its reason. A Tier B early exit adds a `### Contracts` subsection under that line, quoting the
+artifact's type sketch verbatim (or, when the artifact links `type-inventory.md`, that file's
+sketch). Re-read PLAN.md from disk before writing and replace only the `## Design` section;
 when PLAN.md does not exist yet, create it holding that section alone, for `/planning:plan` to
 complete. Write no other section.
 
