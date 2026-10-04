@@ -1145,6 +1145,11 @@ corpus_files=(
   cs-xunit/bad/ParserAsyncWrappedExpressionThrowsTests.cs.fixture
   cs-xunit/bad/QuoteExpectedParameterTests.cs.fixture
   cs-xunit/bad/SlugifyTests.cs.fixture
+  cs-xunit/bad/WidgetAlwaysTrueTests.cs.fixture
+  cs-xunit/bad/WidgetExpressionAlwaysFalseTests.cs.fixture
+  cs-xunit/bad/WidgetNameofTypeNameTests.cs.fixture
+  cs-xunit/bad/WidgetTypeofAndWeakTests.cs.fixture
+  cs-xunit/bad/WidgetTypeofNotNullTests.cs.fixture
   cs-xunit/bad/WorkerRunAsyncTests.cs.fixture
   cs-xunit/good/AnalyzerHarnessRunAsyncTests.cs.fixture
   cs-xunit/good/DiagnosticsCheckAssertsTests.cs.fixture
@@ -1161,6 +1166,7 @@ corpus_files=(
   cs-xunit/good/OrderPricedHelperTests.cs.fixture
   cs-xunit/good/SameFileAssertingHelperTests.cs.fixture
   cs-xunit/good/SlugifyLiteralTests.cs.fixture
+  cs-xunit/good/WidgetTypeOraclesTests.cs.fixture
   go-testing/bad/go_add_deepequal_derived_test.go.fixture
   go-testing/bad/go_handler_source_text_test.go.fixture
   go-testing/bad/go_query_diff_itself_test.go.fixture
@@ -1470,6 +1476,8 @@ assert_not_contains "inert remedy (js) offers no Python tuple advice" "$a" "tupl
 a="$(remedy "$C/cs-xunit/bad/InvoiceShouldAloneTests.cs" rule-inert-assertion)"
 assert_contains "inert remedy (cs) names await and a chained matcher" "$a" "chain a matcher after .Should()"
 assert_not_contains "inert remedy (cs) offers no bats advice" "$a" '$status'
+a="$(remedy "$C/cs-xunit/bad/WidgetTypeofNotNullTests.cs" rule-inert-assertion)"
+assert_contains "inert remedy (cs) names a typeof or nameof constant" "$a" "rather than a literal true or a typeof or nameof constant"
 a="$(remedy "$C/py-pytest/bad/test_pytest_total_tuple_assert.py" rule-inert-assertion)"
 assert_contains "inert remedy (python) says to drop the tuple and use assert_*" "$a" "assert_called_once_with"
 assert_not_contains "inert remedy (python) never says await" "$a" "await"

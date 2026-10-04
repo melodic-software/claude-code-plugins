@@ -1,0 +1,9 @@
+// expect: rule-inert-assertion
+// An expression-bodied test whose only oracle is Assert.False(false).
+using Xunit;
+
+public class WidgetExpressionAlwaysFalseTests
+{
+    [Fact]
+    public void Disable_TurnsTheWidgetOff() => Assert.False(false);
+}

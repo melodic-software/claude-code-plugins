@@ -1,0 +1,49 @@
+// good-for: rule-inert-assertion
+// good-for: rule-weak-oracle
+// Type and reflection oracles that can fail: a type check on a value the code
+// returns, a reflection lookup that may find nothing, a literal compared to a
+// computed flag, a type property, and a type compared to a runtime type.
+using Xunit;
+
+public class WidgetTypeOraclesTests
+{
+    [Fact]
+    public void Create_ReturnsAControl()
+    {
+        Assert.IsAssignableFrom<IControl>(WidgetFactory.Create());
+    }
+
+    [Fact]
+    public void Create_ReturnsAWidget()
+    {
+        Assert.IsType<Widget>(WidgetFactory.Create());
+    }
+
+    [Fact]
+    public void Widget_DeclaresEnable()
+    {
+        Assert.NotNull(typeof(Widget).GetMethod(nameof(Widget.Enable)));
+        Assert.Equal(0, typeof(Widget).GetMethod(nameof(Widget.Enable)).GetParameters().Length);
+    }
+
+    [Fact]
+    public void Enable_TurnsTheWidgetOn()
+    {
+        var widget = new Widget();
+        widget.Enable();
+        Assert.True(true == widget.Enabled);
+    }
+
+    [Fact]
+    public void Widget_IsSealed()
+    {
+        Assert.True(typeof(Widget).IsSealed);
+    }
+
+    [Fact]
+    public void Create_ReturnsExactlyAWidget()
+    {
+        var sut = WidgetFactory.Create();
+        Assert.Equal(typeof(Widget), sut.GetType());
+    }
+}

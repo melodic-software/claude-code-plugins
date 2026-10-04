@@ -3,6 +3,13 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.10] - 2026-10-04
+
+### Fixed
+
+- `/testing:audit` now reports C# assertions that cannot fail as `rule-inert-assertion` in xUnit and NUnit suites: `Assert.True(true)`, `Assert.False(false)`, `Assert.NotNull` of a `typeof` or `nameof` expression, and `Assert.True` or `Assert.False` comparing two of them, such as `nameof(Widget) == typeof(Widget).Name` (#6040).
+- An inert C# assertion no longer also counts as an oracle, so `Assert.NotNull(typeof(Widget))` is reported once, as inert, not also as `rule-weak-oracle` (#6040).
+
 ## [0.22.9] - 2026-10-04
 
 ### Fixed

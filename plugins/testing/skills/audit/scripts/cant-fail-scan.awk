@@ -1180,8 +1180,16 @@ function only_calls(m, r, re,    f) {
   return !has(f, R_ANY) && !has(f, R_MOCKA)
 }
 
-function oracle_line(m, r) {
+function oracle_line(m, r,    s) {
   if (!has(m, R_ANY) && !has(m, R_MOCKA)) return
+  # C#: a statement inert_scan reports as inert is no oracle, weak or strong,
+  # so Assert.NotNull(typeof(T)) is not also a weak oracle. Same precondition
+  # as inert_scan, or a statement could be dropped here and not reported there.
+  if (LEXER == "cs" && (CS_HEAD || stmt_start())) {
+    s = m
+    sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s)
+    if (has(s, R_INERT)) return
+  }
   # go: the nil check is an if statement, judged whole in go_inert.
   if (LEXER != "go" && only_calls(m, r, R_WEAK)) { if (!OR_W++) { OR_WLINE = FNR; OR_WSNIP = snippet(r) }; return }
   if (only_calls(m, r, R_SNAP) && snap_ok(m)) { if (!OR_P++) OR_PLINE = FNR; return }

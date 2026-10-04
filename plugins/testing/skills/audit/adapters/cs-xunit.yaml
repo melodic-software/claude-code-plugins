@@ -36,9 +36,14 @@ assertion:
   # xUnit's *Async assertions return a Task (xUnit2021).
   async:
     - 'Assert[[:space:]]*\.[[:space:]]*[A-Za-z]+Async[[:space:]]*[<(]'
-  # .Should() with no matcher chained, as a whole statement.
+  # .Should() with no matcher chained, as a whole statement. A literal
+  # condition always passes. typeof and nameof are never null, and comparing
+  # two of them is settled at compile time. cs-nunit inherits these.
   inert:
     - '[^=;]*\.[[:space:]]*Should[[:space:]]*\([[:space:]]*\)[[:space:]]*;$'
+    - 'Assert[[:space:]]*\.[[:space:]]*(True[[:space:]]*\([[:space:]]*true|False[[:space:]]*\([[:space:]]*false)[[:space:]]*[,)]'
+    - 'Assert[[:space:]]*\.[[:space:]]*NotNull[[:space:]]*\([[:space:]]*(typeof|nameof)[[:space:]]*\([^()]*\)(\.(Name|FullName|Namespace))?[[:space:]]*\)'
+    - 'Assert[[:space:]]*\.[[:space:]]*(True|False)[[:space:]]*\([[:space:]]*(typeof|nameof)[[:space:]]*\([^()]*\)(\.(Name|FullName|Namespace))?[[:space:]]*(==|!=)[[:space:]]*(typeof|nameof)[[:space:]]*\([^()]*\)(\.(Name|FullName|Namespace))?[[:space:]]*[,)]'
   # Not null, and a throw of any exception. cs-nunit and cs-mstest inherit these.
   weak:
     - '(Classic)?Assert[[:space:]]*\.[[:space:]]*(NotNull|IsNotNull)[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'

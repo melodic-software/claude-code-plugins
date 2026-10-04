@@ -1,0 +1,15 @@
+// expect: rule-inert-assertion
+// expect: rule-weak-oracle
+// The typeof check never fails, and the NotNull beside it is the only oracle
+// left: any widget passes it, the wrong one included.
+using Xunit;
+
+public class WidgetTypeofAndWeakTests
+{
+    [Fact]
+    public void Create_ReturnsAWidget()
+    {
+        Assert.NotNull(typeof(Widget));
+        Assert.NotNull(WidgetFactory.Create());
+    }
+}
