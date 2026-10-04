@@ -72,7 +72,7 @@ Invoke via `@review:<agent>` or let Claude delegate.
   says otherwise; the shipped default publishes only a public repository's diff with no
   credential-shaped hunk, and keeps any other page local. The `review-digest` cascade concern sets `digest_policy` (`off`, `offer` by
   default, or `always` at the ready flip) and the offer thresholds. It never posts to the pull
-  request and never gates merge. `/review:pr-explainer` is a one-release stub that points here.
+  request and never gates merge.
 - **`/review:audit-enforceability <findings-file>`**. Read-only enforcement audit over ONE
   operator-named findings file: derives a class per finding, maps it to the cheapest deterministic
   rung (editorconfig severity, analyzer-pack rule, custom analyzer, Semgrep rule, architecture

@@ -1,6 +1,6 @@
 {
   "name": "performance",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Measurement-first optimization that refuses to report what the data does not support. go-faster sweeps the whole process for evidenced ways to go faster. target ranks candidates by evidence quality. goal sets realistic and ideal targets and computes the floor first. snapshot captures interleaved baseline and post runs on a qualified host and refuses wall-clock claims from a noisy one. verify re-derives results in a fresh context. protect locks in a counter win with a CI ceiling.",
   "author": {
     "name": "Melodic Software",

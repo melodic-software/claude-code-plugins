@@ -172,7 +172,7 @@ The environment side stays generic (Default environment, **All** network access,
   same script per session start/resume as drift repair, since the environment cache can be
   ~7 days stale. Cloud
   VMs only; ~40 s on a fresh VM, ~3 s on re-runs. It provisions the tool inventory
-  [`ci.yml`](../.github/workflows/ci.yml) pins, reading in-repo manifests wherever one exists:
+  [`pr-require-checks.yml`](../.github/workflows/pr-require-checks.yml) pins, reading in-repo manifests wherever one exists:
 
 | Tool | Pin source | Required? |
 |---|---|---|
