@@ -5,7 +5,8 @@ plugin root. One checker reads that file for setup skills, check skills, hooks a
 report, and one CI gate keeps the file honest. The absence classes, and the rule that a skipped
 feature is never silent, stay in
 [`docs/plugin-philosophy.md`](../../plugin-philosophy.md#prerequisites-and-failure-behavior); this
-document owns the file, the checker and the gate.
+document owns the file, the checker, the gate, and the rule for
+[offering a fix when a check fails](#when-a-check-fails-offer-the-fix-run-it-on-a-yes).
 
 ## What the file declares, and what it does not
 
@@ -176,21 +177,24 @@ How the agent offers and runs the fix depends on what the fix writes:
 | `sudo`, a system-wide package, or a global install | Write the commands to a script file, show its contents, and run it on a yes, reading the result back from a log file. When it needs a password the agent cannot supply, the user runs the script and the agent reads the log. |
 | A large download, such as a model | State its size and source before asking; then run it per the row above that matches where it lands. |
 
-A plugin enabled mid-session needs the first row: `SessionStart` does not fire for that enable, so
-its install hook has not run. The hooks reference lists `startup`, `resume`, `clear`, `compact` and
-`fork` as the only `SessionStart` sources and says plugin hooks merge when the plugin is enabled,
-not that `SessionStart` fires then ([hooks](https://code.claude.com/docs/en/hooks), as of
-2026-10-04; recheck when the matcher table gains a source or the page describes a mid-session
-enable). The speech plugin's own error says the same, telling the user to "start a new session,
-whose SessionStart hook installs them" (`plugins/speech/scripts/narrate.py`). Running the hook's
-command on a yes makes that new session unnecessary.
+A plugin enabled mid-session needs the first row, because its install hook has not run: per the
+hooks reference, `SessionStart`'s sources (`startup`, `resume`, `clear`, `compact`, `fork`) do not
+include a mid-session enable, and the page says only that plugin hooks merge when the plugin is
+enabled ([hooks](https://code.claude.com/docs/en/hooks), as of 2026-10-04; recheck when the
+matcher table gains a source or the page describes a mid-session enable). The speech plugin's own
+error tells the user to "start a new session, whose SessionStart hook installs them"
+(`plugins/speech/scripts/narrate.py`). Running the hook's command on a yes makes that new session
+unnecessary.
 
 The fix is the declared one: the `install` hints, the repair line, or a `setup` skill's
-`apply install-*` subaction. This rule adds no `apply` verb and no subaction
-([install subactions](../../plugin-philosophy.md#install-subactions-and-refusal)), and it never
-runs an undeclared tool.
+`apply install-*` subaction. A plain declared command (the hook's install, a sudo script) the agent
+runs on a yes. A `setup` skill sets `disable-model-invocation`, so the agent cannot invoke its
+`apply` ([setup is explicit](../../plugin-philosophy.md#setup-is-explicit-and-repeatable)): for that
+fix it asks the user to type `/<plugin>:setup apply install-<name>`. This rule adds no `apply` verb
+and no subaction ([install subactions](../../plugin-philosophy.md#install-subactions-and-refusal)),
+and it never runs an undeclared tool.
 
-Observed stumble (2026-10-04): the speech plugin was enabled mid-session, so its install hook never
+Observed 2026-10-04: the speech plugin was enabled mid-session, so its install hook never
 ran; `/speech:check` printed commands only, and `espeak-ng` (sudo) and the Kokoro model download
 were left for the user to run by hand.
 
