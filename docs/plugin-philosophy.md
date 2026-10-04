@@ -832,6 +832,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | On-demand dependencies (pinned lockfile, `npm ci` into the plugin data directory, no vendored bundles) | [`docs/conventions/on-demand-dependencies/`](conventions/on-demand-dependencies/README.md) |
 | Prerequisites: the `prerequisites.json` schema, the `lib/prerequisites.mjs` checker, and the undeclared-tool gate | [`docs/conventions/prerequisites/`](conventions/prerequisites/README.md) |
 | Repository standards index | [`docs/conventions/standards/`](conventions/standards/README.md) |
+| PR scope budget for agent-authored improvement PRs | [`docs/conventions/pr-scope-budget/`](conventions/pr-scope-budget/README.md) |
 | Skill layout contract and evals schema | `skill-quality` plugin (contract gate + bundled schema) |
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |
 | Dynamic-context (`!`) precompute: when to inject, fallback binding, `shell:` declaration | `/playbooks:skill-authoring`, which owns and states the precompute contract |

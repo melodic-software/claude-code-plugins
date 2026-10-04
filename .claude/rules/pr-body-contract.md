@@ -24,6 +24,7 @@ web); the advisory comment and label are noise this rule exists to prevent.
 
 The canonical machine-readable convention is
 `components/pr-convention-policy/policy.json` in `melodic-software/standards`;
-the SHA-pinned ci-workflows `pr-contract` composite that runs as a step inside
-`ci-status` is the enforcement authority, and its step output is the statement
-of record.
+the SHA-pinned ci-workflows `pr-contract` composite (moved to
+`pr-require-checks/check-contract` at ci-workflows v0.34.0) that runs as a step
+inside `ci-status` is the enforcement authority, and its step output is the
+statement of record.

@@ -5,11 +5,29 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.11.2] - 2026-10-04
+## [0.12.1] - 2026-10-04
 
 ### Changed
 
 - **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing node goes to the user only, in one shorter line.
+
+## [0.12.0] - 2026-10-04
+
+### Added
+
+- **A crossing reaches the person as a toast**: `smart → acceptable · continue, /compact, /clear or handoff`, shown for 4 seconds, beside one transcript line Claude does not read that ends `more: /context-guard`. The new `context_guard_toast` option (on by default) turns the toast off; the transcript line stays. Both come right after the response, tool call, prompt or status read (`/context-guard` or the status tool) that showed the crossing, so a crossing read with a turn's final answer reaches the person before the next prompt rather than after it. A turn operator mode holds gets neither: its line is offered as the prompt suggestion instead, and a crossing already shown in an unattended turn is not offered again in the next typed turn. A session whose first reading is already past smart gets only Claude's line.
+
+### Changed
+
+- **The band row is off by default** (`context_guard_band` now defaults to `false`), and it no longer shows the model id: it reads `ctx <n>% (<zone>)`.
+- **The command is `/context-guard`, with `band on`, `band off`, and a bare `band` to toggle.** It replaces `/context-guard:band show|hide`, which never resolved. With no argument it prints the verdict and its figures, the bands, the gate mode, the band and toast state, and where `zones.json` lives. Claude reads a command's reply, so the continuation route, the docs link and the README link go to a separate transcript line Claude does not read. Its replies carry no `context-guard:` prefix of their own, since Claude Code already names the plugin before a command's reply.
+- **The crossing notice row is drawn only on surfaces other than the terminal** (the Desktop app, VS Code, mobile), where a toast may not show, and it carries the plugin prefix once. Operator mode's held line still shows as one row on every surface, and is never toasted.
+- **The lines Claude reads carry only the verdict**, such as `context-guard: acceptable zone (2 of 3). Continuing is the user's call.`, with `, nearing dumb` inside the approach margin. They drop the source note and the measurement-not-instruction sentence.
+
+### Fixed
+
+- **`/context-guard` resolves, and no longer collides with another plugin's command.** The module registered the bare name `band`, which rate-limit-guard registers too, so only one of the two owned `/band`, and the `/context-guard:band` the 0.11.0 entry below documents never existed.
+- **A crossing read while a restatement was pending is no longer dropped.** Before, the carrier merged it into the restatement, so Claude got the stale verdict (for example acceptable while the session was dumb, with no save-state note) and the person got no menu. A crossing recorded after the restatement now replaces it; a crossing or restatement recorded before it still merges into it.
 
 ## [0.11.1] - 2026-10-04
 

@@ -262,6 +262,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/harness-ops:check`](../plugins/harness-ops/skills/check/SKILL.md) | `harness-ops` | Report whether node and jq resolve for the harness-ops hooks. Never installs. |
 | [`/harness-ops:known-issues`](../plugins/harness-ops/skills/known-issues/SKILL.md) | `harness-ops` | Look up and track known Claude product issues, health, and workarounds |
 | [`/improvement:find`](../plugins/improvement/skills/find/SKILL.md) | `improvement` | Rank evidence-cited improvement candidates across dimensions; execution goes to the pipeline |
+| [`/improvement:improve`](../plugins/improvement/skills/improve/SKILL.md) | `improvement` | Find one gap in a target against a stated standard and ship the fix as one draft PR |
 | [`/instruction-placement:audit`](../plugins/instruction-placement/skills/audit/SKILL.md) | `instruction-placement` | Find instruction content on the wrong surface and propose validated destinations |
 | [`/instruction-placement:check`](../plugins/instruction-placement/skills/check/SKILL.md) | `instruction-placement` | Gate that every path-scoped rule glob resolves and the rules index is current |
 | [`/instruction-placement:check-prerequisites`](../plugins/instruction-placement/skills/check-prerequisites/SKILL.md) | `instruction-placement` | Report whether node and jq resolve for instruction-placement. Never installs. |
