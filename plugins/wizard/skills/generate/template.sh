@@ -227,27 +227,39 @@ _resolve_link() {
 # project (a hostile repo can ship `.env -> ~/.bashrc`) is written to only
 # after the human sees the real destination and says yes; like open_url, the
 # destination is printed before anything is dispatched. Runs before any value
-# is prompted for, and once per ENV_FILE. A decline or an unanswerable gate
-# aborts with nothing written.
-_ENV_TARGET_CHECKED=""
+# is prompted for. The link is re-resolved on every call and the yes is
+# remembered for that resolved target only, so a link repointed mid-run asks
+# again. A decline or an unanswerable gate aborts with nothing written.
+_ENV_TARGET_CONFIRMED=""
 # shellcheck disable=SC2310  # every || branch is fatal, which exits the script directly
 _check_env_target() {
-  [[ "$_ENV_TARGET_CHECKED" == "$ENV_FILE" ]] && return 0
-  if [[ -L "$ENV_FILE" ]]; then
-    local target
-    target=$(_resolve_link "$ENV_FILE") || fatal "couldn't resolve where the symlink $ENV_FILE points — nothing written"
-    if [[ "$target" != "$_WIZARD_PROJECT_DIR"/* ]]; then
-      warn "$ENV_FILE is a symlink to a file outside this project: $target"
-      confirm "Write values to $target?" || fatal "declined writing through $ENV_FILE to $target — nothing written"
-    fi
-  fi
-  _ENV_TARGET_CHECKED="$ENV_FILE"
+  [[ -L "$ENV_FILE" ]] || return 0
+  local target
+  target=$(_resolve_link "$ENV_FILE") || fatal "couldn't resolve where the symlink $ENV_FILE points — nothing written"
+  if [[ "$target" == "$_WIZARD_PROJECT_DIR"/* || "$target" == "$_ENV_TARGET_CONFIRMED" ]]; then return 0; fi
+  warn "$ENV_FILE is a symlink to a file outside this project: $target"
+  confirm "Write values to $target?" || fatal "declined writing through $ENV_FILE to $target — nothing written"
+  _ENV_TARGET_CONFIRMED="$target"
+}
+
+# _assignable_key KEY — ask, ask_secret and write_env assign $KEY in the
+# library's own shell, so KEY must not name the library's state (ENV_FILE,
+# SKIPPED, ...) or a helper local (__wiz_*). Gate it with _valid_key first.
+_assignable_key() {
+  case "$1" in
+  __wiz_* | _WIZARD_* | _ENV_* | _STAGE_INDEX | ENV_FILE | TOTAL_STAGES | \
+    WRITTEN_ENV | WRITTEN_SECRET | WRITTEN_VAR | SKIPPED | GH_REPO | \
+    GH_REPO_DECLINED | BOLD | DIM | RESET | BLUE | GREEN | YELLOW | RED)
+    fatal "reserved key name: '$1' (the wizard library uses it; pick another name)"
+    ;;
+  *) ;;
+  esac
 }
 
 # ask, ask_secret and write_env assign $KEY with printf -v, which writes the
 # innermost variable of that name: a helper local spelled like the key would
 # take the value instead of the caller. Their locals carry a __wiz_ prefix, a
-# name no wizard key or env-file entry is expected to use.
+# name _assignable_key refuses as a key.
 
 # ask KEY "Prompt" — read a value into $KEY. Offers the existing .env value as
 # a default on re-runs (Enter keeps it). Visible input (non-secret), with
@@ -256,6 +268,7 @@ _check_env_target() {
 ask() {
   local __wiz_key="$1" __wiz_prompt="$2" __wiz_current __wiz_input
   _valid_key "$__wiz_key"
+  _assignable_key "$__wiz_key"
   _check_env_target
   __wiz_current=$(_existing "$__wiz_key" || true)
   _ask_prompt "$__wiz_prompt" "$__wiz_current"
@@ -270,6 +283,7 @@ ask() {
 ask_secret() {
   local __wiz_key="$1" __wiz_prompt="$2" __wiz_current __wiz_input
   _valid_key "$__wiz_key"
+  _assignable_key "$__wiz_key"
   _check_env_target
   __wiz_current=$(_existing "$__wiz_key" || true)
   _ask_prompt "$__wiz_prompt" "$__wiz_current"
@@ -304,6 +318,7 @@ _check_env_ignored() {
 write_env() {
   local __wiz_key="$1" __wiz_value="$2" __wiz_escaped __wiz_tmp
   _valid_key "$__wiz_key"
+  _assignable_key "$__wiz_key"
   _check_env_target
   _check_env_ignored # pre-flight: warn BEFORE the first value lands on disk
   __wiz_tmp=$(mktemp "${ENV_FILE}.XXXXXX") || fatal "mktemp failed next to $ENV_FILE"

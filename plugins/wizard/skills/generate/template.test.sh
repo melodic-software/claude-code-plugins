@@ -273,6 +273,37 @@ assert_contains "write_env fails on an invalid key" "$out" "rc=1"
 assert_contains "... with a diagnosable message" "$out" "invalid key name: 'bad-key'"
 assert_contains "... before the env file is created" "$out" "env:ABSENT"
 
+# A key that names the library's own state would be overwritten by the helper's
+# printf -v: `write_env ENV_FILE x` would send every later write to a file
+# named x. Every top-level global the library assigns must be refused, so a new
+# global added without extending _assignable_key fails here.
+lib_globals="$(grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$LIB" | tr -d '=' | sort -u)"
+out="$(
+  case_run "$TTY_EOF" <<BODY
+for k in $(tr '\n' ' ' <<<"$lib_globals") __wiz_key __wiz_value RESET; do
+  if (_assignable_key "\$k") >/dev/null 2>&1; then printf 'accept:%s\n' "\$k"; else printf 'reject:%s\n' "\$k"; fi
+done
+(_assignable_key STRIPE_KEY) && echo "plain:accepted"
+BODY
+)"
+for k in $lib_globals __wiz_key __wiz_value RESET; do
+  assert_contains "_assignable_key refuses the library name '$k'" "$out" "reject:$k"
+done
+assert_contains "... and accepts an ordinary key" "$out" "plain:accepted"
+
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+(write_env ENV_FILE elsewhere)
+printf 'rc=%s\n' "$?"
+printf 'env_file=[%s]\n' "$ENV_FILE"
+if [[ -e .env || -e elsewhere ]]; then echo "files:CREATED"; else echo "files:ABSENT"; fi
+BODY
+)"
+assert_contains "write_env refuses a key naming library state" "$out" "rc=1"
+assert_contains "... with a diagnosable message" "$out" "reserved key name: 'ENV_FILE'"
+assert_contains "... leaving ENV_FILE alone" "$out" "env_file=[.env]"
+assert_contains "... and writing nothing" "$out" "files:ABSENT"
+
 # --- 4. write_env and _existing --------------------------------------------
 
 # The fixture starts from a world-readable hand-written env file, which is the
@@ -420,6 +451,28 @@ assert_contains "a confirmed outside symlink target is written through" "$out" "
 assert_contains "... keeping its existing lines" "$out" "export PATH=/usr/bin"
 assert_contains "... asking once per env file (one y answers both writes)" "$out" "FIRST='one'"
 assert_contains "... and the link survives" "$out" "link:kept"
+
+# The yes covers one resolved target, not the ENV_FILE name: a link repointed
+# to a different outside file after the first confirmed write must ask again,
+# and a decline there leaves the new target untouched.
+TTY_Y_N="$(tty_fixture y-n y n)"
+out="$(
+  case_run "$TTY_Y_N" <<BODY
+$OUTSIDE_LINK_SETUP
+write_env FIRST 'one' >/dev/null
+printf "OTHER=1\n" >"\$outside/second"
+cp "\$outside/second" "\$outside/second.before"
+ln -sfn "\$outside/second" hop
+(write_env SECOND 'two')
+printf 'rc=%s\n' "\$?"
+if cmp -s "\$outside/second" "\$outside/second.before"; then echo "second:UNCHANGED"; else echo "second:CHANGED"; fi
+printf 'resolved=[%s]\n' "\$(cd -P "\$outside" && pwd -P)/second"
+BODY
+)"
+resolved="$(printf '%s\n' "$out" | sed -n 's/^resolved=\[\(.*\)\]$/\1/p')"
+assert_contains "a link repointed after a confirmed write asks again" "$out" "outside this project: $resolved"
+assert_contains "... and a decline leaves the new target untouched" "$out" "second:UNCHANGED"
+assert_contains "... exiting nonzero" "$out" "rc=1"
 
 # Inside the project the write-through stays silent: the EOF fixture would make
 # any confirmation prompt abort.

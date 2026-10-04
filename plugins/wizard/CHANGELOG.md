@@ -16,13 +16,15 @@ All notable changes to the `wizard` plugin are documented here. Format follows
   is that a symlinked write is not atomic; a regular `.env` keeps the atomic rename from a `0600`
   temp file. A link whose target lies outside the project (a repo can ship `.env -> ~/.bashrc`)
   is followed with a portable `readlink` loop: the wizard prints the real destination and writes
-  only after the human confirms, asking before any value is prompted for. A decline, or no
-  terminal to answer, aborts with nothing written.
+  only after the human confirms, asking before any value is prompted for. The link is re-resolved
+  on every call and a yes covers only that resolved target, so a link repointed mid-run asks
+  again. A decline, or no terminal to answer, aborts with nothing written.
 - A terminal without a `clear` capability (`TERM=dumb`, no terminfo) no longer stops every
   generated wizard silently before its first prompt: `tput` failures are non-fatal.
 - `ask`, `ask_secret` and `write_env` now set a key named like one of their own locals (`key`,
   `value`, `input`, `tmp` and the rest) in the caller instead of in the helper. Their locals carry a
-  `__wiz_` prefix.
+  `__wiz_` prefix, and a key naming library state (`ENV_FILE`, `SKIPPED`, `__wiz_*` and the rest)
+  is refused, so `write_env ENV_FILE x` can no longer redirect later writes.
 
 ## [0.6.3] - 2026-10-04
 
