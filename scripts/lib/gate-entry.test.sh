@@ -3,6 +3,7 @@
 # this process would take the suite down with it, which is the property under
 # test.
 #
+# test-scope: scripts/*.sh
 # shellcheck disable=SC2016  # child programs stay single-quoted so this shell does not expand $1 before bash -c
 set -uo pipefail
 

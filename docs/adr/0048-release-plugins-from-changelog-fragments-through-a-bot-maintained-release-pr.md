@@ -46,7 +46,7 @@ The gates that enforce today's per-PR discipline:
 | `--check-preserved` | `ci.yml:1332-1342` | No touched changelog drops a heading it carried at the fork point |
 | `--check-order` | `ci.yml:1346-1349` | Every changelog reads newest-first with no duplicate versions |
 | `check-vendor-version-bump.sh --check-bump` | `ci.yml:1358-1368` | A `vendor/` change bumps the plugin version |
-| `sync-*.sh --check-bump` (17 steps) | `ci.yml:2100-2369`, `ci.yml:2639`; `scripts/lib/sync-cluster.sh:79-91`; `sync-shared-copies.sh --check-bump` | A shared-library change bumps every carrying plugin |
+| `sync-shared-copies.sh --check-bump` | `ci.yml:2100-2369`; `sync-shared-copies.sh` | A shared-library change bumps every carrying plugin |
 | `check-stale-base-overlap.sh` | `ci.yml:1274-1302` | No path the PR changed also changed on main since its merge base; every plugin.json and CHANGELOG bump counts as an overlapping path |
 
 `.claude-plugin/marketplace.json` lists 85 plugins and none of the entries carries a `version`, so

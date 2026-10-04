@@ -3,6 +3,7 @@
 # agents/code-reviewer.md step 2, asserts the other reviewer agents carry the
 # same text, and runs it in scratch repos. It proves the block's output only,
 # not any model's decline-to-grade behavior.
+# test-scope: plugins/review/agents/*.md
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_CONFIG

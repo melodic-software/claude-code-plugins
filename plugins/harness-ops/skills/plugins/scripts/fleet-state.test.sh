@@ -2,6 +2,7 @@
 # Black-box contract tests for fleet-state.sh (self-contained — ships with the plugin).
 # Fixtures are built per-case into a temp dir via FLEET_STATE_* env overrides,
 # mirroring the harness-config audit skill's SETTINGS_AUDIT_FIXTURE_DIR pattern.
+# test-scope: .claude/settings.json
 set -uo pipefail
 
 # Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would

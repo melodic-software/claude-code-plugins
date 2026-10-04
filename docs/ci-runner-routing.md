@@ -40,10 +40,14 @@ reviewed pull request.
 
 The `ci-status` required check depends on every **required** workload lane
 (`scope`, `lint-repo`, `lint-shell`, `check-plugins`, `check-skills`,
-`test-bash`) and requires
+`test-bash`, `test-python`, `test-node`) and requires
 each result to be `success`, failing closed through execution
 (`!cancelled()`, never a success-guard, so a skipped lane cannot report
-success to branch protection). On a draft pull request every lane but
+success to branch protection). The one exception is an ordered skip: a test
+lane the change gives no work skips as a job, and `ci-status` counts that skip
+as `success` only when `scope` succeeded and its row for that lane
+(`run_bash`, `run_python`, `run_node`) is `false`; any other skip stays red.
+On a draft pull request every lane but
 `scope` carries a draft gate, so a draft run lints and tests nothing, and its
 `ci-status` fails (`draft: lanes not run`) and records `ci-lanes=failure`
 (`scripts/check-docs-only-gate.sh` pins both). A green draft would be the
@@ -57,7 +61,10 @@ longest job in the run: time-to-green is measured to the run's completion, so an
 advisory lane was setting the number. Its `on.paths` filters repeat the `shell`,
 `python` and `powershell` groups of `ci.yml`'s change-detection table, so a diff
 that touches none of them starts no Windows run; the two are kept in step by
-hand. The
+hand. Inside a run, its `scope-windows` job runs the same planner over the same
+diff, and a Windows step runs only when the change selects its suite
+(`scripts/test-windows-plan.txt`); a schedule run (09:17 and 16:17 UTC), a
+dispatch, and a change to that workflow run every step. The
 metadata checks (Conventional Commits title,
 `do-not-merge` label, issue linkage) run as the `pr-contract` composite step
 inside the same `ci-status` job on the same hosted runner, so they no longer
@@ -71,13 +78,15 @@ hygiene, the CI configuration, the docs conventions); `lint-shell` runs
 ShellCheck and the gates that read shell source; `check-plugins` holds the
 plugin manifests, changelogs, hook declarations, `claude plugin validate`, the
 counter ceilings and every shared-library sync; `check-skills` holds the skill
-and eval contracts, check 25 included; `test-bash` runs the affected contract
-suites, with the Node sub-projects and the disk-hygiene module as steps. A
-domain is its own job only when that shortens the critical path by more than a
-job's fixed cost (about 15 s bare, about 40 s with a toolchain), which is why
-those last two ride `test-bash`. Every gate keeps its step name and its `id`,
-which is its aggregator key, and each job carries its own
-`aggregate-hygiene-results.sh` feed over exactly its own gate steps.
+and eval contracts, check 25 included; `test-bash`, `test-python` and
+`test-node` run the shell suites, the Python suites and the Node packages the
+change selects, and each skips when it has none. A domain is its own job only
+when that shortens the critical path by more than a job's fixed cost (about
+15 s bare, about 40 s with a toolchain), or, for the test lanes, when it lets a
+change that touches none of its ecosystem start no runner for it. Every gate
+keeps its step name and its `id`, which is its aggregator key, and each job
+carries its own `aggregate-hygiene-results.sh` feed over exactly its own gate
+steps.
 
 ## What each event tests
 
@@ -87,13 +96,17 @@ diff-scoped step diffs against it:
 - **Pull request:** the base branch. The contract suites are the affected
   selection (`scripts/affected-tests.sh`), and ShellCheck lints the changed
   shell files.
-- **Push to `main`:** the commit of the newest green `ci` push run that HEAD
-  descends from, not HEAD's parent. A push run that went red, or was dropped
-  while pending, leaves its commits in the next run's range, so a break stays
-  red until a run passes. Push runs coalesce: one runs and only the newest
-  waits. With no such run among the last 50, or a range that touches the
-  shared test machinery (`ci.yml`, `.github/actions/`, the suite runner and
-  selector, `scripts/lib/`, the toolchain pins), the push tests the whole tree.
+- **Push to `main`:** the newest commit on HEAD's first-parent line with a
+  green `ci` push run, not HEAD's parent. A push run that went red, or was
+  dropped while pending, leaves its commits in the next run's range, so a break
+  stays red until a run passes. Push runs coalesce: one runs and only the newest
+  waits. `scripts/resolve-diff-base.sh` matches commits against one listing of
+  recent push runs and asks by `head_sha` about the nearest 20 the listing does
+  not show as green, since the listing has come back without runs it should
+  hold; it logs the base and the reason. With no green ancestor, a shallow
+  history, or a range that touches the shared test machinery (`ci.yml`,
+  `.github/actions/`, the suite runner and selector, the resolver,
+  `scripts/lib/`, the toolchain pins), the push tests the whole tree.
 - **Schedule (09:17 and 16:17 UTC, two of the workflow's quietest hours) and
   dispatch:** the whole tree. That means
   the full contract corpus, the whole-repository ShellCheck, and the check-25
@@ -111,15 +124,23 @@ to the whole tree when there is no diff base or `ci.yml` changed, and the
 scheduled run scans everything. Replayed on 20 recent pull requests, every
 skipped or narrowed scan landed on a whole-tree success.
 
-`scope` also plans `test-bash`: one leg per 25 selected suites, one to
-four (four on the whole tree or an UNMAPPED file), and, per leg, whether its
-slice needs the animation wheels, the inventory's parser packages or the DuckDB
-CLI. A leg installs only those; the shfmt and DuckDB downloads are cached.
+`scope` also plans the test lanes, once, with `scripts/plan-test-lanes.sh`:
+each selected suite goes to the lane of its ecosystem (a Node suite with a
+sibling `.test.sh` runs through it in `test-bash`), `test-bash` gets one to six
+legs of about 120 suite-seconds each and `test-python` one to four of about
+180, packed longest first from the measured seconds in
+`scripts/suite-seconds.txt`, and each leg installs only the optional toolchains
+(the animation wheels, the inventory's parser packages, the DuckDB CLI) its
+suites need. `test-node` runs the Node packages the change reaches. An
+UNMAPPED file adds the whole corpus of its language. A Python pin runs every
+Python suite, a Node pin every Node package, and a change to `ci.yml` or
+`.github/actions/` every suite of every lane.
 
-The selector's rule R8 covers the gap a full main run used to cover: a change
-anywhere under `plugins/<p>/` also selects every shell suite under that plugin,
-because suites that scan their own plugin directory never name the file that
-changed.
+A suite that scans a directory never names the file that changed, so it
+declares what it reads in a `# test-scope:` header, and the selector's rule R8
+selects it for any changed file matching the glob. The rules, and the
+`--replay` mode that shows a selector change's effect on recent main commits,
+are in the header of `scripts/affected-tests.sh`.
 
 ## Contract-only `ci-status`
 

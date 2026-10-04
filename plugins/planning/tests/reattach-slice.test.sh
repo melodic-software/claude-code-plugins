@@ -8,6 +8,7 @@
 #
 # shellcheck disable=SC2016  # single quotes are deliberate: assert_gate phrases are verbatim
 # markdown lines that hold literal backticks, and expanding them would break the match.
+# test-scope: plugins/planning/skills/*/SKILL.md
 set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

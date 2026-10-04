@@ -160,7 +160,9 @@ assert_contains "no trailing newline → progress counts both rows" "$LOG_G" "[2
 # Every case above pins the directory explicitly, so none of them exercises it.
 # ---------------------------------------------------------------------------
 
-KEY_DATA="$TEST_TMPDIR/plugindata"
+# Named like the real per-plugin dir: an inherited CLAUDE_PLUGIN_DATA is used only
+# when it names harness-ops.
+KEY_DATA="$TEST_TMPDIR/harness-ops-test"
 mkdir -p "$KEY_DATA"
 
 make_repo() { # <dir> [remote-url]
@@ -275,12 +277,25 @@ assert_contains "a missing snapshot names --print-output-dir" "$MISSING_ERR" "--
 # mkdir failure is checked, not swallowed. Point CLAUDE_PLUGIN_DATA at a
 # regular file, so the resolved output directory cannot be created: mkdir -p
 # fails, and --print-output-dir must not print a directory it never made.
-BLOCKED_FILE="$TEST_TMPDIR/plugin-data-is-a-file"
+BLOCKED_FILE="$TEST_TMPDIR/harness-ops-is-a-file"
 : >"$BLOCKED_FILE"
 BLOCKED_OUT=$(cd "$REPO_A" && CLAUDE_PLUGIN_DATA="$BLOCKED_FILE" bash "$SCRIPT" --print-output-dir 2>/dev/null)
 RC=$?
 assert_exit "an uncreatable output directory exits 2" 2 "$RC"
 assert_eq "an uncreatable output directory prints no path" "" "$BLOCKED_OUT"
+
+# Another plugin's SessionStart hook can export its own data dir into every Bash
+# call as CLAUDE_PLUGIN_DATA; the scratch directory must never land there.
+FOREIGN="$TEST_TMPDIR/codex-openai-codex"
+FOREIGN_OUT=$(cd "$REPO_A" && HOME="$TEST_TMPDIR/home" CLAUDE_PLUGIN_DATA="$FOREIGN" bash "$SCRIPT" --print-output-dir 2>/dev/null)
+assert_contains "a foreign CLAUDE_PLUGIN_DATA falls back to the home data dir" "$FOREIGN_OUT" "$TEST_TMPDIR/home/.claude/plugins/data/harness-ops/check-all-output/"
+assert_eq "a foreign CLAUDE_PLUGIN_DATA gets no directory" "absent" "$([[ -e "$FOREIGN" ]] && echo present || echo absent)"
+
+# $HOME is read only for that fallback. A value that already names this plugin
+# must still resolve when HOME is unset, which set -u would abort on if the
+# fallback were expanded first.
+NOHOME_OUT=$(cd "$REPO_A" && env -u HOME CLAUDE_PLUGIN_DATA="$KEY_DATA" bash "$SCRIPT" --print-output-dir 2>/dev/null)
+assert_contains "an unset HOME still uses a harness-ops CLAUDE_PLUGIN_DATA" "$NOHOME_OUT" "$KEY_DATA/check-all-output/"
 
 [[ $FAILED -eq 0 ]] || exit 1
 echo "All cases passed ($CASE_NUM)."

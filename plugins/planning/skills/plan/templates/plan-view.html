@@ -62,11 +62,13 @@ h2 { margin: 0; font-size: 1.1rem; }
 .label { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
 .criteria { margin: 0; padding-left: 1.1rem; }
 .reply { display: grid; gap: 0.6rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.reply select { justify-self: start; padding: 0.45rem 0.6rem; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); font: inherit; }
+.replies { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.25rem; }
 .reply textarea { min-height: 5rem; padding: 0.6rem; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); font: inherit; resize: vertical; }
 .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 button { padding: 0.5rem 0.9rem; border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); color: var(--bg); font: inherit; font-weight: 600; cursor: pointer; }
 button + button { background: transparent; color: var(--accent); }
-button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .status { margin: 0; min-height: 1.5em; color: var(--muted); }
 .out { margin: 0; padding: 0.75rem; overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; font-family: var(--mono); font-size: 0.85rem; }
 @media (prefers-reduced-motion: reduce) { * { transition: none; animation: none; } }
@@ -99,13 +101,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px
 <section class="reply">
 <h2>Send your reply back</h2>
 <p class="meta">Tick the phases you want changed and say what to change. The ids name phases by their position in PLAN.md.</p>
+<label for="verdict">Verdict</label>
+<select id="verdict" data-rv-choice="verdict"><option value="change">Change the ticked phases</option><option value="question">Ask about the ticked phases</option><option value="approve">Ready to approve</option></select>
 <label for="note">Note for the session</label>
 <textarea id="note" data-rv-note="note" placeholder="What should change before this plan is approved"></textarea>
 <div class="actions">
+<button type="button" data-rv-send="plan-reply">Send to the session</button>
 <button type="button" data-rv-copy="plan-reply">Copy reply</button>
 <button type="button" data-rv-download="plan-reply">Save as file</button>
 </div>
 <p class="status" role="status" data-rv-status=""></p>
+<p class="status" data-rv-session=""></p>
+<h2>Session replies</h2>
+<ol class="replies" data-rv-replies=""></ol>
 <pre class="out" data-rv-out="" hidden></pre>
 </section>
 </main>

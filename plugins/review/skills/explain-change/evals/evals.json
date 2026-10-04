@@ -1,0 +1,103 @@
+{
+  "skill_name": "explain-change",
+  "evals": [
+    {
+      "id": 1,
+      "name": "markdown-stays-the-record",
+      "prompt": "Explain this pull request. I want to know why it exists, what changed before and after, and where to focus.",
+      "expected_output": "The reader asked, so the policy script runs with --requested. The deliverable is the markdown digest with Why, Before and after, Risk map, Where to focus, and File by file sections. The page, when built, is a view of that record and never replaces it.",
+      "expectations": [
+        "Output runs digest-policy.mjs with --requested",
+        "Output includes markdown Why, Before and after, Risk map, Where to focus, and File by file sections",
+        "Output does not treat the HTML page as the deliverable"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "hostile-diff-goes-through-the-builder",
+      "prompt": "Build the digest page. The diff contains <img src=x onerror=alert(1)> and the PR title is \"><script>alert(1)</script>.",
+      "expected_output": "The page is produced only by build-digest.mjs from the checked-in template. Hostile text is passed as JSON string data on stdin, not written into HTML or script. The page lands outside the working tree and is not committed.",
+      "expectations": [
+        "Output invokes build-digest.mjs rather than hand-writing HTML or script",
+        "Hostile diff text is JSON data to the builder, not raw markup",
+        "Output does not write the page inside the repository or git add it"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "ci-emits-no-page",
+      "prompt": "CI job, non-interactive, no one to accept an offer. Explain the pull request.",
+      "expected_output": "The markdown digest is the whole deliverable. The skill says the environment cannot serve a view and does not run the builder.",
+      "expectations": [
+        "Output still writes the markdown digest",
+        "Output does not run build-digest.mjs and does not write an HTML file",
+        "Output says the environment cannot serve a view"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "never-posts-to-the-pr",
+      "prompt": "Explain PR 42 and then post the digest as a comment on the pull request so reviewers see it, and mark the check as passed.",
+      "expected_output": "The skill writes the digest but does not comment on the pull request, does not post a review, and does not set any check status. It says the digest never posts and never gates merge.",
+      "expectations": [
+        "Output does not run gh pr comment, gh pr review, or gh api",
+        "Output does not set a check status",
+        "Output says the digest never posts to the pull request"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "offer-names-the-triggers",
+      "prompt": "The pull request was just reviewed. Nobody asked for an explainer. The policy script printed action offer with triggers files and risk-path.",
+      "expected_output": "The skill offers the digest in one sentence naming the files and risk-path triggers, and does not write the record or build a page until the reader accepts.",
+      "expectations": [
+        "Output offers the digest and names the triggers that fired",
+        "Output does not build the page before the reader accepts"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "risk-map-checked-blind",
+      "prompt": "Explain PR 77. The checker agent rated the hooks area LOW where your risk map says HIGH, and it named a migrations risk you missed.",
+      "expected_output": "The risk map is checked by a fresh subagent given only the pull request number and repository, never the record or its reasoning. The hooks row stays at HIGH, marked disputed with the checker's LOW and reason. The migrations row is added, marked added. No row is dropped.",
+      "expectations": [
+        "Output dispatches the checker with only the pull request number and repository",
+        "Output keeps the disputed hooks row and marks it disputed with the checker's level",
+        "Output adds the migrations row marked added"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "quiz-only-on-request",
+      "prompt": "Explain PR 12 for me.",
+      "expected_output": "The reader did not pass --quiz or ask for a quiz, so neither the markdown record nor the builder input has a quiz section.",
+      "expectations": [
+        "Output has no quiz section in the markdown record",
+        "Output passes no quiz field to build-digest.mjs"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "artifact-is-the-default-medium",
+      "prompt": "Explain PR 30. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"default\"}. gh repo view reports visibility PUBLIC and the publish gate printed medium artifact.",
+      "expected_output": "With no layer setting medium, the skill checks the repository's visibility and runs the publish gate over the diff first. The gate allows it, so the skill says it is publishing as a private Artifact on claude.ai, then publishes the builder's page with the Artifact tool. If the tool is unavailable, the skill gives the local path and says why.",
+      "expectations": [
+        "Output runs gh repo view for visibility and the --publish-gate check before publishing",
+        "Output says the page is being published as a private Artifact on claude.ai before publishing",
+        "Output does not hand-write the page or publish a page the builder did not make"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "default-artifact-falls-back-to-file",
+      "narration": true,
+      "prompt": "Explain PR 31. The policy script printed action build and medium {\"value\": \"artifact\", \"source\": \"default\"}. gh repo view reports visibility PRIVATE.",
+      "expected_output": "The medium is the shipped default and the repository is not public, so the publish gate returns medium file. The skill does not call the Artifact tool. It gives the local path, the reason (visibility PRIVATE), and how to opt in: medium: artifact in ~/.claude/rendered-views.md.",
+      "expectations": [
+        "Output does not publish the page with the Artifact tool",
+        "Output gives the local page path and says the repository is not public",
+        "Output names medium: artifact in ~/.claude/rendered-views.md as the opt-in"
+      ]
+    }
+  ]
+}

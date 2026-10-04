@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Every hook plugin's SessionStart node-notice row: the fleet shape, then the row run
-# for real the way each default shell would run it (bash, and PowerShell on a Windows
+# for real the way each default shell would run it (bash, dash, and PowerShell on a Windows
 # machine without Git Bash) with node absent.
 #
 # A hook that launches through node cannot report that node is missing, so each plugin
 # carries one shell-form row that calls lib/prerequisites.sh and then lib/prerequisites.ps1.
-# bash runs the first and leaves at `${BASH_VERSION:+exit}`; PowerShell finds no sh, reads
+# A POSIX shell (bash, or dash as /bin/sh on Debian and Ubuntu) runs the first and leaves at
+# `${PPID:+exit}`, since every POSIX shell sets PPID; PowerShell finds no sh, reads
 # that token as a missing drive, and runs the second. Both share one latch per session.
 set -uo pipefail
 
@@ -15,14 +16,12 @@ ROOT="$(cd "$SELF_DIR/.." && pwd)"
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
 
-EXEMPT=(animation) # no prerequisites file or check skill yet; the batch that declares it adds both
 MARKER='prerequisites.sh" node-notice'
 
 # --- fleet shape ----------------------------------------------------------------
 rows_checked=0
 for hooks in "$ROOT"/plugins/*/hooks/hooks.json; do
   plugin="$(basename "$(dirname "$(dirname "$hooks")")")"
-  [[ " ${EXEMPT[*]} " == *" $plugin "* ]] && continue
   mapfile -t rows < <(jq -r '[.hooks.SessionStart[]?.hooks[]? | select((.command // "") | contains("prerequisites.sh")) | .command] | .[]' "$hooks")
   if ((${#rows[@]} != 1)); then
     bad "$plugin: want exactly one node-notice SessionStart row" "found ${#rows[@]}"
@@ -36,7 +35,7 @@ for hooks in "$ROOT"/plugins/*/hooks/hooks.json; do
   option=""
   if [[ "$row" =~ node-notice\ /$plugin:$skill\ ([A-Z0-9_]+)\; ]]; then option="${BASH_REMATCH[1]}"; fi
   args="node-notice /$plugin:$skill${option:+ $option}"
-  want="sh \"\${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" $args; \${BASH_VERSION:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"\${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" $args"
+  want="sh \"\${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" $args; \${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"\${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" $args"
   if [[ "$row" != "$want" ]]; then
     bad "$plugin: the row is not the canonical polyglot for this plugin" "$row"
     continue
@@ -63,7 +62,7 @@ trap 'rm -rf "$WORK"' EXIT
 TOOLS="$WORK/tools"
 mkdir -p "$TOOLS" "$WORK/tmp"
 for t in sed tr find mkdir cat rm sh; do ln -s "$(command -v "$t")" "$TOOLS/$t"; done
-printf '#!/bin/sh\ntouch "%s/powershell-ran"\n' "$WORK" >"$TOOLS/powershell"
+printf '#!/bin/sh\n: >"%s/powershell-ran"\n' "$WORK" >"$TOOLS/powershell"
 chmod +x "$TOOLS/powershell"
 
 row_of() { jq -r '.hooks.SessionStart[].hooks[] | select((.command // "") | contains("prerequisites.sh")) | .command' "$ROOT/plugins/$1/hooks/hooks.json"; }
@@ -87,6 +86,18 @@ if [[ ! -e "$WORK/powershell-ran" ]]; then
   ok "bash: the row leaves before the PowerShell half"
 else
   bad "bash: the PowerShell half ran"
+fi
+
+if DASH="$(command -v dash)"; then
+  out="$(printf '%s' '{"session_id":"row-dash","hook_event_name":"SessionStart"}' | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$DASH" -c "$(expand bash-format)" 2>/dev/null)"
+  rc=$?
+  if ((rc == 0)) && [[ "$out" == *'"systemMessage":"bash-format: node is not on PATH'* && ! -e "$WORK/powershell-ran" ]]; then
+    ok "dash: the row prints the notice and leaves before the PowerShell half"
+  else
+    bad "dash: want the notice and no PowerShell half" "rc=$rc out=$out powershell-ran=$([[ -e "$WORK/powershell-ran" ]] && echo yes || echo no)"
+  fi
+else
+  printf 'NOTE: dash is not on PATH; the dash case did not run.\n'
 fi
 
 if PWSH="$(command -v pwsh)"; then

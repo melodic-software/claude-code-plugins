@@ -1,5 +1,19 @@
 # Changelog: evals
 
+## [0.5.3] - 2026-10-03
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced ([#6084](https://github.com/melodic-software/claude-code-plugins/issues/6084)); no change to this plugin's lib.**
+  The prerequisite check now counts a Windows App Execution Alias (a Store or winget install on PATH) as found,
+  except App Installer's Python install stub. A `cli` or `runtime` entry can set `reject_store_alias` to skip aliases instead; no entry in this plugin does.
+
+## [0.5.2] - 2026-10-03
+
+### Changed
+
+- `skills/plugin-eval/scripts/calibrate-judge.test.sh`, `skills/plugin-eval/scripts/run-validity.test.sh`, and `skills/validate/scripts/validate-cases.test.sh` declare the files they read without naming them in `# test-scope:` headers, so CI's test selection runs them when one of those files changes. Nothing the plugin runs changed.
+
 ## [0.5.1] - 2026-10-03
 
 ### Changed

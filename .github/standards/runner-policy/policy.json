@@ -1326,6 +1326,24 @@
         "pull-requests": "write",
         "id-token": "write"
       }
+    },
+    "melodic-software/ci-workflows/.github/workflows/claude-intake-triage.yml@632130a974770e50825c8747e87b0e18ecb2b36e": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "allowed-labels",
+        "escalation-label",
+        "instructions",
+        "cli-version"
+      ],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "issues": "write"
+      }
     }
   },
   "approvedHostedRunnerLabels": ["ubuntu-24.04", "windows-2025"],

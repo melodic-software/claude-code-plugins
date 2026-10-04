@@ -11,8 +11,11 @@
 #
 # The directory is CODE_METRICS_REPORT_DIR when set (the suites point it at a
 # scratch directory), else <root>/<state-key>, where <root> is
-# <CLAUDE_PLUGIN_DATA>/reports, else ~/.claude/plugins/data/code-metrics/reports
-# (the Bash tool does not export CLAUDE_PLUGIN_DATA), and <state-key> is what
+# <CLAUDE_PLUGIN_DATA>/reports when that value's last path segment names
+# code-metrics, else ~/.claude/plugins/data/code-metrics/reports (the Bash tool
+# does not export this plugin's CLAUDE_PLUGIN_DATA, and another plugin's
+# SessionStart hook can export its own data dir under that name, whose files the
+# retention below must never prune), and <state-key> is what
 # lib/state-key.sh prints for the working directory. One project's runs share a
 # directory, so the newest-CM_REPORTS_KEPT retention counts per project. When
 # the key cannot be derived the function says why on stderr and returns 1
@@ -26,7 +29,10 @@ CM_REPORTS_KEPT="${CM_REPORTS_KEPT:-20}"
 CM_PERSIST_SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 
 cm_report_root() {
-  if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
+  local seg="${CLAUDE_PLUGIN_DATA:-}"
+  seg="${seg%[/\\]}"
+  seg="${seg##*[/\\]}"
+  if [[ "$seg" == code-metrics || "$seg" == code-metrics-* ]]; then
     printf '%s/reports\n' "$CLAUDE_PLUGIN_DATA"
   else
     printf '%s/.claude/plugins/data/code-metrics/reports\n' "${HOME:-.}"

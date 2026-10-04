@@ -5,6 +5,24 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.5] - 2026-10-03
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced ([#6084](https://github.com/melodic-software/claude-code-plugins/issues/6084)); no change to this plugin's lib.**
+  The prerequisite check now counts a Windows App Execution Alias (a Store or winget install on PATH) as found,
+  except App Installer's Python install stub. A `cli` or `runtime` entry can set `reject_store_alias` to skip aliases instead; no entry in this plugin does.
+
+## [0.13.4] - 2026-10-03
+
+### Fixed
+
+- `collect-categories.sh` accepts a Windows drive-form `saved=` path (`C:/...`) when `cygpath` is
+  on PATH, and prints `research-corroborator-duplicate-url` when a corroborator repeats a URL
+  already counted. A `cygpath` or `realpath` failure leaves the packet directory unchanged and
+  still rejects a path outside it
+  ([#5942](https://github.com/melodic-software/claude-code-plugins/issues/5942)).
+
 ## [0.13.3] - 2026-10-03
 
 ### Changed

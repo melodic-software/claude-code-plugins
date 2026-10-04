@@ -4,6 +4,7 @@
 # carries a fake `scc` that replays fixtures/tool-output/scc.json (design T13;
 # nothing executable is committed). The adapters themselves (scc.py,
 # line-counter.py) and report.py are exercised through the dispatcher.
+# test-scope: plugins/code-metrics/scripts/collectors/*.py plugins/code-metrics/scripts/fixtures/*
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 

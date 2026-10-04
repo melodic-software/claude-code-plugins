@@ -3,6 +3,17 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.2] - 2026-10-03
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced ([#6084](https://github.com/melodic-software/claude-code-plugins/issues/6084)).**
+  The prerequisite check now counts a Windows App Execution Alias (a Store or winget install on PATH) as found,
+  except App Installer's Python install stub.
+- **The `python` prerequisite sets `reject_store_alias`, so a Microsoft Store Python alias no longer passes it
+  ([#6084](https://github.com/melodic-software/claude-code-plugins/issues/6084)).** Keyfinder refuses WindowsApps
+  stubs and Store sandbox installs, so the check now skips them too and finds a python.org or uv Python later on PATH.
+
 ## [0.8.1] - 2026-10-03
 
 ### Changed

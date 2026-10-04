@@ -13,6 +13,12 @@
             ],
             "timeout": 300,
             "statusMessage": "Installing animation Python packages..."
+          },
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /animation:check-prerequisites; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /animation:check-prerequisites",
+            "timeout": 10,
+            "statusMessage": "Checking that node is on PATH..."
           }
         ]
       }

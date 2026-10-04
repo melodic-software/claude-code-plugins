@@ -8,6 +8,7 @@
 # -- reaching no network, needing no allowlist, and exiting 0. If it ever
 # regressed to a live call, a read-only `check` run would start touching the
 # fleet it was asked to inspect. So the canary's harmlessness is pinned here.
+# test-scope: plugins/source-control/scripts/* plugins/source-control/skills/babysit-prs/scripts/babysit_*.py
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

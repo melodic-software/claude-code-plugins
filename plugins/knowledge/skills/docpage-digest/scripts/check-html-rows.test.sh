@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Cross-platform wrapper so plugin-gate (plugins/**/*.test.sh) runs the
 # check-html-rows negative-control suite.
+# test-scope: plugins/knowledge/skills/docpage-digest/scripts/fixtures/html-rows/*
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
