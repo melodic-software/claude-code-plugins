@@ -62,8 +62,8 @@
 # bytes, lines, file (path on disk), format (markdown|html-converted), title
 # (from the cache), quarantined (the cache key's quarantine flag), stale (true
 # when cached bytes stood in for a failed fetch), server_date (the Date header of
-# the response that last validated the bytes), state, reason. state is read or
-# unread; unparsed is set by a caller whose parse of a
+# the response that last validated the bytes), cache_error (why --cache stored
+# nothing for a read page, else null), state, reason. state is read or unread; unparsed is set by a caller whose parse of a
 # read page failed. mode (full|search) is the caller's declaration of how it
 # will use the page; the fetcher only records it. Fields with no value are null
 # (a page never requested, or served from the cache, has no status; a run
@@ -252,7 +252,7 @@ with_timeout() {
 
 reset_g() {
   G_SOURCE="" G_STATE=unread G_REASON="" G_STATUS="" G_CTYPE="" G_AT="" G_VALIDATED="" G_AGE="" G_KEY=""
-  G_FORMAT="" G_TITLE="" G_QUAR="" G_VALIDATORS="" G_TITLE_HINT="" G_STALE="" G_DATE=""
+  G_FORMAT="" G_TITLE="" G_QUAR="" G_VALIDATORS="" G_TITLE_HINT="" G_STALE="" G_DATE="" G_CACHE_ERR=""
 }
 
 # http_get <url> <dest> <accept> <if-none-match> <if-modified-since>: one GET
@@ -298,32 +298,35 @@ trim() {
 }
 
 # cache_candidate <url> <format>...: the freshest stored entry for the URL in
-# any of the formats. Sets C_REF (<key>-<sha256>, empty when none) C_EPOCH
-# C_CTYPE C_FORMAT and its validators C_ACCEPT C_REQ_URL C_ETAG C_LM.
+# any of the formats. Sets C_REF (<key>-<sha256>, empty when none), the
+# validated time its pointer held when it was chosen (C_EPOCH C_ISO) and the
+# server Date (C_DATE), C_CTYPE C_FORMAT and its validators C_ACCEPT C_REQ_URL
+# C_ETAG C_LM.
 cache_candidate() {
   local url="$1" f
-  C_REF="" C_EPOCH="" C_CTYPE="" C_FORMAT="" C_ACCEPT="" C_REQ_URL="" C_ETAG="" C_LM=""
+  C_REF="" C_EPOCH="" C_ISO="" C_DATE="" C_CTYPE="" C_FORMAT="" C_ACCEPT="" C_REQ_URL="" C_ETAG="" C_LM=""
   [[ $CACHE -eq 1 ]] || return 0
   shift
   for f in "$@"; do
     dc_lookup "$(dc_key "$url" "$f")" || continue
     [[ -n "$DC_VALIDATED_EPOCH" ]] || continue
     [[ -z "$C_REF" || $DC_VALIDATED_EPOCH -gt $C_EPOCH ]] || continue
-    C_REF="$DC_REF" C_EPOCH="$DC_VALIDATED_EPOCH" C_CTYPE="$DC_CTYPE" C_FORMAT="$f"
+    C_REF="$DC_REF" C_EPOCH="$DC_VALIDATED_EPOCH" C_ISO="$DC_VALIDATED" C_DATE="$DC_SERVER_DATE" C_CTYPE="$DC_CTYPE" C_FORMAT="$f"
     C_ACCEPT="$DC_ACCEPT" C_REQ_URL="$DC_REQ_URL" C_ETAG="$DC_ETAG" C_LM="$DC_LM"
   done
 }
 
 # serve_cached <dest> <status>: copy the candidate's body to <dest> and set the
-# G_ fields from its stored record.
+# G_ fields from its immutable entry and the pointer snapshot taken when it was
+# chosen, so a pointer switched since then cannot blank its validated time.
 serve_cached() {
-  if ! { dc_lookup "$C_REF" && cp "$DC_ENTRY/body" "$1"; }; then
+  if ! { [[ -n "$C_EPOCH" ]] && dc_lookup "$C_REF" && cp "$DC_ENTRY/body" "$1"; }; then
     rm -f "$1"
     return 1
   fi
   G_SOURCE=cache G_STATE=read G_REASON="" G_STATUS="$2" G_CTYPE="$DC_CTYPE" G_AT="$DC_RETRIEVED"
-  G_VALIDATED="$DC_VALIDATED" G_AGE=$((DC_NOW - DC_VALIDATED_EPOCH)) G_KEY="$DC_KEY"
-  G_FORMAT="$DC_FORMAT" G_TITLE="$DC_TITLE" G_QUAR="$DC_QUARANTINED" G_DATE="$DC_SERVER_DATE"
+  G_VALIDATED="$C_ISO" G_AGE=$((DC_NOW - C_EPOCH)) G_KEY="$DC_KEY"
+  G_FORMAT="$DC_FORMAT" G_TITLE="$DC_TITLE" G_QUAR="$DC_QUARANTINED" G_DATE="$C_DATE"
 }
 
 # settle_unread <url> <dest> <format>...: an unread page whose fetch failed (a
@@ -371,7 +374,7 @@ request() {
   [[ $H_RC -eq 0 && "$H_STATUS" == 304 && -n "$inm$ims" ]] || return 1
   rm -f "$3"
   dc_confirm "$C_REF" "$(dc_validators "$1" "$2" "${H_ETAG:-$C_ETAG}" "${H_LM:-$C_LM}")" "$H_DATE" || return 1
-  C_EPOCH="$DC_VALIDATED_EPOCH"
+  C_EPOCH="$DC_VALIDATED_EPOCH" C_ISO="$DC_VALIDATED" C_DATE="$DC_SERVER_DATE"
   [[ -n "$4" ]] || return 0
   serve_cached "$4" 304
 }
@@ -383,7 +386,8 @@ store() {
   if dc_put "$1" "$G_FORMAT" "$2" "$G_CTYPE" "$G_TITLE_HINT" "$G_VALIDATORS" "$G_DATE"; then
     G_AT="$DC_RETRIEVED" G_VALIDATED="$DC_VALIDATED" G_KEY="$DC_KEY" G_TITLE="$DC_TITLE" G_QUAR="$DC_QUARANTINED"
   else
-    echo "WARNING: $1 was read but not cached in $DC_DIR" >&2
+    G_CACHE_ERR="${DC_ERR:-the store refused the write}"
+    echo "WARNING: $1 was read but not cached in $DC_DIR: $G_CACHE_ERR" >&2
   fi
 }
 
@@ -422,7 +426,8 @@ get_doc() {
     G_STATUS="$H_STATUS" G_CTYPE="$H_CTYPE"
     if [[ $H_RC -ne 0 ]]; then
       G_REASON="fetch-failed"
-    elif [[ "$H_EFF" != "$ORIGIN$P_DOCS_PATH"* ]]; then
+    elif [[ "$H_EFF" != "$ORIGIN$P_DOCS_PATH"* && ("$url" != "$INDEX_URL" || "$H_EFF" != "$INDEX_URL") ]]; then
+      # A page lands under the docs path; the index, at its own URL.
       G_REASON="redirected-off-origin"
     elif [[ ! "$H_STATUS" =~ ^2[0-9][0-9]$ ]]; then
       G_REASON="http-${H_STATUS:-unknown}"
@@ -681,6 +686,7 @@ emit() {
     --arg status "$G_STATUS" --arg ctype "$G_CTYPE" --argjson bytes "$bytes" --argjson lines "$lines" --arg file "$file" \
     --arg state "$G_STATE" --arg reason "$G_REASON" --arg validated "$G_VALIDATED" --arg age "$G_AGE" --arg key "$G_KEY" \
     --arg format "$G_FORMAT" --arg title "$G_TITLE" --arg quar "$G_QUAR" --arg stale "$G_STALE" --arg sdate "$G_DATE" \
+    --arg cerr "$G_CACHE_ERR" \
     'def n: if . == "" then null else . end;
      {slug: $slug, url: ($url | n), mode: $mode, source: ($source | n), retrieved: ($at | n),
       validated: ($validated | n), age_seconds: ($age | n | if . == null then null else tonumber end),
@@ -688,7 +694,7 @@ emit() {
       status: ($status | if . == "" then null else tonumber end), content_type: ($ctype | n), bytes: $bytes,
       lines: $lines, file: ($file | n), format: ($format | n), title: ($title | n),
       quarantined: (if $quar == "" then null else $quar == "1" end), stale: ($stale == "1"),
-      server_date: ($sdate | n), state: $state, reason: ($reason | n)}'
+      server_date: ($sdate | n), cache_error: ($cerr | n), state: $state, reason: ($reason | n)}'
 }
 
 # link_urls <file>: every link URL in the file, one per line.

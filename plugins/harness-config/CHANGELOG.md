@@ -51,8 +51,8 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 ### Fixed
 
 - **The docs cache works under a long cache directory on Windows.** Entry and pointer names are now
-  the first 16 hex digits of the key and sha256 (store layout version 2; a version-1 store reads as
-  empty and is not written), so a meta.json path stays under the 260-character limit. A write whose
+  the first 16 hex digits of the key and sha256 (store layout version 2, kept apart from a version-1
+  store), so a meta.json path stays under the 260-character limit. A write whose
   paths would still pass the limit is refused with a `path too long` reason, and an entry a write
   placed but cannot read back is removed instead of left behind.
 - **A writer that loses a race no longer renames its temp directory into the winner's entry.**
@@ -60,6 +60,16 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   and at least the opener's length closes a fence, so a fence line with an info string or a shorter
   run stays inside it, and a heading may be indented up to three spaces.
 - `fetch-docs.test.sh` no longer writes fixture pages into a caller's `DOCS_CACHE_DIR`.
+- **`--profile platform` reads its index again when fetched:** the index at
+  `https://platform.claude.com/llms.txt` sits outside `/docs/`, and an index request that ends on its
+  own URL is no longer refused as `redirected-off-origin`. Pages still must land under `/docs/`.
+- **A cache directory holding a store of another layout version no longer locks the cache out:** the
+  store moves to `v2/` inside it and the other version is left untouched.
+- **A cache hit keeps the validated time it was chosen with** when another writer switches the key
+  between the lookup and the read, instead of reporting `validated: null` and an age equal to the
+  epoch.
+- **A refused cache write says why:** the warning carries the reason and the record gains
+  `cache_error`.
 
 ## [1.10.0] - 2026-10-04
 

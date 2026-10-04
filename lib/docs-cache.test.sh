@@ -53,7 +53,7 @@ entries_for() {
 }
 # leftovers <store>: temp names left in the store.
 leftovers() {
-  find "$1" -name '.tmp-*' | wc -l | tr -d ' '
+  find "$1" -name '.tmp-*' 2>/dev/null | wc -l | tr -d ' '
 }
 
 # The page every map case starts from. Line numbers, hand-counted:
@@ -273,9 +273,21 @@ out="$(dc "$S" map "$KEY" 2>/dev/null)" || rc=$?
 assert_eq "edge: old reader on new store: map is a miss too" "1 " "$rc $out"
 rc=0
 DOCS_CACHE_NOW=$T2 dc "$S" put "$URL" markdown "$other" >/dev/null 2>&1 || rc=$?
-assert_eq "edge: old reader on new store: a write is refused" 2 "$rc"
-assert_eq "edge: old reader on new store: the refused write adds no entry" 1 "$(entries_for "$S" "$KEY")"
+assert_eq "edge: old reader on new store: a write goes to its own v2 directory beside the other version" \
+  "0 3 1 1" "$rc $(cat "$S/store_version") $(entries_for "$S" "$KEY") $(entries_for "$S/v2" "$KEY")"
+assert_eq "edge: old reader on new store: and reads back from there" "$(sha <"$other")" "$(dc "$S" info "$KEY" | jq -r .sha256)"
 printf '2\n' >"$S/store_version"
+
+# A root holding a version-1 store (64-hex names) does not lock version 2 out.
+S="$TEST_TMPDIR/s-v1"
+v1name="$(printf '%064d-%064d' 1 2)"
+mkdir -p "$S/entries/$v1name" "$S/keys"
+printf '1\n' >"$S/store_version"
+printf 'v1 body\n' >"$S/entries/$v1name/body"
+rc=0
+KEY="$(DOCS_CACHE_NOW=$T1 dc "$S" put "$URL" markdown "$PAGE" 2>/dev/null)" || rc=$?
+assert_eq "edge: a version-1 root: version 2 stores and reads beside it" "0 $(sha <"$PAGE")" "$rc $(dc "$S" info "$KEY" | jq -r .sha256)"
+assert_eq "edge: a version-1 root: its store is left as it was" "1 v1 body" "$(cat "$S/store_version") $(cat "$S/entries/$v1name/body")"
 entry="$(jq -r .entry <<<"$(dc "$S" info "$KEY")")"
 jq '.store_version = 3 | .shape = "unknown"' "$entry/meta.json" >"$TEST_TMPDIR/meta2" && cp "$TEST_TMPDIR/meta2" "$entry/meta.json"
 rc=0

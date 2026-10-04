@@ -444,8 +444,13 @@ bash "$SCRIPT" --out "$TEST_TMPDIR/out22i" --cache --max-age soon skills >/dev/n
 assert_eq "case 22: a non-numeric --max-age is fatal" 2 "$rc"
 printf '3\n' >"$TEST_TMPDIR/cache22/store_version"
 DOCS_CACHE_DIR="$TEST_TMPDIR/cache22" fixture_run "$fx" "$TEST_TMPDIR/out22j" --cache skills 2>/dev/null
-assert_eq "case 22: a store at another version is never read or written; the page is still read" "read fixture null" \
-  "$(page "$TEST_TMPDIR/out22j/manifest.json" skills '"\(.state) \(.source) \(.cache_key)"')"
+assert_eq "case 22: a root at another version is never read; the page is read and stored beside it" "read fixture true 3" \
+  "$(page "$TEST_TMPDIR/out22j/manifest.json" skills '"\(.state) \(.source) \(.cache_key != null)"') $(cat "$TEST_TMPDIR/cache22/store_version")"
+rc=0
+DOCS_CACHE_PATH_MAX=10 DOCS_CACHE_DIR="$TEST_TMPDIR/cache22p" fixture_run "$fx" "$TEST_TMPDIR/out22k" --cache skills 2>"$TEST_TMPDIR/err22k" || rc=$?
+assert_eq "case 22: a refused cache write names its reason in the manifest and the warning" "read null 1 1" \
+  "$(page "$TEST_TMPDIR/out22k/manifest.json" skills '"\(.state) \(.cache_key)"') $(page "$TEST_TMPDIR/out22k/manifest.json" skills .cache_error | grep -c 'path too long') $(grep -c 'skills.md was read but not cached in .*: path too long' "$TEST_TMPDIR/err22k")"
+assert_eq "case 22: a stored page has no cache_error" null "$(page "$TEST_TMPDIR/out22h/manifest.json" skills .cache_error)"
 
 # --- Case 23: clock skew, a server error, removal and notes ---------------------
 src="$(new_served served23)"
@@ -502,6 +507,43 @@ env -u FETCH_DOCS_FIXTURE_DIR PATH="$SHIM:$PATH" CURL_SHIM_LOG="$src.log" CURL_S
 assert_eq "edge: page redirected: a generic page landing off its path is unread and quarantined" "redirected-off-path redirected-off-path" \
   "$(jq -r '.pages[0].reason' "$TEST_TMPDIR/out23k/manifest.json") $(DC info "$(DC key https://docs.test/guide/page markdown)" | jq -r .quarantine.reason)"
 
+# --- Case 24: a pointer switched between choosing and serving an entry -----------
+# A jq stand-in runs the real jq and, after the first meta.json read (the cache
+# lookup that picks the entry), points the key at an older entry, as a racing
+# writer could. The served record must keep the chosen entry's validated time.
+src="$TEST_TMPDIR/gs24"
+mkdir -p "$src"
+C="$TEST_TMPDIR/gc24"
+RACE_URL='https://docs.test/guide/race'
+printf '%s\n' '# Race' 'one' >"$TEST_TMPDIR/race1.md"
+printf '%s\n' '# Race' 'two' >"$TEST_TMPDIR/race2.md"
+race_key="$(printf '%s\n%s' "$RACE_URL" markdown | sha256sum | cut -d' ' -f1)"
+DOCS_CACHE_NOW=$T1 DC put "$RACE_URL" markdown "$TEST_TMPDIR/race1.md" text/markdown >/dev/null
+DOCS_CACHE_NOW=$T2 DC put "$RACE_URL" markdown "$TEST_TMPDIR/race2.md" text/markdown >/dev/null
+JQBIN="$TEST_TMPDIR/jqbin"
+mkdir -p "$JQBIN"
+cat >"$JQBIN/jq" <<EOF
+#!/usr/bin/env bash
+if [[ ! -e "$TEST_TMPDIR/race.flag" ]]; then
+  for a in "\$@"; do
+    if [[ "\$a" == */meta.json ]]; then
+      : >"$TEST_TMPDIR/race.flag"
+      "$(command -v jq)" "\$@"
+      rc=\$?
+      printf '%s-%s\t%s\t%s\n' "$race_key" "$(sha256sum <"$TEST_TMPDIR/race1.md" | cut -d' ' -f1)" "$((T1 + 50))" x >"$C/keys/${race_key:0:16}"
+      exit \$rc
+    fi
+  done
+fi
+exec "$(command -v jq)" "\$@"
+EOF
+chmod +x "$JQBIN/jq"
+env -u FETCH_DOCS_FIXTURE_DIR PATH="$JQBIN:$SHIM:$PATH" CURL_SHIM_LOG="$src.log" CURL_SHIM_SRC="$src" FETCH_DOCS_CLAUDE_BIN="$CLAUDE_STUB" \
+  DOCS_CACHE_NOW=$((T2 + 100)) bash "$SCRIPT" --profile generic --out "$TEST_TMPDIR/out24" --cache --cache-dir "$C" "$RACE_URL"
+assert_eq "race: a pointer switched after the lookup still serves the chosen entry with its own validated time and age" \
+  "cache $(sha256sum <"$TEST_TMPDIR/race2.md" | cut -d' ' -f1) 2001-09-09T01:48:20Z 100" \
+  "$(jq -r '.pages[0] | "\(.source) \(.sha256) \(.validated) \(.age_seconds)"' "$TEST_TMPDIR/out24/manifest.json")"
+
 # --- Case: publisher profiles ---------------------------------------------------
 fx="$TEST_TMPDIR/fxp"
 mkdir -p "$fx"
@@ -542,6 +584,22 @@ FETCH_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --profile platform --out "$TEST_TMPD
 assert_eq "platform: index at the platform root, pages under /docs/" \
   "https://platform.claude.com/llms.txt read https://platform.claude.com/docs/en/build-with-claude/overview.md markdown" \
   "$(jq -r '"\(.index.url) \(.pages[0].state) \(.pages[0].url) \(.pages[0].format)"' "$TEST_TMPDIR/outplat/manifest.json")"
+# Over the curl stand-in: the index lives at the origin root, outside /docs/.
+src="$TEST_TMPDIR/served-plat"
+mkdir -p "$src"
+printf '%s\n' '# Docs' '- [Overview](https://platform.claude.com/docs/en/build-with-claude/overview.md): o' >"$src/llms.txt"
+printf '%s\n' '# Overview' 'body' >"$src/overview.md"
+plat_run() {
+  env -u FETCH_DOCS_FIXTURE_DIR PATH="$SHIM:$PATH" CURL_SHIM_LOG="$src.log" CURL_SHIM_SRC="$src" \
+    FETCH_DOCS_CLAUDE_BIN="$CLAUDE_STUB" bash "$SCRIPT" --profile platform --out "$TEST_TMPDIR/$1" build-with-claude/overview
+}
+plat_run outplat2
+assert_eq "platform: a fetched index at the origin root is read, and so is its page" "read read markdown" \
+  "$(jq -r '"\(.index.state) \(.pages[0].state) \(.pages[0].format)"' "$TEST_TMPDIR/outplat2/manifest.json")"
+printf '%s' 'https://platform.claude.com/elsewhere/llms.txt' >"$src/llms.txt.effective"
+plat_run outplat3
+assert_eq "platform: an index request landing anywhere but the index URL is still unread" "unread redirected-off-origin index-unread" \
+  "$(jq -r '"\(.index.state) \(.index.reason) \(.pages[0].reason)"' "$TEST_TMPDIR/outplat3/manifest.json")"
 
 # --- generic profile: negotiation, validators, identity, conversion --------------
 G1=1000000000

@@ -6,14 +6,15 @@
 # their sections. It never decides which section is relevant: the caller
 # names the sections it wants.
 #
-# Store layout under the cache directory. A name is the first 16 hex digits of
+# Store layout under the cache directory (under its v2/ when the directory
+# itself holds a store of another layout version). A name is the first 16 hex digits of
 # the key and of the sha256, so paths stay under Windows' 260-character limit;
 # the full values are in the pointer and meta.json, and a reader checks both,
 # so two keys sharing a prefix read as a miss, never as each other's bytes. A
 # write whose longest path would pass the limit is refused with that reason.
-#   store_version          the layout version; a reader that meets another
-#                          version treats the store as empty and a writer
-#                          refuses to write
+#   store_version          the layout version; a store directory found at
+#                          another version (a torn or foreign one) reads as
+#                          empty and is never written
 #   entries/<key16>-<sha16> one immutable entry: body (the raw bytes), meta.json
 #                          and map.tsv. It is built in a .tmp-* directory beside
 #                          it and renamed into place complete (never into an
@@ -97,9 +98,15 @@ DC_ESCALATE_BYTES=61440
 DC_MAX_BYTES=209715200
 DC_GRACE=300
 
-# dc_set_dir [dir]: set DC_DIR from the argument, else DOCS_CACHE_DIR, else the default.
+# dc_set_dir [dir]: set DC_DIR, the store, from the cache directory: the
+# argument, else DOCS_CACHE_DIR, else the default. The store is the cache
+# directory itself unless that holds a store of another layout version; then it
+# is v<version>/ inside it, so two versions never share a root.
 dc_set_dir() {
-  DC_DIR="${1:-${DOCS_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/claude-docs-cache}}"
+  local root="${1:-${DOCS_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/claude-docs-cache}}" v=""
+  [[ ! -f "$root/store_version" ]] || read -r v <"$root/store_version"
+  DC_DIR="$root"
+  [[ -z "$v" || "$v" == "$DC_STORE_VERSION" ]] || DC_DIR="$root/v$DC_STORE_VERSION"
 }
 
 # dc_now: set DC_NOW (epoch) and DC_NOW_ISO (UTC ISO) from the clock or DOCS_CACHE_NOW.
