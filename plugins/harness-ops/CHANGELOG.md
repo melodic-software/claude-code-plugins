@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.8.2] - 2026-10-04
+
+### Changed
+
+- Shared `docs-cache.sh`, `fetch-docs.sh` synced ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)); no change to this plugin's scripts.
+
 ## [3.8.1] - 2026-10-04
 
 ### Fixed

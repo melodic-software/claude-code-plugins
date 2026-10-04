@@ -257,7 +257,7 @@ src="$(new_served served13)"
 rc=0
 shim_run "$src" "$TEST_TMPDIR/out13a" skills || rc=$?
 shim_run "$src" "$TEST_TMPDIR/out13b" --follow 1 skills || rc=$((rc + $?))
-strip='del(.index.retrieved, (.pages[] | .retrieved, .file)) | del(.index.file)'
+strip='del(.index.retrieved, .index.validated, (.pages[] | .retrieved, .validated, .file)) | del(.index.file)'
 assert_eq "case 13: exit 0 both times" 0 "$rc"
 assert_eq "case 13: the manifests match" "$(jq -S "$strip" "$TEST_TMPDIR/out13a/manifest.json")" "$(jq -S "$strip" "$TEST_TMPDIR/out13b/manifest.json")"
 assert_eq "case 13: the same requests" 4 "$(wc -l <"$src.log" | tr -d ' ')"
@@ -336,6 +336,76 @@ printf '%s\n' '# Docs' '- [X](//other.test/docs/en/x.md): x' >"$src/llms.txt"
 shim_run "$src" "$TEST_TMPDIR/out20r" x
 assert_eq "case 20: protocol-relative link is off-origin" "unread off-origin" "$(page "$TEST_TMPDIR/out20r/manifest.json" x '"\(.state) \(.reason)"')"
 
+# --- Case 21: --cache serves a fresh entry and says so -------------------------
+T1=1000000000
+T1_ISO='2001-09-09T01:46:40Z'
+T2=1000000100
+T3=1000086500
+T3_ISO='2001-09-10T01:48:20Z'
+src="$(new_served served21)"
+C="$TEST_TMPDIR/cache21"
+cache_run() {
+  local now="$1" out="$2"
+  shift 2
+  DOCS_CACHE_NOW="$now" shim_run "$src" "$TEST_TMPDIR/$out" --cache --cache-dir "$C" "$@"
+}
+want_key="$(printf '%s\n%s' 'https://docs.test/docs/en/skills.md' markdown | sha256sum | cut -d' ' -f1)"
+cache_run $T1 out21a --max-age 86400 skills
+m="$TEST_TMPDIR/out21a/manifest.json"
+assert_eq "case 21: a first --cache read is a fetch" "read fetch" "$(page "$m" skills '"\(.state) \(.source)"')"
+assert_eq "case 21: a fetch is retrieved and validated now, age 0" "$T1_ISO $T1_ISO 0" "$(page "$m" skills '"\(.retrieved) \(.validated) \(.age_seconds)"')"
+assert_eq "case 21: cache_key is the key of the url and format" "$want_key" "$(page "$m" skills .cache_key)"
+requests="$(wc -l <"$src.log" | tr -d ' ')"
+cache_run $T2 out21b --max-age 86400 skills
+m="$TEST_TMPDIR/out21b/manifest.json"
+assert_eq "case 21: a second read inside max-age is a cache hit" "read cache" "$(page "$m" skills '"\(.state) \(.source)"')"
+assert_eq "case 21: the index is served from the cache too" "read cache" "$(jq -r '.index | "\(.state) \(.source)"' "$m")"
+assert_eq "case 21: a hit makes no request" "$requests" "$(wc -l <"$src.log" | tr -d ' ')"
+assert_eq "case 21: a hit keeps retrieved and validated and reports its age" "$T1_ISO $T1_ISO 100" "$(page "$m" skills '"\(.retrieved) \(.validated) \(.age_seconds)"')"
+assert_eq "case 21: a hit has no HTTP status and the stored content type" "null text/markdown; charset=utf-8" "$(page "$m" skills '"\(.status) \(.content_type)"')"
+assert_eq "case 21: a hit writes the page file" "" "$(cmp "$src/skills.md" "$TEST_TMPDIR/out21b/skills.md" 2>&1)"
+assert_eq "case 21: a hit's hash is of those bytes" "$(sha256sum <"$src/skills.md" | cut -d' ' -f1)" "$(page "$m" skills .sha256)"
+cache_run $T3 out21c --max-age 86400 skills
+m="$TEST_TMPDIR/out21c/manifest.json"
+assert_eq "edge: TTL expiry refetches; unchanged bytes keep retrieved and move validated" "fetch $T1_ISO $T3_ISO 0" "$(page "$m" skills '"\(.source) \(.retrieved) \(.validated) \(.age_seconds)"')"
+rm -f "$src/skills.md"
+cache_run $T3 out21d --max-age 0 skills
+m="$TEST_TMPDIR/out21d/manifest.json"
+assert_eq "edge: --max-age 0 with a failed fetch is unread, never the cached bytes" "unread fetch-failed fetch" "$(page "$m" skills '"\(.state) \(.reason) \(.source)"')"
+assert_no_file "edge: --max-age 0 with a failed fetch leaves no page file" "$TEST_TMPDIR/out21d/skills.md"
+cache_run $((T3 + 86401)) out21e --max-age 86400 skills
+assert_eq "case 21: an expired entry with a failed fetch is unread (no stale serving)" "unread fetch-failed" \
+  "$(page "$TEST_TMPDIR/out21e/manifest.json" skills '"\(.state) \(.reason)"')"
+
+# --- Case 22: the cache flags and their guards ----------------------------------
+src="$(new_served served22)"
+shim_run "$src" "$TEST_TMPDIR/out22" skills
+m="$TEST_TMPDIR/out22/manifest.json"
+assert_eq "case 22: without --cache a read is validated when retrieved, age 0, no key" "true 0 null" \
+  "$(page "$m" skills '"\(.validated == .retrieved and .validated != null) \(.age_seconds) \(.cache_key)"')"
+assert_eq "case 22: an unread page has no validated or age" "null null" \
+  "$(page "$TEST_TMPDIR/out5/manifest.json" skills '"\(.validated) \(.age_seconds)"')"
+fx="$TEST_TMPDIR/fx22"
+mkdir -p "$fx"
+mk_index "$fx"
+printf '%s\n' '# Skills' >"$fx/skills.md"
+rc=0
+err="$(FETCH_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --index-url "$INDEX" --out "$TEST_TMPDIR/out22f" --cache skills 2>&1 >/dev/null)" || rc=$?
+assert_eq "case 22: --cache in fixture mode with no cache directory is fatal" 2 "$rc"
+assert_eq "case 22: the error names the seam" "ERROR: --cache with FETCH_DOCS_FIXTURE_DIR needs --cache-dir or DOCS_CACHE_DIR" "$err"
+DOCS_CACHE_DIR="$TEST_TMPDIR/cache22" fixture_run "$fx" "$TEST_TMPDIR/out22g" --cache skills
+assert_eq "case 22: DOCS_CACHE_DIR is the cache directory; a fixture read is stored" "fixture 1" \
+  "$(page "$TEST_TMPDIR/out22g/manifest.json" skills '"\(.source) \(.cache_key | length / 64)"')"
+DOCS_CACHE_DIR="$TEST_TMPDIR/cache22" fixture_run "$fx" "$TEST_TMPDIR/out22h" --cache skills
+assert_eq "case 22: --max-age defaults above 0, so the next read is a hit" cache "$(page "$TEST_TMPDIR/out22h/manifest.json" skills .source)"
+rc=0
+bash "$SCRIPT" --out "$TEST_TMPDIR/out22i" --cache --max-age soon skills >/dev/null 2>&1 || rc=$?
+assert_eq "case 22: a non-numeric --max-age is fatal" 2 "$rc"
+printf '2\n' >"$TEST_TMPDIR/cache22/store_version"
+DOCS_CACHE_DIR="$TEST_TMPDIR/cache22" fixture_run "$fx" "$TEST_TMPDIR/out22j" --cache skills 2>/dev/null
+assert_eq "case 22: a store at another version is never read or written; the page is still read" "read fixture null" \
+  "$(page "$TEST_TMPDIR/out22j/manifest.json" skills '"\(.state) \(.source) \(.cache_key)"')"
+
 # --- Case: publisher profiles ---------------------------------------------------
 fx="$TEST_TMPDIR/fxp"
 mkdir -p "$fx"
@@ -344,8 +414,8 @@ printf '%s\n' '# Skills' >"$fx/skills.md"
 FETCH_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --out "$TEST_TMPDIR/outp-default" skills >/dev/null
 FETCH_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --profile anthropic --out "$TEST_TMPDIR/outp-named" skills >/dev/null
 assert_eq "profile: the default profile is anthropic" \
-  "$(jq -S 'del(.pages[].retrieved, .index.retrieved) | del(.pages[].file, .index.file)' "$TEST_TMPDIR/outp-named/manifest.json")" \
-  "$(jq -S 'del(.pages[].retrieved, .index.retrieved) | del(.pages[].file, .index.file)' "$TEST_TMPDIR/outp-default/manifest.json")"
+  "$(jq -S 'del(.pages[].retrieved, .index.retrieved, .pages[].validated, .index.validated) | del(.pages[].file, .index.file)' "$TEST_TMPDIR/outp-named/manifest.json")" \
+  "$(jq -S 'del(.pages[].retrieved, .index.retrieved, .pages[].validated, .index.validated) | del(.pages[].file, .index.file)' "$TEST_TMPDIR/outp-default/manifest.json")"
 assert_eq "profile: anthropic index and page resolve" "read read https://code.claude.com/docs/llms.txt https://code.claude.com/docs/en/skills.md" \
   "$(jq -r '"\(.index.state) \(.pages[0].state) \(.index.url) \(.pages[0].url)"' "$TEST_TMPDIR/outp-default/manifest.json")"
 rc=0

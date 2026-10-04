@@ -5,6 +5,31 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.10.0] - 2026-10-04
+
+### Added
+
+- **`scripts/docs-cache.sh`: a user-scope cache for upstream docs pages** (a synced copy of the
+  shared `lib/docs-cache.sh`). It stores each page's raw bytes in an immutable entry with a
+  section map, where each section's sha256 covers its own body only, and prints the map or the
+  sections a caller names. The cache lives under `${XDG_CACHE_HOME:-$HOME/.cache}/claude-docs-cache`
+  unless `--cache-dir` or `DOCS_CACHE_DIR` names another directory
+  ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).
+- **`scripts/fetch-docs.sh --cache [--max-age <seconds>] [--cache-dir <dir>]`.** An entry validated
+  within `--max-age` (default 86400) is served with no request and `source: cache`; anything else is
+  fetched and stored. Each manifest record adds `validated`, `age_seconds` and `cache_key`;
+  `retrieved` is when the bytes were first fetched, so a refetch of unchanged bytes moves only
+  `validated`. `--max-age 0` always fetches, and a failed fetch is unread, never served from the
+  cache. A caller that does not pass `--cache` reads the same pages; its records gain the three
+  fields, `cache_key` null.
+
+### Changed
+
+- **`check-effort-pins.sh` reads `model-config` through the cache with `--max-age 0` and hashes the
+  "Adjust effort level" section sliced from the cache entry** instead of scanning the whole page.
+  Its output lines and exit codes are unchanged, and the hash equals the earlier one on the
+  committed fixture and on the live page.
+
 ## [1.9.0] - 2026-10-04
 
 ### Added

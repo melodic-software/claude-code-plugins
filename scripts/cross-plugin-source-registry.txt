@@ -303,6 +303,15 @@ scripts/fetch-docs.sh
 # duplication audit: the root canonical and the copies.
 lib/fetch-docs.sh -> plugins/*/scripts/fetch-docs.sh
 
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/docs-cache.sh, carried beside each copy of fetch-docs.sh, which sources it
+# for --cache.
+scripts/docs-cache.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/docs-cache.sh -> plugins/*/scripts/docs-cache.sh
+
 # No dedicated check: a one-line `@AGENTS.md` CLAUDE.md shim beside an `audit`
 # skill's contributor AGENTS.md, carried by every plugin whose audit skill
 # keeps one (Claude Code reads CLAUDE.md, not AGENTS.md, so the shim is what

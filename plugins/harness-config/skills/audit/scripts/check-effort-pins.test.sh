@@ -3,6 +3,8 @@
 #
 # Every page variant is derived from fixtures/effort-pins in a temp dir and read
 # through the SETTINGS_AUDIT_DOCS_FIXTURE_DIR seam, so no case touches the network.
+# Every case shares one docs cache in the temp dir, never the user's; a variant
+# read after the shipped page under the same URL proves the script fetches fresh.
 #
 # Backticked markdown must reach the files unexpanded, so single quotes are the
 # correct spelling.
@@ -14,6 +16,7 @@ SCRIPT="$SCRIPT_DIR/check-effort-pins.sh"
 FX="$SCRIPT_DIR/fixtures/effort-pins"
 T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
+export DOCS_CACHE_DIR="$T/cache"
 
 FAILED=0
 CASE_NUM=0
@@ -109,6 +112,31 @@ fi
 BASE="$T/fixture.baseline"
 printf '%s\n' "$OUT" >"$BASE"
 assert_not_contains "print-baseline: no row text in the baseline" "$(cat "$BASE")" "socks"
+
+# --- slice path: the hash the whole-page scan gave on the committed fixture ---------
+# The hashed lines, copied by hand from the fixture: the level rows of the Choose
+# table, the Levels table rows, then item 3 of the list.
+want="$(printf '%s\n' \
+  '| `low` | Sorting socks by color |' \
+  '| `medium` | Baking bread from a known recipe |' \
+  '| `high` | Tuning a piano with a friend listening |' \
+  '| `xhigh` | Charting a coastline by moonlight |' \
+  '| `max` | Solving a locked-room puzzle alone |' \
+  '| Model Alpha and Model Beta | `low`, `medium`, `high`, `xhigh`, `max` |' \
+  '| Model Gamma | `low`, `medium`, `high`, `max` |' \
+  '3. Pretend default source: Model Alpha starts at `medium`, Model Beta at `high`, Model Gamma at `low`' |
+  sha256sum | cut -d' ' -f1)"
+assert_contains "slice path: same hash as the whole-page scan on the committed fixture" "$(grep -o 'sha256=[0-9a-f]*' "$BASE")" "sha256=$want"
+assert_eq "slice path: the page was read through the docs cache" 1 \
+  "$(find "$DOCS_CACHE_DIR/entries" -name body -exec cmp -s {} "$FX/model-config.md" \; -print 2>/dev/null | wc -l | tr -d ' ')"
+run "$(variant outside '/^## Synthetic section$/i\
+#### Choose an effort level\
+\
+| Level | When to use it |\
+| :- | :- |\
+| `low` | A table outside the Adjust section |\
+')" --baseline "$BASE" --root "$EMPTY"
+assert_contains "slice path: a Choose table outside the Adjust section is not read" "$OUT" "table status=same"
 
 # --- unchanged table: every pin kind is listed and ok -----------------------------
 run "$FX" --baseline "$BASE" --root "$ROOT"
@@ -218,8 +246,11 @@ assert_eq "no pins: exits 0" 0 "$RC"
 assert_contains "no pins: summary" "$OUT" "summary pins=0 drift=0 status=ok"
 
 # --- --docs-dir reads the page from disk, with no fetcher ---------------------------
+# The plugin root holds the docs cache script only: the section is still sliced.
+mkdir -p "$T/cache-only/scripts"
+cp "$SCRIPT_DIR/../../../scripts/docs-cache.sh" "$T/cache-only/scripts/"
 RC=0
-OUT="$(CLAUDE_PLUGIN_ROOT="$T/no-plugin" SETTINGS_AUDIT_DOCS_FIXTURE_DIR='' bash "$SCRIPT" --docs-dir "$FX" --baseline "$BASE" --root "$ROOT" 2>&1)" || RC=$?
+OUT="$(CLAUDE_PLUGIN_ROOT="$T/cache-only" SETTINGS_AUDIT_DOCS_FIXTURE_DIR='' bash "$SCRIPT" --docs-dir "$FX" --baseline "$BASE" --root "$ROOT" 2>&1)" || RC=$?
 assert_eq "docs-dir: the on-disk page is used without the fetcher" 0 "$RC"
 assert_contains "docs-dir: same" "$OUT" "table status=same"
 

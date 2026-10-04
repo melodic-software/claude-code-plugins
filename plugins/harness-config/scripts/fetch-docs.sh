@@ -29,16 +29,25 @@
 # those bytes, so a caller that strips control characters from a working copy
 # does not change it.
 #
+# With --cache the index and every page go through docs-cache.sh beside this
+# script. An entry validated within --max-age seconds is copied to the page
+# file with no request; any other read is fetched and stored. --max-age 0
+# always fetches, and a failed fetch is unread: cached bytes are never served
+# in place of a fetch that failed.
+#
 # Manifest (JSON, written to --manifest):
 #   claude_version  installed `claude --version` number, or "" when unreadable
 #   index           record for the index itself
 #   pages[]         one record per requested page, in request order
-# Each record: slug, url, mode, source (fetch|fixture), retrieved (UTC ISO),
-# sha256 (raw bytes), status (HTTP code), content_type, bytes, lines, file
-# (path on disk), state, reason. state is read or unread; unparsed is set by a
-# caller whose parse of a read page failed. mode (full|search) is the caller's
-# declaration of how it will use the page; the fetcher only records it. Fields
-# with no value are null (a page never requested has no status).
+# Each record: slug, url, mode, source (fetch|fixture|cache), retrieved (UTC
+# ISO, when these bytes were first fetched), validated (UTC ISO, when they were
+# last confirmed current), age_seconds (since validated), cache_key (the
+# docs-cache.sh key, null when nothing was stored), sha256 (raw bytes), status
+# (HTTP code), content_type, bytes, lines, file (path on disk), state, reason.
+# state is read or unread; unparsed is set by a caller whose parse of a read
+# page failed. mode (full|search) is the caller's declaration of how it will use
+# the page; the fetcher only records it. Fields with no value are null (a page
+# never requested, or served from the cache, has no status).
 #
 # Exit codes:
 #   0  the manifest was written (pages may be unread; read the manifest)
@@ -50,6 +59,10 @@
 #       file the directory lacks is unread (fixture-missing), never fetched.
 #   FETCH_DOCS_INDEX_URL    index URL when --index-url is absent (default: the profile's)
 #   FETCH_DOCS_CLAUDE_BIN        claude binary for claude_version
+#   DOCS_CACHE_DIR          cache directory when --cache-dir is absent; in
+#       fixture mode --cache needs one of the two, so fixture bytes never reach
+#       the default cache
+#   DOCS_CACHE_NOW          epoch seconds docs-cache.sh uses as the current time
 
 set -uo pipefail
 
@@ -59,6 +72,7 @@ fetch-docs.sh — fetch a publisher's docs pages verbatim and write a manifest.
 
 Usage:
   fetch-docs.sh --out <dir> [--manifest <file>] [--profile <name>] [--index-url <url>] [--follow <depth>]
+                [--cache [--max-age <seconds>] [--cache-dir <dir>]]
                 (--discover | [--mode full|search] <slug|url>...)
 
   --out <dir>        directory for the page files (<slug>.md) and the index (llms.txt)
@@ -68,6 +82,11 @@ Usage:
   --discover         request every page the index links under the profile's path prefix
   --mode <m>         how the caller will use the pages that follow: full (default) or search
   --follow <depth>   reserved for link-following; accepted, default 0, acted on by no caller
+  --cache            read through the docs cache and store what is fetched
+  --max-age <s>      serve a cached entry validated at most <s> seconds ago (default 86400);
+                     0 always fetches
+  --cache-dir <dir>  cache directory (default: DOCS_CACHE_DIR, else
+                     ${XDG_CACHE_HOME:-$HOME/.cache}/claude-docs-cache)
   <slug|url>         a page slug (settings-reference) or an origin URL the index lists
 
 Exit: 0 manifest written; 2 fatal (including an unknown profile).
@@ -85,6 +104,9 @@ OUT=""
 MANIFEST=""
 DISCOVER=0
 MODE=full
+CACHE=0
+MAX_AGE=86400
+CACHE_DIR=""
 TARGETS=()
 TARGET_MODES=()
 while [[ $# -gt 0 ]]; do
@@ -93,7 +115,7 @@ while [[ $# -gt 0 ]]; do
     usage
     exit 0
     ;;
-  --out | --manifest | --profile | --index-url | --follow | --mode)
+  --out | --manifest | --profile | --index-url | --follow | --mode | --max-age | --cache-dir)
     [[ $# -ge 2 ]] || die "$1 needs a value"
     case "$1" in
     --out) OUT="$2" ;;
@@ -105,12 +127,24 @@ while [[ $# -gt 0 ]]; do
       [[ "$2" == full || "$2" == search ]] || die "--mode is full or search"
       MODE="$2"
       ;;
+    --max-age)
+      [[ "$2" =~ ^[0-9]+$ ]] || die "--max-age needs a non-negative integer"
+      MAX_AGE="$2"
+      ;;
+    --cache-dir)
+      [[ -n "$2" ]] || die "--cache-dir needs a value"
+      CACHE_DIR="$2"
+      ;;
     *) die "unreachable" ;;
     esac
     shift 2
     ;;
   --discover)
     DISCOVER=1
+    shift
+    ;;
+  --cache)
+    CACHE=1
     shift
     ;;
   -*) die "unknown argument: $1" ;;
@@ -125,7 +159,7 @@ done
 # profile <name>: set the publisher's record. P_DOCS_PATH is the path prefix a
 # page URL has under the index's origin, P_SUFFIX the raw channel's file suffix,
 # P_INDEX_CTYPE and P_PAGE_CTYPE the content-type patterns the index and the
-# raw channel answer with.
+# raw channel answer with, P_FORMAT the format the cache keys their bytes by.
 profile() {
   case "$1" in
   anthropic)
@@ -134,6 +168,7 @@ profile() {
     P_SUFFIX=".md"
     P_INDEX_CTYPE='^text/(plain|markdown)'
     P_PAGE_CTYPE='^text/markdown'
+    P_FORMAT=markdown
     ;;
   *) return 1 ;;
   esac
@@ -153,6 +188,15 @@ FIXTURE_SET=0
 FIXTURE="${FETCH_DOCS_FIXTURE_DIR:-}"
 CURL_MISSING=0
 if [[ $FIXTURE_SET -eq 0 ]] && ! command -v curl >/dev/null 2>&1; then CURL_MISSING=1; fi
+if [[ $CACHE -eq 1 ]]; then
+  [[ $FIXTURE_SET -eq 0 || -n "$CACHE_DIR" || -n "${DOCS_CACHE_DIR:-}" ]] ||
+    die "--cache with FETCH_DOCS_FIXTURE_DIR needs --cache-dir or DOCS_CACHE_DIR"
+  DOCS_CACHE="$(dirname "${BASH_SOURCE[0]}")/docs-cache.sh"
+  [[ -f "$DOCS_CACHE" ]] || die "docs-cache.sh not found beside fetch-docs.sh"
+  # shellcheck source=docs-cache.sh
+  . "$DOCS_CACHE"
+  dc_set_dir "$CACHE_DIR"
+fi
 
 mkdir -p "$OUT" || die "cannot create $OUT"
 MANIFEST="${MANIFEST:-$OUT/manifest.json}"
@@ -166,13 +210,43 @@ sha256_of() {
 }
 
 # get_doc <url> <dest> <fixture file> <content-type regex>: the whole body or
-# nothing. Sets G_SOURCE G_STATE G_REASON G_STATUS G_CTYPE G_AT; on read the
+# nothing, from the cache when --cache holds a fresh entry. Sets G_SOURCE
+# G_STATE G_REASON G_STATUS G_CTYPE G_AT G_VALIDATED G_AGE G_KEY; on read the
 # raw bytes are at <dest>, otherwise no file is left there.
 get_doc() {
-  local url="$1" dest="$2" fx="$3" ctype_re="$4" meta rc eff
-  G_SOURCE="" G_STATE=unread G_REASON="" G_STATUS="" G_CTYPE="" G_AT=""
+  local url="$1" dest="$2" ctype_re="$4" key age
+  G_SOURCE="" G_STATE=unread G_REASON="" G_STATUS="" G_CTYPE="" G_AT="" G_VALIDATED="" G_AGE="" G_KEY=""
   rm -f "$dest" "$dest.part"
   mkdir -p "$(dirname "$dest")"
+  if [[ $CACHE -eq 1 && $MAX_AGE -gt 0 ]]; then
+    key="$(dc_key "$url" "$P_FORMAT")"
+    # A fixture read is stored with no content type, so it is served only in fixture mode.
+    if dc_lookup "$key" && [[ -n "$DC_VALIDATED_EPOCH" ]]; then
+      age=$((DC_NOW - DC_VALIDATED_EPOCH))
+      if [[ $age -ge 0 && $age -le $MAX_AGE && ($FIXTURE_SET -eq 1 || "${DC_CTYPE,,}" =~ $ctype_re) ]] &&
+        cp "$DC_ENTRY/body" "$dest"; then
+        G_SOURCE=cache G_STATE=read G_CTYPE="$DC_CTYPE" G_AT="$DC_RETRIEVED"
+        G_VALIDATED="$DC_VALIDATED" G_AGE="$age" G_KEY="$DC_KEY"
+        return 0
+      fi
+      rm -f "$dest"
+    fi
+  fi
+  fetch_doc "$@"
+  [[ "$G_STATE" == read ]] || return 0
+  G_VALIDATED="$G_AT" G_AGE=0
+  [[ $CACHE -eq 1 ]] || return 0
+  if dc_put "$url" "$P_FORMAT" "$dest" "$G_CTYPE"; then
+    G_AT="$DC_RETRIEVED" G_VALIDATED="$DC_VALIDATED" G_KEY="$DC_KEY"
+  else
+    echo "WARNING: $url was read but not cached in $DC_DIR" >&2
+  fi
+}
+
+# fetch_doc <url> <dest> <fixture file> <content-type regex>: get_doc's read
+# from the fixture directory or the network.
+fetch_doc() {
+  local url="$1" dest="$2" fx="$3" ctype_re="$4" meta rc eff
   if [[ $FIXTURE_SET -eq 1 ]]; then
     G_SOURCE=fixture
     if [[ -s "$FIXTURE/$fx" ]] && cp "$FIXTURE/$fx" "$dest"; then
@@ -222,9 +296,11 @@ emit() {
   fi
   jq -cn --arg slug "$1" --arg url "$2" --arg mode "$3" --arg source "$G_SOURCE" --arg at "$G_AT" --arg sha "$sha" \
     --arg status "$G_STATUS" --arg ctype "$G_CTYPE" --argjson bytes "$bytes" --argjson lines "$lines" --arg file "$file" \
-    --arg state "$G_STATE" --arg reason "$G_REASON" \
+    --arg state "$G_STATE" --arg reason "$G_REASON" --arg validated "$G_VALIDATED" --arg age "$G_AGE" --arg key "$G_KEY" \
     'def n: if . == "" then null else . end;
-     {slug: $slug, url: ($url | n), mode: $mode, source: ($source | n), retrieved: ($at | n), sha256: ($sha | n),
+     {slug: $slug, url: ($url | n), mode: $mode, source: ($source | n), retrieved: ($at | n),
+      validated: ($validated | n), age_seconds: ($age | n | if . == null then null else tonumber end),
+      cache_key: ($key | n), sha256: ($sha | n),
       status: ($status | if . == "" then null else tonumber end), content_type: ($ctype | n), bytes: $bytes,
       lines: $lines, file: ($file | n), state: $state, reason: ($reason | n)}'
 }
@@ -287,7 +363,7 @@ for i in "${!TARGETS[@]}"; do
   fi
   [[ -z "${SEEN[$slug]:-}" ]] || continue
   SEEN[$slug]=1
-  G_SOURCE="" G_STATE=unread G_REASON="" G_STATUS="" G_CTYPE="" G_AT=""
+  G_SOURCE="" G_STATE=unread G_REASON="" G_STATUS="" G_CTYPE="" G_AT="" G_VALIDATED="" G_AGE="" G_KEY=""
   url=""
   if ! slug_ok "$slug"; then
     G_REASON="invalid-slug"
