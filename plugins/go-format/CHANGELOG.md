@@ -3,6 +3,12 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.6] - 2026-10-04
+
+### Changed
+
+- **Hook text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** A syntax error reads `go-format: <file> has a syntax error:` and each line drops goimports' absolute path prefix. An unchanged report on a re-edit sends nothing; it is sent again after a clean run, or after compaction or `/clear`, which a new `SessionStart` `compact|clear` row handles. A goimports break reads `go-format: goimports failed on <file>:`. The rewrite notice reads `go-format: reformatted <file>.`. The missing-goimports notice is composed from `prerequisites.json`, with the install route on the user's copy only, and its `degrade` text drops "edits still go through".
+
 ## [0.5.5] - 2026-10-04
 
 ### Changed

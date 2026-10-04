@@ -51,6 +51,13 @@ source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
 source "$HOOK_DIR/rewrite-guard.sh"
 
+# The SessionStart compact|clear row: the model lost the reports with its
+# context, so the findings sent this session are sent again.
+if [[ "${1:-}" == --reset-digests ]]; then
+  hook::buffer_stdin_to INPUT && hook::findings_digest_reset "$INPUT"
+  exit 0
+fi
+
 # The whole prologue: the start stamp, the buffered payload, the jq-free
 # applicability filter, the jq gate, the parsed path with its basename and
 # directory, the file-anchored repo root, and the telemetry-only TOOL and
@@ -138,12 +145,8 @@ hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_GO_FORMAT_LINT_GITIGNORED:
 # builtin, and the exec below looks the name up on PATH itself, so nothing here
 # needs the resolved path.
 if ! command -v goimports >/dev/null 2>&1; then
-  if hook::notice_once "go-format-goimports" "$INPUT" prerequisite; then
-    GO_NOTICE=""
-    hook::tool_missing_notice_to GO_NOTICE \
-      "go-format: no 'goimports' binary found on this hook's PATH — format/import-fix skipped for this edit" \
-      matching ". Install: go install golang.org/x/tools/cmd/goimports@latest. Run /go-format:check. It does not install."
-    hook::emit_skip_notice PostToolUse "$GO_NOTICE"
+  if hook::prereq_notice_to GO_MODEL GO_USER goimports "$INPUT"; then
+    hook::emit_skip_notice PostToolUse "$GO_MODEL" "$GO_USER"
   fi
   emit_skipped
 fi
@@ -174,7 +177,7 @@ GOIMPORTS_ARGS=(-w -l)
 # only; name the rewrite on the user channel and stay silent on no-op paths.
 # Snapshot lifecycle and single-document composition live in the shared
 # rewrite-guard lib (#3405, #3409).
-GO_REWRITE_MESSAGE="go-format: reformatted $FILE_BASE via goimports (imports and layout only)."
+GO_REWRITE_MESSAGE="go-format: reformatted $FILE_BASE."
 hook::rewrite_guard_begin "$FILE"
 # -w writes the fix in place; -l (combined with -w) lists the changed
 # filename on stdout, which this hook doesn't need (a successful autofix
@@ -190,23 +193,22 @@ hook::rewrite_guard_begin "$FILE"
 # happens to start with `-` being misread as a flag by Go's flag package.
 STDERR=$(goimports "${GOIMPORTS_ARGS[@]}" -- "$FILE" 2>&1 >/dev/null)
 RC=$?
+((RC == 0)) && STDERR=""
+# The heading names the file once, so each line drops goimports' path prefix.
+STDERR=$'\n'"$STDERR"
+STDERR="${STDERR//$'\n'"$FILE:"/$'\n'}"
 
-if [[ $RC -eq 0 ]]; then
-  # Clean, or fixed silently (formatting/import changes carry no advisory
-  # noise — same posture as a successful ruff/typos autofix pass): the
-  # disclosure is the whole document, or there is none.
-  hook::finish --disclose "$GO_REWRITE_MESSAGE" ok findings array '[]'
-fi
-
-if [[ $RC -eq 2 && -n "$STDERR" ]]; then
-  # goimports ran and produced a judgment: the file has a syntax error it
-  # cannot parse. This is a finding, not a tool break — mirrors how
-  # ruff-format surfaces a mid-edit syntax error as a finding.
-  GO_CTX=""
+# --delta sends a finding set once per (session, agent, file); the clean run
+# goes through it too, so a syntax error that comes back after a fix is sent
+# again.
+GO_CTX=""
+if [[ $RC -eq 0 || ($RC -eq 2 && -n "${STDERR//$'\n'/}") ]]; then
+  # Exit 2 is goimports' judgment that the file has a syntax error it cannot
+  # parse: a finding, not a tool break, as ruff-format reports a mid-edit
+  # syntax error.
   FINDINGS_JSON='[]'
-  hook::findings_to GO_CTX \
-    "go-format: $FILE_BASE has a syntax error goimports could not parse (advisory):" \
-    "$STDERR" FINDINGS_JSON
+  hook::findings_to GO_CTX "go-format: $FILE_BASE has a syntax error:" \
+    "$STDERR" FINDINGS_JSON --max 20 --delta "$INPUT" "$FILE"
   # Findings AND a rewrite disclosure compose into one document (#3406 class).
   hook::finish --context "$GO_CTX" --disclose "$GO_REWRITE_MESSAGE" \
     ok findings array "$FINDINGS_JSON"
@@ -216,10 +218,9 @@ fi
 # code) — no judgment was made. Surface the diagnostic via additionalContext
 # (NOT stderr — an advisory hook's exit-0 stderr can trip a false "Hook
 # Error" label). Record as "skipped" (the tool never ran to judgment).
-GO_CTX=""
-hook::findings_to GO_CTX \
-  "go-format: goimports failed for $FILE_BASE (no diagnostics; tool break, not a finding):" \
-  "$STDERR"
+[[ -n "${STDERR//$'\n'/}" ]] || STDERR="exit $RC"
+hook::findings_to GO_CTX "go-format: goimports failed on $FILE_BASE:" \
+  "$STDERR" --max 10 --delta "$INPUT" "$FILE"
 # goimports may have written the file before breaking, so the disclosure is
 # still owed and composes with the tool-break context as one document; the take
 # inside hook::finish is also what records that rewrite in data.changed.
