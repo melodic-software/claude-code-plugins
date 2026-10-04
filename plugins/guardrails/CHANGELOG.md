@@ -3,6 +3,26 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.47.9] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The verify rows start the launcher with `--skip-if-all-false` over the three verifier options, so an edit with all three verifiers off starts node only and no bash (#6252). A test fails if a PreToolUse or `block-*` guard row carries a skip flag.
+- The shared `exec-bash.mjs` launcher copy also gains `--skip-unless-stdin-contains`; no guardrails row uses it (#6253).
+
+## [0.47.8] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
+
+## [0.47.7] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. Without jq, a blocking guard's deny reason is one line naming jq and its install page, without the kill switch, which stays in the README. A hook payload cut short in transit is reported to the user only, in one line. The SessionStart notice for a missing node goes to the user only, in one shorter line. The jq `degrade` text in `prerequisites.json` no longer says the skip lasts the session or that the hook says so once.
+
 ## [0.47.6] - 2026-10-04
 
 ### Changed

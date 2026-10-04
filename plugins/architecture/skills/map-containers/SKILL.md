@@ -229,9 +229,10 @@ hand-written; the publish destination comes from the `medium` cascade key. Proce
 
 ## Next
 
-- What is inside one deployable: `/architecture:map-components`.
-- A request trace from one entry point: `/architecture:map-flow`.
+- Inside one deployable, or one request's path through it: `/architecture:map-components` or
+  `/architecture:map-flow`.
 - Neighboring repositories need a landscape: `/architecture:map-landscape`.
+- The view opens a topology or binding change to decide: `/planning:design system`.
 - The view settles a decision worth keeping: `/architecture:record-decision`.
 
 ## Gotchas

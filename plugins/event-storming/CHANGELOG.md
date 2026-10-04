@@ -3,6 +3,12 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.23] - 2026-10-04
+
+### Changed
+
+- **`/event-storming:methodology` names `/planning:design module` as a successor ([#6278](https://github.com/melodic-software/claude-code-plugins/issues/6278)).** Once aggregates and boundaries are found, the module design goes to `/planning:design`; running the workshop still goes to `/event-storming:simulation`.
+
 ## [0.6.22] - 2026-10-02
 
 ### Fixed

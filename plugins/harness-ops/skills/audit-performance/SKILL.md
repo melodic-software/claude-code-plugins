@@ -265,14 +265,21 @@ spawns. Read `fan_out` in this order:
    process with a live parent is working software and killing it breaks whatever owns it, so
    report `parent_alive` per candidate and treat `unknown` as unknown. `dead_parent_any_age`,
    beside that verdict, is a census and not a kill list: one row per name (`name`, `count`,
-   `youngest_h`, `oldest_h`) for a process in the orphan candidate set, or named `tail.exe`,
-   `grep.exe`, `sleep.exe`, or `cat.exe`, whose parent is gone or whose parent pid was
-   recycled, and which is older than 5 seconds. `count` is every such process of that name.
+   `youngest_h`, `oldest_h`, `cpu_seconds`) for a process in the orphan candidate set, or named
+   `tail.exe`, `grep.exe`, `sleep.exe`, `cat.exe`, `rm.exe`, or `du.exe`, whose parent is gone
+   or whose parent pid was recycled, and which is older than 5 seconds. `count` is every such
+   process of that name; `cpu_seconds` is their summed kernel plus user time, `null` when any
+   member's time is unreadable. `dead_parent_by_cpu` drops the name list: every dead-parent
+   process of any name under the same rules, ranked by CPU, top 10, each row `name`, `pid`,
+   `age_h`, `cpu_seconds`, and `cpu_share` (CPU seconds over age; above 1.0 means more than one
+   core). It is a ranking, not a kill list, and a high `cpu_share` there is the first thing to
+   report: a detached process burning CPU after its parent exited slows the whole machine at any
+   age, well inside the 24-hour orphan floor.
    A census process whose parent start time is unreadable is no row; it is counted in
    `dead_parent_any_age_unknown_count`, while the verdict's `unknown_count` holds only its
    own 24-hour candidates. The 24-hour orphan floor and the orphan candidate set are
-   unchanged, and a census row is not a process to kill. The census and its unknown count
-   are `null` off Windows, which is not measured rather than none found: Linux, macOS, and
+   unchanged, and a census row is not a process to kill. The census, its unknown count, and the
+   CPU ranking are `null` off Windows, which is not measured rather than none found: Linux, macOS, and
    WSL reparent an orphan to a live init or subreaper, so the process table cannot show its
    dead parent. The orphan verdict reads the same table, so off Windows (`orphans_note` says
    so) `orphan_count: 0` is not a negative to record, and a `live_parent` row whose parent is

@@ -169,6 +169,45 @@ else
   fail "no python: rc=$rc output=[$out]"
 fi
 
+# Native Windows Python under Git Bash or Cygwin: pydeps.py and a POSIX data directory reach it as drive-letter
+# paths even with MSYS path conversion switched off, and a cygpath that fails is a notice, never the unconverted
+# path. The stub python3 logs its arguments; the stub cygpath maps -m /dir to C:/dir, or fails.
+# native_hook <ostype> <cygpath body> -> runs the hook with MSYS_NO_PATHCONV=1 and a POSIX data directory; sets OUT,
+# RC and ARGV.
+# shellcheck disable=SC2016  # the stub bodies expand when the stubs run, not here
+native_hook() {
+  local stubs="$WORK/stubs-$1"
+  mkdir -p "$stubs"
+  printf '#!/bin/sh\n[ "$1" = -c ] && exit 0\nprintf "%%s|" "$@" >"%s/argv.log"\n' "$WORK" >"$stubs/python3"
+  printf '#!/bin/sh\n%s\n' "$2" >"$stubs/cygpath"
+  chmod +x "$stubs/python3" "$stubs/cygpath"
+  rm -f "$WORK/argv.log"
+  OUT="$(env PATH="$stubs:$tools" OSTYPE="$1" MSYS_NO_PATHCONV=1 CLAUDE_PLUGIN_DATA="$WORK/data-native" "$tools/bash" "$root/hooks/install-python-deps.sh" <<<'{}')"
+  RC=$?
+  ARGV="$(cat "$WORK/argv.log" 2>/dev/null)"
+}
+# shellcheck disable=SC2016  # the stub body expands when the stub runs, not here
+for ostype in msys cygwin; do
+  native_hook "$ostype" '[ "$1" = -m ] && printf "C:%s\n" "$2"'
+  if [[ "$RC" -eq 0 && -z "$OUT" && "$ARGV" == "C:$root/scripts/pydeps.py|install|--data-dir|C:$WORK/data-native|" ]]; then
+    ok "OSTYPE=$ostype with path conversion off hands Python drive-letter pydeps.py and data directory paths"
+  else
+    fail "OSTYPE=$ostype conversion: rc=$RC argv=[$ARGV] output=[$OUT]"
+  fi
+done
+native_hook msys 'exit 1'
+if [[ "$RC" -eq 0 && -z "$ARGV" && "$OUT" == *'"systemMessage"'* && "$OUT" == *'cygpath could not convert'* ]]; then
+  ok "a failing cygpath is a notice and Python never gets the unconverted path"
+else
+  fail "failing cygpath: rc=$RC argv=[$ARGV] output=[$OUT]"
+fi
+native_hook linux-gnu 'exit 1'
+if [[ "$RC" -eq 0 && -z "$OUT" && "$ARGV" == "$root/scripts/pydeps.py|install|--data-dir|$WORK/data-native|" ]]; then
+  ok "outside Git Bash and Cygwin the paths reach Python unchanged"
+else
+  fail "linux paths: rc=$RC argv=[$ARGV] output=[$OUT]"
+fi
+
 # Only the py launcher (a python.org install without "Add python.exe to PATH"): under Git Bash or Cygwin the
 # hook asks it only to list (py -0p) and starts pydeps.py with a listed python.exe, never through py, which
 # installs the latest Python on any launch command while none is installed; elsewhere `py` is not taken for Python.

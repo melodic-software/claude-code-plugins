@@ -23,7 +23,7 @@
         "Output selects the run-everything mode, not the lifecycle-tiered default",
         "Output performs the full-breadth sweep including main-thread orchestrator plugins and leaf agents",
         "Output normalizes the heterogeneous surface outputs and persists a single ranked findings file",
-        "The ## Surfaces line names every leaf as <label>@<level>: each criteria-doc slice with the level the Workflow script passed it, each named agent with the effort: value from its agent definition's frontmatter"
+        "The ## Surfaces line names every leaf as <label>@<level>: every leaf, criteria-doc slices included (review:brief-reviewer), is a named agent shown with the effort: value from its agent definition's frontmatter"
       ]
     },
     {
