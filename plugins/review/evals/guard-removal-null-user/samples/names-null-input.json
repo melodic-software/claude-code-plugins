@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "IMPORTANT: renderHeader passes session.user, which is null until the visitor signs in, so displayName now throws on `null.profile`.",
+      "why": "names null and signed-in state"
+    },
+    {
+      "answer": "A signed-out visitor now crashes the header: the removed check returned Guest for them.",
+      "why": "paraphrase: signed-out visitor"
+    },
+    {
+      "answer": "A user without a profile hits TypeError: Cannot read properties of undefined.",
+      "why": "names the missing-profile input"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Looks good. Removing the null check simplifies displayName and the commit explains why.",
+      "why": "near miss: quotes the null check and approves"
+    },
+    {
+      "answer": "No issues found. The refactor is clean.",
+      "why": "approves"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}

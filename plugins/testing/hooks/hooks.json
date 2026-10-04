@@ -92,6 +92,32 @@
               "TEST_GUARDS_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
             ],
+            "if": "Write(*.spec.cts)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*.spec.cts)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
             "if": "Write(*.spec.js)",
             "timeout": 10,
             "statusMessage": "Checking the edit for removed assertions or skipped tests..."
@@ -158,6 +184,32 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
             ],
             "if": "Edit(*.spec.mjs)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*.spec.mts)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*.spec.mts)",
             "timeout": 10,
             "statusMessage": "Checking the edit for removed assertions or skipped tests..."
           },
@@ -248,6 +300,32 @@
               "TEST_GUARDS_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
             ],
+            "if": "Write(*.test.cts)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*.test.cts)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
             "if": "Write(*.test.js)",
             "timeout": 10,
             "statusMessage": "Checking the edit for removed assertions or skipped tests..."
@@ -326,6 +404,32 @@
               "TEST_GUARDS_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
             ],
+            "if": "Write(*.test.mts)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*.test.mts)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
             "if": "Write(*.test.sh)",
             "timeout": 10,
             "statusMessage": "Checking the edit for removed assertions or skipped tests..."
@@ -392,6 +496,32 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
             ],
             "if": "Edit(*.test.tsx)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(*StepDefinitions.cs)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(*StepDefinitions.cs)",
             "timeout": 10,
             "statusMessage": "Checking the edit for removed assertions or skipped tests..."
           },
@@ -496,6 +626,32 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
             ],
             "if": "Edit(*_test.py)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Write(UnitTest*.cs)",
+            "timeout": 10,
+            "statusMessage": "Checking the edit for removed assertions or skipped tests..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-weaken.sh"
+            ],
+            "if": "Edit(UnitTest*.cs)",
             "timeout": 10,
             "statusMessage": "Checking the edit for removed assertions or skipped tests..."
           },
@@ -619,6 +775,32 @@
               "TEST_GUARDS_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
             ],
+            "if": "Write(*.spec.cts)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*.spec.cts)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
             "if": "Write(*.spec.js)",
             "timeout": 10,
             "statusMessage": "Scanning the test file for tests that cannot fail..."
@@ -685,6 +867,32 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
             ],
             "if": "Edit(*.spec.mjs)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Write(*.spec.mts)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*.spec.mts)",
             "timeout": 10,
             "statusMessage": "Scanning the test file for tests that cannot fail..."
           },
@@ -775,6 +983,32 @@
               "TEST_GUARDS_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
             ],
+            "if": "Write(*.test.cts)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*.test.cts)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
             "if": "Write(*.test.js)",
             "timeout": 10,
             "statusMessage": "Scanning the test file for tests that cannot fail..."
@@ -853,6 +1087,32 @@
               "TEST_GUARDS_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
             ],
+            "if": "Write(*.test.mts)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*.test.mts)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
             "if": "Write(*.test.sh)",
             "timeout": 10,
             "statusMessage": "Scanning the test file for tests that cannot fail..."
@@ -919,6 +1179,32 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
             ],
             "if": "Edit(*.test.tsx)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Write(*StepDefinitions.cs)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(*StepDefinitions.cs)",
             "timeout": 10,
             "statusMessage": "Scanning the test file for tests that cannot fail..."
           },
@@ -1023,6 +1309,32 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
             ],
             "if": "Edit(*_test.py)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Write(UnitTest*.cs)",
+            "timeout": 10,
+            "statusMessage": "Scanning the test file for tests that cannot fail..."
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-scan.sh"
+            ],
+            "if": "Edit(UnitTest*.cs)",
             "timeout": 10,
             "statusMessage": "Scanning the test file for tests that cannot fail..."
           },
@@ -1171,6 +1483,34 @@
               "TEST_JUDGE_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
             ],
+            "if": "Write(*.spec.cts)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*.spec.cts)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
             "if": "Write(*.spec.js)",
             "async": true
           },
@@ -1242,6 +1582,34 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
             ],
             "if": "Edit(*.spec.mjs)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*.spec.mts)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*.spec.mts)",
             "async": true
           },
           {
@@ -1339,6 +1707,34 @@
               "TEST_JUDGE_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
             ],
+            "if": "Write(*.test.cts)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*.test.cts)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
             "if": "Write(*.test.js)",
             "async": true
           },
@@ -1423,6 +1819,34 @@
               "TEST_JUDGE_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
             ],
+            "if": "Write(*.test.mts)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*.test.mts)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
             "if": "Write(*.test.sh)",
             "async": true
           },
@@ -1494,6 +1918,34 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
             ],
             "if": "Edit(*.test.tsx)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(*StepDefinitions.cs)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(*StepDefinitions.cs)",
             "async": true
           },
           {
@@ -1606,6 +2058,34 @@
               "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
             ],
             "if": "Edit(*_test.py)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Write(UnitTest*.cs)",
+            "async": true
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--require-true",
+              "TEST_GUARDS_ENABLED",
+              "--require-true",
+              "TEST_JUDGE_ENABLED",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/test-judge-bg.sh"
+            ],
+            "if": "Edit(UnitTest*.cs)",
             "async": true
           },
           {

@@ -1,0 +1,9 @@
+#!/usr/bin/env bats
+# expect: rule-inert-assertion
+# Two runs on one line: the second run replaces $status before anything reads
+# the first, so the plain greet result is never checked.
+
+@test "greets plainly and loudly" {
+  run greet; run greet --loud
+  [ "$status" -eq 0 ]
+}

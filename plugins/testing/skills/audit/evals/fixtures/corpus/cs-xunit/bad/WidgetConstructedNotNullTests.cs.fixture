@@ -1,0 +1,21 @@
+// expect: rule-throw-only-oracle
+// A value built with new is never null and is always its own type, so these
+// tests fail only if the constructor throws.
+using Xunit;
+
+public class WidgetConstructedNotNullTests
+{
+    [Fact]
+    public void Constructor_BuildsAWidget()
+    {
+        var widget = new Widget("w");
+        Assert.NotNull(widget);
+        Assert.IsType<Widget>(widget);
+    }
+
+    [Fact]
+    public void Constructor_BuildsAPanel()
+    {
+        var panel = new Panel(); Assert.NotNull(panel);
+    }
+}
