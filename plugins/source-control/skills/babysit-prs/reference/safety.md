@@ -466,7 +466,8 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   --self-logins @me,<self-logins>` (thread list).
 - **What the merge gate actually evaluates.** It gates on GitHub's own `mergeStateStatus == CLEAN`
   plus explicit cross-checks of its own: branch rules, review decision, unresolved threads, the
-  check rollup keyed by check type and name, and head match. It reports the exact `blockers` list.
+  check rollup keyed by check type and name, head match, and base freshness (next bullet). It
+  reports the exact `blockers` list.
   React to those blockers; never bypass the gate. One reading caveat: a `ready: false` immediately
   following a `ready: true` on the same expected head is often GitHub's own mergeability recompute
   lag, so re-run the read-only check once before treating it as a real block.
@@ -475,12 +476,20 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   states that this leaves mergeability checks, conflict reporting, and rule enforcement unchanged.
   So the gate keeps trusting `CLEAN` for mergeability; what can be up to 12 hours behind the base
   is the merge commit `pull_request` CI ran against. Only a strict up-to-date rule (`BEHIND`) proves
-  the head is current at merge; under a non-strict base the stale-base rule in
-  [freshness.md](freshness.md) is the guard, and the gate adds no hold of its own. **Claim, basis,
-  as of, recheck:** that regeneration rule,
+  the head is current at merge. Under a base whose rulesets carry neither that rule nor a merge
+  queue, `CLEAN` is not proof of freshness, so when the gate runs on an otherwise-ready PR it
+  compares the head against the live base and holds it if it is behind or the compare cannot be
+  read (`baseFreshness` in the output). The compare runs at gate time, including when the gate
+  arms `--auto`; an auto-merge already armed is not re-checked if the base moves afterwards, a
+  race that predates this check. The snapshot reports the same head
+  `branch_freshness.state == "behind"`, and [freshness.md](freshness.md)'s refresh clears the
+  hold; a compare that keeps failing holds the PR until a human acts. A merge-queue base makes no
+  compare. Only rulesets are read, not classic branch protection. **Claim, basis, as of, recheck:** that
+  regeneration rule,
   [changes to test merge commit generation](https://github.blog/changelog/2026-02-19-changes-to-test-merge-commit-generation-for-pull-requests),
   2026-10-02, and a GitHub changelog entry that changes test-merge regeneration or says it now
-  affects mergeability.
+  affects mergeability. The loose-base and merge-queue decisions carry their own record in
+  [freshness.md](freshness.md#upstream-drift-record-for-the-loose-base-and-merge-queue-decisions).
 - **`--self-logins @me,<self-logins>` rides on every merge form too**, read-only and mutating
   alike. `@me` resolves to your own `gh` login and the `babysit_self_logins` extras follow it; drop
   the trailing `,<self-logins>` when that value is empty. On the merge gate this flag is what

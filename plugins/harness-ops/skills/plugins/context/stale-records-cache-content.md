@@ -55,8 +55,8 @@ copy, not a reconstruction. Only ids that Step 5 did not enable at `user`/`local
 appear there. For the rest the command would fail rather than run, and Step 5 explains why.
 
 When a project root resolved, the render leads the `Divergences:` line with *this* project's
-actionable count and folds the rest of the machine into one trailing clause, e.g. `2 behind here
-→ converge; 27 more elsewhere on this machine`. Per-row detail (naming exact `<old> → <new>`
+actionable count and gives the machine-wide total, which includes it, in one trailing clause, e.g.
+`2 behind here → converge; on this whole machine 29 actionable: …`. Per-row detail (naming exact `<old> → <new>`
 versions per repo) is reserved for genuine conflicts: a delisted or delisted_settings_only plugin id, or a CLI call
 that failed, never for the routine bulk case. (Enable-state mismatches, a plugin `true` in one
 scope's `enabledPlugins` and `false` in another, are a known blind spot, not a reportable category:
@@ -72,9 +72,11 @@ the new commit while the directory still holds the old build. See
 [scope-semantics.md](scope-semantics.md) "An unchanged version number keeps the old cache directory
 while `gitCommitSha` moves" for the observation this rests on.
 
-Step 5b runs `cache-content-check.sh`, which byte-compares every file in each cache directory
-against the recorded commit in the marketplace clone. The render omits the `Cache content:` row
-when it finds nothing. When it finds something, the render names the ids and gives the remediation
+Step 5b runs `cache-content-check.sh --scope user`, which byte-compares every file in each
+user-scope install's cache directory against the recorded commit in the marketplace clone.
+Project- and local-scope records are not compared, so the digest's `cache_content.scope` reads
+`user` and the rendered row counts `user-scope install(s)`. The render omits the `Cache content:`
+row when it finds nothing. When it finds something, the render names the ids and gives the remediation
 that was actually proved to work, rather than a suggestion: remove that version's directory under
 the plugin cache, then re-run `claude plugin update <id>@<marketplace>`, which recreates it from
 the clone.

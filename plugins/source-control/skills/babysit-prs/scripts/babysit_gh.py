@@ -47,6 +47,10 @@ VIEW_FIELD_NAMES: tuple[str, ...] = (
     "url",
 )
 VIEW_FIELDS = ",".join(VIEW_FIELD_NAMES)
+# `mergeStateStatus` values under which `view_pr` compares the head against the
+# live base: BLOCKED can mask BEHIND, and CLEAN/HAS_HOOKS do not imply an
+# up-to-date head on a base that does not require one.
+BASE_COMPARE_MERGE_STATES = frozenset({"BLOCKED", "CLEAN", "HAS_HOOKS"})
 SEARCH_FIELDS = "number,repository,url,title,updatedAt,isDraft"
 RECONCILE_FIELDS = "number,url,title,updatedAt,isDraft"
 GITHUB_OWNER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*$")
@@ -612,12 +616,15 @@ def view_pr(repo: str, number: int) -> dict[str, Any]:
     data["repo"] = repo
     data["_graphql_available"] = graphql_available
     data["baseRepositoryArchived"] = repository_is_archived(repo)
-    if str(data.get("mergeStateStatus") or "").upper() == "BLOCKED":
-        data["_blocked_base_compare"] = fetch_blocked_base_compare(
-            repo,
-            str(data.get("baseRefName") or ""),
-            str(data.get("headRefOid") or ""),
-        )
+    merge_state = str(data.get("mergeStateStatus") or "").upper()
+    if merge_state in BASE_COMPARE_MERGE_STATES:
+        base_ref = str(data.get("baseRefName") or "")
+        compare = fetch_base_compare(repo, base_ref, str(data.get("headRefOid") or ""))
+        data["_base_compare"] = compare
+        # Only a mergeable head behind its base pays the rules read: BLOCKED
+        # keeps its queue-blind fallback, and an up-to-date head needs no answer.
+        if merge_state != "BLOCKED" and compare_shows_behind(compare):
+            data["_base_merge_queue"] = base_requires_merge_queue(repo, base_ref)
     return data
 
 
@@ -788,17 +795,25 @@ def rest_view_pr(repo: str, number: int) -> dict[str, Any]:
     }
 
 
-def fetch_blocked_base_compare(
-    repo: str, base_ref: str, head_sha: str
+def fetch_base_compare(
+    repo: str,
+    base_ref: str,
+    head_sha: str,
+    *,
+    run_json: Callable[[list[str]], Any] | None = None,
 ) -> dict[str, Any] | None:
-    """Best-effort divergence check for a BLOCKED PR against the LIVE base tip.
+    """Best-effort divergence check for a PR head against the LIVE base tip.
 
-    GitHub's `mergeStateStatus` is a single-valued field: when a PR is both
-    genuinely behind its base AND blocked by another gate (failing required
-    checks, missing review, ...), GitHub reports BLOCKED and the BEHIND signal
-    is lost -- observed live, not documented. This recovers that signal from
-    GitHub's own compare endpoint so a stale-but-BLOCKED branch is not
-    permanently invisible to the refresh gate.
+    `mergeStateStatus` hides a behind head in two shapes. It is single-valued:
+    when a PR is both genuinely behind its base AND blocked by another gate
+    (failing required checks, missing review, ...), GitHub reports BLOCKED and
+    the BEHIND signal is lost -- observed live, not documented. And BEHIND is
+    reported only where the base requires branches to be up to date: loose
+    required checks let a behind head merge, so it reports CLEAN
+    (`reference/freshness.md` carries the source record). This recovers the
+    signal from GitHub's own compare endpoint for both.
+
+    `run_json` lets the merge gate keep its own gh seam, as `view_pr_fields`.
 
     Compares against the base ref NAME, never the PR's cached `baseRefOid`:
     that field lags once the base branch advances past the PR's last sync
@@ -807,18 +822,19 @@ def fetch_blocked_base_compare(
     `behind_by=11`, `status=diverged`, for the identical head commit). Only a
     ref NAME resolves to the live tip at query time.
 
-    Best-effort and fail-closed: any error returns None, and the caller falls
-    back to `not_reported_behind` -- identical to the no-fallback behavior. A
-    hiccup here must never fail the whole snapshot for that PR, and never
-    grants eligibility on uncertain data.
+    Best-effort: any error returns None. The snapshot then falls back to
+    `not_reported_behind` -- identical to the no-fallback behavior, so a hiccup
+    never fails the whole snapshot for that PR and never grants refresh
+    eligibility on uncertain data -- and the merge gate holds the PR instead.
     """
     if not base_ref or not re.fullmatch(r"[0-9a-fA-F]{7,40}", head_sha):
         return None
+    runner = gh_json if run_json is None else run_json
     try:
-        data = gh_json(
+        data = runner(
             ["api", f"repos/{repo}/compare/{quote(base_ref, safe='')}...{head_sha}"]
         )
-    except RuntimeError:
+    except (RuntimeError, json.JSONDecodeError):
         return None
     if not is_json_object(data):
         return None
@@ -832,6 +848,38 @@ def fetch_blocked_base_compare(
     ):
         return None
     return {"status": status, "ahead_by": ahead_by, "behind_by": behind_by}
+
+
+def compare_shows_behind(compare: Any) -> bool:
+    """Whether a `fetch_base_compare` result proves outstanding base commits."""
+    return (
+        is_json_object(compare)
+        and compare.get("status") in {"behind", "diverged"}
+        and isinstance(compare.get("behind_by"), int)
+        and compare["behind_by"] > 0
+    )
+
+
+def base_requires_merge_queue(repo: str, base_ref: str) -> bool | None:
+    """Whether a ruleset requires a merge queue on the base branch.
+
+    A queue tests the PR against the latest base itself, so a behind head on a
+    queue base needs no refresh (`reference/freshness.md` carries the source
+    record). An unreadable answer is None, not False: the refresh disarms
+    auto-merge and its push reruns CI and the AI reviews, so a transient read
+    failure must not start one on a queue base. The head reads not behind for
+    that cycle and the next snapshot reads the rules again.
+    """
+    try:
+        rules = gh_json(["api", f"repos/{repo}/rules/branches/{quote(base_ref, safe='')}"])
+    except (RuntimeError, json.JSONDecodeError):
+        return None
+    if not is_json_array(rules):
+        return None
+    return any(
+        is_json_object(rule) and rule.get("type") == "merge_queue"
+        for rule in json_array(rules)
+    )
 
 
 def flatten_paginated_items(

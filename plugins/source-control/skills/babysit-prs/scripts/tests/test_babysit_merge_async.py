@@ -30,6 +30,8 @@ from repo_config_fake import RepoConfigFake
 import babysit_merge as merge
 
 HEAD = "c" * 40
+# The base compare the freshness hold reads for an otherwise-ready PR.
+UP_TO_DATE = {"status": "ahead", "ahead_by": 1, "behind_by": 0}
 LAYER1 = "1" * 40
 LAYER2 = "2" * 40
 UUID = "3f2c9a1e-0000-4000-8000-000000000001"
@@ -142,6 +144,8 @@ class AsyncMergeHarness(unittest.TestCase):
             return _proc()
 
         def gh_json(args: list[str]) -> Any:
+            if args[0] == "api" and "/compare/" in args[1]:
+                return UP_TO_DATE
             if "merge-async/" in args[1]:
                 self.polls.append(args)
                 answer = poll_answers.pop(0)
@@ -1214,6 +1218,8 @@ class GateEvaluation(unittest.TestCase):
     def _evaluate(self, *, stacked: bool = True, number: int = 3) -> dict[str, Any]:
         def gh_json(args: list[str]) -> Any:
             self.calls.append(args)
+            if args[0] == "api" and "/compare/" in args[1]:
+                return UP_TO_DATE
             if args[:2] == ["pr", "view"]:
                 return self.views[int(args[2])]
             path = args[1]

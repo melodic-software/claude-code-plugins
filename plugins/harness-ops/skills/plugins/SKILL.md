@@ -181,10 +181,10 @@ Read-only dry run of what `sync` (and, where relevant, `converge`) would do. Run
 in [context/sync.md](context/sync.md) with every mutating CLI call replaced by "would run: `<command>`"
 in the report. Call `fleet-state.sh`, compute the same install/enable/divergence deltas, but issue
 **zero** `plugin install|update|uninstall|marketplace update` invocations. Predict `converge`'s
-per-plugin intent (context/converge.md's preview step) the same way, without executing it. State-file
-contents (`installed_plugins.json`, `known_marketplaces.json`, committed settings) are unchanged by
-an `audit` run, modulo any concurrent session or background `autoUpdate` sweep. Note that caveat in
-the report rather than asserting byte-identical files.
+per-plugin intent (context/converge.md's preview step) the same way, without executing it. An
+`audit` run writes no state file (`installed_plugins.json`, `known_marketplaces.json`, committed
+settings); a concurrent session or background `autoUpdate` sweep can still change them while it
+runs.
 
 **A read that sits beside a mutating call is still taken.** Step 1 is the case that matters: its
 pre-refresh `fleet-state.sh` snapshot is a read and `audit` takes it, and only the
@@ -225,16 +225,17 @@ counted variant, forward moves only); `Updated:` (forward moves and pairs flagge
 `(direction unknown)`) and `Downgraded:`; `Catalog regression:`; `Installed:` with the policy-`all`
 recurrence clause; `Normalized:`; `Enabled:`; the `Divergences:` split, led by this project's count
 when a root resolved; the self-update note when the sweep moved this plugin; the stale project
-records and cache content sections; the `Timing:` row (the marketplace total and its slowest step,
-with the clock's resolution; a measurement with no threshold); and `Action needed` (a behind `directory` checkout with the
+records and user-scope cache content sections; the `Timing:` row (the marketplace total, its slowest step,
+and the seconds outside the named steps, with the clock's resolution; a measurement with no threshold); and `Action needed` (a behind `directory` checkout with the
 `git -C <path> pull --ff-only` to run and the marketplace to resync, install and enable gaps, failed CLI calls, user-scope orphans, installs that left userConfig options unset,
 installs the CLI reported as disabled by default, plugins absent from the catalog (installed, or
 only enabled in settings),
 updated plugins whose installed build declares a monitor, reorder refusals, an unsorted
 project-scope map, withheld downgrades with both versions and the likely cause, and every error).
-In `audit` mode every mutating line carries the `would run:` prefix and `Would withhold:` sits
-beside `Would update:` whether or not a downgrade was found; `--allow-downgrade` is named as
-ignored. Each shape is pinned to a golden file under `scripts/fixtures/render/` by
+In `audit` mode every call `sync` would make carries the `would run:` prefix, and a remedy `sync`
+never runs itself (the `git -C … pull --ff-only`, a project-scope enable) reads the same as in
+`sync`, unprefixed. `Would withhold:` sits beside `Would update:` whether or not a downgrade was
+found; `--allow-downgrade` is named as ignored. Each shape is pinned to a golden file under `scripts/fixtures/render/` by
 `scripts/sync-run.test.sh`.
 
 Paste the render as printed. Do not restate a number, an id, a scope, or a count it already
@@ -349,7 +350,7 @@ through the Read tool, or on the Bash tool's environment carrying `CLAUDE_SKILL_
 | File | Load when |
 |---|---|
 | [context/sync.md](context/sync.md) | Running `sync` or `audit`; it is the step sequence both actions execute. |
-| [context/sync-install-enable.md](context/sync-install-enable.md) | Sync Steps 4 and 5, and only when the fresh pre-Step-4 re-read (not Step 1's report) has a non-empty `missing_from_user_install` or `missing_from_enabled`, or its Step 1 refresh failed. Both arrays are empty on a current fleet. |
+| [context/sync-install-enable.md](context/sync-install-enable.md) | A digest block has a non-empty `install_gap` or `enable_gap`, or `install_enable_deferred: true`. Both gaps are empty on a current fleet. |
 | [context/converge.md](context/converge.md) | Running `converge`, the only action that may rewrite a committed settings file. |
 | [context/stale-records-cache-content.md](context/stale-records-cache-content.md) | The digest's `stale_project_records.total` or `cache_content.stale_content` is above 0, or the user asks why either section reads as it does. |
 | [context/script-contracts.md](context/script-contracts.md) | A step misbehaves, `converge` needs an id list, or a caller other than `sync-run.sh` is about to invoke `fleet-state.sh`, `cache-content-check.sh`, or `normalize-enabled-plugins.sh`. |

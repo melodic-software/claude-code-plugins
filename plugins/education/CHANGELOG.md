@@ -3,6 +3,29 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.0] - 2026-10-04
+
+### Added
+
+- `illustrate` draws four more diagram kinds: `hub` (a center with branches off it), `timeline`
+  (dated points on a rail), `compare` (two to four columns side by side, stacking on a narrow
+  page), and `before-after` (two panels joined by one arrow). The record writes each as text: a
+  center line with bullets, `- <when>: <label>` lines, a markdown table, and two labeled lists.
+  Their labels share the 40-character cap. Two new evals grade the kind chosen for a hub and a
+  timeline ([#6176](https://github.com/melodic-software/claude-code-plugins/issues/6176)).
+
+### Changed
+
+- `illustrate` refuses an unknown diagram `kind`, or a `compare` outside two to four columns, with
+  exit 2 and a message naming the diagram, instead of drawing it as a flow. A missing `kind` is
+  still a flow. The skill and the page call the cards diagrams, not pictures.
+
+## [0.13.4] - 2026-10-04
+
+### Fixed
+
+- Shared `view-runtime.js` synced ([#6173](https://github.com/melodic-software/claude-code-plugins/issues/6173)): pages built by `/education:illustrate` no longer say they saved a file. The claude.ai artifact viewer blocks a download the page starts itself without an error the page can see, so the page reported a save that never happened. The "Save as file" button now appears only on a page opened from `file://` or served by the session bridge on `127.0.0.1`, and after a download attempt the status reads "If no file was saved, select the text below and copy it." "Copy reply" and the selectable payload text are unchanged.
+
 ## [0.13.3] - 2026-10-04
 
 ### Fixed
