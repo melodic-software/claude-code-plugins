@@ -54,9 +54,9 @@ SID="${FIELDS[0]}" TPATH="${FIELDS[1]}" pcwd="${FIELDS[2]}" active="${FIELDS[3]}
 SUB=0
 if [[ "${FIELDS[4]}" == SubagentStop ]]; then
   [[ "$AGENT" =~ ^[A-Za-z0-9_-]+$ && "$active" != true ]] || exit 0
-  SUB=1 JUDGE_AGENT_ONLY="$AGENT"
+  SUB=1 JUDGE_AGENT_ONLY="$AGENT" JUDGE_AGENT_SKIP=""
 else
-  JUDGE_AGENT_SKIP="${FIELDS[6]}"
+  JUDGE_AGENT_ONLY="" JUDGE_AGENT_SKIP="${FIELDS[6]}"
 fi
 testing::data_dir
 testing::pkey "${CLAUDE_PROJECT_DIR:-$pcwd}" "$TPATH" || exit 0

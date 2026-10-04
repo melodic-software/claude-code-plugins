@@ -565,8 +565,9 @@ judge::harvest_orphans() {
 # judge::reuse <file> <repo> <ledger dir> <keys>: give each key whose block
 # body is identical to one the session set already judged PASS that verdict,
 # and set KEYS_LEFT to the keys still to judge. The reuse key is the sha256 of
-# the body with the test's name taken out of its declaration line and every
-# whitespace character dropped, the judge model and effort, the judge prompt
+# the body with the test's name taken out of its declaration line and each
+# line's whitespace runs collapsed to one space and trimmed (so "a b" and "ab"
+# stay apart), the judge model and effort, the judge prompt
 # file's hash and the repository: the same body under the same judge. A FLAG
 # is never reused (its diff edits its own file), and a whole-file key has no
 # reuse key. RKEYS gets "<key-hash> <reuse key>" per key, for the ledger. A
@@ -606,7 +607,7 @@ judge::reuse() {
 # block's reuse key (judge::reuse) under MODEL and EFFORT, or "" for a
 # whole-file key or a block the file no longer holds.
 judge::rkey() {
-  local file="$1" o="$2" r="$3" name="$4" repo="$5" s e line body="" named=0 text=()
+  local file="$1" o="$2" r="$3" name="$4" repo="$5" s e line body="" named=0 text=() words=()
   RK=""
   [[ "$o" =~ ^[1-9][0-9]*$ && "$r" =~ ^([0-9]+)-([0-9]+)$ && -f "$file" ]] || return 0
   s="${BASH_REMATCH[1]}" e="${BASH_REMATCH[2]}"
@@ -621,9 +622,10 @@ judge::rkey() {
       line="${line/"$name"/}"
       named=1
     fi
-    body+="$line"
+    read -r -a words <<<"${line%$'\r'}"
+    body+="${words[*]}"$'\n'
   done
-  RK="$(printf '%s\n%s\n%s\n%s\n%s' "${body//[[:space:]]/}" "$MODEL" "$EFFORT" "${JUDGE_PSHA:-}" "$repo" | judge::sha -)"
+  RK="$(printf '%s\n%s\n%s\n%s\n%s' "$body" "$MODEL" "$EFFORT" "${JUDGE_PSHA:-}" "$repo" | judge::sha -)"
   RK="${RK#\\}" && RK="${RK:0:32}"
 }
 
@@ -696,7 +698,7 @@ judge::run() {
   # told stale (the file changed since) from made up.
   blob=""
   if [[ -n "$repo" ]]; then
-    blob="$(git -C "$repo" hash-object -- "$file" 2>/dev/null)"
+    blob="$(unset GIT_DIR GIT_WORK_TREE && git -C "$repo" hash-object --no-filters -- "$file" 2>/dev/null)"
     blob="${blob//$'\r'/}"
     if [[ ! "$blob" =~ ^[0-9a-f]{40,64}$ ]]; then
       blob=""
@@ -903,13 +905,15 @@ judge::validate() {
   # The quotes, trimmed, that the test file does not hold follow the fixed
   # fields; each must then be in a file of the repository the judge could
   # read (an implementation line is a FLAG's best evidence), else it was
-  # made up.
+  # made up. Every field drops NUL, the separator, so no model-written
+  # string can shift the fields after it.
   FIELDS=()
   while IFS= read -r -d '' p; do FIELDS+=("$p"); done < <(jq -j "${text[@]}" '
-    ((.evidence // []) | map(tostring | sub("^[[:space:]]+"; "") | sub("[[:space:]]+$"; "")) | map(select(. != ""))) as $e
-    | (.repo // "" | tostring), "\u0000", (.verdict // "" | tostring), "\u0000",
-      (if ($e | length) == 0 then "none" else "some" end), "\u0000", (.diff // "" | tostring), "\u0000",
-      (.origin // .verdict // "" | tostring), "\u0000", (.blob // "" | tostring), "\u0000",
+    def s: tostring | gsub("\u0000"; "");
+    ((.evidence // []) | map(s | sub("^[[:space:]]+"; "") | sub("[[:space:]]+$"; "")) | map(select(. != ""))) as $e
+    | (.repo // "" | s), "\u0000", (.verdict // "" | s), "\u0000",
+      (if ($e | length) == 0 then "none" else "some" end), "\u0000", (.diff // "" | s), "\u0000",
+      (.origin // .verdict // "" | s), "\u0000", (.blob // "" | s), "\u0000",
       (if (.reused_from | type) == "object" then "reused" else "" end), "\u0000",
       ($e[] | select(. as $q | $text | contains($q) | not) | (., "\u0000"))' <<<"$json" 2>/dev/null)
   ((${#FIELDS[@]} >= 7)) || return 0

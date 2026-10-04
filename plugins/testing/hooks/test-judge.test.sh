@@ -379,7 +379,7 @@ for mode in commentdiff realdiff; do
 done
 
 # Verdict reuse, within the session set: a block whose body (its name taken
-# out, whitespace dropped) matches one judged PASS under the same judge is
+# out, whitespace runs collapsed) matches one judged PASS under the same judge is
 # given that verdict without a run, recording where it came from; a body
 # judged FLAG is judged again, since a diff edits one file.
 transcript ru claude-sonnet-5
@@ -1013,6 +1013,21 @@ check "judge text cannot add a heading or a findings row" \
 check "the diff fence is longer than any backtick run in the diff" 'grep -q "^\`\`\`\`\`\`diff$" <<<"$v5"'
 check "a verdict that failed validation shows its reason, not its evidence, source or diff" \
   '[[ "$v5" == *"a quoted line is in no file of the repository"* && "$v5" != *"made up line"* && "$v5" != *SECRET-SOURCE* && "$v5" != *SECRET-DIFF* ]]'
+# 3. A NUL in the judge's diff cannot shift validate's fields to fake an empty
+# diff on a reused FLAG and skip the diff checks.
+jq -cn --arg f "$S5" --arg r "$REPO" '{file: $f, repo: $r, name: "sec5", ordinal: 1, start: 3, end: 5, verdict: "FLAG",
+  evidence: ["test('"'"'sec5'"'"', () => {"], source: "s", diff: "\u0000not a diff\u0000\u0000reused\u0000", reason: "",
+  model: "m", effort: "e"}' >"$V5/k3.json"
+v5n="$(V5="$V5" lib linux-gnu 'judge::validate "$V5/k3.json"; printf "%s" "$RELAY"')"
+check "a NUL in the diff does not pass a FLAG as reused: the diff is still checked" \
+  '[[ "$(jq -c "[.verdict, .reason_kind]" <<<"$v5n")" == "[\"UNKNOWN\",\"diff-not-apply\"]" ]]'
+# The reuse key keeps a space inside a string literal: "a b" and "ab" are two
+# bodies, not one.
+printf '%s\n' "test('ws', () => {" "  expect(f()).toBe(\"a b\");" "});" >"$TMP/ws-space.test.ts"
+printf '%s\n' "test('ws', () => {" "  expect(f()).toBe(\"ab\");" "});" >"$TMP/ws-none.test.ts"
+rk_of() { F="$1" lib linux-gnu 'MODEL=m EFFORT=e; judge::rkey "$F" 1 1-3 ws /r; printf "%s" "$RK"'; }
+check "a space inside a string literal changes the reuse key" \
+  '[[ -n "$(rk_of "$TMP/ws-space.test.ts")" && "$(rk_of "$TMP/ws-space.test.ts")" != "$(rk_of "$TMP/ws-none.test.ts")" ]]'
 # 4. A test file in no git repository is not judged: the judge's read scope
 # is the repository.
 transcript sec6 claude-sonnet-5
