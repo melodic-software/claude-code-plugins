@@ -106,6 +106,7 @@ docs/out-of-scope/*.md
 docs/upstream/claude-code-mods/*.md
 docs/upstream/claude-code-mods/research-2026-09-19/*.md
 docs/upstream/tlaplus-agentskills.md
+docs/upstream/cursor-pstack.md
 
 # Plugin instruction surfaces, purged in the campaign's per-plugin shards. The
 # skills glob is intentionally open: a NEW skill added to one of these plugins
