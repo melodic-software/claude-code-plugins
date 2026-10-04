@@ -85,9 +85,9 @@ jobs:
         || steps.gate.outputs.proceed != 'true' && steps.gate.outputs.reason
         || '' }}
       can-commit: ${{ steps.config.outputs.can-commit }}
-      applies: ${{ steps.config.outputs.applies }}
-      # A gate skill succeeds only on a `pass` verdict.
-      act-outcome: >-
+      # A gate skill succeeds only on a `pass` verdict. The verdict step reuses
+      # this expression through the anchor.
+      act-outcome: &act-outcome >-
         ${{ steps.act-skill.outcome == 'success' && steps.config.outputs.gating == 'gate'
         && (steps.skill-verdict.outcome == 'success' && 'success' || 'failure')
         || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
@@ -545,11 +545,7 @@ jobs:
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
           CONFIG_OUTCOME: ${{ steps.config.outcome }}
           SKIP_REASON: ${{ steps.config.outputs.skip-reason || steps.act-script.outputs.skip-reason }}
-          ACT_OUTCOME: >-
-            ${{ steps.act-skill.outcome == 'success' && steps.config.outputs.gating == 'gate'
-            && (steps.skill-verdict.outcome == 'success' && 'success' || 'failure')
-            || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
-            || steps.act-script.outcome }}
+          ACT_OUTCOME: *act-outcome
           DIRTY_TREE: ${{ steps.tree.outputs.dirty-tree }}
           VERDICT_DIR: ${{ runner.temp }}/verdict
         run: |

@@ -106,7 +106,7 @@ Holds `contents: read` and `pull-requests: read`, and no other permission; it ne
 A stacked PR, one whose base is not the default branch, gets a failure check from step 4. Retarget
 it to the default branch to run its lanes.
 
-Its outputs are `base-sha`, `head-sha`, `pr-number`, `gate-reason`, `can-commit`, `applies` and
+Its outputs are `base-sha`, `head-sha`, `pr-number`, `gate-reason`, `can-commit` and
 `act-outcome`. All but `act-outcome` are outputs of steps that ran before any head code:
 `gate-reason` is the kill switch's reason if it stopped, else the trigger's if it stopped, else
 empty; `head-sha` is the trigger gate's; `base-sha` is set only by step 4, so it is always on the
