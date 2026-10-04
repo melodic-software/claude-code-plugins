@@ -3,6 +3,12 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.11] - 2026-10-04
+
+### Fixed
+
+- **Prototype successors follow the design-then-plan order ([#6278](https://github.com/melodic-software/claude-code-plugins/issues/6278)).** `/prototype:pressure-test` no longer routes a holding model straight to implementation, which contradicted `/planning:plan`; it routes to `/planning:design` when the model settles a type, contract, or boundary and to `/planning:plan` otherwise. `/prototype:explore-directions` does the same for a winning direction.
+
 ## [0.13.10] - 2026-10-03
 
 ### Changed
