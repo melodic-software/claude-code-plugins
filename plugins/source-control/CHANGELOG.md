@@ -3,6 +3,13 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.79.8] - 2026-10-04
+
+### Fixed
+
+- **The babysit merge gate holds a `CLEAN` head that is behind its base ([#5955](https://github.com/melodic-software/claude-code-plugins/issues/5955)).**
+  Under loose required status checks GitHub reports a behind head `CLEAN`, and the gate compared the head against its base only when `mergeStateStatus` was `BLOCKED`, so it could squash-merge a behind head and drop base commits. Once a PR is otherwise ready (or held only by running checks), the gate now compares its head against the live base and holds it while behind, or while the compare cannot be read, and reports the result as `baseFreshness`. A base with strict required checks or a merge queue makes no compare: GitHub reports `BEHIND` on the first, and the queue tests the merged result on the second. The queue snapshot reports the same `CLEAN` or `HAS_HOOKS` head as `branch_freshness.state == "behind"` so the guarded refresh can clear the hold, reading the base's rules only for a behind head to leave a queue base as before.
+
 ## [0.79.7] - 2026-10-04
 
 ### Fixed

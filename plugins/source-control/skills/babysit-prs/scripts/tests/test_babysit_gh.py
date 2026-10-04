@@ -697,6 +697,77 @@ class ViewPrRestFallbackTests(unittest.TestCase):
         self.assertIn("404", str(caught.exception))
 
 
+class ViewPrBaseCompareTests(unittest.TestCase):
+    """`view_pr` compares a BLOCKED or mergeable head against the live base, and
+    reads the base's merge-queue rule only for a mergeable head that is behind."""
+
+    HEAD = "a" * 40
+    BEHIND = {"status": "behind", "ahead_by": 0, "behind_by": 2}
+    CURRENT = {"status": "ahead", "ahead_by": 1, "behind_by": 0}
+
+    def _view(
+        self,
+        merge_state: str,
+        compare: dict[str, Any],
+        rules: list[dict[str, Any]] | None = None,
+    ) -> tuple[dict[str, Any], list[str]]:
+        paths: list[str] = []
+
+        def gh_json(args: list[str]) -> Any:
+            if args[:2] == ["pr", "view"]:
+                return {
+                    "mergeStateStatus": merge_state,
+                    "baseRefName": "main",
+                    "headRefOid": self.HEAD,
+                }
+            paths.append(args[1])
+            if "/compare/" in args[1]:
+                return compare
+            if "/rules/branches/" in args[1]:
+                return rules or []
+            raise AssertionError(f"unexpected gh_json call: {args}")
+
+        with (
+            mock.patch.object(gh, "gh_json", side_effect=gh_json),
+            mock.patch.object(gh, "repository_is_archived", return_value=False),
+        ):
+            return gh.view_pr("owner/repo", 7), paths
+
+    def test_a_clean_head_behind_a_queue_less_base_carries_both_reads(self) -> None:
+        data, paths = self._view("CLEAN", self.BEHIND)
+        self.assertEqual(data["_base_compare"], self.BEHIND)
+        self.assertIs(data["_base_merge_queue"], False)
+        self.assertEqual(
+            paths,
+            [
+                f"repos/owner/repo/compare/main...{self.HEAD}",
+                "repos/owner/repo/rules/branches/main",
+            ],
+        )
+
+    def test_a_queue_rule_is_recorded(self) -> None:
+        data, _ = self._view("HAS_HOOKS", self.BEHIND, [{"type": "merge_queue"}])
+        self.assertIs(data["_base_merge_queue"], True)
+
+    def test_an_up_to_date_clean_head_pays_no_rules_read(self) -> None:
+        data, paths = self._view("CLEAN", self.CURRENT)
+        self.assertNotIn("_base_merge_queue", data)
+        self.assertEqual(paths, [f"repos/owner/repo/compare/main...{self.HEAD}"])
+
+    def test_a_blocked_head_keeps_its_queue_blind_fallback(self) -> None:
+        data, paths = self._view("BLOCKED", self.BEHIND)
+        self.assertEqual(data["_base_compare"], self.BEHIND)
+        self.assertNotIn("_base_merge_queue", data)
+        self.assertEqual(len(paths), 1)
+
+    def test_other_merge_states_make_no_compare(self) -> None:
+        for state in ("BEHIND", "DIRTY", "UNSTABLE", "UNKNOWN", ""):
+            with self.subTest(state=state):
+                data, paths = self._view(state, self.BEHIND)
+                self.assertNotIn("_base_compare", data)
+                self.assertEqual(paths, [])
+
+
 class PaginatedShapeTests(unittest.TestCase):
     """`gh api --paginate --slurp` shapes each page like its own endpoint: an
     array per page for an array endpoint, an object per page for an object

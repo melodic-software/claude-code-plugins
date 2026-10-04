@@ -127,7 +127,7 @@ class BranchFreshnessTests(unittest.TestCase):
     def test_blocked_with_compare_confirmed_divergence_is_behind(self) -> None:
         pr = make_pr(
             mergeStateStatus="BLOCKED",
-            _blocked_base_compare={"status": "behind", "behind_by": 3},
+            _base_compare={"status": "behind", "behind_by": 3},
         )
         result = delta.compute_branch_freshness(pr)
         self.assertEqual(result["state"], "behind")
@@ -136,6 +136,50 @@ class BranchFreshnessTests(unittest.TestCase):
     def test_blocked_without_compare_signal_is_not_reported_behind(self) -> None:
         result = delta.compute_branch_freshness(make_pr(mergeStateStatus="BLOCKED"))
         self.assertEqual(result["state"], "not_reported_behind")
+
+    def test_clean_head_behind_a_queue_less_base_is_behind(self) -> None:
+        for state in ("CLEAN", "HAS_HOOKS"):
+            with self.subTest(state=state):
+                pr = make_pr(
+                    mergeStateStatus=state,
+                    _base_compare={"status": "diverged", "behind_by": 4},
+                    _base_merge_queue=False,
+                )
+                result = delta.compute_branch_freshness(pr)
+                self.assertEqual(result["state"], "behind")
+                self.assertEqual(result["source"], "compare_api")
+
+    def test_clean_head_behind_a_queue_base_is_not_reported_behind(self) -> None:
+        pr = make_pr(
+            _base_compare={"status": "behind", "behind_by": 4},
+            _base_merge_queue=True,
+        )
+        result = delta.compute_branch_freshness(pr)
+        self.assertEqual(result["state"], "not_reported_behind")
+
+    def test_clean_head_up_to_date_is_not_reported_behind(self) -> None:
+        pr = make_pr(_base_compare={"status": "ahead", "behind_by": 0})
+        result = delta.compute_branch_freshness(pr)
+        self.assertEqual(result["state"], "not_reported_behind")
+
+    def test_unstable_head_ignores_a_compare(self) -> None:
+        pr = make_pr(
+            mergeStateStatus="UNSTABLE",
+            _base_compare={"status": "behind", "behind_by": 4},
+        )
+        result = delta.compute_branch_freshness(pr)
+        self.assertEqual(result["state"], "not_reported_behind")
+
+    def test_clean_head_behind_routes_to_the_refresh_not_the_gate(self) -> None:
+        pr = make_pr(
+            _base_compare={"status": "behind", "behind_by": 4},
+            _base_merge_queue=False,
+        )
+        result = classify(pr, make_prev())
+        self.assertIn(
+            "branch behind main; reported CLEAN (confirmed via base compare)",
+            result["blockers"],
+        )
 
 
 class MutationPolicyTests(unittest.TestCase):

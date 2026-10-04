@@ -28,7 +28,7 @@ from babysit_classify import (
     normalize_self_logins,
 )
 from babysit_feedback import collect_feedback, human_stop_from_feedback
-from babysit_gh import find_open_prs_for_head_ref
+from babysit_gh import compare_shows_behind, find_open_prs_for_head_ref
 from babysit_review_trigger import (
     DEFAULT_REVIEW_TRIGGER_CONFIG,
     ReviewTriggerConfig,
@@ -233,20 +233,23 @@ def validated_stuck_check_age_seconds(value: float) -> float:
 def compute_branch_freshness(pr: dict[str, Any]) -> dict[str, Any]:
     """Classify branch staleness from `mergeStateStatus`, with one fallback.
 
-    Pure function: the only I/O this depends on (the BLOCKED-branch compare)
-    happens once, in `view_pr`, and is read here off `pr["_blocked_base_compare"]`.
-    This keeps classification network-free and keeps `view_pr` the single choke
-    point both the snapshot orchestrator and the branch-refresh CLI's
-    revalidation already call, so a live re-check gets the same enrichment for
-    free.
+    Pure function: the only I/O this depends on (the base compare, and for a
+    behind CLEAN/HAS_HOOKS head the merge-queue rules read) happens once, in
+    `view_pr`, and is read here off `pr["_base_compare"]` and
+    `pr["_base_merge_queue"]`. This keeps classification network-free and keeps
+    `view_pr` the single choke point both the snapshot orchestrator and the
+    branch-refresh CLI's revalidation already call, so a live re-check gets the
+    same enrichment for free.
 
-    Falls back to the compare-confirmed signal only when `mergeStateStatus` is
-    BLOCKED and the compare proves outstanding base commits (`behind_by > 0`,
-    `status` in {behind, diverged}). Every other cause of BLOCKED (a real merge
-    conflict, a pending human review, ...) is untouched by this function -- it
-    only ever flips BLOCKED to "behind"; conflict, human-stop, lease, unique
-    head-ref, and the per-source-SHA refresh ledger are all still enforced
-    independently by the caller.
+    Falls back to the compare-confirmed signal only when the compare proves
+    outstanding base commits (`behind_by > 0`, `status` in {behind, diverged})
+    and `mergeStateStatus` is BLOCKED, or CLEAN/HAS_HOOKS on a base that does not
+    require a merge queue (a queue tests the PR against the latest base itself).
+    Every other cause of BLOCKED (a real merge conflict, a pending human review,
+    ...) is untouched by this function -- it only ever flips those states to
+    "behind"; conflict, human-stop, lease, unique head-ref, and the
+    per-source-SHA refresh ledger are all still enforced independently by the
+    caller.
     """
     merge_state = str(pr.get("mergeStateStatus") or "").upper()
     mergeable = str(pr.get("mergeable") or "").upper()
@@ -256,15 +259,12 @@ def compute_branch_freshness(pr: dict[str, Any]) -> dict[str, Any]:
         return {"state": "behind", "source": "mergeStateStatus"}
     if merge_state in {"", "UNKNOWN"}:
         return {"state": "unknown", "source": "mergeStateStatus"}
-    if merge_state == "BLOCKED":
-        compare = pr.get("_blocked_base_compare")
-        if (
-            is_json_object(compare)
-            and compare.get("status") in {"behind", "diverged"}
-            and isinstance(compare.get("behind_by"), int)
-            and compare["behind_by"] > 0
-        ):
-            return {"state": "behind", "source": "compare_api", "compare": compare}
+    compare = pr.get("_base_compare")
+    if compare_shows_behind(compare) and (
+        merge_state == "BLOCKED"
+        or (merge_state in {"CLEAN", "HAS_HOOKS"} and not pr.get("_base_merge_queue"))
+    ):
+        return {"state": "behind", "source": "compare_api", "compare": compare}
     return {"state": "not_reported_behind", "source": "mergeStateStatus"}
 
 

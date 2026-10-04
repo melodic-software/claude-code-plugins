@@ -438,7 +438,7 @@ class ValidateCurrentCandidateFreshnessTests(unittest.TestCase):
     def test_blocked_head_masking_behind_is_rejected(self) -> None:
         pr = {"state": "OPEN", "headRefOid": HEAD, "isDraft": False,
               "mergeStateStatus": "BLOCKED", "mergeable": "MERGEABLE",
-              "_blocked_base_compare": {"status": "behind", "behind_by": 2}}
+              "_base_compare": {"status": "behind", "behind_by": 2}}
         with _entered(_candidate_patches(pr)[:2]):
             with self.assertRaises(RuntimeError) as ctx:
                 request_review.validate_current_candidate(
