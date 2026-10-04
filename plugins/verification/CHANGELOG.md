@@ -3,6 +3,12 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Added
+
+- **`/verification:confirm` picks the check that proves each kind of change.** `context/outcome.md` gains a check-to-change table (storage: read the written value back; parser or migration: replay a saved input; command-line tool: run the real command; user interface: drive the edited screens in the live app; performance: before and after through `/verification:measure`), pointed at from Stage 2 step 1, and a new Gotcha says to doubt the observation before the code when a check fails.
+
 ## [0.7.4] - 2026-10-03
 
 ### Changed

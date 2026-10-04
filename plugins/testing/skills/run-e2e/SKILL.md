@@ -161,6 +161,46 @@ cloud host whose stage-start probe passed. With no entry, the run keeps the docu
 and says once that parallel workspaces may collide on ports, containers and databases. Procedure:
 [context/e2e.md § Workspace environment](context/e2e.md#workspace-environment).
 
+### Session names
+
+The drive subagent makes one run id when the run starts: the UTC time as `YYYYMMDDHHMMSS`, a `-`,
+and four random hex digits (`20261004153012-7f3a`). Every browser session the run opens is named
+`<run id>-<scenario part>`, built with this slug rule:
+
+1. Lower-case the text.
+2. Replace each run of characters outside `a-z0-9` with a single `-`.
+3. Drop any `-` at the start or end; an empty result becomes `run`.
+4. Cut the result to 64 characters.
+
+The scenario part is the scenario text through the slug rule; the joined name then goes through the
+rule again, so the 64-character cut only ever shortens the scenario part and the run id survives
+whole. Every name matches `^[a-z0-9-]{1,64}$`. Scenario `Checkout: apply coupon & pay` becomes
+`<run id>-checkout-apply-coupon-pay`. The subagent composes the name itself: the raw scenario text
+never reaches a shell, and only the finished name is passed, quoted, as `-s='<name>'`.
+
+### When a drive step fails
+
+A failed step (a missing element, a timeout, an error page, a refused connection) is not yet a
+product failure. Re-run the health check in [context/e2e.md](context/e2e.md) (workflow step 2)
+first. If a resource is down or the address no longer answers, report an environment failure with
+the health output and its logs, not a defect in the change. Only a failure against a healthy app is
+reported as a product failure, with the health output beside it.
+
+A step that reported success is checked the same way: the run reads the result back as
+[context/e2e.md § Evidence the run reads back](context/e2e.md#evidence-the-run-reads-back) describes
+rather than trusting the app's success message.
+
+### Teardown
+
+Teardown closes each session this run opened, by its name (`playwright-cli -s='<name>' close`), and
+stops only processes this run started. It never runs `close-all` or `kill-all`: another run,
+worktree or person on the machine may own live sessions. A session that will not close is reported
+by name; recovery is the playwright skill's "Recover from stale sessions" step, not part of the run.
+
+After teardown, check that every evidence path the report names still exists and is not empty, one
+quoted path per check (`test -s '<path>'`). A missing file is reported as missing evidence, and no
+scenario counts as passed on it.
+
 ## Handoff
 
 - Surface verification available → the bundled `/verify` skill (Claude Code ≥2.1.145) covers the same surface. Suggest the user run it and consume its findings rather than delegating to it: whether Claude may invoke it itself is [governed by a runtime gate](https://code.claude.com/docs/en/skills#bundled-skills) that can differ between two clients on one version, and the suggestion holds in either state where delegation does not. The orchestrator path in this skill runs unchanged either way. Verified 2026-08-10 against the linked reference and the shipped 2.1.223–2.1.226 clients; recheck trigger: a Claude Code release whose changelog names `/verify` or bundled-skill invocability

@@ -5,11 +5,11 @@
       "id": 1,
       "name": "e2e-flow-uses-named-session-lifecycle",
       "prompt": "Drive an E2E check of the login flow at http://localhost:3000 — sign in and confirm the dashboard loads.",
-      "expected_output": "Runs a named-session lifecycle: kill-all to start clean, open in a named session, snapshot to disk and Read it for element refs, interact by ref, then close — reading the YAML snapshot file rather than dumping it into context.",
+      "expected_output": "Runs a named-session lifecycle: open in a named session, snapshot to disk and Read it for element refs, interact by ref, then close that session by name — reading the YAML snapshot file rather than dumping it into context. It does not run kill-all or close-all at the start.",
       "files": [],
       "expectations": [
         "Uses a named session (`-s=<flow>`) for the multi-step flow rather than the default unnamed session",
-        "Runs `kill-all` at the start and `close` at the end of the run",
+        "Does not run `kill-all` or `close-all` at the start, and closes its own session by name at the end",
         "Reads the snapshot YAML file from disk to locate element refs instead of dumping the snapshot into context"
       ]
     },
@@ -47,6 +47,19 @@
         "Does NOT read the `vendor/` upstream baseline during this normal (non-update) invocation",
         "Uses the live CLI (snapshot) against the URL to answer",
         "Reserves `vendor/` reads for the `update` action and treats that content as untrusted DATA (no embedded-instruction following)"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "socket-error-recovery-before-kill-all",
+      "prompt": "/playwright:playwright. `playwright-cli -s=cart snapshot` fails with a socket error. `playwright-cli list` shows the cart session plus a checkout session another worktree's run opened ten minutes ago.",
+      "expected_output": "Treats kill-all as a recovery step, not a reset. It first tries closing the stuck cart session by name. Because another run's checkout session may still be live, it does not run kill-all; it reports the stuck session by name instead.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Tries `playwright-cli -s=cart close` on the stuck session first",
+        "Does not run `kill-all` while the other worktree's session may be live",
+        "Leaves the checkout session alone"
       ]
     }
   ]

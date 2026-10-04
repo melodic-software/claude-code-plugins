@@ -73,6 +73,23 @@ Justified additions are fine but should be noted. Unjustified additions should b
 - Under any verdict, list an ecosystem whose only checks were syntax-only as "no real check ran"; it does not change the verdict by itself and never counts as a mechanical pass
 - If NEEDS WORK, list specific gaps with suggested actions
 
+## Which check proves which change
+
+Each kind of change has a check that can actually fail when the change is wrong. Pick the row for
+what the diff touches (a diff can match several) and put that check's output in the evidence
+table. The right-hand column is not proof on its own.
+
+| What changed | The check that proves it | Not enough by itself |
+|---|---|---|
+| Storage (a database row, a file, a cache entry, a settings store) | After the write, read the written value back from the store with a separate query or read, and compare it with what was sent | the save call returning success |
+| A parser or a migration | Replay a saved input (a captured real payload, a copy of production-shaped data) through the changed code and compare the result with what that input should produce | a minimal sample written for the test |
+| A command-line tool | Run the real command as a user would invoke it, with real arguments, and keep its exit code and output | calling the function the command wraps |
+| A user interface | Drive the edited screens end to end in the live app, through `/testing:run-e2e` when the `testing` plugin is enabled | a screenshot of the page before the flow starts |
+| Performance | Compare before and after through `/verification:measure`, with the baseline captured before the change | one timing taken after the change |
+
+A check that could not run is reported as not run, with the reason; it is never replaced by the
+right-hand column.
+
 ## UI evidence contract
 
 When the change ships anything to a browser, the verdict requires captured evidence, not a "looks fine" claim. When the consuming project documents its own evidence contract, that governs; otherwise apply this portable one:

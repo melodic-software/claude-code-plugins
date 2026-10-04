@@ -24,7 +24,6 @@ Requires `playwright-cli` on PATH (`npm install -g @playwright/cli`). If it is m
 ## Quick start (90% of use)
 
 ```bash
-playwright-cli kill-all                              # start clean (no stale sessions)
 playwright-cli -s=<flow> open <url>                  # named session, headless by default
 playwright-cli -s=<flow> snapshot                    # writes YAML with element refs (e1, e2, ...)
 playwright-cli -s=<flow> click e42                   # interact by ref
@@ -39,12 +38,26 @@ Read the YAML snapshot file directly to locate element refs. Do not dump it into
 ## Conventions
 
 - **Always use named sessions** (`-s=<flow>`) for multi-step work. Default (unnamed) sessions are hard to isolate when things go sideways
-- **`kill-all` at the start** of a fresh E2E run guards against stale daemon state from prior sessions
-- **`close` at the end**. Don't leave zombie browsers
+- **Give each run its own session names** and **`close` each of them at the end**, by name. Don't leave zombie browsers, and don't close sessions the run did not open
 - **`--headed` only when the user explicitly wants to observe.** On Windows, headed browsers spawn in the background and don't auto-focus. See [reference/windows-quirks.md](reference/windows-quirks.md)
 - **Artifacts land in `.playwright-cli/` relative to CWD at command time.** Add `.playwright-cli/` to the project's `.gitignore` if it isn't already. For meaningful artifacts (evidence for PRs, regression baselines), pass `--filename=<descriptive>.png`; let timestamp-named snapshots pile up as throwaway intermediate state
 - **Use element refs from snapshots** (`e15`, `e37`), not CSS selectors. Snapshots use accessibility roles, which survive cosmetic UI changes
 - **Judge visual questions from the screenshot itself.** The snapshot YAML carries roles and text, not layout or color. For "does the modal cover the button" or "does the chart match the table", Read the screenshot file and answer that one specific question from the image; share the file path as evidence rather than retyping what it shows
+
+### Recover from stale sessions
+
+`playwright-cli kill-all` force-stops every playwright-cli daemon this user runs on the machine,
+including sessions another run, worktree or person still has open. It is a recovery step, never a
+way to begin a run:
+
+1. Reach for it only when a command fails with a socket error or `playwright-cli list` shows a
+   daemon that no longer responds.
+2. First try `playwright-cli -s=<name> close` on the stuck session.
+3. Run `kill-all` only when no other run on the machine may be live. An unattended run cannot know
+   that, so it reports the stuck session by name instead.
+
+A normal run closes its own named sessions and leaves every other session alone. See
+[reference/sessions.md](reference/sessions.md) for the session lifecycle commands.
 
 ## Progressive disclosure map
 

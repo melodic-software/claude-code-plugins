@@ -129,6 +129,24 @@ When a run produces a recording or drives a named session, record its artifacts 
 | Session ID | the playwright CLI / browser session name the run drove |
 | Transcript pointer | the run's evidence output: console/network capture and snapshot files |
 
+## Evidence the run reads back
+
+A pass rests on what the run observed in the system, not on what the app said about itself.
+
+- **Go through the door a person uses.** Drive the screens, commands or public API a user reaches.
+  A test-only endpoint, a seeding route or an internal setter skips the code under change, so a
+  scenario that needs one is refused for the user path and reported as not driven.
+- **Fetch the effect from where it lands.** After an action stores or sends something (a saved
+  address, an uploaded avatar, a queued email, a webhook call), read it back through a separate
+  request, query or file read. A "Saved" banner or a `201` is the app's claim; the read-back is the
+  evidence, and the report quotes it.
+- **Stub only what production already keeps at arm's length.** A payment processor or SMS gateway
+  the app reaches through its own client may be faked at that client. The app's own database,
+  services and the code under change run for real.
+- **Watch what a dry run touches.** A `--dry-run`, preview or sandbox flag is a claim too. While it
+  runs, watch the files, network calls and git refs it could change, and record what it did touch
+  instead of trusting the flag's name.
+
 ## E2E Testing Workflow
 
 ### 1. Plan what to verify
@@ -151,23 +169,23 @@ For backend changes, verify endpoints directly via `curl` or Playwright CLI:
 
 ```bash
 curl -s http://localhost:{port}/health | jq .
-playwright-cli -s=test open http://localhost:{port}/health
+playwright-cli -s=<session> open http://localhost:{port}/health
 ```
 
 ### 4. Test UI flows (if applicable)
 
-Navigate to the app and interact using Playwright CLI in a named session (keeps browser alive across commands):
+Navigate to the app and interact using Playwright CLI in a named session (keeps browser alive across commands). `<session>` is the run's own session name, built as the Session names section of `SKILL.md` defines; the run closes only the sessions it opened:
 
 ```bash
-playwright-cli -s=uitest open http://localhost:{port}      # opens browser, emits snapshot file path
-playwright-cli -s=uitest snapshot                          # refresh accessibility tree (YAML with element refs: e37, e48, ...)
-playwright-cli -s=uitest click e48                         # interact by element ref from snapshot
-playwright-cli -s=uitest fill e37 "test input"             # fill text into an input
-playwright-cli -s=uitest press Enter                       # keyboard
-playwright-cli -s=uitest screenshot                        # writes PNG to .playwright-cli/ (not context)
-playwright-cli -s=uitest console                           # summarize console messages
-playwright-cli -s=uitest network                           # list network requests
-playwright-cli -s=uitest close                             # close session
+playwright-cli -s=<session> open http://localhost:{port}   # opens browser, emits snapshot file path
+playwright-cli -s=<session> snapshot                       # refresh accessibility tree (YAML with element refs: e37, e48, ...)
+playwright-cli -s=<session> click e48                      # interact by element ref from snapshot
+playwright-cli -s=<session> fill e37 "test input"          # fill text into an input
+playwright-cli -s=<session> press Enter                    # keyboard
+playwright-cli -s=<session> screenshot                     # writes PNG to .playwright-cli/ (not context)
+playwright-cli -s=<session> console                        # summarize console messages
+playwright-cli -s=<session> network                        # list network requests
+playwright-cli -s=<session> close                          # close session
 ```
 
 Artifacts land in `.playwright-cli/` **relative to CWD when each command runs** (gitignored). Read the YAML snapshot file directly to locate element refs. Do not dump it into context blindly; keep the token savings.

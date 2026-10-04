@@ -97,6 +97,31 @@
         "Does not claim or quantify an improvement from this skill's own evidence",
         "Notes the baseline is captured at planning time and compared by /verification:measure"
       ]
+    },
+    {
+      "id": 11,
+      "name": "check-matches-parser-and-storage-change",
+      "prompt": "/verification:confirm outcome. The diff rewrites the CSV import parser and changes how imported contacts are written to the contacts table. Unit tests pass.",
+      "expected_output": "Uses the check-to-change table in context/outcome.md: the parser change is proven by replaying a saved input (a captured real CSV file) through the changed parser, and the storage change by reading the written contact rows back from the table after the import. Passing unit tests and a success response from the import are not enough on their own.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Maps the parser change to replaying a saved input through the changed parser",
+        "Maps the storage change to reading the written rows back from the table",
+        "Does not treat the import's success response as proof the rows were stored"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "failed-check-doubts-observation-first",
+      "prompt": "/verification:confirm fix. After the fix, the browser still shows the old wrong total on the cart page, although the diff clearly changes the total calculation.",
+      "expected_output": "Before concluding the fix failed, the skill rules out the observation: a stale build, a cached page, the wrong port or instance. It observes again by a second route (a fresh build, a hard reload, the API response) and only counts the result against the fix if it survives that.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Checks for a stale build, cached page or wrong instance before calling the fix failed",
+        "Observes the total again by a second route before rendering the verdict"
+      ]
     }
   ]
 }
