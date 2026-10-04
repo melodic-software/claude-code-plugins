@@ -240,6 +240,15 @@ hook::_file_key_to() {
   printf -v "$1" '%s' "$__hu_fk"
 }
 
+# hook::_claim <path>: create <path> only if absent, atomically (noclobber), so
+# of two hooks racing on one marker exactly one wins. 0 when this call created
+# it, 1 when it already existed, 2 when it could not be written.
+hook::_claim() {
+  (set -C && : >"$1") 2>/dev/null && return 0
+  [[ -e "$1" ]] && return 1
+  return 2
+}
+
 # Skip-notice latch: one notice per channel, never renewed. Returns 0 when
 # either channel is due, 1 when neither is, and sets:
 #   HOOK_NOTICE_TO_MODEL  1 on the first call for <key> in this (session, agent)
@@ -271,16 +280,10 @@ hook::notice_once() {
   hook::session_agent_to session agent "${2:-}"
   hook::_state_dir_to dir skip-notices || return 0
   local model="$dir/${key}.${session}.${agent}" user="$dir/${key}.${session}.user"
-  if [[ -f "$model" ]]; then
-    HOOK_NOTICE_TO_MODEL=0
-  else
-    : 2>/dev/null >"$model" || return 0
-  fi
-  if [[ -f "$user" ]]; then
-    HOOK_NOTICE_TO_USER=0
-  else
-    : 2>/dev/null >"$user" || return 0
-  fi
+  hook::_claim "$model"
+  case $? in 1) HOOK_NOTICE_TO_MODEL=0 ;; 2) return 0 ;; esac
+  hook::_claim "$user"
+  case $? in 1) HOOK_NOTICE_TO_USER=0 ;; 2) return 0 ;; esac
   if [[ "$HOOK_NOTICE_TO_USER" == 1 ]]; then
     return 0
   elif [[ "$HOOK_NOTICE_TO_MODEL" == 1 ]]; then
@@ -439,19 +442,19 @@ hook::require() {
 # The user line renders the same fields prerequisites.mjs probe renders at
 # SessionStart, so the two cannot drift.
 hook::prereq_notice_to() {
-  local __hu_pn_m="$1" __hu_pn_u="$2" __hu_pn_id="$3" __hu_pn_in="$4"
-  local __hu_pn_label="" __hu_pn_where="" __hu_pn_inst="" __hu_pn_inst_set=0 __hu_pn_path=1
+  local __hu_prn_m="$1" __hu_prn_u="$2" __hu_prn_id="$3" __hu_prn_in="$4"
+  local __hu_prn_label="" __hu_prn_where="" __hu_prn_inst="" __hu_prn_inst_set=0 __hu_prn_path=1
   shift 4
   while (($#)); do
     case "$1" in
-    --label) __hu_pn_label="$2" ;;
-    --where) __hu_pn_where="$2" ;;
+    --label) __hu_prn_label="$2" ;;
+    --where) __hu_prn_where="$2" ;;
     --install)
-      __hu_pn_inst="$2"
-      __hu_pn_inst_set=1
+      __hu_prn_inst="$2"
+      __hu_prn_inst_set=1
       ;;
     --no-path)
-      __hu_pn_path=0
+      __hu_prn_path=0
       shift
       continue
       ;;
@@ -459,22 +462,22 @@ hook::prereq_notice_to() {
     esac
     shift 2 || break
   done
-  local __hu_pn_d __hu_pn_i __hu_pn_c __hu_pn_local __hu_pn_name
-  hook::prerequisite_fields_to __hu_pn_d __hu_pn_i __hu_pn_c "$__hu_pn_id" __hu_pn_local __hu_pn_name
-  [[ -n "$__hu_pn_label" ]] || __hu_pn_label="$__hu_pn_name"
-  printf -v "$__hu_pn_m" '%s' ""
-  printf -v "$__hu_pn_u" '%s' ""
-  hook::notice_once "${__hu_pn_label}-${__hu_pn_id}" "$__hu_pn_in" || return 1
-  if [[ -z "$__hu_pn_where" ]]; then
-    __hu_pn_where="not on the hook PATH${__hu_pn_local:+ or at $__hu_pn_local}"
+  local __hu_prn_d __hu_prn_i __hu_prn_c __hu_prn_local __hu_prn_name
+  hook::prerequisite_fields_to __hu_prn_d __hu_prn_i __hu_prn_c "$__hu_prn_id" __hu_prn_local __hu_prn_name
+  [[ -n "$__hu_prn_label" ]] || __hu_prn_label="$__hu_prn_name"
+  printf -v "$__hu_prn_m" '%s' ""
+  printf -v "$__hu_prn_u" '%s' ""
+  hook::notice_once "${__hu_prn_label}-${__hu_prn_id}" "$__hu_prn_in" || return 1
+  if [[ -z "$__hu_prn_where" ]]; then
+    __hu_prn_where="not on the hook PATH${__hu_prn_local:+ or at $__hu_prn_local}"
   fi
-  ((__hu_pn_inst_set)) || __hu_pn_inst="${__hu_pn_i:+Install ($__hu_pn_i).}"
-  local __hu_pn_head="$__hu_pn_label: $__hu_pn_id $__hu_pn_where. $__hu_pn_d"
-  local __hu_pn_tail="No further notice this session; $__hu_pn_c diagnoses."
-  ((__hu_pn_path)) && printf 'PATH probed: %s\n' "${PATH:-<unset>}" >&2
-  [[ "$HOOK_NOTICE_TO_MODEL" == 1 ]] && printf -v "$__hu_pn_m" '%s' "$__hu_pn_head $__hu_pn_tail"
+  ((__hu_prn_inst_set)) || __hu_prn_inst="${__hu_prn_i:+Install ($__hu_prn_i).}"
+  local __hu_prn_head="$__hu_prn_label: $__hu_prn_id $__hu_prn_where. $__hu_prn_d"
+  local __hu_prn_tail="No further notice this session; $__hu_prn_c diagnoses."
+  ((__hu_prn_path)) && printf 'PATH probed: %s\n' "${PATH:-<unset>}" >&2
+  [[ "$HOOK_NOTICE_TO_MODEL" == 1 ]] && printf -v "$__hu_prn_m" '%s' "$__hu_prn_head $__hu_prn_tail"
   [[ "$HOOK_NOTICE_TO_USER" == 1 ]] &&
-    printf -v "$__hu_pn_u" '%s' "$__hu_pn_head ${__hu_pn_inst:+$__hu_pn_inst }Hooks read Claude Code's PATH, not your shell profile. $__hu_pn_tail"
+    printf -v "$__hu_prn_u" '%s' "$__hu_prn_head ${__hu_prn_inst:+$__hu_prn_inst }Hooks read Claude Code's PATH, not your shell profile. $__hu_prn_tail"
   return 0
 }
 
