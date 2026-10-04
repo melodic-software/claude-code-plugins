@@ -58,9 +58,10 @@ verified
   one stays blocked until the commit is replaced. While an activity's gated head SHA is still an
   ancestor of the current head, `check-signed-commits` checks only the commits added after it, so
   an unsigned commit already on the branch does not fail a later activity's check; the
-  default-branch rule is what stops it. When there is no gated SHA, or it is no longer an ancestor
-  (a force-push or rebase rewrote the head), the check falls back to every PR commit, and an
-  unsigned commit already on the branch fails it too.
+  default-branch rule is what stops it. The check falls back to every PR commit, and an unsigned
+  commit already on the branch fails it too, when there is no gated SHA, when it is no longer an
+  ancestor (a force-push or rebase rewrote the head), or when GitHub's compare response truncates
+  the commits between it and the head.
 - Accepted residual: a repository without the `requires-signing` property has no signature rule on
   any branch. This record does not change which repositories carry it.
 - Accepted residual: the evidence is one probe in one sandbox repository whose ruleset matches the
