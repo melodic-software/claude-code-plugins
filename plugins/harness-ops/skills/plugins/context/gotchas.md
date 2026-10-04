@@ -16,6 +16,7 @@
 - [Internal-schema drift: fail loud, never guess](#internal-schema-drift-fail-loud-never-guess)
 - [Captured values on Windows carry `\r`: strip it before embedding in any command or JSON](#captured-values-on-windows-carry-r-strip-it-before-embedding-in-any-command-or-json)
 - [`--all` with `install_new: all` is a mass install of every catalog, and nothing warns you](#--all-with-install_new-all-is-a-mass-install-of-every-catalog-and-nothing-warns-you)
+- [A disabled-by-default install writes `false`, and only an install record can be uninstalled](#a-disabled-by-default-install-writes-false-and-only-an-install-record-can-be-uninstalled)
 
 Failure modes this skill is specifically built to avoid, and what breaks if the safeguard is
 bypassed. Underlying facts are in [scope-semantics.md](scope-semantics.md). This file is the
@@ -403,3 +404,29 @@ record exists. *As of* 2026-09-15 on **Claude Code 2.1.272** (win32); the revert
 glob-accepting form appearing on `claude plugin uninstall --help`; any release note or
 `plugins-reference` change touching what a non-interactive `plugin` subcommand loads at startup, or
 documenting `--bare`; or an observed uninstall that does not spawn a plugin-loading session.
+
+## A disabled-by-default install writes `false`, and only an install record can be uninstalled
+
+Observed 2026-10-04 on **Claude Code 2.1.289** (linux), against a throwaway `directory`
+marketplace under an isolated `HOME`, so no real settings file was touched. The marketplace listed
+one plugin with `defaultEnabled: false` in its entry and one without the field.
+
+- `claude plugin install` of the disabled-by-default plugin exited 0, printed the
+  `disabled by default` notice `sync-run.sh` classifies, and wrote that id as `false` in user-scope
+  `enabledPlugins`. The other plugin's install wrote `true`.
+- `claude plugin uninstall` of an installed plugin exited 0 and removed its `enabledPlugins` key
+  along with the install record, whether the key was `false` or `true`, and also when the catalog
+  no longer listed the plugin. So an uninstall does not leave a `false` behind for `ask` to read as
+  a decline.
+- With no install record left, `claude plugin uninstall` of the same id exited 1 with
+  `not found in installed plugins`. `claude plugin enable` of an id with no install record exited 0
+  and wrote `true` without installing anything, and `claude plugin disable` of such an id wrote
+  `false`. So a settings key with no install behind it cannot take the uninstall remedy; only
+  editing the settings file removes it.
+
+No docs page states what either command writes to `enabledPlugins` as of 2026-10-04;
+[`plugin uninstall`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall) and
+[`enabledPlugins`](https://code.claude.com/docs/en/settings-reference#enabledplugins) cover the
+commands and the key. ***Recheck trigger:*** a release note touching what `plugin install`,
+`uninstall`, `enable` or `disable` writes to `enabledPlugins`; either section starting to state it;
+or a disabled-by-default install that stops printing the notice.

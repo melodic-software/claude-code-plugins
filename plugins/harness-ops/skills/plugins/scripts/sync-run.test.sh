@@ -1162,7 +1162,7 @@ assert_eq "monitors: a nested experimental.monitors array on the updated build i
   '[{"id":"alpha@market1","scope":"user","monitors":1}]' \
   "$(jq -c '.marketplaces[0].updated_with_monitors' <<<"$REPORT_DIGEST")"
 assert_contains "monitors: the report calls the restart out under Action needed" "$REPORT_TEXT" \
-  "  - monitor(s) declared by updated plugin(s): alpha@market1 (1); an always monitor starts when the session starts and when the plugin reloads"
+  "  - monitor(s) declared by updated plugin(s): alpha@market1 (1); restart the session to run the updated monitors, /reload-plugins does not switch them"
 # The directory convention, and a manifest path string, count the same way.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir2=$(new_case_dir)
@@ -1411,18 +1411,25 @@ write "$case_dir/installed_plugins.json" "{
 }"
 write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
 write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
-write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "provenance@market1": true, "ghost@market1": true}}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true, "provenance@market1": true, "ghost@market1": true, "declined@market1": false}}'
 setup_case "$case_dir"
 EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
 report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
 assert_exit "delisted sync: exit 0" 0 "$REPORT_RC"
-assert_eq "delisted sync: the absent install and the enabled key are named" \
-  '["ghost@market1","provenance@market1"]' \
+assert_eq "delisted sync: only the absent install takes the uninstall remedy" \
+  '["provenance@market1"]' \
   "$(jq -c '.marketplaces[0].delisted' <<<"$REPORT_DIGEST")"
+assert_eq "delisted sync: a true key with no install is settings-only" \
+  '["ghost@market1"]' \
+  "$(jq -c '.marketplaces[0].delisted_settings_only' <<<"$REPORT_DIGEST")"
 assert_eq "delisted sync: the absent install is not swept" "0" \
   "$(grep -c 'plugin update provenance@market1' "$case_dir/claude.log" || true)"
 assert_contains "delisted sync: the report gives the uninstall remedy" "$REPORT_TEXT" \
-  "delisted, absent from the catalog: ghost@market1, provenance@market1; uninstall each with \`claude plugin uninstall <id> -s user\`"
+  "delisted, absent from the catalog: provenance@market1; uninstall each with \`claude plugin uninstall <id> -s user\`"
+assert_contains "delisted sync: the settings-only key gets the settings remedy" "$REPORT_TEXT" \
+  "enabled in settings, not installed, and absent from the catalog: ghost@market1; remove each key from enabledPlugins in the settings file that sets it"
+assert_eq "delisted sync: a false key with no install is not reported" "0" \
+  "$(grep -c 'declined@market1' <<<"$REPORT_TEXT" || true)"
 CASE_NUM=$((CASE_NUM + 1))
 case_dir2=$(new_case_dir)
 cp -r "$case_dir"/. "$case_dir2"/
@@ -1441,8 +1448,12 @@ report_of "$case_dir2" --marketplace market1 --audit --install-new none
 assert_exit "delisted audit: exit 0" 0 "$REPORT_RC"
 assert_eq "delisted audit: the absent install is not a would-update" "0" \
   "$(jq -r '[.marketplaces[0].user_sweep.would_update[]?.id] | map(select(. == "provenance@market1")) | length' <<<"$REPORT_DIGEST")"
-assert_contains "delisted audit: the report still names it" "$REPORT_TEXT" \
-  "delisted, absent from the catalog: ghost@market1, provenance@market1"
+assert_contains "delisted audit: the report names it as a prediction" "$REPORT_TEXT" \
+  "delisted, absent from the unrefreshed catalog: provenance@market1 (audit prediction; sync names any still absent after its refresh, with the remedy)"
+assert_contains "delisted audit: the settings-only key is a prediction too" "$REPORT_TEXT" \
+  "enabled in settings, not installed, and absent from the unrefreshed catalog: ghost@market1 (audit prediction"
+assert_eq "delisted audit: no unqualified uninstall command" "0" \
+  "$(grep -c 'claude plugin uninstall' <<<"$REPORT_TEXT" || true)"
 
 # ============================================================================
 if ((FAILED > 0)); then

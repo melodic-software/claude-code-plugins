@@ -65,15 +65,17 @@
 #    install_enable_deferred, stopped_before_install, enable_gap, enabled,
 #    project_enable_rows, normalize, cache_content, catalog_regression,
 #    divergences, divergences_here, in_repo_records, in_repo_ids,
-#    stale_project_records, user_scope_orphans, self_updated,
-#    updated_with_monitors, errors}
+#    stale_project_records, user_scope_orphans, installed_disabled, delisted,
+#    delisted_settings_only, self_updated, updated_with_monitors, errors}
 #   `installed_with_unset_user_config[]` is `{id, options_unset, required}` for
 #   each install this run performed whose CLI output named userConfig options
 #   the user has not set. `installed_disabled[]` is the ids whose install output
 #   said the plugin is disabled by default, classified before the 400-character
-#   truncation. `delisted[]` is user-scope installs, plus effective
-#   enabledPlugins keys at this marketplace, that the catalog's names no longer
-#   carry; a catalog with an empty plugins array does not produce one.
+#   truncation. `delisted[]` is the user-scope installs the catalog's names no
+#   longer carry, and `delisted_settings_only[]` the effective `true`
+#   enabledPlugins keys at this marketplace with no install record that the
+#   names no longer carry; a catalog with an empty plugins array produces
+#   neither.
 #   `updated_with_monitors[]` is `{id, scope, monitors}` for each plugin this
 #   run moved whose installed manifest declares a monitor.
 #   `in_repo_records` counts the project/local records belonging to the repo the
@@ -1324,7 +1326,7 @@ report_extras() {
   done
   if [[ -z "$src" ]]; then
     jq_to "$__var" -c -n '{auto_update: null, catalog_source: null, user_scope_orphans: [],
-      delisted: [],
+      delisted: [], delisted_settings_only: [],
       stale_project_records: {total: null, by_path: []},
       in_repo_records: null, in_repo_ids: [], divergences_here: null}'
     return 0
@@ -1344,6 +1346,7 @@ report_extras() {
        catalog_source: (.marketplace.source // null),
        user_scope_orphans: (.user_scope_orphans // []),
        delisted: (.delisted // []),
+       delisted_settings_only: (.delisted_settings_only // []),
        stale_project_records: {total: ($absent | length),
                                by_path: ($absent | group_by(.projectPath)
                                          | map({path: .[0].projectPath, count: length}))},
@@ -1397,19 +1400,24 @@ source_checkout() {
 }
 
 # --- monitors in the plugins this run moved ---------------------------------------
-# The report names every moved plugin whose installed build declares a monitor,
-# read from the record's own cache directory in the post-sweep snapshot, which
-# is the build the update left in place.
+# A plugin updated mid-session keeps running its previous version's monitors
+# until the session restarts, so the report names every moved plugin whose
+# installed build declares one. The manifest is read from the record's own
+# cache directory in the post-sweep snapshot, which is the build the update
+# left in place.
 #   Claim: a plugin declares monitors under the nested experimental.monitors
 #     value or, when that key is absent, a top-level monitors value, as an
 #     inline array or a path. monitors/monitors.json counts only when neither
-#     key is present, because a present key replaces that file. An always
-#     monitor starts when the session starts and when the plugin reloads.
-#   Basis: https://code.claude.com/docs/en/plugins-reference#monitors and
-#     https://code.claude.com/docs/en/plugins-reference#how-each-key-combines-with-its-default-location
-#   As of: 2026-10-03.
+#     key is present, because a present key replaces that file. An updated
+#     plugin's monitors need a session restart; /reload-plugins does not switch
+#     them.
+#   Basis: https://code.claude.com/docs/en/plugins/manifest-reference#monitors,
+#     https://code.claude.com/docs/en/plugins/manifest-reference#how-each-key-combines-with-its-default-location
+#     and https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update
+#   As of: 2026-10-04.
 #   Recheck: the reference renames either key, stops a declared key from
-#     replacing monitors/monitors.json, or changes when an always monitor starts.
+#     replacing monitors/monitors.json, or the loading page stops requiring a
+#     restart for an updated plugin's monitors.
 monitor_count_at() {
   # `__mc_*` names: the caller passes its own variable name in $1, and a local
   # of the same name here would shadow it, so nothing here is called `n`.

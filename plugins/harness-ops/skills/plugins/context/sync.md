@@ -63,10 +63,10 @@ reads a directory as it is and the user owns it), the in-repo and user-scope swe
 direction, withheld downgrades, the install and enable gaps, what was installed and enabled, the
 installs whose CLI output named userConfig options left unset
 (`installed_with_unset_user_config[]`, one `{id, options_unset, required}` each), the ids whose
-install output said the plugin is disabled by default (`installed_disabled[]`), the ids installed
-at user scope or present as effective `enabledPlugins` keys that the catalog's names no longer
-carry (`delisted[]`; a catalog with an empty `plugins` array does not produce one), the project-scope
-enable rows, the normalizer result, the cache-content counts and stale ids, the catalog regression
+install output said the plugin is disabled by default (`installed_disabled[]`), the user-scope
+installs the catalog's names no longer carry (`delisted[]`), the effective `true` `enabledPlugins`
+keys with no install record that those names no longer carry (`delisted_settings_only[]`; a
+catalog with an empty `plugins` array produces neither), the project-scope enable rows, the normalizer result, the cache-content counts and stale ids, the catalog regression
 interval, the three-snapshot divergence split, whether the sweep updated this plugin itself, the
 moved plugins whose installed build declares a monitor (`updated_with_monitors[]`, one
 `{id, scope, monitors}` each, read from the record's own cache directory in the post-sweep
@@ -594,12 +594,18 @@ sweep as a bonus, never as evidence that the ids it skipped were checked.
 only from entries whose version could be read, so an installed id the catalog dropped looks the
 same as one whose version did not parse: null, which fails open into the sweep. That fail-open
 stays for a version that did not parse. It does not stay for an id absent from the catalog's
-names. `delisted` is the user-scope installed ids minus those names, plus the effective
-`enabledPlugins` keys at this marketplace minus those names. The names are the catalog's own
-plugin names, never the `catalog_versions` keys: an entry whose `source` is an object is absent
+names. `delisted` is the user-scope installed ids minus those names. The names are the catalog's
+own plugin names, never the `catalog_versions` keys: an entry whose `source` is an object is absent
 from that map on purpose and is still in the catalog. `update-candidates-user` subtracts
-`delisted`, and the render lists the ids under `Action needed` with `claude plugin uninstall <id>
--s user`. A valid catalog whose `plugins` array is empty does not produce a delisted set, so a
+`delisted`, and in `sync` the render lists the ids under `Action needed` with `claude plugin
+uninstall <id> -s user`. An effective `enabledPlugins` key at this marketplace that has no install
+record in any scope cannot take that remedy, because there is nothing to uninstall (the probe in
+[gotchas.md](gotchas.md#a-disabled-by-default-install-writes-false-and-only-an-install-record-can-be-uninstalled)). When its value
+is `true` and the names do not carry it, it goes to `delisted_settings_only`, and the render tells
+the user to remove the key from the settings file that sets it. A `false` key with no install
+loads nothing and is not reported. In `audit` both rows are labeled predictions against the
+unrefreshed catalog and carry no remedy command, because audit refreshes nothing and `sync` never
+runs the remedy itself. A valid catalog whose `plugins` array is empty produces neither set, so a
 blank catalog cannot mark the whole fleet.
 
 `installed-user` is available for a caller that deliberately wants every user-scope id, and **the
@@ -766,17 +772,20 @@ is a reporting obligation. The render emits the self-update note when the digest
 is true.
 
 **Name the monitors.** The script reads each moved record's own cache directory from the post-sweep
-snapshot (`installPath`) and counts the monitors that build declares. A nested `experimental.monitors`
-value is the declaration when that key is present; otherwise a top-level `monitors` value is. Either
-value may be the array itself or a path, and a path is followed. `monitors/monitors.json` counts
-only when neither key is present, because a present key replaces that file. The render lists the
-ids under `Action needed`. An always monitor starts when the session starts and when the plugin
-reloads, so the line says that rather than asking for a separate session restart.
+snapshot (`installPath`) and counts the monitors that build declares; `monitor_count_at` in
+`sync-run.sh` holds the counting rule. The render lists the ids under `Action needed` and tells
+the user to restart the session for them, because we treat `/reload-plugins` as not switching an
+updated plugin's monitors.
 
-Pointer: [plugins-reference, Monitors](https://code.claude.com/docs/en/plugins-reference#monitors)
-and [how each key combines with its default location](https://code.claude.com/docs/en/plugins-reference#how-each-key-combines-with-its-default-location).
-As of 2026-10-03. Recheck when either section changes when an always monitor starts, which key
-declares monitors, or whether a declared key still replaces `monitors/monitors.json`.
+- **Pointer**: when the counting rule or the restart line is in question, fetch
+  [manifest reference, `monitors`](https://code.claude.com/docs/en/plugins/manifest-reference#monitors),
+  [How each key combines with its default location](https://code.claude.com/docs/en/plugins/manifest-reference#how-each-key-combines-with-its-default-location),
+  and the update paragraph under
+  [Which marketplaces and plugins auto-update](https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update)
+  live.
+- **As of**: 2026-10-04
+- **Recheck trigger**: one of those sections renames the monitors key, changes how it combines with
+  the default location, or changes what an updated plugin's monitors need to switch.
 
 End with the reload guidance per SKILL.md's Report section: recommend bare `/reload-plugins`, and
 state the recovery step rather than pre-judging which case will trigger it. That line is the

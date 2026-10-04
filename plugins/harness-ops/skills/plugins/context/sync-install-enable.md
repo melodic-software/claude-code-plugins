@@ -92,9 +92,15 @@ record of what it said.
 **An install the CLI reports as disabled by default is installed and not loading.** `sync-run.sh`
 classifies that notice from the untruncated CLI output into the digest's `installed_disabled[]`,
 and the render says the plugin is installed but not enabled and gives `claude plugin enable <id>
--s user`. The classification keys off the CLI's line. The catalog's `defaultEnabled` can disagree
-with that line, so the catalog field is not the signal. The install writes an explicit `false`
-for the id in user-scope `enabledPlugins`, which is the entry Step 5 describes.
+-s user`. The classification keys off the CLI's line, never the catalog's `defaultEnabled`: we
+observed the two disagree for one plugin.
+
+- **Pointer**: when the notice's wording or the `enabledPlugins` entry such an install leaves is in
+  question, read the probe in [gotchas.md](gotchas.md#a-disabled-by-default-install-writes-false-and-only-an-install-record-can-be-uninstalled)
+  and rerun it; no docs page states that entry as of 2026-10-04.
+- **As of**: 2026-10-04 (Claude Code 2.1.289)
+- **Recheck trigger**: a disabled-by-default install stops printing the notice `sync-run.sh`
+  matches, or a docs page starts to state what such an install writes to `enabledPlugins`.
 
 ### After any install: normalize user-scope `enabledPlugins` key order
 
@@ -172,10 +178,9 @@ trigger: a Claude Code release that changes `claude plugin list`'s `enabled` ans
 plugin, or either doc section changing. The excluded field is a publisher's deliberate opt-in-required default (the marketplace
 entry's value overrides the plugin's own `plugin.json` field, per
 [metadata precedence](https://code.claude.com/docs/en/plugins-reference#metadata-precedence)).
-`claude plugin install` writes an explicit `false` for that id in user-scope `enabledPlugins`, and
-that `false` is the intended state, not a completeness gap. Never run `enable` for it. The same
-`false` remains after an uninstall, and `missing_from_user_install` subtracts every explicit
-`false`, so `ask` then treats the id as a deliberate decline and does not offer it again. This only catches the
+Whatever entry the install leaves for that id, none or an explicit `false` (the probe Step 4's
+disabled-install record points at), the id is off by the publisher's choice, not a
+completeness gap, and `missing_from_enabled` excludes it either way. Never run `enable` for it. This only catches the
 default recorded in the marketplace entry; a plugin whose `defaultEnabled: false` lives only in its
 own `plugin.json`, with no mirrored marketplace-entry override, is a known residual gap (`fleet-state.sh`
 reads the marketplace's catalog file, never each installed plugin's own manifest).

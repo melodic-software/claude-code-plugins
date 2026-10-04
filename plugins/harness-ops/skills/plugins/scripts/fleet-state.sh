@@ -23,7 +23,8 @@
 # Output (stdout): one JSON object.
 #   Single marketplace: {marketplace, project_root, catalog, catalog_versions,
 #     installed, enabled, missing_from_install, missing_from_user_install,
-#     missing_from_enabled, user_scope_orphans, delisted, divergences}
+#     missing_from_enabled, user_scope_orphans, delisted,
+#     delisted_settings_only, divergences}
 #     — or {marketplace: {name, error}} on a resolvable per-marketplace failure.
 #   missing_from_install is all-scope (catalog minus installed anywhere);
 #   missing_from_user_install is user-scope only (catalog minus user-scope
@@ -54,16 +55,21 @@
 #                        Excludes ids explicitly opted out (false) in any scope,
 #                        like the two missing_* arrays — a deliberate decline is
 #                        not a gap to report as action needed.
-#   delisted             ids absent from the catalog's names: every user-scope
-#                        install, plus every key of the effective enabledPlugins
-#                        map at this marketplace. Keyed on catalog names, never
-#                        catalog_versions keys, because an object-sourced entry
-#                        is absent from that map on purpose and is still in the
-#                        catalog. Empty when the catalog's plugins array is
-#                        empty or not an array, so a blank catalog cannot mark
-#                        the whole fleet as delisted. Subtracted from
-#                        update-candidates-user. A saved report with no delisted
-#                        field fails open: those ids stay candidates.
+#   delisted             user-scope installed ids absent from the catalog's
+#                        names. Keyed on catalog names, never catalog_versions
+#                        keys, because an object-sourced entry is absent from
+#                        that map on purpose and is still in the catalog. Empty
+#                        when the catalog's plugins array is empty or not an
+#                        array, so a blank catalog cannot mark the whole fleet
+#                        as delisted. Subtracted from update-candidates-user. A
+#                        saved report with no delisted field fails open: those
+#                        ids stay candidates.
+#   delisted_settings_only  effective enabledPlugins keys at this marketplace
+#                        whose value is true, with no install record in any
+#                        scope, absent from the catalog's names. Same empty-
+#                        catalog guard. A false key is left out: it loads
+#                        nothing, and no CLI uninstall can clear a key that has
+#                        no install behind it.
 #   marketplace.source   the marketplace's recorded source flattened to one
 #                        line (a string source as-is, an object source as
 #                        `<kind>:<locator>`), or null; report text only.
@@ -1099,11 +1105,14 @@ PASS3_PROGRAM='
   # Delisted is proved from catalog NAMES, not catalog_versions keys. An
   # object-sourced entry never reaches catalog_versions and must not look
   # removed. A valid catalog whose plugins array is empty is not evidence that
-  # every install was removed, so that shape yields no delisted set.
+  # every install was removed, so that shape yields no delisted set. Only an
+  # install can take the uninstall remedy; a key with no install record is a
+  # settings entry, and only a true one loads anything.
   | (if ($catalog[0].plugins | type) == "array" and ($catalog[0].plugins | length) > 0 then
-       (($user_installed_ids - $catalog_ids)
-        + (($enabled_at_mp | keys) - $catalog_ids) | unique)
-     else [] end) as $delisted
+       {installed: ($user_installed_ids - $catalog_ids),
+        settings_only: (([$enabled_at_mp | to_entries[] | select(.value == true) | .key]
+                         - $installed_ids) - $catalog_ids)}
+     else {installed: [], settings_only: []} end) as $absent
   # `versionsMatch` separates a benign multi-scope install (project and user
   # scope both pinned to the same version — normal, not actionable) from a
   # real version skew (some scope is behind another — the "run converge"
@@ -1127,7 +1136,8 @@ PASS3_PROGRAM='
       missing_from_user_install: $missing_from_user_install,
       missing_from_enabled: $missing_from_enabled,
       user_scope_orphans: $user_scope_orphans,
-      delisted: $delisted,
+      delisted: $absent.installed,
+      delisted_settings_only: $absent.settings_only,
       divergences: $divergences
     } as $block
   | '"$PROJECTION_PROGRAM"

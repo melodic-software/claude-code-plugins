@@ -65,7 +65,8 @@ def block($d):
   | (if $audit then
        (($would | length) > 0 or ($withheld | length) > 0
         or (.install_gap | length) > 0 or (.enable_gap | length) > 0
-        or ((.delisted // []) | length) > 0)
+        or ((.delisted // []) | length) > 0
+        or ((.delisted_settings_only // []) | length) > 0)
      else
        (($failed | length) > 0 or ($withheld | length) > 0
         or .install_enable_deferred == true or .stopped_before_install == true
@@ -73,7 +74,8 @@ def block($d):
         or (.errors | length) > 0 or ($enable_unfilled | length) > 0
         or ($install_left | length) > 0
         or ((.installed_disabled // []) | length) > 0
-        or ((.delisted // []) | length) > 0)
+        or ((.delisted // []) | length) > 0
+        or ((.delisted_settings_only // []) | length) > 0)
      end) as $needs
   | .timings as $t
   | .source_checkout as $src
@@ -237,9 +239,18 @@ def block($d):
          ($enabled_failed[] | "enable failed (exit \(.rc)): \(.id) -s \(.scope): \(reported)"),
          ((.installed_disabled // [])[]
           | "\(.): installed but not enabled; claude plugin enable \(.) -s user"),
-         (if ((.delisted // []) | length) > 0 then
+         (if ((.delisted // []) | length) == 0 then empty
+          elif $audit then
+            "delisted, absent from the unrefreshed catalog: \(.delisted | join(", ")) (audit prediction; sync names any still absent after its refresh, with the remedy)"
+          else
             "delisted, absent from the catalog: \(.delisted | join(", ")); uninstall each with `claude plugin uninstall <id> -s user`"
-          else empty end),
+          end),
+         (if ((.delisted_settings_only // []) | length) == 0 then empty
+          elif $audit then
+            "enabled in settings, not installed, and absent from the unrefreshed catalog: \(.delisted_settings_only | join(", ")) (audit prediction; sync names any still absent after its refresh, with the remedy)"
+          else
+            "enabled in settings, not installed, and absent from the catalog: \(.delisted_settings_only | join(", ")); remove each key from enabledPlugins in the settings file that sets it"
+          end),
          (if (.user_scope_orphans | length) > 0 then
             "user-scope orphan(s), a project/local record with no user-scope install: \(.user_scope_orphans | join(", "))"
           else empty end),
@@ -248,7 +259,7 @@ def block($d):
             + (if .required != null then " (\(.required) required)" else "" end)
             + "; run /plugin configure \(.id) in Claude Code, or pass --config KEY=VALUE"),
          (if (.updated_with_monitors | length) > 0 then
-            "monitor(s) declared by updated plugin(s): \(.updated_with_monitors | map("\(.id) (\(.monitors))") | join(", ")); an always monitor starts when the session starts and when the plugin reloads"
+            "monitor(s) declared by updated plugin(s): \(.updated_with_monitors | map("\(.id) (\(.monitors))") | join(", ")); restart the session to run the updated monitors, /reload-plugins does not switch them"
           else empty end),
          (if ($norm | test("^refused:")) then
             "user-scope enabledPlugins reorder refused: \($norm | first_line)"
