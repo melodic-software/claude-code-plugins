@@ -3,6 +3,14 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0] - 2026-10-04
+
+### Added
+
+- **`claude-temp-root` names runaway background-task output files ([#6036](https://github.com/melodic-software/claude-code-plugins/issues/6036)).**
+  Before its walk, the check lists `<root>/<project-key>/<session-id>/tasks/*.output` from metadata alone and reports the five largest in `detail.largest_task_outputs`.
+  One output of 1 GB or more is now a `WARN` whose summary names the file. When the walk runs out of budget, the result stays `UNKNOWN` but the list and the named file still ship.
+
 ## [0.15.2] - 2026-10-03
 
 ### Changed

@@ -6,7 +6,14 @@ Check: Claude Code temp-root footprint. Emits a CheckResult JSON on stdout.
 See reference/windows/check-catalog.md#17-claude-code-temp-root for rubric.
 #>
 [CmdletBinding()]
-param([switch]$Human)
+param(
+    [switch]$Human,
+    # The overrides below exist for tests and manual scratch-tree runs; the
+    # orchestrator dispatches argument-less (Get-CheckArgument default) and the
+    # defaults are the rubric's figures.
+    [long]$TaskOutputWarnBytes = 1GB,
+    [int]$BudgetSeconds = 60
+)
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Continue'
@@ -16,7 +23,13 @@ $ErrorActionPreference = 'Continue'
 # caps duration_ms at 90000, so an unbounded walk of a multi-gigabyte tree does not
 # merely time out -- it emits a schema-invalid result. Stop at 60s, keep the partial
 # figures, and report UNKNOWN per the rubric's timeout row.
-$budgetSeconds = 60
+$budgetSeconds = $BudgetSeconds
+
+# The task-output listing runs first on the same clock and stops at its own cap,
+# so a tree too large to walk still gets its largest files named and the walk
+# keeps the rest of the budget.
+$taskOutputBudgetSeconds = 20
+$taskOutputTopCount = 5
 
 function Resolve-ClaudeTempRoot {
     <#
@@ -140,12 +153,113 @@ function Measure-SessionTree {
     }
 }
 
+function Find-LargestTaskOutput {
+    <#
+    .SYNOPSIS
+    Lists `<root>/<project-key>/<session-id>/tasks/*.output` by size, largest
+    first, from directory listings alone.
+
+    .DESCRIPTION
+    Exactly three levels are listed, never a recursive walk, so the cost scales
+    with the number of sessions rather than the number of files under them. Only
+    file metadata is read: task output can hold secrets, so its contents are
+    never opened. Reparse points are skipped for the same reason the walk skips
+    them.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory = $true)] [string] $Root,
+        [Parameter(Mandatory = $true)] [System.Diagnostics.Stopwatch] $Stopwatch,
+        [Parameter(Mandatory = $true)] [int] $BudgetSeconds,
+        [Parameter(Mandatory = $true)] [int] $Top
+    )
+
+    $reparse = [System.IO.FileAttributes]::ReparsePoint
+    $outputs = [System.Collections.Generic.List[pscustomobject]]::new()
+    $truncated = $false
+
+    $projectDirs = @(Get-ChildItem -LiteralPath $Root -Directory -Force -ErrorAction SilentlyContinue)
+    foreach ($p in $projectDirs) {
+        if ($p.Attributes -band $reparse) { continue }
+        if ($Stopwatch.Elapsed.TotalSeconds -ge $BudgetSeconds) { $truncated = $true; break }
+
+        $sessionDirs = @(Get-ChildItem -LiteralPath $p.FullName -Directory -Force -ErrorAction SilentlyContinue)
+        foreach ($s in $sessionDirs) {
+            if ($s.Attributes -band $reparse) { continue }
+            if ($Stopwatch.Elapsed.TotalSeconds -ge $BudgetSeconds) { $truncated = $true; break }
+
+            $tasksDir = Get-Item -LiteralPath (Join-Path $s.FullName 'tasks') -Force -ErrorAction SilentlyContinue
+            if ($tasksDir -isnot [System.IO.DirectoryInfo] -or ($tasksDir.Attributes -band $reparse)) { continue }
+
+            foreach ($f in @(Get-ChildItem -LiteralPath $tasksDir.FullName -File -Force -Filter '*.output' `
+                            -ErrorAction SilentlyContinue)) {
+                if ($f.Attributes -band $reparse) { continue }
+                if ($f.Extension -ne '.output') { continue }
+                $outputs.Add([pscustomobject]@{
+                        path           = $f.FullName
+                        bytes          = [long]$f.Length
+                        gb             = [math]::Round($f.Length / 1GB, 2)
+                        last_write_utc = $f.LastWriteTimeUtc.ToString('o')
+                        session_dir    = $s.FullName
+                    })
+            }
+        }
+        if ($truncated) { break }
+    }
+
+    return [pscustomobject]@{
+        Count     = $outputs.Count
+        Largest   = @($outputs | Sort-Object -Property bytes -Descending | Select-Object -First $Top)
+        Truncated = $truncated
+    }
+}
+
+function Format-TaskOutputFinding {
+    <#
+    .SYNOPSIS
+    Sentence naming the largest task output at or above the threshold, or $null
+    when none is.
+
+    .DESCRIPTION
+    The schema caps the summary at 240 characters and a real task-output path
+    can approach that alone, so the file is named by the longest form that fits
+    in MaxLength: the full path, then the path under the root, then the file
+    name. The full path is always in detail.largest_task_outputs.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory = $true)] [AllowEmptyCollection()] [object[]] $Largest,
+        [Parameter(Mandatory = $true)] [long] $WarnBytes,
+        [Parameter(Mandatory = $true)] [string] $Root,
+        [Parameter(Mandatory = $true)] [int] $MaxLength
+    )
+
+    $over = @($Largest | Where-Object { $_.bytes -ge $WarnBytes })
+    if ($over.Count -eq 0) { return $null }
+    $top = $over[0]
+    $names = @(
+        $top.path
+        [System.IO.Path]::GetRelativePath($Root, $top.path)
+        [System.IO.Path]::GetFileName($top.path)
+    )
+    $more = if ($over.Count -gt 1) { "; $($over.Count - 1) more over the threshold" } else { '' }
+    foreach ($name in $names) {
+        $text = "Task output $name is $($top.gb) GB, last write " +
+        "$($top.last_write_utc.Substring(0, 10))$more."
+        if ($text.Length -le $MaxLength) { return $text }
+    }
+    return "Task output of $($top.gb) GB in detail.largest_task_outputs."
+}
+
 $id = 'claude-temp-root'
 $category = 'storage'
 $commands = @(
     '$root = if ($env:CLAUDE_CODE_TMPDIR) { Join-Path $env:CLAUDE_CODE_TMPDIR ''claude'' } else { Join-Path $env:TEMP ''claude'' }'
     'Get-ChildItem -LiteralPath $root -Recurse -File -Force | Measure-Object -Property Length -Sum'
     'Get-ChildItem -LiteralPath $root -Directory -Force | ForEach-Object { Get-ChildItem -LiteralPath $_.FullName -Directory -Force } | Measure-Object'
+    'Get-ChildItem -Path (Join-Path $root ''*\*\tasks\*.output'') -File -Force | Sort-Object Length -Descending | Select-Object -First 5 FullName, Length, LastWriteTimeUtc'
 )
 
 $FailureSummary = 'Claude Code temp-root check failed.'
@@ -172,11 +286,23 @@ $CheckBody = {
             oldest_session_age_days = 0
             unreadable_dir_count    = 0
             scan_truncated          = $false
+            task_output_count       = 0
+            largest_task_outputs    = @()
+            largest_task_output_gb  = [double]0
+            task_output_truncated   = $false
             remediation_route       = 'disk-hygiene:clean'
         } `
             -NeedsAdmin $false -RanSuccessfully $true
     } else {
         $now = Get-Date
+
+        $taskOutputs = Find-LargestTaskOutput -Root $root.Path -Stopwatch $sw `
+            -BudgetSeconds $taskOutputBudgetSeconds -Top $taskOutputTopCount
+        $largestTaskOutputs = @($taskOutputs.Largest)
+        $largestTaskBytes = if ($largestTaskOutputs.Count -gt 0) { $largestTaskOutputs[0].bytes } else { [long]0 }
+        $taskOutputOver = $largestTaskBytes -ge $TaskOutputWarnBytes -and $largestTaskOutputs.Count -gt 0
+        $summaryCap = 240
+
         $totalBytes = [long]0
         $fileCount = 0
         $sessionCount = 0
@@ -238,6 +364,10 @@ $CheckBody = {
             oldest_session_age_days = $oldestAgeDays
             unreadable_dir_count    = $unreadable
             scan_truncated          = $truncated
+            task_output_count       = $taskOutputs.Count
+            largest_task_outputs    = $largestTaskOutputs
+            largest_task_output_gb  = [math]::Round($largestTaskBytes / 1GB, 2)
+            task_output_truncated   = $taskOutputs.Truncated
             remediation_route       = 'disk-hygiene:clean'
         }
 
@@ -252,6 +382,10 @@ $CheckBody = {
             # checks_ran, and so keeps an undercounted total_gb from becoming a trend
             # baseline. Left in, the recovered difference on the next complete walk
             # reads as growth and upgrades that WARN to CRIT on nothing.
+            #
+            # The schema pins a failed run to UNKNOWN, so an oversized task output
+            # cannot lift this verdict to WARN; it is named in the summary instead,
+            # which is what the human reads when the walk could not finish.
             $reason = if ($truncated) {
                 "Walk budget of ${budgetSeconds}s exceeded after $sessionCount " +
                 'session directories; figures are a partial undercount.'
@@ -259,10 +393,18 @@ $CheckBody = {
                 "$unreadable path(s) could not be read; figures are a partial " +
                 'undercount, so no threshold verdict is possible.'
             }
+            $summary = "Claude Code temp-root scan incomplete; measured at least $totalGb GB " +
+            "across $sessionCount session dirs."
+            if ($taskOutputOver) {
+                $listing = if ($taskOutputs.Truncated) { 'partial' } else { 'complete' }
+                $tail = " Task-output listing $listing."
+                $finding = Format-TaskOutputFinding -Largest $largestTaskOutputs `
+                    -WarnBytes $TaskOutputWarnBytes -Root $root.Path `
+                    -MaxLength ($summaryCap - $summary.Length - $tail.Length - 1)
+                $summary += " $finding$tail"
+            }
             $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
-                -Severity 'UNKNOWN' `
-                -Summary ("Claude Code temp-root scan incomplete; measured at least $totalGb GB " +
-                    "across $sessionCount session dirs.") `
+                -Severity 'UNKNOWN' -Summary $summary `
                 -Commands $commands -Detail $detail -NeedsAdmin $false `
                 -RanSuccessfully $false `
                 -ErrorMessage $reason
@@ -272,13 +414,16 @@ $CheckBody = {
             # severity-rubric.md reserves CRIT for imminent-failure and security
             # conditions while directing ambiguity to the lower level. Sustained growth
             # still reaches CRIT through the orchestrator's trend upgrade.
-            #   WARN -- >=5 GB accumulated, or nothing reclaimed for >=14 days
+            #   WARN -- >=5 GB accumulated, nothing reclaimed for >=14 days, or one
+            #           background-task output file >=1 GB
             #   INFO -- >=1 GB, still within a plausible working set
             #   OK   -- <1 GB
             # The age arm is independent of size on purpose: a small tree that never
             # loses its oldest entry is the unpruned-growth signal this check exists for.
+            # The per-file arm is independent too: one runaway task output is the
+            # file to remove, and a total-size verdict alone never names it.
             $severity = 'OK'
-            if ($totalGb -ge 5 -or $oldestAgeDays -ge 14) {
+            if ($totalGb -ge 5 -or $oldestAgeDays -ge 14 -or $taskOutputOver) {
                 $severity = 'WARN'
             } elseif ($totalGb -ge 1) {
                 $severity = 'INFO'
@@ -286,9 +431,14 @@ $CheckBody = {
 
             $summary = "Claude Code temp root $totalGb GB across $sessionCount session dirs " +
             "($fileCount files); oldest $oldestAgeDays d."
-            if ($severity -eq 'WARN') {
-                $summary += ' Route removal to disk-hygiene:clean.'
+            $tail = if ($severity -eq 'WARN') { ' Route removal to disk-hygiene:clean.' } else { '' }
+            if ($taskOutputOver) {
+                $finding = Format-TaskOutputFinding -Largest $largestTaskOutputs `
+                    -WarnBytes $TaskOutputWarnBytes -Root $root.Path `
+                    -MaxLength ($summaryCap - $summary.Length - $tail.Length - 1)
+                $summary += " $finding"
             }
+            $summary += $tail
 
             $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
                 -Severity $severity -Summary $summary -Commands $commands -Detail $detail `
