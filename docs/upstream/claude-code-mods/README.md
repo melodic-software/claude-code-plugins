@@ -1,7 +1,7 @@
 # Claude Code mods: the verdict and its evidence trail
 
 The verdict is **Adopt**, recorded in [ADR 0049](../../adr/0049-adopt-claude-code-mods.md)
-(Proposed until the work-machine probe passes) and as the mods row under "Recorded gate runs" in
+and as the mods row under "Recorded gate runs" in
 [docs/plugin-philosophy.md](../../plugin-philosophy.md). ADR 0049 supersedes the 2026-09-19 Defer in
 [ADR 0035](../../adr/0035-defer-claude-code-mods-with-five-go-criteria.md). This folder holds the
 trail behind both.

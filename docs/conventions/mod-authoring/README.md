@@ -12,6 +12,12 @@ mod, one mod per plugin, the 2.1.287 floor, and what is committed.
   skill and the upstream pages below. This doc restates none of it.
 - **Settings hooks** (`hooks` in `hooks.json`): the `hook-*` conventions, starting with
   [hook-budget](../hook-budget/README.md).
+- **Three `hook-*` conventions also bind a mod**: what it tells Claude, by the frequency and
+  phrasing rules of [hook-observability](../hook-observability/README.md#text-a-hook-adds-for-the-model-frequency-and-phrasing);
+  its telemetry, as [hook-telemetry](../hook-telemetry/README.md) envelopes; and its process cost,
+  under [hook-budget](../hook-budget/README.md#mods-a-third-enforcement-form). Each records where a
+  mod differs: the guard mods' lines and telemetry are a recorded exception in hook-observability,
+  and a mod's budget is enforced by `claude plugin test` counts rather than strace.
 - **Record shape** for each pointer below: [upstream-drift](../upstream-drift/README.md).
 
 ## Before writing or changing a mod

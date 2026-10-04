@@ -1119,6 +1119,48 @@ into an already-accepted directory, on explicit operator request, with the no-ki
 justification intact. Uninstall leaves the shim behind by design; it then degrades to running the
 operator's statusline unchanged, and both setup skills document the two-step manual cleanup.
 
+### Delta review: mods replace the status-line tees (`context-guard` 0.11.0, `rate-limit-guard` 0.12.0, ACCEPT, 2026-10-03)
+
+Triggered by the review record's own rule: the writer of both guards' contract files changes from
+an operator-wired status-line tee to a mod, a hooks module (`hooks/register.tsx`) Claude Code runs
+in its own process on every tool call and prompt, under
+[ADR 0049](adr/0049-adopt-claude-code-mods.md). The files, their paths and their readers' trust
+class are unchanged. Reviewed as a delta; the base records and the shim delta stand as history.
+
+- **Code execution (1).** New: in-process code on `tool.call`, `prompt.submit`, `session.*`,
+  `turn.*`, `command.run` and `ui.render`, running whenever the plugin is enabled, where the tee ran
+  only once the operator wired it. Neither mod uses `tool.check`, so neither can approve a call a
+  rule or hook refused. context-guard's `tool.call` hook denies a call only in blocking mode, the
+  capability its retired `PreToolUse` gate already had. Each mod starts one program, the bundled
+  snapshot helper (`node lib/write-snapshot.mjs`, argv built by the mod, body on stdin), once per
+  write; context-guard also starts the consumer's own `HOOK_TELEMETRY_SINK` when one is set. The
+  untrusted input that reaches a path is still only the session id, accepted as `[A-Za-z0-9_-]+`;
+  the helper validates `captured_at` and caps the body at 1 MiB. The kill switch, once unneeded
+  because nothing ran unwired, is now the plugin's `/plugin` switch, plus each plugin's enable
+  option (`context_guard_hooks_enabled`, `rate_limit_guard_enabled`).
+- **MCP servers (2).** None. Each mod registers a read-only `status` tool with `$.tool.register`;
+  it is a local tool, not an MCP server, that takes no input and returns the session's figures and
+  the guard's verdict as JSON.
+- **Consumer config (3).** New: `userConfig` options (eight on context-guard, seven on
+  rate-limit-guard), read from settings; none names a path or a program.
+- **Cache isolation (4).** Unchanged directories: writes stay in the accepted operator-home
+  carve-out (`~/.claude/context-guard/context/<session_id>.json`,
+  `~/.claude/rate-limit-guard/rate-limits.json`), created owner-only (directory 0700, file 0600,
+  best-effort where the filesystem has no POSIX modes). Setup no longer writes
+  `bin/statusline-shim.sh`; its check detects a tee or shim left from an earlier version and
+  prints the steps to unwire it, and never edits settings.
+- **Data egress (5).** Unchanged: no network call. Telemetry goes only to a sink the consumer sets,
+  on the same envelope as before.
+- **Provenance & third-party trust (6).** Unchanged: first-party MIT code.
+- **Main-thread / PATH (7).** Unchanged; the operator-home `bin/` the shim used is no longer
+  written.
+
+**Verdict: ACCEPT.** The new surface is in-process code with the user's permissions, which
+ADR 0049 adopts for every mod. Its reach here is bounded: no `tool.check`, one bundled helper per
+write, the same files in the same directories. Readers keep the base record's rules: the contract
+files are untrusted data, the writer is not authenticated, and no zone or rate-limit verdict
+drives a security decision.
+
 ### Review record: `plugin-quality` (ACCEPT, 2026-07-24)
 
 Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review. Data

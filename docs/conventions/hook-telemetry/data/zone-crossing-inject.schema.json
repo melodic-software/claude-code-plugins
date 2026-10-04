@@ -2,25 +2,34 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/zone-crossing-inject.schema.json",
   "title": "zone-crossing-inject telemetry data",
-  "description": "Per-hook `data` payload for context-guard's zone-crossing injection hook (PostToolBatch + UserPromptSubmit — the envelope `hook_event` distinguishes them). Discovered from the envelope `hook` value \"zone-crossing-inject\". Emitted once per fire that reaches a zone decision: a transition (either direction), an unchanged zone, an unknown zone, or a skipped no-change fire. Evolves additive-only.",
+  "description": "Per-hook `data` payload for context-guard's zone lines, sent by its mod (hooks/register.tsx). Discovered from the envelope `hook` value \"zone-crossing-inject\"; envelope status \"ok\". The envelope `hook_event` names the mod event that carried the fire: \"tool.call\" or \"prompt.submit\" when lines went to Claude, \"turn.complete\" when an operator-mode suggestion was shown. Emitted only on a fire that sends lines or shows a suggestion; a fire that sends nothing, an improvement included, emits nothing. Records from the settings hook this replaced also carry \"PostToolBatch\" or \"UserPromptSubmit\". Evolves additive-only.",
   "type": "object",
   "additionalProperties": true,
   "properties": {
     "zone": {
       "type": "string",
-      "description": "The resolved zone word: \"smart\" | \"acceptable\" | \"dumb\" | \"unknown\". Absent on a skipped fire that read no zone."
+      "description": "The session's zone word at the fire: \"smart\" | \"acceptable\" | \"dumb\" | \"unknown\". Always present on mod records."
     },
     "previous": {
       "type": "string",
-      "description": "The last recorded zone word, empty string when this is the session's first recorded observation."
+      "description": "On a fire that carries a crossing, the zone crossed from, empty string when the session had no earlier observation; otherwise the last recorded zone word, empty string when there is none."
+    },
+    "armed": {
+      "type": "string",
+      "description": "The worst zone the session had reached in its current cycle before this fire: \"smart\" | \"acceptable\" | \"dumb\". A zone's line fires when the session first reaches it; only a return to smart re-arms. Absent on records written before the field existed."
     },
     "injected": {
       "type": "boolean",
-      "description": "true when guidance was injected (transition into a worse zone); false for a silently recorded improvement. Absent on fires that record no transition."
+      "description": "true when lines went to Claude: a crossing, an approach margin, an operator threshold or a restatement. false only together with suggested: true."
+    },
+    "suggested": {
+      "type": "boolean",
+      "description": "true when operator mode held the lines and showed the continuation menu as the prompt box's suggestion instead. Absent when lines were sent, and on records written before the field existed."
     },
     "path": {
       "type": "string",
-      "description": "How the fire reached its decision. Known values: \"fast\" (no resolver ran), \"coalesced\" (the last zone reused because the snapshot body matched, or only used_percentage moved within one shipped band with no zones.json), \"resolving\" (the resolver ran). The share of fires per path, with the envelope duration, shows where the time goes. Absent on records written before the field existed; consumers tolerate values not listed here."
+      "deprecated": true,
+      "description": "Deprecated; the mod never writes it. How the retired settings hook reached its decision: \"fast\" (no resolver ran), \"coalesced\" (the last zone reused), \"resolving\" (the resolver ran). Present only on records from that hook; consumers tolerate its absence and values not listed here."
     }
   }
 }

@@ -8,6 +8,13 @@ field, removing a field, changing a kind's detection semantics, an exit code's m
 severity map is a major bump; adding an optional field, a `status` value, or a new `kind` with its
 own detection rule is a minor bump.
 
+## Scope wording, contract unchanged at 1.1 - 2026-10-03
+
+The Scope section no longer names the twin drift between context-guard's and rate-limit-guard's
+status-line tees: both tees retired when the guards became mods. It names the shared references
+the guards use to detect and unwire a tee still running. Machine-scope surfaces stay outside the
+schema; no field, kind, exit code or severity changed.
+
 ## [1.1] - 2026-09-02
 
 Optional `heading` field on `kind: line`. When set, detection and `--clean` consider only matching

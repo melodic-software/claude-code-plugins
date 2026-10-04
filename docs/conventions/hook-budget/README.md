@@ -39,7 +39,7 @@ workflow is not in this budget.
 
 ## What enforces it
 
-CI enforces counts, never durations, in two places:
+CI enforces counts, never durations. For settings hooks it does so in two places:
 
 1. **`.performance/ratchets.json`**, checked by the check-plugins step "Check performance counter
    ceilings" (`ratchet.py check`). Hook counters run through `scripts/hook-census.sh`, which fires
@@ -54,6 +54,26 @@ CI enforces counts, never durations, in two places:
    lists them. A row a budget test already covers gets no `spawns` entry in the ratchets file.
 
 A new always-on hook adds itself to one of the two.
+
+### Mods: a third enforcement form
+
+A mod's hooks run as functions inside Claude Code, so a fire starts no process unless the mod calls
+`$.process.run`, and neither list above can see it. A mod hook on `tool.call` or `prompt.submit` is
+always-on. Its budget is k = 0 on the steady path: a fire that writes nothing spawns no process.
+A fire that writes a contract file costs one process, the snapshot helper that renames it into
+place. The plugin's own `claude plugin test` cases enforce both by stubbing `$.process.run` and
+counting the calls per scenario: context-guard's
+`hooks/context-guard.test.ts:1187` ("budget: no process on calls that write nothing, one per write,
+none for the gate") and rate-limit-guard's `hooks/rate-limit-guard.test.ts:601` ("budget: no
+process on events that write nothing, one per write"). A new always-on mod hook adds such a case.
+Claude Code also skips a hook that runs past its own time limit.
+
+- **Pointer**: for the time limit, see
+  [reference: limits](https://code.claude.com/docs/en/plugins/mods/reference#limits); for stubbing
+  `$` calls in a test, see [test](https://code.claude.com/docs/en/plugins/mods/test).
+- **As of**: 2026-10-03, Claude Code 2.1.288
+- **Recheck trigger**: the limits table changes a hook's own time limit, or `claude plugin test`
+  stops letting a test stub `$.process.run`.
 
 ## Wall-clock measurement (Windows)
 
@@ -103,8 +123,10 @@ per Bash call and three per Write or Edit, both at measurement time), followed b
 The "after" spawn-equivalents read higher than "before" on the Write and Edit rows because the
 before run's samples lived outside the repository, so every Write and verifier guard early-exited
 and measured a no-op; the harness now writes its samples under the measured cwd. Per-plugin
-READMEs carry the paired before-and-after figures for each change (guardrails, context-guard,
-rate-limit-guard, typos-format, eol-normalizer, markdown-format). The run's transcript, the
+READMEs carry the paired before-and-after figures for each change (guardrails, typos-format,
+eol-normalizer, markdown-format). context-guard's and rate-limit-guard's figures retired with the
+shell hooks and status-line tee they measured; their mods' budget is under
+[Mods](#mods-a-third-enforcement-form). The run's transcript, the
 installed versions and shas, the per-file cache compare and every `hooks.json` entry measured are
 recorded in the hook-performance program's DEVIATIONS log.
 
@@ -193,7 +215,8 @@ measurement.
 ## Rules
 
 1. **A plugin adding or widening an always-on hook states its k and its measured cost in S** in its
-   README, and adds the hook to one of the two enforced lists above.
+   README, and adds the hook to one of the two enforced lists above, or, for a mod, adds a
+   `claude plugin test` case that counts its processes.
 2. **The budget never relaxes to absorb an overage.** The per-tool-call set exceeds k × S many
    times over; that overage is per-plugin remediation work (guardrails spawn reduction, #1403 and
    #4390), not grounds to raise a ceiling.

@@ -1,12 +1,13 @@
 # Adopt Claude Code mods
 
-- Status: proposed
+- Status: accepted
 - Date: 2026-10-03
 - Supersedes: [ADR 0035](0035-defer-claude-code-mods-with-five-go-criteria.md)
 
-This record stays Proposed until the probe on the work machine passes: mods load and are admitted
-beside the built-in guard `sec-default`, their lines reach Claude, and both guard contract files
-are written. It becomes Accepted then. Desktop is not a condition.
+This record was to stay Proposed until a probe on a machine with a Team or Enterprise sign-in
+passed. The owner ruled that machine out of scope on 2026-10-03, so the record is Accepted without
+it: how the guard mods behave under the built-in guard `sec-default` rests on the upstream docs and
+the design, not on a probe ([Where the guard mods run](#where-the-guard-mods-run)).
 
 ## Context
 
@@ -80,17 +81,35 @@ as of 2026-10-03, Claude Code 2.1.288.
 
 ### Where the guard mods run
 
-The work machine has an Enterprise sign-in without managed settings, so it loads the built-in guard
-`sec-default`, which skips user mods' hooks on some events: the event continues past the user tier
-without them. The guard
-mods therefore use hooks the guard passes: `tool.call`, `prompt.submit`, `session.measure` and
-`session.compact`. Organization-admin features are out of scope.
+On a machine with managed settings, or for a user signed in with a Team or Enterprise plan, Claude
+Code loads the built-in guard `sec-default` ahead of every user mod. On some events it continues
+past the user tier, so a user mod's hooks there do not run: `classic.*`, `prompt.section`,
+`prompt.context`, `prompt.compose` and others its rows name. The guard mods hook none of them. Every
+event they hook and every `$` call they make sits in a row the guard passes, with one conditional:
 
-- **Pointer**: for which events the guard holds and which pass, see "The rows" in
-  [`mods/sec-default/README.md`](https://github.com/anthropics/claude-code/blob/main/mods/sec-default/README.md#the-rows).
+| Hook or `$` call | Used by | The guard's row |
+| --- | --- | --- |
+| `session.start`, `session.end`, `session.compact`, `session.measure` | both | passes (`session.*`) |
+| `turn.start`, `turn.complete`; `turn.step` | both; rate-limit-guard | passes (`turn.*`) |
+| `prompt.submit`, `tool.call`, `command.run`, `ui.render` | both | passes |
+| `$.process.run`, `$.clock.*`, `$.fs.read`, `$.fs.stat`, `$.fs.exists`, `$.ui.log`, `$.ui.invalidate`, `$.ui.resolve`, `$.command.register` | both | passes (`process.run`, `clock.*`, `fs.*`, `ui.*`, `command.register`) |
+| `$.session.*`, `$.env.get`, `$.plugin.*`, `$.prompt.read`, `$.prompt.suggest` | both | passes (no row holds them) |
+| `$.tool.list` | context-guard | passes; the organization's managed MCP tools are listed as its tiers listed them |
+| `$.tool.register` | both | refused for a user mod while managed settings hold `allowedMcpServers` |
+
+A refused tool registration is logged once and the guard carries on without its status tool; its
+lines, band and contract file do not depend on it. Organization-admin features are out of scope.
+
+- **Pointer**: for which events and calls the guard holds and which pass, see "The rows" in
+  [`mods/sec-default/README.md`](https://github.com/anthropics/claude-code/blob/main/mods/sec-default/README.md#the-rows);
+  for when it loads, see
+  [admin: know what happens by default](https://code.claude.com/docs/en/plugins/mods/admin#know-what-happens-by-default).
+  The hooks and calls in the table are those in `plugins/context-guard/hooks/register.tsx` and
+  `plugins/rate-limit-guard/hooks/register.tsx`.
 - **As of**: 2026-10-03, Claude Code 2.1.288
-- **Recheck trigger**: that table moves `tool.call`, `prompt.submit` or `session.*` out of the rows
-  that pass.
+- **Recheck trigger**: "The rows" moves any hook or call in the table into a row the guard holds,
+  or changes when it refuses `tool.register`; or either guard's module starts hooking an event or
+  calling a `$` method the table does not list.
 
 ### Conventions and review
 
@@ -123,10 +142,19 @@ mods therefore use hooks the guard passes: `tool.call`, `prompt.submit`, `sessio
 
 ## Consequences
 
-- context-guard and rate-limit-guard may each gain a mod that replaces its status-line tee, shim,
-  status-line wiring and the hooks the mod does natively, each only after its parity inventory
-  passes. context-guard's zone gate moves into its mod; the post-compaction marker and the
-  rate-limit stop recorder stay settings hooks.
+- context-guard and rate-limit-guard each run as a mod that replaced its status-line tee, shim,
+  status-line wiring and the hooks the mod does natively, each after its parity inventory passed.
+  context-guard's zone gate moved into its mod; the post-compaction marker and the rate-limit stop
+  recorder stay settings hooks.
+- One crashing mod does not take the guards down with it. A crash Claude Code traces to one mod
+  unloads that mod alone; only crashes it cannot trace to one mod count toward the limit that
+  unloads every installed mod for the session. In this repository's close-out probe a test mod
+  that blocked the hooks worker was unloaded, and both guard mods stayed loaded and kept writing.
+  Basis:
+  [troubleshoot: it crashed the hooks worker](https://code.claude.com/docs/en/plugins/mods/troubleshoot#it-crashed-the-hooks-worker)
+  and
+  [mods that run in the hooks worker are off for this session](https://code.claude.com/docs/en/plugins/mods/troubleshoot#mods-that-run-in-the-hooks-worker-are-off-for-this-session),
+  as of 2026-10-03, Claude Code 2.1.288.
 - A mod that answers a tool call without calling `next` keeps plugin `PreToolUse` settings hooks
   from running, and a `tool.check` hook can approve a call they blocked
   ([events: where settings hooks run in the order](https://code.claude.com/docs/en/plugins/mods/events#where-settings-hooks-run-in-the-order);
@@ -161,7 +189,9 @@ Every pointer above is as of 2026-10-03, Claude Code 2.1.288. Re-derive this rec
 - a pull request bumps the `@anthropic-ai/claude-code` pin in `package.json`: run the quick check in
   [go-no-go.md](../upstream/claude-code-mods/go-no-go.md#quick-check-for-a-claude-code-pin-bump);
 - a docs page under `docs/en/plugins/mods/` adds an early-access or "without notice" warning;
-- the work-machine probe fails, or `sec-default` changes which hooks it skips;
+- `sec-default` starts holding a hook or `$` call either guard mod uses (the table under
+  [Where the guard mods run](#where-the-guard-mods-run)), or a guard mod starts using one the table
+  does not list;
 - #92533 changes state.
 
 ## Links
