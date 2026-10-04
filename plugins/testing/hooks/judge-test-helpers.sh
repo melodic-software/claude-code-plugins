@@ -47,6 +47,9 @@ EOF
 chmod +x "$TMP/bin/claude"
 export PATH="$TMP/bin:$PATH"
 export CLAUDE_PLUGIN_DATA="$TMP/data" CLAUDE_PROJECT_DIR="$REPO" HOME="$TMP/home"
+# The recorders skip files under the temp root. These fixtures live there, so
+# point the root at a directory that holds none of them (#6037).
+export TEST_SCAN_SKIP_ROOT="$TMP/judge-skip-root"
 export CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true CLAUDE_PLUGIN_OPTION_TEST_JUDGE_ENABLED=true
 export TEST_JUDGE_DEBOUNCE=0 TEST_JUDGE_CMD="$TMP/judge-stub.sh" STUB_DIR="$TMP/stub"
 DATA="$TMP/data"

@@ -6,7 +6,7 @@ Planning version: <the `version` in `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin
 
 ## Steps
 
-- [ ] Step 1: Survey before you ask. Read existing context, the topic's contract and memory slices, conversation history; identify what's already settled
+- [ ] Step 1: Survey before you ask. Read existing context, the topic's memory slice, conversation history; identify what's already settled
 - [ ] Step 1.5: Auto-detect (default action only). If intent already crisp from survey, route to direct synthesis (skip Q&A loop)
 - [ ] Step 2: Drive the frontier-rounds loop. Each round asks every settled-prerequisite question as one numbered set in **inline prose** (`AskUserQuestion` only via the `use_ask_user_question` opt-in; `lock` synthesizes without Q&A); order rounds by blast radius; restate decided/open after each round
 - [ ] Step 2 exit: Assumption sweep (`me` and `auto` with a register, the `auto` Mixed path included; not `lock`). Once the frontier is empty, a fresh-context sub-agent inventories undecided details, hidden defaults, contradictions, and hedged or free-text rows; each becomes a register row at the next `Q<N>` or a stated fact, and an `open` row returns the run to Step 2 (`context/assumption-sweep.md`)

@@ -62,7 +62,7 @@ Tick only after verification evidence. Criteria SSOT: `quality-gates.md` (the `/
 {{SHEET_CHECKBOXES}}
 
 - [ ] **4.8** Triage JSON merged. Verify: `key-frames/triage/manifest.json` + `key-frames/triage/batches/sheet_NNN.json` per sheet; `validate-triage-json.js` exit 0
-- [ ] **4.9** Triage log complete. Verify: `countTriageSheetsLogged` / {{CONTACT_SHEET_COUNT}} ≥ {{FLOOR_SHEET_TRIAGE_PCT}}% before phase 6 complete
+- [ ] **4.9** Triage log complete. Verify: `countTriageSheetsLogged` / {{CONTACT_SHEET_COUNT}} ≥ {{FLOOR_SHEET_TRIAGE}} before phase 6 complete
 - [ ] **4b.1** On-screen URLs merged. Verify: `harvested-links.json` updated
 - [ ] **4b.2** Deck harvest pass B. Verify: new deck URLs fetched; remaining sheets re-filtered with deck inventory
 

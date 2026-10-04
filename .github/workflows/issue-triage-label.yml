@@ -17,6 +17,11 @@ jobs:
   issue-triage-label:
     permissions:
       issues: write # passed to the reusable, which reads and adds issue labels
+    # Stays on v0.27.1, the newest SHA with a reviewed contract in
+    # .github/standards/runner-policy/policy.json. The runner-policy gate
+    # declines to auto-approve a newer SHA for a reusable that carries an
+    # allowedCallerPermissions grant, so a repin waits on a reviewed contract
+    # for the new SHA in melodic-software/standards.
     uses: melodic-software/ci-workflows/.github/workflows/issue-triage-label.yml@4610c31e92eb1c4b24981e2f200ac87bdb2a1753 # v0.27.1
     with:
       runner: ubuntu-24.04
