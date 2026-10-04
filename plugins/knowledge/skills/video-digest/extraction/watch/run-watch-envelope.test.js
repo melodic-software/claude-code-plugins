@@ -104,6 +104,27 @@ async function readWatchJson() {
   return JSON.parse(raw);
 }
 
+/**
+ * Stage progress is one stderr line at the start and end of acquire, transcript
+ * (naming the strategy), and watching, in that order.
+ *
+ * @param {string} text
+ */
+function expectStageProgress(text) {
+  const acquireStart = text.indexOf("watch: acquire start");
+  const acquireEnd = text.indexOf("watch: acquire end");
+  const transcriptStart = text.indexOf("watch: transcript start (strategy: captions)");
+  const transcriptEnd = text.indexOf("watch: transcript end (strategy: captions)");
+  const watchingStart = text.indexOf("watch: watching start");
+  const watchingEnd = text.indexOf("watch: watching end");
+  expect(acquireStart).toBeGreaterThanOrEqual(0);
+  expect(acquireEnd).toBeGreaterThan(acquireStart);
+  expect(transcriptStart).toBeGreaterThan(acquireEnd);
+  expect(transcriptEnd).toBeGreaterThan(transcriptStart);
+  expect(watchingStart).toBeGreaterThan(transcriptEnd);
+  expect(watchingEnd).toBeGreaterThan(watchingStart);
+}
+
 describe("runWatchCli envelope consumption", () => {
   beforeEach(async () => {
     workRoot = await fs.mkdtemp(path.join(os.tmpdir(), "watch-envelope-root-"));
@@ -140,6 +161,7 @@ describe("runWatchCli envelope consumption", () => {
 
     const code = await runWatchCli(["node", "run-watch.js", URL, "--skip-research"]);
     expect(code).toBe(0);
+    expectStageProgress(captured.stderr.join("\n"));
 
     const output = JSON.parse(captured.stdout.join(""));
     expect(output.entryCount).toBe(1);
@@ -167,6 +189,8 @@ describe("runWatchCli envelope consumption", () => {
 
     const code = await runWatchCli(["node", "run-watch.js", URL]);
     expect(code).toBe(0);
+    expectStageProgress(captured.stderr.join("\n"));
+    expect(captured.stderr.join("\n")).toContain("watch: watching end (skipped: no media entries)");
 
     const output = JSON.parse(captured.stdout.join(""));
     expect(output.entryCount).toBe(0);

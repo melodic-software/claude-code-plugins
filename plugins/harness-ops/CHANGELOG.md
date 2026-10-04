@@ -3,11 +3,17 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.6.7] - 2026-10-04
+## [3.7.1] - 2026-10-04
 
 ### Fixed
 
 - **`/harness-ops:plugins` sync reports the CLI's own failure line, a default-disabled install, and a plugin the catalog no longer names.** A failed update or marketplace refresh classifies the outcome line from the untruncated CLI output, so a progress line is not the reason under Action needed. An install the CLI reports as disabled by default is named as installed but not enabled, with the enable command. A user-scope install absent from the catalog's names is delisted, withheld from the user-scope sweep, and given an uninstall remedy. An effective `true` `enabledPlugins` key with no install record and no catalog entry is named separately with a settings remedy, since there is nothing to uninstall, and a `false` key with no install is not reported. In `audit` both rows are labeled predictions and carry no command. A catalog whose `plugins` array is empty is not treated as a delisting. A project- or local-scope install in the current repo that the catalog no longer names is withheld from the in-repo sweep and named with its runnable uninstall command, and no delisted install at any scope is enabled by Step 5. An install that exited nonzero is never named as installed but not enabled, and the report's fallback outcome line skips blank lines as the capture-time classifier does. Monitor counts read the nested `experimental.monitors` value or a top-level `monitors` value, and `monitors/monitors.json` only when neither key is present; the monitors bullet still asks for a session restart. On an `ask` re-entry the cache-content check runs after the installs when the first pass stopped before them. Version comparison reads every segment in base 10. The install-enable note no longer says an uninstall keeps the `false` entry; `context/gotchas.md` records the probe.
+
+## [3.7.0] - 2026-10-04
+
+### Added
+
+- **audit-performance counts dead-parent fan-out debris at any age on Windows.** `orphan_attribution.dead_parent_any_age` is a per-name census (`name`, `count`, `youngest_h`, `oldest_h`) of processes whose parent is gone or recycled, older than 5 seconds; a census process whose parent start time is unreadable is counted in `orphan_attribution.dead_parent_any_age_unknown_count` and stays out of the verdict's `unknown_count` and `unknown_sample`. The names are the orphan candidate set plus `tail.exe`, `grep.exe`, `sleep.exe`, and `cat.exe`. It is a census, not a kill list: `orphans`, `orphan_count`, and the 24-hour verdict floor stay as they are. On Linux, macOS, and WSL the census is `null` with a note, because those systems reparent an orphan to a live init or subreaper and the process table no longer shows the dead parent. The orphan verdict reads the same table, so off Windows `orphan_attribution.orphans_note` now says it cannot see a reparented orphan: `orphan_count: 0` is not a cleared suspect, and a `live_parent` row under init, launchd, or a subreaper is unresolved; on Windows the note is `null` ([#6035](https://github.com/melodic-software/claude-code-plugins/issues/6035)).
 
 ## [3.6.6] - 2026-10-03
 
