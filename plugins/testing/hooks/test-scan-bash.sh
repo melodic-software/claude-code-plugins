@@ -28,7 +28,8 @@
 # through, as on the Write and Edit route.
 #
 # Test seams: TEST_SCAN_TIMEOUT is passed through to test-scan.sh; unset, each
-# file gets an equal share of 8 seconds, inside the hooks.json timeout of 10.
+# file gets an equal share of what the hook has left of 8 seconds, inside the
+# hooks.json timeout of 10.
 
 set -uo pipefail
 
@@ -116,7 +117,11 @@ done
 ((${#kept[@]})) || exit 0
 paths=("${kept[@]}")
 
-export TEST_SCAN_TIMEOUT="${TEST_SCAN_TIMEOUT:-$((8 / ${#paths[@]}))}"
+# The git probes above come out of the same 8 seconds, so each file gets an
+# equal share of what is left, at least one second.
+left=$((8 - SECONDS))
+((left >= ${#paths[@]})) || left=${#paths[@]}
+export TEST_SCAN_TIMEOUT="${TEST_SCAN_TIMEOUT:-$((left / ${#paths[@]}))}"
 docs=()
 n=0
 for p in "${paths[@]}"; do
