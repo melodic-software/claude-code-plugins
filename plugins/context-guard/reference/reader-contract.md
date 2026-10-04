@@ -246,7 +246,8 @@ skill's module check), none of the following runs except the PostCompact marker.
   channels with two audiences**. The **model channel** (the `context` a `tool.call` or
   `prompt.submit` hook adds) carries the verdict only: the zone word and its rank of three. In `dumb` it also
   carries the save-state note, labeled as the dumb zone's default. A line carries no figure
-  unless `zone_line_data` adds one (percent, tokens, window), and never a session id. Beside the
+  unless `zone_line_data` adds one (percent, tokens, window), and a line with a figure ends
+  "Continuing is the user's call."; it never carries a session id. Beside the
   crossings the module sends one approach line per boundary per cycle (`approach_margin`
   percentage points before it), one line per `thresholds` entry passed, and the verdict restated
   once, only when it is past `smart`, after a compaction (not a `precompute` one), after an
@@ -282,7 +283,8 @@ skill's module check), none of the following runs except the PostCompact marker.
   whose Remediate clause says that where the harness must surface a count, it pairs it with a
   reassurance rather than with an exit menu. By default the module surfaces no count: it sends the
   verdict, in `dumb` the save-state note that zone carries by default, and any operator-configured
-  `zones.json` action; it sends no counter-steer rule about what a zone means. The
+  `zones.json` action; a count `zone_line_data` adds is paired with "Continuing is the user's
+  call."; it sends no counter-steer rule about what a zone means. The
   measurement decides only *when to ask*; the model still decides whether to stop. The model
   channel never says the user has seen the menu. No documented hook behavior tells a hook whether an operator is present, so a delivery
   claim would be a fact the hook cannot know. Silent while the zone is unchanged, improving, or

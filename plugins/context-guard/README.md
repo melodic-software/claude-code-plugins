@@ -65,7 +65,7 @@ approach margin of the next zone adds ", nearing <zone>", and an approach line t
 it is not sent. A crossing or restatement in `dumb` also carries the save-state note. Lines due at
 one carrier: a crossing or restatement recorded before a pending restatement merges into it; a
 crossing recorded after it is the newer verdict and replaces it. `zone_line_data` adds figures (percent, tokens,
-window); by default a line carries none, and it never carries a session id. A configured action's sentence
+window) and then "Continuing is the user's call."; by default a line carries neither, and it never carries a session id. A configured action's sentence
 (`zones.json` `actions` and `thresholds`, see the [reader contract](reference/reader-contract.md))
 appears at its crossing, never before. Subagents get no line. Each line sent to Claude, and each
 gate denial, is also written as sent to the debug log (`claude --debug`).

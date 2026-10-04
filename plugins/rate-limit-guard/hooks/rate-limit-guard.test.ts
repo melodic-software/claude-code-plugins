@@ -291,6 +291,18 @@ test('debug mirror: each line sent to Claude is written to the debug log as sent
   expect(w.logs.filter(l => l.to === 'debug' && l.text.includes(' window ')).map(l => l.text)).toEqual([...atTool, ...atPrompt])
 })
 
+test('debug mirror: a failing debug write still sends the line', NO_WRITES, async ($, on) => {
+  const { w } = world(on, {}, { HOME }, ['ui.log'])
+  on('ui.log', ($: unknown, e: { text: string; to: string }) => {
+    if (e.to === 'debug') throw new Error('debug log unavailable')
+    w.logs.push({ text: e.text, to: e.to })
+    return { value: undefined }
+  })
+  await bash($)
+  w.limits = limits(91)
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_5H])
+})
+
 // session.start with earlier turns is a fresh load in a running session: a reload, a worker respawn,
 // an enable, or a --resume launch, which session.start cannot tell apart.
 test('lines: a load with earlier turns and quiet windows sends nothing', NO_WRITES, async ($, on) => {

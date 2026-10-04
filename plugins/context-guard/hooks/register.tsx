@@ -301,7 +301,9 @@ export const renderEvent = (e: Event, s: Session, cfg: Config, settings: Setting
     zoneRules(zone, settings, cfg)
       .map(z => sentence(z.source, z.rule))
       .join('')
-  const line = (zone: Zone, degraded: boolean, hint: string) => `context-guard: ${verdictText(zone, degraded)}${data}${hint}.`
+  // A line that surfaces a count pairs it with a reassurance (I23's Remediate clause); the verdict alone carries none.
+  const line = (zone: Zone, degraded: boolean, hint: string) =>
+    `context-guard: ${verdictText(zone, degraded)}${data}${hint}.${data === '' ? '' : " Continuing is the user's call."}`
   // Within the approach margin of the next zone's boundary, the verdict says which zone is near.
   const near = (zone: Zone) => {
     const toward = NEXT_ZONE[zone]
@@ -325,9 +327,16 @@ const renderAll = (events: Event[], s: Session, cfg: Config, settings: Settings)
   return lines.filter(l => !lines.some(o => o !== l && o.startsWith(l)))
 }
 
+// Best effort: a logging failure must never turn a denial into a permitted call or re-run a tool.
+const debugLog = ($: EngineInterface, text: string) => {
+  try {
+    $.ui.log(text, { to: 'debug' })
+  } catch {}
+}
+
 // Appends lines to what Claude reads and writes each to the debug log, so the log holds what Claude was told.
 const withLines = <T extends { context?: readonly string[] }>($: EngineInterface, e: T, lines: readonly string[]): T => {
-  for (const line of lines) $.ui.log(line, { to: 'debug' })
+  for (const line of lines) debugLog($, line)
   return lines.length === 0 ? e : { ...e, context: [...(e.context ?? []), ...lines] }
 }
 
@@ -884,7 +893,7 @@ export const register: Register = (on, options) => {
     const fire: Fire = { event: 'tool.call', startMs: await $.clock.now(), toolUseId: (e as { tool_use_id?: unknown }).tool_use_id, agentId: e.agentId }
     const deny = await gate($, st, cfg, e, fire)
     if (deny !== undefined) {
-      $.ui.log(deny, { to: 'debug' })
+      debugLog($, deny)
       return { deny }
     }
     const result = await next(e)

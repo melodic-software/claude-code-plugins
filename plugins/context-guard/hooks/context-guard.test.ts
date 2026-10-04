@@ -500,7 +500,7 @@ test('zones.json: invalid additions fall back to the defaults', async ($, on) =>
 test('line data: percent, tokens and window are carried when configured', { options: { zone_line_data: 'zone, percent, tokens, window' } }, async ($, on) => {
   const { w } = world(on)
   expect((await walk($, w, [30, 60])).flat()).toEqual([
-    `context-guard: acceptable zone (2 of 3), 60% of the window used, 120000 tokens in context, a 200000-token window.`,
+    `context-guard: acceptable zone (2 of 3), 60% of the window used, 120000 tokens in context, a 200000-token window. Continuing is the user's call.`,
   ])
 })
 
@@ -861,6 +861,30 @@ test('debug mirror: a gate denial is written to the debug log as sent', BLOCKING
   const deny = (await write($)).deny
   expect(deny).toBe(denial('Write', 0))
   expect(debug).toContain(deny)
+})
+
+// A debug write that throws leaves the denial and the lines as they would be without the mirror.
+const throwingDebugWorld = (on: any, init: object = {}) => {
+  const { w } = world(on, init, { HOME }, ['ui.log'])
+  on('ui.log', ($: unknown, e: { text: string; to?: string }) => {
+    if (e.to === 'debug') throw new Error('debug log unavailable')
+    w.logs.push(e.text)
+    return { value: undefined }
+  })
+  return { w }
+}
+
+test('debug mirror: a failing debug write still denies the gated call', BLOCKING(0), async ($, on) => {
+  throwingDebugWorld(on, { percent: 80 })
+  await prompt($, 'composer')
+  expect((await write($)).deny).toBe(denial('Write', 0))
+})
+
+test('debug mirror: a failing debug write still sends the line', async ($, on) => {
+  const { w } = throwingDebugWorld(on)
+  await bash($)
+  w.percent = 60
+  expect(own((await bash($)).context)).toEqual([crossing('acceptable')])
 })
 
 test('gate: an action other than block at the dumb zone in zones.json leaves blocking mode inert', BLOCKING(0), async ($, on) => {
