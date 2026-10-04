@@ -39,7 +39,7 @@ Print every field, in this order, before anything else:
 cli_version:     <claude --version>
 floor_met:       <true | false>
 platform:        <windows | wsl2 | linux | darwin | other>
-sandbox_backend: <present | absent | unknown>
+sandbox_backend: <present | absent | unknown> (missing: <the binaries that did not resolve>, when any)
 target_type:     <plugin | wrapped-skill | wrapped-agent | rules>
 suite_tools:     <read-only | the gated tools the cases request>
 same_model:      <yes | no | unknown | off> (tested <model>, judge <model>)
@@ -63,21 +63,21 @@ this session's own host, which may not be the machine that will run the eval.
 
 | Observation | `sandbox_backend` |
 |---|---|
-| Native Windows (no WSL) | `absent` |
-| `/proc/version` contains `microsoft` (WSL2) | `present` |
-| Linux and both `bwrap` and `socat` resolve on PATH | `present` |
-| Linux and either is missing | `absent` |
+| Native Windows (no WSL), or WSL1 (`/proc/version` contains `Microsoft` but not `microsoft-standard`) | `absent` |
+| Linux or WSL2 (`/proc/version` contains `microsoft-standard`; the kernel string alone is never enough), and every package the sandboxing page lists resolves (`command -v bwrap`, `command -v socat`) | `present` |
+| Linux or WSL2, and any of them is missing | `absent`, naming each missing binary |
 | macOS | `present` |
 | Anything else | `unknown`, treated as `absent` for the refusal below |
 
 | Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
 |---|---|---|
-| Granting `Bash` puts every command under Claude Code's OS-level sandbox; on a machine with no backend each run is refused rather than run unconfined, so the case reports a run error and usually scores 0. Linux needs `bubblewrap` and `socat`; macOS is supported; native Windows has no backend | <https://code.claude.com/docs/en/plugin-evals> platform notes and <https://code.claude.com/docs/en/sandboxing>, verified 2026-09-12 | Recheck trigger: the page names a Windows backend, or names a new dependency. Then re-read it, re-derive the table above, and refresh this row with the outcome |
+| Granting `Bash` puts every command under Claude Code's OS-level sandbox; on a machine with no backend each run is refused rather than run unconfined, so the case reports a run error and usually scores 0. Native Windows has no backend; macOS is supported. The Linux and WSL2 packages, and WSL1's lack of support, are what [Set up Linux and WSL2](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2) lists; read them there | <https://code.claude.com/docs/en/plugin-evals> platform notes, verified 2026-09-12; that sandboxing section, fetched 2026-10-04 | Recheck trigger: either page names a Windows backend, or the section adds or drops a package or changes its WSL notes. Then re-read it, re-derive the table above, and refresh this row with the outcome |
 
 **Refuse before any spend** when `sandbox_backend` is not `present` and any case requests `Bash`,
 `Write`, or `Edit`. Name both halves in the refusal: the backend is missing, so each granting run
-would be refused by the CLI and score 0 rather than measuring anything; and the route is WSL2, a
-Linux host with `bubblewrap` and `socat`, macOS, or a Claude cloud session. Read-only suites
+would be refused by the CLI and score 0 rather than measuring anything; and the route: on Linux or
+WSL2, install each missing package, restart Claude Code, and confirm with `/sandbox`; otherwise
+WSL2, a Linux host with `bubblewrap` and `socat`, macOS, or a Claude cloud session. Read-only suites
 (`Read`, `Glob`, `Grep`, `NotebookRead`, `Skill`, `Agent`, `TodoWrite`, the `Task*` tools) are
 unaffected and run anywhere.
 

@@ -1,5 +1,11 @@
 # Changelog: evals
 
+## [0.5.5] - 2026-10-04
+
+### Fixed
+
+- **`plugin-eval` preflight no longer reports WSL2's sandbox as present from `/proc/version` alone.** WSL2 now takes the Linux check, so `bwrap` and `socat` must both resolve, and the report names whichever is missing. WSL1 reports `absent`. The package list points at the sandboxing page's "Set up Linux and WSL2" section instead of restating it. New eval case `sandbox-wsl2-missing-socat` covers the bwrap-present, socat-missing machine.
+
 ## [0.5.4] - 2026-10-04
 
 ### Changed
