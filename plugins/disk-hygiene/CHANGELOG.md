@@ -3,6 +3,19 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.7] - 2026-10-04
+
+### Changed
+
+- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+- The clean skill's safety model cites `plugins/components#path-variables-and-persistent-data` and `plugins/loading#in-place-and-copied-plugins` in place of the removed `plugins-reference` caching and data-directory anchors.
+
+## [0.43.6] - 2026-10-04
+
+### Fixed
+
+- **The opt-in elevation lane's verification status is current.** The safety model and README said no Windows UAC pilot had run the lane. A native replica of its elevated per-path re-check passed one on 2026-10-01; both now say so, and the safety model lists what that pilot did not cover, starting with the engine itself on Windows. The lane's behavior is unchanged.
+
 ## [0.43.5] - 2026-10-03
 
 ### Changed

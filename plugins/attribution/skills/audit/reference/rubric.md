@@ -1,6 +1,6 @@
 # The attribution rubrics
 
-Two rubrics live here, each versioned on its own: the **copy rubric**, version **4**, and the
+Two rubrics live here, each versioned on its own: the **copy rubric**, version **5**, and the
 **restated-fact rubric**, version **1**. This catalog is versioned with the plugin: a change to a
 carve-out or a criterion of either rubric lands in `CHANGELOG.md` and **invalidates any golden-set
 measurement pinned to an earlier version of that rubric**. **The golden set must be re-scored
