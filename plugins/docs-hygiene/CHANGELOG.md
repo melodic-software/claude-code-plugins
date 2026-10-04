@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.26.7] - 2026-10-04
+
+### Added
+
+- **`write-for-agents` gains three `claude plugin eval` cases (tag `pocock-34`) under `skills/write-for-agents/evals/plugin-eval/`.** Two check that trimming an AGENTS.md keeps a row mapping a misleading error to its real cause while cutting derivable filler; a control checks that a row whose error already names its own fix is cut. Run them with `--eval-dir skills/write-for-agents/evals/plugin-eval`. No skill text changed.
+
 ## [0.26.6] - 2026-10-04
 
 ### Changed
