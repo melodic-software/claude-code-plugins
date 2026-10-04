@@ -4389,6 +4389,8 @@ source "$BG_LIB"
 if [[ -n "${BG_STUB_FILE:-}" ]]; then
   hook::read_file_path_to() { printf -v "$1" '%s' "$BG_STUB_FILE"; }
 fi
+# A host override, so one host checks the path splits of both platforms.
+[[ -z "${BG_OSTYPE:-}" ]] || OSTYPE="$BG_OSTYPE"
 # A repo-root resolver whose answer is NOT an ancestor of the file, which is
 # what makes hook::repo_relative_path_to degrade to the basename.
 bg_fake_root() { printf -v "$1" '%s' "${BG_ROOT_VALUE:-}"; }
@@ -4488,10 +4490,17 @@ else
 fi
 
 # The post-read half, table-driven over path shapes no fixture can create.
-# Columns: label | file_path | want FILE_DIR | want FILE_BASE.
-while IFS='|' read -r bg_label bg_path bg_want_dir bg_want_base; do
+# Columns: label | file_path | want FILE_DIR | want FILE_BASE | host. A backslash
+# separates directories only on Windows, so a `win` row runs as an msys host and
+# a `posix` row as a Linux one, whatever host runs the suite.
+while IFS='|' read -r bg_label bg_path bg_want_dir bg_want_base bg_row_host; do
   [[ -n "$bg_label" ]] || continue
   bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" BG_STUB_FILE="$bg_path")
+  case "$bg_row_host" in
+  win) bg_env+=(BG_OSTYPE=msys) ;;
+  posix) bg_env+=(BG_OSTYPE=linux-gnu) ;;
+  *) ;;
+  esac
   bg_row=$(bg_run "$(bg_payload "$BG_REPO/sub/a.sh")" sample PostToolUse)
   bg_row_rc=$?
   bg_got_dir="$(bg_field "$bg_row" DIR)"
@@ -4502,16 +4511,17 @@ while IFS='|' read -r bg_label bg_path bg_want_dir bg_want_base; do
     fail "begin: $bg_label → FILE_DIR '$bg_got_dir' (want '$bg_want_dir'), FILE_BASE '$bg_got_base' (want '$bg_want_base'), rc=$bg_row_rc, output: [$bg_row]"
   fi
 done <<'BGTABLE'
-a file under the filesystem root|/README.md|/|README.md
-a bare relative name|README.md|.|README.md
-a nested path|/a/b.md|/a|b.md
-a deeper nested path|/a/b/c.md|/a/b|c.md
-a Windows backslash path|C:\repo\x.md|C:\repo|x.md
-a mixed-form path|/a/b\c.md|/a/b|c.md
-a file under a backslash drive root|C:\x.cs|C:\|x.cs
-a file under a forward-slash drive root|C:/x.cs|C:/|x.cs
-a mixed path under a drive|C:/p\q\x.cs|C:/p\q|x.cs
-a forward-slash drive path|C:/a/b/x.cs|C:/a/b|x.cs
+a file under the filesystem root|/README.md|/|README.md|any
+a bare relative name|README.md|.|README.md|any
+a nested path|/a/b.md|/a|b.md|any
+a deeper nested path|/a/b/c.md|/a/b|c.md|any
+a file under a forward-slash drive root|C:/x.cs|C:/|x.cs|any
+a forward-slash drive path|C:/a/b/x.cs|C:/a/b|x.cs|any
+a Windows backslash path|C:\repo\x.md|C:\repo|x.md|win
+a mixed-form path|/a/b\c.md|/a/b|c.md|win
+a file under a backslash drive root|C:\x.cs|C:\|x.cs|win
+a mixed path under a drive|C:/p\q\x.cs|C:/p\q|x.cs|win
+a POSIX name holding a backslash|/a/b\c.md|/a|c.md|posix
 BGTABLE
 bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO")
 
