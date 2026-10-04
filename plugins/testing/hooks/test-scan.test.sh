@@ -494,9 +494,9 @@ bash_run bs-4 "$two"
 check_two="$(rec sb bs-4-1) $(rec sb bs-4-2)"
 if [[ "$check_two" == *"/sb/bs-4-1.json "*"/sb/bs-4-2.json" ]]; then ok "Bash state: two test files in one call leave two records"; else fail "Bash state: two test files in one call leave two records ($check_two)"; fi
 
-# A test file a checkout, pull or merge brought in is byte-identical to its
-# blob at HEAD in its own repository: the session did not write it, so it is
-# neither scanned nor recorded. One the call changed, or one HEAD lacks, is.
+# A test file a checkout, pull or merge brought in is unchanged from HEAD in
+# its own repository, as git diff sees it: the session did not write it, so it
+# is neither scanned nor recorded. One the call changed, or one HEAD lacks, is.
 HR="$TMP/headrepo"
 mkdir -p "$HR/src"
 git -C "$HR" init -q
@@ -504,8 +504,11 @@ cp "$REPO/src/sum.test.ts" "$HR/src/kept.test.ts"
 cp "$REPO/src/sum.test.ts" "$HR/src/also.test.ts"
 git -C "$HR" add -A
 git -C "$HR" -c commit.gpgsign=false -c user.name=t -c user.email=t@t commit -qm init
-bash_run hd-1 "$(diff_of edit "$HR/src/kept.test.ts" "$ADD_ALL")"
-assert_empty "Bash HEAD: a test file identical to HEAD is not scanned" "$out"
+# The hunk covers the zero-assertion test body (line 5), so a scan would report it.
+BODY='[{"oldStart":5,"oldLines":1,"newStart":5,"newLines":1,"lines":["-  sum(1, 2);","+  sum(1, 2);"]}]'
+bash_run hd-1 "$(diff_of edit "$HR/src/kept.test.ts" "$BODY")"
+assert_not_contains "Bash HEAD: a test file identical to HEAD is not scanned" "$out" "rule-zero-assertion"
+assert_empty "Bash HEAD: a test file identical to HEAD gives no output" "$out"
 assert_empty "Bash HEAD: a test file identical to HEAD leaves no record" "$(rec sb hd-1-1)"
 printf '%s\n' "test('more', () => {" "  sum(2, 2);" "});" >>"$HR/src/kept.test.ts"
 bash_run hd-2 "$(diff_of edit "$HR/src/kept.test.ts" "$ADD_ALL")"
@@ -519,6 +522,19 @@ if command -v cygpath >/dev/null; then BS="$(cygpath -w "$HR/src/also.test.ts")"
 out="$(bash_payload hd-4 "$(diff_of edit "$BS" "$ADD_ALL")" | bash "$BASH_HOOK" 2>&1)"
 assert_empty "Bash HEAD: a backslash path to a file identical to HEAD is not scanned" "$out"
 assert_empty "Bash HEAD: a backslash path to a file identical to HEAD leaves no record" "$(rec sb hd-4-1)"
+# A file committed with CRLF line endings under core.autocrlf=true is
+# unchanged to git, though hash-object's eol filter hashes it differently.
+CR="$TMP/crlfrepo"
+mkdir -p "$CR/src"
+git -C "$CR" init -q
+git -C "$CR" config core.autocrlf false
+printf '%s\r\n' "import { test, expect } from 'vitest';" "import { sum } from './sum';" "" "test('adds', () => {" "  sum(1, 2);" "});" >"$CR/src/crlf.test.ts"
+git -C "$CR" add -A
+git -C "$CR" -c commit.gpgsign=false -c user.name=t -c user.email=t@t commit -qm init
+git -C "$CR" config core.autocrlf true
+out="$(bash_payload hd-5 "$(diff_of edit "$CR/src/crlf.test.ts" "$BODY")" | bash "$BASH_HOOK" 2>&1)"
+assert_empty "Bash HEAD: a CRLF test file unchanged under core.autocrlf=true is not scanned" "$out"
+assert_empty "Bash HEAD: a CRLF test file unchanged under core.autocrlf=true leaves no record" "$(rec sb hd-5-1)"
 
 # A working copy under the temp root, or in a Claude session scratchpad, is
 # not a test the session authored: no judge record (#6037). The skip root is
