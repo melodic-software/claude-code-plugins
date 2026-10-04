@@ -160,6 +160,7 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `implement_dispatch_wave_cap` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_IMPLEMENT_DISPATCH_WAVE_CAP` | Maximum worker rows /implementation:implement-dispatch runs at once within one plan phase. Leave unset to keep the internal 3-5 wave default. A fractional value is floored. A --wave-cap argument from a chaining caller takes precedence for that invocation. |
 | `verify_mechanical_phases` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_VERIFY_MECHANICAL_PHASES` | When on, /implementation:implement and /implementation:implement-dispatch send every phase, mechanical ones included, to a fresh-context verifier. Off (default) keeps the mechanical carve-out. True here or in a repository's docs/conventions/implementation.yaml wins. |
+| `drain_cadence` | string | `"on-arrival"` | `CLAUDE_PLUGIN_OPTION_DRAIN_CADENCE` | When /implementation:implement-dispatch reads worker returns. on-arrival (default): each return as it comes in. batched: held until the orchestrator step in progress finishes, for long multi-wave runs. A repository's docs/conventions/implementation.yaml drain_cadence key overrides this value. |
 
 ### How to set these
 

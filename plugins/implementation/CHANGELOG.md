@@ -25,6 +25,13 @@ All notable changes to the `implementation` plugin are documented here. Format f
   filter, with a body naming the span; any other failure stops the run, and Step 5's end gate is
   always green. `/implementation:implement-dispatch`'s build gate and phase-verifier brief apply
   the same rule, and the early push carries a red commit only before a pull request exists.
+- **`drain_cadence` lets a long dispatch run hold worker returns.** `on-arrival` (the default)
+  keeps `/implementation:implement-dispatch` reading each return as it comes in. `batched` holds a
+  return that arrives while the orchestrator is composing a wave's fences, running a build gate or
+  making a phase-boundary commit, reads it when that step ends, and reads every held return before
+  the phase is marked `[DONE]`; the wave cap is unchanged. It is set per user in the new
+  `drain_cadence` user config option and per repository in `docs/conventions/implementation.yaml`,
+  which wins; an invalid value is named and dropped.
 
 ## [0.21.3] - 2026-10-04
 

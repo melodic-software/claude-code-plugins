@@ -292,6 +292,33 @@
         "Does NOT mark Phase 1 [DONE] or accept the return as-is",
         "States that a red commit is pushable only while every failure lies in src/shipping/ and before a pull request exists"
       ]
+    },
+    {
+      "id": 23,
+      "name": "drain-cadence-batched",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run of a twelve-phase plan inside a git repository (not the home directory). The user's drain_cadence option is batched; the repository has no docs/conventions/implementation.yaml. Phase 4 has seven worker rows. You dispatched the first wave of four rows and are composing the fences for the remaining three rows when the workers for rows 1 and 3 return.",
+      "expected_output": "Resolves drain_cadence to batched from the user option and reports that layer. Holds the two returns unread while it finishes composing the second wave's fences, then reads and verifies both against direct evidence before acting on either. Once a return is read, its normal handling applies (verification, the main-side build gate). Every return still queued is read at phase end, before Phase 4 is marked [DONE]. The wave size stays at the cap (the internal 3-5 default, or implement_dispatch_wave_cap): drain_cadence does not change it.",
+      "files": [],
+      "expectations": [
+        "Reports drain_cadence: batched with the user option as the supplying layer",
+        "Finishes composing the second wave's fences before reading the returns of rows 1 and 3",
+        "Verifies each held return against direct evidence once it is read, and reads every held return before marking Phase 4 [DONE]",
+        "Does NOT change the wave size because of drain_cadence"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "drain-cadence-docs-block-wins",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run inside a git repository (not the home directory). The user's drain_cadence option is batched; the repository's docs/conventions/implementation.yaml holds `drain_cadence: on-arrival`. Phase 2 has three worker rows in one wave; while you are composing the brief for Phase 3, the row 2 worker returns.",
+      "expected_output": "Resolves drain_cadence to on-arrival from docs/conventions/implementation.yaml, which wins over the user's batched option, and reports that file as the supplying layer. Reads and verifies the row 2 return when it arrives, without waiting for the Phase 3 brief to be finished.",
+      "files": [],
+      "expectations": [
+        "Reports drain_cadence: on-arrival with docs/conventions/implementation.yaml as the supplying layer",
+        "Verifies the row 2 return when it arrives rather than holding it until the Phase 3 brief is composed",
+        "Does NOT apply the user's batched value"
+      ]
     }
   ]
 }

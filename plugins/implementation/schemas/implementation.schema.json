@@ -11,6 +11,11 @@
       "description": "When true, /implementation:implement and /implementation:implement-dispatch send every phase, mechanical ones included, to a fresh-context verifier. A floor: true in this file or in the user's verify_mechanical_phases option wins, so neither layer can switch off the other's true.",
       "type": "boolean",
       "default": false
+    },
+    "drain_cadence": {
+      "description": "When /implementation:implement-dispatch reads worker returns. on-arrival: verify each return as it comes in. batched: hold returns until the orchestrator step in progress (composing a wave's fences, a build gate, a phase-boundary commit) finishes, and at phase end. Overrides the user's drain_cadence option.",
+      "enum": ["on-arrival", "batched"],
+      "default": "on-arrival"
     }
   }
 }

@@ -9,6 +9,7 @@ plugin's `userConfig` option of the same name and per repository in
 | Key | Values | Default | Reader | Level rule |
 |---|---|---|---|---|
 | `verify_mechanical_phases` | `true`, `false` | `false` | `/implementation:implement-dispatch` (Gates; Phase boundaries); `/implementation:implement` (Step 4 item 1) | floor: `true` in any layer wins |
+| `drain_cadence` | `on-arrival`, `batched` | `on-arrival` | `/implementation:implement-dispatch` (Dispatch cadence step 2) | repository file over user option over default |
 
 `implement_dispatch_wave_cap` is a `userConfig` option only; the README's Options reference lists it.
 
@@ -28,7 +29,7 @@ the resolved value and the layer that supplied it, for example
 `verify_mechanical_phases: true (docs/conventions/implementation.yaml)`. A value outside the key's
 values in either layer is named with its file or option, the key and the value, and that layer is
 dropped: a valid higher layer still wins, otherwise the key's default, never a lower layer's value
-(ADR 0054 Decision 7). Under the floor exception below, a valid `true` in any layer still counts. For `verify_mechanical_phases` the default is `false`, which keeps the carve-out.
+(ADR 0054 Decision 7). Under the floor exception below, a valid `true` in any layer still counts. For `verify_mechanical_phases` the default is `false`, which keeps the carve-out; for `drain_cadence` it is `on-arrival`, which reads each worker return as it comes in.
 
 **Root rule.** The repository file is read only when the repository root (`CLAUDE_PROJECT_DIR`,
 else `git rev-parse --show-toplevel`) is inside a git working tree and is neither `$HOME` nor an

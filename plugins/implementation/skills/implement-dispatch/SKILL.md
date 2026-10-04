@@ -146,6 +146,24 @@ Because the orchestrator stays on the default branch, **every source-touching op
    build/test gate on accepted returns, except under commit authority `orchestrator` in a shared worktree, where the gate runs after the wave settles (see Concurrency). Rows in a shared worktree dispatch one per wave unless commit authority is `orchestrator` (see Gates). Intervene when
    a worker goes off track or is missing context. Do not block on the slowest worker before
    starting orchestrator-side work that does not depend on it.
+
+   **`drain_cadence`** decides when a return is read. `on-arrival` (the default) is the paragraph
+   above. `batched` is for long programs of many waves: a return that comes in while the
+   orchestrator is partway through one of its own steps waits in a queue until that step is done,
+   and the steps that hold it are composing a wave's fences, running a build/test gate, and making
+   a phase-boundary commit. Read the queue when the step ends, and read all of it at phase end,
+   before the phase is marked `[DONE]`. A queued return is unread, not accepted: once read, it goes
+   through item 3 and the build gate like any other. The cadence never changes the wave size, which
+   stays with the cap and `implement_dispatch_wave_cap`. Resolve the key once per run from three
+   layers, lowest first: the default `on-arrival`; the user's option,
+   `${user_config.drain_cadence}` (a literal, unexpanded placeholder means unset); and the
+   `drain_cadence` key of the repository's `docs/conventions/implementation.yaml`, which wins when
+   set, read under the same root rule as `verify_mechanical_phases` (Phase boundaries). A value
+   other than `on-arrival` or `batched` is named with its file or option, the key and the value,
+   and that layer is dropped: the repository's valid value still wins over an invalid user value,
+   and an invalid repository value resolves the default `on-arrival`, never the user's value.
+   Report one line, for example `drain_cadence: batched (user option)`. Rules:
+   [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md).
 3. **Verify the return against direct evidence before accepting edits**. Worker returns are synthesis, not ground truth; promote their claims to direct evidence (diff read, grep, file Read) before building on them. Under commit authority `orchestrator` the return is an uncommitted tree; read it as Commit authority describes
 4. **Build/test main-side**. Invoke `/toolchain:check` via the Skill tool from the main window when the `toolchain` plugin is installed, otherwise run the project's own build/test command main-side; never accept a worker's green claim as the build signal. When the edits land in a dedicated worktree (worker-side provisioning or an assigned path), run it against that worktree (`git -C <path>` or from that directory), not the orchestrator's default checkout. See the Prerequisites exception. Inside a span the plan declares with a `**Planned breakage:**` line (`/implementation:implement` Step 2, Execution cadence item 4), the gate passes only when every failure beyond those recorded at the span's start lies in the declared paths or test filter, and only for the declared kind; any other failure fails the gate. Brief the worker with the declaration verbatim, and grade its return against it, never against a wider reading
 5. **Route worker divergence reports into `/implementation:implement`'s "Step 3: Divergence Detection"** (apply that ladder here). A worker STOPping per the divergence-escalation clause is a divergence signal, severity-assessed the same way; the orchestrator revises the brief or routes back to the planning skill (`/planning:plan review` when installed)
