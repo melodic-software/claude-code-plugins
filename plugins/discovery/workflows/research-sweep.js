@@ -159,8 +159,11 @@ function fence(label, value) {
 }
 const TIERS =
   ' Source tiers: 0 = direct tool output or primary artifact read this run (source code, a spec file); ' +
-  '1 = official documentation, upstream changelog or release notes fetched this run; ' +
-  '2 = secondary (vendor or expert blog, Q&A site, AI synthesis); 3 = recall with no fetched source.'
+  '1 = official documentation, upstream changelog or release notes fetched this run, or for a design ' +
+  'pattern\'s definition the canonical catalog page that defines it, fetched this run; ' +
+  '2 = secondary (vendor or expert blog, Q&A site, AI synthesis); 3 = recall with no fetched source, ' +
+  'including a pattern book cited from memory. How many templates or repositories use a pattern is ' +
+  'adoption, not correctness, and earns no tier.'
 const DATED =
   ' Dates are YYYY, YYYY-MM or YYYY-MM-DD as the page states them, or "undated". applies_to is ' +
   '"version-independent" or "<product> <range>" where a range is <v>, <v>-<v> or <v>+.'

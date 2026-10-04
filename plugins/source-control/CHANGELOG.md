@@ -3,11 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.79.12] - 2026-10-04
+## [0.79.13] - 2026-10-04
 
 ### Fixed
 
 - **`/source-control:pull-request create` judges required sections the way CI does.** Its pre-create check now runs the `pr-body-linkage-gate.sh` hook's checker through `scripts/check-body-sections.sh`. A section holding only a code block, indented code, an inline code span, or an `# h1` is now caught as empty, and a lowercase `## summary` heading, or one with trailing spaces, is now accepted.
+
+## [0.79.12] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve.
 
 ## [0.79.11] - 2026-10-04
 
