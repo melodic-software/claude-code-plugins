@@ -29,7 +29,7 @@ keeps its latch.
 ## Operable floor (consumers inline these values verbatim)
 
 - **Tee file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
-- **Pause threshold (fixed):** pause when **either** window reports `used_percentage >= 90`
+- **Pause threshold (fixed):** pause when **either** window reports `used_percentage >= 95`
 - **Pause end:** the **tripped** window's `resets_at`; when **both** windows trip, the **later**
   `resets_at`
 - **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale. Treat
@@ -50,8 +50,8 @@ keeps its latch.
   with no latched account there is no switch to detect. Read `.claude.json` at pause entry and on
   every re-evaluation (each Monitor tick and each wake). When it differs from the latched account,
   re-evaluate at once against the new account's windows, taken from a fresh tee snapshot whose
-  `account.email` equals the new account: below 90, drop the latched pause and resume; at or above
-  90, keep pausing and re-latch the pause end and the latched account against the new account's
+  `account.email` equals the new account: below 95, drop the latched pause and resume; at or above
+  95, keep pausing and re-latch the pause end and the latched account against the new account's
   `resets_at`; with no fresh or attributable snapshot, treat the windows as **unknown**, drop the
   latch, and fall back to reactive-only. An unreadable, absent, or malformed state file, or a
   missing key, means **cannot attribute**: keep the existing latch, never a spurious drop. Never
@@ -142,7 +142,7 @@ values fail open, never closed: a `used_percentage` outside 0–100 or non-numer
 that is non-numeric, more than 8 days in the future, or already past by more than the staleness
 window, makes **that window** unknown, and each window may be independently absent. Keep applying
 the floor to every window still plausible: one absurd window is no reason to ignore a valid window
-already at or above 90, and a trip on the only plausible window is still a trip. The consumer never
+already at or above 95, and a trip on the only plausible window is still a trip. The consumer never
 throttles proactively on data it cannot trust, and never fabricates a pause.
 
 **Reactive-only mode:** no proactive throttling. The consumer reacts to the detection records in
@@ -270,7 +270,7 @@ once it is older than 60 seconds.
   at `https://code.claude.com/docs/en/plugins-reference`, which calls monitors an experimental
   component and names `experimental.monitors` in `plugin.json` as the declaration key. Recheck when
   that page stops calling monitors experimental, or when a release note names the monitors component.
-- **Fixed constants.** The tee path and the 90% threshold are contract constants, deliberately not
+- **Fixed constants.** The tee path and the 95% threshold are contract constants, deliberately not
   configurable: cross-plugin consumers read the documented values, so a per-user override could
   silently split writer and readers. None of the plugin's 7 `userConfig` options changes either:
   `rate_limit_line_threshold` sets only when Claude gets the threshold line, and

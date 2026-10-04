@@ -78,7 +78,7 @@ hook::buffer_stdin_to INPUT || {
 # (advisory hooks never block over a missing prerequisite) but makes the
 # degraded state visible to both the user (systemMessage) and the agent
 # (additionalContext), once per session and agent — see docs/conventions/hook-observability/.
-hook::require jq "PreToolUse" "guardrails-hardcoded-path-check" "$INPUT"
+hook::require jq "PreToolUse" guardrails "$INPUT"
 
 # Every payload field this hook can need, in ONE jq process (hook::jq_fields),
 # not three — a jq spawn is fork() emulation on Windows Git Bash and this guard
@@ -100,9 +100,7 @@ hook::jq_fields "$INPUT" \
 # verdict for both lanes: the single-file read below and the per-file MCP loop
 # ask the same question of the same helper flag. Never returns.
 hpc_block_nul() {
-  echo "BLOCKED: the payload carries a NUL byte in scanned content." >&2
-  echo "The helper strips NUL bytes before matching, so a clean scan would not reflect the bytes the payload carried." >&2
-  echo "Fix: reissue the tool call without the embedded NUL." >&2
+  guard::refuse_nul
   exit 2
 }
 
@@ -111,8 +109,20 @@ hpc_block_nul() {
 # drift apart on the advice they give.
 hpc_print_alternatives() {
   # shellcheck disable=SC2016  # the `$` spellings are literal advice, not expansions
-  printf 'Use portable alternatives: ~/,  $HOME, $(pwd), $TMPDIR, '
+  printf 'Use portable alternatives: ~/, $HOME, $(pwd), $TMPDIR, '
   printf 'git rev-parse --show-toplevel, or <placeholder> notation.\n'
+}
+
+# hpc_print_violations <text>: the report body, each matched line capped at 160
+# characters. The scanner keeps a matched line whole, so one minified line
+# would otherwise carry the whole file into the deny reason; the line number
+# at its head still locates it.
+hpc_print_violations() {
+  local line
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    ((${#line} > 160)) && line="${line:0:157}..."
+    printf '%s\n' "$line"
+  done < <(printf '%s' "$1")
 }
 
 # Telemetry labels for a violation report, into the variable named by $1: the
@@ -260,10 +270,8 @@ hpc_mcp_lane() {
 
   {
     printf 'Hardcoded machine-specific path(s) in content bound for GitHub:\n\n'
-    printf '%s' "$violations"
+    hpc_print_violations "$violations"
     hpc_print_alternatives
-    printf 'This write goes straight to a repository — there is no local file to\n'
-    printf 'fix afterwards, and no pre-commit hook on this path.\n'
   } >&2
 
   if [[ -n "$start" ]] && hook::telemetry_enabled; then
@@ -414,9 +422,15 @@ VIOLATIONS=$(
 )
 VIOLATIONS=${VIOLATIONS%x}
 if [[ -n "$VIOLATIONS" ]]; then
+  # The file as the model names it: project-relative when it sits under the
+  # project spelled the same way, else as given. A prefix strip, not
+  # hook::repo_relative_path_to: that one forks cygpath on Windows and degrades
+  # to a basename, which names a different file.
+  show_file="$FILE"
+  [[ "$FILE" == "${PROJECT_ROOT%/}/"?* ]] && show_file="${FILE#"${PROJECT_ROOT%/}/"}"
   {
-    printf 'Hardcoded machine-specific path(s) in %s:\n\n' "$FILE"
-    printf '%s' "$VIOLATIONS"
+    printf 'Hardcoded machine-specific path(s) in %s:\n\n' "$show_file"
+    hpc_print_violations "$VIOLATIONS"
     hpc_print_alternatives
   } >&2
   hpc_labels_json_to labels_json "$VIOLATIONS"

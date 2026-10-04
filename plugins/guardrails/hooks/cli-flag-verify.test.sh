@@ -52,6 +52,7 @@ run_fake() {
   local content="$1" ext="${2:-sh}"
   local case_dir="$TEST_TMPDIR/fake-$((PASS + FAIL + 1))"
   mkdir -p "$case_dir/cache"
+  [[ "${3:-}" == repo ]] && git init -q "$case_dir"
   local target="$case_dir/target.$ext"
   printf '%s\n' "$content" >"$target"
   PATH="$FAKE_BIN_DIR:$PATH" \
@@ -88,7 +89,7 @@ assert_silent "subcmd real flag → no output" "$OUT"
 OUT=$(run_fake 'faketool sub --fake')
 RC=$?
 assert_exit "subcmd fake flag → exit 0" 0 "$RC"
-ctx_contains "subcmd fake flag → UNKNOWN_FLAG w/ chain" "$OUT" "UNKNOWN_FLAG: faketool sub --fake"
+ctx_contains "subcmd fake flag → UNKNOWN_FLAG w/ chain" "$OUT" "  faketool sub --fake"
 
 OUT=$(run_fake 'faketool --toplevel')
 RC=$?
@@ -97,7 +98,22 @@ assert_exit "top-level real flag → exit 0" 0 "$RC"
 OUT=$(run_fake 'faketool --bogus')
 RC=$?
 assert_exit "top-level fake flag → exit 0" 0 "$RC"
-ctx_contains "top-level fake flag → UNKNOWN_FLAG no chain" "$OUT" "UNKNOWN_FLAG: faketool --bogus"
+ctx_contains "top-level fake flag → UNKNOWN_FLAG no chain" "$OUT" "  faketool --bogus"
+# Outside a repository a bare name would name a different file: the path is
+# given as the payload spelled it.
+ctx_contains "outside a repo, the report names the file by its full path" "$OUT" \
+  "unknown flag(s) in $TEST_TMPDIR/fake-"
+
+# Inside a repository the file is named repo-relative.
+OUT=$(run_fake 'faketool --bogus' sh repo)
+ctx_contains "report names the file repo-relative" "$OUT" "unknown flag(s) in target.sh,"
+assert_absent "report does not name the absolute file" "$OUT" "$TEST_TMPDIR/"
+
+# Twelve unknown flags: ten listed, the rest counted.
+OUT=$(run_fake "$(printf 'faketool --bad%s\n' 01 02 03 04 05 06 07 08 09 10 11 12)")
+cap_ctx=$(jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$OUT" 2>/dev/null)
+assert_eq "cap: ten findings listed" 10 "$(grep -c '^  faketool --bad' <<<"$cap_ctx")"
+assert_contains "cap: the rest are counted" "$cap_ctx" "  ... and 2 more"
 
 OUT=$(run_fake 'echo hi && faketool sub --real | cat')
 RC=$?
@@ -128,7 +144,7 @@ assert_exit "prose flag (no code span) → exit 0" 0 "$RC"
 OUT=$(run_fake "$(printf '%s\n%s\n%s\n' '```bash' 'faketool sub --fake' '```')" md)
 RC=$?
 assert_exit "fenced block fake flag → exit 0" 0 "$RC"
-ctx_contains "fenced block fake flag → reported" "$OUT" "UNKNOWN_FLAG: faketool sub --fake"
+ctx_contains "fenced block fake flag → reported" "$OUT" "  faketool sub --fake"
 
 OUT=$(run_fake "$(printf '%s\n%s\n%s\n' '```bash' '# faketool sub --fake' '```')" md)
 RC=$?
@@ -141,7 +157,7 @@ assert_exit "table cell no-backtick → exit 0" 0 "$RC"
 OUT=$(run_fake '| `faketool sub --fake` | hallucinated |' md)
 RC=$?
 assert_exit "table cell w/ backticks fake flag → exit 0" 0 "$RC"
-ctx_contains "table cell w/ backticks → reported" "$OUT" "UNKNOWN_FLAG: faketool sub --fake"
+ctx_contains "table cell w/ backticks → reported" "$OUT" "  faketool sub --fake"
 
 OUT=$(run_fake 'the `faketool` directory holds --bogus notes' md)
 RC=$?
@@ -176,7 +192,7 @@ assert_silent "diff-scope: pre-existing flag outside the hunk not re-flagged" "$
 OUT=$(run_edit 'faketool sub --real' 'faketool sub --fake')
 RC=$?
 assert_exit "diff-scope: unknown flag in the hunk → exit 0" 0 "$RC"
-ctx_contains "diff-scope: hunk flag reported" "$OUT" "UNKNOWN_FLAG: faketool sub --fake"
+ctx_contains "diff-scope: hunk flag reported" "$OUT" "  faketool sub --fake"
 
 # --------------- PARTIAL-REPLACEMENT (bare-flag hunk reconstruction) ---------
 # An Edit whose new_string is ONLY the swapped-in flag carries no binary or
@@ -188,7 +204,7 @@ ctx_contains "diff-scope: hunk flag reported" "$OUT" "UNKNOWN_FLAG: faketool sub
 OUT=$(run_edit 'faketool sub --fake' '--fake')
 RC=$?
 assert_exit "partial-edit: bare-flag hunk reconstructs context → exit 0" 0 "$RC"
-ctx_contains "partial-edit: reconstructed hunk flag reported" "$OUT" "UNKNOWN_FLAG: faketool sub --fake"
+ctx_contains "partial-edit: reconstructed hunk flag reported" "$OUT" "  faketool sub --fake"
 
 # MUST-STAY-QUIET: the same bare-flag shape where the disk line ALSO carries a
 # different pre-existing unknown flag NOT in new_string. Reconstruction keeps
@@ -256,8 +272,14 @@ assert_eq "flag-shape gate: no-dash write spawns no sed (scan skipped)" 0 "$SED_
 #     line, the same count, and the scan demonstrably ran.
 run_gated Write 'faketool sub --fake' 'faketool sub --fake'
 assert_exit "flag-shape gate: --flag write -> exit 0" 0 "$RC"
-ctx_contains "flag-shape gate: --flag write reports the same finding" "$OUT" "UNKNOWN_FLAG: faketool sub --fake (not found in 'faketool sub --help')"
-ctx_contains "flag-shape gate: --flag write reports the same count" "$OUT" "cli-flag-verify: 1 unknown flag(s) in"
+ctx_contains "flag-shape gate: --flag write reports the same finding" "$OUT" "  faketool sub --fake (not in 'faketool sub --help')"
+ctx_contains "flag-shape gate: --flag write reports the same heading" "$OUT" "cli-flag-verify: unknown flag(s) in"
+# One clause says the finding is unverified; no per-finding fix/skip lines and no
+# multi-line verdict trailer.
+ctx_contains "report: one clause says unverified, not proven wrong" "$OUT" \
+  "unverified, not proven wrong: the installed --help may predate the flag."
+assert_absent "report: no verdict trailer" "$OUT" "Detect-then-judge"
+assert_absent "report: no per-finding skip line naming a user option" "$OUT" "cli_flag_verify_skip_bins"
 if ((SED_COUNT > 0)); then
   ok "flag-shape gate: --flag write does run the scan ($SED_COUNT sed)"
 else
@@ -265,7 +287,7 @@ else
 fi
 run_gated Edit 'faketool sub --fake' '--fake'
 assert_exit "flag-shape gate: bare-flag hunk -> exit 0" 0 "$RC"
-ctx_contains "flag-shape gate: bare-flag hunk still reconstructs and reports" "$OUT" "UNKNOWN_FLAG: faketool sub --fake"
+ctx_contains "flag-shape gate: bare-flag hunk still reconstructs and reports" "$OUT" "  faketool sub --fake"
 run_gated Write 'faketool sub --real' 'faketool sub --real'
 assert_exit "flag-shape gate: real --flag write -> exit 0" 0 "$RC"
 assert_silent "flag-shape gate: real --flag write stays quiet" "$OUT"
@@ -334,14 +356,15 @@ mkdir -p "$noverif_data"
 noverif_input=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$dis_dir/target.sh" --arg c 'faketool sub --fake' '{tool_name:"Write",tool_input:{file_path:$fp,content:$c}}')
 OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PROJECT_DIR="$dis_dir" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
   CLAUDE_PLUGIN_ROOT="$noverif_root" CLAUDE_PLUGIN_DATA="$noverif_data" \
-  bash "$noverif_root/hooks/cli-flag-verify.sh" <<<"$noverif_input" 2>&1)
+  bash "$noverif_root/hooks/cli-flag-verify.sh" <<<"$noverif_input" 2>/dev/null)
 RC=$?
 assert_exit "bundled verifier missing → exit 0 (fail open)" 0 "$RC"
-assert_contains "bundled verifier missing → visible advisory (additionalContext)" "$OUT" \
-  "bundled verifier missing"
-assert_contains "bundled verifier missing → visible advisory (systemMessage)" \
+assert_contains "bundled verifier missing → the user is told (systemMessage)" \
   "$(jq -r '.systemMessage // empty' <<<"$OUT" 2>/dev/null)" \
-  "bundled verifier missing"
+  "cli-flag-verify is off: its bundled verifier is missing. Reinstall guardrails."
+assert_eq "bundled verifier missing → nothing on the model's channel" "" \
+  "$(jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$OUT" 2>/dev/null)"
+assert_absent "bundled verifier missing → no session-long claim" "$OUT" "for this session"
 
 # ============================ TELEMETRY ====================================
 TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
@@ -373,7 +396,7 @@ assert_eq "bin-name gate: hyphenated prose, no bin spawns no sed" 0 "$SED_COUNT"
 # The gate is a substring test, so a bin name inside a longer word still passes
 # it and the real extraction decides; a genuine command still fires.
 run_gated Write 'faketool --bogus' 'faketool --bogus'
-ctx_contains "bin-name gate: a real command still reaches the scan" "$OUT" "UNKNOWN_FLAG: faketool --bogus"
+ctx_contains "bin-name gate: a real command still reaches the scan" "$OUT" "  faketool --bogus"
 
 # ================= CACHE HITS ANSWERED IN-PROCESS ==========================
 # On a warm cache the verifier's whole job is to read one file and match one
@@ -413,8 +436,8 @@ COLD_OUT="$OUT"
 # file the first one just wrote. Two spawns, not three (the un-indexed shape
 # spawned once per candidate).
 assert_eq "cache miss: one verifier spawn per (bin, chain) key, not per candidate" 2 "$VSPAWNS"
-ctx_contains "cache miss: unknown flags reported" "$COLD_OUT" "UNKNOWN_FLAG: faketool sub --fake"
-ctx_contains "cache miss: unknown top-level flag reported" "$COLD_OUT" "UNKNOWN_FLAG: faketool --bogus"
+ctx_contains "cache miss: unknown flags reported" "$COLD_OUT" "  faketool sub --fake"
+ctx_contains "cache miss: unknown top-level flag reported" "$COLD_OUT" "  faketool --bogus"
 run_hit
 assert_eq "cache hit: no verifier spawn at all" 0 "$VSPAWNS"
 assert_eq "cache hit: findings identical to the miss run" "$COLD_OUT" "$OUT"
@@ -444,13 +467,13 @@ run_save() {
     bash "$HOOK" <<<"$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$save_target" --arg c "$SAVE_CONTENT" '{tool_name:"Write",tool_input:{file_path:$fp,content:$c}}')" 2>&1)
 }
 run_save
-ctx_contains "prefix trap (miss): --save-developer is unknown" "$OUT" "UNKNOWN_FLAG: fakesave --save-developer"
-assert_absent "prefix trap (miss): --save-dev is known" "$OUT" "UNKNOWN_FLAG: fakesave --save-dev "
-assert_absent "optional-part notation (miss): --color[=WHEN] is known" "$OUT" "UNKNOWN_FLAG: fakesave --color"
+ctx_contains "prefix trap (miss): --save-developer is unknown" "$OUT" "  fakesave --save-developer"
+assert_absent "prefix trap (miss): --save-dev is known" "$OUT" "  fakesave --save-dev ("
+assert_absent "optional-part notation (miss): --color[=WHEN] is known" "$OUT" "  fakesave --color"
 run_save
-ctx_contains "prefix trap (hit): --save-developer is still unknown" "$OUT" "UNKNOWN_FLAG: fakesave --save-developer"
-assert_absent "prefix trap (hit): --save-dev is still known" "$OUT" "UNKNOWN_FLAG: fakesave --save-dev "
-assert_absent "optional-part notation (hit): --color[=WHEN] is still known" "$OUT" "UNKNOWN_FLAG: fakesave --color"
+ctx_contains "prefix trap (hit): --save-developer is still unknown" "$OUT" "  fakesave --save-developer"
+assert_absent "prefix trap (hit): --save-dev is still known" "$OUT" "  fakesave --save-dev ("
+assert_absent "optional-part notation (hit): --color[=WHEN] is still known" "$OUT" "  fakesave --color"
 
 # The shared definitions are one file for both paths: the hook's cache-hit
 # match and the verifier's must read the pattern from cli-flag-cache.sh, never
@@ -550,7 +573,7 @@ OUT=$(LOCALAPPDATA="$npm_dir/cache" XDG_CACHE_HOME="$npm_dir/cache" \
   bash "$HOOK" <<<"$(write_json "$npm_target" "$NPM_LINE")" 2>&1)
 RC=$?
 assert_exit "npm ci --prefix (default bins) -> exit 0" 0 "$RC"
-assert_absent "npm ci --prefix -> no UNKNOWN_FLAG" "$OUT" "UNKNOWN_FLAG"
+assert_absent "npm ci --prefix -> no unknown flag" "$OUT" "unknown flag(s)"
 # The behavioral case above is silent on a host with no npm installed, so pin
 # the exclusion at its source too — that assertion fails on any host.
 DEFAULT_BINS_LINE=$(grep -m1 '^DEFAULT_BINS=' "$HOOK")

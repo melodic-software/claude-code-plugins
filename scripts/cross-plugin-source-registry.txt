@@ -41,6 +41,14 @@ reference/standards-contract.md
 docs/conventions/standards/README.md -> plugins/*/reference/standards-contract.md
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# docs/conventions/pr-scope-budget/README.md.
+reference/pr-scope-budget.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the canonical convention and the copies.
+docs/conventions/pr-scope-budget/README.md -> plugins/*/reference/pr-scope-budget.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/managed-scope.sh.
 lib/managed-scope.sh
 

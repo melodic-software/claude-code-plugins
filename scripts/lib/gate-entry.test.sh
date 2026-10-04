@@ -289,6 +289,7 @@ BASE_REF_ALLOW=(
   'check-silent-revert.sh|git rev-parse --verify "${commit}:${file}"|captures a blob id'
   'check-stale-base-overlap.sh|base_tip="$(git rev-parse "${base_ref}^{commit}")"|captures the resolved sha'
   "check-changelog-parity.sh|git rev-parse -q --verify 'HEAD^2'|probes for a merge commit, not a base ref"
+  "check-changelog-fragments.sh|git rev-parse -q --verify 'HEAD^2'|probes for a merge commit, not a base ref"
   "dependabot-plugin-bump.sh|git rev-parse -q --verify 'HEAD^2'|probes for a merge commit, not a base ref"
 )
 

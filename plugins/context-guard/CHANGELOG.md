@@ -5,6 +5,74 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.3] - 2026-10-04
+
+### Changed
+
+- **The `status` tool's description says when to call it and what it returns.** It names the JSON fields, says figures come from the last API response (null before the first response and right after a compaction), says to call it when the user asks how full the context is or a decision needs exact figures, and says not to poll it, since a line arrives when the zone worsens or nears a boundary.
+
+## [0.13.2] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
+
+## [0.13.1] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
+
+## [0.13.0] - 2026-10-04
+
+### Changed
+
+- **Tighter shipped token bands.** On a 1M-token window a session now leaves `smart` above 128,000 tokens (was 200,000) and reads `dumb` above 250,000 (was 400,000); on a 200k window `dumb` starts above 150,000 (was 160,000). Percent bands stay at 50/75 and the worse of the two still decides. 128K is the last length at which a current Claude model was measured strong on long-context retrieval; the reader contract records the basis. Set `token_bands` in `zones.json` to keep the old edges.
+
+## [0.12.3] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing node goes to the user only, in one shorter line.
+
+## [0.12.2] - 2026-10-04
+
+### Changed
+
+- **Shorter lines to Claude.** Zone lines drop "Continuing is the user's call." unless `zone_line_data` adds a figure, and the gate denial is one short sentence with no off-switch hint: `context-guard: Write denied: dumb zone, grace budget of 20 calls spent. Reads, Bash, Skill and handoff-path writes still run; /session-flow:handoff (if installed) writes a save-point.` The README keeps the switches.
+- **No smart verdict after a resume.** A resume or `/branch` restates the verdict only when it is past smart, as a reload already did.
+- **Debug log mirror.** Each line sent to Claude, and each gate denial, is written as sent to the debug log.
+- **Shorter status tool description.**
+
+## [0.12.1] - 2026-10-04
+
+### Changed
+
+- **The reader contract states the token-shape premise as judgment.** It no longer cites the Chroma context-rot report for quality loss tracking absolute tokens rather than window fraction: the report never compares the two, and Anthropic publishes no context-quality threshold.
+
+### Fixed
+
+- **`/context-guard` and the status tool show the token bands that decide the zone.** Both printed only the percent bands, so on a 1M-token window a session could read `acceptable` at 22% beside "smart up to 50%": the token band (200,000 tokens there) had decided it. The reply now reads `Bands (the worse decides): smart up to 50% and 200000 tokens, acceptable up to 75% and 400000 tokens`, and the status tool's `bands` adds `smart_max_tokens` and `acceptable_max_tokens` (`null` when the token shape is not computable).
+
+## [0.12.0] - 2026-10-04
+
+### Added
+
+- **A crossing reaches the person as a toast**: `smart → acceptable · continue, /compact, /clear or handoff`, shown for 4 seconds, beside one transcript line Claude does not read that ends `more: /context-guard`. The new `context_guard_toast` option (on by default) turns the toast off; the transcript line stays. Both come right after the response, tool call, prompt or status read (`/context-guard` or the status tool) that showed the crossing, so a crossing read with a turn's final answer reaches the person before the next prompt rather than after it. A turn operator mode holds gets neither: its line is offered as the prompt suggestion instead, and a crossing already shown in an unattended turn is not offered again in the next typed turn. A session whose first reading is already past smart gets only Claude's line.
+
+### Changed
+
+- **The band row is off by default** (`context_guard_band` now defaults to `false`), and it no longer shows the model id: it reads `ctx <n>% (<zone>)`.
+- **The command is `/context-guard`, with `band on`, `band off`, and a bare `band` to toggle.** It replaces `/context-guard:band show|hide`, which never resolved. With no argument it prints the verdict and its figures, the bands, the gate mode, the band and toast state, and where `zones.json` lives. Claude reads a command's reply, so the continuation route, the docs link and the README link go to a separate transcript line Claude does not read. Its replies carry no `context-guard:` prefix of their own, since Claude Code already names the plugin before a command's reply.
+- **The crossing notice row is drawn only on surfaces other than the terminal** (the Desktop app, VS Code, mobile), where a toast may not show, and it carries the plugin prefix once. Operator mode's held line still shows as one row on every surface, and is never toasted.
+- **The lines Claude reads carry only the verdict**, such as `context-guard: acceptable zone (2 of 3). Continuing is the user's call.`, with `, nearing dumb` inside the approach margin. They drop the source note and the measurement-not-instruction sentence.
+
+### Fixed
+
+- **`/context-guard` resolves, and no longer collides with another plugin's command.** The module registered the bare name `band`, which rate-limit-guard registers too, so only one of the two owned `/band`, and the `/context-guard:band` the 0.11.0 entry below documents never existed.
+- **A crossing read while a restatement was pending is no longer dropped.** Before, the carrier merged it into the restatement, so Claude got the stale verdict (for example acceptable while the session was dumb, with no save-state note) and the person got no menu. A crossing recorded after the restatement now replaces it; a crossing or restatement recorded before it still merges into it.
+
 ## [0.11.1] - 2026-10-04
 
 ### Changed

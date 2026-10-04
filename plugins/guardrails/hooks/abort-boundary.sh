@@ -23,19 +23,18 @@
 # one line naming the hook and the status to stderr, and then applies the
 # hook's declared posture:
 #
-#   open    exit 0, after emitting the same text as a hook JSON document on
-#           stdout: `systemMessage` for the operator and `additionalContext`
-#           for the agent, the two channels Claude Code reads when a hook exits
-#           0 (stderr on exit 0 reaches only the debug log, see
-#           docs/conventions/hook-observability/). The tool call proceeds, as
-#           it did before, and the notice says it was not checked.
+#   open    exit 0, after emitting the same text as a `systemMessage` on
+#           stdout, for the user (stderr on exit 0 reaches only the debug log,
+#           see docs/conventions/hook-observability/). The tool call proceeds,
+#           as it did before, and the notice says it was not checked. The
+#           model gets nothing: it cannot fix a hook.
 #   closed  exit 2 with the notice on stderr, the channel a blocking exit feeds
 #           back to the agent. The tool call is denied.
 #
 # <HookEventName> is the event the hook is registered for (PreToolUse,
-# PostToolUse); it names the `hookSpecificOutput` block. Pass an empty string
-# when the event is not known at install time (the dispatcher serves both), and
-# the notice carries `systemMessage` only.
+# PostToolUse), kept in _GAB_EVENT for the dispatcher's telemetry. Pass an empty
+# string when the event is not known at install time (the dispatcher serves
+# both).
 #
 # Why a trap and not `set -e`: errexit across the hook set would change
 # behavior on every non-zero status a guard tests on purpose. The trap sees
@@ -86,6 +85,42 @@ _GAB_NAME=""
 _GAB_EVENT=""
 _GAB_POSTURE="open"
 _GAB_CHOSEN=" "
+
+# guard::say_once <key> <line>: write <line> to stderr unless this process
+# already wrote <key>. Under run-guards.sh the guards share one shell, so a
+# refusal several of them make on one call reaches the deny reason once.
+_GUARD_SAID=" "
+guard::say_once() {
+  [[ "$_GUARD_SAID" == *" $1 "* ]] && return 0
+  _GUARD_SAID+="$1 "
+  printf '%s\n' "$2" >&2
+}
+
+# Refusals several guards share. The caller exits 2.
+guard::refuse_nul() {
+  guard::say_once nul "BLOCKED: the payload carries a NUL byte. Reissue the call without it."
+}
+guard::refuse_unparsable() {
+  guard::say_once unparsable "BLOCKED: the hook payload could not be parsed."
+}
+# The git guards that walk alias chains (hook::git_alias_admit).
+# shellcheck disable=SC2154  # HOOK_ALIAS_WORK_MAX is hook-utils.sh's, loaded by every caller
+guard::refuse_alias_chain() {
+  guard::say_once alias-chain "BLOCKED: checking this git alias chain needs over $HOOK_ALIAS_WORK_MAX re-expansions. Run the subcommand directly."
+}
+guard::refuse_config_env_alias() { # <alias>
+  guard::say_once "config-env-$1" "BLOCKED: git alias '$1' is defined via --config-env, so its expansion cannot be checked. Define it in git config or run the subcommand directly."
+}
+
+# guard::bad_switch_notice <option> <value> <input>: a strict kill switch that
+# is neither true nor false keeps its guard on. The user is told once per
+# session; the model cannot change a plugin option. Needs hook-utils.sh.
+# shellcheck disable=SC2154  # HOOK_NOTICE_TO_USER is set by hook::notice_once
+guard::bad_switch_notice() {
+  hook::notice_once "guardrails-bad-switch-$1" "$3" || return 0
+  [[ "$HOOK_NOTICE_TO_USER" == 1 ]] || return 0
+  hook::emit_channels PreToolUse "" "guardrails: $1=$2 is not true or false, so the guard stays on. Fix it in /plugin configure."
+}
 
 # guard::abort_boundary <hook-name> <HookEventName|""> <open|closed> <status>...
 guard::abort_boundary() {
@@ -172,15 +207,11 @@ guard::_abort_settle() {
     _GAB_RC=2
     return 1
   fi
-  msg="guardrails ${_GAB_NAME}: guard did not run (internal error, rc=${rc}); fail-open: this tool call was not checked by this guard. The failing line is on the hook's stderr (claude --debug)."
+  # User channel only: nothing was blocked, and the model cannot fix a hook.
+  msg="guardrails ${_GAB_NAME}: guard did not run (internal error, rc=${rc}); this call was not checked. Details: claude --debug."
   printf '%s\n' "$msg" >&2
-  local esc ev
+  local esc
   guard::_abort_json_escape_to esc "$msg"
-  if [[ -n "$_GAB_EVENT" ]]; then
-    guard::_abort_json_escape_to ev "$_GAB_EVENT"
-    _GAB_DOC='{"hookSpecificOutput":{"hookEventName":"'"$ev"'","additionalContext":"'"$esc"'"},"systemMessage":"'"$esc"'"}'
-  else
-    _GAB_DOC='{"systemMessage":"'"$esc"'"}'
-  fi
+  _GAB_DOC='{"systemMessage":"'"$esc"'"}'
   return 1
 }

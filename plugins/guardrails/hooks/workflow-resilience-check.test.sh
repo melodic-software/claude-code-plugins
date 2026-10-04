@@ -33,12 +33,12 @@ run_hook() {
 
 # CASE 1: pipeline() fan-out, no throttle/retry → advisory fires.
 out=$(run_hook "$(workflow_script_json 'phase("x"); const r = await pipeline(FILES, s1, s2)')")
-assert_contains "un-throttled pipeline warns" "$out" "Workflow resilience"
+assert_contains "un-throttled pipeline warns" "$out" "no wave cap or retry wrapper"
 assert_contains "names the throttle fix" "$out" "inWavesPipeline"
 
 # CASE 2: parallel() fan-out, no throttle/retry → advisory fires.
 out=$(run_hook "$(workflow_script_json 'const r = await parallel(thunks)')")
-assert_contains "un-throttled parallel warns" "$out" "Workflow resilience"
+assert_contains "un-throttled parallel warns" "$out" "no wave cap or retry wrapper"
 
 # CASE 3: fan-out WITH inWaves → silent.
 out=$(run_hook "$(workflow_script_json 'const r = await inWaves(thunks, 5)')")
@@ -69,7 +69,7 @@ assert_silent "unset switch → no-op (advisory is opt-in by default)" "$out"
 SAVED="$TEST_TMPDIR/engine.js"
 printf 'export const meta = {}\nawait pipeline(FILES, s1, s2)\n' >"$SAVED"
 out=$(run_hook "$(workflow_path_json "$SAVED")")
-assert_contains "saved scriptPath is inspected" "$out" "Workflow resilience"
+assert_contains "saved scriptPath is inspected" "$out" "no wave cap or retry wrapper"
 
 # CASE 9: empty stdin → silent (graceful no-op).
 out=$(printf '' | bash "$HOOK" 2>&1)
@@ -87,7 +87,7 @@ if wait_for_sink "$TEL"; then
   assert_contains "telemetry: hook id" "$(jq -r '.hook' "$TEL")" "workflow-resilience-check"
   assert_contains "telemetry: status ok (advisory never blocks)" "$(jq -r '.status' "$TEL")" "ok"
   assert_contains "telemetry: findings name the advisory" "$(jq -r '.data.findings[0] // empty' "$TEL")" \
-    "Workflow resilience"
+    "no wave cap or retry wrapper"
 else
   bad "telemetry envelope never appeared (advisory path)"
 fi

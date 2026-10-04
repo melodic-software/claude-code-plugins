@@ -3,6 +3,31 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.10] - 2026-10-04
+
+### Changed
+
+- **Shorter lane-stop gate text (#6225).** The Stop block reason keeps every directive and the completion token in about half the length. The gate-off notices (stale arm record, enablement claimed only on the environment channel) and the missing-jq notice go to the user only and are shorter: on Stop, context for the model would continue the conversation for a notice only the operator can act on.
+
+## [0.26.9] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
+
+## [0.26.8] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced (#5924); no change to this plugin's hooks.**
+
+## [0.26.7] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text (#6225).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing node goes to the user only, in one shorter line. The jq `degrade` text in `prerequisites.json` no longer says the skip lasts the session or that the hook says so once.
+
 ## [0.26.6] - 2026-10-04
 
 ### Changed

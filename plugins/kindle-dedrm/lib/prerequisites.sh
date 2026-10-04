@@ -13,7 +13,8 @@
 #   sh prerequisites.sh node-notice <check-command> [<enabled-option-name>]
 #
 # With node on PATH it exits 0 and prints nothing. Without node it prints one
-# SessionStart notice on both hook channels, then exits 0, because Claude Code
+# SessionStart notice to the user (systemMessage; only the user can install
+# node), then exits 0, because Claude Code
 # reads hook JSON only from a zero exit. Every plugin's notice shares one latch
 # keyed by session id in the temp directory, so a session sees it once. Old
 # latch files stay until the OS clears the temp directory. A plugin's kill
@@ -44,8 +45,8 @@ if [ "${1:-}" = node-notice ]; then
   fi
   plugin="${check#/}"
   plugin="${plugin%%:*}"
-  msg="${plugin:-plugin}: node is not on PATH, so the hooks of this plugin and of every other plugin that launches through node cannot start and do nothing. Install Node.js from https://nodejs.org/en/download and restart Claude Code. Run ${check:-the plugin check skill} to verify. This notice shows once per session."
-  printf '{"systemMessage":"%s","hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"WARNING: %s Tell the user."}}\n' "$msg" "$msg"
+  msg="${plugin:-plugin}: node is not on PATH, so hooks that launch through node (this plugin's and others') do not run. Install Node.js (https://nodejs.org/en/download), restart Claude Code, then run ${check:-the plugin check skill}."
+  printf '{"systemMessage":"%s"}\n' "$msg"
   exit 0
 fi
 if command -v node >/dev/null 2>&1; then
