@@ -98,7 +98,7 @@ PROFILES="anthropic, platform, generic"
 
 usage() {
   cat <<EOF
-fetch-docs.sh — fetch a publisher's docs pages verbatim and write a manifest.
+fetch-docs.sh: fetch a publisher's docs pages verbatim and write a manifest.
 
 Usage:
   fetch-docs.sh --out <dir> [--manifest <file>] [--profile <name>] [--index-url <url>] [--follow <depth>]
