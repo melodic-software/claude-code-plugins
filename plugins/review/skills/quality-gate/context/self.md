@@ -7,7 +7,7 @@ Design judgment and completeness check after implementation, before verification
 ## Orchestrator sequence (main thread)
 
 1. **Gather inputs**: the pre-computed git facts; the approved plan or task brief when one exists, taken from the conversation, else the topic's memory slice `<memory_dir>/<slug>/PLAN.md` (default `.work/`), else the plan pasted in the PR body or linked issue
-2. **Choose the worker**: prefer this plugin's `code-reviewer` agent; else a general read-only subagent
+2. **Choose the worker**: this plugin's `code-reviewer` agent (`review:code-reviewer`), never a general-purpose subagent: that one can spawn agents and invoke skills, so it could rediscover this skill and fan out
 3. **Dispatch** with the prompt template below
 4. **Check the return is complete.** A worker return with no report, no `Criteria read:` line, no `Coverage:` line, a `Coverage:` line other than `all changed files reviewed`, or a `Criteria read:` line that omits a criteria source resolved in the shared inputs or names anything unread or skipped is a **partial gate**. Dispatch the worker once more for the missing part, or dispatch a fresh worker for the criteria lens. If it is still partial, the verdict and the findings artifact say the gate is partial and name what was missed; a partial gate never reads as clean
 5. **Verify each finding** (diff read, grep, file assert) before presenting: worker output is synthesis, not evidence
@@ -15,7 +15,7 @@ Design judgment and completeness check after implementation, before verification
 7. **Present** findings table + strengths + verdict; suggest escalation when warranted
 8. **Do not fix during review**: fixes happen after review completes
 
-For large diffs, dispatch two parallel read-only workers with the same template and one **lens** each: standards conformance vs spec conformance. Verify both sets as usual, then **present them separately, under their own headings**: the two lenses answer different questions, so a combined list lets a clean standards pass mask a failing spec pass (and the reverse). "Lens" is the deliberate word here. In this plugin **`axis` means severity/confidence** ([`context/severity.md`](../../../context/severity.md) "Vocabulary"), and merging and ranking across those two is exactly what `fanout` exists to do.
+For large diffs, dispatch two parallel `code-reviewer` workers with the same template and one **lens** each: standards conformance vs spec conformance. Verify both sets as usual, then **present them separately, under their own headings**: the two lenses answer different questions, so a combined list lets a clean standards pass mask a failing spec pass (and the reverse). "Lens" is the deliberate word here. In this plugin **`axis` means severity/confidence** ([`context/severity.md`](../../../context/severity.md) "Vocabulary"), and merging and ranking across those two is exactly what `fanout` exists to do.
 
 ## Subagent prompt template
 

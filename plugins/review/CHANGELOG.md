@@ -3,6 +3,16 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.41.0] - 2026-10-04
+
+### Added
+
+- `brief-reviewer` agent: a read-only reviewer that runs the brief it is dispatched with. Its tools are Read, Grep, Glob and Bash, so it cannot spawn agents or invoke skills.
+
+### Changed
+
+- `/review:quality-gate` slice and downstream modes, and `/review:fanout` criteria slices, dispatch `brief-reviewer` instead of a general-purpose subagent, and self mode drops its general-purpose fallback for `code-reviewer`. A general-purpose subagent can spawn agents and invoke skills, so a reviewer could rediscover a review skill and fan out; no review path in these modes dispatches one now.
+
 ## [0.40.3] - 2026-10-04
 
 ### Fixed
