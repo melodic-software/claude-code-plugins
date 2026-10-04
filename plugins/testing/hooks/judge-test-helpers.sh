@@ -139,14 +139,14 @@ while read -r _ ord range name; do
     fi
     ;;
   esac
-  verdicts+=("$(jq -cn --arg n "$name" --argjson o "$ord" --arg v "$verdict" --arg q "$first" --arg q2 "${second:-}" --arg d "$diff" \
+  verdicts+=("$(MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg n "$name" --argjson o "$ord" --arg v "$verdict" --arg q "$first" --arg q2 "${second:-}" --arg d "$diff" \
     --arg why "$why" '{name: $n, ordinal: $o, verdict: $v, evidence: ([$q] + if $q2 == "" then [] else [$q2] end), source: "stub", diff: $d}
       + if $why == "" then {} else {reason: $why} end')")
 done < <(grep '^block ' <<<"$prompt")
 result="$(printf '%s\n' "${verdicts[@]}" | jq -cs '{verdicts: .}')"
 denials='[]'
 [[ "${STUB_MODE:-ok}" == denied ]] &&
-  denials="$(jq -cn --arg f "$file" '[{tool_name: "Read", tool_use_id: "toolu_stub", tool_input: {file_path: $f}}]')"
+  denials="$(MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg f "$file" '[{tool_name: "Read", tool_use_id: "toolu_stub", tool_input: {file_path: $f}}]')"
 jq -cn --arg r "Here you go: $result" --argjson d "$denials" \
   '{type: "result", subtype: "success", is_error: false, result: $r, permission_denials: $d}'
 EOF
@@ -198,7 +198,7 @@ subagent() {
 record() {
   local d="$DATA/sessions/$PKEY/$1"
   mkdir -p "$d"
-  jq -n --arg f "$3" --arg r "$REPO" --argjson b "$4" --arg a "${5:-}" --argjson l "${6:-null}" \
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -n --arg f "$3" --arg r "$REPO" --argjson b "$4" --arg a "${5:-}" --argjson l "${6:-null}" \
     --argjson ok "${7:-0}" --arg w "${8:-$(date -u +%FT%TZ)}" --argjson c "${CREATE:-false}" \
     '{file: $f, repo: $r, agent_id: (if $a == "" then null else $a end), create: $c, blocks: $b,
       lines: $l, ok_markers: $ok, written_at: $w}' >"$d/$2.json"

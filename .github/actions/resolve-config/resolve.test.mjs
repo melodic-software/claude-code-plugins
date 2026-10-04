@@ -204,11 +204,11 @@ test("rejection 7: a slot naming an undefined activity is rejected", () => {
 test("rejection 7: a requested lane the config lacks is rejected", () => {
   assertRejected(
     () => run(fixture("valid.yaml"), { lane: "pr-review" }),
-    "undefined-activity",
+    "undefined-lane",
   );
   assertRejected(
     () => run(fixture("valid.yaml"), { lane: "__proto__" }),
-    "undefined-activity",
+    "undefined-lane",
   );
 });
 
@@ -465,6 +465,45 @@ test("neededFacts names only what enabled slots of the lane read", () => {
       configPath: CONFIG_PATH,
     }),
     [],
+  );
+});
+
+test("with an activity, neededFacts names only what the selected slot reads", () => {
+  const request = { lane: "pr-run-checks", configPath: CONFIG_PATH };
+  assert.deepEqual(
+    neededFacts(files(fixture("valid.yaml")), {
+      ...request,
+      activity: "run-tests",
+    }),
+    [],
+  );
+  assert.deepEqual(
+    neededFacts(files(fixture("valid.yaml")), {
+      ...request,
+      activity: "measure-coverage",
+    }),
+    ["changedPaths"],
+  );
+});
+
+test("with an activity, another slot's undecidable predicate leaves that slot undecided", () => {
+  const config = edited((doc) => {
+    doc.activities["measure-coverage"]["applies-when"] = {
+      "work-classes": ["C1"],
+    };
+  });
+  const facts = { ...FACTS };
+  delete facts.workClasses;
+  const resolved = run(config, { activity: "run-tests", facts });
+  assert.deepEqual(
+    [resolved.selected.applies, resolved.selected["skip-reason"]],
+    [true, null],
+  );
+  const other = resolved.lane.slots[1];
+  assert.deepEqual([other.applies, other["skip-reason"]], [null, null]);
+  assert.throws(
+    () => run(config, { activity: "measure-coverage", facts }),
+    /work/i,
   );
 });
 

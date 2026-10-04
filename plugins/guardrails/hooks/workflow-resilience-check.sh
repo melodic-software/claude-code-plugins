@@ -61,7 +61,7 @@ hook::buffer_stdin_to INPUT || exit 0
 # hook::require jq fails OPEN (this hook never blocks) but makes the degraded
 # state visible to both the user (systemMessage) and the agent
 # (additionalContext), once per session and agent — see docs/conventions/hook-observability/.
-hook::require jq "PreToolUse" "guardrails-workflow-resilience-check" "$INPUT"
+hook::require jq "PreToolUse" guardrails "$INPUT"
 
 # Both payload fields in ONE jq process (hook::jq_fields), not two — a jq spawn is
 # fork() emulation on Windows Git Bash. Failure semantics are unchanged: a missing
@@ -121,7 +121,7 @@ if grep -qE 'inWaves|inWavesPipeline|agentRetry' < <(printf '%s' "$SCRIPT"); the
 fi
 
 # Fan-out with zero resilience primitives → advisory (never blocks the run).
-FINDING="Workflow resilience (advisory): this script calls parallel()/pipeline() with no wave-cap throttle (inWaves/inWavesPipeline) and no retry wrapper (agentRetry). A bare fan-out over many items launches up to the agent cap at once; sustained wide fan-out trips server-side 529. Before relying on this run, apply burst-resilience practices: wave-cap via inWaves (about five concurrent agents on the heaviest model tier, about twelve on a mid tier; chunk large-item pipelines via inWavesPipeline), wrap dispatches in agentRetry + .filter(Boolean), and on partial failure re-run ONLY the failed subset (resumeFromRunId or a fresh narrow run) — never blind-re-run the whole script. Ignore if this fan-out is over a small fixed set."
+FINDING="This Workflow script fans out with parallel()/pipeline() with no wave cap or retry wrapper (none of inWaves, inWavesPipeline, agentRetry); a wide fan-out can hit 529 overload errors. The workflow-authoring skill covers caps and retries."
 hook::emit_channels PreToolUse "$FINDING" ""
 FINDINGS_JSON=$(jq -n --arg f "$FINDING" '[$f]' 2>/dev/null) || FINDINGS_JSON='[]'
 emit_tel "$FINDINGS_JSON"
