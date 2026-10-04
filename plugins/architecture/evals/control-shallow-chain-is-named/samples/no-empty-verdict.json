@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "One candidate: the order intake chain. No other modules in the repository.",
+      "why": "reports a candidate"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No deepening candidates: every module here earns its keep.",
+      "why": "empty verdict on a shallow chain"
+    },
+    {
+      "answer": "I found nothing worth deepening.",
+      "why": "empty verdict, other wording"
+    }
+  ]
+}

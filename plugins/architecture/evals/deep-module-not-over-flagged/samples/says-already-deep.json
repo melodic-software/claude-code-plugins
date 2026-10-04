@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Price(order) is already deep: one entry point over roughly 600 lines of rules. The deletion test says removing it would just move the rules into every caller, so it is not a candidate.",
+      "why": "names it deep and the deletion-test result"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Candidate: split Price(order) into TaxPolicy, RoundingPolicy and RuleSet modules so each can be tested on its own.",
+      "why": "proposes deepening without judging depth"
+    }
+  ]
+}

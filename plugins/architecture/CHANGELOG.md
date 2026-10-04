@@ -3,6 +3,16 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.2] - 2026-10-04
+
+### Added
+
+- **A `claude plugin eval` suite for `improve` on codebases with nothing to deepen.** Four cases under
+  `evals/`, tagged `row19`: the `deep-module-not-over-flagged` case converted from `evals.json`, two
+  scaffolded repositories whose modules are already deep (the reply must say there is no candidate
+  and show no Strong or Worth exploring card), and a control repository with a shallow pass-through
+  chain that the reply must name. No skill text changed.
+
 ## [0.22.1] - 2026-10-04
 
 ### Changed

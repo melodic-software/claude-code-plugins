@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "architecture:improve",
+            "args": "find deepening opportunities in this codebase."
+          }
+        }
+      ],
+      "why": "the improve skill was invoked"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/src/index.js"
+          }
+        }
+      ],
+      "why": "read files by hand, skill never invoked"
+    }
+  ]
+}

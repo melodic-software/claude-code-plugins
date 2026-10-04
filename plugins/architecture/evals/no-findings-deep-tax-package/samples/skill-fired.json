@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "architecture:improve",
+            "args": "deepening"
+          }
+        }
+      ],
+      "why": "the improve skill was invoked"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "def "
+          }
+        }
+      ],
+      "why": "scanned by hand, skill never invoked"
+    }
+  ]
+}
