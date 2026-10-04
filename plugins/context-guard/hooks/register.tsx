@@ -590,9 +590,14 @@ async function statusText($: EngineInterface, st: State, cfg: Config) {
       : `${w.used_percentage}% of a ${w.context_window_size}-token window used (${w.total_input_tokens ?? '?'} tokens)`
   const home = await homeDir($)
   const zones = home === undefined ? 'zones.json: no home directory' : `${home}/.claude/${CONTRACT_DIR}/zones.json (${st.zonesText === null ? 'absent' : 'present'})`
+  const { smart, acceptable } = settings.bands
+  const t = tokenShape(w, body.cli_version, settings.bands)
+  const bands = t
+    ? `Bands (the worse decides): smart up to ${smart}% and ${t.smart} tokens, acceptable up to ${acceptable}% and ${t.acceptable} tokens`
+    : `Bands: smart up to ${smart}%, acceptable up to ${acceptable}%`
   return [
     `${verdict}, ${figures}`,
-    `Bands: smart up to ${settings.bands.smart}%, acceptable up to ${settings.bands.acceptable}%; approach margin ${settings.margin} points; gate ${cfg.blocking ? `blocking, ${cfg.grace} grace calls` : 'advisory'}`,
+    `${bands}; approach margin ${settings.margin} points; gate ${cfg.blocking ? `blocking, ${cfg.grace} grace calls` : 'advisory'}`,
     `This session: band row ${st.bandShown ? 'on' : 'off'}, zone-change toast ${cfg.toast ? 'on' : 'off'}`,
     `Settings: ${zones}`,
   ].join('\n')
@@ -602,6 +607,7 @@ async function statusJson($: EngineInterface, st: State, cfg: Config) {
   const { s, body, settings } = await refresh($, st)
   await showPending($, st, cfg)
   const w = body.context_window
+  const t = tokenShape(w, body.cli_version, settings.bands)
   return JSON.stringify({
     source: 'the last API response',
     zone: s.reading?.zone ?? 'unknown',
@@ -610,7 +616,12 @@ async function statusJson($: EngineInterface, st: State, cfg: Config) {
     total_input_tokens: w.total_input_tokens ?? null,
     total_output_tokens: w.total_output_tokens ?? null,
     context_window_size: w.context_window_size,
-    bands: { smart_max_used_percentage: settings.bands.smart, acceptable_max_used_percentage: settings.bands.acceptable },
+    bands: {
+      smart_max_used_percentage: settings.bands.smart,
+      acceptable_max_used_percentage: settings.bands.acceptable,
+      smart_max_tokens: t?.smart ?? null,
+      acceptable_max_tokens: t?.acceptable ?? null,
+    },
     approach_margin: settings.margin,
     gate: { mode: cfg.blocking ? 'blocking' : 'advisory', grace_calls: cfg.grace, calls_counted: s.grace },
   })

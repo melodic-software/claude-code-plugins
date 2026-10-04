@@ -14,6 +14,18 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 - **Decomposed slices and agent briefs carry the design's conventions followed.** Key interfaces now quote the conventions as ADR and rule names, never file paths, so a ticket agent gets the same guardrails a dispatched worker does.
 - **The skill cheat sheet lists `/work-items:decompose` under the workflow ladder's Decompose stage.** Its `workflow-stage` metadata moves from `plan` to `decompose`.
 
+## [0.48.7] - 2026-10-04
+
+### Changed
+
+- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** The work loop and the attend-queue skill now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limit-guard 0.14.0's reader contract.
+
+## [0.48.6] - 2026-10-04
+
+### Changed
+
+- **`/work-items:triage` routes an undiagnosed bug to diagnosis ([#6279](https://github.com/melodic-software/claude-code-plugins/issues/6279)).** Step 3 separates a verified bug from a diagnosed one: an unknown root cause routes through `/debugging:debug` (or `/testing:diagnose` for a failing test) before any fix, and a report too unstructured to reproduce from is shaped with `/bugs:write` first. `## Next` gains the `/debugging:debug` route. The state machine and its exits are unchanged.
+
 ## [0.48.5] - 2026-10-04
 
 ### Changed
