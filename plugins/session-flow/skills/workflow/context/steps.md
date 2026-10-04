@@ -2,7 +2,7 @@
 
 The staged development workflow, including its optional and conditional stages. When the consuming
 repo defines a skill for a stage, invoke it; otherwise execute the stage inline per its definition
-here. A conditional stage runs only when its trigger holds; otherwise it is skipped with no record.
+here. A conditional stage runs only when its trigger holds; otherwise it is skipped and marked SKIPPED, with the reason, on its checklist box.
 
 **Effort per stage.** Each stage carries an **Effort** line naming the kind of work it is. To
 advise effort for a stage, read model-config's effort table (pointer below) when giving the
