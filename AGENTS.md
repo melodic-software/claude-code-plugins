@@ -31,9 +31,10 @@ loop prompt that explicitly authorizes one of those covers it. Merging is a judg
 stop: merge when the user or the task wants the work landed, `ci-status` is green on the current
 head, and no hold applies (the `do-not-merge` label, a hold in the body, or a human comment asking
 to wait); ask first when any of those is missing, or when the change alters what agents may do
-unattended. Launch unattended lanes with
+unattended. Launch unattended local lanes with
 `--permission-mode auto`; a lane whose action the auto-mode classifier denies records the denial
-in its lane telemetry and moves on. A hook `ask` or `permissions.ask` rule can open a dialog no one
+in its lane telemetry and moves on. CI lanes run `--permission-mode dontAsk` instead
+([pr-pipeline](docs/conventions/pr-pipeline/README.md#lanes)). A hook `ask` or `permissions.ask` rule can open a dialog no one
 answers, so lane sessions carry none. `--permission-prompts none` is documented for print mode and
 unattended runs; that a `--bg` lane denies with it is not probed. Never use bypass mode or
 `--dangerously-skip-permissions`: lanes read untrusted issue and PR text while holding push

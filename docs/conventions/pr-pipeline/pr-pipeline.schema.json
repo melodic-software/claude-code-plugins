@@ -1,0 +1,228 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-pipeline/pr-pipeline.schema.json",
+	"title": "PR pipeline config",
+	"description": "Schema for a repository's PR pipeline config: which activities run in which lane slots, in what order, and how far merge authority reaches. Lane and activity names are checked against the standards github-actions-conventions vocabulary by the config reader, not here. Contract: docs/conventions/pr-pipeline/README.md.",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["version", "activities", "lanes"],
+	"properties": {
+		"$schema": { "type": "string" },
+		"version": {
+			"const": 1,
+			"description": "Contract major version. CHANGELOG.md beside this schema records each version."
+		},
+		"extends": {
+			"type": "string",
+			"minLength": 1,
+			"description": "Org defaults this file layers on. The reference grammar is not settled; the config reader rejects a value it cannot resolve."
+		},
+		"activities": {
+			"type": "object",
+			"description": "Each activity, defined once and referenced by key from lane slots.",
+			"propertyNames": { "$ref": "#/$defs/name" },
+			"additionalProperties": { "$ref": "#/$defs/activity" }
+		},
+		"lanes": {
+			"type": "object",
+			"description": "One section per lane, keyed by the lane's workflow file stem.",
+			"propertyNames": { "$ref": "#/$defs/name" },
+			"additionalProperties": { "$ref": "#/$defs/lane" }
+		},
+		"loop": {
+			"type": "object",
+			"additionalProperties": false,
+			"description": "Caps that end review and fix loops. One per-PR counter, shared by every lane.",
+			"properties": {
+				"review-rounds": {
+					"type": "integer",
+					"minimum": 1,
+					"default": 2,
+					"description": "Full review rounds before reviews narrow to high severity only."
+				},
+				"no-progress": {
+					"type": "integer",
+					"minimum": 1,
+					"default": 3,
+					"description": "Lane runs in a row that change nothing before the PR escalates to needs-human."
+				}
+			}
+		},
+		"merge": { "$ref": "#/$defs/merge" }
+	},
+	"$defs": {
+		"name": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+			"description": "Lowercase kebab-case, verb-first."
+		},
+		"stage": {
+			"enum": [
+				"intake",
+				"pre-ready",
+				"refine",
+				"verify",
+				"respond",
+				"merge",
+				"post-merge",
+				"maintenance",
+				"upstream"
+			],
+			"description": "Pipeline stage. Order and meaning: README.md, Stages."
+		},
+		"skill": {
+			"type": "string",
+			"pattern": "^[a-z0-9-]+:[a-z0-9-]+(#[a-z0-9-]+)?$",
+			"description": "<plugin>:<skill>[#mode]."
+		},
+		"predicate": {
+			"type": "object",
+			"additionalProperties": false,
+			"description": "When the activity applies. Every listed key must match; an absent key matches anything.",
+			"properties": {
+				"paths": {
+					"type": "array",
+					"minItems": 1,
+					"items": { "type": "string", "minLength": 1 }
+				},
+				"labels": {
+					"type": "array",
+					"minItems": 1,
+					"items": { "type": "string", "minLength": 1 }
+				},
+				"work-classes": {
+					"type": "array",
+					"minItems": 1,
+					"items": { "$ref": "#/$defs/work-class" }
+				},
+				"events": {
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"enum": [
+							"ready",
+							"synchronize",
+							"labeled",
+							"unlabeled",
+							"push",
+							"schedule",
+							"dispatch",
+							"workflow-run",
+							"dequeued"
+						]
+					}
+				}
+			}
+		},
+		"work-class": { "enum": ["C1", "C2", "C3", "C4", "C5"] },
+		"activity": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["effect", "gating", "reads-untrusted"],
+			"oneOf": [{ "required": ["skill"] }, { "required": ["script"] }],
+			"properties": {
+				"skill": { "$ref": "#/$defs/skill" },
+				"script": {
+					"type": "string",
+					"pattern": "^[^/][^:]*$",
+					"description": "Repository-relative path of a scripted step with no model in it."
+				},
+				"effect": {
+					"enum": [
+						"read",
+						"mutate-branch",
+						"mutate-tracker",
+						"publish-artifact",
+						"merge"
+					],
+					"description": "What the activity may change. The runner derives ordering and the token grant from it and checks that a read activity left the tree clean."
+				},
+				"gating": {
+					"enum": ["gate", "advisory"],
+					"description": "A gate verdict feeds ci-status; an advisory verdict is reported only."
+				},
+				"reads-untrusted": {
+					"type": "boolean",
+					"description": "True when the activity reads text from issues, PR bodies, comments or web pages."
+				},
+				"scope": { "enum": ["diff", "tree", "target"], "default": "diff" },
+				"inputs": {
+					"type": "array",
+					"uniqueItems": true,
+					"items": {
+						"enum": [
+							"base-sha",
+							"head-sha",
+							"changed-paths",
+							"pr",
+							"issue",
+							"baseline",
+							"findings"
+						]
+					}
+				},
+				"applies-when": { "$ref": "#/$defs/predicate" }
+			}
+		},
+		"slot": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["activity"],
+			"properties": {
+				"activity": {
+					"$ref": "#/$defs/name",
+					"description": "Key into activities."
+				},
+				"needs": {
+					"type": "array",
+					"uniqueItems": true,
+					"items": { "$ref": "#/$defs/name" },
+					"description": "Activities in this lane that must finish first."
+				},
+				"applies-when": {
+					"$ref": "#/$defs/predicate",
+					"description": "Replaces the activity's predicate for this slot."
+				},
+				"enabled": { "type": "boolean", "default": true }
+			}
+		},
+		"lane": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["stage"],
+			"properties": {
+				"stage": { "$ref": "#/$defs/stage" },
+				"enabled": { "type": "boolean", "default": true },
+				"slots": { "type": "array", "items": { "$ref": "#/$defs/slot" } }
+			}
+		},
+		"merge": {
+			"type": "object",
+			"additionalProperties": false,
+			"description": "How far pr-merge may merge without a human. A lane-power setting: raised only by a merged change to this file.",
+			"properties": {
+				"rung": {
+					"enum": ["off", "C2", "C3"],
+					"default": "off",
+					"description": "Highest work class pr-merge merges. C1 produces no PR; C4 and C5 need a human (README.md, Merge authority)."
+				},
+				"diff-check": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"denied-paths": {
+							"type": "array",
+							"items": { "type": "string", "minLength": 1 },
+							"description": "Globs a lane-merged diff may not touch."
+						},
+						"max-changed-lines": { "type": "integer", "minimum": 1 }
+					}
+				},
+				"stack-landing": {
+					"enum": ["manual", "bottom-up"],
+					"default": "manual"
+				}
+			}
+		}
+	}
+}
