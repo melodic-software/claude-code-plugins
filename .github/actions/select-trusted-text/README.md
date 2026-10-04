@@ -49,7 +49,7 @@ The file at `output-path` holds `pr` (number, head and base SHA, author id, titl
 
 The log gets one line, `select-trusted-text: dropped total=<n> {<counts>}`. Dropped text is never
 written or logged. When it cannot run (an unreadable list, a malformed input, any failed read,
-including a GraphQL error on either query), the step exits 1 and leaves no
+including a GraphQL error on any of its three queries), the step exits 1 and leaves no
 file, so a lane never reads a partial context and the model step does not run. Unlike the gates,
 which exit 0 with `proceed=false`, a failure here is an error a human should see.
 
