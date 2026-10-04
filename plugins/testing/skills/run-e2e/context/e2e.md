@@ -17,7 +17,7 @@ package publishes a 0.2 or 1.0 release, or when the binary the row invokes stops
 | Orchestrator tooling/MCP | per the consuming project's orchestrator convention | YES (when orchestrator configured) | App orchestration, start/stop, health, logs |
 | Playwright CLI | `playwright-cli --version` (the package is `@playwright/cli`, published at 0.1.19 on 2026-09-06; expect 0.1.x or later) | Recommended | Token-efficient browser automation, screenshots, form filling |
 | Chrome DevTools MCP | `mcp__chrome-devtools__list_pages` | Optional | Lighthouse audits, performance traces, network inspection |
-| Claude in Chrome | `mcp__claude-in-chrome__tabs_context_mcp` | Optional | GIF recording, natural language element finding |
+| Claude in Chrome | `mcp__claude-in-chrome__tabs_context_mcp` | Optional | The user's logged-in browser and GIF demos, on a native host (see the rubric for WSL) |
 | App running | orchestrator's resource-list call shows healthy resources | YES | Something to test |
 
 **If the project's orchestrator MCP is not connected:** STOP. Report what's missing and how to fix it. Do not attempt workarounds. A substitute path produces unverified pass/fail results, defeating live verification.
@@ -86,8 +86,9 @@ scans cannot find every WCAG failure);
 [GDS tool audit](https://accessibility.blog.gov.uk/2017/02/24/what-we-found-when-we-tested-tools-on-the-worlds-least-accessible-webpage/);
 [DiffSpot, arXiv 2605.29615](https://arxiv.org/abs/2605.29615);
 [Playwright visual comparisons](https://playwright.dev/docs/test-snapshots) (same-environment
-baselines). Recheck trigger: a benchmark measures current vision models on UI defects, or an
-injected-defect eval in this repository reports catch rates per check.
+baselines). Recheck trigger: a benchmark measures current vision models on UI defects, an
+injected-defect eval in this repository reports catch rates per check, or either cited Playwright
+page changes what it says about automated accessibility coverage or same-environment baselines.
 
 ### Recording tier (optional)
 

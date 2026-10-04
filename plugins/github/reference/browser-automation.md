@@ -34,8 +34,8 @@ UI-only and degrade directly to the guided-manual fallback below.
 Which browser tool fits which job is owned by the browser-tool rubric in `/testing:run-e2e`; this
 section applies its "user's logged-in real browser" row. Org-admin UI surfaces need the user's
 authenticated session, so when both integrations are present, prefer **claude-in-chrome**, then
-playwright (its saved authentication state may not carry an admin session). Claude in Chrome is
-documented as unsupported in WSL, with a live test pending; the rubric holds that status. When the
+playwright (its saved authentication state may not carry an admin session). For Claude in
+Chrome's status under WSL, read the rubric's row; this file does not restate it. When the
 user names an integration, their choice is honored over this order.
 
 ## The routing precondition: resolved `guided-apply` only
