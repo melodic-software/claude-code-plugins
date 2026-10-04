@@ -7,7 +7,7 @@ All notable changes to the `testing` plugin are documented here. Format follows
 
 ### Added
 
-- The test judge now relays a subagent's judged tests to that subagent when it stops (a `SubagentStop` hook). The parent's Stop skips tests whose subagent is still running, and relays a finished subagent's tests that were never relayed ([#6060](https://github.com/melodic-software/claude-code-plugins/issues/6060)).
+- The test judge now relays a subagent's judged tests to that subagent when it stops (a `SubagentStop` hook). The parent's Stop skips tests whose subagent is still running, and relays a finished subagent's tests that were never relayed. A background judge run keeps the subagent's identity, so the judge class is chosen against the subagent's model, not the main session's ([#6060](https://github.com/melodic-software/claude-code-plugins/issues/6060)).
 
 ### Fixed
 
