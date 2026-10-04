@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.1] - 2026-10-04
+
+### Added
+
+- `/review:fanout` gains two `claude plugin eval` cases under `skills/fanout/plugin-evals/` (run with `--eval-dir skills/fanout/plugin-evals`): after correctness fixes, the fix pass's re-review covers only the fixed hunks, and it stops after one round, reporting any new finding. Both grant only `Skill`, so they measure what the hub carries.
+
 ## [0.42.0] - 2026-10-04
 
 ### Added
