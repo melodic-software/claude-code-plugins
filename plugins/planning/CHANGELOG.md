@@ -11,6 +11,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
   `reference/type-discipline.md` covers unrepresentable illegal states, values built from always-valid parts, parsing outside input once at the boundary, no unproven casts, compiler-enforced exhaustiveness, one source per shape, and strengthening only where a value can be wrong.
   `reference/type-discipline/typescript.md` loads when the repository has a `tsconfig.json` or the change touches `.ts`, `.tsx`, `.mts` or `.cts` files; it parses through the schema library the manifest already declares (none named as a default), types the schema against a type written first, and falls back to a hand-written parse function with no new dependency.
   Phase 3 ends with an exit check written as questions against the type inventory; four eval cases cover the detection and the schema-library choice.
+- **`plan_store` setting: `local` (default) or `tracker`.** With `tracker`, `/planning:plan` publishes the approved plan to the work item the session claimed through `/work-items:track publish-plan`, and `close-out` refreshes that comment instead of pasting a second copy into the issue. It is set per user in the new `plan_store` user config option, and per repository in the `plan_store` key of `docs/conventions/planning.yaml`, which wins; the schema ships at `schemas/planning.schema.json`. The persist step reports which layer supplied the value, and an invalid value resolves `local`. With no claimed item, or without the work-items plugin, the plan stays local.
 
 ### Changed
 

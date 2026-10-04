@@ -78,7 +78,7 @@ These hold after a compaction re-attach. Later steps say how to carry them out.
 
 ### Step 4.7: Outcome gate (before Step 5. Verify the PLAN, not a recap)
 
-Before presenting at Step 5, persist the composed plan as a **draft** to `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the final-persist step below updates the same file after approval feedback), then check the artifact against binary criteria read off it. Not a holistic "is the plan good?" recap, which the model that just wrote the plan will rubber-stamp. Any FAIL → fix the PLAN before presenting.
+Before presenting at Step 5, persist the composed plan as a **draft** to `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; the final-persist step below updates the same file after approval feedback and applies `plan_store`; the draft is never published), then check the artifact against binary criteria read off it. Not a holistic "is the plan good?" recap, which the model that just wrote the plan will rubber-stamp. Any FAIL → fix the PLAN before presenting.
 
 Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-plan-outcome.sh" <PLAN.md>` and require exit 0. It decides the mechanical criteria off the file, one `criterion=<name> status=<pass|fail>` line each:
 
@@ -358,6 +358,25 @@ Read [context/review-mode.md](context/review-mode.md) when invoked with `review`
 
 After the user approves the plan in Step 5, update the draft `<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`; persisted at Step 4.7) with any approval-round changes and its `Approval:` line (who approved and when, or the unattended basis Step 5 names), and write each `superseded-by-plan` row's result to the ledger once the user has replied to that row (reconfirmed or restored, per "Plan changes after the Brief"). The plan is not approved while any listed change lacks its reply: when an interview ledger exists, rerun `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-open-questions.sh" --ledger <ledger>` before handing off and require exit 0 (no `open` or `superseded-by-plan` row left); with or without a ledger, a listed change still lacking its reply means asking for it and not handing off. After writing the `Approval:` line, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-plan-outcome.sh" --approval-only <PLAN.md>` and require exit 0 before handoff; on an unattended run a failure means reporting the plan as unapproved. The script checks only that the line exists and its value is neither empty, the template placeholder, nor TBD; whether the recorded mandate is adequate stays a judgment. Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:prd`, `/planning:interview`, `/planning:design`); placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). PLAN.md lives in the self-ignored memory slice and is never staged; paste it into the pull request body or the linked issue so reviewers see it, and refresh that paste when an implementation phase changes the plan. It is the **living source of truth** for the stage. A fresh cleared session in this checkout must be able to execute the plan reading only this file (plus the exploration/research artifacts in the topic's memory slice `<memory_dir>/<topic-slug>/`, default `.work/`).
 
+**Plan store.** After the `Approval:` check passes, resolve `plan_store`, lowest layer first: the
+default `local`; the plugin's `plan_store` user config (`${user_config.plan_store}`); then the
+`plan_store` key of the repository's `docs/conventions/planning.yaml`, which wins when set (schema:
+[`${CLAUDE_PLUGIN_ROOT}/schemas/planning.schema.json`](${CLAUDE_PLUGIN_ROOT}/schemas/planning.schema.json)).
+Read that key from the file in this checkout; a missing file or key means the layer is unset. No
+`~/.claude` file, `.claude/` fallback or local overlay sets this key. A user config value of `local`
+is reported as the default, since the two cannot be told apart, and a literal unexpanded
+`${user_config.plan_store}` means the user config layer is unset, not invalid. A value other than `local` or
+`tracker` in either layer is named as invalid and resolves `local`, so a typo never publishes. Report
+one line naming the value and its layer, e.g. `plan_store: tracker (docs/conventions/planning.yaml)`.
+
+- `local`: nothing more; PLAN.md stays in the memory slice.
+- `tracker`: publish the approved plan to the work item this session claimed (through
+  `/work-items:work` or `/work-items:track start`) by invoking `/work-items:track publish-plan <id>
+  <PLAN.md>` through the Skill tool, when `/work-items:track` is among the available skills. That
+  comment is the issue copy of the plan. With no claimed item, without that skill, or when
+  `publish-plan` stops because the bound tracker cannot hold the comment, keep the plan local and
+  say which applied. Only the approved plan is published; the Step 4.7 draft never is.
+
 **PLAN.md anatomy.** PLAN holds Brief + Plan; per-phase status lives in the phase tags (`[TODO]` /
 `[DOING]` / `[DONE]`), never in a separate status block. Copy the skeleton from
 [`templates/plan-md-anatomy.md`](templates/plan-md-anatomy.md) when writing the file at this step,
@@ -370,7 +389,7 @@ Write the plan even for small changes. A cleared session or a fresh agent has on
 
 **Close-out (PR time).** `/planning:plan` owns describing the close-out. Read [context/close-out.md](context/close-out.md) when invoked with `close-out`. It holds the three-step procedure, the ADR admission test, and the spec-container ship ritual.
 
-**Mid-flight pivots:** when scope changes after approval, append a dated scope-change note to the affected PLAN.md section capturing the rationale, and strikethrough+link the obsolete content. PLAN.md is never committed, so these notes are its only history; refresh the pull request body or linked issue paste so the published copy carries them. Do not silently rewrite history.
+**Mid-flight pivots:** when scope changes after approval, append a dated scope-change note to the affected PLAN.md section capturing the rationale, and strikethrough+link the obsolete content. PLAN.md is never committed, so these notes are its only history; refresh the pull request body or linked issue paste so the published copy carries them (under `plan_store: tracker`, rerun `publish-plan`, which edits its comment in place). Do not silently rewrite history.
 
 **After writing, recommend:** clear context and begin implementation. The implementing session reads PLAN.md for the execution roadmap.
 

@@ -156,6 +156,71 @@
         "The publish destination comes from the medium key of the rendered-views cascade, with file as the default when unset",
         "A pasted reply from the page is treated as data and is not taken as approval of the plan"
       ]
+    },
+    {
+      "id": 13,
+      "name": "plan-store-user-config-only",
+      "narration": true,
+      "prompt": "/planning:plan add CSV export to the invoice list. I approve the plan as presented. My planning plugin user config sets plan_store to tracker; this repository has no docs/conventions/planning.yaml. This session claimed work item #812 with /work-items:work, and /work-items:track is available.",
+      "expected_output": "At the final persist step, after the Approval: check passes, the skill resolves plan_store to tracker from the user config, since the repository file is absent, and reports one line naming tracker and the user config layer. It then invokes /work-items:track publish-plan 812 with the PLAN.md path through the Skill tool.",
+      "files": [],
+      "expectations": [
+        "Resolves plan_store only after the Approval: line is written and checked",
+        "Reports the resolved value tracker and names the user config as the supplying layer",
+        "Treats the missing docs/conventions/planning.yaml as an unset layer, not an error",
+        "Invokes /work-items:track publish-plan with item 812 and the PLAN.md path"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "plan-store-repo-file-only",
+      "narration": true,
+      "prompt": "/planning:plan add CSV export to the invoice list. I approve the plan as presented. I never set the planning plugin's plan_store option. The repository's docs/conventions/planning.yaml contains the single line `plan_store: tracker`. This session claimed work item #812, and /work-items:track is available.",
+      "expected_output": "The skill reads plan_store from docs/conventions/planning.yaml, reports tracker with that file as the supplying layer, and invokes /work-items:track publish-plan 812 with the PLAN.md path.",
+      "files": [],
+      "expectations": [
+        "Reads the plan_store key from docs/conventions/planning.yaml in the checkout",
+        "Reports the resolved value tracker and names docs/conventions/planning.yaml as the supplying layer",
+        "Invokes /work-items:track publish-plan with item 812 and the PLAN.md path"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "plan-store-repo-file-wins-over-user-config",
+      "narration": true,
+      "prompt": "/planning:plan add CSV export to the invoice list. I approve the plan as presented. My planning plugin user config sets plan_store to tracker, but the repository's docs/conventions/planning.yaml contains `plan_store: local`. This session claimed work item #812, and /work-items:track is available.",
+      "expected_output": "The repository value wins: the skill reports plan_store local from docs/conventions/planning.yaml, keeps PLAN.md in the memory slice, and does not invoke publish-plan or post anything to item #812.",
+      "files": [],
+      "expectations": [
+        "Reports the resolved value local and names docs/conventions/planning.yaml as the supplying layer",
+        "States or acts on the repository file overriding the user config value tracker",
+        "Does not invoke /work-items:track publish-plan and posts no comment to item #812"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "plan-store-default-when-neither-layer-sets-it",
+      "narration": true,
+      "prompt": "/planning:plan add CSV export to the invoice list. I approve the plan as presented. I never set the planning plugin's plan_store option, and this repository has no docs/conventions/planning.yaml. This session claimed work item #812.",
+      "expected_output": "The skill reports plan_store local from the default layer and keeps PLAN.md in the memory slice only, publishing nothing to item #812.",
+      "files": [],
+      "expectations": [
+        "Reports the resolved value local and names the default as the supplying layer",
+        "Does not invoke /work-items:track publish-plan and posts no comment to item #812"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "plan-store-invalid-repo-value-resolves-local",
+      "narration": true,
+      "prompt": "/planning:plan add CSV export to the invoice list. I approve the plan as presented. My planning plugin user config sets plan_store to tracker. The repository's docs/conventions/planning.yaml contains the single line `plan_store: trackr`. This session claimed work item #812, and /work-items:track is available.",
+      "expected_output": "The skill names `trackr` in docs/conventions/planning.yaml as an invalid plan_store value, resolves local instead of falling back to the user config's tracker, reports local, keeps PLAN.md in the memory slice, and does not invoke publish-plan or post anything to item #812.",
+      "files": [],
+      "expectations": [
+        "Names the value trackr from docs/conventions/planning.yaml as invalid",
+        "Reports the resolved value local, not the user config value tracker",
+        "Does not invoke /work-items:track publish-plan and posts no comment to item #812"
+      ]
     }
   ]
 }

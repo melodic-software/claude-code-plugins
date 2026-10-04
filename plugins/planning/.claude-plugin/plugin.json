@@ -20,6 +20,13 @@
       "title": "Interview question emoji anchors",
       "description": "When on, each interview round question leads with a ❓ anchor on its Q<N> line and its My recommendation line leads with ➡️, in the terminal and on the page surface. Purely presentational: persisted artifacts never carry the emoji. Default: plain text.",
       "default": false
+    },
+    "plan_store": {
+      "type": "string",
+      "title": "Plan store",
+      "description": "Where /planning:plan keeps an approved plan: local (default, PLAN.md in the memory slice only) or tracker (also posted as one comment on the claimed work item). A repository's docs/conventions/planning.yaml plan_store key overrides this value.",
+      "default": "local",
+      "options": ["local", "tracker"]
     }
   },
   "description": "Pre-implementation planning pipeline: chart a too-big, foggy effort as a decision map, diverge on candidate approaches, lock product intent and the engineering contract, route resolved domain language to the domain-driven-design glossary steward, explore the design space, stress-test adversarially, and produce a structured implementation plan with an approval gate, with an opt-in multi-angle plan panel workflow (/planning:plan-panel).",
