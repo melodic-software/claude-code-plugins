@@ -15,6 +15,12 @@ All notable changes to the `review` plugin are documented here. Format follows
 - **The `/review:pr-explainer` rename stub ([#6282](https://github.com/melodic-software/claude-code-plugins/issues/6282)).**
   It pointed at `/review:explain-change` for one release; run `/review:explain-change` directly.
 
+## [0.40.4] - 2026-10-04
+
+### Changed
+
+- The `architecture-guardian` agent's pattern-compliance check also verifies that a pattern matches its canonical definition and serves the principle it exists for; a shape copied from a popular template that defeats that principle is a violation.
+
 ## [0.40.3] - 2026-10-04
 
 ### Fixed
