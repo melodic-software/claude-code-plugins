@@ -3,7 +3,7 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.22.16] - 2026-10-04
+## [0.22.17] - 2026-10-04
 
 ### Added
 
@@ -19,6 +19,12 @@ All notable changes to the `testing` plugin are documented here. Format follows
 - The scanner reads C# names correctly under gawk 5.4.0, which fails to match one of its regular expressions.
 - A TypeScript non-null assertion before a division, `total! / count` or `total ! / count`, no longer hides the rest of the line as a regular expression, which caused a false zero-assertion and swallowed the next test.
 - A line of more than 16 statements, such as minified code, is judged whole, so its scan time stays linear in its length and the hooks' scan timeout is not reached.
+
+## [0.22.16] - 2026-10-04
+
+### Fixed
+
+- The test-judge suites pass every fixture path to jq with Git Bash path conversion off for that call (`record`, the stub judge, and each inline payload and verdict builder), so on Windows the fixtures write the same path form the expected project key hashes and the hooks under test read ([#6266](https://github.com/melodic-software/claude-code-plugins/issues/6266)). Linux runs are unchanged.
 
 ## [0.22.15] - 2026-10-04
 
