@@ -242,6 +242,8 @@ fi
 CTX_B=""
 if [[ -n "$OUT_B" ]] && printf '%s' "$OUT_B" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null 2>&1; then
   CTX_B="$(printf '%s' "$OUT_B" | jq -r '.hookSpecificOutput.additionalContext')"
+  # A Windows jq writes text-mode stdout, so `jq -r` ends each line with CRLF.
+  CTX_B="${CTX_B//$'\r'/}"
   ok "fixtureB emitted hookSpecificOutput.additionalContext"
 else
   fail "fixtureB no additionalContext JSON: $OUT_B"
