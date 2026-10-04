@@ -83,7 +83,30 @@ repair_line() {
   esac
 }
 
-if ! out="$("$py" "$ROOT/scripts/pydeps.py" install --data-dir "$data" </dev/null 2>&1)"; then
+# to_native <path> -> the path as a native Windows Python reads it. Under Git Bash or Cygwin a POSIX
+# path (/c/...) goes through cygpath -m: a session with MSYS path conversion switched off hands it
+# over as is, and Python resolves it against the current drive (C:\c\...). Fails rather than
+# return the unconverted path.
+to_native() {
+  case "${OSTYPE:-}" in
+  msys* | cygwin*)
+    [[ "$1" == /* ]] || {
+      printf '%s' "$1"
+      return 0
+    }
+    local converted
+    converted="$(cygpath -m "$1" 2>/dev/null)" && [[ -n "$converted" ]] && printf '%s' "$converted"
+    ;;
+  *) printf '%s' "$1" ;;
+  esac
+}
+
+if ! script="$(to_native "$ROOT/scripts/pydeps.py")" || ! data_dir="$(to_native "$data")"; then
+  notice "explainer-video: cygpath could not convert its pydeps.py or data directory path to Windows form, so ManimCE is not installed and /explainer-video:produce will stop. Check that cygpath runs in Git Bash and start a new session."
+  exit 0
+fi
+
+if ! out="$("$py" "$script" install --data-dir "$data_dir" </dev/null 2>&1)"; then
   if [[ "$out" == *Traceback* ]]; then
     last="${out//$'\r'/}"
     last="${last##*$'\n'}"

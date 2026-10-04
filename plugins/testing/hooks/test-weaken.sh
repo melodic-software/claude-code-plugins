@@ -114,12 +114,15 @@ END {
   if (rt > 0) { block = 1; out = out "\n- removed " rt " test block(s):"; names(1, 2, "test") }
   if (sk > 0) { block = 1; out = out "\n- added " sk " skip marker(s):"; names(2, 1, "skip") }
   if (ra > 0) { out = out "\n- removed " ra " assertion token(s):"; names(1, 2, "assertion") }
-  for (i = 1; i <= N[1]; i++) {
+  # At most 5 changed values, as names() lists at most 5 per kind.
+  for (i = 1; i <= N[1] && nc <= 5; i++) {
     a = PA[1, i]; e = PE[1, i]
     if (P[1, a, e] <= P[2, a, e]) continue
     for (j = 1; j <= N[2]; j++)
-      if (PA[2, j] == a && PE[2, j] != e && P[2, a, PE[2, j]] > P[1, a, PE[2, j]])
+      if (PA[2, j] == a && PE[2, j] != e && P[2, a, PE[2, j]] > P[1, a, PE[2, j]]) {
+        if (++nc > 5) { out = out "\n- ..."; break }
         out = out "\n- changed the expected value of " a " from " e " to " PE[2, j]
+      }
   }
   if (out != "") printf "%s\t%s%s\n", block ? "block" : "advise", level, out
 }' "$work/out")"
@@ -133,7 +136,7 @@ lead="testing: $FILE_BASE: this $tool weakens its tests:"$'\n'"$body"
 # grep -c prints 0 and exits 1 on no match; the count is what matters.
 if [[ "$head" == block$'\t'error ]] &&
   (($(grep -c 'test-change:[[:space:]]*[^[:space:]]' "$work/new") <= $(grep -c 'test-change:[[:space:]]*[^[:space:]]' "$old"))); then
-  reason="$lead"$'\n'"rules.test-weaken-block is error in the testing config, so a skipped or removed test needs a stated reason. If the change is deliberate, retry the same edit with a comment in the edited text that reads test-change: <reason>, naming why the test goes (a removed feature, a tracked flaky test). Never skip or delete a test to make failing code pass."
+  reason="$lead"$'\n'"Denied: rules.test-weaken-block is error. If the change is deliberate, retry the edit with a test-change: <reason> comment naming why the test goes; otherwise fix the code, not the test."
   esc=""
   hook::json_escape_to esc "$reason"
   if [[ -n "${start:-}" ]] && hook::telemetry_enabled; then
@@ -145,5 +148,4 @@ if [[ "$head" == block$'\t'error ]] &&
   exit 0
 fi
 
-ctx="$lead"$'\n'"Before you continue, state the reason for each change (a changed requirement, a wrong expected value, a test of removed code). Never weaken a test to make failing code pass: fix the code instead."
-hook::finish --context "$ctx" ok findings array '[]'
+hook::finish --context "$lead" ok findings array '[]'

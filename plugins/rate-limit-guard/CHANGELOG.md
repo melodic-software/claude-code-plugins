@@ -3,11 +3,18 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.15.2] - 2026-10-04
+## [0.15.3] - 2026-10-04
 
 ### Changed
 
 - **The `status` tool's description says when to call it and what it returns.** It names the windows, the overall verdict and its levels, the thresholds and the spend limit, says figures come from the last API response, says to call it when the user asks about usage limits or before long or parallel work, and says not to poll it, since a line arrives when the 5-hour or 7-day window rises to approach or edge.
+
+## [0.15.2] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
 
 ## [0.15.1] - 2026-10-04
 

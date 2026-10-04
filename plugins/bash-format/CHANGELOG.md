@@ -3,6 +3,19 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.9] - 2026-10-04
+
+### Changed
+
+- **Hook text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** ShellCheck findings read `bash-format: <file> has findings:` and each line drops the absolute path prefix. An unchanged finding set on a re-edit sends nothing; it is sent again after a clean run, or after compaction or `/clear`, which a new `SessionStart` `compact|clear` row handles. A report lists at most 20 findings; telemetry keeps them all. The array-subscript notice goes to Claude only, since Claude is the one who rewrites the key. A failed shfmt capability probe goes to the user only, as `bash-format: shfmt probe failed (<error>); <file> not formatted.`. The missing-shfmt and missing-shellcheck notices are composed from `prerequisites.json`, with the install route on the user's copy only, and their `degrade` text drops "edits still go through". The rewrite notice reads `bash-format: reformatted <file>.`.
+
+## [0.10.8] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice and formatter probe rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
+
 ## [0.10.7] - 2026-10-04
 
 ### Changed

@@ -3,6 +3,25 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.9] - 2026-10-04
+
+### Changed
+
+- **Hook text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** The plugin's own finding-digest gate is replaced by the shared `hook::findings_to --delta`: an unchanged finding set on a re-edit sends nothing (it used to resend a summary line), and it is sent again after a clean run, a cap change, or compaction or `/clear`, which a new `SessionStart` `compact|clear` row handles. Findings read `markdown-format: <file> has N finding(s) (<rules>):` and each line drops markdownlint-cli2's path prefix. The rewrite goes to the user only, as `markdown-format: reformatted <file>.`. The trust-gate notice is split per channel: the user's copy keeps the `mkdir -p` approval command, and Claude's copy states the verdict without it, worded for the approvable state or for the three states with no approval route. The missing-markdownlint-cli2 notice is composed from `prerequisites.json`, with its scoped install route on the user's copy only, no "renewed every eighth skip" claim, and the probed `PATH` in the debug log only; its `degrade` text drops "edits still go through".
+
+### Fixed
+
+- **A subagent no longer gets "detail omitted" for findings it never saw.** The old digest was keyed per session; the shared gate keys per session, agent and file.
+- **A finding keeps its own line number when its `[Context: "..."]` quotes finding-shaped text.** The path is cut before the first rule code, not the last.
+- **Findings that return after a clean run are reported again.** The old digest was never cleared on a clean run, so a set that disappeared and came back matched the stale digest.
+
+## [0.12.8] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice and formatter probe rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
+
 ## [0.12.7] - 2026-10-04
 
 ### Changed

@@ -71,8 +71,8 @@ at preview. Backups remain the recovery boundary for user data.
   without `node` no hook launches and no guard is enforced. A `SessionStart` row in shell form
   (no `shell` field and no `args`) runs `lib/prerequisites.sh node-notice`, or
   `lib/prerequisites.ps1` where there is no `sh`, and needs no node itself. When node is
-  absent it exits 0 with JSON: `systemMessage` shows the user a warning and `additionalContext`
-  tells the model, once per session across plugins, and the notice names `/disk-hygiene:check`.
+  absent it exits 0 with JSON: `systemMessage` shows the user a warning once per session across
+  plugins, and the notice names `/disk-hygiene:check`.
   `disk_hygiene_enabled` set to false silences it. It prints nothing when node is present. Basis: https://code.claude.com/docs/en/hooks, "SessionStart"
   (plain stdout reaches Claude only, and exit-2 stderr reaches the user only) and "JSON output"
   (`systemMessage` is a warning shown to the user).
@@ -179,8 +179,8 @@ the call itself, the same way the guard's watchdog answers "could not decide":
 | No Python resolves: `/disk-hygiene:clean` expanding | The expansion is blocked with the reason, so the skill and its belt never load |
 | No Python resolves: skill-scoped belt, any Bash or PowerShell call | Denied (exit 2), reason on stderr |
 | No Python resolves: plugin-level gate, command naming `hygiene.py` (or an empty payload) | Denied (exit 2), reason on stderr |
-| No Python resolves: plugin-level gate, any other command its `if` rows let through | **Proceeds unchecked**, with a `systemMessage` and `additionalContext` notice once per session |
-| `node` missing or no bash found: every hook | **Proceeds unchecked.** The hook fails to launch, which is non-blocking: the user sees a hook error notice, the guard is not enforced, and the model is not told. With no bash, the notice's first line is the launcher's `exec-bash: <script> did not run, so this hook enforces nothing`. With no `node`, the launcher never starts, so it cannot detect or report the failure there; the shell-form `SessionStart` row warns the user and the model at each session start, and the guard stays unenforced. The Stop detector launches the same way and reports neither |
+| No Python resolves: plugin-level gate, any other command its `if` rows let through | **Proceeds unchecked**, with a `systemMessage` notice to the user once per session |
+| `node` missing or no bash found: every hook | **Proceeds unchecked.** The hook fails to launch, which is non-blocking: the user sees a hook error notice, the guard is not enforced, and the model is not told. With no bash, the notice's first line is the launcher's `exec-bash: <script> did not run, so this hook enforces nothing`. With no `node`, the launcher never starts, so it cannot detect or report the failure there; the shell-form `SessionStart` row warns the user at session start, and the guard stays unenforced. The Stop detector launches the same way and reports neither |
 
 Of the no-Python rows, the plugin-level gate row is the only fail-open. Those are the commands the guard would
 have deferred on had it run; the watchdog asks on them because a missed deadline is transient, but a
