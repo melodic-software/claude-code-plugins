@@ -7,11 +7,14 @@
 #
 # --findings   A conforming findings file: frontmatter declaring
 #              `type: review-findings`, and a parseable `## Findings` table.
-# --classes    TSV, one line per rank: rank<TAB>class<TAB>basis<TAB>rung<TAB>owner.
+# --classes    TSV, one line per rank:
+#              rank<TAB>class<TAB>basis<TAB>rung<TAB>owner[<TAB>error text].
 #              A path, or `-` to read it from stdin. A rank present in the table
 #              but absent from the TSV still gets a stub, classed
-#              `unclassified / unresolved / llm-only / none`. A rank present in
-#              the TSV but absent from the table is a diagnostic, not a stub.
+#              `unclassified / unresolved / llm-only / none`; an empty field
+#              takes the same default. A row with other than five or six
+#              fields, or whose first field is not a rank the table carries,
+#              exits 2 before anything is written.
 # --out        The resolved stub home. Created when absent.
 # --scan-dir   The resolved reviews location the fix action scans for this
 #              branch. Required. Never resolved here: both homes are the
@@ -86,7 +89,7 @@
 # steer the home.
 #
 # Exit: 0 wrote (or planned) every stub; 2 usage, unreadable or non-conforming
-# --findings, missing --scan-dir; 3 a refused home; 4 a written stub carried a
+# --findings or --classes, missing --scan-dir; 3 a refused home; 4 a written stub carried a
 # forbidden findings-file marker (every stub this run wrote is removed first).
 set -uo pipefail
 
@@ -858,6 +861,9 @@ read_rows() {
       if (n != 9) {
         printf "diagnostic: row %d of the ## Findings table splits into %d fields, not 9; an unescaped pipe shifts its cells, so it was not stubbed. Write a literal pipe as \\|.\n", NR, n > "/dev/stderr"
         malformed++
+        # The rank cell sits before any shifted cell, so the rank of this row
+        # is still known: a TSV row naming it is not a stray rank.
+        printf "\004%s\n", cell[2]
         next
       }
       printf "%s\002%s\002%s\002%s\002%s\002%s\002%s\n", cell[2], cell[3], cell[4], cell[5], cell[6], cell[7], cell[8]
@@ -979,19 +985,74 @@ fi
 
 # --- Classification input ------------------------------------------------------
 
-declare -A class_of basis_of rung_of owner_of seen_rank
+declare -A class_of basis_of rung_of owner_of error_of table_rank
 
+# Every rank the table carries, with the same empty-cell placeholder the write
+# loop uses, so a TSV row can be checked against the table before anything is
+# written.
+while IFS= read -r record; do
+  [[ -n "$record" && "$record" != $'\003'* ]] || continue
+  t_rank="${record#$'\004'}"
+  t_rank="${t_rank%%$'\002'*}"
+  [[ -n "$t_rank" ]] || t_rank="unranked"
+  table_rank["$t_rank"]=1
+done <<<"$rows_raw"
+
+# read_classes: one row per line, split on tabs by hand. `read` with a tab IFS
+# would collapse consecutive tabs (a tab is IFS whitespace), so an empty middle
+# field would shift every later field left. A row carries five or six fields;
+# any other count is a tab or a newline inside a value, and the run stops with
+# exit 2 before anything is written. So does a first field that is not a rank
+# in the table, which is also how a continuation line led by a digit is caught.
 read_classes() {
-  local c_rank c_class c_basis c_rung c_owner
-  while IFS=$'\t' read -r c_rank c_class c_basis c_rung c_owner || [[ -n "$c_rank" ]]; do
-    c_rank="${c_rank%$'\r'}"
-    c_owner="${c_owner%$'\r'}"
-    [[ -n "$c_rank" ]] || continue
-    class_of["$c_rank"]="$c_class"
-    basis_of["$c_rank"]="$c_basis"
-    rung_of["$c_rank"]="$c_rung"
-    owner_of["$c_rank"]="$c_owner"
+  local line rest n lineno=0
+  local -a f
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    lineno=$((lineno + 1))
+    line="${line%$'\r'}"
+    [[ -n "$line" ]] || continue
+    f=()
+    rest="$line"
+    while [[ "$rest" == *$'\t'* ]]; do
+      f+=("${rest%%$'\t'*}")
+      rest="${rest#*$'\t'}"
+    done
+    f+=("$rest")
+    n=${#f[@]}
+    if [[ $n -ne 5 && $n -ne 6 ]]; then
+      local unit="fields"
+      [[ $n -eq 1 ]] && unit="field"
+      printf 'refusing: --classes line %d has %d %s; a row carries five or six tab-separated fields (rank, class, basis, rung, owner, error text). A tab or a newline inside a value causes this. Nothing was written.\n' \
+        "$lineno" "$n" "$unit" >&2
+      exit 2
+    fi
+    if [[ -z "${table_rank[${f[0]}]:-}" ]]; then
+      printf 'refusing: --classes line %d names a rank the "## Findings" table does not carry. Nothing was written. Rank: %s\n' \
+        "$lineno" "${f[0]}" >&2
+      exit 2
+    fi
+    class_of["${f[0]}"]="${f[1]}"
+    basis_of["${f[0]}"]="${f[2]}"
+    rung_of["${f[0]}"]="${f[3]}"
+    owner_of["${f[0]}"]="${f[4]}"
+    error_of["${f[0]}"]="${f[5]:-}"
   done
+}
+
+# stage_of_rung <rung>: the earliest stage at which that rung's check can run.
+# One fixed table, also stated in context/stub-shape.md. Result in STAGE.
+STAGE=""
+stage_of_rung() {
+  case "$1" in
+  make-impossible) STAGE="design" ;;
+  editorconfig-severity) STAGE="edit" ;;
+  analyzer-pack-rule | custom-analyzer) STAGE="build" ;;
+  semgrep-rule) STAGE="commit" ;;
+  architecture-test) STAGE="test" ;;
+  hook) STAGE="tool-call" ;;
+  llm-only) STAGE="review" ;;
+  *) STAGE="unmapped" ;;
+  esac
 }
 
 if [[ -n "$classes" ]]; then
@@ -1060,13 +1121,13 @@ while IFS= read -r record; do
     malformed="${record#$'\003'}"
     continue
   fi
+  [[ "$record" != $'\004'* ]] || continue
   IFS=$'\002' read -r r_rank r_tier r_conf r_loc r_surf r_find r_act <<<"$record"
   # An empty Rank cell is a row, not a reason to lose one. It cannot key the
   # classification map (an empty array subscript is an error that would drop the
   # row while the summary still counted only what it wrote), so it takes a
   # placeholder and falls through to the unclassified defaults.
   [[ -n "$r_rank" ]] || r_rank="unranked"
-  seen_rank["$r_rank"]=1
 
   # `:-` covers an empty cell as well as an absent rank, so a TSV row whose
   # class, basis, rung or owner is blank falls to the same default an unlisted
@@ -1075,6 +1136,9 @@ while IFS= read -r record; do
   f_basis="${basis_of[$r_rank]:-unresolved}"
   f_rung="${rung_of[$r_rank]:-llm-only}"
   f_owner="${owner_of[$r_rank]:-none}"
+  f_error="${error_of[$r_rank]:-none proposed}"
+  stage_of_rung "$f_rung"
+  f_stage="$STAGE"
 
   if [[ "$r_rank" =~ ^[0-9]+$ ]]; then
     printf -v rank_seg '%02d' "$((10#$r_rank))"
@@ -1142,6 +1206,7 @@ while IFS= read -r record; do
     printf 'finding-class: %s\n' "$f_class"
     printf 'class-basis: %s\n' "$f_basis"
     printf 'rung: %s\n' "$f_rung"
+    printf 'earliest-stage: %s\n' "$f_stage"
     printf 'owner: %s\n' "$f_owner"
     printf -- '---\n'
     printf '\n## Finding\n\n'
@@ -1156,6 +1221,8 @@ while IFS= read -r record; do
     # shellcheck disable=SC2016
     printf 'Rung `%s`, reached from finding class `%s` on basis `%s`. The check this rung would carry asserts the class at that rung, so the finding stops being re-derived by a reader on every review. Owner or pointer: %s.\n' \
       "$f_rung" "$f_class" "$f_basis" "$f_owner"
+    printf '\n## Error text\n\n'
+    printf '%s\n' "$f_error"
     printf '\n## Next step\n\n'
     printf '%s\n' "$f_owner"
     printf '\n## Not done here\n\n'
@@ -1171,13 +1238,6 @@ while IFS= read -r record; do
 
   written+=("$target")
 done <<<"$rows_raw"
-
-for c_rank in "${!class_of[@]}"; do
-  if [[ -z "${seen_rank[$c_rank]:-}" ]]; then
-    printf 'diagnostic: --classes names rank %s, which the "## Findings" table does not carry; no stub written for it.\n' \
-      "$c_rank" >&2
-  fi
-done
 
 if [[ $dry_run -eq 1 ]]; then
   printf '%d findings planned, 0 stubs written (dry run) in %s\n' "$count" "$out"

@@ -102,8 +102,12 @@ itself when the memory root is the repository root.
 ## 5. Write the stubs
 
 Compose the classification TSV and pass it on stdin inside the same granted command, one line per
-rank, five fields separated by ONE literal tab each: `rank`, `class`, `basis`, `rung`, `owner`.
-Each `<TAB>` below is a single tab character, not that text:
+rank, six fields separated by ONE literal tab each: `rank`, `class`, `basis`, `rung`, `owner`,
+`error text`. The error text is the one line the rung's check would print when it fires, and it
+names the fix (what to change, not only what is wrong). Write it as one line with no tab; when it
+cannot be written that way, leave the sixth field empty and the stub records `none proposed`. The
+writer derives the stub's `earliest-stage` from the rung itself. Each `<TAB>` below is a single
+tab character, not that text:
 
 ```bash
 "${CLAUDE_SKILL_DIR}/scripts/emit-stubs.sh" \
@@ -112,8 +116,8 @@ Each `<TAB>` below is a single tab character, not that text:
   --out <resolved-stub-home> \
   --scan-dir <resolved-reviews-home> \
   --memory-root <the memory root the home was composed from> <<'TSV'
-1<TAB>style<TAB>judgment<TAB>editorconfig-severity<TAB>in-repo .editorconfig
-2<TAB>defined-diagnostic<TAB>rule-id<TAB>analyzer-pack-rule<TAB>keep the detector
+1<TAB>style<TAB>judgment<TAB>editorconfig-severity<TAB>in-repo .editorconfig<TAB>IDE0011: add braces to this if statement (set by .editorconfig)
+2<TAB>defined-diagnostic<TAB>rule-id<TAB>analyzer-pack-rule<TAB>keep the detector<TAB>
 TSV
 ```
 
@@ -127,13 +131,16 @@ fenced directory, refuses a home carrying a `..` segment or one that escapes `--
 refuses a home whose last path segment sits outside `[a-z0-9._-]` (that segment is the branch
 slug, composed from operator-supplied frontmatter; a charset miss is an unsanitized value
 reaching the path), and re-reads every stub it wrote, removing all of them if any carries a
-findings-file marker. Its exit codes are `2` usage or a non-conforming input, `3` a refused home,
+findings-file marker. It refuses the whole TSV, writing nothing, when a line has other than five
+or six fields or its first field is not a rank in the table. Its exit codes are `2` usage or a
+non-conforming input (findings file or TSV), `3` a refused home,
 `4` a forbidden marker. Surface a non-zero exit verbatim; never retry it into a different
 directory.
 
 ## 6. Report
 
-A table with one row per finding: rank, class, class basis, rung, owner, stub path. Then the
+A table with one row per finding: rank, class, class basis, rung, earliest stage, owner, stub
+path. Then the
 writer's own line, `N findings → N stubs in <home>`. Then, grouped per rung, the next step, each
 with its gate and its fallback:
 

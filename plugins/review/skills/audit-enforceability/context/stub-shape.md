@@ -13,6 +13,7 @@ rank: <Rank>
 finding-class: <class>
 class-basis: rule-id | rule-family | dimension | judgment | unresolved
 rung: make-impossible | editorconfig-severity | analyzer-pack-rule | custom-analyzer | semgrep-rule | architecture-test | hook | llm-only
+earliest-stage: design | edit | build | commit | test | tool-call | review | unmapped
 owner: <invocation, plugin name, or URL>
 ---
 
@@ -23,6 +24,10 @@ owner: <invocation, plugin name, or URL>
 ## Proposed rung
 
 <one paragraph: the rung, why this class lands there, what the check would assert>
+
+## Error text
+
+<the sixth TSV field: one line the check would print, naming the fix; "none proposed" when absent or empty>
 
 ## Next step
 
@@ -59,6 +64,25 @@ report "not within" for the very case the fence exists to catch, while folding
 them before asking would refuse distinct siblings the filesystem has already
 named.
 
+## Earliest stage
+
+The writer derives `earliest-stage` from the rung with this fixed table. It names the first
+point in the change's life at which the rung's check can run, so a reader sees how early the
+finding would have been caught.
+
+| Rung | Earliest stage |
+|---|---|
+| `make-impossible` | `design` |
+| `editorconfig-severity` | `edit` |
+| `analyzer-pack-rule` | `build` |
+| `custom-analyzer` | `build` |
+| `semgrep-rule` | `commit` |
+| `architecture-test` | `test` |
+| `hook` | `tool-call` |
+| `llm-only` | `review` |
+
+A rung outside the table renders `unmapped`.
+
 ## Filename
 
 `<rank, two digits>-<rung>-<slug>.md`, where `<slug>` is the first 40 characters of the row's
@@ -68,7 +92,15 @@ path is never overwritten: the writer takes `-2`, then `-3`, and so on.
 ## What the writer fills and what it does not
 
 The writer is deterministic. It renders the row's cells verbatim (pipes unescaped), and it
-renders the rung, class, basis, and owner it was handed on the classification TSV. The judgment
-that produced those four values belongs to the skill body's derivation ladder, not to the
-writer, and the skill's in-conversation report carries the reasoning. A stub is therefore
-reproducible from the same findings file plus the same TSV.
+renders the class, basis, rung, owner, and error text it was handed on the classification TSV;
+the earliest stage comes from the table above. The judgment that produced the TSV values
+belongs to the skill body, not to the writer, and the skill's in-conversation report carries the
+reasoning. A stub is therefore reproducible from the same findings file plus the same TSV.
+
+The writer splits each TSV line on tabs itself, so an empty field keeps its position and takes
+its default (`unclassified`, `unresolved`, `llm-only`, `none`, or `none proposed` for the error
+text) without shifting the fields after it. A line with other than five or six fields, or whose
+first field is not a rank the `## Findings` table carries, stops the run with exit 2 and the line
+number before anything is written. That is how a tab inside the error text (seven fields) and a
+newline inside it (a continuation line with one field, even one that starts with a digit) are
+caught. Fully empty lines are skipped.

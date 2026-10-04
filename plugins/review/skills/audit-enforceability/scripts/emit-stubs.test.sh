@@ -220,15 +220,23 @@ assert_contains "case 7: the unclassified rank records basis unresolved" "$stub7
 assert_contains "case 7: the unclassified rank has no owner" "$stub7" "owner: none"
 assert_contains "case 7: the llm-only rung reaches the filename" "$(ls "$OUT7")" "07-llm-only-"
 
-# A rank in the TSV that the table does not carry is a diagnostic, not a stub.
+# A TSV row whose first field is not a rank the table carries is refused whole:
+# it is either a stray rank or a fragment of a broken row, and nothing is written.
 OUT7B="$TEST_TMPDIR/out7b"
 cp "$CLASSES" "$TEST_TMPDIR/classes-extra.tsv"
 printf '99\tstyle\tjudgment\teditorconfig-severity\tnowhere\n' >>"$TEST_TMPDIR/classes-extra.tsv"
 extra_err="$(bash "$EMIT" --findings "$FINDINGS" --classes - --out "$OUT7B" --scan-dir "$SCAN_DIR" \
   <"$TEST_TMPDIR/classes-extra.tsv" 2>&1 >/dev/null)"
-assert_eq "case 7: a TSV rank absent from the table still exits 0" "0" "$?"
-assert_eq "case 7: a TSV rank absent from the table adds no stub" "7" "$(count_files "$OUT7B")"
-assert_contains "case 7: a TSV rank absent from the table is a diagnostic" "$extra_err" "rank 99"
+assert_eq "case 7: a TSV rank absent from the table exits 2" "2" "$?"
+assert_eq "case 7: a TSV rank absent from the table writes nothing" "0" "$(path_exists "$OUT7B")"
+assert_contains "case 7: the refusal names the TSV line" "$extra_err" "line 8"
+assert_contains "case 7: the refusal names the rank last" "$extra_err" ": 99"
+
+printf 'abc\tstyle\tjudgment\teditorconfig-severity\tnowhere\n' >"$TEST_TMPDIR/classes-word.tsv"
+bash "$EMIT" --findings "$FINDINGS" --classes - --out "$TEST_TMPDIR/out7c" --scan-dir "$SCAN_DIR" \
+  <"$TEST_TMPDIR/classes-word.tsv" >/dev/null 2>&1
+assert_eq "case 7: a first field that is not a rank exits 2" "2" "$?"
+assert_eq "case 7: a first field that is not a rank writes nothing" "0" "$(path_exists "$TEST_TMPDIR/out7c")"
 
 # --- Case 8: a re-run never overwrites ----------------------------------------
 
@@ -597,7 +605,9 @@ assert_eq "case 25: but it holds no stub" "0" "$(count_files "$OUT24")"
 EMPTY_RANK="$TEST_TMPDIR/input/empty-rank.md"
 awk '/^\| 7 \|/ { sub(/^\| 7 \|/, "|  |") } { print }' "$FINDINGS" >"$EMPTY_RANK"
 OUT25="$TEST_TMPDIR/out25"
-bash "$EMIT" --findings "$EMPTY_RANK" --classes "$CLASSES" --out "$OUT25" \
+# Rank 7 is gone from the table, so the TSV that classifies it would be refused;
+# the TSV without it isolates the empty-Rank behavior.
+bash "$EMIT" --findings "$EMPTY_RANK" --classes "$TEST_TMPDIR/classes-no-7.tsv" --out "$OUT25" \
   --scan-dir "$SCAN_DIR" >/dev/null 2>&1
 assert_eq "case 26: an empty Rank cell does not fail the run" "0" "$?"
 assert_eq "case 26: the empty-Rank row still produced a stub" "7" "$(count_files "$OUT25")"
@@ -843,6 +853,117 @@ env EMIT_STUBS_ASSUME_NORMALIZING=1 bash "$EMIT" --findings "$FINDINGS" --classe
 assert_eq "case 31: a forced normalizing verdict refuses an absent NFC versus NFD pair" "3" "$?"
 assert_eq "case 31: the forced refusal created neither spelling" "0" \
   "$(path_exists "$NORM31C/$NFD_NAME" "$NORM31C/$NFC_NAME")"
+
+# --- Case 32: each rung maps to its earliest stage ---------------------------
+#
+# Expected stages are the fixed table in context/stub-shape.md, not values read
+# back from the writer. Case 1's stubs cover seven rungs; make-impossible gets
+# its own run.
+for pair in 01:edit 02:build 03:build 04:commit 05:test 06:tool-call 07:review; do
+  rank="${pair%%:*}"
+  stage="${pair#*:}"
+  assert_contains "case 32: rank $rank stub carries earliest-stage $stage" \
+    "$(cat "$OUT1"/"$rank"-*.md)" "earliest-stage: $stage"
+done
+OUT32="$TEST_TMPDIR/out32"
+printf '1\tinvalid-state\tjudgment\tmake-impossible\t/architecture:improve\n' |
+  bash "$EMIT" --findings "$FINDINGS" --classes - --out "$OUT32" --scan-dir "$SCAN_DIR" >/dev/null 2>&1
+assert_eq "case 32: a make-impossible row exits 0" "0" "$?"
+assert_contains "case 32: make-impossible maps to the design stage" \
+  "$(cat "$OUT32"/01-*.md)" "earliest-stage: design"
+
+# --- Case 33: the sixth field is the error text ------------------------------
+OUT33="$TEST_TMPDIR/out33"
+{
+  printf '1\tstyle\tjudgment\teditorconfig-severity\tin-repo .editorconfig\tIDE0055: run dotnet format to apply the brace rule from .editorconfig\n'
+  grep -v '^1	' "$CLASSES"
+} >"$TEST_TMPDIR/classes-six.tsv"
+bash "$EMIT" --findings "$FINDINGS" --classes - --out "$OUT33" --scan-dir "$SCAN_DIR" \
+  <"$TEST_TMPDIR/classes-six.tsv" >/dev/null 2>&1
+assert_eq "case 33: a six-field row exits 0" "0" "$?"
+assert_eq "case 33: every row still gets its stub" "7" "$(count_files "$OUT33")"
+stub33="$(cat "$OUT33"/01-*.md)"
+assert_contains "case 33: the six-field stub has an Error text section" "$stub33" $'\n## Error text\n'
+assert_contains "case 33: the error text is rendered on its own line" "$stub33" \
+  $'\nIDE0055: run dotnet format to apply the brace rule from .editorconfig\n'
+assert_contains "case 33: the six-field stub keeps its earliest stage" "$stub33" "earliest-stage: edit"
+assert_contains "case 33: a five-field row renders none proposed" \
+  "$(cat "$OUT33"/02-*.md)" $'## Error text\n\nnone proposed\n'
+
+# --- Case 34: a row with the wrong field count is refused whole --------------
+#
+# A tab inside the error text makes seven fields; a newline inside it leaves a
+# continuation line with one field, even when that line starts with a digit
+# that reads like a rank.
+OUT34="$TEST_TMPDIR/out34"
+printf '1\tstyle\tjudgment\teditorconfig-severity\tin-repo .editorconfig\tuse\ttabs\n' >"$TEST_TMPDIR/classes-seven.tsv"
+seven_err="$(bash "$EMIT" --findings "$FINDINGS" --classes - --out "$OUT34" --scan-dir "$SCAN_DIR" \
+  <"$TEST_TMPDIR/classes-seven.tsv" 2>&1 >/dev/null)"
+assert_eq "case 34: a seven-field row exits 2" "2" "$?"
+assert_eq "case 34: a seven-field row writes nothing" "0" "$(path_exists "$OUT34")"
+assert_contains "case 34: the refusal names the line" "$seven_err" "line 1"
+assert_contains "case 34: the refusal names the field count" "$seven_err" "7 fields"
+
+{
+  printf '1\tstyle\tjudgment\teditorconfig-severity\tin-repo .editorconfig\tThe client gets a 404 here\n'
+  printf '404 means the endpoint is gone\n'
+} >"$TEST_TMPDIR/classes-cont.tsv"
+cont_err="$(bash "$EMIT" --findings "$FINDINGS" --classes - --out "$OUT34" --scan-dir "$SCAN_DIR" \
+  <"$TEST_TMPDIR/classes-cont.tsv" 2>&1 >/dev/null)"
+assert_eq "case 34: a digit-led continuation line exits 2" "2" "$?"
+assert_eq "case 34: a digit-led continuation line writes nothing" "0" "$(path_exists "$OUT34")"
+assert_contains "case 34: the refusal names the continuation line" "$cont_err" "line 2"
+assert_contains "case 34: the continuation line is refused for its field count" "$cont_err" "1 field"
+
+# A continuation line whose digit IS a rank in the table must not pass as a row.
+{
+  printf '1\tstyle\tjudgment\teditorconfig-severity\tin-repo .editorconfig\tSee rule\n'
+  printf '7 more lines follow\n'
+} >"$TEST_TMPDIR/classes-cont7.tsv"
+bash "$EMIT" --findings "$FINDINGS" --classes - --out "$OUT34" --scan-dir "$SCAN_DIR" --dry-run \
+  <"$TEST_TMPDIR/classes-cont7.tsv" >/dev/null 2>&1
+assert_eq "case 34: a continuation line led by a table rank exits 2, dry run too" "2" "$?"
+
+# --- Case 35: an empty middle field keeps its position -----------------------
+OUT35="$TEST_TMPDIR/out35"
+printf '1\t\tjudgment\tsemgrep-rule\tsemgrep docs\tsemgrep: replace eval with a parser call\n' |
+  bash "$EMIT" --findings "$FINDINGS" --classes - --out "$OUT35" --scan-dir "$SCAN_DIR" >/dev/null 2>&1
+assert_eq "case 35: an empty class field exits 0" "0" "$?"
+stub35="$(cat "$OUT35"/01-*.md)"
+assert_contains "case 35: the empty class takes the unclassified default" "$stub35" "finding-class: unclassified"
+assert_contains "case 35: the basis stays in its own position" "$stub35" "class-basis: judgment"
+assert_contains "case 35: the rung did not shift into the class" "$stub35" "rung: semgrep-rule"
+assert_contains "case 35: the owner did not shift" "$stub35" "owner: semgrep docs"
+assert_contains "case 35: the error text did not shift" "$stub35" $'\nsemgrep: replace eval with a parser call\n'
+assert_contains "case 35: the stage follows the unshifted rung" "$stub35" "earliest-stage: commit"
+
+# --- Case 36: a forbidden marker inside the error text -----------------------
+OUT36="$TEST_TMPDIR/out36"
+printf '1\tstyle\tjudgment\teditorconfig-severity\tin-repo .editorconfig\t## Findings\n' |
+  bash "$EMIT" --findings "$FINDINGS" --classes - --out "$OUT36" --scan-dir "$SCAN_DIR" >/dev/null 2>&1
+assert_eq "case 36: a marker in the error text exits 4" "4" "$?"
+assert_eq "case 36: the marker run left no stub" "0" "$(count_files "$OUT36")"
+
+# --- Case 37: dry run with six fields prints paths and writes nothing --------
+OUT37="$TEST_TMPDIR/out37"
+dry6="$(bash "$EMIT" --findings "$FINDINGS" --classes - --out "$OUT37" --scan-dir "$SCAN_DIR" --dry-run \
+  <"$TEST_TMPDIR/classes-six.tsv" 2>&1)"
+assert_eq "case 37: a six-field dry run exits 0" "0" "$?"
+assert_eq "case 37: a six-field dry run writes nothing" "0" "$(path_exists "$OUT37")"
+assert_contains "case 37: a six-field dry run plans the stub path" "$dry6" "$OUT37/01-editorconfig-severity-"
+assert_not_contains "case 37: a dry run prints no stub body" "$dry6" "Error text"
+
+# --- Case 38: a command substitution in the rank field is never run ----------
+#
+# The first field is looked up as an associative-array key. bash 5.1 expands
+# some subscripts twice; BASH_COMPAT=51 reproduces that, so a lookup that
+# reached an arithmetic or -v context would create the marker file.
+PWNED="$TEST_TMPDIR/pwned38"
+printf '%s\tstyle\tjudgment\thook\tnone\n' "\$(touch $PWNED)" >"$TEST_TMPDIR/classes-inject.tsv"
+env BASH_COMPAT=51 bash "$EMIT" --findings "$FINDINGS" --classes - --out "$TEST_TMPDIR/out38" \
+  --scan-dir "$SCAN_DIR" <"$TEST_TMPDIR/classes-inject.tsv" >/dev/null 2>&1
+assert_eq "case 38: a substitution-shaped rank exits 2" "2" "$?"
+assert_eq "case 38: the substitution never ran" "0" "$(path_exists "$PWNED")"
 
 # --- Dry run ------------------------------------------------------------------
 

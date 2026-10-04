@@ -103,6 +103,19 @@
         "Output places row 4 on the semgrep-rule rung and names Semgrep's rule-writing documentation as the fallback pointer",
         "Output does NOT contain the text 'plugin install' or 'plugin marketplace add'"
       ]
+    },
+    {
+      "id": 9,
+      "name": "stub-carries-earliest-stage-and-error-text",
+      "prompt": "Audit enforceability for this findings file. Row 1 is a missing-braces style finding that lands on editorconfig-severity, and row 6 is an agent that keeps editing generated files, which lands on the hook rung. What earliest stage and error text does each stub carry?",
+      "expected_output": "Each stub's frontmatter carries earliest-stage derived from its rung by the writer's fixed table: edit for editorconfig-severity, tool-call for hook. The skill composes a sixth TSV field per row, one line with no tab that names the fix the check would tell the author to make (for row 1, adding the braces; for row 6, editing the source the file is generated from instead), and the writer renders it under an Error text section. A row whose error text cannot be written as one line leaves the field empty and the stub says none proposed.",
+      "narration": true,
+      "expectations": [
+        "Output states that row 1's stub carries earliest-stage edit and row 6's carries earliest-stage tool-call",
+        "Output gives each row an error text that names the fix, not only the problem",
+        "Output keeps each error text to one line with no tab, or leaves it empty so the stub records none proposed",
+        "Output does NOT pass an earliest stage in the TSV; the stage follows from the rung"
+      ]
     }
   ]
 }
