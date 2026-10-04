@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.13.4] - 2026-10-04
+
+### Fixed
+
+- `cascade-read.test.sh` quotes the `rule-a` and `rule-b` slug-map keys, so a shfmt pass no longer respaces them into `rule - a` and `rule - b` and breaks the slug-map checks ([#5791](https://github.com/melodic-software/claude-code-plugins/issues/5791)).
+
 ## [0.13.3] - 2026-10-03
 
 ### Changed
