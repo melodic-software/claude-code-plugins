@@ -2106,8 +2106,9 @@ def check_queued_entry(
     `unconfirmed` (the queue showed no result yet) that reads back queued or
     armed is confirmed; one still showing nothing reads `unconfirmed` for
     `QUEUE_UNCONFIRMED_LATER_READS` runs and then `dequeued`. An unreadable
-    queue, or a merge whose head cannot be read back, keeps the record with
-    status None.
+    queue keeps the record with status None; a merge whose head cannot be read
+    back keeps it with status `merged` and `verified` None, so callers key the
+    hold off `verified`, not `status`.
     """
     key = f"{repo}#{number}"
     queue = read_merge_queue(repo, number)
