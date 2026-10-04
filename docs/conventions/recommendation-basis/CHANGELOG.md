@@ -13,9 +13,9 @@ recognized experts who build on it, and recency never discounts a canonical defi
 "Popularity is not correctness" bullet requires checking a pattern found in a template, sample, or
 popular repository against the principle it claims to serve, and keeps recall honest: a book cited
 from memory is recall, while a canonical catalog page fetched this session verifies the pattern's
-definition. The plugin-shipped copies carry the change, and the architecture Design-It-Twice
-step, which restated the old wording, now states the new one. The label's values and the re-emit
-shape are unchanged.
+definition. The plugin-shipped copies carry the change, and the planning interview and the
+architecture Design-It-Twice step, which restated the old wording, now state the new one. The
+label's values and the re-emit shape are unchanged.
 
 ## [1.1.0] - 2026-10-02
 
