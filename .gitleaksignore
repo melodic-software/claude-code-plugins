@@ -8,8 +8,8 @@
 04f4bcd559a840e806b84fa4dd5992cc1e2cf5c7:scripts/gitleaks-scoped-scan.test.sh:generic-api-key:119
 4b10aeebd6e7f9861f2fca9710ca3143b24d8613:plugins/architecture/lib/likec4-golden/deployment-kubernetes.c4:generic-api-key:20
 4b10aeebd6e7f9861f2fca9710ca3143b24d8613:plugins/architecture/lib/likec4-golden/deployment-kubernetes.c4:generic-api-key:21
-bd90c553c1399c11ef342caee768591eb57167cb:plugins/session-flow/scripts/tests/test_save_point.py:jwt:510
-bd90c553c1399c11ef342caee768591eb57167cb:plugins/session-flow/skills/running-retro/scripts/test_observer.py:jwt:879
+097e014ebe3a9fa9a58c23eeecfec50049253daa:plugins/disk-hygiene/lib/test_guard_decision_log.py:private-key:180
+097e014ebe3a9fa9a58c23eeecfec50049253daa:plugins/disk-hygiene/lib/test_guard_decision_log.py:jwt:197
 # The vendored gitleaks rules file: this rule's regex is a literal prefix that
 # matches itself. A commit-less line is checked in git scans as well as dir
 # scans, so it survives the squash merge that replaces the adding commit.
