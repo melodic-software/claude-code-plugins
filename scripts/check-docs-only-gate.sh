@@ -173,8 +173,7 @@ run_manifests${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && f
 # Outputs that carry a VALUE rather than a polarity decision, each pinned by its
 # exact expression and read only as a whole env entry (property 10). `lane_base`
 # is the ref every diff-scoped step diffs against: `origin/<base>` on a pull
-# request, the newest green push run's commit on a push, and empty (the whole
-# tree) on a schedule, a dispatch, or a push with no usable base. The rest are
+# request, and empty (the whole tree) on any other run. The rest are
 # the test-lane plan of scripts/plan-test-lanes.sh.
 DATA_TABLE="\
 lane_base${TAB}\${{ steps.base.outputs.ref }}
