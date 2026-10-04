@@ -239,7 +239,9 @@ function resolveRemovableTempDir(dir) {
 /**
  * Remove the directories recorded on this slice's tempSession after a successful close.
  * Only those three fields, and only when each resolved path is a directory inside the
- * OS temp dir. Never lists or globs the temp directory.
+ * OS temp dir. Never lists or globs the temp directory. Best-effort: a directory
+ * that cannot be removed (on Windows, a file another process holds open fails with
+ * EBUSY or EPERM) gets a stderr warning naming it, and the others are still tried.
  *
  * @param {WatchState["tempSession"]} tempSession
  */
@@ -254,7 +256,12 @@ export async function removeRecordedTempSessionDirs(tempSession) {
     const dir = resolved[key];
     const real = dir ? resolveRemovableTempDir(dir) : null;
     if (!real) continue;
-    await fs.rm(real, { recursive: true, force: true });
+    try {
+      await fs.rm(real, { recursive: true, force: true });
+    } catch (err) {
+      const reason = /** @type {NodeJS.ErrnoException} */ (err).code ?? String(err);
+      writeStderr(`close: could not remove temp dir ${real} (${reason}); remove it by hand\n`);
+    }
   }
 }
 
@@ -440,8 +447,9 @@ async function verifyWatchOutcomes(sliceDir) {
 /**
  * Close the slice: the only writer of `status: "complete"`. Marks synthesis
  * when unmarked, runs the outcome checks against that state on disk, and sets
- * `complete` only when they pass. On that success, removes the directories
- * recorded in this slice's `tempSession`. A failed close leaves status unchanged
+ * `complete` only when they pass. After writing `complete`, removes the directories
+ * recorded in this slice's `tempSession`, best-effort, so a directory that cannot be
+ * removed warns without failing the close. A failed close leaves status unchanged
  * with synthesis marked, and leaves those directories in place, so a re-run
  * retries the checks.
  *
@@ -475,9 +483,9 @@ export async function runClose(
     return 1;
   }
 
-  await removeRecordedTempSessionDirs(closing.tempSession);
   await writeWatchState(sliceDir, { ...closing, status: "complete" }, writeFile, mkdir);
   writeStdout("close: outcome checks passed, status complete\n");
+  await removeRecordedTempSessionDirs(closing.tempSession);
   return 0;
 }
 

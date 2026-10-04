@@ -1,5 +1,6 @@
 import { existsSync, symlinkSync, writeFileSync } from "node:fs";
 import { mkdir, mkdtemp, readFile as realReadFile, rm, writeFile } from "node:fs/promises";
+import fsPromises from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -557,6 +558,9 @@ describe("mark-phase vision metrics", () => {
   });
 });
 
+/** A junction needs no Developer Mode or admin rights on Windows; a "dir" symlink does. */
+const DIR_LINK_TYPE = process.platform === "win32" ? "junction" : "dir";
+
 describe("close removes recorded tempSession directories", () => {
   /** @param {number} outcomeCode */
   async function closeWithTemps(outcomeCode) {
@@ -600,6 +604,42 @@ describe("close removes recorded tempSession directories", () => {
     }
   });
 
+  it("completes and warns when a recorded directory cannot be removed", async () => {
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const busyRm = vi.spyOn(fsPromises, "rm").mockImplementation(async (target, options) => {
+      if (path.basename(String(target)).startsWith("video-extraction-")) {
+        throw Object.assign(new Error("resource busy or locked"), { code: "EBUSY" });
+      }
+      return rm(target, options);
+    });
+    let dirs;
+    let warnings = "";
+    try {
+      dirs = await closeWithTemps(0);
+    } finally {
+      warnings = stderr.mock.calls.map(([chunk]) => String(chunk)).join("");
+      busyRm.mockRestore();
+      stderr.mockRestore();
+    }
+    try {
+      expect(dirs.code).toBe(0);
+      const persisted = JSON.parse(await realReadFile(watchStatePath(dirs.sliceDir), "utf8"));
+      expect(persisted.status).toBe("complete");
+      expect(existsSync(dirs.workDir)).toBe(true);
+      expect(existsSync(dirs.framesDir)).toBe(false);
+      expect(existsSync(dirs.sheetsDir)).toBe(false);
+      expect(warnings).toContain("could not remove temp dir");
+      expect(warnings).toContain(path.basename(dirs.workDir));
+      expect(warnings).toContain("EBUSY");
+    } finally {
+      await rm(dirs.sliceDir, { recursive: true, force: true });
+      await rm(dirs.workDir, { recursive: true, force: true });
+      await rm(dirs.framesDir, { recursive: true, force: true });
+      await rm(dirs.sheetsDir, { recursive: true, force: true });
+      await rm(dirs.leftover, { recursive: true, force: true });
+    }
+  });
+
   it("deletes the directory a recorded symlink resolves to", async () => {
     const sliceDir = await mkdtemp(path.join(os.tmpdir(), "watch-close-slice-"));
     const target = await mkdtemp(path.join(os.tmpdir(), "video-extraction-target-"));
@@ -607,7 +647,7 @@ describe("close removes recorded tempSession directories", () => {
     const sheetsDir = await mkdtemp(path.join(os.tmpdir(), "video-sheets-"));
     const link = path.join(os.tmpdir(), `video-extraction-link-${path.basename(target)}`);
     writeFileSync(path.join(target, "keep.txt"), "x");
-    symlinkSync(target, link, "dir");
+    symlinkSync(target, link, DIR_LINK_TYPE);
     let state = sampleTalk();
     for (const phase of ["acquire", "transcript", "watching", "vision", "harvest", "research"]) {
       state = markPhaseComplete(state, phase);
@@ -641,7 +681,7 @@ describe("close removes recorded tempSession directories", () => {
     await mkdir(outside);
     writeFileSync(path.join(outside, "keep.txt"), "x");
     const link = path.join(fakeTmp, "video-extraction-link");
-    symlinkSync(outside, link, "dir");
+    symlinkSync(outside, link, DIR_LINK_TYPE);
     const framesDir = path.join(fakeTmp, "video-frames-abc");
     await mkdir(framesDir);
     const savedEnv = { TMPDIR: process.env.TMPDIR, TEMP: process.env.TEMP, TMP: process.env.TMP };
