@@ -16,11 +16,9 @@ name: dependabot-plugin-release
 # GITHUB_TOKEN do not create new workflow runs (workflow_dispatch and
 # repository_dispatch excepted), and a pull_request opened, synchronize or
 # reopened event from a pull request the token created or updated creates runs
-# in an approval-required state. CI on the release-bump commit therefore may
-# wait for a maintainer to approve the run or for a re-trigger.
-#
-# Recheck: whether CI starts on the bump commit without approval. If it waits,
-# pick a token or trigger that starts it.
+# in an approval-required state. In practice CI on the release-bump commit
+# starts without approval: runs on the bump commits of #5198, #5602, #5737 and
+# #5999 started within seconds, none in action_required.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -67,8 +65,8 @@ jobs:
           # that has not yet rebased still runs the landed implementation.
           bump_script=scripts/dependabot-plugin-bump.sh
           if git cat-file -e "origin/$BASE_REF:$bump_script" 2>/dev/null; then
-            git show "origin/$BASE_REF:$bump_script" > /tmp/dependabot-plugin-bump.sh
-            bump_script=/tmp/dependabot-plugin-bump.sh
+            git show "origin/$BASE_REF:$bump_script" > "$RUNNER_TEMP/dependabot-plugin-bump.sh"
+            bump_script="$RUNNER_TEMP/dependabot-plugin-bump.sh"
             chmod +x "$bump_script"
           fi
           bash "$bump_script" "origin/$BASE_REF" --pr "$PR_NUMBER" --title "$PR_TITLE"
