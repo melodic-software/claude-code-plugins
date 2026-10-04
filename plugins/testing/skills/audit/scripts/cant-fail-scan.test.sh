@@ -1098,6 +1098,7 @@ corpus_files=(
   bash-harness/good/sources-test-harness.test.sh.fixture
   cs-mstest/bad/OrderAlwaysTrueBesideWeakTests.cs.fixture
   cs-mstest/bad/OrderAlwaysTrueTests.cs.fixture
+  cs-mstest/bad/OrderConstructedIsNotNullTests.cs.fixture
   cs-mstest/bad/OrderDiscountIfTests.cs.fixture
   cs-mstest/bad/OrderIsNotNullTests.cs.fixture
   cs-mstest/bad/OrderLinesSumTests.cs.fixture
@@ -1106,6 +1107,7 @@ corpus_files=(
   cs-mstest/bad/OrderSourceTextTests.cs.fixture
   cs-mstest/bad/OrderTotalFormatTests.cs.fixture
   cs-mstest/good/OrderArchiveIgnoredClassTests.cs.fixture
+  cs-mstest/good/OrderConstructedIdTests.cs.fixture
   cs-mstest/good/OrderParseExpectedExceptionTests.cs.fixture
   cs-mstest/good/OrderPlacementAssertedTests.cs.fixture
   cs-mstest/good/OrderRepaired4bTests.cs.fixture
@@ -1113,6 +1115,7 @@ corpus_files=(
   cs-mstest/good/OrderSyncIgnoredTests.cs.fixture
   cs-mstest/good/OrderTotalFormatLiteralTests.cs.fixture
   cs-nunit/bad/CartCheckoutThatAsyncTests.cs.fixture
+  cs-nunit/bad/CartConstructedNotNullTests.cs.fixture
   cs-nunit/bad/CartDiscountTests.cs.fixture
   cs-nunit/bad/CartIsNotNullTests.cs.fixture
   cs-nunit/bad/CartPlaceOrderCatchTests.cs.fixture
@@ -1122,6 +1125,7 @@ corpus_files=(
   cs-nunit/bad/CartSourceTextTests.cs.fixture
   cs-nunit/bad/CartTotalSumTests.cs.fixture
   cs-nunit/good/CartBenchmarkExplicitTests.cs.fixture
+  cs-nunit/good/CartConstructedCurrencyTests.cs.fixture
   cs-nunit/good/CartDiscountLiteralTests.cs.fixture
   cs-nunit/good/CartDivideExpectedResultTests.cs.fixture
   cs-nunit/good/CartExportIgnoredTests.cs.fixture
@@ -1129,6 +1133,7 @@ corpus_files=(
   cs-nunit/good/CartRepaired4bTests.cs.fixture
   cs-nunit/good/CartRepairedOraclesTests.cs.fixture
   cs-nunit/good/CartSyncIgnoredFixtureTests.cs.fixture
+  cs-xunit/bad/ConfigEarlyReturnTests.cs.fixture
   cs-xunit/bad/DiagnosticsCheckPrintsOnlyTests.cs.fixture
   cs-xunit/bad/InvoiceExpressionNotNullTests.cs.fixture
   cs-xunit/bad/InvoiceExpressionVerifyTests.cs.fixture
@@ -1151,6 +1156,7 @@ corpus_files=(
   cs-xunit/bad/SlugifyTests.cs.fixture
   cs-xunit/bad/UnitTest1.cs.fixture
   cs-xunit/bad/WidgetAlwaysTrueTests.cs.fixture
+  cs-xunit/bad/WidgetConstructedNotNullTests.cs.fixture
   cs-xunit/bad/WidgetExpressionAlwaysFalseTests.cs.fixture
   cs-xunit/bad/WidgetInertBesideWeakOneLineTests.cs.fixture
   cs-xunit/bad/WidgetNameofTypeNameTests.cs.fixture
@@ -1171,8 +1177,10 @@ corpus_files=(
   cs-xunit/good/InvoiceTotalShouldlyTests.cs.fixture
   cs-xunit/good/InvoiceVerifyHelperTests.cs.fixture
   cs-xunit/good/OrderPricedHelperTests.cs.fixture
+  cs-xunit/good/ReportTrialGuardTests.cs.fixture
   cs-xunit/good/SameFileAssertingHelperTests.cs.fixture
   cs-xunit/good/SlugifyLiteralTests.cs.fixture
+  cs-xunit/good/WidgetConstructedOraclesTests.cs.fixture
   cs-xunit/good/WidgetTwoStatementsOneLineTests.cs.fixture
   cs-xunit/good/WidgetTypeOraclesTests.cs.fixture
   go-testing/bad/go_add_deepequal_derived_test.go.fixture
@@ -1547,7 +1555,8 @@ assert_contains "Surfaces counts the report-only rules" "$out" \
 for pair in cond:rule-conditional-assertion:js-vitest/bad/vitest-rows-loop-unchecked.test.ts \
   derived:rule-recomputed-derived:py-pytest/bad/test_pytest_price_sum_recomputed.py \
   snap:rule-snapshot-only:js-jest/bad/jest-receipt-snapshot.test.ts \
-  weak:rule-weak-oracle:cs-xunit/bad/InvoiceNotNullTests.cs; do
+  weak:rule-weak-oracle:cs-xunit/bad/InvoiceNotNullTests.cs \
+  throw:rule-throw-only-oracle:cs-xunit/bad/WidgetConstructedNotNullTests.cs; do
   IFS=: read -r name rule rel <<<"$pair"
   ro_repo "$RO/$name"
   cp "$CORPUS/$rel.fixture" "$RO/$name/test/${rel##*/}"
@@ -1649,10 +1658,26 @@ for f in js-jest/bad/jest-create-user-defined-verbatim.test.ts py-unittest/bad/t
   assert_contains "weak remedy ($f) asks for the exact value or exception" "$a" "Assert the value the code should produce"
   assert_not_contains "weak remedy ($f) is not the zero-assertion remedy" "$a" "passes vacuously"
 done
+a="$(remedy "$C/cs-xunit/bad/WidgetConstructedNotNullTests.cs" rule-throw-only-oracle)"
+assert_contains "throw-only remedy asks for what the constructor sets" "$a" "Assert what the constructed value should hold"
+assert_contains "throw-only remedy names the cant-fail-ok: exemption for a smoke test" "$a" "cant-fail-ok: <why>"
+# An early return is a conditional-assertion finding, and its C# remedy names a
+# skip that xUnit v2 lacks as a package rather than assuming Assert.Skip.
+a="$(remedy "$C/cs-xunit/bad/ConfigEarlyReturnTests.cs" rule-conditional-assertion)"
+assert_contains "conditional remedy (cs) offers xUnit v3's Assert.Skip" "$a" "Assert.Skip on xUnit v3"
+assert_contains "conditional remedy (cs) offers a skip package on xUnit v2" "$a" "a skip package such as Xunit.SkippableFact on xUnit v2"
+run_file --file "$C/cs-xunit/bad/ConfigEarlyReturnTests.cs"
+if [[ "$(count_lines "$out" 'a return before every assertion')" == 2 ]]; then
+  pass "an early return before each test's only assertion is one finding per test"
+else
+  fail "an early return before each test's only assertion is one finding per test" "$out"
+fi
+a="$(remedy "$C/js-vitest/bad/vitest-rows-loop-unchecked.test.ts" rule-conditional-assertion)"
+assert_not_contains "conditional remedy (js) offers no C# skip" "$a" "Assert.Skip"
 
 # The findings file carries the tiers: conditional is can't-fail; derived,
 # snapshot-only and weak-oracle can fail.
-for name in cond derived snap weak; do cp "$RO/$name/test/"* "$RO/constant/test/"; done
+for name in cond derived snap weak throw; do cp "$RO/$name/test/"* "$RO/constant/test/"; done
 rc=0
 out="$(CANT_FAIL_SCAN_ROOT="$RO/constant" bash "$SCAN" --findings 2>/dev/null)" || rc=$?
 assert_exit "--findings persists the 4b report-only findings" 0 "$rc"
@@ -1662,6 +1687,7 @@ assert_matches "a recomputed-derived row is SUGGESTION with Confidence omitted" 
   '^\| [0-9]+ \| SUGGESTION \|  \| test/test_pytest_price_sum_recomputed.py:9 \|'
 assert_matches "a snapshot-only row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/jest-receipt-snapshot.test.ts:8 \|'
 assert_matches "a weak-oracle row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/InvoiceNotNullTests.cs:11 \|'
+assert_matches "a throw-only-oracle row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/WidgetConstructedNotNullTests.cs:12 \|'
 assert_contains "Surfaces counts the 4b report-only rules" "$out" \
   "testing/audit/rule-conditional-assertion 1, testing/audit/rule-recomputed-derived 1, testing/audit/rule-snapshot-only 1, testing/audit/rule-weak-oracle 1"
 

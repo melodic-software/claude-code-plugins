@@ -46,17 +46,19 @@ states the fired condition in the run's own values.
 | `testing/audit/rule-inert-assertion` | an assertion that never evaluates: an unawaited async matcher, a Python tuple assert or mock attribute, a bare `.Should();`, a constant C# oracle (`Assert.True(true)`, `Assert.NotNull(typeof(T))`), a bats `run` nothing checks | IMPORTANT | `high` | report-only in Release 1 | report-only in Release 1 |
 | `testing/audit/rule-constant-restatement` | a constant, or a literal the test bound, compared to a literal with no call before it | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
 | `testing/audit/rule-source-text-read` | a tracked non-test source file read by a static path and searched as text | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
-| `testing/audit/rule-conditional-assertion` | every assertion inside an `if`, a `catch` or a loop over a computed result, with no `else` and no length check | IMPORTANT | omitted | report-only in Release 1 | report-only in Release 1 |
+| `testing/audit/rule-conditional-assertion` | every assertion inside an `if`, a `catch` or a loop over a computed result, with no `else` and no length check; in C#, a bare `return;` before every assertion (one inside a `catch ... when (...)` guard is left alone) | IMPORTANT | omitted | report-only in Release 1 | report-only in Release 1 |
 | `testing/audit/rule-recomputed-derived` | an expected value rebuilt from the call's own arguments with an operator or aggregate (`reduce`, `sum(`, `a + b`); property-test files and Playwright are exempt | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
 | `testing/audit/rule-snapshot-only` | every assertion is a snapshot call ("snapshot is the only oracle: review it as code"); an image comparison never counts | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
 | `testing/audit/rule-weak-oracle` | every assertion is a weak matcher (`toBeDefined`, `is not None`, `Assert.NotNull`) or an over-broad exception check (`toThrow()`, `pytest.raises(Exception)`) | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
+| `testing/audit/rule-throw-only-oracle` | every assertion checks only that a value the test built with `new` exists or has its own type (`Assert.NotNull(widget)`, `Assert.IsType<Widget>(widget)`), so only a throwing constructor fails the test; C# only | SUGGESTION | omitted | report-only in Release 1 | report-only in Release 1 |
 
 - **`Tier` is looked up from each rule's row in the detector-findings severity crosswalk** (the
   contract cited under Persisting findings): IMPORTANT for the rules whose test cannot fail on the
-  path they flag, SUGGESTION for the five whose test can fail (change detectors, derived
-  expectations, snapshots, weak oracles). The argument for each mapping lives in the crosswalk
-  row, not here; a per-finding tier choice is exactly what the rule-keyed lookup forbids.
-- **The seven report-only rules print, count and persist, and never gate `--check`, `--strict`
+  path they flag, SUGGESTION for the six whose test can fail (change detectors, derived
+  expectations, snapshots, weak oracles, throw-only oracles). The argument for each mapping lives
+  in the crosswalk row, not here; a per-finding tier choice is exactly what the rule-keyed lookup
+  forbids.
+- **The eight report-only rules print, count and persist, and never gate `--check`, `--strict`
   included**, until a precision run shows them free of false positives. The coverage block and the
   `--check` note count them apart.
 - **`mock-only-oracle` omits `Confidence` and is advisory by default.** The pattern match is certain;
@@ -106,7 +108,7 @@ The machine-checkable gate the [liveness-assertion contract](https://raw.githubu
 
 - exit **1**, a gating rule fired (`zero-assertion`, `recomputed-expectation`; `--strict` adds
   `mock-only-oracle` and both config rules). **`--strict` is one switch for all three**, no finer grain.
-  The seven report-only rules never set exit 1, `--strict` included.
+  The eight report-only rules never set exit 1, `--strict` included.
 - exit **2**, the scan could not run, could not fully read its inputs (unresolved root, unreadable
   test files, walk errors), or examined **0 test files**, a wrong or empty scan root and a healthy
   suite must not share an exit code. A config is not a test file, so a tree of configs alone still

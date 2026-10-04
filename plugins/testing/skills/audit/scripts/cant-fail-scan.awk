@@ -41,8 +41,8 @@
 #
 # Rule slugs: zero-assertion | recomputed-expectation | mock-only-oracle |
 # inert-assertion | constant-restatement | conditional-assertion |
-# recomputed-derived | snapshot-only | weak-oracle (source-text-read comes
-# from S).
+# recomputed-derived | snapshot-only | weak-oracle | throw-only-oracle
+# (source-text-read comes from S).
 # The driver owns the qualified rule-id form and the thresholds' prose.
 #
 # Design bias, load-bearing: every heuristic errs toward NOT firing. Assertion
@@ -116,6 +116,7 @@ function load_adapter(    line, f, key, n, i, w, nw, wi) {
   R_ASYNC = V["assertion.async"] == "" ? "" : "^(" V["assertion.async"] ")"
   R_INERT = V["assertion.inert"] == "" ? "" : "^(" V["assertion.inert"] ")"
   R_WEAK = V["assertion.weak"]
+  R_EXISTS = V["assertion.exists"]
   R_SNAP = V["snapshot"]
   R_COUNT = V["assertion.count"]
   R_FAILC = V["assertion.fail"]
@@ -1162,11 +1163,13 @@ function src_scan(m, r,    p, args, low, w) {
 
 # ---------------------------------------------------------------------------
 # Oracle strength: every assertion statement of a block is strong, weak (only
-# an assertion.weak call) or a snapshot (only a snapshot call).
-# rule-weak-oracle and rule-snapshot-only fire when a block holds nothing but
-# that kind. The adapter entries match whole calls over the statement with
-# strings standing as `_`, so a matcher argument (toThrow('boom')) is never
-# read as absent.
+# an assertion.weak call), a snapshot (only a snapshot call) or an existence
+# check (only an assertion.exists call). rule-weak-oracle and
+# rule-snapshot-only fire when a block holds nothing but that kind, and
+# rule-throw-only-oracle when every oracle is an existence check of a value the
+# test constructed with new, which only a throwing constructor fails. The
+# adapter entries match whole calls over the statement with strings standing
+# as `_`, so a matcher argument (toThrow('boom')) is never read as absent.
 # ---------------------------------------------------------------------------
 
 function fill(m, r,    i, n, out, c) {
@@ -1199,10 +1202,45 @@ function oracle_line(m, r,    s) {
     sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s)
     if (has(s, R_INERT)) return
   }
+  # An existence check waits for the block's close, when every binding of the
+  # name it checks is known (exists_resolve).
+  if (only_calls(m, r, R_EXISTS)) { exists_add(m, r); return }
   # go: the nil check is an if statement, judged whole in go_inert.
   if (LEXER != "go" && only_calls(m, r, R_WEAK)) { if (!OR_W++) { OR_WLINE = FNR; OR_WSNIP = snippet(r) }; return }
   if (only_calls(m, r, R_SNAP) && snap_ok(m)) { if (!OR_P++) OR_PLINE = FNR; return }
   OR_S++
+}
+
+# One existence check: the name it checks (the first identifier inside its
+# parentheses), the type a <T> names, and whether it is also a weak call.
+function exists_add(m, r,    t) {
+  match(m, R_EXISTS)
+  t = substr(m, RSTART, RLENGTH)
+  EX_N++
+  EX_TYPE[EX_N] = match(t, /<[^<>()]*>/) ? norm(substr(t, RSTART + 1, RLENGTH - 2)) : ""
+  t = substr(t, index(t, "(") + 1)
+  match(t, /[A-Za-z_][A-Za-z0-9_]*/)
+  EX_NAME[EX_N] = substr(t, RSTART, RLENGTH)
+  EX_WEAK[EX_N] = has(m, R_WEAK)
+  EX_LINE[EX_N] = FNR; EX_SNIP[EX_N] = snippet(r)
+}
+
+# At the block's close: a check of a name the test bound once, to new T(...)
+# (and of that T, when the check names a type), counts toward
+# rule-throw-only-oracle; any other is the weak or strong oracle it reads as.
+function exists_resolve(    i, rhs, built, ty) {
+  for (i = 1; i <= EX_N; i++) {
+    rhs = DV_N[BID, EX_NAME[i]] == 1 ? DV_RHS[BID, EX_NAME[i]] : ""
+    built = rhs ~ /^new([[:space:]]|[(])/
+    if (built && EX_TYPE[i] != "") {
+      ty = rhs
+      sub(/^new[[:space:]]*/, "", ty); sub(/[[:space:]]*[({].*$/, "", ty)
+      built = norm(ty) == EX_TYPE[i]
+    }
+    if (built) { if (!OR_T++) { OR_TLINE = EX_LINE[i]; OR_TSNIP = EX_SNIP[i] } }
+    else if (EX_WEAK[i]) { if (!OR_W++) { OR_WLINE = EX_LINE[i]; OR_WSNIP = EX_SNIP[i] } }
+    else OR_S++
+  }
 }
 
 # A snapshot call needs its library in reach: in C#, Verify's (CS_VERIFY); in
@@ -1667,14 +1705,19 @@ function eval_block(    blk, stripped, mocka_n, kind, calls) {
     }
     return
   }
+  exists_resolve()
   if (OR_W && !OR_S && !OR_P)
     emit(kind, "weak-oracle", OR_WLINE, "test '" block_name "': the only oracle passes for almost any value: " OR_WSNIP)
   if (OR_P && !OR_S && !OR_W)
     emit(kind, "snapshot-only", OR_PLINE, "test '" block_name "': snapshot is the only oracle: review it as code")
+  if (OR_T && !OR_S && !OR_W && !OR_P)
+    emit(kind, "throw-only-oracle", OR_TLINE, "test '" block_name "': the only oracle checks a value the test constructed, so it fails only if the constructor throws: " OR_TSNIP)
   # An else gives the other path its own assertions; a length check makes an
   # empty result fail. Either way some assertion runs.
   if (CA_IN && !CA_OUT && blk !~ /(^|[^A-Za-z0-9_$])else([^A-Za-z0-9_$]|$)/ && !has(blk, R_COUNT))
     emit(kind, "conditional-assertion", CA_LINE, "test '" block_name "': every assertion sits inside an if, a catch or a loop over a result, so a path runs none: " CA_SNIP)
+  else if (ER_LINE)
+    emit(kind, "conditional-assertion", ER_LINE, "test '" block_name "': a return before every assertion ends the test as passed on that path, with nothing asserted: " ER_SNIP)
   if ((has(blk, R_MOCKC) || file_mock) && has(blk, R_MOCKA)) {
     stripped = blk
     if (R_STRIP != "") gsub(R_STRIP, "", stripped)
@@ -1696,7 +1739,8 @@ function open_block(line, name) {
   prev_code = G8_CAND = G8_BOUND = ""
   RUN_PEND = BANG_PEND = GO_IF = 0
   BID++
-  OR_S = OR_W = OR_P = OR_WLINE = OR_PLINE = 0
+  OR_S = OR_W = OR_P = OR_WLINE = OR_PLINE = OR_T = OR_TLINE = EX_N = 0
+  ER_LINE = ER_DONE = ER_D = CW_OPEN = CW_IN = 0
   CD = CR_N = CR_LOOPS = CR_BR = CA_IN = CA_OUT = CA_LINE = 0
   COND_NEXT = SRC_PEND = SIG = PM_NAME = CS_SIG = ""
   CS_RET = CS_WRAP = CS_HEAD = 0
@@ -1735,6 +1779,34 @@ function split_stmts(m, r,    n, i, c, from) {
   }
   seg_add(m, r, from, n)
   if (!SEG_N) seg_add(m, r, 1, n)
+}
+
+# C#: a bare return; before every assertion of the test ends it as passed on
+# that path with nothing asserted (rule-conditional-assertion, judged at the
+# close). A return in the body of a catch with a when filter is the guard for
+# an environment the test cannot run in, such as a trial license, and is left
+# alone. ER_D is the brace depth in the body; CW_OPEN the depth inside such a
+# catch, CW_IN set while the scan is in it.
+function er_scan(m, r,    d0, p, a, cw, post) {
+  if (LEXER != "cs" || ER_DONE) return
+  d0 = ER_D
+  ER_D += brace_delta(m)
+  if (CW_OPEN) { if (d0 >= CW_OPEN) CW_IN = 1; else if (CW_IN) CW_OPEN = CW_IN = 0 }
+  p = match(m, /(^|[^A-Za-z0-9_.])return[[:space:]]*;/) ? RSTART + RLENGTH : 0
+  a = 0
+  if (match(m, R_ANY)) a = RSTART
+  if (R_MOCKA != "" && match(m, R_MOCKA) && (!a || RSTART < a)) a = RSTART
+  cw = 0
+  if (match(m, /(^|[^A-Za-z0-9_])catch([[:space:](].*)?[[:space:])]when[[:space:]]*\(/)) {
+    cw = RSTART
+    post = substr(m, cw)
+    if (!index(post, "{") || brace_delta(post) > 0) {
+      CW_OPEN = d0 + brace_delta(substr(m, 1, cw - 1)) + 1
+      CW_IN = brace_delta(post) > 0
+    }
+  }
+  if (p && (!a || p < a) && !CW_IN && !(cw && cw < p)) { ER_LINE = FNR; ER_SNIP = snippet(r); ER_DONE = 1 }
+  if (a) ER_DONE = 1
 }
 
 function seg_add(m, r, a, b,    n) {
@@ -1787,6 +1859,7 @@ function append_block(m, r,    bm, br) {
   if (FNR != block_line || LEXER == "cs" || LEXER == "python" || LEXER == "go")
     for (SEG_I = 1; SEG_I <= SEG_N; SEG_I++) inert_scan(SEG_M[SEG_I], SEG_R[SEG_I])
   SEG_I = 0
+  er_scan(bm, br)
   src_scan(m, r)
   if (LEXER == "js" || LEXER == "python") g8_bind(m, r)
   if (m !~ /^[[:space:]]*$/) { prev_code = code_tail(m, r); block_code_last = FNR }

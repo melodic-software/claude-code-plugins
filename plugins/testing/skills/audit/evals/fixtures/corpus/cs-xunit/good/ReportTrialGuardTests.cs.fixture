@@ -1,0 +1,40 @@
+// good-for: rule-conditional-assertion
+// A return inside a catch with a when filter guards a run the test cannot
+// make (a trial license), and a return after the assertion ends nothing early.
+using System;
+using Xunit;
+
+public class ReportTrialGuardTests
+{
+    [Fact]
+    public void Render_WritesOnePage()
+    {
+        try
+        {
+            var pdf = Renderer.Render("a");
+            Assert.Equal(1, pdf.Pages);
+        }
+        catch (Exception ex) when (IsTrialFailure(ex))
+        {
+            return;
+        }
+    }
+
+    [Fact]
+    public void Export_KeepsTheName()
+    {
+        Document doc;
+        try { doc = Exporter.Open("a.docx"); }
+        catch (LicenseException ex) when (ex.IsTrial) { return; }
+        Assert.Equal("a.docx", doc.Name);
+    }
+
+    [Fact]
+    public void Print_SendsOneJob()
+    {
+        Assert.Equal(1, Printer.Send("a").Jobs);
+        return;
+    }
+
+    private static bool IsTrialFailure(Exception ex) => ex is LicenseException;
+}

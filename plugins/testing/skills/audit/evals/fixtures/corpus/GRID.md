@@ -5,21 +5,21 @@ file in `<adapter>/bad/` carrying `expect: <rule>` and a good file in `<adapter>
 `good-for: <rule>`. Any other cell reads `n/a: <reason>`. `scripts/check-corpus-grid.sh` enforces
 both for this first table only.
 
-| Adapter | rule-zero-assertion | rule-recomputed-expectation | rule-inert-assertion | rule-constant-restatement | rule-source-text-read | rule-conditional-assertion | rule-recomputed-derived | rule-snapshot-only | rule-weak-oracle |
-|---|---|---|---|---|---|---|---|---|---|
-| bash-bats | pair | pair | pair | pair | pair | n/a: bats if and for close with fi and done, which the engine does not track | n/a: partial, an expected value from a command substitution hides its provenance | n/a: partial, a golden file hides whether it was reviewed | n/a: a bats check is a command whose exit status is the whole oracle, with no weak-matcher vocabulary |
-| bash-harness | pair | pair | pair | pair | pair | n/a: the whole file is one block, and if and for close with fi and done | n/a: partial, an expected value from a command substitution hides its provenance | n/a: partial, a golden file hides whether it was reviewed | n/a: a harness check is a command whose exit status is the whole oracle, with no weak-matcher vocabulary |
-| cs-mstest | pair | pair | pair | n/a: needs a declaration lookup (C# constants are PascalCase) | pair | pair | pair | pair | pair |
-| cs-nunit | pair | pair | pair | n/a: needs a declaration lookup (C# constants are PascalCase) | pair | pair | pair | pair | pair |
-| cs-xunit | pair | pair | pair | n/a: needs a declaration lookup (C# constants are PascalCase) | pair | pair | pair | pair | pair |
-| go-testing | pair | pair | pair | n/a: needs a declaration lookup (Go constants are CamelCase) | pair | pair | pair | pair | pair |
-| js-jest | pair | pair | pair | pair | pair | pair | pair | pair | pair |
-| js-node-test | pair | pair | pair | pair | pair | pair | pair | pair | pair |
-| js-playwright | pair | pair | pair | pair | pair | pair | n/a: exempt, expected values come from seed data checked in another process | pair | pair |
-| js-vitest | pair | pair | pair | pair | pair | pair | pair | pair | pair |
-| pwsh-pester | pair | pair | pair | n/a: needs a declaration lookup (PowerShell has no uppercase constant convention) | pair | pair | pair | n/a: partial, a golden file read with Get-Content hides whether it was reviewed | pair |
-| py-pytest | pair | pair | pair | pair | pair | pair | pair | pair | pair |
-| py-unittest | pair | pair | pair | pair | pair | pair | pair | pair | pair |
+| Adapter | rule-zero-assertion | rule-recomputed-expectation | rule-inert-assertion | rule-constant-restatement | rule-source-text-read | rule-conditional-assertion | rule-recomputed-derived | rule-snapshot-only | rule-weak-oracle | rule-throw-only-oracle |
+|---|---|---|---|---|---|---|---|---|---|---|
+| bash-bats | pair | pair | pair | pair | pair | n/a: bats if and for close with fi and done, which the engine does not track | n/a: partial, an expected value from a command substitution hides its provenance | n/a: partial, a golden file hides whether it was reviewed | n/a: a bats check is a command whose exit status is the whole oracle, with no weak-matcher vocabulary | n/a: a shell test constructs no object, so no oracle checks only a constructor |
+| bash-harness | pair | pair | pair | pair | pair | n/a: the whole file is one block, and if and for close with fi and done | n/a: partial, an expected value from a command substitution hides its provenance | n/a: partial, a golden file hides whether it was reviewed | n/a: a harness check is a command whose exit status is the whole oracle, with no weak-matcher vocabulary | n/a: a shell test constructs no object, so no oracle checks only a constructor |
+| cs-mstest | pair | pair | pair | n/a: needs a declaration lookup (C# constants are PascalCase) | pair | pair | pair | pair | pair | pair |
+| cs-nunit | pair | pair | pair | n/a: needs a declaration lookup (C# constants are PascalCase) | pair | pair | pair | pair | pair | pair |
+| cs-xunit | pair | pair | pair | n/a: needs a declaration lookup (C# constants are PascalCase) | pair | pair | pair | pair | pair | pair |
+| go-testing | pair | pair | pair | n/a: needs a declaration lookup (Go constants are CamelCase) | pair | pair | pair | pair | pair | n/a: Go builds values with literals and functions, never new T(...), so there is no constructor to throw |
+| js-jest | pair | pair | pair | pair | pair | pair | pair | pair | pair | n/a: the adapter lists no assertion.exists calls yet, so toBeDefined on a new T() reads as rule-weak-oracle |
+| js-node-test | pair | pair | pair | pair | pair | pair | pair | pair | pair | n/a: the adapter lists no assertion.exists calls yet, so a check of a constructed object is judged as any other oracle |
+| js-playwright | pair | pair | pair | pair | pair | pair | n/a: exempt, expected values come from seed data checked in another process | pair | pair | n/a: the adapter lists no assertion.exists calls yet, and a browser test constructs pages, not the objects under test |
+| js-vitest | pair | pair | pair | pair | pair | pair | pair | pair | pair | n/a: the adapter lists no assertion.exists calls yet, so toBeDefined on a new T() reads as rule-weak-oracle |
+| pwsh-pester | pair | pair | pair | n/a: needs a declaration lookup (PowerShell has no uppercase constant convention) | pair | pair | pair | n/a: partial, a golden file read with Get-Content hides whether it was reviewed | pair | n/a: the adapter lists no assertion.exists calls yet, so a check of a constructed object is judged as any other oracle |
+| py-pytest | pair | pair | pair | pair | pair | pair | pair | pair | pair | n/a: a Python constructor call T() reads as any other call, so a constructed value cannot be told from a returned one |
+| py-unittest | pair | pair | pair | pair | pair | pair | pair | pair | pair | n/a: a Python constructor call T() reads as any other call, so a constructed value cannot be told from a returned one |
 
 ## Pocock examples
 

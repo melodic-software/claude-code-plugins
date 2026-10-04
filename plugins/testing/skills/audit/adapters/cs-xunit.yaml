@@ -51,6 +51,12 @@ assertion:
     - '(Classic)?Assert[[:space:]]*\.[[:space:]]*(NotNull|IsNotNull)[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
     - 'Assert[[:space:]]*\.[[:space:]]*That[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*,[[:space:]]*Is[[:space:]]*\.[[:space:]]*Not[[:space:]]*\.[[:space:]]*Null[[:space:]]*\)'
     - 'Assert[[:space:]]*\.[[:space:]]*ThrowsAny(Async)?[[:space:]]*<[[:space:]]*(System[[:space:]]*\.[[:space:]]*)?Exception[[:space:]]*>[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
+  # One named value is not null, or has a type: on a value the test built with
+  # new, only a throwing constructor fails it. cs-nunit and cs-mstest inherit these.
+  exists:
+    - '(Classic)?Assert[[:space:]]*\.[[:space:]]*(NotNull|IsNotNull)[[:space:]]*\([[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\)'
+    - 'Assert[[:space:]]*\.[[:space:]]*IsType[[:space:]]*<[^<>()]*>[[:space:]]*\([[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\)'
+    - 'Assert[[:space:]]*\.[[:space:]]*That[[:space:]]*\([[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*,[[:space:]]*Is[[:space:]]*\.[[:space:]]*Not[[:space:]]*\.[[:space:]]*Null[[:space:]]*\)'
   count:
     - '\.[[:space:]]*(Count|Length|LongLength)([^A-Za-z0-9_]|$)'
     - 'Assert[[:space:]]*\.[[:space:]]*(Single|Empty|NotEmpty)'
