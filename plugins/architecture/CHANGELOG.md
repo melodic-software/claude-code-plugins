@@ -3,6 +3,13 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.3] - 2026-10-04
+
+### Fixed
+
+- `skills/map-landscape/scripts/landscape-record.test.sh` no longer fails intermittently ([#5785](https://github.com/melodic-software/claude-code-plugins/issues/5785)).
+  Its fixture commits now carry one pinned author and committer date. Before, the two checkouts the identity case compares were committed in different seconds, so their `last_touched` differed and the "two directory names produce one record" assertion failed. Nothing the plugin runs changed.
+
 ## [0.21.2] - 2026-10-03
 
 ### Changed
