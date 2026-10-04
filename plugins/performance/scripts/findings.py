@@ -1044,7 +1044,7 @@ def cmd_status_timing(args: argparse.Namespace) -> int:
                 "command": "git --no-optional-locks status --porcelain",
                 "git_version": version,
                 "samples_ms": samples,
-                "median_ms": ordered[len(ordered) // 2] if ordered else None,
+                "median_ms": median(samples),
                 "min_ms": ordered[0] if ordered else None,
                 "max_ms": ordered[-1] if ordered else None,
                 "trace": trace.as_posix(),

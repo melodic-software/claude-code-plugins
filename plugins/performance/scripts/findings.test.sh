@@ -412,6 +412,8 @@ assert_eq "the label says no index refresh" "status without index refresh" "$(jq
 assert_eq "the git version is recorded" "yes" "$([[ "$(jq -r .git_version <<<"$RUN_OUT")" =~ ^[0-9]+\.[0-9]+ ]] && echo yes || echo no)"
 capture bash -c "cd '$REPO' && GIT_TRACE2_PERF_BRIEF=1 '$HARNESS_PYTHON' '$FINDINGS' status-timing --data '$DT' --runs 2"
 assert_eq "a caller's brief trace format does not empty the samples" "2" "$(jq '.samples_ms | length' <<<"$RUN_OUT")"
+# With an even count the median is the mean of the middle two, here both samples.
+assert_eq "the median of two samples is their mean" "true" "$(jq '(.samples_ms | add / 2) == .median_ms' <<<"$RUN_OUT")"
 assert_eq "the trace is kept in the data folder" "yes" "$([[ -s "$DT/trace2-status.txt" ]] && echo yes || echo no)"
 capture bash -c "cd '$WORK' && '$HARNESS_PYTHON' '$FINDINGS' status-timing --data '$DT' --runs 1"
 assert_eq "outside a repository it is an input error" "2" "$RUN_RC"
