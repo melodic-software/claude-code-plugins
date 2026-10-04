@@ -3,6 +3,26 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.0] - 2026-10-04
+
+### Fixed
+
+- **A blocked force push no longer advises a form the same guard blocks ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** `git push --force`, `-f` and a `+refspec` said "use --force-with-lease", which `block-dangerous-git` denies without an expected value. They now name `--force-with-lease=<ref>:<full-sha>` or `--force-with-lease --force-if-includes`, both of which pass.
+- **Without jq, the Bash row's deny reason names jq once per call, not once per guard.** Five fail-closed guards each printed the same four lines, and the dispatcher echoed the dropped notice documents into the same deny reason. On a block, dropped documents are no longer echoed to stderr.
+- **`block-exported-msys-pathconv` no longer denies every call on Linux and macOS when jq is missing.** Its host check now runs before the jq gate, so a host where it checks nothing allows the call.
+- **Skill names in deny reasons and advisories are the plugin-qualified ones:** `/source-control:commit` and `/source-control:pull-request`, not `/commit` and `/pull-request`, which can resolve to a different skill.
+
+### Changed
+
+- **Deny reasons carry what the agent acts on ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225), [#4679](https://github.com/melodic-software/claude-code-plugins/issues/4679)).** Rationale lines are cut from the `block-dangerous-git`, `block-no-verify`, `block-hook-bypass`, `block-root-delete-target`, `block-windows-drive-tmp`, `block-exported-msys-pathconv`, `block-credential-read`, `block-convention-violation`, scanner and PowerShell sink messages. No deny reason tells the model to set an `<x>_enabled` option; the kill switches stay in the README and in the user-channel notices. Allow-list tokens stay, phrased as the user's action.
+- **Refusals several guards share are printed once per call:** the NUL-payload and unparsable-payload refusals, the git alias refusals, and the PowerShell unparsable-command and sink-budget messages. The PowerShell message names only the token for the trigger that fired.
+- **The jq notice is one per session for the whole plugin.** Every fail-open guard passes the plugin name to `hook::require`, so the first guard to skip tells the model and the user once, and the user is not told again when the `SessionStart` prerequisites probe already did.
+- **Notices the model cannot act on go to the user only:** the "guard did not run" abort notice, a kill switch that is neither true nor false (now once per session), the missing bundled CLI-flag verifier, and the stale-path-verify shallow-clone and failed-history notices. None says the skip lasts the session.
+- **The `block-hook-bypass` levers notice is once per session**, not once per agent, and stderr no longer carries the README pointer: the `systemMessage` renders on a block.
+- **The three post-edit verifiers report a repo-relative path, list at most ten findings, and drop the per-finding fix and skip lines and the "Detect-then-judge" trailer.** `cli-flag-verify` says in one clause that a finding is unverified.
+- **`flag-commit-pr-skill-bypass` tells the model once per session and agent.** `workflow-resilience-check` is one line that names the helpers which clear it and points at the workflow-authoring skill.
+- `hardcoded-path-check` caps each matched line at 160 characters in its report.
+
 ## [0.47.7] - 2026-10-04
 
 ### Changed
