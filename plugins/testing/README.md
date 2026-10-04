@@ -116,8 +116,8 @@ an expected value restates is often the best evidence; a quote found nowhere, or
 diff does not apply, touches another file or changes only comments and blank lines (by the comment
 syntax of the file's language), is shown as UNKNOWN with only that reason, never its
 evidence, source or diff. Within the session, a test whose body matches one already judged PASS
-(its name taken out and whitespace ignored), under the same judge model, effort and prompt in the
-same repository, gets that verdict without a new run, recorded as `reused_from`; a body judged
+(its name taken out and runs of whitespace collapsed), in a file whose lines outside the test are
+the same, under the same judge model, effort and prompt in the same repository, gets that verdict without a new run, recorded as `reused_from`; a body judged
 FLAG in an earlier run is judged again, since its diff edits one file. Within one task end,
 identical bodies are judged once and share the verdict, a FLAG included; a shared FLAG carries no
 diff of its own, and its findings entry points at the diff proposed for the test that was judged. The judge's copy of the test file is kept under its blob id, so a quote

@@ -433,7 +433,7 @@ for kind in pass flag; do
   check "one Stop, identical bodies in two files ($kind): one judge call, for the first file" \
     '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" == *"block 1 3-5 $na"* && "$(stub_args 1)" != *"$nb"* ]]'
   check "the second takes the same verdict, with reused_from naming the first ($kind)" \
-    '[[ "$(verdict_of "dd$kind" "$nb" | jq -c "[.verdict, .reused_from.name, .file == \"$DB\"]")" == "[$(verdict_of "dd$kind" "$na" | jq -c .verdict),\"$na\",true]" ]]'
+    '[[ "$(verdict_of "dd$kind" "$nb" | jq -c "[.verdict, .reused_from.name, .file == \"$DB\"]")" == "[\"${kind^^}\",\"$na\",true]" ]]'
 done
 check "a FLAG given in the run: both relayed as FLAG, the Stop blocked" \
   '[[ "$(field .decision)" == block && "$(field .reason)" == *"reviewed 2 tests (2 FLAG, 0 PASS, 0 UNKNOWN)"* ]]'
@@ -458,6 +458,20 @@ check "the second records the first's reason kind and origin, and reused_from" \
   '[[ "$(verdict_of ddc "dedupe cmt flag two" | jq -c "[.verdict, .reason_kind, .origin, .reused_from.name]")" == "[\"UNKNOWN\",\"comment-only\",\"FLAG\",\"dedupe cmt flag one\"]" ]]'
 f="$(field .systemMessage | sed -n 's/.*Findings: //p')"
 assert_not_contains "and no entry points at a stripped diff" "$(cat "$f")" "This test has the same body as"
+# When the first's run fails, the second fails with it: both are counted as
+# not judged, and neither is sent past the cap to a background job.
+transcript ddf claude-sonnet-5
+DFA="$REPO/src/dedupe-fail-a.test.ts"
+DFB="$REPO/src/dedupe-fail-b.test.ts"
+js_file "$DFA" "dedupe fail one"
+js_file "$DFB" "dedupe fail two"
+record ddf w1 "$DFA" null
+record ddf w2 "$DFB" null
+stub_reset
+STUB_MODE=fail TEST_JUDGE_REUSE=1 stop ddf
+check "a shared run that fails: both counted as not judged, none past the cap" \
+  '[[ "$(stub_calls)" == 1 && "$(field .systemMessage)" == *"the judge failed for 2 tests;"* && "$(field .systemMessage)" != *"past the 10"* ]]'
+stop_jobs ddf
 
 # A test file in a linked worktree whose quote is a line only that worktree's
 # branch holds is grounded in the worktree, though its record names the main
@@ -939,7 +953,8 @@ REMOVED=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,3 +1,2 @@\n   const want = 3\n
 PSB=$'--- a/t.Tests.ps1\n+++ b/t.Tests.ps1\n@@ -1,1 +1,5 @@\n+<#\n+.SYNOPSIS\n+  The expected value is the spec value 3.\n+#>\n It x {'
 PSAFTER=$'--- a/t.Tests.ps1\n+++ b/t.Tests.ps1\n@@ -1,1 +1,2 @@\n+<# x #> $want = 2\n It x {'
 SHB=$'--- a/t.test.sh\n+++ b/t.test.sh\n@@ -1,1 +1,2 @@\n+<#\n check x'
-export PYD CSD CODE STAR JSDOC GLOB INLINE REMOVED PSB PSAFTER SHB
+PSDEL=$'--- a/t.Tests.ps1\n+++ b/t.Tests.ps1\n@@ -1,2 +1,2 @@\n+<#\n Assert-Equal $actual $expected\n-Assert-Equal $other $otherExpected'
+export PYD CSD CODE STAR JSDOC GLOB INLINE REMOVED PSB PSAFTER SHB PSDEL
 check "a Python diff that adds and removes only # comments is comment-only" 'lib linux-gnu "judge::comment_only t_test.py \"\$PYD\""'
 check "a C# diff that adds a /* */ comment and a blank line is comment-only" 'lib linux-gnu "judge::comment_only TTests.cs \"\$CSD\""'
 check "a changed code line with a trailing comment is not" '! lib linux-gnu "judge::comment_only t_test.py \"\$CODE\""'
@@ -952,6 +967,7 @@ check "a /* on a removed line does not make a later * line a comment" '! lib lin
 check "an added multiline <# #> PowerShell help block is comment-only" 'lib linux-gnu "judge::comment_only t.Tests.ps1 \"\$PSB\""'
 check "<# x #> followed by code is code" '! lib linux-gnu "judge::comment_only t.Tests.ps1 \"\$PSAFTER\""'
 check "<# opens no comment in bash" '! lib linux-gnu "judge::comment_only t.test.sh \"\$SHB\""'
+check "a removed assertion after an added unclosed <# is code" '! lib linux-gnu "judge::comment_only t.Tests.ps1 \"\$PSDEL\""'
 WA='C:\w\repo\src\a.test.ts' # portability-ok: a literal Windows path, not a regex escape
 WB='C:\W\Repo\a.ts'          # portability-ok: a literal Windows path, not a regex escape
 WL='/r/a\b.ts'               # portability-ok: a literal path holding a backslash, not a regex escape
@@ -1049,6 +1065,16 @@ printf '%s\n' "test('ws', () => {" "  expect(f()).toBe(\"ab\");" "});" >"$TMP/ws
 rk_of() { F="$1" lib linux-gnu 'MODEL=m EFFORT=e; judge::rkey "$F" 1 1-3 ws /r; printf "%s" "$RK"'; }
 check "a space inside a string literal changes the reuse key" \
   '[[ -n "$(rk_of "$TMP/ws-space.test.ts")" && "$(rk_of "$TMP/ws-space.test.ts")" != "$(rk_of "$TMP/ws-none.test.ts")" ]]'
+# The reuse key covers the lines outside the block: the same body under a
+# different constant is a different test, and under the same lines it is not.
+rk2_of() { F="$1" lib linux-gnu 'MODEL=m EFFORT=e; judge::rkey "$F" 1 2-4 ws /r; printf "%s" "$RK"'; }
+printf '%s\n' "const want = 3;" "test('ws', () => {" "  expect(add(1, 2)).toBe(want);" "});" >"$TMP/ctx-lit.test.ts"
+printf '%s\n' "const want = add(1, 2);" "test('ws', () => {" "  expect(add(1, 2)).toBe(want);" "});" >"$TMP/ctx-calc.test.ts"
+printf '%s\n' "const want = 3;" "test('ws', () => {" "  expect(add(1, 2)).toBe(want);" "});" >"$TMP/ctx-lit2.test.ts"
+check "the same body under a different constant gets a different reuse key" \
+  '[[ "$(rk2_of "$TMP/ctx-lit.test.ts")" != "$(rk2_of "$TMP/ctx-calc.test.ts")" ]]'
+check "the same body under the same lines gets the same reuse key" \
+  '[[ -n "$(rk2_of "$TMP/ctx-lit.test.ts")" && "$(rk2_of "$TMP/ctx-lit.test.ts")" == "$(rk2_of "$TMP/ctx-lit2.test.ts")" ]]'
 # 4. A test file in no git repository is not judged: the judge's read scope
 # is the repository.
 transcript sec6 claude-sonnet-5

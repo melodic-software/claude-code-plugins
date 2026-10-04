@@ -276,8 +276,9 @@ done
 # reused_from; a FLAG's diff edits the first's file, so the dup carries none
 # (judge::copy_verdict). The validation runs in a subshell, so the relay
 # counts take the first only once, below. A dup whose first got no verdict,
-# or one validation could not read (no JSON object out), goes to a background
-# job, or shares the first's run limit.
+# or one validation could not read (no JSON object out), takes the first's
+# state: a run that failed or ran late, the run limit, or lateness; any other
+# state goes to a background job.
 dups=()
 ((${#DUPOF[@]} == 0)) || dups=("${!DUPOF[@]}")
 for i in ${dups[@]+"${dups[@]}"}; do
@@ -299,7 +300,14 @@ for i in ${dups[@]+"${dups[@]}"}; do
       continue
     fi
   fi
-  if [[ "${ST[$rep]}" == limit ]]; then ST[i]=limit; else ST[i]=over; fi
+  case "${ST[$rep]}" in
+  limit | late) ST[i]="${ST[$rep]}" ;;
+  run)
+    ST[i]=run RUNPID[i]="${RUNPID[$rep]}"
+    [[ -e "$LATE/$rep" ]] && : >"$LATE/$i"
+    ;;
+  *) ST[i]=over ;;
+  esac
 done
 
 # Lateness is decided here, from the deadline: a key this Stop's own run has

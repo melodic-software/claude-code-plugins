@@ -13,7 +13,7 @@ All notable changes to the `testing` plugin are documented here. Format follows
 
 - Judge Stop messages give counts and point to where the test names are, instead of listing every name ([#6226](https://github.com/melodic-software/claude-code-plugins/issues/6226)).
 - An UNKNOWN verdict blocks an attended Stop only when it started as a FLAG. A quote that is no longer in the file but was in the judged snapshot is reported as stale, not as made up ([#6206](https://github.com/melodic-software/claude-code-plugins/issues/6206)).
-- Identical test bodies are judged once per Stop and share the verdict, and a PASS is reused for an identical body later in the session. A judge repair that changes only comments or blank lines is rejected. The `test_judge_model` description now notes that haiku was not part of the calibration ([#6044](https://github.com/melodic-software/claude-code-plugins/issues/6044)).
+- Identical test bodies in files that are otherwise the same are judged once per Stop and share the verdict, and a PASS is reused for such a body later in the session. A judge repair that changes only comments or blank lines is rejected. The `test_judge_model` description now notes that haiku was not part of the calibration ([#6044](https://github.com/melodic-software/claude-code-plugins/issues/6044)).
 
 ## [0.22.10] - 2026-10-04
 

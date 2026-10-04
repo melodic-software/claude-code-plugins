@@ -571,7 +571,9 @@ judge::harvest_orphans() {
 # the body with the test's name taken out of its declaration line and each
 # line's whitespace runs collapsed to one space and trimmed (so "a b" and "ab"
 # stay apart), the judge model and effort, the judge prompt
-# file's hash and the repository: the same body under the same judge. A FLAG
+# file's hash, the repository and every line of the file outside the block
+# (imports, helpers, constants): the same body in the same surroundings under
+# the same judge. A FLAG
 # is never reused (its diff edits its own file), and a whole-file key has no
 # reuse key. RKEYS gets "<key-hash> <reuse key>" per key, for the ledger. A
 # reused verdict records reused_from, the block it was judged for.
@@ -626,9 +628,12 @@ judge::rkey() {
       named=1
     fi
     read -r -a words <<<"${line%$'\r'}"
-    body+="${words[*]}"$'\n'
+    body+="${words[*]-}"$'\n'
   done
-  RK="$(printf '%s\n%s\n%s\n%s\n%s' "$body" "$MODEL" "$EFFORT" "${JUDGE_PSHA:-}" "$repo" | judge::sha -)"
+  RK="$({
+    printf '%s\n%s\n%s\n%s\n%s\n' "$body" "$MODEL" "$EFFORT" "${JUDGE_PSHA:-}" "$repo"
+    printf '%s\n' "${text[@]:0:s-1}" "${text[@]:e}"
+  } | judge::sha -)"
   RK="${RK#\\}" && RK="${RK:0:32}"
 }
 
@@ -857,14 +862,16 @@ judge::comment_only() {
           fi
         fi
       elif [[ "$style" == powershell ]]; then
-        # <# #> follows the new file the same way; every line inside it is
-        # a comment, and the closing line is one when nothing follows `#>`.
+        # <# #> follows the new file the same way; every new-file line inside
+        # it is a comment, and the closing line is one when nothing follows
+        # `#>`. A removed line inside it is code: the state says nothing about
+        # the old file.
         if ((open)) && [[ "$body" == *'#>'* ]]; then
           rest="${body#*'#>'}"
           [[ -z "${rest//[[:space:]]/}" ]] && comment=1
           ((new)) && open=0
         elif ((open)); then
-          comment=1
+          ((new)) && comment=1
         elif [[ "$body" == '<#'* ]]; then
           rest="${body#'<#'}"
           if [[ "$rest" == *'#>'* ]]; then
