@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "note": "Rows rank the routes for each interface concern, starting at 1. Rank 0, the project's own design system, is one rule in skills/design/SKILL.md and never a row.",
+  "rows": [
+    {
+      "concern": "visual-direction",
+      "rank": 1,
+      "id": "frontend-design@claude-plugins-official",
+      "kind": "plugin",
+      "detect": "frontend-design@claude-plugins-official",
+      "account": "none",
+      "status": "unconfirmed",
+      "platforms": ["windows", "macos", "linux"],
+      "as_of": "2026-10-04",
+      "pointer": "https://github.com/anthropics/claude-plugins-official"
+    }
+  ]
+}

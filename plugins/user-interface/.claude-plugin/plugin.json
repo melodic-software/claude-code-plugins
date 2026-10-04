@@ -1,0 +1,29 @@
+{
+  "name": "user-interface",
+  "version": "0.1.0",
+  "description": "Front door for interface design: terminal and CLI output, TUIs, prompt themes, Claude Code mods, web and app UI. design detects the project's own design system and the design tools installed, routes each concern to the best present source with the project first, and supplies its own guidance where nothing covers the concern. Terminal guidance is its own contribution.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "user-interface",
+    "ui",
+    "terminal",
+    "cli",
+    "tui",
+    "design-system",
+    "accessibility",
+    "routing",
+    "skill"
+  ],
+  "userConfig": {
+    "account_tools_enabled": {
+      "type": "boolean",
+      "title": "Account-bound tools",
+      "description": "Route to tools that need an account, login or API key (Claude Design, Figma, axe and similar) when they are installed and reachable. Set false to use only tools that need no account. A paid tool is suggested only when nothing free covers the concern.",
+      "default": true
+    }
+  }
+}

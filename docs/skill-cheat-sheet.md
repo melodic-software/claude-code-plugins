@@ -292,6 +292,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/testing:check`](../plugins/testing/skills/check/SKILL.md) | `testing` | Report whether node and jq resolve for the testing hooks. Never installs. |
 | [`/toolchain:check-prerequisites`](../plugins/toolchain/skills/check-prerequisites/SKILL.md) | `toolchain` | Report whether the tools toolchain declares resolve. Never installs. |
 | [`/typos-format:check`](../plugins/typos-format/skills/check/SKILL.md) | `typos-format` | Report whether typos and node are installed. Never installs. |
+| [`/user-interface:design`](../plugins/user-interface/skills/design/SKILL.md) | `user-interface` | Design interfaces from the project's system and installed tools; terminal guidance built in |
 | [`/visualization:present`](../plugins/visualization/skills/present/SKILL.md) | `visualization` | Slide deck through the claude.ai Slides Artifact type, outline markdown as the record |
 | [`/visualization:visualize`](../plugins/visualization/skills/visualize/SKILL.md) | `visualization` | Pick the best visual form for what is in the conversation and render it |
 | [`/wizard:generate`](../plugins/wizard/skills/generate/SKILL.md) | `wizard` | Author a hardened interactive bash wizard for human-only setup, credential, and cutover steps |
