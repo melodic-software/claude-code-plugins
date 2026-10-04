@@ -179,6 +179,7 @@ class GuardDecisionLogTests(unittest.TestCase):
         # 20 to 40 seconds.
         header = "-----BEGIN a PRIVATE" " KEY-----"
         for text in (
+            ("ghs_1_eyJ" + "A" * 600) * 1000,
             "-eyJ" * 75000,
             "eyJ" + "A" * 600000,
             ("eyJ" + "A" * 600) * 1000,
@@ -205,6 +206,10 @@ class GuardDecisionLogTests(unittest.TestCase):
             "eyJ" + "A" * size + ".eyJzdWIiOiJGQUtFIn0" ".FAKEsignatureNOTreal"
             for size in (513, 4000)
         ]
+        ghs_past_bound = [
+            "ghs" + "_1_eyJ" + "A" * size + ".FAKEpayload" ".FAKEsignatureNOTreal"
+            for size in (513, 4000)
+        ]
         long_payload = "eyJhbGciOiJIUzI1NiJ9" ".eyJ" + "B" * 2000 + ".FAKEsignature"
         # A 4096-bit RSA PKCS#8 PEM is about 3.2 KB in 64-character lines
         # (RFC 7468); this body spells FAKE.
@@ -219,6 +224,7 @@ class GuardDecisionLogTests(unittest.TestCase):
             jwt,
             long_header,
             *past_bound,
+            *ghs_past_bound,
             long_payload,
             "postgres://u:p@h/db",
             "postgresql+psycopg2://user:FAKEpass@db.example.com:5432/app",

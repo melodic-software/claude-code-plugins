@@ -109,6 +109,8 @@ _SECRET_SHAPES: tuple[re.Pattern[str], ...] = (
         r"\b(?:ghs_[0-9]+_eyJ[A-Za-z0-9_-]{0,512}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+"
         r"|gh[pousr]_[A-Za-z0-9]{20,})"
     ),
+    # A header past the bound: the whole run, dots included, in one match.
+    re.compile(r"\bghs_[0-9]+_eyJ[A-Za-z0-9_-]{513}[A-Za-z0-9_.-]*"),
     re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     # The bounded JWT header and URL scheme keep each start position's scan
