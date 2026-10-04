@@ -140,7 +140,15 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
 - **What shipped.** Every row in `plugins/*/hooks/hooks.json` and in the skill-frontmatter hooks of
   `disk-hygiene:clean` and `repo-hygiene:clean`, except the shell-form rows named under "Scope",
   carries `args` and `"command": "node"`. Option gates
-  that used to be shell tests are launcher flags (`--require-true`, `--run-if-unset-or-true`). Two
+  that used to be shell tests are launcher flags (`--require-true`, `--run-if-unset-or-true`).
+  Two more flags skip the bash start on a row whose script would exit at once:
+  `--skip-if-all-false A,B,...` skips only when every named option is exactly `false` (the
+  guardrails verify rows, whose three verifiers each keep their own switch), and
+  `--skip-unless-stdin-contains TEXT` buffers stdin and skips a payload without TEXT (the testing
+  `Bash` row). `--skip-unless-stdin-contains` is advisory-only and must never gate a blocking
+  guard row: a stdin stall past the idle bound exits 0 without running the script, so a guard
+  behind it would fail open. The flag list is in the header of
+  [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs). Two
   scripts check the spelling. `scripts/check-exec-form-windows-probe.sh` rejects a `.sh` path, a
   `.cmd`/`.bat` shim, or bare `bash` as `command`; a non-Windows skip of its spawn half does not show
   that [anthropics/claude-code#90495](https://github.com/anthropics/claude-code/issues/90495) is

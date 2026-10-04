@@ -108,6 +108,8 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--skip-if-all-false",
+              "CLI_FLAG_VERIFY_ENABLED,SKILL_REFERENCE_VERIFY_ENABLED,STALE_PATH_VERIFY_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "cli-flag-verify.sh",
               "skill-reference-verify.sh",
@@ -122,6 +124,8 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--skip-if-all-false",
+              "CLI_FLAG_VERIFY_ENABLED,SKILL_REFERENCE_VERIFY_ENABLED,STALE_PATH_VERIFY_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "cli-flag-verify.sh",
               "skill-reference-verify.sh",
@@ -136,6 +140,8 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--skip-if-all-false",
+              "CLI_FLAG_VERIFY_ENABLED,SKILL_REFERENCE_VERIFY_ENABLED,STALE_PATH_VERIFY_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "cli-flag-verify.sh",
               "skill-reference-verify.sh",
@@ -150,6 +156,8 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--skip-if-all-false",
+              "CLI_FLAG_VERIFY_ENABLED,SKILL_REFERENCE_VERIFY_ENABLED,STALE_PATH_VERIFY_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "cli-flag-verify.sh",
               "skill-reference-verify.sh",
@@ -164,6 +172,8 @@
             "command": "node",
             "args": [
               "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "--skip-if-all-false",
+              "CLI_FLAG_VERIFY_ENABLED,SKILL_REFERENCE_VERIFY_ENABLED,STALE_PATH_VERIFY_ENABLED",
               "${CLAUDE_PLUGIN_ROOT}/hooks/run-guards.sh",
               "cli-flag-verify.sh",
               "skill-reference-verify.sh",

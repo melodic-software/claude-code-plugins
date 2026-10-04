@@ -14,6 +14,9 @@
 # PostToolUse also gets one Bash row with no `if`: a Bash `if` matches
 # the command string, not the files the call changed (probes.md), so
 # test-scan-bash.sh filters the payload's changed files by the same globs.
+# Its launcher flag --skip-unless-stdin-contains bashEditDiff skips the bash
+# start on a payload with no Bash change diff, the case the script itself
+# exits on first; the row is advisory, so the flag's fail-open stall is safe.
 # The judge has no Bash row: test-scan records a Bash-written test file like
 # any other write, and the Stop hook judges what no background job did.
 #
@@ -39,12 +42,13 @@ globs="$(awk -f "$AUDIT/scripts/adapter-load.awk" "$AUDIT"/adapters/*.yaml |
 # `if` rows as test-scan (no timeout: Claude Code enforces none on an async
 # command hook); Stop's 240 s sits above the hook's own 180 s bound.
 json="$(jq -R . <<<"$globs" | jq -s '. as $globs |
-  def cmd($gates; $script): {
+  def cmd($gates; $flags; $script): {
     type: "command",
     command: "node",
-    args: (["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs"] + ($gates | map("--require-true", .))
+    args: (["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs"] + ($gates | map("--require-true", .)) + $flags
       + ["${CLAUDE_PLUGIN_ROOT}/hooks/\($script)"])
   };
+  def cmd($gates; $script): cmd($gates; []; $script);
   def rows($script; $extra): [{
     matcher: "Write|Edit",
     hooks: [$globs[] as $g | ("Write", "Edit") | {if: "\(.)(\($g))"} as $if
@@ -60,7 +64,7 @@ json="$(jq -R . <<<"$globs" | jq -s '. as $globs |
     hooks: {
       PreToolUse: rows("test-weaken.sh"; {timeout: 10, statusMessage: "Checking the edit for removed assertions or skipped tests..."}),
       PostToolUse: (rows("test-scan.sh"; {timeout: 10, statusMessage: "Scanning the test file for tests that cannot fail..."})
-        + [{matcher: "Bash", hooks: [cmd(["TEST_GUARDS_ENABLED"]; "test-scan-bash.sh")
+        + [{matcher: "Bash", hooks: [cmd(["TEST_GUARDS_ENABLED"]; ["--skip-unless-stdin-contains", "bashEditDiff"]; "test-scan-bash.sh")
             + {timeout: 10, statusMessage: "Scanning test files the command changed..."}]}]
         + rows("test-judge-bg.sh"; {async: true})),
       Stop: judge("test-judge.sh"; {timeout: 240, statusMessage: "Collecting the test judge'"'"'s verdicts..."}),
