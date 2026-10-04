@@ -3,7 +3,7 @@
 # failure: an EXIT trap turns every path into exit 0.
 #
 # 1. stop_hook_active (the turn this hook or another Stop hook forced): judge
-#    nothing, never block; name the tests still being judged. Their verdicts
+#    nothing, never block; count the files still being judged. Their verdicts
 #    wait in the ledger for the next task end.
 # 2. Re-derive the in-doubt keys of every file the session (and, for a /clear
 #    or fork successor, its adopted predecessors) wrote.
@@ -55,6 +55,11 @@ trap 'rm -rf "$LATE"; exit 0' EXIT
 emit() { [[ -z "$2" ]] || jq -cn --arg r "$1" --arg m "$2" 'if $r == "" then {} else {decision: "block", reason: $r} end + {systemMessage: $m}' >&3; }
 judge::session_set
 
+# The messages count tests and never name them: past the cap a task end can
+# hold dozens. A deferred test's file is named in its background job's pending
+# marker under PENDING; a test the judge failed on, or did not run for, is
+# named in the log.
+PENDING="$DATA/pending/$PKEY"
 # label <key index>: "<file>: <name>", with #n past the first of a name.
 label() {
   local r="${KR[$1]}" name
@@ -65,6 +70,12 @@ labels() {
   local i out=""
   for i in "$@"; do out+="${out:+, }$(label "$i")"; done
   printf '%s' "$out"
+}
+# count <n> [noun]: "1 test", "3 tests".
+count() {
+  local s=s
+  (($1 == 1)) && s=""
+  printf '%s %s%s' "$1" "${2:-test}" "$s"
 }
 
 # relay_needs_decision: true when an attended Stop has something to show. A
@@ -82,14 +93,14 @@ relay_needs_decision() {
 }
 
 if [[ "$active" == true ]]; then
-  waiting=""
+  waiting=0
   for s in "${SESSIONS[@]}"; do
-    for p in "$DATA/pending/$PKEY/$s"/*; do
-      [[ -f "$p" ]] && ! judge::stale "$p" $((JUDGE_DEBOUNCE + JUDGE_STALE + 60)) &&
-        waiting+="${waiting:+, }$(sed -n '2{s|.*/||;p;}' "$p")"
+    for p in "$PENDING/$s"/*; do
+      [[ -f "$p" ]] && ! judge::stale "$p" $((JUDGE_DEBOUNCE + JUDGE_STALE + 60)) && waiting=$((waiting + 1))
     done
   done
-  emit "" "${waiting:+test judge: still judging $waiting; the verdicts are shown at the next task end.}"
+  ((waiting == 0)) ||
+    emit "" "test judge: still judging the tests of $(count "$waiting" file); the verdicts are shown at the next task end. The pending markers under $PENDING name the files."
   exit 0
 fi
 
@@ -275,10 +286,19 @@ if ((RELAY_N)); then
 fi
 judge::mark_relayed ${marks[@]+"${marks[@]}"}
 judge::now
-((${#waiting[@]} == 0)) || msg+="${msg:+$'\n'}test judge: still judging $(labels "${waiting[@]}"); the verdicts are shown at the next task end."
-((${#over[@]} == 0)) || msg+="${msg:+$'\n'}test judge: past the 10 tests one task end judges: $(labels "${over[@]}"); a background job judges them and the verdicts are shown at the next task end."
-((${#late[@]} == 0)) || msg+="${msg:+$'\n'}test judge: not judged in $((NOW - began)) s: $(labels "${late[@]}"); a background job judges them and the verdicts are shown at the next task end."
-((${#failed[@]} == 0)) || msg+="${msg:+$'\n'}test judge: not judged, the judge failed for $(labels "${failed[@]}"); the next task end tries again."
-((${#notrun[@]} == 0)) || msg+="${msg:+$'\n'}test judge: judge not run for $(labels "${notrun[@]}") after 2 failed attempts; see $JUDGE_LOG."
-((${#limit[@]} == 0)) || msg+="${msg:+$'\n'}test judge: not judged, the session's judge-run limit is reached: $(labels "${limit[@]}")."
+((${#waiting[@]} == 0)) || msg+="${msg:+$'\n'}test judge: still judging $(count ${#waiting[@]}); the verdicts are shown at the next task end. The pending markers under $PENDING name their files."
+((${#over[@]} == 0)) || msg+="${msg:+$'\n'}test judge: $(count ${#over[@]}) past the 10 one task end judges; a background job judges them and the verdicts are shown at the next task end. The pending markers under $PENDING name their files."
+((${#late[@]} == 0)) || msg+="${msg:+$'\n'}test judge: $(count ${#late[@]}) not judged in $((NOW - began)) s; a background job judges them and the verdicts are shown at the next task end. The pending markers under $PENDING name their files."
+if ((${#failed[@]})); then
+  judge::log "not judged, the judge failed for: $(labels "${failed[@]}")"
+  msg+="${msg:+$'\n'}test judge: not judged, the judge failed for $(count ${#failed[@]}); the next task end tries again. $JUDGE_LOG names them."
+fi
+if ((${#notrun[@]})); then
+  judge::log "judge not run after 2 failed attempts for: $(labels "${notrun[@]}")"
+  msg+="${msg:+$'\n'}test judge: judge not run for $(count ${#notrun[@]}) after 2 failed attempts; $JUDGE_LOG names them."
+fi
+if ((${#limit[@]})); then
+  judge::log "not judged, the session's judge-run limit is reached, for: $(labels "${limit[@]}")"
+  msg+="${msg:+$'\n'}test judge: not judged, the session's judge-run limit is reached for $(count ${#limit[@]}); $JUDGE_LOG names them."
+fi
 emit "$reason" "$msg"

@@ -159,9 +159,9 @@ stop s5
 wait
 check "a live lock is waited on" '[[ "$(stub_calls)" == 0 && "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test (0 FLAG, 1 PASS"* ]]'
 
-# The 11th key: named, handed to a background job with a pending/ marker; the
-# following stop_hook_active Stop does not block; its verdict is relayed at
-# the next task end.
+# The 11th key: counted, handed to a background job with a pending/ marker;
+# the following stop_hook_active Stop does not block; its verdict is relayed
+# at the next task end.
 transcript s6 claude-sonnet-5
 E="$REPO/src/eleven.test.ts"
 names=()
@@ -171,7 +171,7 @@ record s6 w1 "$E" null
 stub_reset
 STUB_SLEEP=1 stop s6
 check "ten keys are judged at Stop" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 10 tests"* ]]'
-assert_contains "the 11th key is named as waiting" "$(field .systemMessage)" "eleven.test.ts: t11"
+assert_contains "the 11th key is counted as past the cap" "$(field .systemMessage)" "1 test past the 10 one task end judges"
 check "the 11th key is handed to a background job with a pending/ marker" '[[ -n "$(find "$DATA/pending/$PKEY/s6" -type f)" ]]'
 stop s6 true
 check "the following stop_hook_active Stop does not block" '[[ "$(field .decision)" != block ]]'
@@ -199,8 +199,30 @@ stop s7
 check "an 11th key whose job died is judged at the next task end" \
   '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" == *"block 1 33-35 t11"* && "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test "* ]]'
 
-# Time budget exhaustion: a systemMessage naming the tests not judged and the
-# time spent, and no block.
+# Past the cap the messages count the tests and point at the pending markers;
+# no test or file name reaches the session, at the task end or on the
+# stop_hook_active turn while the background job still runs. This case stays
+# quiet on purpose and fails against a hook that lists the deferred tests.
+transcript leak claude-sonnet-5
+NL="$REPO/src/nameleak.test.ts"
+names=()
+for i in $(seq 1 13); do names+=("nameleak$i"); done
+js_file "$NL" "${names[@]}"
+record leak w1 "$NL" null
+stub_reset
+STUB_SLEEP=3 stop leak
+assert_not_contains "over the cap: no test name in the message" "$out" "nameleak"
+assert_contains "over the cap: the deferred tests are counted" "$(field .systemMessage)" "3 tests past the 10 one task end judges"
+assert_contains "over the cap: the message points at the pending markers" "$(field .systemMessage)" "The pending markers under $DATA/pending/$PKEY name their files."
+check "over the cap: no block for an all-PASS run" '[[ "$(field .decision)" != block ]]'
+stop leak true
+assert_not_contains "stop_hook_active while the job runs: no test or file name" "$out" "nameleak"
+assert_contains "stop_hook_active while the job runs: the files are counted" "$(field .systemMessage)" \
+  "still judging the tests of 1 file; the verdicts are shown at the next task end. The pending markers under $DATA/pending/$PKEY name the files."
+stop_jobs leak
+
+# Time budget exhaustion: a systemMessage counting the tests not judged and
+# the time spent, and no block.
 transcript s8 claude-sonnet-5
 T="$REPO/src/slow.test.ts"
 js_file "$T" slow
@@ -208,7 +230,7 @@ record s8 w1 "$T" null
 stub_reset
 STUB_MODE=hang TEST_JUDGE_TIMEOUT=1 stop s8
 check "budget exhaustion: no block" '[[ "$(field .decision)" != block ]]'
-assert_contains "budget exhaustion: names the test and the time" "$(field .systemMessage)" "slow.test.ts: slow"
+assert_contains "budget exhaustion: counts the test" "$(field .systemMessage)" "1 test not judged in"
 check "budget exhaustion: states the time spent" '[[ "$(field .systemMessage)" =~ not\ judged\ in\ [0-9]+\ s ]]'
 check "budget exhaustion: the key goes to a background job, as the overflow does" '[[ -n "$(find "$DATA/pending/$PKEY/s8" -type f)" ]]'
 stop_jobs s8
@@ -235,7 +257,7 @@ STUB_SLEEP=8 TEST_JUDGE_TIMEOUT=4 stop s8b
 t1=$EPOCHREALTIME
 elapsed=$(((${t1/./} - ${t0/./}) / 1000))
 check "a slot wait does not carry the Stop hook past its bound (${elapsed} ms <= 6000)" '((elapsed <= 6000 && rc == 0))'
-assert_contains "the key not judged in time is named" "$(field .systemMessage)" "slotwait.test.ts: slotwait"
+assert_contains "the key not judged in time is counted" "$(field .systemMessage)" "1 test not judged in"
 check "and handed to a background job" '[[ -n "$(find "$DATA/pending/$PKEY/s8b" -type f)" ]]'
 kill "$holder" 2>/dev/null
 rm -f "$DATA/slots/"*
@@ -267,7 +289,7 @@ check "a TERM-deaf judge: the hook returns within the bound plus the KILL grace 
 p="$(find "$DATA/pending/$PKEY/s8c" -type f | head -1)"
 check "its key gets a pending/ marker and a live background job" '[[ -n "$p" ]] && kill -0 "$(head -1 "$p" | cut -d" " -f1)" 2>/dev/null'
 assert_not_contains "the message does not call this Stop's own late run still judging" "$(field .systemMessage)" "still judging"
-assert_contains "the message names the key as not judged in time" "$(field .systemMessage)" "termdeaf.test.ts: termdeaf"
+assert_contains "the message counts the key as not judged in time" "$(field .systemMessage)" "1 test not judged in"
 stop_jobs s8c
 pkill -f "$TMP/term-stub.sh"
 wait
@@ -281,7 +303,8 @@ stub_reset
 STUB_MODE=fail stop s9
 assert_contains "a first failure is named as not judged" "$(field .systemMessage)" "not judged"
 STUB_MODE=fail stop s9
-assert_contains "2 failed attempts give judge not run" "$(field .systemMessage)" "judge not run for failing.test.ts: failing"
+assert_contains "2 failed attempts give judge not run" "$(field .systemMessage)" "judge not run for 1 test after 2 failed attempts; $DATA/test-judge.log names them"
+check "and the log names the test" 'grep -qF "judge not run after 2 failed attempts for: failing.test.ts: failing" "$DATA/test-judge.log"'
 STUB_MODE=fail stop s9
 check "no third attempt" '[[ "$(stub_calls)" == 2 ]]'
 
@@ -807,8 +830,9 @@ stub_reset
 stop cw1
 check "a test file outside the repository git names for it: no judge run and no verdict" '[[ "$(stub_calls)" == 0 && -z "$(verdict_files cw1)" ]]'
 check "that is logged as a malfunction" 'grep -qF "malfunction: the test file is outside the repository git names for it, $CW/elsewhere" "$DATA/test-judge.log"'
-check "it does not block, and the test is named as not judged" \
-  '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"not judged, the judge failed for cw.test.ts: cwout"* ]]'
+check "it does not block, and the test is counted as not judged" \
+  '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"not judged, the judge failed for 1 test;"* ]]'
+check "and the log names it" 'grep -qF "not judged, the judge failed for: cw.test.ts: cwout" "$DATA/test-judge.log"'
 
 # A run Claude Code denied a tool call (the result's permission_denials) that
 # gives no test a FLAG or PASS is a malfunction: its UNKNOWN verdicts are not
@@ -822,7 +846,8 @@ stub_reset
 STUB_MODE=denied stop dn1
 check "a denied run with only UNKNOWN verdicts: one run, and no verdict" '[[ "$(stub_calls)" == 1 && -z "$(verdict_files dn1)" ]]'
 check "it does not block Stop" '[[ "$(field .decision)" != block ]]'
-assert_contains "its tests are named as not judged" "$(field .systemMessage)" "not judged, the judge failed for denied.test.ts: deny me, denied.test.ts: deny too"
+assert_contains "its tests are counted as not judged" "$(field .systemMessage)" "not judged, the judge failed for 2 tests;"
+check "and the log names them" 'grep -qF "not judged, the judge failed for: denied.test.ts: deny me, denied.test.ts: deny too" "$DATA/test-judge.log"'
 check "the denial is logged as a malfunction" \
   'grep -qF "malfunction: judge run on $DN: the judge was denied Read and gave no test a FLAG or PASS" "$DATA/test-judge.log"'
 # A denial names a tool call, not a block, and one run judges every block of
