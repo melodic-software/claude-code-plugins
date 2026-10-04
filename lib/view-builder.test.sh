@@ -343,7 +343,9 @@ check("the runtime writes data only through textContent", !/\.(innerText|value)\
 // same elements; one accepting a binding the other drops is the drift this catches.
 const setLiteral = (source, name) => {
   const m = source.match(new RegExp(`const ${name} = new Set\\(\\[([^\\]]*)\\]\\);`)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
-  return m ? [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]).sort() : null; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  // Any member other than a double-quoted string (a spread, a single-quoted string) is unread.
+  if (!m || !/^\s*(?:"[^"]+"\s*(?:,\s*|$))*$/.test(m[1])) return null; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  return [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]).sort(); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 };
 const builderSource = readFileSync(`${root}/lib/view-builder.mjs`, "utf8");
 const formControls = setLiteral(builderSource, "FORM_CONTROLS");
