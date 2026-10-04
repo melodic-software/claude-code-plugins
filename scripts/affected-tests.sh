@@ -77,12 +77,21 @@
 #                    <dir>/test_<stem>.py and <dir>/tests/test_<stem>.py, the
 #                    two Python forms also with `-` folded to `_`. Every match is
 #                    taken: a .py can carry a test_<stem>.py and a wrapping
-#                    <stem>.test.sh at once.
+#                    <stem>.test.sh at once. pytest loads a conftest.py, and
+#                    Python an __init__.py, with no mention, so either selects
+#                    every test_*.py at or below its directory.
 #   R3 same language a file in the changed file's language that NAMES it (see
 #                    MATCHING) on a line that is not only a comment is a
 #                    dependent; R1, R2 and R3 then apply to it, transitively,
 #                    with no depth cap. A suite that names it is selected. This is
 #                    what carries a library change out to what sources it.
+#                    A Python `import`/`from` line names <stem>.py for each
+#                    dotted component and imported name equal to the stem
+#                    (`from harness.stub_harness import run` names
+#                    stub_harness.py), since an import never spells the file;
+#                    an AMBIGUOUS stem resolves to a module only when that
+#                    module is the one of its name in the nearest directory,
+#                    from the importer's up, that holds any.
 #   R4 other language a file in another language counts only where the naming
 #                    line runs or loads the file: an interpreter or process API on
 #                    the line (bash, sh, python3, node, pwsh, source, subprocess,
@@ -507,6 +516,15 @@ build_tree_index() {
     echo "error: listing the tree failed." >&2
     exit 2
   fi
+  # Every Python import line, for R3's module rule in token_hits. Exit 1 is no
+  # match; anything above it is an unreadable lookup, fatal like the grep in
+  # select_for.
+  local grep_rc=0
+  git grep --untracked -E '^[[:blank:]]*(from|import)[[:blank:]]' -- '*.py' >"$WORK_DIR/py-imports" || grep_rc=$?
+  if [[ "$grep_rc" -gt 1 ]]; then
+    echo "error: 'git grep' failed (exit $grep_rc) listing the Python import lines." >&2
+    exit 2
+  fi
   while IFS= read -r b; do
     AMBIGUOUS["$b"]=1
   done <"$WORK_DIR/ambiguous"
@@ -614,7 +632,7 @@ lang_family() {
 #   p<TAB><path><TAB><basename><TAB><1 when a kept line runs or loads it, else 0>
 #   r<TAB><path><TAB><resolved frontier path>
 token_hits() {
-  awk -v plainf="$1" -v resf="$2" -v allf="$WORK_DIR/all-files" '
+  awk -v plainf="$1" -v resf="$2" -v allf="$WORK_DIR/all-files" -v impf="$WORK_DIR/py-imports" '
     function dir_of(p) { sub(/[^\/]*$/, "", p); return p }
     function base_of(p) { sub(/.*\//, "", p); return p }
     function ends(s, t) { return length(s) >= length(t) && substr(s, length(s) - length(t) + 1) == t }
@@ -625,6 +643,7 @@ token_hits() {
       b = base_of($0)
       if (b ~ /^[A-Za-z0-9_.-]+$/) want[b] = 1
       else loose[b] = 1
+      if (b ~ /\.py$/) want_stem[substr(b, 1, length(b) - 3)] = 1
       next
     }
     FILENAME == resf {
@@ -637,6 +656,41 @@ token_hits() {
       b = base_of($0)
       if (b in nrt) same[b, ++nsame[b]] = $0
       next
+    }
+    # R3 for a Python import, which names a module and never its file:
+    # `from a.b import c as d, e` names a.py, b.py, c.py and e.py, since an
+    # imported name can be a submodule. Same language, so no transition.
+    FILENAME == impf {
+      i = index($0, ":")
+      if (i == 0) next
+      path = substr($0, 1, i - 1)
+      text = substr($0, i + 1)
+      sub(/#.*/, "", text)
+      gsub(/[(),\\]/, " ", text)
+      n = split(text, w, /[ \t]+/)
+      for (j = 1; j <= n; j++) {
+        if (w[j] == "as") { j++; continue }
+        if (w[j] == "" || w[j] == "from" || w[j] == "import") continue
+        m = split(w[j], comp, ".")
+        for (k = 1; k <= m; k++) if (comp[k] != "") import_names(path, comp[k])
+      }
+      next
+    }
+    # import_names: module c, imported by path, names c.py when that is a
+    # frontier basename; an ambiguous c.py resolves when it is the only module
+    # of that name in the nearest directory, from the importer up, holding one.
+    function import_names(path, c,   b, k, key) {
+      b = c ".py"
+      if (c in want_stem) {
+        key = path SUBSEP b
+        if (!(key in kept)) order[++nkept] = key
+        kept[key] = 1
+      }
+      if (b in nrt) for (k = 1; k <= nrt[b]; k++)
+        if (rt[b, k] != path && nearest_module(path, rt[b, k])) {
+          key = path SUBSEP rt[b, k]
+          if (!(key in rhit)) { rhit[key] = 1; print "r\t" path "\t" rt[b, k] }
+        }
     }
     # uniq_suffix: the shortest path suffix, two components or more, that no
     # other file of the same basename ends in; empty when there is none.
@@ -681,6 +735,20 @@ token_hits() {
         if (index(rel, "/") && (pt == rel || ends(pt, "/" rel))) return 1
       }
       return 0
+    }
+    # nearest_module: whether t is the one module of its name in the nearest
+    # directory, from the importer namer up to the root, that holds any. The
+    # importer reaches it through its own directory, a tests/ parent or a
+    # sys.path entry for its plugin lib/, never across two candidates.
+    function nearest_module(namer, t,   a, b, i, n, hit) {
+      b = base_of(t)
+      for (a = dir_of(namer); ; sub(/[^\/]*\/$/, "", a)) {
+        n = 0; hit = 0
+        for (i = 1; i <= nsame[b]; i++)
+          if (a == "" || index(same[b, i], a) == 1) { n++; if (same[b, i] == t) hit = 1 }
+        if (n > 0) return n == 1 && hit
+        if (a == "") return 0
+      }
     }
     # runs_or_loads: R4. An interpreter or process API on the line, or a path
     # to the file.
@@ -772,7 +840,7 @@ token_hits() {
         print "p\t" kv[1] "\t" kv[2] "\t" kept[order[k]]
       }
     }
-  ' "$1" "$2" "$WORK_DIR/all-files" "$3" >"$4"
+  ' "$1" "$2" "$WORK_DIR/all-files" "$WORK_DIR/py-imports" "$3" >"$4"
 }
 
 # colocated_suites <path> -> every sibling suite covering it, one per line.
@@ -805,6 +873,15 @@ colocated_suites() {
   for candidate in ${candidates[@]+"${candidates[@]}"}; do
     [[ -f "$candidate" ]] && printf '%s\n' "$candidate"
   done
+  # pytest loads a conftest.py, and Python a package's __init__.py, without
+  # either being named, for every test module at or below the directory.
+  case "${p##*/}" in
+  conftest.py | __init__.py)
+    awk -v d="$dir/" '{ b = $0; sub(/.*\//, "", b) } b ~ /^test_.*\.py$/ && (d == "./" || index($0, d) == 1)' \
+      "$WORK_DIR/all-files"
+    ;;
+  *) ;;
+  esac
   return 0
 }
 
