@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Put this in the commit message: the lookup lower-cased SKUs, so PRICES[sku.lower()] raised KeyError.",
+      "why": "commit message"
+    },
+    {
+      "answer": "Record the confirmed hypothesis in the PR description so the next debugger sees it.",
+      "why": "PR description"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "All done, the debug lines are gone.",
+      "why": "no record"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}
