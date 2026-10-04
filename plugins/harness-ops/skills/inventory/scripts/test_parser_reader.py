@@ -67,6 +67,43 @@ class TestInstallResolution(unittest.TestCase):
                 (pathlib.Path("/d/harness-ops-m"), "CLAUDE_PLUGIN_DATA"),
             )
 
+    def test_an_exact_marketplace_data_dir_is_used(self) -> None:
+        with mock.patch.dict(
+            os.environ, {"CLAUDE_PLUGIN_DATA": "/x/harness-ops-melodic-software"}
+        ):
+            self.assertEqual(
+                pr.deps_base(None),
+                (
+                    pathlib.Path("/x/harness-ops-melodic-software"),
+                    "CLAUDE_PLUGIN_DATA",
+                ),
+            )
+
+    def test_a_directory_named_exactly_harness_ops_is_used(self) -> None:
+        with mock.patch.dict(os.environ, {"CLAUDE_PLUGIN_DATA": "/x/harness-ops"}):
+            self.assertEqual(
+                pr.deps_base(None),
+                (pathlib.Path("/x/harness-ops"), "CLAUDE_PLUGIN_DATA"),
+            )
+
+    def test_a_lookalike_prefix_is_not_this_plugins_data_dir(self) -> None:
+        # startswith("harness-ops") accepts harness-opsx-foo and would return
+        # it as CLAUDE_PLUGIN_DATA. The last segment must equal harness-ops or
+        # start with harness-ops-.
+        env = {"CLAUDE_PLUGIN_DATA": "/x/harness-opsx-foo", "CLAUDE_CONFIG_DIR": "/cfg"}
+        with (
+            mock.patch.dict(os.environ, env),
+            mock.patch.object(pr, "checkout_root", return_value=None),
+        ):
+            base, how = pr.deps_base(None)
+        self.assertEqual(
+            (base, how),
+            (
+                pathlib.Path("/cfg/plugins/data/harness-ops-melodic-software"),
+                "plugin data directory",
+            ),
+        )
+
     def test_another_plugins_data_dir_is_not_used(self) -> None:
         env = {"CLAUDE_PLUGIN_DATA": "/d/miro-m", "CLAUDE_CONFIG_DIR": "/cfg"}
         with (

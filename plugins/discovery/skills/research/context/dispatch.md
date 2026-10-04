@@ -70,7 +70,7 @@ against a run that produced none):
    ran, which `pending` cannot tell them.
 
    **Brief the verifier on every row the gate's Owner column marks verifier, by number** (currently
-   rows 4, 7 and 12), whatever the payload's `verification_request.criterion` string names. A
+   rows 4, 7, 12 and 14), whatever the payload's `verification_request.criterion` string names. A
    verifier asked only about corroboration and confidence re-fetches the quotes and never asks
    whether the claim follows from them.
 
@@ -81,6 +81,36 @@ against a run that produced none):
    `evidence_use: publish`, say so in the brief: the verifier then grades every cited source for
    applicability rather than quote presence, and checks that the answer quotes only `current`
    sources as support. A quote found at its link answers neither question.
+
+   **Hand it full copies of the pages its fetch cut short.** The verifier has no `Bash`, by design,
+   so it cannot take the `curl` route the discipline file gives a researcher for a page WebFetch
+   truncates. When its `problems:` names a `truncated primary: <url>`, save that page with the
+   recipe under "A size failure is the same trigger" in [`discipline.md`](discipline.md), with
+   `<scratch>` set to a `scratch-snapshots` directory inside the slice. Create that directory before running
+   the recipe: its `mktemp -d` makes only the final path component. Fetch through rung 1
+   of the [upstream-drift read ladder](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#the-rungs),
+   which owns the raw-markdown channel. Then dispatch a fresh verifier with one more prompt line per page:
+
+   ```text
+   Snapshots: <url> -> <absolute path of the saved copy>
+   ```
+
+   The slice sits under the checkout, so the verifier's `Read` reaches the copy without a
+   permission prompt; a copy saved outside the session's working directories makes every graded
+   read wait on one, and a mode that denies prompts turns it into an unread snapshot. Delete `scratch-snapshots` once the verdict is written back,
+   per the scratch rule in
+   [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md).
+
+   - **Pointer**: when choosing where a snapshot goes, fetch
+     [Working directories](https://code.claude.com/docs/en/permissions#working-directories),
+     [permission modes](https://code.claude.com/docs/en/permissions#permission-modes) and the
+     tools reference's
+     [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)
+     live.
+   - **As of**: 2026-10-04
+   - **Recheck trigger**: the tools reference stops marking `Read` as prompting for paths outside
+     the working directories, its WebFetch section stops naming a size limit, or a verifier reports
+     a `Snapshots:` path it could not Read.
 3. **Apply project fit.** The consuming project's conventions and stated direction live with the
    parent; a fresh worker has no access to them.
 4. **Write both results back into the artifact.** This is the obligation easiest to drop, and
@@ -169,11 +199,18 @@ obligation is the parent's, not the script's. Grade each run against the sub-sli
 and grade before synthesis. A slice-root invocation grades only the synthesized index, never any
 dispatched run.
 
-**The synthesis is itself unverified, so it goes to a fresh verifier for criterion 12** before it
-is surfaced. Every `qualifiers:` entry and scope limit a sub-slice recorded stays attached wherever
-the synthesized index uses that claim, and a claim the synthesis adds that no sub-slice accepted,
-such as a cross-topic conclusion, gets the full joint-inference check or is filed as a Gap. Either
-failure sends the synthesis back for rewriting, not the sub-slice for re-dispatch.
+**The synthesis is itself unverified, so it goes to a fresh verifier for every verifier-owned row** (currently rows 4, 7, 12 and 14)
+before it is surfaced, briefed by number like any other verifier dispatch. A claim the synthesis
+carries from a sub-slice keeps that sub-slice's corroboration and confidence verdicts only if the
+sub-slice accepted it; one the sub-slice listed under Gaps or left unresolved in Conflicts is not
+accepted in the synthesis either. Every `qualifiers:` entry and scope limit a sub-slice recorded
+stays attached wherever the synthesized index uses that claim, and a claim the synthesis adds that
+no sub-slice accepted, such as a cross-topic conclusion, gets rows 4, 7 and 12 in full or is filed
+as a Gap.
+Row 14 counts the synthesized index's own accepted claims, so a root built from topics that
+accepted nothing records `accepted: 0` and opens its Summary with
+`Inconclusive: no claim accepted.` Any failure sends the synthesis back for rewriting, not the
+sub-slice for re-dispatch.
 
 ## The coverage ledger is graded separately, and its freshness is not bound
 

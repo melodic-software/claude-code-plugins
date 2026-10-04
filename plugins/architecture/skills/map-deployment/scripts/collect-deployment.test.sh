@@ -2212,38 +2212,52 @@ assert_contains "an ARM template that maps no container is refused" "$unm_rec" '
 assert_contains "the ARM type is listed under arm" "$unm_rec" '{"tool":"arm","type":"Microsoft.Storage/storageAccounts","evidence":"main.json"}'
 
 # A child resource nested in its parent is listed under its full type, never dropped behind the
-# parent: a Bicep `resource x 'child'` inside a body, an ARM resources array inside a resource.
-bicep_site=$'resource site \'Microsoft.Web/sites@2022-09-01\' = {\n  name: \'web\'\n  properties: {\n    siteConfig: {\n      linuxFxVersion: \'DOCKER|nginx:1\'\n    }\n  }\n  resource slot \'slots\' = {\n    name: \'staging\'\n    properties: {\n      siteConfig: {\n        linuxFxVersion: \'DOCKER|nginx:2\'\n      }\n    }\n  }\n}'
+# parent: a Bicep `resource x 'child'` inside a body, an ARM resources array inside a resource. A
+# slot with a DOCKER| image is the exception: it is its own container, on its site's plan.
+bicep_plan=$'resource plan \'Microsoft.Web/serverfarms@2022-09-01\' = {\n  name: \'plan\'\n}'
+bicep_site=$'resource site \'Microsoft.Web/sites@2022-09-01\' = {\n  name: \'web\'\n  properties: {\n    serverFarmId: plan.id\n    siteConfig: {\n      linuxFxVersion: \'DOCKER|nginx:1\'\n    }\n  }\n  resource slot \'slots\' = {\n    name: \'staging\'\n    properties: {\n      siteConfig: {\n        linuxFxVersion: \'DOCKER|nginx:2\'\n        appSettings: [\n          { name: \'SLOT\', value: \'staging\' }\n        ]\n      }\n    }\n  }\n}'
 bicep_blob=$'resource sa \'Microsoft.Storage/storageAccounts@2023-01-01\' = {\n  name: \'sa\'\n  resource blob \'blobServices\' = {\n    name: \'default\'\n    resource c \'containers@2023-01-01\' = {\n      name: \'data\'\n    }\n  }\n}'
-unm_fixture bicep-nested main.bicep "$bicep_site"$'\n'"$bicep_blob"
+unm_fixture bicep-nested main.bicep "$bicep_plan"$'\n'"$bicep_site"$'\n'"$bicep_blob"
 unm_check "$TEST_TMPDIR/unm-bicep-nested"
 assert_contains "a site with a nested slot is still drawn" "$unm_rec" '"status": "drawn"'
-assert_contains "the parent site is placed" "$unm_rec" '"container":"web","env":"default","tool":"bicep"'
-assert_not_contains "the nested slot is not placed as if it were the site" "$unm_rec" 'nginx:2'
-assert_contains "a nested slot is listed under its full type" "$unm_rec" '{"tool":"bicep","type":"Microsoft.Web/sites/slots","evidence":"main.bicep"}'
+assert_contains "the parent site is placed" "$unm_rec" '"container":"web","env":"default","tool":"bicep","node":"default/plan","compute":"default/plan","image":"nginx:1"'
+assert_contains "a nested DOCKER slot is placed on its site's plan under its full name" "$unm_rec" '"container":"web/staging","env":"default","tool":"bicep","node":"default/plan","compute":"default/plan","image":"nginx:2","replicas":"undeclared"'
+assert_contains "a slot's app settings are its parameters" "$unm_rec" '"parameter":"SLOT","env":"default","tool":"bicep","container":"web/staging","value":"staging"'
+assert_not_contains "a placed slot is not listed" "$unm_rec" '"type":"Microsoft.Web/sites/slots"'
 assert_contains "a child of a storage account is listed under its full type" "$unm_rec" '{"tool":"bicep","type":"Microsoft.Storage/storageAccounts/blobServices","evidence":"main.bicep"}'
 assert_contains "a grandchild is listed under its full type" "$unm_rec" '{"tool":"bicep","type":"Microsoft.Storage/storageAccounts/blobServices/containers","evidence":"main.bicep"}'
 assert_not_contains "the mapped parent site is not listed" "$unm_rec" '"type":"Microsoft.Web/sites"'
-assert_contains "the nested resources are counted" "$unm_sum" "unmapped=4"
-assert_contains "the nested slot is in the unmapped table" "$unm_md" '| bicep | Microsoft.Web/sites/slots | main.bicep |'
+assert_contains "the nested resources are counted" "$unm_sum" "unmapped=3"
+assert_contains "a nested child is in the unmapped table" "$unm_md" '| bicep | Microsoft.Storage/storageAccounts/blobServices | main.bicep |'
+assert_contains "the slot is drawn inside the plan" "$unm_md" $'instanceOf c1_web\n      instanceOf c2_web_staging'
+
+bicep_slot_top=$'resource slot \'Microsoft.Web/sites/slots@2022-09-01\' = {\n  parent: site\n  name: \'blue\'\n  properties: {\n    siteConfig: {\n      linuxFxVersion: \'DOCKER|nginx:3\'\n    }\n  }\n}\nresource orphan \'Microsoft.Web/sites/slots@2022-09-01\' = {\n  name: \'web/green\'\n  properties: {\n    siteConfig: {\n      linuxFxVersion: \'DOCKER|nginx:4\'\n    }\n  }\n}'
+bicep_slot_node=$'resource code \'Microsoft.Web/sites@2022-09-01\' = {\n  name: \'code\'\n  properties: {\n    serverFarmId: plan.id\n    siteConfig: {\n      linuxFxVersion: \'DOCKER|nginx:5\'\n    }\n  }\n  resource slot \'slots\' = {\n    name: \'node\'\n    properties: {\n      siteConfig: {\n        linuxFxVersion: \'NODE|20-lts\'\n      }\n    }\n  }\n}'
+unm_fixture bicep-slot-forms main.bicep "$bicep_plan"$'\n'"$bicep_site"$'\n'"$bicep_slot_top"$'\n'"$bicep_slot_node"
+unm_check "$TEST_TMPDIR/unm-bicep-slot-forms"
+assert_contains "a top-level slot whose parent names the site is placed on the site's plan" "$unm_rec" '"container":"web/blue","env":"default","tool":"bicep","node":"default/plan","compute":"default/plan","image":"nginx:3"'
+assert_not_contains "a top-level slot with no parent property is not placed" "$unm_rec" 'nginx:4'
+assert_not_contains "a slot whose fx version is not DOCKER| is not placed" "$unm_rec" '"container":"code/node"'
+assert_contains "the unplaced slots are listed under their full type" "$unm_rec" '{"tool":"bicep","type":"Microsoft.Web/sites/slots","evidence":"main.bicep"}'
 
 unm_fixture bicep-nested-refused main.bicep "$bicep_blob"
 unm_check "$TEST_TMPDIR/unm-bicep-nested-refused"
 assert_contains "a Bicep storage account with nested children maps no container and is refused" "$unm_rec" '"reason": "no-mapped-container"'
 assert_contains "the nested Bicep child is listed in the refusal" "$unm_rec" '{"tool":"bicep","type":"Microsoft.Storage/storageAccounts/blobServices","evidence":"main.bicep"}'
 
-arm_site="{\"type\":\"Microsoft.Web/sites\",\"name\":\"web\",\"properties\":{\"siteConfig\":{\"linuxFxVersion\":\"DOCKER|nginx:1\"}},\"resources\":[{\"type\":\"slots\",\"name\":\"staging\",\"properties\":{\"siteConfig\":{\"linuxFxVersion\":\"DOCKER|nginx:2\"}}}]}"
+arm_plan='{"type":"Microsoft.Web/serverfarms","name":"plan"}'
+arm_site="{\"type\":\"Microsoft.Web/sites\",\"name\":\"web\",\"properties\":{\"serverFarmId\":\"[resourceId('Microsoft.Web/serverfarms', 'plan')]\",\"siteConfig\":{\"linuxFxVersion\":\"DOCKER|nginx:1\"}},\"resources\":[{\"type\":\"slots\",\"name\":\"staging\",\"properties\":{\"siteConfig\":{\"linuxFxVersion\":\"DOCKER|nginx:2\"}}}]}"
 arm_blob='{"name":"sa","resources":[{"type":"blobServices","name":"default","resources":[{"type":"containers","name":"data"}]}],"type":"Microsoft.Storage/storageAccounts"}'
-unm_fixture arm-nested main.json "{\"\$schema\":\"$arm_schema\",\"contentVersion\":\"1.0.0.0\",\"resources\":[$arm_site,$arm_blob]}"
+unm_fixture arm-nested main.json "{\"\$schema\":\"$arm_schema\",\"contentVersion\":\"1.0.0.0\",\"resources\":[$arm_plan,$arm_site,$arm_blob]}"
 unm_check "$TEST_TMPDIR/unm-arm-nested"
 assert_contains "an ARM site with a nested slot is still drawn" "$unm_rec" '"status": "drawn"'
-assert_contains "the ARM parent site is placed" "$unm_rec" '"container":"web","env":"default","tool":"arm"'
-assert_not_contains "the nested ARM slot is not placed as if it were the site" "$unm_rec" 'nginx:2'
-assert_contains "a nested ARM slot is listed under its full type" "$unm_rec" '{"tool":"arm","type":"Microsoft.Web/sites/slots","evidence":"main.json"}'
+assert_contains "the ARM parent site is placed" "$unm_rec" '"container":"web","env":"default","tool":"arm","node":"default/resources[0]","compute":"default/resources[0]","image":"nginx:1"'
+assert_contains "a nested ARM DOCKER slot is placed on its site's plan under its full name" "$unm_rec" '"container":"web/staging","env":"default","tool":"arm","node":"default/resources[0]","compute":"default/resources[0]","image":"nginx:2"'
+assert_not_contains "a placed ARM slot is not listed" "$unm_rec" '"type":"Microsoft.Web/sites/slots"'
 assert_contains "an ARM child is listed under its full type" "$unm_rec" '{"tool":"arm","type":"Microsoft.Storage/storageAccounts/blobServices","evidence":"main.json"}'
 assert_contains "an ARM grandchild is listed under its full type" "$unm_rec" '{"tool":"arm","type":"Microsoft.Storage/storageAccounts/blobServices/containers","evidence":"main.json"}'
 assert_not_contains "the mapped ARM parent site is not listed" "$unm_rec" '"type":"Microsoft.Web/sites"'
-assert_contains "the nested ARM resources are counted" "$unm_sum" "unmapped=4"
+assert_contains "the nested ARM resources are counted" "$unm_sum" "unmapped=3"
 
 unm_fixture arm-nested-refused main.json "{\"\$schema\":\"$arm_schema\",\"contentVersion\":\"1.0.0.0\",\"resources\":[$arm_blob]}"
 unm_check "$TEST_TMPDIR/unm-arm-nested-refused"
@@ -2254,6 +2268,10 @@ unm_fixture arm-nested-symbolic main.json "{\"\$schema\":\"$arm_schema\",\"langu
 unm_check "$TEST_TMPDIR/unm-arm-nested-symbolic"
 assert_contains "a nested child under a symbolic-name resource is listed under its full type" "$unm_rec" '{"tool":"arm","type":"Microsoft.Web/sites/slots","evidence":"main.json"}'
 assert_not_contains "the symbolic-name parent site is not listed" "$unm_rec" '"type":"Microsoft.Web/sites"'
+unm_fixture arm-slot-symbolic main.json "{\"\$schema\":\"$arm_schema\",\"languageVersion\":\"2.0\",\"contentVersion\":\"1.0.0.0\",\"resources\":{\"plan\":$arm_plan,\"site\":{\"type\":\"Microsoft.Web/sites\",\"name\":\"web\",\"properties\":{\"serverFarmId\":\"[resourceId('Microsoft.Web/serverfarms', 'plan')]\"},\"resources\":{\"slot\":{\"type\":\"slots\",\"name\":\"staging\",\"properties\":{\"siteConfig\":{\"linuxFxVersion\":\"DOCKER|nginx:2\"}}}}}}}"
+unm_check "$TEST_TMPDIR/unm-arm-slot-symbolic"
+assert_contains "a DOCKER slot under a symbolic-name site is placed on the site's plan" "$unm_rec" '"container":"web/staging","env":"default","tool":"arm","node":"default/plan","compute":"default/plan","image":"nginx:2"'
+assert_contains "a site with no DOCKER image is still listed beside its placed slot" "$unm_rec" '{"tool":"arm","type":"Microsoft.Web/sites","evidence":"main.json"}'
 
 unm_fixture pulumi-bucket Pulumi.yaml $'name: p\nruntime: yaml\nresources:\n  bucket:\n    type: aws:s3:Bucket'
 unm_check "$TEST_TMPDIR/unm-pulumi-bucket"
@@ -2316,17 +2334,50 @@ unm_fixture pulumi-td-empty Pulumi.yaml $'name: p\nruntime: yaml\nresources:\n  
 unm_check "$TEST_TMPDIR/unm-pulumi-td-empty"
 assert_contains "a Pulumi task definition with an empty list places one" "$unm_rec" '"container":"td","env":"default","tool":"pulumi-yaml","node":"default","compute":"","image":"unresolved:containerDefinitions"'
 
-# A second ECS service on a task definition another service already runs is listed, not dropped.
-unm_fixture tf-shared-td main.tf "$tf_ecs"$'\nresource "aws_ecs_service" "api2" {\n  name            = "api2"\n  task_definition = aws_ecs_task_definition.api.arn\n}'
+# Each ECS service on a shared task definition places its containers on its own cluster with its own
+# desired count, named <container>@<service resource name> so the placements stay distinct.
+tf_shared=$'variable "two_count" {\n  default = 5\n}\nresource "aws_ecs_cluster" "a" {\n  name = "a"\n}\nresource "aws_ecs_cluster" "b" {\n  name = "b"\n}\nresource "aws_ecs_task_definition" "api" {\n  family                = "api"\n  container_definitions = jsonencode([{ name = "api", image = "acme/api:1", environment = [{ name = "MODE", value = "web" }] }, { name = "proxy", image = "acme/proxy:1" }])\n}\nresource "aws_ecs_service" "one" {\n  name            = "one"\n  cluster         = aws_ecs_cluster.a.id\n  task_definition = aws_ecs_task_definition.api.arn\n  desired_count   = 2\n}\nresource "aws_ecs_service" "two" {\n  name            = "api-two"\n  cluster         = aws_ecs_cluster.b.id\n  task_definition = aws_ecs_task_definition.api.arn\n  desired_count   = var.two_count\n}'
+unm_fixture tf-shared-td main.tf "$tf_shared" prod.tfvars 'two_count = 5' staging.tfvars 'two_count = 1'
 unm_check "$TEST_TMPDIR/unm-tf-shared-td"
-assert_contains "a Terraform service sharing a task definition keeps the root drawn" "$unm_rec" '"status": "drawn"'
-assert_contains "a second Terraform service on one task definition is listed" "$unm_rec" '{"tool":"terraform","type":"aws_ecs_service","evidence":"main.tf"}'
-unm_fixture cfn-shared-td template.yaml $'Resources:\n  Td:\n    Type: AWS::ECS::TaskDefinition\n    Properties:\n      ContainerDefinitions:\n        - Name: api\n          Image: acme/api:1\n  One:\n    Type: AWS::ECS::Service\n    Properties:\n      TaskDefinition: !Ref Td\n  Two:\n    Type: AWS::ECS::Service\n    Properties:\n      TaskDefinition: !Ref Td'
+assert_contains "a Terraform root with a shared task definition is drawn" "$unm_rec" '"status": "drawn"'
+assert_contains "the first Terraform service places the container on its cluster with its count" "$unm_rec" '"container":"api@one","env":"prod","tool":"terraform","node":"prod/aws_ecs_cluster.a","compute":"prod/aws_ecs_cluster.a","image":"acme/api:1","replicas":"2"'
+assert_contains "the second Terraform service places the container on its own cluster with its own count" "$unm_rec" '"container":"api@two","env":"prod","tool":"terraform","node":"prod/aws_ecs_cluster.b","compute":"prod/aws_ecs_cluster.b","image":"acme/api:1","replicas":"5"'
+assert_contains "every container of the shared task definition is placed per service" "$unm_rec" '"container":"proxy@two","env":"prod","tool":"terraform","node":"prod/aws_ecs_cluster.b"'
+assert_contains "a parameter belongs to each service's placement" "$unm_rec" '"parameter":"MODE","env":"prod","tool":"terraform","container":"api@two","value":"web"'
+assert_not_contains "a shared task definition places no unqualified container" "$unm_rec" '"container":"api","env"'
+assert_not_contains "the service suffix is the resource label, not the name attribute" "$unm_rec" 'api@api-two'
+assert_not_contains "the second Terraform service is no longer listed" "$unm_rec" '"type":"aws_ecs_service"'
+assert_contains "a Terraform shared task definition lists nothing" "$unm_sum" "unmapped=0"
+assert_contains "the per-service desired count is diffed between environments" "$unm_rec" '"change":"replicas","left":"prod","right":"staging","tool":"terraform","container":"api@two","detail":"5 -> 1"'
+assert_not_contains "the other service's placement is not a difference" "$unm_rec" '"container":"api@one","detail"'
+assert_contains "the likec4 label prints the service suffix label-safe" "$unm_md" "= container 'api(at)two' {"
+bash "$RENDER" --record "$TEST_TMPDIR/unm-tf-shared-td.json" --out "$TEST_TMPDIR/unm-tf-shared-td-prod" --dialect likec4 --env prod >/dev/null
+assert_likec4_golden "deployment-ecs-shared.c4" "$TEST_TMPDIR/unm-tf-shared-td-prod/deployment.md"
+printf '{\n  "schema_version": 1,\n  "containers": [\n    {"name":"api"},\n    {"name":"ap"}\n  ]\n}\n' >"$TEST_TMPDIR/shared-containers.json"
+bash "$COLLECT" --repo "$TEST_TMPDIR/unm-tf-shared-td" --out "$TEST_TMPDIR/shared-cat.json" --generated-on 2026-09-28 --containers "$TEST_TMPDIR/shared-containers.json"
+shared_cat="$(cat "$TEST_TMPDIR/shared-cat.json")"
+assert_contains "a catalog container placed once per service counts as placed" "$shared_cat" '{"catalog":"api","placed":"yes"}'
+assert_contains "a catalog name that only prefixes a container is not placed" "$shared_cat" '{"catalog":"ap","placed":"no"}'
+
+unm_fixture tf-one-service main.tf "$tf_ecs"
+unm_check "$TEST_TMPDIR/unm-tf-one-service"
+assert_contains "a task definition with one service keeps the plain container name" "$unm_rec" '"container":"api","env":"default","tool":"terraform","node":"default/aws_ecs_cluster.c"'
+assert_not_contains "a task definition with one service carries no service suffix" "$unm_rec" 'api@'
+
+unm_fixture cfn-shared-td template.yaml $'Resources:\n  A:\n    Type: AWS::ECS::Cluster\n  B:\n    Type: AWS::ECS::Cluster\n  Td:\n    Type: AWS::ECS::TaskDefinition\n    Properties:\n      ContainerDefinitions:\n        - Name: api\n          Image: acme/api:1\n          Environment:\n            - Name: MODE\n              Value: web\n  One:\n    Type: AWS::ECS::Service\n    Properties:\n      Cluster: !Ref A\n      DesiredCount: 2\n      TaskDefinition: !Ref Td\n  Two:\n    Type: AWS::ECS::Service\n    Properties:\n      ServiceName: api-two\n      Cluster: !GetAtt B.Arn\n      DesiredCount: 5\n      TaskDefinition: !Ref Td'
 unm_check "$TEST_TMPDIR/unm-cfn-shared-td"
-assert_contains "a second CloudFormation service on one task definition is listed" "$unm_rec" '{"tool":"cloudformation","type":"AWS::ECS::Service","evidence":"template.yaml"}'
-unm_fixture pulumi-shared-td Pulumi.yaml $'name: p\nruntime: yaml\nresources:\n  td:\n    type: aws:ecs:TaskDefinition\n    properties:\n      containerDefinitions:\n        - name: api\n          image: acme/api:1\n  one:\n    type: aws:ecs:Service\n    properties:\n      taskDefinition: ${td.arn}\n  two:\n    type: aws:ecs:Service\n    properties:\n      taskDefinition: ${td.arn}'
+assert_contains "the first CloudFormation service places the container on its cluster" "$unm_rec" '"container":"api@One","env":"default","tool":"cloudformation","node":"default/A","compute":"default/A","image":"acme/api:1","replicas":"2"'
+assert_contains "the second CloudFormation service places the container on its own cluster" "$unm_rec" '"container":"api@Two","env":"default","tool":"cloudformation","node":"default/B","compute":"default/B","image":"acme/api:1","replicas":"5"'
+assert_contains "a CloudFormation parameter belongs to each service's placement" "$unm_rec" '"parameter":"MODE","env":"default","tool":"cloudformation","container":"api@Two","value":"web"'
+assert_not_contains "the second CloudFormation service is no longer listed" "$unm_rec" '"type":"AWS::ECS::Service"'
+assert_not_contains "a CloudFormation shared task definition places no unqualified container" "$unm_rec" '"container":"api","env"'
+
+unm_fixture pulumi-shared-td Pulumi.yaml $'name: p\nruntime: yaml\nresources:\n  a:\n    type: aws:ecs:Cluster\n  b:\n    type: aws:ecs:Cluster\n  td:\n    type: aws:ecs:TaskDefinition\n    properties:\n      containerDefinitions:\n        fn::toJSON:\n          - name: api\n            image: acme/api:1\n  one:\n    type: aws:ecs:Service\n    properties:\n      cluster: ${a.arn}\n      desiredCount: 2\n      taskDefinition: ${td.arn}\n  two:\n    type: aws:ecs:Service\n    properties:\n      name: api-two\n      cluster: ${b.arn}\n      desiredCount: 5\n      taskDefinition: ${td.arn}'
 unm_check "$TEST_TMPDIR/unm-pulumi-shared-td"
-assert_contains "a second Pulumi service on one task definition is listed" "$unm_rec" '{"tool":"pulumi-yaml","type":"aws:ecs:Service","evidence":"Pulumi.yaml"}'
+assert_contains "the first Pulumi service places the container on its cluster" "$unm_rec" '"container":"api@one","env":"default","tool":"pulumi-yaml","node":"default/a","compute":"default/a","image":"acme/api:1","replicas":"2"'
+assert_contains "the second Pulumi service places the container on its own cluster" "$unm_rec" '"container":"api@two","env":"default","tool":"pulumi-yaml","node":"default/b","compute":"default/b","image":"acme/api:1","replicas":"5"'
+assert_not_contains "the second Pulumi service is no longer listed" "$unm_rec" '"type":"aws:ecs:Service"'
+assert_not_contains "a Pulumi shared task definition places no unqualified container" "$unm_rec" '"container":"api","env"'
 
 # .tf.json blocks written as arrays of objects read like the object form.
 unm_fixture tfjson-array main.tf.json '{"resource":[{"aws_s3_bucket":{"b":{}}}]}'

@@ -3,6 +3,24 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.67.4] - 2026-10-04
+
+### Changed
+
+- **The `plan-reviewer` dispatch prompt no longer carries the 18-tool-call ceiling, chunked-read and always-end-with-Summary lines added in 0.67.3 ([#6126](https://github.com/melodic-software/claude-code-plugins/issues/6126)).**
+  The marketplace adds a standing instruction only on repeated stumble evidence, the same failure seen more than once (`docs/plugin-philosophy.md`, "Instruction economy"), and the record holds one failed review; the two later reviews were trials of the lines, not repeat failures.
+  `maxTurns: 25` stays the hard stop, and `/planning:plan` Step 3 still treats a return without `### Summary` as incomplete and resumes it.
+  The lines can return when a second overrun is observed in a real dispatch.
+
+## [0.67.3] - 2026-10-04
+
+### Fixed
+
+- **The `plan-reviewer` dispatch prompt caps the reviewer at 18 tool calls, reads a long plan in three chunked Reads, and always ends with the `### Summary` counts ([#6126](https://github.com/melodic-software/claude-code-plugins/issues/6126)).**
+  On a plan of about 1,000 lines the reviewer spent its 25 turns reading code and returned no report, so the session resumed it and paid for a second dispatch.
+  Two later reviews with these three lines in the brief both returned complete reports.
+  `maxTurns` stays the hard stop; the ceiling sits below it.
+
 ## [0.67.2] - 2026-10-04
 
 ### Fixed

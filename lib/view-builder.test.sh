@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Behavioral tests for lib/view-builder.mjs and lib/view-runtime.js: both
 # profiles, the hostile-input corpus, the content security policy hashes, the
-# runtime sink lint, and the generated per-plugin copies. When a Chrome or
+# runtime sink lint, the validator and runtime element-list parity, and the
+# generated per-plugin copies. When a Chrome or
 # Chromium binary is found (CHROME, google-chrome, chromium, or Playwright's
 # headless shell) the built pages are also opened from file:// to prove the
 # runtime runs under the page's policy and hostile data stays text.
@@ -336,6 +337,30 @@ check(
 );
 check("the only href the runtime sets is the blob: object URL", (code.match(/\.href\s*=/g) ?? []).length === 1 && /anchor\.href = url;/.test(code) && /const url = URL\.createObjectURL\(/.test(code)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 check("the runtime writes data only through textContent", !/\.(innerText|value)\s*=\s*text/.test(code)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+
+// ------------------------------------------------------ element list parity
+// The validator's FORM_CONTROLS and UNBINDABLE and the runtime's UNBOUND name the
+// same elements; one accepting a binding the other drops is the drift this catches.
+const setLiteral = (source, name) => {
+  const m = source.match(new RegExp(`const ${name} = new Set\\(\\[([^\\]]*)\\]\\);`)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  // Any member other than a double-quoted string (a spread, a single-quoted string) is unread.
+  if (!m || !/^\s*(?:"[^"]+"\s*(?:,\s*|$))*$/.test(m[1])) return null; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  return [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]).sort(); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+};
+const builderSource = readFileSync(`${root}/lib/view-builder.mjs`, "utf8");
+const formControls = setLiteral(builderSource, "FORM_CONTROLS");
+const unbindable = setLiteral(builderSource, "UNBINDABLE");
+const unbound = setLiteral(runtime, "UNBOUND");
+check("the builder declares FORM_CONTROLS and UNBINDABLE as Set literals", formControls !== null && unbindable !== null);
+check("the runtime declares UNBOUND as a Set literal", unbound !== null);
+if (formControls && unbindable && unbound) {
+  const builderElements = [...new Set([...formControls, ...unbindable])].sort();
+  check(
+    "the runtime's UNBOUND names exactly the builder's FORM_CONTROLS and UNBINDABLE",
+    JSON.stringify(builderElements) === JSON.stringify([...new Set(unbound)].sort()) && unbound.length === new Set(unbound).size,
+    `builder only: ${builderElements.filter((e) => !unbound.includes(e)).join(" ") || "-"}; runtime only: ${unbound.filter((e) => !builderElements.includes(e)).join(" ") || "-"}`,
+  );
+}
 
 // ---------------------------------------------------- generated plugin copy
 const copy = await import(pathToFileURL(`${root}/plugins/review/lib/view-builder.mjs`).href);

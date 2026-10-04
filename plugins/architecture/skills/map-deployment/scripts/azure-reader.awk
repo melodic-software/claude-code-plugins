@@ -21,7 +21,8 @@
 # extends this reader does not follow, and an unpaired parameters file each
 # refuse the record by file name; a module source is never printed. A child
 # resource nested in its parent is read with its full type (Microsoft.Web/sites/slots)
-# and is listed as unmapped, never mapped and never dropped.
+# and is listed as unmapped, never dropped. A slot with a DOCKER| image, nested in its
+# site or naming it as its Bicep parent, is the container <site>/<slot> on the site's plan.
 
 function trim(s) { gsub(/^[ \t\r\n]+|[ \t\r\n]+$/, "", s); return s }
 function jesc(s) { if (redact_secret_value(s)) s = "[redacted]"; gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return s }
@@ -517,7 +518,7 @@ function is_node_type(lt) {
   return lt ~ /^microsoft\.(app\/(managed|connected)environments|web\/serverfarms|containerservice\/managedclusters|containerinstance\/containergroups)$/
 }
 
-function map_scope(sc,    f, i, rp, type, lt, id, nm, n, k, gs, eg, cp, c, img, reps, ports, cl, j, m, fx, raw, pv) {
+function map_scope(sc,    f, i, rp, type, lt, id, nm, n, k, gs, eg, cp, c, img, reps, ports, cl, j, m, pv, par) {
   f = S_file[sc]
   for (i = 1; i <= RN[f]; i++) {
     rp = RES[f, i]; lt = tolower(RTYPE[f, rp])
@@ -560,21 +561,42 @@ function map_scope(sc,    f, i, rp, type, lt, id, nm, n, k, gs, eg, cp, c, img, 
         for (j = 1; j <= m; j++) env_entry(sc, c, eg[j], "secureValue", f)
       }
     } else if (lt == "microsoft.web/sites") {
-      fx = "properties.siteConfig.linuxFxVersion"
-      if (!field(f, rp fx)) fx = "properties.siteConfig.windowsFxVersion"
-      if (!field(f, rp fx)) { note_unmapped(tool, RTYPE[f, rp], f); continue }
-      raw = FV
-      img = get(sc, rp fx, "")
-      if (img ~ /^DOCKER[|]/) img = substr(img, 8)
-      else if (index(toupper(raw), "DOCKER|") == 0) { note_unmapped(tool, RTYPE[f, rp], f); continue }
-      if (RES_SEC) img = "[redacted]"
-      c = show(sc, rp "name", RSYM[f, rp])
-      cl = compute_ref(sc, rp "properties.serverFarmId", "microsoft.web/serverfarms")
-      place(sc, c, img, "undeclared", "", cl, f)
-      m = items(f, rp "properties.siteConfig.appSettings", eg)
-      for (j = 1; j <= m; j++) env_entry(sc, c, eg[j], "", f)
+      web_container(sc, rp, show(sc, rp "name", RSYM[f, rp]), rp)
+    } else if (lt == "microsoft.web/sites/slots" && (par = slot_site(f, rp)) != "") {
+      web_container(sc, rp, show(sc, par "name", RSYM[f, par]) "/" show(sc, rp "name", RSYM[f, rp]), par)
     } else if (!is_node_type(lt)) note_unmapped(tool, RTYPE[f, rp], f)
   }
+}
+
+# A site or slot whose fx version reads DOCKER| is container c on the plan the
+# resource at plan names; any other is listed.
+function web_container(sc, rp, c, plan,    f, fx, raw, img, cl, m, j, eg) {
+  f = S_file[sc]
+  fx = "properties.siteConfig.linuxFxVersion"
+  if (!field(f, rp fx)) fx = "properties.siteConfig.windowsFxVersion"
+  if (!field(f, rp fx)) { note_unmapped(tool, RTYPE[f, rp], f); return }
+  raw = FV
+  img = get(sc, rp fx, "")
+  if (img ~ /^DOCKER[|]/) img = substr(img, 8)
+  else if (index(toupper(raw), "DOCKER|") == 0) { note_unmapped(tool, RTYPE[f, rp], f); return }
+  if (RES_SEC) img = "[redacted]"
+  cl = compute_ref(sc, plan "properties.serverFarmId", "microsoft.web/serverfarms")
+  place(sc, c, img, "undeclared", "", cl, f)
+  m = items(f, rp "properties.siteConfig.appSettings", eg)
+  for (j = 1; j <= m; j++) env_entry(sc, c, eg[j], "", f)
+}
+
+# The rows prefix of the site a slot belongs to: the resource it is nested in, or
+# the one its Bicep parent property names. "" when neither is a declared site.
+function slot_site(f, rp,    p, k) {
+  p = rp
+  if (f ~ /\.json$/) sub(/resources(\[[0-9]+\]|\.[^.\[]+)\.$/, "", p)
+  else sub(/resource\.[^.\[]+(\[0\])?\.$/, "", p)
+  if (p != rp && p != "" && tolower(RTYPE[f, p]) == "microsoft.web/sites") return p
+  if (f ~ /\.json$/ || !field(f, rp "parent") || FK != "x") return ""
+  for (k = 1; k <= RN[f]; k++)
+    if (RSYM[f, RES[f, k]] == FV && tolower(RTYPE[f, RES[f, k]]) == "microsoft.web/sites") return RES[f, k]
+  return ""
 }
 
 function new_scope(f, env, caller, argpre, prefix, pf) {

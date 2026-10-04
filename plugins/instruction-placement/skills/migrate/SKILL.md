@@ -143,6 +143,8 @@ step with nothing to do is a result, not an omission:
 | `both-with-content` | The full sequence, deciding per section which file it belongs in, then reduce `CLAUDE.md` to the import |
 | `shim-with-comment` | **Strip the comment only.** The note moves into `AGENTS.md` or is deleted, the operator's call |
 | `shim` | Nothing. Already the target shape; report it and move on |
+| `shim-noncanonical` | **Rewrite `CLAUDE.md` to exactly `@AGENTS.md` only.** It is a lone import that loads the same way (`@./AGENTS.md`, CRLF lines, blank lines or whitespace around it) but is not the target shape, and `remove-shims` refuses it until it is. Nothing to move; steps 1, 2, 3 and 5 are no-ops |
+| `shim-empty-target` | Nothing to move: `CLAUDE.md` is exactly `@AGENTS.md` and `AGENTS.md` is absent or empty (any other import form there is `content-in-claude`, so the full sequence rewrites it). Report it, and ask the operator whether the empty `AGENTS.md` is deliberate before writing to it. Do not run the split |
 | `zero-byte` | Nothing to move. Ask the operator whether the empty files are deliberate before touching them |
 
 The full sequence, one directory at a time, deepest last, in this order, because an interruption

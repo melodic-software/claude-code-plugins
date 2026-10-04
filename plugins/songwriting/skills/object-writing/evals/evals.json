@@ -70,6 +70,7 @@
         "The write's last token is a broken word fragment: no terminal punctuation and the final word is not a complete dictionary word",
         "The write contains no concluding or reflective sentence explaining what the images mean",
         "The agent's return message is only the file path, the seven channels each marked strong, thin, or absent, and one sentence on where the pivot chain landed; the write text is not in the message",
+        "The pivot-chain part of the agent's return is exactly one sentence (one terminal period, no second sentence) and is the last line of the return, with nothing after it",
         "Each channel graded strong in the return has at least two verbatim phrases under its inventory heading, and each channel graded absent has none"
       ]
     },
@@ -88,7 +89,8 @@
         "The write names no emotion word (such as lonely, sad, afraid, happy, nostalgic); feelings arrive as organic body sensations",
         "Every phrase quoted under a sense-inventory heading appears verbatim in the write itself",
         "The write's last token is a broken word fragment: no terminal punctuation and the final word is not a complete dictionary word",
-        "The agent's return message is only the file path, the seven channel grades (strong, thin, or absent), and one pivot-chain sentence; the write text is not in the message"
+        "The agent's return message is only the file path, the seven channel grades (strong, thin, or absent), and one pivot-chain sentence; the write text is not in the message",
+        "The pivot-chain part of the agent's return is exactly one sentence (one terminal period, no second sentence) and is the last line of the return, with nothing after it"
       ]
     },
     {
@@ -106,7 +108,8 @@
         "Every phrase quoted under a sense-inventory heading appears verbatim in the write itself",
         "The write's last token is a broken word fragment: no terminal punctuation and the final word is not a complete dictionary word",
         "The write contains no concluding or reflective sentence explaining what the images mean",
-        "Each channel graded strong in the return has at least two verbatim phrases under its inventory heading, and each channel graded absent has none"
+        "Each channel graded strong in the return has at least two verbatim phrases under its inventory heading, and each channel graded absent has none",
+        "The pivot-chain part of the agent's return is exactly one sentence (one terminal period, no second sentence) and is the last line of the return, with nothing after it"
       ]
     },
     {
@@ -123,7 +126,8 @@
         "The two writes share no proper noun or named specific",
         "In each write, the final third does not mention its own seed object",
         "Every phrase quoted under a sense-inventory heading appears verbatim in its own write",
-        "Each write's last token is a broken word fragment: no terminal punctuation and the final word is not a complete dictionary word"
+        "Each write's last token is a broken word fragment: no terminal punctuation and the final word is not a complete dictionary word",
+        "Each agent's return ends with exactly one pivot-chain sentence: one terminal period, no second sentence, nothing after it"
       ]
     }
   ]

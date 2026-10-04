@@ -30,6 +30,8 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/clean-common.sh
 source "$SCRIPT_DIR/lib/clean-common.sh"
+# shellcheck source=lib/git-noninteractive.sh
+source "$SCRIPT_DIR/lib/git-noninteractive.sh"
 
 DRY_RUN=1
 FORCE_DEFAULT=0
@@ -196,7 +198,9 @@ if [[ "$DRY_RUN" -eq 1 ]]; then
 fi
 
 if git remote get-url "$UPSTREAM_REMOTE" >/dev/null 2>&1; then
-  git fetch "$UPSTREAM_REMOTE"
+  if ! clean_git_noninteractive fetch "$UPSTREAM_REMOTE"; then
+    printf 'RemoteUnreachable: remote unreachable (git fetch %s)\n' "$UPSTREAM_REMOTE"
+  fi
 fi
 
 # Re-gate unpushed commits against the just-fetched upstream. The early check

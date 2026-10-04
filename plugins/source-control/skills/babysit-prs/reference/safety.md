@@ -706,10 +706,31 @@ it): a `PUT` to the PR's `merge-async` endpoint, then a `GET` on the request's U
   every merge form.
 - **Merge queue.** A default-branch base that requires a merge queue is no longer a blocker. Once
   every other condition holds, the merge enqueues (`action: enqueue`). `enqueued` is final for the
-  request and is not a merge: a later cycle reads the PR as merged, or finds it back out of the
-  queue and gates it again. Re-running the merge on a queued PR returns `enqueued` without a new
-  request. Enqueueing is a merge, so only a tier that may merge enqueues, and auto-merge is never
-  armed over a queue. A queue on any other base keeps the hold.
+  request and is not a merge. Enqueueing is a merge, so only a tier that may merge enqueues, and
+  auto-merge is never armed over a queue. A queue on any other base keeps the hold.
+- **A `gh pr merge` the queue took.** `gh pr merge` adds a PR to the queue on any base that has
+  one, `--auto` or not, and exits `0`, so a queue the branch-rules read did not report would read
+  as a merge or an arm. After every successful `gh pr merge` the gate reads the PR's queue state
+  back over GraphQL. In the queue, it reports `action: enqueue`, `enqueued: true`,
+  `autoMergeEnabled: false`, `merged: false`, and `mergeQueue` with the entry's `state` and
+  `position`. Not yet in the queue but armed to enter it, it stays `action: auto-merge` with
+  `mergeQueue.entersWhenReady: true`. Neither queued, armed, nor merged, the read may simply
+  trail the merge, so the gate re-reads it a few times at the async poll interval, well inside
+  that path's 60-second bound. Still unseen, it reports `action: merge-pending`, `ready: false`,
+  `mergeQueue.unconfirmed: true`, and exit `10`, and records the success under `--state-dir` as
+  an unconfirmed queue entry. A base without a queue keeps the report it had; a failed read keeps
+  it too and names the failure in `merge.queueReadError`.
+- **A queued PR is confirmed on later runs.** With `--state-dir`, an enqueue from either path is
+  recorded with the vetted head, and every later run reads the entry first. Still in the queue: the
+  run reports `action: merge-pending`, `enqueued: true`, and `mergeQueue`, with the queue hold first
+  in `blockers`, exit `10`, and sends nothing. Merged: the head is checked as for a pending
+  request, and a match reports `merged: true` from `pendingMergeRequest`, exit `0`. Out of the
+  queue unmerged: the run reports `dequeued: true` with that hold first in `blockers`, exit `10`,
+  clears the record, and the next run gates it again. Armed to enter the queue, it holds as merge
+  pending with `mergeQueue.entersWhenReady: true`. An unreadable queue keeps the record and holds
+  as merge pending. An unconfirmed entry that reads back queued, armed, or merged is confirmed and
+  reported that way; one still unseen holds as merge pending with `mergeQueue.unconfirmed: true`,
+  sending nothing, and the second later run that finds it unseen reports it `dequeued`.
 - **Stacks (`--stacked-prs`).** Only a native stack qualifies: the PR's REST `stack` object. A PR
   merely based on another PR's branch keeps the non-default-base hold. The layer is judged against
   the stack's trunk, every open layer below it runs the same gate pinned to the head the stack
@@ -737,6 +758,17 @@ and [stacked pull request endpoints](https://docs.github.com/en/rest/pulls/stack
 Recheck when a `gh` release adds an async-merge command, when either REST page changes a status or
 field, or when stacked pull requests leave public preview or GitHub announces merge-queue support
 for stacks.
+
+**Claim, basis, as of, recheck:** that `gh pr merge` adds a PR to a required merge queue, or
+enables auto-merge until its checks pass, and exits `0` for a PR already queued,
+[merging a pull request with a merge queue](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/merging-a-pull-request-with-a-merge-queue),
+the [`gh pr merge` manual](https://cli.github.com/manual/gh_pr_merge), and
+[`pkg/cmd/pr/merge/merge.go`](https://github.com/cli/cli/blob/trunk/pkg/cmd/pr/merge/merge.go);
+the queue fields read back (`isInMergeQueue`, `isMergeQueueEnabled`, `mergeQueueEntry`,
+`autoMergeRequest`), the
+[`PullRequest` GraphQL object](https://docs.github.com/en/graphql/reference/objects#pullrequest);
+why a PR leaves the queue, the first page's removal section; 2026-10-04. Recheck when a `gh`
+release changes how `gh pr merge` treats a queue base, or the GraphQL schema changes a queue field.
 
 ### Lane-pinned merge authorization: report, don't re-pin
 
@@ -790,7 +822,9 @@ auto-merge enabled earlier could merge before AI review posts. A fully ready PR 
 the same run, through §Async Merge Path. A base that requires a merge queue, and a stack layer, are
 never armed: they wait until fully ready and then enqueue or land. The gate's JSON reports `autoMerge.ready` and `autoMerge.blockers`; a successful
 arm exits `0` with `"action": "auto-merge"`, `autoMergeEnabled: true` and `merged: false`, so it
-is reported as armed, not merged, and the PR stays in the queue with its worktree kept. Nothing
+is reported as armed, not merged, and the PR stays in the queue with its worktree kept. An arm
+GitHub put straight into a merge queue the rules read missed reports `"action": "enqueue"`
+instead (§Async Merge Path, "A `gh pr merge` the queue took"). Nothing
 else enables auto-merge: not a Worker Contract subagent (`orchestration.md`), not a work-items
 worker lane, not a standalone invocation, not `/source-control:pull-request`. The `worker` tier
 name is unrelated: a lane-pinned invocation at that tier is the merge lane.

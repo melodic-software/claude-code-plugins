@@ -3,6 +3,12 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.4] - 2026-10-04
+
+### Fixed
+
+- The hook test suite unsets an inherited `CLAUDE_PLUGIN_DATA` before it runs. A suite started from a Bash call that holds another plugin's data directory no longer writes finding digests there, and cases that exercise the digest store still set their own sandbox ([#6072](https://github.com/melodic-software/claude-code-plugins/issues/6072)).
+
 ## [0.12.3] - 2026-10-03
 
 ### Fixed

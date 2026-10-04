@@ -105,6 +105,43 @@ else
   fail "failed install: rc=$RC installs=$(installs "$data") output=[$out]"
 fi
 
+# A handed-over child that dies at startup: the traceback's last line and a repair line, not the dump.
+root="$(new_plugin crash "$digest")"
+cat >"$root/scripts/pydeps.py" <<'EOF'
+import sys
+sys.stderr.write('Traceback (most recent call last):\n  File "pydeps.py", line 24, in <module>\n    import subprocess\n'
+                 "AttributeError: 'sys.flags' object has no attribute 'context_aware_warnings'\n")
+sys.exit(1)
+EOF
+data="$WORK/data-crash"
+run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")"
+out="$OUT"
+if [[ "$RC" -eq 0 && "$out" == *'"systemMessage"'* && "$out" == *'"additionalContext"'* &&
+  "$out" == *"the Python handover failed: AttributeError: 'sys.flags' object has no attribute 'context_aware_warnings'; repair with: "*"pydeps.py"*"install"*"--data-dir"* &&
+  "$out" != *Traceback* ]]; then
+  ok "a crashed handover surfaces the traceback's last line and a repair line, not the traceback"
+else
+  fail "crashed handover: rc=$RC output=[$out]"
+fi
+
+# The repair line is shell-quoted: a data directory with a space and a single quote re-parses to the same arguments.
+# The Git Bash and Cygwin branch prints a PowerShell line instead, which no POSIX shell re-parses.
+case "${OSTYPE:-}" in
+msys* | cygwin*) ;;
+*)
+  data="$WORK/data o'brien/x y"
+  run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$data"
+  out="$OUT"
+  repair="$("$py" -c 'import json, sys; print(json.loads(sys.stdin.read())["systemMessage"].split("repair with: ", 1)[1], end="")' <<<"$out")"
+  got="$(eval "set -- $repair" && printf '%s|%s|%s|%s|%s|%s' "$#" "$([[ -x "$1" ]] && echo exec)" "$2" "$3" "$4" "$5")"
+  if [[ "$got" == "5|exec|$root/scripts/pydeps.py|install|--data-dir|$data" ]]; then
+    ok "the repair line re-parses to the interpreter and a data directory holding a space and a single quote"
+  else
+    fail "repair line round-trip: repair=[$repair] got=[$got]"
+  fi
+  ;;
+esac
+
 # No data directory (a host that sets none): nothing to install into, no output.
 root="$(new_plugin nodata "$digest")"
 run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA=

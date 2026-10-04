@@ -3,6 +3,18 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.7] - 2026-10-04
+
+### Fixed
+
+- `git-branch-audit.sh` quotes the `pre-wipe` family key in the remote families summary, so a shfmt pass no longer respaces it into `pre - wipe` and reports a `pre-wipe` count of 0 ([#5791](https://github.com/melodic-software/claude-code-plugins/issues/5791)).
+
+## [0.19.6] - 2026-10-04
+
+### Fixed
+
+- **The read-only scan stays off the network ([#6039](https://github.com/melodic-software/claude-code-plugins/issues/6039)).** `scan.sh` no longer runs `git remote prune origin --dry-run`. `Git stale refs dry-run:` is `remote prune not measured`, including when `origin` is an unreachable SSH URL, and `clean-batch.sh --tier scan` does not open an SSH or credential prompt. `git ls-remote` (`git-branch-audit.sh --remote`), `git remote prune` (`git-prune.sh --apply`), and `git fetch` (`git-tree-reset.sh`) go through one helper that keeps the ssh command git would run (`GIT_SSH_COMMAND`, `core.sshCommand`, or `GIT_SSH`), turns prompts off, and reports a remote-unreachable result instead of waiting on one. Batch options follow git's ssh variant: OpenSSH gets `-o BatchMode=yes -o ConnectTimeout=5` ahead of any configured `-o`, so a configured `BatchMode=no` cannot win; Plink gets `-batch`; TortoisePlink and `simple` commands get nothing added. An explicit `ssh` variant (`GIT_SSH_VARIANT` or `ssh.variant`) gets the OpenSSH options without the `-G` probe, as git does. `context/git-branch-cleanup.md` names the remaining limits: git before v2.47 ignores `credential.interactive`, and `ConnectTimeout` bounds only ssh, not HTTPS.
+
 ## [0.19.5] - 2026-10-03
 
 ### Changed

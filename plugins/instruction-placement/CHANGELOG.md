@@ -3,6 +3,22 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.5] - 2026-10-04
+
+### Fixed
+
+- **`migrate` no longer treats a shim that only loads like `@AGENTS.md` as the finished target ([#5788](https://github.com/melodic-software/claude-code-plugins/issues/5788)).**
+  Beside a non-empty `AGENTS.md`, `plan-migration.sh` reported `@./AGENTS.md`, CRLF lines, or blank lines and whitespace around the import as `shim`. Apply does nothing for `shim`, so these files were never rewritten to the documented `@AGENTS.md`, and `remove-shims.sh` deleted them as finished.
+  The plan now reports them as `shim-noncanonical`, a new row in the Apply table that rewrites `CLAUDE.md` to exactly `@AGENTS.md`, and `remove-shims.sh` refuses them as not the target shape. A byte-exact `@AGENTS.md`, with or without its trailing newline, is still `shim`. This is the non-empty-`AGENTS.md` case of the 0.21.4 fix.
+
+## [0.21.4] - 2026-10-04
+
+### Fixed
+
+- **`migrate`'s plan no longer reports a shim over an empty `AGENTS.md` as `content-in-claude` ([#5788](https://github.com/melodic-software/claude-code-plugins/issues/5788)).**
+  A `CLAUDE.md` that is exactly `@AGENTS.md` beside a zero-byte or missing `AGENTS.md` took the content branch before the shim test ran, so Apply's table sent the operator into the full split sequence for a file that holds nothing.
+  `plan-migration.sh` now runs the shim test first and reports that case as `shim-empty-target`, a new row in the Apply table: nothing to move, ask whether the empty `AGENTS.md` is deliberate. `remove-shims.sh` still refuses it as an empty target. Only the exact target shape qualifies, one `@AGENTS.md` line with or without its trailing newline: a commented import, `@./AGENTS.md`, a repeated import or CRLF lines over an empty `AGENTS.md` stay `content-in-claude`, so Apply still rewrites them to the exact import.
+
 ## [0.21.3] - 2026-10-03
 
 ### Fixed

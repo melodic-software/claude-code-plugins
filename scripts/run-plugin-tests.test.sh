@@ -135,6 +135,28 @@ assert_output_has "the bad job count is named" "--jobs must be a positive intege
 PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 2 "an unknown flag prints usage" --root "$r" --parallel
 assert_output_has "usage names the flags" "usage: run-plugin-tests.sh [--strict-skips] [--jobs N] [--root DIR]"
 
+# A Bash-run caller can export another plugin's data directory. The runner
+# clears it before spawning, so the suite sees the variable unset.
+r="$(make_root plugin-data)"
+# The suite body is written literally: the $ must survive into the spawned script.
+# shellcheck disable=SC2016
+write_suite "$r" plugins/a/sees-unset.test.sh \
+  'if [[ -n "${CLAUDE_PLUGIN_DATA+x}" ]]; then printf "FAIL: CLAUDE_PLUGIN_DATA=%s\n" "$CLAUDE_PLUGIN_DATA" >&2; exit 1; fi; echo "ok: CLAUDE_PLUGIN_DATA unset"'
+plugin_data_was_set=0
+plugin_data_saved=""
+if [[ -n "${CLAUDE_PLUGIN_DATA+x}" ]]; then
+  plugin_data_was_set=1
+  plugin_data_saved="$CLAUDE_PLUGIN_DATA"
+fi
+export CLAUDE_PLUGIN_DATA="/x/codex-openai-codex"
+PLUGIN_TEST_SERIAL_LIST="$empty_list" run_runner 0 "a spawned suite sees an inherited CLAUDE_PLUGIN_DATA unset" --root "$r"
+assert_output_has "the suite reports CLAUDE_PLUGIN_DATA unset" "ok: CLAUDE_PLUGIN_DATA unset"
+if ((plugin_data_was_set)); then
+  export CLAUDE_PLUGIN_DATA="$plugin_data_saved"
+else
+  unset CLAUDE_PLUGIN_DATA
+fi
+
 # --- parallelism and the serial allowlist -------------------------------------
 #
 # Probe suites mark themselves running, pause, and record every OTHER marker
