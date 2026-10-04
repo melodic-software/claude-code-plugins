@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Explainer</title>
 <style>
-/* One reading column: the answer, then one picture per idea, then the words and the sources. */
+/* One reading column: the answer, then one diagram per idea, then the words and the sources.
+   Each diagram card holds a list for every kind; the builder fills one and the rest hide as empty. */
 :root {
   --bg: #f4f6f8;
   --surface: #ffffff;
@@ -64,6 +65,51 @@ code { font-family: var(--mono); font-size: 0.85em; overflow-wrap: anywhere; }
 .arrow { color: var(--accent); font-weight: 700; }
 .box { padding: 0.5rem 0.75rem; border: 1px solid var(--accent); border-radius: 6px; background: var(--box); }
 .stack .box { flex: 1 1 auto; }
+.hub { display: grid; grid-template-columns: minmax(0, 13rem) 1.5rem minmax(0, 1fr); align-items: center; }
+.hub:has(.hub-center:empty):has(.branches:empty) { display: none; }
+.hub-center { margin: 0; font-weight: 600; text-align: center; }
+.hub-link { border-top: 2px solid var(--accent); }
+.hub:has(.branches:empty) .hub-link { display: none; }
+.branches { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.branch { position: relative; display: flex; padding-left: 1.25rem; }
+.tick { position: absolute; left: 0; top: 50%; width: 1.25rem; border-top: 2px solid var(--accent); }
+.spine { position: absolute; left: 0; top: -0.25rem; bottom: -0.25rem; border-left: 2px solid var(--accent); }
+.branch:first-child .spine { top: 50%; }
+.branch:last-child .spine { bottom: 50%; }
+.branch:only-child .spine { display: none; }
+.timeline { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: max-content 1.25rem minmax(0, 1fr); column-gap: 0.75rem; }
+.timeline:empty { display: none; }
+.point { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; }
+.when { padding-block: 0.4rem; color: var(--accent); font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+.mark { position: relative; align-self: stretch; }
+.rail { position: absolute; left: calc(50% - 1px); top: 0; bottom: 0; border-left: 2px solid var(--line); }
+.dot { position: absolute; left: calc(50% - 6px); top: calc(50% - 6px); width: 12px; height: 12px; border-radius: 50%; background: var(--surface); border: 2px solid var(--accent); }
+.point:first-child .rail { top: 50%; }
+.point:last-child .rail { bottom: 50%; }
+.label { padding-block: 0.4rem; }
+.compare { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 0.75rem; }
+.compare:empty { display: none; }
+.column { display: grid; align-content: start; gap: 0.5rem; padding: 0.75rem; border: 1px solid var(--line); border-top: 3px solid var(--accent); border-radius: 6px; }
+.column h3 { margin: 0; font-size: 1rem; }
+.column h3:empty { display: none; }
+.items { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.items:empty { display: none; }
+.change { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 0.75rem; }
+.change:not(:has(li)) { display: none; }
+.side { display: grid; align-content: start; gap: 0.5rem; padding: 0.75rem; border: 1px dashed var(--line); border-radius: 6px; }
+.after-side { border: 1px solid var(--accent); }
+.side-name { margin: 0; color: var(--muted); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+.before-side .box { border-color: var(--line); background: transparent; color: var(--muted); }
+.change-arrow { font-size: 1.5rem; }
+@media (max-width: 34rem) {
+  .hub { grid-template-columns: minmax(0, 1fr); row-gap: 1rem; }
+  .hub-center { justify-self: start; }
+  .hub-link { display: none; }
+  .branches { margin-left: 1rem; }
+  .branch:first-child .spine { display: block; top: -1rem; }
+  .change { grid-template-columns: minmax(0, 1fr); }
+  .change-arrow { justify-self: center; transform: rotate(90deg); }
+}
 .caption { font-weight: 600; }
 .caption:empty { display: none; }
 .text { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; color: var(--muted); }
@@ -94,13 +140,17 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 <header>
 <h1 data-rv-text="title">Explainer</h1>
 <div class="lede" data-rv-each="summary"><p data-rv-text="line"></p></div>
-<p class="meta"><span data-rv-count="diagrams">0</span> pictures, one idea each.</p>
+<p class="meta"><span data-rv-count="diagrams">0</span> diagrams, one idea each.</p>
 </header>
 <ol class="pictures" data-rv-each="diagrams"><li class="picture">
 <h2 data-rv-text="heading"></h2>
 <ol class="flow" data-rv-each="flow"><li class="step"><span class="box" data-rv-text="step"></span><span class="arrow">→</span></li></ol>
 <ol class="flowcol" data-rv-each="flowcol"><li class="step"><span class="box" data-rv-text="step"></span><span class="arrow">↓</span></li></ol>
 <ol class="stack" data-rv-each="stack"><li class="step"><span class="arrow">↓</span><span class="box" data-rv-text="step"></span></li></ol>
+<div class="hub"><p class="box hub-center" data-rv-text="center"></p><span class="hub-link"></span><ul class="branches" data-rv-each="branches"><li class="branch"><span class="spine"></span><span class="tick"></span><span class="box" data-rv-text="branch"></span></li></ul></div>
+<ol class="timeline" data-rv-each="points"><li class="point"><span class="when" data-rv-text="when"></span><span class="mark"><span class="rail"></span><span class="dot"></span></span><span class="label" data-rv-text="label"></span></li></ol>
+<ol class="compare" data-rv-each="columns"><li class="column"><h3 data-rv-text="heading"></h3><ul class="items" data-rv-each="items"><li class="box" data-rv-text="item"></li></ul></li></ol>
+<div class="change"><div class="side before-side"><p class="side-name">Before</p><ul class="items" data-rv-each="before"><li class="box" data-rv-text="item"></li></ul></div><span class="arrow change-arrow">→</span><div class="side after-side"><p class="side-name">After</p><ul class="items" data-rv-each="after"><li class="box" data-rv-text="item"></li></ul></div></div>
 <p class="caption" data-rv-text="caption"></p>
 <ul class="text" data-rv-each="text"><li data-rv-text="line"></li></ul>
 <label class="unclear"><input type="checkbox" data-rv-pick="">Still unclear</label>
@@ -116,7 +166,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 </details>
 <section class="reply">
 <h2>Ask about what is still unclear</h2>
-<label for="question">Tick each picture that is still unclear, and add a question if you have one.</label>
+<label for="question">Tick each diagram that is still unclear, and add a question if you have one.</label>
 <textarea id="question" data-rv-note="question" placeholder="What I still do not get"></textarea>
 <div class="actions">
 <button type="button" data-rv-copy="illustrate">Copy reply</button>
