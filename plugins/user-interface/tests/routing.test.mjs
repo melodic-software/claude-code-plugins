@@ -75,6 +75,7 @@ test("every repo-skill row names a skill that exists here, by its own id", () =>
   for (const r of repoRows) {
     const [, plugin, skill] = r.pointer.match(REPO_SKILL);
     assert.equal(r.id, `${plugin}:${skill}`);
+    assert.equal(r.detect, `${plugin}@melodic-software`);
     assert.ok(existsSync(join(REPO, "plugins", plugin, "skills", skill, "SKILL.md")), `${r.id} not found`);
   }
 });
