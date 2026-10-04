@@ -15,7 +15,11 @@ All notable changes to the `performance` plugin are documented here. Format foll
   report, holds the per-worktree lock, records adoptions and re-measures against stored baselines.
   `ci-timing` and `pr-timing` compute GitHub Actions and pull request timings in memory, so no
   `gh` output is ever saved. A citation must be re-read in the run that cites it, and every
-  denied write exits 3.
+  denied write exits 3. Outside text is kept inert: CI job and step names leave as bounded code
+  spans, each report line stays one line, repeated commands are shown with secrets redacted, and
+  `permission-counts` reads settings files so the sweeper never does. A `now` finding must state
+  `confidence: HIGH` and an `effect`, any `effect` must be a named one, and a change that loosens a
+  guard is flag-only.
 - **`untracked-cache-probe.sh`**: tests git's untracked cache in a temporary directory on the
   repository's volume, never in the repository itself.
 - Evals: `skills/go-faster/evals/evals.json`, plus `claude plugin eval` cases that resume a

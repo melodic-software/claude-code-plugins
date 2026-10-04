@@ -54,10 +54,12 @@ Each entry gives:
 - **Which gh account.** Every gh call below inherits the caller's `GH_CONFIG_DIR`. Only when the
   caller's environment does not set it and the repository's own instructions (the CLAUDE.md or
   AGENTS.md this session loaded) name a value for this repository, pass that value on the
-  `gh repo view` probe and the `ci-timing` and `pr-timing` calls, and record it as
+  `gh repo view` probe and the `ci-timing` and `pr-timing` calls as a single-quoted prefix,
+  `GH_CONFIG_DIR='<value>' ...`, and record it as
   `gh_config_dir` in each GitHub finding's `conditions` (in the reason of a `not-checked` one).
-  Never choose an account directory any other way. A gh failure either way is the `auth-gap`
-  below.
+  Never choose an account directory any other way, and never use a named value that holds a
+  quote, `$`, a backtick or a line break: treat it as unset. A gh failure either way is the
+  `auth-gap` below.
 - **One GitHub probe.** Before the first of `ci-cd`, `gates`, `pr-review` and `tests`, run
   `gh repo view --json nameWithOwner --jq .nameWithOwner` once, with `GH_CONFIG_DIR` as the rule
   above sets it. It prints `OWNER/REPO` for `ci-timing --repo` below. On failure all four areas
@@ -206,10 +208,13 @@ them live when a command's output, or the files you find, do not match the entry
 - **Source**: the permission rules in the settings files this run can read: the project's
   `.claude/settings.json` and `.claude/settings.local.json`, and the user's `settings.json` under
   `${CLAUDE_CONFIG_DIR:-$HOME/.claude}`. Outside Windows, in a git repository, the local file
-  sits at the repository root (the main checkout's root in a worktree); Read it there by path.
-  Read only; a file your
-  permissions refuse is listed as unread.
-- **Run**: Read each file and count the entries in `permissions.ask` and `permissions.deny`.
+  sits at the repository root (the main checkout's root in a worktree).
+  Settings files can hold tokens in `env`, so never Read them; findings.py reads them and prints
+  only counts.
+- **Run**: `"$PY" "$ROOT/scripts/findings.py" permission-counts --file <path> --file <path> ...`
+  with each file's path. It prints, per file, `status` (`read`, `missing`, `invalid` or
+  `unreadable`) and, when read, the `ask` and `deny` rule counts. A file not `read` is listed as
+  unread.
 - **Owner**: none.
 - **Record**: one `flag-only` finding per scope that has ask or deny rules: title
   "<n> ask and <m> deny rules in <scope>", reason "a permission rule that asks or denies is a
@@ -399,7 +404,7 @@ them live when a command's output, or the files you find, do not match the entry
   `repeated_commands` and each file in `repeated_reads` (unit `count`), and any tool whose
   `errors` exceed one (unit `count`). A repeat whose cure changes only how this session works
   (reuse the earlier output while its inputs are unchanged) is horizon `now`, effect `batching`,
-  with `guard_metric` "a reused result differs from a fresh run" and `revert_if` "the inputs
+  confidence `HIGH` (a direct count), with `guard_metric` "a reused result differs from a fresh run" and `revert_if` "the inputs
   changed since the earlier run". Everything else is `later`.
 - **Not checked**: `TRANSCRIPT` `none` and `SESSION` `unknown`: `no-data`, reason "no transcript
   found for session unknown: the session id did not expand; this area reads only the live

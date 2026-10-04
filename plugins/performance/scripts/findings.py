@@ -24,6 +24,9 @@ folder passed as a literal argument. Subcommands:
                                         step, test steps and re-runs as JSON
     pr-timing [--limit N]               list N merged PRs (default 20), print open to first
                                         review, open to merge and PR size as JSON
+    permission-counts --file <path>...  per settings file: status (read, missing, invalid or
+                                        unreadable) and, when read, its ask and deny rule counts;
+                                        nothing else from the file is printed
 
 A run's date is the UTC date of the started_at that run-start writes: a citation is outside advice
 re-read in this run, so add, finish, validate and adopt refuse one with any other as_of. A findings
@@ -36,14 +39,19 @@ and command, the gh line(s) to cite; value is null when samples is 0, and exclud
 items left out because a timestamp it needs is missing or unparseable. Skipped jobs and steps
 count toward no queue wait or step duration. Median: the middle of the sorted samples; with an
 even count, the mean of the two middle ones. A gh call that fails, is missing, or prints
-something other than JSON exits 1 with one line naming the call.
+something other than JSON exits 1 with one line naming the call. A job or step name is the
+repository's own text, a fork's included, so it leaves as one code span of at most 60 characters,
+whitespace collapsed and backticks turned to quotes.
 
 transcript-counts describes the session's work before the latest go-faster invocation (the slash
 command, or a Skill call to go-faster), never the invocation's own setup calls: per-tool calls,
 errors and wait_ms, repeated_reads, repeated_commands, skills, tokens, typed_turns, elapsed_ms
 (first to last record before the invocation) and subagents (those started before it). A tool call
 made before the invocation keeps its wait even when its result lands after it. With no invocation,
-everything counts. records and bad_lines count the whole file.
+everything counts. records and bad_lines count the whole file. A repeated command is keyed by its
+full text but shown with secret-shaped values (Authorization headers, token or password variables
+and flags, URL credentials, known token prefixes) replaced by *** and cut to 60 characters; a shown
+text that differs from the command ends in " #" and the first 8 hex digits of its SHA-256.
 
 Field names are the finding record in agents/go-faster-sweeper.md. Exit 0 is success, 1 a refusal
 the caller acts on (an invalid finding, a held lock, a failed gh call), 2 a usage or input error,
@@ -54,6 +62,7 @@ cannot write <path>: <error>).
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -102,6 +111,16 @@ ROUTES = ("performance-chain", "next-run")
 CONFIDENCES = ("HIGH", "MEDIUM", "LOW", "judgment")
 SOURCE_KINDS = ("session-count", "repo-count", "cited")
 LOWERING = ("lower-verification", "lower-effort", "lower-model")
+EFFECTS = (
+    "none",
+    "fewer-checks",
+    "drops-check",
+    *LOWERING,
+    "loosens-guard",
+    "delegation",
+    "parallelism",
+    "batching",
+)
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 OVERENGINEERING = "/overengineering:audit"
 
@@ -175,6 +194,8 @@ def finding_errors(f: dict, run_day: str | None = None) -> list[str]:
             "fix_steps required",
         )
     effect = f.get("effect")
+    if effect is not None:
+        need(effect in EFFECTS, f"effect must be one of {', '.join(EFFECTS)}")
     if effect in ("fewer-checks", "drops-check"):
         need(
             isinstance(f.get("guard_metric"), str) and f["guard_metric"],
@@ -185,6 +206,8 @@ def finding_errors(f: dict, run_day: str | None = None) -> list[str]:
             f.get("fix_owner") == OVERENGINEERING,
             f"drops-check findings route to {OVERENGINEERING}",
         )
+    if effect == "loosens-guard":
+        need(status == "flag-only", "loosens-guard is flag-only")
     if f.get("horizon") == "now" and status != "flag-only":
         need(status == "measured", "horizon now needs a measured finding")
         need(f.get("tier") in ("E1", "E2"), "horizon now needs tier E1 or E2")
@@ -196,8 +219,12 @@ def finding_errors(f: dict, run_day: str | None = None) -> list[str]:
             isinstance(f.get("revert_if"), str) and f["revert_if"],
             "horizon now needs revert_if",
         )
-        confidence = f.get("confidence", "HIGH")
-        need(confidence == "HIGH", f"horizon now cannot rest on a {confidence} row")
+        confidence = f.get("confidence")
+        if confidence is None:
+            need(False, "horizon now needs confidence HIGH")
+        else:
+            need(confidence == "HIGH", f"horizon now cannot rest on a {confidence} row")
+        need(isinstance(effect, str) and effect, "horizon now needs an effect")
         need(effect not in LOWERING, f"{effect} is flag-only")
         need(
             effect != "drops-check",
@@ -320,6 +347,14 @@ HEADINGS = {
 }
 
 
+LINE_BREAKS = re.compile(r"\s*[\n\r\v\f\x1c-\x1e\x85  ]+\s*")
+
+
+def one_line(text: str) -> str:
+    """A finding's report line: text from outside (titles, reasons) cannot open a heading."""
+    return LINE_BREAKS.sub(" ", text)
+
+
 def owner(f: dict) -> str:
     if f.get("fix_owner") == "steps-for-you":
         return "steps for you: " + "; ".join(f.get("fix_steps") or [])
@@ -359,7 +394,7 @@ def render(doc: dict) -> str:
         if heading != current:
             out += ["", f"## {heading}", ""]
             current = heading
-        out.append(line_for(f))
+        out.append(one_line(line_for(f)))
     now = [
         f
         for f in doc["findings"]
@@ -375,7 +410,9 @@ def render(doc: dict) -> str:
         ]
         for f in now:
             out.append(
-                f"- `{f['id']}` {f['title']}. Guard: {f['guard_metric']}. Revert if: {f['revert_if']}."
+                one_line(
+                    f"- `{f['id']}` {f['title']}. Guard: {f['guard_metric']}. Revert if: {f['revert_if']}."
+                )
             )
     return "\n".join(out) + "\n"
 
@@ -702,6 +739,53 @@ def parse_ts(value: object) -> float | None:
         return None
 
 
+SHOWN_MAX = 60
+VALUE = r"""("[^"]*"|'[^']*'|\S+)"""
+SECRETS = (
+    (re.compile(r"(?i)(authorization:\s*)[^\"'\n]*"), r"\1***"),
+    (
+        re.compile(
+            r"(?i)\b([A-Z0-9_]*(?:TOKEN|SECRET|PASSW(?:OR)?D|API_?KEY|CREDENTIAL)[A-Z0-9_]*=)"
+            + VALUE
+        ),
+        r"\1***",
+    ),
+    (
+        re.compile(
+            r"(?i)(--?(?:password|passwd|token|secret|api-?key|auth)(?:=|\s+))" + VALUE
+        ),
+        r"\1***",
+    ),
+    (re.compile(r"(\w+://)[^/\s@]+@"), r"\1***@"),
+    (
+        re.compile(
+            r"\b(?:gh[pousr]_\w{10,}|github_pat_\w+|sk-[\w-]{16,}|xox[abprs]-[\w-]+|AKIA[0-9A-Z]{16})"
+        ),
+        "***",
+    ),
+)
+
+
+def cut(text: str) -> str:
+    return text if len(text) <= SHOWN_MAX else text[: SHOWN_MAX - 3] + "..."
+
+
+def shown_command(command: str) -> str:
+    """A repeated command as reports show it: secrets redacted, cut, tagged when either applied."""
+    shown = command
+    for pattern, replacement in SECRETS:
+        shown = pattern.sub(replacement, shown)
+    shown = cut(shown)
+    if shown == command:
+        return command
+    return f"{shown} #{hashlib.sha256(command.encode('utf-8')).hexdigest()[:8]}"
+
+
+def code_span(name: object) -> str:
+    """Outside text (a CI job or step name) as one inert code span."""
+    return f"`{cut(' '.join(str(name).split()).replace('`', chr(39)))}`"
+
+
 def transcript_counts(path: Path) -> dict:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
     sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
@@ -785,7 +869,9 @@ def transcript_counts(path: Path) -> dict:
         "tokens": ledger.totals(),
         "tools": tools,
         "repeated_reads": {k: v for k, v in reads.items() if v > 1},
-        "repeated_commands": {k: v for k, v in commands.items() if v > 1},
+        "repeated_commands": {
+            shown_command(k): v for k, v in commands.items() if v > 1
+        },
         "skills": skills,
         "subagents": sum(started_before_cut(s.path) for s in tr.iter_subagents(path)),
     }
@@ -1044,8 +1130,8 @@ def ci_timing(repo: str, runs: int, job_runs: int) -> dict:
             by_step.items(), key=lambda kv: (-(median(kv[1]) or 0), kv[0])
         )
         slowest = {
-            "job": job_name,
-            "step": step_name,
+            "job": code_span(job_name),
+            "step": code_span(step_name),
             **stat(took, "elapsed-ms", jobs_cite, no_step),
         }
     reruns = [
@@ -1136,6 +1222,32 @@ def cmd_pr_timing(args: argparse.Namespace) -> int:
     return 0
 
 
+def permission_counts(name: str) -> dict:
+    path = Path(name)
+    if not path.exists():
+        return {"file": name, "status": "missing"}
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return {"file": name, "status": "unreadable"}
+    try:
+        doc = json.loads(text)
+    except ValueError:
+        return {"file": name, "status": "invalid"}
+    rules = doc.get("permissions", {}) if isinstance(doc, dict) else None
+    if not isinstance(rules, dict):
+        return {"file": name, "status": "invalid"}
+    count = {
+        k: len(v) if isinstance(v := rules.get(k), list) else 0 for k in ("ask", "deny")
+    }
+    return {"file": name, "status": "read", **count}
+
+
+def cmd_permission_counts(args: argparse.Namespace) -> int:
+    print(json.dumps({"files": [permission_counts(f) for f in args.file]}, indent=2))
+    return 0
+
+
 def main() -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(newline="\n", encoding="utf-8")  # type: ignore[union-attr]
@@ -1197,6 +1309,9 @@ def main() -> int:
     p = sub.add_parser("pr-timing")
     p.add_argument("--limit", type=int, default=20)
     p.set_defaults(fn=cmd_pr_timing)
+    p = sub.add_parser("permission-counts")
+    p.add_argument("--file", action="append", required=True)
+    p.set_defaults(fn=cmd_permission_counts)
     p = sub.add_parser("lint-catalog")
     p.add_argument("paths", nargs="+")
     p.set_defaults(fn=cmd_lint_catalog)
