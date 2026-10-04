@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.15] - 2026-10-04
+
+### Fixed
+
+- The Bash route of the test-scan hook no longer scans or records a test file that git reports unchanged from HEAD when git last moved HEAD with a checkout, pull, merge, reset, rebase, cherry-pick or clone (line-ending conversion is applied as `git diff` applies it), so the test judge no longer reviews tests the session did not write at the next Stop. A test edited and committed in one Bash call is still recorded. Files git brought in no longer take the four scan slots from a test the same call wrote, and the per-file scan time is what the git checks leave of the hook's budget. The file's repository is found from either path separator. A test edited, committed and then followed by a checkout, pull or merge in one Bash call is still skipped ([#6016](https://github.com/melodic-software/claude-code-plugins/issues/6016)).
+
 ## [0.22.14] - 2026-10-04
 
 ### Changed
