@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.3] - 2026-10-04
+
+### Fixed
+
+- `/skill-quality:check listing-budget` reports the configured listing budget when run with `--from-settings` (#6261).
+
 ## [0.28.2] - 2026-10-04
 
 ### Changed

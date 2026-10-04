@@ -3,6 +3,19 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.11] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The `test-scan-bash` row starts the launcher with `--skip-unless-stdin-contains bashEditDiff`, so a Bash payload with no change diff starts node only (#6253). The shared `exec-bash.mjs` launcher copy gains that flag and `--skip-if-all-false`; no other testing row uses `--skip-if-all-false` (#6252).
+
+### Fixed
+
+- The `test-judge.test.sh` link fixtures now run only when a real native symlink can be made, so cleanup of a self-nesting tree can no longer spin (#6248).
+- The link cases fail, not skip, when the native-link probe fails in CI (#6248).
+- The judge test helper runs `jq` with MSYS path conversion off on each call, so the Stop path hashes the project key the recorder wrote on Windows (#6266).
+
 ## [0.22.10] - 2026-10-04
 
 ### Fixed

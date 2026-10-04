@@ -7,6 +7,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.9.6] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+
+### Fixed
+
+- `/context-budget:audit` now parses a headless `/context` table that has no `System tools` row (#6260).
+
 ## [0.9.5] - 2026-10-04
 
 ### Changed
