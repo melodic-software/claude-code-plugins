@@ -20,7 +20,8 @@
 # under the system temp directory or a Claude session scratchpad
 # (testing::record_skip) is dropped here, so it is neither scanned nor
 # recorded. On a Write or Edit test-scan.sh still scans such a copy and only
-# leaves no record.
+# leaves no record. A path byte-identical to its HEAD blob (matches_head) is
+# dropped the same way: a checkout, pull or merge brought it in.
 #
 # test-scan.sh's own stderr (a scanner that failed or timed out) passes
 # through, as on the Write and Edit route.
@@ -70,6 +71,34 @@ done < <(printf '%s' "$INPUT" | jq -r --slurpfile h "$HOOK_DIR/hooks.json" '
 ((${#paths[@]})) || exit 0
 # ponytail: test files past the cap are not scanned; raise it with the hook timeout.
 paths=("${paths[@]:0:MAX_FILES}")
+
+# matches_head <path>: true when the file is byte-identical to its blob at HEAD
+# in the file's own repository, as after a checkout, pull or merge that brought
+# it in. The directory is taken at either separator, since a Windows payload
+# path may use only backslashes. No HEAD blob (untracked, new, unborn HEAD, no
+# repository) is false, so the file is still scanned and recorded.
+# Known false negative: a test written and committed in the same Bash call
+# matches HEAD afterwards and is skipped.
+matches_head() {
+  local c d="" base blob work cands=("$1")
+  [[ "$1" == *\\* ]] && cands=("${1//\\//}" "$1")
+  for c in "${cands[@]}"; do
+    [[ "$c" == */* ]] || continue
+    [[ -d "${c%/*}/" ]] && d="${c%/*}/" base="${c##*/}" && break
+  done
+  [[ -n "$d" ]] || return 1
+  blob="$(unset GIT_DIR GIT_WORK_TREE && git -C "$d" rev-parse --verify -q "HEAD:./$base" 2>/dev/null)" || return 1
+  work="$(unset GIT_DIR GIT_WORK_TREE && git -C "$d" hash-object -- "$base" 2>/dev/null)" || return 1
+  [[ "${blob%$'\r'}" == "${work%$'\r'}" ]]
+}
+# A file identical to HEAD is not the session's work: it is neither recorded
+# for the judge nor scanned, so its findings are not put to the agent either.
+kept=()
+for p in "${paths[@]}"; do
+  matches_head "$p" || kept+=("$p")
+done
+((${#kept[@]})) || exit 0
+paths=("${kept[@]}")
 
 export TEST_SCAN_TIMEOUT="${TEST_SCAN_TIMEOUT:-$((8 / ${#paths[@]}))}"
 docs=()

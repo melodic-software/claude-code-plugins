@@ -494,6 +494,32 @@ bash_run bs-4 "$two"
 check_two="$(rec sb bs-4-1) $(rec sb bs-4-2)"
 if [[ "$check_two" == *"/sb/bs-4-1.json "*"/sb/bs-4-2.json" ]]; then ok "Bash state: two test files in one call leave two records"; else fail "Bash state: two test files in one call leave two records ($check_two)"; fi
 
+# A test file a checkout, pull or merge brought in is byte-identical to its
+# blob at HEAD in its own repository: the session did not write it, so it is
+# neither scanned nor recorded. One the call changed, or one HEAD lacks, is.
+HR="$TMP/headrepo"
+mkdir -p "$HR/src"
+git -C "$HR" init -q
+cp "$REPO/src/sum.test.ts" "$HR/src/kept.test.ts"
+cp "$REPO/src/sum.test.ts" "$HR/src/also.test.ts"
+git -C "$HR" add -A
+git -C "$HR" -c commit.gpgsign=false -c user.name=t -c user.email=t@t commit -qm init
+bash_run hd-1 "$(diff_of edit "$HR/src/kept.test.ts" "$ADD_ALL")"
+assert_empty "Bash HEAD: a test file identical to HEAD is not scanned" "$out"
+assert_empty "Bash HEAD: a test file identical to HEAD leaves no record" "$(rec sb hd-1-1)"
+printf '%s\n' "test('more', () => {" "  sum(2, 2);" "});" >>"$HR/src/kept.test.ts"
+bash_run hd-2 "$(diff_of edit "$HR/src/kept.test.ts" "$ADD_ALL")"
+assert_contains "Bash HEAD: an edited tracked test file is recorded" "$(rec sb hd-2-1)" "/sb/hd-2-1.json"
+cp "$REPO/src/sum.test.ts" "$HR/src/fresh.test.ts"
+bash_run hd-3 "$(diff_of created "$HR/src/fresh.test.ts" "$ADD_ALL")"
+assert_contains "Bash HEAD: an untracked new test file is recorded" "$(rec sb hd-3-1)" "/sb/hd-3-1.json"
+# The repository is the file's own, found at either separator: a
+# backslash-only path (a Windows path) to a file identical to HEAD stays quiet.
+if command -v cygpath >/dev/null; then BS="$(cygpath -w "$HR/src/also.test.ts")"; else BS="${HR//\//\\}\\src\\also.test.ts"; fi
+out="$(bash_payload hd-4 "$(diff_of edit "$BS" "$ADD_ALL")" | bash "$BASH_HOOK" 2>&1)"
+assert_empty "Bash HEAD: a backslash path to a file identical to HEAD is not scanned" "$out"
+assert_empty "Bash HEAD: a backslash path to a file identical to HEAD leaves no record" "$(rec sb hd-4-1)"
+
 # A working copy under the temp root, or in a Claude session scratchpad, is
 # not a test the session authored: no judge record (#6037). The skip root is
 # injectable so the fixtures above still record.
