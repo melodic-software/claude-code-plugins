@@ -408,7 +408,7 @@ were reused and how many re-ran. It also confirms the run added zero new interac
 abort, not an interactive gate, since it prompts nobody and blocks nothing mid-run). Present findings
 as a table. Each row's identity is `(check, claim, sites)` per
 [reference/finding-identity.md](reference/finding-identity.md); presentation fields stay outside the
-hash. An I15 conflict is one finding with two sites and one Finding ID. **Finding ID** is the row's
+hash. An I15 or I39 conflict is one finding with two sites and one Finding ID. **Finding ID** is the row's
 re-run-stable `finding_id/v1` from `scripts/finding-ids.sh` ([derivation and claim
 templates](reference/finding-identity.md)); a refused row reads `unidentified: <reason>` there.
 
@@ -425,7 +425,7 @@ its own finding with its own excerpt anchor.
 
 For each finding, give the proposed removal or rewrite as a fenced diff block. Tier is `mechanical`
 (pattern-detectable) or `behavioral` (its ground truth is observed behavior); authority is the
-check's tag from the catalog. An I15 conflict finding names **both** participating locations, since it is
+check's tag from the catalog. An I15 or I39 conflict finding names **both** participating locations, since it is
 a relation between two instructions, not a property of one line.
 
 **No-change findings are exempt from the diff contract.** Where a check forbids proposing an edit,

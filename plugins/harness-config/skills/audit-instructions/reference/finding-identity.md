@@ -18,9 +18,9 @@ identity = (check, claim, sites)
 - **`claim`** is the template below for that id, verbatim. A template carries no bound parameters
   today, so the claim id is the whole template. Free prose in `claim` is a hard error.
 - **`sites`** is one `(surface, anchor)` pair per finding. A check that fires at several sites
-  reports one finding per site, all sharing one `group`. **I15 is the one pairwise claim**: a
-  cross-surface conflict is one finding with two sites, never two linked findings, and the order the
-  lane met the two surfaces in does not change its id.
+  reports one finding per site, all sharing one `group`. **I15 and I39 are the pairwise claims**: a
+  conflict is one finding with two sites, never two linked findings, and the order the lane met the
+  two sites in does not change its id.
 - **`surface`** is the repo-relative POSIX path of the physical file, or `user:<path under the home
   directory>` for a user-scope surface. Under the home directory only an instruction file is a
   surface: a markdown file, or, inside a `.claude` tree or the resolved
@@ -46,11 +46,11 @@ printf '%s\n' 'reference/spoke.md:3:I33' 'a.md:4|b.md:9|I15' |
   bash "<scripts-dir>/finding-ids.sh"
 ```
 
-A single-site row is `<path>:<line>:<id>`; the pairwise row is `<pathA>:<lineA>|<pathB>:<lineB>|I15`.
+A single-site row is `<path>:<line>:<id>`; the pairwise row is `<pathA>:<lineA>|<pathB>:<lineB>|<id>`, for I15 or I39.
 Each output line is the input row, then `finding_id/v1`, then `group/v1`, then one `surface=anchor`
 field per site, tab-separated. `--records` prints the same finding as a JSON record that
 `finding-identity.sh validate-record` accepts. A row the script cannot identify (an id with no
-template, a pairwise row for a check that is not I15, a surface outside the repository and the home
+template, a pairwise row for a check that is not I15 or I39, a surface outside the repository and the home
 directory, a file under the home directory that is not an instruction file, an unreadable line)
 prints `#REFUSED`, the row, and the reason, and is never given an id.
 
@@ -106,7 +106,7 @@ prints `#REFUSED`, the row, and the reason, and is never given an id.
 | I36 | `I36.tool-discouraging-language` | 1 |
 | I37 | `I37.harness-text-after-every-tool-result` | 1 |
 | I38 | `I38.progress-update-suppressor` | 1 |
-| I39 | `I39.same-file-contradiction` | 1 |
+| I39 | `I39.same-file-contradiction` | 2 |
 
 A new catalog check lands here and in `scripts/finding-ids.sh` in the same change;
 `scripts/finding-ids.test.sh` fails when the two tables or the catalog's check headings disagree.

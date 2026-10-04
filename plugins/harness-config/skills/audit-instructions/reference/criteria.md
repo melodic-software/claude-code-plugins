@@ -2363,8 +2363,8 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 - **Remediate:** quote both lines. Propose keeping one and removing or rewording the other where the
   surface's own text shows which is current; otherwise report the pair as `unresolved` and say what
   the operator has to decide.
-- **Reporting:** one finding per pair, anchored on the earlier line. I39 is lane-only (no pre-scan
-  seed); each lane brief restates the Must NOT flag fences above.
+- **Reporting:** one finding per pair, with both lines as its two sites, the pairwise row I15 uses.
+  I39 is lane-only (no pre-scan seed); each lane brief restates the Must NOT flag fences above.
 - **Source:** memory, "Write effective instructions", its consistency guidance (contradicting
   instructions and an arbitrary pick), which names no same-file limit. Pointer: [memory: write
   effective

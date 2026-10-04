@@ -7,7 +7,7 @@
 # Reads rows from FILE, or stdin when FILE is absent:
 #
 #   <path>:<line>:<check-id>                      one site
-#   <pathA>:<lineA>|<pathB>:<lineB>|I15           the one pairwise claim
+#   <pathA>:<lineA>|<pathB>:<lineB>|<I15|I39>     the two pairwise claims
 #
 # and prints, per row, tab-separated:
 #
@@ -25,7 +25,7 @@
 # never contribute a heading; a line inside a fence is anchored --in-fence.
 #
 # A row it cannot identify prints `#REFUSED<TAB><row><TAB><reason>` and gets no
-# id: an id with no claim template, a pairwise row for any check but I15, a
+# id: an id with no claim template, a pairwise row for any check but I15 or I39, a
 # surface outside both the repository and the home directory, a file under the
 # home directory that is not an instruction file (see instruction_shape), a line
 # past EOF or blank. Refusals never change the exit code, so a caller counts them.
@@ -347,12 +347,12 @@ process_row() {
     refuse "$row" "no-claim-template"
     return
   }
-  if [[ "$pairwise" -eq 1 && "$id" != "I15" ]]; then
+  if [[ "$pairwise" -eq 1 && "$id" != "I15" && "$id" != "I39" ]]; then
     refuse "$row" "pairwise-row-for-a-single-site-claim"
     return
   fi
-  if [[ "$pairwise" -eq 0 && "$id" == "I15" ]]; then
-    refuse "$row" "I15-requires-two-sites"
+  if [[ "$pairwise" -eq 0 && ("$id" == "I15" || "$id" == "I39") ]]; then
+    refuse "$row" "$id-requires-two-sites"
     return
   fi
 

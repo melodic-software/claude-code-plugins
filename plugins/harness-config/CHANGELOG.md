@@ -16,7 +16,8 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   that contradict each other with nothing arbitrating, on the memory page's consistency guidance;
   I15 keeps its cross-surface unit unchanged. `instruction-scan.sh` seeds I38 and adds scratchpad
   phrasing to I10 (a `<scratchpad>` tag, or a scratchpad paired with working a problem out, never a
-  scratchpad storage path). I39 is lane-only. Two eval cases and a fixture cover each row firing
+  scratchpad storage path). I39 is lane-only and, like I15, one
+  finding with two sites, so a change to either line changes its id. Two eval cases and a fixture cover each row firing
   and staying quiet ([#5772](https://github.com/melodic-software/claude-code-plugins/issues/5772)).
 
 ## [1.8.1] - 2026-10-04
