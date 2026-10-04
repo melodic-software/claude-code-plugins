@@ -120,6 +120,7 @@
       "additionalProperties": false,
       "required": ["effect", "gating", "reads-untrusted"],
       "oneOf": [{ "required": ["skill"] }, { "required": ["script"] }],
+      "dependentRequired": { "args": ["skill"] },
       "properties": {
         "skill": { "$ref": "#/$defs/skill" },
         "args": {
