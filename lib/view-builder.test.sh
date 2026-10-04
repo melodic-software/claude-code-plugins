@@ -5,7 +5,8 @@
 # generated per-plugin copies. When a Chrome or
 # Chromium binary is found (CHROME, google-chrome, chromium, or Playwright's
 # headless shell) the built pages are also opened from file:// to prove the
-# runtime runs under the page's policy and hostile data stays text.
+# runtime runs under the page's policy and hostile data stays text, and served
+# over http to prove the download button stays only on file:// and 127.0.0.1.
 #
 #   bash lib/view-builder.test.sh
 #
@@ -46,7 +47,7 @@ trap 'rm -rf "$work"' EXIT
 node --input-type=module - "$REPO_ROOT" "$work" "$chrome" <<'NODE'
 import { readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 const [root, work, chrome] = process.argv.slice(2);
@@ -337,6 +338,8 @@ check(
 );
 check("the only href the runtime sets is the blob: object URL", (code.match(/\.href\s*=/g) ?? []).length === 1 && /anchor\.href = url;/.test(code) && /const url = URL\.createObjectURL\(/.test(code)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 check("the runtime writes data only through textContent", !/\.(innerText|value)\s*=\s*text/.test(code)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+// A blocked download raises no error and fires no event, so no status may claim the file was saved.
+check("the runtime never says it saved a file", !runtime.includes("Saved the file"));
 
 // ------------------------------------------------------ element list parity
 // The validator's FORM_CONTROLS and UNBINDABLE and the runtime's UNBOUND name the
@@ -372,18 +375,46 @@ check("the copy inlines its own runtime copy", copyPage.includes("GENERATED from
 if (!chrome) {
   console.log("SKIP: browser check, no Chrome or Chromium found (set CHROME to run it)");
 } else {
+  const load = (url) =>
+    spawnSync(chrome, ["--headless", "--no-sandbox", "--disable-gpu", "--dump-dom", url], { encoding: "utf8", timeout: 60000 }).stdout ?? "";
   const dump = (html, name) => {
     const file = `${work}/${name}.html`;
     writeFileSync(file, html);
-    const run = spawnSync(chrome, ["--headless", "--no-sandbox", "--disable-gpu", "--dump-dom", pathToFileURL(file).href], {
-      encoding: "utf8",
-      timeout: 60000,
-    });
-    return run.stdout ?? "";
+    return load(pathToFileURL(file).href);
   };
   const good = dump(page, "sample");
   check("browser: the runtime runs under the page's policy from file://", good.includes('class="rv-ready"'), good.slice(0, 200));
   check("browser: list rows render with builder ids", good.includes('id="findings-3"') && good.includes('id="findings-1-evidence-2"'));
+  check("browser: a page from file:// keeps its download button", good.includes('data-rv-download="triage"'));
+
+  // The server runs in its own process: spawnSync blocks this one's event loop while Chrome loads.
+  const server = spawn(
+    process.execPath,
+    [
+      "-e",
+      `const http = require("node:http"); const { readFileSync } = require("node:fs"); const { basename } = require("node:path");
+       const s = http.createServer((req, res) => {
+         try { res.writeHead(200, { "Content-Type": "text/html" }).end(readFileSync(process.argv[1] + "/" + basename(req.url))); }
+         catch { res.writeHead(404).end(); }
+       });
+       s.listen(0, "127.0.0.1", () => console.log(s.address().port));`,
+      work,
+    ],
+    { stdio: ["ignore", "pipe", "inherit"] },
+  );
+  try {
+    const port = await new Promise((resolve, reject) => {
+      server.stdout.once("data", (chunk) => resolve(Number(String(chunk).trim())));
+      server.once("exit", () => reject(new Error("the page server exited before listening")));
+    });
+    const elsewhere = load(`http://localhost:${port}/sample.html`);
+    check("browser: a page served from another origin still runs", elsewhere.includes('class="rv-ready"'), elsewhere.slice(0, 200));
+    check("browser: a page served from another origin has no download button", !elsewhere.includes("data-rv-download"));
+    const loopback = load(`http://127.0.0.1:${port}/sample.html`);
+    check("browser: a page served from 127.0.0.1 keeps its download button", loopback.includes('data-rv-download="triage"'), loopback.slice(0, 200));
+  } finally {
+    server.kill();
+  }
   const bad = dump(evil, "hostile");
   check("browser: the hostile page renders", bad.includes('class="rv-ready"'));
   check("browser: no hostile script or handler ran", !/<html[^>]*pwned|<title>pwned/.test(bad));
