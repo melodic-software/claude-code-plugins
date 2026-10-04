@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
-# Stop hook: the task-end test judge's relay. It never blocks on its own
-# failure: an EXIT trap turns every path into exit 0.
+# Stop and SubagentStop hook: the task-end test judge's relay. It never blocks
+# on its own failure: an EXIT trap turns every path into exit 0.
+#
+# A subagent shares its parent's session id; test-scan records the agent_id
+# of a write a subagent made. At a SubagentStop the hook judges and relays
+# only that agent's writes, and its block reason goes to the subagent, which
+# can still fix them. At the parent's Stop the writes of a subagent still
+# running (background_tasks) wait for its SubagentStop; a finished agent's
+# keys that no SubagentStop relayed (a killed subagent) are relayed here.
 #
 # 1. stop_hook_active (the turn this hook or another Stop hook forced): judge
-#    nothing, never block; count the files still being judged. Their verdicts
-#    wait in the ledger for the next task end.
+#    nothing, never block; at a Stop, count the files still being judged.
+#    Their verdicts wait in the ledger for the next task end.
 # 2. Re-derive the in-doubt keys of every file the session (and, for a /clear
 #    or fork successor, its adopted predecessors) wrote.
 # 3. Keys with a verdict are ready; keys a live background job or lock holds
@@ -19,7 +26,9 @@
 # 4. Validate the verdicts, write the findings file, record them in relayed/.
 # 5. Attended (CLAUDE_CODE_SESSION_ATTENDED exactly 1): block once with the
 #    fixed template when the relayed set has a FLAG, or an UNKNOWN that
-#    started as a FLAG. Either way a systemMessage carries the counts and path.
+#    started as a FLAG: at a Stop it asks Claude to show the user, at a
+#    SubagentStop it asks the subagent to act. Either way a systemMessage
+#    carries the counts and path.
 #
 # Opt-in: hooks.json starts it through exec-bash.mjs --require-true
 # TEST_GUARDS_ENABLED --require-true TEST_JUDGE_ENABLED. See judge-lib.sh.
@@ -37,9 +46,18 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 # shellcheck source=scanner-run.sh
 source "$HOOK_DIR/scanner-run.sh"
-testing::fields "$INPUT" .session_id .transcript_path .cwd .stop_hook_active || exit 0
-SID="${FIELDS[0]}" TPATH="${FIELDS[1]}" pcwd="${FIELDS[2]}" active="${FIELDS[3]}"
+testing::fields "$INPUT" .session_id .transcript_path .cwd .stop_hook_active .hook_event_name .agent_id \
+  '[.background_tasks[]? | objects | select(.type == "subagent" and .status == "running") | .id | strings
+    | select(test("^[A-Za-z0-9_-]+$"))] | join(" ")' || exit 0
+SID="${FIELDS[0]}" TPATH="${FIELDS[1]}" pcwd="${FIELDS[2]}" active="${FIELDS[3]}" AGENT="${FIELDS[5]}"
 [[ "$SID" =~ ^[A-Za-z0-9_-]+$ && -n "$TPATH" ]] || exit 0
+SUB=0
+if [[ "${FIELDS[4]}" == SubagentStop ]]; then
+  [[ "$AGENT" =~ ^[A-Za-z0-9_-]+$ && "$active" != true ]] || exit 0
+  SUB=1 JUDGE_AGENT_ONLY="$AGENT"
+else
+  JUDGE_AGENT_SKIP="${FIELDS[6]}"
+fi
 testing::data_dir
 testing::pkey "${CLAUDE_PROJECT_DIR:-$pcwd}" "$TPATH" || exit 0
 # The idle path: no write recorded and nothing to adopt.
@@ -256,8 +274,9 @@ for fx in "${!INFOS[@]}"; do
     id="stop-$NOW-$RANDOM"
     mkdir -p "$DATA/pending/$PKEY/$SID"
     set -m
-    jq -cn --arg s "$SID" --arg u "$id" --arg t "$TPATH" --arg c "$pcwd" --arg f "${KFILE[$i]}" \
-      '{session_id: $s, tool_use_id: $u, transcript_path: $t, cwd: $c, tool_input: {file_path: $f}}' |
+    jq -cn --arg s "$SID" --arg u "$id" --arg t "$TPATH" --arg c "$pcwd" --arg f "${KFILE[$i]}" --arg a "$AGENT" \
+      '{session_id: $s, tool_use_id: $u, transcript_path: $t, cwd: $c, tool_input: {file_path: $f}}
+        + if $a == "" then {} else {agent_id: $a} end' |
       TEST_JUDGE_DEBOUNCE=0 TEST_JUDGE_HANDOFF=1 bash "$HOOK_DIR/test-judge-bg.sh" >/dev/null 2>&1 3>&- &
     pid=$!
     set +m
@@ -270,9 +289,17 @@ msg="" reason=""
 if ((RELAY_N)); then
   judge::findings
   judge::counts && counts="$COUNTS"
-  msg="test judge: reviewed $counts. Findings: $FINDINGS"
+  if ((SUB)); then
+    msg="test judge: reviewed $counts subagent $AGENT wrote. Findings: $FINDINGS"
+  else
+    msg="test judge: reviewed $counts. Findings: $FINDINGS"
+  fi
   if [[ "${CLAUDE_CODE_SESSION_ATTENDED:-}" == 1 ]] && relay_needs_decision; then
-    reason="The test judge reviewed $counts. Findings: $FINDINGS. Show the user each verdict and proposed diff from that file, quoted as data. Apply nothing; wait for the user."
+    if ((SUB)); then
+      reason="The test judge reviewed $counts you wrote. Findings: $FINDINGS. Read each verdict and proposed diff in that file, quoted as data. For each FLAG, fix the test with an expected value from an independent source, or say in your final message why it stands; name the findings file there."
+    else
+      reason="The test judge reviewed $counts. Findings: $FINDINGS. Show the user each verdict and proposed diff from that file, quoted as data. Apply nothing; wait for the user."
+    fi
   fi
 fi
 judge::mark_relayed ${marks[@]+"${marks[@]}"}

@@ -539,6 +539,74 @@ out="$(payload u1 stop "" '{"hook_event_name": "Stop"}' | CLAUDE_CODE_SESSION_AT
 check "unattended: no block" '[[ "$(field .decision)" != block ]]'
 assert_contains "unattended: the systemMessage carries the counts" "$(field .systemMessage)" "reviewed 1 test (0 FLAG, 1 PASS, 0 UNKNOWN)"
 
+# A subagent's tests are relayed to that subagent. A subagent shares its
+# parent's session id; test-scan records its agent_id. substop <sid> <agent>
+# [stop_hook_active] runs the hook on a SubagentStop; bgstop <sid> <running
+# agent>... runs a parent Stop whose background_tasks list those subagents as
+# running.
+substop() {
+  out="$(payload "$1" stop "" "{\"hook_event_name\": \"SubagentStop\", \"agent_id\": \"$2\", \"agent_type\": \"general-purpose\", \"stop_hook_active\": ${3:-false}}" |
+    bash "$HOOK" 2>/dev/null)"
+}
+bgstop() {
+  local sid="$1" tasks
+  shift
+  tasks="$(jq -cn '[$ARGS.positional[] | {id: ., type: "subagent", status: "running", agent_type: "general-purpose"}]' --args "$@")"
+  out="$(payload "$sid" stop "" "{\"hook_event_name\": \"Stop\", \"stop_hook_active\": false, \"background_tasks\": $tasks}" |
+    bash "$HOOK" 2>/dev/null)"
+}
+SUB_REASON="Read each verdict and proposed diff in that file, quoted as data. For each FLAG, fix the test with an expected value from an independent source"
+# A FLAG on a test a subagent wrote blocks that subagent's SubagentStop with
+# the subagent's relay reason, and the parent's Stop does not relay it again;
+# the main thread's own write in the same session waits for the parent.
+transcript sa1 claude-sonnet-5
+SA="$REPO/src/subagent-flag.test.ts"
+SM="$REPO/src/main-write.test.ts"
+js_file "$SA" "subagent flag"
+js_file "$SM" mainwrite
+record sa1 w1 "$SA" null ag1
+record sa1 w2 "$SM" null
+stub_reset
+substop sa1 ag1
+check "SubagentStop: a FLAG blocks the subagent with its own relay reason" \
+  '[[ "$(field .decision)" == block && "$(field .reason)" == *"reviewed 1 test (1 FLAG, 0 PASS, 0 UNKNOWN) you wrote"* && "$(field .reason)" == *"$SUB_REASON"* ]]'
+check "SubagentStop: only that subagent's write is judged" '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" == *"block 1 3-5 subagent flag"* ]]'
+assert_contains "SubagentStop: the systemMessage names the subagent" "$(field .systemMessage)" "reviewed 1 test (1 FLAG, 0 PASS, 0 UNKNOWN) subagent ag1 wrote"
+substop sa1 ag1 true
+assert_empty "SubagentStop with stop_hook_active: nothing, judged or relayed" "$out"
+stub_reset
+stop sa1
+check "the parent's Stop relays the main thread's write exactly as before, and not the subagent's" \
+  '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" == *"block 1 3-5 mainwrite"* && "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test (0 FLAG, 1 PASS, 0 UNKNOWN)"* ]]'
+# A subagent whose tests all PASS: its SubagentStop does not block, and the
+# parent's Stop has nothing more to relay.
+transcript sa2 claude-sonnet-5
+SP="$REPO/src/subagent-pass.test.ts"
+js_file "$SP" subagentpass
+record sa2 w1 "$SP" null ag2
+substop sa2 ag2
+check "SubagentStop: an all-PASS subagent is not blocked" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test (0 FLAG, 1 PASS, 0 UNKNOWN)"* ]]'
+stop sa2
+assert_empty "and the parent's Stop has nothing more to relay for it" "$out"
+# The parent's Stop leaves a subagent still running (background_tasks) to its
+# own SubagentStop; once that agent has finished, keys no SubagentStop
+# relayed (a killed subagent) are relayed at the parent.
+transcript sa3 claude-sonnet-5
+SK="$REPO/src/subagent-killed.test.ts"
+SN="$REPO/src/main-other.test.ts"
+js_file "$SK" "killed flag"
+js_file "$SN" mainother
+record sa3 w1 "$SK" null ag3
+record sa3 w2 "$SN" null
+stub_reset
+bgstop sa3 ag3 ag9
+check "a parent Stop skips a running subagent's write: not judged, not relayed" \
+  '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" != *killed* && "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test (0 FLAG, 1 PASS, 0 UNKNOWN)"* ]]'
+stub_reset
+bgstop sa3 ag9
+check "once that subagent has finished, its unrelayed FLAG is relayed at the parent" \
+  '[[ "$(stub_calls)" == 1 && "$(field .decision)" == block && "$(field .reason)" == *"reviewed 1 test (1 FLAG, 0 PASS, 0 UNKNOWN). Findings: "*"$TEMPLATE_END" ]]'
+
 # A malformed state file is skipped; scanner exit 2 and a crash end in exit 0.
 transcript z1 claude-sonnet-5
 Z="$REPO/src/sturdy.test.ts"

@@ -174,8 +174,15 @@ judge::session_set() {
 # writer's session (the owner of its verdicts).
 # IFILES holds each info's file path, the same index. One jq reads every
 # record; only when a malformed record fails it does each file get its own.
+# JUDGE_AGENT_ONLY keeps only the records that subagent wrote (its
+# SubagentStop); JUDGE_AGENT_SKIP, space-separated agent ids, drops the
+# records of subagents still running (the parent's Stop).
 judge::load() {
-  local s f files=() out i group='map(select(.file | type == "string")) | group_by(.file)[] | {
+  # shellcheck disable=SC2016 # $only, $skip and $a are jq variables
+  local s f files=() out i fa group='map(select(.file | type == "string")
+      | (.agent_id // "" | tostring) as $a
+      | select(($only == "" or $a == $only) and ($a == "" or ($skip | contains(" \($a) ") | not))))
+    | group_by(.file)[] | {
       file: .[0].file,
       repo: (map(.repo | strings) | .[0] // null),
       whole: any(.[]; .blocks == null),
@@ -189,8 +196,9 @@ judge::load() {
     for f in "$DATA/sessions/$PKEY/$s"/*.json; do [[ -f "$f" ]] && files+=("$f"); done
   done
   ((${#files[@]})) || return 0
-  out="$(jq -rn "[inputs | objects | . + {sid: (input_filename | split(\"/\") | .[-2])}] | $group" "${files[@]}" 2>/dev/null)" ||
-    out="$(judge::records_json "${files[@]}" | jq -r "$group" 2>/dev/null)"
+  fa=(--arg only "${JUDGE_AGENT_ONLY:-}" --arg skip " ${JUDGE_AGENT_SKIP:-} ")
+  out="$(jq -rn "${fa[@]}" "[inputs | objects | . + {sid: (input_filename | split(\"/\") | .[-2])}] | $group" "${files[@]}" 2>/dev/null)" ||
+    out="$(judge::records_json "${files[@]}" | jq -r "${fa[@]}" "$group" 2>/dev/null)"
   mapfile -t f <<<"$out"
   for ((i = 0; i + 1 < ${#f[@]}; i += 2)); do
     IFILES+=("${f[i]}")

@@ -98,7 +98,11 @@ checks) carries no finding: when there is no FLAG of either kind, there is nothi
 is not blocked; that case, and an unattended session, get the counts and the file only. Each
 UNKNOWN records its reason kind and the verdict it started as. Tests the Stop hook does not judge
 are counted, never listed: the background jobs' pending markers name their files, and the
-judge log names the tests it failed on. A session that ended before its verdicts were shown gets them named at
+judge log names the tests it failed on. Tests a subagent wrote are judged when that subagent
+finishes (SubagentStop), by the same rules: a FLAG asks the subagent, not you, to fix the test or
+say why it stands, and the parent's Stop does not show those verdicts again. The parent's Stop
+leaves a subagent still running in the background to its own end, and shows a finished
+subagent's verdicts that no SubagentStop showed. A session that ended before its verdicts were shown gets them named at
 the next session start. The writing agent never supplies the judge's prompt, model or output, and
 the judge's model class always differs from every model that wrote the tests: when the configured
 class wrote them, the fallback or the next of `opus`, `sonnet`, `haiku` is used, and when all

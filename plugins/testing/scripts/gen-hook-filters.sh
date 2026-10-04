@@ -9,7 +9,9 @@
 # glob gets a Write row and an Edit row: an Edit(...) row does not match a
 # Write call (probes.md). A glob with no slash matches the basename at any
 # depth (gitignore syntax). The task-end judge's background job (async) takes
-# the same PostToolUse rows; its Stop and SessionStart entries have no `if`.
+# the same PostToolUse rows; its Stop, SubagentStop and SessionStart entries
+# have no `if`. SubagentStop runs the Stop hook's script, which judges only
+# the finishing subagent's writes there.
 #
 # PostToolUse also gets one Bash row with no `if`: a Bash `if` matches
 # the command string, not the files the call changed (probes.md), so
@@ -37,7 +39,8 @@ globs="$(awk -f "$AUDIT/scripts/adapter-load.awk" "$AUDIT"/adapters/*.yaml |
 # The task-end judge (test-judge*.sh) needs test-scan's session state, so its
 # rows are gated on both options. Its PostToolUse job runs async on the same
 # `if` rows as test-scan (no timeout: Claude Code enforces none on an async
-# command hook); Stop's 240 s sits above the hook's own 180 s bound.
+# command hook); Stop's and SubagentStop's 240 s sit above the hook's own
+# 180 s bound.
 json="$(jq -R . <<<"$globs" | jq -s '. as $globs |
   def cmd($gates; $script): {
     type: "command",
@@ -64,6 +67,7 @@ json="$(jq -R . <<<"$globs" | jq -s '. as $globs |
             + {timeout: 10, statusMessage: "Scanning test files the command changed..."}]}]
         + rows("test-judge-bg.sh"; {async: true})),
       Stop: judge("test-judge.sh"; {timeout: 240, statusMessage: "Collecting the test judge'"'"'s verdicts..."}),
+      SubagentStop: judge("test-judge.sh"; {timeout: 240, statusMessage: "Collecting the test judge'"'"'s verdicts on the subagent'"'"'s tests..."}),
       SessionStart: (judge("test-judge-start.sh"; {timeout: 30}) + notice)
     }
   }')" || exit 2
