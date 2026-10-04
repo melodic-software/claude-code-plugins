@@ -107,6 +107,7 @@ expect_has "a rules-tree write on a drifted index reports drift" "$out" "no long
 expect_has "the notice goes to the model, which can regenerate" "$out" '"additionalContext"'
 expect_lacks "the notice is not also shown to the user" "$out" "systemMessage"
 expect_has "the notice gives the regenerate command" "$out" "render-index.sh"
+expect_has "the regenerate command names the edited repository, not the session cwd" "$out" "--root \\\"$repo\\\""
 
 run_hook "$(payload_for "$repo/.claude/rules/csharp.md")" >/dev/null
 expect_eq "the hook is advisory — it exits 0 even on drift" "0" "$?"

@@ -7,7 +7,7 @@ All notable changes to the `instruction-placement` plugin are documented here. F
 
 ### Changed
 
-- **Index-drift notice goes to the model (#6225).** The agent that edited the rule is the one that can regenerate the index, so the notice is now context for the model with the full `render-index.sh write` command, in place of a user message naming a bare script.
+- **Index-drift notice goes to the model (#6225).** The agent that edited the rule is the one that can regenerate the index, so the notice is now context for the model with the full `render-index.sh write` command, naming the edited file and its repository with `--file` and `--root` so it does not render against the session's working directory, in place of a user message naming a bare script.
 
 ## [0.21.9] - 2026-10-04
 
