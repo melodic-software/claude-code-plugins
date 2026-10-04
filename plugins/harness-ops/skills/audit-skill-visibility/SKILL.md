@@ -274,7 +274,14 @@ a session that loaded a different fleet; it is listed under
 only adds to the listing.
 `--listing-capture <transcript.jsonl>` reads the listing a session actually
 received from its transcript (`~/.claude/projects/<project>/<session>.jsonl`),
-counts every entry the disk walk missed at its captured length, and reports in
+counts every entry no disk walk could find (built-in, bundled, and synced
+skills when they were not walked) at its captured length, and reports in
+`listing.capture.not_in_fleet` the qualified `plugin:skill` entries it names
+that the fleet lacks, as when a plugin was uninstalled after the captured
+session. Those are not counted, the capture is from a different fleet, and an
+overflow that only the capture's charges produce is `overflow-unconfirmed`,
+never `overflowing`. An unqualified captured name is always counted, since a
+removed personal skill cannot be told from a built-in by name. It also reports in
 `listing.capture` the descriptions the session shed; a budget row that says
 `listing-fits` while the session shed descriptions is listed under
 `disagrees`. The engine only reads the file; it never launches Claude Code.
@@ -358,7 +365,8 @@ scores the product's ordering is the catalog-order tie its stable sort leaves,
 and naming rows would sell catalog position as preference. How many descriptions
 cannot fit is arithmetic and is still reported, as `starved_count` and as a
 count in the Markdown; the run carries one run-level `withheld` entry for the
-per-skill claim, never one per skill.
+per-skill claim, never one per skill. An `overflow-unconfirmed` listing
+withholds the same way with `reason: "capture-mismatch"`.
 
 `not-assessable` marks the rows that never enter the contest, with
 `starvation.eligibility` naming why: `exempt-bundled` (a bundled skill keeps

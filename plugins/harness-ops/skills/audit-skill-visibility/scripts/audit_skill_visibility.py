@@ -62,7 +62,10 @@ MIN_PYTHON = (3, 11)
 # gains `coverage` and, with --listing-capture, `capture`; eligibility gains
 # `exempt-name-only`; rows may be user or project skills, plugin commands or
 # workflows (`kind`).
-SCHEMA_VERSION = "1.5.0"
+# 1.6.0: `listing.verdict` and band rows gain `overflow-unconfirmed`;
+# `listing.capture` gains `not_in_fleet`; a withheld starvation row may carry
+# reason `capture-mismatch`.
+SCHEMA_VERSION = "1.6.0"
 
 
 @dataclass(frozen=True)
@@ -401,6 +404,26 @@ def parse_frontmatter(text: str) -> dict:
     }
 
 
+def parse_command_frontmatter(text: str) -> dict:
+    """`parse_frontmatter` for a plugin command, whose frontmatter is optional.
+
+    A command file with no `---` block carries no metadata rather than broken
+    metadata: Claude Code describes it by the prompt's first line, so that line
+    is what the listing charges. An opened block left unterminated is still
+    malformed.
+    """
+    if text.startswith("---"):
+        return parse_frontmatter(text)
+    first = next((line.strip() for line in text.splitlines() if line.strip()), "")
+    return {
+        "name": "",
+        "description": first,
+        "when_to_use": "",
+        "disable_model_invocation": False,
+        "user_invocable": "",
+    }
+
+
 def collect_fleet(plugins_root: str) -> list[dict]:
     """Walk a plugins root into denominator entries with frontmatter attached.
 
@@ -495,7 +518,9 @@ def _plugin_listing_files(plugin_root: str) -> list[tuple[str, str, str, dict]]:
             if name.endswith(".md") and os.path.isfile(path):
                 text = _read_text(path)
                 frontmatter = (
-                    {"_malformed": True} if text is None else parse_frontmatter(text)
+                    {"_malformed": True}
+                    if text is None
+                    else parse_command_frontmatter(text)
                 )
                 found.append(("command", name[: -len(".md")], path, frontmatter))
     workflows_dir = os.path.join(plugin_root, "workflows")
@@ -1922,6 +1947,7 @@ def compute_listing(
     scores: dict[str, float] | None = None,
     unenumerated: list[dict] | None = None,
     capture_covers: bool = True,
+    capture_stale: bool = False,
 ) -> dict:
     """Budget arithmetic, split by confidence.
 
@@ -1937,7 +1963,10 @@ def compute_listing(
     found (built-in, bundled and claude.ai-synced skills), each at its captured
     rendered length. They are a fixed cost: the capture shows what they took,
     and a captured name-only entry's description length is unknown, so the
-    total is a lower bound whenever one is present.
+    total is a lower bound whenever one is present. `capture_stale` says the
+    capture also named entries this fleet no longer has, so it came from a
+    different fleet: an overflow that only its charges produce is then
+    `overflow-unconfirmed`, never `overflowing`.
 
     INFERENTIAL: which particular skills lose their descriptions. That ordering
     comes from a scorer recovered from one build of the product (see
@@ -1997,6 +2026,9 @@ def compute_listing(
             }
         )
 
+    # The counted entries alone, before any capture charge: an overflow here
+    # holds whatever fleet the capture came from.
+    enumerated_full = full + max(0, listed - 1)
     extra = unenumerated or []
     extra_chars = sum(e["rendered_chars"] for e in extra)
     listed += len(extra)
@@ -2019,7 +2051,13 @@ def compute_listing(
         if unenumerated is not None and capture_covers
         else "fit-unconfirmed"
     )
-    verdict = "overflowing" if overflow > 0 else fits
+    # The mirror image: a capture of another fleet cannot confirm an overflow
+    # its own charges produce.
+    unconfirmed = overflow > 0 and capture_stale and enumerated_full <= budget
+    if unconfirmed:
+        verdict = "overflow-unconfirmed"
+    else:
+        verdict = "overflowing" if overflow > 0 else fits
 
     competing = [r for r in rows if r["eligibility"] == "competing"]
 
@@ -2096,10 +2134,10 @@ def compute_listing(
     # rows it sheds would publish catalog position as a usage ranking, which is
     # the defect this report exists to expose, one scope up. So the per-row
     # claim is withheld with its reason and the count above still stands.
-    if overflow > 0 and score_basis == "unscored":
+    if unconfirmed or (overflow > 0 and score_basis == "unscored"):
         for row in competing:
             row["verdict"] = "withheld"
-            row["reason"] = "unscored"
+            row["reason"] = "capture-mismatch" if unconfirmed else "unscored"
             row["band"] = None
 
     return {
@@ -2150,6 +2188,7 @@ def compute_listing_band(
     scores: dict[str, float] | None = None,
     unenumerated: list[dict] | None = None,
     capture_covers: bool = True,
+    capture_stale: bool = False,
 ) -> dict:
     """The listing budget over every window x bytes-per-token combination.
 
@@ -2169,7 +2208,9 @@ def compute_listing_band(
     all of them.
     """
     if cfg.env_char_budget is not None:
-        return compute_listing(denominator, cfg, scores, unenumerated, capture_covers)
+        return compute_listing(
+            denominator, cfg, scores, unenumerated, capture_covers, capture_stale
+        )
     rows = [
         compute_listing(
             denominator,
@@ -2177,6 +2218,7 @@ def compute_listing_band(
             scores,
             unenumerated,
             capture_covers,
+            capture_stale,
         )
         for window in axes.windows
         for bpt in axes.bytes_per_tokens
@@ -2232,6 +2274,9 @@ def compute_listing_band(
 
 
 STARVATION_WITHHELD_REASON = "unscored: ordering is catalog-order tie, not usage"
+CAPTURE_MISMATCH_REASON = (
+    "capture-mismatch: the overflow rests on a capture of a different fleet"
+)
 
 
 def starvation_withheld(listing: dict) -> bool:
@@ -2246,11 +2291,23 @@ def starvation_withheld(listing: dict) -> bool:
 
 
 def listing_overflows(listing: dict) -> bool:
-    """Whether any budget row overflows: one row is enough for a band."""
-    band = listing.get("band")
-    if band:
-        return any(row["overflow_chars"] > 0 for row in band)
-    return bool(listing.get("overflow_chars"))
+    """Whether any budget row overflows: one row is enough for a band.
+
+    An `overflow-unconfirmed` row does not count: only a capture of another
+    fleet makes it overflow.
+    """
+    return any(
+        row.get("overflow_chars") and row.get("verdict") != "overflow-unconfirmed"
+        for row in listing.get("band") or [listing]
+    )
+
+
+def listing_overflow_unconfirmed(listing: dict) -> bool:
+    """Whether any budget row overflows only on a mismatched capture's charges."""
+    return any(
+        row.get("verdict") == "overflow-unconfirmed"
+        for row in listing.get("band") or [listing]
+    )
 
 
 # Remedies are phrased as fixes on purpose. Several of these causes are SILENT
@@ -2470,6 +2527,20 @@ def _reconcile(events: list[dict]) -> int:
     return sum(max(per_source.values()) for per_source in by_instant.values())
 
 
+def _walkable_name(name: str, walked_synced: bool) -> bool:
+    """Whether a disk walk would have found this captured name had it existed.
+
+    A qualified `plugin:skill` name comes from a plugin, which the walk
+    enumerates, so one the fleet lacks belongs to a plugin uninstalled or a
+    skill renamed since the capture. A claude.ai-synced name counts only when
+    this run walked the synced skills. An unqualified name may be built-in,
+    which no walk sees, so it stays a fixed cost.
+    """
+    if ":" not in name:
+        return False
+    return walked_synced or not name.startswith(SYNCED_PREFIX)
+
+
 def _capture_gap(
     denominator: list[dict], capture: dict, cfg: ListingConfig
 ) -> dict[str, list[str]]:
@@ -2478,9 +2549,18 @@ def _capture_gap(
     `not_in_capture`: listed entries the capture does not name, as when a
     plugin was installed after the captured session started. `longer_in_capture`:
     entries the capture rendered in full at more characters than they are
-    counted here, so the count is short. Either one means the capture came from
-    a different fleet and cannot confirm a fit.
+    counted here, so the count is short. `not_in_fleet`: captured entries a
+    walk would have found but the fleet lacks, as when a plugin was uninstalled
+    after the captured session started; they are not charged. Any of the three
+    means the capture came from a different fleet and cannot confirm a fit.
     """
+    known = {entry["qualified_name"] for entry in denominator}
+    walked_synced = any(entry.get("source") == "synced" for entry in denominator)
+    stale = sorted(
+        e["name"]
+        for e in capture["entries"]
+        if e["name"] not in known and _walkable_name(e["name"], walked_synced)
+    )
     captured = {e["name"]: e for e in capture["entries"]}
     missing: list[str] = []
     longer: list[str] = []
@@ -2500,7 +2580,11 @@ def _capture_gap(
         )
         if not seen["name_only"] and seen["rendered_chars"] > counted:
             longer.append(name)
-    return {"not_in_capture": sorted(missing), "longer_in_capture": sorted(longer)}
+    return {
+        "not_in_capture": sorted(missing),
+        "longer_in_capture": sorted(longer),
+        "not_in_fleet": stale,
+    }
 
 
 def _capture_summary(
@@ -2517,11 +2601,13 @@ def _capture_summary(
     """
     if capture.get("status") != "read":
         return {k: capture.get(k) for k in ("status", "reason", "path")}
+    gap = gap or {}
+    # A stale entry is not in this fleet, so its shedding is not reported.
     forced = {
         r["qualified_name"]
         for r in listing["skills"]
         if r["eligibility"] == "exempt-name-only"
-    }
+    } | set(gap.get("not_in_fleet", []))
     shed = sorted(
         e["name"]
         for e in capture["entries"]
@@ -2540,8 +2626,9 @@ def _capture_summary(
         "unenumerated_names": sorted(e["name"] for e in extra),
         "lower_bound": any(e["name_only"] for e in extra),
         "observed_name_only": shed,
-        "not_in_capture": (gap or {}).get("not_in_capture", []),
-        "longer_in_capture": (gap or {}).get("longer_in_capture", []),
+        "not_in_capture": gap.get("not_in_capture", []),
+        "longer_in_capture": gap.get("longer_in_capture", []),
+        "not_in_fleet": gap.get("not_in_fleet", []),
         "disagrees": [
             r["label"] for r in rows if shed and r["verdict"] == "listing-fits"
         ],
@@ -2594,21 +2681,31 @@ def classify(
 
     listing_cfg = listing_config or ListingConfig()
     captured = (listing_capture or {}).get("status") == "read"
+    gap = _capture_gap(denominator, listing_capture, listing_cfg) if captured else {}
+    # Only what no walk could enumerate is a fixed cost; a captured entry the
+    # walk would have found is stale and lands in the gap instead.
     known = {entry["qualified_name"] for entry in denominator}
+    known.update(gap.get("not_in_fleet", []))
     unenumerated = (
         [e for e in listing_capture["entries"] if e["name"] not in known]
         if captured
         else None
     )
-    gap = _capture_gap(denominator, listing_capture, listing_cfg) if captured else {}
     covers = not any(gap.values())
+    stale = bool(gap.get("not_in_fleet"))
     if listing_axes is None:
         listing = compute_listing(
-            denominator, listing_cfg, native_scores, unenumerated, covers
+            denominator, listing_cfg, native_scores, unenumerated, covers, stale
         )
     else:
         listing = compute_listing_band(
-            denominator, listing_cfg, listing_axes, native_scores, unenumerated, covers
+            denominator,
+            listing_cfg,
+            listing_axes,
+            native_scores,
+            unenumerated,
+            covers,
+            stale,
         )
         listing["inputs"] = listing_axes.inputs
     if listing_capture is not None:
@@ -2647,6 +2744,14 @@ def classify(
                 "skill": None,
                 "claim": "starvation",
                 "reason": STARVATION_WITHHELD_REASON,
+            }
+        )
+    if listing_overflow_unconfirmed(listing):
+        withheld.append(
+            {
+                "skill": None,
+                "claim": "starvation",
+                "reason": CAPTURE_MISMATCH_REASON,
             }
         )
 
@@ -3184,6 +3289,15 @@ def _render_next_actions(model: dict) -> list[str]:
 
 def _render_single_budget(listing: dict) -> list[str]:
     """The pinned single-row paragraph."""
+    if listing["verdict"] == "overflow-unconfirmed":
+        return [
+            f"Overflow unconfirmed at {listing['label']}: "
+            f"{listing['listing_chars']:,} of {listing['budget_chars']:,} "
+            "characters, but the counted entries alone fit and the excess comes "
+            "from a captured listing of a different fleet (see coverage). No "
+            "skill is named as running name-only.",
+            "",
+        ]
     if listing["overflow_chars"] > 0:
         axes = (
             ""
@@ -3275,8 +3389,17 @@ def _render_coverage(listing: dict) -> list[str]:
         "",
     ]
     absent, longer = capture["not_in_capture"], capture["longer_in_capture"]
-    if absent or longer:
+    stale = capture.get("not_in_fleet", [])
+    if absent or longer or stale:
         parts = []
+        if stale:
+            parts.append(
+                f"{len(stale)} captured plugin {_plural(len(stale), 'skill')} "
+                "this fleet no longer has, not counted ("
+                + ", ".join(f"`{name}`" for name in stale[:10])
+                + ("…" if len(stale) > 10 else "")
+                + ")"
+            )
         if absent:
             parts.append(
                 f"{len(absent)} counted {_plural(len(absent), 'skill')} "
@@ -3296,8 +3419,14 @@ def _render_coverage(listing: dict) -> list[str]:
             "**The capture does not cover the counted fleet**: "
             + " and ".join(parts)
             + ". It came from a session that loaded a different fleet, so a fit "
-            "stays `fit-unconfirmed`. Capture a session started after the last "
-            "install or edit to confirm one.",
+            "stays `fit-unconfirmed`"
+            + (
+                " and an overflow its charges alone produce is `overflow-unconfirmed`"
+                if stale
+                else ""
+            )
+            + ". Capture a session started after the last install or edit to "
+            "confirm one.",
             "",
         ]
     shed = capture["observed_name_only"]
