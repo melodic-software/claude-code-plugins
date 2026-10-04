@@ -120,7 +120,7 @@ where a judge sees only the first 12 and last 12 messages and quotes are JSON-es
       run error, not a low score.
 - [ ] `allowed_tools` requests only what the case needs. Read-only tools (`Read`, `Glob`, `Grep`,
       `NotebookRead`, `Skill`, `Agent`, `TodoWrite`, the `Task*` tools) need no operator grant;
-      anything else needs `--allow-tools` and, for `Bash`, `Write`, or `Edit`, a sandbox backend.
+      anything else needs `--allow-tools` and, for `Bash`, `PowerShell`, `Write`, or `Edit`, a sandbox backend.
 - [ ] `tags` are set when the suite will ever be filtered. A case runs if **any** of its tags match.
 
 Run the static validator before every paid pass; it checks the bounds above with no model call.
