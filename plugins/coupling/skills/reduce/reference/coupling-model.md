@@ -86,6 +86,14 @@ coupling nobody minds. Weight every finding by:
   without a declared dependency are coupled through a channel the dependency graph cannot see
   (shared assumption, copied logic, implicit contract). Mine the log for pairs with high
   co-change frequency; these outrank most statically visible findings.
+- **Collision hotspots**: a file that pull requests open at the same time keep editing
+  together, and that conflicts when their heads are merged, couples the people and agents
+  working in parallel: each change to it blocks or rewrites another. This is measured, not
+  inferred: pairs of overlapping pull requests that share the file are replayed and their
+  conflicts counted. A hotspot ranks beside co-change evidence; a file with many conflicts
+  across few pairs is the strongest candidate. Changelogs, lockfiles and version manifests
+  conflict on every version bump and say nothing about design, so they are reported apart
+  and never ranked. Without pull-request data from the host, co-change evidence stands in.
 - **Blast radius**: afferent coupling (how many depend on it). Instability `I = Ce / (Ca + Ce)`
   gives the orientation rule: depend in the direction of stability; things many depend on
   should be abstract and stable, things that change freely should have few dependents.

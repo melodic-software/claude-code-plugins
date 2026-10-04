@@ -49,6 +49,31 @@
         "Proposes a reference form for each setup site instead of only swapping the literal",
         "Edits no file, creates no branch, and says that change apply is the edit path"
       ]
+    },
+    {
+      "id": 5,
+      "name": "collision-hotspots-ranked-beside-co-change",
+      "prompt": "/coupling:reduce dry-run\n\nWe run several agents in parallel on this GitHub repo and their pull requests keep conflicting. Which files do they keep colliding on? We merge about 40 pull requests a day.",
+      "expected_output": "Runs the bundled collision-hotspots script from the repository root with --prs sized to several days of history (about 40 a day), reads its conflicts, pairs and path rows, verifies the ranked files before ledgering them as collision-hotspot candidates beside the co-change evidence, carries every gap: line into the report, treats the known bump hotspots line (changelogs, lockfiles, version manifests) as version-bump noise that is not ledgered, and makes no repository edits because the run is dry-run.",
+      "files": [],
+      "expectations": [
+        "Uses scripts/collision-hotspots.sh with a --prs value derived from the stated merge rate times a number of days, not an ad-hoc gh or git loop",
+        "Ranks files from the script's conflicts and pairs columns and verifies each before it reaches the ledger",
+        "Reports changelogs, lockfiles and version manifests from the known bump hotspots line without ledgering them as coupling findings",
+        "Carries the script's gap: lines into the report and edits no repository file"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "collision-hotspots-fall-back-without-gh",
+      "prompt": "/coupling:reduce dry-run src\n\ngh is not installed on this machine.",
+      "expected_output": "Attempts the collision-hotspot measure or recognises it cannot run without gh, ranks coupling by co-change history from git alone, and records a gap: line saying collision hotspots were not measured and why, without failing the pass or editing files.",
+      "files": [],
+      "expectations": [
+        "Falls back to co-change mining from version-control history for the hotspot evidence",
+        "Records a gap: line naming the missing gh as the reason collision hotspots were not measured",
+        "Completes the dry-run pass with a ranked ledger and makes no repository edits"
+      ]
     }
   ]
 }
