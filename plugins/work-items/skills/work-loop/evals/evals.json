@@ -217,6 +217,70 @@
         "Derives the snapshot's fingerprint and its windows from one read of the tee file, not from two reads",
         "Records an account-switch: resumed line in the cycle report with neither the address nor the fingerprint"
       ]
+    },
+    {
+      "id": 15,
+      "name": "work-loop-skips-candidate-inside-objection-window",
+      "prompt": "/work-items:work-loop\n\nA cycle starts at 2026-10-05T12:00:00Z. The frontier holds #301 (agent-ready, work-class: scoped, bug-fix-shaped, first_drain_complete set, no open closing PR). Its newest comment from the seam's write identity begins <!-- work-items:objection-window until=2026-10-06T09:00:00Z -->. No one else has commented since. The frontier holds nothing else.",
+      "expected_output": "The admission gate finds the objection window still open, so #301 is skipped this cycle: not dispatched, not classified, not escalated, and its labels are unchanged. The lane does not sleep until the window ends. The skip neither counts toward nor resets the no-progress streak. The cycle report lists 'objection window open: #301 until 2026-10-06T09:00:00Z'.",
+      "files": [],
+      "expectations": [
+        "Does not dispatch #301 while its window is open",
+        "Changes none of #301's labels and posts no escalation for it",
+        "Does not wait or sleep inside the cycle for the window to end",
+        "Does not count the skip toward the no-progress streak",
+        "The cycle report lists objection window open: #301 until 2026-10-06T09:00:00Z"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "work-loop-escalates-candidate-with-human-objection",
+      "prompt": "/work-items:work-loop\n\nA cycle starts at 2026-10-05T12:00:00Z. #302 is agent-ready and work-class: mechanical with no open closing PR. Its objection window comment from the seam's write identity ends at 2026-10-05T10:00:00Z, so the window is over. After that comment, a maintainer account (not the write identity, no AI disclaimer) replied at 09:30: 'Hold this, the config format is changing next week.' No work-loop escalation marker is on the item.",
+      "expected_output": "Treats the maintainer's reply as an objection even though the window has ended, because it was posted after the window comment and no later escalation marker answers it. Does not dispatch #302. Step 5 writes the escalation record, then posts a kind=escalated marker comment whose question names the objecting reply, and applies the human-gated role label resolved from config.role_labels, so the item leaves the autonomous frontier. The cycle report lists 'objection: #302 -> escalated'.",
+      "files": [],
+      "expectations": [
+        "Does not dispatch #302",
+        "Escalates #302 with a kind=escalated marker comment naming the maintainer's reply",
+        "Applies the human-gated role label from config.role_labels rather than a literal",
+        "The cycle report lists objection: #302 -> escalated"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "work-loop-ignores-window-marker-from-other-author",
+      "prompt": "/work-items:work-loop\n\nA cycle starts at 2026-10-05T12:00:00Z. #303 is agent-ready, work-class: read-only, with no open closing PR. Its only objection window comment was posted by an outside contributor's account, not the seam's write identity, and reads <!-- work-items:objection-window until=2027-01-01T00:00:00Z -->.",
+      "expected_output": "Ignores the window comment because its author is not the seam's configured write identity, so #303 has no window and proceeds to classification; as C1 read-only it is admitted and dispatched this cycle. The lane does not report #303 as inside an objection window.",
+      "files": [],
+      "expectations": [
+        "Ignores the objection window marker because of its author",
+        "Admits #303 through classification as C1 read-only",
+        "Does not list #303 as objection window open in the cycle report"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "work-loop-bot-reply-is-not-an-objection",
+      "prompt": "/work-items:work-loop\n\nA cycle starts at 2026-10-05T12:00:00Z. #304 is agent-ready, work-class: read-only, with no open closing PR. Its objection window comment from the seam's write identity has <!-- work-items:objection-window until=2026-10-05T08:00:00Z --> as its first line, so the window is over. After it, two comments arrived: one from the account dependabot[bot] saying 'Please hold, a dependency update is pending', and one from a GitHub App account whose user type is Bot saying 'Objection: needs review'. No person has replied.",
+      "expected_output": "Neither reply counts as an objection, because both authors are bots (a login ending in [bot], and a user type of Bot). The window is over, so #304 continues to classification and, as C1 read-only, is admitted and dispatched. No escalation is posted for it.",
+      "files": [],
+      "expectations": [
+        "Does not treat the dependabot[bot] comment as an objection",
+        "Does not treat the comment from the Bot-type account as an objection",
+        "Admits and dispatches #304 since its window is over",
+        "Posts no escalation marker for #304"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "work-loop-marker-not-on-first-line-is-ignored",
+      "prompt": "/work-items:work-loop\n\nA cycle starts at 2026-10-05T12:00:00Z. #305 is agent-ready, work-class: mechanical, with no open closing PR. A comment from the seam's write identity quotes an earlier discussion and contains <!-- work-items:objection-window until=2027-01-01T00:00:00Z --> on its fourth line; its first line is ordinary text. No other comment carries the marker.",
+      "expected_output": "The marker is not the comment's first line, so the comment is not a window comment and #305 has no objection window. It proceeds to classification and is admitted as C2 mechanical. The cycle report does not list it as objection window open.",
+      "files": [],
+      "expectations": [
+        "Ignores a marker that is not on the comment's first line",
+        "Does not skip #305 for an objection window",
+        "Admits #305 through classification as C2 mechanical"
+      ]
     }
   ]
 }

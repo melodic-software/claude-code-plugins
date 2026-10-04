@@ -166,6 +166,22 @@ explicit value, since the id must be distinct across concurrent instances and
 stable across restarts. It appears verbatim in tracker comments. Set an opaque
 id if a machine name should not be published in a public tracker.
 
+`triage_repro_count` (default 2) and `triage_objection_window_hours` (default 0,
+off) have a repository layer as well: the same keys in the consuming repo's
+`docs/conventions/work-items.yaml`, checked by
+[`schemas/work-items.schema.json`](schemas/work-items.schema.json), win over the
+per-user values. Lowest first: the manifest default, `userConfig`, the
+repository file. Only `/work-items:triage` reads the file, through the bundled
+`parse-concern-value.sh`, and reports which layer supplied each value; the
+work-loop admission gate reads the window's end from the marker comment triage
+posts. A lane that passes `--config-ref <ref>` to triage has the
+file read as committed at that ref, so a branch under triage cannot change the
+bar it is judged by. The repro count is how many independent reproductions a
+bug needs before triage marks it `status: confirmed`. With a window above 0,
+triage posts an "Objection window until <UTC>" comment beside the brief of each
+item it makes autonomous-eligible; the work-loop lane skips the item until the
+window ends and escalates it if a person replies inside the window.
+
 Everything else is project-specific behavior that routes through the consuming
 repo's own surfaces: the bound provider in `.work-item-tracker.json` (including
 the optional `config.role_labels` canonical-role → label remap), its labels
@@ -205,6 +221,8 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `decompose_container_publish` | boolean | *(none)* | `CLAUDE_PLUGIN_OPTION_DECOMPOSE_CONTAINER_PUBLISH` | When true, /work-items:decompose pre-selects the spec-container offer in its approval round for multi-session breakdowns; the approval gate stays mandatory. Unset or false: the plain ask, with a default answer of no. No default is declared, so unset stays distinct from false. |
+| `triage_repro_count` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_TRIAGE_REPRO_COUNT` | Independent reproductions /work-items:triage needs, each with evidence in its comment, before it marks a bug confirmed. Default 2. The repository's docs/conventions/work-items.yaml overrides this per repo. |
+| `triage_objection_window_hours` | number<br>*min 0* | `0` | `CLAUDE_PLUGIN_OPTION_TRIAGE_OBJECTION_WINDOW_HOURS` | Hours after triage makes an item autonomous-eligible during which the work-loop lane skips it, so a person can object in a reply. 0 (the default) is off. The repository's docs/conventions/work-items.yaml overrides this per repo. |
 | `work_dispatch_concurrency_cap` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_WORK_DISPATCH_CONCURRENCY_CAP` | Maximum worker rows /work-items:work's autonomous execute step lets /implementation:implement-dispatch run at once in one plan phase, passed as its --wave-cap ceiling. A fractional value is floored. Unset: implement-dispatch's implement_dispatch_wave_cap option, else its internal default. |
 | `lane_instance` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_LANE_INSTANCE` | Writer identity for this machine's work-loop telemetry, the suffix of its telemetry marker, so concurrent lane instances never overwrite each other. Absent: the sanitized lowercased hostname. Must match ^\[a-z0-9\]\[a-z0-9-\]{0,31}$. It appears verbatim in tracker comments. |
 | `work_loop_item_cap_start` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_WORK_LOOP_ITEM_CAP_START` | Where the work-loop lane's adaptive per-cycle item cap starts. Default 2. The cap ramps up by one after three consecutive clean items (never while a rate-limit warning is latched) and drops by one on any dirty item; enforcement is the loop body's own arithmetic. |

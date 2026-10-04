@@ -238,8 +238,8 @@ owns the steps. A resume clears `rate_limit_latch`, `paused_until`, and `latched
    role plus a `kind=escalated` marker carrying the proposed class), and that marker carries
    step 5's record write the same way.
 3. **Admission gate.** Drop every frontier candidate that is already in flight (the gate's
-   in-flight precondition below), then classify each remaining candidate and admit per the gate.
-   Fail-closed.
+   in-flight precondition below) or held by its Objection window ([reference/objection-window.md](reference/objection-window.md),
+   which also escalates an objected one), then classify the rest and admit per the gate. Fail-closed.
 4. **Execute.** Work admitted items by invoking `/work-items:work` via the Skill tool (one invocation per item slot), up to
    the adaptive item cap. When more than one item was admitted, sort the admitted set on
    `createdAt` from the adapter **"List items"** projection over their numbers (the normalized

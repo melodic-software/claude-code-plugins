@@ -5,6 +5,10 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ## [Unreleased]
 
+### Added
+
+- **Triage repro bar, objection window, `status: confirmed` and `provenance: signal`.** Two settings, `triage_repro_count` (default 2) and `triage_objection_window_hours` (default 0, off), are `userConfig` options and can be set per repository in `docs/conventions/work-items.yaml`, which wins; `schemas/work-items.schema.json` describes the file. `/work-items:triage` reads the file through a bundled copy of the shared `parse-concern-value.sh`, at the commit a lane passes with `--config-ref <ref>`, and reports each value's layer. A bug is confirmed only after that many clean reproductions, after a check that the default branch still fails and that no open PR already targets it; a passed verification posts its evidence and applies `status: confirmed`, which `status: ready` replaces when the brief posts. An item whose body carries `<!-- autonomy:signal:v1 -->` gets `provenance: signal`, which no lane removes. Both labels are checked for before use, and triage stops when one is missing. With the window on, triage posts an "Objection window until <UTC>" comment beside the brief and moves on; the work-loop admission gate skips the item until the window ends and escalates it when a person replied.
+
 ### Changed
 
 - **`/work-items:triage` and `/work-items:decompose` reword passages that followed the skills they were adapted from.** A word-overlap check found long shared runs in triage's discovery filter, context checks, verification steps and needs-info template, and in decompose's vertical-slice rules, expand-migrate-contract wording and slice body template. Behavior is unchanged.

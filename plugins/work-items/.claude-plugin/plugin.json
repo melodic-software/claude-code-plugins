@@ -23,6 +23,20 @@
       "title": "Decompose spec-container preselect",
       "description": "When true, /work-items:decompose pre-selects the spec-container offer in its approval round for multi-session breakdowns; the approval gate stays mandatory. Unset or false: the plain ask, with a default answer of no. No default is declared, so unset stays distinct from false."
     },
+    "triage_repro_count": {
+      "type": "number",
+      "title": "Triage repro count",
+      "description": "Independent reproductions /work-items:triage needs, each with evidence in its comment, before it marks a bug confirmed. Default 2. The repository's docs/conventions/work-items.yaml overrides this per repo.",
+      "default": 2,
+      "min": 1
+    },
+    "triage_objection_window_hours": {
+      "type": "number",
+      "title": "Triage objection window (hours)",
+      "description": "Hours after triage makes an item autonomous-eligible during which the work-loop lane skips it, so a person can object in a reply. 0 (the default) is off. The repository's docs/conventions/work-items.yaml overrides this per repo.",
+      "default": 0,
+      "min": 0
+    },
     "work_dispatch_concurrency_cap": {
       "type": "number",
       "title": "Autonomous dispatch concurrency cap",

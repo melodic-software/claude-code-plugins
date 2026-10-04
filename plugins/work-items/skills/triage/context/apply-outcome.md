@@ -7,6 +7,9 @@ tracker, so nothing below runs while the interview is still open.
 ## Contents
 
 - [Outcomes and their actions](#outcomes-and-their-actions)
+- [Status and provenance labels](#status-and-provenance-labels)
+- [Verification comment](#verification-comment)
+- [Objection window comment](#objection-window-comment)
 - [Needs-info comment](#needs-info-comment)
 
 ## Outcomes and their actions
@@ -57,6 +60,65 @@ Label edits, comments, and closes route through the adapter's write mechanics (a
 
 - **Every routing outcome that keeps the item open clears the raw-intake marker in the same edit that applies the outcome's labels, no exceptions across the routing space.** `status:ready` (briefed/ready and decision-defaulted), the autonomous-eligible role label, the human-gated role label (default `needs-human`), `status:needs-decision`, and `status:needs-info` each **remove the raw marker**; never leave both the raw marker and a routing label present. A raw marker alongside any routing label is a contradiction, the open-only attention view reads it as still-raw and re-triages it every cycle, so an already-decided item re-enters the needs-triage queue as if it were unrouted intake and wastes a read-and-confirm pass. If an item shows both, the routed state is the truth; clear the stale raw marker.
 - **Close** (already implemented / wontfix / duplicate) drops the item from the open-only attention frontier, so the raw marker is moot, a closed item never re-triages.
+- **`status: confirmed` is not a routing outcome.** Step 3 applies it beside the raw marker. The outcome edit here always clears the raw marker, and replaces `status: confirmed` when it applies another `status:` value; a human-gated outcome, which applies none, keeps `status: confirmed`.
+
+## Status and provenance labels
+
+Two labels this skill writes come from the live label set and are never invented:
+
+- `status: confirmed`, applied by step 3 on a passed verification.
+- `provenance: signal`, applied by the outcome edit to an item whose body carries the autonomy
+  signal marker (step 1).
+
+**Preflight.** Before the edit that would apply either one, check that it exists in the repository
+(adapter: the label listing step 2 uses for `priority:`). When it is absent, stop without mutating
+anything, not even the other labels of that edit, and report it as a provisioning gap for the
+repository's label-as-code owner, or for a person to create in the tracker. Never fall back to a
+different label.
+
+The `status:` axis is single-valued: the edit that applies `status: confirmed`, `status: ready` or
+`status:needs-info` removes every other `status:` label. `provenance: signal` is not removed by any
+outcome or lane edit.
+
+## Verification comment
+
+Step 3 posts it on a passed verification, before the label edit that applies `status: confirmed`.
+If the comment cannot be posted, apply no label. In an autonomous session it starts with the AI
+disclaimer.
+
+```markdown
+**Verified: <bug reproduced | request valid | PR behaves as described>**
+
+Default branch: <commit checked> (<failure still present | not applicable>)
+Open linked PRs: <#n, ... | none>
+Reproduced <n> of <n> (triage_repro_count=<n>, <layer>)
+
+1. <steps or command> on <commit>: <what it printed>
+2. <steps or command> on <commit>: <what it printed>
+```
+
+The `Reproduced` line and the numbered runs are for a bug. A request or a PR states instead what was
+checked and what it showed.
+
+## Objection window comment
+
+Posted with the brief by every outcome that applies the autonomous-eligible role label, when
+`triage_objection_window_hours` resolved above 0. `<end>` is the post time plus that many hours, in
+UTC, written `YYYY-MM-DDTHH:MM:SSZ`. The marker line is first so the work-loop admission gate can
+find it; in an autonomous session the AI disclaimer follows it.
+
+Post it before the label edit that applies the autonomous-eligible role label. If the comment
+cannot be posted, apply no label at all: the item keeps its raw marker and the next sweep retries
+it. An item made autonomous-eligible without its window comment would be dispatched with no window.
+
+```markdown
+<!-- work-items:objection-window until=<end> -->
+Objection window until <end>. Triage made this item autonomous-eligible
+(triage_objection_window_hours=<h>, <layer>). The work-loop lane will not start it before then.
+Reply here to object, and the lane hands it to a person instead.
+```
+
+Triage posts this and moves on; nothing in triage waits for the window.
 
 ## Needs-info comment
 
