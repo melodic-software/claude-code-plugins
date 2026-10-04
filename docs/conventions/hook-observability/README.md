@@ -425,7 +425,9 @@ amended the What bullet twice on 2026-10-04: dropping the standing-rule sentence
   context channel. The owner decided this on 2026-10-04: they rotate accounts by hand on the alerts,
   and an interactive session waits out a usage limit on its own
   (<https://code.claude.com/docs/en/interactive-mode#wait-for-a-usage-limit-to-reset>), so a line
-  read as a cue to stop would end work the session can finish. By default a line carries
+  read as a cue to stop would end work the session can finish. The observed stumble: on
+  2026-10-04 the owner saw sessions treat the earlier fact-only line, `at the 90% pause edge`, as a
+  reason to stop. By default a line carries
   no raw count; the operator can add figures through the plugin's line-data option. The reading
   behind the verdict stays on the plugin's status tools.
 - **Telemetry.** The guard mods emit an envelope only on a fire that acts: lines sent, an operator

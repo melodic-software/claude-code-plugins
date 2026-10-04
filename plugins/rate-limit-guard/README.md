@@ -57,7 +57,7 @@ of a prompt; a crossing seen when a turn ends reaches Claude with the next promp
 
 Use only rises within a window, so a reading that dips below a mark sends nothing and does not
 re-arm that mark's line. No other tool call or prompt carries a line. Each window gets its own
-line, for example `rate-limit-guard: 5-hour window at 95%, resets at 2026-10-03 21:00 UTC. Keep
+line, for example `rate-limit-guard: 5-hour window at or above 95%, resets at 2026-10-03 21:00 UTC. Keep
 working.`; when several windows reach the threshold together, only the last line ends "Keep
 working.". No line tells Claude to pause: an interactive session
 [waits out a usage limit](https://code.claude.com/docs/en/interactive-mode#wait-for-a-usage-limit-to-reset)

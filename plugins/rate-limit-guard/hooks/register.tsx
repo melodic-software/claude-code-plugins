@@ -144,7 +144,7 @@ const verdictText = (event: Event, cfg: Config) =>
   ({ edge: 'at', approach: 'nearing', quiet: 'below', reset: 'reset and below' })[event] + ` the ${edgeName(cfg)}`
 
 const modelVerdict = (event: Event, cfg: Config) =>
-  ({ edge: 'at', approach: 'nearing', quiet: 'below', reset: 'reset, now below' })[event] + ` ${cfg.threshold}%`
+  ({ edge: 'at or above', approach: 'nearing', quiet: 'below', reset: 'reset, now below' })[event] + ` ${cfg.threshold}%`
 
 const windowOf = (kind: string) => WINDOWS.find(w => w.kind === kind)
 
