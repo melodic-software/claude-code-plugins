@@ -16,7 +16,7 @@ SCRIPT="$SCRIPT_DIR/check-effort-pins.sh"
 FX="$SCRIPT_DIR/fixtures/effort-pins"
 T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
-export DOCS_CACHE_DIR="$T/cache"
+export DOCS_CACHE_DIR="$T/cache" XDG_CONFIG_HOME="$T/config"
 
 FAILED=0
 CASE_NUM=0

@@ -697,12 +697,23 @@ dc_section_checkable() {
   fi
 }
 
-# dc_summaries: print section-sha256<TAB>summary for the looked-up key.
+# dc_summaries: print section-sha256<TAB>summary for the looked-up key. A
+# summary file that is not one JSON object on one line is skipped with a
+# warning on stderr.
 dc_summaries() {
-  local files=("$DC_DIR/summaries/${DC_KEY:0:16}"/*)
+  local files=("$DC_DIR/summaries/${DC_KEY:0:16}"/*) line
   [[ -f "${files[0]}" ]] || return 0
-  jq -r --argjson v "$DC_STORE_VERSION" --arg k "$DC_KEY" \
-    'select(.store_version == $v and .key == $k) | .section_sha256 + "\t" + .summary' "${files[@]}" 2>/dev/null | tr -d '\r'
+  while IFS= read -r line; do
+    if [[ "$line" == $'\x01bad\t'* ]]; then
+      printf 'WARNING: docs-cache: skipped a summary file that is not one JSON summary: %s\n' "${line#*$'\t'}" >&2
+    else
+      printf '%s\n' "$line"
+    fi
+  done < <(jq -nrR --argjson v "$DC_STORE_VERSION" --arg k "$DC_KEY" '
+    inputs | (try fromjson catch null) as $j
+    | if ($j | type) != "object" then "\u0001bad\t\(input_filename)"
+      elif $j.store_version == $v and $j.key == $k then $j.section_sha256 + "\t" + $j.summary
+      else empty end' "${files[@]}" 2>/dev/null | tr -d '\r')
 }
 
 # dc_summary_lines: print "summary <id>: <text>" for each section of the entry
