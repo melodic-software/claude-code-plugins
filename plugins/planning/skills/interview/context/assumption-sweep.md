@@ -71,8 +71,13 @@ Fields:
 You write the results, not the sub-agent, so register ids stay contiguous.
 `S<N>` never reaches the register.
 
-- **fact:** resolve it from the environment and state it. No row.
-- **decision, tenant, person:** a register row at the next contiguous `Q<N>`, written `open` and
+- **fact and tenant:** run the self-answer step first
+  ([`self-answer.md`](../../../context/self-answer.md)), connected and connectable sources
+  included. An item it answers is stated with its source tag and basis, with no row (loop.md
+  "Self-answer gate"); one an unconnected system would answer joins the offer to connect. An
+  item no source answers falls through to the next line.
+- **decision, person, and an unanswered tenant or fact:** a register row at the next contiguous
+  `Q<N>`, written `open` and
   asked in the next round with a recommendation. A `person` item the user cannot answer, and a
   `tenant` item when the user is not the setting's owner, are `deferred` to the Brief's
   `### Deferred questions` with its arbiter tag.
