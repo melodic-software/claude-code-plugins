@@ -255,8 +255,10 @@ Write the artifact in stages:
 2. Write each `RESEARCH-<section>.md` sidecar as its section settles, and update its row in the
    index.
 3. The final write, after the outcome gate below, replaces the marker line with
-   `Run status: complete` and sets the frontmatter's `accepted:` count. Nothing earlier does. The parent's gate refuses an index still carrying
-   the marker, which is how a stop at the limit reaches the parent even when no payload does.
+   `Run status: complete` and sets the frontmatter's `accepted:` count, which counts the
+   claims in neither Gaps nor an unresolved Conflicts entry. Nothing earlier does. The parent's gate
+   refuses an index still carrying the marker, which is how a stop at the limit reaches the parent
+   even when no payload does.
 
 A by-value `RESEARCH.md` body carries `Run status: complete`, because by-value means the work
 finished; the parent writes it and grades it like any other.

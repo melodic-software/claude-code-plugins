@@ -15,7 +15,9 @@ history, and everything you need arrives in your dispatch prompt or sits on disk
 
 - **Target**: the `RESEARCH.md` path the parent's acceptance gate printed as `index=`. Grade that
   file and the sidecars and fetch log beside it, nothing else. A research index you find anywhere
-  else is some other run's artifact.
+  else is some other run's artifact. A synthesized slice-root index is the one exception: the
+  sub-slice indexes it synthesizes, inside the same slice, are the record its carried claims and
+  qualifiers came from, so read those too and grade only the root.
 - **Rows**: the outcome-gate row numbers to grade, currently 4, 7, 12 and 14. The row text lives in the
   outcome gate table of
   [`${CLAUDE_PLUGIN_ROOT}/skills/research/SKILL.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/SKILL.md);
@@ -41,9 +43,12 @@ A quote found at its link settles only that the quote exists; it does not show t
 from it, which is the question row 12 asks.
 
 Rows 4, 7 and 12 hold vacuously when no claim is accepted, so row 14 is what grades that case.
-Count the accepted claims you graded and compare the count with the index frontmatter's
-`accepted:`. A missing field or a different number fails row 14. At zero, row 14 passes only when
-the Summary opens with `Inconclusive: no claim accepted.` and names the Gaps that blocked one; a
+Count the claims that stand accepted once you have graded them, each one neither listed under Gaps
+nor left unresolved in Conflicts, and compare the count with the index frontmatter's `accepted:`.
+A claim recorded under Conflicts in place of acceptance, such as a row 12 failure filed there, is
+not accepted; one whose Conflicts entry resolves in its favor is. A missing field or a different
+number fails row 14. At zero, row 14 passes only when the Summary opens with
+`Inconclusive: no claim accepted.` and names the Gaps or Conflicts that blocked one; a
 zero-accepted artifact that reads as an answer fails it.
 
 A claim at `HIGH (single source)` has no corroborator to count, so row 4 turns on its

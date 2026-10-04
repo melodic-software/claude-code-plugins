@@ -534,12 +534,12 @@ assert_present 'an improvised header costs criteria 12 and 13 their evidence too
   'skills/research/SKILL.md' 'costs criteria 4, 6, 9, 12 and 13 their evidence'
 assert_present 'the carry-forward line lists the new header fields' \
   'skills/research/SKILL.md' 'Carry this much into the read:.*measures.*inference.*qualifiers'
-assert_present 'the fan-out obligation sends the synthesis to a criterion-12 verifier' \
-  'skills/research/context/dispatch.md' '^\*\*The synthesis .*fresh verifier for criterion 12'
+assert_present 'the fan-out obligation sends the synthesis to a verifier on every verifier-owned row' \
+  'skills/research/context/dispatch.md' '^\*\*The synthesis .*fresh verifier for every verifier-owned row\*\* \(currently rows 4, 7, 12 and 14\)'
 assert_present 'the synthesis verifier also checks claims the synthesis adds' \
   'skills/research/context/dispatch.md' 'a claim the synthesis adds'
-assert_present 'the SKILL.md fan-out paragraph points at the synthesis criterion-12 check' \
-  'skills/research/SKILL.md' '^ +\*\*Fanning out over N topics.*verifier for criterion 12'
+assert_present 'the SKILL.md fan-out paragraph sends the synthesis to the verifier-owned rows' \
+  'skills/research/SKILL.md' '^ +\*\*Fanning out over N topics.*fresh verifier for the verifier-owned rows'
 assert_present 'the verifier is briefed on rows 4, 7, 12 and 14 by number' \
   'skills/research/context/dispatch.md' 'rows 4, 7, 12 and 14'
 assert_present 'the verifier brief overrides the payload criterion string' \
@@ -569,8 +569,8 @@ assert_present 'researcher verification request names joint-inference validity' 
   'agents/researcher.md' '^  criterion: ".*joint-inference validity'
 assert_present 'research-deep lists joint inference among the verifier rows' \
   'skills/research-deep/SKILL.md' 'verifier-owned rows \(independent corroboration, HIGH confidence, joint inference, the accepted-claim count\)'
-assert_present 'research-deep points at the synthesis criterion-12 check' \
-  'skills/research-deep/SKILL.md' 'synthesized root index also goes to a fresh verifier for criterion 12'
+assert_present 'research-deep sends the synthesis to the verifier on every verifier-owned row' \
+  'skills/research-deep/SKILL.md' 'synthesized root index also goes to a fresh verifier for every verifier-owned row, the accepted-claim count included'
 assert_present 'row 12 has one pass bar: the primary measures the variable and population' \
   'skills/research/SKILL.md' "^\| 12 \|.*the claim's primary source measures the claim's variable and population"
 assert_present 'a non-measuring corroborator is recorded, not counted' \
@@ -1196,6 +1196,35 @@ assert_present 'evals cover an artifact whose every claim is a Gap' \
   'skills/research/evals/evals.json' '"name": "every-claim-a-gap-is-stated-inconclusive"'
 assert_present 'evals cover a count that includes a Gap claim' \
   'skills/research/evals/evals.json' '"name": "accepted-count-excludes-gap-claims"'
+
+# ---------------------------------------------------------------------------
+# 23. Conflicts and the synthesis both reach row 14 (#5833 review)
+#
+# A rejected claim may be recorded only under Conflicts (row 12's Gap-or-
+# Conflicts route, a refuted engine finding), so a count that excluded only
+# Gaps stayed nonzero when every claim took that route. And a synthesized root
+# index went to its verifier for criterion 12 alone, so row 14 never ran on it.
+# ---------------------------------------------------------------------------
+assert_present 'gate row 14 excludes Gap claims and unresolved Conflicts claims from the count' \
+  'skills/research/SKILL.md' '^\| 14 \| The index.s `accepted:` counts the claims neither in Gaps nor unresolved in Conflicts;'
+assert_present 'artifact-shape counts a Conflicts claim only when the entry resolves in its favor' \
+  'skills/research/context/artifact-shape.md' 'A claim recorded under Conflicts counts only when its entry resolves in the claim.s favor'
+assert_present 'the verifier excludes unresolved Conflicts claims from the count it compares' \
+  'agents/research-verifier.md' 'nor left unresolved in Conflicts'
+assert_present 'the researcher counts neither Gap nor unresolved Conflicts claims' \
+  'agents/researcher.md' 'claims in neither Gaps nor an unresolved Conflicts entry'
+assert_absent 'no accepted count defined by the Gaps section alone' \
+  'counts the claims not listed under Gaps|evidence table presents that the Gaps section does not list'
+assert_present 'evals cover an artifact whose every claim is rejected under Conflicts' \
+  'skills/research/evals/evals.json' '"name": "every-claim-in-conflicts-is-stated-inconclusive"'
+assert_present 'the synthesis verifier counts the root index under row 14' \
+  'skills/research/context/dispatch.md' 'Row 14 counts the synthesized index.s own accepted claims'
+assert_present 'the verifier reads the sub-slice indexes a synthesized root names' \
+  'agents/research-verifier.md' 'A synthesized slice-root index is the one exception'
+assert_present 'research-deep evals send the synthesized root to rows 4, 7, 12 and 14' \
+  'skills/research-deep/evals/evals.json' 'synthesized slice-root RESEARCH.md goes to a fresh verifier on rows 4, 7, 12 and 14'
+assert_absent 'no synthesis verifier briefed on criterion 12 alone' \
+  'verifier for criterion 12'
 
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then

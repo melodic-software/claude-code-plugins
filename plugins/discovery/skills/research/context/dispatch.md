@@ -169,11 +169,18 @@ obligation is the parent's, not the script's. Grade each run against the sub-sli
 and grade before synthesis. A slice-root invocation grades only the synthesized index, never any
 dispatched run.
 
-**The synthesis is itself unverified, so it goes to a fresh verifier for criterion 12** before it
-is surfaced. Every `qualifiers:` entry and scope limit a sub-slice recorded stays attached wherever
-the synthesized index uses that claim, and a claim the synthesis adds that no sub-slice accepted,
-such as a cross-topic conclusion, gets the full joint-inference check or is filed as a Gap. Either
-failure sends the synthesis back for rewriting, not the sub-slice for re-dispatch.
+**The synthesis is itself unverified, so it goes to a fresh verifier for every verifier-owned row** (currently rows 4, 7, 12 and 14)
+before it is surfaced, briefed by number like any other verifier dispatch. A claim the synthesis
+carries from a sub-slice keeps that sub-slice's corroboration and confidence verdicts only if the
+sub-slice accepted it; one the sub-slice listed under Gaps or left unresolved in Conflicts is not
+accepted in the synthesis either. Every `qualifiers:` entry and scope limit a sub-slice recorded
+stays attached wherever the synthesized index uses that claim, and a claim the synthesis adds that
+no sub-slice accepted, such as a cross-topic conclusion, gets rows 4, 7 and 12 in full or is filed
+as a Gap.
+Row 14 counts the synthesized index's own accepted claims, so a root built from topics that
+accepted nothing records `accepted: 0` and opens its Summary with
+`Inconclusive: no claim accepted.` Any failure sends the synthesis back for rewriting, not the
+sub-slice for re-dispatch.
 
 ## The coverage ledger is graded separately, and its freshness is not bound
 

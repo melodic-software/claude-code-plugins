@@ -471,6 +471,20 @@
         "The corrected index records accepted: 2",
         "No 'Inconclusive: no claim accepted.' line is written when at least one claim is accepted"
       ]
+    },
+    {
+      "id": 33,
+      "name": "every-claim-in-conflicts-is-stated-inconclusive",
+      "prompt": "Research whether ExampleQueue 3 guarantees exactly-once delivery across a broker failover. [The dispatched discovery:researcher returns a well-formed payload with verification: pending, and all three gates exit 0. The sidecar headers record two claims, each citing the vendor's delivery-guarantees page as primary. The researcher recorded each claim only in the Conflicts section, beside a failover incident report that contradicts it, and left both entries unresolved. The Gaps section is empty. The index frontmatter reads accepted: 2, and the Summary answers the question in two sentences.]",
+      "files": [],
+      "expected_output": "Briefs the sibling verifier on rows 4, 7, 12 and 14. A claim recorded under Conflicts in place of acceptance, with the entry unresolved, is not accepted, so the run accepts nothing even though the Gaps section is empty, and rows 4, 7 and 12 have no accepted claim to grade. Row 14 fails: the index says accepted: 2, but the count excludes claims left unresolved in Conflicts as well as Gap claims, so it is 0, and the Summary reads as an answer. The parent writes verification: fail rows 14 and does not present the result until the index records accepted: 0 and the Summary opens with 'Inconclusive: no claim accepted.' naming the Conflicts that blocked an answer. Once it does, the run is presented as inconclusive, not as an answer.",
+      "expectations": [
+        "The verifier is briefed on rows 4, 7, 12 and 14 by number",
+        "A claim recorded only under Conflicts, with the entry unresolved, is treated as not accepted even though the Gaps section does not list it",
+        "Row 14 fails because accepted: 2 counts claims left unresolved in Conflicts",
+        "The fixed artifact records accepted: 0 and its Summary opens with 'Inconclusive: no claim accepted.' and names the blocking Conflicts",
+        "The result is presented as inconclusive, not as an answer and not as a gate failure once the count and the line are in place"
+      ]
     }
   ]
 }

@@ -27,13 +27,19 @@ verbatim, so the header is part of the artifact's public shape, not decoration. 
 three of this plugin's index families (`RESEARCH.md`, `EXPLORE.md`, `INTENT.md`). `RESEARCH.md`
 also carries `evidence_use:` (see the sidecar header below), `verification:`, and `accepted:`.
 
-**`accepted:` is the number of accepted claims**, an integer the final write sets: claims the
-evidence table presents that the Gaps section does not list. Gap claims stay in the sidecar headers
-and do not count. `accepted: 0` is a valid result, an inconclusive run, and the Summary then opens
-with `Inconclusive: no claim accepted.` and names the Gaps that blocked one. Without the field, an
-artifact whose every claim is a Gap passes every row quantified over accepted claims and reads like
-an answer. The verifier grades the count and the line under outcome-gate criterion 14, and a parent
-that later files an accepted claim as a Gap lowers the count to match.
+**`accepted:` is the number of accepted claims**, an integer the final write sets: the claims the
+run accepts, so neither the claims listed under Gaps nor those left unresolved in Conflicts. Both
+stay in the sidecar headers and do not count.
+A claim recorded under Conflicts counts only when its entry resolves in the claim's favor, as when
+the primary wins over blog consensus. A claim recorded there in place of acceptance does not: a
+refuted engine finding, or a criterion-12 failure filed as a Conflicts entry, which the discipline
+file's "Joint-inference check" says is not accepted.
+`accepted: 0` is a valid result, an inconclusive run, and the Summary then opens with
+`Inconclusive: no claim accepted.` and names the Gaps or Conflicts that blocked one. Without the
+field, an artifact whose every claim is a Gap or an unresolved Conflicts entry passes every row
+quantified over accepted claims and reads like an answer. The verifier grades the count and the
+line under outcome-gate criterion 14, and a parent that later files an accepted claim as a Gap or
+Conflicts entry lowers the count to match.
 
 **`verification:` takes one of the values** defined in
 [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),
