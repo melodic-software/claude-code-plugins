@@ -22,6 +22,12 @@ references), code modules (internals reaching, dependency direction), applicatio
 databases, implicit contracts, temporal coupling), and repositories (copied content,
 depending on another repo's internals instead of its releases).
 
+On a GitHub-hosted repository the scan also measures collision hotspots: files that pull
+requests open at the same time keep editing together. It replays the merge of each such pair
+with `git merge-tree` and ranks files by the conflicts it counts, leaving changelogs, lockfiles
+and version manifests out of the ranking. This needs `gh` and `jq`; without them the scan uses
+co-change history alone and says so.
+
 Two lanes keep the skill honest:
 
 - **Apply lane.** Mechanical, contained, behavior-preserving reductions, applied under a

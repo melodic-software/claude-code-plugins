@@ -106,6 +106,32 @@ history: file pairs that repeatedly change in the same commits without a declare
 are coupled through a channel the import graph cannot see, and they outrank most statically
 visible findings.
 
+Beside co-change, measure collision hotspots when the repository is hosted on GitHub: run
+`bash "${CLAUDE_SKILL_DIR}/scripts/collision-hotspots.sh" --prs <n>` from the repository root
+(add `--repo <owner>/<repo>` when the clone's `origin` is not the repository that holds the pull
+requests, `--exclude <glob>` for more files that change on every release, `--max-pairs <m>` to
+cap the replays, and `--dry-run` to see the pairs before fetching anything). Size `--prs` by the
+days of history wanted: count the pull requests merged over the last few days with `gh pr list
+--state merged --limit 200 --json mergedAt` and multiply the daily rate by the days. The script
+pairs pull requests that were open at the same time and share a file, replays each pair with
+`git merge-tree`, and prints `conflicts<TAB>pairs<TAB>path` for every file at least 3 pairs
+touched; read each ranked file as a candidate typed against the model's collision hotspot entry
+and verify it in phase C like any other finding. Carry its `gap:` lines into the report: a pull
+request whose file list stopped at the host's limit is undercounted, and a head that could not
+be fetched was not replayed. The `known bump hotspots` line names release files that conflict
+for version bumps, not design; report it once and do not ledger those files. When the script
+exits 2 (no `gh`, no `jq`, a `git` without `merge-tree --write-tree`, no host data), rank by
+co-change alone and record `gap: collision hotspots not measured: <the script's message>` in
+the report.
+
+- Pointer: the 100-file cap per pull request comes from the "Node limit" section of
+  <https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api>;
+  the exit codes the script reads are under "OUTPUT" and "EXIT STATUS" in
+  <https://git-scm.com/docs/git-merge-tree>.
+- As of: 2026-10-04.
+- Recheck trigger: `gh pr list --json files` returns more than 100 files for one pull request,
+  or `git merge-tree --write-tree` changes its exit status meanings.
+
 **C. Verify (hard gate).** Scan agents have a demonstrated error rate. Reproduce every
 finding against the actual artifacts before it reaches the ledger or the user. Confirm the
 edge exists, the mechanism is what the scan claims, and the depended-on side actually changes

@@ -3,6 +3,12 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Added
+
+- **Collision-hotspot lens in `reduce`.** `scripts/collision-hotspots.sh` reads recent pull requests through `gh`, pairs those that were open at the same time and share a file, replays each pair with `git merge-tree --write-tree`, and ranks files by measured conflicts once at least 3 pairs touched them. Changelogs, lockfiles and version manifests are left out of the ranking and named on one `known bump hotspots` line; replays are capped by `--max-pairs` (default 200); PR heads are fetched into a per-run ref namespace that is deleted on exit. Without `gh`, `jq` or a `git` with `merge-tree --write-tree`, the scan falls back to co-change mining and reports a `gap:` line. The plugin now declares `gh` and `jq` in `prerequisites.json` and ships the prerequisites checker copies.
+
 ## [0.3.4] - 2026-10-02
 
 ### Fixed
