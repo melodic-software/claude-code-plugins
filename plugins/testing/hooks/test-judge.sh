@@ -251,21 +251,19 @@ for fx in "${!INFOS[@]}"; do
 done
 
 # Counts only: the test names are in the findings file and the judge log.
-# Keys waited on, past the cap, late or failed all get their verdicts at a
-# later task end, so they are one count. An all-PASS run is one line; on a
-# blocking Stop the user sees the reason, so no systemMessage repeats it.
-later=$((${#waiting[@]} + ${#over[@]} + ${#late[@]} + ${#failed[@]}))
+# Keys waited on, past the cap or late are judged in the background; failed
+# keys are retried at the next task end. Both are counts in one line, merged
+# into the all-PASS line when there is one. On a blocking Stop the user sees
+# the reason, so no systemMessage repeats it.
+bg=$((${#waiting[@]} + ${#over[@]} + ${#late[@]})) nf=${#failed[@]} later=""
+((bg == 0)) || later="$bg more $(plural "$bg" "test is" "tests are") judged in the background, verdicts at the next task end"
+((nf == 0)) || later+="${later:+; }$nf $(plural "$nf" test tests) not judged, the next task end retries"
 msg="" reason=""
 if ((RELAY_N)); then
   judge::findings
   if ((RELAY_F + RELAY_U == 0)); then
-    msg="test judge: $RELAY_N $(plural "$RELAY_N" test tests) PASS"
-    if ((later)); then
-      msg+="; $later more $(plural "$later" is are) judged in the background, verdicts at the next task end."
-      later=0
-    else
-      msg+="."
-    fi
+    msg="test judge: $RELAY_N $(plural "$RELAY_N" test tests) PASS${later:+; $later}."
+    later=""
   else
     judge::counts
     msg="test judge: $COUNTS${FINDINGS_SHOWN:+ in $FINDINGS_SHOWN}"
@@ -276,7 +274,7 @@ if ((RELAY_N)); then
   fi
 fi
 judge::mark_relayed ${marks[@]+"${marks[@]}"}
-((later == 0)) || msg+="${msg:+$'\n'}test judge: $later more $(plural "$later" "test is" "tests are") judged in the background; verdicts at the next task end."
+[[ -z "$later" ]] || msg+="${msg:+$'\n'}test judge: $later."
 ((${#notrun[@]} == 0)) || msg+="${msg:+$'\n'}test judge: ${#notrun[@]} $(plural ${#notrun[@]} test tests) not judged after 2 failed attempts; see $JUDGE_LOG."
 ((${#limit[@]} == 0)) || msg+="${msg:+$'\n'}test judge: ${#limit[@]} $(plural ${#limit[@]} test tests) not judged: the session's judge-run limit is reached."
 emit "$reason" "$msg"

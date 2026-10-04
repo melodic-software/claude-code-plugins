@@ -179,7 +179,7 @@ record s6 w1 "$E" null
 stub_reset
 STUB_SLEEP=1 stop s6
 check "ten keys are judged at Stop, the 11th counted in the same one line" \
-  '[[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 10 tests PASS; 1 more is judged in the background, verdicts at the next task end." ]]'
+  '[[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 10 tests PASS; 1 more test is judged in the background, verdicts at the next task end." ]]'
 assert_not_contains "no test is named" "$(field .systemMessage)" "eleven.test.ts"
 check "the 11th key is handed to a background job with a pending/ marker" '[[ -n "$(find "$DATA/pending/$PKEY/s6" -type f)" ]]'
 stop s6 true
@@ -219,7 +219,7 @@ stub_reset
 STUB_MODE=hang TEST_JUDGE_TIMEOUT=1 stop s8
 check "budget exhaustion: no block" '[[ "$(field .decision)" != block ]]'
 check "budget exhaustion: counts the test, names none" \
-  '[[ "$(field .systemMessage)" == "test judge: 1 more test is judged in the background; verdicts at the next task end." ]]'
+  '[[ "$(field .systemMessage)" == "test judge: 1 more test is judged in the background, verdicts at the next task end." ]]'
 check "budget exhaustion: the key goes to a background job, as the overflow does" '[[ -n "$(find "$DATA/pending/$PKEY/s8" -type f)" ]]'
 stop_jobs s8
 sleep 0.5
@@ -288,7 +288,7 @@ js_file "$X" failing
 record s9 w1 "$X" null
 stub_reset
 STUB_MODE=fail stop s9
-assert_contains "a first failure is counted for a later task end" "$(field .systemMessage)" "1 more test is judged in the background"
+check "a first failure is counted as retried, not as a background job" '[[ "$(field .systemMessage)" == "test judge: 1 test not judged, the next task end retries." ]]'
 STUB_MODE=fail stop s9
 check "2 failed attempts: counted as not judged, with the log, no name" \
   '[[ "$(field .systemMessage)" == "test judge: 1 test not judged after 2 failed attempts; see $DATA/test-judge.log." ]]'
@@ -819,7 +819,7 @@ stop cw1
 check "a test file outside the repository git names for it: no judge run and no verdict" '[[ "$(stub_calls)" == 0 && -z "$(verdict_files cw1)" ]]'
 check "that is logged as a malfunction" 'grep -qF "malfunction: the test file is outside the repository git names for it, $CW/elsewhere" "$DATA/test-judge.log"'
 check "it does not block, and the test is counted for a later task end" \
-  '[[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 more test is judged in the background; verdicts at the next task end." ]]'
+  '[[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test not judged, the next task end retries." ]]'
 
 # A run Claude Code denied a tool call (the result's permission_denials) that
 # gives no test a FLAG or PASS is a malfunction: its UNKNOWN verdicts are not
@@ -833,9 +833,23 @@ stub_reset
 STUB_MODE=denied stop dn1
 check "a denied run with only UNKNOWN verdicts: one run, and no verdict" '[[ "$(stub_calls)" == 1 && -z "$(verdict_files dn1)" ]]'
 check "it does not block Stop" '[[ "$(field .decision)" != block ]]'
-check "its tests are counted for a later task end" '[[ "$(field .systemMessage)" == "test judge: 2 more tests are judged in the background; verdicts at the next task end." ]]'
+check "its tests are counted as retried at the next task end" '[[ "$(field .systemMessage)" == "test judge: 2 tests not judged, the next task end retries." ]]'
 check "the denial is logged as a malfunction" \
   'grep -qF "malfunction: judge run on $DN: the judge was denied Read and gave no test a FLAG or PASS" "$DATA/test-judge.log"'
+# PASS, background and failed keys in one all-PASS line: a failed key is
+# counted apart, since the next task end retries it and no background job
+# does. Files sort by path, so a-denied runs first (1 key, failed), then 9 of
+# z-mixed's 11 keys (PASS), and 2 go to the background.
+transcript mx1 claude-sonnet-5
+js_file "$REPO/src/a-denied.test.ts" "deny alone"
+js_file "$REPO/src/z-mixed.test.ts" "${names[@]}"
+record mx1 w1 "$REPO/src/a-denied.test.ts" null
+record mx1 w2 "$REPO/src/z-mixed.test.ts" null
+stub_reset
+STUB_MODE=denied stop mx1
+check "PASS, background and failed keys: one line, failed keys counted apart" \
+  '[[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 9 tests PASS; 2 more tests are judged in the background, verdicts at the next task end; 1 test not judged, the next task end retries." ]]'
+stop_jobs mx1
 # A denial names a tool call, not a block, and one run judges every block of
 # the file: when the run gives any FLAG or PASS, its UNKNOWN verdicts stand,
 # so one denied read cannot mute the other blocks.
