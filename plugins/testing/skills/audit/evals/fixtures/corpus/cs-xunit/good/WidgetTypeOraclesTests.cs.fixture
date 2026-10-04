@@ -1,8 +1,9 @@
 // good-for: rule-inert-assertion
 // good-for: rule-weak-oracle
 // Type and reflection oracles that can fail: a type check on a value the code
-// returns, a reflection lookup that may find nothing, a literal compared to a
-// computed flag, a type property, and a type compared to a runtime type.
+// returns, a reflection lookup that may find nothing, a namespace that is null
+// for a type in the global namespace, a literal compared to a computed flag, a
+// type property, and a type compared to a runtime type.
 using Xunit;
 
 public class WidgetTypeOraclesTests
@@ -32,6 +33,13 @@ public class WidgetTypeOraclesTests
         var widget = new Widget();
         widget.Enable();
         Assert.True(true == widget.Enabled);
+    }
+
+    [Fact]
+    public void Widget_HasItsNamespace()
+    {
+        Assert.NotNull(typeof(Widget).Namespace);
+        Assert.Equal("Shop.Widgets", typeof(Widget).Namespace);
     }
 
     [Fact]
