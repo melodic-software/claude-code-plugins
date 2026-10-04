@@ -27,7 +27,7 @@ graders:
   - name: asks-item-by-item
     type: llm
     focus: trace
-    criteria: 'PASS only if: The reply asks about each adopt-now item on its own numbered line. FAIL otherwise.'
+    criteria: 'PASS only if: The reply lists each adopt-now item on its own numbered line with its answer (the prompt answers them in advance, so the reply need not ask). FAIL otherwise.'
   - name: adopts-lint-only
     type: tool_used
     tool: Bash
