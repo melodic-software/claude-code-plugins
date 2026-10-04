@@ -1246,7 +1246,7 @@ assert_present 'the verifier points at the live WebFetch tool behavior section' 
   'agents/research-verifier.md' 'tools-reference#webfetch-tool-behavior'
 assert_present 'the dispatch brief saves a truncated primary with the discipline fetch recipe' \
   'skills/research/context/dispatch.md' 'recipe under "A size failure is the same trigger"'
-assert_present 'the dispatch brief creates the snapshot directory before the recipe runs mktemp' \
+assert_present 'the dispatch brief creates the snapshot directory before the fetch recipe runs' \
   'skills/research/context/dispatch.md' 'makes only the final path component'
 assert_present 'the dispatch brief points at the upstream-drift rung for the raw-markdown channel' \
   'skills/research/context/dispatch.md' 'upstream-drift/README.md#the-rungs'
