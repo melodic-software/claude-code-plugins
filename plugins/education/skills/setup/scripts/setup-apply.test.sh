@@ -6,6 +6,7 @@
 # explain_starting_rung takes plain or peer, and the file is
 # docs/conventions/education.yaml at the repository root.
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$HERE/setup-apply.mjs"
