@@ -42,7 +42,7 @@ claude-code-action are at the pinned commit `ed670b4`.
 
 A skill activity loads no settings, hooks, instructions, plugins or base from the PR head, and the
 code it may run is limited by what it holds. Line references are to
-[`pr-run-activity.yml`](../../.github/workflows/pr-run-activity-write.yml) on the default branch.
+[`pr-run-activity-write.yml`](../../.github/workflows/pr-run-activity-write.yml) on the default branch.
 
 1. **Only the default branch is a trusted base.** The run job checks out the default branch tip
    first and runs the kill switch and trigger gate from it. It fails red unless the PR targets the

@@ -10,6 +10,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT_SRC="$SCRIPT_DIR/check-read-caller-keys.sh"
+SUT_MJS="$SCRIPT_DIR/check-read-caller-keys.mjs"
+POLICY_DIR="$SCRIPT_DIR/../.github/standards/runner-policy"
 
 # shellcheck source=lib/test-harness.sh
 . "$SCRIPT_DIR/lib/test-harness.sh"
@@ -20,9 +22,11 @@ SUT_SRC="$SCRIPT_DIR/check-read-caller-keys.sh"
 # key, a read-only lane caller and a write-only lane caller.
 mk_tree() {
   local dir
-  fixture_tree::build "$1" --sut "$SUT_SRC" --label read-caller-keys || return 1
+  fixture_tree::build "$1" --sut "$SUT_SRC" --sut "$SUT_MJS" --label read-caller-keys || return 1
   dir="${!1}"
-  mkdir -p "$dir/.github/workflows"
+  mkdir -p "$dir/.github/workflows" "$dir/.github/standards/runner-policy"
+  cp "$POLICY_DIR/package.json" "$dir/.github/standards/runner-policy/"
+  ln -s "$POLICY_DIR/node_modules" "$dir/.github/standards/runner-policy/node_modules"
   cat >"$dir/.github/workflows/pr-run-activity-read.yml" <<'EOF'
 on:
   workflow_call:
@@ -105,42 +109,69 @@ run_case() {
 }
 
 CALLER=.github/workflows/pr-review.yml
+READ=.github/workflows/pr-run-activity-read.yml
+WRITE=.github/workflows/pr-run-activity-write.yml
+# shellcheck disable=SC2016  # a literal workflow expression, never expanded
+KEY_LINE='      app-private-key: ${{ secrets.AUTOMATION_LANES_APP_PRIVATE_KEY }}'
 
 run_case "a read caller passing only the OAuth token passes" 0 ":" "(1 caller(s))"
 
 run_case "a read caller that passes the App key fails" 1 \
-  "printf '      app-private-key: \${{ secrets.AUTOMATION_LANES_APP_PRIVATE_KEY }}\n' >>$CALLER" \
-  "$CALLER:11: calls .github/workflows/pr-run-activity-read.yml and references the App key"
+  "printf '%s\n' '$KEY_LINE' >>$CALLER" \
+  "$CALLER:11: references the App key in a run that reaches $READ"
 
 run_case "a read caller that mints from the key secret itself fails" 1 \
   "printf '  mint:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/create-github-app-token@v3\n        with:\n          private-key: \${{ secrets.KEY }}\n' >>$CALLER" \
-  "$CALLER:16: calls"
+  "$CALLER:16: references the App key"
 
 run_case "a lane mixing read and write activities in one caller fails" 1 \
-  "printf '  simplify:\n    uses: ./.github/workflows/pr-run-activity-write.yml\n    secrets:\n      app-private-key: \${{ secrets.AUTOMATION_LANES_APP_PRIVATE_KEY }}\n' >>$CALLER" \
-  "$CALLER:14: calls" \
-  ".github/workflows/pr-run-activity-write.yml:4: references the App key in the run of $CALLER"
+  "printf '  simplify:\n    uses: ./$WRITE\n    secrets:\n%s\n' '$KEY_LINE' >>$CALLER" \
+  "$CALLER:14: references the App key" "$WRITE:4: references the App key"
 
 run_case "a key reached through a nested local reusable workflow fails" 1 \
-  "printf 'on: workflow_call\njobs:\n  write:\n    uses: \"./.github/workflows/pr-run-activity-write.yml\"\n' >.github/workflows/helper.yml &&
+  "printf 'on: workflow_call\njobs:\n  write:\n    uses: \"./$WRITE\"\n' >.github/workflows/helper.yml &&
    printf '  helper:\n    uses: ./.github/workflows/helper.yml\n' >>$CALLER" \
-  ".github/workflows/pr-run-activity-write.yml:12: references the App key in the run of $CALLER"
+  "$WRITE:12: references the App key in a run that reaches $READ"
+
+run_case "a parent that calls the write workflow and a reusable reaching the read one fails" 1 \
+  "printf 'on: workflow_call\njobs:\n  review:\n    uses: ./$CALLER\n' >.github/workflows/middle.yml &&
+   printf 'on: pull_request\njobs:\n  middle:\n    uses: ./.github/workflows/middle.yml\n  write:\n    uses: ./$WRITE\n    secrets:\n%s\n' '$KEY_LINE' >.github/workflows/top.yml" \
+  ".github/workflows/top.yml:8: references the App key"
+
+run_case "a folded uses path to the read workflow is still a caller" 1 \
+  "printf 'on: push\njobs:\n  a:\n    uses: >-\n      ./$READ\n    secrets:\n%s\n' '$KEY_LINE' >.github/workflows/folded.yml" \
+  ".github/workflows/folded.yml:7: references the App key"
 
 run_case "a quoted read workflow reference is still a caller" 1 \
-  "printf 'on: push\njobs:\n  a:\n    uses: \"./.github/workflows/pr-run-activity-read.yml\"\n    secrets:\n      app-private-key: x\n' >.github/workflows/quoted.yml" \
-  ".github/workflows/quoted.yml:6: calls"
+  "printf 'on: push\njobs:\n  a:\n    uses: \"./$READ\"\n    secrets:\n      app-private-key: x\n' >.github/workflows/quoted.yml" \
+  ".github/workflows/quoted.yml:6: references the App key"
+
+run_case "secrets: inherit in a read caller fails" 1 \
+  "sed -i 's/^    secrets:\$/    secrets: inherit/; /claude-code-oauth-token/d' $CALLER" \
+  "$CALLER:9: passes secrets: inherit"
+
+run_case "toJSON(secrets) in a read caller's run fails" 1 \
+  "printf '  dump:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo \"\${{ toJSON(secrets) }}\"\n' >>$CALLER" \
+  "$CALLER:14: reads every secret through toJSON(secrets)"
+
+run_case "a computed secret name in a read caller's run fails" 1 \
+  "printf '  pick:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo \"\${{ secrets[format(\\\"{0}_KEY\\\", vars.P)] }}\"\n' >>$CALLER" \
+  "$CALLER:14: reads a secret by a computed name"
+
+run_case "a workflow that does not parse fails" 1 \
+  "printf 'jobs: [unclosed\n' >.github/workflows/broken.yml" \
+  ".github/workflows/broken.yml: does not parse as YAML"
 
 run_case "a read workflow that names id-token fails" 1 \
-  "printf '      id-token: write\n' >>.github/workflows/pr-run-activity-read.yml" \
-  ".github/workflows/pr-run-activity-read.yml:14: the read workflow names id-token"
+  "printf '      id-token: write\n' >>$READ" \
+  "$READ:14: the read workflow names id-token"
 
-run_case "a read workflow that references the key fails through its caller" 1 \
-  "printf '      app-private-key:\n        required: true\n' >>.github/workflows/pr-run-activity-read.yml" \
-  ".github/workflows/pr-run-activity-read.yml:14: references the App key in the run of $CALLER"
+run_case "a read workflow that references the key fails" 1 \
+  "printf '      app-private-key:\n        required: true\n' >>$READ" \
+  "$READ:14: references the App key"
 
 run_case "a missing read workflow fails" 1 \
-  "rm .github/workflows/pr-run-activity-read.yml" \
-  ".github/workflows/pr-run-activity-read.yml: missing"
+  "rm $READ" "$READ: missing"
 
 run_case "a write-only caller may pass the key" 0 \
   "rm $CALLER" "(0 caller(s))"

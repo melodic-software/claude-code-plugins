@@ -1,4 +1,4 @@
-name: Stage activity
+name: Collect base activity
 description: >
   Copy what an activity runs out of the base checkout before the PR head
   replaces it: a script's whole directory to $RUNNER_TEMP/base-script, or for

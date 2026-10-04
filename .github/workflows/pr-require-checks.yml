@@ -553,11 +553,6 @@ jobs:
         continue-on-error: true
         run: scripts/check-adr-numbers.sh --check
 
-      - name: Check no read-workflow caller references the App key
-        id: read_caller_keys
-        continue-on-error: true
-        run: scripts/check-read-caller-keys.sh --check
-
       # The config-cascade "Semantics at a glance" table is generated from the
       # Implementers rows, so the failure this catches is a row edited without
       # regenerating the table, or a table hand-edited away from its rows. The
@@ -925,6 +920,14 @@ jobs:
           CI_REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
         run: node .github/standards/runner-policy/runner-policy.mjs --root .
 
+      # Parses workflows with the yaml package the runner-policy install
+      # above provides, so it gates on the same workflows filter group.
+      - name: Check no run reaching the read workflow references the App key
+        id: read_caller_keys
+        if: needs.select-tests.outputs.run_workflows == 'true'
+        continue-on-error: true
+        run: scripts/check-read-caller-keys.sh --check
+
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
 
@@ -951,7 +954,7 @@ jobs:
             conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
             adr-numbers=${{ steps.adr_numbers.outcome }}
-            read-caller-keys=${{ steps.read_caller_keys.outcome }}
+            read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
             config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
             code-metrics-skill-prose=${{ steps.code_metrics_skill_prose.outcome }}

@@ -16,8 +16,8 @@ activity runs, with what model, turn budget and token grant, comes from the base
 [`resolve-config`](../../../.github/actions/resolve-config/README.md). Both files share the steps
 before the head checkout through local composite actions
 ([`check-trusted-base`](../../../.github/actions/check-trusted-base/action.yml),
-[`stage-activity`](../../../.github/actions/stage-activity/action.yml),
-[`isolate-runner`](../../../.github/actions/isolate-runner/action.yml)) run from `.base`. Steps
+[`collect-base-activity`](../../../.github/actions/collect-base-activity/action.yml),
+[`setup-runner-isolation`](../../../.github/actions/setup-runner-isolation/action.yml)) run from `.base`. Steps
 after the head checkout stay in each file: the checkout replaces `.base`, so a `./.base/...` action
 there would load from the PR head.
 
@@ -116,10 +116,10 @@ Holds `contents: read` and `pull-requests: read`, and no other permission; it ne
    `$RUNNER_TEMP/trusted-context.json` when the activity `reads-untrusted`, with the App token or,
    in the read file, the `GITHUB_TOKEN`, which has no `issues` grant: in a private repository a PR
    that closes an issue may fail the step red.
-8. `stage-activity` copies what the activity runs from the base out of `.base`: a script's whole
+8. `collect-base-activity` copies what the activity runs from the base out of `.base`: a script's whole
    directory to `$RUNNER_TEMP/base-script`, or for a skill the base `plugins/` and
    `.claude-plugin/` to `$RUNNER_TEMP/base-marketplace`.
-9. `isolate-runner`: for a skill, installs bubblewrap and socat with `apt-get` (three tries) and, where
+9. `setup-runner-isolation`: for a skill, installs bubblewrap and socat with `apt-get` (three tries) and, where
    `/proc/sys/kernel/apparmor_restrict_unprivileged_userns` exists, sets it to `0`. It fails red
    if `bwrap` is not on `PATH` afterwards. The skill step needs it for subprocess isolation (below).
 10. Removes sudo and docker access for the rest of the job: `/var/run/docker.sock` becomes

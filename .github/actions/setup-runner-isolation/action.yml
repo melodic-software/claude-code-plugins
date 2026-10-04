@@ -1,4 +1,4 @@
-name: Isolate runner
+name: Set up runner isolation
 description: >
   Before PR head code runs: for a skill, install the bubblewrap and socat that
   CLAUDE_CODE_SUBPROCESS_ENV_SCRUB needs while sudo still works, failing

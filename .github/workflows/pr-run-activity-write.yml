@@ -223,7 +223,7 @@ jobs:
       - name: Stage the activity from the base
         id: stage
         if: steps.config.outputs.applies == 'true'
-        uses: ./.base/.github/actions/stage-activity # zizmor: ignore[self-repository]
+        uses: ./.base/.github/actions/collect-base-activity # zizmor: ignore[self-repository]
         with:
           kind: ${{ steps.config.outputs.kind }}
           script: ${{ steps.config.outputs.script }}
@@ -238,7 +238,7 @@ jobs:
       # Nothing after this step needs sudo or docker.
       - name: Isolate the runner
         if: steps.config.outputs.applies == 'true'
-        uses: ./.base/.github/actions/isolate-runner # zizmor: ignore[self-repository]
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: ${{ steps.config.outputs.kind == 'skill' }}
 

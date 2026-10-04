@@ -99,7 +99,7 @@ REGISTRY=(
   "check-publisher-token-alignment.sh|-|-|-"
   "check-purged-em-dashes.sh|jq|-|-"
   "check-queue-front-matter.sh|-|-|queue_front_matter"
-  "check-read-caller-keys.sh|-|-|-"
+  "check-read-caller-keys.sh|node|-|-"
   "check-shell-portability.sh|-|-|-"
   "check-silent-revert.sh|git|--verify-known-incidents|-"
   "check-silent-skips.sh|-|-|-"
