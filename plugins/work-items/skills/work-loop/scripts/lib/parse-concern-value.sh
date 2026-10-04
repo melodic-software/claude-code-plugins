@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# GENERATED from lib/parse-concern-value.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # Resolve one value from a YAML concern file the way every consuming plugin
 # must: quote-aware, comment-safe, whitespace-trimmed, trailing-slash-normalized,
 # with a caller-supplied fallback for the case the key is absent.
