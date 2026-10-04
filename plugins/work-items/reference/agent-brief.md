@@ -2,35 +2,29 @@
 
 Template for items carrying the autonomous-eligible role label (default `agent-ready`). The brief is what an AFK agent builds against: where it and the issue body or comment thread disagree, the brief wins, and the rest is background reading.
 
-## Principles
+## Rules for the fields
 
-### Durability over precision
+An agent may pick up a labeled item weeks after it was written, so sort each fact by whether it
+goes stale. A path, a line number or today's file layout stops being true once a file is split,
+merged into another or given a new home. A type's contract, a config key or a test command stays
+true through all three. Four fields carry a rule that keeps them to the second kind, and also
+leaves the agent nothing it must ask about before finishing.
 
-A labeled item can wait a long time before an agent picks it up, and the code keeps moving while it waits. Write a brief that a rename, a file move, or a refactor does not invalidate.
+| Field | Rule | Write | Avoid |
+|---|---|---|---|
+| Key interfaces | **Name by contract** | the type, function signature, config key or observable behavior that changes | file paths, line numbers, and anything that holds only while the code keeps today's layout |
+| Desired behavior | **Describe the end state** | what is true once the change lands, edge cases and failure handling included; the agent reads the code and picks the edit | edit instructions |
+| Acceptance criteria | **Yes-or-no checks** | checks the agent runs or reads that each give a yes or no without the others | a wish with no test |
+| Out of scope | **Named limits** | the neighboring code and features this change leaves as they are | an empty section: the agent then decides alone where the change stops, and may add work nobody asked for |
 
-- Name what the agent should change by its contract: the type, the function signature, the config key, the observable behavior.
-- Leave out file paths and line numbers; both drift.
-- Do not lean on how the code happens to be arranged today.
+Each pair below comes from one of two changes, a retry backoff cap and a CSV export fix:
 
-### Outcomes, not steps
-
-State the result the change must produce and let the agent work out the edit. It reads the code itself and chooses its own approach.
-
-- **Good:** "`RetryPolicy` gains a `maxDelay` setting; once the computed backoff exceeds it, the delay is clamped to `maxDelay`."
-- **Bad:** "In `retry.go`, add an `if` after the multiply on line 88."
-- **Good:** "`/work-items:triage` run against an empty queue prints a single line saying nothing needs triage."
-- **Bad:** "Insert an early return at the top of the loop."
-
-### Checkable acceptance criteria
-
-Each criterion is something the agent can run or read and get a yes or no from, on its own.
-
-- **Good:** "`npm test -- retry` passes, including a new case where the backoff hits `maxDelay`."
-- **Bad:** "Retries behave better."
-
-### A stated boundary
-
-List what the change must leave alone, so the agent neither adds unrequested extras nor guesses about neighboring features.
+| Field | Usable | Not usable |
+|---|---|---|
+| Acceptance criteria | "`npm test -- retry` passes, including a new case where the backoff hits `maxDelay`." | "Retries behave better." |
+| Acceptance criteria | "Exporting a report with zero rows produces a file that holds only the header line." | "Empty exports work." |
+| Desired behavior | "`ReportExporter.toCsv()` writes the header row even when the result set is empty." | "Move the header write above the `for` loop in `export.ts`." |
+| Desired behavior | "`RetryPolicy` gains a `maxDelay` setting; once the computed backoff exceeds it, the delay is clamped to `maxDelay`." | "In `retry.go`, add an `if` after the multiply on line 88." |
 
 ## Template
 

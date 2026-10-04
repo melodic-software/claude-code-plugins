@@ -14,20 +14,22 @@ when you describe broken behavior with no pre-existing reproduction.
 
 | Skill | Use it for |
 |---|---|
-| `/debugging:debug` | A failure you can see: build a loop, reproduce, hypothesize, instrument, fix with a regression test, clean up. |
+| `/debugging:debug` | A failure you can see: reproduce it with a loop, rank and probe the causes, then fix it with a regression test and clean up. |
 | `/debugging:analyze-profile` | A CPU profile, heap snapshot or performance trace: read it down to a file:line cause with no fix, or record one first with your approval. Needs Python 3.10 or later. |
 
 ## The six phases
 
-1. **Build a tight feedback loop**, the load-bearing work. A fast, deterministic
-   signal that says "bug present / bug fixed". Ten construction strategies, from a
-   failing test to a human-in-the-loop script.
+1. **Build the reproduction loop**, where most of the effort goes. One quick command
+   that gives the same pass or fail for this bug on every run. Ten kinds of loop,
+   ranked from a failing test down to a script a person runs by hand.
 2. **Reproduce**. Run the loop; confirm it shows *the* failure the user described.
-3. **Hypothesize**. Generate 3-5 ranked, falsifiable hypotheses before testing any.
-4. **Instrument**. One probe per prediction, one variable at a time; tagged debug
-   logs that clean up with a single grep. A dedicated performance branch.
-5. **Fix + regression test**. Test at a *correct seam* first; if none exists, that
-   absence is itself the finding.
+3. **Hypothesize**. Rank three to five candidate causes, each with a prediction a
+   test could disprove, before the first test runs.
+4. **Instrument**. Each probe checks one prediction and changes one thing; each
+   temporary log line carries the session marker that Phase 6 searches for.
+   Slowdowns are measured against a baseline instead.
+5. **Fix + regression test**. The test comes first, at a *correct seam*; when no such seam
+   exists, the missing seam is reported as the finding.
 6. **Cleanup + post-mortem**. Remove instrumentation, verify the original repro is
    gone, and capture what would have prevented the bug.
 

@@ -98,11 +98,17 @@ Claiming stays coordination state, not a label. Assignee + lease via the seam (`
 
 ## Attention view (no number)
 
-Show three buckets (oldest first, one-line summaries):
+The view answers one question per open item: is triage the next thing it is waiting for? An item
+qualifies through exactly one of three routes, and each route is a bucket (the bucket names are the
+`state` values the board page reads):
 
-1. **No labels**: nobody has looked at it yet
-2. **Raw marker**. bare `needs-triage`. Explicitly tagged for evaluation
-3. **`status:needs-info`, answered**: the reporter has replied after the last triage note, so it can be evaluated again
+| Bucket | Selected by | What the item is waiting for |
+|---|---|---|
+| `unlabeled` | no labels at all | a first look: no person or lane has classified it |
+| `raw marker` | the bare raw marker (`needs-triage`) | the evaluation someone asked for when they applied the marker |
+| `needs-info reply` | `status:needs-info` plus a reporter comment newer than the last triage note | a second evaluation, now that the missing information may have arrived |
+
+Within each bucket, list the oldest item first, one line per item.
 
 List open items and filter into buckets programmatically (adapter: "List items", bare read). Apply the lane-infrastructure exclusion ("Scope: raw intake only") to that listing **before** bucketing, so a telemetry issue carrying the raw marker is filtered out rather than bucketed under it. **Defensive skip:** drop any item that already carries a native `blocked-by` edge *and* a prior triage comment (machine disclaimer or a needs-info comment from an earlier pass, in any shape it was posted in), a stray re-label from another lane must not cost a full re-investigation. When the repo accepts requests in the form of outside PRs, list them in the same buckets with a `[PR]` or `[issue]` prefix on every line. Only PRs from outside contributors appear: a PR a collaborator is still working on is their work, not intake. That limit applies to this listing only; a PR named explicitly gets triaged whoever opened it. Present as a compact table.
 

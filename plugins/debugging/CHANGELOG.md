@@ -12,6 +12,10 @@ All notable changes to the `debugging` plugin are documented here. Format follow
 
 - `/debugging:debug` names the belief behind every attempt in one sentence and checks it once a second fix fails (advisory; Phase 1 stays the only hard gate); tallies a symptom that is uneven across workers or hosts with a script run on every loop pass; ranks stored state first when a failure follows a restart with no code change; and prefers the test that rules out more hypotheses. Edits made for a refuted hypothesis are dropped before the fix commit, a load imbalance is fixed in the code that picks a worker, and the report and PR description show the red and green loop runs. On a request for a diagnosis only, it stops at the confirmed hypothesis with no fix. A shipped workaround needs a tracking link or removal condition (the `unjustified-workaround` shape), and a new `## Next` section names `/verification:confirm fix` and `/implementation:implement fix`.
 
+### Changed
+
+- **`/debugging:debug` is restated in its own words, with one running example.** The skill now follows one case (photo uploads over 20 MB failing with a 502) through every phase. Phase 1 ranks the ten loop kinds in a table with a "choose it when" column, ends with an exit check (about 2 seconds, one verdict, the reported symptom only), and gives intermittent failures a table of levers and the no-loop case a three-part report. Phase 3 writes hypotheses as a ranked table with "refuted if" and "supported if" columns, Phase 4 chooses probes from a table, the correct-seam rule in Phase 5 is a decision table, the secrets rules are a table by kind of text, and the Phase 6 checklist is grouped into removing what the run added, proving the fix, and leaving a record. The human-run loop template was rewritten: its helpers are `instruct` and `ask`, and it ends with a `=== results ===` block of `NAME=value` lines. The README phase list, the checklist's Phase 1 line and the ecosystem reference's pointer to the Phase 1 heading were updated to match. Behavior is unchanged.
+
 ## [0.8.2] - 2026-10-04
 
 ### Fixed

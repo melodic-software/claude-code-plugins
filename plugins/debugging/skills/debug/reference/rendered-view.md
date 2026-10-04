@@ -31,7 +31,7 @@ written, never emitted in its place.
 
    The page is a checked-in template plus your JSON as escaped data. Never write markup or script for it, and
    never hand-edit the output: a debug session reads logs, stack traces, fetched pages and repository files, so
-   the page is built by the builder or not at all. Quote only the lines that carry the diagnostic signal. When
+   the page is built by the builder or not at all. Put in only the lines that show the failure. When
    `node` is missing, deliver the record and say the view was not built.
 5. **Deliver by `medium`.**
    - `file`: hand back the printed path.

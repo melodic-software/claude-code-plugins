@@ -25,7 +25,7 @@ Create a new work item with labels from the taxonomy.
 - `--recurring` -- Mark as recurring. Requires `--cadence`
 - `--cadence <c>` -- One of: `weekly`, `biweekly`, `monthly`, `quarterly`, `semi-annual`, `annual`
 - `--context "summary"` -- Add research context to the item body
-- `--agent-ready` -- Apply the autonomous-eligible role label (default `agent-ready`; resolve per [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) "Canonical roles") and use agent-brief body template (see [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)). Brief format: behavioral (not procedural), no file paths, complete acceptance criteria, explicit scope boundaries. Use for items intended for AFK agent execution
+- `--agent-ready` -- Apply the autonomous-eligible role label (default `agent-ready`; resolve per [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) "Canonical roles") and use agent-brief body template (see [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)). Brief rules (from that file): name by contract, describe the end state, yes-or-no checks, named limits. Use for items intended for AFK agent execution
 - `--force` -- Skip duplicate check
 
 ## Workflow
@@ -42,7 +42,7 @@ Create a new work item with labels from the taxonomy.
 
 1. **Build labels list** `{labels}` (comma-separated for the seam) from the remaining flags. With no `--priority` and no `--agent-ready`, include no `priority:` label and include the bare `needs-triage` floor when the live set has it. A supplied `--priority`, or `--agent-ready`, does not leave the floor on: a known tier or a complete brief is already past intake. Also start from `category:general` and replace it with a supplied `--category`. Append `--area`/`--ecosystem` labels when provided. When `--agent-ready` is set, also append the autonomous-eligible role label (default `agent-ready`) so the item is eligible for autonomous pickup. A default that the consuming repo doesn't define is omitted rather than passed.
 
-1. **Build body.** If `--agent-ready`, use the agent-brief template from [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md) (Category, Summary, Current behavior, Desired behavior, Key interfaces, Acceptance criteria, Out of scope). Otherwise use the default template:
+1. **Build body.** If `--agent-ready`, use the agent-brief template from [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md) (Type, Summary, Current behavior, Desired behavior, Key interfaces, Acceptance criteria, Out of scope). Otherwise use the default template:
 
 ```markdown
 ## Context

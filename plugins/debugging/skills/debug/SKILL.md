@@ -8,7 +8,7 @@ metadata:
   summary: Diagnose broken behavior. Reproduce, hypothesize, instrument, fix with regression test
 ---
 
-**Arguments.** `[bug description or observation]`. e.g., /debugging:debug checkout times out for orders over \$1k
+**Arguments.** `[bug description or observation]`. e.g., /debugging:debug photo uploads over 20 MB fail with a 502
 
 ## Repository context. Gather first
 
@@ -34,90 +34,145 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-Hard bugs are won or lost in **Phase 1**. Without a fast, deterministic, agent-runnable signal that says "bug present / bug fixed", every later phase is guessing. Most failed debugging sessions fail because the engineer skipped straight to hypothesizing without building a loop.
-
-This skill enforces the discipline. Six phases, each with a clear gate before the next. The middle three (hypothesize → instrument → fix) are mechanical once Phase 1 is solid; the bookends (loop, cleanup) are the load-bearing work.
+This skill turns a reported failure into a command that answers one question, "is the bug still
+here?", and then uses that command as the judge for every later step. The six phases below each end
+in a gate. How well Phase 1 goes decides most of the outcome: with a quick, repeatable check that an
+agent can run unattended, Phases 3 to 5 become routine work; without one, every hypothesis is a
+guess. The usual way a debugging session goes wrong is starting on causes before any such check
+exists. Phase 1 and Phase 6 (the check, and the cleanup that removes what the run added) carry the
+weight; the three phases between them follow from the check.
 
 Scope boundary: this skill starts from an **observed failure**: UI behaving wrong, a log line that should not appear, a performance regression, a screenshot of a bug, a production symptom. Its first job is to **construct** a reproduction loop. If the symptom is already a failing test with no reproduction gap, you do not need this skill. Cycle that test directly (reproduce → fix → retest → regression). What `/debugging:debug` adds over a bare fix loop is a critical edge case: **if no correct test seam exists, that absence IS the finding**, filed as an architectural recommendation, not a forced test in the wrong place.
+
+Running example. The phases below follow one case: a photo larger than 20 MB uploaded through the
+mobile API gets a 502 from the media service, while smaller photos upload normally.
 
 ## Adapting to your environment (graceful degrade)
 
 This skill is self-contained. Where a phase below names an adjacent capability, such as a test-investigation routine, a TDD helper, a headless-browser driver, an architecture-audit agent, an issue tracker, or an outcome-verifier, treat it as **optional**: *if your environment provides that capability (a skill, plugin, agent, or tool), invoke it; otherwise proceed with the inline guidance given here, which stands on its own.* Never block a phase because an adjacent tool is absent. Consumer-specific conventions (naming, module layout, banned APIs, work-notes location) come from your own project's `CLAUDE.md` and tool config. Read them; this skill does not assume them.
 
-## Redact secrets in everything you show
+## Secrets stay out of what you show
 
-Every phase surfaces commands, outputs, and captured artifacts. **Redact every secret before it appears in a transcript, work note, or commit**. Write `<REDACTED>` in its place. Build loops that read credentials from env vars, so the secret stays in the environment rather than in the command line you show or the harness you commit. Captured artifacts (HAR files, log dumps, replayed traces) carry auth headers and tokens. Quote only the lines that carry the diagnostic signal. If the redacted output is not enough to diagnose, say so and ask the user rather than widening the quote.
+Anything this skill puts in a reply, a work note or a commit is a place a secret can leak. The rule
+for each kind of text:
+
+| Text | Rule |
+|---|---|
+| A loop script or harness you commit | It reads tokens and passwords from environment variables, so the file names the variable and never holds the value. |
+| A command line you show | Same: the variable name appears, the value does not. |
+| A capture (HAR file, log dump, replayed trace) | Assume it holds auth headers and session tokens. Show an excerpt of the lines where the failure appears, never the whole file. |
+| Any secret still left in what you show | Replace it with `<REDACTED>` before the text leaves your hands. |
+
+If the redacted excerpt is too thin to diagnose from, ask the user how to proceed; do not widen the
+excerpt on your own.
 
 ## Emit checklist
 
 For any diagnostic run (Phases 1-6), track phase completion. A ready-to-fill checklist is bundled at `${CLAUDE_PLUGIN_ROOT}/skills/debug/templates/checklist.md`. If your project has a working-notes or scratch location, copy it there; otherwise track the six phases inline. Phase 4 is SKIPPED when Phase 2 repro conclusively verifies the Phase 3 hypothesis without instrumentation.
 
-## Phase 1: Build a tight feedback loop
+## Phase 1: Build the reproduction loop
 
-Before you build the loop, state what you are taking for granted about the failure, so the assumptions are on record before Phase 3 ranks hypotheses against them.
+Write down what you are assuming about the failure first (for the running example: the 502 comes
+from our media service, not the CDN in front of it; staging fails the same way production does). Phase 3 ranks
+hypotheses against that list.
 
-Put the effort of this skill here rather than in the later phases. Once a fast, deterministic, agent-runnable pass/fail signal exists, the cause follows.
+Most of this skill's effort belongs here. The loop is done when one command returns pass or fail
+for this bug, quickly, the same way each time, with no person needed to run it.
 
-### Construction strategies: try in roughly this order
+### Picking a loop
 
-1. **Failing test** at whatever seam reaches the bug: unit, integration, e2e
-2. **Curl / HTTP script** against a running dev server (bring your dev server up however your stack does)
-3. **CLI invocation** with a fixture input, diffing stdout against a known-good snapshot
-4. **Headless browser script** (a Playwright-style driver, if available). Drives UI, asserts on DOM/console/network
-5. **Replay a captured trace**. Save a real network request / payload / event log to disk, replay through the code path in isolation
-6. **Throwaway harness**. Minimal subset of the system (one service, mocked deps) exercising the bug code path with a single function call
-7. **Property / fuzz loop**. For "sometimes wrong output", run 1000 random inputs and look for the failure mode
-8. **Bisection harness**. If the bug appeared between two known states (commit, dataset, version), automate "boot at state X, check, repeat" so `git bisect run` works
-9. **Differential loop**. Same input through old-version vs new-version (or two configs), diff outputs
-10. **HITL bash script**, last resort. If a human must click, copy the bundled template at `${CLAUDE_PLUGIN_ROOT}/skills/debug/scripts/hitl-loop.template.sh`, customize the steps, and ask the **user** to run it in their terminal (the Bash tool cannot satisfy interactive `read` prompts). Have them paste the `--- Captured ---` KEY=VALUE stdout back into the session so the loop stays structured
+Try the rows roughly in table order. A lower row usually costs more to build or tells you less, so
+prefer the first row that can reach the failing code.
+
+| Rank | Loop | Choose it when | In the running example |
+|---|---|---|---|
+| 1 | A failing test (unit, integration or end-to-end) | some test seam already reaches the failing code | an integration test that posts a 25 MB JPEG and asserts a 201 |
+| 2 | A scripted HTTP call (curl or similar) | the failure shows at an endpoint of a dev server you can start | `curl` the upload endpoint with a 25 MB file and print the status code |
+| 3 | A CLI run on a fixture file | the code has a command-line entry point | run the thumbnailer CLI on `large.jpg` and diff its output against a known-good copy |
+| 4 | Browser automation run headless, through a Playwright-style driver if one is available | only the UI shows the failure | drive the web uploader and assert on the DOM, console and network panel |
+| 5 | A recorded input played back | a real request body or event stream can be saved | save one failing multipart request to disk and send it to the upload handler alone |
+| 6 | A disposable harness | starting the full stack takes minutes, but the failing module can be imported on its own | a scratch script imports the thumbnail module, swaps S3 for an in-memory store, and passes it `large.jpg` |
+| 7 | A randomized-input loop (property or fuzz) | the output is wrong only for some inputs | generate a thousand images of random size and format and keep the ones that fail |
+| 8 | An automated bisect | the bug has a history: an older release, data snapshot or dependency version where the upload still works | `check.sh` builds the checkout and exits 0 on a 201 for the 25 MB upload, 1 otherwise; `git bisect run ./check.sh` walks v3.2 to v3.4 with it |
+| 9 | A side-by-side run | two builds or two configurations should agree | send the same file through last week's build and this week's, then diff the results |
+| 10 | A human-driven script | a person has to click | see below |
+
+A human-driven loop is the fallback when nothing above works. Copy the bundled template at
+`${CLAUDE_PLUGIN_ROOT}/skills/debug/scripts/hitl-loop.template.sh`, replace its example prompts with
+the steps for this bug, and ask the **user** to run it in their own terminal: its interactive `read`
+prompts need a TTY that the Bash tool does not have. The script ends by printing a `=== results ===`
+block of `NAME=value` lines; ask the user to paste that block back so each run reaches you in the
+same shape.
 
 ### Loop-recursion hazard
 
 When the loop IS a test the suite/runner discovers and runs, watch for self-invocation: a test file that invokes the very runner (or pre-push lane) which re-discovers and re-runs it recurses until the box saturates. Each nested run re-triggers the test. The symptom reads as a *hang*, but it is fork-bombing, not a slow test. Guard with a re-entrancy sentinel: set an env marker before the inner run; a nested invocation that sees the marker exits early. Same pattern for any loop that shells out to a command which re-enters the loop.
 
-### Iterate on the loop itself
+### Phase 1 exit check
 
-Treat the loop as a product. Once *a* loop exists, ask:
+A loop that merely runs is not finished. Before leaving Phase 1, hold it to all three requirements
+below; each failing one has its own remedies.
 
-- Can it be **faster**? Cache setup, skip unrelated init, narrow test scope
-- Can the **signal be sharper**? Assert on the specific symptom, not "didn't crash"
-- Can it be **more deterministic**? Pin time, seed RNG, isolate filesystem, freeze network
+| Requirement | Met when | If not met |
+|---|---|---|
+| Speed | one run finishes in about 2 seconds; a 30-second loop is not acceptable | run only the one test, keep the server or fixtures alive between runs, skip start-up work the failing path does not touch |
+| One verdict | the same code gives the same verdict on every run; a loop that flips between runs tells you almost nothing | stub the network, give each run a fresh directory, seed the random generator, freeze the clock |
+| Precision | it goes red on the reported symptom and on nothing else | assert on the 502 from the upload call itself, not on "the script exited non-zero" |
 
-A 30-second flaky loop is barely better than no loop. A 2-second deterministic loop is a debugging superpower. Per-ecosystem timing-injection patterns (and other I/O-seam abstractions) live in the bundled reference at `${CLAUDE_PLUGIN_ROOT}/skills/debug/reference/ecosystem-debugging.md`. See the `timing-injection` row for your stack. The universal principle: wrap I/O and time sources at the seam where they enter the code so the loop can swap a deterministic stand-in.
+Per-ecosystem timing-injection patterns (and other I/O-seam abstractions) live in the bundled reference at `${CLAUDE_PLUGIN_ROOT}/skills/debug/reference/ecosystem-debugging.md`. See the `timing-injection` row for your stack. The universal principle: wrap I/O and time sources at the seam where they enter the code so the loop can swap a deterministic stand-in.
 
-### Non-deterministic bugs
+### Intermittent failures
 
-The goal is not a clean repro but a **higher reproduction rate**. Loop the trigger 100×, parallelise, add stress, narrow timing windows, inject sleeps. A 50%-flake bug is debuggable; 1% is not. Keep raising the rate until it is.
+Here the goal is a failure rate you can measure, not a failure on every run. Track the rate as a
+number (failed runs out of total) and raise it until roughly every other run fails; at a rate near
+one run in a hundred, the difference between two changes disappears into chance. Three levers raise
+it, used in any combination:
 
-### When you genuinely cannot build a loop
+| Lever | What to change |
+|---|---|
+| Timing | insert sleeps between the steps you suspect of racing, or shrink the gap between them |
+| Pressure | load the machine (CPU, disk, network) while the loop runs |
+| Volume | fire the trigger 100 times or more per loop run, and run several copies in parallel |
 
-Stop and say so explicitly. List what was tried. Ask the user for: (a) access to whatever environment reproduces it, (b) a redacted captured artifact (HAR file, log dump, core dump, screen recording with timestamps), or (c) permission to add temporary production instrumentation.
+### When no loop can be built
+
+This is a full stop: no Phase 2 and no guessing at causes. Report instead, in three parts:
+
+1. **Tried.** Each loop kind from the table you attempted, and what blocked it.
+2. **Blocker.** What is missing: the environment, the data, or a way to observe the failure.
+3. **Request.** Ask the user for whichever of these would remove the blocker: permission to add
+   short-lived production instrumentation, a redacted capture (a screen recording with timestamps,
+   a core dump, a log dump, a HAR file), or access to an environment where the failure occurs.
 
 When the artifact in hand is a CPU profile, heap snapshot or performance trace and nothing reproduces, hand it to `/debugging:analyze-profile`. It reads the recording down to a file:line cause without a loop; bring that cause back here for the fix and its regression test.
 
-**Do not proceed to Phase 2 until you have a loop you believe in.**
+**Gate: Phase 2 starts only once you trust the loop.**
 
 ## Phase 2: Reproduce
 
-Run the loop. Watch the bug appear.
+Run the loop and see it fail. Then check three things before going on:
 
-Confirm:
+1. **It repeats.** The loop fails on every run, or, for an intermittent bug, at a rate high enough
+   to compare runs.
+2. **It is the reported failure.** The loop fails the way the **user** said it does. A nearby
+   failure (a 413 where the user saw a 502) sends the fix to the wrong place.
+3. **The symptom is on record.** Keep the exact error text, wrong value or timing, so Phase 5 can
+   show the fix changed that symptom and not some other one.
 
-- The loop produces the failure mode the **user** described, not a different failure that happens to be nearby. Wrong bug = wrong fix
-- The failure is reproducible across multiple runs (or, for non-deterministic bugs, reproducible at a high enough rate to debug against)
-- The exact symptom (error message, wrong output, slow timing) is captured so later phases can verify the fix actually addresses it
-
-Do not proceed until the bug is reproduced.
+**Gate: Phase 3 starts only once the loop has reproduced the bug.**
 
 ## Phase 3: Hypothesize
 
-Generate **3-5 ranked hypotheses** before testing any of them. Single-hypothesis generation anchors on the first plausible idea and wastes the next hour.
+The output of this phase is a table, written down before any test runs. It holds **3 to 5 rows,
+ranked**: a list of one invites every later test to be read as support for it.
 
-Each hypothesis must be **falsifiable**. State the prediction it makes:
+| Rank | Cause | Refuted if | Supported if |
+|---|---|---|---|
+| 1 | the reverse proxy caps request bodies at 20 MB and drops the connection | raising the proxy cap to 50 MB leaves 25 MB uploads failing | the same upload sent past the proxy, straight to the service, succeeds |
+| 2 | the resize step runs out of memory on large images | a 25 MB file in a format the resizer skips still fails | lowering the worker's memory limit makes 15 MB uploads fail too |
 
-> "If `<X>` is the cause, then changing `<Y>` will make the bug disappear / changing `<Z>` will make it worse."
-
-If you cannot state the prediction, the hypothesis is a vibe. Discard or sharpen it.
+A row is ready only when its "refuted if" cell names a result you could observe. If you cannot fill
+that cell, the cause is too vague to test: narrow it until you can, or delete the row.
 
 Ground the ranking in real repo state before you rank: recent commits in the affected area, open issues, architecture decision records, banned-symbol entries, known-issue or quirks notes, and the project instruction files and ADRs nearest the affected file. A hypothesis that contradicts a documented constraint ranks low; one that matches a recent change ranks high.
 
@@ -127,23 +182,28 @@ Ground the ranking in real repo state before you rank: recent commits in the aff
 
 **Pick the test that rules out more.** When two tests cost about the same, run the one whose result eliminates more of the remaining hypotheses.
 
-**Show the ranked list to the user before testing.** They often have domain knowledge that re-ranks instantly ("we just deployed a change that touches #3"), or know hypotheses they have already ruled out. Cheap checkpoint, big time saver. Do not block on it. Proceed with your ranking if the user is AFK.
+**Post the table, then start row 1 without waiting for an answer.** The user may know what the
+repo cannot show: that staging runs the same proxy cap and accepts the file, that every failing
+upload comes from the Android app, or that row 2 matches a ticket closed last month. One such reply
+can drop a row, add one or change the order. In an unattended run nobody answers, and your ranking
+stands.
 
 ## Phase 4: Instrument
 
-Each probe must map to a specific prediction from Phase 3. **Change one variable at a time.**
+A probe exists to fill one cell of the Phase 3 table: before adding it, name the row and the
+"refuted if" or "supported if" result it will show. Between two loop runs, **change exactly one
+thing**, so any change in the verdict has one explanation.
 
-Tool preference, in order:
-
-1. **Debugger / REPL inspection** if the env supports it. One breakpoint beats ten logs
-2. **Targeted logs** at the boundaries that distinguish hypotheses
-3. **Never "log everything and grep"**. That produces noise that hides the signal
-
-**Tag every debug log** with a unique short prefix, e.g. `[DEBUG-a4f2]`. Cleanup at the end becomes a single `grep -r "\[DEBUG-a4f2\]"`. Untagged debug logs survive across PRs; tagged logs die on cue.
+| Probe | Reach for it when | Note |
+|---|---|---|
+| Breakpoint in a debugger or REPL | the runtime supports one | first choice: one stop at the suspect line shows every local value at once |
+| Log line | no debugger fits, or the evidence spans processes | place it at the boundary where two rows predict different values, such as the body size the media service receives; write it with the session marker Phase 6 searches for |
+| Timer, benchmark, profiler or query plan | the report is "thumbnails got slow", not a wrong result | the first number is the baseline; bisect commits, inputs or code paths against it, and edit code only once the slow one is found |
+| Log everything, then search the output | never | the volume hides the line you need |
 
 Per-ecosystem logging API (idiomatic structured-logger choice for ad-hoc debug instrumentation), banned debug-output APIs, and the required tag-prefix convention live in the bundled reference at `${CLAUDE_PLUGIN_ROOT}/skills/debug/reference/ecosystem-debugging.md`. See the `logging` + `banned-output` rows for your stack.
 
-**Performance branch.** For perf regressions, logs are usually wrong. Instead: establish a **baseline measurement** using your ecosystem's standard timing / benchmark primitives, then bisect against the baseline. **Measure first, fix second.** Per-ecosystem perf-tooling references (micro-bench libraries, query-plan inspection, profile primitives) live in the reference. See the `perf-tooling` row for your stack.
+Timing tools per stack (micro-bench libraries, query-plan inspection, profile primitives) live in the same reference; see its `perf-tooling` row.
 
 **A probe that writes a profile.** When an instrument step produces a CPU profile, heap snapshot or trace, read it with `/debugging:analyze-profile` and test its file:line finding against the Phase 3 prediction it was meant to check.
 
@@ -151,22 +211,33 @@ Per-ecosystem logging API (idiomatic structured-logger choice for ad-hoc debug i
 
 ## Phase 5: Fix + regression test
 
-Write the regression test **before the fix**, but only if there is a **correct seam** for it.
+### Is there a correct seam?
 
-A correct seam is one where the test exercises the **real bug pattern as it occurs at the call site**. If the only available seam is too shallow (single-caller test when the bug needs multiple callers, unit test that cannot replicate the chain that triggered the bug), a regression test there gives **false confidence**.
+Decide this before writing the test. A seam is correct when a test placed there runs the bug the
+way production reaches it at the call site (for example, through the same callers). Which seam that
+is depends on the confirmed row. If row 1 holds (the proxy cap), a unit test that hands the resize
+function a 25 MB buffer never passes through the proxy: it passes before the fix and after, and
+proves nothing about the bug. If row 2 holds (resize runs out of memory), that same unit test
+reaches the cause and is a correct seam.
 
-**If no correct seam exists, that itself is the finding.** Note it. The codebase architecture is preventing the bug from being locked down. Do not force a test in the wrong place. File the architectural finding in Phase 6 instead.
+| Seam | What to do |
+|---|---|
+| A correct seam exists | Write the regression test there, **before** the fix, using the steps below. |
+| No correct seam: no test can reach the bug, or every seam that can is too shallow to rebuild it (the bug needs several components or callers acting together and the seam isolates one) | Write no regression test; one at a shallow seam would pass for the wrong reason and make the bug look covered. Record the gap as **the finding**: the design keeps this bug from being pinned by a test. It goes into the Phase 6 architecture recommendation. |
 
-If a correct seam exists:
+### With a correct seam
 
-1. Turn the minimized repro into a failing test at that seam. Follow your project's test naming + structure conventions. Take the expected value from the bug report (the behavior the reporter expected, or the documented correct output), never from what the fixed code returns
-2. Watch it fail (Red), and confirm it fails **for the intended reason**. A test that errors on a
-   typo, a bad import, or an unrelated defect is also red, and a fix that turns *that* red green has
-   not touched the bug. Read the failure message against the root cause you are targeting; if they
-   do not match, repair the test or the reproduction before editing any implementation code
-3. Apply the smallest fix that addresses the **root cause**, not the symptom (Green)
-4. Watch the test pass
-5. Re-run the **Phase 1 feedback loop** against the original (un-minimized) scenario. The test passing is necessary but not sufficient
+1. At that seam, write a test that fails on the minimized repro, following your project's test naming
+   and layout. Take the expected value from the bug report (the behavior the reporter expected, or
+   the documented correct output), never from what the fixed code returns.
+2. Run it and see it fail (Red), and check that it fails **for the intended reason**. A typo, a bad
+   import or an unrelated defect also turns a test red, and a fix that clears *that* red has not
+   touched the bug. Compare the failure message with the root cause you are after; if they differ,
+   repair the test or the reproduction before you edit any implementation code.
+3. Make the smallest change that removes the **root cause** rather than the symptom (Green).
+4. Run the test and see it pass.
+5. Run the **Phase 1 loop** again on the original, full-size scenario. A passing test is required
+   but does not prove the reported failure is gone.
 
 Keep the fix diff focused on the root cause. Leave surrounding cleanup out of this change, even in files you touched. If the fix reveals a design problem, note it for a separate refactor commit or the Phase 6 architectural recommendation.
 
@@ -176,23 +247,39 @@ Before the fix commit, diff the tree against where the session started and drop 
 
 ## Phase 6: Cleanup + post-mortem
 
-Required before declaring done:
+The run is not done until every line below holds. They fall into three groups.
 
-- Original repro no longer reproduces (re-run the Phase 1 loop)
-- Regression test passes (or absence of correct seam is documented as an architectural finding)
-- All `[DEBUG-...]` instrumentation removed (`grep -r "\[DEBUG-` returns nothing in source)
-- Throwaway prototypes deleted (or moved to a clearly-marked sandbox location)
-- The hypothesis that turned out correct is stated in the **commit message / PR description**, so the next debugger learns
+**Remove what the run added.**
+
+- No temporary log line is left. Cleanup finds only what it can search for, so Phase 4 writes each
+  one with a marker chosen for this session, such as `[DEBUG-a4f2]`, and `grep -r "\[DEBUG-"` over
+  the source now returns nothing. A line written without the marker can be found only by memory.
+- Disposable harnesses and prototypes are deleted, or kept only in a directory clearly named as scratch.
+
+**Prove the fix.**
+
+- The Phase 1 loop, run again, no longer reproduces the failure.
+- The regression test passes, or the missing correct seam is written up as an architecture finding.
 - Two runs of the Phase 1 loop, redacted, appear in the user report and the PR description: red before the fix, green after. If the red run is missing, for example because the loop was built after a hotfix, that gap is written down along with the substitute evidence used
-- If the loop revealed a recurring class of bug, record it in your project's known-issues / quirks notes
 - Confirm the fix outcome: run the mechanical build/test/lint, then check the original symptom is resolved with no regression, and record the evidence. The context that produced the fix converges on approval rather than detection, so beyond those objective checks the outcome verdict should be rendered by an agent that did NOT produce the fix. If your environment has an outcome-verification capability, use it; otherwise dispatch a fresh-context verifier with the symptom, the fix diff, and pass/fail criteria. Boundary: `/debugging:debug` DOES the fix + regression test; a verifier VERIFIES the outcome
 
-**Then ask: what would have prevented this bug?** If the answer involves architectural change (no good test seam, tangled callers, hidden coupling, missing abstraction):
+**Leave a record.**
 
-- File the architectural finding with your issue tracker
-- If your environment has an architecture-audit agent or a module-deepening review, suggest a focused audit of the affected module
-- Make the recommendation **after** the fix is in, not before. The post-fix view has more information than the pre-fix one
+- The commit message or PR description names the hypothesis that proved right, so whoever debugs
+  this area next starts from it.
+- If the loop revealed a recurring class of bug, record it in your project's known-issues / quirks notes
+
+### Prevention
+
+This step runs only after the fix has landed, never before it: by then the loop and the fix have
+shown how the code really behaves, which the first guess at a cause did not know. Ask what would
+have stopped this bug from being written. If the answer lies in the design (a missing abstraction,
+two modules coupled in a way neither shows, callers tangled together, or no seam where a test could
+reach the bug), write a recommendation:
+
 - State its `Basis:`, `verified` with the `file:line` or loop output it rests on, or `judgment` (only when it is not consequential: cross-repo, shared infrastructure, irreversible, or security). A consequential one is grounded in its consumers first; one that cannot be settled is withheld and filed as an open question naming the evidence that would settle it. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#grounding-bar)
+- File it with your issue tracker as an architectural finding
+- If your environment has an architecture-audit agent or a module-deepening review, suggest a focused audit of the affected module
 
 **Optional view.** After the post-mortem is written, offer an interactive view of it (the hypotheses with their verdicts and evidence, a tick for each the reader would re-open, a copy-out of the challenge). The page is never written beside the post-mortem, which stays the record. Build it only with `${CLAUDE_PLUGIN_ROOT}/scripts/build-view.mjs`, never hand-written; the publish destination comes from the `medium` cascade key. Procedure and data shape: [`${CLAUDE_PLUGIN_ROOT}/skills/debug/reference/rendered-view.md`](reference/rendered-view.md).
 
@@ -203,8 +290,8 @@ The names collide outright, so "debug this" can land on either, but the two debu
 - **`debug` (bundled skill)**: turns on debug logging for the current Claude Code session and
   troubleshoots Claude Code itself by reading that session's debug log. It is reserved for the
   person to run; the model does not invoke it.
-- **This skill (marketplace plugin).** Debugs the user's application: build a feedback loop,
-  reproduce, hypothesize, instrument, fix with a regression test, clean up.
+- **This skill (marketplace plugin).** Debugs the user's application: build a reproduction loop,
+  confirm it fails, rank causes, probe them, fix with a regression test, remove what the run added.
 
 **Routing.** When the broken thing is Claude Code itself (a hook, a tool call, a permission, a
 session misbehaving) rather than the user's code, offer it to the person: you can run `/debug`
@@ -241,6 +328,6 @@ four-part records live in [reference/native-debug.md](reference/native-debug.md)
 If after 3 hypothesis-test cycles no candidate is panning out:
 
 - The hypothesis ranking was probably wrong. Go back to Phase 3, re-survey the repo, look for what was missed
-- The loop may not be tight enough. Re-iterate Phase 1 (faster, sharper, more deterministic)
+- The loop may not be tight enough. Go back to Phase 1 and hold the loop to the exit check again
 - The bug may need redesign rather than a patch. Switch to broader replanning (an architecture/plan-review capability, if available)
 - Do not push through a fifth or sixth attempt. That is how technical debt compounds and "fixes" break unrelated code

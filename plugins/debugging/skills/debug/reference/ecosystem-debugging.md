@@ -1,6 +1,6 @@
 # Per-ecosystem debugging conventions
 
-Referenced from `/debugging:debug` Phase 1 ("Iterate on the loop itself", `timing-injection`) and Phase 4 ("Instrument", `logging` + `banned-output`; "Performance branch", `perf-tooling`). Find your stack below; the universal principle is to wrap I/O and time sources at their seam and tag every probe with a unique `[DEBUG-<hex>]` prefix so cleanup is a single grep.
+Referenced from `/debugging:debug` Phase 1 ("Phase 1 exit check", `timing-injection`) and Phase 4 ("Instrument", `logging` + `banned-output` + `perf-tooling`). Find your stack below; the universal principle is to wrap I/O and time sources at their seam. Every `logging` example below carries the session marker that the skill's Phase 6 cleanup rule defines.
 
 The rows below are idiomatic defaults, not policy. Where your project defines its own conventions, those win: a mandated logger, a banned-symbols analyzer, a preferred benchmark harness. Read your project's `CLAUDE.md`, its `.claude/rules/` project rules, and tool config, and honor them.
 
