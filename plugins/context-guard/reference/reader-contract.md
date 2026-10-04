@@ -315,8 +315,9 @@ skill's module check), none of the following runs except the PostCompact marker.
   including `unknown`. That implements this contract's own "evidence-degraded regardless of zone"
   rule, so the marker is never write-only.
 - **Status tool** `mcp__context-guard__status`: returns the session's latest figures (the last API
-  response's), its zone, whether the evidence is degraded, the bands in force and the gate state,
-  as JSON. A zone lookup for a session that has the module loaded; it has no switch.
+  response's), its zone, whether the evidence is degraded, the bands in force (the token edges of
+  the session's window class as `smart_max_tokens` and `acceptable_max_tokens`, `null` when the
+  token shape is not computable) and the gate state, as JSON. A zone lookup for a session that has the module loaded; it has no switch.
 
 Module state (last-seen zone, armed rank, gate counter) lives in the module's memory, per session
 id; it is plugin-private and not part of this contract. The module adds no new snapshot
