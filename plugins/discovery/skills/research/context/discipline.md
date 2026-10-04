@@ -31,9 +31,11 @@ Recipes and rationale behind the bars stated in the research skill's SKILL.md bo
 | Tier | Source | Counts as |
 |---|---|---|
 | Tier 0 | Direct tool output captured this turn (`<bin> --help`, file Read, `gh api`, MCP tool result) | Strongest. Primary |
-| Tier 1 | Official documentation **fetched this turn** with URL captured (vendor docs, GitHub source, language spec, RFC, upstream changelog) | Primary |
+| Tier 1 | Official documentation **fetched this turn** with URL captured (vendor docs, GitHub source, language spec, RFC, upstream changelog; for a design pattern's definition, the canonical catalog page that defines it) | Primary |
 | Tier 2 | Secondary synthesized (AI-synthesis answers, Stack Overflow, recognized author blog, vetted vendor blog) | Secondary, corroborator only |
 | Tier 3 | Synthesis without grounding (training-data recall, vague "I remember reading," subagent return without primary citation) | NOT acceptable for claim acceptance. Must promote to Tier 0/1 first |
+
+**Canonical pattern sources.** For what a design pattern is, the primary is the source that defines it, not a vendor's docs and not the most-used template that applies it. A canonical catalog page fetched this turn with its URL captured (for example under `https://martinfowler.com/eaaCatalog/` or `https://www.enterpriseintegrationpatterns.com/patterns/`) is Tier 1 for the pattern's definition. The book behind it (the Gang of Four's *Design Patterns*, *Patterns of Enterprise Application Architecture*, *Enterprise Integration Patterns*, the DDD books by Evans, Vernon and Khononov) cited from training-data recall with no captured page is Tier 3 like any other recall. How many templates, samples or repositories use a pattern is evidence of adoption, never of correctness, and earns no tier. A recommendation built on the research follows the [recommendation-basis contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#grounding-bar).
 
 **Scoped exception: a dispatched run of the research skill is not a Tier-3 subagent return.** The Tier-3 rule targets an ad-hoc subagent handing back synthesis with no captured primaries, and it stays in force for that. It does not reach a `discovery:researcher` run that executed this discipline and wrote every primary URL into the artifact: **the tier attaches to the artifact and the sources captured in it, never to the transport that carried the pointer.** Read literally without this exception, dispatch-by-default would demote every run to the tier criterion 1 refuses, and the skill's routing section would contradict its own gate. The exception is exactly as wide as its evidence: a return whose artifact does not carry the fetched primaries is Tier 3 like any other summary, and a missing or mismatched `preload_token` means the discipline never ran at all, so that run is discarded rather than tiered. A matching token is file-identity only. It does not prove preload fired; that is the `preload:` field.
 
@@ -69,8 +71,8 @@ When the topic touches a library, tool, CLI, API or framework that ships release
 |---|---|
 | Very active project (weekly releases, breaking changes, security-sensitive) | 14 days |
 | Standard library / tool / CLI / API | 30 days |
-| Architecture pattern / conceptual guide | 90 days |
-| Foundational doctrine (DDD, SOLID, Hexagonal) | No recency gate, since concepts don't drift |
+| Tool- or vendor-specific architecture guide (a cloud provider's reference architecture, a framework's architecture docs) | 90 days |
+| Pattern definition or canonical pattern book (GoF, PoEAA, EIP, DDD, SOLID, Hexagonal) | No recency gate, since a definition doesn't drift. Tool-specific advice built on it does, and takes its own row |
 
 **Major version bump invalidates prior docs.** When the upstream repo moved `x.y.z` → `(x+1).0.0` since the doc was last updated, treat ALL prior docs as suspect, including first-party docs, which routinely lag a major release. Re-verify every behavior claim against the new release notes regardless of doc age.
 
@@ -207,7 +209,7 @@ When no preferred-source author covers the topic's domain (typical for tool-ecos
 
 1. **Official maintainer**: the vendor's own social / GitHub / blog
 2. **Upstream repo changelog or releases**: `gh api repos/<owner>/<repo>/releases` OR a raw `CHANGELOG.md` fetch this turn
-3. **One recognized industry authority**: a top-voted community post or well-known practitioner blog with the author named
+3. **One recognized industry authority**: a named practitioner recognized in the domain for their own work (a canonical book or catalog, a maintained project). Votes, stars and search rank make a post popular, not authoritative
 
 ## Read-only `gh` forms
 
@@ -311,6 +313,8 @@ The evidence-table `Confidence` column must be set per claim:
 - **HIGH (single source)**: a first-party content claim whose one publisher is its primary, fetched this turn, with a `single_source:` reason that holds; recency gate passed; falsification query failed to find counter-evidence. The flag is part of the level and is never dropped (see "Single-source first-party content claims")
 - **MEDIUM**: 3+ sources agree but mix of Tier 0/1 + Tier 2; OR 2 Tier 0/1 + open falsification gap; OR primary source > 30d old without changelog cross-check
 - **LOW**: fewer than 3 sources; OR sources conflict; OR Tier 2-only consensus; OR primary source > 90d old
+
+The `> 30d` and `> 90d` age clauses do not apply to a version-independent pattern-definition claim, whose primary is the canonical source however old it is (see "Canonical pattern sources").
 
 Only HIGH and HIGH (single source) claims are accepted (the outcome gate enforces this). A MEDIUM or LOW claim is a **Gap**: return to Phase 4 follow-up and iterate until HIGH, or report it as a gap; never a basis for code edits.
 
