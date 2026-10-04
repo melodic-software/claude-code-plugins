@@ -3,7 +3,7 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.12.8] - 2026-10-04
+## [0.12.9] - 2026-10-04
 
 ### Changed
 
@@ -14,6 +14,13 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 - **A subagent no longer gets "detail omitted" for findings it never saw.** The old digest was keyed per session; the shared gate keys per session, agent and file.
 - **A finding keeps its own line number when its `[Context: "..."]` quotes finding-shaped text.** The path is cut before the first rule code, not the last.
 - **Findings that return after a clean run are reported again.** The old digest was never cleared on a clean run, so a set that disappeared and came back matched the stale digest.
+
+## [0.12.8] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice and formatter probe rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
 
 ## [0.12.7] - 2026-10-04
 

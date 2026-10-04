@@ -3,11 +3,18 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.8.7] - 2026-10-04
+## [0.8.8] - 2026-10-04
 
 ### Changed
 
 - **Hook text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Biome runs with `--reporter=concise`, and the findings report names the file once in its heading, without "(advisory)": each line is `<line>:<col>: <rule>: <message>`, without the reporter's mark, path or summary footer. An unchanged finding set on a re-edit sends nothing; it is sent again after a clean run, or after compaction or `/clear`, which a new `SessionStart` `compact|clear` row handles. A report lists at most 20 findings; telemetry keeps them all. A Biome break reads `biome-format: biome failed on <file>:`. The rewrite notice reads `biome-format: reformatted <file>.`. The missing-biome notice is composed from `prerequisites.json`, with the install route on the user's copy only, and its `degrade` text drops "edits still go through".
+
+## [0.8.7] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice and formatter probe rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
 
 ## [0.8.6] - 2026-10-04
 
