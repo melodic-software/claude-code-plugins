@@ -39,7 +39,7 @@ Print every field, in this order, before anything else:
 cli_version:     <claude --version>
 floor_met:       <true | false>
 platform:        <windows | wsl2 | linux | darwin | other>
-sandbox_backend: <present | absent | unknown> (missing: <the binaries that did not resolve>, when any)
+sandbox_backend: <present | absent | not-ready | unknown> (missing: <binaries that did not resolve> | links: <paths>)
 target_type:     <plugin | wrapped-skill | wrapped-agent | rules>
 suite_tools:     <read-only | the gated tools the cases request>
 same_model:      <yes | no | unknown | off> (tested <model>, judge <model>)
@@ -66,12 +66,14 @@ this session's own host, which may not be the machine that will run the eval.
 | Native Windows (no WSL), or WSL1 (`/proc/version` contains `Microsoft` but not `microsoft-standard`) | `absent` |
 | Linux or WSL2 (`/proc/version` contains `microsoft-standard`; the kernel string alone is never enough), and every package the sandboxing page lists resolves (`command -v bwrap`, `command -v socat`) | `present` |
 | Linux or WSL2, and any of them is missing | `absent`, naming each missing binary |
+| Otherwise `present`, a case requests `Bash`, `Write`, or `Edit`, and `find "${DOCKER_CONFIG:-$HOME/.docker}/" -mindepth 1 -type l` (read-only) prints a path | `not-ready`, naming each path and the CLI's reason: the sandbox cannot reliably exclude a store with a link inside it. The refusal's route is to resolve the links or run on a host without them; never suggest repointing `DOCKER_CONFIG` to get past the check, which bypasses a sandbox safety check |
 | macOS | `present` |
 | Anything else | `unknown`, treated as `absent` for the refusal below |
 
 | Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
 |---|---|---|
 | Granting `Bash` puts every command under Claude Code's OS-level sandbox; on a machine with no backend each run is refused rather than run unconfined, so the case reports a run error and usually scores 0. Native Windows has no backend; macOS is supported. The Linux and WSL2 packages, and WSL1's lack of support, are what [Set up Linux and WSL2](https://code.claude.com/docs/en/sandboxing#set-up-linux-and-wsl2) lists; read them there | <https://code.claude.com/docs/en/plugin-evals> platform notes, verified 2026-09-12; that sandboxing section, fetched 2026-10-04 | Recheck trigger: either page names a Windows backend, or the section adds or drops a package or changes its WSL notes. Then re-read it, re-derive the table above, and refresh this row with the outcome |
+| The CLI refuses a whole `Bash`-granting pass when the Docker credential store (`$DOCKER_CONFIG`, else `~/.docker`) holds a symbolic link inside it; the store's root may itself be a link. Every run, read-only cases included, ends at 0 turns with `the Docker (~/.docker, DOCKER_CONFIG) credential store on this machine holds a symbolic link inside it, so the Bash sandbox cannot reliably exclude it`. Docker Desktop's WSL integration links `contexts` and `features.json` into `/mnt/c` | No doc line: neither <https://code.claude.com/docs/en/plugin-evals> nor <https://code.claude.com/docs/en/sandboxing> mentions it, both fetched 2026-10-04. Basis is that CLI message at Claude Code 2.1.289 under WSL2, on all 60 runs of one pass, observed 2026-10-04 | Recheck trigger: either page documents the check, a release note touches sandbox credential exclusion, or the message changes. Then re-read both pages, re-run one `Bash`-granting case on a host with such a link, and refresh this row with the outcome |
 
 **Refuse before any spend** when `sandbox_backend` is not `present` and any case requests `Bash`,
 `Write`, or `Edit`. Name both halves in the refusal: the backend is missing, so each granting run
@@ -328,14 +330,13 @@ What the number means:
   `max: 0`) needs.
 - Hold the ablation mode fixed. Under `--ablation none` nothing is excluded, so absolute scores are
   not comparable across modes and mixing them silently breaks a trend line.
-- The with-arm measures the skill hub, not its spokes. A plugin whose value lives in `reference/`
-  files measures only what `SKILL.md` carries, and no grant makes the spokes readable (record
-  below). So anything a case depends on goes in the hub, and a null delta on such a plugin is a hub
-  finding before it is a plugin finding.
+- Spoke reach is version-bound (record below): through 2.1.287 every with-arm `Read` under the
+  plugin directory was denied; at 2.1.289 a `reference/` read succeeded; `context/` is unverified.
+  Keep what a case needs in the hub, and check the trace for a denied `Read` before crediting a spoke.
 
 | Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
 |---|---|---|
-| In the with-arm the injected skill body names the plugin's real on-disk directory, and a `Read` of any file under it is refused with `File is in a directory that is denied by your permission settings`; only the hub `SKILL.md` text reaches the model. A path-scoped `--allow-tools "Read(//<plugin>/skills/**)"` grant is accepted but does not lift the denial, and no flag makes a directory readable | Kept traces (`--keep-temp`) of this plugin's own suite: at Claude Code 2.1.270, six with-arm runs, every spoke `Read` denied, verified 2026-09-13; at 2.1.287 under `--runs 2`, all three spoke `Read` calls in six with-arm runs denied with that text and listed in each trace's `permission_denials`, verified 2026-10-01; at 2.1.287 with that grant on one case, both with-arm runs still denied a spoke `Read` and the run's settings held no deny rule, and `claude plugin eval --help` listed no readable-directory flag, verified 2026-10-02. For what a grant covers, see <https://code.claude.com/docs/en/plugin-evals#grant-tools>, as of 2026-10-02 | Recheck trigger: a Claude Code release note touches `plugin eval` or sandbox permissions, `--help` or that section gains a way to make a directory readable, or a kept trace shows a spoke `Read` succeeding. Then re-run one case with `--keep-temp`, with and without the grant, read the with-arm trace, refresh this row with the outcome, and record a drift outcome in this plugin's CHANGELOG |
+| At Claude Code 2.1.270 and 2.1.287 the injected skill body named the plugin's real on-disk directory, and in the with-arm a `Read` of any file under it was refused with `File is in a directory that is denied by your permission settings`; only the hub `SKILL.md` text reached the model, and a path-scoped `--allow-tools "Read(//<plugin>/skills/**)"` grant was accepted but did not lift the denial. At 2.1.289 a with-arm `Read` of a skill's `reference/` file succeeded with no grant. Whether a `context/` file is readable at 2.1.289 is unverified | Kept traces (`--keep-temp`) of this plugin's own suite: at 2.1.270, six with-arm runs, every spoke `Read` denied, verified 2026-09-13; at 2.1.287 under `--runs 2`, all three spoke `Read` calls in six with-arm runs denied with that text and listed in each trace's `permission_denials`, verified 2026-10-01; at 2.1.287 with that grant on one case, both with-arm runs still denied a spoke `Read` and the run's settings held no deny rule, verified 2026-10-02. At 2.1.289, kept traces of the `debugging` plugin's read-only suite: in all three with-arm runs of one case, a `Read` of `skills/debug/reference/rendered-view.md` returned the file, with `is_error` unset and `permission_denials: []`; no run tried a `context/` file, verified 2026-10-04. For what a grant covers, see <https://code.claude.com/docs/en/plugin-evals#grant-tools>, as of 2026-10-02 | Recheck trigger: a Claude Code release note touches `plugin eval` or sandbox permissions, a kept trace on 2.1.289 or later shows a spoke `Read` denied, or a case first exercises a `context/` read. Then re-run one case with `--keep-temp`, read the with-arm trace, refresh this row with the outcome, and record a drift outcome in this plugin's CHANGELOG |
 
 ## Iterating
 
@@ -460,8 +461,6 @@ file, the exit-code table, and the parser rules as background for a human reader
   it cost four to seven times as much (at 2.1.287 it cost less; see Cost): the kept traces show
   the model without the plugin invoking the bundled `claude-api` skill on every run, and that
   skill's injected body is about fourteen times the size of this plugin's hub.
-- Inside the with-arm, a `Read` of the plugin's own `reference/` files is refused, so the spokes
-  never reach the model; see the record under "Reading the delta" before crediting a spoke.
 - `--trust-plugin` persists. Answering the trust prompt yes inside a git repository trusts the whole
   repository, and later non-TTY runs launch instead of being refused.
 - `--json <file>` suppresses the terminal summary table. Without `--keep-temp` the per-run

@@ -5,6 +5,8 @@
 ### Fixed
 
 - **`plugin-eval` preflight no longer reports WSL2's sandbox as present from `/proc/version` alone.** WSL2 now takes the Linux check, so `bwrap` and `socat` must both resolve, and the report names whichever is missing. WSL1 reports `absent`. The package list points at the sandboxing page's "Set up Linux and WSL2" section instead of restating it. New eval case `sandbox-wsl2-missing-socat` covers the bwrap-present, socat-missing machine.
+- **`plugin-eval` preflight checks the Docker credential store for symlinks.** When a case requests `Bash`, `Write`, or `Edit`, a symbolic link inside `$DOCKER_CONFIG` or `~/.docker` now reports `sandbox_backend: not-ready` with the paths: Claude Code 2.1.289 refused every run of a `Bash`-granting pass on such a host (Docker Desktop's WSL integration creates the links) after the preflight had passed it. The route is to resolve the links or use another host, never to repoint `DOCKER_CONFIG`. New eval case `sandbox-docker-symlink`.
+- **`plugin-eval`'s spoke-read record no longer says the with-arm cannot read `reference/`.** At 2.1.289 a with-arm `Read` of a skill's `reference/` file succeeded, which fired the record's recheck trigger; the denial is now recorded for 2.1.270 and 2.1.287 only, and `context/` stays unverified. Eval case `reference-read-denied` now names 2.1.287.
 
 ## [0.5.4] - 2026-10-04
 
