@@ -1,63 +1,16 @@
 {
-  "description": "Context-zone crossing notices, the pre-edit zone gate, and the post-compaction marker",
+  "description": "Records the post-compaction marker. The module reports context-zone crossings to Claude and, as a toast and a transcript line, to the person, gates new mutating work in blocking mode, answers /context-guard, draws an optional band row, serves a status tool and writes the per-session snapshot.",
+  "modules": ["./register.tsx"],
   "hooks": {
     "SessionStart": [
       {
+        "matcher": "startup|resume|clear|fork",
         "hooks": [
           {
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.sh\" node-notice /context-guard:check CONTEXT_GUARD_HOOKS_ENABLED; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.ps1\" node-notice /context-guard:check CONTEXT_GUARD_HOOKS_ENABLED",
             "timeout": 10,
             "statusMessage": "Checking that node is on PATH..."
-          }
-        ]
-      }
-    ],
-    "PostToolBatch": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/zone-crossing-inject.sh"
-            ],
-            "timeout": 60,
-            "statusMessage": "Checking for a context-zone crossing..."
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/zone-crossing-inject.sh"
-            ],
-            "timeout": 60,
-            "statusMessage": "Checking for a context-zone crossing..."
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Write|Edit|NotebookEdit|Agent|Workflow",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node",
-            "args": [
-              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
-              "${CLAUDE_PLUGIN_ROOT}/hooks/zone-gate.sh"
-            ],
-            "timeout": 60,
-            "statusMessage": "Checking the context-zone gate..."
           }
         ]
       }

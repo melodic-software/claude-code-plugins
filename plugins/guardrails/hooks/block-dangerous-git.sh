@@ -162,9 +162,7 @@ hook::jq_fields "$INPUT" '.tool_input.command' '.cwd' '.tool_name' || exit 2
 # correct under all of them, so it needs no such trace. A NUL here is malformed
 # input, not an exotic-but-valid command.
 if ((HOOK_JQ_FIELDS_NUL)); then
-  echo "BLOCKED: the payload carries a NUL byte, which a command cannot reliably carry." >&2
-  echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
-  echo "Fix: reissue the tool call without the embedded NUL." >&2
+  guard::refuse_nul
   exit 2
 fi
 
@@ -210,11 +208,12 @@ allowed() {
 }
 
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+# block <form> <reason> <fix>: one deny line ending in the user's allow-list
+# lever for <form>.
 block() {
-  local form="$1" msg1="$2" msg2="$3"
+  local form="$1"
   allowed "$form" && return 0
-  echo "$msg1" >&2
-  echo "$msg2" >&2
+  echo "$2 $3; or the user adds $form to block_dangerous_git_allow." >&2
   emit_tel "blocked" "$form"
   exit 2
 }
@@ -229,28 +228,32 @@ block() {
 block_clean_force() {
   block "clean-force" \
     "BLOCKED: git clean with a force flag permanently deletes untracked files." \
-    "Preview with git clean -n first; then allow via the block_dangerous_git_allow option (add clean-force) if intended."
+    "Preview with git clean -n"
 }
+
+# The force-push fix, for every push-force shape. Both lease forms it names
+# pass this guard; a bare --force-with-lease does not.
+PUSH_FORCE_FIX="--force-with-lease=<ref>:<full-sha>, or --force-with-lease --force-if-includes"
 
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 block_push_refspec_plus() {
   block "push-force" \
-    "BLOCKED: a leading + on a push refspec is a force-push (same as --force)." \
-    "Drop the + or use --force-with-lease, or allow via the block_dangerous_git_allow option (add push-force)."
+    "BLOCKED: a leading + on a push refspec is a force-push." \
+    "Drop the +, or use $PUSH_FORCE_FIX"
 }
 
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 block_checkout_tree_wide() {
   block "checkout-dot" \
     "BLOCKED: a worktree-wide git checkout pathspec discards every unstaged change." \
-    "Checkout specific paths, stash first, or allow via the block_dangerous_git_allow option (add checkout-dot)."
+    "Check out specific paths or stash first"
 }
 
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 block_restore_tree_wide() {
   block "restore-dot" \
     "BLOCKED: a worktree-wide git restore pathspec discards every unstaged change." \
-    "Restore specific paths, stash first, or allow via the block_dangerous_git_allow option (add restore-dot)."
+    "Restore specific paths or stash first"
 }
 
 # Does a word match a long option or an accepted unique-prefix abbreviation of
@@ -694,8 +697,7 @@ alias_reexpand_admit() {
   hook::git_alias_admit "$@"
   local rc=$?
   ((rc == 2)) || return "$rc"
-  echo "BLOCKED: checking this command's git alias chain needs more than $HOOK_ALIAS_WORK_MAX re-expansions — failing closed rather than stalling the guard." >&2
-  echo "Run the subcommand directly, shorten the alias chain, or set the guardrails block_dangerous_git_enabled option to false to bypass." >&2
+  guard::refuse_alias_chain
   emit_tel "blocked" "alias-traversal-cap"
   exit 2
 }
@@ -765,8 +767,7 @@ check_segment() {
     # recurring fail-open surface (fed by an ambient var, an inline/`env` prefix, an
     # `export`, `set -a`, or a nested `bash -c` in any wrapper); the shape alone is
     # sufficient. The allow-list is not consulted, as with the too-long-command path.
-    echo "BLOCKED: git alias '$sub' is defined via --config-env, so its expansion cannot be verified — failing closed." >&2
-    echo "Define the alias in git config, run the subcommand directly, or set the guardrails block_dangerous_git_enabled option to false to bypass." >&2
+    guard::refuse_config_env_alias "$sub"
     emit_tel "blocked" "config-env-alias"
     exit 2
   fi
@@ -962,18 +963,18 @@ check_segment() {
     # last-wins, so an early match cannot be acted on before the segment ends.
     if ((lease_width_unknown)); then
       block "push-lease-unsafe" \
-        "BLOCKED: git push --force-with-lease=<refname>:<expect> whose <expect> is a full object id, but this repository's hash format could not be determined (${_repo_oid_width_err:-git rev-parse --show-object-format failed}), so no literal object id can be validated here." \
-        "Run the push from a directory where git can read the repository's object format, or resolve the object id in a separate step and pass --force-with-lease=<refname>:<full-sha> once git can determine the hash width. Or allow via the block_dangerous_git_allow option (add push-lease-unsafe)."
+        "BLOCKED: --force-with-lease=<ref>:<sha> needs the repo's hash format, which could not be read (${_repo_oid_width_err:-git rev-parse --show-object-format failed})." \
+        "Run the push from inside the repository"
     fi
     if ((lease_movable)); then
       block "push-lease-unsafe" \
-        "BLOCKED: git push --force-with-lease=<refname>:<expect> whose <expect> is a name git resolves at push time (origin/main, HEAD, a tag, an abbreviated object id, or hex of the wrong width for this repository's hash format) leases against a moving target, and git-push(1) declares --force-if-includes a no-op alongside an explicit :<expect>, so nothing mitigates it." \
-        "Resolve the object id in a separate step (git rev-parse <ref>) and pass the literal result: --force-with-lease=<refname>:<full-sha> at this repository's full hash width. A substitution cannot stand in for it — this guard matches the command string statically and never evaluates one, so it arrives here as an unresolved name. Or allow via the block_dangerous_git_allow option (add push-lease-unsafe)."
+        "BLOCKED: --force-with-lease=<ref>:<expect> with a name (branch, tag, HEAD, short or wrong-width sha) leases against a moving target." \
+        "Resolve it first (git rev-parse <ref>) and pass =<ref>:<full-sha> literally; a substitution is not evaluated here"
     fi
     if ((lease_tracking)) && ((!if_includes)); then
       block "push-lease-unsafe" \
-        "BLOCKED: git push --force-with-lease without an expected value leases against the remote-tracking ref, which a background fetch can satisfy while still clobbering unseen work." \
-        "State the expectation as a literal object id resolved in a separate step (--force-with-lease=<refname>:<full-sha>; a substitution is never evaluated here), or add --force-if-includes, or allow via the block_dangerous_git_allow option (add push-lease-unsafe)."
+        "BLOCKED: --force-with-lease without an expected value can still clobber work a background fetch pulled in." \
+        "Pass =<ref>:<full-sha> (resolved in a separate step) or add --force-if-includes"
     fi
     k=$((sub_idx + 1))
     while ((k < nseg)); do
@@ -1004,8 +1005,8 @@ check_segment() {
         ;;&
       --force)
         block "push-force" \
-          "BLOCKED: git push --force is irreversible for anyone sharing the branch." \
-          "Use --force-with-lease (refuses to clobber unseen remote work), or allow via the block_dangerous_git_allow option (add push-force)."
+          "BLOCKED: git push --force overwrites remote commits." \
+          "Use $PUSH_FORCE_FIX"
         ;;
       # The lease family is decided in the pre-scan above, not here: every one
       # of its options is last-wins, so no single occurrence can be acted on
@@ -1017,8 +1018,8 @@ check_segment() {
       -[A-Za-z]*)
         if [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
           block "push-force" \
-            "BLOCKED: git push -f is irreversible for anyone sharing the branch." \
-            "Use --force-with-lease (refuses to clobber unseen remote work), or allow via the block_dangerous_git_allow option (add push-force)."
+            "BLOCKED: git push -f overwrites remote commits." \
+            "Use $PUSH_FORCE_FIX"
         fi
         ;;
       *)
@@ -1027,7 +1028,7 @@ check_segment() {
         if abbrev_match "mirror" "$x" 1; then
           block "push-force" \
             "BLOCKED: git push --mirror force-updates every remote ref." \
-            "Push specific refs instead, or allow via the block_dangerous_git_allow option (add push-force)."
+            "Push specific refs instead"
         fi
         ;;
       esac
@@ -1048,8 +1049,8 @@ check_segment() {
         continue
       fi
       abbrev_match "hard" "$x" 1 && block "reset-hard" \
-        "BLOCKED: git reset --hard discards uncommitted work with no recovery path." \
-        "Commit or stash first (git stash push -u), use git reset --keep, or allow via the block_dangerous_git_allow option (add reset-hard)."
+        "BLOCKED: git reset --hard discards uncommitted work." \
+        "Commit or stash first (git stash push -u), or use git reset --keep"
     done
     ;;
   clean)
@@ -1176,8 +1177,8 @@ check_segment() {
         rest="${x%%=*}"
         if abbrev_match "pathspec-from-file" "$rest" 11; then
           block "checkout-dot" \
-            "BLOCKED: git checkout --pathspec-from-file can address the whole worktree; the file cannot be verified statically." \
-            "Pass explicit paths instead, or allow via the block_dangerous_git_allow option (add checkout-dot)."
+            "BLOCKED: git checkout --pathspec-from-file can address the whole worktree, and the file cannot be checked." \
+            "Pass explicit paths instead"
           if [[ "$x" == *=* ]]; then ((k++)); else ((k += 2)); fi
         else
           ((k++))
@@ -1206,7 +1207,7 @@ check_segment() {
           [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
           block "checkout-force" \
             "BLOCKED: git checkout -f/--force throws away local modifications." \
-            "Commit or stash first, or allow via the block_dangerous_git_allow option (add checkout-force)."
+            "Commit or stash first"
         fi
         is_tree_wide_pathspec "$x" && block_checkout_tree_wide
         if [[ "$x" != -* ]]; then
@@ -1226,7 +1227,7 @@ check_segment() {
     done
     ((excl > 0 && pos == 0)) && block "checkout-dot" \
       "BLOCKED: an exclude-only git checkout pathspec restores everything outside the excluded set." \
-      "Add positive paths to scope the checkout, or allow via the block_dangerous_git_allow option (add checkout-dot)."
+      "Add positive paths to scope the checkout"
     ;;
   switch)
     # switch -f/--force (alias --discard-changes) throws away local
@@ -1255,7 +1256,7 @@ check_segment() {
           [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *f* ]]; then
           block "checkout-force" \
             "BLOCKED: git switch -f/--discard-changes throws away local modifications." \
-            "Commit or stash first, or allow via the block_dangerous_git_allow option (add checkout-force)."
+            "Commit or stash first"
         fi
         ;;
       esac
@@ -1324,8 +1325,8 @@ check_segment() {
           rest="${x%%=*}"
           if abbrev_match "pathspec-from-file" "$rest" 11; then
             block "restore-dot" \
-              "BLOCKED: git restore --pathspec-from-file can address the whole worktree; the file cannot be verified statically." \
-              "Pass explicit paths instead, or allow via the block_dangerous_git_allow option (add restore-dot)."
+              "BLOCKED: git restore --pathspec-from-file can address the whole worktree, and the file cannot be checked." \
+              "Pass explicit paths instead"
             if [[ "$x" == *=* ]]; then ((k++)); else ((k += 2)); fi
           else
             ((k++))
@@ -1355,7 +1356,7 @@ check_segment() {
       done
       ((excl > 0 && pos == 0)) && block "restore-dot" \
         "BLOCKED: an exclude-only git restore pathspec discards everything outside the excluded set." \
-        "Add positive paths to scope the restore, or allow via the block_dangerous_git_allow option (add restore-dot)."
+        "Add positive paths to scope the restore"
     fi
     ;;
   *) ;;
@@ -1369,8 +1370,7 @@ check_segment() {
 # carries, so no destructive-form token can honestly allow them. Only the kill
 # switch bypasses.
 if ((${#COMMAND} > MAX_COMMAND_LEN)); then
-  echo "BLOCKED: command too long to parse safely (> $MAX_COMMAND_LEN chars)." >&2
-  echo "Shorten the command, or set the guardrails block_dangerous_git_enabled option to false (/plugin configure) to bypass." >&2
+  echo "BLOCKED: command over $MAX_COMMAND_LEN chars is too long to check. Split it into shorter commands." >&2
   emit_tel "blocked" "too-long"
   exit 2
 fi
@@ -1440,8 +1440,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
     # nothing spends all five rounds on itself and lands here too. No allow
     # token clears this.
     if ((_ps_sink_attempts > 4)); then
-      echo "BLOCKED: this PowerShell command still cannot be parsed with confidence after five rounds of setting aside allowed sink shapes, and it could reach git — blocked (fail-closed)." >&2
-      echo "The sink-attempt budget is exhausted: each round blanks one allowed ps-unparsable-* shape and re-reads the rest, at most five rounds, and what is still unreadable after that is refused. No allow token clears this. Split the command into smaller ones, or set the guardrails block_dangerous_git_enabled option to false (/plugin configure) to bypass." >&2
+      ps::print_sink_budget_message
       emit_tel "blocked" "powershell-unparsable-budget-exhausted"
       exit 2
     fi

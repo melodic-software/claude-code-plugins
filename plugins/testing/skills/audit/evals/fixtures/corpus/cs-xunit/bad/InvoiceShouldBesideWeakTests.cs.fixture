@@ -1,0 +1,17 @@
+// expect: rule-inert-assertion
+// expect: rule-weak-oracle
+// The bare .Should() asserts nothing, so the NotNull beside it is the only
+// oracle left: any total passes it, the wrong one included.
+using FluentAssertions;
+using Xunit;
+
+public class InvoiceShouldBesideWeakTests
+{
+    [Fact]
+    public void Total_AddsLines()
+    {
+        var invoice = new Invoice(new[] { 10m, 5m });
+        invoice.Total.Should();
+        Assert.NotNull(invoice.Lines);
+    }
+}

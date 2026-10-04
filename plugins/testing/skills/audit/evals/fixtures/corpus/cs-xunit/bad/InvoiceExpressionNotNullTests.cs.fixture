@@ -1,0 +1,9 @@
+// expect: rule-weak-oracle
+// An expression-bodied test whose only oracle is NotNull.
+using Xunit;
+
+public class InvoiceExpressionNotNullTests
+{
+    [Fact]
+    public void Create_ReturnsAnInvoice() => Assert.NotNull(InvoiceBuilder.Build("order-7"));
+}

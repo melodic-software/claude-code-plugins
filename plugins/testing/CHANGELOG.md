@@ -3,6 +3,79 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.16] - 2026-10-04
+
+### Fixed
+
+- The test-judge suites pass every fixture path to jq with Git Bash path conversion off for that call (`record`, the stub judge, and each inline payload and verdict builder), so on Windows the fixtures write the same path form the expected project key hashes and the hooks under test read ([#6266](https://github.com/melodic-software/claude-code-plugins/issues/6266)). Linux runs are unchanged.
+
+## [0.22.15] - 2026-10-04
+
+### Fixed
+
+- The Bash route of the test-scan hook no longer scans or records a test file that git reports unchanged from HEAD when git last moved HEAD with a checkout, pull, merge, reset, rebase, cherry-pick or clone (line-ending conversion is applied as `git diff` applies it), so the test judge no longer reviews tests the session did not write at the next Stop. A test edited and committed in one Bash call is still recorded. Files git brought in no longer take the four scan slots from a test the same call wrote, and the per-file scan time is what the git checks leave of the hook's budget. The file's repository is found from either path separator. A test edited, committed and then followed by a checkout, pull or merge in one Bash call is still skipped ([#6016](https://github.com/melodic-software/claude-code-plugins/issues/6016)).
+
+## [0.22.14] - 2026-10-04
+
+### Changed
+
+- **Shorter hook text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** The `test-scan` hook lists findings without their thresholds, gives one Action per rule rather than per finding, lists at most 10 findings, and points to `/testing:test-value` once per file and only when there are findings. `test-scan` and `test-weaken` no longer tell Claude to state a reason before continuing. `test-weaken` names at most five changed expected values, and its deny reason under `test-weaken-block: error` is shorter. `cant-fail-scan.sh --brief` prints the hooks' form, and the `rule-zero-assertion` Action is one sentence.
+
+### Fixed
+
+- **The task-end test judge no longer floods the end of a task ([#6226](https://github.com/melodic-software/claude-code-plugins/issues/6226)).** Tests left to a background job (past the 10-test cap, late, or held by another job) and tests whose judge run failed are counts in one line, never a list of test names. A run where every verdict is a PASS shows one line, `test judge: N tests PASS.`, with the deferred count in the same line. A blocking Stop shows only its reason, with the findings path relative to the project, and no repeated summary. A forced Stop turn and an earlier session whose verdicts were all PASS say nothing.
+
+## [0.22.13] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The `test-scan-bash` row starts the launcher with `--skip-unless-stdin-contains bashEditDiff`, so a Bash payload with no change diff starts node only (#6253). The shared `exec-bash.mjs` launcher copy also gains `--skip-if-all-false`, which no testing row uses (#6252).
+
+### Fixed
+
+- The `test-judge.test.sh` link fixtures now run only when a real native symlink can be made, so cleanup of a self-nesting tree can no longer spin (#6248).
+- The link cases fail, not skip, when the native-link probe fails in CI (#6248).
+- The judge test helper runs `jq` with MSYS path conversion off on each call, so the Stop path hashes the project key the recorder wrote on Windows (#6266).
+
+## [0.22.12] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
+
+## [0.22.11] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing node goes to the user only, in one shorter line. The jq `degrade` text in `prerequisites.json` no longer says the skip lasts the session or that the hook says so once.
+
+## [0.22.10] - 2026-10-04
+
+### Fixed
+
+- `/testing:audit` now reports C# assertions that cannot fail as `rule-inert-assertion` in xUnit and NUnit suites: `Assert.True(true)`, `Assert.False(false)`, `Assert.NotNull` of a `typeof` or `nameof` expression, and `Assert.True` or `Assert.False` comparing two of them, such as `nameof(Widget) == typeof(Widget).Name` (#6040).
+- An inert C# assertion no longer also counts as an oracle, so `Assert.NotNull(typeof(Widget))` is reported once, as inert, not also as `rule-weak-oracle` (#6040). Because an inert line no longer counts as a strong oracle either, a weak oracle beside a bare `.Should();`, or beside an MSTest `Assert.IsTrue(true)`, is now reported.
+
+## [0.22.9] - 2026-10-04
+
+### Fixed
+
+- `/testing:audit` no longer reads a C# test's own signature as an assertion. A test named `Diagnostics_CheckConnectionStrings`, or a theory with an `expected` parameter, whose body only prints is now reported as `rule-zero-assertion` ([#6040](https://github.com/melodic-software/claude-code-plugins/issues/6040)).
+- A C# test whose body sits on its declaration line, `{ ... }` or `=> ...`, is now checked for `rule-weak-oracle`, `rule-snapshot-only` and `rule-inert-assertion`, as a multi-line body is. An async assertion a `Task`-returning expression body returns (`System.Threading.Tasks.Task` written out included) is awaited by the runner and is not reported; in an `async` test the expression's value is discarded, so it is, also when the expression wraps to the line after its `=>` ([#6040](https://github.com/melodic-software/claude-code-plugins/issues/6040)).
+
+## [0.22.8] - 2026-10-04
+
+### Changed
+
+- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+
+## [0.22.7] - 2026-10-04
+
+### Changed
+
+- The README notes that an installed mod can stop this plugin's `PreToolUse` hooks from running and can approve a call they blocked, with links to the two mods events sections. Nothing the plugin runs changed.
+
 ## [0.22.6] - 2026-10-04
 
 ### Fixed

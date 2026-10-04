@@ -142,7 +142,8 @@ audit ai-slop,attribution,harness-config,harness-memory,codebase-health,context-
 # session-flow, source-control and testing join on the same grounds: each reports
 # whether node and jq resolve for its hooks. context-budget and rate-limit-guard
 # join on the same grounds: context-budget reports whether node resolves for its
-# hooks, rate-limit-guard whether node and jq resolve for its hook and statusline tee.
+# hooks, rate-limit-guard whether node resolves for its hook and snapshot writes and
+# whether its mod can load.
 # speech joins on the same grounds: it reports whether Python, espeak-ng, the
 # hook-installed Python packages and the Kokoro model files resolve, read-only,
 # never installing. It is its own skill because `setup` is manual-only.
@@ -271,3 +272,11 @@ sync dometrain,repo-fleet-hygiene
 # namespace supplies which kind, each description's first clause names it, and
 # explainer-video's routes hand-drawn film to animation:produce.
 produce animation,explainer-video
+
+# Kept on merit. architecture:improve scans module structure for deepening
+# opportunities and interviews one through Design-It-Twice, editing nothing;
+# improvement:improve ships one improvement of any kind in any target as a draft
+# PR. Both improve something; the namespace supplies the object, each
+# description's first clause names it, and improvement:improve routes a
+# structural fix to its owning lane rather than repeating architecture's lens.
+improve architecture,improvement

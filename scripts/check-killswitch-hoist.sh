@@ -25,8 +25,8 @@
 # ~5.3 ms.
 #
 # The saving is UNEVEN, and the honest split matters more than the headline.
-# Four of the fifteen PreToolUse guards run as their own process
-# (source-control's three, context-guard's zone-gate) and recover the full
+# Three of the fourteen PreToolUse guards run as their own process
+# (source-control's three) and recover the full
 # ~3.5 ms. The other eleven are sourced into one process by
 # `plugins/guardrails/hooks/run-guards.sh`, which has already loaded the library
 # for its own use; hook-utils.sh carries an include guard (`_HOOK_UTILS_LOADED`),
@@ -48,7 +48,7 @@
 # Semantics are pinned, not just position: the inlined predicate must agree with
 # `hook::is_enabled` in lib/hook-utils.sh, which is the definition it duplicates.
 # If that helper's own reading of the env var changes, this gate fails and the
-# fifteen copies get revisited rather than silently diverging. That pin is the
+# fourteen copies get revisited rather than silently diverging. That pin is the
 # price of inlining, and it is why inlining is acceptable here at all.
 #
 # Scope of rule 1: hooks registered on PreToolUse or PostToolUse in

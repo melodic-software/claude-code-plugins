@@ -1,0 +1,34 @@
+// good-for: rule-weak-oracle
+// good-for: rule-inert-assertion
+// good-for: rule-snapshot-only
+// One-line and expression bodies with real oracles. A returned
+// Assert.ThrowsAsync is awaited by the runner, so it is not inert. The file
+// imports VerifyXunit, so Verify( is a snapshot; the one-line body that calls
+// it also asserts the total, so the snapshot is not the only oracle.
+using System;
+using System.Threading.Tasks;
+using FluentAssertions;
+using VerifyXunit;
+using Xunit;
+
+public class InvoiceOneLineOraclesTests
+{
+    [Fact]
+    public void Total_AddsLines() { Assert.Equal(15m, new Invoice(new[] { 10m, 5m }).Total); }
+
+    [Fact]
+    public void Total_AddsLinesFluent() => new Invoice(new[] { 10m, 5m }).Total.Should().Be(15m);
+
+    [Fact]
+    public Task Parse_Empty_Throws() => Assert.ThrowsAsync<ArgumentException>(() => InvoiceParser.ParseAsync(""));
+
+    [Fact]
+    public System.Threading.Tasks.Task Parse_Blank_Throws() => Assert.ThrowsAsync<ArgumentException>(() => InvoiceParser.ParseAsync(" "));
+
+    [Fact]
+    public Task Parse_Null_Throws() =>
+        Assert.ThrowsAsync<ArgumentNullException>(() => InvoiceParser.ParseAsync(null));
+
+    [Fact]
+    public async Task Render_MatchesApproved() { await Verify(InvoiceRenderer.Render(new Invoice(new[] { 10m, 5m }, taxRate: 0.1m))); Assert.Equal(16.5m, new Invoice(new[] { 10m, 5m }, taxRate: 0.1m).Total); }
+}

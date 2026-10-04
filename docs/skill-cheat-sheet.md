@@ -10,31 +10,22 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 <!-- cheatsheet:start -->
 
-- [0. Contract](#0-contract)
 - [1. Explore](#1-explore)
 - [2. Research](#2-research)
-- [3. Plan](#3-plan)
-- [4. Implement](#4-implement)
-- [5. Test](#5-test)
-- [6. Review](#6-review)
-- [7. Verify outcome](#7-verify-outcome)
-- [8. Retrospective](#8-retrospective)
-- [PR lifecycle (after step 7)](#pr-lifecycle-after-step-7)
+- [3. PRD](#3-prd)
+- [4. Contract](#4-contract)
+- [5. Design](#5-design)
+- [6. Plan](#6-plan)
+- [7. Decompose](#7-decompose)
+- [8. Implement](#8-implement)
+- [9. Test](#9-test)
+- [10. Review](#10-review)
+- [11. Verify outcome](#11-verify-outcome)
+- [12. Retrospective](#12-retrospective)
+- [Ship: PR lifecycle (after stage 11)](#ship-pr-lifecycle-after-stage-11)
 - [Anytime / cross-cutting](#anytime--cross-cutting)
 - [Session lifecycle](#session-lifecycle)
 - [Operator cadence](#operator-cadence)
-
-## 0. Contract
-
-| Skill | Plugin | What it does |
-| --- | --- | --- |
-| [`/bugs:write`](../plugins/bugs/skills/write/SKILL.md) | `bugs` | Turn an informal bug description into a structured 5-field report, read-only |
-| [`/planning:audit-answers`](../plugins/planning/skills/audit-answers/SKILL.md) | `planning` | Adversarially validate interview answers with fresh-context agents |
-| [`/planning:brainstorm`](../plugins/planning/skills/brainstorm/SKILL.md) | `planning` | Diverge into codebase-grounded candidate approaches before scoping |
-| [`/planning:interview`](../plugins/planning/skills/interview/SKILL.md) | `planning` | Interview in frontier rounds until the task contract is locked |
-| [`/planning:prd`](../plugins/planning/skills/prd/SKILL.md) | `planning` | Lock product intent. Problem, users, success metrics. Before planning |
-| [`/planning:questionnaire`](../plugins/planning/skills/questionnaire/SKILL.md) | `planning` | Turn a decision someone else must answer into an async questionnaire |
-| [`/planning:wayfind`](../plugins/planning/skills/wayfind/SKILL.md) | `planning` | Chart a too-big, foggy effort as a decision map worked one decision at a time |
 
 ## 1. Explore
 
@@ -52,6 +43,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/discovery:blindspot`](../plugins/discovery/skills/blindspot/SKILL.md) | `discovery` | Surface your unknown-unknowns and sharpen the prompt before unfamiliar work |
 | [`/discovery:explore`](../plugins/discovery/skills/explore/SKILL.md) | `discovery` | Explore code, history, tests, and config before changing anything |
 | [`/discovery:trace-intent`](../plugins/discovery/skills/trace-intent/SKILL.md) | `discovery` | Reconstruct why a thing was built this way, from evidence outside the code |
+| [`/performance:go-faster`](../plugins/performance/skills/go-faster/SKILL.md) | `performance` | Whole-process speed sweep with evidenced, ranked findings and adopt-now speedups |
 | [`/performance:target`](../plugins/performance/skills/target/SKILL.md) | `performance` | Rank optimization candidates by evidence quality, not suspicion |
 
 ## 2. Research
@@ -64,7 +56,31 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/dometrain:grounding`](../plugins/dometrain/skills/grounding/SKILL.md) | `dometrain` | Ground an approach in how a Dometrain course teaches it, with lesson links |
 | [`/firecrawl:firecrawl`](../plugins/firecrawl/skills/firecrawl/SKILL.md) | `firecrawl` | Scrape, search, crawl, or parse web pages when WebFetch is blocked |
 
-## 3. Plan
+## 3. PRD
+
+| Skill | Plugin | What it does |
+| --- | --- | --- |
+| [`/planning:prd`](../plugins/planning/skills/prd/SKILL.md) | `planning` | Lock product intent. Problem, users, success metrics. Before planning |
+
+## 4. Contract
+
+| Skill | Plugin | What it does |
+| --- | --- | --- |
+| [`/bugs:write`](../plugins/bugs/skills/write/SKILL.md) | `bugs` | Turn an informal bug description into a structured 5-field report, read-only |
+| [`/planning:audit-answers`](../plugins/planning/skills/audit-answers/SKILL.md) | `planning` | Adversarially validate interview answers with fresh-context agents |
+| [`/planning:brainstorm`](../plugins/planning/skills/brainstorm/SKILL.md) | `planning` | Diverge into codebase-grounded candidate approaches before scoping |
+| [`/planning:interview`](../plugins/planning/skills/interview/SKILL.md) | `planning` | Interview in frontier rounds until the task contract is locked |
+| [`/planning:questionnaire`](../plugins/planning/skills/questionnaire/SKILL.md) | `planning` | Turn a decision someone else must answer into an async questionnaire |
+| [`/planning:wayfind`](../plugins/planning/skills/wayfind/SKILL.md) | `planning` | Chart a too-big, foggy effort as a decision map worked one decision at a time |
+
+## 5. Design
+
+| Skill | Plugin | What it does |
+| --- | --- | --- |
+| [`/planning:design`](../plugins/planning/skills/design/SKILL.md) | `planning` | Resolve types, contracts, and module boundaries before planning |
+| [`/planning:design-handoff`](../plugins/planning/skills/design-handoff/SKILL.md) | `planning` | Gate a finished design and package it for planning |
+
+## 6. Plan
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
@@ -74,16 +90,19 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/event-storming:simulation`](../plugins/event-storming/skills/simulation/SKILL.md) | `event-storming` | Multi-persona agentic EventStorming workshop on Miro |
 | [`/naming:name-it-better`](../plugins/naming/skills/name-it-better/SKILL.md) | `naming` | Generate and evaluate name candidates from blind fresh-context lenses |
 | [`/performance:goal`](../plugins/performance/skills/goal/SKILL.md) | `performance` | Build a goal with realistic and ideal targets plus a computed floor |
-| [`/planning:design`](../plugins/planning/skills/design/SKILL.md) | `planning` | Resolve types, contracts, and module boundaries before planning |
-| [`/planning:design-handoff`](../plugins/planning/skills/design-handoff/SKILL.md) | `planning` | Gate a finished design and package it for planning |
 | [`/planning:devils-advocate`](../plugins/planning/skills/devils-advocate/SKILL.md) | `planning` | Stress-test a plan or the incumbent approach adversarially |
 | [`/planning:draft-goal-condition`](../plugins/planning/skills/draft-goal-condition/SKILL.md) | `planning` | Pick the right autonomy lever and craft a /goal completion condition |
 | [`/planning:plan`](../plugins/planning/skills/plan/SKILL.md) | `planning` | Produce a structured implementation plan with an approval gate |
 | [`/prototype:explore-directions`](../plugins/prototype/skills/explore-directions/SKILL.md) | `prototype` | Throwaway UI variations answering what should this look like |
 | [`/prototype:pressure-test`](../plugins/prototype/skills/pressure-test/SKILL.md) | `prototype` | Throwaway terminal app or shareable HTML demo pressure-testing logic or a data model |
+
+## 7. Decompose
+
+| Skill | Plugin | What it does |
+| --- | --- | --- |
 | [`/work-items:decompose`](../plugins/work-items/skills/decompose/SKILL.md) | `work-items` | Break a plan into vertical-slice work items with dependencies |
 
-## 4. Implement
+## 8. Implement
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
@@ -108,7 +127,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/source-control:commit`](../plugins/source-control/skills/commit/SKILL.md) | `source-control` | Commit with the resolved convention and surgical staging |
 | [`/speech:narrate`](../plugins/speech/skills/narrate/SKILL.md) | `speech` | Script in, narration.wav and words.json out (kokoro local; elevenlabs optional, third-party) |
 
-## 5. Test
+## 9. Test
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
@@ -128,7 +147,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/testing:test-value`](../plugins/testing/skills/test-value/SKILL.md) | `testing` | Where expected values come from and which tests earn their keep |
 | [`/testing:write`](../plugins/testing/skills/write/SKILL.md) | `testing` | Write and place tests with TDD cadence across ecosystems |
 
-## 6. Review
+## 10. Review
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
@@ -142,12 +161,11 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/review:code-review`](../plugins/review/skills/code-review/SKILL.md) | `review` | Org CI code-review lane command for a GitHub pull request |
 | [`/review:explain-change`](../plugins/review/skills/explain-change/SKILL.md) | `review` | Change digest for a pull request, markdown record plus an interactive view |
 | [`/review:fanout`](../plugins/review/skills/fanout/SKILL.md) | `review` | Fan review out across every reviewer surface into one ranked report |
-| [`/review:pr-explainer`](../plugins/review/skills/pr-explainer/SKILL.md) | `review` | Renamed to /review:explain-change; one-release stub |
 | [`/review:quality-gate`](../plugins/review/skills/quality-gate/SKILL.md) | `review` | Single-lens review checkpoint routed to the matching reviewer |
 | [`/review:security-review`](../plugins/review/skills/security-review/SKILL.md) | `review` | Org CI security-review lane command for a GitHub pull request |
 | [`/skill-quality:check`](../plugins/skill-quality/skills/check/SKILL.md) | `skill-quality` | Static QA gate for skill frontmatter, caps, and evals |
 
-## 7. Verify outcome
+## 11. Verify outcome
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
@@ -159,7 +177,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/verification:confirm`](../plugins/verification/skills/confirm/SKILL.md) | `verification` | Prove the change achieved its intended outcome with evidence |
 | [`/verification:measure`](../plugins/verification/skills/measure/SKILL.md) | `verification` | Verify an improvement claim against a pre-change baseline |
 
-## 8. Retrospective
+## 12. Retrospective
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
@@ -167,7 +185,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/session-flow:retro`](../plugins/session-flow/skills/retro/SKILL.md) | `session-flow` | Structured session retrospective with codified learnings |
 | [`/session-flow:running-retro`](../plugins/session-flow/skills/running-retro/SKILL.md) | `session-flow` | In-flight retro checkpoint appended to a running ledger |
 
-## PR lifecycle (after step 7)
+## Ship: PR lifecycle (after stage 11)
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
@@ -200,7 +218,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/computer-use:diagnose`](../plugins/computer-use/skills/diagnose/SKILL.md) | `computer-use` | Resolve computer-use capture, input, and screenshot symptoms to a cause |
 | [`/context-budget:audit`](../plugins/context-budget/skills/audit/SKILL.md) | `context-budget` | Measure the startup context payload per item and ledger every lever's real delta |
 | [`/context-budget:check`](../plugins/context-budget/skills/check/SKILL.md) | `context-budget` | Report whether node resolves for the context-budget hooks. Never installs. |
-| [`/context-guard:check`](../plugins/context-guard/skills/check/SKILL.md) | `context-guard` | Report whether node and jq resolve for the context-guard hooks. Never installs. |
+| [`/context-guard:check`](../plugins/context-guard/skills/check/SKILL.md) | `context-guard` | Report whether node and jq resolve and whether the context-guard mod can load. Never installs. |
 | [`/context7:check`](../plugins/context7/skills/check/SKILL.md) | `context7` | Report whether ctx7, its auth and the Context7 MCP server resolve. Never installs. |
 | [`/coupling:reduce`](../plugins/coupling/skills/reduce/SKILL.md) | `coupling` | Scan for change-transmitting coupling, apply safe reductions in a budgeted batch, route the rest |
 | [`/desktop-notification:check`](../plugins/desktop-notification/skills/check/SKILL.md) | `desktop-notification` | Report whether node and jq resolve for the desktop-notification hooks. Never installs. |
@@ -261,6 +279,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/harness-ops:check`](../plugins/harness-ops/skills/check/SKILL.md) | `harness-ops` | Report whether node and jq resolve for the harness-ops hooks. Never installs. |
 | [`/harness-ops:known-issues`](../plugins/harness-ops/skills/known-issues/SKILL.md) | `harness-ops` | Look up and track known Claude product issues, health, and workarounds |
 | [`/improvement:find`](../plugins/improvement/skills/find/SKILL.md) | `improvement` | Rank evidence-cited improvement candidates across dimensions; execution goes to the pipeline |
+| [`/improvement:improve`](../plugins/improvement/skills/improve/SKILL.md) | `improvement` | Find one gap in a target against a stated standard and ship the fix as one draft PR |
 | [`/instruction-placement:audit`](../plugins/instruction-placement/skills/audit/SKILL.md) | `instruction-placement` | Find instruction content on the wrong surface and propose validated destinations |
 | [`/instruction-placement:check`](../plugins/instruction-placement/skills/check/SKILL.md) | `instruction-placement` | Gate that every path-scoped rule glob resolves and the rules index is current |
 | [`/instruction-placement:check-prerequisites`](../plugins/instruction-placement/skills/check-prerequisites/SKILL.md) | `instruction-placement` | Report whether node and jq resolve for instruction-placement. Never installs. |
@@ -278,7 +297,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/playgrounds:use`](../plugins/playgrounds/skills/use/SKILL.md) | `playgrounds` | Route playground requests to the first-party plugin, or install it, with recipes and guidance |
 | [`/playwright:check`](../plugins/playwright/skills/check/SKILL.md) | `playwright` | Report whether playwright-cli and a browser resolve. Never installs. |
 | [`/powershell-format:check`](../plugins/powershell-format/skills/check/SKILL.md) | `powershell-format` | Report whether pwsh, PSScriptAnalyzer, jq and node are installed. Never installs. |
-| [`/rate-limit-guard:check`](../plugins/rate-limit-guard/skills/check/SKILL.md) | `rate-limit-guard` | Report whether node and jq resolve for the rate-limit-guard hook and statusline tee. Never installs. |
+| [`/rate-limit-guard:check`](../plugins/rate-limit-guard/skills/check/SKILL.md) | `rate-limit-guard` | Report whether node resolves and whether the rate-limit-guard mod can load. Never installs. |
 | [`/repo-hygiene:clean`](../plugins/repo-hygiene/skills/clean/SKILL.md) | `repo-hygiene` | Clean caches, build artifacts, stale branches, and stashes per repo |
 | [`/ruff-format:check`](../plugins/ruff-format/skills/check/SKILL.md) | `ruff-format` | Report whether ruff and node are installed. Never installs. |
 | [`/session-flow:check`](../plugins/session-flow/skills/check/SKILL.md) | `session-flow` | Report whether node and jq resolve for the session-flow observer hook. Never installs. |
@@ -340,7 +359,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/repo-fleet-hygiene:sync`](../plugins/repo-fleet-hygiene/skills/sync/SKILL.md) | `repo-fleet-hygiene` | weekly | Fast-forward canonical checkouts to the remote default branch |
 | [`/source-control:babysit-loop`](../plugins/source-control/skills/babysit-loop/SKILL.md) | `source-control` | continuous | Run one repo's PR queue as a standing merge lane |
 | [`/source-control:babysit-prs`](../plugins/source-control/skills/babysit-prs/SKILL.md) | `source-control` | continuous | Tiered fleet pass advancing your open PRs |
-| [`/work-items:attend-queue`](../plugins/work-items/skills/attend-queue/SKILL.md) | `work-items` | daily | Drive escalated and untriaged items to resolution in one view |
+| [`/work-items:attend-queue`](../plugins/work-items/skills/attend-queue/SKILL.md) | `work-items` | daily | Drive escalated items to resolution; hand untriaged intake to triage |
 | [`/work-items:work-loop`](../plugins/work-items/skills/work-loop/SKILL.md) | `work-items` | continuous | Drain the backlog as a self-paced autonomous loop |
 
 <!-- cheatsheet:end -->

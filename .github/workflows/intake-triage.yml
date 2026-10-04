@@ -1,0 +1,31 @@
+name: intake-triage
+
+# Triages each newly opened issue with the org intake-triage lane: a read-only
+# Claude run proposes labels and a comment, and a step with no model applies
+# only allowlisted labels that exist here, or `needs-human` when the run
+# escalates. Advisory: never blocks a merge. See ci-workflows'
+# intake-triage.yml for the security model and inputs.
+on:
+  issues:
+    types: [opened]
+
+permissions: {}
+
+# No top-level concurrency block: the standards `concurrency-policy` shape for
+# one requires `cancel-in-progress: true`, and canceling a triage run mid-way
+# could leave a comment without its labels. Per-issue serialization without
+# cancellation lives on the job, as in pr-review-security-hosted.yml.
+
+jobs:
+  intake-triage:
+    permissions:
+      contents: read # check out the default branch so the lane can read AGENTS.md
+      issues: write  # apply labels and post the triage comment
+    concurrency:
+      group: intake-triage-${{ github.event.issue.number || github.run_id }}
+      cancel-in-progress: false
+    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+    with:
+      runner: ubuntu-24.04
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

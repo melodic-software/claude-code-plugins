@@ -148,7 +148,7 @@ run_posix_host_payload "Linux host: Edit /tmp/x allowed" "$(edit_json '/tmp/x' '
 # host with a single jq location, where the parent commit exits 2 and this one
 # exits 0 on a real jq-less PATH) and not on others: where jq sits in /usr/bin
 # beside bash, pruning it takes the shell with it. That is the portability
-# constraint require-jq-notice-isolation.test.sh and
+# constraint lib/hook-utils.test.sh and
 # secret-pattern-detection.test.sh both record, so the assertion below does not
 # depend on it. What IS portable, and what decides the bug either way, is
 # whether the call is REACHED: `command -v jq` can only deny a write on a

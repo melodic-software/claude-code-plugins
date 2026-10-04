@@ -114,6 +114,19 @@ plugin, not in the plugin it might report on, deliberately: an in-plugin
 detector shares its plugin's registration form and dies with it, which is
 exactly how disk-hygiene's guard monitor missed the #1416 incident class.
 
+Each failure record is classed one of four ways, and the warning gives each
+class its own diagnosis and remedy:
+
+- **launch failure**: stderr carries an exec-failure signature; the hook never
+  ran.
+- **stale config**: exit 127 and the whole stderr is bash's missing-script line
+  (`bash: <path>: No such file or directory`). The session still runs hook
+  config it loaded before a plugin update or an in-place edit deleted that
+  script; the remedy is `/reload-plugins`, or a restart.
+- **ambiguous**: exit 126 or 127 with neither of the above, so the registered
+  command and the hook's own commands are both suspects.
+- **completed non-zero exit**: the hook ran and failed.
+
 Its budget share is stated as a **process count**, not a duration, and the host
 is the reason. The [hook-budget
 convention](../../docs/conventions/hook-budget/README.md) states each
@@ -372,7 +385,8 @@ options tune the skills:
 
 - **`install_new`** (string, optional). New-catalog-plugin install policy for the `plugins`
   skill's `sync` action. `ask` (default) offers not-yet-installed catalog plugins in one batched
-  multi-select prompt; `all` installs every one automatically; `none` reports them without
+  multi-select prompt, then installs and enables each pick; `all` installs every one
+  automatically, leaving one the CLI installs disabled by default off; `none` reports them without
   installing. `/config` shows these three as a picker; a value set by hand outside it is treated
   as `ask` and named in the sync digest.
 - **`registry_dir`** (string, optional). Project-relative directory for the
@@ -445,7 +459,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `registry_dir` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_REGISTRY_DIR` | Project-relative directory holding the known-issues registry (registry.json). Leave unset to keep the registry in the plugin data directory, ${CLAUDE_PLUGIN_DATA}. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid. |
-| `install_new` | string | `"ask"` | `CLAUDE_PLUGIN_OPTION_INSTALL_NEW` | What the plugins skill's sync action does with catalog plugins not yet installed. ask (default) offers them in one batched multi-select prompt; all installs every one automatically; none reports them and never installs. |
+| `install_new` | string | `"ask"` | `CLAUDE_PLUGIN_OPTION_INSTALL_NEW` | What the plugins skill's sync action does with catalog plugins not yet installed. ask (default) offers them in one batched multi-select prompt, then installs and enables each pick, including one the CLI installs disabled; all installs every one automatically; none reports them and never installs. |
 | `skill_usage_audit_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_AUDIT_ENABLED` | Emits telemetry on skill usage, on by default. Shared by both skill-usage audit hooks (the Skill-tool and slash-command expansion paths), and also gates the shared skill-usage.jsonl store. |
 | `skill_usage_scope` | string | `"repo"` | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_SCOPE` | Where the skill-usage store lives. repo (default) keeps it in the project tree, out of git status via a machine-local .git/info/exclude entry; user puts the skill_usage_dir subpath under $HOME as one cross-repo store; data-dir uses ${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>. |
 | `skill_usage_dir` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_SKILL_USAGE_DIR` | Relative directory where the skill-usage-audit hooks write skill-usage.jsonl, under the skill_usage_scope root (repo: the project root; user: $HOME). Leave unset to use .claude/observability. The data-dir scope ignores it. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid. |
@@ -519,8 +533,8 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install): the `--config` flag's reference entry
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`

@@ -360,7 +360,7 @@ the host platform's path case rules; POSIX path identity is never case-folded. A
 is accepted only when it matches the plugin data directory the guard derives from
 `${CLAUDE_PLUGIN_ROOT}`, the only substitution a skill-frontmatter hook receives, passed to the
 guard as `--plugin-root` and mapped to `<plugins>/data/<id>` per the documented
-[persistent-data-directory](https://code.claude.com/docs/en/plugins-reference#persistent-data-directory)
+[persistent-data-directory](https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data)
 layout, either from the root's `<plugins>/cache` layout or, for a plugin loaded in place from a
 local-directory marketplace, through `known_marketplaces.json` (see below). A host that can
 substitute `${CLAUDE_PLUGIN_DATA}` itself may instead pass it directly as
@@ -375,10 +375,9 @@ state: only the `--data-root` the guard validated may place it.
 
 **Handing the values over up front.** A plugin `UserPromptExpansion` hook matching
 `disk-hygiene:clean$` runs `engine_context.py` through the same launcher, with the same
-`--plugin-root` argument, when the command expands. It prints the guard's `_display_python()` and
-`resolve_authorized_data_root_channel()` results as `additionalContext`, so the skill needs no denied call to
-learn them. The note names the channel that supplied the data root (`--authorized-data-root
-argument`, `plugin-cache layout`, or `local-directory marketplace install`). It grants nothing: the guard still judges every call, and a hook that fails prints
+`--plugin-root` argument, when the command expands. It prints the guard's interpreter, engine
+path and `resolve_authorized_data_root()` result as `additionalContext`, so the skill needs no
+denied call to learn them, and the guard's denials need not repeat them. It grants nothing: the guard still judges every call, and a hook that fails prints
 nothing and leaves the skill on the kill-switch probe, whose `hook_python` and `data_root` fields
 come from the guard's `launch_disclosure` for the probe's install root. The note and the skill
 belt now share the same three channels, so a `--plugin-dir` session with no marketplace proof
@@ -468,7 +467,7 @@ from that install and derives the marketplace's canonical data root. `CLAUDE_CON
 reopen the env-injection hole, so a relocated config derives nothing from its relocated files (see the
 account-home note above). Both fail closed (every engine invocation denied) while the
 destructive-action guard itself stays fully active. This is a deliberate safe-over-convenient
-tradeoff, not a security gap. The belt's denial names one recovery: run this plugin from a
+tradeoff, not a security gap. The guard-values note and an engine-call denial name one recovery: run this plugin from a
 marketplace install, or register the checkout as a local-directory marketplace
 (`claude plugin marketplace add <checkout>`) so a `--plugin-dir` session inside it derives that
 marketplace's data root. Setting `CLAUDE_PLUGIN_DATA` in the launch shell is not a recovery: a
@@ -489,14 +488,14 @@ Verification records for the directory channel:
 
 - **Claim:** a plugin loaded in place from a local-directory marketplace hands its hook processes a
   `CLAUDE_PLUGIN_ROOT` pointing at the source directory. **Basis:** plugins reference,
-  [plugin caching and file resolution](https://code.claude.com/docs/en/plugins-reference#plugin-caching-and-file-resolution):
+  [plugin caching and file resolution](https://code.claude.com/docs/en/plugins/loading#in-place-and-copied-plugins):
   "For a plugin loaded in place from a local-directory marketplace, ... The plugin's hook processes
   and MCP and LSP servers receive a `CLAUDE_PLUGIN_ROOT` that points at the source directory."
   **As of:** 2026-09-24, Claude Code 2.1.282. **Recheck:** when that page stops carrying the sentence,
   or a release note changes in-place loading.
 - **Claim:** the data directory is `~/.claude/plugins/data/{id}/`, `{id}` being the plugin identifier
   with characters outside `[A-Za-z0-9_-]` replaced by `-`. **Basis:** plugins reference,
-  [persistent data directory](https://code.claude.com/docs/en/plugins-reference#persistent-data-directory):
+  [persistent data directory](https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data):
   "`{id}` is the plugin identifier with characters outside `a-z`, `A-Z`, `0-9`, `_`, and `-` replaced
   by `-`". **As of:** 2026-09-24, Claude Code 2.1.282. **Recheck:** when that section's id rule
   changes, or a release note names the plugin data directory.
@@ -670,7 +669,7 @@ guard on the call itself (#3861), mirroring the watchdog's "could not decide" ru
 every call (exit 2), the engine gate denies any payload naming `hygiene.py` or carrying nothing, and
 the `/disk-hygiene:clean` expansion is blocked so the belt never loads. The engine gate's
 marker-free commands differ from the watchdog: they proceed unchecked with a once-per-session
-`systemMessage` and `additionalContext` notice rather than an `ask`. The Stop detector is kept as the end-of-turn
+`systemMessage` notice to the user rather than an `ask`. The Stop detector is kept as the end-of-turn
 backstop. Verified 2026-09-28 against Claude Code 2.1.280 at
 <https://code.claude.com/docs/en/hooks> (exit 2 blocks a PreToolUse call whatever stdout carries;
 exit 0 with no `permissionDecision` proceeds through the normal permission flow; a hook `ask` forces
@@ -962,8 +961,16 @@ execution enabled. Nothing checks the script against the approved list except th
 reads the script's contents and then answers the UAC prompt. Making the belt `ask` or deny
 `-Verb RunAs` would be a guard change and stays with the owner.
 
-**Unverified.** No Windows UAC pilot has run this lane. Until the operator runs one, treat it as
-documented intent, not observed behavior.
+**Partly verified.** On 2026-10-01 a native PowerShell replica of this lane's per-path re-check
+passed on Windows with no failures. Launched with `Start-Process -Verb RunAs -Wait` and approved at
+the UAC prompt, it ran with a High-integrity token. Against a folder only Administrators and SYSTEM
+could modify, it removed only paths whose re-check was clear, and kept the missing,
+identity-changed, reparse-point, unrecorded-child and locked cases. `-Wait` returned only after a
+descendant that outlived the script exited.
+That pilot did not exercise the engine itself on Windows, the `handoff-verify` trigger, per-tier
+approval, a script written under the run directory, real system paths, Recycle Bin removal, policy
+overlay precedence, or credential prompts outside the console or for a standard user. The skill's
+shipped lane has not run end to end; treat that part as documented intent, not observed behavior.
 
 ## Outcome vocabulary
 

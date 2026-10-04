@@ -5,6 +5,33 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.8] - 2026-10-04
+
+### Changed
+
+- **Shared `context-zone.sh` resolver synced to context-guard's tighter token bands.** Shipped defaults are now 100000/150000 on a 200000 window and 128000/250000 on a 1000000 window; the resolver tests and the zones inline-drift check follow.
+
+## [0.13.7] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.13.6] - 2026-10-03
+
+### Changed
+
+- **Shared `context-zone.sh` resolver synced.** A `zones.json` that sets no percentage edges and
+  holds only known keys (`token_bands`, `actions`, `approach_margin`, `thresholds`) now keeps the
+  shipped percentage bands silently instead of printing the malformed notice; an unknown key still
+  warns. Its comments now name context-guard's mod, not the retired statusline tee, as the
+  snapshot writer. Its resolver test now runs the shared fixture cases too.
+- **`/plugin-quality:setup` and the audit evidence packet name context-guard's mod as the snapshot
+  writer.** Setup no longer reads `statusLine` from every settings scope to tell a structural
+  `unknown` from a broken one; it follows the context-guard reader contract: no
+  `mcp__context-guard__status` tool is structural, and the tool present with no fresh snapshot
+  after a tool call is a real defect. Statusline wiring is never the remediation.
+
 ## [0.13.5] - 2026-10-03
 
 ### Changed

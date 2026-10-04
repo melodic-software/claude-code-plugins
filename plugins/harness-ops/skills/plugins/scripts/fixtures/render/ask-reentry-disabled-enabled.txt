@@ -1,0 +1,9 @@
+Marketplace: market1: current (autoUpdate: on)
+In-repo: 0: <case> has no project/local installs
+Installed: 2 new catalog plugin(s): beta@market1, gamma@market1
+Enabled: 1 plugin(s): beta@market1 (user)
+Divergences: 0 actionable
+Timing: <elided>
+
+Run journal: <run_dir>
+Timing: <elided>

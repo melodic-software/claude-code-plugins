@@ -810,7 +810,18 @@ assert_contains "--blocks keeps the findings" "$out" "cant-fail-js.test.js:11: t
 assert_matches "--blocks lists blocks beside findings" "$out" '^block plugins/testing/skills/audit/evals/fixtures/positive/cant-fail-js\.test\.js:11-13 1 adds numbers$'
 run_file --file "$B/dup.test.ts" --blocks --check
 assert_exit "--blocks works only in the report mode (exit 2)" 2 "$rc"
-assert_contains "--blocks outside the report mode says so" "$out" "--blocks lists blocks in the report mode only"
+assert_contains "--blocks outside the report mode says so" "$out" "--blocks and --brief apply to the report mode only"
+
+# --brief: the hooks' form. Three recomputed-expectation findings carry one Action.
+run_file --file "$FIX/positive/cant-fail-js.test.js" --brief
+assert_exit "--brief completes (exit 0)" 0 "$rc"
+assert_finding_count "--brief keeps every finding" 5
+assert_matches "--brief finding line has no threshold or Action" "$out" \
+  "^finding \[rule-zero-assertion\] plugins/testing/skills/audit/evals/fixtures/positive/cant-fail-js\.test\.js:11: test 'adds numbers' has 0 assertion tokens$"
+if [[ "$(count_lines "$out" '^action \[rule-recomputed-expectation\] ')" == 1 ]]; then pass "--brief: one Action for three findings of a rule"; else fail "--brief: one Action for three findings of a rule" "$out"; fi
+if [[ "$(count_lines "$out" '^action \[')" == 3 ]]; then pass "--brief: one Action per distinct rule"; else fail "--brief: one Action per distinct rule" "$out"; fi
+run_file --file "$FIX/positive/cant-fail-js.test.js" --brief --check
+assert_exit "--brief works only in the report mode (exit 2)" 2 "$rc"
 
 printf '%s\n' "public class T {" "  [Fact]" "  public void Adds()" "  {" "    Assert.Equal(3, Sum(1, 2));" "  }" \
   "  [Fact]" "  public void Subs()" "    => Assert.Equal(1, Sub(3, 2));" "}" >"$B/BlocksTests.cs"
@@ -1094,6 +1105,7 @@ corpus_files=(
   bash-harness/good/repaired-oracles.test.sh.fixture
   bash-harness/good/sort-against-literal.test.sh.fixture
   bash-harness/good/sources-test-harness.test.sh.fixture
+  cs-mstest/bad/OrderAlwaysTrueBesideWeakTests.cs.fixture
   cs-mstest/bad/OrderAlwaysTrueTests.cs.fixture
   cs-mstest/bad/OrderDiscountIfTests.cs.fixture
   cs-mstest/bad/OrderIsNotNullTests.cs.fixture
@@ -1126,21 +1138,37 @@ corpus_files=(
   cs-nunit/good/CartRepaired4bTests.cs.fixture
   cs-nunit/good/CartRepairedOraclesTests.cs.fixture
   cs-nunit/good/CartSyncIgnoredFixtureTests.cs.fixture
+  cs-xunit/bad/DiagnosticsCheckPrintsOnlyTests.cs.fixture
+  cs-xunit/bad/InvoiceExpressionNotNullTests.cs.fixture
+  cs-xunit/bad/InvoiceExpressionVerifyTests.cs.fixture
   cs-xunit/bad/InvoiceLinesLoopTests.cs.fixture
   cs-xunit/bad/InvoiceNotNullTests.cs.fixture
+  cs-xunit/bad/InvoiceOneLineNotNullTests.cs.fixture
+  cs-xunit/bad/InvoiceOneLineShouldTests.cs.fixture
   cs-xunit/bad/InvoiceOverloadedHelperTests.cs.fixture
   cs-xunit/bad/InvoiceRecursiveOverloadTests.cs.fixture
   cs-xunit/bad/InvoiceRenderSnapshotTests.cs.fixture
   cs-xunit/bad/InvoiceShouldAloneTests.cs.fixture
+  cs-xunit/bad/InvoiceShouldBesideWeakTests.cs.fixture
   cs-xunit/bad/InvoiceTaskNamedHelperTests.cs.fixture
   cs-xunit/bad/InvoiceTotalSumTests.cs.fixture
   cs-xunit/bad/InvoiceTotalTests.cs.fixture
   cs-xunit/bad/PageSourceTextTests.cs.fixture
+  cs-xunit/bad/ParserAsyncExpressionThrowsTests.cs.fixture
+  cs-xunit/bad/ParserAsyncWrappedExpressionThrowsTests.cs.fixture
+  cs-xunit/bad/QuoteExpectedParameterTests.cs.fixture
   cs-xunit/bad/SlugifyTests.cs.fixture
+  cs-xunit/bad/WidgetAlwaysTrueTests.cs.fixture
+  cs-xunit/bad/WidgetExpressionAlwaysFalseTests.cs.fixture
+  cs-xunit/bad/WidgetNameofTypeNameTests.cs.fixture
+  cs-xunit/bad/WidgetTypeofAndWeakTests.cs.fixture
+  cs-xunit/bad/WidgetTypeofNotNullTests.cs.fixture
   cs-xunit/bad/WorkerRunAsyncTests.cs.fixture
   cs-xunit/good/AnalyzerHarnessRunAsyncTests.cs.fixture
+  cs-xunit/good/DiagnosticsCheckAssertsTests.cs.fixture
   cs-xunit/good/HttpStatusFieldTests.cs.fixture
   cs-xunit/good/InvoiceMailerTests.cs.fixture
+  cs-xunit/good/InvoiceOneLineOraclesTests.cs.fixture
   cs-xunit/good/InvoiceOverloadDelegatesTests.cs.fixture
   cs-xunit/good/InvoicePendingTests.cs.fixture
   cs-xunit/good/InvoiceRepaired4bTests.cs.fixture
@@ -1151,6 +1179,7 @@ corpus_files=(
   cs-xunit/good/OrderPricedHelperTests.cs.fixture
   cs-xunit/good/SameFileAssertingHelperTests.cs.fixture
   cs-xunit/good/SlugifyLiteralTests.cs.fixture
+  cs-xunit/good/WidgetTypeOraclesTests.cs.fixture
   go-testing/bad/go_add_deepequal_derived_test.go.fixture
   go-testing/bad/go_handler_source_text_test.go.fixture
   go-testing/bad/go_query_diff_itself_test.go.fixture
@@ -1454,12 +1483,18 @@ remedy() {
   printf '%s\n' "$out" | sed -n "s|^finding \[testing/audit/$2\].*Action: ||p" | head -1
 }
 C="$TMP_ROOT/corpus"
+a="$(remedy "$FIX/positive/cant-fail-js.test.js" rule-zero-assertion)"
+check_eq() { if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "got: $2"; fi; }
+check_eq "zero-assertion remedy is one sentence, no rationale tail" "$a" \
+  "Add an assertion on the observable behavior this test exercises."
 a="$(remedy "$C/js-playwright/bad/playwright-saved-unawaited.spec.ts" rule-inert-assertion)"
 assert_contains "inert remedy (js) says to await the matcher" "$a" "await (or return) the async matcher"
 assert_not_contains "inert remedy (js) offers no Python tuple advice" "$a" "tuple"
 a="$(remedy "$C/cs-xunit/bad/InvoiceShouldAloneTests.cs" rule-inert-assertion)"
 assert_contains "inert remedy (cs) names await and a chained matcher" "$a" "chain a matcher after .Should()"
 assert_not_contains "inert remedy (cs) offers no bats advice" "$a" '$status'
+a="$(remedy "$C/cs-xunit/bad/WidgetTypeofNotNullTests.cs" rule-inert-assertion)"
+assert_contains "inert remedy (cs) names a typeof or nameof constant" "$a" "rather than a literal true or a typeof or nameof constant"
 a="$(remedy "$C/py-pytest/bad/test_pytest_total_tuple_assert.py" rule-inert-assertion)"
 assert_contains "inert remedy (python) says to drop the tuple and use assert_*" "$a" "assert_called_once_with"
 assert_not_contains "inert remedy (python) never says await" "$a" "await"

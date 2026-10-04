@@ -3,6 +3,68 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.79.18] - 2026-10-04
+
+### Changed
+
+- **Shorter hook text (#6225).** Both PR-contract gates print one shared block message (`linkage::block_message` in `pr-linkage-validator.sh`): the problems found and one sentence naming the required shape, in place of two drifted ten-line templates. The negated-closer and missing-closing-line problems are one line each. The worktree containment block is one sentence and no longer names its kill switch. The worktree claim hook is silent after a successful claim and names the worktree when another session already holds it. The four hooks share one missing-jq notice per session.
+
+## [0.79.17] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
+
+## [0.79.16] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
+
+## [0.79.15] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing node goes to the user only, in one shorter line. The jq `degrade` text in `prerequisites.json` no longer says the skip lasts the session or that the hook says so once.
+
+## [0.79.14] - 2026-10-04
+
+### Fixed
+
+- **`/source-control:pull-request create` judges required sections the way CI does.** Its pre-create check now runs the `pr-body-linkage-gate.sh` hook's checker through `scripts/check-body-sections.sh`. A section holding only a code block, indented code, an inline code span, or an `# h1` is now caught as empty, and a lowercase `## summary` heading, or one with trailing spaces, is now accepted. A configured heading such as `What changed?` is matched as text, not as a regular expression.
+
+## [0.79.13] - 2026-10-04
+
+### Changed
+
+- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** The babysit loop and the pull-request watch handoff now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limit-guard 0.14.0's reader contract.
+
+## [0.79.12] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve.
+
+## [0.79.11] - 2026-10-04
+
+### Fixed
+
+- **The babysit merge gate counts the renamed security review check.** The security lane now accepts `pr-review-security / security-review` beside the previous `security-review / security-review`, so the `--auto` wait and the gate do not hold a PR whose repo moved to the renamed caller. A failing renamed check holds, and a `security-review` job under any other caller still does not count.
+
+## [0.79.10] - 2026-10-04
+
+### Changed
+
+- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+
+## [0.79.9] - 2026-10-03
+
+### Changed
+
+- The README notes that an installed mod can stop this plugin's `PreToolUse` hooks from running and can approve a call they blocked, with links to the two mods events sections. Nothing the plugin runs changed.
+- `/source-control:babysit-loop`'s paused-wait reference says rate-limit-guard's mod writes the snapshot in headless sessions too, so the Monitor armed on it wakes on the mod's writes under its machine-wide write floor.
+
 ## [0.79.8] - 2026-10-04
 
 ### Fixed

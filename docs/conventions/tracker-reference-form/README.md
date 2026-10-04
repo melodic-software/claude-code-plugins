@@ -1,9 +1,9 @@
 # Tracker reference form: what a code comment may say about an issue
 
 Owner doc for how a tracker reference is written inside a **code comment**. The rule is enforced
-in CI by the `comment-hygiene` composite action, which this repository consumes from
+in CI by the `check-comment-markers` composite action, which this repository consumes from
 `melodic-software/ci-workflows` at a SHA pinned in
-[`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml). That pin is the version of the
+[`.github/workflows/pr-require-checks.yml`](../../../.github/workflows/pr-require-checks.yml). That pin is the version of the
 policy in force; this doc describes its shape, and the action remains the source of truth.
 
 The reason this convention needs a written home: **the lane cannot be run locally.** The action is
@@ -45,7 +45,7 @@ linter, so its fixtures and shape library must contain the banned markers as tes
 exclusions are necessary and the pair is observable: `evals/fixtures/residue-snippet.py` carries
 a scanned extension and a rejected form, and passes only because the `evals` tree is excluded.
 Naming just one of the two would make this doc contradict the policy it describes. The authoritative
-list is the `exclude:` input in [`ci.yml`](../../../.github/workflows/ci.yml).
+list is the `exclude:` input in [`pr-require-checks.yml`](../../../.github/workflows/pr-require-checks.yml).
 
 ## What this convention is not
 

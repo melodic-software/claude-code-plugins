@@ -1,0 +1,73 @@
+{
+  "pr-refine": {
+    "stage": "refine",
+    "forbidden-effects": ["merge"],
+    "never": "Changes behavior"
+  },
+  "pr-run-checks": {
+    "stage": "verify",
+    "forbidden-effects": ["mutate-branch", "merge"],
+    "never": "Writes to the branch"
+  },
+  "pr-review": {
+    "stage": "verify",
+    "forbidden-effects": ["mutate-branch", "merge"],
+    "never": "Pushes fixes"
+  },
+  "pr-review-security": {
+    "stage": "verify",
+    "forbidden-effects": ["mutate-branch", "merge"],
+    "never": "Pushes fixes"
+  },
+  "pr-verify": {
+    "stage": "verify",
+    "forbidden-effects": ["mutate-branch", "merge"],
+    "never": "Pushes fixes"
+  },
+  "pr-explain": {
+    "stage": "verify",
+    "forbidden-effects": ["merge"],
+    "forbidden-gating": ["gate"],
+    "never": "Gates"
+  },
+  "pr-require-checks": {
+    "stage": "verify",
+    "forbidden-effects": [
+      "mutate-branch",
+      "mutate-tracker",
+      "publish-artifact",
+      "merge"
+    ],
+    "never": "Runs work; it only produces `ci-status`"
+  },
+  "pr-address-feedback": {
+    "stage": "respond",
+    "forbidden-effects": ["merge"],
+    "never": "Resolves human threads"
+  },
+  "pr-fix-ci": {
+    "stage": "respond",
+    "forbidden-effects": ["merge"],
+    "never": "Edits anything unrelated to the failure"
+  },
+  "pr-update": {
+    "stage": "respond",
+    "forbidden-effects": ["merge"],
+    "never": "Force-pushes"
+  },
+  "pr-merge": {
+    "stage": "merge",
+    "forbidden-effects": [],
+    "never": "Merges above the rung or past a hold"
+  },
+  "post-merge-verify": {
+    "stage": "post-merge",
+    "forbidden-effects": ["mutate-branch", "merge"],
+    "never": "Edits PRs"
+  },
+  "post-merge-sweep-comments": {
+    "stage": "post-merge",
+    "forbidden-effects": ["merge"],
+    "never": "Reopens merged PRs"
+  }
+}

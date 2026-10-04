@@ -211,10 +211,10 @@ fan-out is a heavier execution tier, fixed in frontmatter (mirrors the
 ### pick-for-the-problem
 
 Re-anchors selection discipline for a tool, library, framework, language, or
-approach: the choice fits the problem, not the reflex. Names the four
+approach: the choice fits the problem, not the reflex. Names the five
 selection sins: **habit** ("I always use X"), **availability** ("X is at
-hand"), **incumbency** ("the repo already uses X"), and **preconception**
-("I came in believing X"), and replaces them with the discipline: define
+hand"), **incumbency** ("the repo already uses X"), **preconception**
+("I came in believing X"), and **popularity** ("everyone uses X"), and replaces them with the discipline: define
 the actual problem first, survey the field, and walk the preference ladder
 native (covering the requirements and plausible future ones) > official /
 authoritative > vetted third-party. Every dependency is a coupling point
@@ -511,8 +511,8 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install): the `--config` flag's reference entry
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`

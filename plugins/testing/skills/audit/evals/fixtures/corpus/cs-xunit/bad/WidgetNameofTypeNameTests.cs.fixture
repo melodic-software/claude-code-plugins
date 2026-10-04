@@ -1,0 +1,13 @@
+// expect: rule-inert-assertion
+// nameof and typeof(...).Name both name the declared type: the comparison is
+// fixed at compile time and never fails.
+using Xunit;
+
+public class WidgetNameofTypeNameTests
+{
+    [Fact]
+    public void Widget_IsNamedWidget()
+    {
+        Assert.True(nameof(Widget) == typeof(Widget).Name);
+    }
+}

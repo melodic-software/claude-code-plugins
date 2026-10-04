@@ -7,7 +7,7 @@
 #   context-zone.sh <session_id>
 #
 # Reads ~/.claude/context-guard/context/<session_id>.json (written by
-# statusline-tee.sh) plus the optional machine-scope
+# context-guard's mod) plus the optional machine-scope
 # ~/.claude/context-guard/zones.json override and prints EXACTLY ONE word:
 #
 #   smart / acceptable / dumb / unknown
@@ -54,8 +54,8 @@
 # smart ≤ 50 < acceptable ≤ 75 < dumb over used_percentage, and per
 # window-class token bands over occupancy:
 #
-#   window class 200000:  smart ≤ 100000 < acceptable ≤ 160000 < dumb
-#   window class 1000000: smart ≤ 200000 < acceptable ≤ 400000 < dumb
+#   window class 200000:  smart ≤ 100000 < acceptable ≤ 150000 < dumb
+#   window class 1000000: smart ≤ 128000 < acceptable ≤ 250000 < dumb
 #
 # All are declared judgment defaults, NOT doc- or benchmark-derived
 # constants (anchors and provenance are recorded in the reader contract).
@@ -65,8 +65,8 @@
 #     "smart_max_used_percentage": 50,
 #     "acceptable_max_used_percentage": 75,
 #     "token_bands": {
-#       "200000":  { "smart_max_tokens": 100000, "acceptable_max_tokens": 160000 },
-#       "1000000": { "smart_max_tokens": 200000, "acceptable_max_tokens": 400000 }
+#       "200000":  { "smart_max_tokens": 100000, "acceptable_max_tokens": 150000 },
+#       "1000000": { "smart_max_tokens": 128000, "acceptable_max_tokens": 250000 }
 #     }
 #   }
 #
@@ -80,7 +80,10 @@
 # visible stderr notice (unchanged v1 behavior); a malformed token_bands
 # object falls back to the shipped token bands with its own notice; an
 # ABSENT token_bands key is zero-config (shipped token defaults, silent) so
-# a v1 percentage-only zones.json keeps working unchanged. The resolver only
+# a v1 percentage-only zones.json keeps working unchanged. Likewise an object
+# with NO edge keys whose keys are all known (token_bands, actions,
+# approach_margin, thresholds; the last three are read by the mod, not here)
+# keeps the shipped percentage bands silently; an unknown key still warns. The resolver only
 # ever READS zones.json; seeding/refreshing it is the setup skill's `apply`.
 
 set -uo pipefail
@@ -91,7 +94,7 @@ DEFAULT_ACCEPTABLE_MAX=75
 # [class, smart_max, acceptable_max] rows, ascending class order. JSON rather
 # than whitespace rows because the bands are handed to the snapshot pass as
 # data, so the comparison happens there instead of in a separate awk process.
-DEFAULT_TOKEN_BANDS='[[200000,100000,160000],[1000000,200000,400000]]'
+DEFAULT_TOKEN_BANDS='[[200000,100000,150000],[1000000,128000,250000]]'
 
 unknown() {
   printf 'unknown\n'
@@ -99,7 +102,7 @@ unknown() {
 }
 
 sid="${1:-}"
-# Same filename character class the tee enforces — also path containment on
+# Same filename character class the mod's writer accepts — also path containment on
 # the read side.
 [[ "$sid" =~ ^[A-Za-z0-9_-]+$ ]] || unknown
 command -v jq >/dev/null 2>&1 || unknown
@@ -147,6 +150,11 @@ if [[ -e "$zones" ]]; then
       and (.smart_max_used_percentage > 0)
       and (.smart_max_used_percentage < .acceptable_max_used_percentage)
       and (.acceptable_max_used_percentage <= 100);
+    def pct_absent:
+      (type == "object")
+      and ((.smart_max_used_percentage? // null) == null)
+      and ((.acceptable_max_used_percentage? // null) == null)
+      and (keys | all(IN("token_bands", "actions", "approach_margin", "thresholds")));
     def tb_state:
       if (.token_bands? // null) == null then "absent"
       elif ((.token_bands | type) == "object")
@@ -162,6 +170,7 @@ if [[ -e "$zones" ]]; then
         ))
       then "valid" else "invalid" end;
     (if pct_ok then "\(.smart_max_used_percentage) \(.acceptable_max_used_percentage)"
+     elif pct_absent then "absent"
      else "invalid" end),
     (tb_state as $s
      | if $s == "valid"
@@ -185,12 +194,12 @@ if [[ -e "$zones" ]]; then
   if [[ "$zpct" == "invalid" ]]; then
     printf 'context-guard: zones.json malformed — using shipped default bands (%s/%s)\n' \
       "$DEFAULT_SMART_MAX" "$DEFAULT_ACCEPTABLE_MAX" >&2
-  else
+  elif [[ "$zpct" != "absent" ]]; then
     smart_max=${zpct%% *}
     acceptable_max=${zpct#* }
   fi
   if [[ "$ztb" == "invalid" ]]; then
-    printf 'context-guard: zones.json token_bands malformed — using shipped default token bands (200000:100000/160000, 1000000:200000/400000)\n' >&2
+    printf 'context-guard: zones.json token_bands malformed — using shipped default token bands (200000:100000/150000, 1000000:128000/250000)\n' >&2
   elif [[ "$ztb" != "absent" ]]; then
     token_bands=$ztb
   fi

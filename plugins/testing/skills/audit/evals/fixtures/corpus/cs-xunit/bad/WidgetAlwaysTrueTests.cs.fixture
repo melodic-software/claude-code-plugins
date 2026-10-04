@@ -1,0 +1,14 @@
+// expect: rule-inert-assertion
+// Assert.True(true) passes whatever Enable did: the literal is the whole oracle.
+using Xunit;
+
+public class WidgetAlwaysTrueTests
+{
+    [Fact]
+    public void Enable_TurnsTheWidgetOn()
+    {
+        var widget = new Widget();
+        widget.Enable();
+        Assert.True(true);
+    }
+}

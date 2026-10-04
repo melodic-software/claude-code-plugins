@@ -171,7 +171,7 @@ merge:
 
 A `--settings`-only `lane_stop_gate_enabled=true` is **not honored**; arm a lane through the
 launcher instead. That value reaches the hook only as the forgeable env mirror. The gate says so with a visible
-notice (once per session and agent, renewed every eighth skip) instead of disengaging silently, which is also how a stale (pre-arming)
+notice to the user, once per session (none to the model: on Stop it would continue the conversation), instead of disengaging silently, which is also how a stale (pre-arming)
 lane launcher surfaces. A `--plugin-dir` checkout install has no trusted user-settings or record
 location, so only managed settings can enable the gate there.
 
@@ -323,8 +323,8 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install): the `--config` flag's reference entry
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`

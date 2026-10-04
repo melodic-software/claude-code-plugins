@@ -3,6 +3,45 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.11] - 2026-10-04
+
+### Changed
+
+- **Index-drift notice goes to the model (#6225).** The agent that edited the rule is the one that can regenerate the index, so the notice is now context for the model with the full `render-index.sh write` command, naming the edited file and its repository with `--file` and `--root` so it does not render against the session's working directory, in place of a user message naming a bare script.
+
+## [0.21.10] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
+
+## [0.21.9] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
+
+## [0.21.8] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing node goes to the user only, in one shorter line.
+
+## [0.21.7] - 2026-10-04
+
+### Changed
+
+- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+
+## [0.21.6] - 2026-10-04
+
+### Fixed
+
+- **Four stale loading-mechanics claims are corrected against the current Claude Code docs ([#6101](https://github.com/melodic-software/claude-code-plugins/issues/6101)).**
+  `context/verified-mechanics.md` now records that a path-scoped rule fires on Read, Write or Edit from Claude Code 2.1.288 (Read only before), and that a nested `CLAUDE.md` gains the same Write and Edit trigger on the 2.1.288 release note alone; that an invoked skill body is re-injected after compaction within the documented caps while the skill listing is not; that unscoped rules reach a non-fork subagent; and that root `CLAUDE.md`, its imports and the generated index do not reach Explore, Plan or an `omitClaudeMd` agent, while a fork inherits the parent conversation. The stale skill-body note is gone, and the surface-table pointer record now cites the context-window, skills, sub-agents and changelog pages.
+  The creation-governing deny in `context/routing-rubric.md`, the README and audit eval 6 keeps its verdict. Its stated reason is now the version floor plus the unmeasured timing of a Write-triggered rule, and the README revisit trigger for dropping it names that measurement. No script, gate or rendered index text changed, so consumers need not re-render their index.
+
 ## [0.21.5] - 2026-10-04
 
 ### Fixed

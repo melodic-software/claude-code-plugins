@@ -3,6 +3,21 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.2] - 2026-10-04
+
+### Fixed
+
+- `quiz-me` no longer leaves the correct choice where the author wrote it. Authors tend to put
+  it first, and an instruction alone did not stop that, so the report builder now shuffles each
+  question's choices with a seed taken from the question's text (a rebuild gives the same page),
+  and the answer key names the rendered choice number next to the answer.
+
+## [0.14.1] - 2026-10-04
+
+### Changed
+
+- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+
 ## [0.14.0] - 2026-10-04
 
 ### Added

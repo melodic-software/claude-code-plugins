@@ -3,6 +3,52 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.2] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.6.1] - 2026-10-04
+
+### Changed
+
+- **`/performance:go-faster`**: the CI/CD catalog entry points at this repository's renamed
+  gateway workflow, `.github/workflows/pr-require-checks.yml`.
+
+## [0.6.0] - 2026-10-03
+
+### Added
+
+- **`/performance:go-faster`**: a whole-process sweep for ways to go faster without losing accuracy.
+  A background `go-faster-sweeper` agent checks 16 areas against a verified bottleneck catalog,
+  records findings and baselines through `findings.py`, and offers session-only changes for adoption.
+  It sweeps and ranks; it does not drive the goal, snapshot, verify and protect loop.
+- **`findings.py`**: the go-faster record keeper. It validates findings, ranks and renders the
+  report, holds the per-worktree lock, records adoptions and re-measures against stored baselines.
+  `ci-timing` and `pr-timing` compute GitHub Actions and pull request timings in memory, so no
+  `gh` output is ever saved. A citation must be re-read in the run that cites it, and every
+  denied write exits 3. Outside text is kept inert: CI job and step names leave as bounded code
+  spans, each report line stays one line, repeated commands and file paths are shown with secrets
+  redacted and backticks neutralized, a finding id holds only lowercase letters, digits and
+  hyphens, and
+  `permission-counts` reads settings files so the sweeper never does. A `now` finding must state
+  `confidence: HIGH` and an `effect`, any `effect` must be a named one, and a change that loosens a
+  guard is flag-only.
+- **`untracked-cache-probe.sh`**: tests git's untracked cache in a temporary directory on the
+  repository's volume, never in the repository itself.
+- Evals: `skills/go-faster/evals/evals.json`, plus `claude plugin eval` cases that resume a
+  synthetic session history. `EVAL_GO_FASTER_DATA` and `EVAL_GO_FASTER_TRANSCRIPT` exist only so
+  those cases run inside the eval sandbox.
+
+### Changed
+
+- **`/performance:target` no longer claims the open-ended "what is slow here" sweep.** That belongs to
+  `/performance:go-faster`; target ranks the candidates that sweep, or the user, brings, and its
+  `## Next` names go-faster.
+- The plugin description names go-faster and is shortened to stay within 500 characters.
+- `ab.sh` randomizes the arm order per iteration instead of alternating it, and prints the order used.
+
 ## [0.5.2] - 2026-10-02
 
 ### Changed

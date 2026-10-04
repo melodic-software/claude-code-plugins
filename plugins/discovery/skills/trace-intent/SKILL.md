@@ -221,7 +221,8 @@ Basis: the plugins reference,
 
 ## Next
 
-`/planning:plan`. Its input is the Preserve / Change / Avoid / Risk set.
+- The Preserve / Change / Avoid / Risk set touches types, contracts, or boundaries: `/planning:design`.
+- No design question is open: `/planning:plan`, reading the Preserve / Change / Avoid / Risk set.
 
 ## Gotchas
 

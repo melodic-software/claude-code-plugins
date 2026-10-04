@@ -71,8 +71,8 @@ at preview. Backups remain the recovery boundary for user data.
   without `node` no hook launches and no guard is enforced. A `SessionStart` row in shell form
   (no `shell` field and no `args`) runs `lib/prerequisites.sh node-notice`, or
   `lib/prerequisites.ps1` where there is no `sh`, and needs no node itself. When node is
-  absent it exits 0 with JSON: `systemMessage` shows the user a warning and `additionalContext`
-  tells the model, once per session across plugins, and the notice names `/disk-hygiene:check`.
+  absent it exits 0 with JSON: `systemMessage` shows the user a warning once per session across
+  plugins, and the notice names `/disk-hygiene:check`.
   `disk_hygiene_enabled` set to false silences it. It prints nothing when node is present. Basis: https://code.claude.com/docs/en/hooks, "SessionStart"
   (plain stdout reaches Claude only, and exit-2 stderr reaches the user only) and "JSON output"
   (`systemMessage` is a warning shown to the user).
@@ -159,6 +159,12 @@ skill the guard's absolute Python and authorized `--data-root`, resolved by the 
 a run does not open with a deliberately denied call to learn them (#4215). It grants nothing; the
 guard still judges every call.
 
+An installed mod can stop this plugin's `PreToolUse` hooks from running: they run after the last
+mod calls `next`, so a mod that answers a `tool.call` without calling it skips them
+([where settings hooks run in the order](https://code.claude.com/docs/en/plugins/mods/events#where-settings-hooks-run-in-the-order)).
+A mod can also approve a call they blocked, because its `tool.check` hook runs after them
+([approve or refuse a tool call before the user is asked](https://code.claude.com/docs/en/plugins/mods/events#approve-or-refuse-a-tool-call-before-the-user-is-asked)).
+
 **Windows `python3` gotcha, and what the guard does when no Python resolves.** Every hook resolves
 Python through `hooks/run-python-hook.sh` (rejecting the zero-length `WindowsApps\python3.exe` App
 Execution Alias stub and falling through to `python`, then `py -3`) before exec'ing the guard, the
@@ -173,8 +179,8 @@ the call itself, the same way the guard's watchdog answers "could not decide":
 | No Python resolves: `/disk-hygiene:clean` expanding | The expansion is blocked with the reason, so the skill and its belt never load |
 | No Python resolves: skill-scoped belt, any Bash or PowerShell call | Denied (exit 2), reason on stderr |
 | No Python resolves: plugin-level gate, command naming `hygiene.py` (or an empty payload) | Denied (exit 2), reason on stderr |
-| No Python resolves: plugin-level gate, any other command its `if` rows let through | **Proceeds unchecked**, with a `systemMessage` and `additionalContext` notice once per session |
-| `node` missing or no bash found: every hook | **Proceeds unchecked.** The hook fails to launch, which is non-blocking: the user sees a hook error notice, the guard is not enforced, and the model is not told. With no bash, the notice's first line is the launcher's `exec-bash: <script> did not run, so this hook enforces nothing`. With no `node`, the launcher never starts, so it cannot detect or report the failure there; the shell-form `SessionStart` row warns the user and the model at each session start, and the guard stays unenforced. The Stop detector launches the same way and reports neither |
+| No Python resolves: plugin-level gate, any other command its `if` rows let through | **Proceeds unchecked**, with a `systemMessage` notice to the user once per session |
+| `node` missing or no bash found: every hook | **Proceeds unchecked.** The hook fails to launch, which is non-blocking: the user sees a hook error notice, the guard is not enforced, and the model is not told. With no bash, the notice's first line is the launcher's `exec-bash: <script> did not run, so this hook enforces nothing`. With no `node`, the launcher never starts, so it cannot detect or report the failure there; the shell-form `SessionStart` row warns the user at session start, and the guard stays unenforced. The Stop detector launches the same way and reports neither |
 
 Of the no-Python rows, the plugin-level gate row is the only fail-open. Those are the commands the guard would
 have deferred on had it run; the watchdog asks on them because a missed deadline is transient, but a
@@ -317,9 +323,11 @@ whose coverage is incomplete) stays unticked; `min_age_basis` picks the timestam
 default, `atime`, or `ctime`. The entry is labeled in-flight. Paths that open issues, PRs, or handoffs
 reference can be passed to the scan as `--in-flight-refs`; they stay unticked the same way. `elevation: uac-prompt` (Windows only, user-global file or `--policy` only, never a
 project file) lets the skill offer an operator-approved elevated re-check for approved-tier paths
-that are contested only for `needs-elevation`; the default `never` keeps every elevation off. The
-elevation lane has not been proven in a Windows UAC pilot; see the
-[safety model](skills/clean/reference/safety-model.md#opt-in-elevation).
+that are contested only for `needs-elevation`; the default `never` keeps every elevation off. A native
+replica of the lane's elevated re-check passed a Windows UAC pilot on 2026-10-01, but the skill's
+shipped lane has not run end to end on Windows; see the
+[safety model](skills/clean/reference/safety-model.md#opt-in-elevation) for what was and was not
+covered.
 
 Without `--policy`, standing policy files layer over the baseline when present:
 `~/.claude/disk-hygiene.json` (user-global) first, then the consumer project's
@@ -644,8 +652,8 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install): the `--config` flag's reference entry
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`

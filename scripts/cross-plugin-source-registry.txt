@@ -41,6 +41,14 @@ reference/standards-contract.md
 docs/conventions/standards/README.md -> plugins/*/reference/standards-contract.md
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# docs/conventions/pr-scope-budget/README.md.
+reference/pr-scope-budget.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the canonical convention and the copies.
+docs/conventions/pr-scope-budget/README.md -> plugins/*/reference/pr-scope-budget.md
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/managed-scope.sh.
 lib/managed-scope.sh
 
@@ -120,18 +128,6 @@ skills/setup/reference/unwrap-before-compose.md
 # duplication audit: the root canonical and the copies.
 lib/unwrap-before-compose.md -> plugins/*/skills/setup/reference/unwrap-before-compose.md
 
-# No dedicated check: the statusline compose transform the reference above
-# names, carried only by the two statusline guard plugins, so this script's own
-# --check is the gate. Canonical copy:
-# plugins/context-guard/scripts/compose-statusline-wiring.sh; copy it into
-# plugins/rate-limit-guard/scripts/ to fix a drift failure.
-scripts/compose-statusline-wiring.sh
-
-# No dedicated check: that transform's test, enforced the same way.
-# Canonical copy: plugins/context-guard/scripts/compose-statusline-wiring.test.sh;
-# copy it into plugins/rate-limit-guard/scripts/ to fix a drift failure.
-scripts/compose-statusline-wiring.test.sh
-
 # No dedicated check: worktree-root resolver. Canonical copy:
 # plugins/source-control/scripts/worktree-root-resolve.sh; copy it into
 # plugins/repo-fleet-hygiene/scripts/ to fix a drift failure.
@@ -166,6 +162,21 @@ lib/context-zone.sh -> plugins/*/scripts/context-zone.sh
 scripts/context-zone.test.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/context-zone.fixtures.mjs, the shared cases the resolver test above runs.
+scripts/context-zone.fixtures.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/context-zone.fixtures.mjs -> plugins/*/scripts/context-zone.fixtures.mjs
+
+# No dedicated check: accepted. Each hooks module's root tsconfig extends that
+# plugin's generated .claude-plugin/types/tsconfig.json, so every plugin that
+# ships a mod commits the same one line; this script's own --check is the gate.
+# Canonical copy: plugins/rate-limit-guard/tsconfig.json; copy it into a plugin
+# that adds a mod, or into the other copies to fix a drift failure.
+tsconfig.json
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/html-escape.mjs. The review and education plugins carry the adopting
 # copies, generated with a header that names the canonical, so copies stay
 # byte-identical to each other but not to the canonical.
@@ -183,6 +194,15 @@ lib/mermaid-gate.mjs
 # Dedicated check: scripts/sync-shared-copies.sh --check.
 # Cluster line for the duplication audit: the root canonical and the copies.
 lib/mermaid-gate.mjs -> plugins/*/lib/mermaid-gate.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/write-snapshot.mjs. The rate-limit-guard and context-guard plugins carry
+# the generated copies.
+lib/write-snapshot.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check.
+# Cluster line for the duplication audit: the root canonical and the copies.
+lib/write-snapshot.mjs -> plugins/*/lib/write-snapshot.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/session-bridge/session_bridge.py. The planning plugin is the first

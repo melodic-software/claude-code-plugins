@@ -1,5 +1,5 @@
 ---
-description: "Navigate a staged workflow (explore, research, plan, implement, test, review, verify, retro): suggest the next stage and route the end-of-phase continuation (continue, clear, handoff, background, clean-stop, compact). Use when: 'workflow', 'what step am I on', 'what comes next', 'pre-pr sequence', 'wrap up', 'how should I continue', 'clear or compact', at session start or a phase boundary, or when the next step is unclear. For a ranked menu of every fitting skill, use /session-flow:show-options."
+description: "Navigate a staged workflow (explore, research, design, plan, implement, test, review, verify, retro): suggest the next stage and route the end-of-phase continuation (continue, clear, handoff, background, clean-stop, compact). Use when: 'workflow', 'what step am I on', 'what comes next', 'pre-pr sequence', 'wrap up', 'how should I continue', 'clear or compact', at session start or a phase boundary, or when the next step is unclear. For a ranked menu of every fitting skill, use /session-flow:show-options."
 argument-hint: "[steps|pre-pr|wrap-up|philosophy|spec-first|continue [auto]]"
 user-invocable: true
 disable-model-invocation: false
@@ -73,29 +73,42 @@ Read `$ARGUMENTS` whole: its first word is the mode and, when the mode is `conti
 ### 1. Show the workflow at a glance
 
 ```text
-0. Contract   (optional — lock goal, constraints, acceptance criteria before building)
-1. Explore  → 2. Research → 3. Plan (+ stress-test) → 4. Implement
-5. Test     → 6. Review   → 7. Verify outcome       → 8. Retrospective (/session-flow:retro)
-PR lifecycle: prep → create → monitor CI → merge (runs after step 7)
+Discover:  1. Explore → 2. Research
+Shape:     3. PRD (conditional) → 4. Contract (optional)
+Build:     5. Design → 6. Plan (+ stress-test) → 7. Decompose (conditional) → 8. Implement
+Check:     9. Test → 10. Review → 11. Verify outcome
+Ship:      PR lifecycle: prep → create → monitor CI → merge (runs after stage 11)
+12. Retrospective (optional, /session-flow:retro)
 ```
 
-Stages 0-3 expand, for unfamiliar territory, into a known five-pass pre-implementation order
-(blindspot → brainstorm/prototype → interview → reference port → plan); the workflow section of
-`docs/finding-your-unknowns.md` in the marketplace repository states it with rationale.
+Conditional stages run only on their trigger (`context/steps.md`): PRD for a user-facing,
+business-driven change where alignment on the problem matters; Decompose when the plan holds more
+than one independently shippable ticket. Design runs for design-significant work and records a
+one-line early exit otherwise, so a bug fix passes through it in one step. Discover and shape
+interleave: a contract locked first gives explore and research their scope.
+
+Stages 1-7 expand, for unfamiliar territory, into a known pre-implementation order (blindspot →
+wayfind → brainstorm/prototype → PRD → interview → reference port → design → plan → decompose);
+the workflow section of `docs/finding-your-unknowns.md` in the marketplace repository states it
+with rationale.
 
 ### 2. Detect current position
 
 Check conversation context for evidence of completed stages:
 
-- Is the goal/constraints/acceptance-criteria contract crisp (stated by the user, or in a plan
-  artifact on disk)? → Stage 0 satisfied
 - Has the relevant code been read or the codebase surveyed? → Stage 1 done
 - Have external sources been consulted for load-bearing technical claims? → Stage 2 done
-- Has a plan been written and approved? → Stage 3 done
-- Has code been written via Write/Edit? → Stage 4 in progress or done
-- Have tests been run? → Stage 5 done
-- Has a self-review or delegated review happened? → Stage 6 done
-- Has the outcome been verified against intent with evidence? → Stage 7 done
+- Is product intent (problem, users, success metrics) written down, or is the work not
+  user-facing and business-driven? → Stage 3 satisfied
+- Is the goal/constraints/acceptance-criteria contract crisp (stated by the user, or in a plan
+  artifact on disk)? → Stage 4 satisfied
+- Does the plan artifact carry its design section, or a recorded early exit? → Stage 5 done
+- Has a plan been written and approved? → Stage 6 done
+- Is the plan one ticket, or have its tickets been published? → Stage 7 satisfied
+- Has code been written via Write/Edit? → Stage 8 in progress or done
+- Have tests been run? → Stage 9 done
+- Has a self-review or delegated review happened? → Stage 10 done
+- Has the outcome been verified against intent with evidence? → Stage 11 done
 - Is there a PR? → PR lifecycle in progress
 
 Verify a stage from its artifact or output, a plan file, cited sources, green test output, not
@@ -111,8 +124,9 @@ skill for that stage, name it; otherwise describe the inline work. Add that stag
 When the just-finished work closed out a stage (its artifact exists), or the user is asking how
 to carry on, the *mechanism* question is separate from the *next stage* question: continue here,
 `/clear`, handoff, background, clean-stop, or compact. Load `context/continuation.md` and walk
-its ordered router; recommend exactly one mechanism with its rationale, zone-informed when the
-context-guard seam has data and conservative when it does not. Mid-stage with a healthy window,
+its ordered router; recommend exactly one mechanism with its rationale, zone-informed when
+context-guard's zone report (its `mcp__context-guard__status` tool, or its snapshot) has data and
+conservative when it does not. Mid-stage with a healthy window,
 skip this, the default is simply to continue. Mid-stage with a bloated window, walk the router
 too: on the same task it usually lands on `/compact <focus>`, typed by the user, but its earlier
 questions (two failed corrections, an already-compacted run that is degrading) come first.
@@ -135,7 +149,7 @@ two files.
 
 The stage sequence is the main line, not the only entrance. Work also arrives from the side and
 merges in at a later stage. Recognize the CLASS of arrival and merge at the right point instead of
-forcing every session through stage 0. Common classes:
+forcing every session through stage 1. Common classes:
 
 - **Incoming bug or issue intake**, a report or request that arrived raw from outside. An
   already-diagnosed, agent-ready item merges at implement; observed-but-undiagnosed breakage routes
@@ -189,6 +203,8 @@ next" is a stage question and belongs here.
   suggesting the next stage.
 - **Skipping the contract stage on behavior-changing work**. Fuzzy intent becomes silent plan
   assumptions; lock the goal and acceptance criteria first.
+- **Skipping design because the task is small**. Size does not decide it: new types, contracts,
+  or module boundaries go through the design stage, or the implementer gets no design guardrails.
 - **Opening a PR before the verify stage**, the pre-PR sequence (`context/pre-pr.md`) is ordered
   for a reason; verification evidence comes before the PR, not after.
 - **Routing from a stale map**, a navigator that has drifted from the actual capability inventory

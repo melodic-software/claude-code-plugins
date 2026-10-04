@@ -177,13 +177,13 @@ write_snapshot_tok() {
 
 HT="$WORK/h-token"
 # Token shape stands alone when used_percentage is null but tokens are valid.
-write_snapshot_tok "$HT" t1 null 150000 10000 1000000 && expect "tokens alone: occ=160k on 1M" smart "$HT" t1
-write_snapshot_tok "$HT" t2 null 280000 20000 1000000 && expect "tokens alone: occ=300k on 1M" acceptable "$HT" t2
-write_snapshot_tok "$HT" t3 null 390000 10001 1000000 && expect "tokens alone: occ=400001 on 1M" dumb "$HT" t3
+write_snapshot_tok "$HT" t1 null 110000 10000 1000000 && expect "tokens alone: occ=120k on 1M" smart "$HT" t1
+write_snapshot_tok "$HT" t2 null 180000 20000 1000000 && expect "tokens alone: occ=200k on 1M" acceptable "$HT" t2
+write_snapshot_tok "$HT" t3 null 240000 10001 1000000 && expect "tokens alone: occ=250001 on 1M" dumb "$HT" t3
 # Shipped 200k-class edges, uppers inclusive.
 write_snapshot_tok "$HT" t4 null 90000 10000 200000 && expect "200k class: occ=100000 (smart edge)" smart "$HT" t4
-write_snapshot_tok "$HT" t5 null 150000 10000 200000 && expect "200k class: occ=160000 (acceptable edge)" acceptable "$HT" t5
-write_snapshot_tok "$HT" t6 null 150001 10000 200000 && expect "200k class: occ=160001" dumb "$HT" t6
+write_snapshot_tok "$HT" t5 null 140000 10000 200000 && expect "200k class: occ=150000 (acceptable edge)" acceptable "$HT" t5
+write_snapshot_tok "$HT" t6 null 140001 10000 200000 && expect "200k class: occ=150001" dumb "$HT" t6
 # Combination rule: the worse of the two computable shapes wins.
 write_snapshot_tok "$HT" c1 40 150000 20000 200000 && expect "pct smart + tokens dumb → dumb" dumb "$HT" c1
 write_snapshot_tok "$HT" c2 80 40000 10000 200000 && expect "pct dumb + tokens smart → dumb" dumb "$HT" c2
@@ -213,7 +213,7 @@ write_snapshot_tok "$HT" g5 null 160000 10000 200000 '' '"3.0.0"' &&
 write_snapshot_tok "$HT" g6 null 160000 10000 200000 '' '"2.1.99"' &&
   expect "2.1.99 (numeric, not lexical, comparison): token shape dropped" unknown "$HT" g6
 write_snapshot_tok "$HT" g7 null 160000 10000 200000 '' omit &&
-  expect "cli_version absent (older tee, or no version on stdin): token shape dropped" unknown "$HT" g7
+  expect "cli_version absent (the session reported no version, or a file an older writer left): token shape dropped" unknown "$HT" g7
 write_snapshot_tok "$HT" g8 null 160000 10000 200000 '' '"2.1.132-beta"' &&
   expect "non-numeric version string: token shape dropped" unknown "$HT" g8
 write_snapshot_tok "$HT" g9 null 160000 10000 200000 '' 2 &&
@@ -250,6 +250,37 @@ write_snapshot_tok "$HTV" v1 null 150000 20000 200000
 GOT="$(resolve "$HTV" v1 2>"$WORK/v1-stderr")"
 if [[ "$GOT" == "dumb" ]]; then ok "v1 zones.json: shipped token defaults still apply"; else fail "v1 zones.json token defaults: got '$GOT'"; fi
 if [[ -s "$WORK/v1-stderr" ]]; then fail "v1 zones.json: unexpected stderr notice for absent token_bands"; else ok "v1 zones.json: absent token_bands is silent zero-config"; fi
+
+# A zones.json with no edge keys that holds only known keys is a valid file
+# whose absent keys mean the defaults: right zone, no stderr.
+HQ="$WORK/h-quiet"
+mkdir -p "$HQ/.claude/context-guard"
+write_snapshot "$HQ" q60 60
+for QCASE in \
+  '{"thresholds":{"smart":40}}' \
+  '{"actions":{"edit":"warn"}}' \
+  '{"approach_margin":5}' \
+  '{"thresholds":{"smart":40},"actions":{"dumb":{"text":"stop"}},"approach_margin":5}'; do
+  printf '%s\n' "$QCASE" >"$HQ/.claude/context-guard/zones.json"
+  GOT="$(resolve "$HQ" q60 2>"$WORK/q-stderr")"
+  if [[ "$GOT" == "acceptable" ]]; then ok "no edge keys, known keys only $QCASE → default bands"; else fail "no edge keys $QCASE: got '$GOT'"; fi
+  if [[ -s "$WORK/q-stderr" ]]; then fail "no edge keys $QCASE: unexpected stderr: $(<"$WORK/q-stderr")"; else ok "no edge keys $QCASE → silent"; fi
+done
+
+# Still malformed: not an object, an unknown key with no edge keys (text is
+# read only inside actions.<zone>, so a top-level one is unknown), one edge
+# key alone, and a known key beside a wrongly typed edge.
+for QCASE in \
+  '[]' \
+  '{"bogus":1}' \
+  '{"text":{"dumb":"stop"}}' \
+  '{"smart_max_used_percentage":30}' \
+  '{"thresholds":{"smart":40},"smart_max_used_percentage":"30","acceptable_max_used_percentage":60}'; do
+  printf '%s\n' "$QCASE" >"$HQ/.claude/context-guard/zones.json"
+  GOT="$(resolve "$HQ" q60 2>"$WORK/q-stderr")"
+  if [[ "$GOT" == "acceptable" ]]; then ok "malformed $QCASE → default bands"; else fail "malformed $QCASE: got '$GOT'"; fi
+  if grep -q 'zones.json malformed' "$WORK/q-stderr"; then ok "malformed $QCASE → notice"; else fail "malformed $QCASE: silent fallback"; fi
+done
 
 # --- Exactly one word on stdout, always --------------------------------------
 for sid in s0 s75x snull nosuchsession storn; do
@@ -377,6 +408,68 @@ if [[ "$FB_OLD" == "unknown" ]]; then
   ok "fallback: the staleness window still holds on the date clock"
 else
   fail "fallback: stale snapshot want unknown without %()T, got '$FB_OLD'"
+fi
+
+# --- Shared fixture: every case of context-zone.fixtures.mjs through this copy -
+# The same cases run through the mod's TypeScript resolver in its plugin tests,
+# so the two resolvers give the same word and the same notices. node lays out
+# each case's home (snapshot and zones.json, captured_at relative to its clock)
+# and prints one record per case; the resolver then runs on each.
+FIXTURE="$SCRIPT_DIR/context-zone.fixtures.mjs"
+FX="$WORK/fixture"
+if ! command -v node >/dev/null 2>&1; then
+  fail "fixture: node is needed to read $FIXTURE"
+else
+  # shellcheck disable=SC2016 # the script is node's, not the shell's
+  FX_LAYOUT='
+    import { mkdirSync, writeFileSync } from "node:fs";
+    import { pathToFileURL } from "node:url";
+    const [, fixture, root] = process.argv;
+    const cases = (await import(pathToFileURL(fixture).href)).default;
+    const iso = (s) => new Date(s * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+    const text = (v, now) => {
+      if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+        if ("raw" in v) return v.raw;
+        const m = typeof v.captured_at === "string" ? /^@now([+-]\d+)?$/.exec(v.captured_at) : null;
+        if (m) return JSON.stringify({ ...v, captured_at: iso(now + Number(m[1] ?? 0)) });
+      }
+      return JSON.stringify(v);
+    };
+    const now = Math.floor(Date.now() / 1000);
+    const out = [];
+    cases.forEach((c, i) => {
+      const home = `${root}/${i}`;
+      mkdirSync(`${home}/.claude/context-guard/context`, { recursive: true });
+      if (c.snapshot !== null && /^[A-Za-z0-9_-]+$/.test(c.sid)) {
+        writeFileSync(`${home}/.claude/context-guard/context/${c.sid}.json`, text(c.snapshot, now));
+      }
+      if (c.zones !== null) writeFileSync(`${home}/.claude/context-guard/zones.json`, text(c.zones, now));
+      out.push([i, c.sid, c.word, c.notices.join(","), c.name].join("\x1f"));
+    });
+    process.stdout.write(out.join("\n") + "\n");
+  '
+  if FX_LIST=$(node --input-type=module -e "$FX_LAYOUT" "$FIXTURE" "$FX"); then
+    fx_cases=0
+    fx_failed=0
+    while IFS=$'\x1f' read -r fx_i fx_sid fx_word fx_notices fx_name; do
+      fx_cases=$((fx_cases + 1))
+      fx_got=$(HOME="$FX/$fx_i" bash "$ZONE" "$fx_sid" 2>"$FX/$fx_i.err")
+      fx_got_notices=""
+      grep -q 'zones.json malformed' "$FX/$fx_i.err" && fx_got_notices="percent"
+      grep -q 'token_bands malformed' "$FX/$fx_i.err" && fx_got_notices="${fx_got_notices:+$fx_got_notices,}token_bands"
+      if [[ "$fx_got" != "$fx_word" || "$fx_got_notices" != "$fx_notices" ]]; then
+        fail "fixture '$fx_name': want '$fx_word' [$fx_notices], got '$fx_got' [$fx_got_notices]"
+        fx_failed=$((fx_failed + 1))
+      fi
+    done <<<"$FX_LIST"
+    if ((fx_cases >= 100 && fx_failed == 0)); then
+      ok "fixture: all $fx_cases shared cases give the fixture's word and notices"
+    elif ((fx_cases < 100)); then
+      fail "fixture: read $fx_cases cases from $FIXTURE, want at least 100"
+    fi
+  else
+    fail "fixture: node could not read $FIXTURE"
+  fi
 fi
 
 echo

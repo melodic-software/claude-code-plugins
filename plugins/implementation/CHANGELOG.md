@@ -3,6 +3,25 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0] - 2026-10-04
+
+### Added
+
+- **The implement-dispatch brief carries the phase's design excerpt ([#6278](https://github.com/melodic-software/claude-code-plugins/issues/6278)).** Brief item 11 quotes the part of PLAN.md's `## Design` section the phase touches, or says `Design: none`, since a worker's worktree has no memory slice. Both implementer agents now treat that excerpt as binding like the acceptance criteria, and a phase that cannot honor it stops and reports.
+
+## [0.21.3] - 2026-10-04
+
+### Changed
+
+- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+
+## [0.21.2] - 2026-10-03
+
+### Changed
+
+- **`/implementation:implement-dispatch` names a context-guard line, not a hook, as a heavy-window
+  signal.** context-guard now reports the zone through its mod's lines.
+
 ## [0.21.1] - 2026-10-02
 
 ### Changed

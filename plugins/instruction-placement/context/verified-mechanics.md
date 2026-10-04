@@ -6,8 +6,10 @@ candidate whose destination turns on *when* content loads, *whether it survives 
 
 **Citation posture.** A claim marked *(doc)* is one this plugin relies on an official Anthropic
 page for; the page section is named in the pointer record beside it and is read there, not
-restated here. *(measured)* marks what this plugin's own first-party repro established, and
-*(inferred)* marks neither. An inference is never presented as either of the other two. A
+restated here. *(changelog)* marks a claim that rests on a Claude Code release note alone, because
+the docs page has not caught up with it; it names the release. *(measured)* marks what this
+plugin's own first-party repro established, and *(inferred)* marks none of these. An inference is
+never presented as any of the others. A
 `measured` claim names the Claude Code version it was taken on, because these mechanics have moved
 between releases and a version-less measurement cannot be re-verified or aged out.
 
@@ -27,15 +29,15 @@ whether a move is safe.
 
 | Surface | Enters context when | Survives compaction | Visible to a subagent |
 |---|---|---|---|
-| Root `CLAUDE.md` (cwd + ancestors) | Session start, in full *(doc)* | Re-read from disk and re-injected *(doc)* | **Yes** *(measured)* |
-| `@import` from root `CLAUDE.md` | Session start, inlined *(doc)* | With its parent *(inferred)* | **Yes** *(measured)* |
-| Unscoped `.claude/rules/*.md` | Session start, priced as `.claude/CLAUDE.md` *(doc)* | Re-injected *(doc)* | Unmeasured at 2.1.268; was **No** *(measured 2.1.238)* |
-| Path-scoped rule (`paths:`) | On **read** of a matching file *(doc, measured)* | Re-injected when a match recurs *(doc)* | **Yes, on a matching read inside the subagent itself** *(measured 2.1.268)* |
-| Nested `CLAUDE.md` | On read of a file in that subtree *(doc, measured)* | Reloads when the subtree is touched again *(doc)* | **Yes, on a matching read inside the subagent itself** *(measured 2.1.268)* |
+| Root `CLAUDE.md` (cwd + ancestors) | Session start, in full *(doc)* | Re-read from disk and re-injected *(doc)* | **Yes** for general-purpose and custom subagents *(doc, measured)*; **No** for Explore, Plan, and an agent whose definition sets `omitClaudeMd` *(doc)*; a fork inherits the parent conversation *(doc)* |
+| `@import` from root `CLAUDE.md` | Session start, inlined *(doc)* | With its parent *(inferred)* | With its parent, so as the row above *(doc, measured)* |
+| Unscoped `.claude/rules/*.md` | Session start, priced as `.claude/CLAUDE.md` *(doc)* | Re-injected *(doc)* | **Yes**, with the same exceptions as root `CLAUDE.md` *(doc)*; supersedes the **No** measured on 2.1.238 |
+| Path-scoped rule (`paths:`) | When Read, Write or Edit targets a matching file, on 2.1.288 and later *(doc)*; on Read only before 2.1.288 *(changelog 2.1.288, measured 2.1.268)* | Re-injected when a match recurs *(doc)* | **Yes, on a matching read inside the subagent itself** *(measured 2.1.268)*; Write and Edit inside a subagent unmeasured |
+| Nested `CLAUDE.md` | On Read of a file in that subtree *(doc, measured)*; also when Write or Edit creates or changes a file there, on 2.1.288 and later *(changelog 2.1.288)* | Reloads when the subtree is touched again *(doc)* | **Yes, on a matching read inside the subagent itself** *(measured 2.1.268)*; Write and Edit inside a subagent unmeasured |
 | `@import` from a **nested** `CLAUDE.md` | With its parent, deferred *(measured)* | With its parent *(inferred)* | **Yes, with its parent, inside the subagent itself** *(measured 2.1.268)* |
 | Bare nested `AGENTS.md` (no shim), with a `CLAUDE.md` on its path | **Never** *(doc, measured 2.1.238 and 2.1.278)* | n/a | No, it loads nowhere *(measured 2.1.238)* |
 | Bare nested `AGENTS.md` (no shim), nothing on its path | On read of a file in that subtree, where AGENTS.md support is available *(doc, measured 2.1.278)* | Reloads when the subtree is touched again *(doc)* | Yes, on a matching read inside the subagent itself *(measured 2.1.278)* |
-| Skill body | On invocation *(doc)* | Listing re-injected; body on re-invoke *(doc)* | Discovered via the Skill tool *(doc)* |
+| Skill body | On invocation *(doc)* | Invoked body re-injected within a per-skill and a total cap, oldest dropped first; the skill listing is not re-injected *(doc)* | Discovered via the Skill tool *(doc)* |
 
 The plugin prices each instruction-file destination by the *(doc)* cells above and re-derives them
 from the memory page, never from this table.
@@ -45,16 +47,18 @@ from the memory page, never from this table.
   <https://code.claude.com/docs/en/memory#set-up-rules>,
   <https://code.claude.com/docs/en/memory#path-specific-rules> and
   <https://code.claude.com/docs/en/memory#import-additional-files>; for what reloads after
-  compaction, <https://code.claude.com/docs/en/memory#instructions-seem-lost-after-/compact>.
-- **As of**: 2026-10-01
-- **Recheck trigger**: any of those sections changes when a surface loads or reloads, or a release
-  note names instruction-file loading, rules, or compaction.
-
-The skill-body row predates this record and has fired its trigger: a 2026-10-01 read of
-<https://code.claude.com/docs/en/context-window#what-survives-compaction> no longer matches its
-compaction cell. It awaits re-derivation from that section and
-<https://code.claude.com/docs/en/skills#skill-content-lifecycle>; until then treat that cell as
-unverified.
+  compaction, <https://code.claude.com/docs/en/memory#instructions-seem-lost-after-/compact> and
+  <https://code.claude.com/docs/en/context-window#what-survives-compaction>; for the skill-body
+  caps, that section and <https://code.claude.com/docs/en/skills#skill-content-lifecycle>; for
+  what a subagent loads, <https://code.claude.com/docs/en/sub-agents#what-loads-at-startup> and its
+  `omitClaudeMd` frontmatter field; for the Write and Edit trigger, the 2.1.288 entry of
+  <https://code.claude.com/docs/en/changelog>, the only source for the nested `CLAUDE.md` half
+  while the memory page still says "reads".
+- **As of**: 2026-10-04
+- **Recheck trigger**: any of those sections changes when a surface loads or reloads, or which
+  subagents load the CLAUDE.md hierarchy; the memory page adopts or contradicts the 2.1.288 Write
+  and Edit trigger for nested `CLAUDE.md`; or a release note names instruction-file loading, rules,
+  subagent context, or compaction.
 
 Three facts from that table carry the whole design:
 
@@ -162,11 +166,12 @@ triggering tool result, so their presence is read straight off the transcript.
 
 Two boundaries this measurement does **not** cross, stated so nothing generalizes past them:
 
-- It covers the `Read` tool. It says nothing about whether a `Write` to a covered path that has
-  never been read fires the same match, so the write-trigger gap below is unchanged.
-- It covers deferred surfaces. Whether an **unscoped** rule reaches a subagent was measured only on
-  2.1.238, and this repository has no unscoped rule to re-measure it with, so that table row is
-  marked unmeasured rather than carried forward.
+- It covers the `Read` tool. Release 2.1.288 added the `Write` and `Edit` triggers after this run,
+  so whether they fire inside a subagent, and when a `Write`-triggered surface arrives relative to
+  the write, is not measured here; see the write-trigger gap below.
+- It covers deferred surfaces. The **unscoped**-rule row rests on the sub-agents page instead,
+  which lists project rules among the CLAUDE.md files a non-fork subagent loads; this repository
+  has no unscoped rule to re-measure it with.
 
 ### Verification record
 
@@ -199,18 +204,25 @@ a path that surface covers, inside its own context. So the gap is narrower than 
 subagents" but it is real, and it has two live shapes. A worker briefed to edit files it has *not*
 been told to read first can act before the governing rule ever fires; and any agent, in a subagent
 or in the main session, that never touches a covered path is never told the rule exists at all.
-*Closed by:* the always-loaded generated index, which is inherited (it is part of the root pair,
-finding 4) and names every deferred surface, so an ordinary `Read` reaches its content from any
-context. The index guarantees **availability**, not attention: injection is automatic and a pointer
-is discretionary. It therefore mitigates rather than erases, which is why the hard-deny class below
-is not also delegated to it.
+*Closed by:* the always-loaded generated index, which every subagent that loads the CLAUDE.md
+hierarchy receives (it is part of the root pair, finding 4) and which names every deferred surface,
+so an ordinary `Read` reaches its content from those contexts. Explore, Plan, and an agent whose
+definition sets `omitClaudeMd` skip the project CLAUDE.md files and so never see the index *(doc; pointer in
+the surface-table record)*; for them the gap stays open. The index guarantees **availability**, not
+attention: injection is automatic and a pointer is discretionary. It therefore mitigates rather
+than erases, which is why the hard-deny class below is not also delegated to it.
 
-**The write-trigger gap.** The rubric treats a path-scoped rule as firing on a read of a matching
-file and on nothing else *(doc; pointer in the surface-table record)*. Editing an existing file
-implies reading it, so the common case holds; **creating a new file does not**. Content that governs the *creation* of files, such as
-scaffolding templates, "every new component must…", and file-header requirements, is therefore
-served badly by a path-scoped rule no matter how clean its glob looks. *Closed by:* routing creation-governing content
-to a directory-nested surface or leaving it always-loaded, never to `paths:`.
+**The write-trigger gap.** Before 2.1.288 a path-scoped rule fired on a Read of a matching file and
+on nothing else, so **creating a new file did not fire it** *(changelog 2.1.288)*. From 2.1.288 a
+Write or Edit to a matching path fires it too *(doc; pointer in the surface-table record)*. What
+remains is timing: the surfaces this plugin has observed arrive appended to the triggering tool
+result, so a `Write`-triggered rule most likely arrives after the file is written *(inferred, not
+measured)*, too late to govern the creation it exists for. Content that governs the *creation* of
+files, such as scaffolding templates, "every new component must…", and file-header requirements,
+is therefore still served badly by a path-scoped rule no matter how clean its glob looks, on any
+CLI below 2.1.288 and, until the timing is measured, on 2.1.288 and later. *Closed by:* routing
+creation-governing content to a directory-nested surface or leaving it always-loaded, never to
+`paths:`.
 
 **The compaction gap.** The rubric prices compaction as bringing back the root `CLAUDE.md` and
 leaving each deferred surface to return only when its trigger recurs *(doc; pointer in the

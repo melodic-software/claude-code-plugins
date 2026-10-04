@@ -3,6 +3,37 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.9] - 2026-10-04
+
+### Changed
+
+- **Hook text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** ShellCheck findings read `bash-format: <file> has findings:` and each line drops the absolute path prefix. An unchanged finding set on a re-edit sends nothing; it is sent again after a clean run, or after compaction or `/clear`, which a new `SessionStart` `compact|clear` row handles. A report lists at most 20 findings; telemetry keeps them all. The array-subscript notice goes to Claude only, since Claude is the one who rewrites the key. A failed shfmt capability probe goes to the user only, as `bash-format: shfmt probe failed (<error>); <file> not formatted.`. The missing-shfmt and missing-shellcheck notices are composed from `prerequisites.json`, with the install route on the user's copy only, and their `degrade` text drops "edits still go through". The rewrite notice reads `bash-format: reformatted <file>.`.
+
+## [0.10.8] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice and formatter probe rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
+
+## [0.10.7] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
+
+## [0.10.6] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing hook tool goes to the user only, and names where the hook looks for it; the model hears of it at the hook's first skip. The SessionStart notice for a missing node goes to the user only, in one shorter line. The jq `degrade` text in `prerequisites.json` no longer says the skip lasts the session or that the hook says so once.
+
+## [0.10.5] - 2026-10-04
+
+### Changed
+
+- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+
 ## [0.10.4] - 2026-10-04
 
 ### Fixed

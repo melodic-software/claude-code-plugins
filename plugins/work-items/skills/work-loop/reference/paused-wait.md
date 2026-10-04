@@ -25,7 +25,7 @@ fp .oauthAccount.emailAddress < "${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json"
 
 The file goes in on stdin because a native Windows `jq` cannot open an MSYS-style path argument.
 `sha256sum` is absent on stock macOS, so the pipeline falls back to `shasum -a 256`. The `select`
-is the tee writer's shape whitelist (reader contract, "Tee file shape"), so a corrupt value such as
+is the snapshot writer's shape whitelist (reader contract, "Tee file shape"), so a corrupt value such as
 `logged-out` is not an account. A non-zero exit (file absent, unparsable, key missing, not a string,
 or not email-shaped) means **cannot attribute**; discard the output. A failed `jq` still leaves the
 hash step printing the hash of empty input, `e3b0c44298fc1c14`; that value is never a fingerprint,
@@ -34,7 +34,7 @@ so it also means cannot attribute. The address never reaches the output or a com
 Read the tee file once into a variable and derive everything from that copy: `snap=$(cat
 "$HOME/.claude/rate-limit-guard/rate-limits.json")`, then `printf '%s' "$snap" | fp .account.email`
 for the fingerprint and the same `printf` into `jq` for `captured_at` and the windows. Never reopen
-the path between them: another session's drain can replace the file, and a fingerprint from one
+the path between them: another session's write can replace the file, and a fingerprint from one
 snapshot beside windows from another attributes the windows to the wrong account.
 
 `.oauthAccount.emailAddress` is internal Claude Code state, not a documented surface. Its
@@ -42,8 +42,8 @@ verification record is the recheck trigger in the `rate-limit-guard` reader cont
 (`plugins/rate-limit-guard/reference/reader-contract.md` in the marketplace repository, cited for
 provenance only).
 
-The Monitor armed on the tee file fires only when the tee is written, and a machine running only
-headless sessions never writes it. Wakes carry the detection there: a paused lane still wakes on its
+The Monitor armed on the tee file fires on each write by rate-limit-guard's mod, headless sessions
+included, under the mod's machine-wide write floor. Between writes a paused lane still wakes on its
 `ScheduleWakeup` schedule, whose maximum delay bounds how late a switch is seen.
 
 ## At pause entry
@@ -64,13 +64,13 @@ headless sessions never writes it. Wakes carry the detection there: a paused lan
    switch to detect. Record the fingerprint as `latched_account` and continue the ordinary
    re-evaluation.
 3. Fingerprint equals `latched_account`: no switch; continue the ordinary re-evaluation.
-4. Fingerprint differs: re-evaluate against the new account with a tee snapshot copy that is fresh
+4. Fingerprint differs: re-evaluate against the new account with a snapshot copy that is fresh
    (`captured_at` within 10 minutes) and whose `account.email` fingerprint equals the new one. Apply
    the per-window rule from `SKILL.md`: a window that is absent or absurd is unknown, and the other
    window still counts.
-   - Every plausible window below 90: **resume**. Clear `rate_limit_latch`, `paused_until`, and
+   - Every plausible window below 95: **resume**. Clear `rate_limit_latch`, `paused_until`, and
      `latched_account` together, and resume claiming work.
-   - Any plausible window at or above 90: **re-latch**. Stay paused, rewrite `paused_until` to the
+   - Any plausible window at or above 95: **re-latch**. Stay paused, rewrite `paused_until` to the
      new account's pause end (the floor's Pause end rule) and `latched_account` to the new
      fingerprint. `rate_limit_latch` stays set.
    - No plausible window (no fresh, attributable snapshot, or neither window usable): windows are

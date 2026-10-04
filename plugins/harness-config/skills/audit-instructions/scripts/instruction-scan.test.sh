@@ -230,6 +230,36 @@ assert_contains "flags 'Think out loud'" "$OUT" "$I10F:3:I10"
 assert_not_contains "benign summarize instruction not flagged" "$OUT" ":4:I10"
 assert_eq "three I10 candidates" "3" "$(bash "$SCRIPT" --count "$I10F")"
 
+# --- Case 4b: I10 scratchpad rules flagged, scratchpad storage not ------------
+I10S="$TEST_TMPDIR/i10-scratchpad.md"
+cat >"$I10S" <<'EOF'
+Use a scratchpad to work through the problem before you answer.
+Write your plan inside <scratchpad> tags first.
+Save intermediate files to the session scratchpad.
+Each run creates `<scratchpad>/fix-run/` for its outputs.
+EOF
+OUT=$(bash "$SCRIPT" "$I10S")
+assert_contains "flags a scratchpad paired with working a problem out" "$OUT" "$I10S:1:I10"
+assert_contains "flags a <scratchpad> tag" "$OUT" "$I10S:2:I10"
+assert_not_contains "a scratchpad storage path is not I10" "$OUT" "$I10S:3:I10"
+assert_not_contains "a <scratchpad>/ path placeholder is not I10" "$OUT" "$I10S:4:I10"
+
+# --- Case 4c: I38 progress-update suppressors flagged, report shape not ------
+I38F="$TEST_TMPDIR/i38.md"
+cat >"$I38F" <<'EOF'
+Hold all findings for the final response.
+Don't narrate while you work.
+No interim updates until the task is done.
+Your final message is exactly one fenced block with no preamble.
+Post a one-line note before the first tool call.
+EOF
+OUT=$(bash "$SCRIPT" "$I38F")
+assert_contains "flags 'Hold all findings for the final response'" "$OUT" "$I38F:1:I38"
+assert_contains "flags 'Don't narrate'" "$OUT" "$I38F:2:I38"
+assert_contains "flags 'No interim updates'" "$OUT" "$I38F:3:I38"
+assert_not_contains "a final-message shape contract is not I38" "$OUT" "$I38F:4:I38"
+assert_not_contains "an instruction to post updates is not I38" "$OUT" "$I38F:5:I38"
+
 # --- Case 5: clean file ------------------------------------------------------
 CLEAN="$TEST_TMPDIR/clean.md"
 cat >"$CLEAN" <<'EOF'

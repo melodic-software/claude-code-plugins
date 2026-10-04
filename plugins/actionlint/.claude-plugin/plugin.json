@@ -1,6 +1,6 @@
 {
   "name": "actionlint",
-  "version": "0.12.4",
+  "version": "0.12.9",
   "description": "Lint GitHub Actions workflow files on edit via actionlint, surfacing findings as advisory context.",
   "author": {
     "name": "Melodic Software",

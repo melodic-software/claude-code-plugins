@@ -88,7 +88,7 @@ revision of Canon TDD or a successor post that changes step 4.
 |---|---|---|
 | `rule-zero-assertion` | a test body with no assertion | assert the behavior |
 | `rule-recomputed-expectation` | both sides the same expression: `expect(LIMIT).toBe(LIMIT)` | take the expected side from §1 |
-| `rule-inert-assertion` | an assertion that never runs: unawaited `toBeVisible()`, `assert (x == 1, "msg")`, `m.called_once_with(...)`, bare `.Should();` | await it, fix the tuple, use `assert_called_once_with` |
+| `rule-inert-assertion` | an assertion that never runs: unawaited `toBeVisible()`, `assert (x == 1, "msg")`, `m.called_once_with(...)`, bare `.Should();`, `Assert.True(true)`, `Assert.NotNull(typeof(T))` | await it, fix the tuple, use `assert_called_once_with`, assert a value the code computes |
 | `rule-conditional-assertion` | every assertion inside an `if`, a `catch` or a loop over the result | assert unconditionally; check the length first |
 | `rule-flaky-passes-suite`, `rule-only-not-forbidden` | Playwright retries without `failOnFlakyTests`; no `forbidOnly` | set both in the config |
 
