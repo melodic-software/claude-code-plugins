@@ -125,7 +125,8 @@ session. Do not fabricate a map.
 
 1. **Session-start reclaim + map hygiene.** Reclaim any of your own stale in-progress items
    (idempotent). Check the map's invariants: every closed **in-scope** decision has a *Decisions-so-far*
-   pointer line (closed-as-out-of-scope items have an Out-of-scope line instead, not a pointer);
+   pointer line (closed-as-out-of-scope items have an Out-of-scope line instead, not a pointer;
+   closed-as-moot items have only their closing comment);
    no item resolved-in-comment but still open. Fix violations before proceeding.
 2. **Compute the frontier.** `frontier = open ∧ zero OPEN blockers ∧ unassigned` (a *closed*
    blocker no longer holds an item back. Count open blockers, not the raw edge count). In a
@@ -157,8 +158,18 @@ session. Do not fabricate a map.
    Out-of-scope line linking it, then close it. It does **not** get a Decisions-so-far
    pointer. Fog stays in
    Not-yet-specified and never graduates into Out-of-scope. If the resolution sharpened
-   previously-foggy uncertainty, chart the new sharp items now.
-6. **Map closure → destination handoff.** When the frontier is empty and every decision item
+   previously-foggy uncertainty, chart the new sharp items now and delete that prose from
+   Not-yet-specified.
+6. **Sweep the map after every resolution.** Reread the open items and the closed decisions
+   against what was just decided:
+   - An open item whose premise the resolution invalidated: rewrite its question if one still
+     stands, otherwise close it with a comment linking the resolution that made it moot. A moot
+     item gets no line in either index.
+   - A closed decision the resolution shows was wrong: open a new decision item that links the
+     old one and work it like any other. When it resolves, add its pointer to Decisions-so-far
+     and change the old decision's line to `<old title> (#<old>): superseded by <new title>
+     (#<new>)`. Never reopen the old item or edit its resolution comment.
+7. **Map closure → destination handoff.** When the frontier is empty and every decision item
    is closed, the destination is coherent: close the map issue and hand the destination
    onward (`/planning:interview` or `/planning:prd` for a Brief/PRD; `/planning:plan`
    for a PLAN). A map's job ends where the pipeline's begins.

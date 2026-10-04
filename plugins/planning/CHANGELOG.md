@@ -3,6 +3,16 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.68.0] - 2026-10-04
+
+### Changed
+
+- **`/planning:wayfind` work mode sweeps the map after every resolution.** A new step 6 rewrites or closes as moot any open item whose premise the resolution invalidated, and supersedes a closed decision found wrong with a new item that links it; the old Decisions-so-far line then points at its replacement. Fog prose is deleted from Not-yet-specified once it becomes a typed item. `context/map-anatomy.md` states the moot and superseded cases in its invariants, and eval case 9 covers the sweep.
+
+### Fixed
+
+- **`/planning:design` no longer says the ideal test-seam count is one.** The test-seam posture thread still drives toward the fewest seams that cover the surface.
+
 ## [0.67.6] - 2026-10-04
 
 ### Changed
