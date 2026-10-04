@@ -171,7 +171,7 @@ as the reader contract says. `/rate-limit-guard:check` and `/rate-limit-guard:se
   email-shaped value, and an account that changed between the last API response and the write. A
   lane that cannot attribute keeps its latch. The loop-lane convention §6 owns that framing; the
   reader contract states the absence cases and the untrusted-value rule
-  (`reference/reader-contract.md`, "Tee file shape").
+  (`reference/reader-contract.md`, "Snapshot file shape").
 
 ## Tests and their budgets
 

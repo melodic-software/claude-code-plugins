@@ -11,6 +11,7 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
 
 ### Changed
 
+- **The reader contract calls `rate-limits.json` the snapshot file, not the tee file.** The "Tee file shape" section is now "Snapshot file shape", and the operable floor's first bullet is `Snapshot file (fixed path)`. The path and every value are unchanged; a consumer that inlines the floor must take the new bullet label.
 - **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** Two comments no longer cite the retired statusline tee.
 
 ## [0.15.3] - 2026-10-04

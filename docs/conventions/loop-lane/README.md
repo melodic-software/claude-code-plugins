@@ -833,7 +833,7 @@ assumption.
 
 All three lanes consume the shared subscription rate-limit windows (§3). An installed plugin cannot
 read a sibling plugin's files or this repo's `docs/` at runtime, so each consuming lane body
-**inlines the operable floor**, the fixed tee-file path, the pause threshold, the staleness rule,
+**inlines the operable floor**, the fixed snapshot-file path, the pause threshold, the staleness rule,
 and drain-then-pause, and cites the guard's reader contract for provenance only. This section names
 those four items and deliberately restates none of their values: a number written here would be a
 seventh copy, outside the block the check below compares.
@@ -897,7 +897,7 @@ identical to each other, which is the half a reviewer notices, while all three d
 source. The scan exists because a registry alone repeats that shape one level up: the first report
 of this coupling named five copies, and building the registry found six.
 
-**Single-account-per-machine is a known gap, not a safe assumption.** The tee file is
+**Single-account-per-machine is a known gap, not a safe assumption.** The snapshot file is
 last-writer-wins, and before it carried an account identifier a machine running lanes under more
 than one account fed one account's healthy windows to lanes running on the exhausted one, with no
 way for the guard to detect it. Same-machine account rotation is real operating practice, not a
@@ -912,10 +912,10 @@ no machine, org size, or budget"
 multi-account machine is an ordinary team and multi-tenant shape, not an exotic one. Naming it a
 gap removes the false assurance that nothing is missing.
 
-**The resolution is account identity, and all three sides have landed.** The tee file carries an
+**The resolution is account identity, and all three sides have landed.** The snapshot file carries an
 `account.email` field naming the account whose windows a snapshot describes, present whenever the
 writer could attribute the observation and absent rather than wrong when it could not
-(`plugins/rate-limit-guard/reference/reader-contract.md`, "Tee file shape"). Reader-side
+(`plugins/rate-limit-guard/reference/reader-contract.md`, "Snapshot file shape"). Reader-side
 invalidation of latched state is a **MUST** in the inlined floor's "Account switch" bullet: a paused
 lane records the account of the snapshot that tripped the pause (not the account `.claude.json`
 names at pause entry, because the snapshot can be up to 10 minutes old), reads

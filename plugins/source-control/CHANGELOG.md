@@ -7,6 +7,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
+- **`babysit-loop` and the `pull-request` watch handoff call `rate-limits.json` the snapshot file, not the tee file**, matching rate-limit-guard's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
 - **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** Two comments no longer cite the retired statusline tee.
 
 ## [0.79.19] - 2026-10-04
