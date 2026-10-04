@@ -1929,7 +1929,12 @@ def compute_listing(
     full += separators
 
     overflow = max(0, full - budget)
-    verdict = "overflowing" if overflow > 0 else "listing-fits"
+    # Overflow survives missing entries, since adding one only grows the
+    # listing. A fit does not: without a capture the built-in and bundled
+    # entries go uncounted, so the counted ones fitting is not the listing
+    # fitting, and the verdict says so instead of claiming it.
+    fits = "listing-fits" if unenumerated is not None else "fit-unconfirmed"
+    verdict = "overflowing" if overflow > 0 else fits
 
     competing = [r for r in rows if r["eligibility"] == "competing"]
 
@@ -1967,7 +1972,7 @@ def compute_listing(
         # from `- <name>` to `- <name>: <description>`.
         grant = row["demand_chars"] + 2
         if overflow <= 0:
-            row["verdict"] = "listing-fits"
+            row["verdict"] = fits
         elif grant <= remaining:
             remaining -= grant
             row["verdict"] = "likely-retained"
@@ -3087,8 +3092,13 @@ def _render_single_budget(listing: dict) -> list[str]:
             f"description length matters too.",
             "",
         ]
+    subject = (
+        "Counted entries fit (unconfirmed, see coverage)"
+        if listing["coverage"] == "enumerated-only"
+        else "Listing fits"
+    )
     return [
-        f"Listing fits at {listing['label']}: {listing['listing_chars']:,} of "
+        f"{subject} at {listing['label']}: {listing['listing_chars']:,} of "
         f"{listing['budget_chars']:,} characters, of which "
         f"{listing['demand_chars']:,} are the descriptions of "
         f"{listing['competing_count']} competing skills and "
@@ -3106,9 +3116,9 @@ def _render_coverage(listing: dict) -> list[str]:
         missing = listing.get("not_counted") or ["built-in and bundled skills"]
         lines = [
             f"**Counted: {'; '.join(counted)}. Not counted: "
-            f"{'; '.join(missing)}**, which the session lists too, so a "
-            "`listing-fits` verdict here can still be over budget in the "
-            "session. Pass `--listing-capture <transcript.jsonl>` to count "
+            f"{'; '.join(missing)}**, which the session lists too, so a fit "
+            "here is `fit-unconfirmed`, never `listing-fits`: the session can "
+            "still be over budget. Pass `--listing-capture <transcript.jsonl>` to count "
             "them from the listing a session actually received.",
             "",
         ]

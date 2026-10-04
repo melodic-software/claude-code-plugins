@@ -904,7 +904,7 @@ class BudgetArithmeticTest(unittest.TestCase):
         cfg = engine.ListingConfig(context_window_tokens=200_000)
         listing = engine.compute_listing(_fleet(chars=100), cfg)
         self.assertEqual(listing["overflow_chars"], 0)
-        self.assertEqual(listing["verdict"], "listing-fits")
+        self.assertEqual(listing["verdict"], "fit-unconfirmed")
 
     def test_overflow_is_positive_and_exact_when_demand_exceeds(self):
         # 10 skills x 1000 chars = 10_000 demand against an 8_000 budget. The
@@ -1143,7 +1143,7 @@ class BudgetArithmeticTest(unittest.TestCase):
         self.assertEqual(listing["verdict"], "band-dependent")
         self.assertEqual(
             [row["verdict"] for row in listing["band"]],
-            ["overflowing", "overflowing", "listing-fits", "listing-fits"],
+            ["overflowing", "overflowing", "fit-unconfirmed", "fit-unconfirmed"],
         )
         competing = [s for s in listing["skills"] if s["eligibility"] == "competing"]
         self.assertEqual(
@@ -1395,7 +1395,7 @@ class ExemptionTest(unittest.TestCase):
         )
         self.assertEqual(listing["demand_chars"], 500)
         self.assertEqual(listing["overflow_chars"], 0)
-        self.assertEqual(listing["verdict"], "listing-fits")
+        self.assertEqual(listing["verdict"], "fit-unconfirmed")
         self.assertEqual(listing["starved_count"], 0)
         self.assertEqual(listing["exempt_count"], 10)
         self.assertEqual(listing["competing_count"], 1)
@@ -1742,7 +1742,7 @@ class InferentialBandTest(unittest.TestCase):
         listing = engine.compute_listing(
             entries, engine.ListingConfig(context_window_tokens=200_000)
         )
-        self.assertEqual(listing["skills"][0]["verdict"], "listing-fits")
+        self.assertEqual(listing["skills"][0]["verdict"], "fit-unconfirmed")
         self.assertIsNone(listing["skills"][0]["band"])
 
 
@@ -1833,7 +1833,7 @@ class ListingScoreTest(unittest.TestCase):
             listing_config=engine.ListingConfig(context_window_tokens=200_000),
         )
         self.assertEqual(model["listing"]["score_basis"], "unscored")
-        self.assertEqual(model["skills"][0]["starvation"]["verdict"], "listing-fits")
+        self.assertEqual(model["skills"][0]["starvation"]["verdict"], "fit-unconfirmed")
         self.assertEqual(
             [w for w in model["withheld"] if w["claim"] == "starvation"], []
         )
@@ -1851,7 +1851,7 @@ class ListingScoreTest(unittest.TestCase):
         by_band = listing["skills"][0]["by_band"]
         # 10 x 1000 overflows the 200k row and fits the 1M one.
         self.assertEqual(by_band["200k/4"], "withheld")
-        self.assertEqual(by_band["1M/4"], "listing-fits")
+        self.assertEqual(by_band["1M/4"], "fit-unconfirmed")
         self.assertEqual(listing["skills"][0]["reason"], "unscored")
         self.assertIsNone(listing["skills"][0]["band"])
         # The counts the band reports per row are untouched.
@@ -2991,7 +2991,7 @@ class ListingFloorVerdictTest(unittest.TestCase):
         cfg = engine.ListingConfig(context_window_tokens=200_000, max_desc_chars=10_000)
         fits = engine.compute_listing([_competing("p:a", 7_993)], cfg, {"p:a": 1.0})
         over = engine.compute_listing([_competing("p:a", 7_994)], cfg, {"p:a": 1.0})
-        self.assertEqual(fits["verdict"], "listing-fits")
+        self.assertEqual(fits["verdict"], "fit-unconfirmed")
         self.assertEqual(fits["overflow_chars"], 0)
         self.assertEqual(over["verdict"], "overflowing")
         self.assertEqual(over["overflow_chars"], 1)
@@ -3465,6 +3465,39 @@ class ListingCaptureTest(unittest.TestCase):
             [_competing("p:a", 10)], engine.ListingConfig(context_window_tokens=200_000)
         )
         self.assertEqual(listing["coverage"], "enumerated-only")
+
+    def _fitting_model(self, capture):
+        # `- p:a: hello` is 12 characters against the 8,000 a 200k window at
+        # 4 bytes per token gives: it fits with room to spare either way.
+        return engine.classify(
+            denominator=[_competing("p:a", 5)],
+            events=[],
+            config=engine.Config(),
+            clock=_utc(2026, 8, 18),
+            horizons={},
+            listing_config=engine.ListingConfig(context_window_tokens=200_000),
+            listing_capture=capture,
+        )
+
+    def test_a_fit_without_a_capture_is_never_reported_as_listing_fits(self):
+        # The built-in entries are uncounted here, so a fit is unconfirmed: no
+        # JSON consumer reading the run or the skill row is told it fits.
+        model = self._fitting_model(None)
+        self.assertEqual(model["listing"]["verdict"], "fit-unconfirmed")
+        self.assertEqual(
+            model["skills"][0]["starvation"]["verdict"], "fit-unconfirmed"
+        )
+        self.assertNotIn("Listing fits at", engine._render_markdown(model))
+
+    def test_an_unreadable_capture_leaves_the_fit_unconfirmed(self):
+        model = self._fitting_model({"status": "not-read", "reason": "x"})
+        self.assertEqual(model["listing"]["verdict"], "fit-unconfirmed")
+
+    def test_a_read_capture_confirms_the_fit(self):
+        model = self._fitting_model(self._capture())
+        self.assertEqual(model["listing"]["coverage"], "enumerated+capture")
+        self.assertEqual(model["listing"]["verdict"], "listing-fits")
+        self.assertEqual(model["skills"][0]["starvation"]["verdict"], "listing-fits")
 
 
 if __name__ == "__main__":

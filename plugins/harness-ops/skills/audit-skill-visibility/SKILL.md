@@ -261,7 +261,10 @@ workflows, and with `--installed` the user's `~/.claude/skills`, the project's
 `.claude/skills`, and the signed-in account's claude.ai-synced skills, each
 with `skillOverrides` applied. Built-in and bundled skills ship inside Claude
 Code and cannot be read from disk, so without a capture `coverage` is
-`enumerated-only` and the Markdown says what was not counted.
+`enumerated-only`, the Markdown says what was not counted, and a row whose
+counted entries fit reports `fit-unconfirmed`, never `listing-fits`: only a
+read capture can confirm a fit. `overflowing` needs no capture, since an
+uncounted entry only adds to the listing.
 `--listing-capture <transcript.jsonl>` reads the listing a session actually
 received from its transcript (`~/.claude/projects/<project>/<session>.jsonl`),
 counts every entry the disk walk missed at its captured length, and reports in
@@ -341,7 +344,7 @@ shipped binary, and every row says so in its `provenance`. Do not present it to
 a user as documented.
 
 `starvation.verdict` values: `likely-starved` · `likely-retained` ·
-`listing-fits` · `withheld` · `not-assessable`. A listing that overflows with no
+`listing-fits` · `fit-unconfirmed` · `withheld` · `not-assessable`. A listing that overflows with no
 usage recorded for any competing skill reports `withheld` with
 `reason: "unscored"` on every competing row and no band, because at all-zero
 scores the product's ordering is the catalog-order tie its stable sort leaves,
@@ -358,7 +361,8 @@ override, keeps it out of context), `exempt-name-only` (a `name-only` override
 lists the name alone), and `exempt-hidden` (the owning plugin is `hidden` or
 `not-enabled`, or an `off` override drops the skill, so it is never listed).
 Only `exempt-bundled` and `exempt-name-only` rows are listed, so a fleet whose
-only excess sits in plugins that do not load reports `listing-fits`.
+only excess sits in plugins that do not load reports a fit (`listing-fits`
+with a capture, `fit-unconfirmed` without one).
 `exempt-hidden` covers both not-loading answers, and
 only a settled not-loading answer (`hidden` or `not-enabled`) exempts: a
 `not-assessed` checkout row or an `unknown` one keeps competing, because
