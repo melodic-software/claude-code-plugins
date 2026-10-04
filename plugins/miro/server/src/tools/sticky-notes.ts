@@ -136,7 +136,7 @@ export function registerStickyNoteTools(
 
   server.tool(
     "miro_list_board_items",
-    "List items on a Miro board. Use this to see what is on a board, and to get item IDs, before changing or deleting items. Returns an array of { id, type, data, position }, with data and position only when Miro sends them. Stops at limit (default 20, max 1000) and gives no sign that more items exist: a result of exactly limit items may be incomplete, so filter with type or raise limit. Connectors are listed only when type is 'connector'; each then carries startItemId and endItemId, the IDs of the items it joins.",
+    "List items on a Miro board. Use this to see what is on a board, and to get item IDs, before changing or deleting items. Returns an array of { id, type, data, position }, with data and position only when Miro sends them. Stops at limit (default 20, max 1000) and gives no sign that more items exist: a result of exactly limit items may be incomplete, so raise limit if it is below 1000, or list one type at a time; at 1000 items of one type, the rest cannot be listed with this tool. Connectors are listed only when type is 'connector'; each then carries startItemId and endItemId, the IDs of the items it joins.",
     {
       board_id: z.string().describe("The board ID"),
       type: z
