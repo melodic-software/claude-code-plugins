@@ -84,11 +84,11 @@ plural() { if (($1 == 1)); then printf '%s' "$2"; else printf '%s' "$3"; fi; }
 # labels <key index>...: "<file>: <name>" per key, with #n past the first of
 # a name, comma-separated: how the judge log names the tests a message counts.
 labels() {
-  local i r name out=""
+  local i out=""
   for i in "$@"; do
-    r="${KR[$i]}" && name="${r#* }" && name="${name#* }"
-    out+="${out:+, }${KFILE[$i]##*[/\\]}: $name"
-    [[ "${r%% *}" =~ ^[0-9]+$ ]] && ((${r%% *} > 1)) && out+=" #${r%% *}"
+    kr "$i"
+    out+="${out:+, }${KFILE[$i]##*[/\\]}: $KNAME"
+    [[ "$KO" =~ ^[0-9]+$ ]] && ((KO > 1)) && out+=" #$KO"
   done
   printf '%s' "$out"
 }
