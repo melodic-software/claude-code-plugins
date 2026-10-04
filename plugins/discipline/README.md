@@ -211,10 +211,10 @@ fan-out is a heavier execution tier, fixed in frontmatter (mirrors the
 ### pick-for-the-problem
 
 Re-anchors selection discipline for a tool, library, framework, language, or
-approach: the choice fits the problem, not the reflex. Names the four
+approach: the choice fits the problem, not the reflex. Names the five
 selection sins: **habit** ("I always use X"), **availability** ("X is at
-hand"), **incumbency** ("the repo already uses X"), and **preconception**
-("I came in believing X"), and replaces them with the discipline: define
+hand"), **incumbency** ("the repo already uses X"), **preconception**
+("I came in believing X"), and **popularity** ("everyone uses X"), and replaces them with the discipline: define
 the actual problem first, survey the field, and walk the preference ladder
 native (covering the requirements and plausible future ones) > official /
 authoritative > vetted third-party. Every dependency is a coupling point
