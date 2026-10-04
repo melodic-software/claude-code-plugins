@@ -281,6 +281,20 @@
         "Does not skip #305 for an objection window",
         "Admits #305 through classification as C2 mechanical"
       ]
+    },
+    {
+      "id": 20,
+      "name": "work-loop-single-pass-ends-without-wakeup",
+      "prompt": "/work-items:work-loop --drain --single-pass\n\nStarted headless by a scheduler with claude -p. The resolved item_cap is 2. The cycle-start snapshot holds four autonomous-frontier items, all C2 mechanical with no open closing PR. The first cycle executes two of them to opened PRs.",
+      "expected_output": "After the first cycle the run has executed two items, which reaches the item cap of 2, so the single pass ends: the cycle upserts telemetry, the report names the item cap as what ended the run and lists the two items still open, and no ScheduleWakeup is called. --single-pass is not written into the durable state block, and no restart-request is written. The two remaining items wait for the next scheduled run; the drain is not reported complete.",
+      "files": [],
+      "expectations": [
+        "Ends the run after the cycle in which the executed items reach the item cap",
+        "Does not call ScheduleWakeup",
+        "Upserts telemetry and names the item cap as what ended the run",
+        "Does not persist --single-pass in the durable state block",
+        "Does not report the drain complete while retained items are still open without a PR"
+      ]
     }
   ]
 }

@@ -39,6 +39,29 @@
 #   lane-launcher.sh restart [lane...]    stop then start (all lanes, or named)
 #   lane-launcher.sh status               per-lane running state
 #   lane-launcher.sh stop [lane...]       stop running lanes (all, or named)
+#   lane-launcher.sh run-once <lane>      one headless pass of the lane:
+#                                         claude -p --permission-mode auto
+#                                         [--permission-prompts none] [--model M]
+#                                         --effort E [--settings JSON] "<prompt>"
+#   lane-launcher.sh print-schedule [--write-script] [lane...]
+#                                         print OS scheduler entries for lanes
+#                                         with a `schedule` object; with
+#                                         --write-script, also write each
+#                                         lane's <repo>/.work/lanes/scheduled/<lane>.sh
+#
+# run-once is the entry a scheduler calls. It takes no pull and no marketplace
+# update. It decides --permission-prompts from `claude --version` when it runs,
+# places the pass by the lane's execution target (local-worktree: the repo root;
+# local-background: the lane's linked worktree; a cloud host: nothing runs
+# here), skips a lane already running as a background session, and holds a
+# per-lane mkdir lock at <data-dir>/lanes/<repo-key>/<lane>-run-once.lock: a
+# second run while the lock is held exits 0 having run nothing, and a lock whose
+# recorded owner pid has exited is reclaimed.
+#
+# print-schedule mutates nothing but the scripts --write-script writes. Every
+# entry calls the generated script, so the Windows /TR payload is
+# "<bash>" "<script>" and stays within schtasks' 262-character limit; a lane
+# whose payload would not is refused. Registering an entry is the operator's step.
 #
 # Options:
 #   --config FILE      lane config JSON (default resolution order below)
@@ -71,6 +94,7 @@
 #                      read lane telemetry comments from FILE instead of `gh`:
 #                      a JSON object mapping lane name -> comments array, e.g.
 #                      {"work":[{"body":"..."}]} (offline / tests)
+#   --write-script     print-schedule only: write each scheduled lane's script
 #   --help
 #
 # Launch-commit marker (#792):
@@ -124,6 +148,8 @@
 #   telemetry   optional; {"issue": N, "repo": "owner/name", "marker": "..."},
 #               the lane's telemetry binding (context/restart-consumer.md). A
 #               cloud-session lane reads its fallback marker there.
+#   schedule    optional; {"every_minutes": N}, N a whole number 1-999. Only a
+#               lane with one gets print-schedule entries.
 #
 # Execution target (docs/conventions/execution-target/README.md in the
 # marketplace repository is the contract):
@@ -227,8 +253,14 @@ AGENTS_JSON_FILE=""
 DATA_DIR_OVERRIDE=""
 GATE_ARM_SCRIPT_OVERRIDE=""
 TELEMETRY_JSON_FILE=""
+WRITE_SCRIPT=0
 LAUNCH_COMMIT=""
 declare -a TARGET_LANES=()
+
+# schtasks /Create rejects a /TR value over this length.
+# https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/schtasks-create
+# (/tr row). As of 2026-10-04; recheck when that row changes.
+SCHTASKS_TR_MAX=262
 
 # --- Small emitters -----------------------------------------------------------
 err() { printf 'ERROR: %s\n' "$*" >&2; }
@@ -258,7 +290,7 @@ parse_args() {
   local seen_action=0
   while (($#)); do
     case "$1" in
-    start | restart | status | stop)
+    start | restart | status | stop | run-once | print-schedule)
       if ((seen_action)); then TARGET_LANES+=("$1"); else
         ACTION="$1"
         seen_action=1
@@ -303,6 +335,7 @@ parse_args() {
       shift
       ;;
     --telemetry-json=*) TELEMETRY_JSON_FILE="${1#*=}" ;;
+    --write-script) WRITE_SCRIPT=1 ;;
     -h | --help)
       usage
       exit 0
@@ -322,7 +355,7 @@ parse_args() {
     *)
       # A bare token before the action is an unknown action; after it, a lane.
       if ((seen_action)); then TARGET_LANES+=("$1"); else
-        err "unknown action: $1 (want: start restart status stop)"
+        err "unknown action: $1 (want: start restart status stop run-once print-schedule)"
         exit 3
       fi
       ;;
@@ -347,6 +380,7 @@ require_claude() {
   # fully offline as documented; only the paths that actually shell out to
   # claude (launch / stop / marketplace update, or a live agents list) need it.
   [[ "$ACTION" == "status" && -n "$AGENTS_JSON_FILE" ]] && return 0
+  [[ "$ACTION" == "print-schedule" ]] && return 0
   command -v claude >/dev/null 2>&1 || {
     err "claude CLI not found (required)"
     exit 4
@@ -492,7 +526,28 @@ resolve_config() {
     err "lane config has a stage that is not <plugin>:<skill> (lowercase, digits, '-'): $badstage: $CONFIG"
     exit 3
   }
+  # An invalid `schedule` is warned about and dropped: _schedule_one reads the
+  # same predicate and treats that lane as unscheduled.
+  local badsched line
+  badsched="$(jq -r "$JQ_SCHEDULE_MINUTES"'
+    .lanes[] | select(.schedule != null and (.schedule | schedule_minutes) == null)
+    | "lane \(.name // "?" | @sh | gsub("\n"; "\\n")): schedule \(.schedule | tojson)"' "$CONFIG")" || {
+    err "lane config validation query failed (lane schedule): $CONFIG"
+    exit 3
+  }
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && warn "$CONFIG: $line is not {\"every_minutes\": <whole number 1-999>}; ignoring it, so the lane has no schedule"
+  done <<<"$badsched"
 }
+
+# jq definition: a schedule's every_minutes as a whole number 1-999 (20.0 reads
+# as 20), else null. It reaches arithmetic and the scheduler entries, so its
+# type and range are settled in jq before bash reads it.
+JQ_SCHEDULE_MINUTES='def schedule_minutes:
+  if type == "object" and (.every_minutes | type) == "number"
+    and .every_minutes == (.every_minutes | floor)
+    and .every_minutes >= 1 and .every_minutes <= 999
+  then .every_minutes | floor else null end;'
 
 # Print <path> as it stands when it is already absolute (POSIX or a Windows
 # drive), else anchored under the base directory <base>. Both the prompt dir and
@@ -1266,12 +1321,13 @@ validate_launch_inputs() {
   fi
 }
 
-launch_lane() {
-  local name="$1" model="$2" effort="$3" prompt_path="$4" settings="${5:-}" cwd="${6:-$REPO}"
-  validate_launch_inputs "$name" "$effort" "$prompt_path" "$settings" || return 1
-
-  # Arm the lane-stop gate BEFORE launching (fail closed — see header). Under
-  # --dry-run nothing is written; the preview line stands in for the arming.
+# Sets LANE_FLAGS to the flags every lane run shares, `--bg` launch and
+# `run-once` pass alike, arming the lane-stop gate first when the settings ask
+# for it (fail closed — see header). Under --dry-run nothing is written; the
+# preview line stands in for the arming.
+LANE_FLAGS=()
+build_lane_flags() {
+  local name="$1" model="$2" effort="$3" settings="${4:-}"
   if [[ -n "$settings" ]] && lane_requests_stop_gate "$settings"; then
     if ((DRY_RUN)); then
       printf 'DRY-RUN: arm lane-stop gate for %s (arm id injected into --settings)\n' "$name"
@@ -1279,19 +1335,26 @@ launch_lane() {
       settings="$(arm_stop_gate "$name" "$settings")" || return 1
     fi
   fi
-
   # Explicit auto: a Manual defaultMode would stall an unattended lane at its
   # first prompt. Never bypassPermissions. --permission-prompts none is added
   # from Claude Code 2.1.259; older CLIs reject it. What it does in a --bg lane
   # is unprobed: see the Record in SKILL.md.
-  local -a cmd=(claude --bg -n "$name" --permission-mode auto)
+  LANE_FLAGS=(--permission-mode auto)
   cli_version
   if version_at_least "$CLI_VERSION_CACHE" "$PERMISSION_PROMPTS_MIN_VERSION"; then
-    cmd+=(--permission-prompts none)
+    LANE_FLAGS+=(--permission-prompts none)
   fi
-  [[ -n "$model" ]] && cmd+=(--model "$model")
-  cmd+=(--effort "$effort")
-  [[ -n "$settings" ]] && cmd+=(--settings "$settings")
+  [[ -n "$model" ]] && LANE_FLAGS+=(--model "$model")
+  LANE_FLAGS+=(--effort "$effort")
+  [[ -n "$settings" ]] && LANE_FLAGS+=(--settings "$settings")
+  return 0
+}
+
+launch_lane() {
+  local name="$1" model="$2" effort="$3" prompt_path="$4" settings="${5:-}" cwd="${6:-$REPO}"
+  validate_launch_inputs "$name" "$effort" "$prompt_path" "$settings" || return 1
+  build_lane_flags "$name" "$model" "$effort" "$settings" || return 1
+  local -a cmd=(claude --bg -n "$name" "${LANE_FLAGS[@]}")
 
   local marker_path
   marker_path="$(launch_commit_marker_path "$name")"
@@ -1655,9 +1718,201 @@ action_status() {
   for_each_lane _status_one
 }
 
+# --- run-once -------------------------------------------------------------------
+RUN_ONCE_LOCK=""
+release_run_once_lock() {
+  [[ -n "$RUN_ONCE_LOCK" ]] || return 0
+  rm -f "$RUN_ONCE_LOCK/pid" 2>/dev/null
+  rmdir "$RUN_ONCE_LOCK" 2>/dev/null
+  RUN_ONCE_LOCK=""
+}
+
+# 0 taken · 1 held by a running owner · 2 the lock store is unusable. mkdir is
+# atomic on every host the launcher runs on, Git Bash included. Two runs that
+# both find the same dead owner at the same instant can both reclaim; the
+# scheduler entries never start a second copy, so that needs a hand-started
+# run at the scheduled second.
+take_run_once_lock() {
+  local lock="$1" pid
+  mkdir -p "$(dirname "$lock")" 2>/dev/null
+  if ! mkdir "$lock" 2>/dev/null; then
+    [[ -d "$lock" ]] || return 2
+    pid="$(tr -d '\r\n' <"$lock/pid" 2>/dev/null)" || pid=""
+    [[ "$pid" =~ ^[0-9]+$ ]] && ! kill -0 "$pid" 2>/dev/null || return 1
+    warn "reclaiming $lock: its owner (pid $pid) is no longer running"
+    rm -f "$lock/pid" 2>/dev/null
+    rmdir "$lock" 2>/dev/null
+    mkdir "$lock" 2>/dev/null || return 1
+  fi
+  RUN_ONCE_LOCK="$lock"
+  trap release_run_once_lock EXIT
+  printf '%s\n' "$$" >"$lock/pid" 2>/dev/null || return 2
+}
+
+_run_once_one() {
+  local name="$1" model="$2" effort="$3" prompt_path="$4" settings="${5:-}" idx="${6:-0}" stage="${7:-}" sid lock cwd="$REPO" rc=0
+  validate_launch_inputs "$name" "$effort" "$prompt_path" "$settings" || return 1
+  sid="$(running_session_id "$name")"
+  if [[ -n "$sid" ]]; then
+    info "  skip $name: running as background session $sid; run-once does not start a second copy"
+    return 0
+  fi
+  lock="$(resolve_data_dir)/$(repo_marker_key)/$name-run-once.lock"
+  if ((DRY_RUN)); then
+    printf 'DRY-RUN: take lock %s\n' "$lock"
+  else
+    take_run_once_lock "$lock" || rc=$?
+    if ((rc == 1)); then
+      info "  skip $name: another run-once holds $lock"
+      return 0
+    fi
+    if ((rc)); then
+      err "lane '$name': the run-once lock cannot be written: $lock"
+      return 1
+    fi
+  fi
+  plan_lane_target "$name" "$stage" || return 1
+  case "$LANE_TARGET" in
+  local-worktree) ;;
+  local-background)
+    if ensure_lane_worktree "$name" "$ET_SHA" 0; then
+      cwd="$LANE_WORKTREE"
+    else
+      err "lane '$name': no usable linked worktree; running from the repository root"
+    fi
+    ;;
+  *)
+    info "  skip $name: execution target $LANE_TARGET runs this stage on that host; run-once runs local hosts only"
+    return 0
+    ;;
+  esac
+  build_lane_flags "$name" "$model" "$effort" "$settings" || return 1
+  local -a cmd=(claude -p "${LANE_FLAGS[@]}")
+  info "  run-once $name${model:+ --model $model} --effort $effort"
+  if ((DRY_RUN)); then
+    [[ "$cwd" == "$REPO" ]] || printf 'DRY-RUN: cd %q\n' "$cwd"
+    printf 'DRY-RUN:'
+    printf ' %q' "${cmd[@]}"
+    printf ' %q\n' "<prompt: $prompt_path ($(wc -c <"$prompt_path" | tr -d ' ')B)>"
+    return 0
+  fi
+  local prompt
+  prompt="$(cat "$prompt_path")"
+  (cd "$cwd" && "${cmd[@]}" "$prompt")
+}
+
+action_run_once() {
+  info "== lanes: run-once$(lane_scope) =="
+  warn_effort_env_override
+  for_each_lane _run_once_one
+}
+
+# --- print-schedule ---------------------------------------------------------------
+# Single-quoted for a POSIX shell line (cron).
+sq() { printf "'%s'" "${1//\'/\'\\\'\'}"; }
+
+# Writes <script> calling run-once for <name>, atomically, executable.
+write_schedule_script() {
+  local name="$1" script="$2" self config data_base tmp
+  self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+  config="$(cd "$(dirname "$CONFIG")" && pwd)/$(basename "$CONFIG")"
+  data_base="$(resolve_data_dir)"
+  data_base="${data_base%/lanes}"
+  if ((DRY_RUN)); then
+    printf 'DRY-RUN: write %s\n' "$script"
+    return 0
+  fi
+  mkdir -p "$(dirname "$script")" 2>/dev/null || {
+    err "lane '$name': cannot create $(dirname "$script")"
+    return 1
+  }
+  tmp="$script.tmp.$$"
+  if {
+    printf '#!/usr/bin/env bash\n'
+    printf '# Written by lane-launcher.sh print-schedule --write-script. Rewrite it the\n'
+    printf '# same way after a harness-ops update moves the launcher; do not edit it.\n'
+    # A scheduler starts with a short PATH (cron's is /usr/bin:/bin), so the
+    # PATH that found claude and jq when the script was written goes with it.
+    printf 'export PATH=%q\n' "$PATH"
+    printf 'exec bash %q run-once %q --repo %q --config %q --data-dir %q\n' \
+      "$self" "$name" "$REPO" "$config" "$data_base"
+  } >"$tmp" 2>/dev/null && chmod +x "$tmp" 2>/dev/null && mv -f "$tmp" "$script" 2>/dev/null; then
+    info "  wrote $script"
+    return 0
+  fi
+  rm -f "$tmp" 2>/dev/null
+  err "lane '$name': cannot write $script"
+  return 1
+}
+
+_schedule_one() {
+  local name="$1" effort="$3" idx="${6:-0}" every script bash_bin win_bash win_script tr cron="" rc=0
+  every="$(jq -r --argjson i "$idx" "$JQ_SCHEDULE_MINUTES"'.lanes[$i].schedule | schedule_minutes // empty' "$CONFIG")"
+  if [[ ! "$every" =~ ^[0-9]+$ ]]; then
+    info "  $name: no schedule; nothing to register"
+    return 0
+  fi
+  if [[ ! "$name" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    err "lane $(printf '%q' "$name"): a scheduled lane's name must be letters, digits, '.', '_' or '-' (it names the script and the task)"
+    return 1
+  fi
+  if [[ -z "$effort" ]]; then
+    err "lane '$name': no effort set; run-once would refuse every scheduled pass; add lanes[].effort"
+    return 1
+  fi
+  script="$REPO/.work/lanes/scheduled/$name.sh"
+  if ((WRITE_SCRIPT)); then
+    write_schedule_script "$name" "$script" || return 1
+  elif [[ ! -f "$script" ]]; then
+    warn "lane '$name': $script does not exist yet; rerun with --write-script"
+  fi
+
+  info ""
+  info "== $name: every $every minutes, running $script =="
+  # Windows-form paths for cmd.exe; cygpath -w is Git Bash's converter.
+  bash_bin="$(command -v bash)"
+  win_bash="$(cygpath -w "$bash_bin" 2>/dev/null)" || win_bash="$bash_bin"
+  win_script="$(cygpath -w "$script" 2>/dev/null)" || win_script="$script"
+  tr="\"$win_bash\" \"$win_script\""
+  if ((${#tr} > SCHTASKS_TR_MAX)); then
+    err "lane '$name': the Windows task command is ${#tr} characters, over schtasks' $SCHTASKS_TR_MAX-character /TR limit; move the checkout to a shorter path"
+    rc=1
+  else
+    info "Windows, from cmd.exe (a new run does not start while one is running):"
+    info "schtasks /Create /TN \"HarnessOps Lane $name\" /SC MINUTE /MO $every /F /RU \"%USERNAME%\" /IT /RL LIMITED /TR \"${tr//\"/\\\"}\""
+    info "schtasks /Delete /TN \"HarnessOps Lane $name\" /F"
+  fi
+  if ((every < 60 && 60 % every == 0)); then
+    cron="*/$every * * * *"
+  elif ((every % 60 == 0 && 24 % (every / 60) == 0)); then
+    cron="0 */$((every / 60)) * * *"
+  fi
+  if [[ -n "$cron" ]]; then
+    info "cron (macOS, Linux; remove the line with crontab -e):"
+    info "$cron $(sq "$script")"
+  else
+    info "cron cannot run every $every minutes; use a systemd --user timer with OnUnitActiveSec=${every}min or a launchd StartInterval of $((every * 60)) running $script"
+  fi
+  return "$rc"
+}
+
+action_print_schedule() {
+  info "== lanes: print-schedule$(lane_scope) =="
+  info "Registering an entry is an operator step; this prints the entries only."
+  for_each_lane _schedule_one
+}
+
 # --- Main ---------------------------------------------------------------------
 main() {
   parse_args "$@"
+  if [[ "$ACTION" == "run-once" ]] && ((${#TARGET_LANES[@]} != 1)); then
+    err "run-once takes exactly one lane name"
+    exit 3
+  fi
+  if ((WRITE_SCRIPT)) && [[ "$ACTION" != "print-schedule" ]]; then
+    err "--write-script applies to print-schedule only"
+    exit 3
+  fi
   require_jq
   require_claude
   resolve_repo
@@ -1669,7 +1924,7 @@ main() {
     err "agents-json file not found: $AGENTS_JSON_FILE"
     exit 4
   }
-  load_sessions || {
+  [[ "$ACTION" == "print-schedule" ]] || load_sessions || {
     if [[ -n "$AGENTS_JSON_FILE" ]]; then
       err "agents-json file is not a JSON array: $AGENTS_JSON_FILE"
     else
@@ -1682,8 +1937,10 @@ main() {
   restart) action_restart ;;
   status) action_status ;;
   stop) action_stop ;;
+  run-once) action_run_once ;;
+  print-schedule) action_print_schedule ;;
   *)
-    err "unknown action: $ACTION (want: start restart status stop)"
+    err "unknown action: $ACTION (want: start restart status stop run-once print-schedule)"
     exit 3
     ;;
   esac

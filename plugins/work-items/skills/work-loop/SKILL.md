@@ -1,6 +1,6 @@
 ---
 description: "Drain the work-item backlog as a self-paced autonomous loop, launched via /loop: each cycle triages raw intake, admits items through the fail-closed work-class gate, runs them through /work-items:work under an adaptive cap, and checks the drain exit. Authors PRs, never merges. Use when: 'work loop', 'run the work loop', 'start the worker loop', 'drain the backlog', 'autonomous drain', 'loop the backlog', 'drain the issue backlog to done'. Escalations: /work-items:attend-queue."
-argument-hint: "[<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first]"
+argument-hint: "[<owner/repo>] [--drain] [--single-pass] [--shard <i>/<n>] [--ordering oldest-first|newest-first]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -11,7 +11,7 @@ metadata:
 
 ## Variables
 
-Arguments: `$ARGUMENTS`. Full form: `[<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first] [--instance <id>] [--scope <label>]`.
+Arguments: `$ARGUMENTS`. Full form: `[<owner/repo>] [--drain] [--single-pass] [--shard <i>/<n>] [--ordering oldest-first|newest-first] [--instance <id>] [--scope <label>]`.
 
 ## Shared tracker context
 
@@ -59,7 +59,7 @@ pressure, backing off toward the ceiling when idle. Pacing semantics, the seven-
 and cycle-budget behavior are owned by the convention (§4); on a budget or expiry hit, write a
 restart-request into the telemetry state block and stop the loop cleanly. A headless launch never
 blocks on an interview (headless-config floor): take explicit or persisted config, else tier
-defaults, and log the assumption.
+defaults, and log the assumption. A scheduled `claude -p` launch passes [`--single-pass`](reference/invocation-argv.md) instead and ends itself.
 
 ## Invocation argument surface
 
@@ -322,10 +322,10 @@ owns the steps. A resume clears `rate_limit_latch`, `paused_until`, and `latched
    escalation, per the detector below; upsert the telemetry comment (cycle report + updated state
    block + guard mode + the `usage_sample` built from step 1's cycle-start reading, whose delta
    covers the preceding interval and never this cycle's work); then evaluate the exit condition; if
-   not exiting, `ScheduleWakeup` the next cycle. **Ground every claim in the cycle report against a
-   tool result from this cycle, and say which work is unverified rather than omitting the
-   distinction.** Nobody watched this cycle, so the report is the only record of it and a
-   fabricated line is indistinguishable from a true one until someone re-does the work.
+   not exiting, `ScheduleWakeup` the next cycle (`--single-pass`: start it now or end the run).
+   **Ground every claim in the cycle report against a tool result from this cycle, and say which work
+   is unverified rather than omitting the distinction.** Nobody watched this cycle, so the report is
+   the only record of it and a fabricated line is indistinguishable from a true one until someone re-does the work.
 
 ## Admission gate (work-class, fail-closed)
 

@@ -101,6 +101,20 @@
         "Output names /work-items:attend-queue as the escalation route and does not claim the launcher files an item",
         "Output does not claim installing the Claude GitHub App would let the triage lane run in the cloud"
       ]
+    },
+    {
+      "id": 9,
+      "name": "scheduled-drain-entry",
+      "prompt": "I want my `drain` lane (stage work-items:work-loop, effort high) to run every 20 minutes on my Windows laptop without a session open. How do I set that up with lanes, and what happens if a run is still going when the next one is due?",
+      "expected_output": "Add \"schedule\": {\"every_minutes\": 20} to the drain lane in lanes.json and have its prompt file call the work loop with --drain --single-pass. Run `print-schedule --write-script drain`: it writes the lane's script (drain.sh in the scheduled folder of the lanes home), which calls `run-once drain`, and prints a schtasks /Create line (every 20 minutes, /TR running bash on that script) plus its /Delete line; registering it from cmd.exe is the operator's step. Each run-once is one `claude -p` pass in auto mode at the lane's effort, adding --permission-prompts none only when the installed CLI is new enough. A run that is due while another holds the lane's run-once lock exits 0 without running, and Task Scheduler does not start a second instance of a running task.",
+      "files": [],
+      "expectations": [
+        "Output adds a schedule object with every_minutes 20 to the lane's config",
+        "Output uses print-schedule with --write-script and says registering the printed schtasks entry is the operator's step",
+        "Output says each scheduled run is a run-once pass using claude -p in auto mode with the lane's effort, not a --bg session",
+        "Output says an overlapping run exits without running because the lane's lock is held",
+        "Output does not claim the launcher registers the task itself"
+      ]
     }
   ]
 }

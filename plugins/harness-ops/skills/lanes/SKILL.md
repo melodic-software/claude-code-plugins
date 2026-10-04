@@ -1,6 +1,6 @@
 ---
-description: "Start, restart, stop, and check loop lanes as named background Claude Code sessions seeded from canonical prompt files, the scripted replacement for the manual morning refresh (cancel loop, clear, re-paste the canonical prompt) across N lanes on a machine. `start`/`restart` first pull the repo and refresh the plugin marketplace, then launch each configured lane with its per-lane model/effort. `consume-restarts` reads each configured lane's telemetry `restart_request` and relaunches the stopped lanes that asked, the scheduled headless reader. Use when: 'launch my lanes', 'restart the loop lanes', 'start the work lanes', 'morning lane refresh', 'stop a lane', 'which lanes are running', 'lane status', 'consume restart requests', 'lane restart consumer', 'relaunch the lanes that asked'. Mutating and operator-initiated; never touches a session whose name is not a configured lane."
-argument-hint: "[start|restart|status|stop|consume-restarts] [lane...]"
+description: "Start, restart, stop, and check loop lanes as named background Claude Code sessions seeded from canonical prompt files, the scripted replacement for the manual morning refresh (cancel loop, clear, re-paste the canonical prompt) across N lanes on a machine. `start`/`restart` first pull the repo and refresh the plugin marketplace, then launch each configured lane with its per-lane model/effort. `consume-restarts` reads each configured lane's telemetry `restart_request` and relaunches the stopped lanes that asked, the scheduled headless reader. `run-once` and `print-schedule` are the scheduled single-pass entry. Use when: 'launch my lanes', 'restart the loop lanes', 'start the work lanes', 'morning lane refresh', 'stop a lane', 'which lanes are running', 'lane status', 'consume restart requests', 'lane restart consumer', 'relaunch the lanes that asked', 'schedule the work-loop drain'. Mutating and operator-initiated; never touches a session whose name is not a configured lane."
+argument-hint: "[start|restart|status|stop|run-once|print-schedule|consume-restarts] [lane...]"
 user-invocable: true
 disable-model-invocation: true
 shell: bash
@@ -10,7 +10,7 @@ metadata:
   cadence: daily
 ---
 
-**Arguments.** `[start|restart|status|stop|consume-restarts] [lane...]`. Full form: [start|restart|status|stop|consume-restarts] [lane...]. Start (default); restart/stop accept lane names; consume-restarts takes [check|run|print-schedule]; --config, --repo, --target-repo, --dry-run, --no-pull, --no-update
+**Arguments.** `[start|restart|status|stop|run-once|print-schedule|consume-restarts] [lane...]`. Full form: [start|restart|status|stop|run-once|print-schedule|consume-restarts] [lane...]. Start (default); restart/stop accept lane names; run-once takes exactly one; print-schedule takes --write-script and lane names; consume-restarts takes [check|run|print-schedule]; --config, --repo, --target-repo, --dry-run, --no-pull, --no-update
 
 ## Repository context. Gather first
 
@@ -127,6 +127,8 @@ Parse `$ARGUMENTS` for the action (first token); remaining tokens are lane names
 | `restart [lane...]` | Yes | Pull + marketplace update, then stop-and-relaunch each target lane (all, or named) on the host its execution target names |
 | `status` | No | Per-lane table: model, effort, running/stopped, and the live sessionId |
 | `stop [lane...]` | Yes | Stop each running target lane (all, or named) via `claude stop <sessionId>` |
+| `run-once <lane>` | Yes | One headless `claude -p` pass of the lane on the local host its execution target names, under a per-lane lock; the entry a scheduler calls |
+| `print-schedule [--write-script] [lane...]` | `--write-script` only | Print Task Scheduler and cron entries for lanes with a `schedule`; `--write-script` writes the per-lane script each entry calls |
 | `consume-restarts [check\|run\|print-schedule]` | `run` only | Read each lane's telemetry `restart_request`; relaunch stopped lanes that asked |
 
 Options: `--config FILE`, `--repo DIR`, `--no-pull`, `--no-update`, `--dry-run`,
@@ -177,7 +179,8 @@ Lanes are defined in a JSON config, resolved first-hit-wins:
 carries a `name`, a `prompt` file path, a required `effort`, and optional `model`/`settings`
 (a session-only `claude --settings` override, e.g. opting the lane into the
 `autonomy` plugin's lane-stop gate), `stage` (the stage skill, for the execution target) and
-`telemetry` (the lane's telemetry binding). The full
+`telemetry` (the lane's telemetry binding), and `schedule` (`every_minutes`, for
+`print-schedule`; "Scheduled runs" in the config contract covers `run-once` and the entries). The full
 schema, resolution rules, and the prompt-storage seam live in
 [context/config.md](context/config.md). Read it before authoring a config.
 
@@ -267,6 +270,8 @@ under a machine's Manual default; `--permission-prompts none` is added when
 `claude --version` is at least 2.1.259, and older CLIs reject it, so it is
 omitted there (see the Record below); `--settings`
 accepts inline JSON and applies session-only, per the CLI reference),
+`claude -p` with the same flags in place of `--bg -n <name>` (`run-once`: one
+print-mode pass that returns when it ends),
 `claude agents --json` (list active sessions: pid, cwd, kind, startedAt,
 sessionId, name, status),
 `claude stop <sessionId>` (stop one session; conversation kept, resumable with

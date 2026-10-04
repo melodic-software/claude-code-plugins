@@ -2,7 +2,7 @@
 
 Grammar (bash-style tokenization of `$ARGUMENTS`):
 
-`[<owner/repo>] [--drain] [--shard <i>/<n>] [--ordering oldest-first|newest-first] [--instance <id>] [--scope <label>]`
+`[<owner/repo>] [--drain] [--single-pass] [--shard <i>/<n>] [--ordering oldest-first|newest-first] [--instance <id>] [--scope <label>]`
 
 **Parse and validate explicit invocation tokens before telemetry lookup or cycle work.** Reject
 unknown flags fail-closed. After tokens are parsed, read the durable state block and bind every key
@@ -29,6 +29,22 @@ message. Never guess a repository. When absent, the bound tracker repository is 
 **`--drain`**. Sets `stop_mode=drain`. At exit evaluation load
 [mode-drain.md](mode-drain.md); when absent, `stop_mode=standing` and load
 [mode-standing.md](mode-standing.md).
+
+**`--single-pass`**. Runs this invocation's cycles back to back in one session, then ends it: no
+`ScheduleWakeup` and no `/loop`. The run ends at the first of these:
+
+- the resolved stop mode's exit condition;
+- the items this run executed reaching `item_cap` as step 1 resolved it on the run's first cycle;
+- a cycle that made no qualifying progress (idle, held, or no-progress, as the no-progress detector
+  in `SKILL.md` defines them), because the next cycle would read the same backlog;
+- a rate-limit pause, which ends the run instead of waiting it out.
+
+Every cycle still upserts telemetry, and the last cycle report says which of these ended the run. A
+single pass has no `/loop` to expire, so it writes no restart-request. The flag binds this invocation
+only and is never persisted in durable state, so a later `/loop` launch runs self-paced. It is the
+entry a scheduled headless run (`claude -p`) uses, for example a lane that
+`/harness-ops:lanes run-once` runs when that skill is among the available skills; pair it with
+`--drain` for a scheduled drain.
 
 **`--shard <i>/<n>`**. Partition retained snapshot ids: keep only items whose issue number
 satisfies `number % n == i`. Validate `0 <= i < n` and `n >= 1`; reject malformed shards

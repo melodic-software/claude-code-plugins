@@ -13,6 +13,11 @@
 #   - missing / empty prompt file and invalid effort are skipped, not launched
 #   - a lane with no effort is refused while its siblings launch
 #   - CLAUDE_CODE_EFFORT_LEVEL in the environment warns once per run
+#   - run-once: one `claude -p` pass in auto mode, the version-gated
+#     --permission-prompts, the effort refusal, the per-lane mkdir lock, the
+#     running-lane skip and the execution-target host
+#   - print-schedule: entries only for scheduled lanes, the generated script,
+#     the schedule range check and the 262-character Windows /TR limit
 #
 # Uses a per-suite fixture repo (config + prompt files) and PATH-stub `claude`
 # and `git` so no real CLI or network is touched.
@@ -1573,6 +1578,229 @@ out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
 rc=$?
 assert_eq "a malformed stage exits 3" 3 "$rc"
 et_lanes work-items:work-loop
+
+# ============================================================================
+# run-once: one headless `claude -p` pass of a lane, for a scheduler
+# ============================================================================
+# Same fixture repository (its path holds a literal `$(...)`), real git, the
+# logging claude stub. No policy file, so the lane runs local-worktree.
+et_publish ''
+RO_LOCK="$ET_DATA/lanes/$ET_KEY/work-run-once.lock"
+claude_runs() { grep -c -- '^-p ' "$CLAUDE_LOG"; }
+
+out="$(et_run run-once --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_eq "run-once with no lane exits 3" 3 "$rc"
+assert_contains "run-once with no lane says it takes one" "$out" "run-once takes exactly one lane name"
+out="$(et_run run-once work work --data-dir "$ET_DATA" 2>&1)"
+assert_eq "run-once with two lanes exits 3" 3 "$?"
+
+: >"$CLAUDE_LOG"
+out="$(STUB_CLAUDE_VERSION=2.1.259 et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_eq "run-once exits 0" 0 "$rc"
+assert_contains "run-once runs one print-mode pass in auto mode with the lane's effort and prompt" "$(cat "$CLAUDE_LOG")" "-p --permission-mode auto --permission-prompts none --effort high You are the work lane."
+assert_not_contains "run-once starts no background session" "$(cat "$CLAUDE_LOG")" "--bg"
+assert_eq "run-once releases its lock" "absent" "$([[ -e "$RO_LOCK" ]] && echo present || echo absent)"
+
+: >"$CLAUDE_LOG"
+out="$(STUB_CLAUDE_VERSION=2.1.258 et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_contains "below 2.1.259 run-once still runs in auto mode" "$(cat "$CLAUDE_LOG")" "-p --permission-mode auto --effort high"
+assert_not_contains "below 2.1.259 run-once omits --permission-prompts" "$(cat "$CLAUDE_LOG")" "--permission-prompts"
+
+# A model, when set, is passed the same way start passes it.
+et_lanes work-items:work-loop '{"model":"opus"}'
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_contains "run-once passes the lane's model" "$(cat "$CLAUDE_LOG")" "--model opus --effort high"
+
+# No effort: refused, nothing runs.
+jq -n '{lanes: [{name: "work", prompt: "work.md", stage: "work-items:work-loop"}]}' >"$ET_REPO/.work/lanes/lanes.json"
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_eq "run-once of a lane with no effort exits 1" 1 "$rc"
+assert_contains "the refusal names lanes[].effort" "$out" "add lanes[].effort"
+assert_eq "a lane with no effort runs no pass" 0 "$(claude_runs)"
+et_lanes work-items:work-loop
+
+# A held lock: a second run exits 0 quietly, runs nothing and leaves the lock.
+mkdir -p "$RO_LOCK"
+printf '%s\n' "$$" >"$RO_LOCK/pid"
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_eq "run-once with the lock held exits 0" 0 "$rc"
+assert_contains "run-once with the lock held says so" "$out" "another run-once holds"
+assert_eq "run-once with the lock held runs no pass" 0 "$(claude_runs)"
+assert_eq "the loser leaves the holder's lock in place" "$$" "$(cat "$RO_LOCK/pid" 2>/dev/null)"
+
+# A lock whose recorded owner has exited is reclaimed.
+bash -c 'exit 0' &
+dead_pid=$!
+wait "$dead_pid"
+printf '%s\n' "$dead_pid" >"$RO_LOCK/pid"
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_eq "run-once reclaims a lock whose owner exited" 0 "$rc"
+assert_eq "the reclaiming run runs its pass" 1 "$(claude_runs)"
+assert_eq "the reclaiming run releases the lock" "absent" "$([[ -e "$RO_LOCK" ]] && echo present || echo absent)"
+
+# A lane already running as a background session is not run a second time.
+AGENTS_WORK_BG="$TMP/agents-work-bg.json"
+printf '%s\n' '[{"pid":1,"cwd":"/r","kind":"background","startedAt":1,"sessionId":"sid-bg","name":"work","status":"idle"}]' >"$AGENTS_WORK_BG"
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" --agents-json "$AGENTS_WORK_BG" 2>&1)"
+rc=$?
+assert_eq "run-once of a running lane exits 0" 0 "$rc"
+assert_contains "run-once of a running lane names the session" "$out" "sid-bg"
+assert_eq "run-once of a running lane runs no pass" 0 "$(claude_runs)"
+
+# The execution target decides the host: local-background runs from the lane's
+# linked worktree; a cloud host runs nothing here.
+et_publish 'default: local-background'
+out="$(et_run run-once work --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_contains "run-once reads the execution target" "$out" "execution target local-background (default)"
+assert_contains "run-once on local-background runs from the linked worktree" "$out" "DRY-RUN: cd $(printf '%q' "$ET_WT")"
+assert_contains "the dry run previews the print-mode pass" "$out" "DRY-RUN: claude -p --permission-mode auto"
+et_publish 'default: cloud-routine'
+: >"$CLAUDE_LOG"
+out="$(et_run run-once work --data-dir "$ET_DATA" 2>&1)"
+assert_eq "run-once runs no local pass for a cloud host" 0 "$(claude_runs)"
+et_publish ''
+
+# ============================================================================
+# print-schedule: OS scheduler entries that call a generated per-lane script
+# ============================================================================
+et_lanes work-items:work-loop '{"schedule":{"every_minutes":15}}'
+SCHED_SCRIPT="$ET_REPO/.work/lanes/scheduled/work.sh"
+: >"$CLAUDE_LOG"
+out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_eq "print-schedule exits 0" 0 "$rc"
+assert_contains "print-schedule emits a schtasks entry on the lane's interval" "$out" 'schtasks /Create /TN "HarnessOps Lane work" /SC MINUTE /MO 15 '
+assert_contains "print-schedule emits the cron form" "$out" "*/15 * * * * "
+assert_contains "print-schedule emits the removal" "$out" 'schtasks /Delete /TN "HarnessOps Lane work" /F'
+assert_eq "print-schedule without --write-script writes no script" "absent" "$([[ -e "$SCHED_SCRIPT" ]] && echo present || echo absent)"
+assert_eq "print-schedule calls no claude" "" "$(cat "$CLAUDE_LOG")"
+
+out="$(et_run print-schedule --write-script --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_eq "print-schedule --write-script exits 0" 0 "$rc"
+assert_eq "the generated script is executable" "yes" "$([[ -x "$SCHED_SCRIPT" ]] && echo yes || echo no)"
+bash -n "$SCHED_SCRIPT" 2>/dev/null
+assert_eq "the generated script parses" 0 "$?"
+assert_contains "the generated script calls run-once for the lane" "$(cat "$SCHED_SCRIPT")" "run-once work"
+# Running it does one pass, and the `$(...)` in the repository path stays text.
+: >"$CLAUDE_LOG"
+PATH="$ET_PATH" BASH_COMPAT=51 bash "$SCHED_SCRIPT" >/dev/null 2>&1
+rc=$?
+assert_eq "the generated script exits 0" 0 "$rc"
+assert_eq "the generated script runs one pass" 1 "$(claude_runs)"
+
+# Only lanes with a schedule object get entries.
+et_lanes work-items:work-loop
+out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
+assert_not_contains "a lane with no schedule gets no schtasks entry" "$out" "schtasks /Create"
+assert_contains "a lane with no schedule is named as skipped" "$out" "work: no schedule"
+
+# Cron cannot say every 7 minutes; every 120 is every second hour.
+et_lanes work-items:work-loop '{"schedule":{"every_minutes":120}}'
+out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
+assert_contains "120 minutes is the cron form every second hour" "$out" "0 */2 * * * "
+et_lanes work-items:work-loop '{"schedule":{"every_minutes":7}}'
+out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
+assert_not_contains "7 minutes has no cron line" "$out" "*/7 "
+assert_contains "7 minutes points at a systemd timer instead" "$out" "OnUnitActiveSec=7min"
+
+# every_minutes is a whole number from 1 to 999. Any other value is warned
+# about (file, lane, key, value) and dropped: the lane runs unscheduled.
+ET_CONFIG="$ET_REPO/.work/lanes/lanes.json"
+for bad in '{"every_minutes":0}' '{"every_minutes":1000}' '{"every_minutes":"15"}' '{"every_minutes":1.5}' '{}' '5'; do
+  et_lanes work-items:work-loop "{\"schedule\":$bad}"
+  out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
+  assert_eq "schedule $bad exits 0" 0 "$?"
+  assert_contains "schedule $bad is warned about with the file, lane, key and value" "$out" \
+    "WARNING: $ET_CONFIG: lane 'work': schedule $bad is not"
+  assert_not_contains "schedule $bad gets no schtasks entry" "$out" "schtasks /Create"
+  assert_not_contains "schedule $bad gets no cron line" "$out" "* * * "
+  assert_contains "schedule $bad leaves the lane unscheduled" "$out" "work: no schedule"
+done
+# A bad schedule on one lane leaves the other lanes' entries and other actions alone.
+jq -n '{lanes: [{name: "work", prompt: "work.md", effort: "high", schedule: {every_minutes: 0}},
+  {name: "other", prompt: "work.md", effort: "high", schedule: {every_minutes: 15}}]}' >"$ET_CONFIG"
+out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
+assert_eq "a bad schedule beside a good one exits 0" 0 "$?"
+assert_not_contains "the bad lane gets no schtasks entry" "$out" 'HarnessOps Lane work"'
+assert_contains "the good lane keeps its schtasks entry" "$out" 'schtasks /Create /TN "HarnessOps Lane other" /SC MINUTE /MO 15 '
+et_lanes work-items:work-loop '{"schedule":{"every_minutes":0}}'
+out="$(et_run run-once work --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_eq "run-once proceeds past a bad schedule" 0 "$?"
+assert_contains "run-once previews its pass despite a bad schedule" "$out" "DRY-RUN: claude -p"
+
+# An integral number written with a fraction (20.0) is the whole number 20.
+et_lanes work-items:work-loop '{"schedule":{"every_minutes":20.0}}'
+out="$(et_run print-schedule --data-dir "$ET_DATA" 2>&1)"
+assert_eq "every_minutes 20.0 exits 0" 0 "$?"
+assert_contains "every_minutes 20.0 registers every 20 minutes" "$out" 'schtasks /Create /TN "HarnessOps Lane work" /SC MINUTE /MO 20 '
+assert_contains "every_minutes 20.0 gets the 20-minute cron form" "$out" "*/20 * * * * "
+
+# A scheduled lane's name becomes a file name and a task name, so it is held
+# to letters, digits, '.', '_' and '-'.
+jq -n '{lanes: [{name: "w$(touch PWNED_SCHED)", prompt: "work.md", effort: "high", schedule: {every_minutes: 15}}]}' >"$ET_REPO/.work/lanes/lanes.json"
+out="$(et_run print-schedule --write-script --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_eq "a scheduled lane with an unsafe name exits 1" 1 "$rc"
+assert_contains "the refusal names the allowed characters" "$out" "letters, digits"
+assert_eq "no script is written for an unsafe name" "" "$(find "$ET_REPO/.work/lanes/scheduled" -name 'w*PWNED*' -print 2>/dev/null)"
+et_lanes work-items:work-loop
+
+out="$(et_run start --write-script --data-dir "$ET_DATA" --dry-run 2>&1)"
+assert_eq "--write-script outside print-schedule exits 3" 3 "$?"
+
+# The Windows /TR payload stays within schtasks' 262-character limit with a
+# 120-character repository path. A cygpath stub stands in for Git Bash's.
+WIN_BIN="$TMP/win-bin"
+mkdir -p "$WIN_BIN"
+cat >"$WIN_BIN/cygpath" <<'STUB'
+#!/usr/bin/env bash
+p="$2"
+case "$p" in
+*/bash) printf '%s\n' 'C:\Program Files\Git\usr\bin\bash.exe' ;;
+*) printf 'C:%s\n' "${p//\//\\}" ;;
+esac
+STUB
+chmod +x "$WIN_BIN/cygpath"
+tr_payload() { # the /TR value of the first schtasks /Create line, unescaped
+  printf '%s\n' "$1" | grep -m1 '^schtasks /Create' | sed -e 's/.* \/TR "//' -e 's/"$//' -e 's/\\"/"/g'
+}
+long_repo() { # <length of the Windows form> -> a directory whose C:-prefixed path has that length
+  local base="$TMP/lr" pad
+  pad=$(($1 - 2 - ${#base} - 1))
+  printf '%s/%s' "$base" "$(printf '%*s' "$pad" '' | tr ' ' 'r')"
+}
+LR="$(long_repo 120)"
+mkdir -p "$LR/.work/lanes"
+printf 'You are the work lane.\n' >"$LR/.work/lanes/work.md"
+jq -n '{lanes: [{name: "work", prompt: "work.md", effort: "high", schedule: {every_minutes: 15}}]}' >"$LR/.work/lanes/lanes.json"
+out="$(PATH="$WIN_BIN:$ET_PATH" bash "$SCRIPT" print-schedule --repo "$LR" --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_eq "print-schedule with a 120-character repository path exits 0" 0 "$rc"
+payload="$(tr_payload "$out")"
+assert_eq "the /TR payload calls bash on the generated script" "\"C:\\Program Files\\Git\\usr\\bin\\bash.exe\" \"C:${LR//\//\\}\\.work\\lanes\\scheduled\\work.sh\"" "$payload"
+within_limit=no
+((${#payload} <= 262)) && within_limit=yes
+assert_eq "the /TR payload is at most 262 characters" "yes" "$within_limit"
+
+LR2="$(long_repo 240)"
+mkdir -p "$LR2/.work/lanes"
+cp "$LR/.work/lanes/lanes.json" "$LR/.work/lanes/work.md" "$LR2/.work/lanes/"
+out="$(PATH="$WIN_BIN:$ET_PATH" bash "$SCRIPT" print-schedule --repo "$LR2" --data-dir "$ET_DATA" 2>&1)"
+rc=$?
+assert_eq "a /TR payload over 262 characters exits 1" 1 "$rc"
+assert_contains "the refusal names the limit" "$out" "262"
+assert_not_contains "no schtasks entry is printed over the limit" "$out" "schtasks /Create"
 
 pwned="$(find "$TMP" "$PWD" -maxdepth 3 -name 'PWNED*' -print 2>/dev/null | head -n 1)"
 assert_eq "no fixture string was evaluated by the shell" "" "$pwned"

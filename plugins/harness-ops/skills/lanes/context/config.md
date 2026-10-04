@@ -66,6 +66,7 @@ handing the fixing to workers, so it sits one level below the verdict lanes. A p
 | `lanes[].effort` | yes | Passed as `claude --effort`. Required on every lane, chosen from the "Choose an effort level" table above: `start` and `restart` refuse a lane with no effort (or a `null` one) with an error naming the lane, this key and that table, and still launch the other lanes; `restart` refuses before stopping, so the running session stays up. When `CLAUDE_CODE_EFFORT_LEVEL` is set in the launcher's environment, which every lane inherits, the launcher prints one warning per run that the configured levels may not hold. Pointer: for how that variable ranks against `--effort` and effort pins, see its row under [Variables](https://code.claude.com/docs/en/env-vars#variables). As of: 2026-10-02. Recheck trigger: that row's precedence changes. One of `low`, `medium`, `high`, `xhigh`, `max`, `ultracode` (validated; a bad value skips the lane). `ultracode` [requires Claude Code v2.1.203 or later](https://code.claude.com/docs/en/model-config#adjust-effort-level); below that floor the CLI rejects the value outright (`Unknown --effort value 'ultracode'`) and starts the session at the default effort, so the launcher checks the installed `claude --version` and skips the lane rather than launching it at an unintended effort. `restart` makes that check before stopping, so a refused lane keeps running. For what `ultracode` does to the effort level and when a model cannot run it, see the same section. As of 2026-10-02; recheck when the effort level set or the ultracode version floor changes. |
 | `lanes[].settings` | no | A JSON **object** passed inline as `claude --settings`, a session-only override that never persists. The motivating use is opting a lane into the `autonomy` plugin's lane-stop gate via a `pluginConfigs` override (example above; the plugin id is marketplace-qualified, `<plugin>@<marketplace>`, for however the plugin was installed). A non-object value skips the lane with an error. A gate request (`lane_stop_gate_enabled: true` under an `autonomy` key) additionally triggers launch-time ARMING: the launcher runs autonomy's `hooks/lane-stop-gate-arm.sh` and injects a random `lane_stop_gate_arm_id` into the launched settings, the trusted per-session channel the gate actually honors (it ignores the bare env mirror a repo `env` block could forge). A gate-requesting lane that cannot be armed (autonomy missing/pre-0.12.0, arming error, managed-settings veto) is skipped with an error rather than launched silently ungated. |
 | `lanes[].stage` | no | The stage skill the lane runs, as `<plugin>:<skill>` (for example `work-items:work-loop`). Selects the lane's `skill.<plugin>.<skill>` key in the execution target below. Lowercase letters, digits and `-` on each side of one `:`; any other value exits `3` at preflight. Without it, a lane resolves only `default`. |
+| `lanes[].schedule` | no | `{"every_minutes": N}`, N a whole number from 1 to 999. Absent by default. Only a lane with one gets `print-schedule` entries; see "Scheduled runs" below. `20.0` reads as `20`. Any other value prints a warning naming the config file, the lane, `schedule` and the value, and that lane is treated as having no schedule; other lanes and actions proceed. |
 | `lanes[].telemetry` | no | The lane's telemetry binding (`issue`, `repo`, `marker`), the same object the restart consumer reads (`context/restart-consumer.md`), plus an optional `author`, a GitHub user login whose comments count besides the `gh`-authenticated login's. The lanes file is lane-writable, so `author` must name a person the operator vouches for. Any login ending in `[bot]` is refused: an app's bot account writes for every workflow or installation holding its token, so it names no single writer. A `cloud-session` lane reads its probe fallback from it and needs a numeric `issue`; its `repo`, when set, must be origin's own `owner/repo`. |
 
 Lane names are free-form (`work`, `work-2`, `babysit`, `decide`, …); nothing is
@@ -131,6 +132,43 @@ marketplace repository; this section covers only what the launcher does.
 - **`--telemetry-json FILE`.** A test aid: it replaces the GitHub comment read with a local file of
   the same shape, and the launcher prints a warning on stderr whenever it reads one. Do not use it
   for a real launch.
+
+## Scheduled runs
+
+`run-once <lane>` runs one headless pass of a lane and returns: `claude -p --permission-mode auto
+[--permission-prompts none] [--model M] --effort E [--settings JSON] "<prompt>"`, with the same
+effort refusal, version gate and lane-stop gate arming as `start`. It does not pull or update the
+marketplace. It places the pass by the lane's execution target: `local-worktree` from the
+repository root, `local-background` from the lane's linked worktree, and nothing for a cloud host,
+whose own trigger runs the stage there. A lane already running as a background session is skipped.
+A per-lane `mkdir` lock at `<data-dir>/lanes/<repo-key>/<lane>-run-once.lock` keeps two passes of
+one lane apart on one host: a run that finds the lock held exits `0` having run nothing, and a lock
+whose recorded owner pid has exited is reclaimed.
+
+For a drain lane, the prompt file names the stage with its single-pass flag, for example
+`/work-items:work-loop --drain --single-pass` when that skill is among the available skills.
+
+`print-schedule [--write-script] [lane...]` prints, for each lane with a `schedule`, a Task
+Scheduler entry and its removal, and a cron line when cron can express the interval (otherwise a
+systemd timer or launchd interval to use). Every entry calls
+`<repo>/.work/lanes/scheduled/<lane>.sh`, which `--write-script` writes and which calls `run-once`
+through this launcher's absolute path, with the config, data directory and `PATH` in effect when it
+was written. Rewrite the script after a harness-ops update moves the launcher. Calling a short
+script keeps the Windows `/TR` payload to `"<bash>" "<script>"`; a lane whose payload would pass
+schtasks' 262-character limit is refused, so move the checkout to a shorter path. A scheduled
+lane's name must be letters, digits, `.`, `_` or `-`, because it names the script and the task.
+Registering an entry is the operator's step. Run the `schtasks` lines from cmd.exe, as
+[restart-consumer.md](restart-consumer.md) explains for its own entries.
+
+A Task Scheduler task created without an XML definition starts no new run while one is running;
+the lock covers cron and the other schedulers.
+
+- **Pointer**: the `IgnoreNew` row of
+  [MultipleInstancesPolicy](https://learn.microsoft.com/en-us/windows/win32/taskschd/taskschedulerschema-multipleinstancespolicy-settingstype-element)
+  and the `/tr` row of
+  [schtasks create](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/schtasks-create).
+- **As of**: 2026-10-04
+- **Recheck trigger**: either row changes its default or its limit.
 
 ## Where prompt files are read from
 
