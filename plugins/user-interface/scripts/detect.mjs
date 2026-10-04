@@ -65,18 +65,19 @@ function claude(args) {
   const win = process.platform === "win32";
   const env = win ? { ...process.env, NoDefaultCurrentDirectoryInExePath: "1" } : process.env;
   const r = spawnSync("claude", args, { cwd: opts.project, encoding: "utf8", shell: win, env, timeout: 60_000 });
-  if (r.error || r.status !== 0) return new Error(`claude ${args.join(" ")} failed: ${r.error?.code ?? r.stderr?.trim() ?? r.status}`);
+  if (r.error || r.status !== 0) return new Error(`claude ${args.join(" ")} failed: ${r.error?.code || r.stderr?.trim() || `exit ${r.status}`}`);
   return r.stdout;
 }
 const fromFileOr = (file, args) => (file ? readFileSync(file, "utf8") : claude(args));
 
-/** Plugin ids in effect here: user scope enabled, or a project or local record enabled for this project.
- * A fresh local install reads `enabled: true, projectEnabled: false` with this project as `projectPath`. */
+/** Plugin ids in effect here: a project or local record enabled for this project, or any other scope
+ * (user, managed) enabled. A fresh local install reads `enabled: true, projectEnabled: false` with this
+ * project as `projectPath`; the CLI may emit `projectPath: null`. */
 function enabledPlugins(text) {
   const here = resolve(opts.project);
-  const forHere = (r) => r.projectEnabled || (r.enabled && r.projectPath !== undefined && resolve(r.projectPath) === here);
+  const forHere = (r) => r.projectEnabled || (r.enabled && r.projectPath != null && resolve(r.projectPath) === here);
   const records = JSON.parse(text);
-  return new Set(records.filter((r) => (r.scope === "user" ? r.enabled : forHere(r))).map((r) => r.id));
+  return new Set(records.filter((r) => (["project", "local"].includes(r.scope) ? forHere(r) : r.enabled)).map((r) => r.id));
 }
 
 /** Server name to connected (true or false) from `claude mcp list` lines shaped `name: target - status`. */

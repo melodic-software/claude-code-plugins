@@ -67,6 +67,19 @@ describe("installed tools", () => {
     assert.ok(!out.includes("canva@claude-plugins-official"), "a local record for another project");
   });
 
+  test("a record with no project path neither throws nor binds to a project", () => {
+    // The live CLI emits projectPath: null; a scope other than project or local applies everywhere.
+    const list = join(scratch, "null-path.json");
+    writeFileSync(list, JSON.stringify([
+      { id: "playwright@claude-plugins-official", scope: "local", enabled: true, projectEnabled: false, projectPath: null },
+      { id: "frontend-design@claude-plugins-official", scope: "managed", enabled: true, projectEnabled: false, projectPath: null },
+    ]));
+    const out = detect(["--project", join(FIX, "with-ds"), "--home", HOME, "--plugin-list-json", list, "--mcp-list", MCP]).installed;
+    assert.ok(Array.isArray(out), "installed must not collapse to null");
+    assert.ok(!out.includes("playwright@claude-plugins-official"), "a local record with no project is not this project's");
+    assert.ok(out.includes("frontend-design@claude-plugins-official"), "an enabled managed record counts");
+  });
+
   test("an installed but disabled plugin does not count, nor does an absent one", () => {
     assert.ok(!installed.includes("canva@claude-plugins-official"));
     assert.ok(!installed.includes("superdesign@claude-plugins-official"));
@@ -138,6 +151,15 @@ test("the claude CLI runs in the requested project, not the caller's directory",
   );
   const out = detect(["--project", join(FIX, "with-ds"), "--home", HOME], { PATH: `${bin}:${process.env.PATH}` });
   assert.ok(out.installed.includes("frontend-design@claude-plugins-official"), JSON.stringify(out));
+});
+
+test("a CLI failure with no stderr still names the exit status", { skip: process.platform === "win32" && "the fake CLI is a sh script" }, () => {
+  const bin = join(scratch, "failing-bin");
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(join(bin, "claude"), "#!/bin/sh\nexit 3\n", { mode: 0o755 });
+  const out = detect(["--project", join(FIX, "no-ds"), "--home", HOME], { PATH: `${bin}:${process.env.PATH}` });
+  assert.equal(out.installed, null);
+  assert.match(out.reason, /exit 3/);
 });
 
 test("a malformed plugin list is reported, not thrown", () => {
