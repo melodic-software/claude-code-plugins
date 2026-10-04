@@ -31,7 +31,7 @@ of its cited page no longer matching the bullet re-derives it here):
   skill can reach it mid-session, subagent preload is blocked, and (v2.1.196+) scheduled-task
   prompts cannot name it. Only the human `/name` path remains. Hiding a skill from the model is
   therefore a *total* trade, not a listing-budget optimization.
-- **Surface coverage:** Claude desktop/web surfaces drop user-invoked skills from the listing
+- **Surface coverage:** the Claude desktop and web apps leave user-invoked skills out of their skill list
   (upstream issue mattpocock/skills#693), so a user-invoked default would make skills invisible on
   those surfaces.
 - **Cloud scope:** remote sessions never load `~/.claude` user scope; project/marketplace skills

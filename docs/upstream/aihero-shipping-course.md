@@ -81,27 +81,27 @@ pointer.
 
 | Id | Candidate | Upstream source | Lane |
 |---|---|---|---|
-| C1 | No-interview pure-synthesis spec mode — "Do NOT interview the user; just synthesize what you already know" | `to-spec:7` | A |
+| C1 | No-interview spec mode: the spec is written from what the session already holds, with no questions asked | `to-spec:7` | A |
 | C2 | Sketch the test seams before writing the spec, prefer existing seams, confirm them with the user ("the ideal number is one" excluded) | `to-spec:15-17` | A → C |
 | C3 | Spec template sections, notably **Testing Decisions** as a first-class section with prior-art test pointers, and implementation content framed as decisions-made | `to-spec:21-75` | A |
 | C4 | The spec is published to the tracker, born ready-for-agent (upstream has no approval gate on the publish — that part excluded) | `to-spec:19` | A |
 | C5 | Prefactor look-ahead at decomposition time; prefactor slices become blockers of what they unblock | `to-tickets:23,34` | B |
-| C6 | Each slice sized to fit a single fresh context window | `to-tickets:33` | B |
+| C6 | Each slice small enough for one new session to finish | `to-tickets:33` | B |
 | C7 | Integration-branch fallback for wide refactors — green is promised only at the final integrate-and-verify item | `to-tickets:40` | B |
 | C8 | "Work the frontier" phrasing for the report step | `to-tickets:65` | B |
-| C9 | Pre-agreed-seam gate — "No test is written at an unconfirmed seam," plus the canned "what's the public interface, and which seams should we test?" question | `tdd:22-24` | C |
-| C10 | Tautological-test anti-pattern — an assertion that recomputes the expected value the way the code does passes by construction; expected values must come from an independent source of truth | `tdd:31`, `tests.md:63-77` | C |
-| C11 | SDK-style mockable boundary interfaces — per-operation functions over one generic fetcher, so each mock returns one shape with no conditional logic in test setup | `mocking.md:37-59` | C |
+| C9 | Pre-agreed-seam gate: tests wait until the user has confirmed where they attach, plus a stock question asking which interface and seams to test | `tdd:22-24` | C |
+| C10 | Tautological-test anti-pattern: an expected value derived with the code's own method always matches, so expected values need a source outside the code | `tdd:31`, `tests.md:63-77` | C |
+| C11 | SDK-style mockable boundary interfaces: one function per remote operation instead of a single generic request function, so every mock has a fixed return and test setup needs no branching | `mocking.md:37-59` | C |
 | C12 | Spec axis as a first-class review lens — missing/partial requirements, unrequested behavior, implemented-but-wrong, each finding quoting its spec line | `code-review:6-11,66-72` | D |
 | C13 | Never-merge-never-rerank two-axis doctrine — present axes separately, no single winner across axes | `code-review:74-87` | D |
 | C14 | Spec-source discovery ladder — issue refs in commits → user-passed path → spec file matching the branch → ask → skip with a note | `code-review:27-32` | D |
-| C15 | Fail-fast preflight before spawning reviewers — a bad ref or empty diff fails there, not inside two parallel sub-agents | `code-review:23` | D |
-| C16 | Baseline-suppression rules — a documented repo standard overrides the conflicting baseline smell; skip anything tooling already enforces | `code-review:38-41` | D |
-| C17 | PR-variant agent brief — "current behavior" describes the state of the diff, and the brief says what is left to do to existing code | `AGENT-BRIEF.md:148-183` | B |
+| C15 | Fail-fast preflight before reviewers start: an invalid base or a change set with nothing in it stops the run before any reviewer is spawned | `code-review:23` | D |
+| C16 | Baseline-suppression rules: where a written project rule conflicts with a default smell, the project rule wins, and nothing a linter or formatter already checks is reported | `code-review:38-41` | D |
+| C17 | PR-variant agent brief: the current-state field reports what the attached change already does, and the brief lists the work remaining on that change | `AGENT-BRIEF.md:148-183` | B |
 | C18 | "Refer by name" narration — human-facing text names tickets by title, never bare ids | `wayfinder:15-17` | W |
 | C19 | Out-of-scope map section semantics — scope not sharpness lands it there; out-of-scope fog never graduates; a wrongly scoped existing ticket is closed with one linking line | `wayfinder:95-101` | W |
-| C20 | Map-as-index doctrine — a decision lives in exactly one place, its ticket; the map gists and links, never restates | `wayfinder:23` | W |
-| C21 | One-skill-per-call phrasing — a step needing two skills is two calls, not one call naming two | `.agents/invocation.md` (post-#878) | X |
+| C20 | Map-as-index doctrine: each decision is recorded only on its own ticket, and the map gives a one-line gist and a link | `wayfinder:23` | W |
+| C21 | One-skill-per-call phrasing: a step that uses two skills makes a separate call for each | `.agents/invocation.md` (post-#878) | X |
 | C22 | User-invoked-target lint plus human-relay phrasing — never Skill-tool-invoke a user-invocable-only target; say "tell the user to run /X" | skills-repo PR #880 | X |
 | C23 | Domain-modeling trigger phrasing keyed on concrete artifacts | `domain-modeling/SKILL.md:3` (PR #848) | X |
 
@@ -166,7 +166,7 @@ given, and one disposal venue does not exist.
   binary acceptance criteria against a final diff and is told to *"Refuse to guess"* its inputs,
   while "boundaries stated *before* the first test" is a temporal-ordering claim no final-diff
   grader can observe — wiring it there manufactures INCONCLUSIVE-and-escalate loops. Upstream's
-  hard consent gate ("no test is written at an unconfirmed seam") is therefore **softened
+  hard consent gate (tests wait for a confirmed seam) is therefore **softened
   deliberately**: an unattended run cannot obtain confirmation, so a boundary implementation picks
   that the plan never named becomes a `DEVIATIONS.md` entry reviewed at PR time — this repo's
   existing unattended-assumption mechanism — rather than a blocking stop. The "ideal number of
@@ -190,8 +190,8 @@ given, and one disposal venue does not exist.
   routing doc — it resolves the project's standards index and carries no criteria of its own,
   which is where its own "Baseline when the ladder yields nothing" step already points.
 - **C11 ALREADY-PRESENT + one-clause edit** — `test-doubles.md` has carried
-  `## SDK-Style Interfaces Over Generic Fetchers` (the GOOD/BAD pair and "each mock returns one
-  specific shape, no conditional logic in test setup") since `85aa8066`, predating the audit that
+  the SDK-style rule, now headed `## One Function per Remote Operation` (the GOOD/BAD pair and the rule that each mock
+  has a fixed return with no branching in test setup) since `85aa8066`, predating the audit that
   proposed it; adding it would have produced a duplicate section. Landed instead: the missing
   **subordination** clause — the shape rule never widens what gets mocked, and "mock only
   unmanaged dependencies" still decides whether a boundary is mocked at all.

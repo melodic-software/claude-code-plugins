@@ -153,8 +153,8 @@ being that, which no later full-path handoff can reconstruct.
 
 ## The purpose argument tailors emphasis only
 
-A citing skill may hand the engine optional trailing purpose text, the invocation's answer to
-"what will the next session be used for?" (the producer's `[file|prompt] [topic] [purpose...]`
+A citing skill may hand the engine optional trailing purpose text, the invocation's statement of
+the next session's intended work (the producer's `[file|prompt] [topic] [purpose...]`
 surface, parsed from `$ARGUMENTS`). When present, purpose tailors **emphasis only**, in exactly
 three places:
 

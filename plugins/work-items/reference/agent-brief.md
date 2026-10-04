@@ -1,38 +1,36 @@
 # Agent-Brief Template
 
-Template for items carrying the autonomous-eligible role label (default `agent-ready`). An agent brief is the authoritative specification an AFK agent works from. The original issue body and discussion are context. The agent brief is the contract.
+Template for items carrying the autonomous-eligible role label (default `agent-ready`). The brief is what an AFK agent builds against: where it and the issue body or comment thread disagree, the brief wins, and the rest is background reading.
 
 ## Principles
 
 ### Durability over precision
 
-Issues may sit in `agent-ready` for days or weeks. The codebase changes in the meantime. Write the brief so it stays useful even as files are renamed, moved, or refactored.
+A labeled item can wait a long time before an agent picks it up, and the code keeps moving while it waits. Write a brief that a rename, a file move, or a refactor does not invalidate.
 
-- **Do** describe interfaces, types, and behavioral contracts
-- **Do** name specific types, function signatures, or config shapes
-- **Don't** reference file paths, which go stale
-- **Don't** reference line numbers
-- **Don't** assume current implementation structure remains the same
+- Name what the agent should change by its contract: the type, the function signature, the config key, the observable behavior.
+- Leave out file paths and line numbers; both drift.
+- Do not lean on how the code happens to be arranged today.
 
-### Behavioral, not procedural
+### Outcomes, not steps
 
-Describe **what** the system should do, not **how** to implement it. The agent explores the codebase fresh and makes its own implementation decisions.
+State the result the change must produce and let the agent work out the edit. It reads the code itself and chooses its own approach.
 
-- **Good:** "The `SkillConfig` type should accept an optional `schedule` field of type `CronExpression`"
-- **Bad:** "Open src/types/skill.ts and add a schedule field on line 42"
-- **Good:** "When a user runs `/work-items:triage` with no arguments, they should see a summary of issues needing attention"
-- **Bad:** "Add a switch statement in the main handler function"
+- **Good:** "`RetryPolicy` gains a `maxDelay` setting; once the computed backoff exceeds it, the delay is clamped to `maxDelay`."
+- **Bad:** "In `retry.go`, add an `if` after the multiply on line 88."
+- **Good:** "`/work-items:triage` run against an empty queue prints a single line saying nothing needs triage."
+- **Bad:** "Insert an early return at the top of the loop."
 
-### Complete acceptance criteria
+### Checkable acceptance criteria
 
-The agent needs to know when it's done. Every criterion should be independently verifiable.
+Each criterion is something the agent can run or read and get a yes or no from, on its own.
 
-- **Good:** "Running `dotnet test` passes with the new validator active"
-- **Bad:** "Feature should work correctly"
+- **Good:** "`npm test -- retry` passes, including a new case where the backoff hits `maxDelay`."
+- **Bad:** "Retries behave better."
 
-### Explicit scope boundaries
+### A stated boundary
 
-State what is out of scope. Prevents gold-plating or assumptions about adjacent features.
+List what the change must leave alone, so the agent neither adds unrequested extras nor guesses about neighboring features.
 
 ## Template
 
@@ -40,29 +38,26 @@ State what is out of scope. Prevents gold-plating or assumptions about adjacent 
 ## Agent Brief
 
 **Type:** Bug / Feature / Task (the issue's type: native Issue Type on org repos, `type:` label on personal / non-org repos)
-**Summary:** one-line description of what needs to happen
+**Summary:** <the change, in one line>
 
 **Current behavior:**
-What happens now. For bugs: the broken behavior.
-For enhancements: the status quo the feature builds on.
+<What the code does today. A bug: the faulty result. A feature: the existing behavior it extends.>
 
 **Desired behavior:**
-What should happen after the work is complete.
-Be specific about edge cases and error conditions.
+<What the code does once this lands, including how it handles edge cases and failures.>
 
 **Key interfaces:**
-- `TypeName`: what needs to change and why
-- `FunctionName()` return type: current vs desired
-- Config shape: new configuration options needed
+- `TypeName`: <the change and the reason for it>
+- `FunctionName()` return type: <today's value vs the intended one>
+- Config shape: <settings added or changed>
 
 **Acceptance criteria:**
-- [ ] Specific, testable criterion 1
-- [ ] Specific, testable criterion 2
-- [ ] Specific, testable criterion 3
+- [ ] <a check with a yes-or-no result>
+- [ ] <a check with a yes-or-no result>
 
 **Out of scope:**
-- Thing that should NOT be changed
-- Adjacent feature that might seem related but is separate
+- <something this change must not touch>
+- <a nearby feature that stays as it is>
 ```
 
 ## When to use
@@ -73,7 +68,7 @@ Apply this template when:
 - Issue is intended for AFK agent execution (`/schedule`, `/loop`, Codex)
 - Issue body is vague and needs structuring for autonomous execution
 
-The brief can be the issue body itself or posted as a comment (prefixed with `## Agent Brief` heading so agents can locate it).
+The brief can be the issue body itself or a comment; a comment starts with the `## Agent Brief` heading, which is how agents find it.
 
 ### PR-variant briefs
 
@@ -82,7 +77,7 @@ When the item is a pull request (or otherwise carries attached code), keep the s
 - **Current behavior** = **current-behavior-of-the-diff**: what the attached change actually does today (as written), including gaps vs the verified requirement.
 - **Desired behavior** = **finish-what-exists**: remaining work that makes the attached change mergeable, whether by adopting, reworking, or completing it, rather than restarting from a blank implementation.
 
-The brief specifies what's left to do *to the existing diff*. Apply this variant when the item is a PR / attached code; ordinary bug and feature items still use Current/Desired as written in the template.
+In this variant the brief describes the work still owed on the attached change, not a new implementation. Use it only for a PR or attached code; ordinary bug and feature items keep Current/Desired as the template defines them.
 
 ## Anti-patterns
 

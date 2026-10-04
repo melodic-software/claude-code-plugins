@@ -62,7 +62,7 @@ save-point engine, different delivery.
   the topic (`/session-flow:handoff phase-3`); with a method present it is the second token. Omitted → inferred
   from context.
 - **Purpose**. Everything after the topic token is optional natural-language purpose text
-  answering "what will the next session be used for?", no quoting, no new syntax, and
+  saying what the next session is meant to do, no quoting, no new syntax, and
   invocations without it parse exactly as before. What purpose is allowed to change (emphasis
   only) and what it may never touch is owned by the engine doc ("The purpose argument tailors
   emphasis only"); parse it from `$ARGUMENTS` in place, never pre-compute.
@@ -151,8 +151,8 @@ The continuation router in
 ## Reference other artifacts; promote durable value, never commit the file
 
 **Do not duplicate content captured in another artifact.** Content that already lives in a durable
-artifact, a spec, plan, ADR, issue, commit, or committed diff, is referenced by path or URL,
-never restated in the save-point. The engine's per-section guidance ("Summarize; never transcribe"
+artifact, a spec, plan, ADR, issue, commit, or committed diff, gets a path or link in the
+save-point instead of a second copy. The engine's per-section guidance ("Summarize; never transcribe"
 in the structure doc's file-roles section) is this rule applied locally; it holds across the whole
 save-point, on both paths. Uncommitted or half-finished edits remain the exception that same
 file-roles section owns: they have no commit to reference, so their state, which part is

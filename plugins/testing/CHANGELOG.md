@@ -7,6 +7,7 @@ All notable changes to the `testing` plugin are documented here. Format follows
 
 ### Changed
 
+- **`/testing:write`'s vertical-slice and interface-check passages are reworded.** They no longer share phrasing with an upstream TDD skill. The rules are unchanged.
 - `/testing:diagnose` names `/debugging:analyze-profile` in its Skip clause for a captured profile, trace or heap snapshot, and its `## Next` now leads with `/verification:confirm fix` after the loop exits green, matching its own hand-off table, with `/testing:write` for missing feature tests.
 
 ### Added

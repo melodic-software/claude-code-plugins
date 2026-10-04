@@ -3,6 +3,12 @@
 All notable changes to the `tdd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Changed
+
+- **`test-doubles.md`'s boundary-interface section is rewritten with its own example.** The section is now headed "One Function per Remote Operation" and uses a shipping-service example in place of the upstream user-and-orders one; the "Replace, Don't Layer" paragraph is reworded. The guidance and its subordination to "mock only unmanaged dependencies" are unchanged.
+
 ## [0.4.11] - 2026-10-03
 
 ### Changed

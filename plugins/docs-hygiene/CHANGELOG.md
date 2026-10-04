@@ -8,6 +8,9 @@
   catalog does not list is named in the reply as a candidate for ai-slop's
   `rule-abstract-metaphor-jargon`, when `/ai-slop:audit` is available. The skill never edits the
   ai-slop catalog.
+- **`write-for-agents` words three rules in its own terms.** The cognitive-load line, the
+  matching-term pointer rule and the negation rule no longer share phrasing with an upstream course
+  skill. The rules are unchanged.
 - **Shared `parse-concern-value.sh` synced, with its parser `yaml-subset.awk` beside it in
   `skills/audit-noise/scripts/lib/`.** The reader takes dotted keys, `--list`, stdin (`-`), a
   validated `--ref` and `--strict`; every existing root-key read resolves as before, and a file the

@@ -4,9 +4,9 @@ Write tests following the TDD discipline: Red (failing test) -> Green (make it p
 
 ## Vertical slices, not horizontal layers
 
-Write tests and implementation in vertical slices: one test, then its implementation, then the next. Writing all tests first and all implementation after is horizontal slicing, treating Red as "write all tests" and Green as "write all code." Horizontal slicing produces brittle tests: tests written in bulk test *imagined* behavior, not *actual* behavior. You end up testing the *shape* of things, such as data structures and function signatures, rather than user-facing behavior. You commit to test structure before understanding implementation, then tests become insensitive to real changes. They pass when behavior breaks, fail when behavior is fine.
+Write tests and implementation in vertical slices: one test, then the code that passes it, then the next test. Writing every test up front and all the code afterwards is horizontal slicing, which reads Red as "write all the tests" and Green as "write all the code." It yields brittle tests: a test written before any code exists checks the behavior its author *predicted*, not the behavior the code *shows*. Such tests pin the *form* of the code, its data structures and signatures, instead of what a user sees, and they fix the test layout before the implementation is understood. The result: they stay green when behavior breaks and go red when it is correct.
 
-**Correct approach, vertical slices:** one test → one implementation → repeat. Each test responds to what you learned from the previous cycle.
+**Correct approach, vertical slices:** a test, its implementation, and again. Each new test builds on what the previous one revealed.
 
 ```
 WRONG (horizontal):
@@ -25,7 +25,7 @@ This is the test-level instance of the same vertical-not-horizontal discipline `
 
 Before writing the first test, confirm the public interface design:
 
-- What interface changes are needed? When the session is interactive and the change is material (a new public surface, a changed contract), confirm with the user; otherwise state the interface you assume and proceed
+- Which parts of the interface does this change add or alter? When the session is interactive and the change is material (a new public surface, a changed contract), confirm with the user; otherwise state the interface you assume and proceed
 - Identify opportunities for deep modules: can methods be reduced, params simplified, complexity hidden behind the interface?
 - Design interfaces for testability: prefer returning results over producing side effects (testable interfaces return values, making output-based testing possible)
 - Proceed once the interface is settled; an autonomous run states its interface assumption in the summary instead of waiting
@@ -34,7 +34,7 @@ When invoked from `/implementation:implement` (plan already approved) or as part
 
 ## Sequence
 
-1. **Tracer bullet first**. Write ONE test confirming ONE thing about the system end-to-end. Proves the path works before investing in edge cases. Use the project's domain glossary (its ubiquitous-language / glossary file when one exists, walking up from the code under test to the nearest one) so test names and interface vocabulary match the domain language. Respect ADRs in the area you're touching. Then list remaining behavior scenarios:
+1. **Tracer bullet first**. Write ONE test confirming ONE thing about the system end-to-end. Proves the path works before investing in edge cases. Use the project's domain glossary (its ubiquitous-language / glossary file when one exists, walking up from the code under test to the nearest one) so the names of tests and interfaces use the domain's own words. Follow any ADRs that govern the code being changed. Then list remaining behavior scenarios:
    - Happy path (basic correct behavior)
    - Edge cases (null, empty, boundary values)
    - Error paths (invalid input, missing dependencies, timeouts)

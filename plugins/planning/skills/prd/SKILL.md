@@ -188,7 +188,7 @@ Required sections (every tier. Verbosity varies):
 
 Tier-3 (B2B) adds: **Stakeholders**, **Rollout**, **Compliance / integration**.
 
-**Durability over precision.** PRD content describes interfaces, types, and behavioral contracts. Never file paths or line numbers, which go stale before the PRD does. Do not write as if the current implementation structure will persist; the PRD should still read true after a refactor.
+**Durability over precision.** Describe the product through its interfaces, types, and behavior contracts, not file paths or line numbers, which change sooner than the PRD does. Assume the code's present layout can change; the PRD should still be accurate after a refactor.
 
 **Written for a product owner who scans.** Each section opens with its point and carries no more words than the meaning needs: invoke `/writing:be-concise` via the Skill tool when the `writing` plugin is enabled; otherwise apply that discipline inline. The seven required sections, the tier's depth, and every metric, threshold, and open question stay as they are.
 

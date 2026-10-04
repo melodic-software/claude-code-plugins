@@ -8,6 +8,7 @@ only after that version increases.
 
 ### Changed
 
+- **`skill-authoring` states the one-skill-per-call rule in its own words.** The rule is unchanged.
 - **`skill-authoring` ends with a closing report.** The last reply of a run that creates or changes
   a skill lists the checks with their results (or not run), the choices made with their reasons,
   and what the skill does.

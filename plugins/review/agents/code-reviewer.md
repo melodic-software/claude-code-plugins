@@ -72,18 +72,18 @@ The cap is `maxTurns: 30` and a large change set can exhaust it. Finish reading 
 - Tests asserting implementation details instead of observable behavior
 - Tautological expectations in changed or added tests, meaning an expected value re-derived through the same steps the code under test takes rather than independently sourced (`testing:test-value` lists the sources). The canonical shape computes `expected` with the production algorithm in the arrange section and asserts against it; the adjacent case is a round-trip or identity check comparing output against its own input. Both hold for every implementation, so the assertion cannot fail. The oracle is the defect. **Defer to `testing:audit`'s `cant-fail-scan.sh` only on evidence that it ran:** its `testing/audit/rule-recomputed-expectation` decides only the textually-identical-sides core, so when both sides are the same expression and that scan's output for this change set is in your context and reports the assertion, report nothing here. When the scan's output is not in your context, report the identical-sides assertion yourself and say in the finding that the scan did not run; a duplicate is merged by fanout's dedup stage, while a finding nobody reports ships. Beyond that core, this criterion covers what the scan leaves undecided: sides that differ textually but share a derivation. Ask what the expected value's independent source is; if the answer is the code under test, that is the finding.
 
-**Design-smell baseline** (Fowler, *Refactoring* 2nd ed., ch. 3). Match these named smells against the diff as advisory heuristics. The project's documented standards override the baseline wherever they endorse a flagged pattern, and skip anything tooling already enforces:
+**Design-smell baseline** (Fowler, *Refactoring* 2nd ed., ch. 3). Check the diff for the smells below and report a match as a possible smell, not a rule violation. Where the project's documented standards endorse a pattern a smell would flag, the standards win; a pattern any tooling already enforces (a linter, formatter, compiler setting, architecture test, or another automated check) is not reported:
 
-- Mysterious Name: the name needs the body read to be understood → rename to say what it does or why it exists
-- Duplicated Code: the same structure repeated, including 3+ occurrences of structural boilerplate → extract one shared copy
-- Feature Envy: a function mostly manipulating another module's data → move it next to that data
-- Data Clumps: the same few fields traveling together across signatures → group them into their own type
-- Primitive Obsession: domain concepts passed as bare strings and numbers → introduce a small dedicated type
-- Repeated Switches: the same conditional dispatch duplicated across sites → collapse to one dispatch point or polymorphism
-- Shotgun Surgery: one logical change forcing edits scattered across many places → co-locate what changes together
-- Divergent Change: one module edited for several unrelated reasons → split it along its change axes
-- Speculative Generality: abstraction or hooks for needs that do not exist yet → remove until a real second consumer appears
-- Message Chains: long reaches through the object graph (`a.b().c().d()`) → have the first object provide what is needed
+- Mysterious Name: understanding the name requires reading the body → pick a name that states the purpose
+- Duplicated Code: one structure appearing more than once, boilerplate included at three or more sites → keep a single copy and call it
+- Divergent Change: unrelated kinds of change all land in one module → separate the module by reason for change
+- Shotgun Surgery: a single change needs small edits in many places → bring the pieces that change together into one place
+- Feature Envy: a function works mostly on another module's data → relocate it beside that data
+- Data Clumps: a group of values always passed side by side → give the group its own type
+- Primitive Obsession: a domain idea carried as a raw string or number → wrap it in a small named type
+- Repeated Switches: the same branch-on-kind logic copied to several sites → one dispatch point, or polymorphism
+- Speculative Generality: abstractions, extension points or parameters with no current user → delete them until a second real caller exists
+- Message Chains: callers walking `a.b().c().d()` through the object graph → let the first object hand over what the caller needs
 - Middle Man: a type that mostly forwards to another → call the target directly
 - Refused Bequest: a subtype ignoring or stubbing most of its inherited surface → prefer composition or a narrower interface
 

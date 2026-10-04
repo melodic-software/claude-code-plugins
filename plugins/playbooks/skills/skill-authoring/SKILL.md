@@ -234,7 +234,7 @@ The last reply of a run that creates or changes a skill has three parts, in this
 
 ## Skill-tool composition (Melodic Software addition)
 
-The Skill tool takes one skill per call; a step needing two skills is two calls. A skill with
+Each Skill tool call loads exactly one skill, so a step that uses two skills makes two calls. A skill with
 `disable-model-invocation: true` is user-invoked only and unreachable via the Skill tool; tell the
 user to run `/plugin:skill` instead of attempting the call.
 

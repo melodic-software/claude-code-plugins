@@ -12,6 +12,10 @@ All notable changes to the `review` plugin are documented here. Format follows
 - **Paved paths reach the code reviewer.** The bundled standards contract moves to 1.1.0, which adds a `paved-path` index row kind. When the resolved index has one, `/review:quality-gate` and `/review:fanout` name its file in the `code-reviewer` agent's brief, and the agent reports a change that adds a second way for a listed concern as an advisory finding. The agent resolves no index itself. Not yet read by `/review:code-review`, the CI review lane.
 - **A size flag only when the consumer set `size.file_lines`.** When `/code-metrics:audit-size` is available, `/review:quality-gate` code mode and `/review:fanout` run it over the changed files. If its References table shows the `size.file_lines` reference came from a consumer layer (user-global, team or local), each file that was below the reference at the base and at or above it at the head goes into the `code-reviewer` brief, and the agent reports it as an advisory finding naming the reference and its layer. The bundled default alone flags nothing, and the agent raises no other size finding. Not yet read by `/review:code-review`, the CI review lane.
 
+### Changed
+
+- **The `code-reviewer` agent's design-smell baseline is reworded and follows Fowler's chapter order.** Its list no longer follows an upstream course skill's order and phrasing. The twelve smells, the advisory framing, the project-standards override and the skip for tool-enforced patterns are unchanged.
+
 ## [0.40.3] - 2026-10-04
 
 ### Fixed

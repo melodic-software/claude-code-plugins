@@ -10,6 +10,8 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 - **`/work-items:triage` and `/work-items:decompose` reword passages that followed the skills they were adapted from.** A word-overlap check found long shared runs in triage's discovery filter, context checks, verification steps and needs-info template, and in decompose's vertical-slice rules, expand-migrate-contract wording and slice body template. Behavior is unchanged.
 - **The triage needs-info comment and decompose's slice rules and slice body have a new layout.** The needs-info comment now leads with the questions for the reporter, each saying what its answer decides, and follows them with a list of what the pass already settled. Decompose checks each draft slice against four ordered tests in a table, lists prefactor slices first, sets out expand, migrate and contract as an item table, and publishes slice bodies with `## Parent`, `## Depends on`, `## Outcome` and `## Done when` sections. Nothing in the plugin's scripts, adapters or tests matched the old needs-info headings or the empty Blocked-by text, so both changed; `## Parent`, which `/work-items:work` and re-decompose read, keeps its exact wording. Every rule and outcome stays the same.
 
+- **The agent-brief reference is rewritten in our own words with its own examples.** Its principles, examples and template placeholders no longer follow the upstream triage skill's agent-brief file; the template's heading and field labels are unchanged, so briefs keep their shape. Behavior is unchanged.
+
 ## [0.48.4] - 2026-10-04
 
 ### Changed

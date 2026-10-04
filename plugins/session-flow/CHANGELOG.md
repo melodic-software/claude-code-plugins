@@ -5,6 +5,7 @@
 ### Changed
 
 - **Shared `parse-concern-value.sh` synced, with its parser `yaml-subset.awk` beside it in `skills/retro/scripts/`.** The reader takes dotted keys, `--list`, stdin (`-`), a validated `--ref` and `--strict`; every existing root-key read resolves as before, and a file the parser rejects now yields the fallback with one stderr line.
+- **`/session-flow:handoff` and the save-point engine word the purpose argument and the link-don't-copy rule in their own terms.** Both no longer share phrasing with the upstream handoff skill. Behavior is unchanged.
 
 ### Added
 

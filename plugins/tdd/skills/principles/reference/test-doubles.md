@@ -123,29 +123,29 @@ When a single double serves both roles (provides canned answers AND is verified)
 
 **Spies are superior to mocks at system edges**. Handwritten mocks with fluent assertion interfaces provide reusable, readable verification and don't rely on production code for assertions.
 
-## SDK-Style Interfaces Over Generic Fetchers
+## One Function per Remote Operation
 
 > Editorial synthesis, not from either source book.
 
 **Subordinate to best practice 1 above.** This shapes a boundary you have already decided to mock; it never widens what gets mocked. "Mock only unmanaged dependencies" still decides *whether* a boundary is mocked at all, and no interface is introduced for an in-process dependency to satisfy this shape.
 
-At system boundaries, prefer specific functions per external operation over one generic function with conditional logic:
+When a boundary is mocked, give each remote operation its own named function instead of routing every call through one pass-through request function:
 
 ```typescript
-// GOOD: Each function independently mockable, one shape per mock
-const api = {
-  getUser: (id) => fetch(`/users/${id}`),
-  getOrders: (userId) => fetch(`/users/${userId}/orders`),
-  createOrder: (data) => fetch('/orders', { method: 'POST', body: data }),
+// Preferred: a test replaces only the operations it uses, each with a fixed return value
+const shipping = {
+  quoteRate: (parcel) => http.post('/rates', parcel),
+  bookPickup: (slot) => http.post('/pickups', slot),
+  trackParcel: (trackingId) => http.get(`/parcels/${trackingId}`),
 };
 
-// BAD: Mock requires conditional logic, unclear which endpoints a test exercises
-const api = {
-  fetch: (endpoint, options) => fetch(endpoint, options),
+// Avoid: the fake has to inspect the path and method to decide what to return
+const shipping = {
+  call: (method, path, body) => http.request(method, path, body),
 };
 ```
 
-SDK approach: each mock returns one specific shape, no conditional logic in test setup, type safety per endpoint, easy to see which endpoints a test exercises.
+With named operations, each fake returns a single fixed value, test setup has no branching, each operation keeps its own types, and a reader sees from the setup which remote calls the test depends on.
 
 ## Synthesis: Beck vs Khorikov
 
@@ -159,6 +159,6 @@ Mock/stub taxonomy and CQS in full: [observable-behavior-khorikov.md](observable
 
 > Editorial synthesis, drawing on Ousterhout, not from either source book.
 
-When merging shallow modules behind a deeper interface ("deepening" per Ousterhout's *A Philosophy of Software Design*), the test surface moves to the deepened interface. The discipline: write new tests at the deepened interface, delete the old shallow-module tests, assert observable outcomes not internal state. If the `architecture` plugin is enabled, `/architecture:improve` covers the wider deepening workflow ("Replace, don't layer"); when it is absent, the summary above is the full guidance.
+When merging shallow modules behind a deeper interface ("deepening" per Ousterhout's *A Philosophy of Software Design*), the test surface moves to the deepened interface. The discipline: add tests that call the merged interface, remove the tests that targeted the old shallow modules, and assert observable outcomes, not internal state. If the `architecture` plugin is enabled, `/architecture:improve` covers the wider deepening workflow ("Replace, don't layer"); when it is absent, the summary above is the full guidance.
 
 This complements Khorikov's "observable behavior" principle: the deepened interface IS the observable behavior surface, so tests behind it are implementation-detail tests by definition.
