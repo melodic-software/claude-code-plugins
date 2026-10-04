@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "1. If the null comes from the missing `footer` config, then setting a footer in the test should make the crash disappear.",
+      "why": "if ... then"
+    },
+    {
+      "answer": "H2: if the date formatter is the culprit, a report with no dates will not crash.",
+      "why": "culprit ... will"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Probably a null somewhere in the exporter. Add a null check.",
+      "why": "no prediction"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}

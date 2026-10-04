@@ -3,6 +3,12 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.3] - 2026-10-04
+
+### Added
+
+- **`debugging` ships a `claude plugin eval` suite for `/debugging:debug`.** The seven skill-creator cases in `skills/debug/evals/evals.json` are converted to case directories under `evals/` (tag `converted`), and three new cases (tag `phase1-red-run`) check that Phase 1 runs a reproduction command and observes its failing output before the first edit. Graders are deterministic where the behavior allows (`regex`, `tool_order`, `tool_used`, file-content regex), with a judge rubric beside them where the expectation is a judgment; every grader has pass and fail samples. The Bash-granting cases need `--scaffold` and `--allow-tools Bash,Edit,Write`. No skill text changes.
+
 ## [0.8.2] - 2026-10-04
 
 ### Fixed
