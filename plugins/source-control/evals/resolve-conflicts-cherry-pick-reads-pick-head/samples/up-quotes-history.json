@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "The picked commit caps the fee at 50 because regulators require it (BILL-203)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Resolved billing/rules.py and continued the cherry-pick."
+    }
+  ]
+}

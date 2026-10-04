@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "The reverted commit added 30-day remember-me sessions (AUTH-77); the later SEC-31 fix stays."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Resolved auth/session.py and continued the revert."
+    }
+  ]
+}

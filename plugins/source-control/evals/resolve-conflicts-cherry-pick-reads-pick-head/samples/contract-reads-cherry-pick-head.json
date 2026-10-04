@@ -1,0 +1,39 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git show CHERRY_PICK_HEAD -- billing/rules.py"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "BASE=$(git merge-base HEAD CHERRY_PICK_HEAD) && git log --oneline \"$BASE\"..HEAD -- billing/rules.py"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log -p -1 main -- billing/rules.py"
+          }
+        }
+      ]
+    }
+  ]
+}

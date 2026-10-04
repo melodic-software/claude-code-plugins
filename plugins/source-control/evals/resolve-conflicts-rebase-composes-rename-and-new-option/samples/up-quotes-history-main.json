@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "main renamed it because the count includes the first call (RET-41)"
+    },
+    {
+      "answer": "Per RET-41 the old name was off by one"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Resolved the conflict and finished the rebase."
+    },
+    {
+      "answer": "Kept both max_attempts and backoff_jitter."
+    }
+  ]
+}

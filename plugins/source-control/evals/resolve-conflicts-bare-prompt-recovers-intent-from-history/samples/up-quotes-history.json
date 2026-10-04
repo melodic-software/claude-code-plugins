@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "main removed legacy_token because /orders now returns 400 for token query auth (SEC-12)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Kept both sides and finished the merge."
+    },
+    {
+      "answer": "Merged; region filter added."
+    }
+  ]
+}

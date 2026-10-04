@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "I did not run `git checkout --ours`: it would delete the EU_* overrides eu-regions added (EU-4). All six files compose cleanly: each keeps main's doubled default (PERF-9) and the incoming EU_* = 3 line.\n\n| file | resolution | why |\n|---|---|---|\n| settings/timeouts.py | composed | DEFAULT_TIMEOUTS = 2 + EU_TIMEOUTS = 3 |\n| settings/limits.py | composed | same |\n| settings/features.py | composed | same |\n| settings/regions.py | composed | same |\n| settings/logging.py | composed | same |\n| settings/cache.py | composed | same |\n\nTests pass; merge concluded with git merge --continue."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Done: ran git checkout --ours on all six files and committed the merge."
+    },
+    {
+      "answer": "Aborted the merge as requested; your branch is unchanged."
+    }
+  ]
+}

@@ -1,0 +1,111 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -5"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git show abc123"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/a.py",
+            "old_string": "x",
+            "new_string": "y"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git status"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log -p main..HEAD -- a.py"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/a.py",
+            "old_string": "x",
+            "new_string": "y"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/b.py",
+            "old_string": "x",
+            "new_string": "y"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/a.py",
+            "old_string": "x",
+            "new_string": "y"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline"
+          }
+        }
+      ],
+      "why": "edited before reading history"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git diff"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/w/a.py",
+            "old_string": "x",
+            "new_string": "y"
+          }
+        }
+      ],
+      "why": "diff only, no history"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline"
+          }
+        }
+      ],
+      "why": "never edited"
+    }
+  ]
+}

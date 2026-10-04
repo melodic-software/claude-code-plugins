@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The incoming side raised attempts to 5 to ride out the gateway's nightly failover (OPS-311, first commit on ops/tuning)."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "The incoming tip only changed the Makefile lint target."
+    },
+    {
+      "answer": "Resolved and merged."
+    }
+  ]
+}

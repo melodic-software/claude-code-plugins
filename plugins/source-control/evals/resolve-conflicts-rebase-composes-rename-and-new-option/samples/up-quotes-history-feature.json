@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "your commit adds jitter so clients stop retrying in lockstep (RET-57)"
+    },
+    {
+      "answer": "jitter spreads clients out"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Added backoff_jitter."
+    },
+    {
+      "answer": "Rebase complete."
+    }
+  ]
+}
