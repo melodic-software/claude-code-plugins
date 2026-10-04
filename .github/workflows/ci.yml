@@ -551,6 +551,15 @@ jobs:
         continue-on-error: true
         run: scripts/check-adr-numbers.sh --check
 
+      # Each tracked docs/conventions/<concern>.yaml against its JSON Schema
+      # (ADR 0054 Decisions 6 and 7). Ungated: a change that edits only a
+      # convention YAML is docs-only, and that is the edit this gate reads.
+      # check-jsonschema comes from the hash-locked requirements install above.
+      - name: Validate docs/conventions YAML against its schemas
+        id: convention_yaml_schema
+        continue-on-error: true
+        run: scripts/check-convention-yaml.sh --check
+
       # The config-cascade "Semantics at a glance" table is generated from the
       # Implementers rows, so the failure this catches is a row edited without
       # regenerating the table, or a table hand-edited away from its rows. The
@@ -944,6 +953,7 @@ jobs:
             conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
             adr-numbers=${{ steps.adr_numbers.outcome }}
+            convention-yaml-schema=${{ steps.convention_yaml_schema.outcome }}
             config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
             code-metrics-skill-prose=${{ steps.code_metrics_skill_prose.outcome }}

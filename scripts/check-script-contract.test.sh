@@ -69,6 +69,7 @@ REGISTRY=(
   "check-changed-skills.sh|-|-|-"
   "check-changelog-parity.sh|-|--check|changelog_parity"
   "check-conformance-registry.sh|-|-|-"
+  "check-convention-yaml.sh|CHECK_JSONSCHEMA_BIN=/nonexistent/check-jsonschema|--check|convention_yaml"
   "check-cross-plugin-source-drift.sh|-|-|-"
   "check-detector-eval-coverage.sh|jq|-|-"
   "check-detector-findings-crosswalk.sh|-|-|-"
@@ -331,6 +332,16 @@ recipe::docs_naming() { # <clean|violation>
   capture run_in "$f" bash scripts/check-docs-naming.sh --check
 }
 
+recipe::convention_yaml() { # <clean|violation>
+  fixture_tree::build f --sut "$SELF_DIR/check-convention-yaml.sh" --git --label convention-yaml || return 2
+  mkdir -p "$f/docs/conventions" "$f/plugins/alpha/schemas"
+  printf 'mode: on\n' >"$f/docs/conventions/alpha.yaml"
+  [[ "$1" == violation ]] || printf '{}\n' >"$f/plugins/alpha/schemas/alpha.schema.json"
+  git_test_config "$f" add -A >/dev/null || return 2
+  git_test_config "$f" commit -qm seed >/dev/null || return 2
+  capture run_in "$f" env CHECK_JSONSCHEMA_BIN=true bash scripts/check-convention-yaml.sh --check
+}
+
 recipe::adr_numbers() { # <clean|violation>
   fixture_tree::build f --sut "$SELF_DIR/check-adr-numbers.sh" --label adr-numbers || return 2
   mkdir -p "$f/docs/adr"
@@ -438,6 +449,7 @@ declare -A VIOLATION_NEEDLE=(
   [html_assets]='MISSING:'
   [changelog_parity]='MISSING CHANGELOG:'
   [docs_naming]='is not lower-kebab-case'
+  [convention_yaml]='docs/conventions/alpha.yaml: no schema'
   [adr_numbers]='0001: docs/adr/0001-first.md, docs/adr/0001-second.md'
   [spoke_plugin_root]='plugins/demo/skills/audit/context/step.md: contains'
   [pipefail_grep_q]='PIPED EARLY-EXIT GREP:'

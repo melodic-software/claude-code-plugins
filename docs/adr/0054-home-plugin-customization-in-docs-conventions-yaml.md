@@ -55,10 +55,14 @@ from a pipeline-shaped file.
    cross-plugin convention's schema sits in its convention folder, as
    `docs/conventions/pr-pipeline/pr-pipeline.schema.json` and
    `docs/conventions/ecosystem-commands/ecosystem.schema.json` already do.
-7. **Validation.** This repository's CI checks each committed `docs/conventions/*.yaml` with the
-   `check-jsonschema` action, in the posture of the existing `check-jsonschema` steps, which run
-   with `continue-on-error: true` (`.github/workflows/ci.yml:761-776`): validation reports and does
-   not block. Runtime readers run no validator; they fail closed on a value outside the key's enum.
+7. **Validation.** This repository's CI checks each committed `docs/conventions/*.yaml` against its
+   schema with `scripts/check-convention-yaml.sh`, which runs the `check-jsonschema` CLI pinned in
+   `.github/requirements-ci.txt` (the ci-workflows action takes one schema per call, so it cannot
+   pick a schema per file). The step runs like the existing `check-jsonschema` steps: with
+   `continue-on-error: true` and fed to the job's result aggregator, so a file that fails its
+   schema fails CI. Runtime readers run no validator; they fail closed on a value outside the key's
+   enum. Amended 2026-10-04 (user decision): the earlier text said validation "reports and does not
+   block", which the aggregator wiring of the cited steps already contradicted.
 8. **Layers**, lowest first: the plugin's `userConfig` < `~/.claude/<name>` < the repository YAML
    (or its `.claude/<name>` fallback) < the gitignored local overlay. `pluginConfigs` is read only
    from user and managed settings. Every resolver reports which layer supplied each value.
