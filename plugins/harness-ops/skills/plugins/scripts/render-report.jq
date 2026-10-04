@@ -192,8 +192,12 @@ def block($d):
        else empty end),
 
       (if (.stale_project_records.total // 0) > 0 then
-         "Stale project records: \(.stale_project_records.total) record(s) across \(.stale_project_records.by_path | length) path(s) not present on this machine",
-         (.stale_project_records.by_path[] | "  - \(.path): \(.count) record(s)"),
+         .stale_project_records as $s
+         | "Stale project records: \($s.total) record(s) across \($s.paths) path(s) not present on this machine",
+           ($s.by_parent[] | "  - \(.parent): \(.count) record(s) across \(.paths) path(s)"),
+           (if ($s.more_parents // 0) > 0 then "  +\($s.more_parents) more parent director(ies)" else empty end),
+           (if $s.list_file == null then "  Full per-path list: not kept, the audit scratch directory is removed on exit"
+            else "  Full per-path list: \($s.list_file)" end),
          "  (not counted as divergences: converge cannot cd into a path that is not present. A path can also",
          "   be absent because a volume is unmounted or a share is offline, so this is an observation, not a",
          "   verdict that the directory is gone for good.)"

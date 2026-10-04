@@ -37,15 +37,22 @@ A record does not have to come from a deliberate install. A repo whose committed
 carries an `enabledPlugins` block mirroring what the user already has at user scope writes one
 project record per `true` entry at the first session start in that checkout, pinned to the version
 the user scope holds (verified on Claude Code 2.1.263). A `false` entry writes nothing. The render
-reports the count and the distinct paths; name the block as the source when the path's repo carries
-one. [scope-semantics.md](scope-semantics.md) "Where project-scope records come from, and why the
+reports the count and the paths grouped by parent; name the block as the source when the path's
+repo carries one. [scope-semantics.md](scope-semantics.md) "Where project-scope records come from, and why the
 skill cannot reap them" holds the sourcing, the precedence rule, the reap boundary, and the probe
 recipe that established the write.
 
-The render gives the section a count plus the distinct paths, not one row per record, because a
-hundred records naming a dozen directories is a report about a dozen directories: `K` is
-`stale_project_records.total`, `P` is the length of `stale_project_records.by_path`, and each
-`by_path` entry is the `{path, count}` one row renders. The section is omitted when `K` is 0.
+The render gives the section a count plus the paths grouped by parent directory, not one row per
+record or per path, because a hundred records naming a dozen directories is a report about a dozen
+directories, and thousands of scratch directories under one temp root are a report about that root.
+`K` is `stale_project_records.total` and `P` is `stale_project_records.paths`, the distinct paths.
+Each `by_parent` entry is the `{parent, count, paths}` one row renders, largest record count first,
+at most 10 rows; `more_parents` counts the parents past that cap and renders as a `+N more` line.
+The full `{path, count}` list is written to `stale-project-records.<marketplace>.json` in the run
+directory, `list_file` names it, and the render prints that path, so the digest line and the report
+stay the same size however many paths there are. Read that file to answer a question about a single
+path. Audit keeps no list, because its scratch directory is removed on exit, and its render says so.
+The section is omitted when `K` is 0.
 
 A project-scope enable gap is a row `sync` deliberately does not fix. Step 5 enables automatically
 only where the write is not team-shared state. The render lists each one under `Action needed` as

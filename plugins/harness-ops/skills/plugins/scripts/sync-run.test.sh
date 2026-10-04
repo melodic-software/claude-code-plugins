@@ -794,12 +794,14 @@ assert_eq "self-update: an in-repo move of this plugin is a self-update" "true" 
   "$(jq -r '.marketplaces[0].self_updated' <<<"$out")"
 assert_eq "stale project records: the total counts records, not paths" "3" \
   "$(jq -r '.marketplaces[0].stale_project_records.total' <<<"$out")"
-assert_eq "stale project records: one row per distinct path" "2" \
-  "$(jq -r '.marketplaces[0].stale_project_records.by_path | length' <<<"$out")"
+assert_eq "stale project records: the digest counts distinct paths" "2" \
+  "$(jq -r '.marketplaces[0].stale_project_records.paths' <<<"$out")"
+stale_list=$(jq -r '.marketplaces[0].stale_project_records.list_file' <<<"$out")
+assert_eq "stale project records: one list row per distinct path" "2" "$(jq -r 'length' "$stale_list" 2>/dev/null)"
 assert_eq "stale project records: each row carries its own count" "2" \
-  "$(jq -r --arg p "$gone_a" 'first(.marketplaces[0].stale_project_records.by_path[] | select(.path == $p) | .count)' <<<"$out")"
+  "$(jq -r --arg p "$gone_a" 'first(.[] | select(.path == $p) | .count)' "$stale_list" 2>/dev/null)"
 assert_eq "stale project records: and the single-record path reads 1" "1" \
-  "$(jq -r --arg p "$gone_b" 'first(.marketplaces[0].stale_project_records.by_path[] | select(.path == $p) | .count)' <<<"$out")"
+  "$(jq -r --arg p "$gone_b" 'first(.[] | select(.path == $p) | .count)' "$stale_list" 2>/dev/null)"
 # An absent path is not "here": those records must not inflate the In-repo row.
 assert_eq "stale project records: they are not counted as in-repo records" "1" \
   "$(jq -r '.marketplaces[0].in_repo_records' <<<"$out")"
@@ -1070,6 +1072,56 @@ EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NEW_VERSION=0.2.0 CLAUDE_S
 report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
 assert_exit "render stale+cache: exit 0" 0 "$REPORT_RC"
 assert_golden "render stale+cache: the report matches the golden" stale-records-cache-content.txt "$REPORT_TEXT"
+
+# --- many stale paths: grouped by parent, capped, full list kept in the run dir
+# Twelve parent directories under the case dir, none of them present. g01 holds
+# three paths with a project and a local record each (6 records), g02 one path
+# with both (2), and g03 to g12 one project record each. So 18 records across
+# 14 paths and 12 parents; the cap of 10 rows leaves g11 and g12 off the report.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.1.0
+stale_rows=""
+stale_row() { stale_rows+=",{\"scope\": \"$1\", \"projectPath\": \"$(norm_path "$case_dir/$2")\", \"installPath\": \"a\", \"version\": \"0.1.0\"}"; }
+for leaf in x y z; do stale_row project "g01/$leaf" && stale_row local "g01/$leaf"; done
+stale_row project g02/x && stale_row local g02/x
+for n in 03 04 05 06 07 08 09 10 11 12; do stale_row project "g$n/x"; done
+write "$case_dir/installed_plugins.json" "{\"version\": 1, \"plugins\": {\"alpha@market1\": [
+  {\"scope\": \"user\", \"installPath\": \"a\", \"version\": \"0.1.0\"}$stale_rows]}}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
+stale_run_dir=$(jq -r '.run_dir' <<<"$REPORT_DIGEST")
+stale_section=$(printf '%s\n' "$REPORT_TEXT" | sed -n '/^Stale project records:/,/^[^ ]/p' | sed '$d')
+assert_exit "stale many: exit 0" 0 "$REPORT_RC"
+assert_contains "stale many: the header counts every record and every path" "$REPORT_TEXT" \
+  "Stale project records: 18 record(s) across 14 path(s) not present on this machine"
+assert_contains "stale many: the largest parent leads, with its record and path counts" "$stale_section" \
+  $'  - <case>/g01/: 6 record(s) across 3 path(s)\n  - <case>/g02/: 2 record(s) across 1 path(s)\n  - <case>/g03/: 1 record(s) across 1 path(s)'
+assert_eq "stale many: ten parent rows are printed" "10" "$(grep -c '^  - ' <<<"$stale_section")"
+assert_eq "stale many: no leaf path is printed" "0" "$(grep -c '/x' <<<"$stale_section")"
+assert_eq "stale many: the parents past the cap are not printed" "0" "$(grep -c -e 'g11' -e 'g12' <<<"$stale_section")"
+assert_contains "stale many: the rows past the cap are counted" "$stale_section" "  +2 more parent director(ies)"
+assert_contains "stale many: the render names the full per-path list" "$stale_section" \
+  "  Full per-path list: <run_dir>/stale-project-records.market1.json"
+assert_eq "stale many: the full list holds every path" "14" \
+  "$(jq 'length' "$stale_run_dir/stale-project-records.market1.json" 2>/dev/null)"
+assert_eq "stale many: the full list holds every record" "18" \
+  "$(jq '[.[].count] | add' "$stale_run_dir/stale-project-records.market1.json" 2>/dev/null)"
+assert_eq "stale many: the full list keeps a path past the cap with its count" "1" \
+  "$(jq --arg p "$(norm_path "$case_dir/g12/x")" '.[] | select(.path == $p) | .count' \
+    "$stale_run_dir/stale-project-records.market1.json" 2>/dev/null)"
+assert_eq "stale many: the printed digest carries no per-path array" "false" \
+  "$(jq '[.. | objects | has("by_path")] | any' <<<"$REPORT_DIGEST")"
+# Audit's scratch directory is removed on exit, so the render names no file there.
+report_of "$case_dir" --marketplace market1 --audit --install-new none
+assert_contains "stale many audit: the header still counts every record" "$REPORT_TEXT" \
+  "Stale project records: 18 record(s) across 14 path(s) not present on this machine"
+assert_contains "stale many audit: the render says the full list is not kept" "$REPORT_TEXT" \
+  "  Full per-path list: not kept, the audit scratch directory is removed on exit"
 
 # --- an ask-policy run that stopped before Step 4 ----------------------------
 CASE_NUM=$((CASE_NUM + 1))

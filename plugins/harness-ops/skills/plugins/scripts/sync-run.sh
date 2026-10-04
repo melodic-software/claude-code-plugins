@@ -87,7 +87,9 @@
 #   `total`, so the steps and the remainder sum to it.
 #   `in_repo_records` counts the project/local records belonging to the repo the
 #   run stands in, whether or not any of them moved; `stale_project_records` is
-#   `{total, by_path:[{path,count}]}`; `cache_content.scope` is `user`, the only
+#   `{total, paths, by_parent:[{parent,count,paths}], more_parents, list_file}`,
+#   with the full `[{path,count}]` in `list_file` (null under --audit);
+#   `cache_content.scope` is `user`, the only
 #   records Step 5b compares, and `cache_content.stale[]` is
 #   `{id, version, files_differ}` per stale install. `source_checkout` is null
 #   unless the source is `directory`; then it is `{path, state, branch, upstream,
@@ -126,6 +128,8 @@ FLEET_STATE="${SYNC_RUN_FLEET_STATE:-$SCRIPT_DIR/fleet-state.sh}"
 CACHE_CHECK="${SYNC_RUN_CACHE_CHECK:-$SCRIPT_DIR/cache-content-check.sh}"
 NORMALIZE="${SYNC_RUN_NORMALIZE:-$SCRIPT_DIR/normalize-enabled-plugins.sh}"
 CLAUDE_BIN="${SYNC_RUN_CLAUDE_BIN:-claude}"
+# The stale-project-records section prints at most this many parent directories.
+STALE_PARENT_ROWS=10
 
 # jq-capture.sh is this script's own fixed sibling, carrying the `jq_to` capture
 # every jq call here goes through, shared with fleet-state.sh and
@@ -1352,18 +1356,31 @@ report_extras() {
   if [[ -z "$src" ]]; then
     jq_to "$__var" -c -n '{auto_update: null, catalog_source: null, user_scope_orphans: [],
       delisted: [], delisted_project: [], delisted_settings_only: [],
-      stale_project_records: {total: null, by_path: []},
+      stale_project_records: {total: null, paths: null, by_parent: [], more_parents: 0, list_file: null},
       in_repo_records: null, in_repo_ids: [], divergences_here: null}'
     return 0
+  fi
+  # The full per-path list goes to a run-directory file, not the digest: a
+  # machine with thousands of absent paths would otherwise put every one of them
+  # on the digest line and in the report. Audit's scratch directory is removed on
+  # exit, so audit writes no file and names none.
+  local list_file="" stale_list=""
+  if [[ "$MODE" != "audit" ]] &&
+    jq_to stale_list -c '[.installed[]? | select(.projectPathPresent == false)] | group_by(.projectPath)
+      | map({path: .[0].projectPath, count: length})' "$src" &&
+    printf '%s\n' "$stale_list" >"$RUN_DIR/stale-project-records.$mp.json"; then
+    list_file="$RUN_DIR/stale-project-records.$mp.json"
   fi
   # `in_repo_records` is the count of project/local records belonging to the repo
   # the run stands in, independent of whether any of them diverged. The report's
   # `In-repo:` row needs exactly that: `0` means this root has no project/local
   # installs, and the intersection with the divergences answers a different
-  # question. `by_path` carries the per-path counts the stale-project-records
-  # section renders one row each from.
+  # question. `by_parent` groups the absent paths by parent directory, largest
+  # record count first, capped at STALE_PARENT_ROWS rows; `more_parents` counts
+  # the groups past the cap.
   # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
-  jq_to "$__var" -c '
+  jq_to "$__var" -c --argjson cap "$STALE_PARENT_ROWS" --arg list_file "$list_file" '
+    def parent: capture("^(?<p>.*[/\\\\])[^/\\\\]+[/\\\\]*$").p // .;
     ([.divergences[]? | select(.versionsMatch == false) | .id]) as $act
     | ([.installed[]? | select(.currentProject == true) | .id]) as $here
     | ([.installed[]? | select(.projectPathPresent == false)]) as $absent
@@ -1373,9 +1390,15 @@ report_extras() {
        delisted: (.delisted // []),
        delisted_project: (.delisted_project // []),
        delisted_settings_only: (.delisted_settings_only // []),
-       stale_project_records: {total: ($absent | length),
-                               by_path: ($absent | group_by(.projectPath)
-                                         | map({path: .[0].projectPath, count: length}))},
+       stale_project_records: (($absent | group_by(.projectPath | parent)
+                                | map({parent: (.[0].projectPath | parent), count: length,
+                                       paths: (map(.projectPath) | unique | length)})
+                                | sort_by(-.count, .parent)) as $groups
+                               | {total: ($absent | length),
+                                  paths: ($absent | map(.projectPath) | unique | length),
+                                  by_parent: $groups[:$cap],
+                                  more_parents: ([0, ($groups | length) - $cap] | max),
+                                  list_file: (if $list_file == "" then null else $list_file end)}),
        in_repo_records: ($here | length),
        in_repo_ids: $here,
        divergences_here: ($act | map(select(. as $i | $here | index($i))) | length)}' "$src"
