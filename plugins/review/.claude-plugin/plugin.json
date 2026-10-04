@@ -1,6 +1,6 @@
 {
   "name": "review",
-  "version": "0.40.4",
+  "version": "0.41.0",
   "description": "Code-review toolkit: six reviewer agents, read-only over the reviewed code (code, security, architecture, doc drift, build/test/lint, CI-log audit), plus orchestration skills for the quality gate, fan-out, and enforceability audit (/review:audit-enforceability), a pull-request change digest with an interactive view (/review:explain-change), a fan-out sweep workflow (/review:fanout-sweep), and CI lane commands (/review:code-review, /review:security-review) for org reusable workflows.",
   "author": {
     "name": "Melodic Software",

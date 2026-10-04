@@ -20,7 +20,7 @@
 # mutate one.
 #
 # Purpose: give a fresh cloud VM the same tool inventory as
-# .github/workflows/ci.yml, so the repo's gates (scripts/run-plugin-tests.sh,
+# .github/workflows/pr-require-checks.yml, so the repo's gates (scripts/run-plugin-tests.sh,
 # scripts/validate-plugins.sh, hygiene linters) run instead of SKIPping.
 # In-repo manifests stay the single source of truth where one exists:
 #   Node               — .node-version (standards-synced)
