@@ -5,7 +5,7 @@
  * `.work/<watch-epic>/<video-slug>/watch.json`.
  */
 
-import { readFileSync, realpathSync, statSync } from "node:fs";
+import { lstatSync, readFileSync, realpathSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -212,7 +212,9 @@ function osTempRoot() {
 /**
  * The real directory inside the OS temp dir, or null.
  * A missing path, a file, the temp root itself, or anything outside it is not removable.
- * The caller deletes this resolved path, the one the check validated.
+ * The caller deletes this resolved path, the one the check validated. The leaf is
+ * lstat-ed, so a symlink swapped in after realpath fails the check, and fs.rm on
+ * such a link removes the link, not its target.
  *
  * @param {string} dir
  * @returns {string|null}
@@ -227,7 +229,7 @@ function resolveRemovableTempDir(dir) {
   const rel = path.relative(osTempRoot(), real);
   if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) return null;
   try {
-    if (!statSync(real).isDirectory()) return null;
+    if (!lstatSync(real).isDirectory()) return null;
   } catch {
     return null;
   }

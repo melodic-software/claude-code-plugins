@@ -502,7 +502,7 @@ describe("mark-phase vision metrics", () => {
   it("records triage and promotion counts so vision-metrics-honesty appears", async () => {
     const sliceDir = await mkdtemp(path.join(os.tmpdir(), "watch-vision-"));
     try {
-      let state = sampleTalk();
+      const state = sampleTalk();
       state.artifactPaths = { contactSheetCount: 2 };
       state.status = "vision";
       await writeWatchState(sliceDir, state);
@@ -630,6 +630,42 @@ describe("close removes recorded tempSession directories", () => {
       await rm(link, { recursive: true, force: true });
       await rm(framesDir, { recursive: true, force: true });
       await rm(sheetsDir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps a directory outside the OS temp dir that a recorded symlink points to", async () => {
+    const outer = await mkdtemp(path.join(os.tmpdir(), "watch-close-root-"));
+    const fakeTmp = path.join(outer, "tmp");
+    const outside = path.join(outer, "outside");
+    await mkdir(fakeTmp);
+    await mkdir(outside);
+    writeFileSync(path.join(outside, "keep.txt"), "x");
+    const link = path.join(fakeTmp, "video-extraction-link");
+    symlinkSync(outside, link, "dir");
+    const framesDir = path.join(fakeTmp, "video-frames-abc");
+    await mkdir(framesDir);
+    const savedEnv = { TMPDIR: process.env.TMPDIR, TEMP: process.env.TEMP, TMP: process.env.TMP };
+    process.env.TMPDIR = fakeTmp;
+    process.env.TEMP = fakeTmp;
+    process.env.TMP = fakeTmp;
+    try {
+      const sliceDir = path.join(outer, "slice");
+      let state = sampleTalk();
+      for (const phase of ["acquire", "transcript", "watching", "vision", "harvest", "research"]) {
+        state = markPhaseComplete(state, phase);
+      }
+      state.status = "synthesizing";
+      state.tempSession = { workDir: link, framesDir, acquiredAt: "2026-10-03T00:00:00.000Z" };
+      await writeWatchState(sliceDir, state);
+      expect(await runClose(sliceDir, { verifyOutcomes: async () => 0 })).toBe(0);
+      expect(existsSync(path.join(outside, "keep.txt"))).toBe(true);
+      expect(existsSync(framesDir)).toBe(false);
+    } finally {
+      for (const [key, value] of Object.entries(savedEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+      await rm(outer, { recursive: true, force: true });
     }
   });
 
