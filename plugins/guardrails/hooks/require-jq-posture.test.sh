@@ -248,7 +248,7 @@ if ((JQ_HIDING_WORKS)); then
     "$hidden_err" "jq"
   assert_contains "the jq-hidden denial points at the documented install route" \
     "$hidden_err" "https://jqlang.org/download/"
-  assert_contains "the jq-hidden denial names the kill switch that bypasses it" \
+  assert_absent "the jq-hidden denial (a model-facing reason) does not name the kill switch, the user's lever" \
     "$hidden_err" "block_dangerous_git_enabled"
   assert_absent "the jq-hidden denial is NOT the fail-open skip notice" \
     "$hidden_err" "hook skipped for this session"
@@ -272,7 +272,7 @@ if ((JQ_HIDING_WORKS)); then
     "DENY" "$n_bypass_hidden"
   assert_eq "jq HIDDEN, safe command: DENY (the disclosed cost)" \
     "DENY" "$n_safe_hidden"
-  assert_contains "block-no-verify's jq-hidden denial names its own kill switch" \
+  assert_absent "block-no-verify's jq-hidden denial does not name its kill switch" \
     "$(cat "$ERR_NV" 2>/dev/null)" "block_no_verify_enabled"
 
   # --- POSTURE CONTROL: an advisory guard must be UNCHANGED ------------------

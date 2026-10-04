@@ -77,7 +77,7 @@ out1="$(printf '%s' "$session" | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$(command -v 
 rc1=$?
 out2="$(printf '%s' "$session" | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$(command -v bash)" -c "$(expand guardrails)" 2>/dev/null)"
 rc2=$?
-if ((rc1 == 0 && rc2 == 0)) && [[ "$out1" == *'"systemMessage":"bash-format: node is not on PATH'*'Run /bash-format:check to verify'* && -z "$out2" ]]; then
+if ((rc1 == 0 && rc2 == 0)) && [[ "$out1" == *'"systemMessage":"bash-format: node is not on PATH'*'then run /bash-format:check."}' && -z "$out2" ]]; then
   ok "bash: two plugins in one session print one notice, naming the first plugin's check skill, and exit 0"
 else
   bad "bash: want one notice across two plugins" "rc=$rc1/$rc2 first=$out1 second=$out2"
