@@ -166,9 +166,10 @@ session. Do not fabricate a map.
      stands, otherwise close it with a comment linking the resolution that made it moot. A moot
      item gets no line in either index.
    - A closed decision the resolution shows was wrong: open a new decision item that links the
-     old one and work it like any other. When it resolves, add its pointer to Decisions-so-far
-     and change the old decision's line to `<old title> (#<old>): superseded by <new title>
-     (#<new>)`. Never reopen the old item or edit its resolution comment.
+     old one, with its type and mode labels set as chart step 4 requires, and work it like any
+     other. When it resolves, add its pointer to Decisions-so-far and change the old decision's
+     line to `<old title> (#<old>): superseded by <new title> (#<new>) (resolved <date>)`.
+     Never reopen the old item or edit its resolution comment.
 7. **Map closure → destination handoff.** When the frontier is empty and every decision item
    is closed, the destination is coherent: close the map issue and hand the destination
    onward (`/planning:interview` or `/planning:prd` for a Brief/PRD; `/planning:plan`

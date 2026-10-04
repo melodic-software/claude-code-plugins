@@ -69,8 +69,9 @@ Mode is materialized as the `needs-human` label (present = HITL). Extension poli
    but no index line → add the line. Closed-as-out-of-scope items are indexed under
    Out-of-scope instead, never under Decisions-so-far. An item closed as moot (another
    resolution invalidated its premise) carries a closing comment linking that resolution and
-   no line in either index. A decision later found wrong keeps its line, rewritten to point at
-   the decision that superseded it, so the index holds one live answer per question.
+   no line in either index. A decision later found wrong keeps its line, rewritten as
+   `<old title> (#<old>): superseded by <new title> (#<new>) (resolved <date>)`, so the index
+   holds one live answer per question.
 2. **No item resolved-in-comment yet still open.** In-scope resolution is atomic: comment →
    Decisions-so-far → close. A wrongly scoped item closes with one Out-of-scope line and no
    Decisions-so-far pointer (see Out-of-scope above). A dangling "resolved" comment on an
