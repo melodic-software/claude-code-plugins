@@ -73,12 +73,17 @@ itself read a path that surface covered. The glob is matched against the request
 read that finds no file fires it. Delegation therefore resets the trigger rather than closing the
 door, and what is left is that nothing tells an agent a rule exists until a read happens to match
 it: the agent editing C# who was never told to read the C# rule first acts without it. This is why
-every accepted move regenerates an **always-loaded index** of deferred surfaces, which every
-context does inherit, and that turns an unnamed rule into one an ordinary `Read` can fetch.
+every accepted move regenerates an **always-loaded index** of deferred surfaces, which the main
+session and every subagent that loads the CLAUDE.md hierarchy receive, and that turns an unnamed
+rule into one an ordinary `Read` can fetch. Explore, Plan, and an agent whose definition sets
+`omitClaudeMd` skip the project CLAUDE.md files, so the index does not reach them; a fork inherits the
+parent conversation instead.
 
-**Path scoping triggers on read, not write.** Creating a new file is not a read, so a rule governing
-how new files are made would not fire in the case it exists for. Creation-governing content is denied
-the path-scoped destination structurally, not by judgment.
+**A path-scoped rule may arrive after the file it governs is created.** Before Claude Code 2.1.288
+path scoping triggered on Read only, so creating a new file never fired a rule. From 2.1.288 Write
+and Edit fire it too, but the rule most likely arrives after the write, which is not yet measured.
+Either way a rule governing how new files are made may be absent in the case it exists for, so
+creation-governing content is denied the path-scoped destination structurally, not by judgment.
 
 **A nested `CLAUDE.md` and a nested `AGENTS.md` share one trigger: Claude reads a file in that
 directory.** What separates them is that a `CLAUDE.md` on the file's own path is read *instead* of
@@ -185,7 +190,7 @@ Conditions that should change this plugin, recorded so they are acted on rather 
 |---|---|
 | Claude Code announces deferred surfaces, so an agent learns a rule exists without reading a covered path | Re-run the measurements; the index's justification weakens and the hard-deny classes may narrow |
 | Reading `AGENTS.md` directly stops depending on a remote feature flag, and every pinned `claude-code-action` installs a CLI that reads it | Run `/instruction-placement:migrate cutover-check` once it ships (#4281); when every condition is met, the `CLAUDE.md` shims a repository carries can come out |
-| Path scoping gains a write trigger | Drop the structural deny on creation-governing content |
+| A measurement shows a `Write`-triggered path-scoped rule arrives before the file is written (the trigger itself shipped in Claude Code 2.1.288) | Drop the structural deny on creation-governing content |
 | Rules gain an official `description:` frontmatter field | Make the index's description source explicit rather than a preferred-if-present convention |
 | A second consumer needs the findings artifact | Promote its contract to a documented cross-plugin seam **before** that consumer ships, per the convention registry. The contract's stability guarantees and the three promotion prerequisites are already written down in [`context/findings-artifact.md`](context/findings-artifact.md); the owner doc is deliberately not written yet, because an interface with one implementation is a guess |
 | The glob engine needs semantics bash cannot express cleanly | Reconsider the hand-rolled expander; it exists to avoid `eval` on repository content |
@@ -262,8 +267,8 @@ hands a configured value to a hook process; the value comes from the routes abov
 
 ### Upstream documentation
 
-- [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
-- [Plugin install options](https://code.claude.com/docs/en/plugins-reference#plugin-install): the `--config` flag's reference entry
+- [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration): the `userConfig` schema and the `CLAUDE_PLUGIN_OPTION_<KEY>` export
+- [Plugin install options](https://code.claude.com/docs/en/plugins/cli-reference#plugin-install): the `--config` flag's reference entry
 - [Plugins and skills settings](https://code.claude.com/docs/en/settings-reference#plugins-and-skills): `enabledPlugins`, `extraKnownMarketplaces`, `pluginConfigs`
 - [Settings files and who they affect](https://code.claude.com/docs/en/settings#settings-files-and-who-they-affect): user vs project vs local precedence
 - [Manage installed plugins](https://code.claude.com/docs/en/discover-plugins#manage-installed-plugins): enabling, disabling, `/plugin list`

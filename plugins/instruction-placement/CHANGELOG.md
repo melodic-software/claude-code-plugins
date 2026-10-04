@@ -3,6 +3,20 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.7] - 2026-10-04
+
+### Changed
+
+- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+
+## [0.21.6] - 2026-10-04
+
+### Fixed
+
+- **Four stale loading-mechanics claims are corrected against the current Claude Code docs ([#6101](https://github.com/melodic-software/claude-code-plugins/issues/6101)).**
+  `context/verified-mechanics.md` now records that a path-scoped rule fires on Read, Write or Edit from Claude Code 2.1.288 (Read only before), and that a nested `CLAUDE.md` gains the same Write and Edit trigger on the 2.1.288 release note alone; that an invoked skill body is re-injected after compaction within the documented caps while the skill listing is not; that unscoped rules reach a non-fork subagent; and that root `CLAUDE.md`, its imports and the generated index do not reach Explore, Plan or an `omitClaudeMd` agent, while a fork inherits the parent conversation. The stale skill-body note is gone, and the surface-table pointer record now cites the context-window, skills, sub-agents and changelog pages.
+  The creation-governing deny in `context/routing-rubric.md`, the README and audit eval 6 keeps its verdict. Its stated reason is now the version floor plus the unmeasured timing of a Write-triggered rule, and the README revisit trigger for dropping it names that measurement. No script, gate or rendered index text changed, so consumers need not re-render their index.
+
 ## [0.21.5] - 2026-10-04
 
 ### Fixed

@@ -3,11 +3,17 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.67.6] - 2026-10-04
+## [0.67.7] - 2026-10-04
 
 ### Changed
 
 - The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve. `/planning:interview`'s "Ground before recommending" states the new bar.
+
+## [0.67.6] - 2026-10-04
+
+### Changed
+
+- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
 
 ## [0.67.5] - 2026-10-04
 

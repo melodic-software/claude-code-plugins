@@ -1,6 +1,6 @@
 {
   "name": "session-flow",
-  "version": "0.48.7",
+  "version": "0.48.9",
   "description": "Session lifecycle: workflow (next stage), handoff (save-point, resume prompt), continue-in-background, keep-going (resume after interruption or stall), find-handoff (recover a lost handoff), clean-stop (durable stopping point), retro and running-retro (retrospectives), audit-sessions, orient (where the session stands), orchestrate (delegation imperatives), reanchor (verify assumptions), reconcile (retire finished work), show-options (ranked skill menu), tidy-work (.work tiers), check, setup.",
   "author": {
     "name": "Melodic Software",

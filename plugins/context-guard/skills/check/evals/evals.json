@@ -4,11 +4,12 @@
     {
       "id": 1,
       "name": "hook-notice-runs-the-read-only-check",
-      "prompt": "A session notice just said jq is missing for a context-guard hook. Are node and jq installed here?",
-      "expected_output": "Follows only the Node.js row and the jq row of the setup skill's check section, runs the probes through Bash, and reports PASS/FAIL rows for node and jq. Installs nothing and stops.",
+      "prompt": "A session notice just said node is not on PATH for context-guard. Are node and jq installed here?",
+      "expected_output": "Follows only the Node.js row and the jq row of the setup skill's check section, runs the probes through Bash, and reports PASS/FAIL rows for node and jq, each with what it is for: node for the PostCompact marker hook and the mod's snapshot writes, jq for setup's zone report and zones.json merge. Installs nothing and stops.",
       "files": [],
       "expectations": [
         "Runs `command -v node`, `node --version`, `command -v jq` and `jq --version` through Bash and reports the result",
+        "Says a missing node stops the PostCompact marker hook and the mod's snapshot writes, not the zone lines, gate, band row or status tool",
         "Does not run setup's other probes or `apply`",
         "Does not install node or jq, and stops after the row"
       ]

@@ -1,0 +1,12 @@
+// expect: rule-inert-assertion
+// typeof(Widget) is never null, so the assertion passes whatever the code does.
+using Xunit;
+
+public class WidgetTypeofNotNullTests
+{
+    [Fact]
+    public void Widget_Exists()
+    {
+        Assert.NotNull(typeof(Widget));
+    }
+}

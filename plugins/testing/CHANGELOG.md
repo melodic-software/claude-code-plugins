@@ -3,6 +3,32 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.10] - 2026-10-04
+
+### Fixed
+
+- `/testing:audit` now reports C# assertions that cannot fail as `rule-inert-assertion` in xUnit and NUnit suites: `Assert.True(true)`, `Assert.False(false)`, `Assert.NotNull` of a `typeof` or `nameof` expression, and `Assert.True` or `Assert.False` comparing two of them, such as `nameof(Widget) == typeof(Widget).Name` (#6040).
+- An inert C# assertion no longer also counts as an oracle, so `Assert.NotNull(typeof(Widget))` is reported once, as inert, not also as `rule-weak-oracle` (#6040). Because an inert line no longer counts as a strong oracle either, a weak oracle beside a bare `.Should();`, or beside an MSTest `Assert.IsTrue(true)`, is now reported.
+
+## [0.22.9] - 2026-10-04
+
+### Fixed
+
+- `/testing:audit` no longer reads a C# test's own signature as an assertion. A test named `Diagnostics_CheckConnectionStrings`, or a theory with an `expected` parameter, whose body only prints is now reported as `rule-zero-assertion` ([#6040](https://github.com/melodic-software/claude-code-plugins/issues/6040)).
+- A C# test whose body sits on its declaration line, `{ ... }` or `=> ...`, is now checked for `rule-weak-oracle`, `rule-snapshot-only` and `rule-inert-assertion`, as a multi-line body is. An async assertion a `Task`-returning expression body returns (`System.Threading.Tasks.Task` written out included) is awaited by the runner and is not reported; in an `async` test the expression's value is discarded, so it is, also when the expression wraps to the line after its `=>` ([#6040](https://github.com/melodic-software/claude-code-plugins/issues/6040)).
+
+## [0.22.8] - 2026-10-04
+
+### Changed
+
+- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+
+## [0.22.7] - 2026-10-04
+
+### Changed
+
+- The README notes that an installed mod can stop this plugin's `PreToolUse` hooks from running and can approve a call they blocked, with links to the two mods events sections. Nothing the plugin runs changed.
+
 ## [0.22.6] - 2026-10-04
 
 ### Fixed

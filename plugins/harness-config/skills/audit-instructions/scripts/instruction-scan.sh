@@ -20,8 +20,14 @@
 #       --i6-counts reports the raw count (the per-line rule: a prohibition
 #       token on a line with no rationale marker) beside the surviving count.
 #   I10 reasoning-echo directive (show/explain/reproduce your thinking or
-#       reasoning, "think out loud", reasoning_extraction). These tell the model
-#       to emit its internal reasoning as response text.
+#       reasoning, "think out loud", reasoning_extraction, a `<scratchpad>` tag
+#       or a scratchpad paired with thinking or working a problem out). These
+#       tell the model to emit its internal reasoning as response text. A
+#       `<scratchpad>/` path placeholder is not marked.
+#   I38 progress-update suppressor ("hold all findings for the final
+#       response", "don't narrate", "no interim updates"). Final-message shape
+#       contracts and "narrate" meaning "describe as" are criteria-owned
+#       fences the model lane applies.
 #   I8  model-era candidates, four pattern families emitted with per-family ids
 #       matching the catalog's I8 rows — I8-a and I8-c are Opus-5-scoped, I8-b is
 #       unscoped (promotion gate met; fires for every target). The scanner is
@@ -65,7 +71,7 @@
 # Rows are `file:line:check-id` (grep -n convention). An I6 row is a sentence
 # that opens on a prohibition and survives the paired-positive and rationale
 # gates; a line may surface once per matching check
-# id (I6, I10, I23, I27, and one of the I8 families). Nonexistent path
+# id (I6, I10, I23, I27, I38, and one of the I8 families). Nonexistent path
 # arguments are skipped, not errors.
 #
 # --body-only skips YAML frontmatter (a leading `---` block), so no row can point
@@ -89,7 +95,7 @@ set -uo pipefail
 
 usage() {
   cat <<'EOF'
-instruction-scan.sh — mark I6/I8/I10/I23/I25/I27/I28 instruction candidates in given files.
+instruction-scan.sh: mark I6/I8/I10/I23/I25/I27/I28/I38 instruction candidates in given files.
 
 Usage: instruction-scan.sh [--count | --i6-counts] [--body-only] [--help] FILE...
 
@@ -112,7 +118,7 @@ don't-reason, I8-f think-carefully steer. I23 marks self-estimated context-budge
 effort-for-brevity candidates (effort-lowering directive paired with a brevity
 token on one line). I28 families: I28-a forced-compliance emphasis
 (case-sensitive), I28-b blanket tool defaults. I25: retired sampling
-parameters.
+parameters. I38: progress-update suppressors.
 
 Advisory: always exits 0 (candidates never fail the run). Requires grep, tr,
 and awk (exit 2 when one is absent). Seeds the candidate set of the audit-instructions
@@ -182,6 +188,13 @@ I6_CLAUSE_TRANSPARENT=" just simply always then also still only first next now a
 # I10 reasoning-echo phrasing.
 I10_ERE="(show|explain|reproduce|echo|transcribe|verbalize|narrate|share|describe) (your |the )?(thinking|reasoning|thought process|chain of thought)"
 I10_ERE="${I10_ERE}|think out loud|walk (me|us) through your (thinking|reasoning)|reasoning_extraction|chain[- ]of[- ]thought"
+# Scratchpad in the reasoning sense only: the tag (not a `<scratchpad>/` path
+# placeholder), or the word within one sentence of a think/reason/work-out verb.
+I10_ERE="${I10_ERE}|<scratchpad>([^/]|\$)|(think|reason|work (it |this |things )?out|work through)[^.]{0,40}scratchpad|scratchpad[^.]{0,40}(think|reason|work (it |this |things )?out|work through)"
+# I38 progress-update suppressors. Same apostrophe handling as I8-b.
+I38_ERE="hold (all |any |your |the )?(findings|results|updates|output)( until| for)|(don('|’)?t|do not|never) narrate"
+I38_ERE="${I38_ERE}|no (interim|intermediate|progress) (updates|messages|output|status|notes)|(stay|remain|work) silent(ly)? until"
+I38_ERE="${I38_ERE}|(don('|’)?t|do not|never) (send|give|post|write) (any )?(interim|intermediate|progress) (updates|messages|notes|status)"
 # I8 model-era candidate families (I8-a/I8-c Opus-5-scoped, I8-b unscoped;
 # scanner is model-blind; per-family ids I8-a/I8-b/I8-c). Stem forms
 # (`re[- ]?verif`) deliberately catch inflections; over-production is the contract.
@@ -584,9 +597,10 @@ fi
     run_family 8 -nHE "$I28_A_ERE"
     run_family 9 -nHiE "$I28_B_ERE"
     run_family 10 -nHiE "$I25_ERE"
+    run_family 11 -nHiE "$I38_ERE"
   fi
 } | tr '\000' '\003' | awk -v mode="$inner_mode" -v body_only="$body_only" \
-  -v ids="I10 I23 I8-a I8-b I8-c I8-f I27 I28-a I28-b I25" \
+  -v ids="I10 I23 I8-a I8-b I8-c I8-f I27 I28-a I28-b I25 I38" \
   -v rationale="$RATIONALE_ERE" -v brevity="$I27_BREVITY_ERE" "$SCAN_AWK" >"$other_tmp"
 
 if [[ "$mode" == "count" ]]; then

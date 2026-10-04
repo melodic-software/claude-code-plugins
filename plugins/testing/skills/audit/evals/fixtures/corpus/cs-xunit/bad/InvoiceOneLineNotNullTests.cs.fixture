@@ -1,0 +1,10 @@
+// expect: rule-weak-oracle
+// The same NotNull-only oracle as InvoiceNotNullTests, with the whole body on
+// the declaration line.
+using Xunit;
+
+public class InvoiceOneLineNotNullTests
+{
+    [Fact]
+    public void Create_ReturnsAnInvoice() { Assert.NotNull(InvoiceBuilder.Build("order-7")); }
+}

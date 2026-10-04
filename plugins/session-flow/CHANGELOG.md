@@ -1,10 +1,22 @@
 # Changelog: session-flow plugin
 
-## [0.48.7] - 2026-10-04
+## [0.48.9] - 2026-10-04
 
 ### Changed
 
 - The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve.
+
+## [0.48.8] - 2026-10-04
+
+### Changed
+
+- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+
+## [0.48.7] - 2026-10-03
+
+### Changed
+
+- **Rate-limit and zone lookups name the guards' pull tools.** `/session-flow:orchestrate` names rate-limit-guard's mod as the snapshot writer and `mcp__rate-limit-guard__status` as a source; headroom counts as unobservable whenever no live reading is obtainable (mods off, the guard not installed, the tool's registration refused by policy, or a tool answer with no windows), no longer in every cloud or headless session. `/session-flow:workflow` and `/session-flow:keep-going` look up the zone word with `mcp__context-guard__status` or the snapshot, and `/session-flow:keep-going` reads live `rate_limits` through `mcp__rate-limit-guard__status`.
 
 ## [0.48.6] - 2026-10-04
 

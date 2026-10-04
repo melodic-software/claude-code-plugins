@@ -1,104 +1,64 @@
-# Unwrap before you compose: the statusline wiring transform
+# Retired statusline tee: unwire steps
 
-The shared, plugin-name-free half of the two statusline guard plugins' compose
-rules. The hub setup skill supplies every concrete shim path for the printed
-edit. These rules target machine-scope surfaces under `~/.claude/` and are
-deduplicated here.
+The shared, plugin-name-free half of the two statusline guard plugins' steps for removing a retired
+tee. The hub SKILL.md supplies `<guard>`; `<config>` is `${CLAUDE_CONFIG_DIR:-~/.claude}`. Run
+these after `legacy-statusline-detect.md` beside this file found a tee running, a route still
+wired, or files the tee left behind.
 
-`scripts/compose-statusline-wiring.sh` is the whole transform. Run it and
-substitute what it prints. Never peel or wrap by hand: the composed value has to
-be byte-identical across re-runs, and a hand-composed edit double-wraps a
-sibling tee and stacks another `sh -c` layer every time, at a further 0.6 to
-0.9 s per refresh for each duplicated tee.
+The skill prints these steps for the person to run. It never edits a settings file, a script or
+the plugin cache itself.
 
-## Invocation
+## 1. The `statusLine` edit
 
-Feed it the effective `statusLine` value resolved in the settings-scope step,
-and one `--wrap` per shim the wiring should carry, outermost first:
+Print the current `statusLine.command` and the value with every guard shim removed, and name the
+settings file it lives in. The person's own renderer stays byte for byte.
 
-```bash
-jq '.statusLine' ~/.claude/settings.json |
-  bash "<plugin-root>/scripts/compose-statusline-wiring.sh" \
-    --wrap 'bash ~/.claude/<this plugin>/bin/statusline-shim.sh' --block --explain
-```
+- A **shim pair** is the word `bash` followed by one word, quoted or not, whose path ends in
+  `/bin/statusline-shim.sh`. A **tee pair** is the word `bash` followed by one word, quoted or not, whose path ends in
+  `/scripts/statusline-tee.sh`. Remove each pair and the one space after it, and nothing else.
+- Look inside one `sh -c '<string>'` layer too: remove a pair at the start of the quoted string,
+  and keep the layer, its quotes and its escapes as they are.
+- Never remove an `sh -c` layer itself. An adapter an earlier setup generated and the person's own
+  `sh -c` renderer have the same shape, so the value left behind is kept as it is. A leftover
+  adapter still runs the renderer.
+- Remove both guards' pairs. Both tees retired in the same release, so a sibling's shim is as stale
+  as this plugin's.
+- When nothing remains, the edit removes the `statusLine` key. Otherwise only `command` changes,
+  and every other key in the object stays.
 
-`--command '<string>'` replaces the piped JSON when the operator quoted their
-command in chat rather than pointing at a settings file.
+Examples, with `CG` for `bash ~/.claude/context-guard/bin/statusline-shim.sh` and `RLG` for
+`bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh`:
 
-## Contract
-
-Arguments:
-
-| Argument | Effect |
+| Current `statusLine.command` | After the edit |
 |---|---|
-| `--wrap <prefix>` | A shim prefix the composed wiring carries, outermost first, repeatable. Each value is `bash` plus a path ending in `/statusline-shim.sh`. |
-| `--command <string>` | The current `statusLine` command as a raw string, instead of JSON. |
-| `--input <file>` | Read the current `statusLine` value as JSON from a file. |
-| `-` | Read that JSON from stdin. This is the default. |
-| `--block` | Print a paste-ready `{ "statusLine": ... }` settings fragment. |
-| `--command-only` | Print the bare composed command string. |
-| `--explain` | Write the recovered renderer, the layers peeled, and the wrap decision to stderr. |
+| `CG RLG ~/.claude/statusline/render.sh` | `~/.claude/statusline/render.sh` |
+| `CG sh -c 'ulimit -n'` | `sh -c 'ulimit -n'` (the person's own `sh -c`, kept) |
+| `CG sh -c 'RLG my-renderer --format '\''a b'\'''` | `sh -c 'my-renderer --format '\''a b'\'''` |
+| `CG` | remove the `statusLine` key |
 
-`--explain` writes four `key: value` lines to stderr and leaves stdout alone. Those lines are
-where a report's reasons come from, so quote them rather than re-deriving the same facts:
+## 2. A wrapper script
 
-```text
-renderer: THEME=dark my-statusline
-layers-peeled: 3
-wrap: shell (unquoted top-level shell syntax)
-idempotent: yes
-```
+When the detector found a script that runs a tee or a shim (for example a dotfiles status line
+entrypoint), print the lines to remove and the file to edit. A file managed by chezmoi or another
+dotfiles tool is edited at its source (for chezmoi, the file `chezmoi source-path <target>` names),
+then applied; an edit to the target alone is overwritten at the next apply.
 
-`wrap:` is `standalone`, `plain`, or `shell`, each followed by its reason in parentheses. The
-four reasons are `no statusline configured`, `command word resolves as an executable`,
-`unquoted top-level shell syntax`, and `command word is a builtin, not an executable` (with
-`function` or `alias` in place of `builtin` where that is what the command word resolved to).
-`layers-peeled: 0` means the value carried no wrapping from an earlier run.
+## 3. Files to delete
 
-Exit codes:
+Print the delete commands for the guard's files the tee owned:
 
-| Code | Meaning |
-|---|---|
-| 0 | Composed. The value is on stdout. |
-| 1 | A round-trip check failed. One line names the check on stderr and stdout stays empty. |
-| 2 | Usage error: unknown argument, missing `--wrap`, or a `--wrap` prefix the peel would not recognize. |
-| 3 | The input could not be read, parsed as JSON, or scanned, which includes unbalanced quoting in the current command. |
-| 4 | jq is required for the selected input or output mode and is not on PATH. |
+- the installed shim copy, `<config>/<guard>/bin/statusline-shim.sh`, and its `bin/` directory when
+  empty;
+- `<config>/<guard>/.statusline-tee-path`;
+- rate-limit-guard: `<config>/rate-limit-guard/.last-write`, `.tee-disabled` and the `spool/`
+  directory;
+- context-guard: every `<config>/context-guard/context/.*.json.last`.
 
-A non-zero exit is never something to work around by composing the edit by
-hand. Report the reason it printed and stop: exit 2 means the invocation named
-a prefix the next run would not peel, and exit 3 means the current `statusLine`
-is a command no shell would run, which is a finding for the operator rather
-than an input to wrap.
+Never delete the snapshot files the mod writes (`rate-limits.json`, `context/<session-id>.json`).
+Delete the stamps after the edits in steps 1 and 2, so a tee still running cannot write them again.
 
-## What the script decides, and what you still do
+## 4. Restart
 
-The script owns the arithmetic. It peels every shim prefix and every adapter a
-previous run generated, decides whether the recovered renderer needs an `sh -c`
-adapter, escapes it, and asserts before printing that re-composing its own
-output reproduces it byte for byte. `--explain` reports each of those decisions
-so the report can name the reason rather than the result alone.
-
-Three judgments stay with the skill, because none of them is a function of the
-command string:
-
-- **Which `--wrap` prefixes to pass.** Every shim the wiring should carry has to
-  be listed, because the peel strips every shim prefix it finds. Name a sibling
-  plugin's shim only when that shim is present on disk: `bash <missing-path>`
-  exits 127 and takes the whole statusline down before the operator's renderer
-  runs.
-- **Which settings file the edit targets**, and whether the branches the check
-  already suppressed forbid printing an edit at all.
-- **Whether the composed value differs from what is already configured.**
-  Identical means the wiring is already correct and there is nothing to apply,
-  not a change to present.
-
-## The one shape that stays ambiguous
-
-A single `sh -c` over a merely-quoted command is preserved rather than peeled.
-Nothing in it distinguishes an adapter a previous run generated from an
-operator's own, and `sh -c 'ulimit -n'` peeled to `ulimit -n` would leave the
-shim `exec`-ing a shell builtin that no longer has a shell, so the statusline
-exits 127 instead of rendering. The cost of preserving is one spurious shell per
-refresh; peeling on a guess costs a broken statusline. Report the preserved
-layer as the operator's own renderer, because that is how the script treats it.
+Sessions and lanes started before the update keep running what they loaded. Tell the person to
+stop and restart them, then re-run the check: step 1 of the detector passes once no stamp is
+written again.

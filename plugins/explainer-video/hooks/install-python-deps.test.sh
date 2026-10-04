@@ -169,6 +169,78 @@ else
   fail "no python: rc=$rc output=[$out]"
 fi
 
+# Only the py launcher (a python.org install without "Add python.exe to PATH"): under Git Bash or Cygwin the
+# hook asks it only to list (py -0p) and starts pydeps.py with a listed python.exe, never through py, which
+# installs the latest Python on any launch command while none is installed; elsewhere `py` is not taken for Python.
+# The stub py logs its arguments and prints $WORK/listing with CRLF line ends; the stub cygpath maps a listed
+# Windows path to $WORK/stub/<file name>, ahead of a real one.
+launcher="$WORK/launcher"
+mkdir -p "$launcher" "$WORK/stub"
+{
+  printf '#!/bin/sh\nWORK="%s"\n' "$WORK"
+  cat <<'EOF'
+printf '%s\n' "$*" >>"$WORK/py.log"
+awk '{ printf "%s\r\n", $0 }' "$WORK/listing"
+EOF
+} >"$launcher/py"
+{
+  printf '#!/bin/sh\nWORK="%s"\n' "$WORK"
+  cat <<'EOF'
+case "$1" in
+-u) printf '%s\n' "$WORK/stub/${2##*\\}" ;;
+*) printf '%s\n' "$2" ;;
+esac
+EOF
+} >"$launcher/cygpath"
+for exe in python.exe python3.13t.exe python3.14.exe; do
+  printf '#!/bin/sh\nprintf "%%s\\n" "%s $*" >>"%s/started.log"\n' "$exe" "$WORK" >"$WORK/stub/$exe"
+done
+chmod +x "$launcher/py" "$launcher/cygpath" "$WORK/stub/"*
+root="$(new_plugin launcher "$digest")"
+# launcher_hook <<listing -> runs the hook under OSTYPE=msys with only the stub py listing stdin; sets OUT, RC, PYLOG
+# and STARTED.
+launcher_hook() {
+  cat >"$WORK/listing"
+  rm -f "$WORK/py.log" "$WORK/started.log"
+  OUT="$(env PATH="$launcher:$tools" OSTYPE=msys CLAUDE_PLUGIN_DATA="$(native "$WORK/data-launcher")" "$tools/bash" "$root/hooks/install-python-deps.sh" <<<'{}')"
+  RC=$?
+  PYLOG="$(tr '\n' '|' <"$WORK/py.log" 2>/dev/null)"
+  STARTED="$(cat "$WORK/started.log" 2>/dev/null)"
+}
+launcher_hook <<<'No installed Pythons found!'
+if [[ "$RC" -eq 0 && "$PYLOG" == '-0p|' && -z "$STARTED" && "$OUT" == *'Python 3.12 or 3.13 was not found'* ]]; then
+  ok "under Git Bash, a py launcher that lists no runtime only lists and the hook gives the missing-Python notice"
+else
+  fail "py launcher, no runtime: rc=$RC py=[$PYLOG] started=[$STARTED] output=[$OUT]"
+fi
+launcher_hook <<'EOF'
+ -V:3.14 *        C:\Py\python3.14.exe
+ -V:3.13t         C:\Py\python3.13t.exe
+ -V:3.13          C:\Py\python.exe
+EOF
+if [[ "$RC" -eq 0 && -z "$OUT" && "$PYLOG" == '-0p|' &&
+  "$STARTED" == "python.exe $root/scripts/pydeps.py install --data-dir "* ]]; then
+  ok "under Git Bash, the hook starts pydeps.py install with the listed regular 3.13 python.exe, not through py"
+else
+  fail "py launcher, 3.13 listed: rc=$RC py=[$PYLOG] started=[$STARTED] output=[$OUT]"
+fi
+launcher_hook <<'EOF'
+ -V:3.14 *        C:\Py\python3.14.exe
+EOF
+if [[ "$RC" -eq 0 && "$PYLOG" == '-0p|' && "$STARTED" == "python3.14.exe $root/scripts/pydeps.py install --data-dir "* ]]; then
+  ok "under Git Bash, with no 3.12 or 3.13 listed the hook starts pydeps.py with the listed one, which says what is required"
+else
+  fail "py launcher, only 3.14 listed: rc=$RC py=[$PYLOG] started=[$STARTED] output=[$OUT]"
+fi
+rm -f "$WORK/py.log"
+out="$(env PATH="$tools:$launcher" OSTYPE=linux-gnu CLAUDE_PLUGIN_DATA="$(native "$WORK/data-launcher")" "$tools/bash" "$root/hooks/install-python-deps.sh" <<<'{}')"
+rc=$?
+if [[ "$rc" -eq 0 && "$out" == *'Python 3.12 or 3.13 was not found'* && ! -e "$WORK/py.log" ]]; then
+  ok "outside Git Bash and Cygwin a py on PATH is not used"
+else
+  fail "py outside Windows: rc=$rc output=[$out]"
+fi
+
 echo "---"
 echo "passed: $PASS, failed: $FAIL"
 [[ "$FAIL" -eq 0 ]]

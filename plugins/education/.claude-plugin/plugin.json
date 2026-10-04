@@ -1,6 +1,6 @@
 {
   "name": "education",
-  "version": "0.13.4",
+  "version": "0.14.1",
   "description": "Learning tools. teach is a multi-session coach for a general subject or a repo-grounded concept through the Knowledge-Skills-Wisdom progression, with persistent per-topic state, and also a single-session domain primer. explain is a one-shot plain-language explainer. illustrate explains a concept or codebase topic as diagrams: a markdown record plus an interactive page. quiz-me checks your comprehension of a completed change. setup validates the plugin's configuration.",
   "author": {
     "name": "Melodic Software",

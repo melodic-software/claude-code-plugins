@@ -1,0 +1,12 @@
+// expect: rule-inert-assertion
+// An async expression body discards its value: the ThrowsAsync task is never
+// awaited (CS4014), so the test ends before the assertion runs.
+using System;
+using System.Threading.Tasks;
+using Xunit;
+
+public class ParserAsyncExpressionThrowsTests
+{
+    [Fact]
+    public async Task Parse_Empty_Throws() => Assert.ThrowsAsync<ArgumentException>(() => InvoiceParser.ParseAsync(""));
+}

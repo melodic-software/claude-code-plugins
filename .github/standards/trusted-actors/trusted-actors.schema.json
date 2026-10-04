@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://standards.melodic.software/trusted-actors/trusted-actors.schema.json",
+  "title": "Trusted actors",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "actors"],
+  "properties": {
+    "version": { "const": 1 },
+    "actors": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/actor" }
+    }
+  },
+  "$defs": {
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "login", "kind"],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "GitHub user id; the only field matched."
+        },
+        "login": {
+          "type": "string",
+          "description": "Label for humans; never matched."
+        },
+        "kind": { "enum": ["human", "bot"] }
+      }
+    }
+  }
+}

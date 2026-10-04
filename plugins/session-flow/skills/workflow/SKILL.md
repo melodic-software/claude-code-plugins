@@ -111,8 +111,9 @@ skill for that stage, name it; otherwise describe the inline work. Add that stag
 When the just-finished work closed out a stage (its artifact exists), or the user is asking how
 to carry on, the *mechanism* question is separate from the *next stage* question: continue here,
 `/clear`, handoff, background, clean-stop, or compact. Load `context/continuation.md` and walk
-its ordered router; recommend exactly one mechanism with its rationale, zone-informed when the
-context-guard seam has data and conservative when it does not. Mid-stage with a healthy window,
+its ordered router; recommend exactly one mechanism with its rationale, zone-informed when
+context-guard's zone report (its `mcp__context-guard__status` tool, or its snapshot) has data and
+conservative when it does not. Mid-stage with a healthy window,
 skip this, the default is simply to continue. Mid-stage with a bloated window, walk the router
 too: on the same task it usually lands on `/compact <focus>`, typed by the user, but its earlier
 questions (two failed corrections, an already-compacted run that is degrading) come first.

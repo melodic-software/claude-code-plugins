@@ -9,9 +9,9 @@ plugin reads this file too, and additionally follows its citations into the
 
 Review in this organization is split into two mutually exclusive scopes,
 so a finding belongs to exactly one scope and is never reported twice.
-The **code-review lane** (`claude-review`, and Managed Code Review)
+The **code-review lane** (`claude-review` or `pr-review`, and Managed Code Review)
 reads this file and applies the code-review scope below. The **security
-lane** (`claude-security-review`) runs from its own security-only prompt
+lane** (`claude-security-review` or `pr-review-security`) runs from its own security-only prompt
 rather than reading this file; its scope section below records the same
 split for every surface that does read it, so the code-review lane
 knows what to leave to the security lane, and so a self-hosted or local
@@ -54,13 +54,13 @@ the `standards` checkout root is available: this repository's own root when
 This lane owns every review dimension except security: correctness,
 design, conventions, error handling, observability, tests, and
 documentation. On a repository whose CI runs the security lane (a
-`.github/workflows/claude-security-review.yml` or
-`.github/workflows/claude-security-review-hosted.yml` workflow exists), it does
+`.github/workflows/claude-security-review*.yml` or
+`.github/workflows/pr-review-security*.yml` workflow exists), it does
 **not** report security findings, such as vulnerabilities, authorization
 or tenancy gaps, credential exposure, or injection: every security
 finding belongs exclusively to that lane and is omitted here even when a
 hunk plainly contains one.
-On a repository without either workflow no security lane exists yet, and
+On a repository with no such workflow no security lane exists yet, and
 suppressed findings would have no other reader: report security findings
 under this lane too, applying the security-scope checks below.
 
@@ -77,6 +77,12 @@ Always check:
   an atomic rename, a constraint, or a compensation step. An
   interruption between steps must not leave state no code path expects
   (`conventions/review/error-handling.md#atomicity`).
+- A GitHub Actions dependency bump takes one of two lanes. A non-major bump
+  from `actions/*`, `github/*` or `anthropics/*` merges itself once
+  `ci-status` passes; any other publisher, and any major, waits for a human
+  to merge. A change that adds an action from another publisher says why no
+  vendor action or `gh` or script step serves
+  (`components/dependabot-policy/README.md#merge-lanes-for-github-actions-bumps`).
 
 ## Security lane scope
 

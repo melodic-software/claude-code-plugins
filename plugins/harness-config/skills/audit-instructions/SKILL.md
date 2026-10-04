@@ -19,7 +19,7 @@ locally-owned instruction surfaces, cites each finding to current official promp
 it by how confident the evidence can be, and packages proposed removals or rewrites as a human-gated
 diff, so instruction surfaces shrink as models get better instead of only ever growing.
 
-The check catalog, covering the checks I1–I37, their evidence tier, authority tag, severity,
+The check catalog, covering the checks I1–I39, their evidence tier, authority tag, severity,
 per-surface applicability, and the `OPINION`-tier enablement policy, lives in
 [reference/criteria.md](reference/criteria.md); the deterministic pre-scan is
 `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
@@ -62,7 +62,7 @@ concerns its siblings already cover, so route rather than re-answer:
 
 On **memory-layer surfaces** (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md,
 `.claude/rules/`, and `rules/` under the user root Phase A resolves), this skill runs only the
-model-era checks I6–I37. It never runs or reports the hygiene checks I1–I5 (line-necessity, length,
+model-era checks I6–I39. It never runs or reports the hygiene checks I1–I5 (line-necessity, length,
 placement, inferable content, rule-to-hook) on these surfaces; that layer belongs to the
 `harness-memory` plugin. When it is installed, route memory-layer hygiene to its `audit` skill; when
 it is not, emit a single one-line pointer to the official CLAUDE.md include/exclude guidance
@@ -233,14 +233,14 @@ on a narrower ground: its skeleton is patternable, and it waits only on an attes
 calibrate the interval forms against), I23 (self-estimated context-budget phrasing, the budget clause
 alone, never the stop/summarize/hand-off verb it licenses, which routinely sits in a different
 sentence), I25 (retired sampling parameters), I27 (effort-for-brevity: an effort-lowering directive
-paired with a brevity token on one line), and the I28 families (`I28-a` forced-compliance emphasis,
-case-sensitive; `I28-b` blanket tool defaults). Concatenate `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/restatement-scan.py`
+paired with a brevity token on one line), the I28 families (`I28-a` forced-compliance emphasis,
+case-sensitive; `I28-b` blanket tool defaults), and I38 (progress-update suppressors). Concatenate `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/restatement-scan.py`
 over the same files, in the same central pass, for the I29 families (`I29-a`
 description-restatement; `I29-b` sibling-section-restatement); `--count` prints the row count.
 Advisory: a grep cannot judge whether a rationale is genuinely present, whether a restraint clause
 is a reporting gate, whether a budget mention is a directive or the counter-steer against one, or
 which model a row targets, so the lane refines every candidate against the catalog's fences and the
-run's resolved target model. I33 is lane-only; each lane brief restates its Must NOT flag fences.
+run's resolved target model. I33 and I39 are lane-only; each lane brief restates their fences.
 
 ### Lane sizing
 
@@ -408,7 +408,7 @@ were reused and how many re-ran. It also confirms the run added zero new interac
 abort, not an interactive gate, since it prompts nobody and blocks nothing mid-run). Present findings
 as a table. Each row's identity is `(check, claim, sites)` per
 [reference/finding-identity.md](reference/finding-identity.md); presentation fields stay outside the
-hash. An I15 conflict is one finding with two sites and one Finding ID. **Finding ID** is the row's
+hash. An I15 or I39 conflict is one finding with two sites and one Finding ID. **Finding ID** is the row's
 re-run-stable `finding_id/v1` from `scripts/finding-ids.sh` ([derivation and claim
 templates](reference/finding-identity.md)); a refused row reads `unidentified: <reason>` there.
 
@@ -425,7 +425,7 @@ its own finding with its own excerpt anchor.
 
 For each finding, give the proposed removal or rewrite as a fenced diff block. Tier is `mechanical`
 (pattern-detectable) or `behavioral` (its ground truth is observed behavior); authority is the
-check's tag from the catalog. An I15 conflict finding names **both** participating locations, since it is
+check's tag from the catalog. An I15 or I39 conflict finding names **both** participating locations, since it is
 a relation between two instructions, not a property of one line.
 
 **No-change findings are exempt from the diff contract.** Where a check forbids proposing an edit,

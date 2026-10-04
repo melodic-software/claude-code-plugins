@@ -3,11 +3,30 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.79.9] - 2026-10-04
+## [0.79.12] - 2026-10-04
 
 ### Changed
 
 - The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve.
+
+## [0.79.11] - 2026-10-04
+
+### Fixed
+
+- **The babysit merge gate counts the renamed security review check.** The security lane now accepts `pr-review-security / security-review` beside the previous `security-review / security-review`, so the `--auto` wait and the gate do not hold a PR whose repo moved to the renamed caller. A failing renamed check holds, and a `security-review` job under any other caller still does not count.
+
+## [0.79.10] - 2026-10-04
+
+### Changed
+
+- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+
+## [0.79.9] - 2026-10-03
+
+### Changed
+
+- The README notes that an installed mod can stop this plugin's `PreToolUse` hooks from running and can approve a call they blocked, with links to the two mods events sections. Nothing the plugin runs changed.
+- `/source-control:babysit-loop`'s paused-wait reference says rate-limit-guard's mod writes the snapshot in headless sessions too, so the Monitor armed on it wakes on the mod's writes under its machine-wide write floor.
 
 ## [0.79.8] - 2026-10-04
 

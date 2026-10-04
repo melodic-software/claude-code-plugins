@@ -4,9 +4,8 @@
 # The shared lib's hook::buffer_stdin performs ONE bounded read, which on
 # Windows/MSYS pipes (~40KB/s byte-at-a-time delivery) times out on exactly
 # the payloads these hooks exist for — PostCompact carries the full
-# compact_summary, PreToolUse carries the full Write content, PostToolBatch
-# carries every serialized tool result (measured: ~80KB payloads already
-# lost). This reader mirrors statusline-tee.sh's proven drain loop: read -N
+# compact_summary (measured: ~80KB payloads already lost). This reader's
+# drain loop: read -N
 # buffers in 1MiB blocks until EOF with a per-block 5s timeout, so a stalled
 # pipe is still bounded while a large healthy payload arrives whole. Bash
 # below 4.1 (macOS ships 3.2) lacks -N and falls back to the delimiter form,
@@ -29,8 +28,8 @@
 # WHY NOT HAND THE HOOK'S STDIN STRAIGHT TO `jq` and skip this file on the hot
 # path. It would not save a process: via `_to` the loop is `read` builtins and
 # costs zero. What it would save is the `<<<` here-string the caller then needs
-# to re-feed the payload, which bash spills to a temp file at or above 64KiB
-# (see zone-crossing-inject.sh's payload-pass note). The loop is kept anyway,
+# to re-feed the payload, which bash spills to a temp file at or above 64KiB.
+# The loop is kept anyway,
 # because the bounded `read -t 5` below is the property that caps a stalled
 # pipe: a slow reader truncates at five seconds instead of blocking to the
 # harness timeout, which is the exact symptom #3508 is about. Disk I/O on

@@ -1,5 +1,5 @@
 ---
-description: "Verify the context-guard plugin's wiring on this machine: jq, node, the installed statusline shim, statusline wiring (including legacy version-pinned plugin-cache paths), and live-session snapshot freshness. Print the exact statusline edit for the operator, and install the shim plus seed ~/.claude/context-guard/zones.json from the shipped defaults. Use when: 'set up context-guard', 'is the context tee working', 'wire the context statusline', a consumer reports zone unknown in a live session, or after a plugin update. Actions: check (read-only; never edits settings), apply (writes ONLY inside ~/.claude/context-guard/, the shim and zones.json, on explicit request)."
+description: "Verify the context-guard plugin on this machine: jq, node, whether its mod runs in this session, this session's snapshot freshness, zones.json, every option's effective value, and any retired statusline tee still running beside the mod, with the steps to remove it. Seed or repair ~/.claude/context-guard/zones.json from the shipped defaults. Use when: 'set up context-guard', 'is context-guard working', a consumer reports zone unknown in a live session, or after a plugin update. Actions: check (read-only; never edits settings), apply (writes ONLY ~/.claude/context-guard/zones.json, on explicit request)."
 argument-hint: "[check|apply] [defaults]"
 user-invocable: true
 disable-model-invocation: true
@@ -8,151 +8,108 @@ shell: bash
 
 ## Pre-computed context
 
-Four of `check`'s read-only probes run at load time. Read the values below; do not re-issue them.
+Three of `check`'s read-only probes run at load time. Read the values below; do not re-issue them.
 
 `jq` (a path = present, `absent` = missing): !`command -v jq 2>/dev/null || echo "absent"`
 `node` (a path = present, `absent` = missing): !`command -v node 2>/dev/null || echo "absent"`
-Installed shim (first path) against the shipped source (second path), with both `# shim-revision:` markers; a `No such file` line names the side that is missing: !`{ grep -H "^# shim-revision:" "$HOME/.claude/context-guard/bin/statusline-shim.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh" 2>&1; cmp -s "$HOME/.claude/context-guard/bin/statusline-shim.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh" && echo "cmp: identical" || echo "cmp: not identical, or a file is absent"; }`
 `zones.json` contents, capped at 40 lines, or one token distinguishing an absent file from an unreadable one: !`{ if [ -e "$HOME/.claude/context-guard/zones.json" ]; then cat "$HOME/.claude/context-guard/zones.json" 2>&1 || echo "(present but unreadable)"; else echo "(absent)"; fi; } | head -40`
 
 ## Purpose
 
-Narrow-write setup, because this plugin's surface splits in two. The statusline wiring lives in the
-**user's own** `settings.json` and the `jq` prerequisite is a system tool: neither is something
-plugin setup may write, so `check` inspects, reports PASS/FAIL/INFO with one remediation line per
-FAIL, and **prints the exact statusline edit for the operator to apply by hand**. But this plugin
-also owns its operator-home directory `~/.claude/context-guard/`, the machine file `zones.json`,
-whose schema it defines and whose values the operator may edit, and the statusline shim
-`bin/statusline-shim.sh`, the durable path the operator's wiring names, and those owned writable
-artifacts are what oblige an `apply`. `apply` is scoped to that directory and touches nothing else.
+Narrow-write setup. The plugin's module (`hooks/register.tsx`, a Claude Code mod) writes each
+session's snapshot, sends Claude the zone lines, runs the blocking gate, draws the optional band row and
+serves the `mcp__context-guard__status` tool. Nothing about it needs wiring, so `check` inspects
+and reports PASS/FAIL/INFO with one remediation line per FAIL. The plugin also owns the machine file
+`~/.claude/context-guard/zones.json`, whose schema it defines and whose values the operator may
+edit; that owned writable file is what obliges an `apply`, and `apply` writes nothing else.
+
+Versions before this one wrote the snapshot through a statusline tee wired into the user's own
+`statusLine`. `check` finds a tee that still runs and prints the steps to remove it; it never edits
+a settings file, a script or the plugin cache itself.
 
 Action routing: no argument or `check` runs the check.
 
-**Why the shim exists (the durable-wiring rule).** `${CLAUDE_PLUGIN_ROOT}` is version-pinned and
-changes on every plugin update, and the old version directory is pruned about 14 days later
-(plugins reference, "Plugin cache and file access"). A statusline wired straight to
-`<plugin-root>/scripts/statusline-tee.sh` therefore stops teeing at the next version bump and, once
-the old directory is pruned, `bash <missing-path>` exits 127 and takes the operator's whole
-statusline down with it. So the operator wires the **shim**, never the tee: the shim lives at a
-path that never changes, resolves the newest installed tee at run time, and degrades to running the
-wrapped command alone when no tee is installed. Read
-`${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh` for its actual resolution rule rather than
-reciting this paragraph.
-
-The scripts are the source of truth for their own behavior. Read
-`${CLAUDE_PLUGIN_ROOT}/scripts/statusline-tee.sh` and
-`${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh` first; probe what they actually do rather than
-reciting this file. The consumer-facing constants (snapshot path pattern, staleness rule, default
-zone bands, zones.json shape) are owned by
+The code is the source of truth for its own behavior. Read `${CLAUDE_PLUGIN_ROOT}/hooks/register.tsx`
+and `${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh` when a finding depends on what they do, rather
+than reciting this file. The consumer-facing constants (snapshot path pattern, staleness rule,
+default zone bands, zones.json shape) are owned by
 `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
 
 ## `check` (read-only)
 
-1. **`jq`**. Read the pre-computed `jq` value. FAIL when it is `absent`: without jq the wrapper
-   cannot tee (it stays transparent and shows a visible notice), the standalone statusline
-   degrades, and the zone resolver prints `unknown`. Remediation: install jq
-   (<https://jqlang.org/download/>).
-2. **`node`**. Read the pre-computed `node` value. FAIL when it is `absent`: every hook row in
-   `${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json` runs `node hooks/exec-bash.mjs <script>`, and Claude
-   Code's native binary neither ships nor uses Node
-   (<https://code.claude.com/docs/en/setup>), so without `node` on `PATH` the injection, the gate
-   and the PostCompact marker do not launch and are not enforced. Report that a hook that fails to
-   launch is non-blocking, so nothing else says so. The statusline tee and shim do not use `node`.
-   Remediation: install Node.js (<https://nodejs.org/en/download>) and restart Claude Code.
-   The Node claim was verified 2026-09-29 against the setup page above; recheck when a Claude Code
-   release note says the native binary bundles Node or runs hooks without it, or when that page
-   stops saying the native binary needs no Node.
-3. **Installed shim state**, the shim is the wiring target, so check it before the wiring. The
-   pre-computed shim value compares `~/.claude/context-guard/bin/statusline-shim.sh` (the durable
-   shim copy) against `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh` (the shipped source) and
-   carries the `# shim-revision:` marker of each file that exists. Classify it per
-   [reference/legacy-statusline-detect.md](reference/legacy-statusline-detect.md) "Installed shim
-   state", shared with the sibling guard plugin and synced byte-identical. An absent shipped
-   source takes that reference's own branch and ends the comparison; never read `cmp: not
-   identical` as drift when the shipped path is the missing one.
-4. **Statusline wiring state**. Read (never write) every settings scope that can carry a
-   `statusLine` (user `~/.claude/settings.json`, project `.claude/settings.json`, local
-   `.claude/settings.local.json`, and managed settings, where `statusLine` is also a valid key)
-   and determine which one owns the effective command (the most specific scope wins among the
-   three non-managed scopes; a managed value outranks all of them). All wiring states below are
-   evaluated against that effective command. The printed edit in step 8 targets that scope's
-   file **except** when the owning scope is managed: that file is administrator-controlled, the
-   operator running this skill generally cannot change it, and no lower-scope edit can override
-   it. In that case name the managed source, say the operator cannot change it from here, and
-   route to the policy administrator. Do not print an operator edit for the managed file.
-   Wiring the user file while a project-level `statusLine` shadows it would apply cleanly and
-   never run; when a non-managed shadow exists, say so explicitly and print the edit for the
-   shadowing file (or note that removing the override is the alternative). Distinguish four
-   states:
-   - **No `statusLine` configured**, the wrapper is not running because nothing is. Print the
-     standalone wiring from the template below (the shim is then the whole statusline).
-   - **`statusLine` present, command references neither the shim nor this plugin's
-     `statusline-tee.sh`**. Wrapper missing. Print the wrapped wiring below with the user's
-     current command preserved as the wrapped command.
-   - **`statusLine` references a `context-guard` `statusline-tee.sh` under the plugin cache**.
-     LEGACY VERSION-PINNED WIRING: classify, report, and remediate per
-     [reference/legacy-statusline-detect.md](reference/legacy-statusline-detect.md) "Legacy
-     version-pinned wiring" (the fix's `apply` is step 3's).
-   - **`statusLine` invokes `~/.claude/context-guard/bin/statusline-shim.sh`**. PASS. No path
-     comparison against `${CLAUDE_PLUGIN_ROOT}` applies or is meaningful here; the shim resolves
-     the tee at run time.
+1. **`jq`**. Read the pre-computed `jq` value. FAIL when it is `absent`: the bash resolver this
+   check runs for the zone report (`${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh`) then prints `unknown`, and `apply`
+   cannot merge into an existing `zones.json`. The module and the PostCompact marker hook do not
+   use jq. Remediation: install jq (<https://jqlang.org/download/>).
+2. **`node`**. Read the pre-computed `node` value. FAIL when it is `absent`: the PostCompact marker
+   row in `${CLAUDE_PLUGIN_ROOT}/hooks/hooks.json` runs `node hooks/exec-bash.mjs`, and the module
+   writes each snapshot by running `node lib/write-snapshot.mjs`, and Claude Code's native binary
+   neither ships nor uses Node (<https://code.claude.com/docs/en/setup>). Without `node` on `PATH`
+   the marker does not launch and no snapshot is written, so file readers read `unknown`; report
+   that a hook that fails to launch is non-blocking, so nothing else says so. The module's zone
+   lines, gate, band row and status tool do not need `node`. Remediation: install Node.js
+   (<https://nodejs.org/en/download>) and restart Claude Code. The Node claim was verified
+   2026-09-29 against the setup page above; recheck when a Claude Code release note says the
+   native binary bundles Node or runs hooks without it, or when that page stops saying the native
+   binary needs no Node.
+3. **Module state.** The module loads only where mods can.
+   - **This session**: the module registers `mcp__context-guard__status` when the session starts.
+     Look for that name in your own tool list, deferred tool names included. Present → PASS, the
+     mod is running in this session. Absent → INFO "mods off in this session, or the status tool
+     was refused by policy" (a refused registration leaves one debug-log line, "context-guard: the
+     status tool could not register").
+   - Run `claude --version`. Older than 2.1.287 → FAIL "mods off: Claude Code <version> is older
+     than the 2.1.287 floor; older builds are unsupported". Remediation: update Claude Code.
+   - A separate `claude plugin test` process never sees this session's settings (a
+     `disableAllHooks` in this session's settings, `--bare`, worker crashes), so it may only say
+     whether mods can load on this build, read against the troubleshoot table at the pointer
+     below; never report it as this session's state.
+   - Where mods are off, the plugin runs reactive-only there: no zone lines, no gate (blocking mode
+     does nothing), no band row, no status tool and no snapshot writes; the PostCompact marker, a
+     settings hook, still runs wherever settings hooks do.
 
-   Orthogonal to all four, and checked before reporting any of them as working, two
-   environment-side states that make a configured command inert:
-
-   - **The session is terminal-less.** The statusline is a terminal-interface surface, so a
-     session with no terminal interface does not run a statusline even when one is wired.
-     Measured 2026-08-21 for Claude Code on the web and for a `claude -p` run, a configured
-     `statusLine` was never invoked in either, and expected on the same reasoning, though not
-     measured, for other non-terminal environments such as a self-hosted cloud runner. Recheck
-     when a release note or the statusline docs describe a statusline running without a terminal
-     interface, or when a re-measurement on the web or under `claude -p` observes a configured
-     `statusLine` being invoked. Where
-     you can tell you are in such a session, report this as **INFO: no capture channel in this
-     environment** regardless of which of the four wiring states applies, say that `unknown` is
-     the correct and permanent zone here, and do not print wiring the operator cannot make run.
-     A correctly-wired shim in a cloud or headless session is still never invoked; classifying
-     that wiring as PASS and the missing snapshot as a wiring FAIL is the defect this exception
-     exists to prevent.
-     `${CLAUDE_PLUGIN_ROOT}/reference/cloud-headless-capture.md` records why no substitute
-     channel exists (every channel checked, with sources and dates) and the cloud-and-headless
-     section of `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md` carries the consumer rule.
-   - **The status line is turned off with a `statusLine` still configured.** Claude Code
-     disables it entirely when managed settings set `disableAllHooks` or the folder is not
-     trusted, and narrows the source to managed settings when `allowManagedHooksOnly` is set;
-     under narrowing it runs a managed value if one is deployed and otherwise skips your value
-     without warning, leaving the status line disabled. Report that state as **INFO: the status
-     line is disabled by policy or workspace trust**, name which of the three conditions
-     applies, and route the operator to policy or trust. It is not a wiring defect, and
-     printing wiring will not fix it. The dated record for both settings keys is
-     `${CLAUDE_PLUGIN_ROOT}/reference/cloud-headless-capture.md`, branch 3 of "Distinguishing
-     structural absence from breakage".
-5. **Live-session snapshot freshness**. This session's id is `${CLAUDE_SESSION_ID}`. Probe
+   - **Pointer**: [troubleshoot: check whether mods can load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#check-whether-mods-can-load)
+     and [the mod doesn't load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#the-mod-doesnt-load).
+   - **As of**: 2026-10-03, Claude Code 2.1.288.
+   - **Recheck trigger**: that table changes a message, or the minimum version changes.
+4. **Retired statusline tee.** Read
+   [reference/legacy-statusline-detect.md](reference/legacy-statusline-detect.md), shared with
+   rate-limit-guard and synced byte-identical, with `<guard>` = `context-guard` and
+   `<plugin-root>` = `${CLAUDE_PLUGIN_ROOT}`. Run its three steps (stamps newer than this version's
+   install, cached versions still holding a tee, the three wiring routes) and report each finding
+   as that file classifies it. Reading settings, scripts and the plugin cache is all this step
+   does.
+   - **Any finding** (a running tee, files it left behind, a cached version that still carries one,
+     or a wiring route): read [reference/unwrap-before-compose.md](reference/unwrap-before-compose.md)
+     with `<guard>` = `context-guard` and print its steps for the person to run: the `statusLine`
+     value with every guard shim and tee removed and the person's own renderer kept byte for byte,
+     the wrapper-script lines to remove, the files to delete, and the restart. Print the edited
+     value itself, worked out by that file's rules, never a script to compute it.
+   - **The `statusLine` naming a shim or tee lives in managed settings**: name that file, say the
+     person cannot change it from here, and route them to the policy administrator; print no edit
+     for it.
+   - **No finding**: PASS. Say nothing about the person's own status line: it is theirs, and the
+     plugin no longer reads it.
+5. **Live-session snapshot freshness**. This session's id is `${CLAUDE_SESSION_ID}`. The module
+   writes after every tool call, so this check's own Bash calls have each given it a chance to
+   write before you read the file. Probe
    `~/.claude/context-guard/context/${CLAUDE_SESSION_ID}.json`:
    - Exists and `captured_at` is within the reader contract's 10-minute staleness window → PASS
      (zone-informed consumers get real data). Also report the zone:
      `bash "${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh" ${CLAUDE_SESSION_ID}`.
-   - Fresh but `used_percentage` or `current_usage` null → INFO: documented early-session or
-     post-`/compact` statusline state; the resolver correctly answers `unknown`. Not a defect.
-   - Absent or stale while step 4 found **no `statusLine` in any scope** → INFO, not FAIL:
-     nothing is writing snapshots because nothing is configured to, whether the file is missing
-     or a leftover from an earlier session has gone stale. Which INFO depends on the same
-     condition step 4 branched on, and the two reports must agree, never print step 4's wiring
-     and then say nothing is broken.
-     - **If step 4 took the terminal-less exception** (you could tell this session refreshes no
-       statusline) this is structural: `unknown` is correct and permanent here, no other channel
-       can supply one, and there is nothing to fix. Do not report a defect and do not send the
-       operator to fix an install that is not broken.
-     - **Otherwise** this is the not-yet-wired state, the ordinary state of a fresh local
-       install, and the single most common reason `check` is run. The remediation is the wiring
-       step 4 just printed; point at it, say snapshots start on the next statusline refresh once
-       it is applied, and do not call this structural.
-   - Absent or stale while step 4 reported correct wiring, did not find the status line
-     disabled, and did not take the terminal-less exception → FAIL: the wrapper is wired but
-     not running. Re-check steps 3 and 4; a shim that is wired but not installed produces
-     exactly this. The file updates only while this session is interactive.
+   - Fresh but `used_percentage` or `current_usage` null → INFO: the state before the session's
+     first response or right after `/compact`; the resolver correctly answers `unknown`. Not a
+     defect.
+   - Absent or stale while step 3 reported mods off → INFO "mods off": no module runs here to
+     write it, and readers take their conservative path. Not a missing instrument and not a
+     wiring defect.
+   - Absent or stale while step 3 found the mod running → FAIL: the module ran but its write did
+     not land. Check step 2 (`node`), then the debug log for "context-guard: snapshot write failed"
+     or "context-guard: snapshot write did not run", then the permissions of
+     `~/.claude/context-guard/context/`.
    - If the literal string `${CLAUDE_SESSION_ID}` appears unexpanded above, report that this
-     Claude Code version lacks the substitution and consumers will take the conservative path; probe the newest file in `~/.claude/context-guard/context/` instead, labeled as such.
+     Claude Code version lacks the substitution and consumers will take the conservative path;
+     probe the newest file in `~/.claude/context-guard/context/` instead, labeled as such.
 6. **zones.json state**, a read-only report over the pre-computed `zones.json` value: absent
    (shipped defaults in effect, percentage 50/75 plus the window-class token bands; valid
    zero-config state, not a defect), present and valid
@@ -162,86 +119,55 @@ zone bands, zones.json shape) are owned by
    shipped token bands silently in effect; remediation: `apply`). A `(present but unreadable)`
    token, or a `cat:` error in place of the contents, is the fourth state: the file exists and
    cannot be read, which is a defect the absent branch would hide. Report the read error and route
-   the operator to the file's permissions, not to `apply`. Note the hooks resolve zones through this same data: a machine with no snapshots gets silent hooks, not errors.
-7. **Hook registration vs hook activation**. Three separate facts, never collapsed into one
-   status. A registered hook set that every hook exits out of immediately is the exact state an
-   operator is diagnosing when injections or gating are missing, and reporting "active" because the
-   plugin is enabled tells them the opposite of the runtime state.
-   - **Registered**, the plugin is enabled, so `hooks/hooks.json` is loaded and the matchers fire.
-     This follows from the plugin being enabled and says nothing about what the hooks then do.
-   - **Hook set armed**, the `context_guard_hooks_enabled` kill switch. Read its configured value,
-     not the plugin's enablement: the value substituted here is
-     `${user_config.context_guard_hooks_enabled}`. Interpret it as
-     - `false` → **INERT**: registered but every hook (injection, gate, PostCompact marker) exits
-       immediately without acting. Remediation: re-enable the option via `/plugin`.
-     - `true` → armed.
-     - anything else, including the literal `${user_config.context_guard_hooks_enabled}` surviving
-       unexpanded (unset key, or a Claude Code without the substitution) → **UNKNOWN**, never
-       "armed". Say which source was read and that an unset key falls back to the hooks' in-script
-       default (armed); the operator-inspectable source of truth is this plugin's
-       `pluginConfigs` options block in the user `settings.json` (the hook-config-delivery
-       convention,
-       <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/hook-config-delivery/README.md>,
-       owns why the declared `default` field is not delivered to hook processes).
-   - **Gate posture**. `zone_hook_mode` is `${user_config.zone_hook_mode}`, read and interpreted
-     the same way. Only `blocking` makes the PreToolUse gate do anything; `advisory` (the in-script
-     default) leaves it inert while the injection hook still runs. Report it separately: an armed
-     hook set with an advisory posture is a different runtime state from an inert hook set, and
-     only one of the two is a defect.
-8. **Print the operator edit**, except when step 4 took the terminal-less exception, found the
-   status line disabled by policy or trust, or found the effective command owned by managed
-   settings. Those branches already forbade printing wiring the operator cannot make run. When
-   this step does print, the wiring target is the shim's fixed path, never
-   `${CLAUDE_PLUGIN_ROOT}`. Compose the value by running
-   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/compose-statusline-wiring.sh"` over the effective
-   `statusLine` value from step 4, never by peeling and wrapping the string yourself:
+   the operator to the file's permissions, not to `apply`. Also report the module's keys when
+   present (`approach_margin`, `actions`, `thresholds`; the reader contract's "Zones"
+   section defines them); an absent or invalid one means its default, never a defect. The module
+   resolves zones with the same bands from the live session, so a machine with no snapshot files
+   still gets lines.
+7. **Option posture**. Report every option, each as its own row with the value substituted below
+   and what that value does. Never collapse them into one "active" status: a plugin that is
+   enabled while its kill switch is off, or whose lines are off, is the exact state an operator is
+   diagnosing when lines or gating are missing.
 
-   ```bash
-   jq '.statusLine' <the settings file that owns the effective command> |
-     bash "${CLAUDE_PLUGIN_ROOT}/scripts/compose-statusline-wiring.sh" \
-       --wrap 'bash ~/.claude/context-guard/bin/statusline-shim.sh' --block --explain
-   ```
+   | Option | Value | What it does |
+   |---|---|---|
+   | `context_guard_hooks_enabled` | `${user_config.context_guard_hooks_enabled}` | `false` → **INERT**: the module sends no lines and gates nothing, and the PostCompact marker hook exits at once. Snapshot writes, the band row and the status tool continue. |
+   | `zone_lines_enabled` | `${user_config.zone_lines_enabled}` | `false` → no lines to Claude and no operator-mode suggestions; the gate, band and writes continue. |
+   | `zone_report_mode` | `${user_config.zone_report_mode}` | `automatic` sends the lines to Claude; `operator` holds them in a turn a person typed and offers them as a prompt suggestion plus a notice row. |
+   | `zone_line_data` | `${user_config.zone_line_data}` | The figures a line carries beside its zone (`percent`, `tokens`, `window`); `zone` alone means none. |
+   | `zone_hook_mode` | `${user_config.zone_hook_mode}` | `advisory` leaves the gate inert while the lines run; `blocking` (or a `block` action in `zones.json`) arms it. |
+   | `zone_gate_grace_calls` | `${user_config.zone_gate_grace_calls}` | Matched calls allowed in a blocked zone before the gate denies. |
+   | `zone_block_unattended` | `${user_config.zone_block_unattended}` | `post-compaction`: headless, loop, schedule and notification turns get only the post-compaction block; `same-as-typed`: they are blocked as typed turns are. |
+   | `context_guard_band` | `${user_config.context_guard_band}` | `false` (the default) leaves the band row off; `true` draws it. `/context-guard band on` or `band off` sets it for one session. |
+   | `context_guard_toast` | `${user_config.context_guard_toast}` | `true` shows a toast at each zone crossing; `false` leaves only the transcript line. |
 
-   Read [`reference/unwrap-before-compose.md`](reference/unwrap-before-compose.md) for that
-   script's argument and exit-code contract and the judgments it leaves to you (shared with
-   rate-limit-guard), then [`reference/statusline-edit.md`](reference/statusline-edit.md) for this
-   plugin's JSON edit blocks, the combined sibling-shim invocation, and the Windows note. Composing
-   by hand double-wraps a sibling tee and stacks another `sh -c` layer on every re-run.
-9. **Dotfiles tracking proposal**, the printed edit changes a durable user-scope file the operator
-   maintains. When the operator's home directory is managed by a dotfiles system (chezmoi, yadm, a
-   bare-repo setup, ...), surface the reminder to capture the `settings.json` change through that
-   system's own add/track flow so the wiring survives machine rebuilds. This skill only surfaces
-   the reminder; it runs no dotfiles command.
+   - Any value still showing its literal `${user_config.<name>}` token (unset key, or a Claude
+     Code without the substitution) → **UNKNOWN** for that row, never the default stated as fact.
+     Say which source was read: the module gets every option with the `plugin.json` default filled
+     in, and the PostCompact marker hook applies its own in-script default (on). The
+     operator-inspectable source of truth is this plugin's `pluginConfigs` options block in the
+     user `settings.json` (the hook-config-delivery convention,
+     <https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/hook-config-delivery/README.md>,
+     owns why the declared `default` field is not delivered to hook processes).
+   - A `zone_gate_grace_calls` that is not a whole number from 0 to 999999999, or a
+     `zone_line_data` item outside the four words, reads as that option's default, and the module
+     logs one transcript line naming it at session start. Report the value as invalid and the
+     default as what runs.
+   - An armed set with an advisory gate is a different runtime state from an inert set, and only
+     one of the two is a defect. Every option acts only where step 3 found the mod running, except
+     that the kill switch also turns off the PostCompact marker hook, a settings hook that can run
+     where mods are off.
+   - The module reads its options when it loads, and Claude Code reloads a module when its options
+     change, so a changed value acts from the next event. The marker hook reads its value at session
+     start.
 
-## `apply` (writes only inside `~/.claude/context-guard/`, on explicit request)
-
-Two files, both in this plugin's own operator-home directory. Every `apply` mode does both; the
-`defaults` argument affects only the zones bands.
-
-### A. Install the statusline shim
-
-Copy `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh` to
-`~/.claude/context-guard/bin/statusline-shim.sh`, creating `bin/` if needed, and `chmod +x` the
-result (a no-op on Windows ACL volumes; the wiring invokes it through `bash` anyway):
-
-- The installed copy is **byte-identical** to the shipped source, never a rewrite, never a
-  templated variant. That is what makes `check` step 3 a plain `cmp`.
-- **Idempotent**: if the file already exists and compares equal, write nothing and say so.
-  Otherwise overwrite it (this is the update path after a plugin version bump changes the shim)
-  and report the `# shim-revision:` values, old → new.
-- The shim is **inert until wired**: installing it starts nothing. Only the operator's
-  `settings.json` edit puts it on the statusline path. That edit is step 8 of `check`, which
-  this skill never applies. Say that explicitly when reporting the write.
-- After installing, print the wiring edit (`check` step 8), honoring that step's exceptions,
-  so the operator's next action is in front of them when there is one, and note that a
-  statusline already wired to the shim needs no change now or on any future plugin update.
-
-### B. Seed or refresh the zones SSOT
+## `apply` (writes only `~/.claude/context-guard/zones.json`, on explicit request)
 
 Seed or refresh `~/.claude/context-guard/zones.json` from the shipped defaults
 (`smart_max_used_percentage: 50`, `acceptable_max_used_percentage: 75`, and the window-class
 `token_bands`, the reader contract owns these numbers; read them from
-`${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md` rather than this file if they ever disagree):
+`${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md` rather than this file if they ever disagree).
+The `defaults` argument changes only how a present file is treated:
 
 1. **File absent**. Create the directory if needed and write exactly:
 
@@ -267,7 +193,8 @@ Seed or refresh `~/.claude/context-guard/zones.json` from the shipped defaults
      the shipped defaults explicitly. This converges forward to a known state; it is not teardown,
      and it never removes the file or any key it does not recognize.
    - Both modes **preserve every unrecognized key semantically**: same keys, same JSON values
-     (the file is a shared SSOT the operator's own statusline may extend). Preservation is
+     (the file is a shared SSOT the operator's own tools may extend). The module's own keys
+     (`approach_margin`, `actions`, `thresholds`) are kept the same way. Preservation is
      value-level, not lexical: a `jq` merge reserializes the document, so formatting and escape
      spellings may normalize (`"blue"` → `"blue"`); consumers of this file must parse it as
      JSON, never depend on its raw bytes. Use `jq` to merge so the result stays valid JSON. If
@@ -278,40 +205,43 @@ Seed or refresh `~/.claude/context-guard/zones.json` from the shipped defaults
 4. **Report exactly what was written** (old bands → new bands, unrecognized keys preserved), and
    remind that consumers re-read the file on their next zone decision. No restart needed.
 
-`apply` never touches `settings.json`, the snapshot directory, or anything outside
-`~/.claude/context-guard/`. Statusline wiring stays print-only.
+`apply` never touches `settings.json`, the snapshot directory, or anything in
+`~/.claude/context-guard/` other than `zones.json`.
 
 ## Uninstalling
 
-Uninstalling the plugin removes the cache directory, not the operator's files. Nothing breaks: the
-shim finds no tee and passes the wrapped statusline through unchanged (a wired-standalone shim
-prints one notice line instead). Two operator cleanup steps remain, and their order matters. Report both together, in this order, when asked how to back this out:
+Uninstalling the plugin removes the cache directory, so the module stops and nothing writes new
+snapshots. The operator's directory `~/.claude/context-guard/` (`zones.json`, the snapshots and the
+compaction markers) stays, and removing it is safe at any time; readers then read `unknown` and take
+their conservative path.
 
-1. **Unwrap the `statusLine` command first**, restoring the operator's own renderer (or removing
-   the field entirely if the shim was the whole statusline).
-2. **Then remove `~/.claude/context-guard/`.**
-
-Deleting the directory while the wiring still names the shim leaves `settings.json` invoking a
-missing file: `bash <missing-path>` exits 127 and takes the whole statusline down, the exact
-failure the shim exists to prevent. The shim's own no-tee fallback cannot cover this, because the
-fallback lives in the file that was just deleted.
+One order matters, and only while `check` step 4 still finds a `statusLine` naming
+`~/.claude/context-guard/bin/statusline-shim.sh`: apply that step's unwire edit first, then remove
+the directory. Deleting the directory while the wiring still names the shim leaves the status line
+invoking a missing file: `bash <missing-path>` exits 127 and the whole status line goes down. Report
+both steps together, in that order, when asked how to back this out and a shim is still wired.
 
 ## What this skill does not do
 
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform setup
   contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace
-  repository). Nor `settings.json` (user or project) or any other Claude Code settings surface; the printed edit is the operator's to apply.
-- Install `jq` or any system package.
-- Write to the snapshot directory `~/.claude/context-guard/context/`, the tee owns those files.
-- Write anywhere outside `~/.claude/context-guard/`, including the sibling `rate-limit-guard`
-  directory, whose own setup skill installs that plugin's shim.
+  repository). Nor `settings.json` (user or project), a status line script, or any other Claude
+  Code settings surface; the unwire steps are the person's to run.
+- Install `jq`, `node` or any system package.
+- Write to the snapshot directory `~/.claude/context-guard/context/`; the module owns those files,
+  and the unwire steps that delete the retired tee's leftovers there are printed, not run.
+- Write anywhere outside `~/.claude/context-guard/zones.json`, including the sibling
+  `rate-limit-guard` directory.
 
 ## Spoke paths
 
-The `reference/` files write the plugin's root directory as `<plugin-root>`, which is
-`${CLAUDE_PLUGIN_ROOT}`. Put that path in place of the placeholder before running a command or
-writing it into a brief. Those files arrive through the Read tool as plain bytes, so a `${…}` token
-in them would reach the Bash tool unsubstituted, and the Bash tool's environment has no
-`CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
+[reference/legacy-statusline-detect.md](reference/legacy-statusline-detect.md) (step 4's detector)
+and [reference/unwrap-before-compose.md](reference/unwrap-before-compose.md) (its unwire steps) are
+shared with rate-limit-guard and write this plugin's root directory as `<plugin-root>`, which is
+`${CLAUDE_PLUGIN_ROOT}`, and this plugin's name as `<guard>`, which is `context-guard`. Put those
+values in place of the placeholders before running a command or writing one into a brief. The files
+arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash tool
+unsubstituted, and the Bash tool's environment has no `CLAUDE_PLUGIN_ROOT` to expand it from.
+Basis: the plugins reference,
 <https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
 2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
