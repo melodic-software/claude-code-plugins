@@ -24,12 +24,16 @@ Assess against the staged workflow as a checklist, not full dimensional analysis
 |------|-------|------|
 | 1. Explore | Yes/No/Partial | (one line) |
 | 2. Research | Yes/No/Partial | |
-| 3. Plan | Yes/No/Partial/N/A | |
-| 4. Implement | Yes/No/Partial | |
-| 5. Test | Yes/No/Partial/N/A | |
-| 6. Review | Yes/No/Partial | |
-| 7. Verify | Yes/No/Partial | |
-| 8. Retro | In progress | (this) |
+| 3. PRD | Yes/No/N/A | |
+| 4. Contract | Yes/No/N/A | |
+| 5. Design | Yes/No/Early exit | |
+| 6. Plan | Yes/No/Partial/N/A | |
+| 7. Decompose | Yes/No/N/A | |
+| 8. Implement | Yes/No/Partial | |
+| 9. Test | Yes/No/Partial/N/A | |
+| 10. Review | Yes/No/Partial | |
+| 11. Verify | Yes/No/Partial | |
+| 12. Retro | In progress | (this) |
 
 ### 3. Top findings (max 3)
 

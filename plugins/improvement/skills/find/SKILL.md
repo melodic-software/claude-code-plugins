@@ -1,5 +1,5 @@
 ---
-description: "Rank improvements across code, performance, product, config, Claude Code setup, evidence-cited and sized S/M/L; unmeasured targets yield 'instrument this'. Never edits; unattended files work items. Use when: 'what should we improve', 'improvement sweep', 'improve X', 'tech debt sweep', 'where is the highest-value work', 'what would move the needle', 'run an improvement scan'. Skip: `architecture:improve`, `code-tidying:tidy`, `codebase-health:audit`, `review:fanout`, `work-items:scan-todos`."
+description: "Rank improvements across code, performance, product, config, Claude Code setup, evidence-cited and sized S/M/L; unmeasured targets yield 'instrument this'. Never edits; unattended files work items. Use when: 'what should we improve', 'improvement sweep', 'what could we improve in X', 'tech debt sweep', 'where is the highest-value work', 'what would move the needle', 'run an improvement scan'. Skip: `architecture:improve`, `code-tidying:tidy`, `codebase-health:audit`, `review:fanout`, `work-items:scan-todos`."
 argument-hint: "[target] [--small|--medium|--large] [--unattended] [repo-path]"
 user-invocable: true
 disable-model-invocation: false
@@ -167,7 +167,9 @@ reader knows what the ranking could not see.
    what improvement, why now, what evidence, what done looks like.
 4. Hand off to the pipeline, invoking each via the Skill tool: `/discovery:explore` (internal
    unknowns) or `/discovery:research` (external unknowns) as needed, then `/planning:plan`. The handoff artifact is the interview's
-   output, with the candidate's evidence citation attached.
+   output, with the candidate's evidence citation attached. A pick that fits one small PR may
+   instead go to `/improvement:improve`, invoked via the Skill tool with the candidate as its
+   target.
 5. Offer the remainder: unpicked candidates can be filed via `/work-items:track` when installed; the user decides which, if any.
 
 Where a named pipeline skill is not installed in the consuming project, summarize the equivalent
@@ -217,6 +219,7 @@ aside for. It re-implements none of them.
 | Skip when the ask is | Owned by | Why not here |
 |---|---|---|
 | Single-lens architecture depth (shallow modules, Design-It-Twice) | `architecture:improve` | That lens is consulted as a scan input; going deep on architecture alone is its job |
+| Doing one improvement now ("improve this", "fix one thing") | `improvement:improve` | This skill ranks and never edits; `improve` picks one gap and ships it as a draft PR |
 | Applying small safe code edits | `code-tidying:tidy` | This skill never edits; tidying mutates by contract |
 | Verifying docs/config/code drift claims | `codebase-health:audit` | Claim verification, not improvement discovery |
 | Reviewing a diff before merge | `review:fanout` | Diff-scoped and reactive; this skill scans existing state proactively |
@@ -236,6 +239,11 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 `CLAUDE_PLUGIN_ROOT` to expand it from. Basis: the plugins reference,
 <https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
 2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.
+
+## Next
+
+- Picked candidate fits one small PR: /improvement:improve TARGET.
+- Picked candidate needs design or several PRs: /planning:interview.
 
 ## Gotchas
 

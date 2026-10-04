@@ -261,7 +261,9 @@ must not assign both to whichever hook runs first. `echo git worktree
 add` is not a git call. `worktree-create.sh` already locks the trees it
 creates; this hook is the route for the adds that bypass the helper.
 Existing reasons are never rewritten. The lock is a claim other agents
-can read; it does not block concurrent writes (git-worktree(1)).
+can read; it does not block concurrent writes (git-worktree(1)). The hook
+tells the agent only when the target already carries another session's
+live claim; a successful claim adds nothing to the context.
 
 The worktree scripts (`worktree-claim.sh`, `landed-work.sh`, `worktree-facts.sh list`)
 require git 2.36.0 or newer for `git worktree list --porcelain -z`; on older git they

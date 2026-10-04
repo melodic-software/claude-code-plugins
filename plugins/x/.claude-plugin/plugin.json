@@ -1,6 +1,6 @@
 {
   "name": "x",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Read X (formerly Twitter) posts, note tweets, and X Articles as Markdown without an X API key, via a documented fallback ladder over third-party converters: xtomd.com for single posts and articles, Thread Reader App for unrolled reply chains. A pasted X link becomes readable content instead of a login wall.",
   "author": {
     "name": "Melodic Software",

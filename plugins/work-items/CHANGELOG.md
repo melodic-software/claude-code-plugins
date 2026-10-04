@@ -3,6 +3,48 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.0] - 2026-10-04
+
+### Added
+
+- **Decomposed slices carry their design excerpt, and a `design` investigation type exists ([#6278](https://github.com/melodic-software/claude-code-plugins/issues/6278)).** `/work-items:decompose` reads PLAN.md's `## Design` and quotes each slice's part of it in a `## Key interfaces` section. The slice body is now the agent-brief template laid out as sections, so the two slice shapes no longer differ. Design unknowns get `design` investigation tickets routed to `/planning:design`.
+
+### Fixed
+
+- **Decomposed slices and agent briefs carry the design's conventions followed.** Key interfaces now quote the conventions as ADR and rule names, never file paths, so a ticket agent gets the same guardrails a dispatched worker does.
+- **The skill cheat sheet lists `/work-items:decompose` under the workflow ladder's Decompose stage.** Its `workflow-stage` metadata moves from `plan` to `decompose`.
+
+## [0.48.9] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.48.8] - 2026-10-04
+
+### Changed
+
+- **`/work-items:attend-queue`'s description names triage as the owner of untriaged intake ([#6282](https://github.com/melodic-software/claude-code-plugins/issues/6282)).**
+  It drives escalations to resolution and hands each untriaged intake row to `/work-items:triage`; it no longer claims to resolve intake itself.
+
+## [0.48.7] - 2026-10-04
+
+### Changed
+
+- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** The work loop and the attend-queue skill now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limit-guard 0.14.0's reader contract.
+
+## [0.48.6] - 2026-10-04
+
+### Changed
+
+- **`/work-items:triage` routes an undiagnosed bug to diagnosis ([#6279](https://github.com/melodic-software/claude-code-plugins/issues/6279)).** Step 3 separates a verified bug from a diagnosed one: an unknown root cause routes through `/debugging:debug` (or `/testing:diagnose` for a failing test) before any fix, and a report too unstructured to reproduce from is shaped with `/bugs:write` first. `## Next` gains the `/debugging:debug` route. The state machine and its exits are unchanged.
+
+## [0.48.5] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve.
+
 ## [0.48.4] - 2026-10-04
 
 ### Changed

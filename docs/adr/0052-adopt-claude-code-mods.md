@@ -92,7 +92,7 @@ event they hook and every `$` call they make sits in a row the guard passes, wit
 | `session.start`, `session.end`, `session.compact`, `session.measure` | both | passes (`session.*`) |
 | `turn.start`, `turn.complete`; `turn.step` | both; rate-limit-guard | passes (`turn.*`) |
 | `prompt.submit`, `tool.call`, `command.run`, `ui.render` | both | passes |
-| `$.process.run`, `$.clock.*`, `$.fs.read`, `$.fs.stat`, `$.ui.log`, `$.ui.invalidate`, `$.ui.resolve`, `$.command.register` | both | passes (`process.run`, `clock.*`, `fs.*`, `ui.*`, `command.register`) |
+| `$.process.run`, `$.clock.*`, `$.fs.read`, `$.fs.stat`, `$.ui.log`, `$.ui.toast`, `$.ui.invalidate`, `$.ui.resolve`, `$.command.register` | both | passes (`process.run`, `clock.*`, `fs.*`, `ui.*`, `command.register`) |
 | `$.fs.exists` | context-guard | passes (`fs.*`) |
 | `$.session.*`, `$.env.get`, `$.plugin.*`, `$.prompt.read`, `$.prompt.suggest` | both | passes (no row holds them) |
 | `$.tool.list` | context-guard | passes; the organization's managed MCP tools are listed as its tiers listed them |

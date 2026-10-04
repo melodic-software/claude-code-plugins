@@ -82,11 +82,6 @@ guard::abort_boundary block-credential-read PreToolUse open 0 2
 source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundary reports it
 
 _bcr_enabled="${CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED:-true}"
-if [[ "$_bcr_enabled" != "true" ]]; then
-  _bcr_bad="guardrails block-credential-read: block_credential_read_enabled=${_bcr_enabled} is not exactly true or false; treating as enabled (a safety switch does not silently disable)"
-  echo "$_bcr_bad" >&2
-  hook::emit_channels PreToolUse "$_bcr_bad" "$_bcr_bad"
-fi
 
 # rc 1 (empty stdin) skips; rc 2 (not JSON) FAILS CLOSED; rc 3 (a payload cut
 # short by the pipe, a transport fault) is a loud skip the dispatcher takes once.
@@ -95,21 +90,22 @@ hook::buffer_stdin_to INPUT || {
   ((rc == 2)) && exit 2
   exit 0
 }
+# A value other than true (an exact false exited above) keeps the guard on.
+[[ "$_bcr_enabled" == true ]] ||
+  guard::bad_switch_notice block_credential_read_enabled "$_bcr_enabled" "$INPUT"
 
 hook::require_jq_blocking "guardrails-block-credential-read" "block_credential_read_enabled"
 
 jq_rc=0
 hook::jq_fields "$INPUT" '.tool_input.command' || jq_rc=$?
 if ((jq_rc == 2)); then
-  echo "BLOCKED: the hook payload could not be parsed." >&2
+  guard::refuse_unparsable
   exit 2
 fi
 ((jq_rc != 0)) && exit 0
 
 if ((HOOK_JQ_FIELDS_NUL)); then
-  echo "BLOCKED: the payload carries a NUL byte, which a command cannot reliably carry." >&2
-  echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
-  echo "Fix: reissue the tool call without the embedded NUL." >&2
+  guard::refuse_nul
   exit 2
 fi
 
@@ -140,11 +136,8 @@ allowed() {
 block() {
   local form="$1" shape="$2" fix="$3"
   printf '%s\n' \
-    "BLOCKED: this command prints a credential ($shape); its output would land in the transcript." \
-    "Fix: check that the credential is present instead of reading it:" \
-    "  $fix" \
-    "Never read, print or copy a credential value; record a capability you could not establish without one as a gap." \
-    "Escape, if the read is intended: set the block_credential_read_enabled option to false, or add $form to block_credential_read_allow." >&2
+    "BLOCKED: this command prints a credential ($shape) into the transcript. Check that it is present instead: $fix" \
+    "Only the user can allow it ($form in block_credential_read_allow)." >&2
   exit 2
 }
 
@@ -197,23 +190,23 @@ match_shapes() {
 
   if ! allowed credential-fill && [[ "$s" =~ $re_fill || "$s" =~ $re_fill_bin ]]; then
     block credential-fill "git credential fill / git credential-<helper> get" \
-      "gh auth status    (or a request that needs no token, or  git ls-remote origin  to test access)"
+      "gh auth status, or git ls-remote origin to test access"
   fi
 
   if ! allowed gh-auth-token && [[ "$s" =~ $re_gh ]]; then
     block gh-auth-token "gh auth token" \
-      "gh auth status    (exit code 0 when logged in; prints no token)"
+      "gh auth status (exits 0 when logged in)"
   fi
 
   if ! allowed env-echo &&
     [[ "$s" =~ $re_printenv || "$s" =~ $re_echo || "$s" =~ $re_psvar || "$s" =~ $re_psenv ]]; then
     block env-echo "a token-shaped environment variable" \
-      "test -n \"\$NAME\" && echo set     (PowerShell:  if (\$env:NAME) { 'set' })"
+      "test -n \"\$NAME\" && echo set (PowerShell: if (\$env:NAME) { 'set' })"
   fi
 
   if ! allowed credential-file-read && [[ "$s" =~ $re_file ]]; then
     block credential-file-read "a credential file: .git-credentials, .netrc, .env" \
-      "test -f <path> && echo present     (PowerShell:  Test-Path <path>)"
+      "test -f <path> && echo present (PowerShell: Test-Path <path>)"
   fi
 }
 

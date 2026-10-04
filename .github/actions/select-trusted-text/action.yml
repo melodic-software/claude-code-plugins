@@ -24,7 +24,8 @@ inputs:
   github-token:
     description: >
       Token that can read the PR, its comments and reviews, and the issues it
-      closes (the lane's App token).
+      closes: the lane's App token, or the job's GITHUB_TOKEN for a read
+      activity.
     required: true
 
 runs:

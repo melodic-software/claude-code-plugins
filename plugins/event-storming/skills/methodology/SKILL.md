@@ -204,7 +204,9 @@ patterns onto that stack's building blocks rather than assuming a particular fra
 
 ## Next
 
-`/event-storming:simulation`. This reference selects its format.
+- A format is chosen and the workshop runs: `/event-storming:simulation`, whose format this
+  reference selects.
+- The aggregates and boundaries are found and the module needs designing: `/planning:design module`.
 
 ## Export options
 

@@ -224,7 +224,8 @@ Procedure: [`${CLAUDE_PLUGIN_ROOT}/reference/rendered-view.md`](${CLAUDE_PLUGIN_
 
 ## Next
 
-- The container is one module and the question is module design: `/architecture:improve`.
+- Friction in an existing module's interface: `/architecture:improve`.
+- The view opens a new boundary or contract to decide: `/planning:design module`.
 - The question is which systems the repository sits among: `/architecture:map-landscape`.
 - The view settles a decision worth keeping: `/architecture:record-decision`.
 
