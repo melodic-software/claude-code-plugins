@@ -1,6 +1,14 @@
 # The `git` action: branch audit + classification + deletion
 
-Full detail for the `git` action's branch-audit half (§4.2–§4.7). SKILL.md keeps the §4 framing, the §4.1 prune/gc step, and the branch-deletion safety rule; this file carries classification semantics, the report shape, and interactive deletion.
+Full detail for the `git` action's branch-audit half (§4.2–§4.7), plus the limits of its networked git calls. SKILL.md keeps the §4 framing, the §4.1 prune/gc step, and the branch-deletion safety rule; this file carries classification semantics, the report shape, and interactive deletion.
+
+## Networked git
+
+`git-prune.sh --apply`, `git-branch-audit.sh --remote`, and the `tree` fetch run git through `scripts/lib/git-noninteractive.sh`, which turns prompts off and keeps the configured ssh command. Two limits remain:
+
+- The helper passes `-c credential.interactive=false`, which only newer git honors. On older git an HTTPS remote can still reach an askpass or credential-helper dialog.
+  - **Pointer**: when a run on HTTPS opens a credential dialog, fetch [`credential.interactive`](https://git-scm.com/docs/git-config#Documentation/git-config.txt-credentialinteractive) and the [`credential.c` history](https://github.com/git/git/commits/master/credential.c) live and compare with `git --version`. **As of**: 2026-10-04 (first honored in git v2.47.0). **Recheck trigger**: the helper's minimum supported git rises to v2.47 or later, or git changes how `credential.interactive` is read.
+- `ConnectTimeout=5` bounds only the ssh connection. An HTTPS remote that does not answer waits for the operating system's TCP connect timeout.
 
 ## 4.2–4.4 Collect branch facts (script)
 

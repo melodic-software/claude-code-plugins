@@ -40,7 +40,7 @@ Skill data (`.claude/skills/*/data/`) is preserved unconditionally. No flag remo
 - Aborts the apply if `git clean -fdx` genuinely fails (exit 7), meaning a non-zero clean exit whose cause is NOT locked/in-use files. The reset succeeded (its `AppliedReset:` line is still emitted); `clean` prints `AppliedClean: failed` instead of a success line, so the report can never claim a clean that errored. Locked/in-use files are the expected non-fatal case (see `Unremovable:` below) and are not a failure.
 - Post-clean restore guard: any tracked file deleted via reparse-point traversal is restored from the index (`RestoredTracked:` count; safe because `reset --hard` ran first).
 - Locked / in-use files git could not delete are reported (`Unremovable:`), not silently left.
-- The apply fetch does not prompt. When the remote cannot be reached it prints `RemoteUnreachable: remote unreachable` and continues with the tracking ref already on disk.
+- The apply fetch does not prompt. When the remote cannot be reached it prints `RemoteUnreachable: remote unreachable` and continues with the tracking ref already on disk. Limits on older git and HTTPS: [Networked git](git-branch-cleanup.md#networked-git).
 
 ### Agent gates (never script-bypassed)
 
