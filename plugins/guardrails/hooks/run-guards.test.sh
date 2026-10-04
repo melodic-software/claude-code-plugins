@@ -446,7 +446,7 @@ else
   run_nojq "$(jq -c '.session_id = "nojq-s2"' <<<"$NOJQ_CMD")" block-hook-bypass.sh block-no-verify.sh
   assert_exit "no jq, real guards: a fail-closed guard still wins the exit code" 2 "$RC"
   assert_contains "no jq, real guards: the fail-closed reason reaches stderr" \
-    "$ERR" "BLOCKED: jq is not on PATH, so guardrails denies every Bash and PowerShell call."
+    "$ERR" "BLOCKED: jq is not on PATH, so guardrails denies every Bash and PowerShell call, and every file write on Windows."
   assert_absent "no jq, real guards: a block's deny reason carries no dropped document" \
     "$ERR" "run-guards: dropped"
 fi

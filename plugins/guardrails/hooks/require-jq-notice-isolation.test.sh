@@ -4,7 +4,7 @@
 # one latch per channel.
 #
 # The jq notice speaks for the plugin ("guardrails: jq not on the hook PATH.
-# Without jq, guardrails denies ... and skips its file checks."), so one notice
+# Without jq, guardrails denies ... and skips its other file checks."), so one notice
 # per session covers every guard. A per-hook label told the model once per
 # guard, and its user marker never matched the one the SessionStart
 # prerequisites probe writes (`<plugin>-<id>.<session>.user`), so the user

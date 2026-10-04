@@ -795,7 +795,7 @@ hook::emit_document() {
 # shellcheck disable=SC2329  # invoked by every fail-closed guard sourced below
 hook::require_jq_blocking() {
   command -v jq >/dev/null 2>&1 && return 0
-  guard::say_once jq "BLOCKED: jq is not on PATH, so guardrails denies every Bash and PowerShell call. Ask the user to install jq (https://jqlang.org/download/)."
+  guard::say_once jq "BLOCKED: jq is not on PATH, so guardrails denies every Bash and PowerShell call, and every file write on Windows. Ask the user to install jq (https://jqlang.org/download/)."
   exit 2
 }
 
