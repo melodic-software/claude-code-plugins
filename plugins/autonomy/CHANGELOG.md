@@ -7,7 +7,7 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 ### Changed
 
-- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
+- **Shared `hook-utils.sh` synced (#5924); no change to this plugin's hooks.**
 
 ## [0.26.6] - 2026-10-04
 
