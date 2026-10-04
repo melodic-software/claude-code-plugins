@@ -846,6 +846,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Loop-lane topology, escalation, capability tiers, loop invariants | [`docs/conventions/loop-lane/`](conventions/loop-lane/README.md) |
 | PR pipeline: stages, CI lane boundaries, activity contract, merge rungs, config schema | [`docs/conventions/pr-pipeline/`](conventions/pr-pipeline/README.md) |
 | Execution target: which host runs each local-lane stage, the cloud launch rule, the stage-start probe and fallback | [`docs/conventions/execution-target/`](conventions/execution-target/README.md) |
+| Workspace environment: the `setup`, `up`, `info` and `down` commands a consumer declares per worktree, read from the default branch | [`docs/conventions/workspace-environment/`](conventions/workspace-environment/README.md) |
 | Shell test-helper duplication and exit-code divergence | [`docs/conventions/shell-test-helpers/`](conventions/shell-test-helpers/README.md) |
 | Finding suppression (deliberately-kept audit findings) | [`docs/conventions/finding-suppression/`](conventions/finding-suppression/README.md) |
 | Liveness assertion (false-green / healthy-while-dead surfaces) | [`docs/conventions/liveness-assertion/`](conventions/liveness-assertion/README.md) |

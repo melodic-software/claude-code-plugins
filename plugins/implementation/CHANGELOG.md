@@ -7,6 +7,9 @@ All notable changes to the `implementation` plugin are documented here. Format f
 
 ### Added
 
+- `/implementation:implement-dispatch` brief item 9: a worker that provisions its own worktree runs
+  the consumer's Workspace environment `setup` for it, read from the fetched default branch and
+  skipped when the item's input is untrusted.
 - **`verify_mechanical_phases` sends every phase to the fresh-context verifier.** Off (the
   default), `/implementation:implement-dispatch` keeps the mechanical carve-out: the orchestrator
   verifies a mechanical, behavior-preserving phase from the diff plus the build/test signal, and

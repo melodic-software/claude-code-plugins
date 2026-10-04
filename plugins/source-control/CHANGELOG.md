@@ -7,6 +7,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
+- **`/source-control:worktree` runs the consumer's Workspace environment verbs.** `create` runs the
+  declared `setup` after the worktree exists and before entering it, on the helper path and the
+  plain `git worktree add` path; `cleanup` runs `down` after its guards clear and before removal.
+  The entry is read from the fetched default branch, the verbs run through the Bash tool with
+  `WORKSPACE_ID` and `WORKSPACE_ROOT`, and none runs for an untrusted-input worktree. The
+  `WorktreeCreate` and `WorktreeRemove` hooks are unchanged.
 - **`pr_open_state` chooses whether `/source-control:pull-request create` opens a draft.** `draft`
   (the default, as before) or `ready`. The per-user value is the new `pr_open_state` `userConfig`
   option; a repository sets it in `docs/conventions/source-control.yaml`, which wins and is

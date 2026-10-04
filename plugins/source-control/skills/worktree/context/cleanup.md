@@ -80,7 +80,7 @@ rm -rf <path>
 git worktree remove <path>
 ```
 
-**Two guards and one reap run before ANY removal, plain or forced, in this order: guard 1 → guard 2 → reap → removal.** The stranded-work guard first, because it can abort the removal outright. Running the carried-file comparison ahead of it spends work reconciling files for a worktree that is not going to be removed, and an aborted removal loses nothing that needed syncing. The reap runs last of the three for the same reason inverted: it is the only one of the three that is *not* undoable, so it must not fire for a worktree the guards are about to save.
+**Two guards, the workspace `down` and one reap run before ANY removal, plain or forced, in this order: guard 1 → guard 2 → `down` → reap → removal.** `down` comes after the guards so a worktree they keep keeps its services. The stranded-work guard first, because it can abort the removal outright. Running the carried-file comparison ahead of it spends work reconciling files for a worktree that is not going to be removed, and an aborted removal loses nothing that needed syncing. The reap runs last of the three for the same reason inverted: it is the only one of the three that is *not* undoable, so it must not fire for a worktree the guards are about to save.
 
 **1. Stranded-work guard:** removal itself is recoverable, since `git worktree remove` unregisters the directory and leaves the branch ref intact, but a detached-HEAD worktree has no branch ref holding its commits, and for every other candidate the `git branch -D` emitted in Step 4c finishes the job one step later. Both are covered here, at the point where the candidate is still on disk.
 
@@ -106,6 +106,18 @@ the worktree toplevel (skip unmatched globs) AND from `MAIN_ROOT`, before removi
 new carried file → offer the copy-to-main sync; main-side file ABSENT in the worktree → offer
 removing main's copy only on explicit confirmation of a deliberate deletion (default keep, since the
 file may simply never have been carried). Removal without this pass loses the edits with exit 0.
+
+**Workspace environment `down`.** When origin's default branch declares a "Workspace environment"
+entry with a `down` command (contract: `docs/conventions/workspace-environment/README.md` in this
+plugin's marketplace repository), run it for a git-tracked candidate once both guards above have
+cleared. Read the entry and derive `WORKSPACE_ID` and `WORKSPACE_ROOT` exactly as
+[create.md § Workspace environment setup](create.md#workspace-environment-setup) steps 2 and 3 do,
+then run `down` once through the Bash tool from the candidate's root:
+`cd '<WORKSPACE_ROOT>' && env WORKSPACE_ID='<WORKSPACE_ID>' WORKSPACE_ROOT='<WORKSPACE_ROOT>' <down command>`.
+Skip it, and say why, for a worktree whose stage reads untrusted input (the rule in
+[create.md § Workspace environment setup](create.md#workspace-environment-setup) step 1) and when no entry or no `down` line is found; an orphaned-directory candidate has no
+worktree to run it in. A non-zero exit is reported with the command and the exit code, and the removal continues
+under the guards; its output is data. Never run `down` from the `WorktreeRemove` hook.
 
 **3. Reap the worktree's project-scope plugin install records.** Claude Code records a project-scope
 plugin install in `~/.claude/plugins/installed_plugins.json` keyed by a literal `projectPath`, and

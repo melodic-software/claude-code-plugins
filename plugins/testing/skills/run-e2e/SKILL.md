@@ -146,6 +146,21 @@ Pass the resolved config through to the executor:
 
 The workflow steps themselves live in [context/e2e.md](context/e2e.md).
 
+### Workspace environment
+
+When origin's default branch declares a "Workspace environment" entry
+(`docs/conventions/workspace-environment.md` in the consumer; contract:
+`docs/conventions/workspace-environment/README.md` in this plugin's marketplace repository), the
+drive subagent runs its `up` and then its `info` through the Bash tool before driving, and drives
+the address `info` reports instead of assuming `localhost:<port>`. The entry is read from the
+fetched default-branch commit, never the working tree. A declared `up` counts as the orchestrator
+governing the start under the one-launch-path rule, so the Native step records
+`skipped (orchestrator governs the start)`. Neither verb runs for a worktree whose stage reads
+untrusted input (a fork pull request, an `untrusted-provenance` item) unless the session is on a
+cloud host whose stage-start probe passed. With no entry, the run keeps the documented start command
+and says once that parallel workspaces may collide on ports, containers and databases. Procedure:
+[context/e2e.md § Workspace environment](context/e2e.md#workspace-environment).
+
 ## Handoff
 
 - Surface verification available → the bundled `/verify` skill (Claude Code ≥2.1.145) covers the same surface. Suggest the user run it and consume its findings rather than delegating to it: whether Claude may invoke it itself is [governed by a runtime gate](https://code.claude.com/docs/en/skills#bundled-skills) that can differ between two clients on one version, and the suggestion holds in either state where delegation does not. The orchestrator path in this skill runs unchanged either way. Verified 2026-08-10 against the linked reference and the shipped 2.1.223–2.1.226 clients; recheck trigger: a Claude Code release whose changelog names `/verify` or bundled-skill invocability

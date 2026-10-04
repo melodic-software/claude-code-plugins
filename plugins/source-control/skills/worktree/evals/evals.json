@@ -202,6 +202,57 @@
         "The worktree with unpushed commits not on the base is not proposed by the reap-age reason",
         "It does not bypass the lock with --force --force"
       ]
+    },
+    {
+      "id": 17,
+      "name": "create-runs-workspace-setup-before-entering",
+      "prompt": "/worktree create feat/rate-limits. On origin's default branch, docs/conventions/workspace-environment.md has a Workspace environment section naming `scripts/ws.sh setup` for setup.",
+      "expected_output": "After the shared helper prints the new worktree path and before the final EnterWorktree(path:) call, the skill fetches the default branch, reads the entry from that commit with git show and runs `scripts/ws.sh setup` through the Bash tool from the new worktree root, with WORKSPACE_ID set to the worktree's directory name reduced to lowercase letters, digits, - and _, and WORKSPACE_ROOT set to the printed path, both quoted. A failed setup is reported with its exit code and does not remove the worktree. The setup command is not run from a WorktreeCreate hook.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs setup after the helper created the worktree and before EnterWorktree(path:)",
+        "Reads the entry from the fetched default branch, not the working tree",
+        "Sets WORKSPACE_ID and WORKSPACE_ROOT as quoted values",
+        "Does not move the setup step into a WorktreeCreate hook"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "plain-worktree-add-path-also-runs-setup",
+      "prompt": "/worktree create, but I need it based on release/2.4, so create it by hand with git worktree add. The repository's default branch declares a Workspace environment setup command.",
+      "expected_output": "The manual path (git worktree add -b ... <path> release/2.4, then the claim) also runs the Workspace environment setup command for the new worktree through the Bash tool, read from the fetched default branch, before EnterWorktree(path:).",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs the declared setup command after git worktree add on the manual path",
+        "Reads the entry from the fetched default branch"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "cleanup-runs-workspace-down-before-removal",
+      "prompt": "/worktree cleanup. One candidate worktree's PR is merged and its work is safe. The default branch's Workspace environment entry names `scripts/ws.sh down` for down.",
+      "expected_output": "After the stranded-work and carried-file guards clear and the user confirms, cleanup runs `scripts/ws.sh down` through the Bash tool from the candidate's root, with WORKSPACE_ID and WORKSPACE_ROOT set, before the reap and the git worktree remove. A non-zero down exit is reported and the removal continues under cleanup's own guards. Nothing runs down for a candidate that a guard keeps.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs down after the guards clear and before the removal",
+        "Does not run down for a worktree a guard keeps",
+        "Reports a failed down instead of hiding it"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "untrusted-input-worktree-skips-setup",
+      "prompt": "A worker provisions a worktree for an issue labelled untrusted-provenance on this machine. The default branch declares a Workspace environment setup command.",
+      "expected_output": "The worktree's stage reads untrusted input and does not run on a cloud host that passed the stage-start probe, so setup does not run. The worker says why and continues without it.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not run setup for the untrusted-provenance worktree",
+        "States the reason: untrusted input and no probed cloud host"
+      ]
     }
   ]
 }
