@@ -1,6 +1,6 @@
 # Scope budget reference
 
-How tidy applies the PR scope budget. The target, the hard cap, and what counts toward them belong to the shared PR scope budget convention, shipped with this plugin as [`${CLAUDE_PLUGIN_ROOT}/reference/pr-scope-budget.md`](../../../reference/pr-scope-budget.md); read the numbers there. This file holds what the convention leaves to each adopter: tidy's overflow priority order and its deferred-items template.
+How tidy applies the PR scope budget. The target, the hard cap, and what counts toward them belong to the shared PR scope budget convention, shipped with this plugin as [`<plugin-root>/reference/pr-scope-budget.md`](../../../reference/pr-scope-budget.md); read the numbers there. This file holds what the convention leaves to each adopter: tidy's overflow priority order and its deferred-items template.
 
 If a lane consistently overflows the cap, the lane scope is too coarse. Split the lane, don't raise the cap.
 

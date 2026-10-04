@@ -9,6 +9,11 @@ All notable changes to the `improvement` plugin are documented here. Format foll
 
 - **`reference/pr-scope-budget.md` regenerated.** The convention's Adopters table now lists
   `/code-tidying:tidy` and `/coupling:reduce` as pointing at their own plugin-shipped copies.
+  The convention now owns only the budget and the rule that a run never grows a PR past the hard
+  cap; what happens to the remainder belongs to each adopter.
+- **`/improvement:improve` states its own overflow handling.** Interactive runs offer a smaller
+  complete slice or `/planning:plan`; unattended runs file the remainder as a deduplicated work
+  item; the PR body names any deferred item by number.
 
 ## [0.2.0] - 2026-10-04
 

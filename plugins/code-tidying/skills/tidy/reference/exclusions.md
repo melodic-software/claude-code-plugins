@@ -82,7 +82,7 @@ If during a self-update run you find drift in any of the following, **clean exit
 - Lane file `## Scope` blocks: every lane file's scope globs. Changing scope changes what the lane operates on
 - Lane file `## Watch-for patterns`: adding or removing watch-for items changes the lane's behavior
 - Lane file `## Lane-specific extra exclusions`: same logic as the global lists; safety contract
-- `${CLAUDE_PLUGIN_ROOT}/reference/pr-scope-budget.md`: a generated copy of the shared PR scope budget convention; its numbers change in the convention, never in a tidy
+- `<plugin-root>/reference/pr-scope-budget.md`: a generated copy of the shared PR scope budget convention; its numbers change in the convention, never in a tidy
 
 ### Out-of-scope work
 

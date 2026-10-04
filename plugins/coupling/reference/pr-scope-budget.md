@@ -10,12 +10,12 @@ never restate the numbers.
 
 ## Boundary
 
-This doc owns the target and hard cap, what counts toward them, and the overflow rule. It does not
-own:
+This doc owns the target and hard cap, what counts toward them, and the rule that a run never grows
+a PR past the hard cap. It does not own:
 
 - **What a skill hunts or how it ranks candidates.** Each adopter's own body decides that.
-- **How a deferred item is filed.** Filing goes through `/work-items:track` where installed; the
-  item's shape belongs to the adopting skill.
+- **What happens to the remainder.** Whether overflow is planned, filed, or ledgered, and where
+  deferred items are named, belongs to each adopting skill.
 - **Human-requested work.** A PR a person asked for at a given size is theirs to size.
 
 ## Budget
@@ -42,12 +42,8 @@ that is too coarse: narrow the scope, never raise the cap.
 
 ## Overflow
 
-When the chosen improvement does not fit the hard cap, the run does not grow the PR:
-
-1. Ship the largest complete slice that fits, or nothing when no complete slice fits.
-2. Hand the remainder on: interactively, to `/planning:plan` or a filed work item, as the user
-   chooses; unattended, as a filed work item, searched for duplicates before filing.
-3. Name every deferred item by number in the PR body.
+A run never grows a PR past the hard cap. What happens to the remainder is each adopter's own
+overflow handling, stated in its skill body.
 
 ## Adopters
 
