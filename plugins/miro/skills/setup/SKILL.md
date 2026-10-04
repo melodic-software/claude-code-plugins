@@ -87,9 +87,10 @@ to resolve it from.
 
 **The enable step is not optional.** This plugin ships `defaultEnabled: false`, so it installs
 DISABLED. The install seeds the token but leaves the MCP server, and therefore every `miro` tool,
-unavailable until it is enabled ([Default enablement](https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled),
-which also notes `claude plugin enable` auto-detects the scope when `-s` is omitted; passing it
-explicitly keeps the sequence deterministic in CI). A bootstrap that stops after `install` looks
+unavailable until it is enabled ([Default enablement](https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled)).
+[`claude plugin enable`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-enable)
+auto-detects the scope when `-s` is omitted; passing it explicitly keeps the sequence deterministic
+in CI. A bootstrap that stops after `install` looks
 successful and delivers no tools.
 
 **Rotating or clearing the token:** `/plugin configure miro@<marketplace>` (interactive, any

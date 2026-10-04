@@ -7,7 +7,7 @@ All notable changes to the `dometrain` plugin are documented here. Format follow
 
 ### Changed
 
-- **Default-enablement links repointed ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The setup skill cites `plugins/manifest-reference#defaultenabled`; the old `plugins-reference#default-enablement` anchor no longer exists.
+- **Default-enablement links repointed ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The setup skill cites `plugins/manifest-reference#defaultenabled`; the old `plugins-reference#default-enablement` anchor no longer exists. The enable-scope auto-detect note now cites `plugins/cli-reference#plugin-enable`, where it lives.
 
 ## [0.6.2] - 2026-10-03
 
