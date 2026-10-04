@@ -556,13 +556,12 @@ async function writeSnapshot($: EngineInterface, st: State, read: boolean) {
   // A body with no figures (before a session's first response, or after session.end or a fresh
   // load dropped the in-memory one) never goes over a file on disk that has them.
   if (body.context_window.used_percentage === null && (await diskHasFigures($, target))) return
-  s.written = { sig, at: now }
   const argv = ['node', `${$.plugin.root}/${HELPER}`, target, '--prune', ...(same ? ['--floor', String(FLOOR_MS / 1000)] : [])]
+  // Only a write the helper decided (written, or skipped by rule) dedupes; a failed one is tried at the next carrier.
   try {
     const run = await $.process.run(argv, { stdin: JSON.stringify(body), timeoutMs: 10_000 })
-    if (run.exitCode !== 0 && run.exitCode !== 3) {
-      logOnce($, st, 'write-failed', `snapshot write failed (exit ${run.exitCode}): ${run.stderr.trim()}`)
-    }
+    if (run.exitCode === 0 || run.exitCode === 3) s.written = { sig, at: now }
+    else logOnce($, st, 'write-failed', `snapshot write failed (exit ${run.exitCode}): ${run.stderr.trim()}`)
   } catch (error) {
     logOnce($, st, 'write-threw', `snapshot write did not run: ${error instanceof Error ? error.message : String(error)}`)
   }
@@ -794,11 +793,13 @@ export const register: Register = (on, options) => {
     const deny = await gate($, st, cfg, e, fire)
     if (deny !== undefined) return { deny }
     const result = await next(e)
+    // The gate's envelope timed the call before the tool ran; the line work after it starts its own clock.
+    const after: Fire = { ...fire, startMs: await $.clock.now() }
     await refresh($, st)
     await queueWrite($, st)
     if (e.agentId !== undefined) return result
     if (result.deny !== undefined || result.isError) return result
-    const lines = await takeLines($, st, cfg, fire)
+    const lines = await takeLines($, st, cfg, after)
     return lines.length === 0 ? result :{ ...result, context: [...(result.context ?? []), ...lines] }
   }).catch(($, e, next) => next(e))
 }

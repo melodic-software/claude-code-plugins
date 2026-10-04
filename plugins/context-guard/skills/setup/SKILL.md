@@ -38,7 +38,7 @@ default zone bands, zones.json shape) are owned by
 ## `check` (read-only)
 
 1. **`jq`**. Read the pre-computed `jq` value. FAIL when it is `absent`: the bash resolver this
-   check runs for the zone report (`scripts/context-zone.sh`) then prints `unknown`, and `apply`
+   check runs for the zone report (`${CLAUDE_PLUGIN_ROOT}/scripts/context-zone.sh`) then prints `unknown`, and `apply`
    cannot merge into an existing `zones.json`. The module and the PostCompact marker hook do not
    use jq. Remediation: install jq (<https://jqlang.org/download/>).
 2. **`node`**. Read the pre-computed `node` value. FAIL when it is `absent`: the PostCompact marker

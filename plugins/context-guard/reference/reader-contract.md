@@ -247,7 +247,7 @@ skill's module check), none of the following runs except the PostCompact marker.
   `prompt.submit` hook adds) carries the zone word and a counter-steer worded as facts with their
   source: the reading is a measurement rather than an instruction, degradation shows in the work
   itself and never in a zone word, and continuation is the operator's call. In `dumb` it also
-  carries the save-state note, labelled as the dumb zone's default. A line carries no figure
+  carries the save-state note, labeled as the dumb zone's default. A line carries no figure
   unless `zone_line_data` adds one (percent, tokens, window), and never a session id. Beside the
   crossings the module sends one approach line per boundary per cycle (`approach_margin`
   percentage points before it), one line per `thresholds` entry passed, the verdict restated once
@@ -512,7 +512,7 @@ an absent or invalid one means its default, so a file without them keeps working
   known window size there is no token-shape approach line.
 - `actions.<zone>`: `action` is `none`, `save-state`, `handoff` or `block`; optional `text`
   replaces the default wording. The action's sentence appears at that zone's crossing and
-  restatement, never on an approach line, labelled "operator setting for the <zone> zone".
+  restatement, never on an approach line, labeled "operator setting for the <zone> zone".
   Defaults: `none` everywhere except `save-state` at `dumb`. `block` arms the gate in that zone.
   An action set for `dumb` takes the place of `zone_hook_mode: blocking` there.
 - `thresholds`: extra boundaries at a percentage that is not a zone edge (`at_percent`, 0 to

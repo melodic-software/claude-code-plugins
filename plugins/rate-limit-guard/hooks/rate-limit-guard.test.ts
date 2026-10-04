@@ -5,9 +5,9 @@ import { expect, mock, test } from 'claude-code/testing'
 const T0 = 1_791_050_400_000
 const FIVE_RESET = '2026-10-03T21:00:00Z'
 const SEVEN_RESET = '2026-10-08T09:00:00Z'
-const HOME = '/home/u'
-const TARGET = '/home/u/.claude/rate-limit-guard/rate-limits.json'
-const STATE_FILE = '/home/u/.claude.json'
+const HOME = '/srv/u'
+const TARGET = '/srv/u/.claude/rate-limit-guard/rate-limits.json'
+const STATE_FILE = '/srv/u/.claude.json'
 const SOURCE = '(a measurement from the last API response)'
 
 type Limit = { kind: string; percentUsed: number; resetsAt?: string }
@@ -593,9 +593,9 @@ test('snapshot: a session with no windows writes the windowless body', async ($,
 })
 
 test('snapshot: falls back to USERPROFILE when HOME is unset', async ($, on) => {
-  const { w } = world(on, {}, { USERPROFILE: 'C:/Users/u' })
+  const { w } = world(on, {}, { USERPROFILE: 'C:/profiles/u' })
   await bash($)
-  expect(w.runs[0].argv[2]).toBe('C:/Users/u/.claude/rate-limit-guard/rate-limits.json')
+  expect(w.runs[0].argv[2]).toBe('C:/profiles/u/.claude/rate-limit-guard/rate-limits.json')
 })
 
 test('budget: no process on events that write nothing, one per write', async ($, on) => {
@@ -1061,7 +1061,7 @@ test('options: line data naming no known item reads as the default, and the line
   expect(text).not.toContain('x'.repeat(35))
 })
 
-test('options: line data with one unknown item reads as the default, not a partial list', { options: { rate_limit_guard_enabled: false, rate_limit_line_data: 'percent,precent' } }, async ($, on) => {
+test('options: line data with one unknown item reads as the default, not a partial list', { options: { rate_limit_guard_enabled: false, rate_limit_line_data: 'percent,precent' } }, async ($, on) => { // spellchecker:disable-line
   const { w } = world(on, { limits: limits(92) })
   expect(ownLines((await bash($)).context)).toEqual([EDGE_90])
   expect(optionLogs(w).map(l => l.text)).toEqual([expect.stringContaining('rate_limit_line_data')])

@@ -2,9 +2,9 @@ import { expect, mock, test } from 'claude-code/testing'
 
 // Fixture time, computed by hand: 2026-10-03T18:00:00Z is 1791050400 s.
 const T0 = 1_791_050_400_000
-const HOME = '/home/u'
-const CTX = '/home/u/.claude/context-guard/context'
-const ZONES = '/home/u/.claude/context-guard/zones.json'
+const HOME = '/srv/u'
+const CTX = '/srv/u/.claude/context-guard/context'
+const ZONES = '/srv/u/.claude/context-guard/zones.json'
 const SRC = '(a measurement from the last API response)'
 const STEER =
   "A zone is a measurement, not an instruction: degradation shows in the work itself (drift, repetition, dropped constraints), never in a zone word, and continuation is the operator's call."
@@ -30,6 +30,8 @@ type World = {
   logs: string[]
   below: string[]
   ran: string[]
+  exits: (number | 'throw')[]
+  toolMs: number
 }
 
 // The world beneath the plugin. `percent` drives the reading; tokens follow it on a 200000 window
@@ -54,6 +56,8 @@ const world = (stub: any, init: Partial<World> = {}, env: Record<string, string>
     logs: [],
     below: [],
     ran: [],
+    exits: [],
+    toolMs: 0,
     ...init,
   }
   const clock = mock.clock(stub, { now: T0 })
@@ -92,7 +96,10 @@ const world = (stub: any, init: Partial<World> = {}, env: Record<string, string>
   })
   on('process.run', ($: unknown, e: { argv: readonly string[]; init?: { stdin?: string } }) => {
     w.runs.push({ argv: e.argv, stdin: e.init?.stdin })
-    return { value: { exitCode: 0, stdout: '', stderr: '' } }
+    // A helper run takes the next queued exit; 'throw' is a run that did not start.
+    const exit = e.argv[0] === 'node' ? (w.exits.shift() ?? 0) : 0
+    if (exit === 'throw') throw new Error('spawn failed')
+    return { value: { exitCode: exit, stdout: '', stderr: exit === 0 ? '' : 'write-snapshot: rename failed' } }
   })
   on('ui.invalidate', () => ({ value: undefined }))
   on('ui.log', ($: unknown, e: { text: string; to?: string }) => {
@@ -107,8 +114,9 @@ const world = (stub: any, init: Partial<World> = {}, env: Record<string, string>
   on('tool.register', ($: unknown, e: { name: string }) => ({ value: { tool: `mcp__context-guard__${e.name}` } }))
   on('tool.list', () => ({ value: [{ name: 'mcp__context-guard__status' }] }))
   on('command.register', ($: unknown, e: { name: string }) => ({ value: { command: e.name } }))
-  on('tool.call', ($: unknown, e: { tool: string }) => {
+  on('tool.call', async ($: unknown, e: { tool: string }) => {
     w.ran.push(e.tool)
+    if (w.toolMs > 0) await clock.advance(w.toolMs)
     return { result: { stdout: 'ok' }, text: 'ok', ...(w.isError ? { isError: true } : {}), context: w.below.length ? w.below : undefined }
   })
   on('prompt.submit', ($: unknown, e: { text: string; context?: readonly string[] }) => ({ text: e.text, context: e.context }))
@@ -1105,6 +1113,17 @@ test('telemetry: one zone-crossing-inject envelope per fire that sends lines, no
   expect(sent[1].tool_use_id).toBe('toolu_2')
 })
 
+test('telemetry: zone-crossing-inject duration_ms leaves out the wrapped tool run', async ($, on) => {
+  const { w } = world(on, {}, { HOME, HOOK_TELEMETRY_SINK: SINK })
+  await bash($)
+  w.percent = 60
+  w.toolMs = 90_000
+  await bash($)
+  const sent = envelopes(w)
+  expect(sent.map(e => e.hook)).toEqual(['zone-crossing-inject'])
+  expect(sent[0].duration_ms).toBeLessThan(90_000)
+})
+
 test('telemetry: a line sent at a prompt is recorded with that event', async ($, on) => {
   const { w } = world(on, {}, { HOME, HOOK_TELEMETRY_SINK: SINK })
   await prompt($)
@@ -1224,6 +1243,25 @@ test('snapshot: session.end writes what the floor held back', async ($, on) => {
   await clock.advance(61_000)
   await $.session.end({ reason: 'other', sessionId: 'sess-1', resume: { id: 'sess-1' } } as any)
   expect(w.runs).toHaveLength(2)
+})
+
+for (const exit of [1, 'throw'] as const) {
+  test(`snapshot: a write that failed (${exit}) is retried at the next carrier with the same body, session.end included`, async ($, on) => {
+    const { w, clock } = world(on, { exits: [exit] })
+    await bash($)
+    await clock.advance(1_000)
+    await $.session.end({ reason: 'other', sessionId: 'sess-1', resume: { id: 'sess-1' } } as any)
+    expect(w.runs).toHaveLength(2)
+    expect(w.runs[1]?.argv).not.toContain('--floor')
+  })
+}
+
+test('snapshot: a write the helper skipped by rule (exit 3) dedupes like a written one', async ($, on) => {
+  const { w, clock } = world(on, { exits: [3] })
+  await bash($)
+  await clock.advance(1_000)
+  await bash($)
+  expect(w.runs).toHaveLength(1)
 })
 
 const end = ($: any, reason: string, sessionId = 'sess-1') => $.session.end({ reason, sessionId, resume: { id: sessionId } } as any)
@@ -1352,9 +1390,9 @@ for (const sid of ['a.b', '../x', 'a b', '']) {
 }
 
 test('snapshot: falls back to USERPROFILE when HOME is unset, and writes nothing with neither', async ($, on) => {
-  const { w } = world(on, {}, { USERPROFILE: 'C:/Users/u' })
+  const { w } = world(on, {}, { USERPROFILE: 'C:/profiles/u' })
   await bash($)
-  expect(w.runs[0]?.argv[2]).toBe('C:/Users/u/.claude/context-guard/context/sess-1.json')
+  expect(w.runs[0]?.argv[2]).toBe('C:/profiles/u/.claude/context-guard/context/sess-1.json')
 })
 
 test('snapshot: no home directory, no write, and the lines still arrive', async ($, on) => {
