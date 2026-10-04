@@ -1,10 +1,13 @@
-# Dependabot keeps this repo's dependencies current with REVIEWED pull requests — GitHub-native,
+# Dependabot keeps this repo's dependencies current with pull requests — GitHub-native,
 # no third-party app and no PAT. It covers full-SHA GitHub Actions, the root locked Node CI
 # toolchain, the standards-managed runner-policy dependency root, the hash-locked Python CI
 # toolchain, and the miro plugin's Node MCP server. The plugin hooks
 # still use each consuming repository's tools; these manifests exist only to make this repository's
-# validation reproducible. No auto-merge is configured, so every bump is a PR that runs ci before a
-# human merges.
+# validation reproducible. Merge lanes follow the standards dependabot-policy component: the
+# github-actions `vendor-actions` group (non-major only) is the auto-merge lane armed by
+# pr-automerge-dependabot.yml; every other bump is a PR a human reviews and merges once
+# `ci-status` passes. A dependency joins the first group that matches it, so majors fall
+# through to the reviewed `github-actions` group.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -12,7 +15,7 @@ updates:
     # Only the `dependencies` label (already in the governed taxonomy). This overrides
     # Dependabot's defaults, suppressing the auto-created snake_case `github_actions`
     # ecosystem label — the label every downstream tool ignores anyway (release notes
-    # group on `dependencies`; auto-merge, unused here, keys on fetch-metadata outputs).
+    # group on `dependencies`; auto-merge keys on fetch-metadata outputs).
     labels:
       - dependencies
     schedule:
@@ -23,12 +26,14 @@ updates:
     # Let a brand-new release settle before proposing it (supply-chain caution); security-advisory
     # updates bypass cooldown and still surface immediately.
     cooldown:
-      default-days: 7
-      # First-party melodic-software/* actions skip the supply-chain wait so our
-      # own ci-workflows fixes propagate without the cooldown delay.
-      exclude:
-        - "melodic-software/*"
+      default-days: 3 # zizmor: ignore[dependabot-cooldown] the org floor is 3 days (standards dependabot-policy)
     groups:
+      vendor-actions:
+        patterns:
+          - actions/*
+          - github/*
+          - anthropics/*
+        update-types: [minor, patch]
       github-actions:
         patterns:
           - "*"
@@ -54,7 +59,7 @@ updates:
       # Biome waits out the supply-chain settle window like every other locked
       # dependency. Claude Code is excluded so it keeps tracking the latest
       # release immediately, matching this root's daily schedule.
-      default-days: 7
+      default-days: 3 # zizmor: ignore[dependabot-cooldown] the org floor is 3 days (standards dependabot-policy)
       exclude:
         - "@anthropic-ai/claude-code"
     # Batch minor + patch bumps into one reviewed PR; majors stay individual.
@@ -76,7 +81,7 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     cooldown:
-      default-days: 7
+      default-days: 3 # zizmor: ignore[dependabot-cooldown] the org floor is 3 days (standards dependabot-policy)
     groups:
       npm-minor-patch:
         patterns:
@@ -97,7 +102,7 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     cooldown:
-      default-days: 7
+      default-days: 3 # zizmor: ignore[dependabot-cooldown] the org floor is 3 days (standards dependabot-policy)
     groups:
       npm-minor-patch:
         patterns:
@@ -116,7 +121,7 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     cooldown:
-      default-days: 7
+      default-days: 3 # zizmor: ignore[dependabot-cooldown] the org floor is 3 days (standards dependabot-policy)
     groups:
       npm-minor-patch:
         patterns:
@@ -135,7 +140,7 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     cooldown:
-      default-days: 7
+      default-days: 3 # zizmor: ignore[dependabot-cooldown] the org floor is 3 days (standards dependabot-policy)
     groups:
       pip-minor-patch:
         patterns:
@@ -154,7 +159,7 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     cooldown:
-      default-days: 7
+      default-days: 3 # zizmor: ignore[dependabot-cooldown] the org floor is 3 days (standards dependabot-policy)
     groups:
       pip-minor-patch:
         patterns:
@@ -171,7 +176,7 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     cooldown:
-      default-days: 7
+      default-days: 3 # zizmor: ignore[dependabot-cooldown] the org floor is 3 days (standards dependabot-policy)
     groups:
       pip-minor-patch:
         patterns:
@@ -189,4 +194,4 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     cooldown:
-      default-days: 7
+      default-days: 3 # zizmor: ignore[dependabot-cooldown] the org floor is 3 days (standards dependabot-policy)

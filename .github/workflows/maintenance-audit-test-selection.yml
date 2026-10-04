@@ -1,7 +1,7 @@
-name: selection-audit
+name: maintenance-audit-test-selection
 
 # Miss detection for the pull-request test selection (scripts/affected-tests.sh).
-# Informational: not in ci.yml and not behind `ci-status`, so nothing here can
+# Informational: not in pr-require-checks.yml and not behind `ci-status`, so nothing here can
 # block a merge. It reports in the job summary and an artifact and never opens
 # or edits an issue.
 #
@@ -11,13 +11,14 @@ name: selection-audit
 #                         The seventh rotates with the day, so every suite is
 #                         traced within a week; the whole corpus under strace
 #                         would not fit the 16-minute job.
-#   audit-red-replay      when a ci run on main fails: for each failing suite,
-#                         replays the selector on every commit since the
-#                         suite's last green run and reports a selection miss
-#                         when none of them selected it.
+#   audit-failed-suite-selection
+#                         when a pr-require-checks run on main fails: for each
+#                         failing suite, replays the selector on every commit
+#                         since the suite's last green run and reports a
+#                         selection miss when none of them selected it.
 #
 # 10:43 UTC is the quietest hour of ci load (1.4 runs/hour over 8 days, against
-# 36 at 05h) and clear of the scheduled full ci run.
+# 36 at 05h) and clear of the scheduled full pr-require-checks run.
 
 on:
   schedule:
@@ -32,10 +33,10 @@ on:
         description: "Space-separated suite paths to trace instead of a shard"
         required: false
         default: ""
-  # Runs only for ci runs on main, checks out main, holds a read-only token and
+  # Runs only for pr-require-checks runs on main, checks out main, holds a read-only token and
   # no secret, so no fork-controlled code runs with privileges.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [ci]
+    workflows: [pr-require-checks]
     types: [completed]
     branches: [main]
 
@@ -57,7 +58,7 @@ jobs:
         with:
           persist-credentials: false
       # The suites read what they read only when their tools are present, so
-      # the toolchains match ci.yml's test-bash and test-python lanes (Node,
+      # the toolchains match pr-require-checks.yml's test-bash and test-python lanes (Node,
       # Python, ShellCheck, shfmt, the inventory parser packages, DuckDB); a suite that skips for a
       # missing tool reads less and can hide a gap, never invent one.
       - name: Set up Node
@@ -75,7 +76,7 @@ jobs:
             .github/requirements-ci.txt
             .github/requirements-ci-animation.txt
       - name: Install and verify ShellCheck toolchain
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
         with:
           paths: plugins/bash-format
           rcfile: .shellcheckrc
@@ -117,7 +118,7 @@ jobs:
         env:
           SHARD_INPUT: ${{ inputs.shard }}
           SUITES_INPUT: ${{ inputs.suites }}
-          # As in ci.yml: these suites fail on a missing dependency instead of skipping green.
+          # As in pr-require-checks.yml: these suites fail on a missing dependency instead of skipping green.
           ANIMATION_REQUIRE_DEPS: '1'
           INVENTORY_REQUIRE_ACORN: '1'
           CODE_TIDYING_REQUIRE_TREE_SITTER: '1'
@@ -138,7 +139,7 @@ jobs:
             ${{ runner.temp }}/selection-audit/logs/
           retention-days: 30
 
-  audit-red-replay:
+  audit-failed-suite-selection:
     if: >-
       github.event_name == 'workflow_run' &&
       github.event.workflow_run.conclusion == 'failure' &&
