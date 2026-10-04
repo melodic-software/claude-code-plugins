@@ -72,7 +72,10 @@ function mask_js(s,    out, i, c, c2, n, inclass) {
       }
     }
     out = out c; i++
-    if (c != " " && c != "\t") last_sig = c
+    # A "!" right after a name or a closing bracket is TypeScript's non-null
+    # assertion, a postfix on a value, so a "/" after it divides.
+    if (c == "!" && substr(s, i - 2, 1) ~ /[]A-Za-z0-9_$)]/) last_sig = ")"
+    else if (c != " " && c != "\t") last_sig = c
   }
   S_str = 0  # ' and " never span lines
   return out

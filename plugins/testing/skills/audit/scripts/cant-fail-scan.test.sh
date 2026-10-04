@@ -1274,6 +1274,7 @@ corpus_files=(
   js-vitest/bad/vitest-slug-prints.test.mts.fixture
   js-vitest/bad/vitest-total-bare-expect-one-line.test.ts.fixture
   js-vitest/bad/vitest-user-fixture-literal.test.ts.fixture
+  js-vitest/good/vitest-average-non-null.test.ts.fixture
   js-vitest/good/vitest-cart-checked.test.ts.fixture
   js-vitest/good/vitest-duration-literal.test.ts.fixture
   js-vitest/good/vitest-generated-types-fresh.test.ts.fixture
