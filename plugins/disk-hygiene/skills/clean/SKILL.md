@@ -115,10 +115,9 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   probe need the guard's absolute Python interpreter as `<hook-python>`, and every engine call
   needs its authorized `--data-root`; bare `python`/`python3` is rejected because Bash aliases and
   functions can replace them. The expansion of this command normally carries a `disk-hygiene guard values`
-  note naming `hook_python`, `engine` and `data_root`, resolved by the guard's own code; use
-  `hook_python` as `<hook-python>`, `engine` as the engine path, and `data_root` as every
-  `--data-root` value from the first call. Only when the note is absent, submit the probe once with bare `python`: the guard
-  denies that read-only call and names its interpreter. Rerun the probe with that interpreter and
+  note naming `hook_python` (the `<hook-python>`), `engine` (the engine path) and `data_root` (every
+  `--data-root` value), resolved by the guard's own code; use them from the first call. Only when the
+  note is absent, submit the probe once with bare `python`: the guard denies that read-only call and names its interpreter. Rerun the probe with that interpreter and
   take `data_root` from the probe's `data_root` field. Never submit a scan to learn either value.
   A `data_root` of `none` in the note or `null` from the probe means the install layout proved no data root, so the
   guard denies every engine call: report the audit as not run, relay the recovery the note or a
