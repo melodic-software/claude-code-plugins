@@ -64,6 +64,77 @@ A platform event workflow (marked example, GitHub Actions class: `on: issues` ty
    admission still governs what the drain may execute (absent binding → the item stays
    human-gated).
 
+### GitHub adapter: the autonomous-eligible label kick
+
+A kick with no enqueue, for the case where the item is already the queue item: someone applies
+`<autonomous-eligible-label>` (the work-items autonomous-eligible label, `agent-ready` unless the
+consumer renamed it) to an open issue. Marked example, GitHub Actions class: `on: issues` type
+`labeled`, in a workflow on the default branch. This repository ships no such workflow.
+
+Only a trusted human's label kicks. Everything else does nothing and exits 0:
+
+1. **Match the label in the `if:` expression.** The job runs only when
+   `github.event.label.name` equals `<autonomous-eligible-label>` as an exact string. The label
+   name, issue title, body and comments are untrusted data: none of them appears in a `run:`
+   line, a shell argument, a request body or a log line the job writes.
+2. **Check the actor, never the text.** The actor is the label event's `sender`, not the issue
+   author. The kick proceeds only when `sender.type` is `User` and
+   `GET /repos/{owner}/{repo}/collaborators/{sender.login}/permission` returns `permission`
+   `admin` or `write`. A bot or App label, a `read` or `none` permission, a login that does not
+   match `^[A-Za-z0-9-]+$`, an API error or an unreadable response each mean untrusted. The login
+   reaches the step through `env:`, never through `${{ }}` inside `run:`. Issue text never
+   decides trust. An App acting through a write user's user access token labels as that
+   user and passes this check, so "an App label does nothing" holds for installation tokens
+   only.
+3. **Resolve the drain's `execution_target`.** Read `skill.work-items.work-loop` from
+   `docs/conventions/execution-target.yaml` at the commit the event runs on (the default branch),
+   resolved per that convention's Resolution order (`skill` key, then `default`, then
+   `local-worktree`). A missing or rejected file resolves `local-worktree`.
+4. **Kick or leave it to the schedule.**
+   - `cloud-routine`, and the execution-target convention admits `work-items:work-loop` to cloud
+     hosts: POST the routine's `/fire` URL (`<routine-fire-url>`) with the bearer token from the
+     CI secret store (`<routine-fire-token-secret>`) and no `text` field. The routine's saved
+     prompt runs the drain; nothing from the issue is forwarded. Today that convention refuses
+     every cloud host for `work-items:work-loop`, because the work loop reads untrusted input
+     when it triages raw intake, so this branch does not fire until the convention admits it.
+   - `local-worktree` or `local-background`: the job does nothing. A hosted runner cannot reach
+     the operator's machine, so a local target has no kick; the scheduled drain
+     (`/harness-ops:lanes` `run-once`, on the schedule its `print-schedule` registers) claims the
+     item on its next run.
+   - `cloud-session`, `cloud-project`, or a `cloud-routine` the convention refuses: the job does
+     nothing, and the scheduled drain also skips this lane, because the launcher refuses cloud
+     hosts for this stage and `run-once` runs local hosts only. The item waits until the target
+     is local.
+
+The job enqueues nothing, writes no envelope, comments nothing, and never changes a label or a
+work class, claims an item or merges. Admission still decides what the drain may execute; the kick
+only shortens the wait. The job runs no model step.
+
+Token and secrets: the job token needs `contents: read` (to read the policy file) and the
+always-granted `metadata: read` (the permission endpoint); declare `permissions: contents: read`
+and nothing else. The routine token is exposed only to the step that fires, after step 2 passes.
+Labels need the triage role or higher, and triage maps to `read`, so a triage user's label does
+not kick; whether the drain admits an item labeled by such a user is the drain's admission rule,
+not this adapter's.
+
+Vendor facts this shape depends on:
+
+- **Permission values.** Pointer:
+  [Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user)
+  (`admin`, `write`, `read`, `none`; maintain maps to `write`, triage to `read`) and the
+  "Metadata" section of
+  [Permissions required for fine-grained personal access tokens](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens).
+  As of: 2026-10-04. Recheck trigger: the endpoint's role mapping or required permission changes.
+- **Routine triggers.** Pointer: "Add an API trigger" and "Supported events" on
+  [Routines](https://code.claude.com/docs/en/routines) (the `/fire` endpoint; `text` arrives as
+  untrusted data; GitHub triggers cover pull request and release events, not issues). As of:
+  2026-10-04. Recheck trigger: routines gain an issues trigger, or `/fire` leaves its beta header.
+- **App actions on a user's behalf.** Pointer:
+  [Authenticating with a GitHub App on behalf of a user](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-with-a-github-app-on-behalf-of-a-user)
+  (requests made with a user access token are attributed to that user; an installation token
+  attributes them to the App). As of: 2026-10-04. Recheck trigger: GitHub changes how user
+  access token activity is attributed.
+
 ## temporal: scheduled drain + poll-detector
 
 Two shapes on the same scheduled surface (marked example: `schedule` cron, with a shortest
