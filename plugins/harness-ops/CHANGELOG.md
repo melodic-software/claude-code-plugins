@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.8.6] - 2026-10-04
+
+### Fixed
+
+- `/harness-ops:audit-skill-visibility` judges listing fit on the whole rendered listing (names, `: ` joiners, newlines and exempt entries, reported as `floor_chars` and `listing_chars` beside `demand_chars` on every band row), not on descriptions alone, which reported "fits" for a listing at its cap. It counts plugin commands and workflows, and with `--installed` user, project and claude.ai-synced skills under `skillOverrides`; reads block-scalar and escaped-quote descriptions at their loaded length; and charges each walk grant its `: `. New `--listing-capture <transcript.jsonl>` counts built-in skills from a session's recorded listing and flags a band row that says "fits" while the session shed descriptions (#6262).
+
 ## [3.8.5] - 2026-10-04
 
 ### Added

@@ -818,9 +818,11 @@ class NeverEnabledDemandTest(unittest.TestCase):
         """`listed` and the floor are internal, so they are pinned by
         behavior: the enabled rows are sized so the last granted description
         fits the remaining budget exactly, and a counted extra name would
-        push it out. Adding a long-named never-enabled row changes nothing."""
+        push it out. Adding a long-named never-enabled row changes nothing.
+        Floor 9 x 5 + 8 = 53 leaves 7,947; seven grants of 1,002 leave 933,
+        exactly the 931 + 2 the eighth grant costs."""
         scores = {f"a:{i}": 9 - i for i in range(9)}
-        sizes = [1000] * 7 + [947, 2000]
+        sizes = [1000] * 7 + [931, 2000]
         enabled = [
             {
                 "qualified_name": f"a:{i}",
@@ -905,11 +907,13 @@ class BudgetArithmeticTest(unittest.TestCase):
         self.assertEqual(listing["verdict"], "listing-fits")
 
     def test_overflow_is_positive_and_exact_when_demand_exceeds(self):
-        # 10 skills x 1000 chars = 10_000 demand against an 8_000 budget.
+        # 10 skills x 1000 chars = 10_000 demand against an 8_000 budget. The
+        # rendered listing adds each `- a:N: ` (3 + 4) and 9 newlines:
+        # 10 x 1007 + 9 = 10_079, so 2_079 over.
         cfg = engine.ListingConfig(context_window_tokens=200_000)
         listing = engine.compute_listing(_fleet(), cfg)
         self.assertEqual(listing["demand_chars"], 10_000)
-        self.assertEqual(listing["overflow_chars"], 2_000)
+        self.assertEqual(listing["overflow_chars"], 2_079)
         self.assertEqual(listing["verdict"], "overflowing")
 
     # --- Settings scopes -----------------------------------------------------
@@ -1784,7 +1788,7 @@ class ListingScoreTest(unittest.TestCase):
         self.assertTrue(all(s["reason"] == "unscored" for s in competing))
         self.assertTrue(all(s["band"] is None for s in competing))
         # The arithmetic is untouched: the same three rows cannot fit.
-        self.assertEqual(listing["overflow_chars"], 2_000)
+        self.assertEqual(listing["overflow_chars"], 2_079)
         self.assertEqual(listing["starved_count"], 3)
 
     def test_unscored_overflow_withholds_once_for_the_run(self):
@@ -2295,9 +2299,11 @@ class OverflowConsumptionTest(unittest.TestCase):
         subtracting the overflow instead would miss that row entirely.
         """
         listing = self._listing(n=10, chars=1000, budget_tokens=200_000)
-        # The overflow figure itself is unchanged: it answers "does the listing
-        # overflow", which is a different question from "which entries win".
-        self.assertEqual(listing["overflow_chars"], 2_000)
+        # The overflow figure answers "does the listing overflow", a different
+        # question from "which entries win": 10 x (3 + 4 + 1000) + 9 rendered
+        # against 8_000. The floor is 10 x 5 + 9 = 59, leaving 7_941 for
+        # grants of 1_002: seven fit, three go.
+        self.assertEqual(listing["overflow_chars"], 2_079)
         starved = [s for s in listing["skills"] if s["verdict"] == "likely-starved"]
         self.assertEqual(len(starved), 3)
         # The three lowest-scored, since nothing here varies in length.
@@ -2348,9 +2354,10 @@ class OverflowConsumptionTest(unittest.TestCase):
             entries, engine.ListingConfig(context_window_tokens=200_000), scores
         )
         by_name = {r["qualified_name"]: r for r in listing["skills"]}
-        # The name floor takes 67, leaving 7933. 5 x 1536 = 7680 granted, leaving
-        # 253. a:hog needs 1536 and is shed; the walk does NOT stop there, and
-        # a:cheap needs only 200, so it is granted from the same leftovers.
+        # The name floor takes 67, leaving 7933. A grant costs the description
+        # plus its `: `, so 5 x 1538 = 7690 granted, leaving 243. a:hog needs
+        # 1538 and is shed; the walk does NOT stop there, and a:cheap needs
+        # only 202, so it is granted from the same leftovers.
         self.assertEqual(by_name["a:hog"]["verdict"], "likely-starved")
         self.assertEqual(by_name["a:cheap"]["verdict"], "likely-retained")
         self.assertEqual(by_name["a:fill0"]["verdict"], "likely-retained")
@@ -2924,6 +2931,312 @@ class CliInputErrorTest(unittest.TestCase):
             )
         self.assertEqual(rc, 2)
         self.assertIn("cannot write under --write", err)
+
+
+FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tests", "fixtures")
+
+
+def _competing(name, chars, **extra):
+    entry = {
+        "qualified_name": name,
+        "source": "plugin",
+        "frontmatter": {"description": "x" * chars},
+        "plugin_enabled": True,
+    }
+    entry.update(extra)
+    return entry
+
+
+class ListingFloorVerdictTest(unittest.TestCase):
+    """The fit verdict counts the whole rendered listing, not descriptions alone.
+
+    Expected values are hand-computed from the product's listing arithmetic
+    (reference/listing-scorer.md): every entry renders `- <name>: <desc>`
+    (name + 4 + desc), a name-only entry `- <name>` (name + 2), entries are
+    joined by one newline each, and the listing fits only when that total is
+    within the budget. A grant in the first-fit walk costs desc + 2.
+    """
+
+    def test_demand_that_fits_but_floor_does_not_is_overflowing(self):
+        # Forty 5-character names with 200-character descriptions: demand is
+        # 8,000, exactly the 200k/4/0.01 budget. Rendered: 40 x (5 + 4 + 200)
+        # + 39 newlines = 8,399, so 399 over. Floor: 40 x (5 + 2) + 39 = 319,
+        # leaving 7,681 for grants of 202: 38 fit (7,676), two are shed.
+        entries = [_competing(f"p:s{i:02d}", 200) for i in range(40)]
+        scores = {f"p:s{i:02d}": 100.0 - i for i in range(40)}
+        listing = engine.compute_listing(
+            entries, engine.ListingConfig(context_window_tokens=200_000), scores
+        )
+        self.assertEqual(listing["demand_chars"], 8_000)
+        self.assertEqual(listing["budget_chars"], 8_000)
+        self.assertEqual(listing["floor_chars"], 319)
+        self.assertEqual(listing["listing_chars"], 8_399)
+        self.assertEqual(listing["overflow_chars"], 399)
+        self.assertEqual(listing["verdict"], "overflowing")
+        self.assertEqual(listing["starved_count"], 2)
+        starved = sorted(
+            r["qualified_name"]
+            for r in listing["skills"]
+            if r["verdict"] == "likely-starved"
+        )
+        self.assertEqual(starved, ["p:s38", "p:s39"])
+
+    def test_the_fit_boundary_is_the_rendered_total(self):
+        # One 3-character name against an 8,000 budget, cap lifted: a
+        # 7,993-character description renders to exactly 8,000 and fits; one
+        # more character overflows by one and is shed, because the grant costs
+        # desc + 2 against the 7,995 the name floor leaves.
+        cfg = engine.ListingConfig(context_window_tokens=200_000, max_desc_chars=10_000)
+        fits = engine.compute_listing([_competing("p:a", 7_993)], cfg, {"p:a": 1.0})
+        over = engine.compute_listing([_competing("p:a", 7_994)], cfg, {"p:a": 1.0})
+        self.assertEqual(fits["verdict"], "listing-fits")
+        self.assertEqual(fits["overflow_chars"], 0)
+        self.assertEqual(over["verdict"], "overflowing")
+        self.assertEqual(over["overflow_chars"], 1)
+        self.assertEqual(over["skills"][0]["verdict"], "likely-starved")
+
+    def test_a_bundled_entry_counts_toward_the_verdict(self):
+        # Bundled `bun` renders 3 + 4 + 7,000 = 7,007; competing `p:a` renders
+        # 3 + 4 + 990 = 997; one newline. 8,005 against 8,000.
+        cfg = engine.ListingConfig(context_window_tokens=200_000, max_desc_chars=10_000)
+        bundled = _competing("bun", 7_000, source="bundled")
+        listing = engine.compute_listing([bundled, _competing("p:a", 990)], cfg)
+        self.assertEqual(listing["demand_chars"], 990)
+        self.assertEqual(listing["listing_chars"], 8_005)
+        self.assertEqual(listing["overflow_chars"], 5)
+        self.assertEqual(listing["verdict"], "overflowing")
+
+    def test_every_band_row_carries_demand_floor_and_budget(self):
+        entries = [_competing(f"p:s{i:02d}", 200) for i in range(40)]
+        listing = engine.compute_listing_band(
+            entries,
+            engine.ListingConfig(),
+            engine.ListingAxes(windows=(200_000, 1_000_000), bytes_per_tokens=(4, 3)),
+        )
+        for row in listing["band"]:
+            self.assertEqual(row["demand_chars"], 8_000)
+            self.assertEqual(row["floor_chars"], 319)
+            self.assertIn("budget_chars", row)
+        rendered = "\n".join(engine._render_band(listing))
+        self.assertIn("| Floor |", rendered)
+
+    def test_the_fixture_replays_as_overflowing(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            rc = engine.main(
+                [
+                    "--fixture",
+                    os.path.join(FIXTURES, "fleet-floor-overbudget.json"),
+                    "--render",
+                    "json",
+                ]
+            )
+        self.assertEqual(rc, 0)
+        listing = json.loads(out.getvalue())["listing"]
+        self.assertEqual(listing["demand_chars"], 200)
+        self.assertEqual(listing["budget_chars"], 200)
+        self.assertEqual(listing["floor_chars"], 23)
+        self.assertEqual(listing["listing_chars"], 231)
+        self.assertEqual(listing["overflow_chars"], 31)
+        self.assertEqual(listing["verdict"], "overflowing")
+        self.assertEqual(listing["starved_count"], 1)
+
+
+class NonPluginSkillTest(unittest.TestCase):
+    """User and project skills are listed too, and `skillOverrides` governs them."""
+
+    @staticmethod
+    def _skill_dir(root, leaf, frontmatter):
+        path = pathlib.Path(root, leaf)
+        path.mkdir(parents=True)
+        (path / "SKILL.md").write_text(f"---\n{frontmatter}\n---\nbody\n", encoding="utf-8")
+
+    def test_user_skills_are_enumerated_with_overrides_applied(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._skill_dir(tmp, "plain", 'description: "abcde"')
+            self._skill_dir(tmp, "quiet", 'description: "abcde"')
+            self._skill_dir(tmp, "typed", 'description: "abcde"')
+            self._skill_dir(tmp, "gone", 'description: "abcde"')
+            entries = engine.collect_local_skills(
+                tmp,
+                "user",
+                {"quiet": "name-only", "typed": "user-invocable-only", "gone": "off"},
+            )
+        listing = engine.compute_listing(
+            entries, engine.ListingConfig(context_window_tokens=200_000)
+        )
+        by_name = {r["qualified_name"]: r for r in listing["skills"]}
+        self.assertEqual(by_name["plain"]["eligibility"], "competing")
+        self.assertEqual(by_name["quiet"]["eligibility"], "exempt-name-only")
+        self.assertEqual(by_name["typed"]["eligibility"], "exempt-user-only")
+        self.assertEqual(by_name["gone"]["eligibility"], "exempt-hidden")
+        # Listed: `- plain: abcde` (14) and `- quiet` (7), one newline.
+        self.assertEqual(listing["listing_chars"], 22)
+
+    def test_only_the_signed_in_accounts_synced_skills_are_enumerated(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            synced = os.path.join(tmp, "skills", "synced")
+            self._skill_dir(os.path.join(synced, "org1_acct1"), "pdf", 'description: "PDFs"')
+            self._skill_dir(os.path.join(synced, "org2_acct2"), "other", 'description: "x"')
+            claude_json = os.path.join(tmp, ".claude.json")
+            _write_json(
+                claude_json,
+                {"oauthAccount": {"organizationUuid": "org1", "accountUuid": "acct1"}},
+            )
+            entries = engine.collect_synced_skills(tmp, claude_json, {})
+        self.assertEqual([e["qualified_name"] for e in entries], ["anthropic-skills:pdf"])
+        self.assertEqual(entries[0]["source"], "synced")
+
+    def test_an_off_override_reads_as_hidden(self):
+        entry = {
+            "qualified_name": "gone",
+            "source": "user",
+            "skill_override": "off",
+            "frontmatter": {"description": "abcde"},
+        }
+        self.assertEqual(engine.reachability(entry)["value"], "hidden")
+
+    def test_plugin_commands_and_workflows_are_enumerated(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            commands = pathlib.Path(tmp, "commands")
+            commands.mkdir()
+            (commands / "go.md").write_text(
+                '---\ndescription: "Run it"\n---\nbody\n', encoding="utf-8"
+            )
+            workflows = pathlib.Path(tmp, "workflows")
+            workflows.mkdir()
+            (workflows / "sweep.js").write_text(
+                "export const meta = {\n"
+                "  name: 'sweep',\n"
+                "  description: 'Sweep sources, don\\'t guess',\n"
+                '  whenToUse: "Run by /p:deep",\n'
+                "}\n",
+                encoding="utf-8",
+            )
+            entries = engine.collect_fleet_at(tmp, "p", True, "/u")
+        by_name = {e["qualified_name"]: e for e in entries}
+        self.assertEqual(by_name["p:go"]["frontmatter"]["description"], "Run it")
+        self.assertEqual(
+            by_name["p:sweep"]["frontmatter"]["description"], "Sweep sources, don't guess"
+        )
+        self.assertEqual(by_name["p:sweep"]["frontmatter"]["when_to_use"], "Run by /p:deep")
+
+
+class FrontmatterScalarTest(unittest.TestCase):
+    """Descriptions are measured as YAML loads them, not as raw source text."""
+
+    def test_folded_block_scalar_is_read_whole(self):
+        text = (
+            "---\nname: x\ndescription: >-\n  First line of the text\n"
+            "  continues here.\n\n  New paragraph.\n---\nbody\n"
+        )
+        self.assertEqual(
+            engine.parse_frontmatter(text)["description"],
+            "First line of the text continues here.\nNew paragraph.",
+        )
+
+    def test_literal_block_scalar_keeps_newlines(self):
+        text = "---\ndescription: |-\n  one\n  two\n---\n"
+        self.assertEqual(engine.parse_frontmatter(text)["description"], "one\ntwo")
+
+    def test_a_clipped_literal_block_is_listed_without_its_trailing_newline(self):
+        # Observed: the product listed a `description: |` skill one character
+        # shorter than YAML's clipped load, which keeps a final newline.
+        text = "---\ndescription: |\n  one\n  two\n---\n"
+        self.assertEqual(engine.parse_frontmatter(text)["description"], "one\ntwo")
+
+    def test_escaped_quotes_in_a_double_quoted_scalar_are_unescaped(self):
+        text = '---\ndescription: "say \\"hi\\" twice"\n---\n'
+        self.assertEqual(engine.parse_frontmatter(text)["description"], 'say "hi" twice')
+
+    def test_doubled_quote_in_a_single_quoted_scalar_is_one_quote(self):
+        text = "---\ndescription: 'it''s fine'\n---\n"
+        self.assertEqual(engine.parse_frontmatter(text)["description"], "it's fine")
+
+    def test_a_plain_scalar_continued_on_indented_lines_is_joined(self):
+        text = "---\ndescription: first part\n  second part\n---\n"
+        self.assertEqual(
+            engine.parse_frontmatter(text)["description"], "first part second part"
+        )
+
+
+class ListingCaptureTest(unittest.TestCase):
+    """A captured listing supplies the entries no disk walk can see."""
+
+    def _capture(self):
+        return engine.read_listing_capture(os.path.join(FIXTURES, "listing-capture.jsonl"))
+
+    def test_capture_is_parsed_into_rendered_entries(self):
+        capture = self._capture()
+        self.assertEqual(capture["status"], "read")
+        self.assertEqual(capture["model"], "claude-fixture-1")
+        self.assertEqual(capture["chars"], 57)
+        by_name = {e["name"]: e for e in capture["entries"]}
+        self.assertEqual(by_name["builtin-x"]["rendered_chars"], 33)
+        self.assertFalse(by_name["builtin-x"]["name_only"])
+        self.assertTrue(by_name["synced:y"]["name_only"])
+
+    def test_unenumerated_entries_count_toward_the_verdict(self):
+        # p:a is enumerated: `- p:a: hello` (12). builtin-x (33) and synced:y
+        # (10) come from the capture. Two newlines: 57 against 56.
+        model = engine.classify(
+            denominator=[
+                {
+                    "qualified_name": "p:a",
+                    "source": "plugin",
+                    "plugin_enabled": True,
+                    "frontmatter": {"description": "hello"},
+                }
+            ],
+            events=[],
+            config=engine.Config(),
+            clock=_utc(2026, 8, 18),
+            horizons={},
+            listing_config=engine.ListingConfig(env_char_budget=56),
+            listing_capture=self._capture(),
+        )
+        listing = model["listing"]
+        self.assertEqual(listing["listing_chars"], 57)
+        self.assertEqual(listing["overflow_chars"], 1)
+        self.assertEqual(listing["capture"]["unenumerated_count"], 2)
+        self.assertEqual(listing["capture"]["unenumerated_chars"], 43)
+
+    def test_observed_shedding_disagrees_with_a_fits_verdict(self):
+        model = engine.classify(
+            denominator=[
+                {
+                    "qualified_name": "p:a",
+                    "source": "plugin",
+                    "plugin_enabled": True,
+                    "frontmatter": {"description": "hello"},
+                }
+            ],
+            events=[],
+            config=engine.Config(),
+            clock=_utc(2026, 8, 18),
+            horizons={},
+            listing_config=engine.ListingConfig(env_char_budget=57),
+            listing_capture=self._capture(),
+        )
+        listing = model["listing"]
+        self.assertEqual(listing["verdict"], "listing-fits")
+        self.assertEqual(listing["capture"]["observed_name_only"], ["synced:y"])
+        self.assertEqual(listing["capture"]["disagrees"], ["200k/4"])
+        self.assertIn("disagree", engine._render_markdown(model).lower())
+
+    def test_an_unrecognized_file_is_not_read(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "x.jsonl")
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write('{"type":"user"}\n')
+            capture = engine.read_listing_capture(path)
+        self.assertEqual(capture["status"], "not-read")
+
+    def test_without_a_capture_the_coverage_is_enumerated_only(self):
+        listing = engine.compute_listing(
+            [_competing("p:a", 10)], engine.ListingConfig(context_window_tokens=200_000)
+        )
+        self.assertEqual(listing["coverage"], "enumerated-only")
 
 
 if __name__ == "__main__":
