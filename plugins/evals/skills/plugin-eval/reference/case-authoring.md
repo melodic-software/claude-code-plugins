@@ -76,7 +76,10 @@ unless the case routes it in explicitly.
 - [ ] A prompt that starts with the skill's slash command loads the skill without a `Skill` tool
       call, so a `tool_used: Skill` grader fails and the validity gate marks the run INVALID. Drop
       that grader on slash-invoked cases, or phrase the prompt in natural language. Seen at Claude
-      Code 2.1.289 on all 24 with-arm runs of two suites, 2026-10-04.
+      Code 2.1.289 on all 24 with-arm runs of two suites, 2026-10-04. Recheck trigger: a Claude
+      Code release note touches slash-command skill loading or the `Skill` tool, or a kept trace
+      of a slash-invoked case shows a `Skill` call; then re-run one such case with `--keep-temp`
+      and restore the grader if the call appears.
 - [ ] Drop any assertion that passes in both arms and measures nothing. A case at 1.00 on both sides
       is a passing case and a null measurement. Keep one only as a regression guard: tag it
       `regression-guard`, say so in its `description`, and pair it with a case a person judged

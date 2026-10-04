@@ -63,12 +63,16 @@ this session's own host, which may not be the machine that will run the eval.
 
 | Observation | `sandbox_backend` |
 |---|---|
-| Native Windows (no WSL), or WSL1 (`/proc/version` contains `Microsoft` but not `microsoft-standard`) | `absent` |
-| Linux or WSL2 (`/proc/version` contains `microsoft-standard`; the kernel string alone is never enough), and every package the sandboxing page lists resolves (`command -v bwrap`, `command -v socat`) | `present` |
+| Native Windows (no WSL), or WSL1 (`wsl.exe -l -v` lists the distribution at `VERSION` 1) | `absent` |
+| Linux, or WSL2 (`wsl.exe -l -v` lists the distribution at `VERSION` 2; `/proc/version` naming `microsoft` only says the host is WSL, since a custom WSL2 kernel can carry any release string), and every package the sandboxing page lists resolves (`command -v bwrap`, `command -v socat`) | `present` |
 | Linux or WSL2, and any of them is missing | `absent`, naming each missing binary |
-| Otherwise `present`, a case requests `Bash`, `Write`, or `Edit`, and `find "${DOCKER_CONFIG:-$HOME/.docker}/" -mindepth 1 -type l` (read-only) prints a path | `not-ready`, naming each path and the CLI's reason: the sandbox cannot reliably exclude a store with a link inside it. The refusal's route is to resolve the links or run on a host without them; never suggest repointing `DOCKER_CONFIG` to get past the check, which bypasses a sandbox safety check |
 | macOS | `present` |
 | Anything else | `unknown`, treated as `absent` for the refusal below |
+
+Then, when the rows above give `present`, a case requests `Bash` or `PowerShell`, and
+`find "${DOCKER_CONFIG:-$HOME/.docker}/" -mindepth 1 -type l` (read-only) prints a path, override
+to `not-ready`, naming each path and the CLI's reason: the sandbox cannot reliably exclude a store
+with a link inside it. `Write` and `Edit` run outside the shell sandbox and do not trigger it.
 
 | Fact | Basis and as-of | Recheck trigger, and what to do when it fires |
 |---|---|---|
@@ -76,10 +80,14 @@ this session's own host, which may not be the machine that will run the eval.
 | The CLI refuses a whole `Bash`-granting pass when the Docker credential store (`$DOCKER_CONFIG`, else `~/.docker`) holds a symbolic link inside it; the store's root may itself be a link. Every run, read-only cases included, ends at 0 turns with `the Docker (~/.docker, DOCKER_CONFIG) credential store on this machine holds a symbolic link inside it, so the Bash sandbox cannot reliably exclude it`. Docker Desktop's WSL integration links `contexts` and `features.json` into `/mnt/c` | No doc line: neither <https://code.claude.com/docs/en/plugin-evals> nor <https://code.claude.com/docs/en/sandboxing> mentions it, both fetched 2026-10-04. Basis is that CLI message at Claude Code 2.1.289 under WSL2, on all 60 runs of one pass, observed 2026-10-04 | Recheck trigger: either page documents the check, a release note touches sandbox credential exclusion, or the message changes. Then re-read both pages, re-run one `Bash`-granting case on a host with such a link, and refresh this row with the outcome |
 
 **Refuse before any spend** when `sandbox_backend` is not `present` and any case requests `Bash`,
-`Write`, or `Edit`. Name both halves in the refusal: the backend is missing, so each granting run
-would be refused by the CLI and score 0 rather than measuring anything; and the route: on Linux or
-WSL2, install each missing package, restart Claude Code, and confirm with `/sandbox`; otherwise
-WSL2, a Linux host with `bubblewrap` and `socat`, macOS, or a Claude cloud session. Read-only suites
+`Write`, or `Edit`. Name both halves in the refusal: why each granting run would be refused by the
+CLI and score 0 rather than measuring anything, and the route. For `absent` or `unknown`, the
+backend is missing; the route on Linux or WSL2 is to install each missing package, restart Claude
+Code, and confirm with `/sandbox`, and otherwise WSL2, a Linux host with `bubblewrap` and `socat`,
+macOS, or a Claude cloud session. For `not-ready`, the backend is present and the packages
+resolve; the cause is the named links, and the route is to resolve them or run on a host without
+them. Never suggest repointing `DOCKER_CONFIG` to get past the check, which bypasses a sandbox
+safety check. Read-only suites
 (`Read`, `Glob`, `Grep`, `NotebookRead`, `Skill`, `Agent`, `TodoWrite`, the `Task*` tools) are
 unaffected and run anywhere.
 
