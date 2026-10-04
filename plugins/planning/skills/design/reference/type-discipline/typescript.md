@@ -32,18 +32,18 @@ TypeScript; read that file first.
   ```ts
   type Parsed<T> = { ok: true; value: T } | { ok: false; error: string };
 
-  function parseInvoice(input: unknown): Parsed<Invoice> {
-    if (typeof input !== "object" || input === null) {
+  function parseInvoice(raw: unknown): Parsed<Invoice> {
+    if (raw === null || typeof raw !== "object") {
       return { ok: false, error: "invoice: expected an object" };
     }
-    if (!("id" in input) || typeof input.id !== "string" || input.id === "") {
+    if (!("id" in raw) || typeof raw.id !== "string" || raw.id === "") {
       return { ok: false, error: "invoice.id: expected a non-empty string" };
     }
     // ...one check per field, then build the domain value
   }
   ```
 
-- **Parse into a named domain type.** The parse returns `Invoice`, not
+- **The parse result has a domain name.** The parse returns `Invoice`, not
   `Record<string, unknown>` or an inline object type. Nothing past the boundary handles the loose
   shape.
 
@@ -56,7 +56,8 @@ TypeScript; read that file first.
 - **Narrowing, most preferred first:** a check on a literal tag field of a union; an `in` check;
   `typeof` or `instanceof`; a type predicate function; an `as` after validation.
 - **Use `satisfies` to check a literal against a type** while keeping the literal's narrow inferred
-  type. An annotation widens it, and `as` skips the check.
+  type. An annotation widens it to the declared type; `as` drops the assignability and
+  excess-property checks an annotation would run, and rejects only types that do not overlap.
 
   ```ts
   const retry = { attempts: 3, backoff: "exponential" } satisfies RetryPolicy;
@@ -75,9 +76,10 @@ TypeScript; read that file first.
   ```
 
 - **Constructive types** where the shape can carry the rule: a tuple with a rest element
-  (`[Line, ...Line[]]`) for "at least one", a union of string literals for a closed set. Keep the
-  plain type (`Line[]`) while every operation on it stays total; strengthen only where the loose
-  type forces a `!`, a cast or an unreachable throw.
+  (`[Line, ...Line[]]`) for "at least one", a union of string literals for a closed set. Move from
+  `Line[]` to the tuple form when code reading the lines has to assert one exists: an index read
+  followed by `!`, a cast, or a throw for the empty case. While every function over `Line[]` has an
+  answer for zero lines, `Line[]` stays.
 - **Exhaustiveness through `never`.** In the default branch of a switch over a tagged union, assign
   the value to a `never`-typed variable. A new variant then fails to compile at that switch.
 
