@@ -89,6 +89,20 @@
         "Output explains that a stub there would be consumed by the fix pass",
         "Output names the separate enforceability home under the memory root instead"
       ]
+    },
+    {
+      "id": 8,
+      "name": "invalid-state-lands-on-make-impossible",
+      "prompt": "Audit enforceability for this findings file. Row 3 carries no rule id and reads: 'Booking has both isCancelled and isConfirmed booleans, and BookingService.confirm sets the second without clearing the first, so a booking can be cancelled and confirmed at once.' Row 4 leads with semgrep-style wording about a dangerous eval call. What rung does each get, and what is the next step?",
+      "expected_output": "Row 3 is judged class invalid-state (the code can express a state it must never hold) and is offered the make-impossible rung first: the stub proposes replacing the two booleans with one status value and hands the redesign to /architecture:improve when that skill is available, otherwise /planning:design, implementing nothing. Row 4 lands on semgrep-rule, with the presence-gated semgrep-rule-creator invocation and Semgrep's rule-writing documentation as the fallback. The report prints no command that installs a plugin or adds a marketplace.",
+      "narration": true,
+      "expectations": [
+        "Output classifies row 3 as invalid-state and places it on the make-impossible rung",
+        "Output proposes a type or data-structure change for row 3 (for example one status value in place of the two booleans) and does not implement it",
+        "Output hands row 3's redesign to /architecture:improve when available, with /planning:design as the fallback",
+        "Output places row 4 on the semgrep-rule rung and names Semgrep's rule-writing documentation as the fallback pointer",
+        "Output does NOT contain the text 'plugin install' or 'plugin marketplace add'"
+      ]
     }
   ]
 }

@@ -1,12 +1,16 @@
 # Enforcement-rung crosswalk
 
-Class to rung to owner. The rungs are in fixed cheapest-first order: a class lands on the
-cheapest rung whose check can actually assert it, never on a rung that merely could be built.
+Class to rung to owner. The rung list, its order and this skill's selection rule are owned by the
+enforcement ladder, `${CLAUDE_PLUGIN_ROOT}/context/enforcement-ladder.md`. A class lands on the
+cheapest rung whose check can actually assert it, never on a rung that merely could be built. The
+one exception is `invalid-state`: its first offer is `make-impossible`, a redesign this skill only
+proposes.
 
 ## Class table
 
 | Finding class | Rung | Owner or pointer |
 |---|---|---|
+| `invalid-state` (a value or combination the code can express but must never hold: two flags that must not both be true, a field that is always set after construction but typed as optional, two ids of different kinds that can be passed in each other's place) | `make-impossible` | `/architecture:improve` when that skill is available, otherwise `/planning:design`; the stub proposes the type, data-structure or API change and implements nothing |
 | `style` (formatting, whitespace, ordering, naming style) | `editorconfig-severity` | in-repo `.editorconfig` |
 | `defined-diagnostic` (a diagnostic an installed analyzer pack or linter already defines: a cited `CAxxxx`/`IDExxxx`/`SAxxxx`, an ESLint, ruff, or markdownlint id, or a rule the pack documents) | `analyzer-pack-rule` | in-repo configuration: enable the rule or raise its severity in `.editorconfig`, `.globalconfig`, or the linter's own config |
 | `dotnet-invariant` (a project-specific API or usage invariant in C# expressible over syntax or the semantic model: a banned API, a required attribute, a misuse pattern) | `custom-analyzer` | Microsoft Learn, "Tutorial: Write your first analyzer and code fix" (<https://learn.microsoft.com/en-us/dotnet/csharp/roslyn-sdk/tutorials/how-to-write-csharp-analyzer-code-fix>) |

@@ -28,6 +28,10 @@ lib/managed-scope.sh plugins/harness-memory/lib/managed-scope.sh
 lib/managed-scope.sh plugins/harness-ops/lib/managed-scope.sh
 docs/conventions/standards/README.md plugins/planning/reference/standards-contract.md
 docs/conventions/standards/README.md plugins/review/reference/standards-contract.md
+docs/conventions/enforcement-ladder/README.md plugins/review/context/enforcement-ladder.md
+docs/conventions/enforcement-ladder/README.md plugins/session-flow/skills/retro/reference/enforcement-ladder.md
+docs/conventions/enforcement-ladder/README.md plugins/harness-config/skills/audit-automation-gaps/context/enforcement-ladder.md
+docs/conventions/enforcement-ladder/README.md plugins/architecture/skills/improve/research/enforcement-ladder.md
 lib/resolve-convention-home.sh plugins/harness-config/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/plugin-quality/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/architecture/lib/resolve-convention-home.sh

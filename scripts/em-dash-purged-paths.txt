@@ -69,6 +69,7 @@ docs/conventions/config-cascade/*.md
 docs/conventions/consumer-config-layering/*.md
 docs/conventions/detector-findings/*.md
 docs/conventions/ecosystem-commands/*.md
+docs/conventions/enforcement-ladder/*.md
 docs/conventions/finding-suppression/*.md
 docs/conventions/hook-budget/*.md
 docs/conventions/hook-config-delivery/*.md

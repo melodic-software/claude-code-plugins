@@ -7,6 +7,7 @@ All notable changes to the `review` plugin are documented here. Format follows
 
 ### Added
 
+- **One enforcement ladder, and a `make-impossible` rung.** The plugin carries a generated copy of the enforcement-ladder convention at `context/enforcement-ladder.md`. `/review:audit-enforceability` takes its rung list and selection rule from it, and its crosswalk and stub rung enum gain `make-impossible`: an `invalid-state` finding (a state the code can express but must never hold) is offered a type, data-structure or API change first, handed to `/architecture:improve` when available, otherwise `/planning:design`. The `architecture-guardian` agent reads the boundary-rule sources from the ladder's "Where boundary rules live" list. The skill's report no longer prints a plugin install recipe for the Semgrep rung; the Semgrep documentation link stays.
 - **Paved paths reach the code reviewer.** The bundled standards contract moves to 1.1.0, which adds a `paved-path` index row kind. When the resolved index has one, `/review:quality-gate` and `/review:fanout` name its file in the `code-reviewer` agent's brief, and the agent reports a change that adds a second way for a listed concern as an advisory finding. The agent resolves no index itself. Not yet read by `/review:code-review`, the CI review lane.
 
 ## [0.40.2] - 2026-10-03

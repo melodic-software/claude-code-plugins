@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [Unreleased]
+
+### Added
+
+- **The enforcement ladder ships with `/session-flow:retro`.** A generated copy of the enforcement-ladder convention sits at `skills/retro/reference/enforcement-ladder.md`: the strongest-first rung list and codify's selection rule, for routing a repeated correction to a rung.
+
 ## [0.48.6] - 2026-10-04
 
 ### Fixed

@@ -31,9 +31,9 @@ concern.
 (compiler, analyzers, build-time checks, architecture tests, behavioral rules). This skill's job is to
 prove a gap exists before recommending a solution. The default verdict is REJECT, not PASS.
 
-**The enforcement hierarchy** (strongest first): compiler settings → static analyzers/linters →
-architecture tests → unit/integration tests → git hooks → Claude Code hooks → code review →
-documentation/behavioral rules. A consuming repo that documents its own hierarchy in `CLAUDE.md`, in
+**The enforcement hierarchy** is the rung list in
+[context/enforcement-ladder.md](context/enforcement-ladder.md); this skill's selection rule there
+is the strongest rung that covers the concern. A consuming repo that documents its own hierarchy in `CLAUDE.md`, in
 any `AGENTS.md` the session reads natively, whether in place of a `CLAUDE.md` or alongside one, or in rules files overrides this default
 ordering, so read and use theirs.
 
@@ -138,7 +138,7 @@ once), then evaluate candidates sequentially.
 For each candidate:
 
 - **Read the relevant config/code**: the specific files that would be affected
-- **Check the enforcement hierarchy**: walk up from the weakest level (docs) to the strongest (compiler). Stop when you find coverage. Document which level covers it
+- **Check the enforcement hierarchy**: walk the ladder's rungs up from the weakest (`llm-only`) to the strongest (`make-impossible`). Stop when you find coverage. Document which level covers it
 - **Check incident history**: `git log --grep` for related problems, then read a sample of the hits.
   The count is a **ceiling**, the number of commits whose message mentions a word, not a count of
   incidents and not a frequency. Report the match count, the total commit count, the sample size
