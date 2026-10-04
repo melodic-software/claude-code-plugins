@@ -113,6 +113,13 @@
       "default": 3,
       "min": 1,
       "max": 20
+    },
+    "worker_continuation": {
+      "type": "string",
+      "title": "Worker continuation",
+      "description": "How /session-flow:orchestrate runs a worker's next unit: resume (default) continues the same worker; respawn starts a fresh worker with consolidated scope unless that worker holds state costly to move. A repository's worker_continuation in docs/conventions/session-flow.yaml wins.",
+      "default": "resume",
+      "options": ["resume", "respawn"]
     }
   }
 }

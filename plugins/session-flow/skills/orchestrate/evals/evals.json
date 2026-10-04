@@ -99,6 +99,152 @@
         "The verification record is NOT itself verified, with the self-feeding-loop rationale stated (re-verify the artifact or verify nothing)",
         "The scope discrimination is what-a-consumer-receives versus process records about the work, not file count or effort spent"
       ]
+    },
+    {
+      "id": 9,
+      "name": "worker-continuation-user-config-only",
+      "narration": true,
+      "prompt": "/session-flow:orchestrate port the billing service's CSV exporters to the new report API. My session-flow user config sets worker_continuation to respawn; this repository has no docs/conventions/session-flow.yaml.",
+      "expected_output": "The skill primes the session with a terse acknowledgment and one line resolving worker_continuation to respawn from the user config, since the repository file is absent. It treats the missing file as an unset layer, not an error, and does not re-emit the imperatives.",
+      "files": [],
+      "expectations": [
+        "States one line giving worker_continuation as respawn and naming the user config as the supplying layer",
+        "Treats the missing docs/conventions/session-flow.yaml as an unset layer, not an error",
+        "Does not re-emit the imperatives as paste text"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "worker-continuation-repo-file-only",
+      "narration": true,
+      "prompt": "/session-flow:orchestrate port the billing service's CSV exporters to the new report API. I never set session-flow's worker_continuation option. The repository's docs/conventions/session-flow.yaml contains the single line `worker_continuation: respawn`.",
+      "expected_output": "The skill reads worker_continuation from docs/conventions/session-flow.yaml (through the plugin's parse-concern-value.sh reader or an equivalent read of that key) and states one line giving respawn with that file as the supplying layer.",
+      "files": [],
+      "expectations": [
+        "Reads the worker_continuation key from docs/conventions/session-flow.yaml in the checkout",
+        "States one line giving worker_continuation as respawn and naming docs/conventions/session-flow.yaml as the supplying layer"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "worker-continuation-repo-file-wins-over-user-config",
+      "narration": true,
+      "prompt": "/session-flow:orchestrate port the billing service's CSV exporters to the new report API. My session-flow user config sets worker_continuation to respawn, but the repository's docs/conventions/session-flow.yaml contains `worker_continuation: resume`.",
+      "expected_output": "The repository value wins: the skill states one line giving worker_continuation as resume from docs/conventions/session-flow.yaml, so a worker is kept across related units rather than replaced for each one.",
+      "files": [],
+      "expectations": [
+        "States one line giving worker_continuation as resume and naming docs/conventions/session-flow.yaml as the supplying layer",
+        "Does not report respawn or the user config as the resolved value"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "worker-continuation-default-when-neither-layer-sets-it",
+      "narration": true,
+      "prompt": "/session-flow:orchestrate port the billing service's CSV exporters to the new report API. I never set session-flow's worker_continuation option, and this repository has no docs/conventions/session-flow.yaml.",
+      "expected_output": "The skill states one line giving worker_continuation as resume from the default layer.",
+      "files": [],
+      "expectations": [
+        "States one line giving worker_continuation as resume and naming the default as the supplying layer"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "worker-continuation-respawn-next-unit",
+      "narration": true,
+      "prompt": "We're primed with /session-flow:orchestrate and worker_continuation resolved to respawn from docs/conventions/session-flow.yaml. Worker A finished the first CSV exporter port on branch exporters-a and reported two failing snapshot tests. I also told it mid-run to keep the old column order. Now the snapshot fix round is due. How do you run it?",
+      "expected_output": "Under respawn the fix round goes to a fresh worker, not to worker A by message. Its brief consolidates the scope: the original brief, the later directive to keep the old column order, worker A's report with the two failing snapshot tests, and the branch exporters-a. Worker A would be resumed instead only if the round needed state that lives in it and is costly to move, such as uncommitted changes in its checkout or a process it is running.",
+      "files": [],
+      "expectations": [
+        "Dispatches the fix round to a fresh worker rather than resuming worker A",
+        "The new brief carries the original brief, the column-order directive, worker A's report and the exporters-a branch",
+        "Names state held by the worker that is costly to move (checkout, uncommitted changes, a running process) as the only reason to resume worker A instead"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "worker-continuation-invalid-value-falls-back",
+      "narration": true,
+      "prompt": "/session-flow:orchestrate port the billing service's CSV exporters to the new report API. The repository's docs/conventions/session-flow.yaml contains `worker_continuation: restart`, and I never set the user option.",
+      "expected_output": "The skill names the invalid value with its file, key and value (docs/conventions/session-flow.yaml, worker_continuation, restart), drops that layer, and resolves the default resume. It keeps priming the session; the invalid value does not stop the run.",
+      "files": [],
+      "expectations": [
+        "Names docs/conventions/session-flow.yaml, the worker_continuation key and the value restart as invalid",
+        "Resolves worker_continuation to resume from the default",
+        "Continues priming the session instead of stopping"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "orchestrate-liveness-from-state",
+      "prompt": "We're primed with the orchestration imperatives. I dispatched a worker to migrate the warehouse inventory tables; its brief says the job should take about 20 minutes. It is now 50 minutes in. No new commits on its branch, no files changed in its worktree, and its task status has not moved. What do you do?",
+      "expected_output": "Liveness is judged from side effects, not by asking the worker. Past its stated runtime with no commits, written files or status change, the worker is stuck: stop it, behind the same gate as any kill, and respawn it with consolidated scope. The orchestrator does not send the worker a message asking how it is going.",
+      "files": [],
+      "expectations": [
+        "Judges progress from commits, written files and task status, not from a message to the worker",
+        "Classifies the worker as stuck because it is past its stated runtime with no side effect",
+        "Stops it behind the kill gate and respawns it with consolidated scope"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "orchestrate-liveness-read-only-exempt",
+      "prompt": "We're primed with the orchestration imperatives. A fresh-context verifier has been checking the warehouse migration for 40 minutes. It has written no files and made no commits. Is it stuck?",
+      "expected_output": "The liveness rule covers workers that write, never read-only workers such as a verifier, so the absence of commits or written files is not evidence that the verifier is stuck. The orchestrator does not stop or respawn it on that basis.",
+      "files": [],
+      "expectations": [
+        "States that the liveness rule does not apply to a read-only worker such as a verifier",
+        "Does not treat the missing commits or files as a stuck signal for the verifier",
+        "Does not stop or respawn the verifier on that basis"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "orchestrate-landing-local-commit",
+      "prompt": "We're primed with the orchestration imperatives. Four workers are porting four exporters on our run branch. Exporter 1 just passed verification; the other three are still running. Should I hold exporter 1 until all four are verified and then push everything at once? And should we stop spawning work when the budget gets low?",
+      "expected_output": "Land exporter 1 now, without waiting for the batch. Landing means a local commit on the run's own branch, never a push or a merge, so pushing all four is a separate step outside landing. No cutoff based on remaining budget applies, because the brief forbids estimating the remaining window.",
+      "files": [],
+      "expectations": [
+        "Lands exporter 1 as soon as it passed verification rather than holding a batch",
+        "Defines landing as a local commit on the run's branch, not a push or a merge",
+        "Applies no remaining-budget or percentage cutoff, citing the rule against estimating the window"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "orchestrate-measurement-brief",
+      "prompt": "/session-flow:orchestrate worker. The worker will benchmark whether the new image-resize path is faster than the old one.",
+      "expected_output": "The exported worker brief includes imperative 2's measurement clause: a worker that measures is told the exact commits to compare and the sampling method (how many runs, in what order), and returns both beside its numbers; a return that leaves either out is not evidence.",
+      "files": [],
+      "expectations": [
+        "The exported brief tells a measuring worker to use exact commits and a stated sampling method (run count and order)",
+        "The brief requires the return to repeat the commits and the method beside the numbers",
+        "The brief states that a measurement return missing either is not evidence"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "orchestrate-respawn-once-gap",
+      "prompt": "We're primed with the orchestration imperatives. Of six workers auditing our six API gateways, gateway 4's return has no `evidence` field, which every brief required. What happens to gateway 4?",
+      "expected_output": "Gateway 4 gets one respawn with consolidated scope. If the second return still lacks the evidence field, gateway 4 is recorded as a gap in the merged table, and a gap is never counted as a pass.",
+      "files": [],
+      "expectations": [
+        "Respawns gateway 4's worker once with consolidated scope",
+        "Records gateway 4 as a gap if the field is still missing after that respawn",
+        "Does not count the gap as a pass"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "orchestrate-sampled-brief",
+      "prompt": "We're primed with the orchestration imperatives. I'm about to dispatch a wave of eight workers, one per mobile screen, to add accessibility labels. Should I review all eight briefs before any of them start?",
+      "expected_output": "No gate before the wave. Pick one sampled brief from the wave and check it against imperative 2 while the wave runs; what the check finds corrects the next wave's briefs, and a defect that would change a running worker's result goes to that worker as a directive.",
+      "files": [],
+      "expectations": [
+        "Checks one sampled brief from the wave rather than all eight",
+        "Runs the check beside the wave, not as a gate before dispatch",
+        "Applies findings to the next wave's briefs and sends a result-changing defect to the running worker"
+      ]
     }
   ]
 }

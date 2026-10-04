@@ -371,15 +371,19 @@ Opt-in only: nothing runs unless invoked.
 
 ### setup
 
-A check-centric setup for the **observer substrate only**. The other sixteen skills are zero-config.
 `check` (default) verifies the runtime prerequisites (Node.js for the hook launcher, Python 3.10+ for the tailer, `jq` for
 the SessionStart hook's stdin parsing, `claude` on PATH for the analysis leg) and reports the effective
 `userConfig` values, flagging the two hazards (`observer_analysis_bare` on an OAuth-login install;
-`observer_idle_seconds` below the machine's longest single turn). It has no write path. Reconfiguration
-routes through Claude Code's native `/plugin configure session-flow@<marketplace>`.
+`observer_idle_seconds` below the machine's longest single turn). It also validates the repository's
+`docs/conventions/session-flow.yaml`, reporting a problem as a warning. Observer reconfiguration
+routes through Claude Code's native `/plugin configure session-flow@<marketplace>`; setup never
+writes it. `apply` writes `docs/conventions/session-flow.yaml` and nothing else: every value and the
+whole file are checked against the schema first, and changing an existing file shows the diff and
+waits for your yes.
 
 ```shell
-/session-flow:setup         # verify observer prerequisites + config (read-only)
+/session-flow:setup                                    # verify observer prerequisites + config (read-only)
+/session-flow:setup apply worker_continuation=respawn  # write the repository setting
 ```
 
 ## Consumer conventions
@@ -460,6 +464,16 @@ per-session Claude spend and no automatic in-session consumer. The end it waits 
 **`observer_poll_seconds`.** Bounded below at 1: 0 spins the detached observer continuously, and a
 negative value raises at its sleep and kills it silently.
 
+**`worker_continuation`.** Read by `/session-flow:orchestrate` when it primes a session: `resume`
+(default) keeps a worker across related units, `respawn` starts each new unit in a fresh worker
+with consolidated scope. A repository sets it for everyone with `worker_continuation: respawn` in
+`docs/conventions/session-flow.yaml` (schema: `schemas/session-flow.schema.json`), which wins over
+the option; an invalid value is named and its layer dropped, so a valid higher layer still wins,
+else the default `resume`, never a lower layer's value. `/session-flow:setup apply
+worker_continuation=<value>` writes that file after validating it. Resolution and the root rule:
+[`reference/config.md`](reference/config.md). Picking a value from a list needs Claude Code
+v2.1.271 or later.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -482,6 +496,7 @@ reads it from.
 | `audit_sessions_excerpt_words` | number<br>*min 1, max 200* | `60` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_EXCERPT_WORDS` | A typed turn of this many words or fewer, right after a Claude reply, is flagged and excerpted by audit-sessions; default 60. These are the turns most likely to be corrections. |
 | `audit_sessions_drift_min_count` | number<br>*min 1* | `20` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_DRIFT_MIN_COUNT` | How often a transcript key must appear in a Claude Code version before audit-sessions' drift check reports it as new or vanished; default 20. Raise it if rare keys clutter the drift section. |
 | `audit_sessions_drift_versions` | number<br>*min 1, max 20* | `3` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_DRIFT_VERSIONS` | How many of the newest Claude Code versions a key must be absent from before audit-sessions' drift check reports it vanished; default 3, maximum 20. |
+| `worker_continuation` | string | `"resume"` | `CLAUDE_PLUGIN_OPTION_WORKER_CONTINUATION` | How /session-flow:orchestrate runs a worker's next unit: resume (default) continues the same worker; respawn starts a fresh worker with consolidated scope unless that worker holds state costly to move. A repository's worker_continuation in docs/conventions/session-flow.yaml wins. |
 
 ### How to set these
 

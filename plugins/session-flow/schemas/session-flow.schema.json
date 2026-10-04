@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/session-flow/schemas/session-flow.schema.json",
+  "title": "session-flow team config",
+  "description": "Schema for a repository's docs/conventions/session-flow.yaml: the team layer of the session-flow plugin's settings. Each key here wins over the plugin's userConfig option of the same name. Resolution and the root rule: plugins/session-flow/reference/config.md. Contract: docs/adr/0054-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "worker_continuation": {
+      "enum": ["resume", "respawn"],
+      "default": "resume",
+      "description": "How /session-flow:orchestrate runs a worker's next unit (fix round, follow-up, retry, next queue item). resume continues the same worker; respawn starts a fresh worker whose brief consolidates the original brief, later directives, the prior report and its branch, and resumes only when that worker holds state costly to move (its checkout, uncommitted changes, a running process)."
+    }
+  }
+}

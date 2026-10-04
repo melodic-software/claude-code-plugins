@@ -1,23 +1,24 @@
 ---
-description: "Verify the session-flow observer's runtime prerequisites and configuration for this machine. Use when: 'set up session-flow', 'configure the observer', 'is the observer working', the SessionStart observer isn't arming, or the observer hook reported a missing prerequisite. Check-only: verifies, reports, and offers each remediation; installs nothing and there is nothing setup may write here. Re-runnable and safe; only the observer substrate has prerequisites, the other skills are zero-config."
-argument-hint: "[check]"
+description: "Verify the session-flow observer's runtime prerequisites and configuration for this machine, and write the repository's docs/conventions/session-flow.yaml after confirmation. Use when: 'set up session-flow', 'configure the observer', 'is the observer working', 'set worker_continuation for this repo', the SessionStart observer isn't arming, or the observer hook reported a missing prerequisite. Actions: check (read-only, default), apply (writes docs/conventions/session-flow.yaml only). Installs nothing. Re-runnable."
+argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
 ---
 
 ## Purpose
 
-Check-only setup under the Check-only carve-out (`docs/plugin-philosophy.md` "Setup is explicit
-and repeatable" in the marketplace repository): this plugin's configuration surface contains no
-writable artifact, so `check` inspects, reports, and offers each remediation, and no `apply` is
-offered because there is nothing it could conformingly write. Only the **detached observer** (see
+Two configuration surfaces. The **detached observer** (see
 [`${CLAUDE_PLUGIN_ROOT}/reference/observer.md`](${CLAUDE_PLUGIN_ROOT}/reference/observer.md)) has
-runtime prerequisites and configuration; the other skills are zero-config. The observer's tunables
-are all native `userConfig` (the carve-out's native-`userConfig` class), and its remaining
-prerequisites are system tools (Node.js, Python 3.10+, `jq`, the external-prerequisites class), so setup
-installs nothing and edits nothing (writing `pluginConfigs` is what the setup contract forbids).
+runtime prerequisites (Node.js, Python 3.10+, `jq`) and native `userConfig` tunables; setup reports
+both and writes neither (writing `pluginConfigs` is what the setup contract forbids). The plugin
+also owns one tracked consumer file, `docs/conventions/session-flow.yaml`, the repository layer of
+the keys skills read in their own text (keys, values and layers:
+[`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md); schema:
+`${CLAUDE_PLUGIN_ROOT}/schemas/session-flow.schema.json`). `check` reports that file; `apply`
+writes it and nothing else.
 
-Action routing: no argument or `check` runs the check. Non-interactive, never prompts.
+Action routing: no argument or `check` runs the check; `apply` runs the check, then writes.
+Re-running either reads the current state again.
 
 ## `check` (read-only)
 
@@ -57,10 +58,51 @@ and note that re-enabling restores the FAIL semantics.
    single turn risks firing analysis on a partial transcript.
 6. **Hook registration**. INFO: confirm the plugin is enabled for this project (`/plugin` → Installed)
    rather than parsing settings files. The SessionStart hook only auto-arms when `observer_enabled` is on.
+7. **Repository settings.** Run `node "${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" --check` from
+   the project root. INFO when `docs/conventions/session-flow.yaml` is absent (every key comes from
+   `userConfig` or its default); PASS with each key's value when the file validates; WARN, never
+   FAIL, when it does not (an invalid value, an unknown or repeated key, an empty or non-scalar
+   value, or a path that is not a plain file), quoting the line the script prints. An invalid
+   value never stops a session-flow skill: the skill names it and drops that layer. `apply`
+   overwrites only a value that is out of the list, empty or null; it refuses every other shape
+   (a repeated or unknown key, a map or list, an empty quoted string), which the operator fixes by
+   hand.
+
+## `apply` (writes `docs/conventions/session-flow.yaml` only)
+
+1. Run `check` and show its table.
+2. **Resolve the values.** With complete `<key>=<value>` arguments, use them. Otherwise ask one key
+   at a time, recommendation first, from the table in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`
+   (`worker_continuation`: `resume`, the default, unless the team wants each new unit in a fresh
+   worker). Never invent a key the schema does not list.
+3. **Write.** One call with every value:
+
+   ```bash
+   node "${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" worker_continuation=respawn
+   ```
+
+   The script checks each value against the schema, refuses a key given twice, validates the
+   existing file first (refusing it unless every problem is a value out of the list, empty or
+   null), and validates the whole resulting file (no unknown or repeated key, one non-empty scalar
+   per key) before it writes; any refusal exits 1 and writes nothing. It writes only `<git toplevel>/docs/conventions/session-flow.yaml`:
+   it refuses a symlink on that path or on `docs/conventions`, a directory resolving outside the
+   repository, and a target with more than one hard link, and writes through a temp file renamed
+   into place. A missing file is created. A value already in place prints `already configured` and
+   writes nothing.
+4. **An existing file that would change** exits 3 and prints a unified diff without writing. Show
+   the operator that diff and ask whether to write it. Only on an explicit yes, re-run the same
+   call with `--yes`; on anything else, stop with the file unchanged. A request to "set it" is not
+   a yes to a diff the operator has not seen.
+5. **Verify.** Re-run `check` and report the value from its table, not from the write. Then the
+   tracked-file pair: `git check-ignore -v docs/conventions/session-flow.yaml` reports no match (a
+   match means the team never receives the file: say so, and leave `.gitignore` to the operator),
+   and `git ls-files --error-unmatch docs/conventions/session-flow.yaml` exits 0. Non-zero right
+   after a fresh write means "written but untracked: commit it to share with the team", never
+   success.
 
 ## Remediation guidance (printed by `check`; the operator applies it)
 
-No write path. For each FAIL, `check` closes by offering the remediation: install the missing
+For the observer there is no write path. For each FAIL, `check` closes by offering the remediation: install the missing
 tool, or route observer reconfiguration through Claude Code's native flow.
 Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`.
 
@@ -81,10 +123,22 @@ the rendered `${user_config.*}` is injected at skill load and each hook's `CLAUD
 is fixed at session start, so a same-session `check` still reports the OLD value; report the
 observed effective value, never an unobserved change.
 
+## Output
+
+`check`: the PASS/FAIL/INFO/WARN table with one remediation line per FAIL. `apply`: the table
+before and after, the diff when one was shown, the written path, and whether the file is tracked.
+
+## Next
+
+`/session-flow:orchestrate`, which reads `worker_continuation`.
+
 ## Gotchas
 
-- **Setup covers only the observer.** The other session-flow skills need no setup; only the observer
-  has external prerequisites and a `userConfig` surface.
+- **Prerequisites are the observer's alone.** The other session-flow skills need no installed
+  tool; the only repository setting today is `worker_continuation`, read by
+  `/session-flow:orchestrate`.
+- **The repository file reaches the team only once committed.** `apply` leaves it uncommitted on
+  purpose, and the tracked-file pair says so.
 - **`observer_analysis_bare` and auth.** `--bare` drops the login credential state on OAuth-login
   installs. Leave it off unless auth is an env-var API key. Full detail in
   `${CLAUDE_PLUGIN_ROOT}/reference/observer.md`.

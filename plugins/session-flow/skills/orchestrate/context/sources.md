@@ -9,6 +9,7 @@
 - [Imperative 5: NESTED SUBAGENTS](#imperative-5-nested-subagents)
 - [Priming addendum: surface reachability](#priming-addendum-surface-reachability)
 - [Priming addendum: model and effort routing](#priming-addendum-model-and-effort-routing)
+- [Priming addendum: worker_continuation](#priming-addendum-worker_continuation)
 - [Imperative 6: SURFACE DRIFT](#imperative-6-surface-drift)
 - [Imperative 7: CALIBRATE TO CONDITIONS](#imperative-7-calibrate-to-conditions)
 
@@ -218,6 +219,24 @@ any plugin. Without them, the session reads the upstream model-selection order d
 - **As of**: 2026-10-02
 - **Recheck trigger**: that section changes how a subagent's model is chosen, or the multi-agent
   skills are renamed.
+
+## Priming addendum: worker_continuation
+
+Backs the addendum's `worker_continuation` setting. A resumed worker keeps its whole earlier
+conversation, so `resume` is a real continuation, not a fresh start under the old name. A worker
+the user stopped refuses later messages, one reason imperative 4 respawns after an interrupt under
+either value. A worker stopped with `TaskStop` can be resumed once its run has exited; outside an
+interrupt, the setting decides whether it is.
+
+- **Pointer**: for what a resumed worker keeps, see
+  <https://code.claude.com/docs/en/sub-agents#resume-subagents>; for a user-stopped worker
+  refusing messages, see
+  <https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background>; for
+  resuming after `TaskStop`, see
+  <https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit>.
+- **As of**: 2026-10-04
+- **Recheck trigger**: any of those sections changes what a resumed worker keeps, how a stopped
+  worker answers a message, or whether a `TaskStop`-ed worker can be resumed.
 
 ## Imperative 6: SURFACE DRIFT
 
