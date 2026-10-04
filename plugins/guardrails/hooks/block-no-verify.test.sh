@@ -347,7 +347,7 @@ run_pwsh "PS: token blanks the group, visible --no-verify still blocked" \
 expect "PS: no-progress sink under its token exhausts the budget (blocked)" 2 \
   --tool PowerShell --command "\$a=& 'git commit --no-verify -m x'" \
   -- CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
-assert_contains "PS: budget refusal names the five rounds" "$GUARD_ERR" "after five rounds"
+assert_contains "PS: budget refusal names the five rounds" "$GUARD_ERR" "after five allowed sink shapes were set aside"
 assert_contains "PS: budget refusal says no token clears it" "$GUARD_ERR" "No allow token clears this"
 run_pwsh "PS: reset-hard token does not open the sink" \
   "Invoke-Command -ScriptBlock { git reset --hard }" 2 \
@@ -366,8 +366,8 @@ run_pwsh "PS: expandable non-git body with herestring-subexpr token (allowed —
 expect "PS: sink denial names the advertised allow option" 2 \
   --tool PowerShell --command "Invoke-Command -ScriptBlock { git reset --hard }"
 assert_contains "PS: sink denial names block_dangerous_git_allow" "$GUARD_ERR" \
-  "allow it via the block_dangerous_git_allow option"
-assert_contains "PS: sink denial still names the kill switch" "$GUARD_ERR" \
+  "False positive: the user adds"
+assert_absent "PS: sink denial does not name the kill switch (a user lever)" "$GUARD_ERR" \
   "block_no_verify_enabled"
 
 # Obfuscation regressions (independent security review, sink-level fail-closed).
@@ -830,7 +830,7 @@ nul_stderr() {
 }
 assert_contains "NUL msg: names the byte" "$(nul_stderr 'git push --no-verify' 'x')" "NUL byte"
 assert_contains "NUL msg: gives the fix" "$(nul_stderr 'git push --no-verify' 'x')" \
-  "reissue the tool call without the embedded NUL"
+  "Reissue the call without it"
 
 # The all-NUL command reaches the flag BEFORE the empty-COMMAND skip — its block
 # must carry the NUL reason, and an empty command with no NUL must still take

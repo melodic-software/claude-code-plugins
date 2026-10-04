@@ -105,9 +105,6 @@ export function decide(verdict, inputs) {
     return failure("The pipeline config is invalid.");
   }
   if (gateReason) {
-    if (gateReason === "no-pr" && !headSha) {
-      return { kind: "none", why: "gate reason no-pr with no head SHA" };
-    }
     if (!Object.hasOwn(gateSkipReasons, gateReason)) {
       return failure(
         "A gate stopped the run with a reason that has no skip mapping.",

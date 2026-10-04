@@ -40,9 +40,11 @@ The step fails and writes no file when:
    under `.github/actions/`; or the file it names resolves outside `base-path`.
 9. An activity is named `run` or `report`, the runner's own job names.
 
-It also fails when a predicate cannot be decided: `pulls/{n}/files` lists 3000 files or fewer than
-the PR's `changed_files`, a predicate needs the PR and there is no `pr-number`, or a predicate
-reads `work-classes`, which no run supplies yet.
+It also fails when a predicate it decides cannot be decided: `pulls/{n}/files` lists 3000 files or
+fewer than the PR's `changed_files`, a predicate needs the PR and there is no `pr-number`, or a
+predicate reads `work-classes`, which no run supplies yet. With `activity` set it decides only the
+selected slot's predicate, so another slot's predicate cannot fail the run; without it, every
+enabled slot's.
 
 ## Output
 
@@ -55,7 +57,8 @@ gains the config path, `.github/**` and the trusted-actor list.
 
 Each resolved slot carries `applies` and `skip-reason`: `disabled-by-config` when the lane or slot
 sets `enabled: false`, `not-applicable-paths` when a `paths` predicate misses, `not-applicable`
-when a `labels`, `events` or `work-classes` predicate misses. Its `grant` is the effect's row in
+when a `labels`, `events` or `work-classes` predicate misses. An enabled slot whose predicate was
+not decided carries `applies` and `skip-reason` null. Its `grant` is the effect's row in
 `effect-grants.json`.
 
 Step outputs: `enabled` and `slots` (a JSON list of names); with `activity`, also `kind`,
@@ -81,4 +84,5 @@ A job that uses this action:
 `npm ci && npm test` in this directory runs `node --test`, with no network. Unit tests use the
 minimal vocabulary in `fixtures/vocabulary.json` and the live schema; one integration test reads
 the synced standards vocabulary and is skipped, with a message, while that file is absent. CI runs
-the suite in the `test-node` job of `.github/workflows/ci.yml`.
+the suite in the `Test resolve-config` step of the `test-node` job of
+`.github/workflows/pr-require-checks.yml`.
