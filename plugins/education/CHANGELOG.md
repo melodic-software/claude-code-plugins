@@ -3,11 +3,21 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.13.3] - 2026-10-04
+## [0.13.4] - 2026-10-04
 
 ### Fixed
 
 - Shared `view-runtime.js` synced ([#6173](https://github.com/melodic-software/claude-code-plugins/issues/6173)): pages built by `/education:illustrate` no longer say they saved a file. The claude.ai artifact viewer blocks a download the page starts itself without an error the page can see, so the page reported a save that never happened. The "Save as file" button now appears only on a page opened from `file://` or served by the session bridge on `127.0.0.1`, and after a download attempt the status reads "If no file was saved, select the text below and copy it." "Copy reply" and the selectable payload text are unchanged.
+
+## [0.13.3] - 2026-10-04
+
+### Fixed
+
+- `illustrate` page flows no longer wrap, so no line starts with a dangling arrow: a flow of up
+  to four steps stays on one line and scrolls inside its card, and a longer flow is drawn one step
+  per line. Each arrow now follows its box. A step label over 40 characters is cut at a word with
+  `…` in both the record and the page, and the builder prints one stderr warning per cut label
+  ([#6170](https://github.com/melodic-software/claude-code-plugins/issues/6170)).
 
 ## [0.13.2] - 2026-10-03
 

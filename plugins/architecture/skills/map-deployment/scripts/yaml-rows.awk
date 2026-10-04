@@ -421,10 +421,10 @@ function place(sc, c, img, reps, ports, compute, ev,    e) {
 }
 
 # One ECS container definition: name, image, ports, environment and secrets. A
-# secret reference is a redacted parameter.
-function ecs_container(sc, g, dflt, reps, cl, ev,    f, c, img, ports, pg, eg, m, j, pv, k, v, sec) {
+# secret reference is a redacted parameter. sfx is appended to the container name.
+function ecs_container(sc, g, dflt, reps, cl, ev, sfx,    f, c, img, ports, pg, eg, m, j, pv, k, v, sec) {
   f = S_file[sc]
-  c = show(sc, jp(g, ck("name")), dflt)
+  c = show(sc, jp(g, ck("name")), dflt) sfx
   img = show(sc, jp(g, ck("image")), "")
   ports = ""
   m = items(f, jp(g, ck("portMappings")), pg)
@@ -450,7 +450,7 @@ function ecs_container(sc, g, dflt, reps, cl, ev,    f, c, img, ports, pg, eg, m
 # The cluster, task definition and service of one scope. collect_res() lists
 # them in RID, RKIND (cluster, taskdef, service), RTYPE and RPRE, and sets
 # KIND_OF[sc, id].
-function map_ecs(sc,    f, n, i, id, pre, td, cl, nid, reps, img, gs, k, m) {
+function map_ecs(sc,    f, n, i, j, id, pre, td, cl, nid, reps, img, gs, k, m, ns, sfx) {
   f = S_file[sc]
   n = collect_res(sc)
   for (i = 1; i <= n; i++) {
@@ -468,9 +468,8 @@ function map_ecs(sc,    f, n, i, id, pre, td, cl, nid, reps, img, gs, k, m) {
     nid = ((sc SUBSEP cl) in CID) ? CID[sc, cl] : ""
     reps = show(sc, jp(pre, ck("desiredCount")), "undeclared")
     if (td != "" && KIND_OF[sc, td] == "taskdef") {
-      # A later service on the same task definition is not placed again: it is listed.
-      if (!((sc SUBSEP td) in SVC_CL)) { SVC_CL[sc, td] = nid; SVC_REPS[sc, td] = reps }
-      else note_unmapped(tool, RTYPE[i], f)
+      k = ++SVC_N[sc, td]
+      SVC_ID[sc, td, k] = RID[i]; SVC_CL[sc, td, k] = nid; SVC_REPS[sc, td, k] = reps
     } else {
       img = has(f, jp(pre, ck("taskDefinition"))) ? unresolved("taskDefinition") : ""
       place(sc, show(sc, jp(pre, SERVICE_NAME_PROP), RID[i]), img, reps, "", nid, f)
@@ -479,11 +478,17 @@ function map_ecs(sc,    f, n, i, id, pre, td, cl, nid, reps, img, gs, k, m) {
   for (i = 1; i <= n; i++) {
     if (RKIND[i] != "taskdef") continue
     id = RID[i]; pre = RPRE[i]
-    reps = ((sc SUBSEP id) in SVC_REPS) ? SVC_REPS[sc, id] : "undeclared"
-    cl = ((sc SUBSEP id) in SVC_CL) ? SVC_CL[sc, id] : ""
     m = items(f, cdpath(f, pre), gs)
-    for (k = 1; k <= m; k++) ecs_container(sc, gs[k], id, reps, cl, f)
-    if (m == 0) place(sc, id, unresolved("containerDefinitions"), reps, "", cl, f)
+    ns = ((sc SUBSEP id) in SVC_N) ? SVC_N[sc, id] : 0
+    # Each service runs the task definition on its own cluster with its own count; with two
+    # or more, its resource id keeps their placements of one container apart.
+    for (j = 1; j <= (ns > 0 ? ns : 1); j++) {
+      reps = ns > 0 ? SVC_REPS[sc, id, j] : "undeclared"
+      cl = ns > 0 ? SVC_CL[sc, id, j] : ""
+      sfx = ns > 1 ? "@" SVC_ID[sc, id, j] : ""
+      for (k = 1; k <= m; k++) ecs_container(sc, gs[k], id, reps, cl, f, sfx)
+      if (m == 0) place(sc, id sfx, unresolved("containerDefinitions"), reps, "", cl, f)
+    }
   }
 }
 

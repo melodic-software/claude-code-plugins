@@ -373,10 +373,11 @@ function place(sc, c, img, reps, ports, compute, ev,    e) {
 }
 
 # One container block: name, image, ports, and env entries. An env entry that
-# holds a secret reference instead of a value is a redacted parameter.
-function container(sc, g, dflt, reps, compute, ports, envre, secre, portre, portkey, ev,    d, c, img, n, i, pg, eg, k, v, pv, sec) {
+# holds a secret reference instead of a value is a redacted parameter. sfx is
+# appended to the container name.
+function container(sc, g, dflt, reps, compute, ports, envre, secre, portre, portkey, ev, sfx,    d, c, img, n, i, pg, eg, k, v, pv, sec) {
   d = S_dir[sc]
-  c = show(sc, g, "name", dflt)
+  c = show(sc, g, "name", dflt) sfx
   img = show(sc, g, "image", "")
   n = groups(d, g, portre, pg)
   for (i = 1; i <= n; i++) if (field(d, pg[i], portkey)) { pv = resolve(sc, FK, FV, 0); if (RES_SEC) pv = "[redacted]"; ports = (ports == "" ? pv : ports "," pv) }
@@ -403,7 +404,7 @@ function unread_container(sc, pre, lbl, n, name, reps, ports, compute, ev,    dy
 
 function compute_id(sc, type, name) { return S_env[sc] "/" S_prefix[sc] type "." name }
 
-function map_scope(sc,    d, k, r, parts, type, name, pre, id, n, i, gs, cl, td, reps, ports, svc, key) {
+function map_scope(sc,    d, k, r, parts, type, name, pre, id, n, i, j, m, gs, cl, td, reps, ports, sfx, key) {
   d = S_dir[sc]
   for (k = 1; k <= DN[d]; k++) {
     r = DR[d, k]
@@ -425,9 +426,8 @@ function map_scope(sc,    d, k, r, parts, type, name, pre, id, n, i, gs, cl, td,
     cl = ((sc SUBSEP "aws_ecs_cluster." cl) in done) ? compute_id(sc, "aws_ecs_cluster", cl) : ""
     reps = show(sc, pre, "desired_count", "undeclared")
     if (td != "" && (sc SUBSEP "aws_ecs_task_definition." td) in done) {
-      # A later service on the same task definition is not placed again: it is listed.
-      if (!((sc SUBSEP td) in svc_cl)) { svc_cl[sc, td] = cl; svc_reps[sc, td] = reps }
-      else note_unmapped("terraform", "aws_ecs_service", res_file[sc, res_list[sc, i]])
+      k = ++svc_n[sc, td]
+      svc_lbl[sc, td, k] = parts[2]; svc_cl[sc, td, k] = cl; svc_reps[sc, td, k] = reps
     } else {
       td = field(d, pre, "task_definition") ? unresolved(FV) : ""
       place(sc, show(sc, pre, "name", parts[2]), td, reps, "", cl, res_file[sc, res_list[sc, i]])
@@ -441,12 +441,18 @@ function map_scope(sc,    d, k, r, parts, type, name, pre, id, n, i, gs, cl, td,
     if (type ~ /^(aws_ecs_cluster|aws_eks_cluster|azurerm_container_app_environment|azurerm_kubernetes_cluster|google_container_cluster)$/) {
       node(sc, compute_id(sc, type, name), type, show(sc, pre, "name", name), res_file[sc, key])
     } else if (type == "aws_ecs_task_definition") {
-      reps = ((sc SUBSEP name) in svc_reps) ? svc_reps[sc, name] : "undeclared"
-      cl = ((sc SUBSEP name) in svc_cl) ? svc_cl[sc, name] : ""
       n = groups(d, pre, "^container_definitions\\[[0-9]+\\]\\.", gs)
-      if (n == 0) place(sc, name, field(d, pre, "container_definitions") ? resolve(sc, FK, FV, 0) : unresolved("container_definitions"), reps, "", cl, res_file[sc, key])
-      for (k = 1; k <= n; k++)
-        container(sc, gs[k], name, reps, cl, "", "^(environment|secrets)\\[[0-9]+\\]\\.", "^valueFrom$", "^portMappings\\[[0-9]+\\]\\.", "containerPort", res_file[sc, key])
+      m = ((sc SUBSEP name) in svc_n) ? svc_n[sc, name] : 0
+      # Each service runs the task definition on its own cluster with its own count; with two
+      # or more, its resource label keeps their placements of one container apart.
+      for (j = 1; j <= (m > 0 ? m : 1); j++) {
+        reps = m > 0 ? svc_reps[sc, name, j] : "undeclared"
+        cl = m > 0 ? svc_cl[sc, name, j] : ""
+        sfx = m > 1 ? "@" svc_lbl[sc, name, j] : ""
+        if (n == 0) place(sc, name sfx, field(d, pre, "container_definitions") ? resolve(sc, FK, FV, 0) : unresolved("container_definitions"), reps, "", cl, res_file[sc, key])
+        for (k = 1; k <= n; k++)
+          container(sc, gs[k], name, reps, cl, "", "^(environment|secrets)\\[[0-9]+\\]\\.", "^valueFrom$", "^portMappings\\[[0-9]+\\]\\.", "containerPort", res_file[sc, key], sfx)
+      }
     } else if (type == "azurerm_container_app") {
       cl = field(d, pre, "container_app_environment_id") ? ref(FK, FV, "azurerm_container_app_environment") : ""
       cl = ((sc SUBSEP "azurerm_container_app_environment." cl) in done) ? compute_id(sc, "azurerm_container_app_environment", cl) : ""

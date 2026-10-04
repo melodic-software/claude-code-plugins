@@ -3,11 +3,29 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.21.4] - 2026-10-04
+## [0.22.1] - 2026-10-04
 
 ### Changed
 
 - Shared `view-runtime.js` synced ([#6173](https://github.com/melodic-software/claude-code-plugins/issues/6173)); no change to this plugin's own behavior.
+
+## [0.22.0] - 2026-10-04
+
+### Added
+
+- **`map-deployment` places every ECS service on a shared task definition ([#5623](https://github.com/melodic-software/claude-code-plugins/issues/5623)).**
+  The Terraform, CloudFormation and Pulumi YAML readers place a task definition that two or more services run
+  once per service, on that service's cluster with its desired count. Each container is named
+  `<container>@<service>`, where the service part is its resource label, logical ID or resource name, so it
+  is the same in every environment and diffs like any other container. Before, the containers were placed
+  once, on the first service's cluster, and each later service was listed under `## Unmapped resources`.
+  A task definition with one service keeps its plain container names, and a `containers.json` name counts as
+  placed when only its `@<service>` placements exist.
+- **`map-deployment` places a Bicep or ARM deployment slot with its own container image.** A
+  `Microsoft.Web/sites/slots` nested in its site, or naming it with a Bicep `parent`, whose fx version reads
+  `DOCKER|` is now the container `<site>/<slot>` on the site's App Service plan, with its own `appSettings`.
+  Before, it was listed under `## Unmapped resources` and its image was never drawn. Any other slot is still
+  listed.
 
 ## [0.21.3] - 2026-10-04
 
