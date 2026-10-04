@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.43.5] - 2026-10-04
+
+### Fixed
+
+- **The opt-in elevation lane's verification status is current.** The safety model and README said no Windows UAC pilot had run the lane. A native replica of its elevated per-path re-check passed one on 2026-10-01; both now say so, and the safety model lists what that pilot did not cover, starting with the engine itself on Windows. The lane's behavior is unchanged.
+
 ## [0.43.4] - 2026-10-04
 
 ### Fixed
