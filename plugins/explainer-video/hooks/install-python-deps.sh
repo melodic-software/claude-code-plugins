@@ -34,7 +34,34 @@ if [[ -z "$py" ]]; then
   exit 0
 fi
 
+# repair_line -> the install run in the foreground: Windows PowerShell 5.1 under Git Bash or Cygwin
+# (call operator, single quotes doubled), a POSIX shell line otherwise, as pydeps.py's own.
+repair_line() {
+  local parts=("$(command -v "$py")" "$ROOT/scripts/pydeps.py" install --data-dir "$data") line="" part
+  case "${OSTYPE:-}" in
+  msys* | cygwin*)
+    for part in "${parts[@]}"; do
+      [[ "$part" == /* ]] && part="$(cygpath -w "$part" 2>/dev/null || printf '%s' "$part")"
+      line+=" '${part//\'/\'\'}'"
+    done
+    printf '&%s' "$line"
+    ;;
+  *)
+    for part in "${parts[@]}"; do
+      line+=" '${part//\'/\'\\\'\'}'"
+    done
+    printf '%s' "${line# }"
+    ;;
+  esac
+}
+
 if ! out="$("$py" "$ROOT/scripts/pydeps.py" install --data-dir "$data" </dev/null 2>&1)"; then
-  notice "explainer-video: its Python packages (ManimCE) could not be installed, so /explainer-video:produce will stop until they are. $out"
+  if [[ "$out" == *Traceback* ]]; then
+    last="${out//$'\r'/}"
+    last="${last##*$'\n'}"
+    notice "explainer-video: the Python handover failed: $last; repair with: $(repair_line)"
+  else
+    notice "explainer-video: its Python packages (ManimCE) could not be installed, so /explainer-video:produce will stop until they are. $out"
+  fi
 fi
 exit 0

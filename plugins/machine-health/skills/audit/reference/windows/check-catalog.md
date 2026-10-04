@@ -594,7 +594,10 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
 - **Why the walk budget is 60s and not the orchestrator's 90s:** the orchestrator kills a check at
   90s and `check-result.schema.json` caps `duration_ms` at 90000, so an unbounded walk of a
   multi-gigabyte tree does not merely time out. It emits a schema-invalid result and loses the
-  partial figures entirely. Stopping at 60s keeps them and reports `UNKNOWN` per the rubric.
+  partial figures entirely. Stopping at 60s keeps them and reports `UNKNOWN` per the rubric. The
+  walk streams every directory and tests the budget per entry, so one directory with millions of
+  entries, or on a slow share, cannot hold it past 60s. On a cut-off walk
+  `detail.project_key_count` counts only the project keys reached, a floor like the other figures.
 
 - **Why the age arm is independent of size:** the failure this check exists for is *unpruned* growth.
   A modest tree whose oldest entry keeps aging is evidence that nothing reclaims it, which a size

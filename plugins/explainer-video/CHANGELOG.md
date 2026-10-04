@@ -3,6 +3,16 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.3] - 2026-10-04
+
+### Fixed
+
+- **`pydeps.py` no longer passes its own `PYTHONHOME` and `PYTHONPATH` to the Python it hands over to** ([#6162](https://github.com/melodic-software/claude-code-plugins/issues/6162)).
+  Started from a uv-managed Windows trampoline, it forwarded that trampoline's `PYTHONHOME`, so the 3.12 or 3.13
+  it handed over to loaded the other version's standard library and died on its first import. The candidate probe and
+  the handover now drop `PYTHONHOME`, `PYTHONPATH` and every `UV_INTERNAL__*` marker. When the handed-over Python still
+  crashes, the `SessionStart` notice carries the traceback's last line and the repair line instead of the traceback.
+
 ## [0.2.2] - 2026-10-03
 
 ### Fixed

@@ -28,6 +28,28 @@ and `.editorconfig` for formatting. It ships no rules of its own.
   It runs with no parser/printer flags, so your `.editorconfig` is authoritative,
   and with `--apply-ignore` so an `ignore = true` section (e.g. for generated or
   vendored scripts) is honored even on a single edited file.
+- **A rewrite that would change an array subscript is put back.** shfmt parses an
+  unquoted subscript as arithmetic and spaces it, because it cannot know the
+  array is associative, so `${m[a-b]}` would become the different key
+  `${m[a - b]}` (see the Caveats section of the
+  [mvdan/sh README](https://github.com/mvdan/sh#caveats) and
+  [mvdan/sh#956](https://github.com/mvdan/sh/issues/956); checked 2026-10-04 against
+  shfmt v3.14.1; recheck when a shfmt release changes how it reads subscripts). When
+  shfmt rewrites the file, the hook compares every subscript's source text before
+  and after, including the blanks inside the brackets, since `${m[ key ]}` is a
+  different key from the `${m[key]}` shfmt prints. If any differs, the hook
+  restores the file byte for byte and names each changed subscript and its line in
+  one notice. Quote the key (`${m["a-b"]}`) if the array is associative; if it is
+  indexed, write it as shfmt prints it, which depends on the release: v3.13.0
+  printed `${a[i+1]}` where the releases around it print `${a[i + 1]}` (reverted in
+  v3.13.1, per the [mvdan/sh changelog](https://github.com/mvdan/sh/blob/master/CHANGELOG.md)).
+  To keep a file's keys unquoted, give it an `ignore = true` section in
+  `.editorconfig`; the hook passes `--apply-ignore` (shfmt 3.8+), so shfmt leaves
+  the file alone. The hook reads the syntax tree with `--to-json`, or with
+  `-tojson` on a shfmt older than 3.8, since 3.4 and 3.5 have no `--to-json`. When
+  the tree cannot be read, the rewrite is put back and the notice says so, because
+  an unchecked rewrite may have changed a key. A file shfmt leaves unchanged reads
+  no tree and costs no extra process.
 - **Advisory, never blocking.** The hook always exits `0`. Findings are reported
   via `additionalContext`; they never reject the edit. Make a commit hook or CI
   your hard gate.
@@ -109,6 +131,7 @@ against an interleaved `bash -c :` floor S of about 4 ms, with a kernel census f
 | --- | --- | --- | --- | --- |
 | PostToolUse `Write`, clean `.sh`, no `.editorconfig` shell section | 1 | 45 ms | 10.5 | 14 process creations, 6 execs: `shellcheck`, two `git rev-parse` (the working-tree probe and the root resolver), `jq`, `realpath`, the hook's own `bash` |
 | PostToolUse `Write`, clean `.sh`, `.editorconfig` `[*.sh]` present | 1 | 55 ms | 14.1 | 31 to 32 process creations (the tools' own threads vary), 12 execs: the row above plus two `shfmt` and the disclosure snapshot's `mktemp`, `cp`, `cmp`, `rm` |
+| PostToolUse `Write`, `.sh` that shfmt rewrites, `.editorconfig` `[*.sh]` present | 1 | about 7.5 ms more than the same rewrite on 0.10.3 (see below) | about 11 more, at that run's S of 0.7 ms | the census of a rewrite on 0.10.3 plus two `shfmt` and two `jq`: the subscript guard reads the syntax tree before and after |
 | PostToolUse `Write`, any other extension | 0 | none | 0 | no process; the `if` rows drop the handler before a spawn |
 
 At a 4 ms floor the spawn-equivalent column mostly measures the tools' own run time rather
@@ -117,6 +140,12 @@ reference host the convention calls binding; that host's figure for this plugin 
 taken. The residual is ShellCheck and shfmt themselves plus the shared library's payload reader
 (`jq`), working-tree probe and root resolver (`git` twice, `realpath`) and the disclosure
 snapshot.
+
+The rewrite row comes from a separate run (2026-10-04, 0.10.4, Linux x86_64, bash 5.2, shfmt
+v3.12.0): 41 interleaved trials of the 0.10.3 and 0.10.4 hooks on the same fixture, repeated
+three times, with medians 7.0 to 7.9 ms apart. The census is
+`strace -f -e trace=execve`. A clean file measured the same on both versions, so the two
+clean-file rows stand.
 
 ## Install
 

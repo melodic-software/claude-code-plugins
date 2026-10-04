@@ -1,5 +1,19 @@
 # Changelog: discovery plugin
 
+## [0.28.5] - 2026-10-04
+
+### Fixed
+
+- **The research verifier can grade a long page that WebFetch cut short (#6071).** The verifier has
+  no `Bash`, so it could not fetch the full page itself, and a cited section past the cut read as
+  missing. It now reports such a page as `truncated primary: <url>` and leaves the rows that claim
+  decides ungraded. The parent saves the page with the discipline file's existing fetch recipe,
+  into a `scratch-snapshots` directory in the slice, and dispatches a fresh verifier with a
+  `Snapshots: <url> -> <path>` line, creating that directory first because the recipe's
+  `mktemp -d` makes only the final path component, and fetching through the upstream-drift
+  convention's raw-markdown rung. The verifier Reads a listed snapshot in place of re-fetching
+  that page and lists the URL under `graded_from_snapshot`. Its tools line is unchanged.
+
 ## [0.28.4] - 2026-10-04
 
 ### Fixed
