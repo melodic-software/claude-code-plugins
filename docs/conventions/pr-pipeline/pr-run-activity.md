@@ -87,7 +87,8 @@ Holds `contents: read` and `pull-requests: read`, and no other permission; it ne
    permission. A `read` activity mints nothing and uses the job's read-only `GITHUB_TOKEN`.
 7. [`select-trusted-text`](../../../.github/actions/select-trusted-text/README.md) to
    `$RUNNER_TEMP/trusted-context.json` when the activity `reads-untrusted`, with the App token or,
-   for `read`, the `GITHUB_TOKEN`.
+   for `read`, the `GITHUB_TOKEN`, which has no `issues` grant: in a private repository a PR that
+   closes an issue may fail the step red.
 8. Copies what the activity runs from the base out of `.base`: a script's whole directory to
    `$RUNNER_TEMP/base-script`, or for a skill the base `plugins/` and `.claude-plugin/` to
    `$RUNNER_TEMP/base-marketplace`.

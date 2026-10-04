@@ -11,6 +11,8 @@ Fixes to the runner and reader. `version` stays 1.
   slot's undecidable predicate no longer fails the run; the other slots carry `applies` null.
 - A requested lane the config lacks is rejected as `undefined-lane`, not `undefined-activity`.
 - The run job's unused `applies` output is removed.
+- `select-trusted-text` takes the job's `GITHUB_TOKEN` for a `read` activity, as the runner already
+  passed it; that token has no `issues` grant.
 
 ## 1.1.0 - 2026-10-04
 
