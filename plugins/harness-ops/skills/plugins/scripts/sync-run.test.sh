@@ -138,8 +138,14 @@ case "$verb" in
     echo "$CLAUDE_STUB_INSTALL_UNSET - run /plugin configure ${3:-} in Claude Code, or pass --config KEY=VALUE."
   # A disabled-by-default notice. The padding sits in front so the notice is
   # past the 400 characters the digest keeps, and classification has to read
-  # the untruncated output to see it.
-  if [[ -n "${CLAUDE_STUB_INSTALL_DISABLED:-}" ]]; then
+  # the untruncated output to see it. `1` marks every install; anything else is
+  # the space-separated ids that print it.
+  disabled=false
+  case " ${CLAUDE_STUB_INSTALL_DISABLED:-} " in
+  " 1 " | *" ${3:-} "*) disabled=true ;;
+  *) ;;
+  esac
+  if [[ "$disabled" == "true" ]]; then
     printf '%400s\n' 'install progress'
     echo "This plugin is disabled by default"
   fi
@@ -147,8 +153,29 @@ case "$verb" in
     echo "✘ Failed to install plugin \"${3:-}\""
     exit 1
   fi
+  # Opt-in user-settings state: an install writes the user-scope key as the CLI
+  # does, `false` for a disabled-by-default plugin and `true` otherwise.
+  if [[ -n "${CLAUDE_STUB_SETTINGS_STATE:-}" ]]; then
+    jq --arg id "${3:-}" --argjson v "$([[ "$disabled" == "true" ]] && echo false || echo true)" \
+      '.enabledPlugins[$id] = $v' "$FLEET_STATE_USER_SETTINGS" >"$FLEET_STATE_USER_SETTINGS.next" &&
+      mv "$FLEET_STATE_USER_SETTINGS.next" "$FLEET_STATE_USER_SETTINGS"
+  fi
   ;;
 "plugin enable")
+  if [[ -n "${CLAUDE_STUB_ENABLE_FAIL_ID:-}" && "${3:-}" == "$CLAUDE_STUB_ENABLE_FAIL_ID" ]]; then
+    echo "✘ Failed to enable plugin \"${3:-}\""
+    exit 1
+  fi
+  # With settings state on, enabling a plugin that is already enabled exits 1,
+  # as the CLI does.
+  if [[ -n "${CLAUDE_STUB_SETTINGS_STATE:-}" ]]; then
+    if [[ "$(jq -r --arg id "${3:-}" '.enabledPlugins[$id] // false' "$FLEET_STATE_USER_SETTINGS")" == "true" ]]; then
+      echo "✘ Failed to enable plugin \"${3:-}\": Plugin \"${3:-}\" is already enabled at ${5:-user} scope"
+      exit 1
+    fi
+    jq --arg id "${3:-}" '.enabledPlugins[$id] = true' "$FLEET_STATE_USER_SETTINGS" \
+      >"$FLEET_STATE_USER_SETTINGS.next" && mv "$FLEET_STATE_USER_SETTINGS.next" "$FLEET_STATE_USER_SETTINGS"
+  fi
   echo "Enabled ${3:-}"
   ;;
 *)
@@ -1460,6 +1487,52 @@ assert_contains "disabled install: the row says it is installed but not enabled"
   "installed but not enabled: beta@market1"
 assert_contains "disabled install: the enable command is in the report" "$REPORT_TEXT" \
   "beta@market1: installed but not enabled; claude plugin enable beta@market1 -s user"
+assert_eq "disabled install: policy all enables nothing the publisher left off" "0" \
+  "$(grep -c 'plugin enable' "$case_dir/claude.log" || true)"
+
+# An `ask` pick is the user's choice, so a pick the CLI installs disabled is then
+# enabled at user scope. The CLI notice decides, not the catalog: beta prints the
+# notice under a catalog default of true, gamma prints none under a catalog
+# default of false, and only beta is enabled. The settings-state stub fails an
+# enable of an already-enabled plugin, so enabling every pick would show a failure.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+catalog_plugin "$case_dir" market1 beta 0.1.0
+catalog_plugin "$case_dir" market1 gamma 0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"},
+  {"name": "beta", "source": "beta", "defaultEnabled": true},
+  {"name": "gamma", "source": "gamma", "defaultEnabled": false}]}'
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1
+  CLAUDE_STUB_INSTALL_DISABLED=beta@market1 CLAUDE_STUB_SETTINGS_STATE=1)
+report_of "$case_dir" --marketplace market1 --install-new ask --journal-root "$case_dir/journal"
+run_dir=$(jq -r '.run_dir' <<<"$REPORT_DIGEST")
+report_of "$case_dir" --only-install beta@market1,gamma@market1 --run-dir "$run_dir"
+assert_exit "ask disabled pick: exit 0" 0 "$REPORT_RC"
+assert_eq "ask disabled pick: no user-scope false is left for either pick" "true true" \
+  "$(jq -r '[.enabledPlugins["beta@market1"], .enabledPlugins["gamma@market1"]] | map(tostring) | join(" ")' \
+    "$case_dir/user_settings.json")"
+assert_eq "ask disabled pick: only the pick the CLI installed disabled is enabled" "plugin enable beta@market1 -s user" \
+  "$(grep 'plugin enable' "$case_dir/claude.log")"
+assert_eq "ask disabled pick: it is not reported as installed but not enabled" '[]' \
+  "$(jq -c '.marketplaces[0].installed_disabled' <<<"$REPORT_DIGEST")"
+assert_golden "ask disabled pick: the report matches the golden" ask-reentry-disabled-enabled.txt "$REPORT_TEXT"
+
+# A pick whose enable fails stays installed but not enabled, beside the failure.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+catalog_plugin "$case_dir" market1 beta 0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1
+  CLAUDE_STUB_INSTALL_DISABLED=1)
+report_of "$case_dir" --marketplace market1 --install-new ask --journal-root "$case_dir/journal"
+run_dir=$(jq -r '.run_dir' <<<"$REPORT_DIGEST")
+EXTRA_ENV+=(CLAUDE_STUB_ENABLE_FAIL_ID=beta@market1)
+report_of "$case_dir" --only-install beta@market1 --run-dir "$run_dir"
+assert_contains "ask failed enable: the failure is reported" "$REPORT_TEXT" "enable failed (exit 1): beta@market1 -s user"
+assert_eq "ask failed enable: the pick stays installed but not enabled" '["beta@market1"]' \
+  "$(jq -c '.marketplaces[0].installed_disabled' <<<"$REPORT_DIGEST")"
 
 # A failed install that printed the notice installed nothing, so it is not installed_disabled.
 CASE_NUM=$((CASE_NUM + 1))

@@ -72,7 +72,8 @@
 #   each install this run performed whose CLI output named userConfig options
 #   the user has not set. `installed_disabled[]` is the ids whose install exited
 #   0 and whose output said the plugin is disabled by default, classified before
-#   the 400-character truncation. `delisted[]` is the user-scope installs the
+#   the 400-character truncation, less any this run then enabled at user scope
+#   (an `--only-install` pick is). `delisted[]` is the user-scope installs the
 #   catalog's names no longer carry, `delisted_project[]` the `{id, scope}` of
 #   each install in the repo the run stands in that those names no longer carry,
 #   and `delisted_settings_only[]` the effective `true` enabledPlugins keys at
@@ -1097,6 +1098,7 @@ install_one() {
   if install_disabled_notice "$CLI_OUT"; then
     disabled="true"
   fi
+  INSTALLED_DISABLED="$disabled"
   trunc out "$CLI_OUT"
   unset_user_config_of unset_cfg "$CLI_OUT"
   INSTALLED_ROWS+=("$(jq -c -n --arg id "$id" --argjson rc "$CLI_RC" --arg out "$out" \
@@ -1113,10 +1115,15 @@ run_install_step() {
     # The narrow re-entry installs exactly the ids the caller's prompt returned,
     # scoped to this marketplace by the id's own `@<marketplace>` suffix.
     wanted=$(printf '%s' "${ONLY_INSTALL//,/ }")
+    # A pick is the user's choice, so a pick the CLI installed disabled by
+    # default is enabled at user scope. Only those: `enable` on a plugin that
+    # is already enabled exits 1, which would report a false failure.
     for id in $wanted; do
       [[ "$id" == *"@$mp" ]] || continue
       install_one "$id"
-      ((CLI_RC == 0)) && installed_any=1
+      ((CLI_RC == 0)) || continue
+      installed_any=1
+      [[ "$INSTALLED_DISABLED" == "true" ]] && enable_one "$id" user
     done
   elif ((gap_count > 0)) && [[ "$INSTALL_NEW" == "all" ]]; then
     while IFS= read -r id; do
@@ -1551,7 +1558,11 @@ emit_marketplace_block() {
   # The two Action-needed sources.
   jq_to unset_cfg -c '[.[] | select(.unset_user_config != null)
     | {id, options_unset: .unset_user_config.options_unset, required: .unset_user_config.required}]' <<<"$inst"
-  jq_to installed_disabled -c '[.[] | select(.rc == 0 and .disabled_by_default == true) | .id]' <<<"$inst"
+  # An id this run went on to enable at user scope is no longer disabled.
+  # shellcheck disable=SC2016  # a jq program: every $var is a jq variable
+  jq_to installed_disabled -c --argjson en "$en" '
+    [$en[] | select(.predicted == false and .rc == 0 and .scope == "user") | .id] as $on
+    | [.[] | select(.rc == 0 and .disabled_by_default == true) | .id | select(IN($on[]) | not)]' <<<"$inst"
   # A field that could not be computed becomes an empty object, never an empty
   # string: an empty --argjson would take the whole digest down with it.
   [[ -n "$div" ]] || div='{}'
