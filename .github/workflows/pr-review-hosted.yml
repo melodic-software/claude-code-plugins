@@ -1,0 +1,90 @@
+name: pr-review-hosted
+
+# SYNC-MANAGED FILE: DO NOT EDIT IN THE CONSUMING REPOSITORY.
+# Source of truth: melodic-software/standards,
+# components/claude-lanes-hosted/claude-review.yml (the
+# `claude-review-hosted-caller` component in distribution/sync-manifest.yml).
+# Downstream edits are overwritten by the next sync PR; change the component
+# upstream, or move the component to `locally-owned` in the manifest to
+# customize.
+#
+# Thin caller for the org's reusable code-review lane. The reusable workflow
+# owns the action pin, model, and the secret-handling model; per its header,
+# this caller owns the triggers, concurrency, and the GITHUB_TOKEN permission
+# grant (a called workflow can only downgrade the caller's grant, never
+# elevate it).
+#
+# The reusable skips fork PRs (they receive no secrets and a read-only token)
+# and every `[bot]` actor, so neither is reviewed by design. On a public
+# repository that means the lane reviews only pull requests from branches of
+# this repository: fork and Dependabot pull requests get no secrets.
+#
+# RUNNER PLACEMENT: hosted shape. This file runs the lane on the GitHub-hosted
+# `ubuntu-24.04` runner, which the standards `runner-policy` component admits
+# on a public repository. It is the hosted sibling of
+# components/claude-lanes/claude-review.yml, which names the private fleet
+# review label, and differs from it only in these comments, `runner` and the
+# workflow `name:`, which equals each file's stem. The job id is the same, so
+# the check context is the same on every target. A target manages one of the
+# two, never both.
+#
+# INTERIM: this per-visibility pair is removed when the runner choice moves
+# inside the ci-workflows reusable and runner-policy gains a cross-repo
+# routing kind, so one caller serves both visibilities
+# (distribution/sync-manifest.yml, the claude lane caller note).
+#
+# This lane is advisory (github-iac ADR 0011: no organization ruleset may make
+# an agentic review a merge prerequisite).
+
+on:
+  pull_request:
+    # `synchronize` re-reviews every push, including the push that resolves a
+    # merge conflict: GitHub runs no pull_request workflow while a PR
+    # conflicts with its base, so a once-per-PR trigger set silently skipped
+    # any PR that conflicted when it opened. The reusable narrows a push's
+    # review to the files changed since the lane's last completed review and
+    # skips a push that changed none of the PR's files; opened, reopened and
+    # ready_for_review review the whole PR.
+    #
+    # Re-running the job does NOT review a newer head: a re-run replays the
+    # ORIGINAL event payload. Push to review the current head.
+    types: [opened, synchronize, ready_for_review, reopened]
+
+permissions:
+  contents: read
+
+# Per-PR supersede group: a newer event for the same PR, a push included,
+# cancels the older run, so per-push reviews do not stack. A skipped actor's
+# same-PR event can cancel an in-flight review through this group; that is
+# accepted: with `synchronize`, the cancelled review was of a head the new
+# event has already superseded. This value is per-LANE and deliberate: the
+# security caller does not copy it (see its own concurrency note).
+#
+# The group is the `${{ github.workflow }}`-prefixed canonical form the
+# standards `concurrency-policy` component requires, so a target enforcing
+# that policy passes without an exemption. A file whose header says
+# downstream edits are overwritten cannot ask its consumers to normalize it
+# themselves.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  pr-review:
+    # A draft is work in progress and does not spend a review; the
+    # ready_for_review trigger above is what delivers one when it is ready.
+    if: github.event.pull_request.draft == false
+    permissions:
+      contents: read         # checkout + read the diff
+      pull-requests: write   # post review, tracking comment and the lane's
+                             # reviewed-head marker comment
+      id-token: write        # OIDC, mints the Claude GitHub App token (required
+                             # even with an OAuth/API-key credential)
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review.yml@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+    with:
+      runner: ubuntu-24.04
+    # Pass only the one named secret (least privilege) rather than
+    # `secrets: inherit`, which would forward every parent secret to the
+    # called workflow.
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
