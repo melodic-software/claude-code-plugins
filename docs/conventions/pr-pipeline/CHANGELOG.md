@@ -6,7 +6,8 @@ The runner splits in two. `version` stays 1; callers of the old file must move.
 
 - `pr-run-activity.yml` becomes `pr-run-activity-write.yml`, for every effect but `read`. It keeps
   the App key and its mint, fails red with `effect-read` on a `read` activity, and stops with
-  `bot-actor` when the lanes App bot is the sender, a `workflow_run` actor or the re-runner.
+  `bot-actor` when the lanes App bot is the sender, a `workflow_run` actor or the re-runner. A
+  `bot-actor` stop posts neutral `untrusted-trigger`, like the other trust stops.
 - New `pr-run-activity-read.yml` runs `read` activities with no App key secret and no `id-token`
   permission, and fails red with `effect-not-read` before the head checkout on any other effect.
 - Both pass the run attempt's `triggering_actor` to `check-trusted-trigger`, so a re-run by an

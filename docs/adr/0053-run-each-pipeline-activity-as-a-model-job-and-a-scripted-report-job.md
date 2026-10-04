@@ -23,7 +23,7 @@ Three facts constrain who may write that check:
 ## Decision
 
 One reusable workflow,
-[`pr-run-activity.yml`](../../.github/workflows/pr-run-activity.yml), runs one activity of one
+[`pr-run-activity.yml`](../../.github/workflows/pr-run-activity-write.yml), runs one activity of one
 lane in two jobs. Its contract is
 [`pr-run-activity.md`](../conventions/pr-pipeline/pr-run-activity.md).
 

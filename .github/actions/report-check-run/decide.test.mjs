@@ -25,6 +25,7 @@ const GATE_SKIP_REASONS = {
   "list-unreadable": "prerequisite-missing",
   fork: "untrusted-trigger",
   "no-pr": "untrusted-trigger",
+  "bot-actor": "untrusted-trigger",
   "untrusted-actor": "untrusted-trigger",
   "untrusted-author": "untrusted-trigger",
 };
@@ -258,6 +259,7 @@ test("each gate reason maps to its contract skip reason", () => {
     ["kill-switch", "kill-switch", "prerequisite-missing"],
     ["trigger", "list-unreadable", "prerequisite-missing"],
     ["trigger", "fork", "untrusted-trigger"],
+    ["trigger", "bot-actor", "untrusted-trigger"],
     ["trigger", "untrusted-actor", "untrusted-trigger"],
     ["trigger", "untrusted-author", "untrusted-trigger"],
   ];
