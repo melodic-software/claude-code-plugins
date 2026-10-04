@@ -965,6 +965,51 @@ env BASH_COMPAT=51 bash "$EMIT" --findings "$FINDINGS" --classes - --out "$TEST_
 assert_eq "case 38: a substitution-shaped rank exits 2" "2" "$?"
 assert_eq "case 38: the substitution never ran" "0" "$(path_exists "$PWNED")"
 
+# --- Case 39: a rung outside the closed set is refused whole -----------------
+#
+# The closed set is the rung table in context/stub-shape.md. A known rung still
+# writes; anything else exits 2 before any stub is written.
+OUT39="$TEST_TMPDIR/out39"
+printf '1\tstyle\tjudgment\thook\tnone\n' |
+  bash "$EMIT" --findings "$FINDINGS" --classes - --out "$OUT39" --scan-dir "$SCAN_DIR" >/dev/null 2>&1
+assert_eq "case 39: a known rung exits 0" "0" "$?"
+assert_contains "case 39: a known rung keeps its stage" "$(cat "$OUT39"/01-*.md)" "earliest-stage: tool-call"
+
+OUT39B="$TEST_TMPDIR/out39b"
+{
+  grep -v '^7	' "$CLASSES"
+  printf '7\tstyle\tjudgment\tlinter\tnone\n'
+} >"$TEST_TMPDIR/classes-badrung.tsv"
+rung_err="$(bash "$EMIT" --findings "$FINDINGS" --classes - --out "$OUT39B" --scan-dir "$SCAN_DIR" \
+  <"$TEST_TMPDIR/classes-badrung.tsv" 2>&1 >/dev/null)"
+assert_eq "case 39: an unknown rung exits 2" "2" "$?"
+assert_eq "case 39: an unknown rung writes nothing, not even the valid rows" "0" "$(path_exists "$OUT39B")"
+assert_contains "case 39: the refusal names the TSV line" "$rung_err" "line 7"
+assert_contains "case 39: the refusal names the rung last" "$rung_err" "Rung: linter"
+assert_not_contains "case 39: no unmapped stage is offered" "$rung_err" "unmapped"
+
+printf '1\tstyle\tjudgment\t*\tnone\n' |
+  bash "$EMIT" --findings "$FINDINGS" --classes - --out "$TEST_TMPDIR/out39c" --scan-dir "$SCAN_DIR" >/dev/null 2>&1
+assert_eq "case 39: a glob-shaped rung exits 2" "2" "$?"
+assert_eq "case 39: a glob-shaped rung writes nothing" "0" "$(path_exists "$TEST_TMPDIR/out39c")"
+
+# A substitution in the rung field is compared as text under the bash 5.1
+# double-expansion rules, never run.
+PWNED39="$TEST_TMPDIR/pwned39"
+printf '1\tstyle\tjudgment\t%s\tnone\n' "\$(touch $PWNED39)" >"$TEST_TMPDIR/classes-rung-inject.tsv"
+env BASH_COMPAT=51 bash "$EMIT" --findings "$FINDINGS" --classes - --out "$TEST_TMPDIR/out39d" \
+  --scan-dir "$SCAN_DIR" <"$TEST_TMPDIR/classes-rung-inject.tsv" >/dev/null 2>&1
+assert_eq "case 39: a substitution-shaped rung exits 2" "2" "$?"
+assert_eq "case 39: the rung substitution never ran" "0" "$(path_exists "$PWNED39")"
+assert_eq "case 39: a substitution-shaped rung writes nothing" "0" "$(path_exists "$TEST_TMPDIR/out39d")"
+
+# A newline inside the rung splits the row, so the field-count guard refuses it.
+printf '1\tstyle\tjudgment\tho\nok\tnone\n' >"$TEST_TMPDIR/classes-rung-newline.tsv"
+env BASH_COMPAT=51 bash "$EMIT" --findings "$FINDINGS" --classes - --out "$TEST_TMPDIR/out39e" \
+  --scan-dir "$SCAN_DIR" <"$TEST_TMPDIR/classes-rung-newline.tsv" >/dev/null 2>&1
+assert_eq "case 39: a rung holding a newline exits 2" "2" "$?"
+assert_eq "case 39: a rung holding a newline writes nothing" "0" "$(path_exists "$TEST_TMPDIR/out39e")"
+
 # --- Dry run ------------------------------------------------------------------
 
 OUTDRY="$TEST_TMPDIR/outdry"

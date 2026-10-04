@@ -132,7 +132,7 @@ refuses a home whose last path segment sits outside `[a-z0-9._-]` (that segment 
 slug, composed from operator-supplied frontmatter; a charset miss is an unsanitized value
 reaching the path), and re-reads every stub it wrote, removing all of them if any carries a
 findings-file marker. It refuses the whole TSV, writing nothing, when a line has other than five
-or six fields or its first field is not a rank in the table. Its exit codes are `2` usage or a
+or six fields, its first field is not a rank in the table, or its rung is outside the closed set. Its exit codes are `2` usage or a
 non-conforming input (findings file or TSV), `3` a refused home,
 `4` a forbidden marker. Surface a non-zero exit verbatim; never retry it into a different
 directory.

@@ -13,7 +13,7 @@ rank: <Rank>
 finding-class: <class>
 class-basis: rule-id | rule-family | dimension | judgment | unresolved
 rung: make-impossible | editorconfig-severity | analyzer-pack-rule | custom-analyzer | semgrep-rule | architecture-test | hook | llm-only
-earliest-stage: design | edit | build | commit | test | tool-call | review | unmapped
+earliest-stage: design | edit | build | commit | test | tool-call | review
 owner: <invocation, plugin name, or URL>
 ---
 
@@ -81,7 +81,8 @@ finding would have been caught.
 | `hook` | `tool-call` |
 | `llm-only` | `review` |
 
-A rung outside the table renders `unmapped`.
+A rung outside the table is refused: the run stops with exit 2, names the TSV line and the value,
+and writes nothing. An empty rung field takes the `llm-only` default.
 
 ## Filename
 
@@ -100,7 +101,8 @@ reasoning. A stub is therefore reproducible from the same findings file plus the
 The writer splits each TSV line on tabs itself, so an empty field keeps its position and takes
 its default (`unclassified`, `unresolved`, `llm-only`, `none`, or `none proposed` for the error
 text) without shifting the fields after it. A line with other than five or six fields, or whose
-first field is not a rank the `## Findings` table carries, stops the run with exit 2 and the line
+first field is not a rank the `## Findings` table carries, or whose rung is outside the table
+above, stops the run with exit 2 and the line
 number before anything is written. That is how a tab inside the error text (seven fields) and a
 newline inside it (a continuation line with one field, even one that starts with a digit) are
 caught. Fully empty lines are skipped.

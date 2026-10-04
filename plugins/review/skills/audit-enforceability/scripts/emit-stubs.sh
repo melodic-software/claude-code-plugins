@@ -1031,6 +1031,14 @@ read_classes() {
         "$lineno" "${f[0]}" >&2
       exit 2
     fi
+    # The rung is model-written: copy it to a plain local and match it with
+    # `case`, never as a subscript, so a substitution-shaped value stays text.
+    local rung="${f[3]}"
+    if [[ -n "$rung" ]] && ! stage_of_rung "$rung"; then
+      printf 'refusing: --classes line %d names a rung outside the closed set (make-impossible, editorconfig-severity, analyzer-pack-rule, custom-analyzer, semgrep-rule, architecture-test, hook, llm-only). Nothing was written. Rung: %s\n' \
+        "$lineno" "$rung" >&2
+      exit 2
+    fi
     class_of["${f[0]}"]="${f[1]}"
     basis_of["${f[0]}"]="${f[2]}"
     rung_of["${f[0]}"]="${f[3]}"
@@ -1040,7 +1048,8 @@ read_classes() {
 }
 
 # stage_of_rung <rung>: the earliest stage at which that rung's check can run.
-# One fixed table, also stated in context/stub-shape.md. Result in STAGE.
+# One fixed table, also stated in context/stub-shape.md. Result in STAGE;
+# returns 1 for a rung outside the table.
 STAGE=""
 stage_of_rung() {
   case "$1" in
@@ -1051,7 +1060,7 @@ stage_of_rung() {
   architecture-test) STAGE="test" ;;
   hook) STAGE="tool-call" ;;
   llm-only) STAGE="review" ;;
-  *) STAGE="unmapped" ;;
+  *) return 1 ;;
   esac
 }
 
