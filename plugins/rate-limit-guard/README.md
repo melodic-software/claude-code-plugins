@@ -69,9 +69,10 @@ line. The line threshold is a line setting only: the loop lanes' pause edge stay
 When a window rises from an earlier reading to the approach mark or the line threshold, or resets
 after reaching the threshold, the module shows a toast for 4 seconds, such as `5h at the 90% pause
 edge · resets 21:00 UTC`, and writes one transcript line Claude does not read, ending
-`· more: /rate-limit-guard`. A window's first reading in a session is never toasted, and neither is
-a restatement after a compaction, a resume, `/clear` or a reload: those only restate the verdict to
-Claude. The toast does not depend on `rate_limit_lines_enabled`. `rate_limit_guard_toast` set to
+`· more: /rate-limit-guard`. A window's first reading since the module loaded or the window reset is
+never toasted, and neither is a restatement after a compaction, a resume, `/clear` or a reload:
+those only restate the verdict to Claude. Windows belong to the account, so a rise across `/clear`
+or a resume is a change and is toasted. The toast does not depend on `rate_limit_lines_enabled`. `rate_limit_guard_toast` set to
 `false` drops the toast and keeps the transcript line. Outside the terminal (the Desktop app, VS
 Code, mobile), where toast drawing is unverified, the change also shows as a single row above the
 prompt, covering every window that changed, until your next prompt.
