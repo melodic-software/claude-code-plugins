@@ -379,6 +379,7 @@ check "a first failure is counted as retried, not as a background job" '[[ "$(fi
 STUB_MODE=fail stop s9
 check "2 failed attempts: counted as not judged, with the log, no name" \
   '[[ "$(field .systemMessage)" == "test judge: 1 test not judged after 2 failed attempts; see $DATA/test-judge.log." ]]'
+check "and the log names the test" 'grep -qF "judge not run after 2 failed attempts for: failing.test.ts: failing" "$DATA/test-judge.log"'
 STUB_MODE=fail stop s9
 check "no third attempt" '[[ "$(stub_calls)" == 2 ]]'
 
@@ -1216,6 +1217,7 @@ check "a test file outside the repository git names for it: no judge run and no 
 check "that is logged as a malfunction" 'grep -qF "malfunction: the test file is outside the repository git names for it, $CW/elsewhere" "$DATA/test-judge.log"'
 check "it does not block, and the test is counted for a later task end" \
   '[[ "$(field .decision)" != block && "$(field .systemMessage)" == "test judge: 1 test not judged, the next task end retries." ]]'
+check "and the log names it" 'grep -qF "not judged, the judge failed for: cw.test.ts: cwout" "$DATA/test-judge.log"'
 
 # A run Claude Code denied a tool call (the result's permission_denials) that
 # gives no test a FLAG or PASS is a malfunction: its UNKNOWN verdicts are not
@@ -1230,6 +1232,7 @@ STUB_MODE=denied stop dn1
 check "a denied run with only UNKNOWN verdicts: one run, and no verdict" '[[ "$(stub_calls)" == 1 && -z "$(verdict_files dn1)" ]]'
 check "it does not block Stop" '[[ "$(field .decision)" != block ]]'
 check "its tests are counted as retried at the next task end" '[[ "$(field .systemMessage)" == "test judge: 2 tests not judged, the next task end retries." ]]'
+check "and the log names them" 'grep -qF "not judged, the judge failed for: denied.test.ts: deny me, denied.test.ts: deny too" "$DATA/test-judge.log"'
 check "the denial is logged as a malfunction" \
   'grep -qF "malfunction: judge run on $DN: the judge was denied Read and gave no test a FLAG or PASS" "$DATA/test-judge.log"'
 # PASS, background and failed keys in one all-PASS line: a failed key is

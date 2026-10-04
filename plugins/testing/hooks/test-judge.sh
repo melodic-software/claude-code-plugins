@@ -81,6 +81,17 @@ emit() {
 }
 # plural <n> <one> <many>
 plural() { if (($1 == 1)); then printf '%s' "$2"; else printf '%s' "$3"; fi; }
+# labels <key index>...: "<file>: <name>" per key, with #n past the first of
+# a name, comma-separated: how the judge log names the tests a message counts.
+labels() {
+  local i r name out=""
+  for i in "$@"; do
+    r="${KR[$i]}" && name="${r#* }" && name="${name#* }"
+    out+="${out:+, }${KFILE[$i]##*[/\\]}: $name"
+    [[ "${r%% *}" =~ ^[0-9]+$ ]] && ((${r%% *} > 1)) && out+=" #${r%% *}"
+  done
+  printf '%s' "$out"
+}
 judge::session_set
 
 # relay_needs_decision: true when an attended Stop has a finding to show: a
@@ -339,6 +350,9 @@ done
 # into the all-PASS line when there is one. On a blocking Stop the user sees
 # the reason, so no systemMessage repeats it. At a SubagentStop the reason
 # goes to the subagent, so the systemMessage stays for the user.
+((${#failed[@]} == 0)) || judge::log "not judged, the judge failed for: $(labels "${failed[@]}")"
+((${#notrun[@]} == 0)) || judge::log "judge not run after 2 failed attempts for: $(labels "${notrun[@]}")"
+((${#limit[@]} == 0)) || judge::log "not judged, the session's judge-run limit is reached, for: $(labels "${limit[@]}")"
 bg=$((${#waiting[@]} + ${#over[@]} + ${#late[@]})) nf=${#failed[@]} later=""
 ((bg == 0)) || later="$bg more $(plural "$bg" "test is" "tests are") judged in the background, verdicts at the next task end"
 ((nf == 0)) || later+="${later:+; }$nf $(plural "$nf" test tests) not judged, the next task end retries"
