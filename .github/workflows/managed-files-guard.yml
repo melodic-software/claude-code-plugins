@@ -44,8 +44,8 @@ on:
       - .editorconfig-checker.json
       - .gitattributes
       - .github/actionlint.yaml
-      - .github/actions/comment-hygiene/comment-hygiene-patterns.sh
-      - .github/actions/machine-specific-paths/machine-path-patterns.sh
+      - .github/actions/check-comment-markers/comment-hygiene-patterns.sh
+      - .github/actions/check-machine-paths/machine-path-patterns.sh
       - .github/standards/pyright/pyrightconfig.json
       - .github/standards/runner-policy/package-lock.json
       - .github/standards/runner-policy/package.json
