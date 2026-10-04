@@ -321,6 +321,38 @@ for bad in \
   no_out "near-miss marker: $bad"
 done
 
+# Indented and quoted markers that name a pin are near-misses too.
+for bad in "  $MARKER" "> $MARKER"; do
+  new_root
+  page_lines "$bad" >"$f/$PAGE"
+  tree_file "$PIN" "${PIN_TREE[@]}"
+  set_head "$PIN"
+  run
+  want_rc "near-miss marker: $bad" 2
+  no_out "near-miss marker: $bad"
+done
+
+# A scope absent at the pin is a malformed record: exit 2, naming page and scope.
+new_root
+page_lines "**Last audited upstream state:** \`acme/widgets@$PIN\` under \`skilz/\`" >"$f/$PAGE"
+tree_file "$PIN" "${PIN_TREE[@]}"
+set_head "$NEW"
+tree_file "$NEW" "${PIN_TREE[@]}" "$B4 skilz/new/SKILL.md"
+for mode in "" --report --links; do
+  run ${mode:+"$mode"}
+  want_rc "scope absent at pin ${mode:-default}" 2
+  no_out "scope absent at pin ${mode:-default}"
+  want_err "scope absent at pin ${mode:-default}" "$PAGE: scope skilz/"
+done
+
+# The scope present at the pin but deleted at HEAD stays a D finding on the
+# row under it and a removed Map unit, not an error.
+setup "$B1 README.md"
+run
+want_rc "scope deleted at head" 1
+want_err "scope deleted at head" "$PAGE:7: acme/widgets D skills/alpha/SKILL.md"
+want_err "scope deleted at head" "$PAGE:12: acme/widgets removed unit skills/beta"
+
 # --page on a git-form page checks that page.
 setup
 run --page "$PAGE"

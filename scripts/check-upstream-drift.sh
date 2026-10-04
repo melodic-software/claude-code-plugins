@@ -113,7 +113,11 @@ url_decode() {
 parse_marker() {
   local line rest
   line="$(grep -m1 -F -- "$MARKER_PREFIX" "$1")" || return 1
-  [[ "$line" == "$MARKER_PREFIX"* ]] || return 1
+  if [[ "$line" != "$MARKER_PREFIX"* ]]; then
+    # An indented or quoted marker that names a pin is a malformed record.
+    [[ "$line" =~ $NEAR_RE ]] && return 2
+    return 1
+  fi
   if [[ "$line" =~ $STRICT_RE ]]; then
     P_OWNER="${BASH_REMATCH[1]}"
     P_REPO="${BASH_REMATCH[2]}"
@@ -366,6 +370,13 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
   if [[ -z "$FIXTURE" ]]; then
     gh api "repos/$o/$r/git/commits/$pin" --jq .sha >/dev/null 2>&1 ||
       die "$page: pin $o/$r@$pin is not a commit upstream (or gh api failed)"
+  fi
+
+  # A scope absent at the pin is a malformed record, not drift: both trees
+  # would read empty and new-unit detection would be silently off.
+  if [[ -n "$scope" ]]; then
+    tree_list "$o" "$r" "$pin" "$scope"
+    [[ -n "$OUT_TREE" ]] || die "$page: scope $scope/ does not exist in $o/$r@$pin"
   fi
 
   if [[ "$MODE" == links ]]; then

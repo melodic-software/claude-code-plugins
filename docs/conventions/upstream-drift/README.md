@@ -381,8 +381,9 @@ locally). It is a member of the check-script family
 | `--report` | on stdout, a `page` line per page (`repo=`, `pin=`, `head=`, `status=`, `path=`), then its `row`, `new-unit` and `removed-unit` lines; `path=` is always the last field, so a path holding a space, `=` or `\|` cannot shift a field | 0 clean, 1 drift, 2 error |
 | `--links` | each link that is `missing-at-pin`, `wrong-sha` or `bad-form` on stderr; the clean statement on stdout | 0 every link ok, 1 any other, 2 error |
 
-A truncated tree read, a failed API call, a missing `gh` or `jq`, a near-miss marker, or a tree
-path holding a control character exits 2 with nothing on stdout: an unread tree is never a clean
+A truncated tree read, a failed API call, a missing `gh` or `jq`, a near-miss marker (including an
+indented or quoted one), an `under` scope absent at the pin, or a tree path holding a control
+character exits 2 with nothing on stdout: an unread tree is never a clean
 report ([the fetch route's read rules](#reading-the-basis-the-fetch-route)). The script writes no
 file. A change that converts or re-pins a page runs `--links` on it.
 
