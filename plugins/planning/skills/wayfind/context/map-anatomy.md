@@ -83,6 +83,8 @@ Mode is materialized as the `needs-human` label (present = HITL). Extension poli
    `<memory_dir>/<slug>/` (default `.work/`) is the memory slice (never
    committed; slug spec shared with the pipeline skills). The map never cites a concrete
    `<memory_dir>/<slug>/` path as a coordination surface; the memory tier never holds map state.
+5. **No fog prose that an item already charts.** Charting fog is create-then-delete; an
+   interrupted run can leave the prose behind. Delete it, and chart nothing new from it.
 
 ## Graduation and closure
 

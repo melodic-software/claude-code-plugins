@@ -7,7 +7,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Changed
 
-- **`/planning:wayfind` work mode sweeps the map after every resolution.** A new step 6 rewrites or closes as moot any open item whose premise the resolution invalidated, and supersedes a closed decision found wrong with a new item that links it; the old Decisions-so-far line then points at its replacement. Fog prose is deleted from Not-yet-specified once it becomes a typed item. `context/map-anatomy.md` states the moot and superseded cases in its invariants, and eval case 9 covers the sweep.
+- **`/planning:wayfind` work mode sweeps the map after every resolution.** A new step 6 rewrites or closes as moot any open item whose premise the resolution invalidated, and supersedes a closed decision found wrong with a new item that links it; the old Decisions-so-far line then points at its replacement. A rewritten item gets its type, mode label and blocked-by edges reset, and a moot item closes as not planned. Fog prose is deleted from Not-yet-specified once it becomes a typed item, and session-start hygiene deletes any such prose an interrupted run left behind. `context/map-anatomy.md` states the moot and superseded cases in its invariants, and eval case 9 covers the sweep.
 
 ### Fixed
 
