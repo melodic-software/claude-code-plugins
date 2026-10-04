@@ -11,8 +11,8 @@
 #
 #   DIR       <path>  <state>  <claude-bytes>  <agents-bytes>
 #             One state per directory that carries a Claude-audience instruction
-#             file: content-in-claude, shim, agents-only, both-with-content, or
-#             zero-byte.
+#             file: content-in-claude, shim, shim-empty-target, agents-only,
+#             both-with-content, or zero-byte.
 #   BUDGET    <dir>  <cumulative-bytes>  <OK|OVER>
 #             AGENTS.md bytes summed along the root-to-directory path, against
 #             Codex's 32,768-byte project-doc budget. The path sum is the
@@ -53,6 +53,10 @@
 #   content-in-claude   CLAUDE.md carries content; AGENTS.md is absent or empty
 #   shim                CLAUDE.md is nothing but @AGENTS.md, beside a non-empty
 #                       AGENTS.md: the target shape while shims are needed
+#   shim-empty-target   CLAUDE.md is nothing but @AGENTS.md, but AGENTS.md is
+#                       absent or empty: the import is already the target shape
+#                       and there is no content to move, so it is not
+#                       `content-in-claude`
 #   agents-only         a non-empty AGENTS.md with no CLAUDE.md beside it
 #   both-with-content   both carry content; the split has to be decided
 #   zero-byte           every instruction file here is empty
@@ -314,7 +318,13 @@ while IFS= read -r dir; do
   elif [[ "$cb" -eq 0 ]]; then
     state="agents-only"
   elif [[ "$ab" -eq 0 ]]; then
-    state="content-in-claude"
+    # The shim test runs before the content test: a bare import over an empty
+    # AGENTS.md holds nothing to split, and `content-in-claude` would send the
+    # operator through the full sequence for it.
+    case "$(classify_claude_md "$claude")" in
+    shim) state="shim-empty-target" ;;
+    *) state="content-in-claude" ;;
+    esac
   else
     case "$(classify_claude_md "$claude")" in
     shim) state="shim" ;;

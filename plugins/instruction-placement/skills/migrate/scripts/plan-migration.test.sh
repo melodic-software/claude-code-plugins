@@ -116,6 +116,22 @@ assert_contains "an AGENTS.md with no CLAUDE.md" "$OUT" "DIR	agentsonly	agents-o
 assert_contains "both carrying content" "$OUT" "DIR	both	both-with-content"
 assert_contains "two empty files" "$OUT" "DIR	empty	zero-byte"
 
+# A bare import over an empty or missing AGENTS.md holds nothing to split, so it
+# is not content-in-claude. A comment above the import is still content.
+mkdir -p "$REPO/shimempty" "$REPO/shimmissing" "$REPO/commentempty"
+printf '@AGENTS.md\n' >"$REPO/shimempty/CLAUDE.md"
+printf '' >"$REPO/shimempty/AGENTS.md"
+printf '@AGENTS.md\n' >"$REPO/shimmissing/CLAUDE.md"
+printf '<!-- note -->\n@AGENTS.md\n' >"$REPO/commentempty/CLAUDE.md"
+printf '' >"$REPO/commentempty/AGENTS.md"
+commit_all "$REPO" "shims over an empty or missing AGENTS.md"
+OUT=$(bash "$SCRIPT" --root "$REPO" --home "$TMP/nohome")
+assert_contains "a shim over a zero-byte AGENTS.md is its own state" "$OUT" "DIR	shimempty	shim-empty-target	11	0"
+assert_contains "a shim over a missing AGENTS.md is too" "$OUT" "DIR	shimmissing	shim-empty-target	11	0"
+assert_not_contains "and neither is content-in-claude" "$OUT" "DIR	shimempty	content-in-claude"
+assert_contains "a commented import over an empty AGENTS.md still has a note to move" "$OUT" "DIR	commentempty	content-in-claude"
+assert_contains "a shim with a non-empty AGENTS.md is unchanged" "$OUT" "DIR	shimmed	shim	"
+
 # An HTML-comment note above the import does not stop it being a shim: the
 # comment is content the target shape removes, not a different load state.
 printf '<!-- see AGENTS.md -->\n@AGENTS.md\n' >"$REPO/shimmed/CLAUDE.md"
