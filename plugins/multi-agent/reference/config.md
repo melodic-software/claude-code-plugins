@@ -70,6 +70,14 @@ agent sets none. route reads no settings file, so the effort it prints is the
 level a caller asks for, before any cap. A loop lane's level is its own
 `lanes[].effort`, not the `orchestrator` role.
 
+- Pointer: [sub-agents: supported frontmatter fields](https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields)
+  (`effort` overrides the session level; with none set, the subagent inherits
+  it). The same page lists a per-invocation `model` parameter for a subagent
+  spawn and no `effort` parameter.
+- As of: 2026-10-04
+- Recheck: the page adds a per-invocation effort parameter, or changes what an
+  unset `effort` field inherits.
+
 ## Hard cap
 
 `maxEffortLevel` is the consumer's hard cap over every role and every named

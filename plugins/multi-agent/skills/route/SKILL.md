@@ -95,9 +95,14 @@ Rechecks a default that looks wrong for the current models.
   keep.
 - Role effort reaches a workflow `agent()` call only. The Agent tool takes no
   effort parameter, so a generic Agent dispatch runs at the session's level
-  whatever the map says, and a named agent at its `effort` frontmatter. The
-  route output never reflects `maxEffortLevel`; the cap applies at run time
-  ("Where effort applies" in the config page linked under Purpose).
+  whatever the map says, and a named agent at its `effort` frontmatter
+  ("Where effort applies" in the config page linked under Purpose). The route
+  output never reflects `maxEffortLevel`; the cap applies at run time ("Hard
+  cap" in the same page).
+  - Pointer: <https://code.claude.com/docs/en/sub-agents#supported-frontmatter-fields>
+  - As of: 2026-10-04
+  - Recheck: the page adds a per-invocation effort parameter, or changes what
+    an unset `effort` field inherits.
 - The `mechanical` workload runs the worker on `sonnet` by default, while
   `code` keeps the role's model. A caller that wants the session model for
   mechanical work sets `roles.worker.workloads.mechanical.model: inherit`.
