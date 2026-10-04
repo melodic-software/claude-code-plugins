@@ -153,6 +153,34 @@
         "Does NOT commit while that failure stands",
         "Does NOT edit the Planned breakage line to add tests/invoices/"
       ]
+    },
+    {
+      "id": 13,
+      "name": "code-writing-dispatch-chains",
+      "narration": true,
+      "prompt": "/implementation:implement execute the approved plan at .work/shipping-rates/PLAN.md. I'm here and reviewing each turn. The plan has three phases and no routing table, so every phase is left to this session. My code_writing option is dispatch; the repository (a git checkout on branch feat/shipping-rates, clean tree, not the home directory) has no docs/conventions/implementation.yaml.",
+      "expected_output": "Resolves code_writing to dispatch from the user option and reports that layer in one line. Runs the Step 1 prerequisite check (approved plan, feature branch, clean tree), then invokes /implementation:implement-dispatch via the Skill tool for all three phases instead of editing inline, even though the session is interactive and the plan routes nothing to workers.",
+      "files": [],
+      "expectations": [
+        "Reports code_writing: dispatch with the user option as the supplying layer",
+        "Runs the Step 1 prerequisite check before handing off",
+        "Invokes /implementation:implement-dispatch via the Skill tool for the plan's phases",
+        "Does NOT edit the plan's source files inline in this session"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "code-writing-docs-block-wins",
+      "narration": true,
+      "prompt": "/implementation:implement execute the approved plan at .work/shipping-rates/PLAN.md. I'm here and reviewing each turn. The plan has two phases and no routing table. My code_writing option is dispatch; the repository (a git checkout on branch feat/shipping-rates, clean tree, not the home directory) has docs/conventions/implementation.yaml holding `code_writing: inline`.",
+      "expected_output": "Resolves code_writing to inline from docs/conventions/implementation.yaml, which wins over the user's dispatch option, and reports that file as the supplying layer. With an interactive session, no worker routing and code_writing inline, no orchestration signal holds, so it runs the classic Step 2 inline cadence and does not chain to /implementation:implement-dispatch.",
+      "files": [],
+      "expectations": [
+        "Reports code_writing: inline with docs/conventions/implementation.yaml as the supplying layer",
+        "Runs the Step 2 inline cadence for the plan's phases",
+        "Does NOT invoke /implementation:implement-dispatch",
+        "Does NOT apply the user's dispatch value"
+      ]
     }
   ]
 }

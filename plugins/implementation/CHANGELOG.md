@@ -32,6 +32,15 @@ All notable changes to the `implementation` plugin are documented here. Format f
   the phase is marked `[DONE]`; the wave cap is unchanged. It is set per user in the new
   `drain_cadence` user config option and per repository in `docs/conventions/implementation.yaml`,
   which wins; an invalid value is named and dropped.
+- **`code_writing` chooses between inline editing and dispatch.** `inline` (the default) keeps
+  `/implementation:implement`'s current detection. `dispatch` adds a third orchestration signal:
+  after Step 1's prerequisite check, an interactive run hands every plan phase to
+  `/implementation:implement-dispatch`, which writes worker rows for the phases the plan leaves to
+  the main session and dispatches them as `implementation:implementer`. It is set per user in the
+  new `code_writing` user config option and per repository in
+  `docs/conventions/implementation.yaml`, which wins; an invalid value is named and dropped. A
+  plugin-level eval case under `evals/` checks that a repository `dispatch` reaches
+  implement-dispatch for a main-window phase.
 
 ## [0.21.3] - 2026-10-04
 

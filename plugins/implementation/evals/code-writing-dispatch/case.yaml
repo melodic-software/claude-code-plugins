@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: code-writing-dispatch
+description: a repository that sets code_writing to dispatch gets implement-dispatch for a plan that routes nothing to workers
+tags: [setting, code-writing, implement]
+expected_outcome: implement resolves code_writing dispatch from docs/conventions/implementation.yaml and, after its prerequisite check, invokes /implementation:implement-dispatch for the main-window phase instead of editing inline.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /implementation:implement execute the approved plan at .work/late-fee/PLAN.md. The plan is approved, and committing on the current branch is allowed. Do not push.
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: dispatch-invoked
+    type: tool_used
+    tool: Skill
+    input_match: implement-dispatch
+    arm: both

@@ -319,6 +319,20 @@
         "Verifies the row 2 return when it arrives rather than holding it until the Phase 3 brief is composed",
         "Does NOT apply the user's batched value"
       ]
+    },
+    {
+      "id": 25,
+      "name": "code-writing-dispatch-synthesizes-rows",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch execute the approved plan at .work/tax-export/PLAN.md. I'm reviewing each turn. The routing table marks all four phases main-window. The repository (a git checkout on branch feat/tax-export, clean tree, not the home directory) has docs/conventions/implementation.yaml holding `code_writing: dispatch`; my code_writing option is unset.",
+      "expected_output": "Resolves code_writing to dispatch from docs/conventions/implementation.yaml and reports that file as the supplying layer. Although the session is interactive and every phase is routed main-window, it does not hand back to /implementation:implement's inline cadence: it writes a worker row for each of the four phases, as the Autonomous rule does, and dispatches them in phase order. Each written row has no plan routing, so its worker is implementation:implementer at its frontmatter binding, with no per-invocation model below that binding.",
+      "files": [],
+      "expectations": [
+        "Reports code_writing: dispatch with docs/conventions/implementation.yaml as the supplying layer",
+        "Writes worker rows for the main-window phases and dispatches them in phase order",
+        "Does NOT hand any phase back to /implementation:implement's inline cadence",
+        "Dispatches the written rows as implementation:implementer without passing a model that undercuts its binding"
+      ]
     }
   ]
 }

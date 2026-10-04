@@ -37,6 +37,16 @@
         "on-arrival",
         "batched"
       ]
+    },
+    "code_writing": {
+      "type": "string",
+      "title": "Code writing",
+      "description": "Who writes the code in /implementation:implement. inline (default): this session edits, unless the run is autonomous or the plan routes phases to workers. dispatch: implement-dispatch workers write every plan phase. A repository's docs/conventions/implementation.yaml code_writing key overrides it.",
+      "default": "inline",
+      "options": [
+        "inline",
+        "dispatch"
+      ]
     }
   }
 }
