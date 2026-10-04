@@ -5,11 +5,17 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.13.1] - 2026-10-04
+## [0.13.2] - 2026-10-04
 
 ### Changed
 
 - **The `status` tool's description says when to call it and what it returns.** It names the JSON fields, says figures come from the last API response (null before the first response and right after a compaction), says to call it when the user asks how full the context is or a decision needs exact figures, and says not to poll it, since a line arrives when the zone worsens or nears a boundary.
+
+## [0.13.1] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
 
 ## [0.13.0] - 2026-10-04
 
