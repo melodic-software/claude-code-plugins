@@ -5,12 +5,12 @@
       "id": 1,
       "name": "checks-without-touching-settings",
       "prompt": "/rate-limit-guard:setup check",
-      "expected_output": "Reports node, the module's state in this session, the snapshot file's freshness against the reader contract's staleness rule, the StopFailure hook, all seven options with their effective values, and the retired-tee detector's findings; edits nothing and prints no statusline wiring to add.",
+      "expected_output": "Reports node, the module's state in this session, the snapshot file's freshness against the reader contract's staleness rule, the StopFailure hook, all eight options with their effective values, and the retired-tee detector's findings; edits nothing and prints no statusline wiring to add.",
       "files": [],
       "expectations": [
         "Reads settings files only; never writes settings, pluginConfigs, a wrapper script, or the contract directory",
         "Reports PASS/FAIL/INFO with one remediation line per FAIL",
-        "Reports each of rate_limit_guard_enabled, rate_limit_lines_enabled, rate_limit_report_mode, rate_limit_line_threshold, rate_limit_approach_pct, rate_limit_line_data and rate_limit_guard_band as its own row with its value",
+        "Reports each of rate_limit_guard_enabled, rate_limit_lines_enabled, rate_limit_report_mode, rate_limit_line_threshold, rate_limit_approach_pct, rate_limit_line_data, rate_limit_guard_band and rate_limit_guard_toast as its own row with its value",
         "Runs the retired-tee detector's three steps (stamps against the install record, cached versions holding a tee, the wiring routes)",
         "Does not tell the person to wire a statusline shim or tee: the plugin needs no wiring"
       ]
