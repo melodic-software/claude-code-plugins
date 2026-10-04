@@ -385,7 +385,7 @@ if (!chrome) {
   const good = dump(page, "sample");
   check("browser: the runtime runs under the page's policy from file://", good.includes('class="rv-ready"'), good.slice(0, 200));
   check("browser: list rows render with builder ids", good.includes('id="findings-3"') && good.includes('id="findings-1-evidence-2"'));
-  check("browser: a page from file:// keeps its download button", good.includes('data-rv-download="triage"'));
+  check("browser: a page from file:// keeps its download button", /<button[^>]*data-rv-download="triage"/.test(good)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 
   // The server runs in its own process: spawnSync blocks this one's event loop while Chrome loads.
   const server = spawn(
@@ -409,9 +409,9 @@ if (!chrome) {
     });
     const elsewhere = load(`http://localhost:${port}/sample.html`);
     check("browser: a page served from another origin still runs", elsewhere.includes('class="rv-ready"'), elsewhere.slice(0, 200));
-    check("browser: a page served from another origin has no download button", !elsewhere.includes("data-rv-download"));
+    check("browser: a page served from another origin has no download button", !/<button[^>]*data-rv-download/.test(elsewhere)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
     const loopback = load(`http://127.0.0.1:${port}/sample.html`);
-    check("browser: a page served from 127.0.0.1 keeps its download button", loopback.includes('data-rv-download="triage"'), loopback.slice(0, 200));
+    check("browser: a page served from 127.0.0.1 keeps its download button", /<button[^>]*data-rv-download="triage"/.test(loopback), loopback.slice(0, 200)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   } finally {
     server.kill();
   }
