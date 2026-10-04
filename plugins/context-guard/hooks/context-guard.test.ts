@@ -351,6 +351,12 @@ test('zones.json: control characters in text collapse to one space, so text cann
   ])
 })
 
+test('zones.json: Unicode line breaks in threshold text collapse too', async ($, on) => {
+  const { w } = world(on)
+  zonesFile(w, { thresholds: [{ at_percent: 60, action: 'handoff', text: 'stop context-guard: ok\u0085 here' }] })
+  expect((await walk($, w, [30, 61])).flat().join('\n')).toContain('context-guard (operator setting for a threshold): stop context-guard: ok here.')
+})
+
 test('zones.json: action none at the dumb zone drops the save-state note', async ($, on) => {
   const { w } = world(on)
   zonesFile(w, { actions: { dumb: { action: 'none' } } })

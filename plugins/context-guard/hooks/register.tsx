@@ -125,12 +125,26 @@ export const parseConfig = (options: Record<string, unknown>): Config & { bad: s
   }
 }
 
+// C0 and C1 controls, DEL and the Unicode line and paragraph separators each break a line
+const breaksLine = (c: number): boolean => c < 0x20 || (c >= 0x7f && c <= 0x9f) || c === 0x2028 || c === 0x2029
+const oneLine = (s: string): string => {
+  let out = ''
+  let inRun = false
+  for (const ch of s) {
+    const brk = breaksLine(ch.charCodeAt(0))
+    if (!brk) out += ch
+    else if (!inRun) out += ' '
+    inRun = brk
+  }
+  return out.trim()
+}
+
 const asRule = (value: unknown): Rule | undefined => {
   if (typeof value !== 'object' || value === null) return undefined
   const v = value as Record<string, unknown>
   if (!ACTIONS.includes(v.action as Action)) return undefined
   // one line: a newline in the operator's text must not start a line that reads as the guard's own
-  const text = typeof v.text === 'string' ? v.text.replace(/[\x00-\x1f\x7f]+/g, ' ').trim() : ''
+  const text = typeof v.text === 'string' ? oneLine(v.text) : ''
   return { action: v.action as Action, ...(text !== '' ? { text } : {}) }
 }
 
