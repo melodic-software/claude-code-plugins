@@ -1456,6 +1456,25 @@ done
 run_scan "$RO/source"
 assert_contains "(c) a whole-tree run reports the T2 read of its tracked source" "$out" \
   "test/vitest-pitch-detail-source-order.test.ts:12: reads tracked source file app/pitch-detail.tsx as text"
+# (c) git may print the toplevel in another spelling of the same directory
+# than pwd -P does (Git for Windows: C:/..., Git Bash: /c/...). A git shim
+# that appends /. to the toplevel stands in for that on every platform.
+SHIM="$TMP_ROOT/git-shim"
+mkdir -p "$SHIM"
+REAL_GIT="$(command -v git)"
+cat >"$SHIM/git" <<EOF
+#!/usr/bin/env bash
+if [[ " \$* " == *" --show-toplevel "* ]]; then
+  "$REAL_GIT" "\$@" | sed '1s|\$|/.|'
+  exit "\${PIPESTATUS[0]}"
+fi
+exec "$REAL_GIT" "\$@"
+EOF
+chmod +x "$SHIM/git"
+rc=0
+out="$(PATH="$SHIM:$PATH" CANT_FAIL_SCAN_ROOT="$RO/source" bash "$SCAN" 2>&1)" || rc=$?
+assert_contains "(c) a toplevel git spells another way than pwd -P still keeps the read" "$out" \
+  "test/vitest-pitch-detail-source-order.test.ts:12: reads tracked source file app/pitch-detail.tsx as text"
 git -C "$RO/source" rm -q --cached app/pitch-detail.tsx
 run_scan "$RO/source"
 assert_not_contains "(c) the same read of an untracked file is no finding" "$out" "rule-source-text-read"

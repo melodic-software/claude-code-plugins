@@ -630,16 +630,19 @@ n_to=0
 # so this is where a candidate read becomes a finding or is dropped.
 SOURCE_EXT_RE='\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py|cs|razor|go|sh|bash|ps1|psm1|vue|svelte)$'
 source_target() {
-  local file="$1" path="$2" cand dir rel glob
+  local file="$1" path="$2" cand dir rel glob top
   [[ "$path" =~ $SOURCE_EXT_RE && "$path" != /* ]] || return 0
   [[ -n "$TOP" ]] || TOP="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
   [[ -n "$TOP" ]] || return 0
+  # Both sides of the prefix test come from pwd -P: git may spell the same
+  # directory another way (C:/... where Git Bash's pwd prints /c/...).
+  top="$(cd "$TOP" 2>/dev/null && pwd -P)" || return 0
   for cand in "${file%/*}/$path" "$TOP/$path"; do
     [[ -f "$cand" ]] || continue
     dir="$(cd "${cand%/*}" 2>/dev/null && pwd -P)" || continue
     rel="$dir/${cand##*/}"
-    [[ "$rel" == "$TOP"/* ]] || continue
-    rel="${rel#"$TOP"/}"
+    [[ "$rel" == "$top"/* ]] || continue
+    rel="${rel#"$top"/}"
     for glob in "${all_globs[@]}"; do
       # shellcheck disable=SC2053 # the glob is a pattern on purpose
       [[ "${rel##*/}" == $glob ]] && return 0
