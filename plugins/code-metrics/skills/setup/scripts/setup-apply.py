@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """Write or update the consumer's team configuration file, idempotently.
 
-  setup-apply.py [--dir <repo-root> | --file <path>] <key>=<value>...
+  setup-apply.py [--dir <repo-root> | --file <path>] [<key>=<value>...]
 
-The target is `<repo-root>/.claude/code-metrics.yaml` (or `--file`); with
-neither option the root is what `git rev-parse --show-toplevel` reports from
-the current directory, or the current directory outside a repository. Each
+The target is `<repo-root>/docs/conventions/code-metrics.yaml` (or `--file`);
+with neither option the root is what `git rev-parse --show-toplevel` reports
+from the current directory, or the current directory outside a repository.
+When that file does not exist yet and the older `<repo-root>/.claude/
+code-metrics.yaml` does, every key of the older file is carried into the new
+one in the same write; with no `<key>=<value>` the run is that move alone. The
+older file is left in place for plugin releases that read only it. Each
 `<key>=<value>` is a dotted key from the plugin's config contract and a value
 written in the YAML subset the plugin reads (`500`, `true`, `null`,
 `"quoted"`, `[a, b]`). The existing file is parsed, the keys are merged per
@@ -41,9 +45,12 @@ yaml_subset = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(yaml_subset)
 
 HEADER = (
-    "# code-metrics configuration (team layer). Contract: the plugin's reference/config.md.\n"
+    "# code-metrics configuration (team layer). Contract: the plugin's reference/config.md;\n"
+    "# schema: the plugin's schemas/code-metrics.schema.json.\n"
     "# Layers: ~/.claude/code-metrics.yaml, this file, .claude/code-metrics.local.yaml (per-key override).\n"
 )
+TEAM_FILE = os.path.join("docs", "conventions", "code-metrics.yaml")
+LEGACY_FILE = os.path.join(".claude", "code-metrics.yaml")
 
 
 def _needs_quotes(text: str) -> bool:
@@ -152,8 +159,26 @@ def known_keys() -> set[str]:
     return keys
 
 
+def read_mapping(path: str) -> tuple[str, dict[str, Any]]:
+    """The file's text and its top-level mapping; ValueError_ when unusable."""
+    with open(path, encoding="utf-8") as handle:
+        text = handle.read()
+    try:
+        parsed = yaml_subset.parse(text)
+    except yaml_subset.YamlSubsetError as exc:
+        raise ValueError_(
+            f"{path} is outside the YAML subset ({exc}); fix it by hand first"
+        )
+    if parsed is None:
+        parsed = {}
+    if not isinstance(parsed, dict):
+        raise ValueError_(f"{path}: the top level must be a mapping")
+    return text, parsed
+
+
 def main(argv: list[str]) -> int:
     target = None
+    root: str | None = None
     assignments: list[str] = []
     i = 0
     while i < len(argv):
@@ -163,11 +188,11 @@ def main(argv: list[str]) -> int:
                 print(f"setup-apply.py: {arg} needs a value", file=sys.stderr)
                 return 2
             value = argv[i + 1]
-            target = (
-                os.path.join(value, ".claude", "code-metrics.yaml")
-                if arg == "--dir"
-                else value
-            )
+            if arg == "--dir":
+                root = value
+                target = os.path.join(value, TEAM_FILE)
+            else:
+                target = value
             i += 2
             continue
         if arg in ("-h", "--help"):
@@ -190,35 +215,26 @@ def main(argv: list[str]) -> int:
                 text=True,
                 check=False,
             )
-            root = probe.stdout.strip() if probe.returncode == 0 else ""
+            top = probe.stdout.strip() if probe.returncode == 0 else ""
         except OSError:
-            root = ""
-        target = os.path.join(root or os.getcwd(), ".claude", "code-metrics.yaml")
-    if not assignments:
-        print("setup-apply.py: at least one <key>=<value> is required", file=sys.stderr)
-        return 2
+            top = ""
+        root = top or os.getcwd()
+        target = os.path.join(root, TEAM_FILE)
     existing_text = ""
     doc: dict[str, Any] = {}
-    if os.path.isfile(target):
-        with open(target, encoding="utf-8") as handle:
-            existing_text = handle.read()
-        try:
-            parsed = yaml_subset.parse(existing_text)
-        except yaml_subset.YamlSubsetError as exc:
-            print(
-                f"setup-apply.py: {target} is outside the YAML subset ({exc}); fix it by hand first",
-                file=sys.stderr,
-            )
-            return 2
-        if parsed is None:
-            parsed = {}
-        if not isinstance(parsed, dict):
-            print(
-                f"setup-apply.py: {target}: the top level must be a mapping",
-                file=sys.stderr,
-            )
-            return 2
-        doc = parsed
+    carried_from = None
+    try:
+        if os.path.isfile(target):
+            existing_text, doc = read_mapping(target)
+        elif root is not None and os.path.isfile(os.path.join(root, LEGACY_FILE)):
+            carried_from = os.path.join(root, LEGACY_FILE)
+            _, doc = read_mapping(carried_from)
+    except ValueError_ as exc:
+        print(f"setup-apply.py: {exc}", file=sys.stderr)
+        return 2
+    if not assignments and carried_from is None:
+        print("setup-apply.py: at least one <key>=<value> is required", file=sys.stderr)
+        return 2
     known = known_keys()
     for assignment in assignments:
         key, _, raw = assignment.partition("=")
@@ -247,6 +263,11 @@ def main(argv: list[str]) -> int:
     os.makedirs(os.path.dirname(os.path.abspath(target)), exist_ok=True)
     with open(target, "w", encoding="utf-8", newline="\n") as handle:
         handle.write(HEADER + body)
+    if carried_from is not None:
+        print(
+            f"carried every key of {carried_from}; that file is no longer read "
+            "while this one exists, and can be deleted once no older plugin release reads it"
+        )
     print(f"written: {target}")
     return 0
 

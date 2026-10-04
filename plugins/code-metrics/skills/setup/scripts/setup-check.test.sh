@@ -68,19 +68,31 @@ assert_contains "python row" "$out" "PASS  python"
 (cd "$repo" && git init -q -b main && git config user.email t@example.com && git config user.name t)
 python3 "$SCRIPT_DIR/setup-apply.py" --dir "$repo" size.file_lines=500 >/dev/null
 out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home")"
-assert_row "team layer parses" "$out" "PASS  layer team +$repo/.claude/code-metrics.yaml parses"
+assert_row "team layer parses" "$out" "PASS  layer team +$repo/docs/conventions/code-metrics.yaml parses"
 assert_row "untracked team file warns" "$out" "WARN  layer team tracked +written but untracked"
 assert_row "reference from the team layer" "$out" "reference file_lines +500 \(layer: team\)"
-(cd "$repo" && git add .claude && git commit -q -m config)
+(cd "$repo" && git add docs && git commit -q -m config)
 out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home")"
 assert_row "committed team file passes" "$out" "PASS  layer team tracked +committed"
+
+# 2b. A repository with only the older .claude file: that file is the team
+#     layer, and a WARN row names the move.
+legacy_repo="$(mktemp -d)"
+mkdir -p "$legacy_repo/.claude"
+printf 'size:\n  file_lines: 420\n' >"$legacy_repo/.claude/code-metrics.yaml"
+out="$(bash "$SCRIPT" --repo-root "$legacy_repo" --home "$home")"
+rm -rf "$legacy_repo"
+assert_row "the older team file still parses" "$out" "PASS  layer team +$legacy_repo/.claude/code-metrics.yaml parses"
+assert_row "the older team file location warns" "$out" "WARN  layer team location +.*setup apply moves its keys"
+assert_row "reference from the older team file" "$out" "reference file_lines +420 \(layer: team\)"
 
 # 3. An ignored (and therefore uncommittable) team file is a FAIL and the exit
 #    code says so; a local overlay that is not ignored warns with the
 #    recommended line. git reports an ignore match only for untracked paths,
 #    so the file is untracked first.
-(cd "$repo" && git rm -q --cached .claude/code-metrics.yaml && git commit -q -m untrack)
-printf '.claude/code-metrics.yaml\n' >"$repo/.gitignore"
+(cd "$repo" && git rm -q --cached docs/conventions/code-metrics.yaml && git commit -q -m untrack)
+printf 'docs/conventions/code-metrics.yaml\n' >"$repo/.gitignore"
+mkdir -p "$repo/.claude"
 printf 'size:\n  file_lines: 7\n' >"$repo/.claude/code-metrics.local.yaml"
 out="$(bash "$SCRIPT" --repo-root "$repo" --home "$home")"
 rc=$?

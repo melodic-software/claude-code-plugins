@@ -8,8 +8,19 @@ whole):
 
   0. bundled defaults           scripts/config-defaults.json
   1. user-global                ~/.claude/code-metrics.yaml
-  2. team                       <repo>/.claude/code-metrics.yaml
+  2. team                       <repo>/docs/conventions/code-metrics.yaml, or
+                                <repo>/.claude/code-metrics.yaml when that is absent
   3. local overlay              <repo>/.claude/code-metrics.local.yaml
+
+The team layer is one file: with both present the docs/conventions file is the
+whole layer and a warning names both paths.
+
+An invalid layer never stops the run. A file outside the YAML subset is named
+and read as absent. A value of the wrong shape (a scalar where a list or a
+mapping belongs, a quoted number for a reference, a control character, an
+exclude glob the matcher cannot compile) is named with its file, key and value
+and dropped: the key resolves from a valid higher layer, else the bundled
+default, never from a lower layer.
 
 The consumer's ecosystem files (`.claude/ecosystems/<lane>.yaml`, the
 marketplace-wide ecosystem-commands convention) resolve through the same three
@@ -41,16 +52,18 @@ Options:
   --from-json <file>       skip resolution and derive the format from a document this
                            script printed earlier (the dispatcher's `--config` path)
 
-Exit 0 on success; 2 for a usage error or a layer file outside the YAML subset
-(the message names the file, the construct, and the line).
+Exit 0 on success, warnings included; 2 for a usage error, or for a
+`--from-json` document whose line-oriented field would break its line.
 """
 
 from __future__ import annotations
 
 import argparse
+import copy
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 from typing import Any
@@ -66,12 +79,21 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 LAYER_NAMES = ("user-global", "team", "local")
 SURFACE = "code-metrics"
 
-_spec = importlib.util.spec_from_file_location(
-    "yaml_subset", os.path.join(SCRIPT_DIR, "yaml_subset.py")
-)
-assert _spec is not None and _spec.loader is not None
-yaml_subset = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(yaml_subset)
+
+def _module(name: str) -> Any:
+    spec = importlib.util.spec_from_file_location(
+        name, os.path.join(SCRIPT_DIR, f"{name}.py")
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+yaml_subset = _module("yaml_subset")
+pathglob = _module("pathglob")
+
+CONTROL = re.compile(r"[\n\r\t]")
 
 
 def _reserved(key: str) -> bool:
@@ -79,13 +101,95 @@ def _reserved(key: str) -> bool:
     return key.startswith("_") or key == "thresholds"
 
 
-def _load_layer(path: str) -> dict[str, Any]:
-    value = yaml_subset.load(path)
-    if value is None:
-        return {}
-    if not isinstance(value, dict):
-        raise yaml_subset.YamlSubsetError(1, "the top level must be a mapping")
-    return value
+def _load_layer(path: str, warnings: list[str]) -> dict[str, Any] | None:
+    """The layer's mapping, or None (with a warning) when it cannot be read."""
+    try:
+        value = yaml_subset.load(path)
+        if value is not None and not isinstance(value, dict):
+            raise yaml_subset.YamlSubsetError(1, "the top level must be a mapping")
+    except yaml_subset.YamlSubsetError as exc:
+        warnings.append(f"{path}: outside the YAML subset ({exc}); layer ignored")
+        return None
+    return value or {}
+
+
+_MISSING = object()
+
+
+def _lookup(node: Any, parts: list[str]) -> Any:
+    for part in parts:
+        if not isinstance(node, dict) or part not in node:
+            return _MISSING
+        node = node[part]
+    return node
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _invalid(
+    key: str, value: Any, defaults: dict[str, Any], threshold_keys: set[str]
+) -> str | None:
+    """Why a layer's value for `key` cannot be used, or None when it can."""
+    parts = key.split(".")
+    scalars = value if isinstance(value, list) else [value]
+    if CONTROL.search(key) or any(
+        isinstance(item, str) and CONTROL.search(item) for item in scalars
+    ):
+        return (
+            "a control character (newline, carriage return or tab) would break "
+            "the resolver's line-oriented output"
+        )
+    if key in threshold_keys and not (value is None or _is_number(value)):
+        return "a reference must be a number or null"
+    default = _lookup(defaults, parts)
+    if isinstance(default, dict):
+        return "must be a mapping"
+    collectors = len(parts) == 4 and parts[0] == "lanes" and parts[2] == "collectors"
+    if (isinstance(default, list) or collectors) and not (
+        value is None or isinstance(value, list)
+    ):
+        return "must be a list or null"
+    if key == "scope.exclude" and isinstance(value, list):
+        for glob in value:
+            try:
+                re.compile(pathglob.translate(str(glob)))
+            except re.error as exc:
+                return f"{str(glob)!r} is not a usable glob ({exc})"
+    return None
+
+
+def _drop(node: dict[str, Any], parts: list[str]) -> None:
+    for part in parts[:-1]:
+        node = node[part]
+    del node[parts[-1]]
+
+
+def _reset(
+    config: dict[str, Any],
+    defaults: dict[str, Any],
+    parts: list[str],
+    layers: dict[str, str],
+) -> None:
+    """Put `parts` back to its bundled default, discarding lower layers' values."""
+    default = _lookup(defaults, parts)
+    parent: Any = config
+    for part in parts[:-1]:
+        child = parent.get(part)
+        if not isinstance(child, dict):
+            if default is _MISSING:
+                break
+            child = parent[part] = {}
+        parent = child
+    else:
+        if default is _MISSING:
+            parent.pop(parts[-1], None)
+        else:
+            parent[parts[-1]] = copy.deepcopy(default)
+    dotted = ".".join(parts)
+    for key in [k for k in layers if k == dotted or k.startswith(dotted + ".")]:
+        del layers[key]
 
 
 def merge(
@@ -132,25 +236,69 @@ def layer_paths(home: str, root: str, stem: str) -> list[tuple[str, str]]:
     ]
 
 
+def surface_layer_paths(
+    home: str, root: str, warnings: list[str]
+) -> list[tuple[str, str]]:
+    """The plugin's own three layers; the team layer prefers the docs home.
+
+    `docs/conventions/code-metrics.yaml` is the team layer (ADR 0054). The
+    older `.claude/code-metrics.yaml` is read only when the docs file is
+    absent, so a repository configured by an earlier release keeps its values.
+    """
+    paths = layer_paths(home, root, SURFACE)
+    legacy = paths[1][1]
+    docs = os.path.join(root, "docs", "conventions", f"{SURFACE}.yaml")
+    if os.path.isfile(docs):
+        if os.path.isfile(legacy):
+            warnings.append(
+                f"{docs} and {legacy} both exist; the team layer is {docs} and "
+                f"{legacy} is not read (delete it once no older plugin release reads it)"
+            )
+        paths[1] = ("team", docs)
+    return paths
+
+
 def resolve(
     defaults_path: str,
     layer_files: list[tuple[str, str]],
     ecosystem_files: dict[str, list[tuple[str, str]]],
     ladder_path: str | None,
+    warnings: list[str] | None = None,
 ) -> dict[str, Any]:
     with open(defaults_path, encoding="utf-8") as handle:
         config: Any = json.load(handle)
+    defaults = copy.deepcopy(config)
+    threshold_keys = {
+        str(entry.get("config_key"))
+        for entry in defaults.get("thresholds") or []
+        if entry.get("config_key")
+    }
     layers: dict[str, str] = {}
     files_read: list[str] = []
-    warnings: list[str] = []
+    warnings = [] if warnings is None else warnings
     for layer, path in layer_files:
         if not os.path.isfile(path):
             continue
-        overlay = _load_layer(path)
+        overlay = _load_layer(path, warnings)
+        if overlay is None:
+            continue
         for key in overlay:
             if _reserved(key):
                 warnings.append(f"{path}: key {key!r} is reserved and ignored")
         overlay = {k: v for k, v in overlay.items() if not _reserved(k)}
+        leaves: dict[str, Any] = {}
+        _walk(overlay, "", leaves)
+        for key, value in leaves.items():
+            reason = _invalid(key, value, defaults, threshold_keys)
+            if reason is None:
+                continue
+            warnings.append(
+                f"{path}: {key} = {value!r}: {reason}; this layer's value is "
+                "dropped and the key resolves from a higher layer or the bundled default"
+            )
+            parts = key.split(".")
+            _drop(overlay, parts)
+            _reset(config, defaults, parts, layers)
         config = merge(config, overlay, layer, "", layers)
         files_read.append(path.replace("\\", "/"))
     if ladder_path:
@@ -191,7 +339,10 @@ def resolve(
         for layer, path in files:
             if not os.path.isfile(path):
                 continue
-            eco = merge(eco, _load_layer(path), layer, "", eco_layers)
+            overlay = _load_layer(path, warnings)
+            if overlay is None:
+                continue
+            eco = merge(eco, overlay, layer, "", eco_layers)
             files_read.append(path.replace("\\", "/"))
         if not eco:
             continue
@@ -208,22 +359,6 @@ def resolve(
         key: {"value": value, "layer": layers.get(key, "bundled default")}
         for key, value in flat.items()
     }
-    # Every threshold reference is compared against a measured number, so a
-    # quoted number in a layer (`reference: "20"`, a string scalar) is refused
-    # here by key and layer rather than reaching the assembler as a TypeError.
-    for entry in config.get("thresholds") or []:
-        key = entry.get("config_key")
-        if not key:
-            continue
-        value = flat.get(key)
-        if value is None or (
-            isinstance(value, (int, float)) and not isinstance(value, bool)
-        ):
-            continue
-        raise ConfigTypeError(
-            f"{key} (layer {layers.get(key, 'bundled default')}) must be a number "
-            f"or null, got {type(value).__name__} {value!r}"
-        )
     config["_layers"] = layers
     config["_provenance"] = provenance
     config["_files"] = files_read
@@ -427,6 +562,7 @@ def main(argv: list[str]) -> int:
         )
         return 2
     root = (args.repo_root or repo_root()).replace("\\", "/")
+    warnings: list[str] = []
     if args.layers:
         layer_files = [(LAYER_NAMES[i], path) for i, path in enumerate(args.layers)]
         for _, path in layer_files:
@@ -438,7 +574,7 @@ def main(argv: list[str]) -> int:
                 return 2
         ecosystem_files: dict[str, list[tuple[str, str]]] = {}
     else:
-        layer_files = layer_paths(args.home, root, SURFACE)
+        layer_files = surface_layer_paths(args.home, root, warnings)
         with open(args.defaults, encoding="utf-8") as handle:
             lane_names = list((json.load(handle).get("lanes") or {}).keys())
         ecosystem_files = {
@@ -446,14 +582,10 @@ def main(argv: list[str]) -> int:
             for lane in lane_names
         }
     try:
-        config = resolve(args.defaults, layer_files, ecosystem_files, args.ladder)
-    except yaml_subset.YamlSubsetError as exc:
-        print(
-            f"resolve-config.py: a config layer is outside the YAML subset: {exc}",
-            file=sys.stderr,
+        config = resolve(
+            args.defaults, layer_files, ecosystem_files, args.ladder, warnings
         )
-        return 2
-    except (ConfigTypeError, OSError) as exc:
+    except OSError as exc:
         print(f"resolve-config.py: {exc}", file=sys.stderr)
         return 2
     for warning in config.get("_warnings", []):

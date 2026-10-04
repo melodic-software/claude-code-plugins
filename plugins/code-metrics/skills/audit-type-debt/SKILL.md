@@ -81,7 +81,8 @@ your notes and compare by hand.
 
 ## Configuration
 
-Everything tunable resolves through `.claude/code-metrics.yaml` (user-global, team, local overlay;
+Everything tunable resolves through the code-metrics layers (user-global, team
+`docs/conventions/code-metrics.yaml`, local overlay;
 per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`): the reference
 (`type_debt.reference`, `null` by default), scope exclusions (`scope.exclude`), a per-lane opt-out
 (`lanes.<lane>.enabled: false`, which drops that lane even under `--all`), and the per-lane

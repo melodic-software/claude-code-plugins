@@ -19,6 +19,8 @@ USER = str(FIXTURES / "user.yaml")
 TEAM = str(FIXTURES / "team.yaml")
 LOCAL = str(FIXTURES / "local.yaml")
 FLOW = str(FIXTURES / "flow-mapping.yaml")
+DEFAULTS = SCRIPT_DIR / "config-defaults.json"
+SCHEMA = SCRIPT_DIR.parent / "schemas" / "code-metrics.schema.json"
 
 
 def run(
@@ -120,11 +122,15 @@ class PositionalLayerTests(unittest.TestCase):
             team.write_text(
                 'scope:\n  base: "auto\\n--disable-lane python"\n', encoding="utf-8"
             )
+            # An invalid value never stops the run: the layer's value is
+            # dropped by name and the key keeps its bundled default (`auto`,
+            # which emits no line at all).
             result = run(str(team), "--format", "dispatch-args")
-            self.assertEqual(result.returncode, 2, result.stdout)
+            self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(result.stdout, "")
+            self.assertIn(str(team), result.stderr)
             self.assertIn("scope.base", result.stderr)
-            self.assertIn("newline", result.stderr)
+            self.assertIn("control character", result.stderr)
             self.assertNotIn("Traceback", result.stderr)
             # The same guard holds on the --from-json path, which is the one
             # the dispatcher actually calls and which never runs resolve().
@@ -150,40 +156,64 @@ class PositionalLayerTests(unittest.TestCase):
             self.assertEqual(result.returncode, 2, result.stdout)
             self.assertIn("tab", result.stderr)
 
-    def test_a_quoted_reference_is_a_named_type_error(self) -> None:
-        # A YAML author who writes `reference: "20"` gets a string scalar, and
-        # the assembler would compare a number against it; the resolver names
-        # the key and layer instead of letting that reach a traceback.
+    def test_a_quoted_reference_is_dropped_by_name_and_never_falls_to_a_lower_layer(
+        self,
+    ) -> None:
+        # `reference: "20"` is a string scalar the assembler cannot compare.
+        # The run goes on: the team value is named and dropped, and the key
+        # takes the bundled default 20 (reference/config.md), not the user
+        # layer's 10, because a lower layer's value never stands in for an
+        # invalid higher one.
         with tempfile.TemporaryDirectory() as tmp:
             team = Path(tmp) / "team.yaml"
             team.write_text(
-                'complexity:\n  cyclomatic:\n    reference: "20"\n',
+                'complexity:\n  cyclomatic:\n    reference: "15"\n',
                 encoding="utf-8",
             )
             result = run(USER, str(team))
-            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            d = json.loads(result.stdout)
+            self.assertEqual(
+                d["_provenance"]["complexity.cyclomatic.reference"],
+                {"value": 20, "layer": "bundled default"},
+            )
+            self.assertEqual(d["_provenance"]["size.file_lines"]["value"], 800)
+            self.assertIn(str(team), result.stderr)
             self.assertIn("complexity.cyclomatic.reference", result.stderr)
+            self.assertIn("'15'", result.stderr)
             self.assertIn("number or null", result.stderr)
-            self.assertIn("team", result.stderr)
             self.assertNotIn("Traceback", result.stderr)
-            self.assertEqual(result.stdout, "")
+            # A valid higher layer still wins over the dropped value.
+            local = Path(tmp) / "local.yaml"
+            local.write_text(
+                "complexity:\n  cyclomatic:\n    reference: 18\n", encoding="utf-8"
+            )
+            d = json.loads(run(USER, str(team), str(local)).stdout)
+            self.assertEqual(
+                d["_provenance"]["complexity.cyclomatic.reference"],
+                {"value": 18, "layer": "local"},
+            )
 
-    def test_a_scalar_exclude_is_a_named_type_error_not_a_glob_per_character(
+    def test_a_scalar_exclude_is_dropped_not_read_as_a_glob_per_character(
         self,
     ) -> None:
-        # `scope.exclude` is a closed list, and setup-apply.py will write a
-        # one-glob value as a scalar. Iterating that scalar emits `v`, `e`,
-        # `n`, ... as globs, so the audit exits 0 having measured the
-        # directory it was told to drop.
+        # `scope.exclude` is a closed list. Iterating a scalar would emit `v`,
+        # `e`, `n`, ... as globs; instead the team value is dropped and the
+        # bundled four (reference/config.md) apply, not the user layer's list.
         with tempfile.TemporaryDirectory() as tmp:
+            user = Path(tmp) / "user.yaml"
+            user.write_text('scope:\n  exclude: ["docs/**"]\n', encoding="utf-8")
             team = Path(tmp) / "team.yaml"
             team.write_text('scope:\n  exclude: "vendor/**"\n', encoding="utf-8")
-            result = run(USER, str(team), "--format", "excludes")
-            self.assertEqual(result.returncode, 2, result.stdout)
-            self.assertEqual(result.stdout, "")
+            result = run(str(user), str(team), "--format", "excludes")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                result.stdout.splitlines(),
+                ["**/node_modules/**", "**/vendor/**", "**/dist/**", "**/build/**"],
+            )
             self.assertIn("scope.exclude", result.stderr)
             self.assertIn("must be a list", result.stderr)
-            self.assertIn("team", result.stderr)
+            self.assertIn(str(team), result.stderr)
             self.assertNotIn("Traceback", result.stderr)
             # The dispatcher reads this format through --from-json, which
             # never runs resolve(), so the guard has to hold there too.
@@ -215,15 +245,37 @@ class PositionalLayerTests(unittest.TestCase):
             self.assertEqual(run(USER, "--format", "registries").stdout, "")
             team.write_text('scope:\n  registries: "one.txt"\n', encoding="utf-8")
             refused = run(USER, str(team), "--format", "registries")
-            self.assertEqual(refused.returncode, 2)
+            self.assertEqual(refused.returncode, 0, refused.stderr)
+            self.assertEqual(refused.stdout, "")
             self.assertIn("scope.registries", refused.stderr)
             self.assertIn("must be a list", refused.stderr)
 
-    def test_a_layer_outside_the_subset_is_a_named_error(self) -> None:
+    def test_an_unusable_exclude_glob_is_dropped_by_name(self) -> None:
+        # `[z-a]` compiles to no regex, so the matcher cannot apply it; the
+        # layer's list is dropped whole and the bundled list applies.
+        with tempfile.TemporaryDirectory() as tmp:
+            team = Path(tmp) / "team.yaml"
+            team.write_text(
+                'scope:\n  exclude: ["gen/**", "[z-a]"]\n', encoding="utf-8"
+            )
+            result = run(str(team), "--format", "excludes")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertNotIn("gen/**", result.stdout)
+            self.assertIn("**/vendor/**", result.stdout.splitlines())
+            self.assertIn("'[z-a]'", result.stderr)
+            self.assertIn("scope.exclude", result.stderr)
+
+    def test_a_layer_outside_the_subset_is_named_and_ignored(self) -> None:
+        # A file the parser rejects reads as absent, the shared reader's rule
+        # (lib/parse-concern-value.sh): the run continues on the other layers.
         result = run(USER, FLOW)
-        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("flow mapping", result.stderr)
         self.assertIn("line 4", result.stderr)
+        self.assertIn(FLOW, result.stderr)
+        d = json.loads(result.stdout)
+        self.assertEqual(d["_provenance"]["size.file_lines"]["value"], 800)
+        self.assertEqual(d["_files"], [USER.replace("\\", "/")])
 
     def test_missing_positional_layer_is_a_usage_error(self) -> None:
         self.assertEqual(run(str(FIXTURES / "nope.yaml")).returncode, 2)
@@ -267,6 +319,52 @@ class PositionalLayerTests(unittest.TestCase):
             self.assertEqual(
                 run("--from-json", str(Path(tmp) / "missing.json")).returncode, 2
             )
+
+
+class SchemaTests(unittest.TestCase):
+    def test_the_schema_declares_every_bundled_key_and_no_other(self) -> None:
+        # The schema validates a consumer's team file in CI; a key the
+        # resolver reads but the schema lacks would fail a valid file there.
+        schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+        defs = schema["$defs"]
+
+        def schema_keys(node: dict, prefix: str, out: set[str]) -> None:
+            if "$ref" in node:
+                node = defs[node["$ref"].rsplit("/", 1)[-1]]
+            props = node.get("properties") or {}
+            if not props:
+                out.add(prefix)
+            for key, child in props.items():
+                if key != "$schema":
+                    schema_keys(child, f"{prefix}.{key}" if prefix else key, out)
+
+        def default_keys(node: object, prefix: str, out: set[str]) -> None:
+            if isinstance(node, dict):
+                for key, child in node.items():
+                    default_keys(child, f"{prefix}.{key}" if prefix else key, out)
+            else:
+                out.add(prefix)
+
+        defaults = json.loads(DEFAULTS.read_text(encoding="utf-8"))
+        defaults.pop("thresholds")
+        lanes = defaults.pop("lanes")
+        declared: set[str] = set()
+        schema_keys(
+            {
+                "properties": {
+                    k: v for k, v in schema["properties"].items() if k != "lanes"
+                }
+            },
+            "",
+            declared,
+        )
+        bundled: set[str] = set()
+        default_keys(defaults, "", bundled)
+        self.assertEqual(declared, bundled)
+        self.assertEqual(
+            sorted(schema["properties"]["lanes"]["propertyNames"]["enum"]),
+            sorted(lanes),
+        )
 
 
 class DiscoveredLayerTests(unittest.TestCase):
@@ -324,6 +422,67 @@ class DiscoveredLayerTests(unittest.TestCase):
             self.assertEqual(
                 args, ["--lane-globs bash=*.sh,*.bats", "--disable-lane go"]
             )
+
+    def _team_files(self, root: Path, docs: str | None, legacy: str | None) -> None:
+        if docs is not None:
+            (root / "docs" / "conventions").mkdir(parents=True)
+            (root / "docs" / "conventions" / "code-metrics.yaml").write_text(
+                docs, encoding="utf-8"
+            )
+        if legacy is not None:
+            (root / ".claude").mkdir(parents=True)
+            (root / ".claude" / "code-metrics.yaml").write_text(
+                legacy, encoding="utf-8"
+            )
+
+    def test_the_team_layer_reads_the_docs_conventions_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            self._team_files(root, "size:\n  file_lines: 640\n", None)
+            result = run("--home", tmp, "--repo-root", str(root))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stderr, "")
+            d = json.loads(result.stdout)
+            self.assertEqual(
+                d["_provenance"]["size.file_lines"], {"value": 640, "layer": "team"}
+            )
+            self.assertEqual(
+                d["_files"], [f"{root.as_posix()}/docs/conventions/code-metrics.yaml"]
+            )
+
+    def test_the_claude_file_is_still_read_when_the_docs_file_is_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            self._team_files(root, None, "size:\n  file_lines: 630\n")
+            result = run("--home", tmp, "--repo-root", str(root))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            d = json.loads(result.stdout)
+            self.assertEqual(
+                d["_provenance"]["size.file_lines"], {"value": 630, "layer": "team"}
+            )
+            self.assertEqual(
+                d["_files"], [f"{root.as_posix()}/.claude/code-metrics.yaml"]
+            )
+
+    def test_with_both_files_the_docs_file_is_the_whole_team_layer(self) -> None:
+        # Location precedence, not a key merge: a key only the .claude file
+        # sets does not apply, and one warning names both paths.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            self._team_files(
+                root,
+                "size:\n  file_lines: 640\n",
+                "size:\n  file_lines: 630\ncomplexity:\n  cyclomatic:\n    reference: 9\n",
+            )
+            result = run("--home", tmp, "--repo-root", str(root))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            d = json.loads(result.stdout)
+            self.assertEqual(d["size"]["file_lines"], 640)
+            self.assertEqual(d["complexity"]["cyclomatic"]["reference"], 20)
+            warnings = [w for w in result.stderr.splitlines() if "warning" in w]
+            self.assertEqual(len(warnings), 1, result.stderr)
+            self.assertIn("docs/conventions/code-metrics.yaml", warnings[0])
+            self.assertIn(".claude/code-metrics.yaml", warnings[0])
 
     def test_all_layers_absent_is_the_bundled_defaults(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

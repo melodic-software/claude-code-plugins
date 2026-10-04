@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/code-metrics/schemas/code-metrics.schema.json",
+  "title": "code-metrics team config",
+  "description": "Schema for a repository's docs/conventions/code-metrics.yaml, the team layer of the code-metrics plugin (ADR 0054). The same keys are valid in ~/.claude/code-metrics.yaml and .claude/code-metrics.local.yaml. Every key is optional; the plugin's reference/config.md gives each key's default and meaning. Reader: scripts/resolve-config.py, which drops an invalid value by name and keeps running.",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "reference": {
+      "type": ["number", "null"],
+      "description": "A measured value at or above this number (below it for coverage and type coverage) is counted as over the reference; null reports the value and counts nothing."
+    },
+    "globs": {
+      "type": ["array", "null"],
+      "items": { "type": "string" }
+    },
+    "lane": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "false opts the lane out, even under --all."
+        },
+        "collectors": {
+          "type": "object",
+          "description": "Measure name to an ordered collector list that replaces the bundled ladder for this lane; names are checked against scripts/collector-ladder.tsv. An empty list runs no collector.",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "enum": ["change", "all"],
+          "description": "What an audit measures when no path or --all is given."
+        },
+        "base": {
+          "type": "string",
+          "description": "auto, or the ref the merge-base is taken against."
+        },
+        "exclude": {
+          "$ref": "#/$defs/globs",
+          "description": "Gitignore-style globs dropped from every measure; replaces the bundled list whole."
+        },
+        "registries": {
+          "$ref": "#/$defs/globs",
+          "description": "Sanctioned-replication registry files, each relative to the repository root."
+        }
+      }
+    },
+    "complexity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cyclomatic": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "reference": { "$ref": "#/$defs/reference" } }
+        },
+        "cognitive": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "reference": { "$ref": "#/$defs/reference" } }
+        },
+        "halstead": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "difficulty": { "$ref": "#/$defs/reference" } }
+        }
+      }
+    },
+    "size": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "enum": ["file-lines", "iso-8.2.115"] },
+        "file_lines": { "$ref": "#/$defs/reference" },
+        "function_lines_pct": { "$ref": "#/$defs/reference" }
+      }
+    },
+    "duplication": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "min_tokens": { "type": "integer", "minimum": 1 },
+        "min_lines": { "type": "integer", "minimum": 1 },
+        "ignore": { "$ref": "#/$defs/globs" },
+        "registries": {
+          "$ref": "#/$defs/globs",
+          "description": "The older name for scope.registries, read only when that list is empty."
+        },
+        "max_lines": { "type": ["integer", "null"], "minimum": 0 },
+        "max_size": {
+          "type": ["string", "integer"],
+          "pattern": "^[0-9]+(\\.[0-9]+)?\\s*([kmgKMG]?[bB])?$",
+          "minimum": 0
+        },
+        "rollup_depth": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "artifacts": { "$ref": "#/$defs/globs" },
+        "path_prefix_strip": { "$ref": "#/$defs/globs" },
+        "reference": { "$ref": "#/$defs/reference" },
+        "crap": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "reference": { "$ref": "#/$defs/reference" } }
+        }
+      }
+    },
+    "type_debt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "reference": { "$ref": "#/$defs/reference" } }
+    },
+    "lanes": {
+      "type": "object",
+      "propertyNames": {
+        "enum": ["typescript", "python", "bash", "go", "dotnet", "other"]
+      },
+      "additionalProperties": { "$ref": "#/$defs/lane" }
+    }
+  }
+}

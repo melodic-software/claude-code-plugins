@@ -1,5 +1,5 @@
 ---
-description: "Verify or configure the code-metrics plugin for this repository: `check` probes the interpreter, every configuration layer (user-global, team, local overlay, and the consumer's ecosystem files) for the YAML subset and the tracked-file guard, prints every reference with the layer that supplied it, and runs each collector adapter's probe and one measure on a bundled fixture (a version and the measure, or missing with its install hint); `apply` writes the tracked `.claude/code-metrics.yaml` team layer per key, idempotently, never installing a tool and never editing `.gitignore`. Use when: 'set up code-metrics', 'configure code metrics', 'is code-metrics configured', 'which collectors are installed', 'set the cyclomatic reference', 'change the file length reference', 'code-metrics setup', or an audit skill reports a configuration layer it could not read."
+description: "Verify or configure the code-metrics plugin for this repository: `check` probes the interpreter, every configuration layer (user-global, team, local overlay, and the consumer's ecosystem files) for the YAML subset and the tracked-file guard, prints every reference with the layer that supplied it, and runs each collector adapter's probe and one measure on a bundled fixture (a version and the measure, or missing with its install hint); `apply` writes the tracked `docs/conventions/code-metrics.yaml` team layer per key, carrying every key of an older `.claude/code-metrics.yaml`, idempotently, never installing a tool and never editing `.gitignore`. Use when: 'set up code-metrics', 'configure code metrics', 'is code-metrics configured', 'which collectors are installed', 'set the cyclomatic reference', 'change the file length reference', 'code-metrics setup', or an audit skill reports a configuration layer it could not read."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
@@ -10,9 +10,11 @@ shell: bash
 ## Purpose
 
 Every reference the plugin prints, every lane's collector order, the scope exclusions, and the
-coverage artifact paths resolve through one consumer surface, `.claude/code-metrics.yaml`,
-layered as user-global (`~/.claude/code-metrics.yaml`), team (tracked), and local overlay
-(`.claude/code-metrics.local.yaml`, gitignored) with per-key override. All three layers absent is
+coverage artifact paths resolve through one consumer surface, layered as user-global
+(`~/.claude/code-metrics.yaml`), team (`docs/conventions/code-metrics.yaml`, tracked; schema
+`${CLAUDE_PLUGIN_ROOT}/schemas/code-metrics.schema.json`), and local overlay
+(`.claude/code-metrics.local.yaml`, gitignored) with per-key override. The team file of earlier
+releases, `.claude/code-metrics.yaml`, is read only while the docs file is absent. All three layers absent is
 a valid state: every key has a bundled default. This skill is the check-centric setup for that
 surface and for the external collectors the audits probe: `check` inspects and verifies, `apply`
 persists, and neither installs anything. Keys, defaults, and provenance:
@@ -39,6 +41,8 @@ Rows, each PASS, FAIL, WARN, or INFO:
    the plugin reads (block mappings, block sequences, flow sequences of scalars, scalars,
    comments). A flow mapping, anchor, tag, or block scalar is FAIL with its line; the operator
    rewrites the file in block style.
+   **layer team location** is WARN when only the older `.claude/code-metrics.yaml` exists: that
+   file is the team layer until `apply` moves its keys.
 3. **layer team tracked**: `git check-ignore -v` on the team file reports no match (a match is
    FAIL with the rule: an ignored team layer never reaches the team) and `git ls-files
    --error-unmatch` sees it (untracked is WARN: written but uncommitted).
@@ -77,10 +81,13 @@ Exit 0 with no FAIL row, 1 with one, 2 on a usage or environment error.
    "${CLAUDE_SKILL_DIR}/scripts/setup-apply.py" size.file_lines=500 'scope.exclude=["vendor/**"]'
    ```
 
-   The script merges per key into the repository root's `.claude/code-metrics.yaml` (the root
-   git reports from the current directory; `--dir <root>` or `--file <path>` overrides it),
-   writes block style, and prints `already configured` without touching the file when nothing
-   changes.
+   The script merges per key into the repository root's `docs/conventions/code-metrics.yaml`
+   (the root git reports from the current directory; `--dir <root>` or `--file <path>` overrides
+   it), writes block style, and prints `already configured` without touching the file when
+   nothing changes. When that file does not exist yet and `.claude/code-metrics.yaml` does, the
+   first write carries every key of the older file, so the resolved values stay the same; with no
+   `<key>=<value>` the run is that move alone. The older file stays for plugin releases that read
+   only it; tell the operator it can be deleted once none does.
 4. **Verify.** Re-run `check`; report the persisted values from its table, never from the write
    alone. The tracked-file pair decides the outcome: a WARN `written but untracked` means "commit
    it to share with the team", never success; an ignored team file is FAIL and the operator's
@@ -111,6 +118,7 @@ bundled default.
 - `apply` judges idempotence on parsed content, so hand-written comments never force a rewrite
   by themselves; a value that differs does, and the file is rewritten in block style.
 - A layer written with a flow mapping (`{ enabled: true }`) is outside the subset; every audit
-  reports the file as unreadable with the line, and `check` shows the same row.
+  warns that the file was ignored, with the line, and `check` shows it as a FAIL row. A value of
+  the wrong shape is dropped by file, key and value and the audit keeps running.
 - `size.mode: iso-8.2.115` needs a collector that reports function ranges (`lizard`, `radon`);
   Bash has none, and its row says so.

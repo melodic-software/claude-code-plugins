@@ -1,4 +1,5 @@
-# .claude/code-metrics.yaml (team layer). Every key is optional; an absent
+# docs/conventions/code-metrics.yaml (team layer; schema: the plugin's
+# schemas/code-metrics.schema.json). Every key is optional; an absent
 # key keeps the bundled default. Written in the YAML subset the plugin reads:
 # block mappings, block sequences, flow sequences of scalars, scalars, and
 # comments (no flow mappings, anchors, tags, or block scalars). Layers:

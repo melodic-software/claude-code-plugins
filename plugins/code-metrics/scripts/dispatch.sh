@@ -28,7 +28,8 @@
 #
 # Configuration: without `--config`, the cascade is resolved here through
 # scripts/resolve-config.py (bundled defaults, then ~/.claude/code-metrics.yaml,
-# .claude/code-metrics.yaml, .claude/code-metrics.local.yaml, plus the
+# docs/conventions/code-metrics.yaml (or the older .claude/code-metrics.yaml
+# when that is absent), .claude/code-metrics.local.yaml, plus the
 # consumer's .claude/ecosystems/<lane>.yaml files); CODE_METRICS_HOME overrides
 # the home directory the user-global layer is read from. `--config` takes a
 # pre-resolved JSON document (the resolver's output) instead. Either way the

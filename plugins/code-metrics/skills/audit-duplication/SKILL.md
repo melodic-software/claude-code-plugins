@@ -109,8 +109,8 @@ your notes and compare by hand.
 
 ## Configuration
 
-Everything tunable resolves through `.claude/code-metrics.yaml` (user-global, team, local
-overlay; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
+Everything tunable resolves through the code-metrics layers (user-global, team
+`docs/conventions/code-metrics.yaml`, local overlay; per-key override; keys in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
 `duplication.min_tokens` (default 50), `duplication.min_lines` (default 5),
 `duplication.ignore` (globs handed to the detector's own ignore option), `duplication.max_size`
 (default `1mb`, binary units; a larger file is left out of the scan and reported), `duplication.max_lines`

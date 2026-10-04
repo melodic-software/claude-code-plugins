@@ -303,12 +303,20 @@ rc=$?
 assert_eq "an ignored directory exits 0" 0 "$rc"
 assert_doc "an ignored directory measures nothing rather than being walked" "$out" \
   'd["scope"]["files"]==0 and d["measures"]==[]'
-# A scope.exclude glob the matcher cannot use is a configuration error: dropping
-# it would measure the files the consumer asked to leave out, and still exit 0.
-(cd "$repo" && mkdir -p .claude && printf 'scope:\n  exclude: ["[z-a]"]\n' >.claude/code-metrics.yaml)
-out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>/dev/null)"
+# A scope.exclude glob the matcher cannot use never stops the run: the team
+# file's list is dropped by name on stderr and the bundled list applies.
+(cd "$repo" && mkdir -p docs/conventions && printf 'scope:\n  exclude: ["[z-a]"]\n' >docs/conventions/code-metrics.yaml)
+err_file="$(mktemp)"
+out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$repo" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>"$err_file")"
 rc=$?
-assert_eq "an unusable scope.exclude glob exits 2 rather than measuring anyway" "2:" "$rc:$out"
+err="$(cat "$err_file")"
+rm -f "$err_file"
+assert_eq "an unusable scope.exclude glob does not stop the run" 0 "$rc"
+assert_doc "the run measures with the bundled exclusions" "$out" 'd["status"]=="complete"'
+case "$err" in
+*"docs/conventions/code-metrics.yaml: scope.exclude"*"'[z-a]' is not a usable glob"*) pass "the dropped glob is named with its file and key" ;;
+*) fail "the dropped glob is named with its file and key" "names the file, scope.exclude and '[z-a]'" "$err" ;;
+esac
 rm -rf "$repo"
 
 # 13. A file whose name carries non-ASCII bytes. git quotes such a path by
@@ -499,13 +507,15 @@ python	changed.py
 python	third.py" "$(printf '%s\n' "$listing" | sort)"
 assert_eq "--print-scope lists a file no language lane claims under other" "other	.claude/code-metrics.yaml" \
   "$(printf '%s\n' "$listing" | grep 'code-metrics.yaml')"
-# A value the resolver refuses must stop the run. Reading a derived format from
-# a process substitution would report only the read's own success, so the audit
-# would exit 0 having quietly dropped the configured scope and exclusions.
+# A value the resolver refuses never stops the run and never reaches the
+# dispatcher: the line break that would smuggle in `--disable-lane python` is
+# named on stderr and dropped, so the python lane is still measured.
 (cd "$repo" && printf 'scope:\n  exclude: ["gen/**\\n--disable-lane python"]\n' >.claude/code-metrics.yaml)
 out="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>/dev/null)"
 rc=$?
-assert_eq "a refused config value stops the run instead of dropping the config" "2:" "$rc:$out"
+assert_eq "a refused config value does not stop the run" 0 "$rc"
+assert_doc "the smuggled directive did not disable the python lane" "$out" \
+  'any(r["lane"]=="python" and r["status"]=="ok" for r in d["run"])'
 err="$(cd "$repo" && PATH="$EMPTY_PATH" CODE_METRICS_HOME="$home" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>&1 >/dev/null)"
 case "$err" in
 *"scope.exclude"*) pass "the refusal names the offending key" ;;

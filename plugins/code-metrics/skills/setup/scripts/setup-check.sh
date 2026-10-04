@@ -105,7 +105,15 @@ check_layer() {
   fi
 }
 check_layer "user-global" "$HOME_DIR/.claude/code-metrics.yaml" n/a
-check_layer "team" "$REPO_ROOT/.claude/code-metrics.yaml" yes
+# The team layer is docs/conventions/code-metrics.yaml; the older
+# .claude/code-metrics.yaml is read only while that file is absent.
+team_file="$REPO_ROOT/docs/conventions/code-metrics.yaml"
+legacy_file="$REPO_ROOT/.claude/code-metrics.yaml"
+if [[ ! -f "$team_file" && -f "$legacy_file" ]]; then
+  row WARN "layer team location" "$legacy_file is the older team file; /code-metrics:setup apply moves its keys to $team_file"
+  team_file="$legacy_file"
+fi
+check_layer "team" "$team_file" yes
 check_layer "local" "$REPO_ROOT/.claude/code-metrics.local.yaml" no
 for eco in "$REPO_ROOT"/.claude/ecosystems/*.yaml; do
   [[ -f "$eco" ]] || continue

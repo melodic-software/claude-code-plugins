@@ -22,6 +22,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "setup-apply.py"
 YAML_SUBSET = SCRIPT_DIR.parents[2] / "scripts" / "yaml_subset.py"
 DEFAULTS = SCRIPT_DIR.parents[2] / "scripts" / "config-defaults.json"
+RESOLVER = SCRIPT_DIR.parents[2] / "scripts" / "resolve-config.py"
 
 _spec = importlib.util.spec_from_file_location("yaml_subset", YAML_SUBSET)
 assert _spec is not None and _spec.loader is not None
@@ -44,7 +45,7 @@ class SetupApplyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             first = run("--dir", tmp, "size.file_lines=500")
             self.assertEqual(first.returncode, 0, first.stderr)
-            target = Path(tmp) / ".claude" / "code-metrics.yaml"
+            target = Path(tmp) / "docs" / "conventions" / "code-metrics.yaml"
             self.assertIn("written", first.stdout)
             written = target.read_bytes()
             self.assertEqual(
@@ -101,18 +102,84 @@ class SetupApplyTests(unittest.TestCase):
             sub.mkdir()
             result = run("size.file_lines=500", cwd=str(sub))
             self.assertEqual(result.returncode, 0, result.stderr)
-            target = Path(tmp) / ".claude" / "code-metrics.yaml"
+            target = Path(tmp) / "docs" / "conventions" / "code-metrics.yaml"
             self.assertTrue(target.is_file(), "written at the repository root")
-            self.assertFalse((sub / ".claude").exists())
+            self.assertFalse((sub / "docs").exists())
             outside = Path(tmp) / "plain"
             outside.mkdir()
             result = run("size.file_lines=500", cwd=str(outside))
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(
-                Path(result.stdout.split()[-1]).resolve().parent.parent,
+                Path(result.stdout.split()[-1]).resolve().parents[2],
                 Path(tmp).resolve(),
                 "inside the repository, a plain subdirectory still resolves to the root",
             )
+
+    def test_a_claude_file_is_carried_whole_into_the_docs_file(self) -> None:
+        # With only the older .claude file present, the first apply writes
+        # every key it holds into the docs file in the same write, so the
+        # resolved configuration is the same before and after the move.
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / ".claude").mkdir()
+            (root / ".claude" / "code-metrics.yaml").write_text(
+                "complexity:\n  cyclomatic:\n    reference: 12\n"
+                'scope:\n  exclude: ["gen/**"]\n'
+                "lanes:\n  go:\n    enabled: false\n",
+                encoding="utf-8",
+            )
+
+            def resolved() -> dict:
+                out = subprocess.run(
+                    [sys.executable, str(RESOLVER), "--home", tmp, "--repo-root", tmp],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                ).stdout
+                # The resolved values; which file supplied them is expected
+                # to change.
+                return {
+                    k: v for k, v in json.loads(out).items() if not k.startswith("_")
+                }
+
+            before = resolved()
+            # size.mode=file-lines restates the bundled default, so the
+            # apply itself changes no resolved value.
+            result = run("--dir", tmp, "size.mode=file-lines")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            target = root / "docs" / "conventions" / "code-metrics.yaml"
+            self.assertEqual(
+                yaml_subset.parse(target.read_text(encoding="utf-8")),
+                {
+                    "complexity": {"cyclomatic": {"reference": 12}},
+                    "scope": {"exclude": ["gen/**"]},
+                    "lanes": {"go": {"enabled": False}},
+                    "size": {"mode": "file-lines"},
+                },
+            )
+            self.assertIn(".claude/code-metrics.yaml", result.stdout)
+            self.assertEqual(resolved(), before)
+
+    def test_with_no_key_a_claude_file_is_moved_and_nothing_else_is_an_error(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.assertEqual(run("--dir", tmp).returncode, 2)
+            (root / ".claude").mkdir()
+            (root / ".claude" / "code-metrics.yaml").write_text(
+                "size:\n  file_lines: 450\n", encoding="utf-8"
+            )
+            result = run("--dir", tmp)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            target = root / "docs" / "conventions" / "code-metrics.yaml"
+            self.assertEqual(
+                yaml_subset.parse(target.read_text(encoding="utf-8")),
+                {"size": {"file_lines": 450}},
+            )
+            # Once the docs file exists the .claude file is no longer carried.
+            again = run("--dir", tmp)
+            self.assertEqual(again.returncode, 2)
 
     def test_errors(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

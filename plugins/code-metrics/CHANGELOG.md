@@ -8,6 +8,12 @@ All notable changes to the `code-metrics` plugin are documented here. Format fol
 ### Added
 
 - **Clone trend in `audit-duplication`.** A run compares its clone-class count with the newest earlier kept report of the same project and scope mode that measured something. The document gains `trend` (`clone_groups`, `previous_clone_groups`, `delta`, `previous_generated_at`, `previous_document`, plus `new_classes` and `grown_classes`, each class named by its first instance with its copy count) and the markdown ends with a `Clone trend:` line; the first run in a project prints neither. Earlier reports are read as untrusted input: only a regular file of at most 5 MB with the same `schema`, a one-line timestamp and integer counts from 0 to 10^9 qualifies, and anything else is passed over for the next older report. A class's copy count stays its number of instances. New `--keep` flag: a `--json` run also keeps its document as the next run's baseline.
+- **`schemas/code-metrics.schema.json`.** A JSON Schema for every configuration key, so a repository's CI can check its team file.
+
+### Changed
+
+- **The team layer is `docs/conventions/code-metrics.yaml`.** The resolver reads it first; `.claude/code-metrics.yaml` is read only while that file is absent, and with both present the docs file is the whole team layer and one warning names both paths. `/code-metrics:setup apply` writes the docs file and, on its first write, carries every key of an existing `.claude/code-metrics.yaml`, so resolved values do not change; `apply` with no key does that move alone. `setup check` warns while only the older file exists.
+- **An invalid configuration value no longer stops an audit.** A layer outside the YAML subset is named with its line and read as absent. A value of the wrong shape (a quoted reference, a scalar where a list or mapping belongs, a control character, an exclude glob the matcher cannot compile) is named with its file, key and value and dropped; the key resolves from a valid higher layer, else the bundled default, never from a lower layer. These cases used to exit 2.
 
 ## [0.5.5] - 2026-10-03
 
