@@ -125,8 +125,10 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
 
 3. **Resolve an `ask` install gap.** When a block has a non-empty `install_gap` and
    `stopped_before_install: true` (the report says so under `Action needed`), run the batched
-   multi-select from [context/sync-install-enable.md](context/sync-install-enable.md), then
-   re-enter for Steps 4 and 5 against the same run:
+   "install and enable" multi-select from
+   [context/sync-install-enable.md](context/sync-install-enable.md), then re-enter for Steps 4 and
+   5 against the same run. The re-entry installs each pick and enables any the CLI installed
+   disabled by default:
 
    ```bash
    "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-run.sh \
@@ -228,7 +230,7 @@ when a root resolved; the self-update note when the sweep moved this plugin; the
 records and user-scope cache content sections; the `Timing:` row (the marketplace total, its slowest step,
 and the seconds outside the named steps, with the clock's resolution; a measurement with no threshold); and `Action needed` (a behind `directory` checkout with the
 `git -C <path> pull --ff-only` to run and the marketplace to resync, install and enable gaps, failed CLI calls, user-scope orphans, installs that left userConfig options unset,
-installs the CLI reported as disabled by default, plugins absent from the catalog (installed, or
+installs the CLI reported as disabled by default that this run did not enable, plugins absent from the catalog (installed, or
 only enabled in settings),
 updated plugins whose installed build declares a monitor, reorder refusals, an unsorted
 project-scope map, withheld downgrades with both versions and the likely cause, and every error).
@@ -280,8 +282,10 @@ record; for option types and fixed options, see
 [User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration) and
 [Limit a field to fixed options](https://code.claude.com/docs/en/plugins-reference#limit-a-field-to-fixed-options)):
 
-- `ask` (default). Offer every not-yet-installed catalog plugin in one batched multi-select prompt
-- `all`. Install every not-yet-installed catalog plugin automatically
+- `ask` (default). Offer every not-yet-installed catalog plugin in one batched multi-select prompt,
+  then install and enable each pick, including one the CLI installs disabled by default
+- `all`. Install every not-yet-installed catalog plugin automatically; one the CLI installs
+  disabled by default stays off and is reported
 - `none`. Report them in "Action needed" only, never install
 
 Any explicitly-set value other than these three is invalid; treat it as `ask` and note the invalid

@@ -55,8 +55,12 @@ guarantee) must key off user-scope completeness. Apply the configured
 policy. SKILL.md's **Configured value** line renders the actual value; that render, not this
 step's prose, is what to branch on:
 
-- **`ask`** (default): present every entry in one batched `AskUserQuestion` multi-select, then
-  `claude plugin install <id> -s user` for each the user picks. A dismissed or unanswered prompt
+- **`ask`** (default): present every entry in one batched `AskUserQuestion` multi-select worded
+  as "install and enable", then `claude plugin install <id> -s user` for each the user picks. A
+  pick is the user's choice, so a pick the CLI reports as disabled by default is then enabled with
+  `claude plugin enable <id> -s user`; a pick installed enabled gets no `enable`, which exits 1
+  for a plugin that is already enabled. Do not show catalog defaults in the prompt: the CLI's
+  notice, not the catalog's `defaultEnabled`, decides which picks it enables. A dismissed or unanswered prompt
   means no picks: re-enter with `--only-install ""` (SKILL.md Step 3), which installs nothing and
   still completes Step 5, and the report lists the declined gap under "Action needed". Under `ask`
   the only persistent opt-out is `enabledPlugins: false`; a decline is re-offered on the next run
@@ -93,9 +97,11 @@ per [sync.md](sync.md)'s "Run journal" section: this is a mutating call, and its
 record of what it said.
 
 **An install the CLI reports as disabled by default is installed and not loading.** `sync-run.sh`
-classifies that notice from the untruncated CLI output into the digest's `installed_disabled[]`,
-and the render says the plugin is installed but not enabled and gives `claude plugin enable <id>
--s user`. The classification keys off the CLI's line, never the catalog's `defaultEnabled`: we
+classifies that notice from the untruncated CLI output. Under `ask` it enables the pick at user
+scope, and the report lists it under `Enabled:`. Under `all` nobody chose it, so it stays off by
+the publisher's choice: the digest's `installed_disabled[]` names it, and the render says the
+plugin is installed but not enabled and gives `claude plugin enable <id> -s user`. An `ask` pick
+whose enable failed is named there too, beside the failure. The classification keys off the CLI's line, never the catalog's `defaultEnabled`: we
 observed the two disagree for one plugin.
 
 - **Pointer**: when the notice's wording or the `enabledPlugins` entry such an install leaves is in
@@ -172,18 +178,20 @@ installed plugin only when an `enabledPlugins` scope sets it `true`, whatever it
 So each enable below closes a real load gap. Verification record. Claim: an installed marketplace
 plugin no `enabledPlugins` scope names does not load, even with `defaultEnabled: true`. Basis: a
 `claude plugin list --json` fixture probe on Claude Code 2.1.280 reported every such plugin disabled
-(full record in [audit-skill-visibility](../../audit-skill-visibility/SKILL.md)); the settings
-reference agrees, saying an unlisted marketplace plugin starts `false`
-(<https://code.claude.com/docs/en/settings-reference#enabledplugins>), while the manifest reference
-still says `defaultEnabled` decides it and defaults to `true`
-(<https://code.claude.com/docs/en/plugins-reference#defaultenabled>). As of 2026-09-28. Recheck
+(full record in [audit-skill-visibility](../../audit-skill-visibility/SKILL.md)). Both docs pages
+disagree with that probe: the settings reference says a plugin with no entry at any scope falls
+back to its `defaultEnabled` value
+(<https://code.claude.com/docs/en/settings-reference#enabledplugins>), and the manifest reference
+says `defaultEnabled` decides it and defaults to `true`
+(<https://code.claude.com/docs/en/plugins-reference#defaultenabled>). As of 2026-10-04. Recheck
 trigger: a Claude Code release that changes `claude plugin list`'s `enabled` answer for an unlisted
 plugin, or either doc section changing. The excluded field is a publisher's deliberate opt-in-required default (the marketplace
 entry's value overrides the plugin's own `plugin.json` field, per
 [metadata precedence](https://code.claude.com/docs/en/plugins-reference#metadata-precedence)).
 Whatever entry the install leaves for that id, none or an explicit `false` (the probe Step 4's
 disabled-install record points at), the id is off by the publisher's choice, not a
-completeness gap, and `missing_from_enabled` excludes it either way. Never run `enable` for it. This only catches the
+completeness gap, and `missing_from_enabled` excludes it either way. This step never runs `enable`
+for it; only Step 4 does, for an `ask` pick the CLI installed disabled. This only catches the
 default recorded in the marketplace entry; a plugin whose `defaultEnabled: false` lives only in its
 own `plugin.json`, with no mirrored marketplace-entry override, is a known residual gap (`fleet-state.sh`
 reads the marketplace's catalog file, never each installed plugin's own manifest).

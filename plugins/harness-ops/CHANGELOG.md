@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.8.0] - 2026-10-04
+
+### Changed
+
+- **`/harness-ops:plugins` sync under `install_new: ask` installs and enables what the user picks.** The prompt is worded "install and enable", and a pick the CLI reports as disabled by default is enabled at user scope right after its install, so no user-scope `false` is left for it and the report lists it under `Enabled:` rather than as installed but not enabled. Only those picks are enabled, since `enable` exits 1 for a plugin that is already enabled. `install_new: all` is unchanged: such an install stays off and is reported with the enable command. The install-enable spoke now cites the settings reference's current wording, that a plugin with no `enabledPlugins` entry falls back to its `defaultEnabled` value (#6187).
+
 ## [3.7.6] - 2026-10-04
 
 ### Changed

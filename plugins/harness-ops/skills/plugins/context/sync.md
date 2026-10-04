@@ -63,7 +63,8 @@ reads a directory as it is and the user owns it), the in-repo and user-scope swe
 direction, withheld downgrades, the install and enable gaps, what was installed and enabled, the
 installs whose CLI output named userConfig options left unset
 (`installed_with_unset_user_config[]`, one `{id, options_unset, required}` each), the ids whose
-install output said the plugin is disabled by default (`installed_disabled[]`), the user-scope
+install output said the plugin is disabled by default and that this run did not then enable
+(`installed_disabled[]`), the user-scope
 installs the catalog's names no longer carry (`delisted[]`), the same for installs in the repo the
 run stands in (`delisted_project[]`, one `{id, scope}` each), the effective `true` `enabledPlugins`
 keys with no install record that those names no longer carry (`delisted_settings_only[]`; a
