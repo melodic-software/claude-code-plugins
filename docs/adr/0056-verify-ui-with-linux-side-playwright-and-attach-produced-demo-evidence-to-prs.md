@@ -10,8 +10,9 @@ what it sees, or how it puts proof on a pull request. The skills disagree and le
 
 - `/testing:run-e2e` defaults to the Playwright CLI, while the github plugin's browser-automation
   reference tells the agent to prefer Claude in Chrome first.
-- Nothing tells the agent to look at the rendered page, nothing runs an accessibility check, and
-  nothing publishes binary media to a PR: `git grep -e '--attach'` over `plugins`, `docs` and
+- No skill shared across the consuming layer tells the agent to inspect the rendered page; only
+  `/playwright:playwright` asks for a targeted screenshot read. Nothing runs an accessibility check,
+  and nothing publishes binary media to a PR: `git grep -e '--attach'` over `plugins`, `docs` and
   `.github` finds only an unrelated docker flag list (2026-10-04).
 - `/playwright:playwright` vendors `@playwright/cli` 0.1.19; the latest release is 0.1.22
   (2026-09-28), and agent hosts run whatever is installed (this host: 0.1.21).
@@ -44,8 +45,8 @@ decisions rest on:
   contested between sources.
 - **Visual checks.** An aria snapshot was identical for a broken and a correct layout in a local
   probe, while geometry assertions caught both. The best model on the DiffSpot spot-the-difference
-  benchmark reached 40.7% recall ([arXiv 2605.29615](https://arxiv.org/abs/2605.29615)); current
-  models are unmeasured. Pixel diffs depend on the rendering environment and detect change, not
+  benchmark reached 40.7% recall ([arXiv 2605.29615](https://arxiv.org/abs/2605.29615), Gemini
+  3.1 Pro); Opus 5.5 and GPT-5.5 are unmeasured. Pixel diffs depend on the rendering environment and detect change, not
   defects. No source measured any layer's catch rate on agent-changed UI.
 - **Accessibility automation.** Any single tool leaves 43-86% of failures to manual review,
   depending on the unit counted (Deque by issue volume, report undated; GDS best tool 40% of
@@ -97,9 +98,10 @@ produced video and screenshots on the PR from the user's own gh login.
    `/playwright:playwright` keeps its distilled skill and syncs to `@playwright/cli` 0.1.22 now.
 
    Basis: Claude in Chrome WSL note and Chrome 136 blog (both fetched 2026-10-04); headless and NAT
-   probes, 2026-10-04; four practitioner articles for CLI first; the Microsoft README, Better Stack and webfuse for
-   MCP in long sessions; user
-   decisions 2, 3 and 7. The real-browser row is an inference from the two primaries; the durable
+   probes, 2026-10-04; four practitioner articles for CLI first; the Microsoft README, Better Stack
+   and webfuse for MCP in long sessions; the chrome-devtools-mcp README ("Key features") and its
+   troubleshooting page's WSL section for the debugging row (fetched 2026-10-04); user decision 8
+   for the Claude-in-Chrome-from-WSL row; user decisions 2, 3 and 7. The real-browser row is an inference from the two primaries; the durable
    regression row is judgment.
 
 2. **Visual verification layers**, cheapest deterministic signal first:
@@ -135,8 +137,9 @@ produced video and screenshots on the PR from the user's own gh login.
    `GITHUB_TOKEN` cannot upload attachments. No new credential is added: no bot PAT goes into CI
    lanes that read untrusted PR text
    ([ADR 0049](0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md)).
-   Basis: the live `--attach` probe (gh 2.102.0, 2026-10-04); cli/cli#14309; upload-artifact
-   README v7.0.1; user decision 4.
+   Basis: the gh v2.99.0 release notes for `--attach` on `gh pr comment` and `gh pr edit`; the
+   live `--attach` probe (gh 2.102.0, 2026-10-04), which covered `gh pr edit` with png only;
+   cli/cli#14309; upload-artifact README v7.0.1; user decision 4.
 
 5. **Produced demo videos.** A PR demo is recorded in two passes and produced: the agent explores
    unrecorded, then replays a deterministic script at full resolution, and a post-production stage
