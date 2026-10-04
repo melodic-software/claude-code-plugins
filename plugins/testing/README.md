@@ -91,10 +91,14 @@ implementation), PASS or UNKNOWN, quotes its evidence, and proposes a diff for a
 applies anything. A background job judges soon after a write; at the end of the task the Stop hook
 waits for any run still going, judges what is left (10 tests per task end, the rest at the next
 one), writes a review-findings file (under `.work/reviews/<branch>/`), and shows the counts. In an
-interactive session, when a verdict is a FLAG or an UNKNOWN for a reason other than "no repository"
-or no judge class, it also asks Claude once to show you each verdict and proposed diff and wait.
-When every verdict is a PASS or one of those two UNKNOWN verdicts, there is nothing to decide and the stop
-is not blocked; that case, and an unattended session, get the counts and the file only. A session that ended before its verdicts were shown gets them named at
+interactive session, when a verdict is a FLAG, or an UNKNOWN that started as a FLAG and failed the
+checks below, it also asks Claude once to show you each verdict and proposed diff and wait. Every
+other UNKNOWN (no repository, no judge class, the judge's own UNKNOWN, a PASS that failed the
+checks) carries no finding: when there is no FLAG of either kind, there is nothing to decide and the stop
+is not blocked; that case, and an unattended session, get the counts and the file only. Each
+UNKNOWN records its reason kind and the verdict it started as. Tests the Stop hook does not judge
+are counted, never listed: the background jobs' pending markers name their files, and the
+judge log names the tests it failed on. A session that ended before its verdicts were shown gets them named at
 the next session start. The writing agent never supplies the judge's prompt, model or output, and
 the judge's model class always differs from every model that wrote the tests: when the configured
 class wrote them, the fallback or the next of `opus`, `sonnet`, `haiku` is used, and when all
@@ -106,7 +110,9 @@ Before a verdict is shown, each quote must appear verbatim, whitespace trimmed, 
 in another file of the repository (tracked, or untracked and not ignored), since the line of code
 an expected value restates is often the best evidence; a quote found nowhere, or a FLAG whose
 diff does not apply or touches another file, is shown as UNKNOWN with only that reason, never its
-evidence, source or diff. The repository is the git toplevel of the test file's own directory,
+evidence, source or diff. The judge's copy of the test file is kept under its blob id, so a quote
+the file held when the judge read it but an edit has since removed is reported as stale, not as
+made up. The repository is the git toplevel of the test file's own directory,
 whatever the hook's working directory, and the judge resolves it again from the file before it
 runs, so a test file in a linked worktree is judged in that worktree. In the findings file each judge field is kept on one line
 and cut at 500 characters, at most 20 quotes are shown, a diff is cut at 20,000 characters, and
@@ -124,7 +130,7 @@ steps can still race them; that residual is accepted. A
 What you can tune: both hooks on or off, the judge's model classes and effort, the per-session run
 limit, the test-file globs, adapters and rule levels in the testing config, and a per-test
 `cant-fail-ok: <reason>` marker. What is fixed: the judge's one question; its one forced turn,
-taken only when there is a FLAG or an UNKNOWN to decide, relays verdicts for you to approve, and it never gates a stop, a commit or `--check` and never
+taken only when there is a FLAG (or an UNKNOWN that started as one) to decide, relays verdicts for you to approve, and it never gates a stop, a commit or `--check` and never
 blocks on its own failure; it never applies a fix; and its malfunction guards (a
 $0.90 budget per started ten tests in one run, a 150 s hang bound, three judge runs at once per
 machine).
@@ -147,9 +153,9 @@ it is reported UNKNOWN, "no repository". The judge runs from the repository with
 `]` in the repository's path is escaped with a backslash, so the rule's gitignore pattern names
 that one directory. A test file outside the
 repository git names for it (a `core.worktree` set elsewhere) is not judged: that is logged as a
-malfunction and the test is named as not judged. A run in which Claude Code denied the judge a
+malfunction and the test is counted as not judged. A run in which Claude Code denied the judge a
 tool call (the result's `permission_denials`) and that gives no test a FLAG or PASS is a
-malfunction too: its UNKNOWN verdicts are dropped and those tests are named as not judged, so
+malfunction too: its UNKNOWN verdicts are dropped and those tests are counted as not judged, so
 they do not stop the task. A denial names a tool call, not a test, and one run judges every
 in-doubt test of the file, so a denied run that gives any FLAG or PASS keeps all its verdicts,
 UNKNOWN included, and the denial is only logged. A symbolic link inside the repository that points outside

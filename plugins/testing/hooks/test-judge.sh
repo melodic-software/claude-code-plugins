@@ -18,9 +18,8 @@
 #    2 s of it.
 # 4. Validate the verdicts, write the findings file, record them in relayed/.
 # 5. Attended (CLAUDE_CODE_SESSION_ATTENDED exactly 1): block once with the
-#    fixed template when the relayed set has a FLAG or an UNKNOWN for a
-#    reason that is not environmental (no repository, no judge class).
-#    Either way a systemMessage carries the counts and path.
+#    fixed template when the relayed set has a FLAG, or an UNKNOWN that
+#    started as a FLAG. Either way a systemMessage carries the counts and path.
 #
 # Opt-in: hooks.json starts it through exec-bash.mjs --require-true
 # TEST_GUARDS_ENABLED --require-true TEST_JUDGE_ENABLED. See judge-lib.sh.
@@ -78,19 +77,11 @@ count() {
   printf '%s %s%s' "$1" "${2:-test}" "$s"
 }
 
-# relay_needs_decision: true when an attended Stop has something to show. A
-# FLAG, or an UNKNOWN whose reason is not environmental. The two environmental
-# reasons are the ones judge::run sets without a model run, verbatim.
-relay_needs_decision() {
-  local norepo noclass
-  norepo="no repository: the judge reads only inside a git repository, and this test file is in none"
-  noclass="no judge class differs from the writers"
-  ((RELAY_F)) && return 0
-  ((RELAY_U)) || return 1
-  jq -Rne --arg norepo "$norepo" --arg noclass "$noclass" \
-    '[inputs | select(length > 0) | fromjson? | select(type == "object" and .verdict == "UNKNOWN" and .reason != $norepo and .reason != $noclass)] | length > 0' \
-    <<<"$RELAY" >/dev/null
-}
+# relay_needs_decision: true when an attended Stop has a finding to show: a
+# FLAG, or an UNKNOWN that started as a FLAG (its quote, diff or file failed
+# validation). An UNKNOWN that carries no finding (no repository, no judge
+# class, the judge's own UNKNOWN, a failed PASS) is counted, not relayed.
+relay_needs_decision() { ((RELAY_F || RELAY_UF)); }
 
 if [[ "$active" == true ]]; then
   waiting=0

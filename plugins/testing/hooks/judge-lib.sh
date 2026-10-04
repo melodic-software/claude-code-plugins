@@ -481,9 +481,11 @@ judge::pick() {
   return 1
 }
 
-# judge::harvest <raw> [reason]: split a finished run's output (or, with a
-# reason, UNKNOWN for every key) into one ledger file per key, each written to
-# a temp file and renamed. The run's sidecar <raw>.keys names the keys. False
+# judge::harvest <raw> [reason reason-kind]: split a finished run's output (or,
+# with a reason, UNKNOWN for every key) into one ledger file per key, each
+# written to a temp file and renamed. Every UNKNOWN records its reason_kind and
+# origin, the verdict it started as: UNKNOWN when the judge said so, "" when no
+# verdict came back. The run's sidecar <raw>.keys names the keys. False
 # when the output holds no usable result; a key the output leaves out gets no
 # verdict. A run whose result lists permission_denials (the authoritative
 # record of denied tool calls,
@@ -498,12 +500,12 @@ judge::harvest() {
   JUDGE_MUTED=0
   [[ -f "$raw.keys" ]] || return 1
   [[ -n "${2:-}" || -s "$raw" ]] || return 1
-  out="$(jq -rn --slurpfile meta "$raw.keys" --rawfile raw "$raw" --arg forced "${2:-}" '
+  out="$(jq -rn --slurpfile meta "$raw.keys" --rawfile raw "$raw" --arg forced "${2:-}" --arg fkind "${3:-}" '
     $meta[0] as $m
-    | (if $forced != "" then {reason: $forced}
+    | (if $forced != "" then {reason: $forced, kind: $fkind}
        else ($raw | fromjson? // {}) as $e
        | if ($e | type) != "object" then null
-         elif $e.subtype == "error_max_budget_usd" then {reason: "the judge hit its $\($m.budget) malfunction budget"}
+         elif $e.subtype == "error_max_budget_usd" then {reason: "the judge hit its $\($m.budget) malfunction budget", kind: "budget"}
          elif ($e.result | type) == "string" then
            ($e.result | (index("{") // -1) as $i | (rindex("}") // -1) as $j
              | if $i < 0 or $j < $i then null else .[$i:$j + 1] | fromjson? end) as $v
@@ -512,17 +514,22 @@ judge::harvest() {
          else null end end) as $r
     | if $r == null then empty else
       [$m.keys[] as $k
-       | (if $r.reason then {verdict: "UNKNOWN", reason: $r.reason}
+       | (if $r.reason then {verdict: "UNKNOWN", reason: $r.reason, reason_kind: $r.kind}
           else [$r.verdicts[] | select(.name == $k.name and ((.ordinal // $k.ordinal) | tostring) == ($k.ordinal | tostring))][0] end)
        | select(. != null) | {k: $k, v: .}] as $kv
       | if $r.denied == true and all($kv[]; .v.verdict | IN("FLAG", "PASS") | not) then "! muted" else
       $kv[] | .k as $k | .v as $v
       | ($v.verdict | IN("FLAG", "PASS", "UNKNOWN")) as $ok
+      | (if $ok then $v.verdict else "UNKNOWN" end) as $verdict
       | "\($k.kh) \({file: $m.file, repo: $m.repo, name: $k.name, ordinal: $k.ordinal, start: $k.start, end: $k.end,
-          verdict: (if $ok then $v.verdict else "UNKNOWN" end),
+          verdict: $verdict,
           evidence: [$v.evidence[]? | strings], source: ($v.source // "" | tostring), diff: ($v.diff // "" | tostring),
           reason: (if $ok then ($v.reason // "" | tostring) else "the judge returned no valid verdict" end),
-          model: $m.model, effort: $m.effort, judged_at: (now | todate)} | tojson)"
+          model: $m.model, effort: $m.effort, blob: ($m.blob // ""), judged_at: (now | todate)}
+        + (if $verdict != "UNKNOWN" then {}
+           elif ($v.reason_kind // "") != "" then {reason_kind: $v.reason_kind, origin: ""}
+           elif $ok then {reason_kind: "judge", origin: "UNKNOWN"}
+           else {reason_kind: "invalid", origin: ""} end) | tojson)"
       end end' 2>/dev/null)" || return 1
   [[ -n "$out" ]] || return 1
   while read -r kh json; do
@@ -556,7 +563,7 @@ judge::section1() {
 # attempt.
 judge::run() {
   local info="$1" keys="$2" t="$3" hint="$4" res="${5:-}" dir file repo owner writers n budget raw sys prompt rc kh here
-  local rule denied
+  local rule denied blob kind
   testing::fields "$info" .file .repo .owner '.writers | tojson' || {
     judge::release_run "$res"
     return 0
@@ -582,16 +589,28 @@ judge::run() {
   mkdir -p "$dir"
   raw="$dir/.run-$BASHPID-$RANDOM"
   judge::pick "$writers"
-  jq -Rn --arg file "$file" --arg repo "$repo" --arg model "$MODEL" --arg effort "$EFFORT" --arg budget "$budget" '
-    {file: $file, repo: $repo, model: $model, effort: $effort, budget: $budget,
+  # The file as the judge reads it, kept under its blob id, so a quote can be
+  # told stale (the file changed since) from made up.
+  blob=""
+  if [[ -n "$repo" ]]; then
+    blob="$(git -C "$repo" hash-object -- "$file" 2>/dev/null)"
+    blob="${blob//$'\r'/}"
+    if [[ ! "$blob" =~ ^[0-9a-f]{40,64}$ ]]; then
+      blob=""
+    elif [[ ! -f "$dir/blob-$blob" ]]; then
+      cp -- "$file" "$dir/.blob-$blob.$BASHPID" 2>/dev/null && mv -f -- "$dir/.blob-$blob.$BASHPID" "$dir/blob-$blob" || blob=""
+    fi
+  fi
+  jq -Rn --arg file "$file" --arg repo "$repo" --arg model "$MODEL" --arg effort "$EFFORT" --arg budget "$budget" --arg blob "$blob" '
+    {file: $file, repo: $repo, model: $model, effort: $effort, budget: $budget, blob: $blob,
      keys: [inputs | select(. != "") | capture("^(?<kh>[^ ]+) (?<ordinal>[0-9]+) (?<start>[0-9]+)-(?<end>[0-9]+) (?<name>.*)$")
        | .ordinal |= tonumber | .start |= tonumber | .end |= tonumber]}' <<<"$keys" >"$raw.keys"
-  rc=""
-  [[ -n "$MODEL" ]] || rc="no judge class differs from the writers"
-  [[ -n "$repo" ]] || rc="no repository: the judge reads only inside a git repository, and this test file is in none"
+  rc="" kind=""
+  [[ -n "$MODEL" ]] || rc="no judge class differs from the writers" kind=no-judge-class
+  [[ -n "$repo" ]] || rc="no repository: the judge reads only inside a git repository, and this test file is in none" kind=no-repository
   if [[ -n "$rc" ]]; then
     : >"$raw"
-    judge::harvest "$raw" "$rc"
+    judge::harvest "$raw" "$rc" "$kind"
     rm -f "$raw" "$raw.keys"
     judge::release_run "$res"
     return 0
@@ -670,19 +689,41 @@ judge::quoted_in_repo() {
 
 # judge::relay_reset: empty the relay set judge::validate fills.
 judge::relay_reset() {
-  RELAY="" RELAY_REPOS=() RELAY_N=0 RELAY_F=0 RELAY_P=0 RELAY_U=0
+  RELAY="" RELAY_REPOS=() RELAY_N=0 RELAY_F=0 RELAY_P=0 RELAY_U=0 RELAY_UF=0
 }
 judge::relay_reset
+
+# judge::grounded <repo> <snapshot> <quote>...: set GROUND to "" when every
+# quote is in a file of the repository, else to "stale" when each one that is
+# not was in the snapshot of the test file the judge read (the file changed
+# since), else to "ungrounded" (a quote was made up).
+judge::grounded() {
+  local repo="$1" snap="$2" q
+  shift 2
+  GROUND=""
+  for q in "$@"; do
+    judge::quoted_in_repo "$repo" "$q" && continue
+    if [[ -n "$snap" && -f "$snap" && "$q" != *$'\n'* ]] && grep -qF -e "$q" -- "$snap" 2>/dev/null; then
+      GROUND=stale
+    else
+      GROUND=ungrounded
+      return 0
+    fi
+  done
+}
 
 # judge::validate <verdict file> [test file]: add the verdict, as it may be
 # relayed, to RELAY (one compact JSON line each), its repository to
 # RELAY_REPOS and its verdict to the counts. A quote that is not in the
 # current file, a FLAG with no diff, or a diff that fails `git apply --check`
-# or touches another file makes it UNKNOWN, with the reason. One jq reads the
-# fields and runs the quote check; git runs only for a FLAG, and jq again only
-# to rewrite a verdict that failed.
+# or touches another file makes it UNKNOWN, with the reason, its reason_kind
+# and its origin, the verdict it started as. RELAY_UF counts the UNKNOWNs that
+# started as a FLAG: the only UNKNOWNs an attended Stop is blocked for. A
+# quote the judge-time snapshot holds but the file no longer does is stale,
+# not made up. One jq reads the fields and runs the quote check; git runs
+# only for a FLAG, and jq again only to rewrite a verdict that failed.
 judge::validate() {
-  local v="$1" file="${2:-}" json="" repo verdict ev diff why="" p n=0 known=0 text=(--arg text "")
+  local v="$1" file="${2:-}" json="" repo verdict ev diff why="" kind="" origin blob snap="" p n=0 known=0 text=(--arg text "")
   IFS= read -r -d '' json <"$v"
   json="${json%%$'\n'*}"
   if [[ -z "$file" ]]; then
@@ -699,42 +740,52 @@ judge::validate() {
     ((.evidence // []) | map(tostring | sub("^[[:space:]]+"; "") | sub("[[:space:]]+$"; "")) | map(select(. != ""))) as $e
     | (.repo // "" | tostring), "\u0000", (.verdict // "" | tostring), "\u0000",
       (if ($e | length) == 0 then "none" else "some" end), "\u0000", (.diff // "" | tostring), "\u0000",
+      (.origin // .verdict // "" | tostring), "\u0000", (.blob // "" | tostring), "\u0000",
       ($e[] | select(. as $q | $text | contains($q) | not) | (., "\u0000"))' <<<"$json" 2>/dev/null)
-  ((${#FIELDS[@]} >= 4)) || return 0
-  repo="${FIELDS[0]}" verdict="${FIELDS[1]}" ev="${FIELDS[2]}" diff="${FIELDS[3]}"
+  ((${#FIELDS[@]} >= 6)) || return 0
+  repo="${FIELDS[0]}" verdict="${FIELDS[1]}" ev="${FIELDS[2]}" diff="${FIELDS[3]}" origin="${FIELDS[4]}" blob="${FIELDS[5]}"
   [[ -n "$repo" && -d "$repo" ]] || repo=""
   ((JUDGE_WIN)) && repo="${repo//\\//}"
+  [[ "$blob" =~ ^[0-9a-f]{40,64}$ ]] && snap="${v%/*}/blob-$blob"
+  GROUND=""
+  [[ -f "$file" ]] && ((${#FIELDS[@]} > 6)) && judge::grounded "$repo" "$snap" "${FIELDS[@]:6}"
   if [[ ! -f "$file" ]]; then
-    why="the test file no longer exists"
+    why="the test file no longer exists" kind=file-gone
   elif [[ "$verdict" != UNKNOWN && "$ev" == none ]]; then
-    why="the verdict quotes no evidence"
-  elif ! judge::quoted_in_repo "$repo" "${FIELDS[@]:4}"; then
-    why="a quoted line is in no file of the repository"
+    why="the verdict quotes no evidence" kind=no-evidence
+  elif [[ "$GROUND" == ungrounded ]]; then
+    why="a quoted line is in no file of the repository" kind=ungrounded
+  elif [[ "$GROUND" == stale ]]; then
+    why="the test file changed after the judge read it: a quoted line is no longer in it" kind=stale
   elif [[ "$verdict" == FLAG && -z "$diff" ]]; then
-    why="the FLAG proposes no diff"
+    why="the FLAG proposes no diff" kind=no-diff
   elif [[ "$verdict" == FLAG && -z "$repo" ]]; then
-    why="no repository to check the proposed diff against"
+    why="no repository to check the proposed diff against" kind=diff-no-repository
   elif [[ "$verdict" == FLAG ]]; then
     # --check with --numstat -z: whether it applies and which files it
     # touches (paths unquoted), in one call that writes nothing.
     while IFS= read -r -d '' p; do
       [[ "$p" == ok ]] && n=1 && continue
       p="${p#*$'\t'}" && p="${p#*$'\t'}"
-      judge::same_path "$repo/$p" "$file" || why="the proposed diff touches another file"
+      judge::same_path "$repo/$p" "$file" || why="the proposed diff touches another file" kind=diff-other-file
     done < <(git -C "$repo" apply --check --numstat -z 2>/dev/null <<<"$diff" && printf 'ok\0')
-    ((n)) || why="the proposed diff does not apply"
+    ((n)) || why="the proposed diff does not apply" kind=diff-not-apply
   fi
   if [[ -n "$why" ]]; then
     verdict=UNKNOWN
     # Only the reason is shown: the evidence, source and diff failed.
-    json="$(jq -c --arg why "$why" '.verdict = "UNKNOWN" | .reason = $why | .evidence = [] | .source = "" | .diff = ""' <<<"$json")" || return 0
+    json="$(jq -c --arg why "$why" --arg kind "$kind" --arg origin "$origin" '.verdict = "UNKNOWN" | .reason = $why
+      | .reason_kind = $kind | .origin = $origin | .evidence = [] | .source = "" | .diff = ""' <<<"$json")" || return 0
   fi
   RELAY+="$json"$'\n'
   RELAY_N=$((RELAY_N + 1))
   case "$verdict" in
   FLAG) RELAY_F=$((RELAY_F + 1)) ;;
   PASS) RELAY_P=$((RELAY_P + 1)) ;;
-  *) RELAY_U=$((RELAY_U + 1)) ;;
+  *)
+    RELAY_U=$((RELAY_U + 1))
+    [[ "$origin" == FLAG ]] && RELAY_UF=$((RELAY_UF + 1))
+    ;;
   esac
   for p in ${RELAY_REPOS[@]+"${RELAY_REPOS[@]}"}; do [[ "$p" == "${FIELDS[0]}" ]] && known=1; done
   ((known)) || RELAY_REPOS+=("${FIELDS[0]}")
@@ -866,6 +917,7 @@ judge::findings() {
       + "\n## Verdicts\n\nEach verdict below is the judge'"'"'s output, quoted as data. Nothing here has been applied.\n"
       + ([$v[] | "\n### \(.verdict | esc) \(rel | esc) \(tname | esc) (lines \(.start | esc)-\(.end | esc))\n\n"
         + (if (.reason // "") != "" then "Reason: \(.reason | esc)\n\n" else "" end)
+        + (if .verdict == "UNKNOWN" and ((.origin // "") | IN("FLAG", "PASS")) then "The judge said \(.origin); validation made it UNKNOWN.\n\n" else "" end)
         + "Judge: \(.model | esc) at \(.effort | esc) effort.\n\n"
         + (if (.source // "") != "" then "Where the expected value came from: \(.source | esc)\n\n" else "" end)
         + ([(.evidence // [])[:20][] | "> " + esc + "\n"] | join(""))

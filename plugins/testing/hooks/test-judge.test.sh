@@ -317,10 +317,63 @@ for mode in badquote otherfile; do
   record "v$mode" w1 "$V" null
   STUB_MODE=$mode stop "v$mode"
   check "$mode: relayed as UNKNOWN" '[[ "$(field .reason)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]'
+  check "$mode: an UNKNOWN that started as a FLAG still blocks" '[[ "$(field .decision)" == block ]]'
 done
 f="$(field .reason | sed -n 's/.*Findings: \(.*\)\. Show the user.*/\1/p')"
 assert_contains "the reason for a diff touching another file is recorded" "$(cat "$f")" "the proposed diff touches another file"
+assert_contains "and the verdict it started as" "$(cat "$f")" "The judge said FLAG; validation made it UNKNOWN."
 check "a FLAG that fails validation reaches no findings row" '[[ -z "$(rows "$f")" ]]'
+
+# A PASS whose quote is found nowhere is UNKNOWN, but it carries no finding:
+# counted, and Stop is not blocked. This case stays quiet on purpose and fails
+# against a hook that blocks for every UNKNOWN not environmental.
+transcript vqp claude-sonnet-5
+VQ="$REPO/src/badquotepass.test.ts"
+js_file "$VQ" badquotepass
+record vqp w1 "$VQ" null
+STUB_MODE=badquote stop vqp
+check "a PASS with a made-up quote: counted as UNKNOWN, no block" \
+  '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]'
+f="$(field .systemMessage | sed -n 's/.*Findings: //p')"
+assert_contains "its findings record the reason and that it started as a PASS" "$(cat "$f")" \
+  "a quoted line is in no file of the repository"$'\n\n'"The judge said PASS; validation made it UNKNOWN."
+
+# A quote the judge read but an edit has since removed is stale, not made up:
+# the verdict is checked against the file as the judge read it. A stale PASS
+# is counted and does not block. This case stays quiet on purpose and fails
+# against a hook that checks quotes against the current file only.
+transcript stl claude-sonnet-5
+SQ="$REPO/src/stale.test.ts"
+printf '%s\n' "import { test, expect } from 'vitest';" "const staleSeed = 41;" "test('staleq', () => {" "  expect(1 + staleSeed).toBe(42);" "});" >"$SQ"
+record stl w1 "$SQ" null
+STUB_MODE=implquote STUB_IMPL_QUOTE="const staleSeed = 41;" bg stl w1 "$SQ"
+check "the judge's snapshot of the file is kept under its blob id" \
+  '[[ -f "$DATA/verdicts/$PKEY/stl/blob-$(git -C "$REPO" hash-object -- "$SQ")" ]]'
+printf '%s\n' "import { test, expect } from 'vitest';" "const staleSeed = 40;" "test('staleq', () => {" "  expect(1 + staleSeed).toBe(42);" "});" >"$SQ"
+stub_reset
+stop stl
+check "an edit since the judge read the file: no new judge run (the block is unchanged)" '[[ "$(stub_calls)" == 0 ]]'
+check "a stale quote: counted as UNKNOWN, no block" \
+  '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]'
+f="$(field .systemMessage | sed -n 's/.*Findings: //p')"
+assert_contains "its reason says the file changed, not that the quote was made up" "$(cat "$f")" \
+  "the test file changed after the judge read it: a quoted line is no longer in it"
+
+# A test file in a linked worktree whose quote is a line only that worktree's
+# branch holds is grounded in the worktree, though its record names the main
+# checkout.
+WTQ="$TMP/wt-q"
+git -C "$REPO" worktree add -q -b feat/wt-q "$WTQ" 2>/dev/null
+mkdir -p "$WTQ/src"
+printf '%s\n' 'export const worktreeOnly = 7;' >"$WTQ/src/wtonly.ts"
+git -C "$WTQ" add src/wtonly.ts
+git -C "$WTQ" -c user.name=t -c user.email=t@t commit -qm wtonly
+js_file "$WTQ/src/wtquote.test.ts" wtquote
+transcript wtq claude-sonnet-5
+record wtq w1 "$WTQ/src/wtquote.test.ts" null
+STUB_MODE=implquote STUB_IMPL_QUOTE="export const worktreeOnly = 7;" stop wtq
+check "a quote only the linked worktree's branch holds is grounded there" \
+  '[[ ! -e "$REPO/src/wtonly.ts" && "$(field .decision)" != block && "$(field .systemMessage)" == *"(0 FLAG, 1 PASS, 0 UNKNOWN)"* ]]'
 
 # A provenance FLAG's best evidence is often the implementation line the
 # expected value restates: a quote found in another repository file the judge
@@ -861,7 +914,12 @@ stub_reset
 STUB_MODE=denied stop dn3
 check "a denied run with a PASS keeps both UNKNOWN verdicts and the PASS" \
   '[[ "$(stub_calls)" == 1 && "$(verdict_of dn3 "deny one")" == *"\"verdict\":\"UNKNOWN\""* && "$(verdict_of dn3 "deny two")" == *"\"verdict\":\"UNKNOWN\""* && "$(verdict_of dn3 keeps)" == *"\"verdict\":\"PASS\""* ]]'
-check "its UNKNOWN verdicts block Stop" '[[ "$(field .decision)" == block && "$(field .reason)" == *"reviewed 3 tests (0 FLAG, 1 PASS, 2 UNKNOWN)"* ]]'
+# The judge's own UNKNOWN carries no finding: it is counted, and Stop is not
+# blocked for it.
+check "its UNKNOWN verdicts are counted, and do not block Stop" \
+  '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 3 tests (0 FLAG, 1 PASS, 2 UNKNOWN)"* ]]'
+check "the judge's UNKNOWN records its reason kind and origin" \
+  '[[ "$(verdict_of dn3 "deny one" | jq -c "[.reason_kind, .origin]")" == "[\"judge\",\"UNKNOWN\"]" ]]'
 check "the denial is logged, not as a malfunction" \
   'grep -qF "judge run on $DM was denied Read; it gave a FLAG or PASS, so its UNKNOWN verdicts stand" "$DATA/test-judge.log" && ! grep -qF "malfunction: judge run on $DM" "$DATA/test-judge.log"'
 # The signal is the denial Claude Code records, not the judge's prose: an
@@ -872,8 +930,8 @@ DT="$REPO/src/deniedtext.test.ts"
 js_file "$DT" "deny text"
 record dn2 w1 "$DT" null
 STUB_MODE=deniedtext stop dn2
-check "an UNKNOWN that mentions a denial, with none listed, is still relayed" \
-  '[[ "$(field .decision)" == block && "$(field .reason)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]'
+check "an UNKNOWN that mentions a denial, with none listed, is still a verdict: counted, with no block" \
+  '[[ -n "$(verdict_files dn2)" && "$(field .decision)" != block && "$(field .systemMessage)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]'
 
 # The allow rule is absolute (`//`), with a Windows path in the POSIX form
 # Claude Code matches it in; the repository is taken from the file's
