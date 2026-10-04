@@ -216,8 +216,8 @@ EOF
   # A query that succeeds but returns no node, or a null node, for the blocker (a
   # private cross-repo blocker, say) leaves its reason unread: it keeps blocking. So
   # does a blank or unparsable body, which must not escape as a usage error (exit 2).
-  # Issue 6's two closed blockers come back as one node (I2, COMPLETED) and no node at
-  # all (I6): the answered one resolves, the missing one keeps blocking.
+  # Fixture item 6 has two closed blockers that come back as one node (I2, COMPLETED)
+  # and no node at all (I6): the answered one resolves, the missing one keeps blocking.
   OUT="$(emit 6)"
   assert_eq "a blocker missing from a partial graphql answer keeps blocking" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
   assert_eq "a blocker missing from a partial graphql answer is not won't-do" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
