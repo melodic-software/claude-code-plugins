@@ -62,10 +62,8 @@ hook::buffer_stdin_to INPUT \
   '.notification_type // "unknown"' \
   '.message // "Needs your attention"' || exit 0
 
-# jq is load-bearing for parsing; absent → skip. No notice: Claude Code
-# discards a Notification hook's systemMessage
-# (https://code.claude.com/docs/en/hooks#notification), so nobody would read
-# it. /desktop-notification:check reports the missing jq.
+# jq is load-bearing for parsing; absent → skip.
+# silent-skip-ok: Claude Code discards a Notification hook's systemMessage (https://code.claude.com/docs/en/hooks#notification), so no notice can be read; /desktop-notification:check reports the missing jq.
 command -v jq >/dev/null 2>&1 || exit 0
 
 # Strip ALL C0 control bytes (\001-\037 — includes ESC, BEL, CR, LF, TAB) from
