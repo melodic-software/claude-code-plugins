@@ -13,6 +13,13 @@
 # the stricter of the two paths.
 #
 #   changelog_fragments::in_mode <plugin>         0 when <plugin> is listed
+#   changelog_fragments::is_release_pr            0 when CHANGELOG_HEAD_REF is
+#                                                 $CF_RELEASE_BRANCH. CI sets it to
+#                                                 the head branch of a pull request
+#                                                 from this repository, never a fork,
+#                                                 so only the release pull request,
+#                                                 which release-plugins.yml writes,
+#                                                 answers 0
 #   changelog_fragments::bump_of <file>           print the fragment's bump; 1 and
 #                                                 a reason on stdout when the front
 #                                                 matter is malformed
@@ -37,6 +44,7 @@ if ! declare -F read_list::into >/dev/null 2>&1; then
 fi
 
 CF_LIST="scripts/fragment-plugins.txt"
+CF_RELEASE_BRANCH="release/plugins"
 CF_SECTIONS="Added Changed Deprecated Removed Fixed Security"
 
 declare -gA _CF_MODE=()
@@ -54,6 +62,10 @@ changelog_fragments::in_mode() {
     fi
   fi
   [[ -n "${_CF_MODE[$1]:-}" ]]
+}
+
+changelog_fragments::is_release_pr() {
+  [[ "${CHANGELOG_HEAD_REF:-}" == "$CF_RELEASE_BRANCH" ]]
 }
 
 changelog_fragments::bump_of() {
