@@ -1,6 +1,6 @@
 {
   "name": "markdown-format",
-  "version": "0.12.5",
+  "version": "0.12.9",
   "description": "Auto-format and lint Markdown on edit via markdownlint-cli2, only in repos that carry their own markdownlint config.",
   "author": {
     "name": "Melodic Software",

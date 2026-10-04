@@ -17,13 +17,6 @@ activities:
     inputs: [changed-paths]
     applies-when:
       paths: ["**/*.md"]
-  format:
-    skill: toolchain:lint
-    args: --fix
-    effect: mutate-branch
-    gating: advisory
-    reads-untrusted: false
-    inputs: [changed-paths]
   run-tests:
     skill: toolchain:check
     effect: read
@@ -38,6 +31,8 @@ activities:
     inputs: [head-sha, changed-paths]
   claude:
     skill: review:code-review
+    model: opus
+    max-turns: 100
     effect: publish-artifact
     gating: gate
     reads-untrusted: true
@@ -114,7 +109,6 @@ lanes:
     slots:
       - activity: simplify
       - activity: fix-docs
-      - activity: format
   pr-run-checks:
     stage: verify
     slots:
@@ -148,7 +142,10 @@ lanes:
   pr-fix-ci:
     stage: respond
     slots:
+      # Runs head code with a write token; off until the split design (a
+      # read-only run, then a separate signed-commit step) exists.
       - activity: fix-ci
+        enabled: false
   pr-update:
     stage: respond
     slots:

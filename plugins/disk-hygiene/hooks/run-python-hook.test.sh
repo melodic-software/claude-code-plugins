@@ -481,10 +481,10 @@ done
 MONITOR_OUT="$(
   PATH="$FAKE_BIN:$PATH" bash "$LAUNCHER" \
     "$SCRIPT_DIR/../skills/clean/scripts/guard_launch_monitor.py" \
-    --data-root /tmp/disk-hygiene-test 2>/dev/null || true
+    --data-root /tmp/disk-hygiene-test </dev/null 2>/dev/null || true
 )"
 assert_contains "monitor mode warns when python is unavailable" "systemMessage" "$MONITOR_OUT"
-assert_contains "monitor mode names the guard" "destructive guard" "$MONITOR_OUT"
+assert_contains "monitor mode names the missing interpreter" "no usable Python 3" "$MONITOR_OUT"
 assert_eq "monitor mode's no-interpreter output is valid JSON" "true" \
   "$(jq -e 'has("systemMessage")' <<<"$MONITOR_OUT" 2>/dev/null || echo false)"
 
@@ -536,7 +536,7 @@ engine_payload='{"session_id":"s-engine","tool_name":"Bash","tool_input":{"comma
 nopy_guard "$engine_payload" --marker-root "$NOPY_DIR/data" --launch-marker guard-launch-monitor \
   "$GUARD" --mode engine-gate
 assert_eq "engine-gate without python denies a command naming the engine" "2" "$NOPY_RC"
-assert_contains "the engine deny says the guard could not run" "could not run" "$NOPY_ERR"
+assert_contains "the engine deny names the missing interpreter" "no usable Python 3" "$NOPY_ERR"
 assert_contains "the engine deny names the remedy" "/disk-hygiene:check" "$NOPY_ERR"
 assert_eq "the engine deny prints no allow-shaped stdout" "" "$NOPY_OUT"
 
@@ -554,11 +554,10 @@ nopy_guard "$plain_payload" --marker-root "$NOPY_DIR/data" --launch-marker guard
   "$GUARD" --mode engine-gate
 assert_eq "engine-gate without python lets a marker-free command proceed" "0" "$NOPY_RC"
 assert_eq "the marker-free proceed carries a systemMessage" "true" \
-  "$(jq -e '.systemMessage | test("could not run")' <<<"$NOPY_OUT" 2>/dev/null || echo false)"
-assert_eq "the marker-free proceed carries additionalContext" "true" \
-  "$(jq -e '.hookSpecificOutput.hookEventName == "PreToolUse" and (.hookSpecificOutput.additionalContext | test("could not run"))' <<<"$NOPY_OUT" 2>/dev/null || echo false)"
-assert_eq "the marker-free proceed makes no permission decision" "false" \
-  "$(jq -r '.hookSpecificOutput | has("permissionDecision")' <<<"$NOPY_OUT" 2>/dev/null)"
+  "$(jq -e '.systemMessage | test("no usable Python 3")' <<<"$NOPY_OUT" 2>/dev/null || echo false)"
+# User only: no model copy and no permission decision.
+assert_eq "the marker-free proceed carries no hookSpecificOutput" "false" \
+  "$(jq -r 'has("hookSpecificOutput")' <<<"$NOPY_OUT" 2>/dev/null)"
 nopy_guard "$plain_payload" --marker-root "$NOPY_DIR/data" --launch-marker guard-launch-monitor \
   "$GUARD" --mode engine-gate
 assert_eq "the marker-free notice is once per session: rc" "0" "$NOPY_RC"
@@ -567,6 +566,16 @@ nopy_guard "${plain_payload/s-plain/s-other}" --marker-root "$NOPY_DIR/data" \
   --launch-marker guard-launch-monitor "$GUARD" --mode engine-gate
 assert_contains "a new session gets its own notice" "systemMessage" "$NOPY_OUT"
 
+# The task-end notice shares that once-per-session marker.
+MONITOR="$SCRIPT_DIR/../skills/clean/scripts/guard_launch_monitor.py"
+nopy_guard "$plain_payload" --marker-root "$NOPY_DIR/data" "$MONITOR" --data-root "$NOPY_DIR/data"
+assert_eq "the task-end notice stays quiet after the guard's notice" "" "$NOPY_OUT"
+stop_payload='{"session_id":"s-stop","hook_event_name":"Stop"}'
+nopy_guard "$stop_payload" --marker-root "$NOPY_DIR/data" "$MONITOR" --data-root "$NOPY_DIR/data"
+assert_contains "the first task end of a session gets the notice" "no usable Python 3" "$NOPY_OUT"
+nopy_guard "$stop_payload" --marker-root "$NOPY_DIR/data" "$MONITOR" --data-root "$NOPY_DIR/data"
+assert_eq "a second task end in the same session stays quiet" "" "$NOPY_OUT"
+
 nopy_guard '{"tool_name":"PowerShell","tool_input":{"command":"Get-ChildItem"}}' \
   "$GUARD" --mode engine-gate
 assert_contains "a payload with no session id re-notices rather than going silent" \
@@ -574,7 +583,7 @@ assert_contains "a payload with no session id re-notices rather than going silen
 
 nopy_guard "$plain_payload" "$GUARD" --plugin-root /p
 assert_eq "belt mode without python denies even a marker-free command" "2" "$NOPY_RC"
-assert_contains "the belt deny says the guard could not run" "could not run" "$NOPY_ERR"
+assert_contains "the belt deny names the missing interpreter" "no usable Python 3" "$NOPY_ERR"
 nopy_guard "$plain_payload" "$GUARD" --mode belt
 assert_eq "an explicit belt mode without python denies" "2" "$NOPY_RC"
 nopy_guard "$plain_payload" "$GUARD" --mode bogus

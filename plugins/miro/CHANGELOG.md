@@ -3,6 +3,22 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.6] - 2026-10-04
+
+### Changed
+
+- **Tool descriptions and server instructions say what each call returns and when it stops short.** The server instructions name the kinds of tasks the tools handle and when to search for them. `miro_get_board` no longer claims to return sharing status. `miro_delete_board` drops "Permanently", which contradicted its Trash note. The list tools and `miro_detect_overlaps` state their default and maximum result counts and that a full page may hide more. `miro_update_sticky_note` uses the create tool's position wording and says shape cannot change. `miro_create_frame` says its x/y are the frame's center relative to the board center. Em dashes are gone from tool descriptions.
+
+### Fixed
+
+- **`miro_update_board` returns the board's sharing policy.** It read a top-level field the Miro SDK never sets, so the policy was always missing from the result; it now reads `policy.sharingPolicy`.
+
+## [0.6.5] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
 ## [0.6.4] - 2026-10-04
 
 ### Changed

@@ -4,7 +4,8 @@
 #   scripts/check-standards-contract-bump.sh <base-ref>
 #
 # Fails when the contract or its schema changed vs <base-ref> but
-#   (a) a carrying plugin's manifest version did not move: the plugin version
+#   (a) a carrying plugin's manifest version did not move (or, in fragment
+#       mode, no fragment whose bump is not none was added): the plugin version
 #       is the update cache key, or
 #   (b) the standards-contract frontmatter semver did not move: setup's
 #       migration detection reads it, so without a bump content drifts under a
@@ -22,6 +23,8 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$script_dir/.."
 # shellcheck source=lib/gate-entry.sh
 . "$script_dir/lib/gate-entry.sh" || exit 2
+# shellcheck source=lib/changelog-fragments.sh
+. "$script_dir/lib/changelog-fragments.sh" || exit 2
 
 src="docs/conventions/standards/README.md"
 schema="docs/conventions/standards/standards.schema.json"
@@ -79,7 +82,11 @@ for copy in "${carriers[@]}"; do
   base_version=$(git show "$base:$manifest" 2>/dev/null | jq -r '.version // empty' || true)
   [[ -n "$base_version" ]] || continue
   head_version=$(jq -r '.version // empty' "$manifest")
-  if [[ "$head_version" == "$base_version" ]]; then
+  rc=0
+  # shellcheck disable=SC2310  # the non-zero return IS the answer; rc 2 exits below
+  changelog_fragments::bump_delivered "$base" "${rest%%/*}" "$base_version" "$head_version" || rc=$?
+  ((rc < 2)) || exit 2
+  if ((rc == 1)); then
     echo "STALE VERSION: $src changed vs $base but $manifest is still $head_version" >&2
     stale=1
   fi

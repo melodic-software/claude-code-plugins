@@ -1,0 +1,13 @@
+version: 1
+activities:
+  run-tests:
+    script: scripts/run-tests.sh
+    effect: read
+    gating: gate
+    reads-untrusted: false
+lanes:
+  pr-run-checks:
+    stage: verify
+    slots:
+      - activity: run-tests
+      - activity: run-lint

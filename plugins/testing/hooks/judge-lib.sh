@@ -648,13 +648,6 @@ judge::run() {
   judge::release_run "$res"
 }
 
-# judge::label <verdict or info json fields: file name ordinal>: "<file>: <name>", with #n past the first.
-judge::label() {
-  local l="${1##*[/\\]}: $2"
-  (($3 > 1)) && l+=" #$3"
-  printf '%s' "$l"
-}
-
 # judge::quoted_in_repo <repo> <quote>...: true when every quote is verbatim
 # in a file of the repository, the judge's read scope: git grep over its
 # tracked and untracked (not ignored) files. One process per quote, and only
@@ -827,10 +820,11 @@ judge::self_ignore() {
 # judge::findings <validated verdict lines>: write one findings file per
 # repository in the detector-findings shape (FLAG rows under ## Findings; every
 # verdict, its quoted evidence and proposed diff under ## Verdicts) and set
-# FINDINGS to their paths, comma-separated.
+# FINDINGS to their paths, comma-separated, and FINDINGS_SHOWN to the same
+# paths with each one under the project directory made relative to it.
 judge::findings() {
-  local all="$RELAY" repo dir ts path i branch content tmp p
-  FINDINGS=""
+  local all="$RELAY" repo dir ts path i branch content tmp p base="${CLAUDE_PROJECT_DIR:-${pcwd:-}}"
+  FINDINGS="" FINDINGS_SHOWN=""
   TZ=UTC0 printf -v ts '%(%Y%m%dT%H%M%SZ)T' -1
   for repo in ${RELAY_REPOS[@]+"${RELAY_REPOS[@]}"}; do
     branch=""
@@ -900,7 +894,10 @@ judge::findings() {
       [[ -e "$tmp" ]] && rm -f -- "$tmp"
       [[ -n "$path" ]] && break
     done
-    [[ -n "$path" ]] && FINDINGS+="${FINDINGS:+, }$path"
+    [[ -n "$path" ]] || continue
+    FINDINGS+="${FINDINGS:+, }$path"
+    [[ -n "$base" && "$path" == "${base%/}/"* ]] && path="${path#"${base%/}"/}"
+    FINDINGS_SHOWN+="${FINDINGS_SHOWN:+, }$path"
   done
 }
 

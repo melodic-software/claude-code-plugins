@@ -762,7 +762,7 @@ to the template re-renders here too.
 >
 > - **Tee file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
 > - **Pause threshold (fixed):** pause when **either** window reports
->   `used_percentage >= 90`
+>   `used_percentage >= 95`
 > - **Pause end:** the **tripped** window's `resets_at`; when **both**
 >   windows trip, the **later** `resets_at`
 > - **Staleness rule:** a snapshot whose `captured_at` is older than
@@ -792,8 +792,8 @@ to the template re-renders here too.
 >   re-evaluation (each Monitor tick and each wake). When it differs
 >   from the latched account, re-evaluate at once against the new
 >   account's windows, taken from a fresh tee snapshot whose
->   `account.email` equals the new account: below 90, drop the latched
->   pause and resume; at or above 90, keep pausing and re-latch the
+>   `account.email` equals the new account: below 95, drop the latched
+>   pause and resume; at or above 95, keep pausing and re-latch the
 >   pause end and the latched account against the new account's
 >   `resets_at`; with no fresh or attributable snapshot, treat the
 >   windows as **unknown**, drop the latch, and fall back to
@@ -814,7 +814,7 @@ to the template re-renders here too.
 >   window, makes **that window** unknown, and each window may be
 >   independently absent. Keep applying the floor to every window still
 >   plausible: one absurd window is no reason to ignore a valid window
->   already at or above 90, and a trip on the only plausible window is still
+>   already at or above 95, and a trip on the only plausible window is still
 >   a trip. The guard drops to reactive-only only when NO window is
 >   plausible. Never throttle proactively on untrusted data and never
 >   fabricate a pause. Reactive-only means no proactive pause at all: react

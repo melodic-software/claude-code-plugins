@@ -47,7 +47,7 @@
 # with a far smaller constant. The residue tracks record LENGTH, not how many
 # hits the record carries.
 #
-# CI still runs the changed-file mode rather than `--all` (see ci.yml's
+# CI still runs the changed-file mode rather than `--all` (see pr-require-checks.yml's
 # `shell-portability-lint`), and not because of what a sweep costs: a per-PR
 # fleet sweep is runner time spent re-proving files the PR did not touch.
 #

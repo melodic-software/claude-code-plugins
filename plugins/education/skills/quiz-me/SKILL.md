@@ -88,7 +88,9 @@ EOF
 ```
 
 Each narrative field is a string or a list of paragraphs. `choices` is optional (omit it
-for a free-answer question). `section` is the anchor for a miss: one of `context`,
+for a free-answer question); with choices, `answer` is the correct choice's exact text. The
+builder shuffles choices per question, so author them in any order, and the key names the
+rendered choice number. `section` is the anchor for a miss: one of `context`,
 `intuition`, `decisions`, `done`. `references` holds durable pointers, rendered as text, not
 links. Write stdout to the retention destination below. The builder escapes every field,
 renders the theme for light and dark, and stamps the generator marker the rendered-views

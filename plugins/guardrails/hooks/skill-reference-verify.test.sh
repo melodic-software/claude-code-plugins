@@ -87,21 +87,23 @@ assert_run_helpers_propagate_exit
 
 run 'Run `/alpha:nonexistent` next.'
 assert_exit "unresolved skill → exit 0 (advisory)" 0 "$?"
-assert_contains "unresolved skill → named" "$OUT" "UNRESOLVED_SKILL: /alpha:nonexistent"
+assert_contains "unresolved skill → named" "$OUT" "  /alpha:nonexistent"
 assert_contains "unresolved skill → names the searched plugin dir" "$OUT" "plugins/alpha/skills/"
 
 run 'Both `/alpha:ghost` and `/beta:missing` are gone.'
-assert_contains "two unresolved → count" "$OUT" "2 skill reference(s) do not resolve"
+assert_contains "two unresolved → both named" "$OUT" "  /alpha:ghost (no such skill"
+assert_contains "two unresolved → the second named too" "$OUT" "  /beta:missing (no such skill"
 assert_contains "two unresolved → manifest-named plugin resolves to its real dir" "$OUT" \
   "plugins/beta-dir/skills/"
 
 run_edit 'Now cites `/alpha:vanished`.'
-assert_contains "Edit hunk scanned via new_string" "$OUT" "UNRESOLVED_SKILL: /alpha:vanished"
+assert_contains "Edit hunk scanned via new_string" "$OUT" "  /alpha:vanished"
 
 # The advisory must state its tier — the issue this guard ships under requires
 # the third guard never read as deterministic.
 run 'Run `/alpha:nonexistent`.'
-assert_contains "advisory states detect-then-judge tier" "$OUT" "Detect-then-judge"
+assert_absent "advisory carries no verdict trailer" "$OUT" "Detect-then-judge"
+assert_contains "advisory exempts a deliberate reference" "$OUT" "A reference kept on purpose"
 
 # Repro-first regressions for review findings on #1284.
 
@@ -111,7 +113,7 @@ assert_contains "advisory states detect-then-judge tier" "$OUT" "Detect-then-jud
 mkdir -p "$REPO/plugins/alpha/skills/ghost"
 run 'Run `/alpha:ghost`.'
 assert_contains "skills/ dir without SKILL.md → still unresolved" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:ghost"
+  "  /alpha:ghost"
 # Naming the searched directories must not have changed how the conventional
 # layout reads — one root, rendered exactly as it always was.
 assert_contains "a plugin declaring no paths still reads as plugins/<plugin>/skills/" "$OUT" \
@@ -129,7 +131,7 @@ assert_silent "frontmatter name with trailing YAML comment → resolves" "$OUT"
 # guard's whole purpose.
 run 'Stale ref `/alpha:legacy-dir`.'
 assert_contains "renamed skill's directory name is NOT an alias → fires" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:legacy-dir"
+  "  /alpha:legacy-dir"
 run 'Current ref `/alpha:renamed-command`.'
 assert_silent "the declared frontmatter name still resolves" "$OUT"
 
@@ -141,7 +143,7 @@ assert_silent "no frontmatter name → directory name is the command" "$OUT"
 # is the leading token of the span, not the whole span.
 run 'Run `/alpha:ghost-arg --apply` now.'
 assert_contains "argument-bearing invocation → leading token extracted" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:ghost-arg"
+  "  /alpha:ghost-arg"
 run 'Run `/alpha:audit --dry-run <target>`.'
 assert_silent "argument-bearing invocation of a real skill → silent" "$OUT"
 
@@ -233,7 +235,7 @@ NOTCL="$REPO/docs-CHANGELOG-notes.md"
 : >"$NOTCL"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$NOTCL" 'Run `/alpha:nonexistent`.')" 2>&1)
 assert_contains "CHANGELOG-in-name but not a CHANGELOG → still adjudicated" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:nonexistent"
+  "  /alpha:nonexistent"
 
 # PARTIAL-EDIT RECONSTRUCTION. An Edit may replace an arbitrary substring, so a
 # hunk can be a bare word with no command in it. The edit is already applied by
@@ -245,7 +247,7 @@ OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL" 'ghost-
 RC=$?
 assert_exit "bare-word Edit hunk → exit 0" 0 "$RC"
 assert_contains "bare-word Edit hunk → containing reference recovered" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:ghost-partial"
+  "  /alpha:ghost-partial"
 
 # Diff-scope is preserved: a PRE-EXISTING unrelated broken reference on a
 # neighboring line must NOT fire just because reconstruction read from disk.
@@ -253,7 +255,7 @@ PARTIAL2="$REPO/partial2.md"
 printf 'Stale `/alpha:untouched-ghost` here.\nRun `/alpha:ghost-two` to begin.\n' >"$PARTIAL2"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL2" 'ghost-two')" 2>&1)
 assert_contains "reconstruction reports the edited reference" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:ghost-two"
+  "  /alpha:ghost-two"
 assert_absent "reconstruction does NOT report an untouched neighbor" "$OUT" \
   "untouched-ghost"
 
@@ -263,7 +265,7 @@ assert_absent "reconstruction does NOT report an untouched neighbor" "$OUT" \
 # pulls that reference in — `legacy` occurs in both `ghost-legacy` and the prose —
 # so the anchor has to be the hunk's own line, which occurs verbatim in exactly
 # the line the edit landed in. Verified to fail against the pre-fix guard (which
-# fired `UNRESOLVED_SKILL: /alpha:ghost-legacy`), the same shape #1432 proved for
+# fired `  /alpha:ghost-legacy`), the same shape #1432 proved for
 # stale-path-verify's sibling defect.
 SEGSHARE="$REPO/segshare.md"
 printf 'Stale `/alpha:ghost-legacy` here.\nThe legacy naming convention was updated today.\n' \
@@ -279,7 +281,7 @@ assert_silent "hunk sharing only a token does not drag in an untouched broken re
 # the untouched reference. Anchoring on lines cannot separate them here — only
 # requiring the anchor to locate exactly ONE line does. An anchor matching several
 # cannot say which the edit landed in, so it is dropped rather than unioned;
-# unioning fired `UNRESOLVED_SKILL: /alpha:ghost-legacy` from an edit that never
+# unioning fired `  /alpha:ghost-legacy` from an edit that never
 # touched it, since `legacy` is also a substring of that skill segment and so
 # clears the token filter. Trading this for a missed advisory when an edit lands
 # in a verbatim-duplicated line is deliberate — an advisory guard is degraded
@@ -316,9 +318,9 @@ OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(replall_json "$REPLALL" 'gho
 RC=$?
 assert_exit "replace_all Edit → exit 0" 0 "$RC"
 assert_contains "replace_all → first edited reference reported" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:ghost-one"
+  "  /alpha:ghost-one"
 assert_contains "replace_all → second edited reference reported" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:ghost-two"
+  "  /alpha:ghost-two"
 
 # ...but `replace_all` suspends the uniqueness gate, and with it the only thing
 # separating an occurrence this call WROTE from one that merely reads the same.
@@ -362,7 +364,7 @@ assert_exit "replace_all + structuredPatch → exit 0" 0 "$RC"
 # `/alpha:ghost-old` line this case exists to exclude — otherwise the positive and
 # the negative assertion below overlap, and only the pair is load-bearing.
 assert_contains "replace_all + patch → the WRITTEN reference is still reported" \
-  "$OUT" 'UNRESOLVED_SKILL: /alpha:ghost (no such skill'
+  "$OUT" '  /alpha:ghost (no such skill'
 assert_absent "replace_all + patch → the UNTOUCHED reference is not reported" \
   "$OUT" "/alpha:ghost-old"
 
@@ -384,9 +386,9 @@ OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(replall_patch_json "$BOTHW" 
   '+First `/alpha:ghost-one` here.' \
   '+Second `/alpha:ghost-two` there.')" 2>&1)
 assert_contains "replace_all + patch → first genuinely written ref survives" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:ghost-one"
+  "  /alpha:ghost-one"
 assert_contains "replace_all + patch → second genuinely written ref survives" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:ghost-two"
+  "  /alpha:ghost-two"
 
 # Review finding on #2153: Gate 3 must not undo the reformatting tolerance the
 # per-line fallback exists to provide. An earlier-ordered PostToolUse hook that
@@ -398,7 +400,7 @@ REFLOW="$REPO/replall-reflow.md"
 printf 'Run  `/alpha:ghost`  now.\nLegacy `/alpha:ghost-old` stays.\n' >"$REFLOW"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(patch_one "$REFLOW")" 2>&1)
 assert_contains "reflowed line → the written reference still surfaces" \
-  "$OUT" 'UNRESOLVED_SKILL: /alpha:ghost (no such skill'
+  "$OUT" '  /alpha:ghost (no such skill'
 # ...and the suppression is not simply switched off by the reflow: the untouched
 # reference on an unreformatted line is still excluded in the same run.
 assert_absent "reflowed line → the untouched reference is still suppressed" \
@@ -412,14 +414,14 @@ STALE="$REPO/replall-stale.md"
 printf -- '- Run `/alpha:ghost` now (moved).\nLegacy `/alpha:ghost-old` stays.\n' >"$STALE"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(patch_one "$STALE")" 2>&1)
 assert_contains "stale witness → written reference still reported" \
-  "$OUT" 'UNRESOLVED_SKILL: /alpha:ghost (no such skill'
+  "$OUT" '  /alpha:ghost (no such skill'
 assert_contains "stale witness → gate abstains rather than muting" \
-  "$OUT" "UNRESOLVED_SKILL: /alpha:ghost-old"
+  "$OUT" "  /alpha:ghost-old"
 
 # A hunk that already carries a full command is scanned directly.
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL2" 'Run `/alpha:ghost-three` now.')" 2>&1)
 assert_contains "full-command hunk → scanned directly" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:ghost-three"
+  "  /alpha:ghost-three"
 assert_absent "full-command hunk → no disk reconstruction leakage" "$OUT" \
   "untouched-ghost"
 
@@ -430,7 +432,7 @@ SUBST="$REPO/substr.md"
 printf 'Run `/alpha:sethost` to begin.\n' >"$SUBST"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SUBST" 'host')" 2>&1)
 assert_contains "substring Edit inside a segment → recovered" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:sethost"
+  "  /alpha:sethost"
 
 # A hunk carrying BOTH a complete reference and a substring change to another must
 # report both — gating reconstruction on an empty scan would miss the partial half.
@@ -443,16 +445,17 @@ printf 'First `/alpha:ghost-mixed` here.\nSecond `/alpha:audit` is fine.\n' >"$M
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
   <<<"$(edit_json "$MIXED" $'ghost-mixed\nAlso now cites `/alpha:ghost-direct`.')" 2>&1)
 assert_contains "mixed hunk → direct reference reported" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:ghost-direct"
+  "  /alpha:ghost-direct"
 assert_contains "mixed hunk → reconstructed reference also reported" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:ghost-mixed"
+  "  /alpha:ghost-mixed"
 
 # Reconstruction must not double-report a reference reachable both ways.
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$MIXED" 'Run `/alpha:ghost-mixed` again.')" 2>&1)
 assert_contains "reference reachable both ways → reported" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:ghost-mixed"
-assert_contains "reference reachable both ways → counted once" "$OUT" \
-  "1 skill reference(s) do not resolve"
+  "  /alpha:ghost-mixed"
+mixed_ctx=$(jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$OUT" 2>/dev/null)
+assert_eq "reference reachable both ways → listed once" 1 \
+  "$(grep -c '/alpha:ghost-mixed (' <<<"$mixed_ctx")"
 
 # Sharing a physical LINE with the hunk is not evidence the edit wrote a
 # reference. Here the anchor is unique — so the uniqueness gate is satisfied and
@@ -475,7 +478,7 @@ printf 'Stale `/alpha:ghost-legacy` here. The legacy naming convention was updat
   >"$ONELINE2"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$ONELINE2" 'ghost-legacy')" 2>&1)
 assert_contains "an anchor inside the reference still reports it" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:ghost-legacy"
+  "  /alpha:ghost-legacy"
 
 # A SHORT substring edit. Replacing `up` with `xx` inside `/alpha:setup` leaves
 # `/alpha:setxx` on disk and a two-character hunk; a minimum token length left
@@ -486,7 +489,7 @@ OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SHORT" 'xx')" 2>
 RC=$?
 assert_exit "two-character Edit hunk → exit 0" 0 "$RC"
 assert_contains "two-character Edit hunk → containing reference recovered" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:setxx"
+  "  /alpha:setxx"
 
 # MULTIBYTE CONTENT AROUND THE ANCHOR. reconstruct_partial_edit pins LC_ALL=C so
 # its scans are not charged the multibyte matcher's ~6.5x, which makes every offset
@@ -511,7 +514,7 @@ OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$UTF8" 'ghost-caf
 RC=$?
 assert_exit "multibyte content around the anchor → exit 0" 0 "$RC"
 assert_contains "a reference reconstructed out of multibyte content is intact" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:ghost-cafe"
+  "  /alpha:ghost-cafe"
 
 # THE PIN MUST NOT REACH THE CHILD PROCESSES. The case above passes with the pin,
 # without it, and with an EXPORTED pin — both locales are internally consistent, so
@@ -584,7 +587,7 @@ else
   RC=$?
   assert_exit "consumer-exported UTF-8 locale → exit 0" 0 "$RC"
   assert_contains "the pin does not reach the children: reference separated by $SEP_NAME survives" \
-    "$OUT" "UNRESOLVED_SKILL: /alpha:ghost-sep"
+    "$OUT" "  /alpha:ghost-sep"
 fi
 
 # A short anchor is still subject to the uniqueness gate — it buys no scope.
@@ -637,7 +640,7 @@ Second line with `/alpha:ghost-split`.')" 2>&1)
 RC=$?
 assert_exit "hunk no longer contiguous on disk → exit 0" 0 "$RC"
 assert_contains "per-line fallback still recovers the reference" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:ghost-split"
+  "  /alpha:ghost-split"
 
 # A multi-line hunk whose every LINE repeats but whose whole text does not is where
 # the whole-hunk locate is strictly better than the per-line walk: the walk drops
@@ -648,7 +651,7 @@ OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
   <<<"$(edit_json "$PAIR" 'shared line
 tail with `/alpha:ghost-pair`.')" 2>&1)
 assert_contains "a unique whole hunk resolves lines that individually repeat" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:ghost-pair"
+  "  /alpha:ghost-pair"
 
 # SCALE meets the FALLBACK. The two cases above force the fallback but on three
 # lines, and the timing case above is large but takes the whole-hunk fast path, so
@@ -695,12 +698,12 @@ assert_exit "large file forced onto the fallback path → exit 0" 0 "$RC"
 # is still recovered. A cap that had collapsed to nothing would stop guarding while
 # passing every timing check ever written.
 assert_contains "the capped fallback still reports the reference it admits" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:ghost-fallback"
+  "  /alpha:ghost-fallback"
 # The bound BINDS: hunk line 301 is far past the cap this file size buys, so its
 # reference is not reached. Asserting the silence is what makes the cap observable
 # without a clock — if the anchor walk ever went unbounded again, this fails.
 assert_absent "the fallback stops at the anchor cap instead of walking the hunk" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:ghost-deep"
+  "  /alpha:ghost-deep"
 
 # Above the cap, reconstruction does not run at all — one scan of a file that size
 # would spend the budget by itself. The direct hunk scan is unaffected, so a
@@ -718,7 +721,7 @@ OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
 RC=$?
 assert_exit "file past RECONSTRUCT_MAX_CHARS → exit 0" 0 "$RC"
 assert_contains "the direct scan still reports a complete reference above the cap" "$OUT" \
-  "UNRESOLVED_SKILL: /alpha:ghost-over"
+  "  /alpha:ghost-over"
 
 # ============ MANIFEST-DECLARED SKILL PATHS =================================
 # A manifest may declare `skills` paths, which ADD to the conventional `skills/`
@@ -752,7 +755,7 @@ assert_silent "declared paths add to skills/, they do not replace it" "$OUT"
 # neither location still fires.
 run 'Run `/gamma:nowhere`.'
 assert_contains "declared paths do not suppress a genuinely missing command" "$OUT" \
-  "UNRESOLVED_SKILL: /gamma:nowhere"
+  "  /gamma:nowhere"
 # The message names WHERE it looked, and the advisory's next line tells the reader
 # to confirm against the tree — so the full rendering is asserted, not its prefix.
 # A prefix match passes on any wrong directory list, which is the whole subject
@@ -763,7 +766,7 @@ assert_contains "the advisory names every directory the search covered" "$OUT" \
 # A declared skill's DIRECTORY name is no more an alias than a conventional one's.
 run 'Run `/gamma:solo`.'
 assert_contains "declared skill's directory name is NOT an alias" "$OUT" \
-  "UNRESOLVED_SKILL: /gamma:solo"
+  "  /gamma:solo"
 
 # A string `skills` value is as valid as an array.
 mk_plugin delta delta
@@ -784,7 +787,7 @@ run 'Run `/epsilon:eps-command`.'
 assert_silent "root SKILL.md with no skills/ and no manifest key auto-loads" "$OUT"
 run 'Run `/epsilon:missing`.'
 assert_contains "single-skill plugin still fires for a command it does not have" "$OUT" \
-  "UNRESOLVED_SKILL: /epsilon:missing"
+  "  /epsilon:missing"
 
 # The auto-load applies only under its documented conditions. A root SKILL.md
 # BESIDE a populated `skills/` is not loaded, so it must not resolve — accepting it
@@ -794,7 +797,7 @@ mk_skill zeta real
 printf -- '---\nname: zeta-root\ndescription: x\n---\n' >"$REPO/plugins/zeta/SKILL.md"
 run 'Run `/zeta:zeta-root`.'
 assert_contains "root SKILL.md beside a populated skills/ is not auto-loaded" "$OUT" \
-  "UNRESOLVED_SKILL: /zeta:zeta-root"
+  "  /zeta:zeta-root"
 
 # ============================ KILL SWITCH ===================================
 
@@ -818,15 +821,12 @@ assert_silent "empty stdin → no output" "$OUT"
 
 # ============================ MISSING PREREQUISITE ==========================
 
-# Runtime jq-removal is not portably simulable — an isolated bin dir without jq
-# cannot host bash + coreutils across Git Bash and Linux, the same constraint
-# secret-pattern-detection.test.sh and require-jq-notice-isolation.test.sh both
-# document. Assert the fail-open guard is present via the shared helper;
-# hook::require's own behavior is covered by lib/hook-utils.test.sh, and this hook's
-# notice key is proven unique plugin-wide by require-jq-notice-isolation.test.sh.
+# Runtime jq-removal is not portably simulable through an isolated bin dir. Assert
+# the fail-open guard is present via the shared helper; hook::require's own
+# behavior is covered by lib/hook-utils.test.sh, and the plugin-wide notice
+# label by require-jq-notice-isolation.test.sh.
 HOOK_SRC=$(cat "$HOOK")
 assert_contains "jq guard: uses hook::require jq" "$HOOK_SRC" 'hook::require jq'
-assert_contains "jq guard: hook-specific notice key" "$HOOK_SRC" 'guardrails-skill-reference-verify'
 # The directory comes from parameter expansion, not a `$(dirname …)` subshell:
 # this hook runs on every Write and Edit, and a command substitution is a fork
 # per call on Windows Git Bash. The anchor is still the FILE's directory, which
@@ -980,7 +980,7 @@ assert_silent "declared paths: array and string paths resolve → silent" "$OUT"
 
 run 'Use `/gamma:hidden`.'
 assert_contains "declared paths: an undeclared directory is not a skill root" "$OUT" \
-  "UNRESOLVED_SKILL: /gamma:hidden"
+  "  /gamma:hidden"
 
 # A manifest with NO name but a skills key: the empty field must stay in place
 # (a whitespace separator collapses it, and the paths land in the name slot),
@@ -1042,7 +1042,7 @@ fi
 # alone is not its verdict: the additionalContext document is. `parity` in
 # guardrails-test-helpers.sh asserts both, on both paths.
 parity "dispatched parity: unresolved reference" 'Run `/alpha:nonexistent`.' 0 \
-  "UNRESOLVED_SKILL: /alpha:nonexistent"
+  "  /alpha:nonexistent"
 parity "dispatched parity: resolving reference" 'Run `/alpha:setup`.' 0 ""
 parity "dispatched parity: manifest name, not directory" 'Run `/beta:check`.' 0 ""
 
@@ -1075,8 +1075,8 @@ idx_fire() {
 }
 # idx_finds <label>: both plugins are indexed, so both references are adjudicated.
 idx_finds() {
-  assert_contains "$1: alpha is still adjudicated" "$OUT" "UNRESOLVED_SKILL: /alpha:gone"
-  assert_contains "$1: beta is still adjudicated" "$OUT" "UNRESOLVED_SKILL: /beta:gone"
+  assert_contains "$1: alpha is still adjudicated" "$OUT" "  /alpha:gone"
+  assert_contains "$1: beta is still adjudicated" "$OUT" "  /beta:gone"
 }
 # idx_is_whole <file>: two manifests put the header at four lines; the last line
 # is `end <n>` with n equal to the rows between them, and no row looks like one.
@@ -1160,8 +1160,8 @@ for _ in 1 2 3 4 5; do
   (CLAUDE_PROJECT_DIR="$IDX_REPO" bash "$HOOK" <<<"$IDX_PAYLOAD" >"$TEST_TMPDIR/idx-b" 2>&1) &
   wait
   for idx_out in "$TEST_TMPDIR/idx-a" "$TEST_TMPDIR/idx-b"; do
-    [[ "$(cat "$idx_out")" == *"UNRESOLVED_SKILL: /alpha:gone"* &&
-      "$(cat "$idx_out")" == *"UNRESOLVED_SKILL: /beta:gone"* ]] || IDX_BAD=1
+    [[ "$(cat "$idx_out")" == *"  /alpha:gone"* &&
+      "$(cat "$idx_out")" == *"  /beta:gone"* ]] || IDX_BAD=1
   done
   idx_is_whole "$IDX_CACHE" || IDX_BAD=1
 done

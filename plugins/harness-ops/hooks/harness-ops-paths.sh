@@ -175,8 +175,8 @@ harness_ops::ensure_git_exclude() {
 # shared body of the two producers (skill-usage-audit.sh on PostToolUse/Skill,
 # audit-event-emitter.sh's UserPromptExpansion row): resolve the configured
 # destination, re-verify it after mkdir, keep git status clean in the repo
-# scope, and write the row. Best-effort throughout; every skip is surfaced once
-# per session and agent via hook::notice_once markers keyed
+# scope, and write the row. Best-effort throughout; every skip is surfaced to
+# the user (the options are theirs to fix) once per session via hook::notice_once markers keyed
 # "<notice_prefix>-badscope / -badconfig / -nodest" and emitted for
 # <hook_event>. expansion_type is recorded only when non-empty (the tool-path
 # producer passes "").
@@ -191,7 +191,7 @@ harness_ops::record_skill_use() {
   repo | user | data-dir) ;;
   *)
     if hook::notice_once "${notice_prefix}-badscope" "$input"; then
-      hook::emit_skip_notice "$hook_event" \
+      hook::emit_skip_notice "$hook_event" "" \
         "harness-ops skill-usage logging: unknown skill_usage_scope \"${scope}\" (valid: repo, user, data-dir) — using the default repo scope."
     fi
     scope="repo"
@@ -199,8 +199,13 @@ harness_ops::record_skill_use() {
   esac
   if ! log_dir=$(harness_ops::resolve_skill_usage_dir "$scope" "$project_dir" "$rel_dir"); then
     if hook::notice_once "${notice_prefix}-badconfig" "$input"; then
-      hook::emit_skip_notice "$hook_event" \
-        "harness-ops skipped skill-usage logging: the skill-usage destination is invalid for scope \"${scope}\" (repo/user scopes need a contained relative skill_usage_dir — no absolute, drive, UNC, traversal, or escaping symlink path; data-dir needs CLAUDE_PLUGIN_DATA)."
+      if [[ "$scope" == "data-dir" ]]; then
+        hook::emit_skip_notice "$hook_event" "" \
+          "harness-ops: skill-usage logging skipped: scope \"data-dir\" needs CLAUDE_PLUGIN_DATA, which is not set."
+      else
+        hook::emit_skip_notice "$hook_event" "" \
+          "harness-ops: skill-usage logging skipped: skill_usage_dir is not a contained relative path for scope \"${scope}\". /plugin configure harness-ops fixes it."
+      fi
     fi
   elif mkdir -p "$log_dir" 2>/dev/null &&
     verified_log_dir=$(harness_ops::resolve_skill_usage_dir "$scope" "$project_dir" "$rel_dir") &&
@@ -224,8 +229,8 @@ harness_ops::record_skill_use() {
     hook::append_jsonl "${log_dir}/skill-usage.jsonl" "$line"
   else
     if hook::notice_once "${notice_prefix}-nodest" "$input"; then
-      hook::emit_skip_notice "$hook_event" \
-        "harness-ops skipped skill-usage logging: the configured destination could not be created safely."
+      hook::emit_skip_notice "$hook_event" "" \
+        "harness-ops: skill-usage logging skipped: the configured destination could not be created safely."
     fi
   fi
 }

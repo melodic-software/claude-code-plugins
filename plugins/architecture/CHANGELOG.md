@@ -3,7 +3,7 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.22.2] - 2026-10-04
+## [0.22.5] - 2026-10-04
 
 ### Added
 
@@ -17,6 +17,24 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   and the cases measure the verdict, not triggering. The `says-already-deep` regex also matches
   the with-plugin wording a paid run produced ("already the deep module", "would push complexity
   outward").
+
+## [0.22.4] - 2026-10-04
+
+### Changed
+
+- **Design-significant map views and `/architecture:improve` hand off to `/planning:design` ([#6278](https://github.com/melodic-software/claude-code-plugins/issues/6278)).** The components, containers, context, data, deployment, events, and flow maps name `/planning:design` with the matching scope in `## Next`, and an agreed deepening shape hands off to `/planning:design` instead of an unnamed planning skill.
+
+## [0.22.3] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.22.2] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve. `/architecture:improve`'s Design-It-Twice recommend step grounds the winning interface's pattern the same way.
 
 ## [0.22.1] - 2026-10-04
 

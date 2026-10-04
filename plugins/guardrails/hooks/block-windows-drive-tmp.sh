@@ -156,16 +156,14 @@ hook::jq_fields "$INPUT" \
   '.tool_input.command' '.tool_name' \
   '.tool_input.file_path' '.tool_input.notebook_path' || jq_rc=$?
 if ((jq_rc == 2)); then
-  echo "BLOCKED: the hook payload could not be parsed." >&2
+  guard::refuse_unparsable
   exit 2
 fi
 ((jq_rc != 0)) && exit 0
 
 # A NUL byte in EITHER field is fail-CLOSED (#2136 / #2122).
 if ((HOOK_JQ_FIELDS_NUL)); then
-  echo "BLOCKED: the payload carries a NUL byte, which neither a command nor a file path can reliably carry." >&2
-  echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
-  echo "Fix: reissue the tool call without the embedded NUL." >&2
+  guard::refuse_nul
   exit 2
 fi
 
@@ -202,9 +200,8 @@ block() {
   # spellings to the agent, not expand them in the hook process.
   # shellcheck disable=SC2016
   printf '%s\n' \
-    'BLOCKED: write target is a Windows drive-root temp path (resolves to <drive>:\tmp), not the platform temp directory.' \
-    'On Windows, POSIX /tmp, MSYS /<drive>/tmp, C:\tmp, and drive-root \tmp land at the volume root and accumulate silently.' \
-    'Fix: write under the platform temp instead — %TEMP% / $TEMP / $env:TEMP (or $TMP / $TMPDIR when they already point there). /var/tmp is also fine.' >&2
+    'BLOCKED: write target is a drive-root temp path (<drive>:\tmp), not the platform temp directory.' \
+    'Fix: write under %TEMP% / $TEMP / $env:TEMP (or $TMP / $TMPDIR when they point there); /var/tmp also works.' >&2
   emit_tel "blocked" "$form"
   exit 2
 }
