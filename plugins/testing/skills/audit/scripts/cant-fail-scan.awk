@@ -1757,7 +1757,8 @@ function cs_body_start(m) {
 # the body's opener ("{" or "=>") blanked, and a "}" that closes the body on
 # this line too. Blanking keeps the columns fill() pairs masked and raw text by.
 # CS_RET: the body is an expression a Task-returning test returns, so an async
-# assertion there is awaited by the runner.
+# assertion there is awaited by the runner. An async test's expression body
+# returns nothing: its value is discarded.
 function cs_cut(m, r,    i, j, k, n) {
   i = index(m, "{"); j = index(m, "=>")
   k = (j && (!i || j < i)) ? j : i
@@ -1766,7 +1767,7 @@ function cs_cut(m, r,    i, j, k, n) {
   n = k == j ? k + 1 : k
   CUT_M = blanks(n) substr(m, n + 1)
   CUT_R = blanks(n) substr(r, n + 1)
-  if (k == j) { CS_RET = CS_SIG ~ /(^|[^A-Za-z0-9_.])(Task|ValueTask)([^A-Za-z0-9_]|$)/; return }
+  if (k == j) { CS_RET = CS_SIG ~ /(^|[^A-Za-z0-9_.])(Task|ValueTask)([^A-Za-z0-9_]|$)/ && CS_SIG !~ /(^|[^A-Za-z0-9_])async([^A-Za-z0-9_]|$)/; return }
   if (brace_delta(m) > 0) return
   for (k = length(CUT_M); k > n; k--) if (substr(CUT_M, k, 1) == "}") break
   if (k > n) { CUT_M = substr(CUT_M, 1, k - 1) " " substr(CUT_M, k + 1); CUT_R = substr(CUT_R, 1, k - 1) " " substr(CUT_R, k + 1) }
