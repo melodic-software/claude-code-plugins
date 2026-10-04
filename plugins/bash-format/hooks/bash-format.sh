@@ -119,9 +119,10 @@ append_notice() {
 # Subscript guard. shfmt parses an unquoted array subscript as arithmetic,
 # because a static parser cannot tell an associative array from an indexed one,
 # and spaces its operators: `${m[a-b]}` becomes `${m[a - b]}`, a different key
-# (mvdan/sh#956 and the "Caveats" section of the mvdan/sh README). The guard
-# compares the source text of every subscript before and after the rewrite, in
-# syntax-tree order, and puts the original bytes back when any of them differs.
+# (https://github.com/mvdan/sh/issues/956 and the "Caveats" section of the
+# mvdan/sh README). The guard compares the source text of every subscript
+# before and after the rewrite, in syntax-tree order, and puts the original
+# bytes back when any of them differs.
 # The tree is the same on both sides, because shfmt reads the spaced and the
 # unspaced form as one expression, so the subscripts pair up one to one. A
 # span is widened over the blanks beside it before the compare: the tree's
