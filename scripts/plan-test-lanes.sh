@@ -42,8 +42,8 @@
 #     .github/requirements-ci*.txt): every Python suite.
 #   - a Node pin (.node-version, the root package.json or package-lock.json):
 #     every Node package.
-#   - a Node package also runs when a file under its directory, its test facade or
-#     a `file:` dependency of its package.json changed.
+#   - a Node package also runs when a file under its directory, its trigger (a test
+#     facade or a directory) or a `file:` dependency of its package.json changed.
 #
 # LEGS ARE SIZED FROM SUITE-SECONDS: ceil(seconds / budget), at least 1, at most
 # the lane's cap and the suite count. test-bash takes 120 s a leg (three suites
@@ -71,14 +71,16 @@ WINDOWS_LIST="scripts/test-windows-plan.txt"
 PACKAGES_LIST="scripts/outside-node-packages.txt"
 EXCLUSIONS_LIST="scripts/outside-node-exclusions.txt"
 DEFAULT_SECONDS=5
-# The four Node sub-projects with CI steps of their own in test-node:
-# <package> <owner directory of its suites> [<test facade>]. The packages in
+# The five Node sub-projects with CI steps of their own in test-node:
+# <package> <owner directory of its suites> [<trigger>], where the trigger is
+# a test facade or, ending in `/`, a directory its suites read. The packages in
 # scripts/outside-node-packages.txt follow, each its own owner.
 SUBPROJECTS="\
 plugins/miro/server plugins/miro/
 plugins/ai-briefing/skills/generate/output/build plugins/ai-briefing/skills/generate/ plugins/ai-briefing/skills/generate/scripts/run-tests.sh
 plugins/knowledge/skills/video-digest/extraction plugins/knowledge/skills/video-digest/ plugins/knowledge/skills/video-digest/scripts/run-tests.sh
-plugins/knowledge/skills/course-digest/extraction plugins/knowledge/skills/course-digest/ plugins/knowledge/skills/course-digest/scripts/run-tests.sh"
+plugins/knowledge/skills/course-digest/extraction plugins/knowledge/skills/course-digest/ plugins/knowledge/skills/course-digest/scripts/run-tests.sh
+.github/actions/resolve-config .github/actions/resolve-config/ docs/conventions/pr-pipeline/"
 
 usage() {
   awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}" >&2
@@ -176,7 +178,7 @@ exclusions=() outside=() rows=()
 read_list::into exclusions "$EXCLUSIONS_LIST" --comments inline || exit 2
 read_list::into outside "$PACKAGES_LIST" --comments inline || exit 2
 
-# Every Node package as `<package> <owner> [<facade>]`.
+# Every Node package as `<package> <owner> [<trigger>]`.
 packages="$SUBPROJECTS"
 for p in "${outside[@]}"; do packages+=$'\n'"$p $p/"; done
 
@@ -252,16 +254,16 @@ else
 fi
 
 # A package runs on the whole tree, on a Node pin, when a selected suite sits
-# under its owner, or when a file under it, its facade or a `file:` dependency
+# under its owner, or when a file under it, its trigger or a `file:` dependency
 # changed.
 node_packages=""
-while read -r pkg owner facade; do
+while read -r pkg owner trigger; do
   [[ -n "$pkg" ]] || continue
   run=$((whole || node_pin))
   [[ -n "${PKG_SET[$pkg]+x}" ]] && run=1
   if ((!run)) && [[ ${#changed[@]} -gt 0 ]]; then
     triggers=("$pkg/")
-    [[ -n "$facade" ]] && triggers+=("$facade")
+    [[ -n "$trigger" ]] && triggers+=("$trigger")
     if [[ -f "$pkg/package.json" ]]; then
       while IFS= read -r dep; do
         [[ -n "$dep" ]] && triggers+=("$(normpath "$pkg/$dep")/")

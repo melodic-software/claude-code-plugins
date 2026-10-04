@@ -67,6 +67,7 @@ mk plugins/orphan/o.test.js "require('./o.js');"
 mk plugins/ps/x.ps1 "function X {}"
 mk plugins/ps/x.Tests.ps1 ". \$PSScriptRoot/x.ps1"
 mk plugins/z/data.cfg "k=v"
+mk docs/conventions/pr-pipeline/pr-pipeline.schema.json "{}"
 mk .python-version 3.14
 mk pyproject.toml "[project]"
 mk .node-version 24
@@ -164,8 +165,12 @@ plan -- plugins/fx/evals/fixtures/fx.test.js
 [[ "$RC" -eq 0 ]] && is "$(key node)" false
 check "a Node eval fixture is data, not a suite" $?
 
+plan -- docs/conventions/pr-pipeline/pr-pipeline.schema.json
+is "$(key node_packages)" ".github/actions/resolve-config" && is "$(key node)" true
+check "a change under a package's trigger directory runs that package" $?
+
 plan -- .node-version
-is "$(key node_packages | wc -w | tr -d ' ')" 5
+is "$(key node_packages | wc -w | tr -d ' ')" 6
 check "a Node pin runs every Node package" $?
 
 plan -- plugins/ps/x.ps1
@@ -180,7 +185,7 @@ check "an unmapped data file runs the whole shell corpus and is counted" $?
 
 plan -- .github/workflows/ci.yml
 is "$(key bash_legs)" "[0,1,2,3,4,5]" && is "$(suites bash | wc -l | tr -d ' ')" 12 &&
-  is "$(suites python | wc -l | tr -d ' ')" 2 && is "$(key node_packages | wc -w | tr -d ' ')" 5 &&
+  is "$(suites python | wc -l | tr -d ' ')" 2 && is "$(key node_packages | wc -w | tr -d ' ')" 6 &&
   is "$(key windows_jobs)" "[]"
 check "a ci.yml change runs every ci.yml lane whole on 6 legs, and test-windows from the selection" $?
 
