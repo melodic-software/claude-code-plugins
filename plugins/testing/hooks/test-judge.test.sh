@@ -6,6 +6,79 @@
 
 # shellcheck source=judge-test-helpers.sh
 source "$(dirname "${BASH_SOURCE[0]}")/judge-test-helpers.sh"
+# With no $TMP the cleanup's pattern would be "/", in every command line:
+# tmp_kill must then signal nothing. kill and pkill are stubs that record calls.
+tk="$(
+  kill() { echo kill; }
+  pkill() { echo pkill; }
+  TMP="" tmp_kill TERM /
+  echo "rc=$?"
+)"
+check "tmp_kill with no TMP signals nothing" '[[ "$tk" == "rc=0" ]]'
+tk="$(
+  kill() { echo kill; }
+  pkill() { echo pkill; }
+  tmp_kill TERM /
+  echo "rc=$?"
+)"
+check "tmp_kill with a pattern outside TMP signals nothing" '[[ "$tk" == "rc=0" ]]'
+tk="$(
+  pkill() { echo "pkill $*"; }
+  tmp_kill TERM "$TMP/x"
+)"
+check "tmp_kill with a pattern under TMP signals it" '[[ "$tk" == "pkill -TERM -f $TMP/x" ]]'
+# A plain `ln -s` on Git Bash copies its target, and a copy of an ancestor
+# nests inside itself without end. Every fixture link is asked for as a native
+# symlink, which fails rather than copies, and confirmed with -L. A host that
+# cannot make one skips each link case instead of asserting against a copy.
+SKIPS=0
+make_link() { MSYS=winsymlinks:nativestrict ln -s "$1" "$2" 2>/dev/null && [[ -L "$2" ]]; }
+export -f make_link
+mkdir -p "$TMP/linkprobe/t"
+LINKS=""
+make_link t "$TMP/linkprobe/l" && LINKS=1
+# link_miss_fatal: whether a failed link probe fails the run. Only a Windows
+# host outside CI may lack native symlinks; anywhere else a broken probe would
+# turn every link case into a quiet SKIP.
+link_miss_fatal() { [[ -n "${CI:-}" || ! "${OSTYPE:-}" =~ ^(msys|cygwin|win32) ]]; }
+# links <case> [<target> <link>]...: make each fixture link for <case>; a
+# Windows host without native symlinks SKIPs the case, and a link that fails
+# here, or a failed probe anywhere else, fails it.
+links() {
+  local c="$1"
+  shift
+  if [[ -z "$LINKS" ]]; then
+    if link_miss_fatal; then
+      fail "$c (the native-link probe failed on a host that must make links)"
+      return 1
+    fi
+    echo "SKIP: $c (no native symlinks, no coverage here, not a pass)"
+    SKIPS=$((SKIPS + 1))
+    return 1
+  fi
+  while (($#)); do
+    make_link "$1" "$2" || {
+      fail "$c (could not create the fixture link $2)"
+      return 1
+    }
+    shift 2
+  done
+}
+# A failed probe fails each case in CI or off Windows and skips it only on a
+# local Windows host. fail is a stub, so nothing here counts as a real failure.
+lk="$(
+  LINKS=""
+  fail() { printf 'F '; }
+  CI=1 OSTYPE=msys links c
+  CI="" OSTYPE=linux-gnu links c
+  skip="$(CI="" OSTYPE=msys links c)"
+  [[ "$skip" == SKIP:* ]] && printf 'S ' || printf 'X '
+)"
+check "a failed link probe fails in CI and off Windows, and skips on local Windows" '[[ "$lk" == "F F S " ]]'
+# too_deep <dir> <levels>: the first directory more than <levels> below <dir>.
+# find follows no link and stops one level past the bound, so a tree that
+# copied into itself is reported, never walked.
+too_deep() { find "$1" -mindepth "$(($2 + 1))" -maxdepth "$(($2 + 1))" -type d -print -quit 2>/dev/null; }
 HOOK="$HOOK_DIR/test-judge.sh"
 BG="$HOOK_DIR/test-judge-bg.sh"
 export CLAUDE_CODE_SESSION_ATTENDED=1
@@ -22,7 +95,7 @@ stop_jobs() {
   for p in "$DATA/pending/$PKEY/$1"/*; do
     [[ -f "$p" ]] && kill -TERM -- "-$(cut -d' ' -f1 "$p" | head -1)" 2>/dev/null
   done
-  pkill -f "$TMP/judge-stub.sh"
+  tmp_kill TERM "$TMP/judge-stub.sh"
   sleep 0.3
 }
 bg() { payload "$1" "$2" "$3" | bash "$BG"; }
@@ -192,7 +265,7 @@ STUB_SLEEP=2 stop s7
 # The job dies with its judge, as at `-p` teardown.
 p="$(find "$DATA/pending/$PKEY/s7" -type f | head -1)"
 kill "$(cut -d' ' -f1 "$p" | head -1)" 2>/dev/null
-pkill -f "$TMP/judge-stub.sh"
+tmp_kill TERM "$TMP/judge-stub.sh"
 sleep 0.3
 stub_reset
 stop s7
@@ -269,7 +342,7 @@ check "its key gets a pending/ marker and a live background job" '[[ -n "$p" ]] 
 assert_not_contains "the message does not call this Stop's own late run still judging" "$(field .systemMessage)" "still judging"
 assert_contains "the message names the key as not judged in time" "$(field .systemMessage)" "termdeaf.test.ts: termdeaf"
 stop_jobs s8c
-pkill -f "$TMP/term-stub.sh"
+tmp_kill TERM "$TMP/term-stub.sh"
 wait
 
 # Two failed attempts: "judge not run", and no third attempt.
@@ -709,26 +782,31 @@ sec_stop() {
 mkdir -p "$TMP/out1" "$TMP/out3" "$TMP/out4"
 rm -rf "$REPO/.work"
 mkdir -p "$REPO/.work"
-ln -s "$TMP/out1" "$REPO/.work/reviews"
-sec_stop sec1 sec1.test.ts
-check "a reviews/ symlink out of the checkout: nothing is written through it" \
-  '[[ -z "$(ls -A "$TMP/out1")" && "$SF" == "$DATA/findings/"* && -f "$SF" ]]'
+c="a reviews/ symlink out of the checkout: nothing is written through it"
+if links "$c" "$TMP/out1" "$REPO/.work/reviews"; then
+  sec_stop sec1 sec1.test.ts
+  check "$c" '[[ -z "$(ls -A "$TMP/out1")" && "$SF" == "$DATA/findings/"* && -f "$SF" ]]'
+fi
 rm -rf "$REPO/.work"
 mkdir -p "$REPO/.work"
-ln -s "$TMP/planted" "$REPO/.work/.gitignore"
-sec_stop sec2 sec2.test.ts
-check "a dangling .gitignore symlink: no file appears at its target" '[[ ! -e "$TMP/planted" && "$SF" == "$DATA/findings/"* && -f "$SF" ]]'
+c="a dangling .gitignore symlink: no file appears at its target"
+if links "$c" "$TMP/planted" "$REPO/.work/.gitignore"; then
+  sec_stop sec2 sec2.test.ts
+  check "$c" '[[ ! -e "$TMP/planted" && "$SF" == "$DATA/findings/"* && -f "$SF" ]]'
+fi
 rm -rf "$REPO/.work"
 mkdir -p "$REPO/.work/reviews"
-ln -s "$TMP/out3" "$REPO/.work/reviews/feat-judge-test"
-sec_stop sec3 sec3.test.ts
-check "a <branch> symlink out of the checkout: nothing is written through it" \
-  '[[ -z "$(ls -A "$TMP/out3")" && "$SF" == "$DATA/findings/"* && -f "$SF" ]]'
+c="a <branch> symlink out of the checkout: nothing is written through it"
+if links "$c" "$TMP/out3" "$REPO/.work/reviews/feat-judge-test"; then
+  sec_stop sec3 sec3.test.ts
+  check "$c" '[[ -z "$(ls -A "$TMP/out3")" && "$SF" == "$DATA/findings/"* && -f "$SF" ]]'
+fi
 rm -rf "$REPO/.work"
-ln -s "$TMP/out4" "$REPO/.work"
-sec_stop sec4 sec4.test.ts
-check "a .work symlink out of the checkout: nothing is written through it" \
-  '[[ -z "$(ls -A "$TMP/out4")" && "$SF" == "$DATA/findings/"* && -f "$SF" ]]'
+c="a .work symlink out of the checkout: nothing is written through it"
+if links "$c" "$TMP/out4" "$REPO/.work"; then
+  sec_stop sec4 sec4.test.ts
+  check "$c" '[[ -z "$(ls -A "$TMP/out4")" && "$SF" == "$DATA/findings/"* && -f "$SF" ]]'
+fi
 rm -f "$REPO/.work"
 # 2. Judge text in the findings file cannot forge headings or close the diff
 # fence, and a verdict that failed validation shows only why.
@@ -896,19 +974,22 @@ newrepo() { # newrepo <dir>
 }
 SEC="$TMP/sec"
 newrepo "$SEC/a/reviews"
-ln -s .. "$SEC/a/reviews/.work"
-check "a memory root linked out of the checkout (.work -> .., in a checkout named reviews): no .gitignore outside" \
-  '[[ "$(fdir "$SEC/a/reviews" main)" == "$DATA/findings" && ! -e "$SEC/a/.gitignore" ]]'
+c="a memory root linked out of the checkout (.work -> .., in a checkout named reviews): no .gitignore outside"
+if links "$c" .. "$SEC/a/reviews/.work"; then
+  check "$c" '[[ "$(fdir "$SEC/a/reviews" main)" == "$DATA/findings" && ! -e "$SEC/a/.gitignore" ]]'
+fi
 mkdir -p "$SEC/b/sib" "$SEC/b/victim/inner"
 newrepo "$SEC/b/victim"
-ln -s ../sib "$SEC/b/victim/.work"
-ln -s ../victim/inner "$SEC/b/sib/reviews"
-check "a memory root in a sibling whose reviews/ links back in: no .gitignore in the sibling" \
-  '[[ "$(fdir "$SEC/b/victim" main)" == "$DATA/findings" && ! -e "$SEC/b/sib/.gitignore" ]]'
+c="a memory root in a sibling whose reviews/ links back in: no .gitignore in the sibling"
+if links "$c" ../sib "$SEC/b/victim/.work" ../victim/inner "$SEC/b/sib/reviews"; then
+  check "$c" '[[ "$(fdir "$SEC/b/victim" main)" == "$DATA/findings" && ! -e "$SEC/b/sib/.gitignore" ]]'
+fi
 newrepo "$SEC/c"
 mkdir -p "$SEC/c/real"
-ln -s real "$SEC/c/.work"
-check ".work linked to a directory inside the checkout still works" '[[ "$(fdir "$SEC/c" main)" == "$SEC/c/.work/reviews/main" && -f "$SEC/c/real/.gitignore" ]]'
+c=".work linked to a directory inside the checkout still works"
+if links "$c" real "$SEC/c/.work"; then
+  check "$c" '[[ "$(fdir "$SEC/c" main)" == "$SEC/c/.work/reviews/main" && -f "$SEC/c/real/.gitignore" ]]'
+fi
 newrepo "$SEC/e"
 mkdir -p "$SEC/e/.work"
 mkfifo "$SEC/e/.work/.gitignore"
@@ -916,8 +997,10 @@ check "a FIFO at .gitignore: returns at once, nothing written, the plugin data d
 newrepo "$SEC/f"
 mkdir -p "$SEC/f/.work" "$SEC/fout"
 mkfifo "$SEC/fout/fifo"
-ln -s "$SEC/fout/fifo" "$SEC/f/.work/.gitignore"
-check "a link to a FIFO at .gitignore: returns at once, nothing written" '[[ "$(fdir "$SEC/f" main)" == "$DATA/findings" ]]'
+c="a link to a FIFO at .gitignore: returns at once, nothing written"
+if links "$c" "$SEC/fout/fifo" "$SEC/f/.work/.gitignore"; then
+  check "$c" '[[ "$(fdir "$SEC/f" main)" == "$DATA/findings" ]]'
+fi
 # A findings name taken by a link to a FIFO is skipped, not written through.
 newrepo "$SEC/g"
 git -C "$SEC/g" checkout -q -b main 2>/dev/null
@@ -925,27 +1008,34 @@ mkdir -p "$SEC/g/.work/reviews/main"
 printf '*\n' >"$SEC/g/.work/.gitignore"
 mkfifo "$SEC/fout/fifo2"
 now="$(date +%s)"
+gl=()
 for s in 0 1 2 3 4 5 6 7 8 9; do
-  ln -s "$SEC/fout/fifo2" "$SEC/g/.work/reviews/main/$(jq -rn --argjson t "$((now + s))" '$t | strftime("%Y%m%dT%H%M%SZ")')-test-judge.md"
+  gl+=("$SEC/fout/fifo2" "$SEC/g/.work/reviews/main/$(jq -rn --argjson t "$((now + s))" '$t | strftime("%Y%m%dT%H%M%SZ")')-test-judge.md")
 done
-jq -cn --arg f "$SEC/g/t.test.ts" --arg r "$SEC/g" '{file: $f, repo: $r, name: "t", ordinal: 1, start: 1, end: 1, verdict: "PASS",
-  evidence: ["x"], source: "s", diff: "", reason: "", model: "m", effort: "e"}' >"$TMP/g-verdict.json"
-gout="$(timeout 5 env HOOK_DIR="$HOOK_DIR" DATA="$DATA" GV="$TMP/g-verdict.json" R="$SEC/g" bash -c "$(declare -f lib); lib linux-gnu 'RELAY=\"\$(<\"\$GV\")\"\$'\"'\"'\\n'\"'\"'; RELAY_REPOS=(\"\$R\"); judge::findings; printf %s \"\$FINDINGS\"'")"
-check "a findings name taken by a link to a FIFO is skipped: no hang, written under the next name" \
-  '[[ "$gout" == "$SEC/g/.work/reviews/main/"*-test-judge-2.md && -f "$gout" && ! -L "$gout" ]]'
+c="a findings name taken by a link to a FIFO is skipped: no hang, written under the next name"
+if links "$c" "${gl[@]}"; then
+  jq -cn --arg f "$SEC/g/t.test.ts" --arg r "$SEC/g" '{file: $f, repo: $r, name: "t", ordinal: 1, start: 1, end: 1, verdict: "PASS",
+    evidence: ["x"], source: "s", diff: "", reason: "", model: "m", effort: "e"}' >"$TMP/g-verdict.json"
+  gout="$(timeout 5 env HOOK_DIR="$HOOK_DIR" DATA="$DATA" GV="$TMP/g-verdict.json" R="$SEC/g" bash -c "$(declare -f lib); lib linux-gnu 'RELAY=\"\$(<\"\$GV\")\"\$'\"'\"'\\n'\"'\"'; RELAY_REPOS=(\"\$R\"); judge::findings; printf %s \"\$FINDINGS\"'")"
+  check "$c" '[[ "$gout" == "$SEC/g/.work/reviews/main/"*-test-judge-2.md && -f "$gout" && ! -L "$gout" ]]'
+fi
 # The directory is checked again just before the file takes its name: one
-# swapped for a link out after the first check is not written through.
-newrepo "$SEC/h"
-git -C "$SEC/h" checkout -q -b main 2>/dev/null
-mkdir -p "$SEC/hout"
-jq -cn --arg f "$SEC/h/t.test.ts" --arg r "$SEC/h" '{file: $f, repo: $r, name: "t", ordinal: 1, start: 1, end: 1, verdict: "PASS",
-  evidence: ["x"], source: "s", diff: "", reason: "", model: "m", effort: "e"}' >"$TMP/h-verdict.json"
-hout="$(timeout 5 env HOOK_DIR="$HOOK_DIR" DATA="$DATA" HV="$TMP/h-verdict.json" R="$SEC/h" O="$SEC/hout" bash -c "$(declare -f lib); lib linux-gnu '
+# swapped for a link out after the first check is not written through. A swap
+# whose link could not be made leaves a marker beside hout, so the case cannot
+# pass without the swap.
+c="a findings directory swapped for a link out after the check: nothing lands outside"
+if links "$c"; then
+  newrepo "$SEC/h"
+  git -C "$SEC/h" checkout -q -b main 2>/dev/null
+  mkdir -p "$SEC/hout"
+  jq -cn --arg f "$SEC/h/t.test.ts" --arg r "$SEC/h" '{file: $f, repo: $r, name: "t", ordinal: 1, start: 1, end: 1, verdict: "PASS",
+    evidence: ["x"], source: "s", diff: "", reason: "", model: "m", effort: "e"}' >"$TMP/h-verdict.json"
+  hout="$(timeout 5 env HOOK_DIR="$HOOK_DIR" DATA="$DATA" HV="$TMP/h-verdict.json" R="$SEC/h" O="$SEC/hout" bash -c "$(declare -f lib); lib linux-gnu '
   eval \"\$(declare -f judge::findings_dir | sed \"1s/judge::findings_dir/orig_fd/\")\"
-  judge::findings_dir() { orig_fd \"\$@\"; rm -rf \"\$R/.work/reviews/main\"; ln -s \"\$O\" \"\$R/.work/reviews/main\"; }
+  judge::findings_dir() { orig_fd \"\$@\"; rm -rf \"\$R/.work/reviews/main\"; make_link \"\$O\" \"\$R/.work/reviews/main\" || : >\"\$O.linkfail\"; }
   RELAY=\"\$(<\"\$HV\")\"\$'\"'\"'\\n'\"'\"'; RELAY_REPOS=(\"\$R\"); judge::findings; printf %s \"\$FINDINGS\"'")"
-check "a findings directory swapped for a link out after the check: nothing lands outside" \
-  '[[ -z "$(ls -A "$SEC/hout")" && "$hout" == "$DATA/findings/"* && -f "$hout" ]]'
+  check "$c" '[[ ! -e "$SEC/hout.linkfail" && -z "$(ls -A "$SEC/hout")" && "$hout" == "$DATA/findings/"* && -f "$hout" ]]'
+fi
 # The branch in the frontmatter parses back to itself: quoted exactly when its
 # plain YAML form would misparse (the predicate testing:audit shares), so
 # a"b#c stays plain and #x, which plain would read as a comment, is quoted.
@@ -958,6 +1048,12 @@ check "a branch named a\"b#c is a plain scalar, as YAML reads it back" '[[ "$(se
 git -C "$SEC/i" checkout -q -b '#x'
 iout="$(timeout 5 env HOOK_DIR="$HOOK_DIR" DATA="$DATA" IV="$TMP/i-verdict.json" R="$SEC/i" bash -c "$(declare -f lib); lib linux-gnu 'RELAY=\"\$(<\"\$IV\")\"\$'\"'\"'\\n'\"'\"'; RELAY_REPOS=(\"\$R\"); judge::findings; printf %s \"\$FINDINGS\"'")"
 check "a branch named #x is quoted, or YAML would read a comment" '[[ "$(sed -n 4p "$iout")" == "branch: \"#x\"" ]]'
+# No fixture copied into itself: a link copied in place of a link nests past
+# the 8 levels any fixture under sec/ needs.
+mkdir -p "$TMP/deep/1/2/3/4/5/6/7/8/9/10/11/12"
+check "the depth check reports a 12-deep chain" '[[ "$(too_deep "$TMP/deep" 8)" == "$TMP/deep/1/2/3/4/5/6/7/8/9" ]]'
+rm -rf "$TMP/deep"
+check "no fixture under sec/ nests more than 8 levels deep" '[[ -d "$SEC/i/.git" && -z "$(too_deep "$SEC" 8)" ]]'
 
 # 5. Numeric settings are numbers, never arithmetic run on the environment.
 transcript sec7 claude-sonnet-5
@@ -969,4 +1065,5 @@ out="$(payload sec7 stop "" '{"hook_event_name": "Stop"}' | TEST_JUDGE_TIMEOUT='
 check "a timeout or debounce value is not evaluated as arithmetic" '[[ ! -e "$TMP/pwned5" && ! -e "$TMP/pwned5b" && "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test "* ]]'
 
 check "no real claude was ever called" '[[ ! -e "$TMP/real-claude-called" ]]'
+echo "$SKIPS skipped (no native symlinks)"
 finish

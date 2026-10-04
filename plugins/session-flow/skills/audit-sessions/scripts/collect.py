@@ -11,9 +11,9 @@ Writes one `session-record/v1` file per main session (the main transcript plus i
 under `D/audit-sessions/store/v1/`, the machine-wide store `sweep.py` reads; a transcript Claude
 Code set aside (`<session>.orphaned-*.jsonl`) is skipped and counted, not ingested, and a record an
 earlier collector stored for one is deleted. A session whose
-fingerprint matches its stored record is skipped, unless that record was written by another
-collector version, under other excerpt limits, or with redaction failing closed where it now
-works or the reverse. With a retention window, records of sessions
+fingerprint matches its stored record is skipped, unless that record was written by a collector
+whose code or rules differ (the COLLECTOR_INPUTS digest), under other excerpt limits, or with
+redaction failing closed where it now works or the reverse. With a retention window, records of sessions
 that ended before it are pruned and such sessions are not ingested. Typed turns of at most
 `--excerpt-words` words right after an assistant message keep an excerpt, redacted by redact.py
 and then cut to `--excerpt-chars`; when redaction fails closed no excerpt is stored and the run
@@ -58,6 +58,16 @@ CENSUS_SCHEMA = "audit-sessions.census/v1"
 DRIFT_SCHEMA = "audit-sessions.drift/v1"
 RECORD_SCHEMA = "session-record/v1"
 STATE_KEY = PLUGIN_ROOT / "lib" / "state-key.sh"
+# Every file that shapes a stored record, relative to PLUGIN_ROOT: a change to any of them
+# re-ingests every session, and a change elsewhere in the plugin (its version) does not.
+COLLECTOR_INPUTS = (
+    "skills/audit-sessions/scripts/collect.py",
+    "skills/audit-sessions/scripts/census.py",
+    "skills/audit-sessions/scripts/redact.py",
+    "scripts/transcript_reader.py",
+    "skills/audit-sessions/vendor/gitleaks/gitleaks-rules.json",
+    "lib/state-key.sh",
+)
 HEAD_BYTES = 4096
 
 COMMAND_RE = re.compile(r"<command-name>/?([^<\s]+)</command-name>")
@@ -128,6 +138,18 @@ def collector_version() -> str:
     except (OSError, ValueError):
         return "unknown"
     return manifest.get("version", "unknown")
+
+
+def collector_digest() -> str:
+    """SHA-256 over COLLECTOR_INPUTS in order, CRLF read as LF so a checkout's line endings do not count."""
+    digest = hashlib.sha256()
+    for relative in COLLECTOR_INPUTS:
+        try:
+            data = (PLUGIN_ROOT / relative).read_bytes().replace(b"\r\n", b"\n")
+        except OSError:
+            data = b"<missing>"
+        digest.update(relative.encode("utf-8") + b"\0" + hashlib.sha256(data).digest())
+    return digest.hexdigest()
 
 
 def store_dir(data_dir: Path) -> Path:
@@ -620,6 +642,7 @@ def build_record(
     fp: dict,
     *,
     version: str,
+    digest: str,
     redactor: redact.Redactor,
     identity: RepoIdentity,
     excerpt_chars: int,
@@ -642,6 +665,7 @@ def build_record(
     return {
         "schema": RECORD_SCHEMA,
         "collector_version": version,
+        "collector_digest": digest,
         "excerpt_limits": {"chars": excerpt_chars, "words": excerpt_words},
         "ingested_at": _iso(time.time()),
         "session_id": main.stem,
@@ -739,7 +763,7 @@ def build_record(
 def stored_policy(record: dict) -> tuple:
     """The settings besides the transcript that shaped a record's stored text; None where a field is missing."""
     redaction = _obj(record.get("redaction"))
-    return record.get("collector_version"), record.get("excerpt_limits"), redaction.get("excerpts_suppressed")
+    return record.get("collector_digest"), record.get("excerpt_limits"), redaction.get("excerpts_suppressed")
 
 
 def load_store(store: Path) -> dict[Path, tuple[dict | None, tuple, float | None]]:
@@ -778,11 +802,12 @@ def cmd_collect(args: argparse.Namespace) -> int:
     cutoff = time.time() - args.retention_days * 86400 if args.retention_days else None
     wanted = set(args.session or ())
     version = collector_version()
+    digest = collector_digest()
     redactor = redact.load_redactor()
     identity = RepoIdentity()
     index = load_store(store)
     # A record stored under other settings is re-ingested, so a lowered excerpt limit reaches old records.
-    policy = (version, {"chars": args.excerpt_chars, "words": args.excerpt_words}, redactor.fail_closed)
+    policy = (digest, {"chars": args.excerpt_chars, "words": args.excerpt_words}, redactor.fail_closed)
     scanned = ingested = skipped = expired = orphaned = purged = too_long = 0
     failed: list[dict] = []
     unknown_types: Counter = Counter()
@@ -821,6 +846,7 @@ def cmd_collect(args: argparse.Namespace) -> int:
                 subagents,
                 fp,
                 version=version,
+                digest=digest,
                 redactor=redactor,
                 identity=identity,
                 excerpt_chars=args.excerpt_chars,
