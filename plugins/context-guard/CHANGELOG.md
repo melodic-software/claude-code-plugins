@@ -5,6 +5,12 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.4] - 2026-10-04
+
+### Fixed
+
+- **The reader contract no longer routes a session to the user-only setup skill.** When the `status` tool is present but no fresh snapshot follows a tool call, `reference/reader-contract.md` and `reference/cloud-headless-capture.md` now say to run `/context-guard:check` for what the session can check itself and to ask the operator to run `/context-guard:setup check` for the rest, instead of invoking setup through the Skill tool, which refuses it (#5984).
+
 ## [0.13.3] - 2026-10-04
 
 ### Changed

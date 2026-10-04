@@ -129,8 +129,9 @@ text, new and existing alike; the fleet-wide normalization sweep landed
 there is no longer a grandfathered set. Adopted 2026-08-18, lane 6 of the AI Hero course vetting
 (`docs/upstream/aihero-course.md`). Upstream basis, named
 provenance: mattpocock/skills standardized the same rule in `.agents/invocation.md` (upstream
-PRs #878 and #880) on his measured claim, his repo's measurement and not re-verified here, that
-explicit Skill-tool phrasing has a higher cross-skill hit rate than bare `/name` prose.
+PRs #878 and #880) on his asserted, unmeasured claim that explicit Skill-tool phrasing has a higher
+cross-skill hit rate than bare `/name` prose: his changeset says the phrasing "is intended to raise
+the hit rate", and `.agents/invocation.md` gives no data.
 
 **What the rule binds: operative chains, not mentions.** An *operative* chain is text that
 directs the executing model to hand work to another skill at some point in the flow: an

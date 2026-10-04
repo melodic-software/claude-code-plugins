@@ -1,0 +1,17 @@
+# expect: rule-zero-assertion
+# Names that read like checks are not assertions: both tests only print, one
+# of them on the def's own line.
+import unittest
+
+from config import load_config
+
+
+class ConfigTests(unittest.TestCase):
+    def test_validate_config_loads(self):
+        print(load_config("app.toml"))
+
+    def test_ensure_defaults(self): print(load_config("defaults.toml"))
+
+
+if __name__ == "__main__":
+    unittest.main()

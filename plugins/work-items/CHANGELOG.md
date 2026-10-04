@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.1] - 2026-10-04
+
+### Changed
+
+- `work-loop`'s `reference/paused-wait.md` no longer restates the lane pause floor as a bare `95`: the account-switch resume and re-latch steps point at the inlined floor's **Pause threshold (fixed)**, so a floor change cannot leave them stale.
+
 ## [0.49.0] - 2026-10-04
 
 ### Added
