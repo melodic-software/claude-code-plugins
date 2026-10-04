@@ -13,6 +13,10 @@
   `docs/conventions/discovery.yaml` (schema `schemas/discovery.schema.json`), which wins; the run
   names the layer that supplied it, and a value outside the three is reported with its file and
   key while the run uses `auto`. Keys: `reference/config.md`.
+- **`/discovery:setup apply` writes `docs/conventions/discovery.yaml`.** It checks every value
+  against `schemas/discovery.schema.json` and validates the whole file before writing, refuses an
+  invalid value or key, writes nothing outside `docs/conventions/`, and prints the diff and waits
+  for the operator's yes before changing a file that exists. `check` now also validates that file.
 
 ### Changed
 

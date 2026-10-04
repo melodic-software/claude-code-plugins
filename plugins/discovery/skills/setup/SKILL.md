@@ -1,6 +1,6 @@
 ---
-description: "Verify the discovery plugin's runtime prerequisites for this session and print the gate allow rules for the operator to paste so the acceptance-gate scripts stop prompting. Use when: 'set up discovery', 'configure the discovery plugin', 'is discovery configured', 'discovery setup', 'the research gates keep prompting', or a discovery skill reports a missing capability. Action: check (read-only, default). Re-runnable. Safe to invoke again."
-argument-hint: "[check]"
+description: "Verify the discovery plugin's runtime prerequisites for this session, print the gate allow rules for the operator to paste so the acceptance-gate scripts stop prompting, and write the repository's docs/conventions/discovery.yaml after confirmation. Use when: 'set up discovery', 'configure the discovery plugin', 'is discovery configured', 'discovery setup', 'the research gates keep prompting', 'set explore_output for this repo', or a discovery skill reports a missing capability. Actions: check (read-only, default), apply (writes docs/conventions/discovery.yaml only). Re-runnable."
+argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -14,13 +14,17 @@ configuration: the plugin's artifact protocol
 fixes where `EXPLORE.md`, `RESEARCH.md` and `INTENT.md` land, in the memory slice
 `<memory_dir>/<slug>/`, never committed.
 
-This is a check-only setup. Everything it reports lives in the harness or in the operator's own
-`~/.claude/settings.json`, which this skill never writes, so there is nothing for an `apply` to
-write. Idempotent: re-running reads the current state again.
+The plugin owns one tracked consumer file, `docs/conventions/discovery.yaml`, the repository layer
+of its settings (keys, values and layers:
+[`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md); schema:
+`${CLAUDE_PLUGIN_ROOT}/schemas/discovery.schema.json`). `check` reports it; `apply` writes it and
+nothing else. The harness rows and the operator's `~/.claude/settings.json` are reported only, never
+written. Action routing: no argument or `check` runs the check; `apply` runs the check, then
+writes. Re-running either reads the current state again.
 
 ## `check` (read-only)
 
-Report a PASS/INFO table. Do not write anything. No row is ever a FAIL or a blocker.
+Report a PASS/INFO/WARN table. Do not write anything. No row is ever a FAIL or a blocker.
 
 1. **Dispatch capability.** `/discovery:explore` and `/discovery:research` dispatch a subagent by
    default, and that posture degrades rather than breaks on a session that cannot support all of it.
@@ -87,11 +91,55 @@ Report a PASS/INFO table. Do not write anything. No row is ever a FAIL or a bloc
    why a version wildcard is unsafe is in
    [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md)
    ("Operator setup").
+3. **Repository settings.** Run
+   `"${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" --check` from the project root and report each
+   line it prints with its own INFO, PASS or WARN prefix. INFO when
+   `docs/conventions/discovery.yaml` is absent (every key comes from `userConfig` or its default);
+   PASS with each key's value when the file validates; WARN when it does not (a value outside the
+   key's list, a key set twice, an empty value or empty string, or a map or list where one string
+   belongs), quoting the file, key and value. An invalid value never stops a discovery skill: the
+   skill names it and drops that layer, so the row is a WARN. `apply` fixes a value outside the list
+   or an empty value; the other shapes are fixed by hand, and `apply` refuses the file until then.
+
+## `apply` (writes `docs/conventions/discovery.yaml` only)
+
+1. Run `check` and show its table.
+2. **Resolve the values.** With complete `<key>=<value>` arguments, use them. Otherwise ask one key
+   at a time, recommendation first, from the Keys table in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`
+   (`explore_output`: `auto`, the default, unless the team wants every run pinned to `change-prep`
+   or `explain`). Never invent a key the schema does not list.
+3. **Write.** One call with every value:
+
+   ```bash
+   "${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" explore_output=explain
+   ```
+
+   The script checks each value against the schema and validates the whole resulting document
+   before it writes; an invalid value or key, or an existing file with a key set twice, an empty
+   string, a map or a list, exits 1 with one line and writes nothing. It writes only
+   `<git toplevel>/docs/conventions/discovery.yaml`, and refuses a symlink, a hard-linked target,
+   or a `docs/conventions` that resolves outside the repository, checked again right before the
+   write, so nothing lands outside `docs/conventions/`. A missing file is created. A value already in place prints
+   `already configured` and writes nothing.
+4. **An existing file that would change** exits 3 and prints a unified diff without writing. Show
+   the operator that diff and ask whether to write it. Only on an explicit yes, re-run the same
+   call with `--yes`; on anything else, stop with the file unchanged. A request to "set it" is not
+   a yes to a diff the operator has not seen.
+5. **Verify.** Re-run `check` and report the value from its table, not from the write. Then the
+   tracked-file pair: `git check-ignore -v docs/conventions/discovery.yaml` reports no match (a
+   match means the team never receives the file: say so, and leave `.gitignore` to the operator),
+   and `git ls-files --error-unmatch docs/conventions/discovery.yaml` exits 0. Non-zero right after
+   a fresh write means "written but untracked: commit it to share with the team", never success.
 
 ## Output
 
-The PASS/INFO table and, when the gate allow rules are stale or absent, the six resolved rules as
-JSON strings ready to paste.
+`check`: the table and, when the gate allow rules are stale or absent, the six resolved rules as
+JSON strings ready to paste. `apply`: the table before and after, the diff when one was shown, the
+written path, and whether the file is tracked.
+
+## Next
+
+`/discovery:explore`
 
 ## Gotchas
 
@@ -100,6 +148,8 @@ JSON strings ready to paste.
 - **The gate allow rules stop matching after a plugin update.** They name this version's cache
   directory, so the gates prompt again until the operator pastes the rules `check` prints; `check`
   reports them "stale".
+- **The repository file reaches the team only once committed.** `apply` leaves it uncommitted on
+  purpose, and the tracked-file pair says so.
 
 ## What this skill does NOT do
 
@@ -109,3 +159,4 @@ JSON strings ready to paste.
   (`${CLAUDE_PLUGIN_DATA}`, for caches and generated state only) stay untouched.
 - Write Claude Code user settings or `pluginConfigs`. `check` reads `~/.claude/settings.json` and
   prints the gate allow rules; the operator applies them.
+- Write any file other than `docs/conventions/discovery.yaml`, or edit the consumer's `.gitignore`.

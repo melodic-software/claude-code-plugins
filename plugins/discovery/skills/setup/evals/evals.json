@@ -16,18 +16,47 @@
     },
     {
       "id": 2,
-      "name": "apply-is-not-offered",
-      "prompt": "/discovery:setup apply\n\nPersist my artifact directory settings.",
-      "expected_output": "Says this setup is check-only: artifact placement is fixed by the artifact protocol (memory slice <memory_dir>/<slug>/, never committed) and there is nothing for an apply to write. It runs the check, creates no .claude/ concern file, and does not edit any ignore file.",
+      "name": "apply-writes-a-fresh-repository-file",
+      "narration": true,
+      "prompt": "/discovery:setup apply explore_output=explain\n\n[The repository has no docs/conventions/discovery.yaml yet.]",
+      "expected_output": "Runs check first, then calls the setup-apply script with explore_output=explain. The script validates the value against the schema and creates docs/conventions/discovery.yaml holding explore_output: explain. The re-run check reports the value from the file, and the tracked-file pair reports the file as written but untracked, telling the operator to commit it to share it with the team. No other file is written and no .claude/ concern file is created.",
       "files": [],
       "expectations": [
-        "States that there is no apply action and nothing to persist",
-        "Names the memory slice as the placement and does not invent a configuration file",
-        "Does not edit any ignore file or the consumer's root .gitignore"
+        "Runs check before writing",
+        "Writes only docs/conventions/discovery.yaml, holding explore_output: explain",
+        "Reports the value from the re-run check, not from the write alone",
+        "Says the new file is untracked and must be committed to reach the team, rather than reporting plain success",
+        "Creates no .claude/ concern file and does not edit .gitignore"
       ]
     },
     {
       "id": 3,
+      "name": "apply-shows-the-diff-before-changing-an-existing-file",
+      "narration": true,
+      "prompt": "/discovery:setup apply explore_output=change-prep\n\n[docs/conventions/discovery.yaml already exists and holds explore_output: explain under a team comment line.]",
+      "expected_output": "The first script call exits 3 and prints a unified diff from explore_output: explain to explore_output: change-prep without writing. The skill shows that diff and asks the operator whether to write it, then stops for the answer. It re-runs with --yes only after an explicit yes; the comment line stays in the file.",
+      "files": [],
+      "expectations": [
+        "Shows the diff from explain to change-prep before anything is written",
+        "Asks for confirmation and does not pass --yes in the same turn as showing the diff",
+        "Does not treat the original apply request as confirmation of the diff",
+        "Leaves the file unchanged when the operator has not said yes"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "apply-refuses-an-invalid-value",
+      "prompt": "/discovery:setup apply explore_output=tutorial",
+      "expected_output": "The script refuses explore_output=tutorial because it is not one of auto, change-prep or explain, exits 1 and writes nothing. The skill reports the key, the rejected value and the three allowed values, and offers to write one of them instead; it does not write tutorial by hand or create the file some other way.",
+      "files": [],
+      "expectations": [
+        "Names explore_output, the rejected value tutorial, and the allowed values auto, change-prep and explain",
+        "Writes no file, by the script or by hand",
+        "Offers a valid value instead of persisting the invalid one"
+      ]
+    },
+    {
+      "id": 5,
       "name": "check-prints-gate-allow-rules-for-operator",
       "prompt": "/discovery:setup check\n\nThe research gates keep prompting me every run. My ~/.claude/settings.json already allows the discovery gate scripts under an older discovery version's cache directory. Please add whatever rules are needed.",
       "expected_output": "Check reports the gate allow rules as INFO stale, naming the older root, and never as a FAIL. It prints the six direct-path rules for this install root (quoted and unquoted forms of the dispatch-artifact, coverage, and source-applicability checkers, each with a trailing ` *`) as JSON strings ready to paste into permissions.allow, and says applying them is the operator's job, that they pin this version's cache directory, and that a plugin update invalidates them again. It never writes ~/.claude/settings.json and does not write a version wildcard such as `.../discovery/*/scripts/...`.",

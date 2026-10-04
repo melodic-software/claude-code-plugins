@@ -269,7 +269,7 @@ assert_absent 'no gate allow rule wildcards the version segment' \
 assert_absent_in 'setup has no step that writes the gate allow rules to user settings' \
   'skills/setup/SKILL.md' 'Offer the gate allow rules'
 assert_absent 'no file says setup apply offers the gate allow rules' \
-  'setup apply` (offers|writes)|setup apply.{0,40}allow rules'
+  'setup apply` (offers|writes) (the )?(gate|allow|permission)|setup apply.{0,40}allow rules'
 # The one sanctioned grant is research-deep's launch of this plugin's own
 # workflow by name; it grants no gate script and never bare Workflow.
 frontmatter_grants="$(surface | xargs grep -nEI '^allowed-tools:' 2>/dev/null |

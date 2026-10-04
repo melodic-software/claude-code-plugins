@@ -15,8 +15,9 @@ Decision 8):
 | 1 | per user | the plugin's `userConfig` option of the same name |
 | 2 | repository | `docs/conventions/discovery.yaml` at the repository root, tracked, validated by [`schemas/discovery.schema.json`](../schemas/discovery.schema.json) |
 
-`userConfig` is the per-user layer; no `~/.claude` file, `.claude/` file or local overlay sets these
-keys. The skill reads the repository file itself; a missing file or key leaves that layer unset,
+`/discovery:setup apply` writes the repository file after validating it against the schema, and
+shows the diff and asks before it changes an existing one. `userConfig` is the per-user layer;
+no `~/.claude` file, `.claude/` file or local overlay sets these keys. The skill reads the repository file itself; a missing file or key leaves that layer unset,
 and the layer does not apply outside a git working tree. Every run that reads a key reports the value and
 the layer that supplied it.
 

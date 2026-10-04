@@ -40,12 +40,14 @@ lib/resolve-convention-home.sh plugins/architecture/lib/resolve-convention-home.
 lib/resolve-convention-home.sh plugins/planning/lib/resolve-convention-home.sh
 lib/parse-concern-value.sh plugins/harness-memory/skills/audit/scripts/parse-concern-value.sh
 lib/parse-concern-value.sh plugins/session-flow/skills/retro/scripts/parse-concern-value.sh
+lib/parse-concern-value.sh plugins/discovery/skills/setup/scripts/parse-concern-value.sh
 lib/parse-concern-value.sh plugins/docs-hygiene/skills/audit-noise/scripts/lib/parse-concern-value.sh
 lib/parse-concern-value.sh plugins/work-items/skills/triage/scripts/parse-concern-value.sh
 lib/parse-concern-value.sh plugins/harness-ops/skills/lanes/scripts/lib/parse-concern-value.sh
 lib/parse-concern-value.sh plugins/education/skills/explain/scripts/parse-concern-value.sh
 lib/yaml-subset.awk plugins/harness-memory/skills/audit/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/session-flow/skills/retro/scripts/yaml-subset.awk
+lib/yaml-subset.awk plugins/discovery/skills/setup/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/docs-hygiene/skills/audit-noise/scripts/lib/yaml-subset.awk
 lib/yaml-subset.awk plugins/multi-agent/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/work-items/skills/triage/scripts/yaml-subset.awk

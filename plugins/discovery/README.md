@@ -75,8 +75,10 @@ Artifact placement follows the plugin's lifecycle artifact protocol
 documents: they land in `<memory_dir>/<slug>/` (default `.work/<slug>/`), one slug per topic, never
 committed, the memory root self-ignores. `<memory_dir>` is `.work/` unless your project
 instructions declare another root.
-`/discovery:setup check` reports read-only whether the session can run the dispatch design and
-prints the gate allow rules to paste into `~/.claude/settings.json`; it writes nothing.
+`/discovery:setup check` reports read-only whether the session can run the dispatch design, prints
+the gate allow rules to paste into `~/.claude/settings.json`, and validates
+`docs/conventions/discovery.yaml`. `/discovery:setup apply` writes that file and nothing else: it
+validates against the schema first and shows the diff and asks before changing an existing file.
 
 **`explore_output`.** A repository sets it for everyone in `docs/conventions/discovery.yaml`
 (schema: `schemas/discovery.schema.json`), which wins over this option. A value outside `auto`,
