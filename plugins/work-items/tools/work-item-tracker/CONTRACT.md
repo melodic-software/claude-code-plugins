@@ -332,7 +332,7 @@ Normalized item object:
   |---|---|---|
   | GitHub | `stateReason` `COMPLETED` or `null` | `NOT_PLANNED`, `DUPLICATE` |
   | Linear | state type `completed` | other done types (`canceled`, `duplicate`) |
-  | local-markdown | `closed`, no `state_reason` or `completed` | `state_reason` `not_planned`, `duplicate` |
+  | local-markdown | `closed`, no `state_reason` or `completed` | any other `state_reason` (`not_planned`, `duplicate`, ...) |
   | Jira, Gitea | any closed blocker (won't-do detection unsupported) | none |
 
   GitHub: `blockedBy.totalCount` keeps counting closed blockers and the `gh --json
@@ -593,9 +593,9 @@ network tool (`gh`, `curl`); the conformance suite runs it in CI, offline.
   `id`/`title`/`state`/`assignees`/`labels`/`parent` as one-line JSON values
   (YAML-flow-compatible, robust to special characters). Dependency edges are
   structured `Blocked by: <id>` body lines; `blocked_by_count` counts blockers whose
-  file exists and that are `open`, or `closed` with a `state_reason` other than
-  `completed` (`not_planned`, `duplicate`). A closed item with no `state_reason` was
-  completed. The lease is the same inline marker used
+  file exists and that are `open`, or `closed` with any non-empty `state_reason` other
+  than `completed` (such as `not_planned` or `duplicate`); those closed ones also count
+  in `blocked_by_wont_do_count`. A closed item with no `state_reason` was completed. The lease is the same inline marker used
   everywhere (see "Lease protocol"), appended to the item file.
 - **Identity.** No authenticated provider user exists offline, so `claim` records the
   holder from `git config user.name` (falling back to `$USER`, then `local`) and

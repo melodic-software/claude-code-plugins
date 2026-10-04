@@ -269,11 +269,12 @@ readonly WIT_ITEM_JQ='{
 # on every CLOSED blocker node. That projection carries no stateReason, so the
 # reasons come from `gh api graphql` nodes(ids:), one query per 100 closed blockers
 # and none when there is no closed blocker. Each CLOSED node also gets `reasonRead`:
-# false when its query failed or GitHub returned no node for it. A failed query is not
+# false when its query failed, answered with a blank or unparsable body, or returned
+# no node for it. A failed query is not
 # fatal, but WIT_ITEM_JQ keeps an unread blocker blocking (fail closed). A node read
 # with a null stateReason (issues closed before GitHub recorded reasons) is resolved.
 wit_gh_annotate_blocker_reasons() {
-  local json ids n i reasons='[]' out args id
+  local json ids n i reasons='[]' out page args id
   json="$(cat)"
   ids="$(printf '%s' "$json" | jq -c '[(if type == "array" then .[] else . end)
     | (.blockedBy.nodes // [])[] | select(.state == "CLOSED") | .id] | unique')"
@@ -285,8 +286,9 @@ wit_gh_annotate_blocker_reasons() {
     done <<<"$(jq -r --argjson i "$i" '.[$i:$i + 100][]' <<<"$ids")"
     # shellcheck disable=SC2016  # GraphQL query — $ids is a GraphQL variable, not a bash expansion
     if out="$(gh api graphql -f query='query($ids:[ID!]!){nodes(ids:$ids){... on Issue{id stateReason}}}' \
-      "${args[@]}" 2>/dev/null)"; then
-      reasons="$(jq -c --argjson acc "$reasons" '$acc + [(.data.nodes // [])[] | select(. != null)]' <<<"$out")"
+      "${args[@]}" 2>/dev/null)" &&
+      page="$(jq -ce '[(.data.nodes // [])[] | select(. != null)]' <<<"$out" 2>/dev/null)"; then
+      reasons="$(jq -cn --argjson acc "$reasons" --argjson page "$page" '$acc + $page')"
     else
       echo "wit_gh_annotate_blocker_reasons: close-reason query failed; closed blockers keep blocking" >&2
     fi

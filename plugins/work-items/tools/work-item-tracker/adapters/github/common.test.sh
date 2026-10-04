@@ -151,6 +151,7 @@ node() {
   3) printf '{"id":"I3","number":103,"state":"CLOSED"}' ;;
   4) printf '{"id":"I4","number":104,"state":"CLOSED"}' ;;
   5) printf '{"id":"I5","number":105,"state":"CLOSED"}' ;;
+  6) printf '{"id":"I2","number":102,"state":"CLOSED"},{"id":"I6","number":106,"state":"CLOSED"}' ;;
   esac
 }
 issue() {
@@ -162,6 +163,12 @@ elif [[ "$1 $2" == "issue list" ]]; then
   printf '[%s,%s,%s,%s]' "$(issue 1)" "$(issue 2)" "$(issue 3)" "$(issue 4)"
 elif [[ "$1 $2" == "api graphql" ]]; then
   [[ -z "${GH_STUB_GRAPHQL_FAIL:-}" ]] || { echo "HTTP 403: forbidden" >&2; exit 1; }
+  case "${GH_STUB_GRAPHQL_MODE:-}" in
+  no-node) printf '{"data":{"nodes":[]}}'; exit 0 ;;
+  null-node) printf '{"data":{"nodes":[null]}}'; exit 0 ;;
+  blank) exit 0 ;;
+  garbage) printf 'not json'; exit 0 ;;
+  esac
   out=""
   for a in "$@"; do
     case "$a" in
@@ -205,6 +212,23 @@ EOF
   OUT="$(GH_STUB_GRAPHQL_FAIL=1 emit 2)"
   assert_eq "failed close-reason query keeps the closed blocker blocking" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
   assert_eq "failed close-reason query is not won't-do" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
+
+  # A query that succeeds but returns no node, or a null node, for the blocker (a
+  # private cross-repo blocker, say) leaves its reason unread: it keeps blocking. So
+  # does a blank or unparsable body, which must not escape as a usage error (exit 2).
+  # Issue 6's two closed blockers come back as one node (I2, COMPLETED) and no node at
+  # all (I6): the answered one resolves, the missing one keeps blocking.
+  OUT="$(emit 6)"
+  assert_eq "a blocker missing from a partial graphql answer keeps blocking" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+  assert_eq "a blocker missing from a partial graphql answer is not won't-do" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
+
+  for mode in no-node null-node blank garbage; do
+    OUT="$(GH_STUB_GRAPHQL_MODE="$mode" emit 2)"
+    rc=$?
+    assert_eq "graphql $mode → get-item still exits 0" "0" "$rc"
+    assert_eq "graphql $mode → closed blocker keeps blocking" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+    assert_eq "graphql $mode → not won't-do" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
+  done
 
   : >"$REASON_STUB/calls.log"
   OUT="$(GH_STUB_DIR="$REASON_STUB" PATH="$REASON_STUB:$PATH" bash "$SCRIPT_DIR/list-items.sh" --repo o/r 2>/dev/null)"
