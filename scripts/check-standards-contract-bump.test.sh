@@ -138,6 +138,22 @@ if out="$(run_gate "$f" "$base" 2>&1)"; then
 else
   fail "the gate should pass when frontmatter, changelog, and manifests all moved, got: $out"
 fi
+
+# --- a fragment stands in for a carrier's bump only in fragment mode ----------
+printf 'planning\n' >"$f/scripts/fragment-plugins.txt"
+bump "$f" planning 0.1.0
+bump "$f" review 0.1.0
+for plugin in planning review; do
+  mkdir -p "$f/.changes/$plugin"
+  printf -- '---\nbump: patch\n---\n\n### Changed\n\n- Contract synced.\n' >"$f/.changes/$plugin/sync-0123abcd.md"
+done
+git -C "$f" add .changes
+out="$(run_gate "$f" "$base" 2>&1)"
+if [[ $? -eq 1 && "$out" == *"plugins/review/.claude-plugin/plugin.json is still 0.1.0"* && "$out" != *plugins/planning/* ]]; then
+  ok "the gate accepts a fragment-mode carrier's fragment and still requires the legacy carrier's bump"
+else
+  fail "expected only review reported stale, got: $out"
+fi
 rm -rf "$f"
 
 # --- carrying plugin manifest not bumped → fail -------------------------------
