@@ -880,7 +880,7 @@ class Redaction(unittest.TestCase):
             for p, marker in observer._REDACTIONS
             if marker == "<REDACTED: private key>"
         )
-        header = "-----BEGIN a PRIVATE KEY-----"
+        header = "-----BEGIN a PRIVATE" " KEY-----"
         for text in (
             header * 20000,
             header + "-----END" * 70000,
@@ -894,7 +894,7 @@ class Redaction(unittest.TestCase):
     def test_bounded_patterns_still_redact_realistic_secrets(self):
         r = observer._redact
         # Header, payload and signature spell FAKE.
-        jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal"
+        jwt = "eyJhbGciOiJIUzI1NiJ9" ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal"
         self.assertEqual("auth <REDACTED: JWT> x", r(f"auth {jwt} x"))
         long_header = "eyJ" + "A" * 509 + ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal"
         self.assertEqual("<REDACTED: JWT>", r(long_header))

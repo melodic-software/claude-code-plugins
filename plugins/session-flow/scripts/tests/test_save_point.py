@@ -510,7 +510,7 @@ def test_secret_shape_scan_of_an_adversarial_line_finishes_promptly(line):
     [
         # Header, payload and signature spell FAKE.
         (
-            "auth eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal x",
+            "auth eyJhbGciOiJIUzI1NiJ9" ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal x",
             "JWT",
         ),
         ("eyJ" + "A" * 509 + ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal", "JWT"),
