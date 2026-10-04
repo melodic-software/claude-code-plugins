@@ -69,9 +69,9 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 - **A hostile host can no longer fill the disk or forge the untrusted-data framing.**
   `scripts/fetch-docs.sh` leaves a body over `max_page_bytes` (`--max-page-bytes`,
   `DOCS_CACHE_MAX_PAGE_BYTES`, default 10 MiB) unread with reason `too-large`, converting and
-  storing nothing; `docs-cache.sh` refuses a summary or note holding `UNTRUSTED DATA`, its block's
-  opening line says only the END line with this block's nonce closes it, and a note's writer and
-  session print as `(self-reported)`.
+  storing nothing; `docs-cache.sh` refuses a summary or note with a line shaped like its block's
+  BEGIN or END marker, its block's opening line says only the END line with this block's nonce
+  closes it, and a note's writer and session print as `(self-reported)`.
 - **A malformed summary file no longer hides the other summaries.** `scripts/docs-cache.sh` parses
   each summary file on its own and skips one that is not JSON with a warning on stderr, as it
   already did for notes.

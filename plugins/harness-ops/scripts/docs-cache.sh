@@ -107,12 +107,14 @@
 #   prune_grace_seconds       DOCS_CACHE_PRUNE_GRACE_SECONDS       --grace               300
 #   max_page_bytes            DOCS_CACHE_MAX_PAGE_BYTES            fetch-docs --max-page-bytes  10485760
 #   cache_enabled             DOCS_CACHE_ENABLED                   none                  true
-# cache_dir is a non-empty string, cache_enabled true or false, every other key
-# a non-negative integer. ttl_seconds is fetch-docs.sh's --max-age when the
-# caller passes none; max_page_bytes is the largest body fetch-docs.sh downloads
-# (10 MiB, ten times the largest real docs page known, the Claude Code
-# CHANGELOG, at under 1 MB); cache_enabled false makes fetch-docs.sh --cache read
-# and write no cache. This CLI's own commands read and write whatever they are told.
+# cache_dir is a non-empty string, cache_enabled true or false, max_page_bytes a
+# positive integer, every other key a non-negative integer; an integer with a
+# leading zero is refused, since curl reads 010 as ten and bash as eight.
+# ttl_seconds is fetch-docs.sh's --max-age when the caller passes none;
+# max_page_bytes is the largest body fetch-docs.sh downloads (10 MiB, ten times
+# the largest real docs page known, the Claude Code CHANGELOG, at under 1 MB),
+# a cap on downloads only: a cached entry is served as stored, whatever its size.
+# cache_enabled false makes fetch-docs.sh --cache read and write no cache. This CLI's own commands read and write whatever they are told.
 #
 # Other env overrides:
 #   DOCS_CACHE_NOW  epoch seconds to use as the current time (the test seam)
@@ -145,9 +147,10 @@ unset DC_KV DC_V
 # dc_config_valid <key> <JSON type, or text> <value>: the value fits the key.
 # Sets DC_WANT to what the key takes.
 dc_config_valid() {
-  local type=number re='^[0-9]{1,18}$'
-  DC_WANT="a non-negative integer"
+  local type=number re='^(0|[1-9][0-9]{0,17})$'
+  DC_WANT="a non-negative integer with no leading zero"
   case "$1" in
+  max_page_bytes) re='^[1-9][0-9]{0,17}$' DC_WANT="a positive integer with no leading zero" ;;
   cache_dir) type=string re='.' DC_WANT="a non-empty string" ;;
   cache_enabled) type=boolean re='^(true|false)$' DC_WANT="true or false" ;;
   *) ;;
@@ -662,9 +665,10 @@ dc_block_open() {
 }
 
 # dc_forges_marker <text>: true when a line of the text is shaped like the
-# block's markers (UNTRUSTED DATA, any case), so it could pass for one.
+# block's BEGIN or END marker (a run of dashes, BEGIN or END, UNTRUSTED DATA,
+# any case, with or without a nonce), so it could pass for one.
 dc_forges_marker() {
-  grep -qiE 'untrusted[[:space:]]+data' <<<"$1"
+  grep -qiE -- '-{3,}[[:space:]]*(BEGIN|END)[[:space:]]+UNTRUSTED[[:space:]]+DATA' <<<"$1"
 }
 dc_block_close() {
   printf -- '----- END UNTRUSTED DATA %s -----\n' "$DC_NONCE"
@@ -833,7 +837,7 @@ dc_summary_put() {
     return 2
   fi
   if dc_forges_marker "$2"; then
-    DC_ERR="the summary contains UNTRUSTED DATA, the untrusted-data block marker's shape, so it could pass for a block line"
+    DC_ERR="the summary is shaped like the untrusted-data block marker (dashes, BEGIN or END, UNTRUSTED DATA), so it could pass for a block line"
     return 2
   fi
   if [[ "$DC_QUARANTINED" == 1 ]]; then
@@ -924,7 +928,7 @@ dc_note_put() {
     return 2
   fi
   if dc_forges_marker "$model"$'\n'"$session"$'\n'"$question"$'\n'"$text"; then
-    DC_ERR="the note or its provenance contains UNTRUSTED DATA, the untrusted-data block marker's shape, so a line of it could pass for a block line"
+    DC_ERR="a line of the note or its provenance is shaped like the untrusted-data block marker (dashes, BEGIN or END, UNTRUSTED DATA), so it could pass for a block line"
     return 2
   fi
   IFS=, read -ra ids <<<"$sections"

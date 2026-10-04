@@ -161,11 +161,11 @@ while [[ $# -gt 0 ]]; do
       MODE="$2"
       ;;
     --max-age)
-      [[ "$2" =~ ^[0-9]+$ ]] || die "--max-age needs a non-negative integer"
+      [[ "$2" =~ ^(0|[1-9][0-9]{0,17})$ ]] || die "--max-age needs a non-negative integer"
       MAX_AGE="$2"
       ;;
     --max-page-bytes)
-      [[ "$2" =~ ^[0-9]{1,18}$ ]] || die "--max-page-bytes needs a non-negative integer"
+      [[ "$2" =~ ^[1-9][0-9]{0,17}$ ]] || die "--max-page-bytes needs a positive integer"
       MAX_PAGE="$2"
       ;;
     --cache-dir)

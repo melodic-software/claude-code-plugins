@@ -45,7 +45,7 @@ chmod +x "$CLAUDE_STUB"
 # Last-Modified (Date is <name>.date, else a fixed time), and a request whose
 # If-None-Match or If-Modified-Since matches them gets an empty 304. A request
 # with Accept: text/markdown gets <name>.accept-md, when present, as
-# text/markdown. A file that is not served exits 22 with no output, and a
+# text/markdown, or as the type in <name>.accept-md.ctype. A file that is not served exits 22 with no output, and a
 # <name>.partial file is written and then fails with curl's short-transfer
 # code, like a body cut off mid-download. A body over --max-filesize exits 63
 # with no output, as curl does for a declared Content-Length, unless a
@@ -95,6 +95,7 @@ body="$src"
 if [[ "$accept" == text/markdown && -f "$src.accept-md" ]]; then
   body="$src.accept-md"
   ctype="text/markdown; charset=utf-8"
+  [[ -f "$src.accept-md.ctype" ]] && ctype="$(cat "$src.accept-md.ctype")"
 fi
 [[ -f "$src.status" ]] && status="$(cat "$src.status")"
 etag="" lastmod="" date="Mon, 01 Jan 2001 00:00:00 GMT"
@@ -901,7 +902,30 @@ DOCS_CACHE_MAX_PAGE_BYTES=1000 shim_run "$src" "$TEST_TMPDIR/out25c" --max-page-
 assert_eq "case 25: --max-page-bytes wins over DOCS_CACHE_MAX_PAGE_BYTES" read "$(page "$TEST_TMPDIR/out25c/manifest.json" skills .state)"
 rc=0
 err="$(shim_run "$src" "$TEST_TMPDIR/out25d" --max-page-bytes big skills 2>&1)" || rc=$?
-assert_eq "case 25: --max-page-bytes needs a non-negative integer" "2 ERROR: --max-page-bytes needs a non-negative integer" "$rc $err"
+assert_eq "case 25: --max-page-bytes needs a positive integer" "2 ERROR: --max-page-bytes needs a positive integer" "$rc $err"
+for bad in 0 010 09; do
+  rc=0
+  err="$(shim_run "$src" "$TEST_TMPDIR/out25d" --max-page-bytes "$bad" skills 2>&1)" || rc=$?
+  assert_eq "case 25: --max-page-bytes $bad is refused" "2 ERROR: --max-page-bytes needs a positive integer" "$rc $err"
+done
+rc=0
+err="$(shim_run "$src" "$TEST_TMPDIR/out25d" --max-age 010 skills 2>&1)" || rc=$?
+assert_eq "case 25: --max-age with a leading zero is refused" "2 ERROR: --max-age needs a non-negative integer" "$rc $err"
+DOCS_CACHE_MAX_PAGE_BYTES=010 shim_run "$src" "$TEST_TMPDIR/out25e" skills settings-reference 2>"$TEST_TMPDIR/err25e"
+assert_eq "case 25: DOCS_CACHE_MAX_PAGE_BYTES=010 is warned and the 10 MiB default applies" "1 read read" \
+  "$(grep -c '^WARNING: docs-cache config: DOCS_CACHE_MAX_PAGE_BYTES=010 ' "$TEST_TMPDIR/err25e") $(page "$TEST_TMPDIR/out25e/manifest.json" skills .state) $(page "$TEST_TMPDIR/out25e/manifest.json" settings-reference .state)"
+
+# The cap is inclusive: a body of exactly max_page_bytes is read, one byte more is
+# not. The .nocap sidecar leaves the decision to fetch-docs.sh's own size check.
+src="$(new_served served25x)"
+head -c 1000 /dev/zero | tr '\0' x >"$src/skills.md"
+head -c 1001 /dev/zero | tr '\0' x >"$src/settings-reference.md"
+touch "$src/skills.md.nocap" "$src/settings-reference.md.nocap"
+DOCS_CACHE_MAX_PAGE_BYTES=1000 shim_run "$src" "$TEST_TMPDIR/out25x" skills settings-reference
+m="$TEST_TMPDIR/out25x/manifest.json"
+assert_eq "case 25: a body of exactly max_page_bytes is read, all of it" "read 1000" "$(page "$m" skills '"\(.state) \(.bytes)"')"
+assert_eq "case 25: a body one byte over max_page_bytes is unread too-large" "unread too-large" \
+  "$(page "$m" settings-reference '"\(.state) \(.reason)"')"
 src="$TEST_TMPDIR/gs-big"
 mkdir -p "$src"
 html_page "$src/page" Page "$(head -c 2000 /dev/zero | tr '\0' x)"
@@ -910,6 +934,41 @@ printf '%s' 'text/html' >"$src/page.ctype"
 DOCS_CACHE_MAX_PAGE_BYTES=1000 gen_run "$src" go-big "$PYOK" $G1 "$PAGE_URL"
 assert_eq "case 25: a generic HTML page over the cap is unread too-large and never converted" "unread too-large 0" \
   "$(gpage go-big '"\(.state) \(.reason)"') $(grep -c ran "$PY_LOG")"
+# The markdown request answers small plain text; the plain GET that follows answers HTML over the cap.
+printf '%s\n' 'not markdown' >"$src/page.accept-md"
+printf '%s' 'text/plain' >"$src/page.accept-md.ctype"
+: >"$PY_LOG"
+: >"$src.log"
+DOCS_CACHE_MAX_PAGE_BYTES=1000 gen_run "$src" go-big2 "$PYOK" $G1 "$PAGE_URL"
+assert_eq "case 25: HTML over the cap on the plain GET after the markdown request is unread too-large, never converted" \
+  "unread too-large 0 1" \
+  "$(gpage go-big2 '"\(.state) \(.reason)"') $(grep -c ran "$PY_LOG") $(grep -v -- '-H Accept' "$src.log" | awk -v u="$PAGE_URL" '$NF == u' | wc -l | tr -d ' ')"
+# An over-cap fallback channel is skipped, and the read moves on to the next one.
+# The .nocap sidecars have the body written, so the size check must delete it.
+src="$TEST_TMPDIR/gs-bigsfx"
+mkdir -p "$src"
+html_page "$src/page" Page 'html body'
+printf '%s' 'text/html' >"$src/page.ctype"
+head -c 2000 /dev/zero | tr '\0' x >"$src/page.md"
+printf '%s\n' '- [Page](https://docs.test/guide/page.txt)' >"$src/llms.txt"
+printf '%s\n' '# Page' 'bundle body' >"$src/page.txt"
+touch "$src/page.md.nocap" "$src/page.txt.nocap"
+DOCS_CACHE_MAX_PAGE_BYTES=1000 gen_run "$src" go-bigsfx "$PYOK" $G1 "$PAGE_URL"
+assert_eq "case 25: a .md suffix over the cap is skipped; the llms.txt link is read" "read markdown 1 0" \
+  "$(gpage go-bigsfx '"\(.state) \(.format)"') $(grep -cF 'https://docs.test/guide/page.md' "$src.log") $(find "$TEST_TMPDIR/go-bigsfx" -name '*.part' | wc -l | tr -d ' ')"
+assert_eq "case 25: the page is the llms.txt link's body" "$(cat "$src/page.txt")" "$(cat "$TEST_TMPDIR/go-bigsfx/docs-test/guide/page.md")"
+rm -f "$src/page.md"
+head -c 2000 /dev/zero | tr '\0' x >"$src/page.txt"
+: >"$PY_LOG"
+DOCS_CACHE_MAX_PAGE_BYTES=1000 gen_run "$src" go-bigbundle "$PYOK" $G1 "$PAGE_URL"
+assert_eq "case 25: an llms.txt link over the cap is skipped; the HTML is converted" "read html-converted 1 0" \
+  "$(gpage go-bigbundle '"\(.state) \(.format)"') $(grep -c ran "$PY_LOG") $(find "$TEST_TMPDIR/go-bigbundle" -name '*.part' | wc -l | tr -d ' ')"
+# No later channel writes the page's .part file when the page is neither markdown nor HTML.
+head -c 2000 /dev/zero | tr '\0' x >"$src/page.md"
+printf '%s' 'text/plain' >"$src/page.ctype"
+DOCS_CACHE_MAX_PAGE_BYTES=1000 gen_run "$src" go-bignone "$PYOK" $G1 "$PAGE_URL"
+assert_eq "case 25: over-cap fallbacks with nothing read after them leave no .part file" "unread 0" \
+  "$(gpage go-bignone .state) $(find "$TEST_TMPDIR/go-bignone" -name '*.part' | wc -l | tr -d ' ')"
 
 echo
 if [[ $FAILED -eq 0 ]]; then
