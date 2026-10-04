@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.6.7] - 2026-10-02
+## [3.7.1] - 2026-10-04
 
 ### Fixed
 
@@ -11,6 +11,12 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
   row now points at the mods overview's built-in roster as a cross-check and keeps the binary read
   as the source, because the binary registers built-ins the roster omits; the row's recheck trigger
   and as-of date moved to 2.1.288.
+
+## [3.7.0] - 2026-10-04
+
+### Added
+
+- **audit-performance counts dead-parent fan-out debris at any age on Windows.** `orphan_attribution.dead_parent_any_age` is a per-name census (`name`, `count`, `youngest_h`, `oldest_h`) of processes whose parent is gone or recycled, older than 5 seconds; a census process whose parent start time is unreadable is counted in `orphan_attribution.dead_parent_any_age_unknown_count` and stays out of the verdict's `unknown_count` and `unknown_sample`. The names are the orphan candidate set plus `tail.exe`, `grep.exe`, `sleep.exe`, and `cat.exe`. It is a census, not a kill list: `orphans`, `orphan_count`, and the 24-hour verdict floor stay as they are. On Linux, macOS, and WSL the census is `null` with a note, because those systems reparent an orphan to a live init or subreaper and the process table no longer shows the dead parent. The orphan verdict reads the same table, so off Windows `orphan_attribution.orphans_note` now says it cannot see a reparented orphan: `orphan_count: 0` is not a cleared suspect, and a `live_parent` row under init, launchd, or a subreaper is unresolved; on Windows the note is `null` ([#6035](https://github.com/melodic-software/claude-code-plugins/issues/6035)).
 
 ## [3.6.6] - 2026-10-03
 

@@ -90,9 +90,11 @@ changed: where did its expected value come from? It answers FLAG (the value rest
 implementation), PASS or UNKNOWN, quotes its evidence, and proposes a diff for a FLAG. It never
 applies anything. A background job judges soon after a write; at the end of the task the Stop hook
 waits for any run still going, judges what is left (10 tests per task end, the rest at the next
-one), writes a review-findings file (under `.work/reviews/<branch>/`), and shows the counts. In an interactive session it also asks
-Claude once to show you each verdict and proposed diff and wait; unattended sessions get the
-counts and the file only. A session that ended before its verdicts were shown gets them named at
+one), writes a review-findings file (under `.work/reviews/<branch>/`), and shows the counts. In an
+interactive session, when a verdict is a FLAG or an UNKNOWN for a reason other than "no repository"
+or no judge class, it also asks Claude once to show you each verdict and proposed diff and wait.
+When every verdict is a PASS or one of those two UNKNOWN verdicts, there is nothing to decide and the stop
+is not blocked; that case, and an unattended session, get the counts and the file only. A session that ended before its verdicts were shown gets them named at
 the next session start. The writing agent never supplies the judge's prompt, model or output, and
 the judge's model class always differs from every model that wrote the tests: when the configured
 class wrote them, the fallback or the next of `opus`, `sonnet`, `haiku` is used, and when all
@@ -120,8 +122,8 @@ steps can still race them; that residual is accepted. A
 
 What you can tune: both hooks on or off, the judge's model classes and effort, the per-session run
 limit, the test-file globs, adapters and rule levels in the testing config, and a per-test
-`cant-fail-ok: <reason>` marker. What is fixed: the judge's one question; its one forced turn
-relays verdicts for you to approve, and it never gates a stop, a commit or `--check` and never
+`cant-fail-ok: <reason>` marker. What is fixed: the judge's one question; its one forced turn,
+taken only when there is a FLAG or an UNKNOWN to decide, relays verdicts for you to approve, and it never gates a stop, a commit or `--check` and never
 blocks on its own failure; it never applies a fix; and its malfunction guards (a
 $0.90 budget per started ten tests in one run, a 150 s hang bound, three judge runs at once per
 machine).
@@ -134,7 +136,11 @@ and judged when Claude Code records the call's changed files (`bashEditDiffEnabl
 user, `--settings` or managed settings, or `CLAUDE_CODE_BASH_EDIT_DIFF=1`, and within the Bash
 route's limits below); no background job starts for a Bash call, so the Stop hook judges those
 tests itself. Test files written through an MCP tool are not recorded, so they are not judged. A
-test file in no git repository is not judged: the judge's reads are scoped to the repository, so
+test file under the system temp directory (`TMPDIR`, `TMP` or `TEMP`, and `/tmp` and `/var/tmp`
+when none is set; on Windows also its long and 8.3 short drive spellings) or in a Claude session
+scratchpad (`.../claude/<project>/<session>/scratchpad/`) is a working copy, not an authored test:
+it is not recorded, so it is not judged. A Write or Edit of such a copy is still scanned; a Bash
+call's copy is neither scanned nor recorded. A test file in no git repository is not judged: the judge's reads are scoped to the repository, so
 it is reported UNKNOWN, "no repository". A symbolic link inside the repository that points outside
 it does not widen the judge's reach: its scoped Read is checked against the link's resolved target
 and refused, and its Grep does not follow a linked directory (probe R2-P15). A
