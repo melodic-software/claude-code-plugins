@@ -139,6 +139,14 @@ Apply one finding at a time. Concurrent fixes risk silent overwrite (last write 
 - Each fix is scope-fenced to its finding's `Location`: touch only that file for that finding.
 - **Fix correctness findings here, in this sequential scope-fenced pass. `/simplify` is quality-only and does not hunt bugs.**
 - **Surface instead of auto-applying** when a fix is low-confidence, needs architectural judgment, has high blast radius, or **its remediation lies outside the finding's `Location`** (Step 2). Auto-apply only clear, contained, high-confidence fixes. The fourth trigger is not a special case of the first three: an off-site row can be high-confidence, mechanically contained, and low blast radius, and without the trigger a fixer meeting one has no disposition at all. The fence forbids the edit the `Action` names, and nothing else authorizes surfacing.
+- **Red test before the fix.** For a finding verified at its cited site, add a test that fails
+  because of the defect before editing the code. When the same defect occurs at more than one site
+  inside the finding's `Location` (a second function, a copied block), the test exercises every
+  one, so a fix that misses a site stays red. Run it and see it fail, apply the fix, run it and see
+  it pass, and name the test and both results in Step 5's report. The test file is the one file
+  outside `Location` this pass may write; put it where the project keeps tests for that file. When
+  the project has no test setup for that code, or the defect is not something a test can observe
+  (docs, config text), say so in the report and fix without one.
 - After each fix, re-read the touched region to confirm the edit landed as intended.
 
 ### Producer-owned → the surface the row names

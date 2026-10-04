@@ -506,6 +506,48 @@
         "The uncertain finding is present and labeled medium or low, not omitted and not given high",
         "The severity field uses the caller's vocabulary; no CRITICAL, IMPORTANT or SUGGESTION tier label replaces it"
       ]
+    },
+    {
+      "id": 41,
+      "name": "every-surface-gets-one-intent-paragraph",
+      "prompt": "/review:fanout\n\n[Scenario: medium-tier branch, 140 changed lines, open PR titled 'Cap webhook redelivery at five attempts'. The PR body says the goal is to stop a failing subscriber from receiving the same event forever. Two commits: 'add attempt counter to delivery row' and 'stop redelivery after the fifth failure'. pr-review-toolkit is installed; codex is not.]",
+      "expected_output": "Before dispatch, writes one short paragraph in its own words stating what the change is meant to do (stop redelivering a webhook event after five failed attempts), drawn from the PR title, PR body and commit subjects. The same paragraph goes into the prompt of every surface it dispatches, the code-reviewer and security-reviewer leaves and the pr-review-toolkit orchestrator alike, labeled as what the author says the change is for, which the reviewer checks the change against rather than trusts.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "States the change's intent in one paragraph before any surface is dispatched",
+        "The intent paragraph is drawn from the PR title, PR body or commit subjects rather than invented",
+        "Every dispatched surface's prompt carries the same intent paragraph, not only the code-reviewer's",
+        "The paragraph is framed as the author's purpose to check against, not as verified fact"
+      ]
+    },
+    {
+      "id": 42,
+      "name": "demoted-findings-listed-under-dismissed",
+      "prompt": "/review:fanout\n\n[Scenario: small-tier branch. The code-reviewer leaf returns two CRITICAL findings. One says ledger/post.py:88 divides by a count that can be zero; the cited line does divide by `len(entries)` with no guard. The other says ledger/post.py:120 closes the database connection twice; at line 120 the connection is closed once, inside a `with` block, and nothing else closes it.]",
+      "expected_output": "Reads both cited lines before the CRITICAL findings enter the report. The divide-by-zero finding stays CRITICAL. The double-close finding is not borne out, so it drops to low confidence and stays in `## Findings` at that confidence. The persisted report also carries a `## Dismissed` section that lists the double-close finding with one line of reason (line 120 closes the connection once, inside a with block). No finding is removed from the report.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The divide-by-zero finding stays in the report as CRITICAL",
+        "The double-close finding remains in `## Findings` at low confidence rather than being removed",
+        "The report has a `## Dismissed` section listing the double-close finding with a one-line reason drawn from the cited line",
+        "The divide-by-zero finding does not appear under `## Dismissed`"
+      ]
+    },
+    {
+      "id": 43,
+      "name": "fix-pass-writes-a-red-test-covering-every-site-first",
+      "prompt": "/review:fanout fix\n\n[Scenario: one unconsumed findings file for this branch. Its only row is CRITICAL, high confidence, Location billing/proration.py:41: `prorate()` rounds each partial month down with int(), so a customer who cancels mid-month is refunded one cent less; the same int() truncation appears again at billing/proration.py:77 in `prorate_upgrade()`. The project keeps pytest tests under tests/billing/. The user confirms the plan.]",
+      "expected_output": "Before changing billing/proration.py, adds a test under tests/billing/ that fails because of the truncation and that exercises both sites, `prorate()` and `prorate_upgrade()`, then runs it and sees it fail. Only then does it fix both lines, re-runs the test and sees it pass. The report names the test and its red-then-green result.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes a failing test before editing billing/proration.py",
+        "The test exercises both prorate() and prorate_upgrade(), not only the cited line",
+        "Runs the test red before the fix and green after it",
+        "The report names the test and states its red-then-green result"
+      ]
     }
   ]
 }

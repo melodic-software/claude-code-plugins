@@ -259,6 +259,32 @@
         "The code-reviewer brief lists no size crossing",
         "The report contains no finding about the length of scripts/sync_ledger.py"
       ]
+    },
+    {
+      "id": 21,
+      "name": "code-mode-flags-unbounded-retry-and-checker-bypassing-cast",
+      "prompt": "/review:quality-gate code\n\nMy branch adds src/sync/upload.ts. `pushBatch()` loops `while (!ok) { await markRowsSent(batch); ok = await post(batch); }` with no attempt limit and no backoff, so a server that keeps refusing makes it rewrite the same rows forever. It also reads the response as `const body = (await res.json()) as unknown as UploadReceipt;` with no runtime check. The repo's ESLint config has no rule on type assertions. pr-review-toolkit is not installed.",
+      "expected_output": "The code-reviewer reports one SUGGESTION for the retry loop: it changes state (marks rows sent) on every pass and has no stopping condition, so a run that never succeeds never ends. It reports one SUGGESTION for the double cast through unknown, which tells the type checker the response is an UploadReceipt without checking it. Neither is raised as CRITICAL or IMPORTANT, because no correctness failure in shipped behavior is shown.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports exactly one finding for the retry loop in pushBatch(), naming the missing stopping condition or attempt limit",
+        "Reports exactly one finding for the `as unknown as UploadReceipt` cast, naming that it bypasses the type checker",
+        "Both findings carry SUGGESTION severity"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "code-mode-leaves-linted-casts-and-console-calls-to-the-linter",
+      "prompt": "/review:quality-gate code\n\nMy branch adds src/report/export.ts with `const rows = data as ExportRow[];` and a leftover `console.log('rows', rows.length)`. The repo's eslint.config.js turns on `@typescript-eslint/consistent-type-assertions` with `assertionStyle: 'never'` and `no-console` as errors, and CI runs ESLint. pr-review-toolkit is not installed.",
+      "expected_output": "The code-reviewer reads the ESLint config, sees that both the type assertion and the console call are already errors there, and raises no finding for either. It does not restate what the linter will report.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Raises no finding for the `as ExportRow[]` assertion",
+        "Raises no finding for the console.log call",
+        "Names, or acts on, the ESLint rules that already cover both"
+      ]
     }
   ]
 }

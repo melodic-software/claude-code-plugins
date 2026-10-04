@@ -34,6 +34,14 @@ for a subagent:
 | Leaking **seam** | Two modules are coupled so tightly that the details of one show up across the other's seam | The invoice export reads the rates client's cache keys |
 | Defects between subsystems | The same kind of defect keeps appearing where several owned subsystems meet, not inside any one of them | Checkout and the refund job disagree on a total by one cent |
 
+The scan adds three signals of its own, recorded the same way:
+
+| Signal | What the agent sees | Tax example |
+|---|---|---|
+| Special case in a general module | A module meant for every caller holds a rule only one caller needs, so each new caller inherits that case. The general work belongs inside; the one-caller decision belongs with that caller | `TaxCalculator.quote()` checks whether the caller is the refund job before choosing a date; the refund job could pass the date it wants |
+| Long trace | Following one request means passing through file after file, or layer after layer, where each adds little. Judge the length against the rest of the codebase; no fixed count applies | One line's tax goes from the controller to `TaxService`, `TaxFacade`, `TaxRateLookup`, then the rates client |
+| Wide state scope | State sits at a wider scope than its readers need, or a value is stored and kept in sync where it could be computed on read. From narrowest to widest: function inputs, locals, an object's fields, module state, globals | Checkout sets a module-level `currentRegion` before calling `quote()`; `invoice.taxTotal` is re-saved after every line edit instead of summed when read |
+
 Run the **deletion test** on anything that looks shallow, and record the result in the schema's
 `deletion-verdict` field: `concentrates` is the candidate signal and `moves` marks a pass-through,
 with both results defined in [vocabulary.md](vocabulary.md) and Phase 1.
@@ -60,6 +68,13 @@ Calibrating at scan time is what lets Phase 1.5 verify against a stated bar rath
 - **Two-adapter rule**: an abstraction or port earns its existence only with two real
   consumers/adapters (typically production + test). A candidate whose value hinges on a one-adapter
   abstraction is speculative indirection, and earns `speculative` confidence at best.
+
+The agent also asks two reader questions about the value at the center of the candidate: what
+produces it, and which code is allowed to change it? When answering either one means opening several
+modules, the agent writes that into `shallow-signal`. The answers are evidence for the rating, not a
+third heuristic: the two above still decide it. For the tax case: the rate applied to an order is
+produced by `TaxRateLookup`, but finding what can change it means reading the rates client, its
+cache and a nightly refresh job.
 
 ## 5. Per-candidate return schema
 

@@ -35,9 +35,16 @@ moves in lockstep with the first. The coupling remains, plus a layer.
 - **Move behavior to the data it envies**: feature envy and reach-through chains resolve by
   relocating the calculation onto the type that owns the state, or by asking the collaborator
   ("tell, don't ask") instead of interrogating its graph.
-- **De-globalize shared mutable state**: common coupling via statics/singletons becomes an
-  injected instance whose lifetime the composition root owns; shared config objects become
-  read-only snapshots handed in.
+- **De-globalize shared mutable state**: first rung, remove the shared write target before
+  adding a lock. When several writers update one store (a file, a table row, a cache key) and the
+  proposed fix is a lock or a mutex, check whether each writer can own a target of its own: the
+  scheduler writes `schedule-progress.json` and the exporter writes `export-progress.json`, and
+  a reader that needs both combines them. Nothing is shared, so nothing needs a lock. Next rung,
+  common coupling via statics/singletons becomes an injected instance whose lifetime the
+  composition root owns; shared config objects become read-only snapshots handed in.
+  *Not when (first rung):* the store holds one value every writer must agree on (a balance, a
+  sequence number). Splitting it moves the conflict into the reader; keep one target and serialize
+  the writes.
 - **Facade / anti-corruption layer over a messy or foreign surface**: when many call sites
   each reach deep into a subsystem or an external model, one owned surface absorbs the churn.
   *Not when:* it would forward calls one-to-one and absorb nothing. That is a middle man.

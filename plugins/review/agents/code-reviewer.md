@@ -64,13 +64,18 @@ The cap is `maxTurns: 30` and a large change set can exhaust it. Finish reading 
 - Error messages leaking internal details to users
 - Hardcoded machine-specific paths or environment assumptions
 - Cross-platform compatibility issues (path separators, line endings, shell assumptions)
+- Code that changes state and may run again (a retry loop, a resumed job, a redelivered message) with no reason the second run is harmless or no condition that ends the repeats; and an old and a new path for the same behavior both left callable, with nothing saying which callers use which or when the old one is removed
 
 **Code quality:**
 
 - Deep nesting where guard clauses and early returns would simplify
 - Mutable state where immutability is the surrounding idiom
+- Logic that reaches for I/O, the clock, randomness or shared state partway through when it could take those as inputs: ask whether the side effect can move out to the caller and leave the logic pure. Untrusted input and other trust boundaries stay with `security-reviewer`
+- Only where no project linter or compiler setting already covers them: casts that overrule the type checker instead of narrowing the value (a double cast through `unknown` or `any`, a non-null assertion on a value that can be null), and debug output left in shipped code (`console.log`, `print`, `dbg!`) where the project writes through its own logger
 - Tests asserting implementation details instead of observable behavior
 - Tautological expectations in changed or added tests, meaning an expected value re-derived through the same steps the code under test takes rather than independently sourced (`testing:test-value` lists the sources). The canonical shape computes `expected` with the production algorithm in the arrange section and asserts against it; the adjacent case is a round-trip or identity check comparing output against its own input. Both hold for every implementation, so the assertion cannot fail. The oracle is the defect. **Defer to `testing:audit`'s `cant-fail-scan.sh` only on evidence that it ran:** its `testing/audit/rule-recomputed-expectation` decides only the textually-identical-sides core, so when both sides are the same expression and that scan's output for this change set is in your context and reports the assertion, report nothing here. When the scan's output is not in your context, report the identical-sides assertion yourself and say in the finding that the scan did not run; a duplicate is merged by fanout's dedup stage, while a finding nobody reports ships. Beyond that core, this criterion covers what the scan leaves undecided: sides that differ textually but share a derivation. Ask what the expected value's independent source is; if the answer is the code under test, that is the finding.
+
+The repeat-run, side-effect and cast-or-debug-output items above are SUGGESTION findings; raise one higher only when the change shows the behavior it causes is wrong.
 
 **Design-smell baseline** (Fowler, *Refactoring* 2nd ed., ch. 3). Check the diff for the smells below and report a match as a possible smell, not a rule violation. Where the project's documented standards endorse a pattern a smell would flag, the standards win; a pattern any tooling already enforces (a linter, formatter, compiler setting, architecture test, or another automated check) is not reported:
 
@@ -81,7 +86,7 @@ The cap is `maxTurns: 30` and a large change set can exhaust it. Finish reading 
 - Feature Envy: a function works mostly on another module's data → relocate it beside that data
 - Data Clumps: a group of values always passed side by side → give the group its own type
 - Primitive Obsession: a domain idea carried as a raw string or number → wrap it in a small named type
-- Repeated Switches: the same branch-on-kind logic copied to several sites → one dispatch point, or polymorphism
+- Repeated Switches: the same branch-on-kind logic copied to several sites, one chain that gains yet another `else if` for a new kind, or a second boolean added only to stay in step with an existing one → one dispatch point, or polymorphism; one enum or state value in place of the paired booleans
 - Speculative Generality: abstractions, extension points or parameters with no current user → delete them until a second real caller exists
 - Message Chains: callers walking `a.b().c().d()` through the object graph → let the first object hand over what the caller needs
 - Middle Man: a type that mostly forwards to another → call the target directly

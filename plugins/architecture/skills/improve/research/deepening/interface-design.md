@@ -48,6 +48,12 @@ subagent; it is not the framing from section 1 passed along:
 | What the seam hides | Rate lookup, rounding and exemption rules |
 | Names to use | The [vocabulary.md](vocabulary.md) terms, plus the project's glossary terms when it keeps a glossary; with one name list, the returns can be compared term for term |
 
+**Write the comparison note before any return arrives.** In the dispatch turn, the parent writes
+down which of the three axes in section 4 counts most for this candidate and what result on that
+axis would settle the pick, and leaves the note out of every brief. An axis chosen after reading the
+designs tends to be the one that favors the design the parent already liked. For tax: locality
+counts most, because the reported defects are rounding errors each caller fixes on its own.
+
 ## 3. The returns the parent reads
 
 Every subagent answers in six parts, in this order:

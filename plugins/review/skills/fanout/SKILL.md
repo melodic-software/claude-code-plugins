@@ -88,6 +88,15 @@ with a downstream filter that does not say so converts investigations into silen
 per-model prompting guides, "Code review harnesses"). The clause restores recall without moving
 the precision work: the pipeline's dedup and agreement/rank stages remain the filter.
 
+**Intent paragraph.** Before the first dispatch, write one short paragraph, in your own words, on
+what the change is meant to do, drawn from the user's request, the commit subjects on the branch,
+and the PR title and body when a PR exists. Put that same paragraph, labeled as what the author
+says the change is for, into the prompt of every surface this skill dispatches itself: the default mode's leaves
+and the orchestrator plugins in either mode. A reviewer checks the change against it and reports
+where they differ; the paragraph is a description to test, never evidence that the change works.
+When those sources say nothing about the purpose, ask the user once in an interactive session;
+otherwise the paragraph reads `Intent: not stated` and review proceeds without it.
+
 ## Pre-flight gate (both review modes)
 
 **Ask-shape check first, before any diff resolution:** when the ask is a whole-repository security audit rather than a change review, emit the deep-scan escalation from [context/leaf-roster.md](context/leaf-roster.md) "Deep-scan escalation" and STOP. Regardless of diff state. A tracked diff or open PR does not convert that ask into a change review; a diff-scoped fan-out would answer a question the user did not ask.
@@ -114,6 +123,12 @@ Read the pre-computed facts (the pre-flight gate above has already screened out 
 ## Step 2: Normalize
 
 Run the 5-stage pipeline in [context/findings-normalization.md](context/findings-normalization.md) over every surface's raw output. Before a CRITICAL finding enters the report, read its cited `file:line` in the diff; a finding the code does not bear out drops to `low` confidence with that note, never silently removed.
+
+**Dismissed.** The report gains a `## Dismissed` section after `## By dimension`: one line per
+finding this step demoted, giving its rank, its location and the reason in one sentence taken from
+what the cited line shows. The finding itself stays in `## Findings` at its demoted confidence. The
+section lists demotions only; no finding leaves the report, so nothing is listed as dropped. With
+no demotion, the section reads `none`. The fix action does not parse it.
 
 ## Step 3: Persist findings
 
