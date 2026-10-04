@@ -43,8 +43,12 @@
 # the cached entry was stored with an ETag or Last-Modified, the request carries
 # If-None-Match or If-Modified-Since, and a 304 serves the entry and moves only
 # its validated time. A Last-Modified equal to the response's Date is treated as
-# absent. --max-age 0 always asks the server, and a failed fetch is unread:
-# cached bytes are never served in place of a fetch that failed.
+# absent. --max-age 0 always asks the server, and a failed fetch is unread. With
+# --max-age above 0, a fetch that failed (a transport error or a 5xx) serves the
+# cached bytes flagged stale: true, its reason and age_seconds since validated.
+# A 404, a 410, a landing off the origin or path, or a slug the index no longer
+# lists is unread and quarantines the URL's cache keys, so their notes are never
+# served. The server's Date is recorded as server_date, never used for age.
 #
 # Manifest (JSON, written to --manifest):
 #   claude_version  installed `claude --version` number, or "" when unreadable
@@ -56,8 +60,10 @@
 # docs-cache.sh key, null when nothing was stored), sha256 (raw bytes), status
 # (HTTP code; 304 when the server confirmed a cached entry), content_type,
 # bytes, lines, file (path on disk), format (markdown|html-converted), title
-# (from the cache), quarantined (the cache key's quarantine flag), state,
-# reason. state is read or unread; unparsed is set by a caller whose parse of a
+# (from the cache), quarantined (the cache key's quarantine flag), stale (true
+# when cached bytes stood in for a failed fetch), server_date (the Date header of
+# the response that last validated the bytes), state, reason. state is read or
+# unread; unparsed is set by a caller whose parse of a
 # read page failed. mode (full|search) is the caller's declaration of how it
 # will use the page; the fetcher only records it. Fields with no value are null
 # (a page never requested, or served from the cache, has no status; a run
@@ -246,12 +252,13 @@ with_timeout() {
 
 reset_g() {
   G_SOURCE="" G_STATE=unread G_REASON="" G_STATUS="" G_CTYPE="" G_AT="" G_VALIDATED="" G_AGE="" G_KEY=""
-  G_FORMAT="" G_TITLE="" G_QUAR="" G_VALIDATORS="" G_TITLE_HINT=""
+  G_FORMAT="" G_TITLE="" G_QUAR="" G_VALIDATORS="" G_TITLE_HINT="" G_STALE="" G_DATE=""
 }
 
 # http_get <url> <dest> <accept> <if-none-match> <if-modified-since>: one GET
 # with the body at <dest>. Sets H_RC H_STATUS H_EFF H_CTYPE and the final
-# response's H_ETAG and H_LM (empty when absent, or Last-Modified equal to Date).
+# response's H_DATE, H_ETAG and H_LM (empty when absent, or Last-Modified equal
+# to Date).
 http_get() {
   local hdr="$2.hdr" meta args=() line low date=""
   [[ -z "$3" ]] || args+=(-H "Accept: $3")
@@ -281,6 +288,7 @@ http_get() {
     rm -f "$hdr"
   fi
   [[ "$H_LM" != "$date" ]] || H_LM=""
+  H_DATE="$date"
 }
 
 trim() {
@@ -315,7 +323,28 @@ serve_cached() {
   fi
   G_SOURCE=cache G_STATE=read G_REASON="" G_STATUS="$2" G_CTYPE="$DC_CTYPE" G_AT="$DC_RETRIEVED"
   G_VALIDATED="$DC_VALIDATED" G_AGE=$((DC_NOW - DC_VALIDATED_EPOCH)) G_KEY="$DC_KEY"
-  G_FORMAT="$DC_FORMAT" G_TITLE="$DC_TITLE" G_QUAR="$DC_QUARANTINED"
+  G_FORMAT="$DC_FORMAT" G_TITLE="$DC_TITLE" G_QUAR="$DC_QUARANTINED" G_DATE="$DC_SERVER_DATE"
+}
+
+# settle_unread <url> <dest> <format>...: an unread page whose fetch failed (a
+# transport error or a 5xx) is served stale from the candidate when --max-age
+# allows staleness; one the server reports removed or redirected quarantines
+# the URL's cache keys.
+settle_unread() {
+  local url="$1" dest="$2" reason="$G_REASON" status="$G_STATUS" f
+  shift 2
+  [[ $CACHE -eq 1 && "$G_STATE" != read ]] || return 0
+  case "$reason" in
+  fetch-failed | http-5[0-9][0-9])
+    [[ $MAX_AGE -gt 0 && -n "$C_REF" ]] || return 0
+    serve_cached "$dest" "$status" || return 0
+    G_STALE=1 G_REASON="$reason"
+    ;;
+  http-404 | http-410 | redirected-off-origin | redirected-off-path | not-in-index)
+    for f in "$@"; do dc_quarantine_reason "$(dc_key "$url" "$f")" "$reason"; done
+    ;;
+  *) ;;
+  esac
 }
 
 # serve_fresh <dest> <format>...: serve the candidate when it was validated
@@ -341,7 +370,7 @@ request() {
   http_get "$2" "$3" "$1" "$inm" "$ims"
   [[ $H_RC -eq 0 && "$H_STATUS" == 304 && -n "$inm$ims" ]] || return 1
   rm -f "$3"
-  dc_confirm "$C_REF" "$(dc_validators "$1" "$2" "${H_ETAG:-$C_ETAG}" "${H_LM:-$C_LM}")" || return 1
+  dc_confirm "$C_REF" "$(dc_validators "$1" "$2" "${H_ETAG:-$C_ETAG}" "${H_LM:-$C_LM}")" "$H_DATE" || return 1
   C_EPOCH="$DC_VALIDATED_EPOCH"
   [[ -n "$4" ]] || return 0
   serve_cached "$4" 304
@@ -351,7 +380,7 @@ request() {
 store() {
   G_VALIDATED="$G_AT" G_AGE=0
   [[ $CACHE -eq 1 ]] || return 0
-  if dc_put "$1" "$G_FORMAT" "$2" "$G_CTYPE" "$G_TITLE_HINT" "$G_VALIDATORS"; then
+  if dc_put "$1" "$G_FORMAT" "$2" "$G_CTYPE" "$G_TITLE_HINT" "$G_VALIDATORS" "$G_DATE"; then
     G_AT="$DC_RETRIEVED" G_VALIDATED="$DC_VALIDATED" G_KEY="$DC_KEY" G_TITLE="$DC_TITLE" G_QUAR="$DC_QUARANTINED"
   else
     echo "WARNING: $1 was read but not cached in $DC_DIR" >&2
@@ -402,11 +431,14 @@ get_doc() {
     elif [[ ! -s "$dest.part" ]]; then
       G_REASON="empty-body"
     elif mv "$dest.part" "$dest"; then
-      G_STATE=read G_FORMAT="$P_FORMAT" G_VALIDATORS="$(dc_validators_or_none "" "$url")"
+      G_STATE=read G_FORMAT="$P_FORMAT" G_VALIDATORS="$(dc_validators_or_none "" "$url")" G_DATE="$H_DATE"
     fi
     rm -f "$dest.part"
   fi
-  [[ "$G_STATE" == read ]] || return 0
+  if [[ "$G_STATE" != read ]]; then
+    settle_unread "$url" "$dest" "$P_FORMAT"
+    return 0
+  fi
   store "$url" "$dest"
 }
 
@@ -525,7 +557,7 @@ markdown_channel() {
   request "$1" "$2" "$3.part" "$3" && return 0
   if [[ $H_RC -eq 0 && "$(landed "$2" "$H_EFF")" == same && "$H_STATUS" =~ ^2[0-9][0-9]$ &&
   "${H_CTYPE,,}" =~ $4 && -s "$3.part" ]] && mv "$3.part" "$3"; then
-    G_STATE=read G_FORMAT=markdown G_STATUS="$H_STATUS" G_CTYPE="$H_CTYPE"
+    G_STATE=read G_FORMAT=markdown G_STATUS="$H_STATUS" G_CTYPE="$H_CTYPE" G_DATE="$H_DATE"
     G_VALIDATORS="$(dc_validators_or_none "$1" "$2")"
     return 0
   fi
@@ -552,7 +584,7 @@ convert() {
 # get_generic <url> <dest> <fixture file>: a generic read, markdown preferred,
 # converted HTML otherwise. Sets the G_ fields like get_doc.
 get_generic() {
-  local url="$1" dest="$2" html="$WORK/page.html" html_status="" html_ctype="" html_val="" sfx=""
+  local url="$1" dest="$2" html="$WORK/page.html" html_status="" html_ctype="" html_val="" html_date="" sfx=""
   reset_g
   rm -f "$dest" "$dest.part" "$html"
   mkdir -p "$(dirname "$dest")"
@@ -586,13 +618,14 @@ get_generic() {
   fi
   if [[ -n "$G_REASON" ]]; then
     rm -f "$dest.part"
+    settle_unread "$url" "$dest" markdown html-converted
     return 0
   fi
   if [[ "$H_STATUS" =~ ^2[0-9][0-9]$ && "${H_CTYPE,,}" =~ $MD_CTYPE && -s "$dest.part" ]] && mv "$dest.part" "$dest"; then
-    G_STATE=read G_FORMAT=markdown G_VALIDATORS="$(dc_validators_or_none text/markdown "$url")"
+    G_STATE=read G_FORMAT=markdown G_VALIDATORS="$(dc_validators_or_none text/markdown "$url")" G_DATE="$H_DATE"
   elif [[ "$H_STATUS" =~ ^2[0-9][0-9]$ && "${H_CTYPE,,}" =~ $HTML_CTYPE && -s "$dest.part" ]]; then
     mv "$dest.part" "$html"
-    html_status="$H_STATUS" html_ctype="$H_CTYPE" html_val="$(dc_validators_or_none text/markdown "$url")"
+    html_status="$H_STATUS" html_ctype="$H_CTYPE" html_val="$(dc_validators_or_none text/markdown "$url")" html_date="$H_DATE"
   else
     G_REASON="http-${H_STATUS:-unknown}"
     [[ ! "$H_STATUS" =~ ^2[0-9][0-9]$ ]] || G_REASON="unexpected-content-type"
@@ -614,17 +647,21 @@ get_generic() {
     request "" "$url" "$html" "$dest" && return 0
     if [[ $H_RC -eq 0 && "$(landed "$url" "$H_EFF")" == same && "$H_STATUS" =~ ^2[0-9][0-9]$ &&
     "${H_CTYPE,,}" =~ $HTML_CTYPE && -s "$html" ]]; then
-      html_status="$H_STATUS" html_ctype="$H_CTYPE" html_val="$(dc_validators_or_none "" "$url")"
+      html_status="$H_STATUS" html_ctype="$H_CTYPE" html_val="$(dc_validators_or_none "" "$url")" html_date="$H_DATE"
     fi
   fi
   if [[ "$G_STATE" != read && -n "$html_status" ]]; then
     G_STATUS="$html_status" G_CTYPE="$html_ctype"
     if convert "$html" "$dest"; then
-      G_STATE=read G_REASON="" G_FORMAT=html-converted G_VALIDATORS="$html_val" G_TITLE_HINT="$(html_title "$html")"
+      G_STATE=read G_REASON="" G_FORMAT=html-converted G_VALIDATORS="$html_val" G_DATE="$html_date"
+      G_TITLE_HINT="$(html_title "$html")"
     fi
   fi
   rm -f "$html"
-  [[ "$G_STATE" == read ]] || return 0
+  if [[ "$G_STATE" != read ]]; then
+    settle_unread "$url" "$dest" markdown html-converted
+    return 0
+  fi
   G_REASON=""
   store "$url" "$dest"
 }
@@ -638,19 +675,20 @@ emit() {
     bytes="$(wc -c <"$file" | tr -d ' ')"
     lines="$(awk 'END { print NR }' "$file")"
   else
-    G_FORMAT="" G_TITLE="" G_QUAR=""
+    G_FORMAT="" G_TITLE="" G_QUAR="" G_DATE=""
   fi
   jq -cn --arg slug "$1" --arg url "$2" --arg mode "$3" --arg source "$G_SOURCE" --arg at "$G_AT" --arg sha "$sha" \
     --arg status "$G_STATUS" --arg ctype "$G_CTYPE" --argjson bytes "$bytes" --argjson lines "$lines" --arg file "$file" \
     --arg state "$G_STATE" --arg reason "$G_REASON" --arg validated "$G_VALIDATED" --arg age "$G_AGE" --arg key "$G_KEY" \
-    --arg format "$G_FORMAT" --arg title "$G_TITLE" --arg quar "$G_QUAR" \
+    --arg format "$G_FORMAT" --arg title "$G_TITLE" --arg quar "$G_QUAR" --arg stale "$G_STALE" --arg sdate "$G_DATE" \
     'def n: if . == "" then null else . end;
      {slug: $slug, url: ($url | n), mode: $mode, source: ($source | n), retrieved: ($at | n),
       validated: ($validated | n), age_seconds: ($age | n | if . == null then null else tonumber end),
       cache_key: ($key | n), sha256: ($sha | n),
       status: ($status | if . == "" then null else tonumber end), content_type: ($ctype | n), bytes: $bytes,
       lines: $lines, file: ($file | n), format: ($format | n), title: ($title | n),
-      quarantined: (if $quar == "" then null else $quar == "1" end), state: $state, reason: ($reason | n)}'
+      quarantined: (if $quar == "" then null else $quar == "1" end), stale: ($stale == "1"),
+      server_date: ($sdate | n), state: $state, reason: ($reason | n)}'
 }
 
 # link_urls <file>: every link URL in the file, one per line.
@@ -755,6 +793,11 @@ else
       if [[ -z "$url" || (-n "$want" && "$url" != "$want") ]]; then
         url=""
         G_REASON="not-in-index"
+        if [[ $CACHE -eq 1 ]]; then
+          for u in "$want" "$ORIGIN${P_DOCS_PATH}en/$slug$P_SUFFIX" "$ORIGIN$P_DOCS_PATH$slug$P_SUFFIX"; do
+            [[ -z "$u" ]] || dc_quarantine_reason "$(dc_key "$u" "$P_FORMAT")" not-in-index
+          done
+        fi
       elif [[ "$url" != "$ORIGIN$P_DOCS_PATH"* ]]; then
         G_REASON="off-origin"
       else

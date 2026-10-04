@@ -411,8 +411,12 @@ m="$TEST_TMPDIR/out21d/manifest.json"
 assert_eq "edge: --max-age 0 with a failed fetch is unread, never the cached bytes" "unread fetch-failed fetch" "$(page "$m" skills '"\(.state) \(.reason) \(.source)"')"
 assert_no_file "edge: --max-age 0 with a failed fetch leaves no page file" "$TEST_TMPDIR/out21d/skills.md"
 cache_run $((T3 + 86401)) out21e --max-age 86400 skills
-assert_eq "case 21: an expired entry with a failed fetch is unread (no stale serving)" "unread fetch-failed" \
-  "$(page "$TEST_TMPDIR/out21e/manifest.json" skills '"\(.state) \(.reason)"')"
+assert_eq "edge: offline: an expired entry with a failed fetch and --max-age above 0 is served stale, flagged, with its age" \
+  "read cache true 86401 fetch-failed" \
+  "$(page "$TEST_TMPDIR/out21e/manifest.json" skills '"\(.state) \(.source) \(.stale) \(.age_seconds) \(.reason)"')"
+assert_eq "edge: offline: the stale page file is the cached bytes" "" \
+  "$(printf '%s\n' '# Skills' 'body of skills' | cmp - "$TEST_TMPDIR/out21e/skills.md" 2>&1)"
+assert_eq "edge: offline: a fresh read is not stale" false "$(page "$TEST_TMPDIR/out21b/manifest.json" skills .stale)"
 
 # --- Case 22: the cache flags and their guards ----------------------------------
 src="$(new_served served22)"
@@ -442,6 +446,61 @@ printf '3\n' >"$TEST_TMPDIR/cache22/store_version"
 DOCS_CACHE_DIR="$TEST_TMPDIR/cache22" fixture_run "$fx" "$TEST_TMPDIR/out22j" --cache skills 2>/dev/null
 assert_eq "case 22: a store at another version is never read or written; the page is still read" "read fixture null" \
   "$(page "$TEST_TMPDIR/out22j/manifest.json" skills '"\(.state) \(.source) \(.cache_key)"')"
+
+# --- Case 23: clock skew, a server error, removal and notes ---------------------
+src="$(new_served served23)"
+C="$TEST_TMPDIR/cache23"
+SKEW_DATE='Tue, 11 Sep 2001 01:46:40 GMT'
+printf '%s' "$SKEW_DATE" >"$src/skills.md.date"
+cache_run $T1 out23a --max-age 86400 skills
+assert_eq "edge: clock skew: the server Date is recorded on a fetch" "$SKEW_DATE 0" \
+  "$(page "$TEST_TMPDIR/out23a/manifest.json" skills '"\(.server_date) \(.age_seconds)"')"
+cache_run $T2 out23b --max-age 86400 skills
+assert_eq "edge: clock skew: a server Date two days ahead leaves the age to the local validated epoch" \
+  "cache 100 $SKEW_DATE" "$(page "$TEST_TMPDIR/out23b/manifest.json" skills '"\(.source) \(.age_seconds) \(.server_date)"')"
+printf '503' >"$src/skills.md.status"
+cache_run $T3 out23c --max-age 86400 skills
+assert_eq "edge: offline: a 5xx answer is a failed fetch, served stale" "read true http-503" \
+  "$(page "$TEST_TMPDIR/out23c/manifest.json" skills '"\(.state) \(.stale) \(.reason)"')"
+cache_run $T3 out23d --max-age 0 skills
+assert_eq "edge: offline: --max-age 0 with a 5xx is unread" "unread http-503" \
+  "$(page "$TEST_TMPDIR/out23d/manifest.json" skills '"\(.state) \(.reason)"')"
+rm -f "$src/skills.md.status"
+
+DC() { bash "$SCRIPT_DIR/docs-cache.sh" --cache-dir "$C" "$@"; }
+skills_key="$(DC key https://docs.test/docs/en/skills.md markdown)"
+printf 'Skills holds "body of skills".\n' |
+  DOCS_CACHE_NOW=$T3 DC note put "$skills_key" --model m --session s --question q --sections 1 >/dev/null
+cache_run $T3 out23e --max-age 0 skills
+assert_eq "edge: --max-age 0 output carries no note text" "read 0" \
+  "$(page "$TEST_TMPDIR/out23e/manifest.json" skills .state) $(grep -rc 'Skills holds' "$TEST_TMPDIR/out23e" | awk -F: '{ n += $NF } END { print n + 0 }')"
+printf '404' >"$src/skills.md.status"
+cache_run $T3 out23f --max-age 0 skills
+assert_eq "edge: page removed: a 404 is unread and quarantines the key" "unread http-404 http-404" \
+  "$(page "$TEST_TMPDIR/out23f/manifest.json" skills '"\(.state) \(.reason)"') $(DC info "$skills_key" | jq -r .quarantine.reason)"
+assert_eq "edge: page removed: its note is never served" "" "$(DC note get "$skills_key" 2>/dev/null)"
+cache_run $((T3 + 86401)) out23g --max-age 86400 skills
+assert_eq "edge: page removed: a 404 is not a failed fetch, so nothing is served stale" "unread false" \
+  "$(page "$TEST_TMPDIR/out23g/manifest.json" skills '"\(.state) \(.stale)"')"
+settings_key="$(DC key https://docs.test/docs/en/settings-reference.md markdown)"
+cache_run $T3 out23h --max-age 0 settings-reference
+printf '%s\n' '# Docs' '- [Skills](https://docs.test/docs/en/skills.md): skills' >"$src/llms.txt"
+cache_run $T3 out23i --max-age 0 settings-reference
+assert_eq "edge: page removed from the index: not-in-index quarantines the key" "unread not-in-index not-in-index" \
+  "$(page "$TEST_TMPDIR/out23i/manifest.json" settings-reference '"\(.state) \(.reason)"') $(DC info "$settings_key" | jq -r .quarantine.reason)"
+
+# A generic page redirected off its path quarantines both of its format keys' entries.
+src="$TEST_TMPDIR/gs23"
+mkdir -p "$src"
+printf '%s\n' '# Page' 'body' >"$src/page"
+C="$TEST_TMPDIR/gc23"
+env -u FETCH_DOCS_FIXTURE_DIR PATH="$SHIM:$PATH" CURL_SHIM_LOG="$src.log" CURL_SHIM_SRC="$src" FETCH_DOCS_CLAUDE_BIN="$CLAUDE_STUB" \
+  DOCS_CACHE_NOW=$T1 bash "$SCRIPT" --profile generic --out "$TEST_TMPDIR/out23j" --cache --cache-dir "$C" https://docs.test/guide/page
+printf '%s' 'https://docs.test/elsewhere/page' >"$src/page.effective"
+env -u FETCH_DOCS_FIXTURE_DIR PATH="$SHIM:$PATH" CURL_SHIM_LOG="$src.log" CURL_SHIM_SRC="$src" FETCH_DOCS_CLAUDE_BIN="$CLAUDE_STUB" \
+  DOCS_CACHE_NOW=$T2 bash "$SCRIPT" --profile generic --out "$TEST_TMPDIR/out23k" --cache --cache-dir "$C" --max-age 0 https://docs.test/guide/page
+assert_eq "edge: page redirected: a generic page landing off its path is unread and quarantined" "redirected-off-path redirected-off-path" \
+  "$(jq -r '.pages[0].reason' "$TEST_TMPDIR/out23k/manifest.json") $(DC info "$(DC key https://docs.test/guide/page markdown)" | jq -r .quarantine.reason)"
 
 # --- Case: publisher profiles ---------------------------------------------------
 fx="$TEST_TMPDIR/fxp"

@@ -28,6 +28,25 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 - **`scripts/docs-cache.sh` records each entry's title** (its first heading, else the HTML
   `<title>`) and **quarantines a key** when a new entry's title differs from the one it replaces;
   `info` reports `title`, `etag`, `last_modified` and `quarantine`.
+- **`docs-cache.sh read <ref>`** prints a page of at most `--whole-page-bytes` (default 51200)
+  whole; a larger one prints its section map plus the stored section summaries and the notes whose
+  cited sections are unchanged. `slice` on such a page prints the whole page, and says so on stderr,
+  when the ids ask for more than `--escalate-percent` (25) of its sections or `--escalate-bytes`
+  (61440) bytes.
+- **Section summaries and notes.** `summary put|get` stores a one-line summary per section hash;
+  `note put|get|list` stores a note with its provenance (writer model, session, date, question, page
+  sha256) and cited sections. A note is served while every cited section's hash is unchanged, under
+  whatever id or heading the section has now, and is refused when a quoted span is not in a cited
+  section's own body. Summaries and notes print only inside a nonce-delimited untrusted-data block,
+  never with page bytes, never through `slice` or `read --raw`, and never for a quarantined key.
+- **`docs-cache.sh prune`** evicts the least recently used page bytes, then summaries, then notes,
+  down to `--max-bytes` (default 200 MB), under a `mkdir` lock, skipping keys accessed within
+  `--grace` (300) seconds; every write runs it.
+- **`fetch-docs.sh --cache` serves stale bytes when offline.** With `--max-age` above 0, a transport
+  failure or a 5xx serves the cached bytes with `stale: true`, the failure as `reason` and their
+  `age_seconds`; `--max-age 0` still leaves the page unread. A 404, a 410, a redirect off the origin or
+  path, or a slug the index no longer lists quarantines the page's cache keys. Records gain `stale`
+  and `server_date` (the response's `Date`, recorded and never used for age).
 
 ### Fixed
 
