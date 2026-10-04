@@ -654,7 +654,7 @@ pin_section "audit-answers Step 4 section is unchanged (hedged rows always reach
   "$AUDIT" \
   "### Step 4. Merge and triage" \
   "### Step 5. Human confirmation" \
-  "8fc756831ac1789cb62df067b1f35b257f9fb55ddddc67b641ee160fa6006492"
+  "58e23f0911f4ee7a3cc0ff33cf3ccadf7a539cc2b680e1dc7f1344fe0fb40240"
 
 pin_case_digest "eval case B is unchanged (no criterion added that licenses the silent capture)" \
   "$CASE_B_NAME" \

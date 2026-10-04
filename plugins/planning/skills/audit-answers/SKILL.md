@@ -91,7 +91,7 @@ Merge the validators' verdicts. Independence means one dissent is signal: any CH
 
 - **CONFIRMED by all** → collapse to a one-line summary per answer. The human skims, does not re-decide. A `free-text:` row in this block keeps its flag.
 - **`hedged:` rows** → real questions whatever the verdict, restating what the headline commits to and which of its rows are still open.
-- **CHALLENGED / RECLASSIFIED / auto-guard-held / `superseded-by-plan` decisions** → become real numbered human questions, asked in the `/planning:interview` round format (its recommendation-per-question, single-verdict-marker, and dependency-surfacing rules apply). Each challenge's *why* rides along so the human decides informed.
+- **CHALLENGED / RECLASSIFIED / auto-guard-held / unsettled-fact / `superseded-by-plan` rows** → become real numbered human questions, asked in the `/planning:interview` round format (its recommendation-per-question, single-verdict-marker, and dependency-surfacing rules apply). Each challenge's *why* rides along so the human decides informed.
 - **USER-RESERVED deferred questions** → listed as carry-forward items (arbiter tag intact), NOT resolved here. They re-confirm at the `/planning:plan` approval gate with plan-time context, so asking them now would strip that context and rewrite the Brief prematurely.
 
 ### Step 5. Human confirmation
