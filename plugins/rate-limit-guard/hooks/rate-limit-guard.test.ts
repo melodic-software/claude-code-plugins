@@ -242,29 +242,53 @@ test('lines: a crossing seen at session.measure reaches Claude at the next promp
   ])
 })
 
-test('lines: restated after a compaction, not after a precompute one', NO_WRITES, async ($, on) => {
+test('lines: a compaction restates no quiet window', NO_WRITES, async ($, on) => {
   world(on)
   await bash($)
+  await $.session.compact({ trigger: 'manual', messages: MESSAGES } as any)
+  expect(ownLines((await prompt($)).context)).toEqual([])
+  expect(ownLines((await bash($)).context)).toEqual([])
+})
+
+test('lines: a window past quiet is restated once after a compaction, not after a precompute one', NO_WRITES, async ($, on) => {
+  const { w } = world(on)
+  await bash($)
+  w.limits = limits(91)
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_5H])
   await $.session.compact({ trigger: 'precompute', messages: MESSAGES } as any)
   expect(ownLines((await prompt($)).context)).toEqual([])
   await $.session.compact({ trigger: 'manual', messages: MESSAGES } as any)
-  expect(ownLines((await prompt($)).context)).toEqual([
-    `rate-limit-guard: 5-hour window below the 90% pause edge, resets at 2026-10-03 21:00 UTC.`,
-    `rate-limit-guard: 7-day window below the 90% pause edge, resets at 2026-10-08 09:00 UTC.`,
-  ])
+  expect(ownLines((await prompt($)).context)).toEqual([EDGE_5H])
   expect(ownLines((await prompt($)).context)).toEqual([])
 })
 
-test('lines: restated once after a resume', NO_WRITES, async ($, on) => {
+test('lines: restated once after a resume, with no quiet window', NO_WRITES, async ($, on) => {
   const { w } = world(on, { limits: limits(91) })
   await bash($)
   await $.session.end({ reason: 'resume', sessionId: 'sess-1', resume: { id: 'sess-1' } } as any)
   w.sid = 'sess-2'
-  expect(ownLines((await prompt($)).context)).toEqual([
-    `rate-limit-guard: 5-hour window at the 90% pause edge, resets at 2026-10-03 21:00 UTC.`,
-    `rate-limit-guard: 7-day window below the 90% pause edge, resets at 2026-10-08 09:00 UTC.`,
-  ])
+  expect(ownLines((await prompt($)).context)).toEqual([EDGE_5H])
   expect(ownLines((await prompt($)).context)).toEqual([])
+})
+
+test('lines: a resume with only quiet windows restates nothing', NO_WRITES, async ($, on) => {
+  const { w } = world(on)
+  await bash($)
+  await $.session.end({ reason: 'resume', sessionId: 'sess-1', resume: { id: 'sess-1' } } as any)
+  w.sid = 'sess-2'
+  expect(ownLines((await prompt($)).context)).toEqual([])
+  expect(ownLines((await bash($)).context)).toEqual([])
+})
+
+test('debug mirror: each line sent to Claude is written to the debug log as sent', NO_WRITES, async ($, on) => {
+  const { w } = world(on)
+  await bash($)
+  w.limits = limits(91)
+  const atTool = ownLines((await bash($)).context)
+  w.limits = limits(91, 95)
+  const atPrompt = ownLines((await prompt($)).context)
+  expect([...atTool, ...atPrompt]).toEqual([EDGE_5H, 'rate-limit-guard: 7-day window at the 90% pause edge, resets at 2026-10-08 09:00 UTC.'])
+  expect(w.logs.filter(l => l.to === 'debug' && l.text.includes(' window ')).map(l => l.text)).toEqual([...atTool, ...atPrompt])
 })
 
 // session.start with earlier turns is a fresh load in a running session: a reload, a worker respawn,
@@ -1168,7 +1192,7 @@ test('pull tool: a refused registration logs one line, and lines, band and write
   expect((await ui.find({ type: 'Text', text: BAND_ROW }))?.text).toBe('5h 91% | 7d 7%')
   await ui.unmount()
   expect(bodies(w).map(b => b.rate_limits.five_hour.used_percentage)).toEqual([91])
-  const failures = logs.filter(l => !l.endsWith('· more: /rate-limit-guard'))
+  const failures = logs.filter(l => l.startsWith('rate-limit-guard: the status pull tool'))
   expect(failures).toHaveLength(1)
   expect(failures[0]).toMatch(/^rate-limit-guard: the status pull tool could not register: \S/)
 })
@@ -1440,7 +1464,7 @@ test('lines: a reading whose every window has passed its reset time still sends 
 // A /branch or an in-process /resume: the new session's first prompt can come before any reading.
 const BRANCH = { reason: 'resume', sessionId: 'sess-1', resume: { id: 'sess-2' } } as any
 
-test('lines: after a branch, a carrier with no reading keeps the restatement, and the first carrier with one restates each window once', NO_WRITES, async ($, on) => {
+test('lines: after a branch, a carrier with no reading keeps the restatement, and the first carrier with one restates each window past quiet once', NO_WRITES, async ($, on) => {
   const { w } = world(on, { limits: limits(91) })
   await bash($)
   await $.session.end(BRANCH)
@@ -1448,10 +1472,7 @@ test('lines: after a branch, a carrier with no reading keeps the restatement, an
   w.limits = []
   expect(ownLines((await prompt($)).context)).toEqual([])
   w.limits = limits(91)
-  expect(ownLines((await bash($)).context)).toEqual([
-    `rate-limit-guard: 5-hour window at the 90% pause edge, resets at 2026-10-03 21:00 UTC.`,
-    `rate-limit-guard: 7-day window below the 90% pause edge, resets at 2026-10-08 09:00 UTC.`,
-  ])
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_5H])
   expect(ownLines((await bash($)).context)).toEqual([])
 })
 
