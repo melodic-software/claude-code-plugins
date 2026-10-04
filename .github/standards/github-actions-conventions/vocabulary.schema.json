@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://standards.melodic.software/github-actions-conventions/vocabulary.schema.json",
+  "title": "GitHub Actions naming vocabulary",
+  "description": "The words workflow files, job ids, composite action directories, activities and GitHub Apps may use. It defines names only; which slots a pipeline runs in which order belongs to the pipeline model, which refers to these names.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "stages",
+    "functions",
+    "verbs",
+    "toolNames",
+    "engines",
+    "reservedJobIds",
+    "activityGrammar",
+    "exemptions",
+    "apps"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "schemaVersion": { "const": 1 },
+    "stages": {
+      "description": "The fixed, ordered stage list. A workflow file name starts with one of these.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "purpose"],
+        "properties": {
+          "name": { "$ref": "#/$defs/kebab" },
+          "purpose": { "$ref": "#/$defs/text" }
+        }
+      }
+    },
+    "functions": {
+      "description": "Allowed function words per stage, keyed by stage name. A file is <stage>-<function>[-<modifier>].",
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "status"],
+          "properties": {
+            "name": { "$ref": "#/$defs/kebab" },
+            "status": { "enum": ["in-use", "reserved"] },
+            "purpose": { "$ref": "#/$defs/text" }
+          }
+        }
+      }
+    },
+    "verbs": {
+      "description": "Words accepted as the leading verb of a function word, job id, action directory or activity.",
+      "type": "array",
+      "uniqueItems": true,
+      "minItems": 1,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9]*$" }
+    },
+    "toolNames": {
+      "description": "Names of tools. A composite action or job that wraps exactly one tool keeps the tool's name.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/kebab" }
+    },
+    "engines": {
+      "description": "Review engines. An engine unit (job id, action unit or activity) is named for the engine only, with no slot word, so a check reads `pr-review / claude`.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/kebab" }
+    },
+    "reservedJobIds": {
+      "description": "Job ids that keep their name in every repository.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/kebab" }
+    },
+    "activityGrammar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pattern", "modes", "rules", "examples"],
+      "properties": {
+        "pattern": { "type": "string", "format": "regex" },
+        "modes": {
+          "description": "Mutually exclusive mode pairs after `#`.",
+          "type": "array",
+          "items": {
+            "type": "array",
+            "minItems": 2,
+            "uniqueItems": true,
+            "items": { "$ref": "#/$defs/kebab" }
+          }
+        },
+        "rules": { "type": "array", "items": { "$ref": "#/$defs/text" } },
+        "examples": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "exemptions": {
+      "description": "The complete exemption list. Nothing else is exempt.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "rules", "reason"],
+        "properties": {
+          "path": {
+            "description": "A workflow path relative to the repository root; a trailing `*` matches any remainder.",
+            "type": "string",
+            "pattern": "^\\.github/workflows/[A-Za-z0-9_./-]*\\*?$"
+          },
+          "repository": {
+            "description": "owner/name the exemption applies to. Absent means every repository.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+          },
+          "rules": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "enum": ["*", "workflow-filename", "workflow-name"] }
+          },
+          "expectedName": {
+            "description": "For a workflow-name exemption, the one `name:` value accepted instead of the stem.",
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": { "$ref": "#/$defs/text" }
+        }
+      }
+    },
+    "apps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pattern", "names"],
+      "properties": {
+        "pattern": { "type": "string", "format": "regex" },
+        "names": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "purpose"],
+            "properties": {
+              "name": { "$ref": "#/$defs/kebab" },
+              "purpose": { "$ref": "#/$defs/text" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "kebab": { "type": "string", "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$" },
+    "text": { "type": "string", "pattern": "\\S" }
+  }
+}

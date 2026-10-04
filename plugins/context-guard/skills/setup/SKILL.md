@@ -17,7 +17,7 @@ Three of `check`'s read-only probes run at load time. Read the values below; do 
 ## Purpose
 
 Narrow-write setup. The plugin's module (`hooks/register.tsx`, a Claude Code mod) writes each
-session's snapshot, sends Claude the zone lines, runs the blocking gate, draws the band row and
+session's snapshot, sends Claude the zone lines, runs the blocking gate, draws the optional band row and
 serves the `mcp__context-guard__status` tool. Nothing about it needs wiring, so `check` inspects
 and reports PASS/FAIL/INFO with one remediation line per FAIL. The plugin also owns the machine file
 `~/.claude/context-guard/zones.json`, whose schema it defines and whose values the operator may
@@ -133,12 +133,13 @@ default zone bands, zones.json shape) are owned by
    |---|---|---|
    | `context_guard_hooks_enabled` | `${user_config.context_guard_hooks_enabled}` | `false` → **INERT**: the module sends no lines and gates nothing, and the PostCompact marker hook exits at once. Snapshot writes, the band row and the status tool continue. |
    | `zone_lines_enabled` | `${user_config.zone_lines_enabled}` | `false` → no lines to Claude and no operator-mode suggestions; the gate, band and writes continue. |
-   | `zone_report_mode` | `${user_config.zone_report_mode}` | `automatic` sends the lines to Claude; `operator` holds them in a turn a person typed and offers them as a prompt suggestion plus a band notice. |
+   | `zone_report_mode` | `${user_config.zone_report_mode}` | `automatic` sends the lines to Claude; `operator` holds them in a turn a person typed and offers them as a prompt suggestion plus a notice row. |
    | `zone_line_data` | `${user_config.zone_line_data}` | The figures a line carries beside its zone (`percent`, `tokens`, `window`); `zone` alone means none. |
    | `zone_hook_mode` | `${user_config.zone_hook_mode}` | `advisory` leaves the gate inert while the lines run; `blocking` (or a `block` action in `zones.json`) arms it. |
    | `zone_gate_grace_calls` | `${user_config.zone_gate_grace_calls}` | Matched calls allowed in a blocked zone before the gate denies. |
    | `zone_block_unattended` | `${user_config.zone_block_unattended}` | `post-compaction`: headless, loop, schedule and notification turns get only the post-compaction block; `same-as-typed`: they are blocked as typed turns are. |
-   | `context_guard_band` | `${user_config.context_guard_band}` | `false` hides the band row; `/context-guard:band` shows or hides it for one session. |
+   | `context_guard_band` | `${user_config.context_guard_band}` | `false` (the default) leaves the band row off; `true` draws it. `/context-guard band on` or `band off` sets it for one session. |
+   | `context_guard_toast` | `${user_config.context_guard_toast}` | `true` shows a toast at each zone crossing; `false` leaves only the transcript line. |
 
    - Any value still showing its literal `${user_config.<name>}` token (unset key, or a Claude
      Code without the substitution) → **UNKNOWN** for that row, never the default stated as fact.
