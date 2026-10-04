@@ -115,13 +115,13 @@ blocked target, 3 when elevation is needed or filesystem state could not be veri
   probe need the guard's absolute Python interpreter as `<hook-python>`, and every engine call
   needs its authorized `--data-root`; bare `python`/`python3` is rejected because Bash aliases and
   functions can replace them. The expansion of this command normally carries a `disk-hygiene guard values`
-  note naming `hook_python` and `data_root`, resolved by the guard's own code; use both from the
-  first call. Only when the note is absent, submit the probe once with bare `python`: the guard
-  denies that read-only call and names its interpreter. Rerun the probe with that interpreter and
+  note naming `hook_python` (the `<hook-python>`), `engine` (the engine path) and `data_root` (every
+  `--data-root` value), resolved by the guard's own code; use them from the first call. Only when the
+  note is absent, submit the probe once with bare `python`: the guard denies that read-only call and names its interpreter. Rerun the probe with that interpreter and
   take `data_root` from the probe's `data_root` field. Never submit a scan to learn either value.
   A `data_root` of `none` in the note or `null` from the probe means the install layout proved no data root, so the
-  guard denies every engine call: report the audit as not run, relay the recovery the guard's
-  denial names, and submit no engine call. If `hook_python` is older than the engine's declared floor (the `MIN_PYTHON` constant
+  guard denies every engine call: report the audit as not run, relay the recovery the note or a
+  guard denial names, and submit no engine call. If `hook_python` is older than the engine's declared floor (the `MIN_PYTHON` constant
   in `hygiene.py`, the floor's single origin), stop with the declared prerequisite instead of
   improvising a different scanner or deletion path.
 - Automated, scheduled, remote, unattended, or no-human-in-loop sessions always audit and stop.
@@ -468,13 +468,13 @@ and what the guard does when no Python resolves → "Hook launch form".
   grants none. Consumer permission policy remains authoritative.
 - The Bash lane is deny-by-default: only the literal-word bundled scan, inventory, preview,
   handoff-verify, catalog, apply, and handoff-apply shapes (plus the argument-free kill-switch probe) pass, using the hook
-  runtime's own absolute interpreter. The same denial text also admits literal-form read-only
+  runtime's own absolute interpreter. The guard also admits literal-form read-only
   supporting commands whose heads are absolute paths under a trusted system directory: `[`,
   `basename`, `dirname`, `du`, `file`, `find`, `ls`, `pwd`, `stat`, `test` (`[` only as a complete
   `/usr/bin/[ ... ]` expression; `find` without `-delete`/`-exec`/`-ok`/`-fprint`). Bare names
   are denied because exported shell functions shadow them. Engine-gate mode answers those
-  supporting commands with `ask`; belt mode `allow`s them. The denial text is the source if this
-  list and the guard diverge. Do supporting inspection with non-Bash read-only tools when the
+  supporting commands with `ask`; belt mode `allow`s them. This list is the one prose copy: the
+  guard's denials point here, and a test keeps it equal to the guard's code, which decides. Do supporting inspection with non-Bash read-only tools when the
   command is not in that set. Shell expansions, globs, splitting/escape forms, operators,
   redirections, aliases, and exported functions fail closed.
 - The PowerShell lane is the inverse tradeoff: open for read-only support work, hard-denying engine
