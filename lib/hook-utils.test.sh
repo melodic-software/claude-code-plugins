@@ -4506,8 +4506,12 @@ a file under the filesystem root|/README.md|/|README.md
 a bare relative name|README.md|.|README.md
 a nested path|/a/b.md|/a|b.md
 a deeper nested path|/a/b/c.md|/a/b|c.md
-a Windows backslash path|C:\repo\x.md|.|x.md
-a mixed-form path|/a/b\c.md|/a|c.md
+a Windows backslash path|C:\repo\x.md|C:\repo|x.md
+a mixed-form path|/a/b\c.md|/a/b|c.md
+a file under a backslash drive root|C:\x.cs|C:\|x.cs
+a file under a forward-slash drive root|C:/x.cs|C:/|x.cs
+a mixed path under a drive|C:/a\b\x.cs|C:/a\b|x.cs
+a forward-slash drive path|C:/a/b/x.cs|C:/a/b|x.cs
 BGTABLE
 bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO")
 
