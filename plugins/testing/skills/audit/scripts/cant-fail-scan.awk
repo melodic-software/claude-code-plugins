@@ -1225,13 +1225,16 @@ function exists_add(m, r,    t) {
   EX_LINE[EX_N] = FNR; EX_SNIP[EX_N] = snippet(r)
 }
 
-# At the block's close: a check of a name the test bound once, to new T(...)
-# (and of that T, when the check names a type), counts toward
-# rule-throw-only-oracle; any other is the weak or strong oracle it reads as.
+# At the block's close: a check of a name the test bound once, in one
+# statement, to new T(...) and nothing after it (and of that T, when the check
+# names a type), counts toward rule-throw-only-oracle; any other is the weak or
+# strong oracle it reads as. A chain or an as cast after the constructor can
+# yield null without a throw.
 function exists_resolve(    i, rhs, built, ty) {
   for (i = 1; i <= EX_N; i++) {
-    rhs = DV_N[BID, EX_NAME[i]] == 1 ? DV_RHS[BID, EX_NAME[i]] : ""
-    built = rhs ~ /^new([[:space:]]|[(])/
+    rhs = DV_N[BID, EX_NAME[i]] == 1 && DV_END[BID, EX_NAME[i]] ? DV_RHS[BID, EX_NAME[i]] : ""
+    sub(/;.*$/, "", rhs)  # the bind statement alone, when others share its line
+    built = rhs ~ /^new([[:space:]]+[A-Za-z_][A-Za-z0-9_.<>,?[:space:]]*)?[[:space:]]*(\([^()]*(\([^()]*\)[^()]*)*\))?[[:space:]]*(\{[^{}]*\})?[[:space:]]*$/ && rhs ~ /[)}][[:space:]]*$/
     if (built && EX_TYPE[i] != "") {
       ty = rhs
       sub(/^new[[:space:]]*/, "", ty); sub(/[[:space:]]*[({].*$/, "", ty)
@@ -1304,6 +1307,7 @@ function bind_scan(m, r,    s, rl) {
   if (!assign_of(s, rl)) return
   DV_N[BID, AS_NAME]++
   DV_RHS[BID, AS_NAME] = AS_RHS
+  DV_END[BID, AS_NAME] = s ~ /;[[:space:]]*$/
   if (AS_RHS != "") RES[BID, AS_NAME] = literal_rhs(AS_RHS) || mapped_literal(AS_RHS) ? "l" : "r"
   if (LEXER == "js" && AS_RHS ~ /Promise[[:space:]]*\.[[:space:]]*all(Settled)?[[:space:]]*\($/) PM_NAME = AS_NAME
 }
@@ -1788,8 +1792,9 @@ function split_stmts(m, r,    n, i, c, from, k) {
 # that path with nothing asserted (rule-conditional-assertion, judged at the
 # close). A return in the body of a catch with a when filter is the guard for
 # an environment the test cannot run in, such as a trial license, and is left
-# alone. ER_D is the brace depth in the body; CW_OPEN the depth inside such a
-# catch, CW_IN set while the scan is in it.
+# alone, and so is a return in the body of a local function or a lambda, which
+# exits only that callable. ER_D is the brace depth in the body; CW_OPEN the
+# depth inside such a catch or callable, CW_IN set while the scan is in it.
 function er_scan(m, r,    d0, p, a, cw, post) {
   if (LEXER != "cs" || ER_DONE) return
   d0 = ER_D
@@ -1800,7 +1805,12 @@ function er_scan(m, r,    d0, p, a, cw, post) {
   if (match(m, R_ANY)) a = RSTART
   if (R_MOCKA != "" && match(m, R_MOCKA) && (!a || RSTART < a)) a = RSTART
   cw = 0
-  if (match(m, /(^|[^A-Za-z0-9_])catch([[:space:](].*)?[[:space:])]when[[:space:]]*\(/)) {
+  # A filtered catch, a lambda whose block opens here, or a local function
+  # declaration (a type, a name and "(" that no keyword starts, not ending in ;).
+  if (match(m, /(^|[^A-Za-z0-9_])catch([[:space:](].*)?[[:space:])]when[[:space:]]*\(/) ||
+    match(m, /=>[[:space:]]*(\{|$)/) ||
+    (m !~ /^[[:space:]]*(return|await|throw|yield|new|else|case|goto)([^A-Za-z0-9_]|$)/ && m !~ /;[[:space:]]*$/ &&
+      match(m, /^[[:space:]]*((static|async|unsafe)[[:space:]]+)*[A-Za-z_][A-Za-z0-9_<>,.?]*(\[\])*[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]*(<[^<>()]*>)?[[:space:]]*\(/))) {
     cw = RSTART
     post = substr(m, cw)
     if (!index(post, "{") || brace_delta(post) > 0) {

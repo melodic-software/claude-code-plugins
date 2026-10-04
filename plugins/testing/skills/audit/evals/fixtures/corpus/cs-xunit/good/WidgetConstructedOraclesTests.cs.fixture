@@ -1,7 +1,7 @@
 // good-for: rule-throw-only-oracle
 // Oracles on a constructed widget that check more than the constructor: a
 // property it sets, a type check of a value the code returns, and a check of
-// a value the factory chose.
+// a value the factory chose, or of a value a call on the new widget returned.
 using Xunit;
 
 public class WidgetConstructedOraclesTests
@@ -27,5 +27,20 @@ public class WidgetConstructedOraclesTests
         var widget = new Widget("w");
         var wrapped = widget.Wrap();
         Assert.IsType<Panel>(wrapped);
+    }
+
+    [Fact]
+    public void Clone_KeepsTheType()
+    {
+        var copy = new Widget("w").Clone();
+        Assert.IsType<Widget>(copy);
+    }
+
+    [Fact]
+    public void Clone_OverTwoLines_KeepsTheType()
+    {
+        var copy = new Widget("w")
+            .Clone();
+        Assert.IsType<Widget>(copy);
     }
 }
