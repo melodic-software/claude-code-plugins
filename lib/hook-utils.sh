@@ -142,204 +142,173 @@ hook::emit_document() {
   printf '%s\n' "$1"
 }
 
-# Visible skip notice: the same message on both channels. The caller must exit 0
-# right after unless it composes via hook::emit_channels itself.
-#   hook::emit_skip_notice PostToolUse "my-plugin: tool X not found — ..."
+# Skip notice, gated per channel by the last hook::notice_once. The caller exits
+# 0 right after unless it composes via hook::emit_channels itself.
+#   hook::emit_skip_notice PostToolUse "$text"                 # same text, both channels
+#   hook::emit_skip_notice PostToolUse "$model" "$user"        # one text per channel
+#   hook::emit_skip_notice PostToolUse "" "$user"              # user channel only
 #
-# When hook::notice_once just authorized a RENEW (periodic re-notice), the
-# message is forced to one short line: no PATH dump, capped length. That is
-# what makes a re-notice every N edits affordable (#3128). The first notice
-# still carries the full text, with PATH probed: trimmed by
-# hook::format_path_probed so other plugins' bin dirs are not dumped.
+# The model gets <model-text> when HOOK_NOTICE_TO_MODEL is 1 and the user gets
+# <user-text> when HOOK_NOTICE_TO_USER is 1; both are 1 unless hook::notice_once
+# just cleared one. A `PATH probed:` line in either text goes to stderr, which
+# an exit-0 hook sends to the debug log, never to a channel.
 hook::emit_skip_notice() {
-  local event="$1" msg="$2"
-  if [[ "$msg" == *$'\nPATH probed: '* ]]; then
-    local prefix="${msg%%$'\nPATH probed: '*}"
-    local probed="${msg#*$'\nPATH probed: '}"
-    msg="${prefix}"$'\n'"PATH probed: $(hook::format_path_probed "$probed")"
+  local event="$1" model="$2" user="${3-$2}" probe=$'\nPATH probed: ' path=""
+  if [[ "$model" == *"$probe"* ]]; then
+    path="${model#*"$probe"}"
+    model="${model%%"$probe"*}"
   fi
-  if [[ "${HOOK_NOTICE_KIND:-full}" == "renew" ]]; then
-    if [[ "${HOOK_NOTICE_KEEP_BODY:-0}" == "1" ]]; then
-      # A prerequisite renewal keeps the install route (#4240).
-      if [[ -n "${HOOK_NOTICE_COUNT:-}" ]]; then
-        msg="${msg}"$'\n'"[${HOOK_NOTICE_COUNT} skips this session]"
-      fi
-    else
-      msg="${msg%%$'\n'*}"
-      if ((${#msg} > 240)); then
-        msg="${msg:0:237}..."
-      fi
-      if [[ -n "${HOOK_NOTICE_COUNT:-}" ]]; then
-        msg="${msg} [${HOOK_NOTICE_COUNT} skips this agent/session]"
-      fi
-    fi
+  if [[ "$user" == *"$probe"* ]]; then
+    path="${user#*"$probe"}"
+    user="${user%%"$probe"*}"
   fi
-  hook::emit_channels "$event" "$msg" "$msg"
+  [[ -n "$path" ]] && printf 'PATH probed: %s\n' "$path" >&2
+  [[ "${HOOK_NOTICE_TO_MODEL:-1}" == 1 ]] || model=""
+  [[ "${HOOK_NOTICE_TO_USER:-1}" == 1 ]] || user=""
+  HOOK_NOTICE_TO_MODEL=1
+  HOOK_NOTICE_TO_USER=1
+  hook::emit_channels "$event" "$model" "$user"
 }
 
 # The exit-0 notice for hook::buffer_stdin rc 3 (a JSON payload cut short by
 # the pipe CLOSING mid-document; a pipe that stalls on such a prefix is rc 2
 # and never reaches this). Not once-per-session: each occurrence is one tool
-# call that ran unevaluated, and the user is the one who can act on a starved
-# host. Same text on stderr (next to buffer_stdin's own diagnostic) and on
-# both hook channels. <event> may be empty when the caller does not know the
-# hook event — the dispatcher runs under several — in which case only
-# systemMessage is emitted, since hookSpecificOutput requires the event name.
-# The caller exits 0 right after.
+# call that ran unevaluated. User channel only, since the user is the one who
+# can act on a starved host; the same line goes to stderr next to
+# buffer_stdin's own diagnostic. <event> is accepted for the callers that pass
+# it and is not used. The caller exits 0 right after.
 #   hook::stdin_cut_short_notice PreToolUse "guardrails block-hook-bypass"
 hook::stdin_cut_short_notice() {
-  local event="$1" label="$2"
-  local msg="$label: hook stdin was cut short (the payload pipe closed mid-document), so this tool call was not evaluated and is allowed through. That is a transport fault on this host, not a property of the command, and it says nothing about what would run. If it recurs the host is starved; see the stdin_read_timeout option and the recorded hook-run durations."
+  local msg="$2: hook stdin was cut short, so this tool call ran unchecked. If it recurs, the host is starved; see the stdin_read_timeout option."
   echo "$msg" >&2
-  if [[ -n "$event" ]]; then
-    hook::emit_channels "$event" "$msg" "$msg"
-  else
-    hook::emit_channels "" "" "$msg"
-  fi
+  hook::emit_channels "" "" "$msg"
 }
 
-# Trim a PATH dump to directories that can plausibly hold a host / user /
-# repo-local tool. Other plugins' bin/hooks dirs are the 60+ entry dump that
-# made the first skip notice 10 KB (#3128 / #3134). Cap kept entries; say
-# how many were omitted.
-#   hook::format_path_probed                # reads $PATH
-#   hook::format_path_probed "$raw_path"    # trim a dumped PATH string
-hook::format_path_probed() {
-  local raw="${1:-${PATH:-}}"
-  if [[ -z "$raw" || "$raw" == '<unset>' ]]; then
-    printf '%s' '<unset>'
-    return 0
-  fi
-  local rest="$raw" p
-  local -a kept=()
-  local omitted=0
-  local plugin_root="${CLAUDE_PLUGIN_ROOT:-}"
-  local max=12
-  while [[ -n "$rest" ]]; do
-    if [[ "$rest" == *:* ]]; then
-      p="${rest%%:*}"
-      rest="${rest#*:}"
-    else
-      p="$rest"
-      rest=""
-    fi
-    [[ -n "$p" ]] || continue
-    if [[ "$p" == *'/plugins/'* ]] && [[ "$p" == *'/bin'* || "$p" == *'/hooks'* ]]; then
-      if [[ -z "$plugin_root" || "$p" != "$plugin_root"* ]]; then
-        omitted=$((omitted + 1))
-        continue
-      fi
-    fi
-    if ((${#kept[@]} < max)); then
-      kept+=("$p")
-    else
-      omitted=$((omitted + 1))
-    fi
-  done
-  local out="" i
-  for i in "${!kept[@]}"; do
-    [[ $i -gt 0 ]] && out+=':'
-    out+="${kept[$i]}"
-  done
-  if ((omitted > 0)); then
-    out+=" …(+${omitted} omitted)"
-  fi
-  printf '%s' "$out"
-}
-
-# systemMessage-only variant for hook events with no additionalContext channel
-# (e.g. Notification).
+# systemMessage-only variant for a hook with nothing for the model. Notification
+# hooks get no channel at all: Claude Code discards their systemMessage
+# (https://code.claude.com/docs/en/hooks#notification).
 hook::emit_system_message() {
   hook::emit_channels "" "" "$1"
 }
 
-# Skip-notice latch (#3128). Returns 0 (emit now) on the first fire for a
-# given <key> in the current (session, agent) pair, then every
-# HOOK_NOTICE_RENEW_EVERY skips thereafter (default 8); returns 1 otherwise.
-# A missing-tool notice behind a broad matcher must not repeat the full
-# diagnostic on every edit, but one notice for the whole session was the
-# opposite defect: later edits (and every subagent sharing the session id)
-# went silently unchecked, with no retained skip count unless
-# HOOK_TELEMETRY_SINK was wired.
-#
-# The marker keys on session AND agent (agent_id, else the transcript_path
-# basename, else no-agent) so a subagent gets its own first notice. The
-# marker file stores the skip count, independent of the telemetry sink.
-# hook::emit_skip_notice reads HOOK_NOTICE_KIND=renew and emits one short
-# line, no PATH dump. SessionEnd summary is not wired: the count lives in
-# the marker and the renew notice prints it.
-#
-# Fails open toward visibility: when no marker can be tracked, emit every
-# time (KIND=full).
-#   hook::notice_once "my-plugin-jq" "$INPUT" && hook::emit_skip_notice ...
-HOOK_NOTICE_KIND=full
-HOOK_NOTICE_COUNT=0
-HOOK_NOTICE_KEEP_BODY=0
-HOOK_NOTICE_RENEW_EVERY="${HOOK_NOTICE_RENEW_EVERY:-8}"
+# hook::session_agent_to <session-var> <agent-var> <input>: the latch keys from
+# the raw hook input, jq-free. Session is session_id, else no-session. Agent is
+# agent_id, else the transcript_path basename (the main agent), else no-agent.
+# Both are reduced to [A-Za-z0-9_-] so they can name a marker file.
+hook::session_agent_to() {
+  local __hu_sa_s="no-session" __hu_sa_a="no-agent"
+  if [[ "$3" =~ \"session_id\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
+    __hu_sa_s="${BASH_REMATCH[1]//[^A-Za-z0-9_-]/-}"
+  fi
+  if [[ "$3" =~ \"agent_id\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
+    __hu_sa_a="${BASH_REMATCH[1]}"
+  elif [[ "$3" =~ \"transcript_path\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]]; then
+    __hu_sa_a="${BASH_REMATCH[1]##*/}"
+    __hu_sa_a="${__hu_sa_a%.jsonl}"
+  fi
+  __hu_sa_a="${__hu_sa_a//[^A-Za-z0-9_-]/-}"
+  printf -v "$1" '%s' "$__hu_sa_s"
+  printf -v "$2" '%s' "${__hu_sa_a:-no-agent}"
+}
 
+# hook::_state_dir_to <var> <subdir>: $CLAUDE_PLUGIN_DATA/<subdir>, created on
+# first use, with files older than 7 days pruned once per process. Returns 1
+# when there is no data directory or it cannot be created.
+hook::_state_dir_to() {
+  [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]] || return 1
+  local __hu_sd="${CLAUDE_PLUGIN_DATA%/}/$2"
+  # `-d` before `mkdir -p`: mkdir is an external command.
+  if [[ ! -d "$__hu_sd" ]]; then
+    mkdir -p "$__hu_sd" 2>/dev/null || return 1
+  fi
+  # One `find` per hook process and directory: the markers are tiny and the
+  # process short-lived, so a second walk could find nothing newly stale.
+  local __hu_sd_var="_HOOK_PRUNED_${2//[^A-Za-z0-9_]/_}"
+  if [[ -z "${!__hu_sd_var:-}" ]]; then
+    find "$__hu_sd" -maxdepth 1 -type f -mtime +7 -delete 2>/dev/null || true
+    printf -v "$__hu_sd_var" '%s' 1
+  fi
+  printf -v "$1" '%s' "$__hu_sd"
+}
+
+# hook::_file_key_to <var> <file>: a marker-name fragment for <file>. Lossy
+# (characters outside [A-Za-z0-9._-] fold to _ and a long path keeps its tail),
+# so callers store the full path in the marker and compare it.
+hook::_file_key_to() {
+  local __hu_fk="${2//[^A-Za-z0-9._-]/_}"
+  ((${#__hu_fk} > 120)) && __hu_fk="${__hu_fk: -120}"
+  printf -v "$1" '%s' "$__hu_fk"
+}
+
+# Skip-notice latch: one notice per channel, never renewed. Returns 0 when
+# either channel is due, 1 when neither is, and sets:
+#   HOOK_NOTICE_TO_MODEL  1 on the first call for <key> in this (session, agent)
+#   HOOK_NOTICE_TO_USER   1 on the first call for <key> in this session
+# hook::emit_skip_notice reads both. The model marker keys on the agent because
+# a subagent does not see what the main agent was told; the user marker keys on
+# the session because the user sees one transcript. prerequisites.mjs probe
+# writes the user marker at SessionStart, so its notice and this one are one
+# notice to the user.
+#
+# HOOK_NOTICE_KIND is `full` when the user channel is due, `model` when only
+# the model channel is, `silent` otherwise; it remains for callers that read
+# it, and HOOK_NOTICE_TO_USER says the same. A third argument is accepted and
+# ignored.
+#
+# Fails open toward visibility: without a data directory both channels are due
+# every time.
+#   hook::notice_once "my-plugin-jq" "$INPUT" && hook::emit_skip_notice ...
+HOOK_NOTICE_TO_MODEL=1
+HOOK_NOTICE_TO_USER=1
+HOOK_NOTICE_KIND=full
+
+# shellcheck disable=SC2034 # HOOK_NOTICE_KIND is read by callers, not here
 hook::notice_once() {
-  local key="$1" input="${2:-}" class="${3:-}" session="no-session" agent="no-agent"
-  local session_only=0
+  local key="$1" session agent dir
+  HOOK_NOTICE_TO_MODEL=1
+  HOOK_NOTICE_TO_USER=1
   HOOK_NOTICE_KIND=full
-  HOOK_NOTICE_COUNT=0
-  HOOK_NOTICE_KEEP_BODY=0
-  [[ "$class" == "prerequisite" ]] && session_only=1
-  if [[ "$input" =~ \"session_id\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
-    session="${BASH_REMATCH[1]}"
-    session="${session//[^A-Za-z0-9_-]/-}"
+  hook::session_agent_to session agent "${2:-}"
+  hook::_state_dir_to dir skip-notices || return 0
+  local model="$dir/${key}.${session}.${agent}" user="$dir/${key}.${session}.user"
+  if [[ -f "$model" ]]; then
+    HOOK_NOTICE_TO_MODEL=0
+  else
+    : 2>/dev/null >"$model" || return 0
   fi
-  if [[ "$input" =~ \"agent_id\"[[:space:]]*:[[:space:]]*\"([^\"]+)\" ]]; then
-    agent="${BASH_REMATCH[1]}"
-  elif [[ "$input" =~ \"transcript_path\"[[:space:]]*:[[:space:]]*\"(([^\"\\]|\\.)*)\" ]]; then
-    agent="${BASH_REMATCH[1]}"
-    agent="${agent##*/}"
-    agent="${agent%.jsonl}"
+  if [[ -f "$user" ]]; then
+    HOOK_NOTICE_TO_USER=0
+  else
+    : 2>/dev/null >"$user" || return 0
   fi
-  agent="${agent//[^A-Za-z0-9_-]/-}"
-  [[ -n "$agent" ]] || agent="no-agent"
-  [[ "$session_only" -eq 1 ]] && agent="session"
-  local dir="${CLAUDE_PLUGIN_DATA:-}"
-  [[ -n "$dir" ]] || return 0
-  dir="$dir/skip-notices"
-  # `-d` before `mkdir -p`: the directory exists after the first skip in this
-  # process, and mkdir is an external command. Same placement as other
-  # once-per-process probes in this file.
-  if [[ ! -d "$dir" ]]; then
-    mkdir -p "$dir" 2>/dev/null || return 0
-  fi
-  # Prune once per hook process. `find -mtime +7 -delete` on every notice
-  # was one exec per skip; the process is short-lived and the markers are
-  # tiny, so repeating the walk inside one fire cannot find newly-stale
-  # files. `_HOOK_NOTICE_PRUNED` is unset in a fresh hook process.
-  if [[ -z "${_HOOK_NOTICE_PRUNED:-}" ]]; then
-    find "$dir" -type f -mtime +7 -delete 2>/dev/null || true
-    _HOOK_NOTICE_PRUNED=1
-  fi
-  local marker="$dir/${key}.${session}.${agent}"
-  local count=0
-  if [[ -f "$marker" ]]; then
-    # `read`, not `tr -d '[:space:]'`: that substitution was a fork plus a
-    # tr exec to strip whitespace bash can already delete in-process.
-    IFS= read -r count <"$marker" || true
-    count="${count//[[:space:]]/}"
-    [[ "$count" =~ ^[0-9]+$ ]] || count=1
-  fi
-  count=$((count + 1))
-  printf '%s\n' "$count" >"$marker" 2>/dev/null || return 0
-  HOOK_NOTICE_COUNT="$count"
-  local every="${HOOK_NOTICE_RENEW_EVERY:-8}"
-  [[ "$every" =~ ^[1-9][0-9]*$ ]] || every=8
-  if [[ "$count" -eq 1 ]]; then
-    HOOK_NOTICE_KIND=full
+  if [[ "$HOOK_NOTICE_TO_USER" == 1 ]]; then
     return 0
-  fi
-  if ((count % every == 0)); then
-    HOOK_NOTICE_KIND=renew
-    [[ "$session_only" -eq 1 ]] && HOOK_NOTICE_KEEP_BODY=1
+  elif [[ "$HOOK_NOTICE_TO_MODEL" == 1 ]]; then
+    HOOK_NOTICE_KIND=model
     return 0
   fi
   HOOK_NOTICE_KIND=silent
+  HOOK_NOTICE_TO_MODEL=1
+  HOOK_NOTICE_TO_USER=1
   return 1
+}
+
+# hook::once_per_file <key> <input> <file>: 0 the first time per (key, session,
+# agent, file), 1 after. For a hint worth giving once per file rather than on
+# every report about it. Fails open (0) without a data directory.
+#   hook::once_per_file my-plugin-hint "$INPUT" "$FILE" && ctx+=" <hint>"
+hook::once_per_file() {
+  local session agent dir fkey prev=""
+  hook::session_agent_to session agent "$2"
+  hook::_state_dir_to dir skip-notices || return 0
+  hook::_file_key_to fkey "$3"
+  local marker="$dir/${1}.${session}.${agent}.f.${fkey}"
+  if [[ -f "$marker" ]]; then
+    IFS= read -r prev <"$marker" || true
+    [[ "$prev" == "$3" ]] && return 1
+  fi
+  printf '%s\n' "$3" 2>/dev/null >"$marker" || true
+  return 0
 }
 
 # Best-effort jq-free extraction of tool_input.file_path from the raw hook
@@ -433,37 +402,94 @@ hook::raw_file_path() {
 
 # Fail-OPEN dependency gate — the default. For hooks whose work cannot proceed
 # without the tool <id> (jq, almost always) and whose finding is advisory. When
-# <id> is absent: a visible skip notice once per session and agent, renewed
-# every eighth skip, then exit 0. Place after hook::check_enabled (and after any
-# jq-free applicability pre-filter), passing the buffered stdin for session
+# <id> is absent: the hook::prereq_notice_to notice (once per channel, see
+# hook::notice_once), then exit 0. Place after hook::check_enabled (and after
+# any jq-free applicability pre-filter), passing the buffered stdin for session
 # scoping. See the posture block above for when this is the WRONG choice.
 #   hook::require jq PostToolUse my-plugin "$INPUT"
 #
-# The notice is built from the plugin's declared prerequisites.json entry
-# (docs/conventions/prerequisites/): its degrade text, first install doc link and
-# check command. The lookup is jq-free, because the usual missing tool is jq.
-# A plugin whose file lacks the entry gets generic degrade text and a
-# /<plugin>:check command derived from the plugin root. It never installs.
+# <plugin> names the notice and its latch key; it never installs.
+#
+# No PATH line: a guard chain under one dispatcher (guardrails run-guards.sh)
+# can still exit 2 after this notice, and exit-2 stderr reaches the model.
 hook::require() {
   command -v "$1" >/dev/null 2>&1 && return 0
-  local id="$1" event="$2" plugin="$3" input="${4:-}"
-  if hook::notice_once "${plugin}-${id}" "$input"; then
-    local degrade docs check
-    hook::prerequisite_fields_to degrade docs check "$id"
-    hook::emit_skip_notice "$event" \
-      "$plugin: $id not found on PATH — $degrade${docs:+ Install: $docs.} Run $check to verify. It does not install."
+  local model user
+  if hook::prereq_notice_to model user "$1" "${4:-}" --label "$3" --no-path; then
+    hook::emit_skip_notice "$2" "$model" "$user"
   fi
   exit 0
 }
 
-# hook::prerequisite_fields_to <degrade-var> <docs-var> <check-var> <id>
+# hook::prereq_notice_to <model-var> <user-var> <id> <input> [--label <name>]
+#                        [--where <phrase>] [--install <text>] [--no-path]
+# Composes the notice for a missing prerequisite <id> from the plugin's
+# prerequisites.json entry (docs/conventions/prerequisites/) and latches it per
+# channel through hook::notice_once with key `<label>-<id>`. Returns 0 when a
+# notice is due (each var holds its text, or "" when that channel is already
+# told), 1 when neither channel is due. The caller emits, usually through
+# hook::emit_skip_notice <event> "$model" "$user".
+#   --label    the notice prefix and latch key (default: the plugin name)
+#   --where    where the tool was looked for (default: "not on the hook PATH",
+#              plus " or at <path>" per detect.local_bin entry)
+#   --install  replaces the install route on the user line
+#   --no-path  skips the `PATH probed:` line it otherwise writes to stderr,
+#              which an exit-0 hook sends to the debug log; pass it when the
+#              process can still exit 2, whose stderr reaches the model
+# The user line renders the same fields prerequisites.mjs probe renders at
+# SessionStart, so the two cannot drift.
+hook::prereq_notice_to() {
+  local __hu_pn_m="$1" __hu_pn_u="$2" __hu_pn_id="$3" __hu_pn_in="$4"
+  local __hu_pn_label="" __hu_pn_where="" __hu_pn_inst="" __hu_pn_inst_set=0 __hu_pn_path=1
+  shift 4
+  while (($#)); do
+    case "$1" in
+    --label) __hu_pn_label="$2" ;;
+    --where) __hu_pn_where="$2" ;;
+    --install)
+      __hu_pn_inst="$2"
+      __hu_pn_inst_set=1
+      ;;
+    --no-path)
+      __hu_pn_path=0
+      shift
+      continue
+      ;;
+    *) ;;
+    esac
+    shift 2 || break
+  done
+  local __hu_pn_d __hu_pn_i __hu_pn_c __hu_pn_local __hu_pn_name
+  hook::prerequisite_fields_to __hu_pn_d __hu_pn_i __hu_pn_c "$__hu_pn_id" __hu_pn_local __hu_pn_name
+  [[ -n "$__hu_pn_label" ]] || __hu_pn_label="$__hu_pn_name"
+  printf -v "$__hu_pn_m" '%s' ""
+  printf -v "$__hu_pn_u" '%s' ""
+  hook::notice_once "${__hu_pn_label}-${__hu_pn_id}" "$__hu_pn_in" || return 1
+  if [[ -z "$__hu_pn_where" ]]; then
+    __hu_pn_where="not on the hook PATH${__hu_pn_local:+ or at $__hu_pn_local}"
+  fi
+  ((__hu_pn_inst_set)) || __hu_pn_inst="${__hu_pn_i:+Install ($__hu_pn_i).}"
+  local __hu_pn_head="$__hu_pn_label: $__hu_pn_id $__hu_pn_where. $__hu_pn_d"
+  local __hu_pn_tail="No further notice this session; $__hu_pn_c diagnoses."
+  ((__hu_pn_path)) && printf 'PATH probed: %s\n' "${PATH:-<unset>}" >&2
+  [[ "$HOOK_NOTICE_TO_MODEL" == 1 ]] && printf -v "$__hu_pn_m" '%s' "$__hu_pn_head $__hu_pn_tail"
+  [[ "$HOOK_NOTICE_TO_USER" == 1 ]] &&
+    printf -v "$__hu_pn_u" '%s' "$__hu_pn_head ${__hu_pn_inst:+$__hu_pn_inst }Hooks read Claude Code's PATH, not your shell profile. $__hu_pn_tail"
+  return 0
+}
+
+# hook::prerequisite_fields_to <degrade-var> <install-var> <check-var> <id>
+#                              [<local-bin-var> [<plugin-var>]]
 # Reads the declared entry for <id> from ${CLAUDE_PLUGIN_ROOT}/prerequisites.json
 # with bash alone. An entry runs from its "id" to the next "id", so each entry
-# carries "id" as its first key, as the convention's example does. An absent file or entry gives generic text and a
-# check command derived from the plugin root.
+# carries "id" as its first key, as the convention's example does. <install-var>
+# gets the install map as `key: value; key: value`, the form prerequisites.mjs
+# prints; <local-bin-var> gets detect.local_bin joined with " or ". An absent
+# file or entry gives generic text and a check command derived from the plugin
+# root, which also names the plugin.
 hook::prerequisite_fields_to() {
-  local __hu_d="hook skipped for this session." __hu_i="" __hu_c=""
-  local __hu_root="${CLAUDE_PLUGIN_ROOT:-}" __hu_txt="" __hu_name=""
+  local __hu_d="The hook skips its work." __hu_i="" __hu_c="" __hu_l=""
+  local __hu_root="${CLAUDE_PLUGIN_ROOT:-}" __hu_txt="" __hu_name="" __hu_m
   local __hu_s='[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)"'
   if [[ -r "$__hu_root/prerequisites.json" ]]; then
     __hu_txt=$(<"$__hu_root/prerequisites.json")
@@ -471,30 +497,54 @@ hook::prerequisite_fields_to() {
       __hu_txt="${BASH_REMATCH[1]}"
       __hu_txt="${__hu_txt%%\"id\"[[:space:]]*:*}"
       [[ "$__hu_txt" =~ \"degrade\"$__hu_s ]] && __hu_d="${BASH_REMATCH[1]}"
-      [[ "$__hu_txt" =~ \"docs\"$__hu_s ]] && __hu_i="${BASH_REMATCH[1]}"
       [[ "$__hu_txt" =~ \"check\"$__hu_s ]] && __hu_c="${BASH_REMATCH[1]}"
+      if [[ "$__hu_txt" =~ \"install\"[[:space:]]*:[[:space:]]*\{([^}]*)\} ]]; then
+        __hu_m="${BASH_REMATCH[1]}"
+        while [[ "$__hu_m" =~ \"([^\"]+)\"$__hu_s(.*) ]]; do
+          __hu_i+="${__hu_i:+; }${BASH_REMATCH[1]}: ${BASH_REMATCH[2]}"
+          __hu_m="${BASH_REMATCH[4]}"
+        done
+      fi
+      if [[ "$__hu_txt" =~ \"local_bin\"[[:space:]]*:[[:space:]]*\[([^]]*)\] ]]; then
+        __hu_m="${BASH_REMATCH[1]}"
+        while [[ "$__hu_m" =~ \"(([^\"\\]|\\.)*)\"(.*) ]]; do
+          __hu_l+="${__hu_l:+ or }${BASH_REMATCH[1]}"
+          __hu_m="${BASH_REMATCH[3]}"
+        done
+      fi
       __hu_d="${__hu_d//\\\"/\"}"
     fi
   fi
-  if [[ -z "$__hu_c" ]]; then
+  # The plugin name as prerequisites.mjs takes it: plugin.json's name, else the
+  # root's directory name (its parent's for a versioned cache directory).
+  if [[ -r "$__hu_root/.claude-plugin/plugin.json" ]] &&
+    [[ "$(<"$__hu_root/.claude-plugin/plugin.json")" =~ \"name\"$__hu_s ]]; then
+    __hu_name="${BASH_REMATCH[1]}"
+  else
     __hu_name="${__hu_root%/}"
     __hu_name="${__hu_name##*/}"
     if [[ "$__hu_name" =~ ^[0-9] ]]; then
       __hu_name="${__hu_root%/*}"
       __hu_name="${__hu_name##*/}"
     fi
-    __hu_c="/${__hu_name:-plugin}:check"
+  fi
+  __hu_name="${__hu_name:-plugin}"
+  if [[ -z "$__hu_c" ]]; then
+    __hu_c="/${__hu_name}:check"
     [[ -d "$__hu_root/skills/check-prerequisites" ]] && __hu_c+="-prerequisites"
   fi
   printf -v "$1" '%s' "$__hu_d"
   printf -v "$2" '%s' "$__hu_i"
   printf -v "$3" '%s' "$__hu_c"
+  [[ -n "${5:-}" ]] && printf -v "$5" '%s' "$__hu_l"
+  [[ -n "${6:-}" ]] && printf -v "$6" '%s' "$__hu_name"
+  return 0
 }
 
 # Fail-CLOSED jq gate (#2146) — for a guard that blocks an irreversible
 # operation, per the membership criterion in the posture block above. When jq is
-# absent the tool call is DENIED (exit 2) with jq named as the missing
-# prerequisite and the same install route the fail-open notice uses.
+# absent the tool call is DENIED (exit 2) with one line naming jq and its
+# install page.
 #
 # No notice_once here, and that is deliberate: this message is not a once per
 # session and agent heads-up about a degraded hook, it is THIS tool call's denial
@@ -505,7 +555,9 @@ hook::prerequisite_fields_to() {
 # The kill switch stays the only supported deliberate bypass: a consumer who
 # genuinely wants the operation unguarded on a jq-less machine sets the guard's
 # own *_enabled userConfig option to false, which hook::check_enabled honors
-# BEFORE this gate is ever reached.
+# BEFORE this gate is ever reached. The deny reason does not name it: the reason
+# reaches the model, and the switch is the user's call (the plugin README names
+# it).
 # DISCLOSED COST, because it is not small: this guard runs on EVERY Bash and
 # PowerShell tool call, and without jq it cannot read the command at all — so it
 # cannot tell a dangerous one from a safe one and denies both. On a machine
@@ -514,22 +566,12 @@ hook::prerequisite_fields_to() {
 # posture over a jq-free substring pre-check, which was rejected for
 # manufacturing a false sense of coverage.
 #
-# $1 = the hook's own id (for the message), $2 = the user-facing *_enabled
-# userConfig option name that turns this guard off.
+# $1 = the hook's own id (for the message). A second argument, the guard's
+# *_enabled option name, is accepted and not used.
 #   hook::require_jq_blocking guardrails-block-dangerous-git block_dangerous_git_enabled
 hook::require_jq_blocking() {
   command -v jq >/dev/null 2>&1 && return 0
-  local hook_id="$1" option="${2:-}"
-  echo "BLOCKED: $hook_id cannot read the tool payload — the required prerequisite \`jq\` is not on PATH." >&2
-  echo "This guard blocks irreversible operations, so a missing prerequisite denies the call rather than silently skipping the guard (#2146)." >&2
-  if [[ -n "$option" ]]; then
-    echo "Install jq (https://jqlang.org/download/), or set the \`$option\` plugin option to false (/plugin configure) to bypass this guard." >&2
-  else
-    echo "Install jq (https://jqlang.org/download/) to restore the guard." >&2
-  fi
-  local __hu_degrade __hu_docs __hu_check
-  hook::prerequisite_fields_to __hu_degrade __hu_docs __hu_check jq
-  echo "Run $__hu_check to verify." >&2
+  echo "BLOCKED: jq is not on PATH, so $1 cannot read the command and denies every Bash and PowerShell call. Ask the user to install jq (https://jqlang.org/download/)." >&2
   exit 2
 }
 
@@ -4850,32 +4892,113 @@ hook::findings_encode_to() {
 # matching data.findings array.
 #
 #   hook::findings_to <ctx-dest> <heading> <output> [<findings-dest>]
+#                     [--max <n> [--more <hint>]] [--delta <input> <file>]
 #
 # <ctx-dest> receives <heading> followed by one `  `-indented line per NON-EMPTY
 # line of <output>; a tool that printed nothing leaves the heading standing
 # alone. Blank lines are dropped on both channels because they carry no
 # diagnostic and cost the model context.
 #
-# <findings-dest>, when given, receives those same lines through
-# hook::findings_encode_to. Omit it on an arm reporting a TOOL BREAK rather than
-# a judgment: the break diagnostic belongs on the agent channel, while
-# data.findings stays empty because the tool produced no findings. An arm that
-# needs the unfiltered stream in data.findings — blank lines and all — calls
-# hook::findings_encode_to directly instead.
+# <findings-dest>, when given, receives every one of those lines through
+# hook::findings_encode_to, whatever --max and --delta do to <ctx-dest>. Omit it
+# on an arm reporting a TOOL BREAK rather than a judgment: the break diagnostic
+# belongs on the agent channel, while data.findings stays empty because the
+# tool produced no findings. An arm that needs the unfiltered stream in
+# data.findings — blank lines and all — calls hook::findings_encode_to directly
+# instead.
+#
+# --max <n> keeps the first <n> lines (0 keeps all) and ends the report with
+# `  ... and K more` plus ` (<hint>)` when --more gives one.
+#
+# --delta <input> <file> sends a finding set once: when this (session, agent,
+# file) last reported the same lines under the same --max, <ctx-dest> is "".
+# An empty <output> clears the record and leaves <ctx-dest> "", so call it on a
+# clean run too: findings that come back after a fix are reported again.
+# hook::findings_digest_reset clears every record of a session after compaction.
 hook::findings_to() {
-  local __hu_ft_ctx="$2" __hu_ft_raw="" __hu_ft_line
+  local __hu_ft_dest="$1" __hu_ft_ctx="$2" __hu_ft_out="$3" __hu_ft_fd=""
+  local __hu_ft_max=0 __hu_ft_more="" __hu_ft_delta=0 __hu_ft_in="" __hu_ft_file=""
+  shift 3
+  if (($#)) && [[ "$1" != --* ]]; then
+    __hu_ft_fd="$1"
+    shift
+  fi
+  while (($#)); do
+    case "$1" in
+    --max)
+      __hu_ft_max="$2"
+      shift 2
+      ;;
+    --more)
+      __hu_ft_more="$2"
+      shift 2
+      ;;
+    --delta)
+      __hu_ft_delta=1
+      __hu_ft_in="$2"
+      __hu_ft_file="$3"
+      shift 3
+      ;;
+    *) shift ;;
+    esac
+  done
+  [[ "$__hu_ft_max" =~ ^[0-9]+$ ]] || __hu_ft_max=0
+  local __hu_ft_raw="" __hu_ft_line __hu_ft_n=0
   while IFS= read -r __hu_ft_line; do
     [[ -n "$__hu_ft_line" ]] || continue
-    __hu_ft_ctx+=$'\n'"  $__hu_ft_line"
+    __hu_ft_n=$((__hu_ft_n + 1))
     __hu_ft_raw+="$__hu_ft_line"$'\n'
-  done <<<"$3"
-  printf -v "$1" '%s' "$__hu_ft_ctx"
-  [[ -n "${4:-}" ]] && hook::findings_encode_to "$4" "$__hu_ft_raw"
+    ((__hu_ft_max == 0 || __hu_ft_n <= __hu_ft_max)) && __hu_ft_ctx+=$'\n'"  $__hu_ft_line"
+  done <<<"$__hu_ft_out"
+  if ((__hu_ft_max > 0 && __hu_ft_n > __hu_ft_max)); then
+    __hu_ft_ctx+=$'\n'"  ... and $((__hu_ft_n - __hu_ft_max)) more${__hu_ft_more:+ ($__hu_ft_more)}"
+  fi
+  [[ -n "$__hu_ft_fd" ]] && hook::findings_encode_to "$__hu_ft_fd" "$__hu_ft_raw"
+  if ((__hu_ft_delta)); then
+    local __hu_ft_s __hu_ft_a __hu_ft_dir __hu_ft_key __hu_ft_prev=""
+    if ((__hu_ft_n == 0)); then
+      __hu_ft_ctx=""
+    fi
+    hook::session_agent_to __hu_ft_s __hu_ft_a "$__hu_ft_in"
+    if hook::_state_dir_to __hu_ft_dir finding-digests; then
+      hook::_file_key_to __hu_ft_key "$__hu_ft_file"
+      local __hu_ft_rec="$__hu_ft_dir/${__hu_ft_s}.${__hu_ft_a}.${__hu_ft_key}"
+      if ((__hu_ft_n == 0)); then
+        [[ -f "$__hu_ft_rec" ]] && { rm -f "$__hu_ft_rec" 2>/dev/null || true; }
+      else
+        # The record holds what was sent, so it also proves which file it is for.
+        local __hu_ft_now="max=$__hu_ft_max"$'\n'"$__hu_ft_file"$'\n'"$__hu_ft_raw"
+        [[ -f "$__hu_ft_rec" ]] && { IFS= read -r -d '' __hu_ft_prev <"$__hu_ft_rec" || true; }
+        if [[ "$__hu_ft_prev" == "$__hu_ft_now" ]]; then
+          __hu_ft_ctx=""
+        else
+          printf '%s' "$__hu_ft_now" 2>/dev/null >"$__hu_ft_rec" || true
+        fi
+      fi
+    fi
+  fi
+  printf -v "$__hu_ft_dest" '%s' "$__hu_ft_ctx"
+  return 0
+}
+
+# hook::findings_digest_reset <input>: on a SessionStart whose source is
+# `compact` or `clear`, delete every hook::findings_to --delta record of that
+# session, so the model, which lost the reports with its context, is told again.
+# Any other input does nothing. For a SessionStart hook row with matcher
+# `compact|clear`.
+hook::findings_digest_reset() {
+  [[ "$1" =~ \"source\"[[:space:]]*:[[:space:]]*\"(compact|clear)\" ]] || return 0
+  local __hu_fr_s __hu_fr_a
+  hook::session_agent_to __hu_fr_s __hu_fr_a "$1"
+  [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]] || return 0
+  local __hu_fr_recs=("${CLAUDE_PLUGIN_DATA%/}/finding-digests/${__hu_fr_s}".*)
+  [[ -e "${__hu_fr_recs[0]}" ]] && { rm -f "${__hu_fr_recs[@]}" 2>/dev/null || true; }
   return 0
 }
 
 # Compose the skip notice a hook emits when the tool it drives is not on this
-# hook's PATH.
+# hook's PATH. hook::prereq_notice_to composes the same notice from the
+# plugin's prerequisites.json and splits it per channel; prefer it.
 #
 #   hook::tool_missing_notice_to <dest> <lead> <scope> [<tail>]
 #
@@ -4883,15 +5006,11 @@ hook::findings_to() {
 #            which tool was not found and where it was looked for, and what was
 #            skipped as a result
 #   <scope>  the edit class the probe re-runs on ("matching", "shell")
-#   <tail>   the install route and any tool-specific advice, appended before the
-#            PATH line
+#   <tail>   the install route and any tool-specific advice
 #
-# The sentence between them is the part that answers the question the reader
-# actually has, and it is the same for every tool: a hook process inherits
-# Claude Code's own environment rather than the interactive shell's profile, so
-# a tool the Bash tool can see may genuinely be absent here, and the PATH that
-# WAS probed is the evidence. Stating it once keeps it from drifting per plugin.
+# The PATH that was probed goes to stderr, which an exit-0 hook sends to the
+# debug log.
 hook::tool_missing_notice_to() {
-  printf -v "$1" '%s' "$2 (probe re-runs on every $3 edit; only this notice latches once per session — there is no skip latch). Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install the Bash tool can see may be invisible here${4:-}
-PATH probed: ${PATH:-<unset>}"
+  printf 'PATH probed: %s\n' "${PATH:-<unset>}" >&2
+  printf -v "$1" '%s' "$2 (the probe re-runs on every $3 edit; this notice does not repeat this session). Hooks read Claude Code's PATH, not your shell profile${4:-}"
 }
