@@ -115,7 +115,7 @@ When the report has an "Adopt now" section, ask about each item in your reply, o
 per item, and take a yes or no for each. For every yes:
 
 ```bash
-"<PY>" "${CLAUDE_PLUGIN_ROOT}/scripts/findings.py" adopt --data "<DATA>" --session "${CLAUDE_SESSION_ID}" --findings "<RUN>/findings.json" --id <id> --route-taken <route>
+"<PY>" "${CLAUDE_PLUGIN_ROOT}/scripts/findings.py" adopt --data "<DATA>" --session "${CLAUDE_SESSION_ID}" --findings "<RUN>/findings.json" --id '<id>' --route-taken <route>
 ```
 
 `--route-taken` is the finding's suggested route unless the user names the other one; the record

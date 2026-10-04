@@ -49,9 +49,11 @@ errors and wait_ms, repeated_reads, repeated_commands, skills, tokens, typed_tur
 (first to last record before the invocation) and subagents (those started before it). A tool call
 made before the invocation keeps its wait even when its result lands after it. With no invocation,
 everything counts. records and bad_lines count the whole file. A repeated command is keyed by its
-full text but shown with secret-shaped values (Authorization headers, token or password variables
-and flags, URL credentials, known token prefixes) replaced by *** and cut to 60 characters; a shown
-text that differs from the command ends in " #" and the first 8 hex digits of its SHA-256.
+full text but shown with secret-shaped values (credential headers, Bearer values, token or password
+variables, flags and arguments, URL credentials, signed-URL signatures, known token prefixes)
+replaced by *** and backticks by quotes, cut to 60 characters; a shown text that differs from the
+command ends in " #" and the first 8 hex digits of the redacted text's SHA-256. Repeats that show
+alike add up. Repeated file paths are shown the same way, without the cut or tag.
 
 Field names are the finding record in agents/go-faster-sweeper.md. Exit 0 is success, 1 a refusal
 the caller acts on (an invalid finding, a held lock, a failed gh call), 2 a usage or input error,
@@ -73,7 +75,7 @@ import sys
 import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path
 from typing import NoReturn
 
@@ -122,6 +124,8 @@ EFFECTS = (
     "batching",
 )
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# An id reaches a shell line in the main session (adopt --id), so it holds no shell syntax.
+ID_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 OVERENGINEERING = "/overengineering:audit"
 
 
@@ -156,6 +160,10 @@ def finding_errors(f: dict, run_day: str | None = None) -> list[str]:
 
     for field in ("id", "key", "area", "title", "status"):
         need(isinstance(f.get(field), str) and f[field], f"{field} required")
+    need(
+        isinstance(f.get("id"), str) and ID_RE.fullmatch(f["id"]),
+        f"id must match {ID_RE.pattern}",
+    )
     need(f.get("area") in AREAS, f"area must be one of {', '.join(AREAS)}")
     status = f.get("status")
     need(status in STATUSES, f"status must be one of {', '.join(STATUSES)}")
@@ -347,12 +355,9 @@ HEADINGS = {
 }
 
 
-LINE_BREAKS = re.compile(r"\s*[\n\r\v\f\x1c-\x1e\x85  ]+\s*")
-
-
 def one_line(text: str) -> str:
     """A finding's report line: text from outside (titles, reasons) cannot open a heading."""
-    return LINE_BREAKS.sub(" ", text)
+    return " ".join(p for line in text.splitlines() if (p := line.strip()))
 
 
 def owner(f: dict) -> str:
@@ -741,25 +746,38 @@ def parse_ts(value: object) -> float | None:
 
 SHOWN_MAX = 60
 VALUE = r"""("[^"]*"|'[^']*'|\S+)"""
+SECRET_WORD = r"(?:key|token|secret|passw(?:or)?d|cookie|auth\w{0,16}|credential)"
+# Every quantifier ahead of a match is bounded, so a long word cannot make a pattern quadratic.
 SECRETS = (
-    (re.compile(r"(?i)(authorization:\s*)[^\"'\n]*"), r"\1***"),
     (
-        re.compile(
-            r"(?i)\b([A-Z0-9_]*(?:TOKEN|SECRET|PASSW(?:OR)?D|API_?KEY|CREDENTIAL)[A-Z0-9_]*=)"
-            + VALUE
-        ),
+        re.compile(rf"(?i)\b([\w-]{{0,32}}{SECRET_WORD}[\w-]{{0,32}}:\s*)[^\"'\n]*"),
+        r"\1***",
+    ),
+    (re.compile(r"(?i)\b(Bearer\s+)\S+"), r"\1***"),
+    (
+        re.compile(rf"(?i)\b([\w-]{{0,64}}{SECRET_WORD}[\w-]{{0,64}}=)" + VALUE),
         r"\1***",
     ),
     (
         re.compile(
-            r"(?i)(--?(?:password|passwd|token|secret|api-?key|auth)(?:=|\s+))" + VALUE
+            r"(?i)((?<!\S)--?(?:password|passwd|pass|token|secret|api-?key|private-?key|auth"
+            r"|user|u)(?:=|\s+))" + VALUE
         ),
         r"\1***",
     ),
-    (re.compile(r"(\w+://)[^/\s@]+@"), r"\1***@"),
+    (re.compile(r"(?<!\S)(-p)(?=\S)\S+"), r"\1***"),
+    (re.compile(r"(?i)(\blogin\b[^|;&\n]{0,100}?\s-p\s+)" + VALUE), r"\1***"),
+    (
+        re.compile(rf"(?i)\b([\w-]{{0,64}}{SECRET_WORD}[\w-]{{0,64}}\s+)(?!-)" + VALUE),
+        r"\1***",
+    ),
+    (re.compile(r"\b(\w{1,32}://)[^\s\"']*@"), r"\1***@"),
+    (re.compile(r"(?i)\b(sig=)[^&\s\"']+"), r"\1***"),
     (
         re.compile(
-            r"\b(?:gh[pousr]_\w{10,}|github_pat_\w+|sk-[\w-]{16,}|xox[abprs]-[\w-]+|AKIA[0-9A-Z]{16})"
+            r"\b(?:gh[pousr]_\w{10,}|github_pat_\w+|sk-[\w-]{16,}|sk_(?:live|test)_\w+"
+            r"|xox[abprs]-[\w-]+|AKIA[0-9A-Z]{16}|AIza[\w-]{20,}|glpat-[\w-]{10,}"
+            r"|npm_\w{20,}|eyJ[\w-]+\.[\w-]+(?:\.[\w-]+)?)"
         ),
         "***",
     ),
@@ -770,20 +788,42 @@ def cut(text: str) -> str:
     return text if len(text) <= SHOWN_MAX else text[: SHOWN_MAX - 3] + "..."
 
 
-def shown_command(command: str) -> str:
-    """A repeated command as reports show it: secrets redacted, cut, tagged when either applied."""
-    shown = command
+def inert(text: str) -> str:
+    """Outside text for a report: one line, and no backtick to break a code span."""
+    return one_line(text).replace("`", "'")
+
+
+def redacted(command: str) -> str:
     for pattern, replacement in SECRETS:
-        shown = pattern.sub(replacement, shown)
-    shown = cut(shown)
+        command = pattern.sub(replacement, command)
+    return inert(command)
+
+
+def shown_command(command: str) -> str:
+    """A repeated command as reports show it: redacted, cut, and tagged when either applied.
+
+    The tag hashes the redacted text, so it cannot confirm a guess at a secret.
+    """
+    clean = redacted(command)
+    shown = cut(clean)
     if shown == command:
         return command
-    return f"{shown} #{hashlib.sha256(command.encode('utf-8')).hexdigest()[:8]}"
+    return f"{shown} #{hashlib.sha256(clean.encode('utf-8')).hexdigest()[:8]}"
+
+
+def merged(counts: dict[str, int], show: Callable[[str], str]) -> dict[str, int]:
+    """Repeats (count above one) keyed as shown; two that show alike add up."""
+    out: dict[str, int] = {}
+    for text, n in counts.items():
+        if n > 1:
+            key = show(text)
+            out[key] = out.get(key, 0) + n
+    return out
 
 
 def code_span(name: object) -> str:
     """Outside text (a CI job or step name) as one inert code span."""
-    return f"`{cut(' '.join(str(name).split()).replace('`', chr(39)))}`"
+    return f"`{cut(' '.join(inert(str(name)).split()))}`"
 
 
 def transcript_counts(path: Path) -> dict:
@@ -868,10 +908,8 @@ def transcript_counts(path: Path) -> dict:
         "work_before_invocation": len(prior_calls),
         "tokens": ledger.totals(),
         "tools": tools,
-        "repeated_reads": {k: v for k, v in reads.items() if v > 1},
-        "repeated_commands": {
-            shown_command(k): v for k, v in commands.items() if v > 1
-        },
+        "repeated_reads": merged(reads, inert),
+        "repeated_commands": merged(commands, shown_command),
         "skills": skills,
         "subagents": sum(started_before_cut(s.path) for s in tr.iter_subagents(path)),
     }

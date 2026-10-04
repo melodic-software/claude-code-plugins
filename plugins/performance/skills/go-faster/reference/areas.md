@@ -58,7 +58,8 @@ Each entry gives:
   `GH_CONFIG_DIR='<value>' ...`, and record it as
   `gh_config_dir` in each GitHub finding's `conditions` (in the reason of a `not-checked` one).
   Never choose an account directory any other way, and never use a named value that holds a
-  quote, `$`, a backtick or a line break: treat it as unset. A gh failure either way is the
+  quote, `$`, a backtick or a line break, or that is not an absolute path outside the repository
+  (a directory inside it could hold another account's `hosts.yml`): treat it as unset. A gh failure either way is the
   `auth-gap` below.
 - **One GitHub probe.** Before the first of `ci-cd`, `gates`, `pr-review` and `tests`, run
   `gh repo view --json nameWithOwner --jq .nameWithOwner` once, with `GH_CONFIG_DIR` as the rule

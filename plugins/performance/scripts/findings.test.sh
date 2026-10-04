@@ -914,8 +914,10 @@ assert_not_contains "a title cannot open a heading of its own" $'\n## injected' 
 
 # --- 37. transcript-counts: a repeated command keeps its count, never its secrets ---
 # Plain commands keep their text. One with a secret shape, or past 60 characters, shows the
-# redacted or cut text plus " #" and the first 8 hex digits of the full command's SHA-256.
+# redacted or cut text plus " #" and the first 8 hex digits of the redacted text's SHA-256, so the
+# tag cannot be used to test guesses at a secret.
 h8() { printf '%s' "$1" | sha256sum | cut -c1-8; }
+tagged() { printf '%s #%s' "$1" "$(h8 "$1")"; }
 count_of() { jq -r --arg k "$1" '.repeated_commands[$k]' <<<"$RUN_OUT"; }
 BEARER='curl -H "Authorization: Bearer abc123def456" https://api.example.com/x'
 EXPORT='export GITHUB_TOKEN=ghp_AbCdEf1234567890'
@@ -935,13 +937,13 @@ run transcript-counts "$TR2"
 assert_eq "transcript-counts exits 0 on secret-bearing commands" "0" "$RUN_RC"
 assert_eq "a plain repeated command keeps its text and count" "3" "$(q '.repeated_commands["npm test"]')"
 assert_eq "an Authorization header's value is redacted" "2" \
-  "$(count_of "curl -H \"Authorization: ***\" https://api.example.com/x #$(h8 "$BEARER")")"
+  "$(count_of "$(tagged 'curl -H "Authorization: ***" https://api.example.com/x')")"
 assert_eq "a token assignment's value is redacted" "2" \
-  "$(count_of "export GITHUB_TOKEN=*** #$(h8 "$EXPORT")")"
+  "$(count_of "$(tagged 'export GITHUB_TOKEN=***')")"
 assert_eq "a URL's user and password are redacted" "2" \
-  "$(count_of "git clone https://***@github.com/o/r #$(h8 "$USERINFO")")"
+  "$(count_of "$(tagged 'git clone https://***@github.com/o/r')")"
 assert_eq "a password flag's value is redacted" "2" \
-  "$(count_of "mytool --password *** run #$(h8 "$FLAG")")"
+  "$(count_of "$(tagged 'mytool --password *** run')")"
 assert_eq "a long command is cut to 60 characters" "2" \
   "$(count_of "echo $(printf 'z%.0s' {1..52})... #$(h8 "$LONGCMD")")"
 assert_eq "commands differing only in a secret are not one repeat" "6" "$(q '.repeated_commands | length')"
@@ -980,8 +982,59 @@ now_case "a measured finding that loosens a guard is rejected" "permissions-1: l
 now_case "a misspelled effect is rejected, so it cannot slip past the flag-only rule" \
   "session-work-1: effect must be one of" \
   "$(measured session-work-1 session-work elapsed-ms 5 "$NOW,\"effect\":\"lower_effort\"" | sed 's/"horizon":"later",//')"
+doc "$WORK/bad-id.json" "$(measured 'git-1;curl x|sh' git elapsed-ms 5)"
+run validate "$WORK/bad-id.json"
+assert_contains "an id outside lowercase letters, digits and hyphens is rejected" "id must match" "$RUN_OUT"
 doc "$WORK/loosen-flag.json" '{"id":"permissions-1","key":"permissions/ask","area":"permissions","title":"t","status":"flag-only","effect":"loosens-guard","reason":"a guard"}'
 run validate "$WORK/loosen-flag.json"
 assert_eq "a flag-only finding that loosens a guard passes" "0" "$RUN_RC"
+
+# --- 40. transcript-counts: more secret shapes, backticks, and linear time on long text ---
+# Token prefixes are joined at run time so this file holds no literal credential shape.
+TR3="$WORK/secrets2.jsonl"
+: >"$TR3"
+n=0
+bash_use3() { n=$((n + 1)); use "$n" "t$n" "y$n" "$1" "$2" 5 >>"$OUT"; }
+SHAPES=(
+  'curl -u admin:hunter3 https://x' 'curl --user=a:pw4444 https://x'
+  "curl -H 'X-Api-Key: key5555' https://x" 'curl -H "PRIVATE-TOKEN: tok6666" https://x'
+  'curl -H "Cookie: sess=ck7777" https://x' 'http GET x "Bearer br8888"'
+  'mysql -ppw9999 db' 'docker login -p dl1010 reg' 'tool --pass ps1111 run'
+  'tool --private-key=pk1212 run' "stripe sk""_live_abc1313xyz" "gcloud AI""zaSyA1414aaaaaaaaaaaaaaaaaaaaaaaa"
+  "glab glp""at-gl1515aaaaaaaa" "npm np""m_npm1616aaaaaaaaaaaaaaaaaaaaaa" "curl ey""JhbGc1717.eyJzdWIi.c2ln"
+  'az "https://a.blob/c?sv=1&sig=sg1818&x=1"' 'psql postgres://u:pa/ss1919@h/db'
+  'psql postgres://u:p@ss2020@h/db' 'aws configure set aws_secret_access_key as2121'
+)
+OUT="$TR3"
+for c in "${SHAPES[@]}" 'echo `id`'; do
+  for _ in 1 2; do bash_use3 Bash "$(jq -cn --arg c "$c" '{command: $c}')"; done
+done
+for _ in 1 2; do bash_use3 Read '{"file_path":"docs/a`b.md"}'; done
+run transcript-counts "$TR3"
+assert_eq "transcript-counts exits 0 on more secret shapes" "0" "$RUN_RC"
+for secret in hunter3 pw4444 key5555 tok6666 ck7777 br8888 pw9999 dl1010 ps1111 pk1212 abc1313 \
+  SyA1414 gl1515 npm1616 hbGc1717 sg1818 ss1919 ss2020 as2121; do
+  assert_not_contains "no secret reaches the counts: $secret" "$secret" "$RUN_OUT"
+done
+assert_eq "a backtick in a repeated read becomes a quote" "2" "$(q '.repeated_reads["docs/a'"'"'b.md"]')"
+assert_eq "a backtick in a repeated command becomes a quote" "2" "$(count_of "$(tagged "echo 'id'")")"
+assert_not_contains "no backtick reaches the counts" '`' "$RUN_OUT"
+
+LONGWORD="$(head -c 60000 /dev/zero | tr '\0' a)"
+OUT="$WORK/long.jsonl"
+: >"$OUT"
+n=0
+for c in "$LONGWORD" "${LONGWORD^^}"; do
+  for _ in 1 2; do bash_use3 Bash "$(printf '%s' "$c" | jq -cRs '{command: .}')"; done
+done
+start=$SECONDS
+run transcript-counts "$OUT"
+assert_eq "60k-character commands are counted in under 10 seconds" "yes" \
+  "$([[ "$RUN_RC" == 0 && $((SECONDS - start)) -lt 10 ]] && echo yes || echo "no (rc $RUN_RC, $((SECONDS - start))s)")"
+doc "$WORK/spaces.json" "{\"id\":\"git-1\",\"key\":\"git/x\",\"area\":\"git\",\"title\":\"a$(printf ' %.0s' {1..20000})b\",\"status\":\"flag-only\",\"reason\":\"r\"}"
+start=$SECONDS
+run render "$WORK/spaces.json"
+assert_eq "a title of 20k spaces renders in under 5 seconds" "yes" \
+  "$([[ "$RUN_RC" == 0 && $((SECONDS - start)) -lt 5 ]] && echo yes || echo "no (rc $RUN_RC, $((SECONDS - start))s)")"
 
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
