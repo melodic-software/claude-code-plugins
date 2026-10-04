@@ -187,7 +187,7 @@ reads it from.
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
 | `ratchet_offer` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_RATCHET_OFFER` | When on (default), /review:audit-enforceability stubs on a rung that counts violations offer /review:ratchet for a non-zero count once the rule exists. Off leaves the offer out. A repository's docs/conventions/review.yaml ratchet_offer wins over this option. |
-| `downstream_probe` | string | `"run"` | `CLAUDE_PLUGIN_OPTION_DOWNSTREAM_PROBE` | run (default): /review:quality-gate downstream mode writes one probe for its single safety fact in a temporary directory outside the tree and runs it. report: it states the probe without running it. report here or in a repository's docs/conventions/review.yaml (read from the default branch) wins over run in the other. |
+| `downstream_probe` | string | `"run"` | `CLAUDE_PLUGIN_OPTION_DOWNSTREAM_PROBE` | run (default): /review:quality-gate downstream mode writes one probe for its safety fact in a temp directory outside the tree and runs it. report: it shows the probe without running it. report here or in a repository's docs/conventions/review.yaml (default branch) wins over run. |
 
 ### How to set these
 
