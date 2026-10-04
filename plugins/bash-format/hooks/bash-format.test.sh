@@ -302,32 +302,157 @@ EOF
 
   # Subscript guard (#5791). shfmt reads an unquoted subscript as arithmetic
   # and spaces it, so `${m[a-b]}` would become `${m[a - b]}`, a different key
-  # of an associative array. The unindented if-block makes shfmt rewrite the
-  # file; the guard must put every byte back and name the subscript.
+  # of an associative array. Every fixture carries an unindented if-block so
+  # shfmt rewrites the file; the guard must put every byte back and name each
+  # changed subscript in one notice.
   REPO_SUB="$WORK/subscript-guard"
   new_repo "$REPO_SUB"
   printf 'root = true\n[*.sh]\nindent_style = space\nindent_size = 2\n' >"$REPO_SUB/.editorconfig"
+  REAL_SHFMT="$(command -v shfmt)"
+  SUB_OUT="" SUB_MSG="" SUB_CTX=""
+  # sub_case <label> <file> <printf body> [NAME=VALUE...]: writes the fixture,
+  # runs the hook with the extra environment, and checks the file is byte for
+  # byte as written and the output is a notice without a reformatted disclosure.
+  sub_case() {
+    local label="$1" f="$REPO_SUB/$2" body="$3" expected="$WORK/$2.expected"
+    shift 3
+    # shellcheck disable=SC2059  # the body is the format string on purpose: it carries the \n escapes
+    printf "$body" >"$f"
+    cp "$f" "$expected"
+    SUB_OUT=$(run_hook_env "$f" CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true "$@")
+    SUB_MSG=$(jq -r '.systemMessage // empty' <<<"$SUB_OUT" 2>/dev/null)
+    SUB_CTX=$(jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$SUB_OUT" 2>/dev/null)
+    if cmp -s "$f" "$expected"; then
+      ok "$label -> file left byte for byte as written"
+    else
+      fail "$label -> file rewritten: $(cat "$f")"
+    fi
+    if [[ -n "$SUB_MSG" && "$SUB_MSG" != *reformatted* ]]; then
+      ok "$label -> a notice and no reformatted disclosure"
+    else
+      fail "$label -> expected a notice without a reformatted disclosure: $SUB_OUT"
+    fi
+  }
+  # sub_names <label> <needle>...: each needle is in the notice on both channels.
+  sub_names() {
+    local label="$1" n
+    shift
+    for n in "$@"; do
+      if [[ "$SUB_MSG" == *"$n"* && "$SUB_CTX" == *"$n"* ]]; then
+        ok "$label -> notice states $n"
+      else
+        fail "$label -> notice lacks $n: $SUB_OUT"
+      fi
+    done
+  }
+  SUB_IF='if true; then\necho x\nfi\n'
+
   # shellcheck disable=SC2016  # the subscripts must stay literal in the emitted fixture
-  printf '#!/usr/bin/env bash\ndeclare -A m=([a-b]=1)\nif true; then\necho "${m[a-b]}"\nfi\n' >"$REPO_SUB/assoc.sh"
-  cp "$REPO_SUB/assoc.sh" "$WORK/subscript-guard.expected"
-  OUT=$(run_hook "$REPO_SUB/assoc.sh")
-  if cmp -s "$REPO_SUB/assoc.sh" "$WORK/subscript-guard.expected"; then
-    ok "unquoted hyphenated subscript -> shfmt rewrite put back byte for byte"
+  sub_case "declare -A key" assoc.sh '#!/usr/bin/env bash\ndeclare -A m=([a-b]=1)\nif true; then\necho "${m[a-b]}"\nfi\n'
+  # shellcheck disable=SC2016  # the subscripts are literal text in the notice
+  sub_names "declare -A key" '`[a-b]` on line 2 as `[a - b]`' '`[a-b]` on line 4 as `[a - b]`' \
+    'Quote the key (["a-b"]) if the array is associative; if it is indexed, write it as shfmt prints it ([a - b]).'
+
+  # shellcheck disable=SC2016  # the subscripts must stay literal in the emitted fixture
+  sub_case "expanded operands" dollar.sh '#!/usr/bin/env bash\ndeclare -A s=()\na=1 b=2\n'"$SUB_IF"'s[$a-$b]=9\necho "${s[$a-$b]}"\n'
+  # shellcheck disable=SC2016  # the subscripts are literal text in the notice
+  sub_names "expanded operands" '`[$a-$b]` on line 7 as `[$a - $b]`' '`[$a-$b]` on line 8 as `[$a - $b]`'
+
+  # The array is declared outside the file: a nameref parameter, or a map a
+  # sourced library builds.
+  # shellcheck disable=SC2016  # the subscripts must stay literal in the emitted fixture
+  sub_case "nameref key" nameref.sh '#!/usr/bin/env bash\nf() { local -n r="$1"; echo "${r[node-18]}"; }\n'"$SUB_IF"
+  # shellcheck disable=SC2016  # the subscripts are literal text in the notice
+  sub_names "nameref key" '`[node-18]` on line 2 as `[node - 18]`'
+  # shellcheck disable=SC2016  # the subscripts must stay literal in the emitted fixture
+  sub_case "sourced map key" sourced.sh '#!/usr/bin/env bash\nsource ./lib.sh\n'"$SUB_IF"'echo "${MAP[settings-reference]}"\n'
+  # shellcheck disable=SC2016  # the subscripts are literal text in the notice
+  sub_names "sourced map key" '`[settings-reference]` on line 6 as `[settings - reference]`'
+
+  # shellcheck disable=SC2016  # the subscripts must stay literal in the emitted fixture
+  sub_case "arithmetic key" arith.sh '#!/usr/bin/env bash\ndeclare -A m=()\n'"$SUB_IF"'echo $(( m[a-b] ))\n'
+  # shellcheck disable=SC2016  # the subscripts are literal text in the notice
+  sub_names "arithmetic key" '`[a-b]` on line 6 as `[a - b]`'
+
+  # Two keys on two lines: one notice names both.
+  # shellcheck disable=SC2016  # the subscripts must stay literal in the emitted fixture
+  sub_case "two keys" two.sh '#!/usr/bin/env bash\ndeclare -A m=()\n'"$SUB_IF"'echo "${m[a-b]}"\necho "${m[c-d]}"\n'
+  # shellcheck disable=SC2016  # the subscripts are literal text in the notice
+  sub_names "two keys" '`[a-b]` on line 6 as `[a - b]`' '`[c-d]` on line 7 as `[c - d]`'
+  if [[ "$(grep -o 'shfmt would rewrite' <<<"$SUB_MSG" | wc -l)" -eq 1 ]]; then
+    ok "two keys -> one notice"
   else
-    fail "unquoted hyphenated subscript -> key rewritten: $(cat "$REPO_SUB/assoc.sh")"
+    fail "two keys -> expected exactly one notice: $SUB_MSG"
   fi
-  MSG=$(printf '%s' "$OUT" | jq -r '.systemMessage // empty' 2>/dev/null)
-  CTX=$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
-  if [[ "$MSG" == *"array subscript [a-b] on line 2 of assoc.sh as [a - b]"* && "$CTX" == *'["a-b"]'* ]]; then
-    ok "subscript guard names the subscript, its line and the quoted form on both channels"
+  # Past five changed subscripts the notice counts the rest.
+  # shellcheck disable=SC2016  # the subscripts must stay literal in the emitted fixture
+  sub_case "seven keys" seven.sh '#!/usr/bin/env bash\ndeclare -A m=()\n'"$SUB_IF"'echo "${m[a-1]}" "${m[a-2]}" "${m[a-3]}" "${m[a-4]}" "${m[a-5]}" "${m[a-6]}" "${m[a-7]}"\n'
+  # shellcheck disable=SC2016  # the subscripts are literal text in the notice
+  sub_names "seven keys" '`[a-5]` on line 6 as `[a - 5]`, and 2 more'
+  if [[ "$SUB_MSG" != *'[a-6]'* ]]; then
+    ok "seven keys -> the sixth is counted, not named"
   else
-    fail "subscript guard notice missing or malformed: $OUT"
+    fail "seven keys -> named past the cap: $SUB_MSG"
   fi
-  if [[ "$MSG" != *reformatted* ]]; then
-    ok "subscript guard -> no reformatted disclosure for a file left as written"
-  else
-    fail "subscript guard -> disclosed a rewrite it put back: $MSG"
-  fi
+
+  # A syntax tree the guard cannot read fails closed: the rewrite is put back.
+  STUB_NOTREE="$(mktemp -d "$WORK/shfmt-notree.XXXXXX")"
+  {
+    printf '#!/usr/bin/env bash\nreal=%q\n' "$REAL_SHFMT"
+    cat <<'STUB'
+for a in "$@"; do
+  case "$a" in --to-json | -tojson) exit 2 ;; esac
+done
+exec "$real" "$@"
+STUB
+  } >"$STUB_NOTREE/shfmt"
+  chmod +x "$STUB_NOTREE/shfmt"
+  # shellcheck disable=SC2016  # the subscripts must stay literal in the emitted fixture
+  sub_case "unreadable syntax tree" notree.sh '#!/usr/bin/env bash\ndeclare -A m=()\n'"$SUB_IF"'echo "${m[a-b]}"\n' PATH="$STUB_NOTREE:$PATH"
+  sub_names "unreadable syntax tree" 'shfmt rewrote notree.sh but its syntax tree could not be read to check array subscripts, so notree.sh was left as written'
+
+  # A shfmt older than 3.8 has no --apply-ignore and, before 3.6, no --to-json;
+  # the guard reads its tree with -tojson.
+  STUB_OLD="$(mktemp -d "$WORK/shfmt-old.XXXXXX")"
+  {
+    printf '#!/usr/bin/env bash\nreal=%q\n' "$REAL_SHFMT"
+    cat <<'STUB'
+for a in "$@"; do
+  case "$a" in
+  --apply-ignore | --to-json)
+    echo "flag provided but not defined: ${a#-}" >&2
+    exit 2
+    ;;
+  esac
+done
+exec "$real" "$@"
+STUB
+  } >"$STUB_OLD/shfmt"
+  chmod +x "$STUB_OLD/shfmt"
+  # shellcheck disable=SC2016  # the subscripts must stay literal in the emitted fixture
+  sub_case "pre-3.8 shfmt" old.sh '#!/usr/bin/env bash\ndeclare -A m=()\n'"$SUB_IF"'echo "${m[a-b]}"\n' PATH="$STUB_OLD:$PATH"
+  # shellcheck disable=SC2016  # the subscripts are literal text in the notice
+  sub_names "pre-3.8 shfmt" '`[a-b]` on line 6 as `[a - b]`'
+
+  # The padding is part of an associative key, and shfmt drops it.
+  # shellcheck disable=SC2016  # the subscripts must stay literal in the emitted fixture
+  sub_case "padded key" padded.sh '#!/usr/bin/env bash\ndeclare -A m=()\n'"$SUB_IF"'echo "${m[ key ]}"\n'
+  # shellcheck disable=SC2016  # the subscripts are literal text in the notice
+  sub_names "padded key" '`[ key ]` on line 6 as `[key]`'
+
+  # shellcheck disable=SC2016  # the subscripts must stay literal in the emitted fixture
+  sub_case "model-name key" gpt.sh '#!/usr/bin/env bash\ndeclare -A m=()\n'"$SUB_IF"'echo "${m[gpt-4]}"\n'
+  # shellcheck disable=SC2016  # the subscripts are literal text in the notice
+  sub_names "model-name key" '`[gpt-4]` on line 6 as `[gpt - 4]`'
+
+  # Deliberate trade-off: an unspaced indexed expression is left as written
+  # too, because the guard cannot tell it from a key. Narrowing this needs a
+  # filed false positive and lands repro-first; the only safe narrowing is to
+  # skip an array the file positively declares indexed and never declares -A.
+  # shellcheck disable=SC2016  # the subscripts must stay literal in the emitted fixture
+  sub_case "indexed expression" indexed.sh '#!/usr/bin/env bash\na=(1 2 3)\ni=0\n'"$SUB_IF"'echo "${a[i+1]}"\n'
+  # shellcheck disable=SC2016  # the subscripts are literal text in the notice
+  sub_names "indexed expression" '`[i+1]` on line 7 as `[i + 1]`'
 
   # MUST stay quiet: a quoted key and an already-spaced indexed expression are
   # left alone by shfmt, so the rest of the file is formatted and no subscript
@@ -345,6 +470,66 @@ EOF
     ok "quoted key and spaced index -> subscript guard stays quiet"
   else
     fail "quoted key and spaced index -> unexpected output: $OUT"
+  fi
+
+  # MUST stay quiet: subscript shapes shfmt never respaces. A `,` or `!` inside
+  # a subscript is printed differently across shfmt versions, so none is here.
+  # shellcheck disable=SC2016  # the subscripts must stay literal in the emitted fixture
+  printf '#!/usr/bin/env bash\ndeclare -A m=(["a-b"]=1)\ndeclare -A z=(["a-b"]=1 [c]=2)\na=(1 2 3)\ni=0\nk=a-b\nm["a-b"]=1\nif true; then\necho "${a[i]}" "${a[0]}" "${a[-1]}" "${a[i++]}" "${a[@]}" "${!a[@]}" "${#a[@]}" "${m[$k]}" "${m["a-b"]}" "${z[c]}"\nfi\n' >"$REPO_SUB/shapes.sh"
+  OUT=$(run_hook "$REPO_SUB/shapes.sh")
+  # shellcheck disable=SC2016  # the pattern matches the literal subscripts
+  if grep -q '^  echo "\${a\[i\]}" "\${a\[0\]}" "\${a\[-1\]}" "\${a\[i++\]}"' "$REPO_SUB/shapes.sh"; then
+    ok "shapes shfmt never respaces -> file formatted"
+  else
+    fail "shapes shfmt never respaces -> not formatted: $(cat "$REPO_SUB/shapes.sh")"
+  fi
+  if [[ "$OUT" == *reformatted* && "$OUT" != *"array subscript"* && "$OUT" != *"could not be read"* ]]; then
+    ok "shapes shfmt never respaces -> no subscript notice"
+  else
+    fail "shapes shfmt never respaces -> unexpected output: $OUT"
+  fi
+
+  # MUST stay quiet: a file shfmt leaves unchanged reads no syntax tree.
+  STUB_LOG="$(mktemp -d "$WORK/shfmt-log.XXXXXX")"
+  {
+    printf '#!/usr/bin/env bash\nreal=%q\nlog=%q\n' "$REAL_SHFMT" "$STUB_LOG/calls"
+    cat <<'STUB'
+printf '%s\n' "$*" >>"$log"
+exec "$real" "$@"
+STUB
+  } >"$STUB_LOG/shfmt"
+  chmod +x "$STUB_LOG/shfmt"
+  # shellcheck disable=SC2016  # the subscripts must stay literal in the emitted fixture
+  printf '#!/usr/bin/env bash\ndeclare -A m=(["a-b"]=1)\nif true; then\n  echo "${m["a-b"]}"\nfi\n' >"$REPO_SUB/formatted.sh"
+  OUT=$(run_hook_env "$REPO_SUB/formatted.sh" CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true PATH="$STUB_LOG:$PATH")
+  if [[ -z "$OUT" ]]; then
+    ok "already formatted -> empty stdout"
+  else
+    fail "already formatted -> unexpected output: $OUT"
+  fi
+  if [[ -s "$STUB_LOG/calls" ]] && ! grep -qE -- '(^| )(--to-json|-tojson)( |$)' "$STUB_LOG/calls"; then
+    ok "already formatted -> shfmt ran and no syntax tree was read"
+  else
+    fail "already formatted -> tree reader calls: $(cat "$STUB_LOG/calls" 2>/dev/null)"
+  fi
+
+  # MUST stay quiet: an `ignore = true` section is the escape hatch for a file
+  # whose keys the consumer will not quote. Needs shfmt 3.8+ (--apply-ignore).
+  if shfmt --apply-ignore --version >/dev/null 2>&1; then
+    REPO_SUBIGN="$WORK/subscript-ignore"
+    new_repo "$REPO_SUBIGN"
+    printf 'root = true\n[*.sh]\nindent_style = space\nindent_size = 2\n[gen.sh]\nignore = true\n' >"$REPO_SUBIGN/.editorconfig"
+    # shellcheck disable=SC2016  # the subscripts must stay literal in the emitted fixture
+    printf '#!/usr/bin/env bash\ndeclare -A m=([a-b]=1)\nif true; then\necho "${m[a-b]}"\nfi\n' >"$REPO_SUBIGN/gen.sh"
+    cp "$REPO_SUBIGN/gen.sh" "$WORK/subscript-ignore.expected"
+    OUT=$(run_hook "$REPO_SUBIGN/gen.sh")
+    if cmp -s "$REPO_SUBIGN/gen.sh" "$WORK/subscript-ignore.expected" && [[ -z "$OUT" ]]; then
+      ok "ignore = true over an unquoted key -> untouched, no notice"
+    else
+      fail "ignore = true over an unquoted key -> out=$OUT file=$(cat "$REPO_SUBIGN/gen.sh")"
+    fi
+  else
+    echo "  SKIP: shfmt $(shfmt --version 2>/dev/null) predates --apply-ignore (3.8) -- ignore = true subscript case not run"
   fi
 else
   echo "  (shfmt absent -- gate cases skipped)"

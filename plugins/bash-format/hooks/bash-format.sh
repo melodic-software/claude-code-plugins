@@ -123,10 +123,14 @@ append_notice() {
 # compares the source text of every subscript before and after the rewrite, in
 # syntax-tree order, and puts the original bytes back when any of them differs.
 # The tree is the same on both sides, because shfmt reads the spaced and the
-# unspaced form as one expression, so the subscripts pair up one to one.
-# Offsets are bytes, so the slicing runs under LC_ALL=C. A file holding a NUL
-# byte cannot be held in a bash variable and is not guarded; a shfmt whose
-# --to-json fails yields no subscripts, and its rewrite stands.
+# unspaced form as one expression, so the subscripts pair up one to one. A
+# span is widened over the blanks beside it before the compare: the tree's
+# span leaves out the padding in `${m[ key ]}`, which is part of an
+# associative key and which shfmt drops. Offsets are bytes, so the slicing runs
+# under LC_ALL=C. A file holding a NUL byte cannot be held in a bash variable
+# and is not guarded. A tree that cannot be read on either side, or that
+# yields a different number of subscripts, fails closed: the rewrite is put
+# back, since an unchecked rewrite may have changed a key.
 SUBSCRIPT_ORIG=""
 SUBSCRIPT_GUARD=0
 subscript_guard_begin() {
@@ -137,38 +141,70 @@ subscript_guard_begin() {
   SUBSCRIPT_GUARD=1
 }
 
-# Prints "start end line" for each array subscript of the script on stdin.
+# subscript_spans <file> <reader>: prints "start end line" for each array
+# subscript of the script on stdin; fails when the tree cannot be read. The
+# script's pipefail carries a shfmt failure out of the pipeline, which runs
+# shfmt and jq side by side rather than one after the other.
 subscript_spans() {
-  shfmt --to-json --filename "$1" 2>/dev/null |
+  shfmt "$2" --filename "$1" 2>/dev/null |
     jq -r '.. | objects | select(.Index? | type == "object") | .Index | "\(.Pos.Offset) \(.End.Offset) \(.Pos.Line)"' 2>/dev/null
 }
 
+# subscript_text <source> <start> <end>: sets SUBSCRIPT_TEXT to the span
+# widened over the blanks on both sides.
+SUBSCRIPT_TEXT=""
+subscript_text() {
+  local src="$1" s="$2" e="$3"
+  while ((s > 0)) && [[ "${src:s-1:1}" == [[:blank:]] ]]; do s=$((s - 1)); done
+  while ((e < ${#src})) && [[ "${src:e:1}" == [[:blank:]] ]]; do e=$((e + 1)); done
+  SUBSCRIPT_TEXT="${src:s:e-s}"
+}
+
+# subscript_guard_end <file> <reader>
 subscript_guard_end() {
-  local file="$1" LC_ALL=C new="" span s e l was now i
+  local file="$1" reader="$2" LC_ALL=C new="" spans span s e l was now i
+  local n=0 named="" first_was="" first_now="" noun="the array subscript" key="a different key"
   local -a before=() after=()
   ((SUBSCRIPT_GUARD)) || return 0
   IFS= read -r -d '' new <"$file"
   [[ "$new" == "$SUBSCRIPT_ORIG" ]] && return 0
-  while IFS= read -r span; do before+=("$span"); done < <(subscript_spans "$file" <<<"$SUBSCRIPT_ORIG")
-  ((${#before[@]})) || return 0
-  while IFS= read -r span; do after+=("$span"); done < <(subscript_spans "$file" <<<"$new")
+  if spans=$(subscript_spans "$file" "$reader" <<<"$SUBSCRIPT_ORIG"); then
+    while IFS= read -r span; do [[ -n "$span" ]] && before+=("$span"); done <<<"$spans"
+    ((${#before[@]})) || return 0
+    if spans=$(subscript_spans "$file" "$reader" <<<"$new"); then
+      while IFS= read -r span; do [[ -n "$span" ]] && after+=("$span"); done <<<"$spans"
+    fi
+  fi
+  if ((${#before[@]} == 0 || ${#after[@]} != ${#before[@]})); then
+    printf '%s' "$SUBSCRIPT_ORIG" >"$file"
+    append_notice "bash-format: shfmt rewrote $FILE_BASE but its syntax tree could not be read to check array subscripts, so $FILE_BASE was left as written."
+    return 0
+  fi
   for ((i = 0; i < ${#before[@]}; i++)); do
     span="${before[i]}"
     s="${span%% *}" span="${span#* }"
     e="${span%% *}" l="${span#* }"
-    was="${SUBSCRIPT_ORIG:s:e-s}"
-    now=""
-    if [[ -n "${after[i]:-}" ]]; then
-      span="${after[i]}"
-      s="${span%% *}" span="${span#* }"
-      e="${span%% *}"
-      now="${new:s:e-s}"
-    fi
+    subscript_text "$SUBSCRIPT_ORIG" "$s" "$e"
+    was="$SUBSCRIPT_TEXT"
+    span="${after[i]}"
+    s="${span%% *}" span="${span#* }"
+    e="${span%% *}"
+    subscript_text "$new" "$s" "$e"
+    now="$SUBSCRIPT_TEXT"
     [[ "$was" == "$now" ]] && continue
-    printf '%s' "$SUBSCRIPT_ORIG" >"$file"
-    append_notice "bash-format: shfmt would rewrite the array subscript [$was] on line $l of $FILE_BASE as [$now], a different key if the array is associative, so $FILE_BASE was left as written. Quote the key ([\"$was\"]) if the array is associative; write the expression spaced ([$now]) if it is indexed."
-    return 0
+    n=$((n + 1))
+    if ((n == 1)); then
+      first_was="$was" first_now="$now"
+    elif ((n <= 5)); then
+      named+=", "
+    fi
+    ((n <= 5)) && named+="\`[$was]\` on line $l as \`[$now]\`"
   done
+  ((n)) || return 0
+  ((n > 1)) && noun="the array subscripts" key="each a different key"
+  ((n > 5)) && named+=", and $((n - 5)) more"
+  printf '%s' "$SUBSCRIPT_ORIG" >"$file"
+  append_notice "bash-format: shfmt would rewrite $noun $named, $key if the array is associative, so $FILE_BASE was left as written. Quote the key ([\"$first_was\"]) if the array is associative; if it is indexed, write it as shfmt prints it ([$first_now])."
 }
 
 # Tool path for shfmt/ShellCheck. On Windows/MSYS, Claude Code may hand the
@@ -237,15 +273,21 @@ if shell_editorconfig_opt_in; then
       # only; name the rewrite on the user channel and stay silent on no-op paths.
       hook::rewrite_guard_begin "$_fmt_target"
       subscript_guard_begin "$_fmt_target"
+      # The tree reader follows the same probe: shfmt before 3.6 has only
+      # -tojson, which every release through 3.14.1 still accepts with the
+      # same subscript offsets.
+      _tree_reader=""
       if probe_err=$(shfmt --apply-ignore --version 2>&1 >/dev/null); then
+        _tree_reader=--to-json
         shfmt --apply-ignore -w "$_fmt_target" 2>/dev/null
       elif [[ "$probe_err" == *apply-ignore* ]] &&
         [[ "$probe_err" == *"flag provided but not defined"* || "$probe_err" == *"unknown flag"* ]]; then
+        _tree_reader=-tojson
         shfmt -w "$_fmt_target" 2>/dev/null
       else
         append_notice "bash-format: shfmt capability probe failed unexpectedly (${probe_err%%$'\n'*}) — formatting skipped for this file, opt-outs preserved."
       fi
-      subscript_guard_end "$_fmt_target"
+      subscript_guard_end "$_fmt_target" "$_tree_reader"
       ran_any=1
     fi
   elif hook::notice_once "bash-format-shfmt" "$INPUT" prerequisite; then
