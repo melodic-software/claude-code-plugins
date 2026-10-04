@@ -223,5 +223,5 @@ If after 3 hypothesis-test cycles no candidate is panning out:
 
 - The hypothesis ranking was probably wrong. Go back to Phase 3, re-survey the repo, look for what was missed
 - The loop may not be tight enough. Re-iterate Phase 1 (faster, sharper, more deterministic)
-- The bug may need redesign rather than a patch. Switch to broader replanning with `/planning:plan`
+- The bug may need redesign rather than a patch. Switch to broader replanning with `/planning:plan` when the `planning` plugin is installed, or your environment's own plan-review capability otherwise
 - Do not push through a fifth or sixth attempt. That is how technical debt compounds and "fixes" break unrelated code
