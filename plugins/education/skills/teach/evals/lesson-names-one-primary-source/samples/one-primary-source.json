@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "# Lesson: LEFT JOIN keeps rows that have no match\n\n**Concept:** LEFT JOIN  **Mission link:** predict which columns come back NULL\n\n**Primary source:** PostgreSQL manual, \"Joins Between Tables\" (https://www.postgresql.org/docs/current/tutorial-join.html)\n\n## Teach\nAn INNER JOIN drops a customer with no orders. `customers c LEFT JOIN orders o ON o.customer_id = c.id` keeps that customer and fills every `o` column with NULL.\n\n## Practice\nPredict the NULL columns for a customer who has never ordered, then run it.\n\n## Go deeper\nFurther reading: Use The Index, Luke, \"The Join Operation\". Ask me about anything unclear.",
+      "why": "one source labelled primary, a second clearly marked as further reading"
+    },
+    {
+      "answer": "# Lesson: LEFT JOIN\n\nThis lesson follows one source: section 7.2.1.1 \"Joined Tables\" of the PostgreSQL manual. Everything below is checked against it.\n\n## Teach\nFor each row of the left table, LEFT JOIN returns the joined row when the ON condition matches, and otherwise one row with NULLs for the right table's columns.\n\n## Practice\nWhich `orders` columns are NULL for a customer with no orders?\n\n## Go deeper\nAsk me follow-ups on anything unclear.",
+      "why": "names a single specific source the lesson follows, in prose rather than a label"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# Lesson: LEFT JOIN\n\n## Teach\nLEFT JOIN keeps every row from the left table and fills missing right-side columns with NULL (PostgreSQL manual, \"Joins Between Tables\"; Use The Index, Luke, \"The Join Operation\"; Wikipedia, \"Join (SQL)\").\n\n## Practice\nPredict the NULL columns for a customer with no orders.\n\n## Go deeper\nSee the sources above. Ask me about anything unclear.",
+      "why": "near miss: cites three sources, none marked as the primary one"
+    },
+    {
+      "answer": "# Lesson: LEFT JOIN\n\n## Teach\nLEFT JOIN keeps every row from the left table; where there is no match the right table's columns are NULL. This is standard SQL behaviour, as covered in the docs in your RESOURCES.md.\n\n## Practice\nPredict the NULL columns for a customer with no orders.\n\n## Go deeper\nAsk me about anything unclear.",
+      "why": "refers to its sources only vaguely"
+    }
+  ]
+}
