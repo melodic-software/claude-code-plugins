@@ -763,6 +763,94 @@ check "a test file in no repository: no judge run, UNKNOWN 'no repository', no b
   '[[ "$(stub_calls)" == 0 && "$(field .decision)" != block && "$(field .systemMessage)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* && "$(cat "$DATA/verdicts/$PKEY/sec6/"*.json)" == *"no repository"* ]]'
 sf="$(field .systemMessage | sed -n 's/.*Findings: //p')"
 check "a test file in no repository: the findings file is written" '[[ -n "$sf" && -f "$sf" ]]'
+
+# The repository is the test file's own, whatever the record says: the
+# recorder can name the hook's working directory's repository instead, as for
+# a backslash-only Windows path (#5924, #6099). record() writes repo=$REPO,
+# the main checkout, for every file below.
+WTB="$TMP/wt-b"
+git -C "$REPO" worktree add -q -b feat/wt-b "$WTB" 2>/dev/null
+WTOP="$(git -C "$WTB" rev-parse --show-toplevel)"
+mkdir -p "$WTB/src"
+js_file "$WTB/src/linked.test.ts" linked
+transcript wt1 claude-sonnet-5
+record wt1 w1 "$WTB/src/linked.test.ts" null
+stub_reset
+stop wt1
+check "a linked-worktree test file recorded under the main checkout is judged from the worktree" \
+  '[[ "$(stub_calls)" == 1 && "$(cut -d" " -f1 "$STUB_DIR"/call-*.env)" == "$WTOP" ]]'
+check "with the worktree's absolute Read rule" '[[ "$(stub_args 1 | sed -n "/^--allowedTools$/{n;p;}")" == "Read(/$WTOP/**)" ]]'
+wf="$(field .systemMessage | sed -n 's/.*Findings: //p')"
+check "its findings land under the worktree's review directory" '[[ "$wf" == "$WTOP/.work/reviews/feat-wt-b/"*-test-judge.md && -f "$wf" ]]'
+check "its verdict names the worktree as its repository" '[[ "$(jq -r .repo "$DATA/verdicts/$PKEY/wt1/"*.json)" == "$WTOP" ]]'
+# A file in no repository, recorded under the hook's: not judged, and quiet,
+# as "no repository" is (#6037).
+NR2="$TMP/norepo2"
+mkdir -p "$NR2"
+js_file "$NR2/n2.test.ts" norepo2
+transcript nr2 claude-sonnet-5
+record nr2 w1 "$NR2/n2.test.ts" null
+stub_reset
+stop nr2
+check "a test file in no repository, recorded under the hook's: no judge run, UNKNOWN 'no repository', no block" \
+  '[[ "$(stub_calls)" == 0 && "$(field .decision)" != block && "$(field .systemMessage)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* && "$(cat "$DATA/verdicts/$PKEY/nr2/"*.json)" == *"no repository"* ]]'
+# A file whose repository's work tree is set elsewhere (core.worktree): git
+# names a toplevel that does not hold it, so no model run reads around it.
+CW="$TMP/cw"
+mkdir -p "$CW/c/src" "$CW/elsewhere"
+git -C "$CW/c" init -q
+git -C "$CW/c" config core.worktree "$CW/elsewhere"
+js_file "$CW/c/src/cw.test.ts" cwout
+transcript cw1 claude-sonnet-5
+record cw1 w1 "$CW/c/src/cw.test.ts" null
+stub_reset
+stop cw1
+check "a test file outside the repository git names for it: no judge run and no verdict" '[[ "$(stub_calls)" == 0 && -z "$(verdict_files cw1)" ]]'
+check "that is logged as a malfunction" 'grep -qF "malfunction: the test file is outside the repository git names for it, $CW/elsewhere" "$DATA/test-judge.log"'
+check "it does not block, and the test is named as not judged" \
+  '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"not judged, the judge failed for cw.test.ts: cwout"* ]]'
+
+# A run Claude Code denied a tool call (the result's permission_denials) is a
+# malfunction: its UNKNOWN is no verdict and is not relayed; its PASS, which
+# validation checks, is kept.
+transcript dn1 claude-sonnet-5
+DN="$REPO/src/denied.test.ts"
+js_file "$DN" "deny me" keeps
+record dn1 w1 "$DN" null
+stub_reset
+STUB_MODE=denied stop dn1
+check "a run with a permission denial: its UNKNOWN is no verdict, its PASS is one" \
+  '[[ "$(stub_calls)" == 1 && -z "$(verdict_of dn1 "deny me")" && "$(verdict_of dn1 keeps)" == *"\"verdict\":\"PASS\""* ]]'
+check "a permission denial does not block Stop" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test (0 FLAG, 1 PASS, 0 UNKNOWN)"* ]]'
+assert_contains "the denied test is named as not judged" "$(field .systemMessage)" "not judged, the judge failed for denied.test.ts: deny me"
+check "the denial is logged as a malfunction" 'grep -qF "malfunction: judge run on $DN: the judge was denied Read" "$DATA/test-judge.log"'
+# The signal is the denial Claude Code records, not the judge's prose: an
+# UNKNOWN that only says a permission was denied, with none listed, stays a
+# verdict (a test of a permission error can need that sentence).
+transcript dn2 claude-sonnet-5
+DT="$REPO/src/deniedtext.test.ts"
+js_file "$DT" "deny text"
+record dn2 w1 "$DT" null
+STUB_MODE=deniedtext stop dn2
+check "an UNKNOWN that mentions a denial, with none listed, is still relayed" \
+  '[[ "$(field .decision)" == block && "$(field .reason)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]'
+
+# The allow rule is absolute (`//`), with a Windows path in the POSIX form
+# Claude Code matches it in; the repository is taken from the file's
+# directory at either separator under Git Bash, never from the working
+# directory.
+rule_for() { P="$2" lib "$1" 'judge::read_rule R "$P"; printf %s "$R"'; }
+check 'msys: C:\a\b gives Read(//c/a/b/**)' '[[ "$(rule_for msys "C:\\a\\b")" == "Read(//c/a/b/**)" ]]'
+check "msys: C:/a/b/ and /c/a/b give the same rule" \
+  '[[ "$(rule_for msys "C:/a/b/")" == "Read(//c/a/b/**)" && "$(rule_for msys /c/a/b)" == "Read(//c/a/b/**)" ]]'
+check "linux: /tmp/x/repo gives Read(//tmp/x/repo/**)" '[[ "$(rule_for linux-gnu /tmp/x/repo)" == "Read(//tmp/x/repo/**)" ]]'
+repo_for() { (cd "$REPO" && P="$2" lib "$1" 'judge::file_repo "$P"; printf %s "$FREPO"'); }
+RTOP="$(git -C "$REPO" rev-parse --show-toplevel)"
+check "msys: a backslash path resolves at its own directory" '[[ "$(repo_for msys "$REPO\\src\\x.test.ts")" == "$RTOP" ]]'
+check "linux: a backslash is part of the name, so that path's directory is $TMP, in no repository" \
+  '[[ -z "$(repo_for linux-gnu "$REPO\\src\\x.test.ts")" ]]'
+check "msys: a backslash-only path whose directory is missing is in no repository, not the working directory's" \
+  '[[ -z "$(repo_for msys "C:\\nowhere\\x.test.ts")" ]]'
 # Re-review: the memory root itself, non-regular names, the write race and
 # the branch in the frontmatter.
 # fdir <repo> <branch>: FDIR as judge::findings_dir resolves it, within 5 s.

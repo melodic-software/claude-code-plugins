@@ -101,7 +101,8 @@ in another file of the repository (tracked, or untracked and not ignored), since
 an expected value restates is often the best evidence; a quote found nowhere, or a FLAG whose
 diff does not apply or touches another file, is shown as UNKNOWN with only that reason, never its
 evidence, source or diff. The repository is the git toplevel of the test file's own directory,
-whatever the hook's working directory. In the findings file each judge field is kept on one line
+whatever the hook's working directory, and the judge resolves it again from the file before it
+runs, so a test file in a linked worktree is judged in that worktree. In the findings file each judge field is kept on one line
 and cut at 500 characters, at most 20 quotes are shown, a diff is cut at 20,000 characters, and
 the diff's fence is longer than any run of backticks inside it, so judge text cannot add a heading,
 a table row or a fence. The memory root and the findings directory must resolve, symbolic links
@@ -135,7 +136,13 @@ when none is set; on Windows also its long and 8.3 short drive spellings) or in 
 scratchpad (`.../claude/<project>/<session>/scratchpad/`) is a working copy, not an authored test:
 it is not recorded, so it is not judged. A Write or Edit of such a copy is still scanned; a Bash
 call's copy is neither scanned nor recorded. A test file in no git repository is not judged: the judge's reads are scoped to the repository, so
-it is reported UNKNOWN, "no repository". A symbolic link inside the repository that points outside
+it is reported UNKNOWN, "no repository". The judge runs from the repository with one absolute
+`Read(//<repository>/**)` allow rule, which also covers Grep and Glob. A test file outside the
+repository git names for it (a `core.worktree` set elsewhere) is not judged: that is logged as a
+malfunction and the test is named as not judged. A run in which Claude Code denied the judge a
+tool call (the result's `permission_denials`) is a malfunction too: its UNKNOWN verdicts are
+dropped and those tests are named as not judged, so they do not stop the task, while its FLAG and
+PASS verdicts are validated as usual. A symbolic link inside the repository that points outside
 it does not widen the judge's reach: its scoped Read is checked against the link's resolved target
 and refused, and its Grep does not follow a linked directory (probe R2-P15). A
 glob added only through the consumer settings entry `/testing:setup check` prints
