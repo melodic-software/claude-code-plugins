@@ -44,7 +44,7 @@ export function registerFrameTools(server: McpServer, api: MiroApi): void {
 
   server.tool(
     "miro_get_frame_items",
-    "List the items inside one frame. Use this to see what a frame groups, for example to check a zone before adding notes to it. Returns an array of { id, type, position }, positions relative to the frame's top-left corner; it does not return item content (use miro_list_board_items for that). Stops at limit (default 50, max 1000) and gives no sign that more items exist: a result of exactly limit items may be incomplete, so raise limit. Returns an error if frame_id is not a frame.",
+    "List the items inside one frame. Use this to see what a frame groups, for example to check a zone before adding notes to it. Returns an array of { id, type, position }, positions relative to the frame's top-left corner; it does not return item content (use miro_list_board_items for that). Stops at limit (default 50, max 1000) and gives no sign that more items exist: a result of exactly limit items may be incomplete, so raise limit if it is below 1000; at 1000, items past the cap cannot be listed with this tool. Returns an error if frame_id is not a frame.",
     {
       board_id: z.string().describe("The board ID"),
       frame_id: z.string().describe("The frame item ID"),
