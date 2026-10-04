@@ -802,8 +802,8 @@ partition is the only class check, so the PR is already C2 (mechanical) or C3 (s
 `--auto`, a PR that is ready except for running checks gets
 `gh pr merge <N> --auto --squash --match-head-commit <pin>` instead of a hold, and only when:
 
-- both AI review checks, the review lane's `claude-review-status` (under `review /` or
-  `pr-review /`) and the security lane's `security-review / security-review` or
+- both AI review checks, the review lane's `claude-review-status` (matched by that job segment
+  under any caller, e.g. `review /` or `pr-review /`) and the security lane's `security-review / security-review` or
   `pr-review-security / security-review` (matched by its whole name, never by the job segment
   alone; both names hold while old and new callers coexist),
   report success on the live head, which is the pinned head (a missing, skipped, failed, or
