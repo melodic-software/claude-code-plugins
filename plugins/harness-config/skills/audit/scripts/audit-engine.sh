@@ -379,7 +379,8 @@ PERSONAL_ONLY=()
 MALFORMED=()
 
 # Every row is held as REC_WIDTH fields in REC and turned into JSON by one jq
-# pass at assembly: a jq per row was most of a large run's process starts.
+# pass at assembly: a process start costs tens to hundreds of milliseconds on
+# Windows, so no row starts one of its own.
 # Fields: kind (row | finding | suppressed), category, check, status, severity,
 # surface, claim, detail, anchor, finding_id, and the suppression's reason,
 # date and layer.

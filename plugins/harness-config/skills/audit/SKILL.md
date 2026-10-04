@@ -145,9 +145,10 @@ skipped, and not-inspectable rows, then the skill-listing measurement. Exit `0` 
 error-severity finding, `1` at least one, `2` a fatal condition (no project settings, `jq`
 missing). Read the document, not the exit code alone.
 
-A large configuration takes a minute or two: 83 enabled plugins, 259 hooks and about 700
-permission rules took under two minutes on a busy Windows host, where every process the engine
-starts is slow. Give the call a 5-minute timeout, or run it in the background on a slower machine.
+A large configuration takes a minute or two: a home-rooted run over 83 enabled plugins, 259 hooks
+and 696 permission rules took 106 seconds on a busy Windows host, where every process the engine
+starts is slow, docs fetch and drift check included. Give the call a 5-minute timeout, or run it
+in the background on a slower machine.
 As each category starts, the engine writes an `audit-engine: <category> ... (<seconds>s)` line to
 stderr, so a slow run shows where it is; `SETTINGS_AUDIT_ENGINE_PROGRESS=0` turns them off.
 

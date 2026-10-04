@@ -47,7 +47,8 @@
 # the baseline" carries the three preconditions it has to apply. This script
 # answers only "what is installed".
 #
-# Read-only: opens JSON and prints. Never executes a hook command.
+# Read-only: opens JSON and prints, writing only its own temp file. Never
+# executes a hook command.
 #
 # Exit codes:
 #   0  inventory COMPLETE — every enabled plugin resolved to a real directory
@@ -383,8 +384,8 @@ PLUGIN_STATUS=()
 # Every per-plugin step below runs in this shell and sets a variable rather
 # than printing into a command substitution, and every lookup a marketplace or
 # the registry answers for all plugins at once is made once: on Windows each
-# process costs tens to hundreds of milliseconds, and a large plugin set made
-# this loop most of an audit's run time.
+# process costs tens to hundreds of milliseconds, and this loop runs once per
+# enabled plugin.
 
 # nul_fields <base64>: decode a base64 text of NUL-terminated fields into the
 # array NUL_FIELDS, one element per field, byte for byte. Returns 1, with

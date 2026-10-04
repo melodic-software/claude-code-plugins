@@ -1672,9 +1672,9 @@ out=$(SETTINGS_AUDIT_ENGINE_KNOWN_ISSUES_FILE="$ki" CLI_BIN="$m/claude-none" run
 assert_eq "case 54: an unreadable version skips" "skip none" "$(ki_status 'fix-version:#8961')"
 
 # --- Case 55: process starts do not grow with the config, and progress is stderr only
-# A large config ran for many minutes on Windows, where every process start is
-# slow, because the engine and its hook inventory started a jq for each hook,
-# row and plugin. Every jq is counted through a PATH shim, for a config with 5
+# Every process start is slow on Windows, so the engine and its hook inventory
+# must not start a jq per hook, row or plugin. Every jq is counted through a
+# PATH shim, for a config with 5
 # and with 60 settings hooks (each command registered twice in a row, so half
 # are duplicate-hook findings), deny rules and disabled plugins: the rows they
 # add are built in one jq pass, so the count must not move.
