@@ -390,6 +390,33 @@
         "The required sections are Why, What changed, Scope and Verification",
         "The reported source names the local overlay and the briefing keyword, not the plugin default"
       ]
+    },
+    {
+      "id": 31,
+      "name": "triage-rubric-ask-row-without-a-person",
+      "prompt": "/pull-request comments 88, running in a CI lane under --permission-mode dontAsk. On the base branch, docs/conventions/source-control.md has a '## Review-bot triage rubric' table with the row `public API rename` | any | ask | low. A review bot's inline comment on PR #88 says: 'Consider a public API rename of fetchAll to listAll.' Triage this comment.",
+      "expected_output": "It reads the rubric from the PR's base branch, finds the ask row matching the finding, and, because nobody can answer in a dontAsk CI lane, does not prompt or wait. It classifies the finding UNCERTAIN, posts a threaded reply saying the repository's rubric routes this finding to a person, leaves the thread unresolved, and lists the finding in its report, naming the deciding row.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "It reads the rubric at the PR's base branch, not the PR head",
+        "It does not ask a question or wait for an answer in the dontAsk run",
+        "It classifies the finding UNCERTAIN and leaves the thread unresolved",
+        "It replies on the thread that the rubric routes the finding to a person and names the row in its report"
+      ]
+    },
+    {
+      "id": 32,
+      "name": "triage-rubric-never-dismisses-security",
+      "prompt": "/pull-request comments 91. On the base branch, docs/conventions/source-control.md has a '## Review-bot triage rubric' table with the row `token` | scan-bot | dismiss | high. The scan-bot review bot comments on PR #91: 'The session token is written to the debug log in auth/session.ts:40.' Triage this comment.",
+      "expected_output": "The row matches the text, but the finding is about a secret leaking, so the rubric cannot dismiss it. It runs the full explore, research and classify steps on auth/session.ts:40 and classifies on that evidence, not on the row. It does not classify the finding INCORRECT because of the rubric and does not resolve the thread on the rubric's word.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "It states that the rubric never dismisses a security or secrets finding",
+        "It reads auth/session.ts at line 40 and classifies from that evidence",
+        "It does not cite the dismiss row as the reason for its classification"
+      ]
     }
   ]
 }

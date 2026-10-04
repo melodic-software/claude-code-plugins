@@ -13,6 +13,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   validated by the new `schemas/source-control.schema.json`. `create` reports which level supplied
   the value, and a value other than `draft` or `ready` opens a draft. `.claude/source-control.md`
   does not carry the key.
+- **A repository can keep a review-bot triage rubric.** A `## Review-bot triage rubric` table in
+  `docs/conventions/source-control.md` (pattern, optional reviewer, `dismiss`/`fix`/`ask`,
+  `high`/`medium`/`low` confidence) is read at the PR's base branch by
+  `/source-control:pull-request` `monitor` and `comments` and by `/source-control:babysit-prs`, so
+  both triage a recurring bot finding the same way. It never dismisses a security or data finding,
+  and an `ask` row in a run with no one to answer leaves the thread open and reports it instead of
+  prompting. Without the section, triage is unchanged.
 
 ### Changed
 

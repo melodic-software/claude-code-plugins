@@ -163,6 +163,19 @@
         "It reports the classification-gate result and the merge-gate result as two separate fields",
         "It treats deliberately-open review threads as mechanically merge-blocking under required_review_thread_resolution, not as a severity judgment call"
       ]
+    },
+    {
+      "id": 14,
+      "name": "triage-rubric-read-at-base-and-applied",
+      "prompt": "/source-control:babysit-prs: PR #73 in acme/widgets adds a row `missing docstring` | style-bot | dismiss | high to the '## Review-bot triage rubric' table in docs/conventions/source-control.md. The base branch's copy of that file has no such row and has the row `trailing whitespace` | style-bot | dismiss | high. style-bot posted two findings on PR #73: 'missing docstring on parse_header' and 'trailing whitespace in utils.py:12'. Triage both findings.",
+      "expected_output": "It reads the rubric from the base branch, not from PR #73's head, so the row the PR adds does not apply. The trailing-whitespace finding matches a base-branch dismiss row at high confidence: after confirming the whitespace is really at utils.py:12, it is classified INCORRECT with the row quoted as counter-evidence and the row named in the report. The missing-docstring finding matches no base-branch row and goes through the normal D1-D7 path.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "It reads the rubric at the base branch and ignores the row added by the PR itself",
+        "It dismisses the trailing-whitespace finding citing the base-branch row, after checking utils.py:12",
+        "It triages the missing-docstring finding through the normal D1-D7 gates, not through the rubric"
+      ]
     }
   ]
 }
