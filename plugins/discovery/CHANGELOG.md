@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.28.7] - 2026-10-04
+
+### Changed
+
+- `/discovery:research` source tiers: a canonical pattern catalog page fetched this turn is Tier 1 for a pattern's definition, a pattern book cited from recall stays Tier 3, and how many repositories use a pattern earns no tier. Pattern definitions and canonical pattern books carry no recency gate and no age clause in confidence calibration; the 90-day gate now covers only tool- or vendor-specific architecture guides. The Phase 3 industry authority is a named recognized practitioner, not a top-voted post. The research-sweep workflow's tier prompt carries the same tier change.
+
 ## [0.28.6] - 2026-10-04
 
 ### Fixed
