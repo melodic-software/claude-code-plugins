@@ -1,5 +1,11 @@
 # Changelog: session-flow plugin
 
+## [0.49.0] - 2026-10-04
+
+### Changed
+
+- **The workflow ladder gains a Design stage plus conditional PRD and Decompose stages ([#6278](https://github.com/melodic-software/claude-code-plugins/issues/6278)).** Stages now run explore, research, PRD, contract, design, plan, decompose, implement, test, review, verify, then ship and an optional retro, each new stage with its trigger and skip conditions. The stage definitions, checklist template, spec-first table, quick-retro table, and README match the renumbered ladder.
+
 ## [0.48.8] - 2026-10-04
 
 ### Changed
