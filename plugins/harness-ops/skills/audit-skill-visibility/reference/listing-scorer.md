@@ -176,8 +176,8 @@ grant    = entryLen - (name.length + 2)                        // desc + 2
 
 Exempt is a bundled prompt skill or a `name-only` override. A check that
 compares description characters with the budget leaves out every name, every
-`: ` and every newline. On a 289-entry listing at 1M and 3 bytes per token
-(150,000 characters) that was 6,105 characters of names, 496 of `: `, 288 of
+colon-space joiner and every newline. On a 289-entry listing at 1M and 3 bytes per token
+(150,000 characters) that was 6,105 characters of names, 496 of joiners, 288 of
 newlines and 17,775 of entries never enumerated, which together hid a listing
 at its cap behind "fits".
 
