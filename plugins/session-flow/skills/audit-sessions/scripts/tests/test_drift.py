@@ -341,3 +341,10 @@ def test_bundled_canaries_are_well_formed():
         assert canary["key"].split(":", 1)[0] in census.SECTIONS
         assert canary["feeds"]
         assert canary.get("expect", "present") in ("present", "absent")
+
+
+def test_bundled_canaries_watch_the_entrypoint_that_sets_the_sweep_population():
+    bundled = census.load_canaries(census.BUNDLED_CANARIES)["canaries"]
+    (canary,) = [c for c in bundled if c["key"] == "key_path:user:entrypoint"]
+    assert canary["record_type"] == "user"
+    assert {"tokens.main", "tokens.sub", "time.active_s", "human.turns"} <= set(canary["feeds"])

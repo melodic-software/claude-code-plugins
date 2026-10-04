@@ -31,6 +31,8 @@ import babysit_merge as merge
 import refresh_pr_branch as refresh
 
 HEAD = "a" * 40
+# The base compare the freshness hold reads for an otherwise-ready PR.
+UP_TO_DATE = {"status": "ahead", "ahead_by": 1, "behind_by": 0}
 STALE = "b" * 40
 LANE = "lane-bot"
 APPROVER = "approver-bot"
@@ -148,6 +150,8 @@ class TierEvaluateHarness(unittest.TestCase):
         tier: merge.AutopilotMergeTierConfig | None = TIER,
     ) -> dict[str, Any]:
         def gh_json(args: list[str]) -> Any:
+            if args[0] == "api" and "/compare/" in args[1]:
+                return UP_TO_DATE
             if args[:2] == ["pr", "view"]:
                 return pr
             if args[0] == "api":  # branch rules
@@ -760,6 +764,8 @@ class DependencyHoldIntegrationTests(unittest.TestCase):
         pr = _pr(author={"login": self.DEP_BOT}, reviewDecision="APPROVED")
 
         def gh_json(args: list[str]) -> Any:
+            if args[0] == "api" and "/compare/" in args[1]:
+                return UP_TO_DATE
             if args[:2] == ["pr", "view"]:
                 return pr
             if args[0] == "api":
@@ -837,6 +843,8 @@ class SelfAuthoredUnprotectedBaseTests(unittest.TestCase):
         repo_calls: list[list[str]] = []
 
         def gh_json(args: list[str]) -> Any:
+            if args[0] == "api" and "/compare/" in args[1]:
+                return UP_TO_DATE
             if args[:2] == ["pr", "view"]:
                 return pr
             if args[0] == "api" and args[1] == "repos/owner/repo":
@@ -951,6 +959,8 @@ class RequiredSignaturesEnforcement(unittest.TestCase):
         pr = _pr(**pr_overrides)
 
         def gh_json(args: list[str]) -> Any:
+            if args[0] == "api" and "/compare/" in args[1]:
+                return UP_TO_DATE
             if args[:2] == ["pr", "view"]:
                 return pr
             if args[0] == "api":  # branch rules
@@ -1128,6 +1138,8 @@ class GraphQLRestrictionHarness(unittest.TestCase):
         )
 
         def gh_json(args: list[str]) -> Any:
+            if args[0] == "api" and "/compare/" in args[1]:
+                return UP_TO_DATE
             if args[:2] == ["pr", "view"]:
                 requested.extend(args[args.index("--json") + 1].split(","))
                 if graphql_refused:
@@ -1250,6 +1262,8 @@ class AutoMergeArming(unittest.TestCase):
         view = _pr(statusCheckRollup=rollup, reviewDecision="", **pr)
 
         def gh_json(args: list[str]) -> Any:
+            if args[0] == "api" and "/compare/" in args[1]:
+                return UP_TO_DATE
             if args[:2] == ["pr", "view"]:
                 return view
             if args[0] == "api":
@@ -1614,6 +1628,8 @@ class RepoPolicyReachesTheGate(unittest.TestCase):
         self, ref: str, pr: dict[str, Any], *flags: str
     ) -> tuple[int, dict[str, Any]]:
         def gh_json(args: list[str]) -> Any:
+            if args[0] == "api" and "/compare/" in args[1]:
+                return UP_TO_DATE
             if args[:2] == ["pr", "view"]:
                 return pr
             if args[0] == "api":

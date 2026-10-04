@@ -78,11 +78,11 @@
       "metric": "tools.interrupts",
       "lens": "interruption",
       "unit": "count",
-      "threshold": 0,
+      "threshold": 1,
       "route": "retro-codify",
       "suggested_skill": "/session-flow:retro",
       "confidence": "measured",
-      "basis": "main-session interrupts per session; spike median 0, p90 0, max 2, 3 of 90 sessions nonzero"
+      "basis": "main-session interrupts per session; spike median 0, p90 0, max 2, 3 of 90 sessions nonzero. Raised from 0 to 1 by operator decision (#6076): the first full store (2026-10-03, 764 sessions) had p90 1, and 57 of the 81 sessions threshold 0 flagged had exactly one interrupt; threshold 1 flags 24"
     },
     {
       "metric": "tools.denials",

@@ -3,11 +3,17 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.7.3] - 2026-10-04
+## [3.7.4] - 2026-10-04
 
 ### Changed
 
 - Shared `view-runtime.js` synced ([#6173](https://github.com/melodic-software/claude-code-plugins/issues/6173)); no change to this plugin's own behavior.
+
+## [3.7.3] - 2026-10-04
+
+### Fixed
+
+- **`/harness-ops:plugins` sync report rows say what their numbers cover, and its timings account for the run up to the digest.** The `Divergences:` split now follows the total it sums to (`67 actionable: 24 pre-existing, 43 newly created by this run (…)`); with a project root the line leads with this repo's count and gives the machine-wide split under `on this whole machine`, instead of trailing a run-wide split after the "more elsewhere" remainder it did not add up to. Each marketplace's `timings` gains `pre_install_read` (the Steps 4-5 gate read), `finalize` (version capture, the divergence and regression diffs, and the monitor count, which used to run after the block's clock stopped), and `unattributed`, so the steps and the remainder sum to the block's `total`; on the default-marketplace path the block's window opens at the resolving read, so its `pre_refresh_read` is inside the total. The run's `timings` gains `outside_marketplaces`, the part of `total` no marketplace block's window covers (run setup and each block's assembly into the digest); `total` stops before the digest is assembled, since a digest cannot time its own assembly without a second `jq` process, so it leaves out that assembly, the render and the print. Both `Timing:` rows render the remainder, and the run row reads `run total` rather than `whole invocation`. `catalog_last_updated` is read after Step 1's refresh, on the first pass and on an `--only-install` re-entry, rather than from the pre-refresh snapshot. The cache-content check is asked for user scope explicitly, the digest carries `cache_content.scope` in place of the always-zero `skipped_absent_project_paths`, and the rendered row counts `user-scope install(s)`. `SKILL.md` no longer asks for an audit concurrency caveat the render never prints, the Steps 4-5 spoke gate is stated in digest fields (`install_gap`, `enable_gap`, `install_enable_deferred`) with the obsolete snapshot-gate rationale dropped, and the spoke says its command blocks describe what `sync-run.sh` runs. The audit report's first line (`every call sync would make is a prediction`), `SKILL.md` and the render's header comment now state that the `would run:` prefix marks calls `sync` would make, so a remedy `sync` never runs (the `git -C … pull --ff-only`, a project-scope enable) is unprefixed in both modes, and `sync.md`'s self-update paragraph points at the loading docs instead of quoting them ([#6056](https://github.com/melodic-software/claude-code-plugins/issues/6056)).
 
 ## [3.7.2] - 2026-10-04
 
