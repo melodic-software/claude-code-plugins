@@ -239,29 +239,29 @@ assert_stale() { # <name> <output>
   assert_absent "$1: remedy given once, not twice" "$2" "If a plugin update"
 }
 OUT_S=$(stale_case observed-mixed "$STATUS_MSG" \
-  "${PFX}/usr/bin/bash: C:\\\\Projects\\\\melodic\\\\claude-code-plugins\\\\plugins\\\\context-guard/hooks/zone-gate.sh: No such file or directory")
+  "${PFX}/usr/bin/bash: C:\\\\code\\\\melodic\\\\claude-code-plugins\\\\plugins\\\\context-guard/hooks/zone-gate.sh: No such file or directory")
 assert_stale "observed mixed separators" "$OUT_S"
 OUT_S=$(stale_case observed-forward "Checking the ready-for-review flip against the mandatory pre-PR skill evidence..." \
-  "${PFX}bash: C:/Projects/melodic/claude-code-plugins/plugins/source-control/hooks/pr-ready-evidence-gate.sh: No such file or directory")
+  "${PFX}bash: C:/code/melodic/claude-code-plugins/plugins/source-control/hooks/pr-ready-evidence-gate.sh: No such file or directory")
 assert_stale "observed forward-slash drive" "$OUT_S"
 OUT_S=$(stale_case backslash "$STATUS_MSG" \
-  "${PFX}bash: C:\\\\Projects\\\\plugins\\\\context-guard\\\\hooks\\\\zone-gate.sh: No such file or directory")
+  "${PFX}bash: C:\\\\code\\\\plugins\\\\context-guard\\\\hooks\\\\zone-gate.sh: No such file or directory")
 assert_stale "backslash-only Windows path" "$OUT_S"
 OUT_S=$(stale_case msys "$STATUS_MSG" \
-  "${PFX}/usr/bin/bash: /c/Projects/plugins/context-guard/hooks/zone-gate.sh: No such file or directory")
+  "${PFX}/usr/bin/bash: /c/code/plugins/context-guard/hooks/zone-gate.sh: No such file or directory")
 assert_stale "MSYS /c/ path" "$OUT_S"
 # shellcheck disable=SC2016 # literal ${CLAUDE_PLUGIN_ROOT} must not expand
 OUT_S=$(stale_case literal-root 'node ${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs ${CLAUDE_PLUGIN_ROOT}/hooks/zone-gate.sh' \
-  "${PFX}/usr/bin/bash: C:\\\\Projects\\\\plugins\\\\context-guard/hooks/zone-gate.sh: No such file or directory")
+  "${PFX}/usr/bin/bash: C:\\\\code\\\\plugins\\\\context-guard/hooks/zone-gate.sh: No such file or directory")
 assert_stale "command with literal CLAUDE_PLUGIN_ROOT" "$OUT_S"
-OUT_S=$(stale_case expanded-root 'node C:\\Projects\\plugins\\context-guard\\hooks\\exec-bash.mjs C:\\Projects\\plugins\\context-guard\\hooks\\zone-gate.sh' \
-  "${PFX}/usr/bin/bash: /c/Projects/plugins/context-guard/hooks/zone-gate.sh: No such file or directory")
+OUT_S=$(stale_case expanded-root 'node C:\\code\\plugins\\context-guard\\hooks\\exec-bash.mjs C:\\code\\plugins\\context-guard\\hooks\\zone-gate.sh' \
+  "${PFX}/usr/bin/bash: /c/code/plugins/context-guard/hooks/zone-gate.sh: No such file or directory")
 assert_stale "command with CLAUDE_PLUGIN_ROOT expanded" "$OUT_S"
 
 # STAY QUIET: shapes that must keep today's classification.
 # bash reporting a missing file from INSIDE a script that ran carries `line N:`.
 OUT_S=$(stale_case in-script "$STATUS_MSG" \
-  "${PFX}/c/Projects/plugins/x/hooks/my-hook.sh: line 12: /c/Projects/plugins/x/hooks/child.sh: No such file or directory")
+  "${PFX}/c/code/plugins/x/hooks/my-hook.sh: line 12: /c/code/plugins/x/hooks/child.sh: No such file or directory")
 assert_contains "missing child inside a running hook stays ambiguous" "$OUT_S" \
   "ambiguous: exit 126/127 with no exec-failure signature"
 assert_absent "missing child inside a running hook is not stale config" "$OUT_S" "$STALE_LABEL"
@@ -270,14 +270,14 @@ assert_absent "bash -c line-numbered error is not stale config" "$OUT_S" "$STALE
 # A command line that names a different script than the missing path.
 # shellcheck disable=SC2016 # literal ${CLAUDE_PLUGIN_ROOT} must not expand
 OUT_S=$(stale_case other-basename 'bash ${CLAUDE_PLUGIN_ROOT}/hooks/wrapper.sh' \
-  "${PFX}bash: C:/Projects/plugins/x/hooks/child-helper.sh: No such file or directory")
+  "${PFX}bash: C:/code/plugins/x/hooks/child-helper.sh: No such file or directory")
 assert_contains "missing path not in the registered command stays ambiguous" "$OUT_S" \
   "ambiguous: exit 126/127 with no exec-failure signature"
 assert_absent "missing path not in the registered command is not stale config" "$OUT_S" "$STALE_LABEL"
 # The same line at exit 1 is not bash failing to open its script operand.
 T_S1="$TEST_TMPDIR/stale-exit1.jsonl"
 custom_record "PreToolUse:Edit" "$STATUS_MSG" \
-  "${PFX}bash: C:/Projects/plugins/x/hooks/zone-gate.sh: No such file or directory" 1 40 >"$T_S1"
+  "${PFX}bash: C:/code/plugins/x/hooks/zone-gate.sh: No such file or directory" 1 40 >"$T_S1"
 OUT_S=$(run_hook "$T_S1" "$TEST_TMPDIR/data-stale-exit1")
 assert_contains "missing-operand line at exit 1 stays completed" "$OUT_S" "completed non-zero exit"
 assert_absent "missing-operand line at exit 1 is not stale config" "$OUT_S" "$STALE_LABEL"

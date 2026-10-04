@@ -419,8 +419,8 @@ SUMMARY=$(printf '%s' "$RECORDS" |
         else ([$e | capture("^(?:Failed with non-blocking status code: )?(?:bash|sh|/[^:\\n]*/(?:bash|sh)): (?<p>[^\\n]+): No such file or directory$")?
                | .p | split("/") | last | split("\\") | last] | first) as $b
           | if $b == null or $b == "" then false
-            elif ($c | test("\\$\\{CLAUDE_PLUGIN_ROOT\\}|\\.(sh|bash|mjs|cjs|js|py|ps1)\\b"))
-            then ($c | [splits("[\\s\"'"'"'/\\\\]+")] | any(. == $b))
+            elif ($c | test("\\$\\{CLAUDE_PLUGIN_ROOT\\}|\\.(sh|bash|mjs|cjs|js|py|ps1)\\b")) # portability-ok: jq Oniguruma regex, not GNU grep or sed
+            then ($c | [splits("[\\s\"'"'"'/\\\\]+")] | any(. == $b)) # portability-ok: jq Oniguruma regex, not GNU grep or sed
             else true end
         end;
     [
