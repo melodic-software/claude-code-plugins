@@ -27,6 +27,13 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   bad value is skipped with a warning; an unknown key is ignored. `fetch-docs.sh --cache` takes
   `ttl_seconds` as its `--max-age` when none is passed, and with `cache_enabled` false reads and
   writes no cache and sets the manifest's new top-level `cache_disabled` to the layer that said so.
+- **Summaries and notes name one checkable section.** `docs-cache.sh summary put` and `note put`
+  refuse a section whose own body is empty or shared with another section, and a summary or note
+  whose section hash two sections share is withheld. A removal quarantine (404, 410, a redirect
+  off the page, a slug gone from the index) lifts when the page is read or confirmed again under
+  the title it had; a retitle quarantine still never lifts. A quoted span split across a line
+  break is checked. Escalation counts a section asked with its parent once, a note file that is
+  not JSON is skipped with a warning, and a prune takes its lock whole and releases only its own.
 - **Revalidation with HTTP validators.** With `--cache`, an entry stored with an `ETag` or
   `Last-Modified` is revalidated with `If-None-Match` or `If-Modified-Since`; a 304 serves the entry
   with `status: 304` and moves only `validated`. A `Last-Modified` equal to the response's `Date`

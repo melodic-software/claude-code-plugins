@@ -440,6 +440,10 @@ esc() { dc "$S" --whole-page-bytes 50 "$@"; }
 err="$TEST_TMPDIR/esc.err"
 assert_eq "escalation: 2 of 8 sections (25%) is not escalated" "$(printf '## S1\nbody 1\n## S2\nbody 2')" "$(esc slice "$KEY" 2 3 2>"$err")"
 assert_eq "escalation: and says nothing on stderr" "" "$(cat "$err")"
+# Section 1 holds the whole 103-byte page, section 2 (13 bytes) inside it: asked
+# together they cover 103 bytes, under a 110-byte limit, not 116.
+dc "$S" --whole-page-bytes 50 --escalate-bytes 110 slice "$KEY" 1 2 >/dev/null 2>"$err"
+assert_eq "escalation: a child asked with its parent is counted once" "" "$(cat "$err")"
 assert_eq "escalation: 3 of 8 sections (over 25%) prints the whole page" "$(cat "$BIG")" "$(esc slice "$KEY" 2 3 4 2>"$err")"
 assert_eq "escalation: and says so on stderr" 1 "$(grep -c 'printing the whole page' "$err")"
 assert_eq "escalation: a 13-byte request at --escalate-bytes 13 is not escalated" "$(printf '## S1\nbody 1')" \
@@ -523,6 +527,12 @@ for missing in --model --session --question --sections; do
   assert_eq "note: provenance: a note without $missing is refused, exit 2" 2 "$rc"
 done
 assert_eq "note: refused notes store nothing" "$((before + 1))" "$(notes_count)"
+rc=0
+printf 'It says "body\n9" across a line break.\n' | note "$KEY" --model m --session s --question q --sections 3 >/dev/null 2>&1 || rc=$?
+assert_eq "edge: quote check: a span split across a line break is checked, and refused when absent" 2 "$rc"
+rc=0
+printf 'It says "body\n1" across a line break.\n' | note "$KEY" --model m --session s --question q --sections 2 >/dev/null 2>&1 || rc=$?
+assert_eq "edge: quote check: a span split across a line break matches the body with the break as a space" 0 "$rc"
 
 # Note expiry follows the cited sections' hashes.
 mk_big "$TEST_TMPDIR/big-outside.md" 's/^body 5$/body 5 edited/'
@@ -564,11 +574,85 @@ assert_eq "edge: page removed or redirected: read withholds notes and summaries 
 rc=0
 printf 'plain\n' | dc "$S" note put "$KEY" --model m --session s --question q --sections 1 >/dev/null 2>&1 || rc=$?
 assert_eq "edge: page removed or redirected: a note on a quarantined key is refused" 2 "$rc"
+# A removal quarantine clears on a later read of the page under the title it had;
+# a retitle quarantine never clears. Notes then follow their cited hashes again.
+mk_big "$TEST_TMPDIR/big-s2.md" 's/^body 2$/body 2 changed/'
+DOCS_CACHE_NOW=$T3 dc "$S" put "$URL" markdown "$TEST_TMPDIR/big-s2.md" >/dev/null
+assert_eq "quarantine cleared: a later read under the recorded title clears a removal quarantine" null \
+  "$(info "$S" $T3 "$KEY" | jq -c .quarantine)"
+assert_eq "quarantine cleared: a note whose cited section changed while quarantined stays withheld (expired)" expired \
+  "$(dc "$S" note list "$KEY" | cut -f2)"
+DOCS_CACHE_NOW=$T3 dc "$S" put "$URL" markdown "$BIG" >/dev/null
+assert_eq "quarantine cleared: a note whose cited hashes match again is served" 1 "$(dc "$S" note get "$KEY" | grep -c -F 'body 2".')"
+printf 'S1 says "body 1".\n' | DOCS_CACHE_NOW=$T3 dc "$S" note put "$KEY" --model m --session s --question q --sections 2 >/dev/null
+assert_eq "quarantine cleared: new notes are accepted" 2 "$(dc "$S" note list "$KEY" | grep -c valid)"
+lib_run "$S" $T3 'dc_quarantine_reason '"$KEY"' http-410'
+mk_big "$TEST_TMPDIR/big-other.md" 's/^# Big$/# Other/'
+DOCS_CACHE_NOW=$T3 dc "$S" put "$URL" markdown "$TEST_TMPDIR/big-other.md" >/dev/null
+assert_eq "quarantine kept: a later read under another title leaves the key quarantined" 1 \
+  "$(info "$S" $T3 "$KEY" | jq '.quarantine != null' | grep -c true)"
+lib_run "$S" $T3 'dc_quarantine_reason '"$KEY"' http-404'
+lib_run "$S" $T3 'dc_confirm '"$KEY-$(sha <"$TEST_TMPDIR/big-other.md")" >/dev/null
+assert_eq "quarantine cleared: a confirmation (a 304) of the entry that was current clears a removal quarantine" null \
+  "$(info "$S" $T3 "$KEY" | jq -c .quarantine)"
+S="$TEST_TMPDIR/s-retitle-back"
+DOCS_CACHE_NOW=$T1 dc "$S" put "$URL" markdown "$TEST_TMPDIR/alpha.md" >/dev/null
+KEY="$(DOCS_CACHE_NOW=$T2 dc "$S" put "$URL" markdown "$TEST_TMPDIR/beta.md")"
+DOCS_CACHE_NOW=$T3 dc "$S" put "$URL" markdown "$TEST_TMPDIR/beta.md" >/dev/null
+assert_eq "quarantine kept: a retitle quarantine is never cleared by a later read" retitled "$(info "$S" $T3 "$KEY" | jq -r .quarantine.reason)"
+S="$TEST_TMPDIR/s-removed"
 assert_eq "quarantine: a key with no entry is not quarantined" 1 \
   "$(
     lib_run "$S" $T2 'dc_quarantine_reason '"$(dc "$S" key https://docs.test/none markdown)"' http-404'
     [[ -e "$S/keys/$(dc "$S" key https://docs.test/none markdown | cut -c1-16).quarantine" ]] && echo 0 || echo 1
   )"
+
+# A summary or note needs a section whose own body is non-empty and unique on the page.
+# Sections, hand-numbered: 1 Top, 2 Alpha, 3 A1, 4 Beta, 5 B1; 1, 2 and 4 have no own body.
+S="$TEST_TMPDIR/s-empty"
+printf '%s\n' '# Top' '## Alpha' '### A1' 'a1 body' '## Beta' '### B1' 'b1 body' >"$TEST_TMPDIR/nested.md"
+KEY="$(DOCS_CACHE_NOW=$T1 dc "$S" put "$URL" markdown "$TEST_TMPDIR/nested.md")"
+rc=0
+err="$(DOCS_CACHE_NOW=$T1 dc "$S" summary put "$KEY" 2 'Alpha covers retries.' 2>&1)" || rc=$?
+assert_eq "edge: empty own body: a summary is refused, exit 2, saying why" "2 1" "$rc $(grep -c 'no own body' <<<"$err")"
+assert_eq "edge: empty own body: and no other section shows one" 0 "$(dc "$S" --whole-page-bytes 1 read "$KEY" | grep -c '^summary ')"
+rc=0
+printf 'Alpha is short.\n' | DOCS_CACHE_NOW=$T1 dc "$S" note put "$KEY" --model m --session s --question q --sections 3,2 >/dev/null 2>&1 || rc=$?
+assert_eq "edge: empty own body: a note citing it is refused, exit 2" 2 "$rc"
+DOCS_CACHE_NOW=$T1 dc "$S" summary put "$KEY" 3 'A1 in brief.'
+assert_eq "edge: a non-empty unique section takes a summary, shown on that section only" "summary 3: A1 in brief." \
+  "$(dc "$S" --whole-page-bytes 1 read "$KEY" | grep '^summary ')"
+
+# Two sections with the same own body: neither takes a summary or a note, and one
+# written while the body was unique is withheld once another section repeats it.
+S="$TEST_TMPDIR/s-dup"
+printf '%s\n' '# Top' 'intro' '## X' 'same' '## Y' 'other' >"$TEST_TMPDIR/dup1.md"
+printf '%s\n' '# Top' 'intro' '## X' 'same' '## Y' 'same' >"$TEST_TMPDIR/dup2.md"
+KEY="$(DOCS_CACHE_NOW=$T1 dc "$S" put "$URL" markdown "$TEST_TMPDIR/dup1.md")"
+DOCS_CACHE_NOW=$T1 dc "$S" summary put "$KEY" 2 'X in brief.'
+printf 'X says "same".\n' | DOCS_CACHE_NOW=$T1 dc "$S" note put "$KEY" --model m --session s --question q --sections 2 >/dev/null
+DOCS_CACHE_NOW=$T2 dc "$S" put "$URL" markdown "$TEST_TMPDIR/dup2.md" >/dev/null
+assert_eq "edge: duplicate own bodies: no summary is shown on either section" 0 "$(dc "$S" --whole-page-bytes 1 read "$KEY" | grep -c '^summary ')"
+rc=0
+dc "$S" summary get "$KEY" 3 >/dev/null 2>&1 || rc=$?
+assert_eq "edge: duplicate own bodies: summary get is a miss" 1 "$rc"
+assert_eq "edge: duplicate own bodies: the note citing one of them is expired" expired "$(dc "$S" note list "$KEY" | cut -f2)"
+rc=0
+dc "$S" summary put "$KEY" 3 'Y in brief.' >/dev/null 2>&1 || rc=$?
+assert_eq "edge: duplicate own bodies: a new summary is refused, exit 2" 2 "$rc"
+rc=0
+printf 'Y says "same".\n' | DOCS_CACHE_NOW=$T2 dc "$S" note put "$KEY" --model m --session s --question q --sections 3 >/dev/null 2>&1 || rc=$?
+assert_eq "edge: duplicate own bodies: a new note is refused, exit 2" 2 "$rc"
+
+# A note file that is not JSON hides only itself, with a warning.
+S="$TEST_TMPDIR/s-badnote"
+KEY="$(DOCS_CACHE_NOW=$T1 dc "$S" put "$URL" markdown "$BIG")"
+printf 'S2 says "body 2".\n' | DOCS_CACHE_NOW=$T1 dc "$S" note put "$KEY" --model m --session s --question q --sections 3 >/dev/null
+printf 'not json\n' >"$S/notes/${KEY:0:16}/0000000000000000"
+err="$TEST_TMPDIR/badnote.err"
+assert_eq "edge: a malformed note file: the valid note is still served" 1 "$(dc "$S" note get "$KEY" 2>"$err" | grep -c -F 'body 2".')"
+assert_eq "edge: a malformed note file: a warning names it" 1 "$(grep -c "^WARNING: .*notes/${KEY:0:16}/0000000000000000" "$err")"
+assert_eq "edge: a malformed note file: list still lists the valid note" 1 "$(dc "$S" note list "$KEY" 2>/dev/null | grep -c valid)"
 
 # --- prune -----------------------------------------------------------------------------
 # bytes_of <path>...: the bytes of every file under the paths.
@@ -632,6 +716,45 @@ assert_eq "prune: a held lock makes prune delete nothing and say so" "1 1" \
 DOCS_CACHE_NOW=$((T3 + 400)) dc "$S" --max-bytes 0 --grace 300 prune >/dev/null 2>&1
 assert_eq "prune: a lock older than the grace window is taken over, and released after" "1 0" \
   "$(dc "$S" info "$KA" >/dev/null 2>&1 && echo 0 || echo 1) $([[ -e "$S/prune.lock" ]] && echo 1 || echo 0)"
+mk_prune_store "$TEST_TMPDIR/s-lock2"
+mkdir "$S/prune.lock"
+err="$(DOCS_CACHE_NOW=$((T3 + 400)) dc "$S" --max-bytes 0 --grace 300 prune 2>&1 >/dev/null)"
+assert_eq "prune: a lock with no start time recorded is held, never taken over" "1 1 1" \
+  "$(info "$S" $((T3 + 400)) "$KA" >/dev/null && echo 1 || echo 0) $([[ "$err" == *busy* ]] && echo 1 || echo 0) $([[ -d "$S/prune.lock" ]] && echo 1 || echo 0)"
+# Another prune takes the lock over while this one evicts: this one leaves it.
+mk_prune_store "$TEST_TMPDIR/s-lock3"
+lib_run "$S" $((T3 + 400)) 'eval "orig_$(declare -f dc_rename_dir)"
+  dc_rename_dir() {
+    if [[ "$1" == */entries/* && -z "${swapped:-}" ]]; then
+      swapped=1
+      rm -rf "$DC_DIR/prune.lock"
+      mkdir "$DC_DIR/prune.lock"
+      printf "%s\n" "$DC_NOW" >"$DC_DIR/prune.lock/at"
+      printf "other\n" >"$DC_DIR/prune.lock/owner"
+    fi
+    orig_dc_rename_dir "$@"
+  }
+  DC_CFG_size_cap_bytes=0 DC_CFG_prune_grace_seconds=0
+  dc_prune >/dev/null'
+assert_eq "prune: a prune releases only a lock it owns" other "$(cat "$S/prune.lock/owner" 2>/dev/null)"
+# A writer points a key at an entry prune is evicting: the entry stays.
+mk_prune_store "$TEST_TMPDIR/s-repoint"
+old="$KA-$(sha <"$PAGE")"
+lib_run "$S" $T3 'eval "orig_$(declare -f dc_rename_dir)"
+  dc_rename_dir() {
+    if [[ "$1" == */entries/'"${old:0:16}-${old:65:16}"' && -z "${hit:-}" ]]; then
+      hit=1
+      dc_write_pointer '"$KA $old"'
+    fi
+    orig_dc_rename_dir "$@"
+  }
+  DC_CFG_size_cap_bytes=0 DC_CFG_prune_grace_seconds=0
+  dc_prune >/dev/null'
+assert_eq "edge: prune racing a writer that re-points a key at the entry being evicted: the pointer never dangles" 0 "$(
+  rc=0
+  DOCS_CACHE_NOW=$T3 dc "$S" info "$KA" >/dev/null 2>&1 || rc=$?
+  echo "$rc"
+)"
 
 # Every write prunes.
 S="$TEST_TMPDIR/s-autoprune"

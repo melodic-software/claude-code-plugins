@@ -36,8 +36,10 @@
 #                          differs (JSON: at, reason "retitled", from_entry,
 #                          from_title, to_entry, to_title) or when a fetch finds
 #                          the page removed or redirected (JSON: at, reason,
-#                          entry). Nothing here removes it; a reader withholds
-#                          the summaries and notes of a quarantined key.
+#                          entry, title). A reader withholds the summaries and
+#                          notes of a quarantined key. A removal quarantine is
+#                          removed when the page is stored or confirmed again
+#                          under the title it recorded; a retitle one never is.
 #   summaries/<key16>/<section sha16>  a one-line summary of the section whose
 #                          own-body sha256 it names (JSON: store_version, key,
 #                          section_sha256, summary, date)
@@ -45,14 +47,18 @@
 #                          page_sha256, sections [{id, sha256, heading_path}],
 #                          writer_model, session_id, date, question, text). A note
 #                          is served while every cited section's sha256 is in the
-#                          entry's map, under whatever id and heading it has now.
-#   prune.lock             held by a running prune (mkdir; holds its start epoch)
+#                          entry's map exactly once, under whatever id and heading
+#                          it has now.
+#   prune.lock             held by a running prune (a directory holding at, its
+#                          start epoch, and owner; renamed into place whole)
 #
 # Summaries and notes are model-written: they are printed only inside an
 # untrusted-data block, never with page bytes, never by slice or read --raw, and
-# never for a quarantined key. A note's quoted spans ("...", straight double
-# quotes, whitespace runs compared as one space) must each appear in the own body
-# of one of its cited sections, or the note is refused.
+# never for a quarantined key. Each names a section with a non-empty own body
+# that no other section of the entry shares; a summary whose hash two sections
+# share is not served. A note's quoted spans ("...", straight double quotes, the
+# note read as one line, whitespace runs compared as one space) must each appear
+# in the own body of one of its cited sections, or the note is refused.
 #
 # prune evicts the least recently used items until the store is at most
 # --max-bytes: entries (raw page bytes) first, then summaries, then notes, which
@@ -378,6 +384,7 @@ dc_confirm() {
   [[ "$1" =~ ^[0-9a-f]{64}-[0-9a-f]{64}$ ]] || return 1
   dc_writable && dc_lookup "$1" || return 1
   dc_write_pointer "${1%-*}" "$1" "${2:-}" "${3:-}" || return 1
+  dc_quarantine_clear "${1%-*}" "$DC_TITLE" || true
   dc_lookup "$1"
 }
 
@@ -492,8 +499,7 @@ dc_quarantine() {
   dc_ptr "$1"
   old="$P_NAME"
   [[ "$old" =~ ^[0-9a-f]{64}-[0-9a-f]{64}$ && "$old" != "$2" && -n "$3" ]] || return 0
-  old_title="$(jq -r '.title // ""' "$DC_DIR/entries/${old:0:16}-${old:65:16}/meta.json" 2>/dev/null)"
-  old_title="${old_title%$'\r'}"
+  old_title="$(dc_entry_title "$old")"
   [[ -n "$old_title" && "$old_title" != "$3" ]] || return 0
   dc_quarantine_write "$1" '{at: $at, reason: "retitled", from_entry: $fe, from_title: $ft, to_entry: $te, to_title: $tt}' \
     --arg fe "$old" --arg ft "$old_title" --arg te "$2" --arg tt "$3"
@@ -506,7 +512,32 @@ dc_quarantine_reason() {
   dc_now
   dc_ptr "$1"
   [[ "$P_NAME" == "$1-"* ]] || return 0
-  dc_quarantine_write "$1" '{at: $at, reason: $r, entry: $e}' --arg r "$2" --arg e "$P_NAME"
+  dc_quarantine_write "$1" '{at: $at, reason: $r, entry: $e, title: (if $t == "" then null else $t end)}' \
+    --arg r "$2" --arg e "$P_NAME" --arg t "$(dc_entry_title "$P_NAME")"
+}
+
+# dc_entry_title <key>-<sha256>: print the entry's stored title, nothing when none.
+dc_entry_title() {
+  local t
+  t="$(jq -r '.title // ""' "$DC_DIR/entries/${1:0:16}-${1:65:16}/meta.json" 2>/dev/null)"
+  printf '%s' "${t%$'\r'}"
+}
+
+# dc_quarantine_clear <key> <title>: a removal quarantine (any reason but
+# retitled) lifts when the key's page is read again under the title its entry
+# had when it was quarantined. A retitle quarantine never lifts. Notes and
+# summaries then follow their cited section hashes as before. Returns 1 when
+# nothing was lifted.
+dc_quarantine_clear() {
+  local q="$DC_DIR/keys/${1:0:16}.quarantine" rec t e
+  [[ -f "$q" && -n "$2" ]] || return 1
+  rec="$(jq -r 'select(.reason != "retitled") | [(.title // ""), (.entry // "")] | join("\u001f")' "$q" 2>/dev/null)"
+  rec="${rec%$'\r'}"
+  [[ -n "$rec" ]] || return 1
+  IFS=$'\x1f' read -r t e <<<"$rec"
+  [[ -n "$t" || ! "$e" =~ ^[0-9a-f]{64}-[0-9a-f]{64}$ ]] || t="$(dc_entry_title "$e")"
+  [[ -n "$t" && "$t" == "$2" ]] || return 1
+  rm -f "$q"
 }
 
 # dc_quarantine_write <key> <jq filter> [jq args]: write the key's quarantine
@@ -525,7 +556,8 @@ dc_quarantine_write() {
 # title is recorded only when the body has no heading; validators is a
 # dc_validators record. The store is pruned after the write.
 # Bytes already stored keep their entry and its retrieved time. An entry that
-# replaces one with another title quarantines the key. Sets the dc_lookup
+# replaces one with another title quarantines the key; one read under the
+# title a removal quarantine recorded lifts it. Sets the dc_lookup
 # fields; returns 1 when nothing was stored.
 dc_put() {
   local url="$1" fmt="$2" src="$3" ctype="${4:-}" title key tmp sha final placed=0
@@ -566,7 +598,7 @@ dc_put() {
     DC_ERR="the entry could not be read back from $final"
     return 1
   fi
-  dc_quarantine "$key" "$key-$sha" "$DC_TITLE"
+  dc_quarantine_clear "$key" "$DC_TITLE" || dc_quarantine "$key" "$key-$sha" "$DC_TITLE"
   dc_write_pointer "$key" "$key-$sha" "${6:-}" "${7:-}" || return 1
   dc_lookup "$key-$sha" || return 1
   dc_prune >/dev/null 2>&1 || true
@@ -590,7 +622,8 @@ dc_slice_rows() {
 
 # dc_escalates <map file> <body file> <id>...: the page is over the whole-page
 # threshold and the ids ask for more than the escalation limit (a share of its
-# sections or a byte count); say so on stderr. Unknown ids never escalate.
+# sections or a byte count, each line counted once however many requested
+# sections hold it); say so on stderr. Unknown ids never escalate.
 dc_escalates() {
   local map="$1" body="$2" bytes res cnt total asked
   shift 2
@@ -598,9 +631,13 @@ dc_escalates() {
   [[ $bytes -gt $DC_CFG_whole_page_bytes ]] || return 1
   res="$(LC_ALL=C awk -F'\t' -v ids="$*" '
     BEGIN { n = split(ids, want, " "); for (i = 1; i <= n; i++) w[want[i]] = 1 }
-    { total++ }
-    ($1 in w) && !($1 in got) { got[$1] = 1; cnt++; b += $5 }
-    END { for (i = 1; i <= n; i++) if (!(want[i] in got)) exit; print cnt + 0, total + 0, b + 0 }' "$map")"
+    NR == FNR {
+      total++
+      if (($1 in w) && !($1 in got)) { got[$1] = 1; cnt++; for (l = $3; l <= $4; l++) asked[l] = 1 }
+      next
+    }
+    (FNR in asked) { b += length($0) + 1 }
+    END { for (i = 1; i <= n; i++) if (!(want[i] in got)) exit; print cnt + 0, total + 0, b + 0 }' "$map" "$body")"
   [[ -n "$res" ]] || return 1
   read -r cnt total asked <<<"$res"
   [[ $((cnt * 100)) -gt $((DC_CFG_escalate_section_percent * total)) || $asked -gt $DC_CFG_escalate_bytes ]] || return 1
@@ -637,6 +674,29 @@ dc_section() {
   SEC_SHA="${row%%$'\t'*}" SEC_PATH="${row#*$'\t'}"
 }
 
+# dc_sha_count <sha256>: how many sections of the looked-up entry have that own-body hash.
+dc_sha_count() {
+  awk -F'\t' -v s="$1" '$6 == s { n++ } END { print n + 0 }' "$DC_ENTRY/map.tsv"
+}
+
+# dc_section_checkable <id>: dc_section, for a section a summary or note can
+# name: its own body is not empty and no other section of the entry shares it,
+# since both are matched by that body's hash. Returns 1 for an unknown id, 2
+# otherwise (DC_ERR).
+dc_section_checkable() {
+  local b
+  dc_section "$1" || return 1
+  b="$(dc_own_body "$1")"
+  if [[ -z "${b//[[:space:]]/}" ]]; then
+    DC_ERR="section $1 has no own body (only its heading), so nothing can check a summary or note on it"
+    return 2
+  fi
+  if [[ "$(dc_sha_count "$SEC_SHA")" -gt 1 ]]; then
+    DC_ERR="section $1 has the same own body as another section, so a summary or note on it would name both"
+    return 2
+  fi
+}
+
 # dc_summaries: print section-sha256<TAB>summary for the looked-up key.
 dc_summaries() {
   local files=("$DC_DIR/summaries/${DC_KEY:0:16}"/*)
@@ -645,27 +705,36 @@ dc_summaries() {
     'select(.store_version == $v and .key == $k) | .section_sha256 + "\t" + .summary' "${files[@]}" 2>/dev/null | tr -d '\r'
 }
 
-# dc_summary_lines: print "summary <id>: <text>" for each section of the entry with a summary.
+# dc_summary_lines: print "summary <id>: <text>" for each section of the entry
+# with a summary, skipping a hash two sections share.
 dc_summary_lines() {
   local st
   st="$(dc_summaries)"
   [[ -z "$st" ]] || awk -F'\t' 'NR == FNR { s[$1] = substr($0, index($0, "\t") + 1); next }
-    ($6 in s) { print "summary " $1 ": " s[$6] }' - "$DC_ENTRY/map.tsv" <<<"$st"
+    { m++; id[m] = $1; h[m] = $6; c[$6]++ }
+    END { for (i = 1; i <= m; i++) if (c[h[i]] == 1 && (h[i] in s)) print "summary " id[i] ": " s[h[i]] }' - "$DC_ENTRY/map.tsv" <<<"$st"
 }
 
 # dc_notes <get|list>: the looked-up key's notes. get prints each note whose
-# cited section hashes are all in the entry's map, with its provenance and the
-# sections' current ids; list prints id, state (valid, expired or quarantined),
-# date and the cited ids as written.
+# cited section hashes are each in the entry's map exactly once, with its
+# provenance and the sections' current ids; list prints id, state (valid,
+# expired or quarantined), date and the cited ids as written. A note file that
+# is not one JSON object on one line (as dc_write_json writes it) is skipped
+# with a warning on stderr.
 dc_notes() {
-  local files=("$DC_DIR/notes/${DC_KEY:0:16}"/*)
+  local files=("$DC_DIR/notes/${DC_KEY:0:16}"/*) out line
   [[ -f "${files[0]}" ]] || return 0
-  jq -nr --argjson v "$DC_STORE_VERSION" --arg k "$DC_KEY" --rawfile map "$DC_ENTRY/map.tsv" \
+  out="$(jq -nrR --argjson v "$DC_STORE_VERSION" --arg k "$DC_KEY" --rawfile map "$DC_ENTRY/map.tsv" \
     --arg mode "$1" --arg q "$DC_QUARANTINED" '
     ($map | split("\n") | map(select(length > 0) | split("\t"))) as $rows
-    | (reduce $rows[] as $r ({}; .[$r[5]] //= $r[0])) as $ids
+    | (reduce $rows[] as $r ({}; .[$r[5]] += 1)) as $cnt
+    | (reduce $rows[] as $r ({}; if $cnt[$r[5]] == 1 then .[$r[5]] = $r[0] else . end)) as $ids
     | (reduce $rows[] as $r ({}; .[$r[0]] = $r[6])) as $paths
-    | [inputs | select(.store_version == $v and .key == $k)] | sort_by(.date, .id) | .[]
+    | [inputs | (try fromjson catch null) as $j
+       | if ($j | type) == "object" then $j else {bad: input_filename} end] as $all
+    | ($all[] | select(has("bad")) | "\u0001bad\t\(.bad)"),
+      ($all | map(select((has("bad") | not) and .store_version == $v and .key == $k and (.sections | type) == "array"))
+    | sort_by(.date, .id) | .[]
     | ([.sections[] | $ids[.sha256]]) as $cur
     | (if $q == "1" then "quarantined" elif all($cur[]; . != null) then "valid" else "expired" end) as $state
     | if $mode == "list" then [.id[0:16], $state, .date, (.sections | map(.id) | join(","))] | join("\t")
@@ -677,7 +746,15 @@ dc_notes() {
         "question: \(.question)",
         "",
         .text
-      else empty end' "${files[@]}" 2>/dev/null | tr -d '\r'
+      else empty end)' "${files[@]}" 2>/dev/null | tr -d '\r')"
+  [[ -n "$out" ]] || return 0
+  while IFS= read -r line; do
+    if [[ "$line" == $'\x01bad\t'* ]]; then
+      printf 'WARNING: docs-cache: skipped a note file that is not one JSON note: %s\n' "${line#*$'\t'}" >&2
+    else
+      printf '%s\n' "$line"
+    fi
+  done <<<"$out"
 }
 
 # dc_read <raw>: print the looked-up entry: the page when it is at most the
@@ -726,7 +803,7 @@ dc_write_json() {
 # dc_summary_put <id> <text>: store a one-line summary of the looked-up
 # entry's section. Returns 1 for an unknown id, 2 when refused (DC_ERR).
 dc_summary_put() {
-  dc_section "$1" || return 1
+  dc_section_checkable "$1" || return $?
   if [[ -z "$2" || "$2" == *[[:cntrl:]]* ]]; then
     DC_ERR="a summary is one line of text"
     return 2
@@ -748,6 +825,7 @@ dc_summary_put() {
 dc_summary_get() {
   local t
   dc_section "$1" || return 1
+  [[ "$(dc_sha_count "$SEC_SHA")" -eq 1 ]] || return 1
   if [[ "$DC_QUARANTINED" == 1 ]]; then
     dc_quarantine_note >&2
     return 1
@@ -776,7 +854,7 @@ dc_own_body() {
 # store a note on the looked-up entry (text from --file, else stdin). Sets
 # DC_NOTE_ID. Returns 1 for an unknown section id, 2 when refused (DC_ERR).
 dc_note_put() {
-  local model="" session="" question="" sections="" file="" text id ids=() bodies=() span found b secs="" json tf
+  local model="" session="" question="" sections="" file="" text id ids=() bodies=() span found b secs="" json tf rc
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --model | --session | --question | --sections | --file)
@@ -819,13 +897,16 @@ dc_note_put() {
   fi
   IFS=, read -ra ids <<<"$sections"
   for id in "${ids[@]}"; do
-    if ! dc_section "$id"; then
-      DC_ERR="unknown section id: $id"
-      return 1
+    rc=0
+    dc_section_checkable "$id" || rc=$?
+    if [[ $rc -ne 0 ]]; then
+      [[ $rc -ne 1 ]] || DC_ERR="unknown section id: $id"
+      return "$rc"
     fi
     secs+="$id"$'\t'"$SEC_SHA"$'\t'"$SEC_PATH"$'\n'
     bodies+=("$(dc_own_body "$id")")
   done
+  # Spans are taken from the note joined into one line, so one across a line break is checked too.
   while IFS= read -r span; do
     [[ -n "${span// /}" ]] || continue
     found=0
@@ -834,7 +915,7 @@ dc_note_put() {
       DC_ERR="the quoted span \"$span\" is not in the own body of a cited section"
       return 2
     fi
-  done < <(LC_ALL=C awk '{ l = $0; while (match(l, /"[^"]+"/)) { s = substr(l, RSTART + 1, RLENGTH - 2); gsub(/[ \t]+/, " ", s); print s; l = substr(l, RSTART + RLENGTH) } }' <<<"$text")
+  done < <(LC_ALL=C awk '{ t = t " " $0 } END { l = t; while (match(l, /"[^"]+"/)) { s = substr(l, RSTART + 1, RLENGTH - 2); gsub(/[ \t]+/, " ", s); print s; l = substr(l, RSTART + RLENGTH) } }' <<<"$text")
   tf="$(mktemp)" || return 2
   printf '%s' "$text" >"$tf"
   json="$(jq -cn --argjson v "$DC_STORE_VERSION" --arg k "$DC_KEY" --arg u "$DC_URL" --arg p "${DC_REF#*-}" \
@@ -881,17 +962,40 @@ dc_access() {
   printf '%s' "$a"
 }
 
-# dc_prune_lock: take the prune lock, taking over one older than the grace window.
+# dc_prune_lock: take the prune lock. It is built aside holding its start time
+# (at) and owner, then renamed into place whole, so a lock never shows without
+# them. One whose start time is older than the grace window is taken over; one
+# with no readable start time is held, never taken over. Sets DC_LOCK_OWNER.
 dc_prune_lock() {
-  local lock="$DC_DIR/prune.lock" at="" old="$DC_DIR/.tmp-lock-$$-$RANDOM"
-  if ! mkdir "$lock" 2>/dev/null; then
-    [[ ! -f "$lock/at" ]] || read -r at <"$lock/at"
-    [[ "$at" =~ ^[0-9]+$ ]] || at=0
-    [[ $((DC_NOW - at)) -gt $DC_CFG_prune_grace_seconds ]] && mv "$lock" "$old" 2>/dev/null || return 1
-    rm -rf "$old"
-    mkdir "$lock" 2>/dev/null || return 1
+  local lock="$DC_DIR/prune.lock" at="" seen="" new="$DC_DIR/.tmp-lock-new-$$-$RANDOM" old="$DC_DIR/.tmp-lock-$$-$RANDOM"
+  DC_LOCK_OWNER="$$-$RANDOM$RANDOM"
+  mkdir "$new" 2>/dev/null || return 1
+  if ! { printf '%s\n' "$DC_NOW" >"$new/at" && printf '%s\n' "$DC_LOCK_OWNER" >"$new/owner"; }; then
+    rm -rf "$new"
+    return 1
   fi
-  printf '%s\n' "$DC_NOW" >"$lock/at"
+  # The -e check keeps a rename from replacing an empty lock directory.
+  if [[ ! -e "$lock" ]] && dc_rename_dir "$new" "$lock"; then return 0; fi
+  [[ ! -f "$lock/at" ]] || read -r at <"$lock/at"
+  if [[ "$at" =~ ^[0-9]+$ && $((DC_NOW - at)) -gt $DC_CFG_prune_grace_seconds ]] && dc_rename_dir "$lock" "$old"; then
+    # Another prune may have taken the stale lock over first: put back a lock that is not it.
+    [[ ! -f "$old/at" ]] || read -r seen <"$old/at"
+    if [[ "$seen" == "$at" ]]; then
+      rm -rf "$old"
+      if [[ ! -e "$lock" ]] && dc_rename_dir "$new" "$lock"; then return 0; fi
+    else
+      dc_rename_dir "$old" "$lock" || rm -rf "$old"
+    fi
+  fi
+  rm -rf "$new"
+  return 1
+}
+
+# dc_prune_unlock: release the prune lock when this prune still owns it.
+dc_prune_unlock() {
+  local o=""
+  [[ ! -f "$DC_DIR/prune.lock/owner" ]] || read -r o <"$DC_DIR/prune.lock/owner"
+  [[ -z "$o" || "$o" != "${DC_LOCK_OWNER:-}" ]] || rm -rf "$DC_DIR/prune.lock"
 }
 
 # dc_prune: evict least recently used items until the store is at most
@@ -941,6 +1045,12 @@ dc_prune() {
         fi
         gone="$DC_DIR/entries/.tmp-evict-$$-$RANDOM$RANDOM"
         dc_rename_dir "$DC_DIR/$rel" "$gone" || continue
+        # A writer may have pointed its key at this entry since it was ranked: put it back.
+        dc_ptr "$k16"
+        if [[ "${P_NAME:0:16}-${P_NAME:65:16}" == "${rel#entries/}" ]]; then
+          dc_rename_dir "$gone" "$DC_DIR/$rel" || rm -rf "$gone"
+          continue
+        fi
         rm -rf "$gone"
         ;;
       *)
@@ -952,7 +1062,7 @@ dc_prune() {
       total=$((total - n))
       printf 'evicted\t%s\t%s\t%s\n' "$kind" "$rel" "$n"
     done < <(printf '%s' "$ranked" | sort -t "$(printf '\t')" -k1,1n -k2,2n -k3,3n)
-    rm -rf "$DC_DIR/prune.lock"
+    dc_prune_unlock
   fi
   printf 'total\t%s\t%s\n' "$total" "$DC_CFG_size_cap_bytes"
 }

@@ -547,6 +547,10 @@ assert_eq "edge: page removed: its note is never served" "" "$(DC note get "$ski
 cache_run $((T3 + 86401)) out23g --max-age 86400 skills
 assert_eq "edge: page removed: a 404 is not a failed fetch, so nothing is served stale" "unread false" \
   "$(page "$TEST_TMPDIR/out23g/manifest.json" skills '"\(.state) \(.stale)"')"
+rm -f "$src/skills.md.status"
+cache_run $((T3 + 86401)) out23g2 --max-age 0 skills
+assert_eq "edge: page back: a 200 under the title the 404 recorded lifts the quarantine, and the note is served again" "read false 1" \
+  "$(page "$TEST_TMPDIR/out23g2/manifest.json" skills '"\(.state) \(.quarantined)"') $(DC note get "$skills_key" 2>/dev/null | grep -c 'Skills holds')"
 settings_key="$(DC key https://docs.test/docs/en/settings-reference.md markdown)"
 cache_run $T3 out23h --max-age 0 settings-reference
 printf '%s\n' '# Docs' '- [Skills](https://docs.test/docs/en/skills.md): skills' >"$src/llms.txt"
