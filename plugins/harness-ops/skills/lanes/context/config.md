@@ -65,6 +65,8 @@ handing the fixing to workers, so it sits one level below the verdict lanes. A p
 | `lanes[].model` | no | Passed as `claude --model`. An alias (`opus`, `sonnet`, `fable`) or a full model id. Omit to inherit the machine default. |
 | `lanes[].effort` | yes | Passed as `claude --effort`. Required on every lane, chosen from the "Choose an effort level" table above: `start` and `restart` refuse a lane with no effort (or a `null` one) with an error naming the lane, this key and that table, and still launch the other lanes; `restart` refuses before stopping, so the running session stays up. When `CLAUDE_CODE_EFFORT_LEVEL` is set in the launcher's environment, which every lane inherits, the launcher prints one warning per run that the configured levels may not hold. Pointer: for how that variable ranks against `--effort` and effort pins, see its row under [Variables](https://code.claude.com/docs/en/env-vars#variables). As of: 2026-10-02. Recheck trigger: that row's precedence changes. One of `low`, `medium`, `high`, `xhigh`, `max`, `ultracode` (validated; a bad value skips the lane). `ultracode` [requires Claude Code v2.1.203 or later](https://code.claude.com/docs/en/model-config#adjust-effort-level); below that floor the CLI rejects the value outright (`Unknown --effort value 'ultracode'`) and starts the session at the default effort, so the launcher checks the installed `claude --version` and skips the lane rather than launching it at an unintended effort. `restart` makes that check before stopping, so a refused lane keeps running. For what `ultracode` does to the effort level and when a model cannot run it, see the same section. As of 2026-10-02; recheck when the effort level set or the ultracode version floor changes. |
 | `lanes[].settings` | no | A JSON **object** passed inline as `claude --settings`, a session-only override that never persists. The motivating use is opting a lane into the `autonomy` plugin's lane-stop gate via a `pluginConfigs` override (example above; the plugin id is marketplace-qualified, `<plugin>@<marketplace>`, for however the plugin was installed). A non-object value skips the lane with an error. A gate request (`lane_stop_gate_enabled: true` under an `autonomy` key) additionally triggers launch-time ARMING: the launcher runs autonomy's `hooks/lane-stop-gate-arm.sh` and injects a random `lane_stop_gate_arm_id` into the launched settings, the trusted per-session channel the gate actually honors (it ignores the bare env mirror a repo `env` block could forge). A gate-requesting lane that cannot be armed (autonomy missing/pre-0.12.0, arming error, managed-settings veto) is skipped with an error rather than launched silently ungated. |
+| `lanes[].stage` | no | The stage skill the lane runs, as `<plugin>:<skill>` (for example `work-items:work-loop`). Selects the lane's `skill.<plugin>.<skill>` key in the execution target below. Lowercase letters, digits and `-` on each side of one `:`; any other value exits `3` at preflight. Without it, a lane resolves only `default`. |
+| `lanes[].telemetry` | no | The lane's telemetry binding (`issue`, `repo`, `marker`), the same object the restart consumer reads (`context/restart-consumer.md`), plus an optional `author`, a GitHub user login whose comments count besides the `gh`-authenticated login's. The lanes file is lane-writable, so `author` must name a person the operator vouches for. Any login ending in `[bot]` is refused: an app's bot account writes for every workflow or installation holding its token, so it names no single writer. A `cloud-session` lane reads its probe fallback from it and needs a numeric `issue`; its `repo`, when set, must be origin's own `owner/repo`. |
 
 Lane names are free-form (`work`, `work-2`, `babysit`, `decide`, …); nothing is
 hardcoded. The set above mirrors the lanes this repo's telemetry conventions use,
@@ -79,12 +81,56 @@ targeted restart of either would corrupt the other's staleness probe. The
 `<repo-key>` component keeps same-named lanes in different repos apart, since the
 data directory is plugin-wide rather than per-repo.
 
-Types are checked, and a wrong type is never read as an absent field. `name`, `prompt`, `model` and
+Types are checked, and a wrong type is never read as an absent field. `name`, `prompt`, `model`, `stage` and
 `effort` must be JSON strings; a non-string value exits `3` at preflight alongside the checks above.
 `settings` is checked per lane instead, so only that lane is skipped. An explicit `null` is the JSON
 spelling of "no value" and is equivalent to omitting the field. The distinction matters: a
 `false` is falsy, and a reader that treats falsy as absent silently launches the lane without the
 setting rather than reporting the mistake.
+
+## Execution target
+
+`start` and `restart` choose each launching lane's host from the consumer repository's
+`docs/conventions/execution-target.yaml`. The contract, including the values, the cloud launch
+rule and the stage-start probe, is `docs/conventions/execution-target/README.md` in the
+marketplace repository; this section covers only what the launcher does.
+
+- **Read.** Once per run the launcher checks that origin's own `HEAD` (`git ls-remote --symref
+  origin HEAD`) names the same branch as the local `origin/HEAD`, fetches that branch, reads the
+  file at the fetched commit with `git show`, never from the working tree, and prints the SHA. No
+  `origin/HEAD`, a failed fetch, an absent file or a file the shared reader rejects keeps every
+  lane on today's launch, with the reason printed. An unreadable or disagreeing origin `HEAD`, a
+  `url.<base>.insteadOf` or `pushInsteadOf` rule that rewrites origin's URL, or more than one
+  `remote.origin.url` does the same and also skips every `work-items:triage` lane. These checks
+  catch a stale or moved symref; they are not a boundary against someone who can write the
+  checkout's git config.
+- **Keys.** `skill.<plugin>.<skill>` for the lane's `stage`, then `class.untrusted-provenance` for
+  `work-items:triage` (its input is always untrusted), then `default`. An unknown value launches
+  today's way and is reported. Each lane prints `execution target <value> (<key>)`.
+- **`local-worktree`.** Today's launch from the repository root.
+- **`local-background`.** The same `claude --bg -n <name> --permission-mode auto` launch from the
+  lane's linked worktree, `<data-dir>/lanes/<repo-key>/worktrees/<name>`, created detached at the
+  fetched commit. A clean existing worktree moves to that commit; one with changes is used as it
+  stands.
+- **`cloud-session`.** A lane whose stage may read untrusted input (every stage in the contract's
+  table today, a lane with no `stage`, and any stage outside the table) is skipped with an error
+  naming `/work-items:attend-queue` as the escalation route; it files nothing and does not run
+  locally. Otherwise, `claude --cloud` from the lane's linked worktree, which must be clean and is
+  moved to the fetched commit, with the stage-start probe in front of the prompt. The launch is
+  refused, and the lane launches today's way, when the Claude GitHub App does not cover origin's
+  `owner/repo` (from origin's configured URL, checked with `gh api user/installations`), the worktree
+  has changes, the lane's telemetry cannot be read (no numeric `telemetry.issue`, or a
+  `telemetry.repo` other than origin's), or the lane requests the lane-stop gate. A not-yet-honored
+  `execution_target_fallback` from an authorized author in the lane's telemetry moves one launch to
+  today's launch. `claude agents --json` does not list cloud sessions, so the
+  launcher writes `<data-dir>/lanes/<repo-key>/<name>-cloud-launch`: `start` skips a lane while it
+  stands, and `restart` sends a new session (archive the earlier one at claude.ai).
+- **`cloud-routine`, `cloud-project`.** Setup steps are printed and nothing launches; `restart`
+  leaves a running local session of the lane up. A lane whose stage may read untrusted input gets no
+  setup steps: it is skipped with the same `/work-items:attend-queue` error as `cloud-session`.
+- **`--telemetry-json FILE`.** A test aid: it replaces the GitHub comment read with a local file of
+  the same shape, and the launcher prints a warning on stderr whenever it reads one. Do not use it
+  for a real launch.
 
 ## Where prompt files are read from
 

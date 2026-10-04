@@ -204,6 +204,10 @@ repo-local value. Other executor hosting configuration is deployment-owned per t
 stance: this contract fixes only the isolation floor (L2+ for unattended execution),
 credential scoping, and the queue contract.
 
+Which host runs each local-lane stage (this machine, a local background session, or a cloud
+host) is the execution-target convention (`docs/conventions/execution-target/`), a setting
+separate from `executor_class` that changes no merge policy.
+
 ## Constraints
 
 - The [one-entrypoint invariant](#dispatch) and its scope boundary bind every surface this

@@ -9,6 +9,10 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 
 - **The eng-metrics digest reports trust inputs.** A `## Trust inputs` section in `reference/routines/eng-metrics-digest.md` names the inputs the work-class suggested default predicates use (autonomous completions, deterministic-gate pass rate, human-reverted merges, demotion events, missed-blocking AI-review findings) by pointer to their owner, and the output contract says the narrative includes them. The digest reports them and decides no promotion.
 
+### Changed
+
+- **`reference/trigger-dispatch.md` points host choice at the execution-target convention.** "Executor surface classes" says which host runs each local-lane stage is set by `docs/conventions/execution-target/`, separate from `executor_class`, and changes no merge policy.
+
 ## [0.26.6] - 2026-10-04
 
 ### Changed

@@ -74,6 +74,33 @@
         "Output points to the git staleness probe and `lanes restart` at a cycle boundary as the mechanism",
         "Output does not claim a true mid-session hot-reload of a running loop lane is achievable"
       ]
+    },
+    {
+      "id": 7,
+      "name": "execution-target-read-from-default-branch",
+      "narration": true,
+      "prompt": "I edited docs/conventions/execution-target.yaml on my branch to send the work-loop lane to the cloud. If I run `/harness-ops:lanes start` now, does the lane go to the cloud?",
+      "expected_output": "No. The launcher fetches origin's default branch and reads docs/conventions/execution-target.yaml from that commit with git show, never from the working tree or the current branch, and prints the SHA it read. Until the edit is merged to the default branch, the lane resolves as before. Once merged, the lane's stage (lanes[].stage = work-items:work-loop) selects the skill.work-items.work-loop key. Even then the lane does not go to the cloud: work-loop may read untrusted input (it triages raw intake), and with no deterministic connector and egress check the launcher refuses cloud-session for such a stage. The lane is skipped with an error naming /work-items:attend-queue; it files nothing and does not run locally.",
+      "files": [],
+      "expectations": [
+        "Output states the unmerged branch edit does not move the lane, because the file is read from origin's default branch after a fetch",
+        "Output says the launcher prints the commit SHA it read the file at",
+        "Output names the skill.work-items.work-loop key, selected by the lane's stage field",
+        "Output states that after the merge the work-loop lane is still refused the cloud because it may read untrusted input, and is skipped rather than run locally"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "untrusted-input-stage-does-not-fall-back",
+      "prompt": "My triage lane is set to cloud-session, but the Claude GitHub App is not installed on the repo. What does `lanes start` do with it?",
+      "expected_output": "It does not launch the triage lane to the cloud, and the missing App is not the reason: work-items:triage reads raw intake, which is untrusted input, so the launcher refuses cloud-session for it before any App check and never falls back to a local host. The lane is skipped with an error that names /work-items:attend-queue as the escalation route (nothing is filed), and start exits 1 while the other lanes still launch.",
+      "files": [],
+      "expectations": [
+        "Output states the triage lane is not launched to the cloud",
+        "Output states the triage lane is not launched locally as a fallback, because its input is untrusted",
+        "Output names /work-items:attend-queue as the escalation route and does not claim the launcher files an item",
+        "Output does not claim installing the Claude GitHub App would let the triage lane run in the cloud"
+      ]
     }
   ]
 }
