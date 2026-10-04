@@ -495,15 +495,18 @@ check_two="$(rec sb bs-4-1) $(rec sb bs-4-2)"
 if [[ "$check_two" == *"/sb/bs-4-1.json "*"/sb/bs-4-2.json" ]]; then ok "Bash state: two test files in one call leave two records"; else fail "Bash state: two test files in one call leave two records ($check_two)"; fi
 
 # A test file a checkout, pull or merge brought in is unchanged from HEAD in
-# its own repository, as git diff sees it: the session did not write it, so it
-# is neither scanned nor recorded. One the call changed, or one HEAD lacks, is.
+# its own repository, as git diff sees it, and git last moved HEAD with that
+# checkout, pull or merge: the session did not write it, so it is neither
+# scanned nor recorded. One the call changed, or one HEAD lacks, is.
+gc() { git -C "$1" -c commit.gpgsign=false -c user.name=t -c user.email=t@t "${@:2}"; }
 HR="$TMP/headrepo"
 mkdir -p "$HR/src"
 git -C "$HR" init -q
 cp "$REPO/src/sum.test.ts" "$HR/src/kept.test.ts"
 cp "$REPO/src/sum.test.ts" "$HR/src/also.test.ts"
 git -C "$HR" add -A
-git -C "$HR" -c commit.gpgsign=false -c user.name=t -c user.email=t@t commit -qm init
+gc "$HR" commit -qm init
+git -C "$HR" checkout -q -b work
 # The hunk covers the zero-assertion test body (line 5), so a scan would report it.
 BODY='[{"oldStart":5,"oldLines":1,"newStart":5,"newLines":1,"lines":["-  sum(1, 2);","+  sum(1, 2);"]}]'
 bash_run hd-1 "$(diff_of edit "$HR/src/kept.test.ts" "$BODY")"
@@ -523,6 +526,31 @@ if command -v cygpath >/dev/null; then BS="$(cygpath -w "$HR/src/also.test.ts")"
 out="$(bash_payload hd-4 "$(diff_of edit "$BS" "$ADD_ALL")" | bash "$BASH_HOOK" 2>&1)"
 assert_empty "Bash HEAD: a backslash path to a file identical to HEAD is not scanned" "$out"
 assert_empty "Bash HEAD: a backslash path to a file identical to HEAD leaves no record" "$(rec sb hd-4-1)"
+# A tracked test edited and committed in one call matches HEAD afterwards, but
+# a commit last moved HEAD, so it is still recorded for the judge.
+cp "$REPO/src/sum.test.ts" "$HR/src/mine.test.ts"
+git -C "$HR" add src/mine.test.ts
+gc "$HR" commit -qm mine
+printf '%s\n' "test('mine', () => {" "  sum(3, 3);" "});" >>"$HR/src/mine.test.ts"
+gc "$HR" commit -qm weaken src/mine.test.ts
+bash_run hd-6 "$(diff_of edit "$HR/src/mine.test.ts" "$ADD_ALL")"
+assert_contains "Bash HEAD: a test edited and committed in one call is recorded" "$(rec sb hd-6-1)" "/sb/hd-6-1.json"
+# Test files a merge brought in stay quiet, and do not take the cap's slots
+# from a new test file the same call wrote.
+git -C "$HR" checkout -q -b side
+for i in 1 2 3 4; do cp "$REPO/src/sum.test.ts" "$HR/src/p$i.test.ts"; done
+git -C "$HR" add src/p1.test.ts src/p2.test.ts src/p3.test.ts src/p4.test.ts
+gc "$HR" commit -qm side
+git -C "$HR" checkout -q work
+gc "$HR" merge -q --no-edit side
+bash_run hd-7 "$(diff_of edit "$HR/src/p1.test.ts" "$BODY")"
+assert_empty "Bash HEAD: a test file a merge brought in gives no output" "$out"
+assert_empty "Bash HEAD: a test file a merge brought in leaves no record" "$(rec sb hd-7-1)"
+cp "$REPO/src/sum.test.ts" "$HR/src/new.test.ts"
+five="$(jq -cn --arg d "$HR/src" --argjson h "$ADD_ALL" '[range(1; 5) | "\($d)/p\(.).test.ts"] + ["\($d)/new.test.ts"]
+  | {changedFiles: ., moreFiles: 0, files: map({filePath: ., hunks: $h})}')"
+bash_run hd-8 "$five"
+assert_jq "Bash HEAD: a new test file after four merged ones is still recorded" "$(rec sb hd-8-1)" '.file == "'"$HR"'/src/new.test.ts"'
 # A file committed with CRLF line endings under core.autocrlf=true is
 # unchanged to git, though hash-object's eol filter hashes it differently.
 CR="$TMP/crlfrepo"
@@ -531,7 +559,8 @@ git -C "$CR" init -q
 git -C "$CR" config core.autocrlf false
 printf '%s\r\n' "import { test, expect } from 'vitest';" "import { sum } from './sum';" "" "test('adds', () => {" "  sum(1, 2);" "});" >"$CR/src/crlf.test.ts"
 git -C "$CR" add -A
-git -C "$CR" -c commit.gpgsign=false -c user.name=t -c user.email=t@t commit -qm init
+gc "$CR" commit -qm init
+git -C "$CR" checkout -q -b work
 git -C "$CR" config core.autocrlf true
 out="$(bash_payload hd-5 "$(diff_of edit "$CR/src/crlf.test.ts" "$BODY")" | bash "$BASH_HOOK" 2>&1)"
 assert_empty "Bash HEAD: a CRLF test file unchanged under core.autocrlf=true is not scanned" "$out"
