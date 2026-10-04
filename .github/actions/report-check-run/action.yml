@@ -1,0 +1,79 @@
+name: Report check run
+description: >
+  Write one `<lane> / <activity>` check run (success, failure, or neutral
+  with a skip reason) for a pipeline activity, from a scripted job that holds
+  `checks: write`. Refuses any `ci-status` name part. Trusts only its own
+  inputs and the run job's runner-computed outputs; the verdict file is
+  validated, never trusted.
+
+inputs:
+  lane:
+    description: The lane name, from the report job's own workflow_call input.
+    required: true
+  activity:
+    description: The activity name, from the report job's own workflow_call input.
+    required: true
+  run-result:
+    description: "`needs.run.result`: `cancelled` posts neutral `superseded-sha`."
+    required: true
+  act-outcome:
+    description: The run job's act-outcome output (`steps.act.outcome`).
+    required: false
+    default: ""
+  gate-reason:
+    description: >
+      The run job's gate stop reason output, from its gate steps; empty when
+      every gate proceeded.
+    required: false
+    default: ""
+  head-sha:
+    description: >
+      The run job's head-sha output, from its gate steps; the check is posted
+      on it. Empty falls back to head-sha-fallback.
+    required: false
+    default: ""
+  can-commit:
+    description: >
+      The run job's can-commit output. Only `false` means no signed-commit
+      result is needed.
+    required: false
+    default: ""
+  all-verified:
+    description: The check-signed-commits all-verified output; empty when it did not run.
+    required: false
+    default: ""
+  verdict-path:
+    description: Path of the downloaded verdict.json. A missing file posts failure.
+    required: false
+    default: ""
+  base-path:
+    description: Base-SHA checkout holding the pr-pipeline schema.
+    required: false
+    default: .base
+  head-sha-fallback:
+    description: Head SHA used when head-sha is empty.
+    required: false
+    default: ${{ github.sha }}
+  github-token:
+    description: "The report job's GITHUB_TOKEN, with `checks: write`."
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Post the check run
+      shell: bash
+      env:
+        LANE: ${{ inputs.lane }}
+        ACTIVITY: ${{ inputs.activity }}
+        RUN_RESULT: ${{ inputs.run-result }}
+        ACT_OUTCOME: ${{ inputs.act-outcome }}
+        GATE_REASON: ${{ inputs.gate-reason }}
+        HEAD_SHA: ${{ inputs.head-sha }}
+        CAN_COMMIT: ${{ inputs.can-commit }}
+        ALL_VERIFIED: ${{ inputs.all-verified }}
+        VERDICT_PATH: ${{ inputs.verdict-path }}
+        BASE_PATH: ${{ inputs.base-path }}
+        HEAD_SHA_FALLBACK: ${{ inputs.head-sha-fallback }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+      run: node "$GITHUB_ACTION_PATH/report-check-run.mjs"
