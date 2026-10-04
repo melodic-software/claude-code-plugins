@@ -184,6 +184,9 @@ completeness gap, and `missing_from_enabled` excludes it either way. Never run `
 default recorded in the marketplace entry; a plugin whose `defaultEnabled: false` lives only in its
 own `plugin.json`, with no mirrored marketplace-entry override, is a known residual gap (`fleet-state.sh`
 reads the marketplace's catalog file, never each installed plugin's own manifest).
+`missing_from_enabled` also excludes every installed id the catalog's names no longer carry (the
+delisted installs in [sync.md](sync.md)): the report tells the user to uninstall those, so enabling
+one would contradict it.
 
 Consider each remaining id in each *verifiable* scope where it has an install record (from
 `installed[]`) but no raw entry in that scope's own `enabledPlugins` map: **`user` scope, or

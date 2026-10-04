@@ -64,9 +64,10 @@ direction, withheld downgrades, the install and enable gaps, what was installed 
 installs whose CLI output named userConfig options left unset
 (`installed_with_unset_user_config[]`, one `{id, options_unset, required}` each), the ids whose
 install output said the plugin is disabled by default (`installed_disabled[]`), the user-scope
-installs the catalog's names no longer carry (`delisted[]`), the effective `true` `enabledPlugins`
+installs the catalog's names no longer carry (`delisted[]`), the same for installs in the repo the
+run stands in (`delisted_project[]`, one `{id, scope}` each), the effective `true` `enabledPlugins`
 keys with no install record that those names no longer carry (`delisted_settings_only[]`; a
-catalog with an empty `plugins` array produces neither), the project-scope enable rows, the normalizer result, the cache-content counts and stale ids, the catalog regression
+catalog with an empty `plugins` array produces none of the three), the project-scope enable rows, the normalizer result, the cache-content counts and stale ids, the catalog regression
 interval, the three-snapshot divergence split, whether the sweep updated this plugin itself, the
 moved plugins whose installed build declares a monitor (`updated_with_monitors[]`, one
 `{id, scope, monitors}` each, read from the record's own cache directory in the post-sweep
@@ -485,8 +486,9 @@ just not internally disagreeing). Both are real staleness `divergences[]` cannot
 correct signal here is "is this entry present": just call `update`, letting the CLI report
 "already at the latest version" as a no-op when nothing changes.
 
-Filtered for proven downgrades and for **nothing else**: `update-candidates-project` withholds an
-id the catalog would move backward, and declines the catalog EQUALITY filter Step 3's selector
+Filtered for proven downgrades and delisted ids and for **nothing else**: `update-candidates-project`
+withholds an id the catalog would move backward and an id the catalog no longer names
+(`delisted_project`, the in-repo half of the delisted rule in Step 3), and declines the catalog EQUALITY filter Step 3's selector
 applies. The two filters are not the same kind of thing. Equality is an optimization, and it buys
 nothing here: the in-repo population is small (a handful of records, against Step 3's dozens), so
 the saving is negligible, while a project/local pin is far more likely than a user-scope install to
@@ -598,7 +600,10 @@ names. `delisted` is the user-scope installed ids minus those names. The names a
 own plugin names, never the `catalog_versions` keys: an entry whose `source` is an object is absent
 from that map on purpose and is still in the catalog. `update-candidates-user` subtracts
 `delisted`, and in `sync` the render lists the ids under `Action needed` with `claude plugin
-uninstall <id> -s user`. An effective `enabledPlugins` key at this marketplace that has no install
+uninstall <id> -s user`. An install in the repo the run stands in gets the same rule as
+`delisted_project`: `update-candidates-project` subtracts it, and the render gives one runnable
+`(cd "<project_root>" && claude plugin uninstall <id> -s <scope>)` row per record. No delisted
+install, at any scope, is in `missing_from_enabled`, so Step 5 never enables one. An effective `enabledPlugins` key at this marketplace that has no install
 record in any scope cannot take that remedy, because there is nothing to uninstall (the probe in
 [gotchas.md](gotchas.md#a-disabled-by-default-install-writes-false-and-only-an-install-record-can-be-uninstalled)). When its value
 is `true` and the names do not carry it, it goes to `delisted_settings_only`, and the render tells

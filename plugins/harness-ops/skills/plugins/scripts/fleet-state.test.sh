@@ -1459,6 +1459,47 @@ ARGS=(--marketplace market1 --ids update-candidates-user)
 out=$(run_ids "$case_dir")
 assert_eq "delisted: an empty plugins array does not withhold the install" "alpha@market1" "$out"
 
+# A delisted install with no enabledPlugins key takes the uninstall remedy, so it
+# is not an enable gap at any scope. An in-repo install the catalog no longer
+# names is delisted_project, withheld from update-candidates-project; a saved
+# report without that field keeps it a candidate.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+seed_catalog_versions_case "$case_dir" alpha=0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "./alpha"}]}'
+proj_root="$case_dir/proj"
+mkdir -p "$proj_root"
+native_proj="$(cygpath -w "$proj_root" 2>/dev/null || echo "$proj_root")"
+write "$case_dir/installed_plugins.json" "$(
+  jq -cn --arg p "$native_proj" '{
+    version: 1,
+    plugins: {
+      "alpha@market1": [{scope: "project", projectPath: $p, installPath: "a", version: "0.1.0"}],
+      "provenance@market1": [{scope: "user", installPath: "p", version: "0.4.0"}],
+      "stale@market1": [{scope: "project", projectPath: $p, installPath: "s", version: "0.2.0"}]
+    }
+  }'
+)"
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir" CLAUDE_PROJECT_DIR="$proj_root")
+assert_eq "delisted enable gap: only the cataloged install is missing_from_enabled" \
+  '["alpha@market1"]' "$(jq -c '.missing_from_enabled' <<<"$out" 2>/dev/null)"
+assert_eq "delisted_project: the in-repo install absent from catalog names, with its scope" \
+  '[{"id":"stale@market1","scope":"project"}]' "$(jq -c '.delisted_project' <<<"$out" 2>/dev/null)"
+assert_eq "delisted_project: the user-scope delisted install stays in delisted" \
+  '["provenance@market1"]' "$(jq -c '.delisted' <<<"$out" 2>/dev/null)"
+printf '%s' "$out" >"$case_dir/report.json"
+ARGS=(--ids missing-enabled --from "$case_dir/report.json")
+assert_eq "delisted enable gap: missing-enabled emits no delisted id" "alpha@market1" "$(run_ids "$case_dir")"
+ARGS=(--ids update-candidates-project --from "$case_dir/report.json")
+assert_eq "delisted_project: withheld from update-candidates-project" \
+  "alpha@market1	project" "$(run_ids "$case_dir")"
+jq 'del(.delisted_project)' "$case_dir/report.json" >"$case_dir/report-old.json"
+ARGS=(--ids update-candidates-project --from "$case_dir/report-old.json")
+assert_eq "delisted_project: a saved report without the field fails open" \
+  "alpha@market1	project
+stale@market1	project" "$(run_ids "$case_dir")"
+
 # ============================================================================
 # The downgrade guard. A catalog that reads LOWER than the installed version is
 # withheld from every sweep selector and surfaced by downgrade-candidates

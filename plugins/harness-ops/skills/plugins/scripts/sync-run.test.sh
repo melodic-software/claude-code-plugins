@@ -137,6 +137,10 @@ case "$verb" in
     printf '%400s\n' 'install progress'
     echo "This plugin is disabled by default"
   fi
+  if [[ -n "${CLAUDE_STUB_INSTALL_FAIL_ID:-}" && "${3:-}" == "$CLAUDE_STUB_INSTALL_FAIL_ID" ]]; then
+    echo "✘ Failed to install plugin \"${3:-}\""
+    exit 1
+  fi
   ;;
 "plugin enable")
   echo "Enabled ${3:-}"
@@ -1069,6 +1073,9 @@ needs_check() {
 }
 failed_row='{"id":"a@m","scope":"user","rc":1,"output":"$ x\nboom"}'
 needs_check "failed update" sync "{\"user_sweep\":{\"failed\":[$failed_row]}}" "update failed (exit 1): a@m"
+blank_row='{"id":"a@m","scope":"user","rc":1,"output":"$ x\n\r\nboom"}'
+needs_check "failed update with a blank first line" sync "{\"user_sweep\":{\"failed\":[$blank_row]}}" \
+  "update failed (exit 1): a@m -s user: boom"
 needs_check "withheld downgrade" sync \
   '{"user_sweep":{"withheld_downgrades":[{"id":"a@m","scope":"user","installed":"2","catalog":"1"}]}}' "downgrade withheld: 1"
 needs_check "deferred install gap" sync '{"install_enable_deferred":true,"install_gap":["b@m"]}' "install gap deferred"
@@ -1396,6 +1403,22 @@ assert_contains "disabled install: the row says it is installed but not enabled"
 assert_contains "disabled install: the enable command is in the report" "$REPORT_TEXT" \
   "beta@market1: installed but not enabled; claude plugin enable beta@market1 -s user"
 
+# A failed install that printed the notice installed nothing, so it is not installed_disabled.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+catalog_plugin "$case_dir" market1 beta 0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1
+  CLAUDE_STUB_INSTALL_DISABLED=1 CLAUDE_STUB_INSTALL_FAIL_ID=beta@market1)
+report_of "$case_dir" --marketplace market1 --install-new all --journal-root "$case_dir/journal"
+assert_eq "failed disabled install: not installed_disabled" '[]' \
+  "$(jq -c '.marketplaces[0].installed_disabled' <<<"$REPORT_DIGEST")"
+assert_contains "failed disabled install: reported as a failed install" "$REPORT_TEXT" \
+  "install failed (exit 1): beta@market1"
+assert_eq "failed disabled install: no enable remedy" "0" \
+  "$(grep -c 'installed but not enabled' <<<"$REPORT_TEXT" || true)"
+
 # ============================================================================
 # Case: a user-scope install absent from the catalog is delisted, in sync and audit
 # ============================================================================
@@ -1454,6 +1477,43 @@ assert_contains "delisted audit: the settings-only key is a prediction too" "$RE
   "enabled in settings, not installed, and absent from the unrefreshed catalog: ghost@market1 (audit prediction"
 assert_eq "delisted audit: no unqualified uninstall command" "0" \
   "$(grep -c 'claude plugin uninstall' <<<"$REPORT_TEXT" || true)"
+
+# ============================================================================
+# Case: an in-repo install absent from the catalog is not swept by Step 2
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.1.0
+proj=$(norm_path "$case_dir")
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {
+    \"alpha@market1\": [{\"scope\": \"user\", \"installPath\": \"$case_dir/cache/alpha\", \"version\": \"0.1.0\"}],
+    \"stale@market1\": [{\"scope\": \"project\", \"projectPath\": \"$proj\", \"installPath\": \"$case_dir/cache/stale\", \"version\": \"0.2.0\"}]
+  }
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"autoUpdate\": true, \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+setup_case "$case_dir"
+EXTRA_ENV=(CLAUDE_PROJECT_DIR="$case_dir" CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1)
+report_of "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal"
+assert_exit "delisted in-repo sync: exit 0" 0 "$REPORT_RC"
+assert_eq "delisted in-repo sync: the digest carries it with its scope" \
+  '[{"id":"stale@market1","scope":"project"}]' \
+  "$(jq -c '.marketplaces[0].delisted_project' <<<"$REPORT_DIGEST")"
+assert_eq "delisted in-repo sync: not swept" "0" \
+  "$(grep -c 'plugin update stale@market1' "$case_dir/claude.log" || true)"
+assert_eq "delisted in-repo sync: not enabled" "0" \
+  "$(grep -c 'plugin enable stale@market1' "$case_dir/claude.log" || true)"
+assert_contains "delisted in-repo sync: the report gives the uninstall command" "$REPORT_TEXT" \
+  "delisted in this repo, absent from the catalog: (cd \"<case>\" && claude plugin uninstall stale@market1 -s project)"
+: >"$case_dir/claude.log"
+report_of "$case_dir" --marketplace market1 --audit --install-new none
+assert_contains "delisted in-repo audit: the report names it as a prediction" "$REPORT_TEXT" \
+  "delisted in this repo, absent from the unrefreshed catalog: stale@market1 (project) (audit prediction"
+assert_eq "delisted in-repo audit: not a would-update" "0" \
+  "$(jq -r '[.marketplaces[0].in_repo.would_update[]?.id] | map(select(. == "stale@market1")) | length' <<<"$REPORT_DIGEST")"
 
 # ============================================================================
 if ((FAILED > 0)); then

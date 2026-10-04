@@ -23,10 +23,12 @@ def secs: if . == null then "n/a" else "\(.)s" end;
 # `$ <command>` echo the journal opens with.
 def first_line: (. // "") | split("\n") | map(select(startswith("$ ") | not)) | (.[0] // "");
 # Capture-time classification lives in .reason. This fallback is the same rule
-# for a row that has no reason yet: the first ✘ / Failed / Error line, else the
-# first non-`$` line. Not the last line, which can be a userConfig note.
+# as sync-run.sh's cli_outcome_line for a row that has no reason yet: CRs
+# dropped, `$` and empty lines skipped, then the first ✘ / Failed / Error line,
+# else the first line left. Not the last line, which can be a userConfig note.
 def outcome_line:
-  (. // "") | split("\n") | map(select(startswith("$ ") | not)) as $lines
+  (. // "") | gsub("\r"; "") | split("\n")
+  | map(select((startswith("$ ") | not) and . != "")) as $lines
   | ([$lines[] | select(startswith("✘") or contains("Failed") or contains("Error"))][0])
     // $lines[0] // "";
 def reported:
@@ -66,6 +68,7 @@ def block($d):
        (($would | length) > 0 or ($withheld | length) > 0
         or (.install_gap | length) > 0 or (.enable_gap | length) > 0
         or ((.delisted // []) | length) > 0
+        or ((.delisted_project // []) | length) > 0
         or ((.delisted_settings_only // []) | length) > 0)
      else
        (($failed | length) > 0 or ($withheld | length) > 0
@@ -75,6 +78,7 @@ def block($d):
         or ($install_left | length) > 0
         or ((.installed_disabled // []) | length) > 0
         or ((.delisted // []) | length) > 0
+        or ((.delisted_project // []) | length) > 0
         or ((.delisted_settings_only // []) | length) > 0)
      end) as $needs
   | .timings as $t
@@ -244,6 +248,13 @@ def block($d):
             "delisted, absent from the unrefreshed catalog: \(.delisted | join(", ")) (audit prediction; sync names any still absent after its refresh, with the remedy)"
           else
             "delisted, absent from the catalog: \(.delisted | join(", ")); uninstall each with `claude plugin uninstall <id> -s user`"
+          end),
+         (if ((.delisted_project // []) | length) == 0 then empty
+          elif $audit then
+            "delisted in this repo, absent from the unrefreshed catalog: \(.delisted_project | map(scoped) | join(", ")) (audit prediction; sync names any still absent after its refresh, with the remedy)"
+          else
+            (.project_root // "?") as $root
+            | (.delisted_project[] | "delisted in this repo, absent from the catalog: (cd \"\($root)\" && claude plugin uninstall \(.id) -s \(.scope))")
           end),
          (if ((.delisted_settings_only // []) | length) == 0 then empty
           elif $audit then

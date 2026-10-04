@@ -66,16 +66,18 @@
 #    project_enable_rows, normalize, cache_content, catalog_regression,
 #    divergences, divergences_here, in_repo_records, in_repo_ids,
 #    stale_project_records, user_scope_orphans, installed_disabled, delisted,
-#    delisted_settings_only, self_updated, updated_with_monitors, errors}
+#    delisted_project, delisted_settings_only, self_updated,
+#    updated_with_monitors, errors}
 #   `installed_with_unset_user_config[]` is `{id, options_unset, required}` for
 #   each install this run performed whose CLI output named userConfig options
-#   the user has not set. `installed_disabled[]` is the ids whose install output
-#   said the plugin is disabled by default, classified before the 400-character
-#   truncation. `delisted[]` is the user-scope installs the catalog's names no
-#   longer carry, and `delisted_settings_only[]` the effective `true`
-#   enabledPlugins keys at this marketplace with no install record that the
-#   names no longer carry; a catalog with an empty plugins array produces
-#   neither.
+#   the user has not set. `installed_disabled[]` is the ids whose install exited
+#   0 and whose output said the plugin is disabled by default, classified before
+#   the 400-character truncation. `delisted[]` is the user-scope installs the
+#   catalog's names no longer carry, `delisted_project[]` the `{id, scope}` of
+#   each install in the repo the run stands in that those names no longer carry,
+#   and `delisted_settings_only[]` the effective `true` enabledPlugins keys at
+#   this marketplace with no install record that the names no longer carry; a
+#   catalog with an empty plugins array produces none of the three.
 #   `updated_with_monitors[]` is `{id, scope, monitors}` for each plugin this
 #   run moved whose installed manifest declares a monitor.
 #   `in_repo_records` counts the project/local records belonging to the repo the
@@ -1326,7 +1328,7 @@ report_extras() {
   done
   if [[ -z "$src" ]]; then
     jq_to "$__var" -c -n '{auto_update: null, catalog_source: null, user_scope_orphans: [],
-      delisted: [], delisted_settings_only: [],
+      delisted: [], delisted_project: [], delisted_settings_only: [],
       stale_project_records: {total: null, by_path: []},
       in_repo_records: null, in_repo_ids: [], divergences_here: null}'
     return 0
@@ -1346,6 +1348,7 @@ report_extras() {
        catalog_source: (.marketplace.source // null),
        user_scope_orphans: (.user_scope_orphans // []),
        delisted: (.delisted // []),
+       delisted_project: (.delisted_project // []),
        delisted_settings_only: (.delisted_settings_only // []),
        stale_project_records: {total: ($absent | length),
                                by_path: ($absent | group_by(.projectPath)
@@ -1531,7 +1534,7 @@ emit_marketplace_block() {
   # The two Action-needed sources.
   jq_to unset_cfg -c '[.[] | select(.unset_user_config != null)
     | {id, options_unset: .unset_user_config.options_unset, required: .unset_user_config.required}]' <<<"$inst"
-  jq_to installed_disabled -c '[.[] | select(.disabled_by_default == true) | .id]' <<<"$inst"
+  jq_to installed_disabled -c '[.[] | select(.rc == 0 and .disabled_by_default == true) | .id]' <<<"$inst"
   # A field that could not be computed becomes an empty object, never an empty
   # string: an empty --argjson would take the whole digest down with it.
   [[ -n "$div" ]] || div='{}'

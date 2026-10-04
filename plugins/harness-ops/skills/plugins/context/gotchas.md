@@ -424,7 +424,8 @@ one plugin with `defaultEnabled: false` in its entry and one without the field.
   `false`. So a settings key with no install behind it cannot take the uninstall remedy; only
   editing the settings file removes it.
 
-No docs page states what either command writes to `enabledPlugins` as of 2026-10-04;
+The probe's evidence is held in
+[PR #6096](https://github.com/melodic-software/claude-code-plugins/pull/6096). No docs page states what either command writes to `enabledPlugins` as of 2026-10-04;
 [`plugin uninstall`](https://code.claude.com/docs/en/plugins/cli-reference#plugin-uninstall) and
 [`enabledPlugins`](https://code.claude.com/docs/en/settings-reference#enabledplugins) cover the
 commands and the key. ***Recheck trigger:*** a release note touching what `plugin install`,
