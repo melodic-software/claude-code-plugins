@@ -3,6 +3,12 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.6] - 2026-10-04
+
+### Fixed
+
+- `git-branch-audit.sh` quotes the `pre-wipe` family key in the remote families summary, so a shfmt pass no longer respaces it into `pre - wipe` and reports a `pre-wipe` count of 0 ([#5791](https://github.com/melodic-software/claude-code-plugins/issues/5791)).
+
 ## [0.19.5] - 2026-10-03
 
 ### Changed

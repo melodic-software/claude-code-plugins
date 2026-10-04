@@ -79,23 +79,23 @@ declare -A slugs=()
 write_layer "$A" '{ "paths": { "rule-a": ["keep/**"], "rule-b": ["old/**"] } }'
 write_layer "$B" '{ "paths": { "rule-b": ["new/**"] } }'
 cascade::slug_map slugs paths "$A" "$B"
-assert_eq "slug map: an unmentioned slug keeps its globs" "${slugs[rule-a]}" "keep/**"
-assert_eq "slug map: a later slug replaces only itself" "${slugs[rule-b]}" "new/**"
+assert_eq "slug map: an unmentioned slug keeps its globs" "${slugs["rule-a"]}" "keep/**"
+assert_eq "slug map: a later slug replaces only itself" "${slugs["rule-b"]}" "new/**"
 
 write_layer "$B" '{ "paths": { "rule-a": [] } }'
 cascade::slug_map slugs paths "$A" "$B"
 if [[ -v slugs[rule-a] ]]; then
-  fail "slug map: an explicit empty array clears the slug" "unset" "set (${slugs[rule-a]})"
+  fail "slug map: an explicit empty array clears the slug" "unset" "set (${slugs["rule-a"]})"
 else
   pass "slug map: an explicit empty array clears the slug"
 fi
-assert_eq "slug map: clearing one slug leaves the other" "${slugs[rule-b]}" "old/**"
+assert_eq "slug map: clearing one slug leaves the other" "${slugs["rule-b"]}" "old/**"
 
 write_layer "$A" '{ "paths": { "rule-a": ["safe/**"] } }'
 write_layer "$B" '{ "paths": { "rule-a": ["bad/**"], "rule-c": ["also/**"] } } trailing'
 declare -A slugs=()
 cascade::slug_map slugs paths "$A" "$B"
-assert_eq "slug map: a truncated layer applies no entry" "${slugs[rule-a]}" "safe/**"
+assert_eq "slug map: a truncated layer applies no entry" "${slugs["rule-a"]}" "safe/**"
 if [[ -v slugs[rule-c] ]]; then
   fail "slug map: a truncated layer does not add a later entry" "unset" "set"
 else
@@ -112,7 +112,7 @@ if [[ -e "$MARK" ]]; then
 else
   pass "slug map: a slug is data, never evaluated"
 fi
-assert_eq "slug map: a hostile slug leaves other slugs alone" "${slugs[rule-a]}" "keep/**"
+assert_eq "slug map: a hostile slug leaves other slugs alone" "${slugs["rule-a"]}" "keep/**"
 
 # --- encoding, once, across every shape ------------------------------------
 # A jq that terminates lines with CR (the Windows build) must yield the same
@@ -136,7 +136,7 @@ cascade::list items items "$A" "$B"
 lf_list="${items[*]}"
 declare -A lf_slugs=()
 cascade::slug_map lf_slugs paths "$A" "$B"
-lf_slug="${lf_slugs[rule-a]}"
+lf_slug="${lf_slugs["rule-a"]}"
 
 hash -r
 PATH="$SHIM:$PATH"
@@ -146,7 +146,7 @@ cascade::list items items "$A" "$B"
 cr_list="${items[*]}"
 declare -A cr_slugs=()
 cascade::slug_map cr_slugs paths "$A" "$B"
-cr_slug="${cr_slugs[rule-a]}"
+cr_slug="${cr_slugs["rule-a"]}"
 hash -r
 
 assert_eq "crlf jq: scalar matches the LF read" "$cr_scalar" "$lf_scalar"

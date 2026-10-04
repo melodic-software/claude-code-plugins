@@ -609,7 +609,7 @@ remote_families_report() {
   printf 'RemoteSummary: branches=%s candidate=%s keep=%s keep-unique=%s keep-undetermined=%s no-rule=%s\n' \
     "$n_total" "$n_cand" "$n_keep" "$n_unique" "$n_unknown" "$n_na"
   printf 'Families: agent=%s claude=%s plan=%s stranded=%s pre-wipe=%s none=%s\n' \
-    "${n_fam[agent]:-0}" "${n_fam[claude]:-0}" "${n_fam[plan]:-0}" "${n_fam[stranded]:-0}" "${n_fam[pre-wipe]:-0}" "${n_fam[none]:-0}"
+    "${n_fam[agent]:-0}" "${n_fam[claude]:-0}" "${n_fam[plan]:-0}" "${n_fam[stranded]:-0}" "${n_fam["pre-wipe"]:-0}" "${n_fam[none]:-0}"
 }
 [[ $REMOTE_FAMILIES -eq 1 ]] && {
   remote_families_report
