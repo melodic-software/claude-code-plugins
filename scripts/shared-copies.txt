@@ -53,6 +53,8 @@ lib/yaml-subset.awk plugins/multi-agent/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/work-items/skills/triage/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/harness-ops/skills/lanes/scripts/lib/yaml-subset.awk
 lib/yaml-subset.awk plugins/education/skills/explain/scripts/yaml-subset.awk
+lib/parse-concern-value.sh plugins/review/lib/parse-concern-value.sh
+lib/yaml-subset.awk plugins/review/lib/yaml-subset.awk
 lib/config-root.sh plugins/source-control/lib/config-root.sh
 lib/config-root.sh plugins/ai-slop/lib/config-root.sh
 lib/config-root.sh plugins/attribution/lib/config-root.sh

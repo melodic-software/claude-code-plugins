@@ -116,6 +116,102 @@
         "Output keeps each error text to one line with no tab, or leaves it empty so the stub records none proposed",
         "Output does NOT pass an earliest stage in the TSV; the stage follows from the rung"
       ]
+    },
+    {
+      "id": 10,
+      "name": "ratchet-offer-userconfig-only",
+      "prompt": "/review:audit-enforceability evals/fixtures/findings-one-per-rung.md [The repository has no docs/conventions/review.yaml. The ratchet_offer userConfig option is set to false.]",
+      "expected_output": "Only the user layer sets the key, so ratchet_offer resolves false from userConfig. The report's first line says so, the writer is called with --ratchet-offer off, and no stub carries a Ratchet offer section, the five counting rungs included. The seven stubs are still written.",
+      "files": [
+        "evals/fixtures/findings-one-per-rung.md",
+        "evals/fixtures/classification-one-per-rung.tsv"
+      ],
+      "expectations": [
+        "Output reports ratchet_offer as false with userConfig as the supplying layer",
+        "Output passes --ratchet-offer off to the stub writer",
+        "Output does NOT offer /review:ratchet for any stub",
+        "Output still writes seven stubs"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "ratchet-offer-repository-file-only",
+      "prompt": "/review:audit-enforceability evals/fixtures/findings-one-per-rung.md [The repository's docs/conventions/review.yaml is captured in evals/fixtures/review-ratchet-offer-off.yaml relative to the skill directory. The ratchet_offer userConfig option is unset: the skill text shows the literal placeholder.]",
+      "expected_output": "The user layer is unset (an unexpanded placeholder), and the repository file says false, so ratchet_offer resolves false from docs/conventions/review.yaml. The report's first line names that file as the layer, the writer is called with --ratchet-offer off, and no stub carries a Ratchet offer section.",
+      "files": [
+        "evals/fixtures/findings-one-per-rung.md",
+        "evals/fixtures/classification-one-per-rung.tsv",
+        "evals/fixtures/review-ratchet-offer-off.yaml"
+      ],
+      "expectations": [
+        "Output reports ratchet_offer as false with docs/conventions/review.yaml as the supplying layer",
+        "Output treats the unexpanded userConfig placeholder as unset, not as an invalid value",
+        "Output passes --ratchet-offer off to the stub writer"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "ratchet-offer-repository-file-wins",
+      "prompt": "/review:audit-enforceability evals/fixtures/findings-one-per-rung.md [The repository's docs/conventions/review.yaml is captured in evals/fixtures/review-ratchet-offer-on.yaml relative to the skill directory. The ratchet_offer userConfig option is set to false.]",
+      "expected_output": "Both layers set the key and the repository layer wins: ratchet_offer resolves true from docs/conventions/review.yaml even though userConfig says false. The writer is called with --ratchet-offer on, so the editorconfig-severity, analyzer-pack-rule, custom-analyzer, semgrep-rule and architecture-test stubs carry a Ratchet offer section and the hook and llm-only stubs do not.",
+      "files": [
+        "evals/fixtures/findings-one-per-rung.md",
+        "evals/fixtures/classification-one-per-rung.tsv",
+        "evals/fixtures/review-ratchet-offer-on.yaml"
+      ],
+      "expectations": [
+        "Output reports ratchet_offer as true with docs/conventions/review.yaml as the supplying layer, not userConfig",
+        "Output passes --ratchet-offer on to the stub writer",
+        "Output offers /review:ratchet for the five counting rungs and not for the hook or llm-only rows"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "ratchet-offer-neither-layer-defaults-on",
+      "prompt": "/review:audit-enforceability evals/fixtures/findings-one-per-rung.md [The repository has no docs/conventions/review.yaml. The ratchet_offer userConfig option is unset: the skill text shows the literal placeholder.]",
+      "expected_output": "Neither layer sets the key, so ratchet_offer resolves true from the default. The report's first line names the default as the layer, the writer is called with --ratchet-offer on, and the five counting-rung stubs carry a Ratchet offer section: once the rule exists, a count above zero goes to /review:ratchet and a zero count lands the rule.",
+      "files": [
+        "evals/fixtures/findings-one-per-rung.md",
+        "evals/fixtures/classification-one-per-rung.tsv"
+      ],
+      "expectations": [
+        "Output reports ratchet_offer as true with the default as the supplying layer",
+        "Output passes --ratchet-offer on to the stub writer",
+        "Output says a non-zero count goes to /review:ratchet and a zero count lands the rule"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "ratchet-offer-invalid-repository-value-falls-back-to-default",
+      "prompt": "/review:audit-enforceability evals/fixtures/findings-one-per-rung.md [The repository's docs/conventions/review.yaml is captured in evals/fixtures/review-ratchet-offer-invalid.yaml relative to the skill directory. The ratchet_offer userConfig option is set to false.]",
+      "expected_output": "The repository layer holds sometimes, which is neither true nor false. The run names docs/conventions/review.yaml, the key ratchet_offer and the value sometimes, drops that layer, and continues on the default true rather than the lower userConfig value false. The writer is called with --ratchet-offer on and the seven stubs are written.",
+      "files": [
+        "evals/fixtures/findings-one-per-rung.md",
+        "evals/fixtures/classification-one-per-rung.tsv",
+        "evals/fixtures/review-ratchet-offer-invalid.yaml"
+      ],
+      "expectations": [
+        "Output names docs/conventions/review.yaml, ratchet_offer and the invalid value sometimes",
+        "Output resolves true from the default, not false from userConfig",
+        "Output continues and writes seven stubs instead of stopping"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "ratchet-offer-empty-list-repository-value-is-invalid-not-unset",
+      "prompt": "/review:audit-enforceability evals/fixtures/findings-one-per-rung.md [The repository's docs/conventions/review.yaml is captured in evals/fixtures/review-ratchet-offer-empty-list.yaml relative to the skill directory. The ratchet_offer userConfig option is set to false.]",
+      "expected_output": "The repository file sets ratchet_offer to [], an empty list where a boolean belongs. That is a present but invalid value, not an unset key: the run names docs/conventions/review.yaml, the key ratchet_offer and the value [], drops the repository layer, and resolves true from the default rather than false from the lower userConfig layer. The writer is called with --ratchet-offer on and the seven stubs are written.",
+      "files": [
+        "evals/fixtures/findings-one-per-rung.md",
+        "evals/fixtures/classification-one-per-rung.tsv",
+        "evals/fixtures/review-ratchet-offer-empty-list.yaml"
+      ],
+      "expectations": [
+        "Output names docs/conventions/review.yaml, ratchet_offer and the invalid value []",
+        "Output treats the [] value as invalid rather than as an unset key",
+        "Output resolves true from the default, not false from userConfig",
+        "Output passes --ratchet-offer on to the stub writer and writes seven stubs"
+      ]
     }
   ]
 }

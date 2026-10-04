@@ -33,6 +33,10 @@ owner: <invocation, plugin name, or URL>
 
 <the gated invocation or the pointer, with the fallback when the plugin is absent>
 
+## Ratchet offer
+
+<present only on a counting rung while the offer is on: a non-zero violation count goes to /review:ratchet; a zero count lands the rule>
+
 ## Not done here
 
 This stub proposes. Nothing was implemented.
@@ -83,6 +87,17 @@ finding would have been caught.
 
 A rung outside the table is refused: the run stops with exit 2, names the TSV line and the value,
 and writes nothing. An empty rung field takes the `llm-only` default.
+
+## When a stub carries the ratchet offer
+
+The writer's `--ratchet-offer` flag takes `on` or `off`; absent means `on`, and any other value
+exits 2 before anything is written. Under `on`, the section appears on the five counting rungs,
+whose check reports how many places violate it: `editorconfig-severity`, `analyzer-pack-rule`,
+`custom-analyzer`, `semgrep-rule` and `architecture-test`. `make-impossible` removes the state
+rather than counting it, and `hook` and `llm-only` produce no count, so those stubs never carry it.
+Under `off`, no stub carries it. The section is one fixed paragraph: once the rule exists, a count
+above zero goes to `/review:ratchet` as a CI ceiling, and a count of zero lands the rule with no
+ceiling.
 
 ## Filename
 

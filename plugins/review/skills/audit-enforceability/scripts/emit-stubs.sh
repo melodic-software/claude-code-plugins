@@ -3,7 +3,7 @@
 # file, into a stub home the caller resolved.
 #
 #   emit-stubs.sh --findings <file> --classes <tsv> --out <dir> --scan-dir <dir>
-#                 [--memory-root <dir>] [--dry-run]
+#                 [--memory-root <dir>] [--ratchet-offer on|off] [--dry-run]
 #
 # --findings   A conforming findings file: frontmatter declaring
 #              `type: review-findings`, and a parseable `## Findings` table.
@@ -24,6 +24,11 @@
 #              branch slug, which is the only case in which a segment of --out
 #              is derived from the input file. A home handed over whole by the
 #              consumer has no such segment and needs no anchor.
+# --ratchet-offer  on (the default when the flag is absent) or off. Under on,
+#              a stub whose rung reports a violation count (the five counting
+#              rungs: editorconfig-severity, analyzer-pack-rule,
+#              custom-analyzer, semgrep-rule, architecture-test) carries a
+#              `## Ratchet offer` section. Any other value exits 2.
 # --dry-run    Print the planned filenames and write nothing.
 #
 # THE PARSE RULE. Anchor on the `## Findings` heading, take the row table under
@@ -94,7 +99,7 @@
 set -uo pipefail
 
 usage() {
-  printf 'usage: %s --findings <file> --classes <tsv|-> --out <dir> --scan-dir <dir> [--memory-root <dir>] [--dry-run]\n' \
+  printf 'usage: %s --findings <file> --classes <tsv|-> --out <dir> --scan-dir <dir> [--memory-root <dir>] [--ratchet-offer on|off] [--dry-run]\n' \
     "${0##*/}" >&2
 }
 
@@ -105,6 +110,7 @@ scan_dir=""
 memory_root=""
 memory_root_given=0
 dry_run=0
+ratchet_offer=on
 norm_self_check=0
 
 while [[ $# -gt 0 ]]; do
@@ -148,6 +154,20 @@ while [[ $# -gt 0 ]]; do
     }
     memory_root="$2"
     memory_root_given=1
+    shift 2
+    ;;
+  --ratchet-offer)
+    [[ $# -ge 2 ]] || {
+      usage
+      exit 2
+    }
+    case "$2" in
+    on | off) ratchet_offer="$2" ;;
+    *)
+      printf 'refusing: --ratchet-offer takes on or off, not "%s".\n' "$2" >&2
+      exit 2
+      ;;
+    esac
     shift 2
     ;;
   --dry-run)
@@ -1234,6 +1254,16 @@ while IFS= read -r record; do
     printf '%s\n' "$f_error"
     printf '\n## Next step\n\n'
     printf '%s\n' "$f_owner"
+    if [[ "$ratchet_offer" == on ]]; then
+      case "$f_rung" in
+      editorconfig-severity | analyzer-pack-rule | custom-analyzer | semgrep-rule | architecture-test)
+        printf '\n## Ratchet offer\n\n'
+        # shellcheck disable=SC2016
+        printf 'Once the rule exists, count its violations. A count above zero goes to `/review:ratchet`, which holds it as a ceiling in CI so it can only fall; a count of zero lands the rule with no ceiling.\n'
+        ;;
+      *) ;;
+      esac
+    fi
     printf '\n## Not done here\n\n'
     printf 'This stub proposes. Nothing was implemented.\n'
   } >"$target"

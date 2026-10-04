@@ -3,7 +3,7 @@ description: "Audit which review findings a deterministic check could catch inst
 argument-hint: "<findings-file>"
 user-invocable: true
 disable-model-invocation: false
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/emit-stubs.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/emit-stubs.sh\":*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/emit-stubs.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/emit-stubs.sh\":*)", "Bash(node \"${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs\" --check:*)", "Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs --check:*)", "Bash(git:*)", "Bash(grep:*)", "Bash(head:*)"]
 shell: bash
 metadata:
   workflow-stage: review
@@ -101,6 +101,39 @@ itself when the memory root is the repository root.
 
 ## 5. Write the stubs
 
+**Resolve `ratchet_offer` first.** It decides whether a stub on a counting rung carries the
+`## Ratchet offer` section ([`context/stub-shape.md`](context/stub-shape.md)). Lowest layer first;
+the later layer wins:
+
+1. The default, `true`.
+2. The user's option, `${user_config.ratchet_offer}`. A literal, unexpanded placeholder means
+   unset; `true` reads as the default.
+3. The `ratchet_offer` key of the repository's `docs/conventions/review.yaml` (schema:
+   [`${CLAUDE_PLUGIN_ROOT}/schemas/review.schema.json`](../../schemas/review.schema.json)). Read
+   it only when the repository root (`CLAUDE_PROJECT_DIR`, else `git rev-parse --show-toplevel`)
+   is inside a git working tree and is neither `$HOME` nor an ancestor of it; otherwise skip this
+   layer and say so. Read it with
+   `node "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup-apply.mjs" --check --root "<root>"`,
+   which validates the whole file against the schema and writes nothing; `--check` comes first, so
+   the granted command cannot write. It tells an absent key from a present but invalid one:
+   - exit 0 with `INFO ... absent`, or `PASS ratchet_offer: (unset)`: this layer is unset.
+   - exit 0 with `PASS ratchet_offer: true` or `false`: this layer sets that value.
+   - exit 1: the file is invalid. Each `WARN` line, or the one refusal line, names the file, the
+     key and the value (an empty value, `null`, a quoted `"false"`, a list such as `[]`, a key set
+     twice, an unknown key, a parse error). The layer is present and invalid: drop it and resolve
+     `true` from the default, never from userConfig.
+   - exit 2, or node is not installed: the layer cannot be read; skip it and say so.
+
+A value other than `true` or `false` in either layer, or an invalid repository file, is named with
+its file or option, the key and the value, and that layer is dropped: a valid higher layer still
+wins, otherwise the default `true`, never a lower layer's value. The run continues. Report one line
+before writing, naming the value and its layer, for example
+`ratchet_offer: false (docs/conventions/review.yaml)`, `ratchet_offer: false (userConfig)` or
+`ratchet_offer: true (default)`. Pass `--ratchet-offer on` for `true` and `--ratchet-offer off`
+for `false`. The resolution is done when that line is printed with one value and one layer. The
+settings page is
+[`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](../../reference/config.md).
+
 Compose the classification TSV and pass it on stdin inside the same granted command, one line per
 rank, six fields separated by ONE literal tab each: `rank`, `class`, `basis`, `rung`, `owner`,
 `error text`. The error text is the one line the rung's check would print when it fires, and it
@@ -115,7 +148,8 @@ tab character, not that text:
   --classes - \
   --out <resolved-stub-home> \
   --scan-dir <resolved-reviews-home> \
-  --memory-root <the memory root the home was composed from> <<'TSV'
+  --memory-root <the memory root the home was composed from> \
+  --ratchet-offer <on|off> <<'TSV'
 1<TAB>style<TAB>judgment<TAB>editorconfig-severity<TAB>in-repo .editorconfig<TAB>IDE0011: add braces to this if statement (set by .editorconfig)
 2<TAB>defined-diagnostic<TAB>rule-id<TAB>analyzer-pack-rule<TAB>keep the detector<TAB>
 TSV
@@ -139,10 +173,12 @@ directory.
 
 ## 6. Report
 
-A table with one row per finding: rank, class, class basis, rung, earliest stage, owner, stub
-path. Then the
+The `ratchet_offer` line from step 5 first. Then a table with one row per finding: rank, class,
+class basis, rung, earliest stage, owner, stub path. Then the
 writer's own line, `N findings → N stubs in <home>`. Then, grouped per rung, the next step, each
-with its gate and its fallback:
+with its gate and its fallback. With the offer on, a counting rung's next step ends with the
+offer: once the rule exists, a count above zero goes to `/review:ratchet`, and a zero count lands
+the rule.
 
 - **`make-impossible`**: name the type, data structure or API whose shape lets the invalid state
   exist, and the change that would remove it. Hand that proposal to `/architecture:improve` when

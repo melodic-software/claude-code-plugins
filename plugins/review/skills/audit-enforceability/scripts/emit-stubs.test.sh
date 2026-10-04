@@ -1010,6 +1010,66 @@ env BASH_COMPAT=51 bash "$EMIT" --findings "$FINDINGS" --classes - --out "$TEST_
 assert_eq "case 39: a rung holding a newline exits 2" "2" "$?"
 assert_eq "case 39: a rung holding a newline writes nothing" "0" "$(path_exists "$TEST_TMPDIR/out39e")"
 
+# --- Case 40: the ratchet offer on the five counting rungs -------------------
+#
+# The counting rungs are the ones whose check reports a violation count:
+# editorconfig-severity, analyzer-pack-rule, custom-analyzer, semgrep-rule and
+# architecture-test (ranks 1-5 of the fixture). make-impossible, hook and
+# llm-only have no count to hold a ceiling on. Case 1 passed no flag, so its
+# stubs show the default.
+RATCHET_HEADING=$'\n## Ratchet offer\n'
+for rank in 01 02 03 04 05; do
+  assert_contains "case 40: flag absent, counting rank $rank carries the offer" \
+    "$(cat "$OUT1"/"$rank"-*.md)" "$RATCHET_HEADING"
+done
+for rank in 06 07; do
+  assert_not_contains "case 40: flag absent, rank $rank (hook or llm-only) has no offer" \
+    "$(cat "$OUT1"/"$rank"-*.md)" "$RATCHET_HEADING"
+done
+assert_contains "case 40: the offer hands a non-zero count to /review:ratchet" \
+  "$(cat "$OUT1"/04-*.md)" "/review:ratchet"
+# The clause is the one context/stub-shape.md fixes for the section: a count
+# of zero lands the rule with no ceiling.
+assert_contains "case 40: the offer says a zero count lands the rule" \
+  "$(cat "$OUT1"/04-*.md)" "a count of zero lands the rule with no ceiling."
+
+OUT40ON="$TEST_TMPDIR/out40on"
+bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$OUT40ON" --scan-dir "$SCAN_DIR" \
+  --ratchet-offer on >/dev/null 2>&1
+assert_eq "case 40: --ratchet-offer on exits 0" "0" "$?"
+on_count=0
+for f in "$OUT40ON"/*.md; do
+  grep -qx '## Ratchet offer' "$f" && on_count=$((on_count + 1))
+done
+assert_eq "case 40: --ratchet-offer on puts the offer on exactly the five counting rungs" "5" "$on_count"
+
+OUT40MI="$TEST_TMPDIR/out40mi"
+printf '1\tinvalid-state\tjudgment\tmake-impossible\t/architecture:improve\n' |
+  bash "$EMIT" --findings "$FINDINGS" --classes - --out "$OUT40MI" --scan-dir "$SCAN_DIR" \
+    --ratchet-offer on >/dev/null 2>&1
+assert_eq "case 40: a make-impossible row under on exits 0" "0" "$?"
+assert_not_contains "case 40: make-impossible has no offer under on" \
+  "$(cat "$OUT40MI"/01-*.md)" "$RATCHET_HEADING"
+
+OUT40OFF="$TEST_TMPDIR/out40off"
+bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$OUT40OFF" --scan-dir "$SCAN_DIR" \
+  --ratchet-offer off >/dev/null 2>&1
+assert_eq "case 40: --ratchet-offer off exits 0" "0" "$?"
+assert_eq "case 40: --ratchet-offer off still writes every stub" "7" "$(count_files "$OUT40OFF")"
+off_hits="$(grep -lx '## Ratchet offer' "$OUT40OFF"/*.md 2>/dev/null)"
+assert_eq "case 40: --ratchet-offer off renders no offer" "" "$off_hits"
+
+for bad in yes true ON ''; do
+  bad_err="$(bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$TEST_TMPDIR/out40bad" \
+    --scan-dir "$SCAN_DIR" --ratchet-offer "$bad" 2>&1 >/dev/null)"
+  assert_eq "case 40: --ratchet-offer '$bad' exits 2" "2" "$?"
+  assert_eq "case 40: --ratchet-offer '$bad' writes nothing" "0" "$(path_exists "$TEST_TMPDIR/out40bad")"
+  assert_contains "case 40: the refusal for '$bad' names the flag" "$bad_err" "--ratchet-offer"
+done
+bash "$EMIT" --findings "$FINDINGS" --classes "$CLASSES" --out "$TEST_TMPDIR/out40bad" \
+  --scan-dir "$SCAN_DIR" --ratchet-offer >/dev/null 2>&1
+assert_eq "case 40: --ratchet-offer with no value exits 2" "2" "$?"
+
 # --- Dry run ------------------------------------------------------------------
 
 OUTDRY="$TEST_TMPDIR/outdry"

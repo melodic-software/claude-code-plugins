@@ -40,6 +40,33 @@
         "Never rewrites or downgrades the index",
         "Leaves the repository unchanged"
       ]
+    },
+    {
+      "id": 4,
+      "name": "apply-writes-ratchet-offer-after-diff-confirmation",
+      "narration": true,
+      "prompt": "/review:setup apply ratchet_offer=false\n\nThis repo already has a conforming docs/standards/README.md at the binding's version. Its docs/conventions/review.yaml exists and holds ratchet_offer: true. The operator has not yet seen any diff.",
+      "expected_output": "The standards index short-circuits as healthy. For the settings file, the skill runs setup-apply.mjs with ratchet_offer=false, which exits 3 because the existing file would change, and shows the operator the unified diff (ratchet_offer: true becoming false) without writing. It asks whether to write it and re-runs with --yes only on an explicit yes. After a write it re-runs the check row and reports the value read back, then whether the file is tracked.",
+      "files": [],
+      "expectations": [
+        "Shows the diff from ratchet_offer: true to ratchet_offer: false before writing anything",
+        "Asks for an explicit yes and passes --yes only after it",
+        "Reports the value the check row reads back after the write, and whether docs/conventions/review.yaml is tracked",
+        "Writes no file other than docs/conventions/review.yaml"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "check-warns-on-quoted-boolean",
+      "narration": true,
+      "prompt": "/review:setup\n\nThis repo has a conforming docs/standards/README.md at the binding's version. Its docs/conventions/review.yaml holds ratchet_offer: \"false\" (a quoted string).",
+      "expected_output": "check is read-only. The repository-settings row is a WARN naming docs/conventions/review.yaml, the key ratchet_offer and the quoted value, because the schema takes a bare true or false. It says a review skill drops that layer rather than stopping, and points at apply as the fix. Nothing is written.",
+      "files": [],
+      "expectations": [
+        "Reports a WARN for docs/conventions/review.yaml naming ratchet_offer and the quoted value",
+        "States that a review skill drops the invalid layer and keeps running",
+        "Writes nothing"
+      ]
     }
   ]
 }

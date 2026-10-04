@@ -79,14 +79,16 @@
       "kind": "cli",
       "need": "optional",
       "for": [
-        "plugin"
+        "plugin",
+        "skill:setup",
+        "skill:audit-enforceability"
       ],
       "detect": {
         "any": [
           "node"
         ]
       },
-      "degrade": "Without node, the prerequisites checker cannot run, so a missing tool above goes unreported; the plugin's own skills are unaffected.",
+      "degrade": "Without node, the prerequisites checker cannot run, so a missing tool above goes unreported, and /review:setup cannot check or write docs/conventions/review.yaml, and /review:audit-enforceability skips that file's layer and says so; the reviews themselves are unaffected.",
       "install": {
         "docs": "https://nodejs.org/en/download",
         "brew": "node",

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/review/schemas/review.schema.json",
+  "title": "Review team config",
+  "description": "Schema for a repository's docs/conventions/review.yaml: the team layer of the review plugin's settings. Each key here wins over the plugin's userConfig option of the same name. Resolution and layer order: plugins/review/reference/config.md. Contract: docs/adr/0054-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "ratchet_offer": {
+      "description": "When true, /review:audit-enforceability adds a Ratchet offer section to each proposal stub whose rung reports a violation count: once the rule exists, a non-zero count goes to /review:ratchet and a zero count lands the rule. False leaves the section out.",
+      "type": "boolean",
+      "default": true
+    }
+  }
+}

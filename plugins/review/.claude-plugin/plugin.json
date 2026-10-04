@@ -16,5 +16,13 @@
     "ci",
     "agents",
     "skill"
-  ]
+  ],
+  "userConfig": {
+    "ratchet_offer": {
+      "type": "boolean",
+      "title": "Ratchet offers",
+      "description": "When on (default), /review:audit-enforceability stubs on a rung that counts violations offer /review:ratchet for a non-zero count once the rule exists. Off leaves the offer out. A repository's docs/conventions/review.yaml ratchet_offer wins over this option.",
+      "default": true
+    }
+  }
 }
