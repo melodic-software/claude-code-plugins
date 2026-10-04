@@ -917,12 +917,20 @@ PYD=$'--- a/t.py\n+++ b/t.py\n@@ -1,2 +1,3 @@\n def test_x():\n+    # the value 
 CSD=$'--- a/T.cs\n+++ b/T.cs\n@@ -1,1 +1,3 @@\n+    /* the value\n+     * is 3 */\n+\n     Assert.Equal(3, F());'
 CODE=$'--- a/t.py\n+++ b/t.py\n@@ -1,1 +1,1 @@\n-    assert f() == 3  # spec\n+    assert f() == 1 + 2  # spec'
 STAR=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,2 +1,2 @@\n   const want = 3\n-    * 1;\n+    * 2;'
-export PYD CSD CODE STAR
+JSDOC=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,1 +1,4 @@\n+  /**\n+   * The expected value is the spec\'s 3.\n+   */\n   test(\'x\', () => {'
+GLOB=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,3 +1,3 @@\n   const files = glob(\'src/**/*.ts\');\n   const want = 3\n-    * 1;\n+    * 2;'
+INLINE=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,1 +1,2 @@\n   test(\'x\', () => {\n+  /* x */ expect(1).toBe(2);'
+REMOVED=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,3 +1,2 @@\n   const want = 3\n-    /* the old note\n+    * 2;'
+export PYD CSD CODE STAR JSDOC GLOB INLINE REMOVED
 check "a Python diff that adds and removes only # comments is comment-only" 'lib linux-gnu "judge::comment_only t_test.py \"\$PYD\""'
 check "a C# diff that adds a /* */ comment and a blank line is comment-only" 'lib linux-gnu "judge::comment_only TTests.cs \"\$CSD\""'
 check "a changed code line with a trailing comment is not" '! lib linux-gnu "judge::comment_only t_test.py \"\$CODE\""'
 check "# in a brace language is not a comment" '! lib linux-gnu "judge::comment_only a.test.ts \"\$PYD\""'
 check "a * 2 continuation outside a /* */ block is code" '! lib linux-gnu "judge::comment_only a.test.ts \"\$STAR\""'
+check "an added /** ... */ JSDoc block is comment-only" 'lib linux-gnu "judge::comment_only a.test.ts \"\$JSDOC\""'
+check "/* inside a glob string on a context line opens no comment: a * 2 change is code" '! lib linux-gnu "judge::comment_only a.test.ts \"\$GLOB\""'
+check "/* x */ followed by code is code" '! lib linux-gnu "judge::comment_only a.test.ts \"\$INLINE\""'
+check "a /* on a removed line does not make a later * line a comment" '! lib linux-gnu "judge::comment_only a.test.ts \"\$REMOVED\""'
 WA='C:\w\repo\src\a.test.ts' # portability-ok: a literal Windows path, not a regex escape
 WB='C:\W\Repo\a.ts'          # portability-ok: a literal Windows path, not a regex escape
 WL='/r/a\b.ts'               # portability-ok: a literal path holding a backslash, not a regex escape

@@ -806,8 +806,10 @@ judge::relay_reset
 # of the scanner adapters' languages: // and /* */ for JS and TS, C# and Go;
 # # (and <# #> for PowerShell) for bash, Python and PowerShell. A file of any
 # other language is never comment-only. Lines before a hunk's @@ are headers.
+# When unsure it says code: a false comment-only hides a real repair, a false
+# code only lets the FLAG through.
 judge::comment_only() {
-  local style line body hunk=0 open=0 comment
+  local style line body rest hunk=0 open=0 comment new
   case "${1,,}" in
   *.js | *.jsx | *.ts | *.tsx | *.mjs | *.cjs | *.mts | *.cts | *.cs | *.go) style=slash ;;
   *.sh | *.bash | *.bats | *.py | *.ps1 | *.psm1) style=pound ;;
@@ -816,25 +818,37 @@ judge::comment_only() {
   while IFS= read -r line; do
     case "$line" in
     'diff --git '*) hunk=0 open=0 ;;
-    '@@'*) hunk=1 ;;
+    '@@'*) hunk=1 open=0 ;;
     [+\ -]*)
       ((hunk)) || continue
       body="${line:1}" && body="${body//$'\r'/}"
       body="${body#"${body%%[![:space:]]*}"}"
-      comment=0
+      comment=0 new=1
+      [[ "${line:0:1}" == - ]] && new=0
       if [[ -z "$body" ]]; then
         comment=1
       elif [[ "$style" == slash ]]; then
-        # A leading * is a comment only inside a /* ... */ the diff shows
-        # open, and only as a block comment's margin (`* text`, `*/`), never
-        # a continued expression such as `* 2`.
-        [[ "$body" == //* || "$body" == /\** ]] && comment=1
-        ((open)) && [[ "$body" =~ ^\*([[:space:]]|/|$) ]] && comment=1
-        if [[ "$body" == */\** ]]; then
-          open=1
-          [[ "${body##*/\*}" == *\*/* ]] && open=0
-        elif [[ "$body" == *\*/* ]]; then
-          open=0
+        # The /* */ state follows the new file (context and added lines),
+        # opened only by a line that starts with /* and does not close it.
+        # Inside it, a `* text` margin or a line ending the block is a
+        # comment; a /* ... */ line is one only when nothing follows `*/`.
+        if ((open)) && [[ "$body" == *\*/* ]]; then
+          rest="${body#*\*/}"
+          [[ -z "${rest//[[:space:]]/}" ]] && comment=1
+          ((new)) && open=0
+        elif ((open)); then
+          [[ "$body" =~ ^\*([[:space:]]|$) ]] && comment=1
+        elif [[ "$body" == //* ]]; then
+          comment=1
+        elif [[ "$body" == /\** ]]; then
+          rest="${body#/\*}"
+          if [[ "$rest" == *\*/* ]]; then
+            rest="${rest#*\*/}"
+            [[ -z "${rest//[[:space:]]/}" ]] && comment=1
+          else
+            comment=1
+            ((new)) && open=1
+          fi
         fi
       else
         [[ "$body" == \#* || "$body" == '<#'* ]] && comment=1

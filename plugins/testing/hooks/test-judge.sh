@@ -275,8 +275,9 @@ done
 # reason_kind and origin) a failed FLAG became. It is recorded with
 # reused_from; a FLAG's diff edits the first's file, so the dup carries none
 # (judge::copy_verdict). The validation runs in a subshell, so the relay
-# counts take the first only once, below. A dup whose first got no verdict
-# goes to a background job, or shares the first's run limit.
+# counts take the first only once, below. A dup whose first got no verdict,
+# or one validation could not read (no JSON object out), goes to a background
+# job, or shares the first's run limit.
 dups=()
 ((${#DUPOF[@]} == 0)) || dups=("${!DUPOF[@]}")
 for i in ${dups[@]+"${dups[@]}"}; do
@@ -292,7 +293,7 @@ for i in ${dups[@]+"${dups[@]}"}; do
     ) >"$LATE/v$i"
     kr "$i"
     judge::file_repo "${KFILE[$i]}"
-    if [[ -s "$LATE/v$i" ]] && mkdir -p "$dir" &&
+    if jq -e 'objects' "$LATE/v$i" >/dev/null 2>&1 && mkdir -p "$dir" &&
       judge::copy_verdict "$LATE/v$i" "$dir" "${KH[$i]}" "${KFILE[$i]}" "$FREPO" "$KO" "$KRANGE" "$KNAME" "${KH[$rep]}"; then
       judge::log "reused in this run: ${KFILE[$i]}: $KNAME: the validated verdict of ${KH[$rep]}"
       continue
