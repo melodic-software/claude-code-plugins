@@ -9,7 +9,7 @@
       "why": "P-alt: the same three points in other words: not ready, the links in the credential store make the CLI refuse Bash runs as zero-scoring errors, replace the links or use another machine first."
     },
     {
-      "answer": "No. Preflight would print `sandbox_backend: not-ready (links: /home/dev/.docker/contexts, /home/dev/.docker/features.json)`. With those symbolic links inside the Docker credential store, the sandbox cannot reliably exclude it, so the CLI refuses each Bash-granting run and it scores 0.\n\nResolve the links or move to a host without them first.\n\nTwo extras: the refusal covers the whole pass, so even your read-only cases would come back empty while Bash is granted; and the store's root itself may be a link, only links inside it count.",
+      "answer": "No. Preflight would print `sandbox_backend: not-ready (links: /home/<user>/.docker/contexts, /home/<user>/.docker/features.json)`. With those symbolic links inside the Docker credential store, the sandbox cannot reliably exclude it, so the CLI refuses each Bash-granting run and it scores 0.\n\nResolve the links or move to a host without them first.\n\nTwo extras: the refusal covers the whole pass, so even your read-only cases would come back empty while Bash is granted; and the store's root itself may be a link, only links inside it count.",
       "why": "P-caveat: all three points plus correct extras (the run-wide refusal and the root-may-be-a-link detail) that do not touch the graded points."
     },
     {
