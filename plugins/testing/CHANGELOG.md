@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.12] - 2026-10-04
+
+### Fixed
+
+- The Bash route of the test-scan hook no longer scans or records a test file that is byte-identical to its blob at HEAD, as after a checkout, pull or merge, so the test judge no longer reviews tests the session did not write at the next Stop. The file's repository is found from either path separator. A test written and committed in the same Bash call is still skipped ([#6016](https://github.com/melodic-software/claude-code-plugins/issues/6016)).
+
 ## [0.22.10] - 2026-10-04
 
 ### Fixed
