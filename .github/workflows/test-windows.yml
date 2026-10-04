@@ -42,8 +42,7 @@ name: test-windows
 # lane is not one.
 
 on:
-  # Present for parity with ci.yml, which takes a dispatch to run its bench
-  # lanes. This lane has none; a dispatch here runs every Windows step.
+  # A dispatch runs every Windows step.
   workflow_dispatch:
   # Every Windows step, at ci.yml's whole-tree hours: the net for a Windows
   # suite a change reaches through something the selector does not see.

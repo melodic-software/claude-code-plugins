@@ -7,7 +7,7 @@
 #   context-zone.sh <session_id>
 #
 # Reads ~/.claude/context-guard/context/<session_id>.json (written by
-# statusline-tee.sh) plus the optional machine-scope
+# context-guard's mod) plus the optional machine-scope
 # ~/.claude/context-guard/zones.json override and prints EXACTLY ONE word:
 #
 #   smart / acceptable / dumb / unknown
@@ -102,7 +102,7 @@ unknown() {
 }
 
 sid="${1:-}"
-# Same filename character class the tee enforces — also path containment on
+# Same filename character class the mod's writer accepts — also path containment on
 # the read side.
 [[ "$sid" =~ ^[A-Za-z0-9_-]+$ ]] || unknown
 command -v jq >/dev/null 2>&1 || unknown
