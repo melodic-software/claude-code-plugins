@@ -213,7 +213,7 @@
       "path": ".github/workflows/release-deploy-oidc-negative-test.yml",
       "repository": "melodic-software/github-iac",
       "rules": ["workflow-name"],
-      "expectedName": "release-deploy-x",
+      "expectedName": "release-deployx",
       "reason": "OIDC negative test: its name is the deploy workflow's name plus one character, so the Pulumi issuer policy that trusts `release-deploy` must reject it."
     }
   ],
