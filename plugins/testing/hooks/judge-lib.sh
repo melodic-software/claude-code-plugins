@@ -885,8 +885,9 @@ judge::grounded() {
 # RELAY_REPOS and its verdict to the counts. A quote that is not in the
 # current file, a FLAG with no diff, or a diff that fails `git apply --check`
 # or touches another file makes it UNKNOWN, with the reason, its reason_kind
-# and its origin, the verdict it started as. RELAY_UF counts the UNKNOWNs that
-# started as a FLAG: the only UNKNOWNs an attended Stop is blocked for. A
+# and its origin, the verdict it started as. RELAY_UF counts the UNKNOWN
+# verdicts that started as a FLAG: the only UNKNOWN verdicts an attended Stop
+# is blocked for. A
 # quote the judge-time snapshot holds but the file no longer does is stale,
 # not made up. One jq reads the fields and runs the quote check; git runs
 # only for a FLAG, and jq again only to rewrite a verdict that failed.
