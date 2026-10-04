@@ -144,6 +144,8 @@ Never interview anyone about the fix for a claim nobody has confirmed. Verificat
 
 Report the result: confirmed (with the observed behavior / code path, the item is now **verified**, which makes a far stronger brief), failed, or insufficient detail → `status:needs-info` with a structured comment (see "Needs-info template" in [context/apply-outcome.md](context/apply-outcome.md)).
 
+**A verified bug is not a diagnosed one.** Reproducing it confirms the failure, not its cause. When the root cause is still unknown, the brief routes the item through diagnosis before any fix: `/debugging:debug`, or `/testing:diagnose` when the symptom is already a failing test. A report whose facts are in hand but too unstructured to reproduce from is shaped first with `/bugs:write`; one missing facts only the reporter holds still takes `status:needs-info`. A bug whose root cause the report or the reproduction already names goes straight to the fix.
+
 ### 4. Interview (if needed)
 
 Only after verification (or for enhancements, where the open question is scope, not fact): when the description is vague or missing acceptance criteria, ask focused questions one at a time, resolve the most load-bearing ambiguity first. Each question is a decision question and carries the same brief-before-ask restatement as the direction gate above: which item it concerns, the decision being asked, and the consequence of each option **you present**. An open-ended question presents no option set to enumerate consequences for, state instead what the answer will determine, and never narrow a genuinely open question into a closed list just to satisfy the restatement. Post questions as item comments. Mark `status:needs-info` until the reporter responds.
@@ -159,6 +161,7 @@ on top of it.
 ## Next
 
 - An autonomous-eligible item: `/work-items:work`.
+- A verified bug whose root cause is unknown: `/debugging:debug`.
 - A human-gated item lands in the operator's queue: `/work-items:attend-queue`.
 - A briefed item too large for one slice: `/work-items:decompose`.
 
