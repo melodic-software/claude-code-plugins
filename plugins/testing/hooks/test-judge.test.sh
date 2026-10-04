@@ -71,7 +71,8 @@ lk="$(
   fail() { printf 'F '; }
   CI=1 OSTYPE=msys links c
   CI="" OSTYPE=linux-gnu links c
-  CI="" OSTYPE=msys links c >/dev/null && printf 'L ' || printf 'S '
+  skip="$(CI="" OSTYPE=msys links c)"
+  [[ "$skip" == SKIP:* ]] && printf 'S ' || printf 'X '
 )"
 check "a failed link probe fails in CI and off Windows, and skips on local Windows" '[[ "$lk" == "F F S " ]]'
 # too_deep <dir> <levels>: the first directory more than <levels> below <dir>.

@@ -8,7 +8,7 @@ All notable changes to the `testing` plugin are documented here. Format follows
 ### Changed
 
 - The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
-- The `test-scan-bash` row starts the launcher with `--skip-unless-stdin-contains bashEditDiff`, so a Bash payload with no change diff starts node only (#6253). The shared `exec-bash.mjs` launcher copy gains that flag and `--skip-if-all-false`; no other testing row uses `--skip-if-all-false` (#6252).
+- The `test-scan-bash` row starts the launcher with `--skip-unless-stdin-contains bashEditDiff`, so a Bash payload with no change diff starts node only (#6253). The shared `exec-bash.mjs` launcher copy also gains `--skip-if-all-false`, which no testing row uses (#6252).
 
 ### Fixed
 
