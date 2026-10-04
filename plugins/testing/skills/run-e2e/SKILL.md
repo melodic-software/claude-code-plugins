@@ -40,8 +40,11 @@ names. The scenario is free-form input, so the target is used only when it is a 
 `http://` or `https://` URL on `localhost` or `127.0.0.1`, or a bare port number, with no
 whitespace or shell metacharacters; the subagent passes it as one quoted argument
 (`curl -fsS --max-time 5 "<url>"`, or a connect to the port). Any other value is not probed. A
-response skips the step, so `run` never starts a second instance. No usable target, or no
-response, means not running and the step proceeds.
+response means the app is already running, and the resolved `reuse_running_instance` (Step 2)
+decides: `auto` or `true` skips the step and drives that app, so `run` never starts a second
+instance, and an `unattended` run labels its evidence "instance not started by this run"; `false`
+stops with the gap report naming the collision (the running app, its URL or port, and the setting).
+No usable target, or no response, means not running and the step proceeds.
 
 **Skip report.** When the step does not run, or runs and cannot be trusted, the state names why:
 `did not resolve in this session`; `invocation refused (<reason>)`, never retried (not in the
@@ -118,10 +121,15 @@ On a hard-fail, STOP **and** write a structured verification-environment gap rep
 
 ## Step 2: Resolve run config
 
-Two keys govern this run: `recording` (`video | gif | off`) and `browser_mode` (`headed | headless`). They live in the consumer-tracked surface `.claude/testing/e2e.md`; [context/e2e-config.md](context/e2e-config.md) owns their definitions, defaults, and precedence. Resolve them before driving:
+Four keys govern this run: `recording` (`video | gif | off`), `browser_mode` (`headed | headless`), `e2e_driver` (`auto | harness | run | playwright | chrome`) and `reuse_running_instance` (`auto | true | false`). [context/e2e-config.md](context/e2e-config.md) owns their surfaces, definitions, defaults, and precedence. Resolve them before driving, and report which layer supplied each effective value:
 
-- Anchor at the repo root, then read every layer of the surface that exists, user-global, team, and local overlay, and merge `recording` and `browser_mode` per key. Report which layer supplied each effective value. The generic layer mechanics (anchoring, reading every layer, provenance, soft-degrade) are the layering contract's. See the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/config-cascade/README.md); this step only names the surface path, the keys, and the per-key merge.
-- An explicit instruction in the session prompt overrides the file layers for that run, the keys are defaults only. The precedence ladder is in [context/e2e-config.md](context/e2e-config.md).
+- `recording` and `browser_mode`: anchor at the repo root, then read every layer of `.claude/testing/e2e.md` that exists, user-global, team, and local overlay, and merge the two keys per key. The generic layer mechanics (anchoring, reading every layer, provenance, soft-degrade) are the layering contract's. See the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/config-cascade/README.md); this step only names the surface path, the keys, and the per-key merge.
+- `e2e_driver` and `reuse_running_instance`: run
+  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/resolve-config.sh" e2e --user 'e2e_driver=${user_config.e2e_driver}' --user 'reuse_running_instance=${user_config.reuse_running_instance}'`
+  as one Bash call. It prints one line per key, `<key> <tab> <value> <tab> <source>`, the source
+  being the file that set it, `userConfig`, or `default`, and names on stderr any value it
+  rejected. Use the printed values; a rejected value has already resolved to the default.
+- An explicit instruction in the session prompt overrides every layer for that run; the keys are defaults only. The precedence ladders are in [context/e2e-config.md](context/e2e-config.md).
 
 ## Step 3: Drive the run (subagent-isolated)
 
@@ -134,6 +142,7 @@ Pass the resolved config through to the executor:
 
 - `browser_mode` → the `/playwright:playwright` session invocation. The executor owns the headed/headless flag spelling; `run-e2e` supplies the resolved value.
 - `recording` → the capture path: `video` records via the playwright CLI, `gif` via `gif_creator`, `off` keeps the evidence-contract screenshots as the floor.
+- `e2e_driver` → what drives the flows, picked per the Driver ranking in [context/e2e.md](context/e2e.md). A pinned value the target cannot use, and `chrome` on an `unattended` run, stop with the gap report instead of switching drivers.
 
 The workflow steps themselves live in [context/e2e.md](context/e2e.md).
 

@@ -159,37 +159,43 @@ glob added only through the consumer settings entry `/testing:setup check` print
 (`test-scan.sh --enabled`) is recorded in the same state, so with both options on the Stop hook
 judges those tests at the task end, again with no background job ahead of it.
 
-`/testing:run-e2e` reads one optional consumer-project config surface,
-`.claude/testing/e2e.md`: `recording` (`video | gif | off`, default `off`) and
-`browser_mode` (`headed | headless`, default `headless`). Both defaults preserve current
-behavior, so the file is optional. Its keys, defaults, and precedence are documented in
-the skill's bundled `run-e2e/context/e2e-config.md`; it layers per the marketplace
-config-cascade convention.
+`/testing:run-e2e` reads four optional keys. `recording` (`video | gif | off`, default `off`) and
+`browser_mode` (`headed | headless`, default `headless`) live on `.claude/testing/e2e.md`.
+`e2e_driver` (`auto | harness | run | playwright | chrome`) and `reuse_running_instance`
+(`auto | true | false`), both default `auto`, live in `docs/conventions/testing.yaml`, its personal
+layers, or the `userConfig` options below; `scripts/resolve-config.sh e2e` resolves them and names
+an invalid value instead of stopping. Under `auto` a run now drives through the repository's own
+harness when a spec covers the changed flow, and otherwise through the path it used before. Keys,
+defaults and precedence are in the skill's bundled `run-e2e/context/e2e-config.md`.
+
+**Upgrade note.** A testing release older than these keys never reads
+`docs/conventions/testing.yaml`, and refuses an unknown key in the files it does read, which stops
+its test scan. Keep the team's scan config where it is (the `docs/conventions/testing.md` block or
+`.claude/testing.yaml`) until every member has upgraded, and put `e2e_driver` and
+`reuse_running_instance` only in `docs/conventions/testing.yaml`, or in a personal layer on a
+machine that runs this release.
 
 `/testing:audit` and the `test-scan` hook read the testing config through the same cascade
 (`~/.claude/testing.yaml`, the team layer, `.claude/testing.local.yaml`): adapters to turn off or
 allow, path globs to exclude or include, extra adapter globs, consumer adapters, and a level per
 rule (`off`, `warn`, `error`). `/testing:setup` documents the keys and writes the team layer.
 
-The team layer is the `yaml config` block in `docs/conventions/testing.md`, the file that also holds
-the team's prose testing rules. A fence line that opens at column 0 with three backticks and the
-words `yaml config` starts the block, and the first line of three backticks closes it. The keys are
-the ones `.claude/testing.yaml` takes, and an error in the block names the `.md` file and its own
-line. A docs file with no block does not supply the team layer; `<root>/.claude/testing.yaml` is
-read instead. When both exist the docs block wins and the resolver prints one warning naming both
-paths. The user-global and `.claude/testing.local.yaml` layers do not change.
+The team layer is `docs/conventions/testing.yaml`, validated by
+[`schemas/testing.schema.json`](schemas/testing.schema.json). It takes the keys `.claude/testing.yaml`
+takes, plus the two run-e2e keys above. Without it, the team layer is the `yaml config` block in
+`docs/conventions/testing.md` (read for one more release), else `<root>/.claude/testing.yaml`. The
+first of the three present wins, and the resolver prints one warning for each other one present.
+The prose testing rules stay in `docs/conventions/testing.md`. The user-global and
+`.claude/testing.local.yaml` layers do not change.
 
-#### Move `.claude/testing.yaml` into the docs file
+#### Move the team layer to `docs/conventions/testing.yaml`
 
-1. Open `docs/conventions/testing.md`, or create it with the team's prose testing rules.
-2. Paste the whole content of `.claude/testing.yaml` between a line of three backticks followed by
-   `yaml config` at column 0 and a closing line of three backticks. The keys do not change.
-3. Add a pointer line to `CLAUDE.md` or `AGENTS.md` so the file loads on demand, for example
-   `Testing rules and config: docs/conventions/testing.md`.
-4. Run `/testing:setup check`: it prints the resolved config and must show the docs file as the
-   team layer.
-5. Delete `.claude/testing.yaml`. While both exist the docs block wins and every run prints a
-   warning naming both paths.
+1. Create `docs/conventions/testing.yaml` with the content of the docs block (the lines between the
+   fences) or of `.claude/testing.yaml`. The keys do not change; use plain or single-quoted values.
+2. Run `/testing:setup check`: it prints the resolved config and must show
+   `docs/conventions/testing.yaml` as the team layer.
+3. Once every member runs this release, delete the old block or file. Until then every run prints a
+   warning naming both; an older release keeps reading the old one.
 
 `~/.claude/testing.yaml` and `.claude/testing.local.yaml` stay where they are; only the team layer
 moves. Reading the block costs the same as reading the file; the measured p50 and p95 are in the
@@ -250,6 +256,8 @@ reads it from.
 | `test_judge_fallback_model` | string | `"opus"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL` | Model class the judge uses when the main class wrote the tests: fable, opus (default), sonnet or haiku. |
 | `test_judge_effort` | string | `"medium"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT` | Effort level for the judge; medium by default. For the levels the judge's model supports, see https://code.claude.com/docs/en/model-config#adjust-effort-level (as of 2026-10-02; recheck when the level list changes). It has no effect on a model that page lists without effort levels. |
 | `test_judge_session_runs` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS` | Most judge runs one session may start (one run judges one file). Unset means no limit. |
+| `e2e_driver` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_E2E_DRIVER` | Who drives /testing:run-e2e: auto (default) picks the repo's harness when a spec covers the flow, else run or playwright; harness, run, playwright, or chrome (attended runs only). A repository's docs/conventions/testing.yaml wins. |
+| `reuse_running_instance` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_REUSE_RUNNING_INSTANCE` | auto (default) or true: /testing:run-e2e drives an app that already answers, labelling unattended evidence; false: it stops with a gap report instead. A repository's docs/conventions/testing.yaml wins. |
 | `stdin_read_timeout` | number<br>*min 1* | `2` | `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT` | Idle bound on reading the hook payload from stdin: how long the pipe may go silent before the hook gives up and fails open |
 
 ### How to set these

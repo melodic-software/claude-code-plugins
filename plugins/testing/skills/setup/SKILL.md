@@ -1,5 +1,5 @@
 ---
-description: "Configure the testing plugin's can't-fail checks for this repository. check prints the resolved testing config cascade, which test-lint rules the repo's lint config turns on per language (a missing one is a finding), an optional instruction line to paste, and a settings hook entry for any test glob the shipped test-scan hook skips; apply writes your answers as the config block of docs/conventions/testing.md (or .claude/testing.yaml when that file is in use). Use when: 'set up testing', 'configure the test scan', 'exclude these tests from the audit', 'add a test glob', 'which test lint rules are missing', 'testing setup'. Re-runnable."
+description: "Configure the testing plugin's can't-fail checks for this repository. check prints the resolved testing config cascade, which test-lint rules the repo's lint config turns on per language (a missing one is a finding), an optional instruction line to paste, and a settings hook entry for any test glob the shipped test-scan hook skips; apply writes your answers to docs/conventions/testing.yaml (or to the docs/conventions/testing.md block or .claude/testing.yaml when that is the team file in use). Use when: 'set up testing', 'configure the test scan', 'exclude these tests from the audit', 'add a test glob', 'which test lint rules are missing', 'testing setup'. Re-runnable."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -18,25 +18,15 @@ It never edits `CLAUDE.md` or `AGENTS.md`. The instruction line is printed for y
 
 The testing config resolves across the config-cascade layers, in order: `~/.claude/testing.yaml`,
 the team layer and `<root>/.claude/testing.local.yaml`, where `<root>` is the scanned file's git
-toplevel, else `${CLAUDE_PROJECT_DIR}`. The team layer is the `yaml config` block in
-`<root>/docs/conventions/testing.md`, the file that holds the team's prose testing rules; when that
-file has no such block it is `<root>/.claude/testing.yaml`, and when both exist the docs block wins
-and the resolver prints a warning naming both. Lists concatenate across layers; a later layer's
-scalar overrides. The format is the adapters' YAML subset (the same in the block and in the
-`.claude` file); a glob that starts with `*` must be single-quoted.
+toplevel, else `${CLAUDE_PROJECT_DIR}`. The team layer is `<root>/docs/conventions/testing.yaml`.
+Without it, the team layer is the `yaml config` block in `<root>/docs/conventions/testing.md`
+(read for one more release), else `<root>/.claude/testing.yaml`; the first present wins and the
+resolver prints a warning naming each one it ignores. Lists concatenate across layers; a later
+layer's scalar overrides. The format is the adapters' YAML subset in every file; a glob that starts
+with `*` must be single-quoted. `docs/conventions/testing.yaml` also holds `/testing:run-e2e`'s
+`e2e_driver` and `reuse_running_instance`, which the scan ignores.
 
-````markdown
-# Testing conventions
-
-Prose rules for the team.
-
-```yaml config
-adapters:
-  disable: [py-unittest]
-```
-````
-
-The keys, shown as the `.claude/testing.yaml` form:
+The keys:
 
 ```yaml
 adapters:
@@ -151,12 +141,12 @@ missing launcher.
    configured is dropped without the user confirming.
 2. Ask only what the repository cannot answer: folders or files to leave out, test files the
    shipped globs miss (and which adapter reads them), adapters to turn off, rule levels.
-3. Write the team layer with the answers. The script replaces the body of the `yaml config` block
-   in `docs/conventions/testing.md`, appends a block to a file that has none, or creates the file;
-   the rest of the file stays as it is. When the docs file has no block and `.claude/testing.yaml`
-   exists, that file is the one in use, and the script rewrites it whole instead. It keeps the
-   result only when it resolves and writes nothing else; pass every value the block should hold,
-   the existing ones included:
+3. Write the team layer with the answers. The script writes the team file in use:
+   `docs/conventions/testing.yaml` whole (keeping its `e2e_driver` and `reuse_running_instance`
+   lines), else the body of the `yaml config` block in `docs/conventions/testing.md` (the rest of
+   that file stays), else `.claude/testing.yaml` whole; with none, it creates
+   `docs/conventions/testing.yaml`. It keeps the result only when it resolves and writes nothing
+   else; pass every value the team layer should hold, the existing ones included:
 
    ```bash
    bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.sh" apply \
@@ -168,7 +158,8 @@ missing launcher.
 4. Run `check` again and show the hook entry if one is printed. Offer `git add` for the file
    `apply` printed and a commit, and run each only when the user accepts. Personal overrides go in
    `.claude/testing.local.yaml`, which should be gitignored. `check` also prints the optional line
-   to paste into `CLAUDE.md` or `AGENTS.md` that points at `docs/conventions/testing.md`.
+   to paste into `CLAUDE.md` or `AGENTS.md` that points at `docs/conventions/testing.md` when that
+   file exists.
 
 ## Next
 

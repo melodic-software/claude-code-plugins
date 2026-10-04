@@ -1821,6 +1821,14 @@ printf 'paths:\n  exclude: [src/sum_test.go]\n' >"$CFG_HOME/.claude/testing.yaml
 cfg_scan
 assert_finding_count "the user-global layer applies" 2
 rm -f "$CFG_HOME/.claude/testing.yaml"
+# docs/conventions/testing.yaml, alone, is the team layer; its run-e2e keys
+# never stop the scan.
+mkdir -p "$CFG/docs/conventions"
+printf 'e2e_driver: run\npaths:\n  exclude: [src/sum_test.go]\n' >"$CFG/docs/conventions/testing.yaml"
+cfg_scan
+assert_exit "a docs/conventions/testing.yaml with a run-e2e key scans" 0 "$rc"
+assert_finding_count "and its scan keys apply" 2
+rm -rf "$CFG/docs"
 
 # --- the whole suite again under mawk -----------------------------------------
 # A gawk-only pass does not count: the engine must hold under mawk as well.

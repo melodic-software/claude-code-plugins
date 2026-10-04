@@ -51,6 +51,40 @@ Browser-adjacent surfaces with overlapping but distinct fit. Pick by what eviden
 | Chrome DevTools MCP (when configured) | Lighthouse audits; Core Web Vitals (LCP/FCP/TBT/CLS); performance traces; protocol-level network inspection | UI navigation/interaction flows (Playwright CLI is faster) |
 | Orchestrator MCP + `curl` | API-only verification; structured-log inspection; distributed-trace introspection | Anything user-facing |
 
+## Driver ranking
+
+Starting the app and driving it are separate choices. The app starts on the one launch path the
+Boundary section of `SKILL.md` picks (the orchestrator, the bundled `run` skill, or the instance
+already answering); `e2e_driver` ([e2e-config.md](e2e-config.md)) decides only what drives the
+flows after that.
+
+Under `auto`, the first that fits the target drives:
+
+1. `harness`: the repository's own end-to-end spec or script, when one covers the changed flow.
+   A suite that exists but never exercises the change does not count. The evidence names the spec
+   or script that ran.
+2. `run`: for a CLI, a TUI or a service with no UI, the pseudo-terminal and HTTP recipe in
+   [non-ui.md](non-ui.md). The bundled `run` skill is asked only to launch, and never on an
+   `unattended` run, so it is not this driver.
+3. `playwright`: for a browser, the playwright CLI path in Token Optimization above, through
+   `/playwright:playwright` when the playwright plugin is enabled. This was the only browser path
+   before the key existed.
+
+`auto` never picks `chrome`. Claude in Chrome runs on the host, outside any isolation boundary, in
+the person's own browser with their sign-ins, so it drives only when the person asks for something
+it fits (see Browser-tool fit triage), and never on an `unattended` run.
+
+Which tools happen to be installed does not reorder this list: a missing tool for the chosen driver
+is a Step 1 prerequisite gap. A pinned value the target cannot use (`playwright` for a CLI,
+`harness` with no spec covering the flow, `chrome` on an `unattended` run) stops with the gap report
+naming the value, the layer that set it, and the target; the run never switches to another driver
+on its own.
+
+Two drivers are not values: CPU-profile and heap-snapshot capture over the DevTools protocol, and
+the Chrome DevTools MCP server as a flow driver. Neither has a path here that drives a flow and
+writes its evidence to files. Revisit when a consumer asks for CPU profiles or heap snapshots, or
+when such a driver gains a capture path that writes files.
+
 ## UI evidence contract
 
 For UI changes, capture verifiable evidence rather than asserting "looks right": pre/post accessibility snapshots, screenshots of the changed state, a console check (no new errors), and network verification (correct calls, status codes). An authored E2E/integration test asserting the user-visible behavior also satisfies the contract. When the consuming project documents its own evidence requirements, those govern.

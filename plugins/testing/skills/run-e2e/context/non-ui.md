@@ -25,6 +25,7 @@ Invocation commands come from `/toolchain:check`; framework, project-naming, and
 | 7 | MCP server stdio handshake | See "MCP stdio handshake" section below | No upstream harness; replace bespoke recipe if an official one ships |
 | 8 | Python infrastructure / scripts | pytest (via `uv run` in uv-managed projects); standard fixtures | None |
 | 9 | PowerShell (`*.ps1` / `*.psm1`) | PSScriptAnalyzer (lint); Pester when the project has suites | None |
+| 10 | Running CLI, TUI or service (the `run` value of `e2e_driver`) | A CLI or TUI runs under a pseudo-terminal (`script -q` on Linux and macOS, or the harness's own PTY support) so it sees a terminal; send the scenario's input, then save its transcript and exit code as evidence. A service is exercised over HTTP with `curl -sS -o <file> -w '%{http_code}'` per request, saving each status and body to a file | A full-screen TUI's redraws make a raw transcript hard to read; capture the final screen as well. Where `script` is missing (common on Windows), report the gap instead of running without a terminal |
 
 ## MCP stdio handshake
 

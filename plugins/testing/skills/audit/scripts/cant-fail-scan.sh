@@ -125,7 +125,7 @@
 # unknown tree — a completed-looking scan of the wrong tree is
 # indistinguishable from a clean bill.
 #
-# Config: docs/conventions/testing.md (its config block) or .claude/testing.yaml, resolved against the root's git toplevel (else
+# Config: docs/conventions/testing.yaml, docs/conventions/testing.md (its config block) or .claude/testing.yaml, resolved against the root's git toplevel (else
 # $CLAUDE_PROJECT_DIR) by ../../../scripts/resolve-config.sh, turns adapters
 # off or on (a file whose adapter is off is not scanned, never handed to
 # another), excludes or includes paths, extends adapter lists, loads consumer
@@ -323,14 +323,14 @@ REPO_PREFIX=""
 
 # --- Config -------------------------------------------------------------------
 # The testing config, resolved by scripts/resolve-config.sh. With no layer
-# file present nothing below runs, so a repository without one pays four file
+# file present nothing below runs, so a repository without one pays five file
 # tests. Removals (adapters.disable, paths.exclude, rules off) apply here, so
 # the test-scan hook, which runs this script, goes silent with no plugin change.
 # The team and local layers are the scanned repository's own, so a file in a
 # sibling worktree gets that worktree's config.
 CFG_ROOT="${TOP:-${CLAUDE_PROJECT_DIR:-$ROOT}}"
 tc_layers=0 tc_read=0
-for f in ${HOME:+"$HOME/.claude/testing.yaml"} "$CFG_ROOT/docs/conventions/testing.md" \
+for f in ${HOME:+"$HOME/.claude/testing.yaml"} "$CFG_ROOT/docs/conventions/testing.yaml" "$CFG_ROOT/docs/conventions/testing.md" \
   "$CFG_ROOT/.claude/testing.yaml" "$CFG_ROOT/.claude/testing.local.yaml"; do
   [[ -f "$f" ]] && tc_layers=$((tc_layers + 1))
 done

@@ -3,10 +3,13 @@
 #
 # LAYERS, per the config-cascade convention, in order: user-global
 # (~/.claude/testing.yaml), team and a gitignored personal overlay
-# (<root>/.claude/testing.local.yaml). The team layer is the ```yaml config
+# (<root>/.claude/testing.local.yaml). The team layer is
+# <root>/docs/conventions/testing.yaml when it exists (schema:
+# schemas/testing.schema.json). Without it, the team layer is the ```yaml config
 # block of <root>/docs/conventions/testing.md when that file holds one, else
-# <root>/.claude/testing.yaml. When both exist the docs block wins and a
-# warning naming both paths goes to stderr. Lists concatenate with the first
+# <root>/.claude/testing.yaml; the docs block is read for one more release. The
+# first of the three present wins, and a warning naming it and each other one
+# present goes to stderr. Lists concatenate with the first
 # occurrence kept; a scalar in a later layer overrides. The format is the
 # adapters' YAML subset, parsed by skills/audit/scripts/adapter-load.awk
 # -v MODE=config (its header lists the keys and the block form), so no jq, yq
@@ -40,8 +43,24 @@
 # CRLF and BOM: the parser strips a trailing \r and a leading UTF-8 byte-order
 # mark, so a layer saved on Windows loads.
 #
+# E2E: `resolve-config.sh e2e` resolves /testing:run-e2e's keys instead, each
+# top-level in the same files: e2e_driver (auto | harness | run | playwright |
+# chrome) and reuse_running_instance (auto | true | false), both default auto.
+# It prints `<key> <tab> <value> <tab> <source>` per key, the source being the
+# layer file, userConfig, or default. Highest first: the overlay,
+# docs/conventions/testing.yaml, the user-global file, then the --user value
+# (the rendered userConfig option; an unrendered ${user_config.<key>} or an
+# empty value is unset). The first that sets the key decides; an unknown,
+# nested or unparsable value there is named on stderr and the key takes its
+# default, never a lower layer's value. The docs block and .claude/testing.yaml are not read for
+# these keys: a release older than this mode refuses them there, which stops
+# its scan. Each value goes through parse-concern-value.sh, so the scan keys'
+# grammar never applies, and a scan config that does not resolve, a missing
+# repository or a symlinked layer (skipped with a warning) never stops it.
+#
 # Usage:
 #   resolve-config.sh [--root <dir>] [--home <dir>] [--quick]
+#   resolve-config.sh e2e [--root <dir>] [--home <dir>] [--user <key>=<value>]...
 #   resolve-config.sh match <glob> <path>     exit 0 on a match, 1 otherwise
 #   resolve-config.sh --help
 #   source resolve-config.sh                  defines tcfg_norm, tcfg_glob_re
@@ -118,11 +137,26 @@ fi
 ROOT=""
 USER_HOME_DIR="${HOME:-}"
 QUICK=0
+MODE=scan
+users=()
+if [[ "${1:-}" == e2e ]]; then
+  MODE=e2e
+  shift
+fi
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --root)
     [[ $# -gt 1 ]] || die "--root needs a directory"
     ROOT="$2"
+    shift
+    ;;
+  --user)
+    [[ "$MODE" == e2e ]] || die "--user is an e2e option"
+    [[ $# -gt 1 && "$2" == *=* ]] || die "--user takes <key>=<value>"
+    case "${2%%=*}" in
+    e2e_driver | reuse_running_instance) users+=("$2") ;;
+    *) die "--user names a run-e2e key: e2e_driver or reuse_running_instance" ;;
+    esac
     shift
     ;;
   --quick) QUICK=1 ;;
@@ -143,38 +177,115 @@ done
 if [[ -z "$ROOT" ]]; then
   ROOT="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
   ROOT="${ROOT:-${CLAUDE_PROJECT_DIR:-}}"
-  [[ -n "$ROOT" ]] || die "not inside a git repository, no CLAUDE_PROJECT_DIR and no --root given"
+  [[ -n "$ROOT" || "$MODE" == e2e ]] || die "not inside a git repository, no CLAUDE_PROJECT_DIR and no --root given"
 fi
-[[ -d "$ROOT" ]] || die "--root '$ROOT' is not a directory"
+[[ -z "$ROOT" || -d "$ROOT" ]] || die "--root '$ROOT' is not a directory"
 
 PLUGIN="${BASH_SOURCE[0]%/*}"
 [[ "$PLUGIN" == "${BASH_SOURCE[0]}" ]] && PLUGIN=.
+LOADER="$PLUGIN/../skills/audit/scripts/adapter-load.awk"
+PCV="$PLUGIN/parse-concern-value.sh"
 PLUGIN="$PLUGIN/.."
-LOADER="$PLUGIN/skills/audit/scripts/adapter-load.awk"
 
+warn() { printf 'resolve-config: warning: %s\n' "$1" >&2; }
+
+# under_link <file>: true when <file>, or a directory above it inside <root>,
+# is a symlink. A repository could point such a layer at any file.
+under_link() {
+  local d="$1"
+  [[ -n "$ROOT" ]] || return 1
+  while [[ "$d" == "$ROOT"/* ]]; do
+    [[ ! -L "$d" ]] || return 0
+    d="${d%/*}"
+  done
+  return 1
+}
+
+# in_list <value> <allowed>...: true when <value> is one of <allowed>.
+in_list() {
+  local v="$1" a
+  shift
+  for a in "$@"; do [[ "$v" == "$a" ]] && return 0; done
+  return 1
+}
+
+# e2e: print each run-e2e key's value and source (header, E2E). Exit 0.
+e2e() {
+  local key val src def f u raw lines allowed files=() user_driver="" user_reuse=""
+  for u in ${users[@]+"${users[@]}"}; do
+    val="${u#*=}"
+    # shellcheck disable=SC2016 # the literal an unrendered option leaves
+    [[ "$val" != '${user_config.'* ]] || val=""
+    case "${u%%=*}" in
+    e2e_driver) user_driver="$val" ;;
+    *) user_reuse="$val" ;;
+    esac
+  done
+  for f in ${ROOT:+"$ROOT/.claude/testing.local.yaml" "$ROOT/docs/conventions/testing.yaml"} \
+    ${USER_HOME_DIR:+"$USER_HOME_DIR/.claude/testing.yaml"}; do
+    [[ -f "$f" ]] || continue
+    if under_link "$f"; then
+      warn "skipping a layer that is a symlink or under a symlinked directory: $f"
+    elif [[ ! -r "$f" ]]; then
+      warn "skipping a layer that is not readable: $f"
+    else
+      files+=("$f")
+    fi
+  done
+  for key in e2e_driver reuse_running_instance; do
+    if [[ "$key" == e2e_driver ]]; then
+      allowed="auto harness run playwright chrome" u="$user_driver"
+    else
+      allowed="auto true false" u="$user_reuse"
+    fi
+    def="${allowed%% *}" val="" src="" raw=""
+    for f in ${files[@]+"${files[@]}"}; do
+      # The first layer with the key's top-level line sets it; only that line
+      # reaches the parser, so a nested, non-scalar or unparsable value reads
+      # as empty and is reported below.
+      lines="$(LC_ALL=C sed -e $'1s/^\xef\xbb\xbf//' -e 's/\r$//' "$f" | grep -E "^${key}[[:space:]]*:")" || continue
+      src="$f"
+      val="$(bash "$PCV" - "$key" 2>/dev/null <<<"$lines")"
+      raw="${lines%%$'\n'*}" raw="${raw#*:}"
+      raw="${raw#"${raw%%[![:space:]]*}"}" raw="${raw%"${raw##*[![:space:]]}"}"
+      break
+    done
+    [[ -n "$src" || -z "$u" ]] || val="$u" src=userConfig
+    # shellcheck disable=SC2086 # allowed is a fixed word list
+    if [[ -n "$src" ]] && ! in_list "$val" $allowed; then
+      if [[ -n "$val$raw" ]]; then
+        warn "$src: $key: unknown value '${val:-$raw}'; using the default, $def"
+      else
+        warn "$src: $key: no scalar value; using the default, $def"
+      fi
+      src=""
+    fi
+    [[ "$src" != userConfig || "$val" != "$def" ]] || src=""
+    [[ -n "$src" ]] || val="$def" src=default
+    printf '%s\t%s\t%s\n' "$key" "$val" "$src"
+  done
+}
+if [[ "$MODE" == e2e ]]; then
+  e2e
+  exit 0
+fi
+
+TEAM_NEW="$ROOT/docs/conventions/testing.yaml"
 TEAM_DOCS="$ROOT/docs/conventions/testing.md"
 TEAM_YAML="$ROOT/.claude/testing.yaml"
 
-# gather <1|0>: set layers to the user-global layer, the team layer (the docs
-# convention file for 1, .claude/testing.yaml for 0) and the overlay, as present.
+# gather <team file>: set layers to the user-global layer, that team layer and
+# the overlay, as present.
 layers=()
 declare -A layer_seen=()
 gather() {
-  local f d team="$TEAM_YAML"
-  ((${1})) && team="$TEAM_DOCS"
+  local f
   layers=()
   layer_seen=()
   for f in ${USER_HOME_DIR:+"$USER_HOME_DIR/.claude/testing.yaml"} \
-    "$team" "$ROOT/.claude/testing.local.yaml"; do
+    "$1" "$ROOT/.claude/testing.local.yaml"; do
     [[ -f "$f" && -z "${layer_seen[$f]:-}" ]] || continue
-    # A repository could point a symlinked layer at any file and have it parsed.
-    if [[ "$f" == "$ROOT"/* ]]; then
-      d="$f"
-      while [[ "$d" == "$ROOT"/* ]]; do
-        [[ ! -L "$d" ]] || die "layer is a symlink or under a symlinked directory, refusing to read it: $f"
-        d="${d%/*}"
-      done
-    fi
+    ! under_link "$f" || die "layer is a symlink or under a symlinked directory, refusing to read it: $f"
     [[ -r "$f" ]] || die "layer is not readable: $f"
     layer_seen[$f]=1
     layers+=("$f")
@@ -187,17 +298,25 @@ load() {
   ((${#layers[@]})) || return 0
   awk -v MODE=config -f "$LOADER" "${layers[@]}"
 }
-docs=0
-[[ -f "$TEAM_DOCS" ]] && docs=1
-gather "$docs"
-records="$(load)" || exit 2
-if ((docs)) && [[ "$records" != block$'\t'* ]]; then
-  docs=0
-  gather 0
+if [[ -f "$TEAM_NEW" ]]; then
+  gather "$TEAM_NEW"
   records="$(load)" || exit 2
-elif ((docs)) && [[ -f "$TEAM_YAML" ]]; then
-  printf 'resolve-config: warning: %s and %s both exist; using the docs block, ignoring the .claude file\n' \
-    "$TEAM_DOCS" "$TEAM_YAML" >&2
+  if [[ -f "$TEAM_DOCS" && ! -L "$TEAM_DOCS" ]] && grep -q '^```yaml config[[:space:]]*$' "$TEAM_DOCS"; then
+    warn "$TEAM_NEW and $TEAM_DOCS both exist; using $TEAM_NEW, ignoring the docs block"
+  fi
+  [[ ! -f "$TEAM_YAML" ]] || warn "$TEAM_NEW and $TEAM_YAML both exist; using $TEAM_NEW, ignoring the .claude file"
+elif [[ -f "$TEAM_DOCS" ]]; then
+  gather "$TEAM_DOCS"
+  records="$(load)" || exit 2
+  if [[ "$records" != block$'\t'* ]]; then
+    gather "$TEAM_YAML"
+    records="$(load)" || exit 2
+  elif [[ -f "$TEAM_YAML" ]]; then
+    warn "$TEAM_DOCS and $TEAM_YAML both exist; using the docs block, ignoring the .claude file"
+  fi
+else
+  gather "$TEAM_YAML"
+  records="$(load)" || exit 2
 fi
 [[ ${#layers[@]} -gt 0 ]] || exit 0
 

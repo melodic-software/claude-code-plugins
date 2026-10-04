@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/testing/schemas/testing.schema.json",
+  "title": "testing team config",
+  "description": "Schema for a repository's docs/conventions/testing.yaml, the team layer of the testing plugin's settings. The scan keys (adapters, paths, adapter_dirs, extend, rules) are resolved by plugins/testing/scripts/resolve-config.sh, whose loader holds their full grammar; the run-e2e keys by its e2e mode, and each wins over the plugin's userConfig value of the same name. Values use plain or single-quoted scalars: the scan loader refuses double quotes. Contract: docs/adr/0054-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "strings": { "type": "array", "items": { "type": "string" } }
+  },
+  "properties": {
+    "adapters": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enable": { "$ref": "#/$defs/strings", "description": "Adapter ids; when any is listed, only listed adapters run." },
+        "disable": { "$ref": "#/$defs/strings", "description": "Adapter ids that do not run; wins over enable." }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "include": { "$ref": "#/$defs/strings", "description": "Globs relative to the repository root that are scanned even under a pruned directory." },
+        "exclude": { "$ref": "#/$defs/strings", "description": "Globs relative to the repository root that are not scanned; wins over include." }
+      }
+    },
+    "adapter_dirs": { "$ref": "#/$defs/strings", "description": "Directories of consumer adapter files, relative to the repository root or starting with ~/." },
+    "extend": {
+      "type": "object",
+      "description": "Per adapter id, items appended to that adapter's list fields (files, test_start, assertion.calls and the rest the loader names).",
+      "additionalProperties": { "type": "object" }
+    },
+    "rules": {
+      "type": "object",
+      "description": "Rule levels: rule-<slug> (or testing/audit/rule-<slug>) and test-weaken-block, each off, warn or error.",
+      "propertyNames": { "pattern": "^((testing/audit/)?rule-[a-z-]+|test-weaken-block)$" },
+      "additionalProperties": { "enum": ["off", "warn", "error"] }
+    },
+    "e2e_driver": {
+      "enum": ["auto", "harness", "run", "playwright", "chrome"],
+      "default": "auto",
+      "description": "Who drives a /testing:run-e2e run. auto picks harness when a spec or script covers the changed flow, run for a CLI, TUI or service, and playwright for a browser; chrome is attended runs only."
+    },
+    "reuse_running_instance": {
+      "enum": ["auto", true, false, "true", "false"],
+      "default": "auto",
+      "description": "Whether /testing:run-e2e drives an app that already answers. auto and true reuse it, labelling unattended evidence; false stops with the gap report when an app already answers."
+    }
+  }
+}

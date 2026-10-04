@@ -56,6 +56,20 @@
       "description": "Most judge runs one session may start (one run judges one file). Unset means no limit.",
       "min": 1
     },
+    "e2e_driver": {
+      "type": "string",
+      "title": "E2E driver",
+      "description": "Who drives /testing:run-e2e: auto (default) picks the repo's harness when a spec covers the flow, else run or playwright; harness, run, playwright, or chrome (attended runs only). A repository's docs/conventions/testing.yaml wins.",
+      "default": "auto",
+      "options": ["auto", "harness", "run", "playwright", "chrome"]
+    },
+    "reuse_running_instance": {
+      "type": "string",
+      "title": "Reuse a running app",
+      "description": "auto (default) or true: /testing:run-e2e drives an app that already answers, labelling unattended evidence; false: it stops with a gap report instead. A repository's docs/conventions/testing.yaml wins.",
+      "default": "auto",
+      "options": ["auto", "true", "false"]
+    },
     "stdin_read_timeout": {
       "type": "number",
       "title": "Hook stdin read timeout (seconds)",

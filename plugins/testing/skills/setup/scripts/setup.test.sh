@@ -20,6 +20,7 @@ fail() {
 }
 assert_eq() { if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected [$2], got [$3]"; fi; }
 assert_contains() { if [[ "$2" == *"$3"* ]]; then pass "$1"; else fail "$1" "expected to contain: $3"; fi; }
+assert_not_contains() { if [[ "$2" != *"$3"* ]]; then pass "$1"; else fail "$1" "expected not to contain: $3"; fi; }
 assert_line() { if grep -Eq "$3" <<<"$2"; then pass "$1"; else fail "$1" "no line matches: $3"; fi; }
 
 T="$(mktemp -d)"
@@ -71,12 +72,8 @@ assert_eq "check exits 0 with no finding" 0 "$rc"
 run apply --exclude 'legacy/**' --rule weak-oracle=warn --rule testing/audit/rule-zero-assertion=error \
   --extend js-vitest.files='*.it.ts' --disable py-unittest
 assert_eq "apply exits 0" 0 "$rc"
-DOCS="$R/docs/conventions/testing.md"
-expected='# Testing conventions
-
-Test-file scope and rule levels for the testing plugin (/testing:setup).
-
-```yaml config
+TY="$R/docs/conventions/testing.yaml"
+expected='# Test-file scope and rule levels for the testing plugin (/testing:setup).
 adapters:
   disable: ['"'py-unittest'"']
 paths:
@@ -86,14 +83,13 @@ extend:
     files: ['"'*.it.ts'"']
 rules:
   rule-weak-oracle: warn
-  rule-zero-assertion: error
-```'
-assert_eq "apply creates the docs convention file with the answers in a fenced config block" "$expected" "$(cat "$DOCS")"
+  rule-zero-assertion: error'
+assert_eq "apply creates docs/conventions/testing.yaml with the answers" "$expected" "$(cat "$TY")"
 assert_eq "and writes no .claude/testing.yaml" "" "$(ls "$R/.claude" 2>/dev/null)"
 run check
 assert_line "check prints the resolved config" "$out" $'^rules\\.weak-oracle\twarn$'
-assert_line "the layer record names the docs file" "$out" "^layer"$'\t'"$DOCS\$"
-assert_contains "with a docs file present, check offers a pointer line to it" "$out" "If testing, read docs/conventions/testing.md"
+assert_line "the layer record names testing.yaml" "$out" "^layer"$'\t'"$TY\$"
+assert_not_contains "with no docs/conventions/testing.md, check offers no pointer line" "$out" "If testing, read"
 assert_contains "and a hook entry for the uncovered glob" "$out" '"if": "Write(*.it.ts)"'
 # shellcheck disable=SC2016 # literal command text
 assert_contains "that runs test-scan with --enabled" "$out" 'exec bash \"$p\" --enabled'
@@ -151,12 +147,12 @@ rm -rf "$HOME/.claude/plugins"
 
 # A paths.include glob adds no basename to the hook's `if` rows, so it needs
 # no entry.
-cp "$DOCS" "$T/kept.yaml"
+cp "$TY" "$T/kept.yaml"
 run apply --include 'legacy/**' --include 'tests/*.py'
 run check
 assert_contains "paths.include globs print no hook entry" "$out" "none: every consumer test glob is covered"
 assert_eq "and no Write(**) or Write(*.py) row" "" "$(grep -F -e 'Write(**)' -e 'Write(*.py)' <<<"$out")"
-cp "$T/kept.yaml" "$DOCS"
+cp "$T/kept.yaml" "$TY"
 
 # Interleaved --extend flags still write one mapping per adapter.
 run apply --extend js-vitest.files='*.it.ts' --extend py-pytest.files='check_*.py' \
@@ -168,8 +164,8 @@ expected="extend:
     assertion.calls: ['verify']
   py-pytest:
     files: ['check_*.py']"
-assert_eq "and groups each adapter's fields under one key" "$expected" "$(sed -n '/^extend:/,/^```$/p' "$DOCS" | grep -v '^```$')"
-cp "$T/kept.yaml" "$DOCS"
+assert_eq "and groups each adapter's fields under one key" "$expected" "$(sed -n '/^extend:/,$p' "$TY")"
+cp "$T/kept.yaml" "$TY"
 
 # A test file only an extend.*.files glob or a consumer adapter claims still
 # gets the lint check.
@@ -211,13 +207,13 @@ assert_line "CLAUDE.local.md alone loads for this repository, so it is named" \
 assert_line "with neither, the user file is named" "$(target none)" 'Paste this into ~/\.claude/CLAUDE\.md yourself \(this repository has neither; that file applies to every repository\):$'
 assert_line "a relocated CLAUDE_CONFIG_DIR names its CLAUDE.md" "$(CFG=/cfg/claude target relocated)" 'Paste this into /cfg/claude/CLAUDE\.md yourself'
 
-cp "$DOCS" "$T/kept.yaml"
+cp "$TY" "$T/kept.yaml"
 run apply --rule no-such-rule=off
 assert_eq "apply refuses answers that do not resolve" 2 "$rc"
-assert_eq "and leaves the file as it was" "$(cat "$T/kept.yaml")" "$(cat "$DOCS")"
+assert_eq "and leaves the file as it was" "$(cat "$T/kept.yaml")" "$(cat "$TY")"
 run apply --rule $'weak-oracle=off\n```\nInjected prose\n'
 assert_eq "apply refuses a flag value that holds a line break" 2 "$rc"
-assert_eq "and leaves the file as it was after a line break" "$(cat "$T/kept.yaml")" "$(cat "$DOCS")"
+assert_eq "and leaves the file as it was after a line break" "$(cat "$T/kept.yaml")" "$(cat "$TY")"
 run apply --rule weak-oracle=loud
 assert_eq "apply refuses a rule level other than off, warn or error" 2 "$rc"
 
@@ -261,8 +257,8 @@ assert_eq "apply refuses a symlinked .claude directory holding the team file" 2 
 assert_eq "and leaves that file alone" "paths:
   exclude: [a]" "$(cat "$S/elsewhere/testing.yaml")"
 
-# The target: the docs block when the docs file has one, else .claude/testing.yaml
-# when that is the file in use, else a new docs file. Other text in the docs file stays.
+# The target: testing.yaml when it exists, else the docs block when the docs file has one, else .claude/testing.yaml
+# when that is the file in use, else a new testing.yaml. Other text in the docs file stays.
 G="$T/target"
 mkdir -p "$G/.claude" "$G/docs/conventions"
 git -C "$G" init -q
@@ -281,16 +277,6 @@ run_g --exclude 'new/**'
 assert_eq "a docs file with no block and a .claude file in use: the docs file is not touched" "# Testing
 
 Prose first." "$(cat "$G/docs/conventions/testing.md")"
-rm -f "$G/.claude/testing.yaml"
-run_g --exclude 'appended/**'
-assert_eq "a docs file with no block gets one appended, its prose kept" "0:# Testing
-
-Prose first.
-
-\`\`\`yaml config
-paths:
-  exclude: ['appended/**']
-\`\`\`" "$rc:$(cat "$G/docs/conventions/testing.md")"
 printf '# Testing\n\nBefore.\n\n```yaml config\npaths:\n  exclude: [old]\n```\n\nAfter.\n' >"$G/docs/conventions/testing.md"
 printf 'paths:\n  exclude: [claude-file]\n' >"$G/.claude/testing.yaml"
 run_g --exclude 'replaced/**' --include 'keep/**'
@@ -311,15 +297,28 @@ printf '# Testing\n\n```yaml config\npaths:\n  excludes: [x]\n```\n' >"$G/docs/c
 run_g --exclude 'y/**'
 assert_eq "a docs block that does not parse is refused, not overwritten" 2 "$rc"
 assert_contains "naming the .md line" "$out" "testing.md:5: unknown key: paths.excludes"
-unclosed='# Testing\n\n```bash\nnpm test\n'
 rm -f "$G/.claude/testing.yaml"
-printf '%b' "$unclosed" >"$G/docs/conventions/testing.md"
-run_g --exclude 'z/**'
-assert_eq "an append hidden by an unclosed fence is refused and the file restored" "2:$(printf '%b' "$unclosed")" "$rc:$(cat "$G/docs/conventions/testing.md")"
-assert_contains "naming the unclosed fence" "$out" "unclosed code fence"
+printf '# Testing\n\nProse only.\n' >"$G/docs/conventions/testing.md"
+run_g --exclude 'fresh/**'
+assert_eq "a docs file with no block and no other team file: apply creates testing.yaml" "0:# Test-file scope and rule levels for the testing plugin (/testing:setup).
+paths:
+  exclude: ['fresh/**']" "$rc:$(cat "$G/docs/conventions/testing.yaml")"
+assert_eq "and leaves the prose file as it was" "# Testing
+
+Prose only." "$(cat "$G/docs/conventions/testing.md")"
+block_md='# Testing\n\n```yaml config\npaths:\n  exclude: [old]\n```\n'
+printf '%b' "$block_md" >"$G/docs/conventions/testing.md"
+printf 'e2e_driver: run\npaths:\n  exclude: [old]\nreuse_running_instance: false\n' >"$G/docs/conventions/testing.yaml"
+run_g --exclude 'yaml/**'
+assert_eq "testing.yaml in use: apply rewrites it and keeps the run-e2e keys" "0:# Test-file scope and rule levels for the testing plugin (/testing:setup).
+paths:
+  exclude: ['yaml/**']
+e2e_driver: run
+reuse_running_instance: false" "$rc:$(cat "$G/docs/conventions/testing.yaml")"
+assert_eq "and the docs block it shadows is untouched" "$(printf '%b' "$block_md")" "$(cat "$G/docs/conventions/testing.md")"
 
 assert_eq "neither check nor apply changed CLAUDE.md or AGENTS.md" "$before" "$(sums)"
-assert_eq "apply wrote no file but the docs convention file" "docs/conventions/testing.md" \
+assert_eq "apply wrote no file but docs/conventions/testing.yaml" "docs/conventions/testing.yaml" \
   "$(git -C "$R" status --porcelain --untracked-files=all | sed 's/^?? //' | grep -v '^A ' | sort | paste -sd' ')"
 
 if [[ "$FAILED" -eq 0 ]]; then

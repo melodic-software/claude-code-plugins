@@ -84,6 +84,135 @@
         "Does not invoke run",
         "Drives the existing instance and launches nothing"
       ]
+    },
+    {
+      "id": "e2e-settings-01",
+      "name": "driver-team-yaml-wins-over-userconfig",
+      "prompt": "/testing:run-e2e the checkout flow. The repository's docs/conventions/testing.yaml holds `e2e_driver: run`, and the testing plugin's e2e_driver userConfig option is set to playwright. No local overlay exists.",
+      "expected_output": "Step 2 runs resolve-config.sh e2e with the rendered userConfig values. The team file is higher than userConfig, so e2e_driver resolves to run with docs/conventions/testing.yaml named as its source; the playwright userConfig value is not used.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves e2e_driver through scripts/resolve-config.sh e2e, passing the userConfig values with --user",
+        "Reports e2e_driver as run, supplied by docs/conventions/testing.yaml",
+        "Does not drive with playwright"
+      ]
+    },
+    {
+      "id": "e2e-settings-02",
+      "name": "driver-from-userconfig-alone",
+      "prompt": "/testing:run-e2e the export flow. The repository has no docs/conventions/testing.yaml, no ~/.claude/testing.yaml and no .claude/testing.local.yaml. The testing plugin's e2e_driver userConfig option is set to playwright.",
+      "expected_output": "With no file layer setting the key, the per-user level supplies it: e2e_driver resolves to playwright from userConfig, and the report names userConfig as the source.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports e2e_driver as playwright, supplied by userConfig",
+        "Reports reuse_running_instance as auto from the default"
+      ]
+    },
+    {
+      "id": "e2e-settings-03",
+      "name": "pinned-playwright-on-cli-target-stops",
+      "prompt": "/testing:run-e2e the `invoice` command of this CLI tool. docs/conventions/testing.yaml pins `e2e_driver: playwright`. The tool has no browser UI.",
+      "expected_output": "A browser driver cannot drive a CLI target. The run stops with the gap report naming e2e_driver: playwright, the file that set it, and the CLI target; it does not switch to the run recipe on its own.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Stops and writes the verification-environment gap report",
+        "The gap report names the value playwright, its source file and the CLI target",
+        "Does not fall back to another driver without being asked"
+      ]
+    },
+    {
+      "id": "e2e-settings-04",
+      "name": "auto-picks-harness-when-a-spec-covers-the-flow",
+      "prompt": "/testing:run-e2e the password-reset flow. e2e_driver resolves to auto. The repository has a Playwright Test suite, and e2e/password-reset.spec.ts exercises the reset form this branch changed.",
+      "expected_output": "Under auto, a spec that covers the changed flow ranks first, so the repository's own harness drives: it runs the covering spec and the evidence names e2e/password-reset.spec.ts.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Picks harness as the driver",
+        "Runs the covering spec rather than driving the flow through the playwright CLI",
+        "The evidence names the spec that ran"
+      ]
+    },
+    {
+      "id": "e2e-settings-05",
+      "name": "auto-falls-to-playwright-when-no-spec-covers",
+      "prompt": "/testing:run-e2e the new profile-photo upload page. e2e_driver resolves to auto. The repository's e2e specs cover login and search only; none touches profile photos. The playwright plugin is enabled.",
+      "expected_output": "A suite that does not exercise the changed flow does not count, so harness is skipped. The target is a browser page, so auto picks playwright: the flow is driven through the playwright CLI path via /playwright:playwright.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not pick harness, because no spec covers the changed flow",
+        "Drives the page through the playwright CLI path",
+        "Does not pick chrome"
+      ]
+    },
+    {
+      "id": "e2e-settings-06",
+      "name": "run-driver-unattended-uses-own-recipe",
+      "prompt": "/testing:run-e2e unattended smoke-test the `sync` subcommand of this terminal app. e2e_driver resolves to run, and the bundled run skill resolves in this session.",
+      "expected_output": "Unattended, the bundled run skill is never invoked (the result block records skipped (unattended)). The run value means this skill's own recipe: the subcommand runs under a pseudo-terminal per non-ui.md, and its transcript and exit code are saved as evidence.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Records 'skipped (unattended)' for the Native step and never invokes the bundled run skill",
+        "Drives the subcommand under a pseudo-terminal per the non-ui.md recipe",
+        "Saves the transcript and exit code as evidence"
+      ]
+    },
+    {
+      "id": "e2e-settings-07",
+      "name": "chrome-unattended-stops",
+      "prompt": "/testing:run-e2e unattended the billing settings page. The overlay .claude/testing.local.yaml sets `e2e_driver: chrome`.",
+      "expected_output": "chrome drives the person's own browser on the host and is attended-only. On an unattended run the setting is refused: the run stops with the gap report naming e2e_driver: chrome and its overlay source, and does not switch to playwright.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not open Claude in Chrome",
+        "Stops with the gap report naming chrome, the overlay file and the unattended run",
+        "Does not substitute another driver"
+      ]
+    },
+    {
+      "id": "e2e-settings-08",
+      "name": "reuse-auto-unattended-labels-evidence",
+      "prompt": "/testing:run-e2e unattended the cart page. reuse_running_instance resolves to auto, no orchestrator governs the start, and the app already answers at http://localhost:4200.",
+      "expected_output": "The probe of http://localhost:4200 gets a response, so the run drives the running app and starts nothing. Because the run is unattended, the evidence is labelled 'instance not started by this run'.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Probes the named localhost URL before launching anything",
+        "Drives the running app and launches no second instance",
+        "Labels the evidence 'instance not started by this run'"
+      ]
+    },
+    {
+      "id": "e2e-settings-09",
+      "name": "reuse-false-with-app-answering-stops",
+      "prompt": "/testing:run-e2e the signup form. docs/conventions/testing.yaml sets `reuse_running_instance: false`. No orchestrator governs the start, and an app already answers on port 8080.",
+      "expected_output": "false forbids driving an instance this run did not start, and a second instance beside it is not supported. The run stops with the gap report naming the collision: the app answering on port 8080 and reuse_running_instance: false from docs/conventions/testing.yaml.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not drive the app already answering on port 8080",
+        "Does not start a second instance",
+        "Stops with the gap report naming port 8080 and the reuse_running_instance setting with its source"
+      ]
+    },
+    {
+      "id": "e2e-settings-10",
+      "name": "unknown-driver-value-named-and-defaulted",
+      "prompt": "/testing:run-e2e the dashboard. docs/conventions/testing.yaml holds `e2e_driver: puppeteer`, and the e2e_driver userConfig option is set to playwright.",
+      "expected_output": "puppeteer is not an allowed value. Resolution names the file, the key and the value, and the key takes its default, auto; the lower userConfig value is not used in its place. The run does not stop: it continues under auto and the report says the team value was rejected.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Names docs/conventions/testing.yaml, e2e_driver and puppeteer as a rejected value",
+        "Resolves e2e_driver to auto from the default, not playwright from userConfig",
+        "Continues the run instead of stopping"
+      ]
     }
   ]
 }

@@ -1,0 +1,5 @@
+# yaml-language-server: $schema=../../plugins/testing/schemas/testing.schema.json
+# Team layer for the testing plugin's settings.
+# Resolution: plugins/testing/scripts/resolve-config.sh (scan keys and its e2e mode).
+e2e_driver: auto
+reuse_running_instance: auto

@@ -70,6 +70,9 @@
 # rules.<rule>: off | warn | error, where <rule> is testing/audit/rule-<slug>
 # or rule-<slug> and prints as rules.<slug>, or is test-weaken-block, the
 # test-weaken hook's deny switch. A glob starting with * must be single-quoted.
+# The top-level run-e2e keys e2e_driver and reuse_running_instance are skipped
+# unread, whatever their value; a nested value skips with its indented lines and
+# draws one stderr warning naming the file and line.
 
 BEGIN {
   split("id extends language block_model advisory suppress_marker", t, " ")
@@ -252,7 +255,7 @@ function open_key(key) {
 
 FNR == 1 {
   if (nf > 0) md_end(nf)
-  nf++; F_NAME[nf] = FILENAME; sp = 0
+  nf++; F_NAME[nf] = FILENAME; sp = 0; E2E_KEY = ""
   F_MD[nf] = MODE == "config" && FILENAME ~ /\.md$/
   IN = 0; FCH = ""
 }
@@ -269,6 +272,18 @@ FNR == 1 {
   ind = RLENGTH
   body = substr(line, ind + 1)
 
+  # A skipped run-e2e key's indented lines and block-list items skip with it.
+  if (E2E_KEY != "") {
+    if (ind > 0 || body ~ /^-([ ]|$)/) {
+      if (!E2E_WARNED) {
+        printf "adapter-load: %s:%d: warning: %s holds a nested value; the scan skips it\n", F_NAME[nf], FNR, E2E_KEY > "/dev/stderr"
+        E2E_WARNED = 1
+      }
+      next
+    }
+    E2E_KEY = ""
+  }
+
   if (body ~ /^-([ ]|$)/) {
     while (sp > 0 && S_IND[sp] > ind) sp--
     if (sp == 0) die("list item with no open key")
@@ -283,6 +298,13 @@ FNR == 1 {
 
   if (!match(body, KEY_RE)) die("expected `key: value` or `- item`")
   key = substr(body, 1, RLENGTH - 1)
+  # run-e2e's keys share the config file; scripts/resolve-config.sh e2e reads
+  # them, so the scan neither parses nor checks their values.
+  if (MODE == "config" && ind == 0 && key ~ /^(e2e_driver|reuse_running_instance)$/) {
+    sp = 0
+    E2E_KEY = key; E2E_WARNED = 0
+    next
+  }
   rest = substr(body, RLENGTH + 1)
   if (rest != "" && rest !~ /^ /) die("missing space after colon")
   sub(/^[ ]+/, "", rest)
