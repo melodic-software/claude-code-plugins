@@ -1,4 +1,4 @@
-name: claude-security-review
+name: pr-review-security-hosted
 
 # SYNC-MANAGED FILE: DO NOT EDIT IN THE CONSUMING REPOSITORY.
 # Source of truth: melodic-software/standards,
@@ -22,7 +22,7 @@ name: claude-security-review
 # NEVER add workflow-level `paths:`/`paths-ignore:` to this caller: a check
 # whose workflow never triggers is missing, not green, so a required check
 # would stay Pending forever, and the babysit merge gate, which waits for
-# `security-review / security-review`, never arms.
+# `pr-review-security / security-review`, never arms.
 #
 # The reusable skips fork PRs (they receive no secrets and a read-only token)
 # and every `[bot]` actor; a required check does NOT prove a fork PR was
@@ -32,8 +32,8 @@ name: claude-security-review
 #
 # RUNNER PLACEMENT: hosted shape, the sibling of
 # components/claude-lanes/claude-security-review.yml, differing from it only
-# in these comments and `runner`. It is an interim with the same removal
-# trigger as the code-review caller. See that file's header.
+# in these comments, `runner` and the workflow `name:`. It is an interim with
+# the same removal trigger as the code-review caller. See that file's header.
 
 on:
   pull_request:
@@ -58,7 +58,7 @@ permissions:
 # `cancel-in-progress: true`, which this lane cannot ship. A canceled run of
 # a check a ruleset might later read is not a skip and does not read success,
 # so canceling an in-flight review can wedge the merge behind a void check.
-# Concurrency lives on the `security-review` job below
+# Concurrency lives on the `pr-review-security` job below
 # (`cancel-in-progress: false`, no queue), which is the shape a
 # `delegated-job-level` concurrency-policy exception waives. And NO job-level
 # queue group: a full queue CANCELS new arrivals, which is the same wedge; a
@@ -67,7 +67,7 @@ permissions:
 # cancels superseded runs). Do not normalize the two.
 
 jobs:
-  security-review:
+  pr-review-security:
     # A draft is work in progress and does not spend a review; the
     # ready_for_review trigger above is what delivers one when it is ready.
     if: github.event.pull_request.draft == false
@@ -79,9 +79,9 @@ jobs:
                              # even with an OAuth/API-key credential)
     # Per-PR serialization without cancellation. See the workflow header.
     concurrency:
-      group: claude-security-review-${{ github.event.pull_request.number || github.run_id }}
+      group: pr-review-security-${{ github.event.pull_request.number || github.run_id }}
       cancel-in-progress: false
-    uses: melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@0a99a32989ec1303fcbca233370f4210e888a0f4 # v0.32.0
+    uses: melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
     with:
       runner: ubuntu-24.04
     # Pass only the one named secret (least privilege) rather than

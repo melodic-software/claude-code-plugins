@@ -11,7 +11,7 @@
         "Cites the pre-computed values verbatim as the evidence for the jq, node and zones.json findings: the resolved path or 'absent', and the zones.json contents or its absent/unreadable token",
         "Reports the module row from its own tool list (mcp__context-guard__status present or absent) and `claude --version` against the 2.1.287 floor",
         "Runs the retired-tee detector's three steps (stamps against the install record, cached versions holding a tee, wiring routes) and reports each finding",
-        "Reports a row for each of the 8 options, from context_guard_hooks_enabled to context_guard_band",
+        "Reports a row for each of the 9 options, from context_guard_hooks_enabled to context_guard_toast",
         "Reads settings only; never writes settings, pluginConfigs, the snapshot directory or zones.json",
         "Reports PASS/FAIL/INFO with one remediation line per FAIL"
       ]

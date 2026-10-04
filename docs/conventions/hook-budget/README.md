@@ -66,8 +66,8 @@ fire-and-forget, once per fire that acts: lines sent to Claude, an operator-mode
 or a gated call denied. A fire that changes nothing starts no sink. The plugin's own
 `claude plugin test` cases enforce both by stubbing `$.process.run` and
 counting the calls per scenario: context-guard's
-`hooks/context-guard.test.ts:1187` ("budget: no process on calls that write nothing, one per write,
-none for the gate") and rate-limit-guard's `hooks/rate-limit-guard.test.ts:601` ("budget: no
+`hooks/context-guard.test.ts` ("budget: no process on calls that write nothing, one per write,
+none for the gate") and rate-limit-guard's `hooks/rate-limit-guard.test.ts` ("budget: no
 process on events that write nothing, one per write"). A new always-on mod hook adds such a case.
 Claude Code also skips a hook that runs past its own time limit.
 
