@@ -85,8 +85,9 @@ validated `date +%s.%N`, else `seconds`). On the default-marketplace path the bl
 at the resolving read, which is that marketplace's `pre_refresh_read`. A step this invocation did
 not run, because `audit` predicted it, the policy stopped before Step 4, or an `--only-install`
 re-entry reuses the first pass's result, reads `null`, never 0. The digest's top-level
-`timings.total` times the whole invocation and `timings.outside_marketplaces` is the part of it no
-block covers (run setup and digest assembly). Its `cwd` is what the `In-repo:` row names when no
+`timings.total` times the run from its start until the digest is about to be assembled (so it
+excludes the digest's own assembly, the render and the print), and `timings.outside_marketplaces`
+is the part of it no block's window covers (run setup and each block's assembly into the digest). Its `cwd` is what the `In-repo:` row names when no
 project root resolved. Ids and counts only: the per-file cache detail and every snapshot stay in
 the run directory, which the digest names.
 

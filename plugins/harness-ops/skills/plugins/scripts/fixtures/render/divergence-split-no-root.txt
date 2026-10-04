@@ -4,4 +4,4 @@ Divergences: 67 actionable: 24 pre-existing, 43 newly created by this run (5 by 
 Timing: 1s this marketplace (seconds)
 
 Run journal: /r
-Timing: 1s whole invocation (seconds)
+Timing: 1s run total (seconds)

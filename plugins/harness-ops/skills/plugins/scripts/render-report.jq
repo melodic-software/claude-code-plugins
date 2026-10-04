@@ -300,7 +300,7 @@ def block($d):
     "",
     (if $d.mode == "audit" then "Run: audit scratch directory, removed on exit"
      else "Run journal: \($d.run_dir)" end),
-    "Timing: \($d.timings.total | secs) whole invocation"
+    "Timing: \($d.timings.total | secs) run total"
     + (if $d.timings.outside_marketplaces == null then ""
        else "; \($d.timings.outside_marketplaces)s outside the marketplace blocks" end)
     + " (\($d.timings.resolution))",

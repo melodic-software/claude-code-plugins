@@ -1772,7 +1772,9 @@ jq_to DIGEST -c -n \
    install_new_invalid: (if $install_new_invalid == "" then null else $install_new_invalid end),
    timings: (([0, (((($t_run_e | tonumber) - ($t_run_s | tonumber)) * 1000 | ceil) / 1000)] | max) as $total
              | {total: $total,
-                # Run setup and digest assembly: the part of the total no block covers.
+                # Run setup and the per-block assembly: the part of the total no
+                # block window covers. The clock stops before this jq runs, since a digest
+                # cannot time its own assembly without a second jq process.
                 outside_marketplaces: ([0, ((($total * 1000)
                                              - ([$marketplaces[].timings.total | numbers] | add // 0) * 1000)
                                             | round) / 1000] | max),

@@ -4,4 +4,4 @@ Divergences: 3 behind here → run `/harness-ops:plugins converge`; on this whol
 Timing: 1s this marketplace (seconds)
 
 Run journal: /r
-Timing: 1s whole invocation (seconds)
+Timing: 1s run total (seconds)

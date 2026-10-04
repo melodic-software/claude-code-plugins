@@ -817,7 +817,7 @@ assert_timings_shape() {
         | map(select(. != null)) | (add // 0) - $t.total | . < 0.0015 and . > -0.0015' <<<"$t")"
   assert_eq "$label: the post-read work is a named step" "number" "$(jq -r '.finalize | type' <<<"$t")"
   assert_eq "$label: the pre-install read is a named step" "number" "$(jq -r '.pre_install_read | type' <<<"$t")"
-  assert_eq "$label: the whole invocation is timed at top level with the same clock" "true" \
+  assert_eq "$label: the run is timed at top level with the same clock" "true" \
     "$(jq -r '(.timings.total | type == "number") and .timings.total >= .marketplaces[0].timings.total
         and .timings.resolution == .marketplaces[0].timings.resolution' <<<"$digest")"
   assert_eq "$label: the marketplace totals plus outside_marketplaces sum to the run total" "true" \
@@ -837,8 +837,10 @@ write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source":
 write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
 setup_case "$case_dir"
 EXTRA_ENV=(CLAUDE_STUB_NEW_VERSION=0.2.0)
+wall_s=${EPOCHREALTIME:-0}
 out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
 assert_exit "timings: exit 0" 0 $?
+wall_e=${EPOCHREALTIME:-0}
 assert_timings_shape "timings" "$out"
 assert_contains "timings: the resolution names a rung of the ladder" \
   " microseconds nanoseconds seconds " " $(jq -r '.marketplaces[0].timings.resolution' <<<"$out") "
@@ -847,6 +849,12 @@ assert_eq "timings: the sync steps that ran are all timed" "number number number
 assert_eq "timings: an already-current install and enable set leaves install_enable null" "null" \
   "$(jq -c '.marketplaces[0].timings.install_enable' <<<"$out")"
 if [[ -n "${EPOCHREALTIME:-}" ]]; then
+  # The run clock stops before the digest is assembled, so the total leaves out at
+  # least that jq, the report write and the print, which the wall clock around the
+  # whole invocation includes.
+  assert_eq "timings: the run total stops short of the whole invocation (it excludes the digest assembly)" "true" \
+    "$(jq -rn --arg ws "$wall_s" --arg we "$wall_e" --argjson total "$(jq '.timings.total' <<<"$out")" \
+      '$total < (($we | tonumber) - ($ws | tonumber))')"
   assert_eq "timings: a bash with EPOCHREALTIME reports microseconds" "microseconds" \
     "$(jq -r '.marketplaces[0].timings.resolution' <<<"$out")"
 fi
@@ -991,8 +999,8 @@ assert_eq "render: the renderer carries no user_config placeholder token" "0" \
 out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" --render)
 assert_contains "render: the marketplace Timing row names the slowest step, the remainder and the clock" \
   "$(printf '%s\n' "$out" | grep -E '^Timing: [0-9.]+s this marketplace; slowest step [a-z_]+ [0-9.]+s; [0-9.]+s outside the named steps \((microseconds|nanoseconds|seconds)\)$' | head -n 1)" "Timing: "
-assert_contains "render: the run Timing row times the whole invocation and its remainder" \
-  "$(printf '%s\n' "$out" | grep -E '^Timing: [0-9.]+s whole invocation; [0-9.]+s outside the marketplace blocks \((microseconds|nanoseconds|seconds)\)$')" "whole invocation"
+assert_contains "render: the run Timing row names the run total and its remainder" \
+  "$(printf '%s\n' "$out" | grep -E '^Timing: [0-9.]+s run total; [0-9.]+s outside the marketplace blocks \((microseconds|nanoseconds|seconds)\)$')" "run total"
 
 # --- a withheld downgrade, with the source named as the likely cause --------
 CASE_NUM=$((CASE_NUM + 1))
