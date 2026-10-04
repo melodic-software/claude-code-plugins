@@ -52,11 +52,19 @@ run() { # <store> <args...>
   rc=$?
 }
 flagged() { grep '^!' <<<"$out"; } # rows the script marked
+# A cannot-evaluate exit names both routes: the telemetry switch and the Stop-hook transcript route.
+assert_routes() { # <case label>
+  assert_contains "$1 names the telemetry-enable step" "$out" "CLAUDE_CODE_ENABLE_TELEMETRY=1"
+  assert_contains "$1 names the setup doc" "$out" "context/operator-setup.md"
+  assert_contains "$1 names the audit-performance skill" "$out" "/harness-ops:audit-performance"
+  assert_contains "$1 names the stop_hook_summary records" "$out" "stop_hook_summary"
+}
 
 out="$(bash "$SCRIPT" --help)"
 assert_contains "--help prints usage" "$out" "--min-sessions"
 run "$TMP" --budget nope
 assert_eq "bad --budget exits 2" 2 "$rc"
+assert_not_contains "a usage error names no telemetry route" "$out" "stop_hook_summary"
 run "$TMP" --min-sessions 2
 assert_eq "--min-sessions below 3 exits 2" 2 "$rc"
 
@@ -104,6 +112,7 @@ if command -v duckdb >/dev/null 2>&1; then
   run "$old" --days 1
   assert_eq "fires before --days are excluded" 2 "$rc"
   assert_contains "the exclusion says why" "$out" "no hook_execution_complete rows"
+  assert_routes "no rows in the window"
   run "$old" --since 2000-01-01
   assert_eq "--since before the fires includes them" 0 "$rc"
   assert_contains "a window older than the hot store warns about the cold tier" "$out" "cold tier"
@@ -119,6 +128,20 @@ fi
 
 run "$TMP/missing"
 assert_eq "missing store exits 2" 2 "$rc"
+assert_contains "missing store says why" "$out" "no logs store at"
+assert_routes "missing store"
+
+# duckdb missing: PATH without every directory that holds a duckdb.
+nodb_path=""
+IFS=: read -ra path_dirs <<<"$PATH"
+for d in "${path_dirs[@]}"; do
+  [[ -e "$d/duckdb" || -e "$d/duckdb.exe" ]] || nodb_path+="$d:"
+done
+out="$(PATH="${nodb_path%:}" CC_OTEL_STORE="$TMP/missing" "$BASH" "$SCRIPT" 2>&1)"
+rc=$?
+assert_eq "missing duckdb exits 2" 2 "$rc"
+assert_contains "missing duckdb says why" "$out" "duckdb not found"
+assert_routes "missing duckdb"
 
 printf '\n%d case(s), %d failed\n' "$CASE_NUM" "$FAILED"
 ((FAILED == 0))
