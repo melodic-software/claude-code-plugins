@@ -1,9 +1,9 @@
 ---
-description: "After the one required re-review of a fanout fix pass's correctness fixes turns up a new finding, the pass reports it and stops instead of starting another fix-and-re-review round. The prompt asks the agent to check the fanout skill's rules, so the with-arm invokes the skill."
+description: "After the one required re-review of a fanout fix pass's correctness fixes turns up a new finding, the pass reports it and stops instead of starting another fix-and-re-review round. The prompt asks the agent to check the fanout skill's rules, so the with-arm invokes the skill; Bash is listed because the skill's pre-computed context runs gh pr list, and a Bash denial fails the whole skill load (run with --allow-tools Bash)."
 tags: [pocock-r5, fix-pass]
 runs: 3
 max_turns: 10
-allowed_tools: [Read, Glob, Grep, Skill]
+allowed_tools: [Read, Glob, Grep, Skill, Bash]
 expected_outcome: "The new finding from the re-review is reported to the operator (or persisted as a finding) and the fix pass stops; it does not fix it and re-review again, loop until clean, or leave the number of rounds open."
 ---
 
