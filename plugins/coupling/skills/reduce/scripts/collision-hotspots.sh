@@ -122,7 +122,11 @@ bump="$(jq -r --arg excl "$excluded" '
 printf 'known bump hotspots: changelogs, lockfiles and version manifests conflict on every version bump, not through design, so they are left out of the ranking: %s\n' "${bump:-none}"
 
 # Pairs: open intervals overlap (an open PR runs to now) and at least one
-# ranked file is shared. Most shared files first, then the newest PRs.
+# ranked file is shared. Most shared files first, then the newest PRs. Each
+# shared path appears once as a `p<TAB>path` line in index order, and each pair
+# as `r<TAB>a<TAB>b<TAB>index...`, so no PR path is ever an array subscript:
+# with bash 5.1 compatibility an arithmetic subscript is expanded twice, which
+# would run a `$(...)` inside a file name.
 pairs="$(jq -r --arg excl "$excluded" '
   ($excl | split("\n") | map(select(length > 0)) | map({key: ., value: true}) | from_entries) as $ex
   | [.[] | {n: .number, s: (.createdAt | fromdateiso8601),
@@ -135,11 +139,24 @@ pairs="$(jq -r --arg excl "$excluded" '
      | [$a.f[] | select($b.set[.])] as $sh
      | select($sh | length > 0)
      | {a: ([$a.n, $b.n] | min), b: ([$a.n, $b.n] | max), sh: $sh}]
-  | sort_by(-(.sh | length), -.b, -.a)
-  | .[] | "\(.a)\t\(.b)\t\(.sh | join("\t"))"' <<<"$listing")" || die "could not pair the PRs"
+  | sort_by(-(.sh | length), -.b, -.a) as $pairs
+  | ([$pairs[].sh[]] | unique) as $all
+  | ($all | to_entries | map({key: .value, value: .key}) | from_entries) as $ix
+  | ($all[] | "p\t\(.)"),
+    ($pairs[] | "r\t\(.a)\t\(.b)\t\(.sh | map($ix[.]) | join("\t"))")' <<<"$listing")" || die "could not pair the PRs"
 
-pair_lines=()
-[[ -n "$pairs" ]] && mapfile -t pair_lines <<<"$pairs"
+paths=() pair_lines=()
+while IFS= read -r line; do
+  case "$line" in
+  p$'\t'*) paths+=("${line#p$'\t'}") ;;
+  r$'\t'*)
+    line="${line#r$'\t'}"
+    [[ "$line" =~ ^[0-9]+$'\t'[0-9]+($'\t'[0-9]+)+$ ]] || die "unexpected pair line"
+    pair_lines+=("$line")
+    ;;
+  *) ;;
+  esac
+done <<<"$pairs"
 total=${#pair_lines[@]}
 replay=$((total < max_pairs ? total : max_pairs))
 printf 'pairs: %d overlapping pairs share a ranked file; replaying %d (--max-pairs %d), skipped %d\n' \
@@ -168,10 +185,12 @@ if [[ -n "$repo" ]]; then
   [[ -n "$remote" ]] || die "gh reported no URL for --repo"
 fi
 
-declare -A wanted=()
+# PR numbers and path indexes are digits only (checked above), so the indexed
+# arrays below never evaluate untrusted text.
+wanted=()
 for line in "${pair_lines[@]}"; do
   IFS=$'\t' read -r a b _ <<<"$line"
-  wanted[$a]=1 wanted[$b]=1
+  wanted[a]=1 wanted[b]=1
 done
 numbers=("${!wanted[@]}")
 for ((i = 0; i < ${#numbers[@]}; i += 50)); do
@@ -180,43 +199,50 @@ for ((i = 0; i < ${#numbers[@]}; i += 50)); do
     [[ "$n" =~ ^[0-9]+$ ]] || die "unexpected PR number"
     specs+=("+refs/pull/$n/head:$ns/pr/$n")
   done
-  if ! git fetch --quiet --no-tags --no-write-fetch-head "$remote" "${specs[@]}" 2>/dev/null; then
+  # An empty --refmap stops a configured remote.<name>.fetch from also writing
+  # remote-tracking refs for these heads.
+  if ! git fetch --quiet --no-tags --no-write-fetch-head --refmap= "$remote" "${specs[@]}" 2>/dev/null; then
     for spec in "${specs[@]}"; do
-      git fetch --quiet --no-tags --no-write-fetch-head "$remote" "$spec" 2>/dev/null || true
+      git fetch --quiet --no-tags --no-write-fetch-head --refmap= "$remote" "$spec" 2>/dev/null || true
     done
   fi
 done
-declare -A fetched=()
+fetched=()
 for n in "${numbers[@]}"; do
   if git rev-parse --verify -q "$ns/pr/$n^{commit}" >/dev/null; then
-    fetched[$n]=1
+    fetched[n]=1
   else
     printf 'gap: PR #%s head could not be fetched; its pairs are not replayed\n' "$n"
   fi
 done
 
-declare -A pair_count=() conflict_count=()
+# Counts are indexed by path index; the names git reports as conflicted are
+# compared as strings and never used as subscripts.
+pair_count=() conflict_count=()
 for line in "${pair_lines[@]}"; do
   IFS=$'\t' read -r a b shared_rest <<<"$line"
-  [[ -n "${fetched[$a]:-}" && -n "${fetched[$b]:-}" ]] || continue
+  [[ -n "${fetched[a]:-}" && -n "${fetched[b]:-}" ]] || continue
   IFS=$'\t' read -r -a shared <<<"$shared_rest"
   mapfile -d '' -t out < <(git merge-tree --write-tree --name-only --no-messages -z "$ns/pr/$a" "$ns/pr/$b")
   wait $!
   rc=$?
   ((rc <= 1)) || die "git merge-tree failed on PRs #$a and #$b (exit $rc)"
-  declare -A conflicted=()
-  for name in "${out[@]:1}"; do conflicted[$name]=1; done
-  for path in "${shared[@]}"; do
-    pair_count[$path]=$((${pair_count[$path]:-0} + 1))
-    [[ -n "${conflicted[$path]:-}" ]] && conflict_count[$path]=$((${conflict_count[$path]:-0} + 1))
+  for idx in "${shared[@]}"; do
+    pair_count[idx]=$((${pair_count[idx]:-0} + 1))
+    for name in "${out[@]:1}"; do
+      if [[ "$name" == "${paths[idx]}" ]]; then
+        conflict_count[idx]=$((${conflict_count[idx]:-0} + 1))
+        break
+      fi
+    done
   done
-  unset conflicted
 done
 
 rows=()
-for path in "${!pair_count[@]}"; do
-  ((pair_count[$path] >= MIN_PAIRS)) &&
-    rows+=("$(printf '%d\t%d\t%s' "${conflict_count[$path]:-0}" "${pair_count[$path]}" "$path")")
+for idx in "${!pair_count[@]}"; do
+  n=${pair_count[idx]}
+  ((n >= MIN_PAIRS)) &&
+    rows+=("$(printf '%d\t%d\t%s' "${conflict_count[idx]:-0}" "$n" "${paths[idx]}")")
 done
 if ((${#rows[@]} == 0)); then
   printf 'ranked: none; no file was shared by %d or more replayed pairs\n' "$MIN_PAIRS"

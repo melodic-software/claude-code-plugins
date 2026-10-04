@@ -38,6 +38,11 @@ g init -q "$BUILD"
 g init -q --bare "$REMOTE"
 printf '%s\n' a b c d e f g h i j >"$BUILD/shared.txt"
 printf '%s\n' base >"$BUILD/CHANGELOG.md"
+# Hostile file names: each would create a marker file in the clone if the
+# script ever evaluated a path as shell or arithmetic text.
+# shellcheck disable=SC2016 # literal names, never expanded
+HOSTILE=('x$(touch pwned-dollar)' 'y`touch pwned-tick`' 'a[1]' 'b[$(touch pwned-sub)]')
+for h in "${HOSTILE[@]}"; do printf '%s\n' a b c d e f g h i j >"$BUILD/$h"; done
 g -C "$BUILD" add .
 g -C "$BUILD" commit -qm base
 g -C "$BUILD" push -q "$REMOTE" main
@@ -57,6 +62,30 @@ pr 2 '1s/a/uno/' 'entry two'
 pr 3 '10s/j/ten/'
 pr 4 '1s/a/eins/'
 PR1_SHA="$(git -C "$BUILD" rev-parse pr1)"
+
+# hpr N LINE A1_LINE: branch from main and rewrite line LINE of every hostile
+# file except a[1], whose line A1_LINE is rewritten; push as refs/pull/N/head.
+hpr() {
+  local h line
+  g -C "$BUILD" checkout -q -b "pr$1" main
+  for h in "${HOSTILE[@]}"; do
+    line="$2"
+    [[ "$h" == 'a[1]' ]] && line="$3"
+    sed -i.bak "${line}s/.*/pr$1/" "$BUILD/$h"
+    rm -f "$BUILD/$h.bak"
+  done
+  g -C "$BUILD" commit -qam "pr $1"
+  g -C "$BUILD" push -q "$REMOTE" "pr$1:refs/pull/$1/head"
+}
+# 11 and 12 both rewrite line 1 of a[1] (one conflict); the other hostile
+# files are edited on separate lines (no conflict).
+hpr 11 1 1
+hpr 12 5 1
+hpr 13 10 10
+HOSTILE_LISTING="$TEST_TMPDIR/hostile.json"
+# shellcheck disable=SC2016 # a jq program, not a shell expansion
+"$JQ_BIN" -n --args '[11, 12, 13] | map({number: ., createdAt: "2026-09-01T00:00:00Z",
+  closedAt: null, files: ($ARGS.positional | map({path: .}))})' "${HOSTILE[@]}" >"$HOSTILE_LISTING"
 
 # The PR listing: 1-3 open together from September; 4 closed in August, so it
 # overlaps none of them; 6 lists exactly 100 files and closed in July.
@@ -189,6 +218,34 @@ assert_exit "a failing merge-tree exits 2" 2 "$RC"
 if git -C "$W" cat-file -e "$PR1_SHA^{commit}" 2>/dev/null; then fetched=yes; else fetched=no; fi
 assert_eq "the failing run had fetched the heads" yes "$fetched"
 assert_eq "run namespace is gone after a failure" 0 "$(ref_count "$W")"
+
+# Hostile file names, under the default bash and under bash 5.1 compatibility
+# (where an arithmetic array subscript is expanded twice).
+for compat in default 51; do
+  W="$(fresh_clone)"
+  if [[ "$compat" == default ]]; then
+    run "$W" "$HOSTILE_LISTING" --prs 50
+  else
+    OUT="$(cd "$W" && BASH_COMPAT=51 STUB_GH_JSON="$HOSTILE_LISTING" PATH="$BIN:$PATH" bash "$SCRIPT" --prs 50 2>&1)"
+    RC=$?
+  fi
+  assert_exit "hostile names exit 0 ($compat)" 0 "$RC"
+  markers="$(find "$W" -maxdepth 1 -name 'pwned-*' | wc -l | tr -d ' ')"
+  assert_eq "hostile names run no command ($compat)" 0 "$markers"
+  for h in "${HOSTILE[@]}"; do
+    want=0
+    [[ "$h" == 'a[1]' ]] && want=1
+    assert_eq "hostile name ranked verbatim: $h ($compat)" yes "$(has_row "$OUT" "$(printf '%d\t3\t%s' "$want" "$h")")"
+  done
+done
+
+# A configured remote.origin.fetch for pull heads must not gain refs.
+W="$(fresh_clone)"
+git -C "$W" config --add remote.origin.fetch '+refs/pull/*/head:refs/remotes/origin/pr/*'
+before="$(git -C "$W" for-each-ref refs/remotes)"
+run "$W" "$LISTING" --prs 50
+assert_exit "a pull-head fetch refspec run exits 0" 0 "$RC"
+assert_eq "remote-tracking refs are unchanged by the run" "$before" "$(git -C "$W" for-each-ref refs/remotes)"
 
 # Untrusted path with a control character.
 W="$(fresh_clone)"
