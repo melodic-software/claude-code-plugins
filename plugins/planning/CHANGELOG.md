@@ -3,6 +3,15 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Added
+
+- **`/planning:design` Phase 3 applies a stack-agnostic type-discipline reference and reads a TypeScript file when it detects TypeScript.**
+  `reference/type-discipline.md` covers unrepresentable illegal states, values built from always-valid parts, parsing outside input once at the boundary, no unproven casts, compiler-enforced exhaustiveness, one source per shape, and strengthening only where a value can be wrong.
+  `reference/type-discipline/typescript.md` loads when the repository has a `tsconfig.json` or the change touches `.ts`, `.tsx`, `.mts` or `.cts` files; it parses through the schema library the manifest already declares (none named as a default), types the schema against a type written first, and falls back to a hand-written parse function with no new dependency.
+  Phase 3 ends with an exit check written as questions against the type inventory; four eval cases cover the detection and the schema-library choice.
+
 ## [0.67.4] - 2026-10-04
 
 ### Changed
