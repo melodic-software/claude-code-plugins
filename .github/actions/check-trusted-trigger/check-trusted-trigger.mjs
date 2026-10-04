@@ -1,7 +1,7 @@
 // Trigger gate for CI lanes: proceed only for a same-repository PR whose event
 // actor and PR author are both on the trusted-actor list, matched by numeric
-// id, and whose re-runner, when given, is listed by login. A denied id stops
-// the lane even when it is listed. Every failure ends in proceed=false with a
+// id, and whose re-runner is listed by login. A denied id stops the lane even
+// when it is listed. Every failure ends in proceed=false with a
 // reason; main never throws.
 import { readFileSync } from "node:fs";
 import process from "node:process";
@@ -200,19 +200,19 @@ export async function evaluateTrigger({
   ) {
     throw new Stop("no-pr");
   }
-  // The context gives the re-runner's login only, so it is matched by login.
-  const rerunnerId = triggeringActor === "" ? undefined : logins.get(triggeringActor.toLowerCase());
-  if (
-    actors.some((actor) => Number.isInteger(actor?.id) && deniedIds.has(actor.id)) ||
-    (rerunnerId !== undefined && deniedIds.has(rerunnerId))
-  ) {
+  if (actors.some((actor) => Number.isInteger(actor?.id) && deniedIds.has(actor.id))) {
     throw new Stop("bot-actor");
   }
   if (!actors.every((actor) => isListed(ids, actor))) {
     throw new Stop("untrusted-actor");
   }
-  if (triggeringActor !== "" && rerunnerId === undefined) {
-    throw new Stop("untrusted-actor");
+  // The context gives the re-runner's login only, so it is matched by login.
+  // A re-run keeps the event, so a stop here could otherwise turn an earlier
+  // red check on the same SHA neutral: its reason has no skip mapping, and
+  // an empty login stops too.
+  const rerunnerId = logins.get(String(triggeringActor).toLowerCase());
+  if (rerunnerId === undefined || deniedIds.has(rerunnerId)) {
+    throw new Stop("untrusted-rerunner");
   }
   if (!isListed(ids, pull.user)) {
     throw new Stop("untrusted-author");

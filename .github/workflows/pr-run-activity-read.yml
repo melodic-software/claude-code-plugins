@@ -136,8 +136,9 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
 
-      # No actor is denied, so the lanes App bot's own pushes still start read
-      # activities; a re-run must be started by a listed account.
+      # No actor is denied, so a workflow_run read lane still runs after a
+      # lanes App bot push (the job if: above already skips the bot's own
+      # pull_request events); a re-run must be started by a listed account.
       - name: Check the trigger
         id: gate
         if: steps.kill.outputs.proceed == 'true'

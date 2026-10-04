@@ -6,14 +6,16 @@ The runner splits in two. `version` stays 1; callers of the old file must move.
 
 - `pr-run-activity.yml` becomes `pr-run-activity-write.yml`, for every effect but `read`. It keeps
   the App key and its mint, fails red with `effect-read` on a `read` activity, and stops with
-  `bot-actor` when the lanes App bot is the sender, a `workflow_run` actor or the re-runner. A
-  `bot-actor` stop posts neutral `untrusted-trigger`, like the other trust stops.
+  `bot-actor` when the lanes App bot is the sender or a `workflow_run` actor. A `bot-actor` stop
+  posts neutral `untrusted-trigger`, like the other trust stops.
 - New `pr-run-activity-read.yml` runs `read` activities with no App key secret and no `id-token`
   permission, and fails red with `effect-not-read` before the head checkout on any other effect.
-- Both pass the run attempt's `triggering_actor` to `check-trusted-trigger`, so a re-run by an
-  account not on the trusted-actor list stops with `untrusted-actor`.
-- Until the token broker lands, a lane runs head-code read activities only when its caller file
-  references no App key; `scripts/check-read-caller-keys.sh` checks it.
+- Both pass the run attempt's `triggering_actor` to `check-trusted-trigger`. A re-run by an
+  account not on the trusted-actor list, by a denied account, or with no triggering actor stops
+  with `untrusted-rerunner`, which has no skip mapping, so the check posts failure rather than
+  turning an earlier red check on the same SHA neutral.
+- Until the token broker lands, a lane runs head-code read activities only when no file of its run
+  references the App key; `scripts/check-read-caller-keys.sh` checks it.
 - The README lists the trust-root paths, and `pr-merge` refuses any PR that touches one. The
   refusal is recorded now and enforced when `pr-merge` is built.
 

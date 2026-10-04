@@ -55,7 +55,7 @@ async function gate({
   list = LIST,
   prNumber = "",
   deniedActorIds = "",
-  triggeringActor = "",
+  triggeringActor = "kyle-sexton",
 }) {
   const outputPath = writeJson("output", "");
   await main({
@@ -392,7 +392,7 @@ for (const field of ["actor", "triggering_actor"]) {
   });
 }
 
-test("bot-actor: a denied re-runner, matched by its listed login, stops", async () => {
+test("untrusted-rerunner: a denied re-runner, matched by its listed login, stops with no skip mapping", async () => {
   assert.deepEqual(
     await gate({
       eventName: "pull_request",
@@ -400,7 +400,7 @@ test("bot-actor: a denied re-runner, matched by its listed login, stops", async 
       deniedActorIds: `1, ${DENY_BOT}`,
       triggeringActor: "Melodic-Automation-Lanes[bot]",
     }),
-    STOPPED("bot-actor"),
+    STOPPED("untrusted-rerunner"),
   );
 });
 
@@ -437,14 +437,25 @@ test("triggering-actor: a listed re-runner proceeds, matched without case", asyn
   );
 });
 
-test("triggering-actor: an unlisted re-runner of a trusted run stops with untrusted-actor", async () => {
+test("untrusted-rerunner: an unlisted re-runner of a trusted run stops", async () => {
   assert.deepEqual(
     await gate({
       eventName: "pull_request",
       event: fixture("event-pull-request.json"),
       triggeringActor: "stranger",
     }),
-    STOPPED("untrusted-actor"),
+    STOPPED("untrusted-rerunner"),
+  );
+});
+
+test("untrusted-rerunner: an empty re-runner login stops instead of skipping the check", async () => {
+  assert.deepEqual(
+    await gate({
+      eventName: "pull_request",
+      event: fixture("event-pull-request.json"),
+      triggeringActor: "",
+    }),
+    STOPPED("untrusted-rerunner"),
   );
 });
 

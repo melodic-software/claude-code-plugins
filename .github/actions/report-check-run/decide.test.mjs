@@ -291,6 +291,13 @@ test("a verdict gate stop with an empty reason posts failure", () => {
   assert.equal(report.conclusion, "failure");
 });
 
+// A re-run by an account off the list must not turn an earlier red check on
+// the same SHA neutral, so its reason has no skip mapping.
+test("an untrusted-rerunner trigger stop posts failure, not neutral", () => {
+  const { verdict: v, inputs: i } = stoppedAt("untrusted-rerunner");
+  assert.equal(posted(decide(v, i)).conclusion, "failure");
+});
+
 test("a gate reason mapped outside the skip-reason enum posts failure", () => {
   const { verdict: v, inputs: i } = stoppedAt("fork");
   const report = posted(

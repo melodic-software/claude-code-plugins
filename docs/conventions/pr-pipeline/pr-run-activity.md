@@ -93,11 +93,14 @@ Holds `contents: read` and `pull-requests: read`, and no other permission; it ne
 3. [`check-kill-switch`](../../../.github/actions/check-kill-switch/README.md), then
    [`check-trusted-trigger`](../../../.github/actions/check-trusted-trigger/README.md). Neither has
    `continue-on-error`. A stop at either ends the job green with no token minted and no head
-   checked out; the check is neutral. Both files pass `github.triggering_actor`, so a re-run
-   started by an account not on the list stops with `untrusted-actor`. The write file also denies
-   `AUTOMATION_LANES_APP_SENDER_ID`, so the lanes App bot as sender, `workflow_run` actor or
-   re-runner stops it with `bot-actor` and one write activity never chains into the next; the read
-   file denies nothing, so bot-chained read activities still run.
+   checked out; the check is neutral, with one exception. Both files pass
+   `github.triggering_actor`, so a re-run started by an account not on the list, by a denied
+   account, or with no triggering actor stops with `untrusted-rerunner`, and that check is a
+   failure: a re-run cannot turn an earlier red check on the same SHA neutral. The write file also
+   denies `AUTOMATION_LANES_APP_SENDER_ID`, so the lanes App bot as sender or `workflow_run` actor
+   stops it with `bot-actor` (neutral) and one write activity never chains into the next. The read
+   file denies nothing, so a `workflow_run` read lane still runs after a bot push; the bot's own
+   `pull_request` events are skipped by the job `if:` in both files.
 4. `check-trusted-base` asserts the PR targets the default branch and fails red otherwise. On `pull_request` the base
    branch is the event's `pull_request.base.ref`; on any other event (`workflow_dispatch`,
    `workflow_run`) it is read from the PR with the job's `GITHUB_TOKEN`. It then fails red unless
@@ -289,13 +292,24 @@ Until the token broker lands, a lane may go live with head-code read activities 
 file references no App key at all, so every activity it calls runs through the read file, and only
 after the trust-root ruleset ([README](README.md#trust-root-paths)) is in force. A lane that mixes
 read and write activities waits for the broker.
-[`scripts/check-read-caller-keys.sh`](../../../scripts/check-read-caller-keys.sh) enforces it: it
-fails when a workflow that calls `pr-run-activity-read.yml`, or a repository-local reusable
-workflow that caller reaches, names `AUTOMATION_LANES_APP_PRIVATE_KEY`, `app-private-key` or
-`private-key:`, and when the read file names `id-token`.
+[`scripts/check-read-caller-keys.sh`](../../../scripts/check-read-caller-keys.sh) enforces it in
+`lint-repo`: it walks up from `pr-run-activity-read.yml` to every workflow whose run can reach it
+and down through every reusable workflow those runs call, and fails when any file of such a run
+names `AUTOMATION_LANES_APP_PRIVATE_KEY`, `app-private-key` or `private-key:`, passes
+`secrets: inherit`, or reads secrets by a computed name, and when the read file names `id-token`.
 
 The read file stays after the broker lands: its guarantee, no key and no OIDC token in a run that
 runs head code, is structural, while the write file's comes from the broker.
+
+Residuals the split does not close:
+
+- Head code in the read job can reach `ACTIONS_RUNTIME_TOKEN` through a process it leaves running.
+  On `workflow_run` and `workflow_dispatch` that token's cache scope is the default branch.
+- `collect-base-activity` and `setup-runner-isolation` load from the PR's base SHA, which can lag
+  the default-branch tip, so a later hardening fix to either reaches a stale-base PR only after it
+  is rebased.
+- Listed bots other than the lanes bot, such as `claude[bot]` and `cursor[bot]`, can start a write
+  activity. Its own pushes are denied, so the chain stops after one hop.
 
 ## Runs that post no check
 
