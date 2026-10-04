@@ -24,7 +24,7 @@
     },
     "suggested": {
       "type": "boolean",
-      "description": "true when operator mode held the lines and showed the continuation menu as the prompt box's suggestion instead. Absent when lines were sent, and on records written before the field existed."
+      "description": "true when operator mode held the lines at the end of a turn a person typed and showed them in the prompt box as a suggestion, `FYI, ` followed by the held lines, instead of sending them to Claude. Absent when lines were sent, and on records written before the field existed."
     },
     "path": {
       "type": "string",

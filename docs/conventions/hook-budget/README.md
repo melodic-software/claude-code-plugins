@@ -61,7 +61,10 @@ A mod's hooks run as functions inside Claude Code, so a fire starts no process u
 `$.process.run`, and neither list above can see it. A mod hook on `tool.call` or `prompt.submit` is
 always-on. Its budget is k = 0 on the steady path: a fire that writes nothing spawns no process.
 A fire that writes a contract file costs one process, the snapshot helper that renames it into
-place. The plugin's own `claude plugin test` cases enforce both by stubbing `$.process.run` and
+place. When the consumer sets `HOOK_TELEMETRY_SINK`, context-guard's mod also starts that sink,
+fire-and-forget, once per fire that acts: lines sent to Claude, an operator-mode suggestion shown,
+or a gated call denied. A fire that changes nothing starts no sink. The plugin's own
+`claude plugin test` cases enforce both by stubbing `$.process.run` and
 counting the calls per scenario: context-guard's
 `hooks/context-guard.test.ts:1187` ("budget: no process on calls that write nothing, one per write,
 none for the gate") and rate-limit-guard's `hooks/rate-limit-guard.test.ts:601` ("budget: no
