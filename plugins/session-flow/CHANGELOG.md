@@ -1,5 +1,25 @@
 # Changelog: session-flow plugin
 
+## [0.49.1] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
+- `/session-flow:audit-sessions` re-collects the transcript store only when the collector inputs have changed (#6257).
+
+## [0.49.0] - 2026-10-04
+
+### Changed
+
+- **The workflow ladder gains a Design stage plus conditional PRD and Decompose stages ([#6278](https://github.com/melodic-software/claude-code-plugins/issues/6278)).** Stages now run explore, research, PRD, contract, design, plan, decompose, implement, test, review, verify, then ship and an optional retro, each new stage with its trigger and skip conditions. The stage definitions, checklist template, spec-first table, quick-retro table, and README match the renumbered ladder. A conditional stage whose trigger does not hold is marked SKIPPED on its checklist box, so the leftover-checklist sweep does not read it as unfinished.
+
+## [0.48.10] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** The SessionStart notice for a missing node goes to the user only, in one shorter line. The jq `degrade` text in `prerequisites.json` no longer says the skip lasts the session or that the hook says so once.
+
 ## [0.48.9] - 2026-10-04
 
 ### Changed

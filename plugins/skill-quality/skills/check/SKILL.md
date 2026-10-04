@@ -164,17 +164,21 @@ baseline arm: `/evals:design` says when one is required, and `/evals:plugin-eval
 
 1. Resolve the root(s): explicit `<root> ...` arguments if given; otherwise the same
    skills-root resolution as `check` (above).
-2. Run:
+2. Run, with `--from-settings` so the budget is the one this machine resolves rather than the
+   documented default:
 
    ```shell
-   bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-listing-budget.sh" [<root> ...]
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-listing-budget.sh" --from-settings [<root> ...]
    ```
 
-3. Report the printed aggregate, the budget it was compared against (and whether that budget is the
-   documented default, a fixed override, or a reconstructed one, and the script labels which), and the
-   biggest contributors when it overflows. The action is complete when the report names all three
-   of those elements; the script exiting 0 alone is not the done-condition (it is advisory and
-   always exits 0 on a successful run).
+   Drop the flag only when the user asks what a default consumer sees; that is the form CI runs.
+3. Report the printed aggregate, every budget row it was compared against with its verdict (one
+   row, or a band of context-window sizes when no window is pinned), the source the script labels
+   for the budget or fraction (a settings file, `SLASH_COMMAND_TOOL_CHAR_BUDGET`, an override, or
+   the documented default), and the biggest contributors when it overflows. Say that managed
+   policy is not read. The action is complete when the report names all of those elements; the
+   script exiting 0 alone is not the done-condition (it is advisory and always exits 0 on a
+   successful run). `--help` lists the settings scopes it reads and their order.
 
 This is a **different, cross-skill limit** from `check`'s per-skill entry cap (`description` +
 `when_to_use` <= 1536 chars, the documented default of `skillListingMaxDescChars` per
@@ -182,9 +186,12 @@ This is a **different, cross-skill limit** from `check`'s per-skill entry cap (`
 trigger: that page or the settings page moving either default re-derives this sentence and the
 scripts' constants): the shared budget every loaded skill draws from together
 (`skillListingBudgetFraction`, default 1% of the model's context window).
-The script exits 0 regardless of overflow, because the live budget depends on the model's context window and a
-consumer's own settings, neither of which this static check can observe. Point `/doctor` at the live
-session for the authoritative resolved cost.
+The script exits 0 regardless of overflow, because the live budget depends on the model's context
+window, which no file records, and on managed policy, which it does not read. Point `/doctor` at the
+live session for the authoritative resolved cost. The budget's basis, its default fraction, and the
+environment override are on <https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short>
+and <https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction>, verified
+2026-10-04; recheck trigger: either section changing the basis, the default, or the override.
 
 **Only listing-eligible skills count.** A skill with `disable-model-invocation: true` has its
 description kept out of the model-visible listing entirely, so it spends none of the shared budget

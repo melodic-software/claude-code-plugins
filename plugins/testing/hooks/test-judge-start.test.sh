@@ -27,13 +27,22 @@ assert_empty "no ledger: no output" "$out"
 
 # An unrelayed verdict from a session idle over an hour is named once.
 record old w1 "$F" null "" null 0 "$(iso $((now - 7200)))"
-ledger old k1 "$F" PASS
+# A FLAG with no diff fails validation, so it is named as an UNKNOWN.
+ledger old k1 "$F" FLAG
 start new1 startup
-assert_contains "an unrelayed verdict from an old session is named" "$(field .systemMessage)" "1 test (0 FLAG, 1 PASS, 0 UNKNOWN)"
-f="$(field .systemMessage | sed -n 's/.*Findings: //p')"
-check "with the findings file" '[[ -f "$f" && "$(cat "$f")" == *"type: review-findings"* ]]'
+assert_contains "an unrelayed verdict from an old session is named" "$(field .systemMessage)" "test judge: an earlier session's verdicts: 1 test (0 FLAG, 0 PASS, 1 UNKNOWN) in "
+f="$(field .systemMessage | sed -n 's/.* in //p')"
+check "with the findings file, relative to the project" '[[ "$f" == .work/reviews/* && -f "$REPO/$f" && "$(cat "$REPO/$f")" == *"type: review-findings"* ]]'
 start new2 startup
 assert_empty "the notice appears once" "$out"
+
+# An earlier session whose verdicts are all PASS has nothing to act on: it is
+# not named, and is marked relayed.
+record oldp w1 "$F" null "" null 0 "$(iso $((now - 7200)))"
+ledger oldp kp "$F" PASS
+start newp startup
+assert_empty "all PASS from an old session: not named" "$out"
+check "all PASS from an old session: marked relayed" '[[ -e "$DATA/relayed/$PKEY/oldp/kp" ]]'
 
 # A relayed verdict is not named.
 record old2 w1 "$F" null "" null 0 "$(iso $((now - 7200)))"
@@ -45,7 +54,7 @@ assert_empty "a relayed verdict is not named" "$out"
 
 # One from a session active in the last hour is not named: adoption owns it.
 record recent w1 "$F" null "" null 0 "$(iso $((now - 600)))"
-ledger recent k3 "$F" PASS
+ledger recent k3 "$F" FLAG
 start new4 startup
 assert_empty "a verdict from a session active in the last hour is not named" "$out"
 

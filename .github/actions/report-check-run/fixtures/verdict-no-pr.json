@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "lane": "pr-refine",
+  "activity": "simplify",
+  "run-url": "https://github.com/melodic-software/claude-code-plugins/actions/runs/7",
+  "head-sha": null,
+  "gates": {
+    "kill-switch": { "proceed": "true", "reason": "ok" },
+    "trigger": { "proceed": "false", "reason": "no-pr" }
+  },
+  "config": "not-read",
+  "skip-reason": null,
+  "outcome": "not-run",
+  "dirty-tree": null
+}

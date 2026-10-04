@@ -154,7 +154,7 @@
 # path has a directory in it: `$SCRIPT_DIR/lib/x.sh` from a script beside lib/,
 # `$PLUGIN_DIR/skills/interview/SKILL.md` from inside the plugin. A path that
 # spells only the name (`$SKILL_DIR/SKILL.md`, `$T/README.md`) or that is
-# relative to the root alone (`$ROOT/.github/workflows/ci.yml`) does not
+# relative to the root alone (`$ROOT/.github/workflows/pr-require-checks.yml`) does not
 # resolve: tests build the same path under a temporary directory as often as
 # they read the real file, so a suite that reads such a file declares it (R8),
 # as the strace of every suite showed where one does. A shared

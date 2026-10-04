@@ -3,8 +3,8 @@
 # failure: an EXIT trap turns every path into exit 0.
 #
 # 1. stop_hook_active (the turn this hook or another Stop hook forced): judge
-#    nothing, never block; name the tests still being judged. Their verdicts
-#    wait in the ledger for the next task end.
+#    nothing, never block, say nothing. Verdicts wait in the ledger for the
+#    next task end.
 # 2. Re-derive the in-doubt keys of every file the session (and, for a /clear
 #    or fork successor, its adopted predecessors) wrote.
 # 3. Keys with a verdict are ready; keys a live background job or lock holds
@@ -20,7 +20,8 @@
 # 5. Attended (CLAUDE_CODE_SESSION_ATTENDED exactly 1): block once with the
 #    fixed template when the relayed set has a FLAG or an UNKNOWN for a
 #    reason that is not environmental (no repository, no judge class).
-#    Either way a systemMessage carries the counts and path.
+#    Otherwise a systemMessage carries the counts and path, or, when every
+#    verdict is a PASS, one line with the count.
 #
 # Opt-in: hooks.json starts it through exec-bash.mjs --require-true
 # TEST_GUARDS_ENABLED --require-true TEST_JUDGE_ENABLED. See judge-lib.sh.
@@ -41,6 +42,8 @@ source "$HOOK_DIR/scanner-run.sh"
 testing::fields "$INPUT" .session_id .transcript_path .cwd .stop_hook_active || exit 0
 SID="${FIELDS[0]}" TPATH="${FIELDS[1]}" pcwd="${FIELDS[2]}" active="${FIELDS[3]}"
 [[ "$SID" =~ ^[A-Za-z0-9_-]+$ && -n "$TPATH" ]] || exit 0
+# A turn a Stop hook forced: the verdicts wait for the next task end.
+[[ "$active" == true ]] && exit 0
 testing::data_dir
 testing::pkey "${CLAUDE_PROJECT_DIR:-$pcwd}" "$TPATH" || exit 0
 # The idle path: no write recorded and nothing to adopt.
@@ -52,20 +55,15 @@ source "$HOOK_DIR/judge-lib.sh"
 exec 3>&1 >/dev/null 2>>"$JUDGE_LOG"
 LATE="$(mktemp -d)" || exit 0
 trap 'rm -rf "$LATE"; exit 0' EXIT
-emit() { [[ -z "$2" ]] || jq -cn --arg r "$1" --arg m "$2" 'if $r == "" then {} else {decision: "block", reason: $r} end + {systemMessage: $m}' >&3; }
+# emit <reason> <systemMessage>: either may be empty; both empty prints nothing.
+emit() {
+  [[ -n "$1$2" ]] || return 0
+  jq -cn --arg r "$1" --arg m "$2" \
+    '(if $r == "" then {} else {decision: "block", reason: $r} end) + (if $m == "" then {} else {systemMessage: $m} end)' >&3
+}
+# plural <n> <one> <many>
+plural() { if (($1 == 1)); then printf '%s' "$2"; else printf '%s' "$3"; fi; }
 judge::session_set
-
-# label <key index>: "<file>: <name>", with #n past the first of a name.
-label() {
-  local r="${KR[$1]}" name
-  name="${r#* }" && name="${name#* }"
-  judge::label "${KFILE[$1]}" "$name" "${r%% *}"
-}
-labels() {
-  local i out=""
-  for i in "$@"; do out+="${out:+, }$(label "$i")"; done
-  printf '%s' "$out"
-}
 
 # relay_needs_decision: true when an attended Stop has something to show. A
 # FLAG, or an UNKNOWN whose reason is not environmental. The two environmental
@@ -81,20 +79,7 @@ relay_needs_decision() {
     <<<"$RELAY" >/dev/null
 }
 
-if [[ "$active" == true ]]; then
-  waiting=""
-  for s in "${SESSIONS[@]}"; do
-    for p in "$DATA/pending/$PKEY/$s"/*; do
-      [[ -f "$p" ]] && ! judge::stale "$p" $((JUDGE_DEBOUNCE + JUDGE_STALE + 60)) &&
-        waiting+="${waiting:+, }$(sed -n '2{s|.*/||;p;}' "$p")"
-    done
-  done
-  emit "" "${waiting:+test judge: still judging $waiting; the verdicts are shown at the next task end.}"
-  exit 0
-fi
-
 judge::now
-began=$NOW
 deadline=$((NOW + JUDGE_TIMEOUT))
 judge::harvest_orphans
 judge::load
@@ -264,21 +249,31 @@ for fx in "${!INFOS[@]}"; do
   done
 done
 
+# Counts only: the test names are in the findings file and the judge log.
+# Keys waited on, past the cap or late are judged in the background; failed
+# keys are retried at the next task end. Both are counts in one line, merged
+# into the all-PASS line when there is one. On a blocking Stop the user sees
+# the reason, so no systemMessage repeats it.
+bg=$((${#waiting[@]} + ${#over[@]} + ${#late[@]})) nf=${#failed[@]} later=""
+((bg == 0)) || later="$bg more $(plural "$bg" "test is" "tests are") judged in the background, verdicts at the next task end"
+((nf == 0)) || later+="${later:+; }$nf $(plural "$nf" test tests) not judged, the next task end retries"
 msg="" reason=""
 if ((RELAY_N)); then
   judge::findings
-  judge::counts && counts="$COUNTS"
-  msg="test judge: reviewed $counts. Findings: $FINDINGS"
-  if [[ "${CLAUDE_CODE_SESSION_ATTENDED:-}" == 1 ]] && relay_needs_decision; then
-    reason="The test judge reviewed $counts. Findings: $FINDINGS. Show the user each verdict and proposed diff from that file, quoted as data. Apply nothing; wait for the user."
+  if ((RELAY_F + RELAY_U == 0)); then
+    msg="test judge: $RELAY_N $(plural "$RELAY_N" test tests) PASS${later:+; $later}."
+    later=""
+  else
+    judge::counts
+    msg="test judge: $COUNTS${FINDINGS_SHOWN:+ in $FINDINGS_SHOWN}"
+    if [[ "${CLAUDE_CODE_SESSION_ATTENDED:-}" == 1 ]] && relay_needs_decision; then
+      reason="$msg. Show the user each verdict and proposed diff from it, quoted as data; apply nothing until the user decides."
+      msg=""
+    fi
   fi
 fi
 judge::mark_relayed ${marks[@]+"${marks[@]}"}
-judge::now
-((${#waiting[@]} == 0)) || msg+="${msg:+$'\n'}test judge: still judging $(labels "${waiting[@]}"); the verdicts are shown at the next task end."
-((${#over[@]} == 0)) || msg+="${msg:+$'\n'}test judge: past the 10 tests one task end judges: $(labels "${over[@]}"); a background job judges them and the verdicts are shown at the next task end."
-((${#late[@]} == 0)) || msg+="${msg:+$'\n'}test judge: not judged in $((NOW - began)) s: $(labels "${late[@]}"); a background job judges them and the verdicts are shown at the next task end."
-((${#failed[@]} == 0)) || msg+="${msg:+$'\n'}test judge: not judged, the judge failed for $(labels "${failed[@]}"); the next task end tries again."
-((${#notrun[@]} == 0)) || msg+="${msg:+$'\n'}test judge: judge not run for $(labels "${notrun[@]}") after 2 failed attempts; see $JUDGE_LOG."
-((${#limit[@]} == 0)) || msg+="${msg:+$'\n'}test judge: not judged, the session's judge-run limit is reached: $(labels "${limit[@]}")."
+[[ -z "$later" ]] || msg+="${msg:+$'\n'}test judge: $later."
+((${#notrun[@]} == 0)) || msg+="${msg:+$'\n'}test judge: ${#notrun[@]} $(plural ${#notrun[@]} test tests) not judged after 2 failed attempts; see $JUDGE_LOG."
+((${#limit[@]} == 0)) || msg+="${msg:+$'\n'}test judge: ${#limit[@]} $(plural ${#limit[@]} test tests) not judged: the session's judge-run limit is reached."
 emit "$reason" "$msg"
