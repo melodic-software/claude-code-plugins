@@ -615,6 +615,7 @@ judge::rkey() {
     JUDGE_PSHA="$(judge::sha "$HOOK_DIR/test-judge-prompt.md" 2>/dev/null)" && JUDGE_PSHA="${JUDGE_PSHA#\\}" && JUDGE_PSHA="${JUDGE_PSHA%% *}"
   fi
   mapfile -t text <"$file" 2>/dev/null
+  ((${#text[@]} >= e)) || return 0
   for line in "${text[@]:s-1:e-s+1}"; do
     if ((named == 0)) && [[ "$line" == *"$name"* ]]; then
       line="${line/"$name"/}"
@@ -627,15 +628,17 @@ judge::rkey() {
 }
 
 # judge::copy_verdict <source verdict> <ledger dir> <key-hash> <file> <repo>
-# <ordinal> <start-end> <name>: write the source verdict as the key's, for that
-# block, with reused_from naming the block it was judged for. A FLAG's diff
-# edits the source's file, so the copy carries none; validation keeps a
-# reused FLAG without a diff a FLAG, and the findings file points at the
-# source's diff.
+# <ordinal> <start-end> <name> [source key-hash]: write the source verdict as
+# the key's, for that block, with reused_from naming the block it was judged
+# for (its key-hash defaults to the source file's name). A FLAG's diff edits
+# the source's file, so the copy carries none. Only a FLAG whose diff already
+# passed validation is copied (the Stop hook copies the validated verdict),
+# so validation keeps a reused FLAG without a diff a FLAG, and the findings
+# file points at the source's diff.
 judge::copy_verdict() {
   local src="$1" dir="$2" kh="$3" s="${7%-*}" e="${7#*-}"
   jq -c --arg f "$4" --arg r "$5" --arg n "$8" --argjson o "$6" --argjson s "$s" --argjson e "$e" \
-    --arg k "${src##*/}" '. + {file: $f, repo: $r, name: $n, ordinal: $o, start: $s, end: $e, blob: "",
+    --arg k "${9:-${src##*/}}" '. + {file: $f, repo: $r, name: $n, ordinal: $o, start: $s, end: $e, blob: "",
       reused_from: {file: .file, name: .name, ordinal: .ordinal, start: .start, key: ($k | rtrimstr(".json"))},
       reused_at: (now | todate)} | if .verdict == "FLAG" then .diff = "" else . end' \
     "$src" >"$dir/.$kh.tmp" 2>/dev/null && mv -f -- "$dir/.$kh.tmp" "$dir/$kh.json" && return 0
@@ -697,7 +700,10 @@ judge::run() {
     blob="${blob//$'\r'/}"
     if [[ ! "$blob" =~ ^[0-9a-f]{40,64}$ ]]; then
       blob=""
-    elif [[ ! -f "$dir/blob-$blob" ]]; then
+    elif [[ -f "$dir/blob-$blob" ]]; then
+      # A newer verdict names it: the 7-day prune goes by mtime.
+      touch -- "$dir/blob-$blob" 2>/dev/null
+    else
       cp -- "$file" "$dir/.blob-$blob.$BASHPID" 2>/dev/null && mv -f -- "$dir/.blob-$blob.$BASHPID" "$dir/blob-$blob" || blob=""
     fi
   fi
@@ -801,7 +807,7 @@ judge::relay_reset
 # # (and <# #> for PowerShell) for bash, Python and PowerShell. A file of any
 # other language is never comment-only. Lines before a hunk's @@ are headers.
 judge::comment_only() {
-  local style line body hunk=0
+  local style line body hunk=0 open=0 comment
   case "${1,,}" in
   *.js | *.jsx | *.ts | *.tsx | *.mjs | *.cjs | *.mts | *.cts | *.cs | *.go) style=slash ;;
   *.sh | *.bash | *.bats | *.py | *.ps1 | *.psm1) style=pound ;;
@@ -809,19 +815,31 @@ judge::comment_only() {
   esac
   while IFS= read -r line; do
     case "$line" in
-    'diff --git '*) hunk=0 ;;
+    'diff --git '*) hunk=0 open=0 ;;
     '@@'*) hunk=1 ;;
-    [+-]*)
+    [+\ -]*)
       ((hunk)) || continue
       body="${line:1}" && body="${body//$'\r'/}"
       body="${body#"${body%%[![:space:]]*}"}"
-      [[ -z "$body" ]] && continue
-      if [[ "$style" == slash ]]; then
-        [[ "$body" == //* || "$body" == /\** || "$body" == \** ]] && continue
+      comment=0
+      if [[ -z "$body" ]]; then
+        comment=1
+      elif [[ "$style" == slash ]]; then
+        # A leading * is a comment only inside a /* ... */ the diff shows
+        # open, and only as a block comment's margin (`* text`, `*/`), never
+        # a continued expression such as `* 2`.
+        [[ "$body" == //* || "$body" == /\** ]] && comment=1
+        ((open)) && [[ "$body" =~ ^\*([[:space:]]|/|$) ]] && comment=1
+        if [[ "$body" == */\** ]]; then
+          open=1
+          [[ "${body##*/\*}" == *\*/* ]] && open=0
+        elif [[ "$body" == *\*/* ]]; then
+          open=0
+        fi
       else
-        [[ "$body" == \#* || "$body" == '<#'* ]] && continue
+        [[ "$body" == \#* || "$body" == '<#'* ]] && comment=1
       fi
-      return 1
+      [[ "${line:0:1}" == " " ]] || ((comment)) || return 1
       ;;
     *) ;;
     esac
@@ -896,7 +914,7 @@ judge::validate() {
   elif [[ "$GROUND" == stale ]]; then
     why="the test file changed after the judge read it: a quoted line is no longer in it" kind=stale
   elif [[ "$verdict" == FLAG && -z "$diff" && "$reused" == reused ]]; then
-    : # a FLAG given an identical body's verdict: the diff is that body's
+    : # a FLAG copied from an identical body's validated FLAG: its diff passed there
   elif [[ "$verdict" == FLAG && -z "$diff" ]]; then
     why="the FLAG proposes no diff" kind=no-diff
   elif [[ "$verdict" == FLAG && -z "$repo" ]]; then

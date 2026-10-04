@@ -270,19 +270,31 @@ while [[ -n "$(jobs -rp)" ]]; do
   sleep 0.2
 done
 
-# Each dup takes the verdict its first was given, PASS, FLAG or UNKNOWN alike,
-# recorded with reused_from; a FLAG's diff edits the first's file, so the dup
-# carries none (judge::copy_verdict). A dup whose first got no verdict goes to
-# a background job, or shares the first's run limit.
-for i in "${!DUPOF[@]}"; do
+# Each dup takes its first's verdict as validation leaves it, never the raw
+# one: a PASS, a FLAG whose quotes and diff passed, or the UNKNOWN (with its
+# reason_kind and origin) a failed FLAG became. It is recorded with
+# reused_from; a FLAG's diff edits the first's file, so the dup carries none
+# (judge::copy_verdict). The validation runs in a subshell, so the relay
+# counts take the first only once, below. A dup whose first got no verdict
+# goes to a background job, or shares the first's run limit.
+dups=()
+((${#DUPOF[@]} == 0)) || dups=("${!DUPOF[@]}")
+for i in ${dups[@]+"${dups[@]}"}; do
   rep="${DUPOF[$i]}"
   judge::verdict "${KH[$i]}" && continue
   if judge::verdict "${KH[$rep]}" && testing::fields "${INFOS[${KF[$i]}]}" .owner; then
     dir="$DATA/verdicts/$PKEY/${FIELDS[0]:-$SID}"
+    (
+      judge::relay_reset
+      judge::validate "$VERDICT" "${KFILE[$rep]}"
+      RELAY="${RELAY%$'\n'}"
+      printf '%s\n' "${RELAY##*$'\n'}"
+    ) >"$LATE/v$i"
     kr "$i"
     judge::file_repo "${KFILE[$i]}"
-    if mkdir -p "$dir" && judge::copy_verdict "$VERDICT" "$dir" "${KH[$i]}" "${KFILE[$i]}" "$FREPO" "$KO" "$KRANGE" "$KNAME"; then
-      judge::log "reused in this run: ${KFILE[$i]}: $KNAME: the verdict of ${KH[$rep]}"
+    if [[ -s "$LATE/v$i" ]] && mkdir -p "$dir" &&
+      judge::copy_verdict "$LATE/v$i" "$dir" "${KH[$i]}" "${KFILE[$i]}" "$FREPO" "$KO" "$KRANGE" "$KNAME" "${KH[$rep]}"; then
+      judge::log "reused in this run: ${KFILE[$i]}: $KNAME: the validated verdict of ${KH[$rep]}"
       continue
     fi
   fi

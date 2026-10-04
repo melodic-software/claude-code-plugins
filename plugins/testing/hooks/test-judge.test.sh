@@ -440,6 +440,24 @@ check "a FLAG given in the run: both relayed as FLAG, the Stop blocked" \
 f="$(field .reason | sed -n 's/.*Findings: \(.*\)\. Show the user.*/\1/p')"
 assert_contains "the second FLAG points at the first's diff" "$(cat "$f")" \
   "This test has the same body as src/dedupe-flag-a.test.ts dedupe flag one, judged in the same run"
+# The second takes the first's verdict as validation leaves it: a FLAG whose
+# diff only adds a comment is UNKNOWN for both, and neither is a FLAG or
+# points at a diff validation stripped.
+transcript ddc claude-sonnet-5
+DCA="$REPO/src/dedupe-cmt-a.test.ts"
+DCB="$REPO/src/dedupe-cmt-b.test.ts"
+js_file "$DCA" "dedupe cmt flag one"
+js_file "$DCB" "dedupe cmt flag two"
+record ddc w1 "$DCA" null
+record ddc w2 "$DCB" null
+stub_reset
+STUB_MODE=commentdiff TEST_JUDGE_REUSE=1 stop ddc
+check "a shared FLAG that fails validation: one judge call, both relayed as UNKNOWN" \
+  '[[ "$(stub_calls)" == 1 && "$(field .systemMessage)" == *"reviewed 2 tests (0 FLAG, 0 PASS, 2 UNKNOWN)"* ]]'
+check "the second records the first's reason kind and origin, and reused_from" \
+  '[[ "$(verdict_of ddc "dedupe cmt flag two" | jq -c "[.verdict, .reason_kind, .origin, .reused_from.name]")" == "[\"UNKNOWN\",\"comment-only\",\"FLAG\",\"dedupe cmt flag one\"]" ]]'
+f="$(field .systemMessage | sed -n 's/.*Findings: //p')"
+assert_not_contains "and no entry points at a stripped diff" "$(cat "$f")" "This test has the same body as"
 
 # A test file in a linked worktree whose quote is a line only that worktree's
 # branch holds is grounded in the worktree, though its record names the main
@@ -898,11 +916,13 @@ lib() { # lib <OSTYPE> <bash>: run bash with the judge library sourced
 PYD=$'--- a/t.py\n+++ b/t.py\n@@ -1,2 +1,3 @@\n def test_x():\n+    # the value is 3\n-    #old note\n     assert f() == 3'
 CSD=$'--- a/T.cs\n+++ b/T.cs\n@@ -1,1 +1,3 @@\n+    /* the value\n+     * is 3 */\n+\n     Assert.Equal(3, F());'
 CODE=$'--- a/t.py\n+++ b/t.py\n@@ -1,1 +1,1 @@\n-    assert f() == 3  # spec\n+    assert f() == 1 + 2  # spec'
-export PYD CSD CODE
+STAR=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,2 +1,2 @@\n   const want = 3\n-    * 1;\n+    * 2;'
+export PYD CSD CODE STAR
 check "a Python diff that adds and removes only # comments is comment-only" 'lib linux-gnu "judge::comment_only t_test.py \"\$PYD\""'
 check "a C# diff that adds a /* */ comment and a blank line is comment-only" 'lib linux-gnu "judge::comment_only TTests.cs \"\$CSD\""'
 check "a changed code line with a trailing comment is not" '! lib linux-gnu "judge::comment_only t_test.py \"\$CODE\""'
 check "# in a brace language is not a comment" '! lib linux-gnu "judge::comment_only a.test.ts \"\$PYD\""'
+check "a * 2 continuation outside a /* */ block is code" '! lib linux-gnu "judge::comment_only a.test.ts \"\$STAR\""'
 WA='C:\w\repo\src\a.test.ts' # portability-ok: a literal Windows path, not a regex escape
 WB='C:\W\Repo\a.ts'          # portability-ok: a literal Windows path, not a regex escape
 WL='/r/a\b.ts'               # portability-ok: a literal path holding a backslash, not a regex escape
