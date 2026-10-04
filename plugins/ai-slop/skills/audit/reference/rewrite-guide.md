@@ -5,8 +5,8 @@ Fix-time guidance for `/ai-slop:audit fix`: what to write INSTEAD of a flagged t
 step 1, applied under the same semantic-diff guard as every rewrite (meaning over style: a
 rewrite that changes what a sentence asserts is skipped and recorded).
 
-Inspired by
-[Cursor's `unslop` skill](https://github.com/cursor/plugins/blob/main/pstack/skills/unslop/SKILL.md).
+Where this guide's material came from is recorded in the marketplace's upstream ledger,
+[`docs/upstream/cursor-pstack.md`](../../../../../docs/upstream/cursor-pstack.md).
 
 ## Non-evasion posture
 
@@ -86,11 +86,11 @@ A rewrite that swaps one tell for another is not a fix:
 
 - **Em dashes** become periods or commas, or the sentence is restructured. Never parentheses,
   never en dashes, never a spaced hyphen: each of those is the same interruption wearing a
-  different mark. If the thought needs separation, end the sentence.
-- **Colon crutches** are not fixed by swapping the colon for a dash or semicolon. Rewrite so the
-  point stands without the two-part framing: "If you're coming from traditional automation:
-  instead of registering event handlers, you describe conditions" becomes "Describing when the
-  scheduler should fire works best as plain English." Colons before a list or an example stay.
+  different mark. When the aside needs to stand apart, give it a sentence of its own.
+- **Colon crutches** are not fixed by swapping the colon for a dash or semicolon. Drop the
+  two-part staging and state the point once: "The short version: the job retries three times
+  before it pages anyone" becomes "The job retries three times before it pages anyone." A colon
+  that introduces a list or an example is not a crutch and stays.
 - **Triads** collapse toward the single strongest item (the fix flow's standing rule), not
   toward a two-item list that keeps the cadence.
 - **Vocabulary swaps** must not reach for the next-fanciest synonym. "Utilize" becomes "use",
@@ -98,43 +98,53 @@ A rewrite that swaps one tell for another is not a fix:
 
 ## Plain speech
 
-The positive target the tells deviate from. Apply these to every sentence a finding touches,
-not only to the flagged words:
+The positive target the tells deviate from. A fix reaches past the flagged words to the whole
+sentence a finding touches, and puts these questions to it:
 
-- **Say what it does, not how it feels.** "The database stays close at hand" names a feeling;
-  "`.toSQL()` returns the exact string sent to the database" names a mechanism. Ask what the
-  sentence tells the reader to do or know, then write that. If it cannot be restated as a
-  concrete instruction, fact, or number, cut it. And if it could appear unchanged in another
-  project's docs, it says nothing about this one: cut it.
-- **One idea per sentence.** If the reader must backtrack to parse it, break it in two or drop
-  clauses.
-- **Active voice, named actor.** "Queries are validated" becomes "the compiler validates
-  queries". Passive stays only when the actor is unknown or genuinely does not matter.
-- **Cut the adverb or upgrade the verb.** "Runs quickly" becomes "is fast" or the measured
-  number; "significantly improves" becomes the delta. An adverb propping up a weak verb means
-  the verb is wrong.
-- **Prefer the plain word.** "Utilize" and "leverage" become "use", "facilitate" becomes "help",
-  "numerous" becomes "many", "in the event that" becomes "if".
+| Question | When the answer is wrong | Before, then after |
+|---|---|---|
+| What can the reader do or know after reading it? | Write that instead. When the answer is "nothing concrete" (no step, fact, or number), delete the sentence. | "The cache feels snappy", then "a cache hit returns in under 2 ms" |
+| Would it read the same in an unrelated project's docs? | It carries no information about this project. Delete it. | "Built with performance in mind" |
+| Who performs the action? | Name the actor as the subject. Keep the passive only if nobody knows the actor or the actor truly does not matter. | "The token is refreshed", then "the client refreshes the token" |
+| Is an adverb holding up the verb? | The verb is the wrong one. Delete the adverb, choose a stronger verb, or give the measured figure. | "Responds very rapidly", then "responds in 40 ms"; "greatly reduces load", then "cuts load by 30%" |
+| Does the reader have to go back and reread it? | It holds more than one idea. Split it, or remove clauses until one idea is left. | |
+| Is there a plainer word? | Use it. See the plain-word rows below. | |
 
 ## Replacements for flagged phrases
 
-- **Filler** (`rule-filler-phrases`): "in order to" becomes "to"; "due to the fact that" becomes
-  "because"; "it is important to note that", "it is worth noting that", and "it should be noted
-  that" are deleted, the note standing on its own.
-- **Stacked hedges** (`rule-stacked-hedging`): keep one hedge that states the real uncertainty.
-  "Could potentially possibly be argued that it might" becomes "may".
+Literal replacements, by rule:
+
+| Rule | Flagged form | Write instead |
+|---|---|---|
+| Plain word, in any sentence a fix touches | "utilize", "leverage" | "use" |
+| | "facilitate" | "help" |
+| | "in the event that" | "if" |
+| | "numerous" | "many" |
+| `rule-filler-phrases` | "due to the fact that" | "because" |
+| | "in order to" | "to" |
+| | "it should be noted that", "it is worth noting that", "it is important to note that" | nothing: delete the phrase and let the note stand alone |
+| `rule-stacked-hedging` | "could potentially", "might possibly" | at most one hedge, attached to what is actually uncertain: "the export may time out on tables over 10 GB"; none when the claim is known |
+| `rule-abstract-metaphor-jargon` | "north star" | "the goal" |
+| | "evacuate" | "move out" |
+| | "endgame" | "the final phase" |
+| | "vector" | "way" or "method" |
+| | "substrate" | "base" |
+| | "wedge in" | "add" |
+| | "gold-plating" | "work beyond what the task requires" |
+| | "ratchet" | "a limit that can only get stricter", or the mechanism's actual name |
+
+The metaphor rows apply to figurative uses only. A domain-literal use keeps its word: a test
+harness is still a harness.
+
+Rewrites that need more than a lookup:
+
 - **Chat residue** (`rule-chatbot-artifacts`): delete the sentence; committed prose has no chat
   partner. If it carried content ("let me know if the retry loop misbehaves"), keep the content
   in document register ("known risk: the retry loop").
-- **Metaphor jargon** (`rule-abstract-metaphor-jargon`): pick the concrete word. "Substrate"
-  becomes "base"; "wedge in" becomes "add"; "vector" becomes "way" or "method"; "gold-plating"
-  becomes "more than the job needs"; "ratchet" becomes the mechanism's real name or "a limit
-  that only tightens"; "endgame" becomes "the last phase"; "north star" becomes "the goal";
-  "evacuate" becomes "move out".
-  Leave domain-literal uses alone: a harness that is a test harness keeps its name.
-- **Model-era metaphor cues** (same rule, "Model-era additions" layer): "load-bearing" becomes
-  what actually depends on the thing ("three consumers parse this line" beats "this line is
-  load-bearing"); "seam" becomes the concrete interface, file, or boundary it stands in for.
+- **Model-era metaphor cues** (`rule-abstract-metaphor-jargon`, "Model-era additions" layer):
+  "load-bearing" becomes what actually depends on the thing ("three consumers parse this line"
+  beats "this line is load-bearing"); "seam" becomes the concrete interface, file, or boundary it
+  stands in for.
   A Feathers seam in refactoring prose and a deliberately named load-bearing invariant are
   terms of art. Leave them.
 - **Model-era phrases** (`rule-model-era-phrases`): state the point without the stock
@@ -147,29 +157,37 @@ not only to the flagged words:
 
 ## Adding voice
 
-Removing tells is half the job: sterile, voiceless prose is just as recognizable. This pass is
-an explicit step of the fix flow, not an optional flourish, and it is **register-gated**: it
-applies where the document has an author's voice (a README's narrative sections, a design
-doc's tradeoffs, a changelog's rationale) and stays out of API reference tables, operative
-skill instructions, and generated content. The techniques are pre-LLM craft with real
-authority pedigree (Orwell's plain-language rules, Williams on clarity, Zinsser on
-simplicity, Google and Microsoft's developer style guides; the print authorities are cited as
-craft consensus rather than page-level references):
+A file with every tell removed and no voice left still reads as machine-made, so deleting tells
+finishes only part of a fix. This pass is a required step of the fix flow, not decoration, and
+it is **register-gated**: it applies where the document has an author's voice (a README's
+narrative sections, a design doc's tradeoffs, a changelog's rationale) and stays out of API
+reference tables, operative skill instructions, and generated content. The techniques are
+pre-LLM craft with real authority pedigree (Orwell's plain-language rules, Williams on clarity,
+Zinsser on simplicity, Google and Microsoft's developer style guides; the print authorities are
+cited as craft consensus rather than page-level references).
 
-- **Have a position.** React to facts instead of neutrally listing pros and cons.
-- **Vary rhythm.** Short sentences. Then longer ones that take their time. Docs-register
-  constraint: Google's global-audience guidance prefers consistently short, translatable
-  sentences and consistent terminology, so in reference prose vary structure less and lead
-  with the point instead.
-- **Acknowledge complexity.** "Impressive but also kind of unsettling" beats "impressive".
-- **First person is allowed** where the document has an author's voice.
-- **Be specific.** Not "this is concerning" but the concrete thing that concerns. In technical
-  prose, specificity bows to terminology consistency: one name per concept, reused exactly.
+Three techniques apply wherever the pass runs. Each one adds information the reader can use:
 
-Adapted from Cursor's unslop "Adding soul" list (six bullets there). The dropped sixth, "Let
-some mess in", is the one that fails this guide's improve-it-anyway test: deliberately leaving
-imperfections optimizes how the prose scores rather than how it reads, which is the evasion
-posture this guide refuses. The drop is deliberate; do not re-add it.
+- **Say exactly what happens.** "The migration is risky" becomes "the migration locks the orders
+  table for the whole copy". The one limit: a concrete name never replaces the established term
+  for a concept, which is reused exactly.
+- **Keep the cost next to the benefit.** "Fast, but it doubles memory use" tells the reader more
+  than "fast".
+- **Reach a verdict.** After setting out trade-offs, say which way they come out, instead of
+  leaving advantages and disadvantages side by side.
+
+Two more depend on the register:
+
+- **Writing as "I" or "we"** belongs only in a document that has an author's voice.
+- **Mixing short sentences with longer ones** that take time to develop a point suits narrative
+  sections. Reference prose follows Google's global-audience guidance instead: consistently
+  short, translatable sentences and consistent terms, with the point first, so vary its structure
+  less.
+
+Deliberately leaving flaws in the prose is not a voice technique, and a fix pass never adds them.
+Planted imperfection changes how the text would score, not how it reads, so it fails this
+guide's improve-it-anyway test and is the evasion posture the guide refuses. The omission is
+deliberate; do not add such a technique.
 
 This section never overrides meaning preservation: voice is added in HOW a kept claim is
 phrased, never by inventing new claims during a fix pass.

@@ -203,9 +203,9 @@ cat >"$MIDEMOJI" <<EOF
 The reaction was ${CHECKMARK} from the whole team.
 EOF
 
-CURSOR="$TEST_TMPDIR/cursor.md"
-cat >"$CURSOR" <<'EOF'
-# Cursor-derived rules
+GENPROSE="$TEST_TMPDIR/general-prose.md"
+cat >"$GENPROSE" <<'EOF'
+# General-prose rules
 
 Great question! I hope this helps, and let me know if you need more.
 We did this in order to ship, due to the fact that the deadline slipped.
@@ -213,9 +213,9 @@ It could potentially fail here and might possibly regress there.
 We leverage tools to facilitate work and utilize helpers for the rest.
 EOF
 
-CURSORNEG="$TEST_TMPDIR/cursorneg.md"
-cat >"$CURSORNEG" <<'EOF'
-# Benign neighbors of the Cursor-derived patterns
+GENPROSENEG="$TEST_TMPDIR/general-prose-neg.md"
+cat >"$GENPROSENEG" <<'EOF'
+# Benign neighbors of the general-prose patterns
 
 Feel free to customize the config for your repo. The run may fail on old
 shells, and a question mark ends each prompt. Sort keys in ascending order to
@@ -312,16 +312,16 @@ out="$(bash "$DETECT" "$BQCODE" 2>&1)"
 assert_contains "emoji: the real callout in a quote fires" "$out" "rule=ai-slop/audit/rule-emoji-formatting findings=1"
 assert_not_contains "emoji negative: an indented code line inside a quote does not fire" "$out" "literal code"
 
-# --- Cursor-derived rules ----------------------------------------------------------
+# --- General-prose rules -----------------------------------------------------------
 
-out="$(bash "$DETECT" "$CURSOR" 2>&1)"
-assert_contains "cursor: chatbot-artifacts fires" "$out" "Finding: rule=ai-slop/audit/rule-chatbot-artifacts"
-assert_contains "cursor: filler-phrases fires" "$out" "Finding: rule=ai-slop/audit/rule-filler-phrases"
-assert_contains "cursor: stacked-hedging fires" "$out" "Finding: rule=ai-slop/audit/rule-stacked-hedging"
-assert_contains "cursor: plain-word vocab additions fire the density rule" "$out" "Finding: rule=ai-slop/audit/rule-ai-vocabulary"
+out="$(bash "$DETECT" "$GENPROSE" 2>&1)"
+assert_contains "general-prose: chatbot-artifacts fires" "$out" "Finding: rule=ai-slop/audit/rule-chatbot-artifacts"
+assert_contains "general-prose: filler-phrases fires" "$out" "Finding: rule=ai-slop/audit/rule-filler-phrases"
+assert_contains "general-prose: stacked-hedging fires" "$out" "Finding: rule=ai-slop/audit/rule-stacked-hedging"
+assert_contains "general-prose: plain-word vocab additions fire the density rule" "$out" "Finding: rule=ai-slop/audit/rule-ai-vocabulary"
 
-out="$(bash "$DETECT" "$CURSORNEG" 2>&1)"
-assert_not_contains "cursor negative: benign near-miss phrasing stays quiet" "$out" "Finding:"
+out="$(bash "$DETECT" "$GENPROSENEG" 2>&1)"
+assert_not_contains "general-prose negative: benign near-miss phrasing stays quiet" "$out" "Finding:"
 
 out="$(bash "$DETECT" "$WORDBOUND" 2>&1)"
 assert_not_contains "word boundary: 'great questions' does not fire the chat-residue rule" "$out" "Finding:"
@@ -337,13 +337,13 @@ EOF
 out="$(bash "$DETECT" "$WORDBOUNDPOS" 2>&1)"
 assert_contains "word boundary: the exact phrases still fire" "$out" "rule=ai-slop/audit/rule-chatbot-artifacts findings=2"
 
-CURSOROUT="$TEST_TMPDIR/cursor-out.txt"
-bash "$DETECT" "$CURSOR" >"$CURSOROUT" 2>&1 || true
-bash "$SCRIPT_DIR/emit-findings.sh" --from "$CURSOROUT" --out "$TEST_TMPDIR/findings/cursor.md" --branch test-branch >/dev/null 2>&1
-cursor_row="$(LC_ALL=C grep -m1 'rule-chatbot-artifacts' "$TEST_TMPDIR/findings/cursor.md")"
-assert_contains "cursor: chatbot-artifacts emits at IMPORTANT (crosswalk mirror)" "$cursor_row" "IMPORTANT"
-filler_row="$(LC_ALL=C grep -m1 'rule-filler-phrases' "$TEST_TMPDIR/findings/cursor.md")"
-assert_contains "cursor: filler-phrases emits at SUGGESTION (crosswalk mirror)" "$filler_row" "SUGGESTION"
+GENPROSEOUT="$TEST_TMPDIR/general-prose-out.txt"
+bash "$DETECT" "$GENPROSE" >"$GENPROSEOUT" 2>&1 || true
+bash "$SCRIPT_DIR/emit-findings.sh" --from "$GENPROSEOUT" --out "$TEST_TMPDIR/findings/general-prose.md" --branch test-branch >/dev/null 2>&1
+chatbot_row="$(LC_ALL=C grep -m1 'rule-chatbot-artifacts' "$TEST_TMPDIR/findings/general-prose.md")"
+assert_contains "general-prose: chatbot-artifacts emits at IMPORTANT (crosswalk mirror)" "$chatbot_row" "IMPORTANT"
+filler_row="$(LC_ALL=C grep -m1 'rule-filler-phrases' "$TEST_TMPDIR/findings/general-prose.md")"
+assert_contains "general-prose: filler-phrases emits at SUGGESTION (crosswalk mirror)" "$filler_row" "SUGGESTION"
 
 # --- Quotation exemption (wording vs typography rule classes) --------------------
 # Policy-level exemption: a wording rule never scans quoted material (blockquote

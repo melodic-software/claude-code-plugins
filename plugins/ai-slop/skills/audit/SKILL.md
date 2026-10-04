@@ -34,7 +34,7 @@ rules ran at all.
 
 Detect and remove AI-writing tells in checked-in markdown prose. Two detection layers over one
 rule inventory ([`reference/catalog.md`](reference/catalog.md), distilled from Wikipedia's
-"Signs of AI writing", revision-pinned, plus the catalog's "Cursor unslop additions" section
+"Signs of AI writing", revision-pinned, plus the catalog's "General-prose additions" section
 and its repo-owned, evidence-graded "Model-era additions" section of current-generation model
 vocabulary):
 

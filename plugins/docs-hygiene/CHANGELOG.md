@@ -8,6 +8,13 @@
   catalog does not list is named in the reply as a candidate for ai-slop's
   `rule-abstract-metaphor-jargon`, when `/ai-slop:audit` is available. The skill never edits the
   ai-slop catalog.
+- **`write-for-humans` reworded in its own terms.** The three surviving rules and the worked
+  example are tables; the mode picker gives each mode's voice, opening, body and exclusions in
+  columns; the rhythm section is a table of three checks; the first-read goal, and the instruction
+  to drop a rule where it makes a sentence worse, are now the first after-writing check.
+  `sentence-rules.md` groups the address rules by the part of the page they govern and states
+  every address, load and ambiguity rule against one running example, a made-up backup tool. The
+  worked example uses a new worker-reload passage. No rule or limit changed.
 - **`write-for-agents` words three rules in its own terms.** The cognitive-load line, the
   matching-term pointer rule and the negation rule no longer share phrasing with an upstream course
   skill. The rules are unchanged.

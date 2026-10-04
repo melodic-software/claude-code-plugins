@@ -20,11 +20,11 @@
 - [Signs of human writing](#signs-of-human-writing)
 - [Ineffective indicators](#ineffective-indicators)
 - [Historical indicators](#historical-indicators)
-- [Cursor unslop additions](#cursor-unslop-additions)
+- [General-prose additions](#general-prose-additions)
 - [Model-era additions (repo-owned)](#model-era-additions-repo-owned)
 
 The rule inventory for `/ai-slop:audit`: every sign of AI writing catalogued by the Wikipedia page
-below, plus the additions in the "Cursor unslop additions" section. Each tell is classified for
+below, plus the additions in the "General-prose additions" section. Each tell is classified for
 detectability and applicability, with its V1 disposition. Script rules are implemented in `../scripts/detect.sh`
 and carry argued severity-crosswalk rows; rubric tells are applied by the skill's judgment layer;
 `recorded-only` tells are catalogued but not run in V1 (the entry says why). Fix-time rewrite
@@ -41,8 +41,8 @@ this file is licensed under
 [Creative Commons Attribution-ShareAlike 4.0](https://creativecommons.org/licenses/by-sa/4.0/)
 (CC BY-SA 4.0), as the source requires.
 
-The "Cursor unslop additions" section was inspired by
-[Cursor's `unslop` skill](https://github.com/cursor/plugins/blob/main/pstack/skills/unslop/SKILL.md).
+The provenance of the "General-prose additions" section is recorded in the marketplace's upstream
+ledger, [`docs/upstream/cursor-pstack.md`](../../../../../docs/upstream/cursor-pstack.md).
 
 ## Upstream-drift record
 
@@ -86,7 +86,7 @@ Wikipedia; the page's text is read at the pointer, not stored here.
 
 ## Inventory
 
-65 tells catalogued from the Wikipedia source revision, plus 7 in the "Cursor unslop additions"
+65 tells catalogued from the Wikipedia source revision, plus 7 in the "General-prose additions"
 section and 4 in the "Model-era additions (repo-owned)" section at the end of this file. Entry
 marker: `### rule-<slug>: <name>`. The qualified id used
 in crosswalk rows and findings files is `ai-slop/audit/rule-<slug>`. Fields:
@@ -170,7 +170,7 @@ defaults. Outcomes:
   too common in ordinary technical prose to fire on occurrence, recorded for post-V1
   density treatment.
 
-Second pass, 2026-08-19, for the Cursor additions, against the same corpus:
+Second pass, 2026-08-19, for the general-prose additions, against the same corpus:
 
 - The three new script rules calibrated clean: chatbot-artifact phrases, stacked hedges, and the
   distinctive filler phrases each measured 0 to 3 occurrences corpus-wide; "in order to" measured
@@ -179,7 +179,7 @@ Second pass, 2026-08-19, for the Cursor additions, against the same corpus:
 - `rule-abstract-metaphor-jargon` stays rubric, not script, on measurement: "substrate" alone hit
   114 times in legitimate technical use on this corpus. A word-list scan cannot make the
   literal-versus-metaphor call the tell turns on.
-- `vocab_add` candidates "utilize", "leverage", "facilitate" (the Cursor plain-word list) joined
+- `vocab_add` candidates "utilize", "leverage", "facilitate" (the plain-word trio) joined
   the shipped vocabulary default: "leverage" measured 32 occurrences here, but the density gate
   (3.0/1000 words, minimum 3 hits per file) kept the rule quiet on every file, so the shipped
   default stays neutral while saturated files still flag.
@@ -386,11 +386,12 @@ then-current 1,361-file tracked-markdown corpus:
 - v1: recorded-only
 - Bold-lead-in bullets substituting for prose structure. Post-V1 script candidate; high overlap
   with legitimate reference-doc style, needs careful calibration. **Calibration pre-work, not a
-  live boundary** (this entry is `recorded-only`, so neither layer runs it): the tell is a bold
-  label whose colon restates the line ("**Performance:** Performance improved..."); a bold
-  lead-in that ends in a period, names the item, and is followed by genuinely new detail is
-  reference-doc style, not a tell. Promoting this rule means running that boundary against a real
-  corpus first.
+  live boundary** (this entry is `recorded-only`, so neither layer runs it). Reference docs
+  often start an item with a short bold name and a full stop, then give detail the name does not
+  already carry; that is ordinary style. The test for the tell: delete the bold label and its
+  colon, and see whether the line lost anything. If the sentence after the label says the same
+  thing again ("**Retries:** The client retries..."), nothing was lost and the label is the tell.
+  Promoting this rule means running that test against a real corpus first.
 
 ### rule-em-dash: Overuse of em dashes
 
@@ -792,8 +793,8 @@ catalog does about it:
   Markup.
 - **Correct wikitext**: no rule.
 
-None of those eight is a shipped script rule, a shipped rubric tell, or a Cursor-addition
-slug. No drop or re-scope follows.
+None of those eight is a shipped script rule, a shipped rubric tell, or a slug from the
+general-prose additions. No drop or re-scope follows.
 
 ## Historical indicators
 
@@ -836,10 +837,11 @@ Era-bound tells the source dates to earlier model generations. Catalogued for co
 - v1: recorded-only
 - Reference access dates inconsistent with publication dates.
 
-## Cursor unslop additions
+## General-prose additions
 
-Tells from the `unslop` skill linked at the top of this file that the Wikipedia inventory does not
-already carry. The overlap map first, accounting for every upstream pattern; then the new entries.
+Tells the Wikipedia inventory lacks, taken from a second tell inventory whose source and pinned
+commit are recorded in the ledger named at the top of this file. An overlap map that accounts for
+every pattern in that inventory comes first, then the new entries.
 
 ### Overlap map
 
@@ -869,7 +871,7 @@ either layer, and those rows say so.
 | Decorative emojis | `rule-emoji-formatting` |
 | Curly quotes | `rule-curly-artifacts` |
 | Cutoff disclaimers | `rule-knowledge-cutoff-disclaimer` |
-| Adding soul; plain speech (mechanism over feeling, sentence splitting, active voice, adverbs) | `rewrite-guide.md` (rewrite disciplines, not detection tells); the mechanism-over-feeling test also flags via `rule-mechanism-free-claims` below |
+| Adding soul (a voice list the second inventory has since removed); plain speech (mechanism over feeling, sentence splitting, active voice, adverbs) | `rewrite-guide.md` (rewrite disciplines, not detection tells); the mechanism-over-feeling test also flags via `rule-mechanism-free-claims` below |
 
 ### rule-chatbot-artifacts: Chat-turn residue and sycophancy
 
@@ -911,7 +913,7 @@ either layer, and those rows say so.
 - v1: script
 - Two hedges propping each other up: "could potentially", "may potentially", "might possibly",
   "could possibly", "might potentially". One hedge is a claim about uncertainty; two is filler.
-  Hedging spread across a sentence ("it could be argued that it might") needs a reader and falls
+  Hedging spread across a sentence ("one might say it could perhaps") needs a reader and falls
   to the rubric.
 
 ### rule-false-ranges: False ranges
@@ -919,7 +921,7 @@ either layer, and those rows say so.
 - detectability: judgment
 - applicability: general-prose
 - v1: rubric
-- "From X to Y" where X and Y sit on no meaningful scale ("from dashboards to microservices"):
+- A "from X to Y" construction whose endpoints share no scale ("from dashboards to microservices"):
   a list dressed as a spectrum. The construction is mechanical but the scale call is not, and
   legitimate ranges ("from 2 to 10 seconds") dominate; rubric only.
 
@@ -947,7 +949,7 @@ either layer, and those rows say so.
 - detectability: mechanical (word cues), judgment (literal versus metaphor)
 - applicability: general-prose
 - v1: rubric
-- Metaphor nouns standing in for a plainer concrete word: "substrate", "wedge", "nexus", "locus",
+- Metaphor nouns used where a literal word exists: "substrate", "wedge", "nexus", "locus",
   "vantage", "north star", "flywheel", "bedrock", "endgame", "gold-plating", plus "primitive",
   "harness", "scaffolding", "vector", "surface", "ratchet", "paradigm", "modality", and
   "evacuate" (for moving code) in their metaphorical (not domain-literal) senses. The tell turns on the literal-versus-metaphor call:
@@ -1005,11 +1007,12 @@ either layer, and those rows say so.
 ## Model-era additions (repo-owned)
 
 The repo-owned, evolving inventory of CURRENT-generation model-vocabulary tells, the layer
-neither the Wikipedia source page nor the Cursor skill has absorbed yet (verified against both
-heads; see the model-era record below). This section is this repository's own work, not adapted
-from the Wikipedia page, so the CC BY-SA statement at the top of this file (scoped to "the
-adapted material in this file") does not cover it; each entry cites the community sources it
-rests on. It exists to move faster than the upstream inventories: when a new model generation
+neither the Wikipedia source page nor the second inventory behind the general-prose additions
+has absorbed yet (verified against both heads; see the model-era record below). This section is
+this repository's own work, not adapted from the Wikipedia page, so the CC BY-SA statement at the
+top of this file (scoped to "the adapted material in this file") does not cover it; each entry
+cites the community sources it rests on. It exists to move faster than the upstream
+inventories: when a new model generation
 introduces a tic, the entry lands here first, graded by its evidence, and migrates to the
 Wikipedia-derived inventory only if upstream later absorbs it.
 
@@ -1120,7 +1123,8 @@ This section holds the model-vocabulary layer this repository tracks from commun
 keeps it here because neither upstream inventory carried it when checked.
 
 - **Pointer**: the per-entry sources named in each entry and in the record below; for the
-  absence check, the live Wikipedia page and the Cursor skill head named in the record.
+  absence check, the live Wikipedia page and the head of the second inventory (its source is in
+  the ledger named at the top of this file).
 - **As of**: 2026-08-26
 - **Recheck trigger**: each `ai-slop` release, each new frontier-model generation, and, for
   `rule-model-era-vocabulary`, whether a second independent frequency pool has landed (the
@@ -1130,9 +1134,9 @@ keeps it here because neither upstream inventory carried it when checked.
   lower-bound ratio and Marek Suppa's independent count),
   anthropics/claude-code issue 53454 (maintainer-reproduced), Velitchkov's cliché catalog,
   crystl.dev's hacker-idiom catalog, and jola.dev's filter hook. Wikipedia "Signs of AI
-  writing" head revision 1371415133 (fetched 2026-08-26) and Cursor unslop head (last commit
-  2026-08-02) both carry none of it. Harness confound recorded on the metaphor cues: the
-  version-tracked Piebald-AI system-prompt mirror uses the word "load-bearing" in its
+  writing" head revision 1371415133 (fetched 2026-08-26) and the second inventory's
+  head (last commit 2026-08-02) both carry none of it. Harness confound recorded on the metaphor
+  cues: the version-tracked Piebald-AI system-prompt mirror uses the word "load-bearing" in its
   progress-update instruction, so "load-bearing" in Claude Code output is partly prompt-primed
   rather than purely model-weight; the frequency spike aligns
   with the Opus 4.6 release date and the word appears in non-Code output, so the weights-side

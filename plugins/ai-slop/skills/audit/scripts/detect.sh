@@ -48,7 +48,7 @@ EMOJI_ERE=$'(\xf0\x9f|\xe2[\x98-\x9e\xac\xad])'
 CURLY_ERE=$'(\xe2\x80[\x98\x99\x9c\x9d\x8b]|\xc2\xa0)'
 
 # Distinctive AI-vocabulary defaults (catalog rule-ai-vocabulary; config-tunable).
-# The trailing four are measured admissions: three Cursor plain-word additions
+# The trailing four are measured admissions: the three plain-word additions
 # (catalog calibration record, second pass) and pre-existing (fourth pass, from
 # the model-era section), common enough alone that only the density gate makes
 # them safe to ship. The bare singular "underscore" is not on the list: the
