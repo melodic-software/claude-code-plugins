@@ -3,6 +3,34 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.8.6] - 2026-10-04
+
+### Changed
+
+- **Shorter hook text (#6225).** The hook-failure warning drops the status line about `hook_failure_audit_enabled` and the ambiguity rationale, and keeps the `/reload-plugins` or restart remedy for launch and ambiguous failures. The skill-usage logging notices go to the user only, and the invalid-destination notice names the actual fault: a `skill_usage_dir` that is not a contained relative path, or a `data-dir` scope without `CLAUDE_PLUGIN_DATA`. The Stop hook's missing-jq notice goes to the user only.
+
+## [3.8.5] - 2026-10-04
+
+### Added
+
+- `/harness-ops:audit-performance` ranks dead-parent processes by CPU time in its kernel-leak census (#6249).
+
+### Changed
+
+- The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
+
+### Fixed
+
+- A stale hook config now prints a notice that names it and suggests `/reload-plugins` (#6247).
+- The latency action names a route when it cannot evaluate (#6259).
+
+## [3.8.4] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
+
 ## [3.8.3] - 2026-10-04
 
 ### Changed

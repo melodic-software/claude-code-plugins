@@ -32,7 +32,7 @@
 # DECLARED BYPASS COVERAGE (out of scope, documented): `gh pr edit --title`,
 # `gh pr create --fill`, direct API calls (`gh api .../pulls`), and babysit
 # retitles are not gated. A subject supplied by a non-heredoc stdin producer
-# (`printf … | git commit -F -`) is not extracted — the canonical /commit form
+# (`printf … | git commit -F -`) is not extracted — the canonical /source-control:commit form
 # is the heredoc, and the mechanic gate already channels traffic into it.
 #
 # Kill switch: block_convention_gate_enabled userConfig option.
@@ -79,7 +79,7 @@ hook::buffer_stdin_to INPUT || {
   exit 0
 }
 
-hook::require jq "PreToolUse" "guardrails-block-convention-violation" "$INPUT"
+hook::require jq "PreToolUse" guardrails "$INPUT"
 
 # All three payload fields in ONE jq process (hook::jq_fields), not three. A jq
 # spawn is fork() emulation on Windows Git Bash and this guard runs on every
@@ -93,9 +93,7 @@ hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' '.cwd' || exit 0
 # A NUL byte in ANY field read above is fail-CLOSED (#2136): the helper strips NUL
 # bytes before matching, so a clean verdict would not reflect the bytes carried.
 if ((HOOK_JQ_FIELDS_NUL)); then
-  echo "BLOCKED: the payload carries a NUL byte, which a command cannot reliably carry." >&2
-  echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
-  echo "Fix: reissue the tool call without the embedded NUL." >&2
+  guard::refuse_nul
   exit 2
 fi
 
@@ -284,7 +282,7 @@ emit_tel() {
 }
 
 # First non-empty line of the FIRST heredoc body in the raw Bash command.
-# Empty output when no heredoc exists. The canonical /commit form carries
+# Empty output when no heredoc exists. The canonical /source-control:commit form carries
 # exactly one heredoc; a command with several is judged by its first, which is
 # the one `git commit -F -` reads in the canonical composition.
 # shellcheck disable=SC2329  # invoked from check_segment (callback chain)
@@ -349,21 +347,20 @@ first_herestring_subject() {
 
 # shellcheck disable=SC2329  # invoked from check_segment (callback chain)
 block_subject() {
-  echo "BLOCKED: commit subject violates the team convention." >&2
+  echo "BLOCKED: commit subject does not match the team convention." >&2
   echo "  subject: $1" >&2
-  echo "  pattern: $SUBJECT_ERE   (from .claude/source-control.md, team layer)" >&2
-  echo "Rewrite the subject to match, or use the /commit skill (source-control plugin)," >&2
-  echo "which drafts against the resolved convention." >&2
+  echo "  pattern: $SUBJECT_ERE" >&2
+  echo "Rewrite it to match; /source-control:commit drafts against the convention." >&2
   emit_tel "blocked" "subject-pattern"
   exit 2
 }
 
 # shellcheck disable=SC2329  # invoked from check_segment (callback chain)
 block_title() {
-  echo "BLOCKED: PR title violates the team convention." >&2
+  echo "BLOCKED: PR title does not match the team convention." >&2
   echo "  title:   $1" >&2
-  echo "  pattern: $TITLE_ERE   (from .claude/source-control.md, team layer)" >&2
-  echo "Retitle to match, or use /pull-request create (source-control plugin)." >&2
+  echo "  pattern: $TITLE_ERE" >&2
+  echo "Rewrite it to match; /source-control:pull-request drafts against the convention." >&2
   emit_tel "blocked" "pr-title-pattern"
   exit 2
 }

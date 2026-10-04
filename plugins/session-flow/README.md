@@ -64,8 +64,8 @@ sessions lose time and tokens over weeks, and how to arm it for delegation-heavy
 
 ### workflow
 
-The map for a staged development workflow (contract → explore → research → plan → implement → test
-→ review → verify → retro). Detects the current position from conversation evidence, suggests the
+The map for a staged development workflow (explore → research → [PRD] → contract → design → plan →
+[decompose] → implement → test → review → verify → ship → retro). Detects the current position from conversation evidence, suggests the
 next stage, and serves ordered checklists for the pre-PR sequence and end-of-session wrap-up. When
 the consuming repo defines its own stage skills, it routes to them; otherwise stages execute
 inline.

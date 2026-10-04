@@ -280,7 +280,12 @@ function findSection(lines, heading) {
   return null;
 }
 
-function parseContextMarkdown(text) {
+// The disclosure phrase the parser writes into a caveat and compare reads back.
+function absentRowPhrase(bucket) {
+  return `"${bucket}" row absent`;
+}
+
+function parseContextMarkdown(text, { binaryVersion: version = null } = {}) {
   // Trap: unredirected stdin prepends a warning line; anything before the
   // first markdown heading is not /context output.
   const firstHeading = text.search(/^#/m);
@@ -301,9 +306,16 @@ function parseContextMarkdown(text) {
     categories[cells[0]] = tokens;
     anyRounded = anyRounded || rounded;
   }
-  if (!('System tools' in categories)) {
-    throw new ParseError('category table parsed but carries no "System tools" row — refusing to guess');
+  // No system-tool bucket at all is format drift: refuse. One bucket alone is a
+  // shape headless /context has been observed to print; the absent bucket stays
+  // absent (unmeasured, never zero-filled) and a caveat names it.
+  const missingBuckets = SYSTEM_TOOL_BUCKETS.filter((b) => !(b in categories));
+  if (missingBuckets.length === SYSTEM_TOOL_BUCKETS.length) {
+    throw new ParseError('category table parsed but carries neither a "System tools" nor a '
+      + '"System tools (deferred)" row; refusing to guess');
   }
+  const absenceCaveats = missingBuckets.map((b) => `cli-parse: ${absentRowPhrase(b)}`
+    + `${version ? ` at ${version}` : ''}; recorded as unmeasured, not zero`);
 
   const model = (text.match(/\*\*Model:\*\*\s*(\S+)/) || [])[1] ?? null;
 
@@ -331,7 +343,7 @@ function parseContextMarkdown(text) {
   // fake binary uses them so a deny run can carry a disclosure the baseline
   // does not. A real /context render has none, and unknown lines elsewhere
   // stay ignored.
-  const caveats = [];
+  const caveats = [...absenceCaveats];
   for (const line of lines) {
     const match = /^Caveat:\s+(.+)$/.exec(line);
     if (match) caveats.push(match[1].trim());
@@ -482,7 +494,8 @@ function cliSnapshot({ bin, deny, label }) {
     throw new ParseError(`headless /context failed (exit ${r.status ?? 'spawn-error'}): `
       + `${(r.stderr || String(r.error || '')).trim().slice(0, 300)}`);
   }
-  const parsed = parseContextMarkdown(r.stdout);
+  const version = binaryVersion(bin);
+  const parsed = parseContextMarkdown(r.stdout, { binaryVersion: version });
   const synthesizedZeroBuckets = [];
   // Harness-only marker; contract in the cli-parse paragraph of reference/engine.md.
   for (const match of r.stdout.matchAll(/<!--\s*synthesized-zero:\s*([^>]+?)\s*-->/g)) {
@@ -503,7 +516,7 @@ function cliSnapshot({ bin, deny, label }) {
     precision: parsed.precision,
     sessionKind: 'headless',
     label: label ?? null,
-    binary: { path: bin, version: binaryVersion(bin) },
+    binary: { path: bin, version },
     sdk: null,
     model: parsed.model,
     cwd: process.cwd(),
@@ -564,7 +577,8 @@ async function takeSnapshot(args) {
       } catch (e2) {
         degrade('measurement-failed', `sdk mode failed (${String(e).slice(0, 200)}); `
           + `cli-parse fallback also failed (${String(e2).slice(0, 200)})`,
-        'Verify the binary runs (`claude --version`) and that `claude -p "/context"` produces the category table.');
+        'Verify the binary runs (`claude --version`) and that `claude -p "/context"` produces the category table '
+        + '(from Git Bash run it as `MSYS_NO_PATHCONV=1 claude -p "/context"`, or path conversion rewrites the command).');
       }
     }
   }
@@ -575,7 +589,8 @@ async function takeSnapshot(args) {
       `@anthropic-ai/claude-agent-sdk is not resolvable (tried: ${sdkCandidates.filter(Boolean).join(', ')}) `
       + `and cli-parse failed: ${String(e).slice(0, 300)}`,
       'For exact measurement install the Agent SDK (npm install @anthropic-ai/claude-agent-sdk in a directory '
-      + 'passed as --sdk-dir). For the fallback, verify `claude -p "/context"` prints the category table at your version.');
+      + 'passed as --sdk-dir). For the fallback, verify `claude -p "/context"` prints the category table at your version '
+      + '(from Git Bash run it as `MSYS_NO_PATHCONV=1 claude -p "/context"`, or path conversion rewrites the command).');
   }
 }
 
@@ -622,11 +637,27 @@ function compareSnapshots(before, after, { lever = null, emittedConfig = null } 
 
   const names = new Set([...Object.keys(before.categories || {}), ...Object.keys(after.categories || {})]);
   const delta = {};
+  const unmeasured = {};
   for (const name of names) {
     const b = before.categories?.[name];
     const a = after.categories?.[name];
-    if (typeof b === 'number' && typeof a === 'number') delta[name] = a - b;
-    else delta[name] = null; // present in one run only — never invent a number
+    if (typeof b === 'number' && typeof a === 'number') {
+      delta[name] = a - b;
+    } else {
+      // Present in one run only: never invent a number, and say why it is null.
+      delta[name] = null;
+      unmeasured[name] = `"${name}" present in only one run, so its delta is unmeasured, not zero`;
+    }
+  }
+  // The prefix bucket is the one every /context table was expected to carry,
+  // so when a run's parser disclosed its row as absent it went unmeasured,
+  // even if absent from both runs. A deferred bucket absent from both runs
+  // stays a non-event (a binary without that pool).
+  const prefix = SYSTEM_TOOL_BUCKETS[0];
+  const caveats = [...(before.caveats || []), ...(after.caveats || [])];
+  if (!names.has(prefix)
+    && caveats.some((c) => typeof c === 'string' && c.includes(absentRowPhrase(prefix)))) {
+    unmeasured[prefix] = `"${prefix}" row absent from both runs' /context tables, so its delta is unmeasured, not zero`;
   }
   const totalDelta = (typeof before.totalTokens === 'number' && typeof after.totalTokens === 'number')
     ? after.totalTokens - before.totalTokens : null;
@@ -644,6 +675,7 @@ function compareSnapshots(before, after, { lever = null, emittedConfig = null } 
     before: summarize(before),
     after: summarize(after),
     delta,
+    unmeasured,
     totalDelta,
     comparability: {
       ok: reasons.length === 0,
@@ -667,18 +699,22 @@ function compareSnapshots(before, after, { lever = null, emittedConfig = null } 
 //   number     measured in both runs — use it;
 //   null       present in one run only (a deny can empty a bucket out of the
 //              snapshot entirely) — a missing measurement, NEVER zero;
-//   undefined  absent from both runs — outside this binary's category
-//              vocabulary, a non-event that contributes nothing.
-// `saved` is null when any needed bucket vanished; the record is then
-// published as incomparable with the vanished buckets named in `reasons`,
+//   undefined  absent from both runs. For the deferred bucket that is a
+//              non-event (no deferred pool at this binary) contributing
+//              nothing. For the prefix bucket a parser-disclosed absent row
+//              lands in cmp.unmeasured and is unmeasured like the null case.
+// `saved` is null when any needed bucket is unmeasured; the record is then
+// published as incomparable with the unmeasured buckets named in `reasons`,
 // never coerced to 0.
 function systemBucketSaving(cmp) {
-  const vanished = SYSTEM_TOOL_BUCKETS.filter((b) => b in cmp.delta && cmp.delta[b] === null);
+  const unmeasured = cmp.unmeasured || {};
+  const vanished = SYSTEM_TOOL_BUCKETS.filter((b) => b in unmeasured
+    || (b in cmp.delta && cmp.delta[b] === null));
   return {
     saved: vanished.length ? null : -SYSTEM_TOOL_BUCKETS.reduce((s, b) => s + (cmp.delta[b] ?? 0), 0),
     comparable: cmp.comparability.systemToolsComparable && !vanished.length,
     reasons: vanished.length
-      ? [...cmp.comparability.reasons, vanishedReason(vanished)]
+      ? [...cmp.comparability.reasons, ...vanished.map((b) => unmeasured[b] ?? vanishedReason([b]))]
       : cmp.comparability.reasons,
   };
 }
@@ -712,8 +748,9 @@ function withinAdditivityEpsilon(combinedSaved, sumOfParts) {
 function bucketAdditivity(rows, cmp, synthesized) {
   const perBucket = {};
   for (const bucket of SYSTEM_TOOL_BUCKETS) {
-    // A bucket absent from BOTH runs is outside this binary's category
-    // vocabulary: a non-event, so it gets no verdict row at all.
+    // A bucket absent from BOTH runs gets no verdict row at all: for the
+    // deferred bucket a non-event, for the prefix bucket unmeasured (the
+    // per-tool rows already carry that as savedTokens null).
     if (!(bucket in cmp.delta)) continue;
     const parts = rows.map((r) => r[BUCKET_ROW_FIELD[bucket]]);
     const sumOfParts = parts.some((d) => typeof d !== 'number')

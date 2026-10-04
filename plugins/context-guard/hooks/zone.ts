@@ -12,8 +12,8 @@ export const DEFAULT_BANDS: Bands = {
   smart: 50,
   acceptable: 75,
   tokens: [
-    [200_000, 100_000, 160_000],
-    [1_000_000, 200_000, 400_000],
+    [200_000, 100_000, 150_000],
+    [1_000_000, 128_000, 250_000],
   ],
 }
 export const RANK: Record<Zone, number> = { smart: 0, acceptable: 1, dumb: 2 }

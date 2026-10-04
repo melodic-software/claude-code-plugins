@@ -23,9 +23,8 @@ Scope: managed settings and a ``--settings`` flag can also carry
 path actually probed so the reader can judge the claim.
 
 The report also carries ``hook_python`` and ``data_root``: the absolute
-interpreter and the ``--data-root`` value the destructive guard names in its
-denial guidance, computed by the guard's own ``launch_disclosure`` for this
-install root. The guard admits this probe only under its own interpreter, so
+interpreter and the ``--data-root`` value the destructive guard admits,
+computed by the guard's own ``launch_disclosure`` for this install root. The guard admits this probe only under its own interpreter, so
 under the ``clean`` belt ``hook_python`` is that interpreter by construction,
 and ``data_root`` is the value every engine call must pass. ``data_root`` is
 ``null`` when the guard could resolve no authority either.

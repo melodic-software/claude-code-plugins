@@ -69,7 +69,7 @@ hook::ctx_reset
 
 hook::buffer_stdin_to INPUT || exit 0
 
-hook::require jq "PostToolUse" "guardrails-stale-path-verify" "$INPUT"
+hook::require jq "PostToolUse" guardrails "$INPUT"
 
 FILE=""
 hook::read_file_path_to FILE "$INPUT" || exit 0
@@ -864,8 +864,8 @@ emit_tel() {
 
 if ((SHALLOW)) && ((ABSENT)); then
   if hook::notice_once "guardrails-stale-path-verify-shallow" "$INPUT"; then
-    hook::emit_skip_notice PostToolUse \
-      "stale-path-verify: this clone is shallow, so the deleted-path history it reads is truncated and the guard cannot adjudicate. Run \`git fetch --unshallow\` to restore it."
+    hook::emit_skip_notice PostToolUse "" \
+      "stale-path-verify is off: this clone is shallow. \`git fetch --unshallow\` turns it on."
   fi
   emit_tel skipped
   exit 0
@@ -873,28 +873,33 @@ fi
 
 if ((WALK_FAILED)) && ((ABSENT)); then
   if hook::notice_once "guardrails-stale-path-verify-walk-failed" "$INPUT"; then
-    hook::emit_skip_notice PostToolUse \
-      "stale-path-verify: the deleted-path history walk exited nonzero, so the set it reads is incomplete and the guard cannot adjudicate. Run \`git log --diff-filter=D --name-only\` to see why — a partial clone missing objects offline and a damaged object store are the usual causes."
+    hook::emit_skip_notice PostToolUse "" \
+      "stale-path-verify is off: \`git log --diff-filter=D\` failed here (a partial clone offline or a damaged object store are the usual causes)."
   fi
   emit_tel skipped
   exit 0
 fi
 
 if ((${#MISSING[@]} > 0)); then
-  hook::ctx_append "stale-path-verify: ${#MISSING[@]} cited path(s) were removed from this repo and no longer exist in $FILE"
+  # The file as the model names it: repo-relative when it sits under the root
+  # spelled the same way, else as given.
+  show_file="$FILE"
+  [[ "$FILE" == "${REPO_ROOT%/}/"?* ]] && show_file="${FILE#"${REPO_ROOT%/}/"}"
+  lines=""
   for m in "${MISSING[@]}"; do
     hint=$(moved_hint "$m")
     if [[ -n "$hint" ]]; then
-      hook::ctx_append "  STALE_PATH: $m (one tracked file now carries that name: $hint)"
+      lines+="$m (now at: $hint)"$'\n'
     else
-      hook::ctx_append "  STALE_PATH: $m"
+      lines+="$m"$'\n'
     fi
   done
-  hook::ctx_append ""
-  hook::ctx_append "Detect-then-judge: this is a prompt for your verdict, not a determination."
-  hook::ctx_append "Confirm against the tree. A path cited deliberately as a"
-  hook::ctx_append "deletion or completion record — documenting that the file was retired —"
-  hook::ctx_append "is correct as written."
+  spv_ctx=""
+  hook::findings_to spv_ctx \
+    "stale-path-verify: cited path(s) in $show_file were deleted from this repo:" \
+    "$lines" --max 10
+  hook::ctx_append "$spv_ctx"
+  hook::ctx_append "A path cited as a deletion record is correct as written."
   hook::ctx_flush PostToolUse
 fi
 

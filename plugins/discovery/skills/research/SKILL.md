@@ -273,7 +273,8 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 
 ## Next
 
-- Findings are ready to act on: `/planning:plan`.
+- Findings settle a type, contract, or boundary choice: `/planning:design`.
+- Findings are ready to act on with no design question open: `/planning:plan`.
 - A multi-topic or workflow-driven pass: `/discovery:research-deep`.
 - The reasons behind a past decision: `/discovery:trace-intent <subject>`.
 

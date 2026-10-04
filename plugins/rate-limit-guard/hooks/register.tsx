@@ -139,15 +139,19 @@ const resetLabel = (iso: string) => {
   return Number.isNaN(at.getTime()) ? iso : `${at.toISOString().slice(0, 16).replace('T', ' ')} UTC`
 }
 
+// The person's wording; Claude's names the threshold alone, since Claude Code waits out a usage limit itself.
 const verdictText = (event: Event, cfg: Config) =>
   ({ edge: 'at', approach: 'nearing', quiet: 'below', reset: 'reset and below' })[event] + ` the ${edgeName(cfg)}`
+
+const modelVerdict = (event: Event, cfg: Config) =>
+  ({ edge: 'at or above', approach: 'nearing', quiet: 'below', reset: 'reset, now below' })[event] + ` ${cfg.threshold}%`
 
 const windowOf = (kind: string) => WINDOWS.find(w => w.kind === kind)
 
 const clause = (kind: string, event: Event, limit: SessionRateLimit | undefined, cfg: Config) => {
   const subject = cfg.data.has('window') ? `${windowOf(kind)?.name ?? kind} window` : 'a rate-limit window'
   const percent = limit !== undefined && cfg.data.has('percent') ? `${limit.percentUsed}% used` : undefined
-  let text = `${subject} ${verdictText(event, cfg)}${percent ? ` (${percent})` : ''}`
+  let text = `${subject} ${modelVerdict(event, cfg)}${percent ? ` (${percent})` : ''}`
   if (event !== 'reset' && cfg.data.has('reset') && limit?.resetsAt !== undefined) {
     text += `, resets at ${resetLabel(limit.resetsAt)}`
   }
@@ -207,9 +211,11 @@ const dueEvents = (st: State): [string, Event][] => {
 
 const dueLines = (st: State, cfg: Config): string[] => {
   const reading = st.reading ?? new Map()
-  return dueEvents(st)
-    .sort(([a], [b]) => order(a) - order(b))
-    .map(([kind, event]) => `rate-limit-guard: ${clause(kind, event, reading.get(kind), cfg)}.`)
+  const events = dueEvents(st).sort(([a], [b]) => order(a) - order(b))
+  const lastEdge = events.map(([, event]) => event).lastIndexOf('edge')
+  return events.map(
+    ([kind, event], i) => `rate-limit-guard: ${clause(kind, event, reading.get(kind), cfg)}.${i === lastEdge ? ' Keep working.' : ''}`,
+  )
 }
 
 // Appends lines to what Claude reads and writes each to the debug log, so the log holds what Claude was told.
@@ -321,7 +327,7 @@ async function statusText($: EngineInterface, st: State, cfg: Config) {
     const limit = st.reading?.get(kind)
     if (limit === undefined) return `${name} window: no reading`
     const reset = limit.resetsAt === undefined ? '' : `, resets at ${resetLabel(limit.resetsAt)}`
-    return `${name} window: ${limit.percentUsed}% used, ${verdictText(levelOf(limit.percentUsed, cfg), cfg)}${reset}`
+    return `${name} window: ${limit.percentUsed}% used, ${modelVerdict(levelOf(limit.percentUsed, cfg), cfg)}${reset}`
   })
   const home = await homeDir($)
   const snapshot = !cfg.writes
@@ -541,7 +547,7 @@ export const register: Register = (on, options) => {
       $.tool.register({
         name: 'status',
         description:
-          "Read-only. This session's rate-limit windows and spend limit, with rate-limit-guard's verdict for each, as JSON.",
+          "Returns this session's plan rate-limit usage as JSON, from the last API response: `windows` keyed by kind (five_hour, seven_day, and any other window reported except the spend limit), each with `used_percentage`, `resets_at` and `verdict`; an overall `verdict`, the worst window's (`quiet`, `approach` at or above `approach_pct`, `edge` at or above `line_threshold`, or `unknown` when no window is reported); those two thresholds and `lanes_pause_edge`; and `spend_limit` when a gateway reports one. A window whose reset time has passed is left out. Call it when the user asks about usage limits or before starting long or parallel work. Do not poll it: by default rate-limit-guard adds a line to the next prompt or tool result when the 5-hour or 7-day window rises to approach or edge, or resets from edge. Read-only.",
         inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       }),
       $.command.register({

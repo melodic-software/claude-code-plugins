@@ -7,7 +7,7 @@
 #
 # Graceful degrade: when actionlint (or jq) is not on PATH the hook skips
 # (exit 0) with a visible notice on both the agent and user channels, once per
-# session (renewed every eighth skip) — the plugin ships no binary of its own.
+# session (the notice does not repeat this session) — the plugin ships no binary of its own.
 
 set -uo pipefail
 
@@ -26,6 +26,13 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
+
+# The SessionStart compact|clear row: the model lost the reports with its
+# context, so the findings sent this session are sent again.
+if [[ "${1:-}" == --reset-digests ]]; then
+  hook::buffer_stdin_to INPUT && hook::findings_digest_reset "$INPUT"
+  exit 0
+fi
 
 # Every arm exits through hook::finish: telemetry first, then the one JSON
 # document. `--id` because the telemetry hook id is the script's name, not the
@@ -60,16 +67,13 @@ if hook::gitignored_out_of_scope "${CLAUDE_PLUGIN_OPTION_ACTIONLINT_LINT_GITIGNO
   hook::finish --id actionlint-check skipped findings array '[]'
 fi
 
-# Graceful degrade: actionlint absent -> skip, made VISIBLE once per session
-# (renewed every eighth skip) on both channels (agent + user). Telemetry (opt-in) also records a
-# "skipped" status so a consumer sink can observe the coverage gap.
+# Graceful degrade: actionlint absent -> skip, made VISIBLE once per channel,
+# composed from prerequisites.json. Telemetry (opt-in) also records a "skipped"
+# status so a consumer sink can observe the coverage gap.
 if ! command -v actionlint >/dev/null 2>&1; then
-  if hook::notice_once "actionlint-actionlint" "$INPUT" prerequisite; then
-    AL_NOTICE=""
-    hook::tool_missing_notice_to AL_NOTICE \
-      "actionlint: 'actionlint' was not found on this hook's PATH — workflow lint skipped for this edit" \
-      matching ". Install: https://github.com/rhysd/actionlint/blob/main/docs/install.md. Run /actionlint:check. It does not install."
-    hook::emit_skip_notice PostToolUse "$AL_NOTICE"
+  AL_MODEL="" AL_USER=""
+  if hook::prereq_notice_to AL_MODEL AL_USER actionlint "$INPUT"; then
+    hook::emit_skip_notice PostToolUse "$AL_MODEL" "$AL_USER"
   fi
   hook::finish --id actionlint-check skipped findings array '[]'
 fi
@@ -94,7 +98,8 @@ fi
 # the absolute path there.
 AL_TARGET="$FILE_REL"
 ((FILE_REL_DEGRADED == 0)) || AL_TARGET="$FILE"
-AL_OUTPUT=$(actionlint -shellcheck= -pyflakes= -- "$AL_TARGET" 2>&1)
+# -oneline prints one line per finding, without the source excerpt under it.
+AL_OUTPUT=$(actionlint -oneline -shellcheck= -pyflakes= -- "$AL_TARGET" 2>&1)
 AL_STATUS=$?
 
 # actionlint exits 0 (clean) or 1 (problems found); anything else -- 2 invalid
@@ -110,11 +115,18 @@ if [[ "$AL_STATUS" -ge 2 ]]; then
   hook::finish --id actionlint-check error findings array "$FINDINGS_JSON"
 fi
 
+# The heading names the file once, so each line drops actionlint's path prefix.
+# --delta sends a finding set once per (session, agent, file); the clean run
+# goes through it too, so findings that come back after a fix are sent again.
+AL_OUTPUT=$'\n'"$AL_OUTPUT"
+AL_OUTPUT="${AL_OUTPUT//$'\n'"$AL_TARGET:"/$'\n'}"
 FINDINGS_JSON='[]'
 AL_CTX=""
-if [[ -n "$AL_OUTPUT" ]]; then
-  hook::findings_to AL_CTX "actionlint: $FILE_BASE has findings:" \
-    "$AL_OUTPUT" FINDINGS_JSON
-fi
+# The heading names the repo-relative path, or the basename when that did not
+# resolve; never the absolute path the tool is handed as a fallback.
+AL_SHOWN="$AL_TARGET"
+[[ "$AL_TARGET" == "$FILE" ]] && AL_SHOWN="$FILE_BASE"
+hook::findings_to AL_CTX "actionlint: $AL_SHOWN has findings:" \
+  "$AL_OUTPUT" FINDINGS_JSON --max 20 --delta "$INPUT" "$FILE"
 
 hook::finish --id actionlint-check --context "$AL_CTX" ok findings array "$FINDINGS_JSON"

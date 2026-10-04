@@ -99,10 +99,12 @@ verdict="$("$renderer" check --file "$target" --root "$repo_root" 2>/dev/null ||
 # Any other verdict is IN-SYNC, or NO-BLOCK (this repository has not adopted an
 # index). Neither is a drift, and a repository that never opted in should not be
 # nagged.
+# To the model: the agent that just edited the rule is the one that can
+# regenerate the index.
 if [[ "$verdict" == DRIFTED* ]]; then
-  hook::emit_system_message \
-    "instruction-placement: ${file_path##*/} changed and the generated rules index in ${target##*/} is now stale. Regenerate it (render-index.sh write --file ${target##*/}); an un-indexed rule goes unnamed, so nothing tells an agent it exists until a read happens to match its glob." \
-    2>/dev/null || true
+  hook::emit_channels PostToolUse \
+    "instruction-placement: the rules index in ${target##*/} no longer matches .claude/rules/ after this edit. Regenerate: bash \"${CLAUDE_PLUGIN_ROOT:-$hook_dir/..}/scripts/render-index.sh\" write --file \"$target\" --root \"$repo_root\"." \
+    "" 2>/dev/null || true
 fi
 
 exit 0
