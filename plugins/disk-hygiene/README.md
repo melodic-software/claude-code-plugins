@@ -318,8 +318,8 @@ default, `atime`, or `ctime`. The entry is labeled in-flight. Paths that open is
 reference can be passed to the scan as `--in-flight-refs`; they stay unticked the same way. `elevation: uac-prompt` (Windows only, user-global file or `--policy` only, never a
 project file) lets the skill offer an operator-approved elevated re-check for approved-tier paths
 that are contested only for `needs-elevation`; the default `never` keeps every elevation off. A native
-replica of the lane's elevated re-check passed a Windows UAC pilot on 2026-10-01, but the engine's
-own elevation path has not run end to end on Windows; see the
+replica of the lane's elevated re-check passed a Windows UAC pilot on 2026-10-01, but the skill's
+shipped lane has not run end to end on Windows; see the
 [safety model](skills/clean/reference/safety-model.md#opt-in-elevation) for what was and was not
 covered.
 

@@ -970,9 +970,8 @@ identity-changed, reparse-point, unrecorded-child and locked cases. `-Wait` retu
 descendant that outlived the script exited.
 That pilot did not exercise the engine itself on Windows, the `handoff-verify` trigger, per-tier
 approval, a script written under the run directory, real system paths, Recycle Bin removal, policy
-overlay precedence, or credential prompts outside the console or for a standard user. The engine's
-own elevation path has not run end to end; treat that part as documented intent, not observed
-behavior.
+overlay precedence, or credential prompts outside the console or for a standard user. The skill's
+shipped lane has not run end to end; treat that part as documented intent, not observed behavior.
 
 ## Outcome vocabulary
 
