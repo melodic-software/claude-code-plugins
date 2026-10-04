@@ -18,7 +18,8 @@ condition 1). Run it after both gates pass and the App token is minted.
 ## What it reads and keeps
 
 It reads the PR, its issue comments, reviews and review comments, the issues the PR closes
-(GraphQL `closingIssuesReferences`) and their comments, every page of each. A closing issue in any
+(GraphQL `closingIssuesReferences`) and their comments, every page of each. A list longer than 50
+pages of 100 is an error, so the step exits 1 rather than read part of it. A closing issue in any
 repository other than the PR's own is dropped and counted under `linked-issue` without being read.
 
 An item is kept only when its `user` is not null, its `user.id` is listed, and its

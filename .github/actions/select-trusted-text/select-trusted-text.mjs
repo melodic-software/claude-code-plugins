@@ -17,15 +17,37 @@ const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 const APP_SLUG = /^[a-z0-9][a-z0-9-]*$/;
 
-const CLOSING_ISSUES = `query($owner: String!, $name: String!, $number: Int!) {
+const CLOSING_ISSUES = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      closingIssuesReferences(first: 100) {
+      closingIssuesReferences(first: 100, after: $after) {
         nodes { number repository { nameWithOwner } }
+        pageInfo { hasNextPage endCursor }
       }
     }
   }
 }`;
+const MAX_REFERENCE_PAGES = 50;
+
+// Every closing issue reference, page by page; more than the cap throws.
+async function closingReferences(github, repository, prNumber) {
+  const [owner, name] = repository.split("/");
+  const references = [];
+  let after = null;
+  for (let page = 1; page <= MAX_REFERENCE_PAGES; page += 1) {
+    const answer = await github("POST", "/graphql", {
+      query: CLOSING_ISSUES,
+      variables: { owner, name, number: Number(prNumber), after },
+    });
+    const connection = answer?.data?.repository?.pullRequest?.closingIssuesReferences;
+    references.push(...(connection?.nodes ?? []));
+    if (connection?.pageInfo?.hasNextPage !== true) {
+      return references;
+    }
+    after = connection.pageInfo.endCursor;
+  }
+  throw new Error(`closing issue references exceed ${MAX_REFERENCE_PAGES} pages`);
+}
 
 // PullRequest, Issue, IssueComment, PullRequestReview and
 // PullRequestReviewComment all implement Comment.
@@ -109,12 +131,7 @@ export async function buildTrustedContext({ github, repository, prNumber, ids })
   await keep("review", await paginate(github, `${base}/pulls/${prNumber}/reviews`));
   await keep("review-comment", await paginate(github, `${base}/pulls/${prNumber}/comments`));
 
-  const [owner, name] = repository.split("/");
-  const closing = await github("POST", "/graphql", {
-    query: CLOSING_ISSUES,
-    variables: { owner, name, number: Number(prNumber) },
-  });
-  const references = closing?.data?.repository?.pullRequest?.closingIssuesReferences?.nodes ?? [];
+  const references = await closingReferences(github, repository, prNumber);
   for (const reference of references) {
     // Only issues in the PR's own repository: an issue elsewhere sits under
     // another repository's permissions and authors.

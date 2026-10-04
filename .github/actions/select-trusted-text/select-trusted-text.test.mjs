@@ -61,7 +61,8 @@ function fakeGitHub(routes) {
     if (!(key in routes)) {
       throw new GitHubError(404, key);
     }
-    return structuredClone(routes[key]);
+    const route = routes[key];
+    return structuredClone(typeof route === "function" ? route(body) : route);
   };
   github.calls = [];
   github.graphql = [];
@@ -238,6 +239,7 @@ test("asks GraphQL for the PR's closing issue references", async () => {
     owner: "melodic-software",
     name: "claude-code-plugins",
     number: 42,
+    after: null,
   });
 });
 
@@ -249,6 +251,60 @@ test("a closing reference whose repository is a dot segment is never requested",
   const { context, github } = await filter(api);
   assert.equal(context.dropped["linked-issue"], 1);
   assert.ok(!github.calls.some((call) => call.includes("/..")));
+});
+
+const referencesPage = (nodes, hasNextPage, endCursor) => ({
+  data: {
+    repository: {
+      pullRequest: { closingIssuesReferences: { nodes, pageInfo: { hasNextPage, endCursor } } },
+    },
+  },
+});
+
+async function filterWithClosing(closing) {
+  const routes = routesFrom(load());
+  routes["POST /graphql closing"] = closing;
+  routes[`GET /repos/${REPOSITORY}/issues/9`] = { ...load().issue7, id: 900, node_id: "N900" };
+  routes[`GET /repos/${REPOSITORY}/issues/9/comments?${page1}`] = [];
+  const outputPath = path.join(dir, "trusted-context.json");
+  const github = fakeGitHub(routes);
+  const code = await main({
+    env: { PR_NUMBER: "42", REPOSITORY, TRUSTED_ACTORS_PATH: LIST, OUTPUT_PATH: outputPath },
+    github,
+    log: () => {},
+  });
+  let context;
+  try {
+    context = JSON.parse(readFileSync(outputPath, "utf8"));
+  } catch {
+    context = undefined;
+  }
+  return { code, context, github };
+}
+
+test("reads every page of closing issue references", async () => {
+  const repo = { nameWithOwner: REPOSITORY };
+  const { code, context, github } = await filterWithClosing((body) =>
+    body.variables.after === "c1"
+      ? referencesPage([{ number: 9, repository: repo }], false, "c2")
+      : referencesPage([{ number: 7, repository: repo }], true, "c1"),
+  );
+  assert.equal(code, 0);
+  assert.deepEqual(keptIds(context, "linked-issue"), [700, 900]);
+  const afters = github.graphql
+    .filter((body) => body.query.includes("closingIssuesReferences"))
+    .map((body) => body.variables.after);
+  assert.deepEqual(afters, [null, "c1"]);
+});
+
+test("closing references that never stop paging hit the cap, write nothing and exit non-zero", async () => {
+  let page = 0;
+  const { code, context } = await filterWithClosing(() => {
+    page += 1;
+    return referencesPage([], true, `c${page}`);
+  });
+  assert.equal(code, 1);
+  assert.equal(context, undefined);
 });
 
 test("a closing issue in another repository is dropped and never read, even from a listed author", async () => {
