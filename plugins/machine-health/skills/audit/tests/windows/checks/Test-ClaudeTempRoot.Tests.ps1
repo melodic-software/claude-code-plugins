@@ -59,16 +59,18 @@ BeforeAll {
         return ConvertFrom-CheckOutput (& $script:ScriptPath @Parameters)
     }
 
-    # Running the script would also run the envelope, so the listing function is
-    # lifted out of the script's AST to be called with a stand-in clock.
+    # Running the script would also run the envelope, so the listing and walk
+    # functions are lifted out of the script's AST to be called with a stand-in clock.
     $scriptAst = [System.Management.Automation.Language.Parser]::ParseFile(
         $script:ScriptPath, [ref]$null, [ref]$null)
-    $listingAst = $scriptAst.Find({
-            param($node)
-            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
-            $node.Name -eq 'Find-LargestTaskOutput'
-        }, $true)
-    . ([scriptblock]::Create($listingAst.Extent.Text))
+    foreach ($name in 'Find-LargestTaskOutput', 'Measure-SessionTree', 'Measure-TempRootTree') {
+        $functionAst = $scriptAst.Find({
+                param($node)
+                $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+                $node.Name -eq $name
+            }, $true)
+        . ([scriptblock]::Create($functionAst.Extent.Text))
+    }
 
     function New-TickingClock {
         # Each read of Elapsed advances one second, so a budget runs out after a
@@ -256,6 +258,57 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
             { Assert-CheckResult $result } | Should -Not -Throw
             $result.detail.file_count | Should -Be 1 `
                 -Because 'only the session own file counts; the junction target lives elsewhere'
+            $result.ran_successfully | Should -BeTrue
+        }
+
+        It 'streams one session directory and stops inside it once the walk budget runs out' {
+            # The stand-in clock proves the deadline is tested per entry; the Get-ChildItem
+            # throw proves no directory is collected whole first, since collecting a huge or
+            # slow directory is what held the walk past its budget before any test ran.
+            $root = Join-Path $script:tmpDir 'base\claude'
+            $session = New-SessionDir -Root $root -ProjectKey 'key' -SessionId 'aaa' -FileCount 50
+            Mock Get-ChildItem { throw 'a directory must be streamed, never collected whole' }
+
+            $measured = Measure-SessionTree -Path $session -Stopwatch (New-TickingClock) -BudgetSeconds 10
+            $measured.Truncated | Should -BeTrue
+            $measured.FileCount | Should -BeGreaterThan 0 `
+                -Because 'the budget held through the directory test and ran out among the files'
+            $measured.FileCount | Should -BeLessThan 50 `
+                -Because 'the deadline is tested per entry, not once per directory'
+            $measured.UnreadableCount | Should -Be 0
+        }
+
+        It 'streams one project key and stops among its sessions once the walk budget runs out' {
+            $root = Join-Path $script:tmpDir 'base\claude'
+            1..50 | ForEach-Object {
+                $null = New-SessionDir -Root $root -ProjectKey 'key' -SessionId "s$_"
+            }
+            Mock Get-ChildItem { throw 'a directory must be streamed, never collected whole' }
+
+            $walk = Measure-TempRootTree -Root $root -Stopwatch (New-TickingClock) `
+                -BudgetSeconds 10 -Now (Get-Date)
+            $walk.Truncated | Should -BeTrue
+            $walk.ProjectKeyCount | Should -Be 1
+            $walk.SessionCount | Should -BeGreaterThan 0
+            $walk.SessionCount | Should -BeLessThan 50 `
+                -Because 'the deadline is tested per session entry, not once per project key'
+            $walk.UnreadableCount | Should -Be 0
+        }
+
+        It 'counts hidden and system files, as Get-ChildItem -Force did' {
+            # The .NET enumerator skips Hidden and System entries by default; a leading dot
+            # is what marks a file hidden off Windows.
+            $root = Join-Path $script:tmpDir 'base\claude'
+            $session = New-SessionDir -Root $root -ProjectKey 'key' -SessionId 'aaa' -FileCount 1
+            $hidden = Join-Path $session '.hidden'
+            Set-Content -LiteralPath $hidden -Value 'x' -NoNewline
+            if ($IsWindows) {
+                (Get-Item -LiteralPath $hidden -Force).Attributes = 'Hidden, System'
+            }
+            $env:CLAUDE_CODE_TMPDIR = Join-Path $script:tmpDir 'base'
+
+            $result = Invoke-ClaudeTempRootAsObject
+            $result.detail.file_count | Should -Be 2
             $result.ran_successfully | Should -BeTrue
         }
     }
