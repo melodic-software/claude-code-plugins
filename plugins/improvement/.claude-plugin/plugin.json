@@ -1,7 +1,7 @@
 {
   "name": "improvement",
   "version": "0.2.0",
-  "description": "Find and make improvements to anything, from one method to a whole feature. find ranks evidence-cited candidates by value-to-effort and hands the pick to planning; improve ships one improvement, measured against the repo's standards and current upstream guidance, as one small draft PR. Both run unattended on a schedule.",
+  "description": "Find and make improvements to anything, from one method to a whole feature. find ranks evidence-cited candidates by value-to-effort and hands the pick to planning; improve ships one improvement, measured against the repo's standards and, when the focus asks for it, current upstream guidance, as one small draft PR. Both run unattended on a schedule.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
