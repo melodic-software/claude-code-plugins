@@ -8,7 +8,7 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
 ### Changed
 
 - **No quiet window restated.** After a compaction, a resume or `/branch`, only windows at or above the approach mark are restated; a session with only quiet windows gets nothing.
-- **Debug log mirror.** Each line sent to Claude is written as sent to the debug log. A failed debug write leaves the line as sent.
+- **Debug log mirror.** Each line sent to Claude is written as sent to the debug log.
 - **Shorter status tool description.**
 
 ## [0.13.0] - 2026-10-04

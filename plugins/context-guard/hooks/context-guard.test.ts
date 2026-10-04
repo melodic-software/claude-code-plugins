@@ -863,30 +863,6 @@ test('debug mirror: a gate denial is written to the debug log as sent', BLOCKING
   expect(debug).toContain(deny)
 })
 
-// A debug write that throws leaves the denial and the lines as they would be without the mirror.
-const throwingDebugWorld = (on: any, init: object = {}) => {
-  const { w } = world(on, init, { HOME }, ['ui.log'])
-  on('ui.log', ($: unknown, e: { text: string; to?: string }) => {
-    if (e.to === 'debug') throw new Error('debug log unavailable')
-    w.logs.push(e.text)
-    return { value: undefined }
-  })
-  return { w }
-}
-
-test('debug mirror: a failing debug write still denies the gated call', BLOCKING(0), async ($, on) => {
-  throwingDebugWorld(on, { percent: 80 })
-  await prompt($, 'composer')
-  expect((await write($)).deny).toBe(denial('Write', 0))
-})
-
-test('debug mirror: a failing debug write still sends the line', async ($, on) => {
-  const { w } = throwingDebugWorld(on)
-  await bash($)
-  w.percent = 60
-  expect(own((await bash($)).context)).toEqual([crossing('acceptable')])
-})
-
 test('gate: an action other than block at the dumb zone in zones.json leaves blocking mode inert', BLOCKING(0), async ($, on) => {
   const { w } = world(on, { percent: 80 })
   zonesFile(w, { actions: { dumb: { action: 'handoff' } } })

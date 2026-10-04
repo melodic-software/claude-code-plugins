@@ -214,12 +214,7 @@ const dueLines = (st: State, cfg: Config): string[] => {
 
 // Appends lines to what Claude reads and writes each to the debug log, so the log holds what Claude was told.
 const withLines = <T extends { context?: readonly string[] }>($: EngineInterface, e: T, lines: readonly string[]): T => {
-  for (const line of lines) {
-    // Best effort: a logging failure must never re-run the tool through the handler's catch.
-    try {
-      $.ui.log(line, { to: 'debug' })
-    } catch {}
-  }
+  for (const line of lines) $.ui.log(line, { to: 'debug' })
   return lines.length === 0 ? e : { ...e, context: [...(e.context ?? []), ...lines] }
 }
 
