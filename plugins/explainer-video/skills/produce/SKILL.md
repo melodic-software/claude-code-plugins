@@ -96,7 +96,8 @@ When a render stops with a repair line or a missing tool.
 ## Gotchas
 
 - Python 3.12 or 3.13 only. `pydeps.py` picks the first of `python3.13`, `python3.12`, `python3`,
-  `python` on PATH that is one of them. The plugin README's Requirements section records why.
+  `python` on PATH that is one of them, then on Windows the first the `py` launcher lists. The
+  plugin README's Requirements section records why.
 - On some platforms the first install builds pycairo and manimpango from source and needs the
   toolchain the README lists for that platform. A failed build is a session-start notice with the
   repair line.
