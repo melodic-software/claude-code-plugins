@@ -42,7 +42,7 @@ test("an activity starting with a stage word is reported", () => {
   assert.match(checkActivityName("pr-explainer", vocabulary), /stage word/);
 });
 
-test("an activity mode outside the vocabulary's modes is reported", () => {
-  assert.equal(checkActivityName("simplify#diff", vocabulary), undefined);
-  assert.match(checkActivityName("simplify#fast", vocabulary), /mode/);
+test("an activity with a mode suffix is reported, even a vocabulary mode", () => {
+  assert.match(checkActivityName("simplify#diff", vocabulary), /args/);
+  assert.match(checkActivityName("simplify#fast", vocabulary), /args/);
 });

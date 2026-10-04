@@ -36,21 +36,22 @@ export function checkActivityName(name, vocabulary) {
   if (!new RegExp(grammar.pattern, "u").test(name)) {
     return `activity \`${name}\` does not match ${grammar.pattern}`;
   }
-  const [activity, mode] = name.split("#");
-  if (mode !== undefined && !grammar.modes.flat().includes(mode)) {
-    return `activity \`${name}\` uses mode \`${mode}\`, which the vocabulary does not list`;
+  // The schema's $defs/name and report-check-run allow no mode suffix: a skill's
+  // mode goes in the activity's `args`.
+  if (name.includes("#")) {
+    return `activity \`${name}\` has a \`#\` mode suffix; put the mode in the activity's \`args\``;
   }
-  if (vocabulary.engines.includes(activity)) {
+  if (vocabulary.engines.includes(name)) {
     return undefined;
   }
   const stage = longestPrefix(
     vocabulary.stages.map((entry) => entry.name),
-    activity,
+    name,
   );
   if (stage !== undefined) {
     return `activity \`${name}\` starts with the stage word \`${stage}\``;
   }
-  if (!vocabulary.verbs.includes(activity.split("-")[0])) {
+  if (!vocabulary.verbs.includes(name.split("-")[0])) {
     return `activity \`${name}\` does not start with an accepted verb`;
   }
   return undefined;
