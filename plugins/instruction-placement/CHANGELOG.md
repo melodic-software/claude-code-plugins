@@ -9,7 +9,7 @@ All notable changes to the `instruction-placement` plugin are documented here. F
 
 - **`migrate`'s plan no longer reports a shim over an empty `AGENTS.md` as `content-in-claude` ([#5788](https://github.com/melodic-software/claude-code-plugins/issues/5788)).**
   A `CLAUDE.md` that is exactly `@AGENTS.md` beside a zero-byte or missing `AGENTS.md` took the content branch before the shim test ran, so Apply's table sent the operator into the full split sequence for a file that holds nothing.
-  `plan-migration.sh` now runs the shim test first and reports that case as `shim-empty-target`, a new row in the Apply table: nothing to move, ask whether the empty `AGENTS.md` is deliberate. `remove-shims.sh` still refuses it as an empty target. A commented import over an empty `AGENTS.md` stays `content-in-claude`, since the comment is still content to move.
+  `plan-migration.sh` now runs the shim test first and reports that case as `shim-empty-target`, a new row in the Apply table: nothing to move, ask whether the empty `AGENTS.md` is deliberate. `remove-shims.sh` still refuses it as an empty target. Only the exact target shape qualifies, one `@AGENTS.md` line with or without its trailing newline: a commented import, `@./AGENTS.md`, a repeated import or CRLF lines over an empty `AGENTS.md` stay `content-in-claude`, so Apply still rewrites them to the exact import.
 
 ## [0.21.3] - 2026-10-03
 

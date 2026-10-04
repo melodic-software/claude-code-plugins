@@ -117,8 +117,15 @@ assert_contains "both carrying content" "$OUT" "DIR	both	both-with-content"
 assert_contains "two empty files" "$OUT" "DIR	empty	zero-byte"
 
 # A bare import over an empty or missing AGENTS.md holds nothing to split, so it
-# is not content-in-claude. A comment above the import is still content.
-mkdir -p "$REPO/shimempty" "$REPO/shimmissing" "$REPO/commentempty"
+# is not content-in-claude. A comment above the import is still content, and so
+# is any import that is not exactly `@AGENTS.md`: Apply does nothing for
+# shim-empty-target, so a noncanonical form must stay in the state that rewrites it.
+mkdir -p "$REPO/shimempty" "$REPO/shimmissing" "$REPO/commentempty" "$REPO/shimnonl" \
+  "$REPO/dotslash" "$REPO/twice" "$REPO/crlf"
+printf '@AGENTS.md' >"$REPO/shimnonl/CLAUDE.md"
+printf '@./AGENTS.md\n' >"$REPO/dotslash/CLAUDE.md"
+printf '@AGENTS.md\n@AGENTS.md\n' >"$REPO/twice/CLAUDE.md"
+printf '@AGENTS.md\r\n' >"$REPO/crlf/CLAUDE.md"
 printf '@AGENTS.md\n' >"$REPO/shimempty/CLAUDE.md"
 printf '' >"$REPO/shimempty/AGENTS.md"
 printf '@AGENTS.md\n' >"$REPO/shimmissing/CLAUDE.md"
@@ -130,6 +137,11 @@ assert_contains "a shim over a zero-byte AGENTS.md is its own state" "$OUT" "DIR
 assert_contains "a shim over a missing AGENTS.md is too" "$OUT" "DIR	shimmissing	shim-empty-target	11	0"
 assert_not_contains "and neither is content-in-claude" "$OUT" "DIR	shimempty	content-in-claude"
 assert_contains "a commented import over an empty AGENTS.md still has a note to move" "$OUT" "DIR	commentempty	content-in-claude"
+assert_contains "a canonical import without a trailing newline is shim-empty-target" "$OUT" "DIR	shimnonl	shim-empty-target	10	0"
+assert_contains "@./AGENTS.md over an empty AGENTS.md is rewritten, not done" "$OUT" "DIR	dotslash	content-in-claude"
+assert_not_contains "and is not shim-empty-target" "$OUT" "DIR	dotslash	shim-empty-target"
+assert_contains "a repeated import over an empty AGENTS.md is content-in-claude" "$OUT" "DIR	twice	content-in-claude"
+assert_contains "a CRLF import over an empty AGENTS.md is content-in-claude" "$OUT" "DIR	crlf	content-in-claude"
 assert_contains "a shim with a non-empty AGENTS.md is unchanged" "$OUT" "DIR	shimmed	shim	"
 
 # An HTML-comment note above the import does not stop it being a shim: the
