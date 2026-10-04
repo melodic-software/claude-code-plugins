@@ -638,8 +638,10 @@ writer side: whether the module runs in the session. A session with the module l
   Report "no instrument in this environment" or "mods off", and never offer a fix the session
   cannot apply.
 - **The tool is present, and after a tool call there is still no fresh snapshot**: a real defect,
-  usually a missing `node` or an unwritable `~/.claude/context-guard/context/`. Invoke
-  `/context-guard:setup` via the Skill tool with `check` for the diagnosis.
+  usually a missing `node` or an unwritable `~/.claude/context-guard/context/`. Run
+  `/context-guard:check` for what the session can check itself (`node`, `jq`, whether the mod
+  loads), and ask the operator to run `/context-guard:setup check`, which is user-only, for the
+  rest of the diagnosis.
 - **The tool is present and answers**: its zone is the module's live reading, and a consumer may
   use it in place of the file.
 
