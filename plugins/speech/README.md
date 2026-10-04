@@ -34,12 +34,25 @@ that bundle it (`espeakng-loader`) or wrap it under the GPL (`phonemizer`): it r
 official ElevenLabs MCP server is archived, so the plugin calls the REST API directly with the Python
 standard library.
 
-- **Key.** Set `ELEVENLABS_API_KEY` in your shell environment. The plugin never stores, prints or
-  logs it, never takes it as an argument, and sends it only in the `xi-api-key` request header.
-- **Cost estimate before every call.** The script prints the character count, the host, the model
-  and voice, and the estimated cost, then stops. `--proceed` is required to send anything, and the
-  skill passes it only after you agree. The rates are an estimate from the public price list (the
-  `MODELS` table in the script says where and when); ElevenLabs bills credits against your plan.
+- **Key.** Set `ELEVENLABS_API_KEY` in your shell environment, or leave it unset with `vault-exec`
+  on `PATH`: the script then runs itself under
+  `vault-exec --env ELEVENLABS_API_KEY=elevenlabs-api-key`, so the key exists only in that one
+  process. The plugin never stores, prints or logs it, never takes it as an argument, and sends it
+  only in the `xi-api-key` request header.
+- **Quota statement before every call.** The script prints the character count, the host, the model
+  and voice, your plan's remaining character quota (from `GET /v1/user/subscription`) and a link to
+  the pricing page, then stops. It states no prices. `--proceed` is required to send anything, and
+  the skill passes it only after you agree.
+- **Cache.** An identical request (text, voice, model, voice settings, output format) reuses the
+  stored audio and timings from `<plugin data>/elevenlabs-cache/` with no call and no key. When no
+  plugin data directory resolves, the cache is `$XDG_CACHE_HOME/claude-speech/elevenlabs` (default
+  `~/.cache`). `--no-cache` makes a fresh call.
+- **Retries.** HTTP 429 and 5xx are retried with jittered exponential backoff, honoring
+  `Retry-After`; 401, 422 and other client errors fail at once with the API's error code and
+  message. `words.json` records the call's `request-id` and `character-cost` headers.
+- **Model.** The `elevenlabs_model` option sets the default model; the script's `MODELS` table lists
+  the models it accepts and marks `eleven_v4` unverified on the timed endpoint.
+  [reference/elevenlabs.md](reference/elevenlabs.md) points at the live ElevenLabs docs.
 - **Organization egress floor.** Managed settings can set `SPEECH_EGRESS_FLOOR=local` in `env`.
   Managed settings outrank every other settings layer, so a user cannot unset it. The backend then
   exits 4 with the reason, before it reads the key or prints an estimate. An unrecognized value is
@@ -57,7 +70,7 @@ Word times come from the API's per-character alignment: a word spans its first t
 | Node.js | you | starting the SessionStart hook |
 | espeak-ng | you (`apt`/`dnf`/`pacman`/`brew install espeak-ng`, `winget install eSpeak-NG.eSpeak-NG`) | `/speech:narrate` |
 | numpy, onnxruntime | the SessionStart hook | `/speech:narrate` |
-| Kokoro model, tokenizer, voices (about 340 MB) | `/speech:setup apply install-model` | `/speech:narrate` |
+| Kokoro model, tokenizer, voices (about 340 MB) | `/speech:setup apply install-model`, into the `model_dir` option's folder when set | `/speech:narrate` |
 
 `prerequisites.json` declares the tools, with their install hints and what stops without each
 one. `/speech:check` reads it.
