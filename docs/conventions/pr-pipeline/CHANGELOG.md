@@ -22,8 +22,11 @@ Additive, except one tightening: the activity names `run` and `report` are now r
 - `resolve-config` outputs the selected activity's `gating`.
 - An activity that runs head code (tests, linters, builds) takes effect `read`; a write-effect
   activity must not execute head code.
+- A `gate` skill activity must not execute head code; gating tests, linters and builds run as a
+  `script` activity.
 - The example config drops the `format` slot (`toolchain:lint --fix`, `mutate-branch`), which ran
-  head code with a write token.
+  head code with a write token, and disables the `fix-ci` slot for the same reason until a split
+  design exists.
 
 ## 1.0.0 - 2026-10-03
 

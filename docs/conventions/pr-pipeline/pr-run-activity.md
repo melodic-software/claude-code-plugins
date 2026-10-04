@@ -91,24 +91,27 @@ Holds `contents: read` and `pull-requests: read`, and no other permission; it ne
 8. Copies what the activity runs from the base out of `.base`: a script's whole directory to
    `$RUNNER_TEMP/base-script`, or for a skill the base `plugins/` and `.claude-plugin/` to
    `$RUNNER_TEMP/base-marketplace`.
-9. Removes sudo and docker access for the rest of the job: `/var/run/docker.sock` becomes
+9. For a skill, installs bubblewrap and socat with `apt-get` (three tries) and, where
+   `/proc/sys/kernel/apparmor_restrict_unprivileged_userns` exists, sets it to `0`. It fails red
+   if `bwrap` is not on `PATH` afterwards. The skill step needs it for subprocess isolation (below).
+10. Removes sudo and docker access for the rest of the job: `/var/run/docker.sock` becomes
    root-only and the runner user's `/etc/sudoers.d/runner` entry is deleted. It fails red if
    `sudo -n true` still succeeds or the socket is still open to the runner user.
-10. Checks out the trigger gate's `head-sha` with `persist-credentials: false`, then fails red
+11. Checks out the trigger gate's `head-sha` with `persist-credentials: false`, then fails red
     unless `git rev-parse HEAD` equals that SHA. This replaces `.base`.
-11. Runs the activity (below), then for a `read` activity records whether the tree is dirty.
-12. Writes `verdict.json` with `jq` (`if: always()`) and uploads it as
+12. Runs the activity (below), then for a `read` activity records whether the tree is dirty.
+13. Writes `verdict.json` with `jq` (`if: always()`) and uploads it as
     `verdict-<lane>-<activity>-<run_attempt>`, unique per activity and attempt.
 
 A stacked PR, one whose base is not the default branch, gets a failure check from step 4. Retarget
 it to the default branch to run its lanes.
 
 Its outputs are `base-sha`, `head-sha`, `pr-number`, `gate-reason`, `can-commit`, `applies` and
-`act-outcome`. Each is a step outcome or an output of a step that ran before any head code:
+`act-outcome`. All but `act-outcome` are outputs of steps that ran before any head code:
 `gate-reason` is the kill switch's reason if it stopped, else the trigger's if it stopped, else
 empty; `head-sha` is the trigger gate's; `base-sha` is set only by step 4, so it is always on the
 default branch. `act-outcome` is the activity step's outcome, except that a gate skill whose step
-succeeded takes the verdict check's outcome (below).
+succeeded takes the outcome of the verdict check (below), a step that runs after the skill.
 
 ### Skill activities
 
@@ -144,6 +147,12 @@ output through `env`, parses it with `jq`, writes the summary to the step summar
 red unless the verdict is exactly `pass`. A `fail` verdict therefore makes `act-outcome` `failure`
 and the check a failure. A `gating` value other than `gate` or `advisory` fails the job red before
 the head checkout.
+
+A `gating: gate` skill must not execute head code: no test, linter or build of the PR runs through
+its Bash. The verdict check runs after the skill in the same job, so head code that ran first could
+forge it, for example by writing a `$RUNNER_TEMP` file-command file such as one `BASH_ENV` points
+at, or by leaving a process running. Tests, linters and builds that gate run as a `script` activity,
+or under a separate design that judges their result in a job head code never touched.
 
 The job's step summary shows the skill's final reply (at most 4000 characters, backticks
 neutralized) for audit. It is model output, printed as data. The same text is uploaded as the
@@ -186,7 +195,8 @@ What it trusts:
 
 - Lane and activity from this workflow's own inputs.
 - `needs.run.result`, and the run job's `act-outcome`, `can-commit`, `gate-reason`, `head-sha` and
-  `base-sha` outputs, all computed by the runner from steps that ran before any head code.
+  `base-sha` outputs, computed by the runner. All but a gate skill's `act-outcome` come from steps
+  that ran before any head code; that one rests on the rule that a gate skill runs no head code.
 - Its own signed-commit result. On an unverified commit, `check-signed-commits` fails closed: the
   check is a failure, and the report job adds no label and posts no comment, because its
   `GITHUB_TOKEN` cannot write issues or pull requests.
@@ -206,11 +216,24 @@ makes the signed commit).
 
 Secrets in the job that runs head code: a `read` activity mints no App token, so its job never
 references `app-private-key`. A job whose effect is not `read` still references `app-private-key`
-to mint, and every skill job references the Claude OAuth token. A hosted runner holds referenced
-secrets in the runner's memory, where a process with root can read them. Removing sudo and docker
-access before the head checkout blocks the documented memory-dump route, but it is a mitigation,
-not a fix: the full fix is a token broker that keeps the App key off any runner that runs head
-code. That design is open for a decision.
+to mint, and every skill job references the Claude OAuth token. Two routes reach them:
+
+- Environment inheritance, no root needed. claude-code-action puts `CLAUDE_CODE_OAUTH_TOKEN` and
+  the token it was given (as `GH_TOKEN` and `GITHUB_TOKEN`) in Claude's environment, so every Bash
+  child of Claude inherits them and can read them from its own environment or from
+  `/proc/<ancestor>/environ`. The skill step sets `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB=1`, which
+  strips the OAuth token and other credentials from Bash, hook and MCP subprocesses and gives
+  Bash its own PID namespace, so an ancestor's `environ` is out of reach. The scrub keeps
+  `GH_TOKEN` and `GITHUB_TOKEN`, so a subprocess still holds the activity's GitHub token: the
+  job `GITHUB_TOKEN` for `read`, the effect-scoped App token otherwise. The action installs
+  bubblewrap only for `allowed_non_write_users`, so run job step 9 installs it and fails the job
+  when it is missing.
+- Runner memory, with root. A hosted runner holds referenced secrets in the runner's memory.
+  Removing sudo and docker access before the head checkout blocks the documented memory-dump
+  route.
+
+Both are mitigations, not a fix: the full fix is a token broker that keeps the App key off any
+runner that runs head code. That design is open for a decision.
 
 The verdict is written after head code ran in the same job, so it is never trusted: its lane,
 activity, gate stop reason and `head-sha` must match the values above or the check fails, and its
@@ -224,6 +247,8 @@ failure. The full decision order is in the report-check-run README.
 - A fork PR, whose read-only `GITHUB_TOKEN` cannot write checks: the report job's `if:` skips it.
 - A `pull_request` event sent by the lanes App (`AUTOMATION_LANES_APP_SENDER_ID`): both jobs skip.
 - A `no-pr` trigger stop with no head SHA.
+- Any event other than `pull_request` whose run job gated no head SHA: the fallback there would be
+  `github.sha`, the dispatch ref, not the PR's commit. The report job notes it in its step summary.
 
 ## Bounds
 

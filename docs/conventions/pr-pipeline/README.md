@@ -141,7 +141,9 @@ Each activity declares:
   code; a fix-and-push lane waits on a split design (a read-only run, then a separate
   signed-commit step).
 - `gating`: `gate` feeds `ci-status`; `advisory` is reported only. `ci-status` stays the only
-  required check.
+  required check. A `gate` skill activity must not execute head code, since its verdict is read
+  in the same job after the skill ran; tests, linters and builds that gate run as a `script`
+  activity or under a separate design.
 - `reads-untrusted`: whether it reads issue, PR, comment, web or CI-log text. Ingested text is
   data, never instructions ([`untrusted-content`](../untrusted-content/README.md)).
 - `inputs`: typed, from a closed set (`base-sha`, `head-sha`, `changed-paths`, `pr`, `issue`,

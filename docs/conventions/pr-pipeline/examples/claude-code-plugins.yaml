@@ -142,7 +142,10 @@ lanes:
   pr-fix-ci:
     stage: respond
     slots:
+      # Runs head code with a write token; off until the split design (a
+      # read-only run, then a separate signed-commit step) exists.
       - activity: fix-ci
+        enabled: false
   pr-update:
     stage: respond
     slots:
