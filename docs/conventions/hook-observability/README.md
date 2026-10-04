@@ -146,8 +146,8 @@ notice fires once per session; the model notice fires once per agent, because a 
 share the parent's context and would otherwise never see why the hook skipped. Neither renews. The
 text says the notice will not repeat this session, never that the skip lasts the session: the hook
 probes again on every call. A plugin README states the cadence as "once per session". A missing
-external binary (`hook::notice_once <key> <input> prerequisite`) keeps the same cadence, with the
-install route in its user notice.
+external binary keeps the same cadence, with the install route in its user notice from
+`hook::prereq_notice_to`.
 
 **Important exit-code caveat:** a bare `echo "..." >&2; exit 0` skip is **not a notice**; only
 stdout JSON carries one. Pointer: for where exit-0 stderr goes, see
@@ -244,9 +244,9 @@ promotion is tracked at melodic-software/claude-code-plugins#3758.
 
 These rules cover every line a hook or mod sends either reader: the model channels
 (`additionalContext`, a deny, block or Stop reason, a mod's context and results) and the user
-channels (`systemMessage`, a mod's `$.ui.*` lines). We treat model-channel text that repeats often
-or reads as an order as a prompt-injection risk, both for the hook's own text and for a genuine
-user message that arrives beside it.
+channels (`systemMessage`, a mod's `$.ui.*` lines). We treat model-channel text that repeats often,
+or context-channel text that reads as an order, as a prompt-injection risk, both for the hook's own
+text and for a genuine user message that arrives beside it.
 
 - **Frequency.** Speak only when the reader acts on the text: a finding, a state transition, or a
   missing prerequisite under the repeat-notice latch above. A check that ran clean sends nothing on
@@ -293,11 +293,11 @@ For a settings hook's full output, follow
 <https://code.claude.com/docs/en/hooks#debug-hooks>; for the hook telemetry event, see
 <https://code.claude.com/docs/en/monitoring-usage#hook-execution-complete-event>.
 
-Every line a mod sends Claude is also written to the debug log with
-`$.ui.log(text, { to: 'debug' })`, carrying the exact text sent, so the debug log holds what the
-model read. Pointer: for the call, see
-<https://code.claude.com/docs/en/plugins/mods/troubleshoot#read-the-debug-log>.
+A mod writes every line it sends Claude to the debug log with `$.ui.log(text, { to: 'debug' })`,
+carrying the exact text sent, so the debug log holds what the model read.
 
+- **Pointer**: for the debug log and the call, see the links above and
+  <https://code.claude.com/docs/en/plugins/mods/troubleshoot#read-the-debug-log>.
 - **As of**: 2026-10-04
 - **Recheck trigger**: one of those sections moves, or the mods API gains its own record of what a
   mod sent Claude.
@@ -393,9 +393,12 @@ Fleet audits check, per wired producer hook:
   (wrong tool type, excluded path, empty content, outside the project) that fires before any
   check logic runs carries no diagnostic information and does not need one. This matches how
   every current telemetry-emitting hook in the fleet is already shaped.
-- Agent-channel text follows the frequency and phrasing rules in
+- Text a hook or mod sends either reader follows the frequency, phrasing and length rules in
   [Text a hook adds for the model](#text-a-hook-adds-for-the-model-frequency-and-phrasing). Not
   mechanically gated, but reviewed per hook. One exception is recorded below.
+- A mod writes every line it sends Claude to the debug log, per
+  [See what a hook or mod sent](#see-what-a-hook-or-mod-sent). The guard mods conform once
+  melodic-software/claude-code-plugins#6312 lands.
 
 `scripts/check-silent-skips.sh` mechanically enforces the second point for the `command -v`-gated
 shapes it recognizes, **once its pending gate correction lands** (see the systemMessage section
