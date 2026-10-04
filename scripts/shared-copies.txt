@@ -63,6 +63,8 @@ lib/yaml-subset.awk plugins/review/lib/yaml-subset.awk
 lib/yaml-subset.awk plugins/testing/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/planning/skills/setup/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/discipline/skills/setup/scripts/yaml-subset.awk
+lib/parse-concern-value.sh plugins/verification/lib/parse-concern-value.sh
+lib/yaml-subset.awk plugins/verification/lib/yaml-subset.awk
 lib/config-root.sh plugins/source-control/lib/config-root.sh
 lib/config-root.sh plugins/ai-slop/lib/config-root.sh
 lib/config-root.sh plugins/attribution/lib/config-root.sh
@@ -229,6 +231,9 @@ lib/prerequisites.ps1 plugins/retro-audio/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/review/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/review/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/review/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/verification/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/verification/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/verification/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/skill-quality/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/skill-quality/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/skill-quality/lib/prerequisites.ps1

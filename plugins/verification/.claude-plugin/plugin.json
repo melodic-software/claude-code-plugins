@@ -15,5 +15,18 @@
     "measurement",
     "evidence",
     "skill"
-  ]
+  ],
+  "userConfig": {
+    "proof_level": {
+      "type": "string",
+      "title": "Proof level",
+      "description": "Evidence /verification:confirm requires. path (default): a live run only for runtime-affecting paths. live: a live drive for any change with a runnable surface. strict: unit, live and performance proof per phase. The stricter of this and the default branch's docs/conventions/verification.yaml wins.",
+      "default": "path",
+      "options": [
+        "path",
+        "live",
+        "strict"
+      ]
+    }
+  }
 }

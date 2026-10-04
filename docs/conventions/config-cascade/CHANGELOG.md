@@ -7,6 +7,14 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## [Unreleased]
+
+No contract change.
+
+- **`verification` gains Implementers and root-rule rows.** Its `proof_level` key lives in
+  `docs/conventions/verification.yaml` over the plugin's `userConfig`, with a declared deviation:
+  the stricter layer wins and the team file is read from the default branch.
+
 ## [1.6] - 2026-10-04
 
 Additive (minor bump): a new default location for the team layer and the plugin `userConfig` named

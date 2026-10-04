@@ -122,6 +122,110 @@
         "Checks for a stale build, cached page or wrong instance before calling the fix failed",
         "Observes the total again by a second route before rendering the verdict"
       ]
+    },
+    {
+      "id": "proof-level-01",
+      "name": "proof-level-unset-behaves-as-path",
+      "prompt": "/verification:confirm outcome. The user option proof_level is unset and the repository has no docs/conventions/verification.yaml on origin's default branch. The diff refactors an internal date-formatting helper in a library; no changed file matches a runtime-affecting path.",
+      "expected_output": "Resolves proof_level to path from the default and reports `proof_level: path (default)`. Applies the runtime-path rule as before the setting existed: no live run is required for this internal library change, E2E is noted as not applicable, and no proof boxes are required.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reports the proof level as path with the default as its source",
+        "Does not require a live run for a change that matches no runtime-affecting path",
+        "Does not ask for unit, live and perf proof boxes"
+      ]
+    },
+    {
+      "id": "proof-level-02",
+      "name": "proof-level-repo-live-raises-user-path",
+      "prompt": "/verification:confirm outcome. The user option proof_level is path. origin/main's docs/conventions/verification.yaml says `proof_level: live`. The diff changes the wording of a CLI tool's --help output in a file outside every runtime-affecting path.",
+      "expected_output": "Resolves live: the stricter of the two layers wins, so the repository file raises the user's path. The report line names live and the repository file at origin/main with its commit, and notes the user option said path. The CLI change has a runnable surface, so it is run as a user would invoke it (the real command with --help) even though no runtime-affecting path matched.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves proof_level to live, not path",
+        "Names the repository file at the default branch as the supplying layer",
+        "Runs the real CLI command because live requires it for any runnable surface"
+      ]
+    },
+    {
+      "id": "proof-level-03",
+      "name": "proof-level-user-strict-over-repo-path",
+      "prompt": "/verification:confirm outcome. The user option proof_level is strict. origin/main's docs/conventions/verification.yaml says `proof_level: path`. The approved plan has two phases: a new invoice-total calculation and its export endpoint.",
+      "expected_output": "Resolves strict: the user option is stricter than the repository's path and wins. The report line names strict from userConfig and says the repository file says path. The report carries a proof-box table with unit, live and perf boxes for each of the two phases, each holding evidence or a reasoned not-applicable line.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves proof_level to strict with userConfig as the supplying layer",
+        "Does not let the repository's path lower the user's strict",
+        "Fills unit, live and perf boxes for each of the two plan phases"
+      ]
+    },
+    {
+      "id": "proof-level-04",
+      "name": "proof-level-branch-cannot-lower-default-branch",
+      "prompt": "/verification:confirm outcome. origin/main's docs/conventions/verification.yaml says `proof_level: strict`. The branch under verification edits its own copy of that file to `proof_level: path`. The user option is unset.",
+      "expected_output": "Reads the repository layer from origin's default branch with setup-apply.mjs --check --ref origin/main after a fetch, so the level stays strict. The report names both values: strict from the default branch copy (with the commit read) applied, and path from the branch's working-tree copy not applied. The proof boxes are required.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Verifies at strict, the default branch's level, not the branch's path",
+        "Names both the default-branch value and the branch's own value in the report",
+        "Reads the repository value from origin's default branch, not the working tree"
+      ]
+    },
+    {
+      "id": "proof-level-05",
+      "name": "proof-level-strict-merge-base-ab-with-performance",
+      "prompt": "/verification:confirm outcome. proof_level resolves to strict. The diff rewrites the search index's tokenizer loop, a runtime code path. No /verification:measure baseline was captured at planning time. The performance plugin is enabled.",
+      "expected_output": "Fills the perf box with an interleaved A/B run of the merge base against the head through /performance:snapshot's harness: the merge base is checked out in a second worktree outside the repository, both arms run interleaved, and the worktree is removed afterwards. The perf box cites that result rather than a single timing taken after the change.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Uses an interleaved merge-base versus head run because no planning-time baseline exists",
+        "Checks out the merge base in a second worktree and runs through /performance:snapshot",
+        "Does not accept a single after-change timing as perf evidence"
+      ]
+    },
+    {
+      "id": "proof-level-06",
+      "name": "proof-level-strict-no-baseline-not-verified",
+      "prompt": "/verification:confirm outcome. proof_level resolves to strict. The diff rewrites the search index's tokenizer loop, a runtime code path. No /verification:measure baseline was captured at planning time, and the performance plugin is not enabled. Unit tests and a live drive both pass.",
+      "expected_output": "The perf box reads NOT VERIFIED: no baseline, naming the gap: no planning-time baseline and the performance plugin is not enabled. The verdict is NOT VERIFIED, not CONFIRMED, even though the unit and live boxes hold evidence, and the report names the phase and the perf box.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Marks the perf box NOT VERIFIED and names the missing baseline",
+        "Renders NOT VERIFIED rather than CONFIRMED",
+        "Does not invent a performance number or skip the perf box silently"
+      ]
+    },
+    {
+      "id": "proof-level-07",
+      "name": "proof-level-strict-docs-only-perf-not-applicable",
+      "prompt": "/verification:confirm outcome. proof_level resolves to strict. The diff changes only docs/onboarding.md.",
+      "expected_output": "The perf box holds a reasoned not-applicable line the verifier can check against the diff (the change touches only docs/onboarding.md and no runtime code path), and the fresh-context verifier confirms the diff has no runtime change before accepting it. A bare 'not needed' would not fill the box.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Writes a perf not-applicable line that names why, in terms checkable against the diff",
+        "Has the fresh-context verifier check that line against the diff",
+        "Does not treat 'not needed' or 'small change' as a reason"
+      ]
+    },
+    {
+      "id": "proof-level-08",
+      "name": "proof-level-invalid-value-named-and-dropped",
+      "prompt": "/verification:confirm outcome. origin/main's docs/conventions/verification.yaml says `proof_level: thorough`. The user option proof_level is live. The run is unattended, started by a pipeline lane.",
+      "expected_output": "Does not stop and does not ask. Names the file docs/conventions/verification.yaml, the key proof_level and the value thorough, drops the repository layer, and resolves the default path, not the user's live, because a lower layer's value is never used for an invalid higher layer. The report line says so, and Stage 2 continues at path.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Names the file, the key proof_level and the value thorough",
+        "Continues the run without stopping or prompting",
+        "Resolves path (the default), not the user's live"
+      ]
     }
   ]
 }

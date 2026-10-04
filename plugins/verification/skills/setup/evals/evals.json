@@ -16,13 +16,15 @@
     },
     {
       "id": 2,
-      "name": "apply-is-not-offered",
+      "name": "apply-does-not-configure-artifact-placement",
       "prompt": "/verification:setup apply\n\nPersist my artifact directory settings.",
-      "expected_output": "Says this setup is check-only: manifests, baselines and raw captures land in the memory slice <memory_dir>/<slug>/ and are never committed, and there is nothing for an apply to write. It runs the check, creates no .claude/ concern file, and does not edit any ignore file.",
+      "expected_output": "Says artifact placement is not configurable: manifests, baselines and raw captures land in the memory slice <memory_dir>/<slug>/ and are never committed. The only setting apply writes is proof_level in docs/conventions/verification.yaml, so with no proof_level named it writes nothing, creates no .claude/ concern file, and does not edit any ignore file.",
       "files": [],
+      "narration": true,
       "expectations": [
-        "States that there is no apply action and nothing to persist",
+        "States that artifact placement has nothing to persist",
         "Names the memory slice as the placement and does not invent a configuration file",
+        "Does not write docs/conventions/verification.yaml when no proof level was asked for",
         "Does not edit any ignore file or the consumer's root .gitignore"
       ]
     },
@@ -36,6 +38,31 @@
         "Reports the missing guard as INFO, never FAIL",
         "Explains that the first memory-slice write creates the guard",
         "Creates no directory and no .gitignore"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "apply-changes-existing-file-only-after-diff-confirmed",
+      "prompt": "/verification:setup apply proof_level=strict\n\nThe repository already has docs/conventions/verification.yaml with `proof_level: path`.",
+      "expected_output": "Runs setup-apply.mjs proof_level=strict, which exits 3 and prints a unified diff because the existing file would change. Shows the operator that diff and asks; re-runs with --yes only on an explicit yes. Before recommending strict it says members on an older verification release do not read the file. After the write it re-runs the check row and reports the value read back, notes that /verification:confirm reads the default branch copy so the level applies once merged, and reports whether the file is tracked.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Shows the diff and waits for an explicit yes before passing --yes",
+        "Reports the value the check reads back, not the value it wrote",
+        "Says the level takes effect once the file is merged to the default branch"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "apply-refuses-unlisted-level",
+      "prompt": "/verification:setup apply proof_level=thorough",
+      "expected_output": "Refuses: thorough is not one of path, live, strict. The script prints one refusal line, exits 1 and writes nothing. The skill reports the allowed values and does not invent a new level or write a different file.",
+      "files": [],
+      "expectations": [
+        "Refuses the value and names the allowed levels path, live and strict",
+        "Writes no file",
+        "Does not add a key or level the schema does not list"
       ]
     }
   ]

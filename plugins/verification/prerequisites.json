@@ -1,0 +1,27 @@
+{
+  "requires": [
+    {
+      "id": "node",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "plugin",
+        "skill:setup",
+        "skill:confirm"
+      ],
+      "detect": {
+        "any": [
+          "node"
+        ]
+      },
+      "degrade": "Without node, the prerequisites checker cannot run, /verification:setup cannot check or write docs/conventions/verification.yaml, and /verification:confirm skips that file's layer and says so, resolving proof_level from the user option or its default; verification itself is unaffected.",
+      "install": {
+        "docs": "https://nodejs.org/en/download",
+        "brew": "node",
+        "winget": "OpenJS.NodeJS.LTS",
+        "apt": "nodejs"
+      },
+      "check": "/harness-ops:prerequisites"
+    }
+  ]
+}
