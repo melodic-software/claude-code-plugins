@@ -105,18 +105,32 @@ function Measure-SessionTree {
     partial figures the budget exists to preserve. Here the budget is tested per
     directory and per entry, so the walk always yields in time to report.
 
+    Each directory is streamed from the .NET enumerator for the same reason:
+    `Get-ChildItem` hands a directory back only once all of it is listed, so one
+    directory with millions of entries, or on a slow share, would hold the walk
+    past its budget before the first per-entry test ran.
+
     Reparse points are skipped rather than followed. `Get-ChildItem -Recurse`
     does not follow them absent -FollowSymlink, so skipping preserves the
     behavior this replaces; a junction under the temp root would otherwise let
     the walk wander outside the tree or cycle forever.
+
+    Stopwatch is read only through .Elapsed, so a test can pass a stand-in clock.
     #>
     [CmdletBinding()]
     [OutputType([pscustomobject])]
     param(
         [Parameter(Mandatory = $true)] [string] $Path,
-        [Parameter(Mandatory = $true)] [System.Diagnostics.Stopwatch] $Stopwatch,
+        [Parameter(Mandatory = $true)] [object] $Stopwatch,
         [Parameter(Mandatory = $true)] [int] $BudgetSeconds
     )
+
+    # Only reparse points are skipped: the default also skips Hidden and System
+    # entries, which -Force counted. IgnoreInaccessible is off so an unreadable
+    # directory throws and is counted, as Get-ChildItem's error record was.
+    $options = [System.IO.EnumerationOptions]::new()
+    $options.AttributesToSkip = [System.IO.FileAttributes]::ReparsePoint
+    $options.IgnoreInaccessible = $false
 
     $bytes = [long]0
     $files = 0
@@ -129,19 +143,17 @@ function Measure-SessionTree {
     while ($pending.Count -gt 0) {
         if ($Stopwatch.Elapsed.TotalSeconds -ge $BudgetSeconds) { $truncated = $true; break }
 
-        $entryErrors = @()
-        $entries = @(Get-ChildItem -LiteralPath $pending.Dequeue() -Force `
-                -ErrorAction SilentlyContinue -ErrorVariable entryErrors)
-        $unreadable += $entryErrors.Count
-
-        foreach ($e in $entries) {
-            if ($Stopwatch.Elapsed.TotalSeconds -ge $BudgetSeconds) { $truncated = $true; break }
-            if ($e.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { continue }
-            if ($e.PSIsContainer) { $pending.Enqueue($e.FullName) }
-            else {
-                $bytes += $e.Length
-                $files++
+        try {
+            foreach ($e in [System.IO.DirectoryInfo]::new($pending.Dequeue()).EnumerateFileSystemInfos('*', $options)) {
+                if ($Stopwatch.Elapsed.TotalSeconds -ge $BudgetSeconds) { $truncated = $true; break }
+                if ($e -is [System.IO.DirectoryInfo]) { $pending.Enqueue($e.FullName) }
+                else {
+                    $bytes += $e.Length
+                    $files++
+                }
             }
+        } catch [System.IO.IOException], [System.UnauthorizedAccessException] {
+            $unreadable++
         }
         if ($truncated) { break }
     }
@@ -151,6 +163,91 @@ function Measure-SessionTree {
         FileCount       = $files
         UnreadableCount = $unreadable
         Truncated       = $truncated
+    }
+}
+
+function Measure-TempRootTree {
+    <#
+    .SYNOPSIS
+    Walks `<root>/<project-key>/<session-id>/...` and returns the tree's totals,
+    yielding as soon as the walk budget is spent.
+
+    .DESCRIPTION
+    Age is measured at the session level: a project-key directory is reused
+    across sessions, so its creation time reports when the key was first seen,
+    not how long the oldest unreclaimed content has survived.
+
+    The project-key and session levels are streamed and the budget is tested per
+    entry, as in Measure-SessionTree, so a root or project key with a huge number
+    of children cannot hold the walk past its budget either. These two levels
+    list every directory `Get-ChildItem -Directory -Force` did, reparse points
+    included; only the walk below a session skips them. ProjectKeyCount is the
+    number of project keys seen, so on a cut-off walk it is a floor like the rest.
+
+    Stopwatch is read only through .Elapsed, so a test can pass a stand-in clock.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory = $true)] [string] $Root,
+        [Parameter(Mandatory = $true)] [object] $Stopwatch,
+        [Parameter(Mandatory = $true)] [int] $BudgetSeconds,
+        [Parameter(Mandatory = $true)] [datetime] $Now
+    )
+
+    $options = [System.IO.EnumerationOptions]::new()
+    $options.AttributesToSkip = [System.IO.FileAttributes]::None
+    $options.IgnoreInaccessible = $false
+
+    $totalBytes = [long]0
+    $fileCount = 0
+    $projectCount = 0
+    $sessionCount = 0
+    $largestSessionBytes = [long]0
+    $oldestAgeDays = 0
+    $unreadable = 0
+    $truncated = $false
+
+    try {
+        :walk foreach ($p in [System.IO.DirectoryInfo]::new($Root).EnumerateDirectories('*', $options)) {
+            if ($Stopwatch.Elapsed.TotalSeconds -ge $BudgetSeconds) { $truncated = $true; break }
+            $projectCount++
+
+            try {
+                foreach ($s in $p.EnumerateDirectories('*', $options)) {
+                    if ($Stopwatch.Elapsed.TotalSeconds -ge $BudgetSeconds) { $truncated = $true; break walk }
+
+                    $sessionCount++
+                    $ageDays = [int][math]::Floor(($Now - $s.CreationTime).TotalDays)
+                    if ($ageDays -gt $oldestAgeDays) { $oldestAgeDays = $ageDays }
+
+                    $measured = Measure-SessionTree -Path $s.FullName -Stopwatch $Stopwatch `
+                        -BudgetSeconds $BudgetSeconds
+                    $unreadable += $measured.UnreadableCount
+                    $totalBytes += $measured.Bytes
+                    $fileCount += $measured.FileCount
+                    if ($measured.Bytes -gt $largestSessionBytes) {
+                        $largestSessionBytes = $measured.Bytes
+                    }
+                    if ($measured.Truncated) { $truncated = $true; break walk }
+                }
+            } catch [System.IO.IOException], [System.UnauthorizedAccessException] {
+                $unreadable++
+            }
+        }
+    } catch [System.IO.IOException], [System.UnauthorizedAccessException] {
+        $unreadable++
+    }
+
+    return [pscustomobject]@{
+        Bytes               = $totalBytes
+        FileCount           = $fileCount
+        ProjectKeyCount     = $projectCount
+        SessionCount        = $sessionCount
+        LargestSessionBytes = $largestSessionBytes
+        OldestAgeDays       = $oldestAgeDays
+        UnreadableCount     = $unreadable
+        Truncated           = $truncated
     }
 }
 
@@ -333,50 +430,14 @@ $CheckBody = {
         $taskOutputOver = $taskOutputs.OverCount -gt 0
         $summaryCap = 240
 
-        $totalBytes = [long]0
-        $fileCount = 0
-        $sessionCount = 0
-        $largestSessionBytes = [long]0
-        $oldestAgeDays = 0
-        $unreadable = 0
-        $truncated = $false
-
-        $projectErrors = @()
-        $projectDirs = @(Get-ChildItem -LiteralPath $root.Path -Directory -Force `
-                -ErrorAction SilentlyContinue -ErrorVariable projectErrors)
-        $unreadable += $projectErrors.Count
-
-        # Layout is <root>/<project-key>/<session-id>/... . Age is measured at the
-        # session level: a project-key directory is reused across sessions, so its
-        # creation time reports when the key was first seen, not how long the oldest
-        # unreclaimed content has survived.
-        foreach ($p in $projectDirs) {
-            if ($sw.Elapsed.TotalSeconds -ge $budgetSeconds) { $truncated = $true; break }
-
-            $sessionErrors = @()
-            $sessionDirs = @(Get-ChildItem -LiteralPath $p.FullName -Directory -Force `
-                    -ErrorAction SilentlyContinue -ErrorVariable sessionErrors)
-            $unreadable += $sessionErrors.Count
-
-            foreach ($s in $sessionDirs) {
-                if ($sw.Elapsed.TotalSeconds -ge $budgetSeconds) { $truncated = $true; break }
-
-                $sessionCount++
-                $ageDays = [int][math]::Floor(($now - $s.CreationTime).TotalDays)
-                if ($ageDays -gt $oldestAgeDays) { $oldestAgeDays = $ageDays }
-
-                $measured = Measure-SessionTree -Path $s.FullName -Stopwatch $sw `
-                    -BudgetSeconds $budgetSeconds
-                $unreadable += $measured.UnreadableCount
-                $totalBytes += $measured.Bytes
-                $fileCount += $measured.FileCount
-                if ($measured.Bytes -gt $largestSessionBytes) {
-                    $largestSessionBytes = $measured.Bytes
-                }
-                if ($measured.Truncated) { $truncated = $true; break }
-            }
-            if ($truncated) { break }
-        }
+        $walk = Measure-TempRootTree -Root $root.Path -Stopwatch $sw -BudgetSeconds $budgetSeconds -Now $now
+        $totalBytes = $walk.Bytes
+        $fileCount = $walk.FileCount
+        $sessionCount = $walk.SessionCount
+        $largestSessionBytes = $walk.LargestSessionBytes
+        $oldestAgeDays = $walk.OldestAgeDays
+        $unreadable = $walk.UnreadableCount
+        $truncated = $walk.Truncated
 
         $totalGb = [math]::Round($totalBytes / 1GB, 2)
         $largestGb = [math]::Round($largestSessionBytes / 1GB, 2)
@@ -389,7 +450,7 @@ $CheckBody = {
             total_gb                = $totalGb
             file_count              = $fileCount
             session_dir_count       = $sessionCount
-            project_key_count       = $projectDirs.Count
+            project_key_count       = $walk.ProjectKeyCount
             largest_session_gb      = $largestGb
             oldest_session_age_days = $oldestAgeDays
             unreadable_dir_count    = $unreadable

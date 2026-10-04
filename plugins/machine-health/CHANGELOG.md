@@ -3,6 +3,16 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.1] - 2026-10-04
+
+### Fixed
+
+- **`claude-temp-root` walk streams each directory instead of listing it whole first ([#6036](https://github.com/melodic-software/claude-code-plugins/issues/6036)).**
+  The walk read each directory to the end with `Get-ChildItem` before its per-entry budget test ran, so one directory with hundreds of thousands of entries, or on a slow share, held it past the 60-second budget toward the orchestrator's 90-second kill.
+  Every level of the walk is now streamed and tested per entry, the same way the 0.16.0 task-output listing is.
+  What the walk counts is unchanged: hidden and system files, reparse points skipped below the session level, and unreadable paths counted and reported as `UNKNOWN`.
+  On a walk cut off by the budget, `detail.project_key_count` now counts only the project keys reached, so it is a floor like the other partial figures.
+
 ## [0.16.0] - 2026-10-04
 
 ### Added
