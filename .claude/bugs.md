@@ -58,6 +58,5 @@ lanes:
       - 'plugins/*/skills/setup/scripts/**'
       - 'plugins/*/lib/*config*'
       - 'plugins/context-guard/scripts/*.sh'
-      - 'plugins/rate-limit-guard/scripts/*.sh'
 filing_posture: allowed
 ```

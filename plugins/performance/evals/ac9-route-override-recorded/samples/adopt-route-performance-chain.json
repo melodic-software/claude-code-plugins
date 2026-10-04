@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "\"/usr/bin/python3\" \"/plugins/performance/scripts/findings.py\" adopt --data \"/data/go-faster/k\" --session \"s-1\" --findings \"/data/go-faster/k/runs/r1/findings.json\" --id f3 --route-taken performance-chain"}}
+      ],
+      "why": "one adopt call with the route the user named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "\"/usr/bin/python3\" \"/plugins/performance/scripts/findings.py\" adopt --data \"/data/go-faster/k\" --session \"s-1\" --findings \"/data/go-faster/k/runs/r1/findings.json\" --id f3 --route-taken next-run"}}
+      ],
+      "why": "the suggested route, not the override"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "\"/usr/bin/python3\" \"/plugins/performance/scripts/findings.py\" adopt --data \"/data/go-faster/k\" --session \"s-1\" --findings \"/data/go-faster/k/runs/r1/findings.json\" --id f3 --route-taken performance-chain"}},
+        {"tool": "Bash", "input": {"command": "\"/usr/bin/python3\" \"/plugins/performance/scripts/findings.py\" adopt --data \"/data/go-faster/k\" --session \"s-1\" --findings \"/data/go-faster/k/runs/r1/findings.json\" --id f4 --route-taken performance-chain"}}
+      ],
+      "why": "two adoptions where the user said yes to one"
+    }
+  ]
+}

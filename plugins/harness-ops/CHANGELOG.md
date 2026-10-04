@@ -9,6 +9,15 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 
 - **`/harness-ops:plugins` sync under `install_new: ask` installs and enables what the user picks.** The prompt is worded "install and enable", and a pick the CLI reports as disabled by default is enabled at user scope right after its install, so no user-scope `false` is left for it and the report lists it under `Enabled:` rather than as installed but not enabled. Only those picks are enabled, since `enable` exits 1 for a plugin that is already enabled. `install_new: all` is unchanged: such an install stays off and is reported with the enable command. The install-enable spoke now cites the settings reference's current wording, that a plugin with no `enabledPlugins` entry falls back to its `defaultEnabled` value (#6187).
 
+## [3.7.5] - 2026-10-04
+
+### Fixed
+
+- `inventory` no longer says Claude Code publishes no roster of built-in plugins. Its upstream-facts
+  row now points at the mods overview's built-in roster as a cross-check and keeps the binary read
+  as the source, because the binary registers built-ins the roster omits; the row's recheck trigger
+  and as-of date moved to 2.1.288.
+
 ## [3.7.4] - 2026-10-04
 
 ### Changed

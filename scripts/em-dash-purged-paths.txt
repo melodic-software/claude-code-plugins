@@ -401,7 +401,6 @@ plugins/prototype/context/*.md
 plugins/prototype/skills/*/SKILL.md
 plugins/rate-limit-guard/README.md
 plugins/rate-limit-guard/CHANGELOG.md
-plugins/rate-limit-guard/bench/README.md
 plugins/rate-limit-guard/reference/*.md
 plugins/rate-limit-guard/skills/*/SKILL.md
 plugins/repo-fleet-hygiene/README.md

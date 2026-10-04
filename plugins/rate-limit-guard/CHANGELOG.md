@@ -3,6 +3,32 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0] - 2026-10-03
+
+### Added
+
+- **A hooks module (`hooks/register.tsx`) that tells Claude where the rate-limit windows stand.** It needs Claude Code 2.1.287 or later. It sends Claude one line per window when the 5-hour or 7-day window approaches (85%) or reaches (90%) the pause edge and when it resets, each naming its window and carrying its verdict, at a main-thread tool result or a prompt. It restates the verdict after a compaction, `/resume` and `/branch`, and after `/clear` or a reload only for a window at the edge. A line never carries the account email or the session name, and a dip below a mark is not a reset.
+- **Operator mode.** With `rate_limit_report_mode` set to `operator`, a turn a person typed gets no line; the line is offered as the prompt box's suggestion with a band notice, and one that showed but was not taken goes to Claude at the next turn no person started.
+- **A band row and a status tool.** The band shows `[<model>] 5h <x>% | 7d <y>%` above the prompt, with `/rate-limit-guard:band` to show or hide it for a session. `mcp__rate-limit-guard__status` answers with every window the last API response reported, a gateway's `spend_limit` included.
+- **Snapshot writes from every session that runs the module, headless ones included.** The module writes `~/.claude/rate-limit-guard/rate-limits.json` through `lib/write-snapshot.mjs`, the shared atomic writer: at once when a window moves a whole point, appears, leaves or resets, otherwise at most once every 300 seconds across the machine, and never from a turn a task notification started. An event that writes nothing starts no process. A failed write is tried again at the next event. After `/branch` the file takes the new session's id at the first write. The account is written only when the identity read at the last API response equals the one read at the write.
+- **Six options beside `rate_limit_guard_enabled`:** `rate_limit_lines_enabled`, `rate_limit_report_mode`, `rate_limit_line_threshold`, `rate_limit_approach_pct`, `rate_limit_line_data` and `rate_limit_guard_band`. A threshold or approach mark outside 1 to 100, or line data with an unknown item, reads as the default with one transcript line, so an out-of-range value does not stop the module loading.
+- **Setup finds a retired statusline tee.** `/rate-limit-guard:setup check` looks for tee stamps newer than this version's install, cached versions that still hold a tee, and the routes that reach one, then prints the steps to unwire it: the `statusLine` command with only the guard shims removed, the wrapper-script lines, the leftover files to delete, and the restart. It never edits settings or scripts.
+
+### Changed
+
+- `/rate-limit-guard:setup` is check-only (`[check]`): with the tee gone it has nothing to write. It reports node, whether the module runs in this session, the snapshot's freshness, the StopFailure hook and every option's effective value.
+- `/rate-limit-guard:check` and `prerequisites.json` drop jq: no part of the plugin needs it now.
+- The `rate_limit_guard_enabled` description names what it switches now: the StopFailure hook and the module's snapshot writes.
+- The reader contract names the module as the writer and states its write rules, the helper's lock and temp names, and the files earlier versions left behind. The operable floor block is unchanged.
+
+### Removed
+
+- **The statusline tee, the shim, the compose script, the bench and their tests.** The module does their job, so no status line wrapping, spool, `RLG_TEE_NOCHANGE_FLOOR` or `RLG_TEE_ASYNC` remains. `setup apply`, which installed the shim, is gone with it.
+
+### Upgrading
+
+Run `/rate-limit-guard:setup` after updating and follow the unwire steps it prints, so an old tee stops writing beside the module and your own status line keeps running unchanged. Then restart sessions and lanes started before the update. The files a tee left (`.last-write`, `spool/`, `.tee-disabled`, `.statusline-tee-path`, `bin/statusline-shim.sh`) are safe to delete once it is unwired.
+
 ## [0.11.3] - 2026-10-03
 
 ### Fixed

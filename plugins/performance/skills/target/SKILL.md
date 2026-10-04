@@ -1,5 +1,5 @@
 ---
-description: "Identify and rank optimization targets by evidence quality, so an unmeasured system yields 'instrument this first' instead of a guess. Accepts session pain, a named path, telemetry, or open-ended 'what is slow here'. Use when: 'what should we optimize', 'find the bottleneck', 'this feels slow', 'is X worth optimizing'. Hands off to /performance:goal. Skip when the target is already chosen and measured, or when a failure needs debugging rather than a candidate ranking."
+description: "Identify and rank optimization targets by evidence quality, so an unmeasured system yields 'instrument this first' instead of a guess. Accepts session pain, a named path, or telemetry. Use when: 'what should we optimize', 'find the bottleneck', 'this feels slow', 'is X worth optimizing'. Hands off to /performance:goal. Skip: a whole-process sweep is /performance:go-faster. Skip when the target is already chosen and measured, or when a failure needs debugging rather than a candidate ranking."
 user-invocable: true
 argument-hint: "[<path|component|'session'|'telemetry'>]"
 disable-model-invocation: false
@@ -30,7 +30,7 @@ So this skill ranks by evidence, and says so when there is none.
 | The current session's own pain | Name the operation that felt slow and what was observed. A screenshot or recording counts. Anecdote is a valid *candidate source* and an invalid *ranking basis*. |
 | A named path or component | Enumerate the layers it spans before choosing one (see "Measure the layers first"). |
 | A telemetry store | `/harness-ops:observability` for Claude Code's own; otherwise the project's. Prefer it over every other source, after checking its accuracy and coverage. |
-| Open-ended "what is slow here" | Widest scope, weakest evidence. Expect the output to be "instrument this first". |
+| Open-ended "what is slow here" | The open-ended sweep belongs to `/performance:go-faster`; this skill ranks what that sweep, or the user, brings. With nothing brought, expect "instrument this first". |
 
 ## Evidence tiers
 
@@ -111,8 +111,10 @@ On a re-scan after a MET result, look first for the next slow spot in the same j
 
 ## Next
 
-`/performance:goal <chosen target>`. Carry the evidence tier forward: goal stops on an E3 or E4
-candidate, or one this ranking says to instrument, until the named instrument has run.
+- A chosen target: `/performance:goal <chosen target>`. Carry the evidence tier forward: goal stops
+  on an E3 or E4 candidate, or one this ranking says to instrument, until the named instrument has
+  run.
+- No candidates yet and a whole-process sweep wanted: /performance:go-faster.
 
 ## Gotchas
 

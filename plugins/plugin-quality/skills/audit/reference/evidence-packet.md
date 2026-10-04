@@ -35,7 +35,7 @@ Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
   matching entry; if none exists yet, create the id-form directory for this install.
 - `<target-slug>` = one **resolved** target from the list above. `<plugin>` or
   `<plugin>-<component>`. Sanitized to `[A-Za-z0-9_-]` (every other character → `-`, the same
-  character class the context-guard tee applies; path containment) and truncated to **64
+  character class context-guard's mod accepts in a snapshot's session id; path containment) and truncated to **64
   characters**. Never the raw argument: a resolved target is short and conforming by construction,
   which is also what keeps the full path clear of the Windows 260-character limit.
 - `<run-nonce>` = this run's start timestamp (`YYYYMMDDTHHMMSSZ`), computed **once at run start,

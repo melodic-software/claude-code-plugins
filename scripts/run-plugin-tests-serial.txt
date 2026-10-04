@@ -32,22 +32,8 @@ plugins/guardrails/hooks/block-noncanonical-commit.test.sh
 # Asserts a 1000-line hunk scans inside the hook's 30 s timeout.
 plugins/guardrails/hooks/skill-reference-verify.test.sh
 
-# Case 13 fires 24 concurrent hooks against the grace budget and counts what
-# landed inside it; other suites on the same cores skew that count.
-plugins/context-guard/hooks/zone-gate.test.sh
-
 # A/B timing harness; its verdicts are elapsed-time comparisons.
 plugins/performance/scripts/ab.test.sh
-
-# The statusline bench measures render latency. Its lane runs are gated on
-# BENCH_LANES, so an ordinary run stops before them and needs no seat here; the
-# entry is for the runs that DO set it (a local full corpus with the lanes
-# enabled), where the lanes measure exactly what contention distorts.
-plugins/rate-limit-guard/bench/bench.test.sh
-
-# Cancellation-window cases kill a parked rename shim on a short fuse.
-plugins/rate-limit-guard/scripts/statusline-tee.test.sh
-plugins/context-guard/scripts/statusline-tee.test.sh
 
 # Always-on hooks assert the marketplace latency budget (docs/conventions/hook-budget/README.md).
 plugins/desktop-notification/hooks/desktop-notification.test.sh

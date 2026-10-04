@@ -274,8 +274,10 @@ persists after demotion, is the silent shim the plugin philosophy forbids.
 
 Repository-scope surfaces only. The schema has no `scope` field. Machine-scope files under
 `~/.claude/` (context-guard, rate-limit-guard, machine-health) are outside this contract and keep
-their own detection, with the twin drift between context-guard and rate-limit-guard fixed by the
-cross-plugin source registry rather than by this schema (ADR 0018, decision 6).
+their own detection (ADR 0018, decision 6). The twin status-line tees whose drift that decision
+named are retired: both guards now detect a tee still running, and print the steps to unwire it,
+from shared references (`lib/legacy-statusline-detect.md`, `lib/unwrap-before-compose.md`) that
+`scripts/sync-shared-copies.sh` vendors into each plugin, not through this schema.
 
 ## Versioning
 
