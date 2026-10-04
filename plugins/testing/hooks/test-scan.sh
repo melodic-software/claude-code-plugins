@@ -192,4 +192,7 @@ if [[ -n "$findings" ]]; then
     ctx+=$'\n'"/testing:test-value covers where expected values come from."
 fi
 
+# --max bounds the line count, not line length: a finding carries its test name.
+((${#ctx} < 10000)) || ctx="${ctx:0:9800}"$'\n'"(truncated; /testing:audit lists the rest)"
+
 hook::finish --context "$ctx" ok findings array "$FINDINGS_JSON"

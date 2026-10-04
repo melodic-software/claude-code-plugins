@@ -187,6 +187,17 @@ ctx4="$(jq -r '.hookSpecificOutput.additionalContext' <<<"$out")"
 if [[ "$(grep -c '^  \[rule-zero-assertion\] ' <<<"$ctx4")" == 10 ]]; then ok "(c4) ten findings listed"; else fail "(c4) ten findings listed (got: $ctx4)"; fi
 if [[ "$(grep -cxF '  ... and 2 more (/testing:audit lists the rest)' <<<"$ctx4")" == 1 ]]; then ok "(c4) the rest counted, with the audit pointer"; else fail "(c4) the rest counted, with the audit pointer (got: $ctx4)"; fi
 
+# (c5) ten findings with 2 KB test names still fit the 10000-character context cap.
+long="$(printf 'n%.0s' $(seq 1 2000))"
+{
+  echo "import { test } from 'vitest';"
+  for k in $(seq 1 10); do printf '%s\n' "test('$long$k', () => {" "  sum($k, 0);" "});"; done
+} >"$REPO/src/long.test.ts"
+run Write "$REPO/src/long.test.ts" s-long
+ctx5="$(jq -r '.hookSpecificOutput.additionalContext' <<<"$out")"
+if ((${#ctx5} < 10000)); then ok "(c5) context stays under 10000 characters"; else fail "(c5) context is ${#ctx5} characters"; fi
+assert_contains "(c5) a cut context says where the rest is" "$ctx5" "(truncated; /testing:audit lists the rest)"
+
 # (d) an Edit touching only the good block leaves the bad block silent.
 EDIT_GOOD='{"structuredPatch":[{"oldStart":9,"oldLines":1,"newStart":9,"newLines":1,
   "lines":["-  expect(sum(1, 2)).toBe(4);","+  expect(sum(1, 2)).toBe(3);"]}]}'
