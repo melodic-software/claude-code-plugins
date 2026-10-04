@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Context files (read-only, outside your worktree): /home/dev/search-svc/.work/fuzzy-search/PLAN.md and /home/dev/search-svc/.work/fuzzy-search/EXPLORE.md.",
+      "why": "both files by absolute path"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Context: read .work/fuzzy-search/PLAN.md and .work/fuzzy-search/EXPLORE.md before editing.",
+      "why": "relative paths, which do not resolve in the worker's worktree"
+    },
+    {
+      "answer": "Plan: /home/dev/search-svc/.work/fuzzy-search/PLAN.md. Exploration notes: see .work/fuzzy-search/EXPLORE.md.",
+      "why": "only the plan is absolute"
+    }
+  ]
+}
