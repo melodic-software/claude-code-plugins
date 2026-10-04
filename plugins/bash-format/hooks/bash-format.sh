@@ -31,6 +31,13 @@ source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
 source "$HOOK_DIR/rewrite-guard.sh"
 
+# The SessionStart compact|clear row: the model lost the reports with its
+# context, so the findings sent this session are sent again.
+if [[ "${1:-}" == --reset-digests ]]; then
+  hook::buffer_stdin_to INPUT && hook::findings_digest_reset "$INPUT"
+  exit 0
+fi
+
 # The whole prologue: the start stamp, the buffered payload, the jq-free
 # applicability filter, the jq gate, the parsed path with its basename and
 # directory, the file-anchored repo root (which bounds the .editorconfig
@@ -107,13 +114,22 @@ shell_editorconfig_opt_in() {
 
 ran_any=0
 
-# Missing-tool notice accumulator: a run can lack shfmt AND shellcheck, and can
-# carry ShellCheck findings alongside a pending shfmt notice — everything must
-# compose into the single JSON document hook::finish emits at the end.
-NOTICE=""
+# Notice accumulators, one per channel: a run can lack shfmt AND shellcheck,
+# and can carry ShellCheck findings alongside a pending shfmt notice —
+# everything must compose into the single JSON document hook::finish emits at
+# the end. append_notice <model-text> [<user-text>]; either may be "".
+MODEL_NOTICE=""
+USER_NOTICE=""
+SHFMT_MODEL="" SHFMT_USER="" SC_MODEL="" SC_USER=""
 append_notice() {
-  [[ -n "$NOTICE" ]] && NOTICE+=" "
-  NOTICE+="$1"
+  if [[ -n "$1" ]]; then
+    [[ -n "$MODEL_NOTICE" ]] && MODEL_NOTICE+=" "
+    MODEL_NOTICE+="$1"
+  fi
+  if [[ -n "${2:-}" ]]; then
+    [[ -n "$USER_NOTICE" ]] && USER_NOTICE+=" "
+    USER_NOTICE+="$2"
+  fi
 }
 
 # Subscript guard. shfmt parses an unquoted array subscript as arithmetic,
@@ -286,17 +302,13 @@ if shell_editorconfig_opt_in; then
         _tree_reader=-tojson
         shfmt -w "$_fmt_target" 2>/dev/null
       else
-        append_notice "bash-format: shfmt capability probe failed unexpectedly (${probe_err%%$'\n'*}) — formatting skipped for this file, opt-outs preserved."
+        append_notice "" "bash-format: shfmt probe failed (${probe_err%%$'\n'*}); $FILE_BASE not formatted."
       fi
       subscript_guard_end "$_fmt_target" "$_tree_reader"
       ran_any=1
     fi
-  elif hook::notice_once "bash-format-shfmt" "$INPUT" prerequisite; then
-    SHFMT_NOTICE=""
-    hook::tool_missing_notice_to SHFMT_NOTICE \
-      "bash-format: .editorconfig opts this repo into shell formatting but 'shfmt' was not found on this hook's PATH — formatting skipped for this edit" \
-      shell ". Run /bash-format:check. It does not install. Install: host package or release binary, https://github.com/mvdan/sh#shfmt"
-    append_notice "$SHFMT_NOTICE"
+  elif hook::prereq_notice_to SHFMT_MODEL SHFMT_USER shfmt "$INPUT"; then
+    append_notice "$SHFMT_MODEL" "$SHFMT_USER"
   fi
 fi
 
@@ -323,32 +335,33 @@ if command -v shellcheck >/dev/null 2>&1; then
     if [[ "$SC_OUTPUT" == *openBinaryFile* ]]; then
       SC_OUTPUT=$(printf '%s\n' "$SC_OUTPUT" | grep -v 'openBinaryFile' || true)
     fi
-    if [[ -n "$SC_OUTPUT" ]]; then
-      hook::findings_to CTX "bash-format: $FILE_BASE has ShellCheck findings:" \
-        "$SC_OUTPUT" FINDINGS_JSON
-    fi
+    # The heading names the file once, so each line drops the gcc format's path
+    # prefix, in whichever spelling ShellCheck was handed. --delta sends a
+    # finding set once per (session, agent, file); a clean run goes through it
+    # too, so findings that come back after a fix are sent again.
+    SC_OUTPUT=$'\n'"$SC_OUTPUT"
+    SC_OUTPUT="${SC_OUTPUT//$'\n'"$_lint_target:"/$'\n'}"
+    SC_OUTPUT="${SC_OUTPUT//$'\n'"$FILE:"/$'\n'}"
+    hook::findings_to CTX "bash-format: $FILE_BASE has findings:" \
+      "$SC_OUTPUT" FINDINGS_JSON --max 20 --delta "$INPUT" "$FILE"
   fi
-elif hook::notice_once "bash-format-shellcheck" "$INPUT" prerequisite; then
-  SC_NOTICE=""
-  hook::tool_missing_notice_to SC_NOTICE \
-    "bash-format: 'shellcheck' was not found on this hook's PATH — shell lint skipped for this edit" \
-    shell ". Run /bash-format:check. It does not install. Install: host package or release binary, https://github.com/koalaman/shellcheck#installing"
-  append_notice "$SC_NOTICE"
+elif hook::prereq_notice_to SC_MODEL SC_USER shellcheck "$INPUT"; then
+  append_notice "$SC_MODEL" "$SC_USER"
 fi
 
 # hook::finish is the exit: it takes the shfmt disclosure (settling data.changed
 # and releasing the snapshot whether or not shfmt ever ran), emits telemetry
-# with that verdict, and composes the one JSON document — findings on the agent
-# channel, missing-tool notice on both, rewrite disclosure on the user channel.
-# CTX arrives from hook::findings_to unterminated, so the notice joins onto it
-# with a single newline.
-if [[ -n "$NOTICE" ]]; then
+# with that verdict, and composes the one JSON document — findings and the
+# model's notices on the agent channel, the user's notices and the rewrite
+# disclosure on the user channel. CTX arrives from hook::findings_to
+# unterminated, so the notice joins onto it with a single newline.
+if [[ -n "$MODEL_NOTICE" ]]; then
   [[ -n "$CTX" ]] && CTX+=$'\n'
-  CTX+="$NOTICE"
+  CTX+="$MODEL_NOTICE"
 fi
 
 status="ok"
 [[ $ran_any -eq 0 ]] && status="skipped"
-hook::finish --context "$CTX" --message "$NOTICE" \
-  --disclose "bash-format: reformatted $FILE_BASE via shfmt (structural layout only)." \
+hook::finish --context "$CTX" --message "$USER_NOTICE" \
+  --disclose "bash-format: reformatted $FILE_BASE." \
   "$status" findings array "$FINDINGS_JSON"

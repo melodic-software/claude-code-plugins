@@ -3,7 +3,7 @@
 This repository is public, so every lane runs on GitHub-hosted runners, free for
 public repositories: `ubuntu-24.04` for all of them except the informational
 Windows lane `test-windows`, which runs `windows-2025` in its own workflow,
-`.github/workflows/test-windows.yml`. The organization's
+`.github/workflows/pr-test-windows.yml`. The organization's
 runner-policy engine refuses a governed fleet label here outright, reporting
 `public-self-hosted-routing`. There is no observer credential and no
 self-hosted exception inventory in this repository.
@@ -39,34 +39,34 @@ reviewed pull request.
 ## Routing and failure behavior
 
 The `ci-status` required check depends on every **required** workload lane
-(`scope`, `lint-repo`, `lint-shell`, `check-plugins`, `check-skills`,
+(`select-tests`, `lint-repo`, `lint-shell`, `check-plugins`, `check-skills`,
 `test-bash`, `test-python`, `test-node`) and requires
 each result to be `success`, failing closed through execution
 (`!cancelled()`, never a success-guard, so a skipped lane cannot report
 success to branch protection). The one exception is an ordered skip: a test
 lane the change gives no work skips as a job, and `ci-status` counts that skip
-as `success` only when `scope` succeeded and its row for that lane
+as `success` only when `select-tests` succeeded and its row for that lane
 (`run_bash`, `run_python`, `run_node`) is `false`; any other skip stays red.
 On a draft pull request every lane but
-`scope` carries a draft gate, so a draft run lints and tests nothing, and its
+`select-tests` carries a draft gate, so a draft run lints and tests nothing, and its
 `ci-status` fails (`draft: lanes not run`) and records `ci-lanes=failure`
 (`scripts/check-docs-only-gate.sh` pins both). A green draft would be the
 newest `ci-status` on the SHA from the flip to ready until the
 `ready_for_review` run's lanes finish, so a merge could land on nothing tested.
 The `ready_for_review` run lints and tests the same SHA. `test-windows` is deliberately outside that
-aggregate, as an informational platform lane; `test-windows.yml` says so at the
+aggregate, as an informational platform lane; `pr-test-windows.yml` says so at the
 top of the file and warns against wiring it into any required check. It runs in
-its own workflow because nothing gates on it and, inside `ci.yml`, it was the
+its own workflow because nothing gates on it and, inside `pr-require-checks.yml`, it was the
 longest job in the run: time-to-green is measured to the run's completion, so an
 advisory lane was setting the number. Its `on.paths` filters repeat the `shell`,
-`python` and `powershell` groups of `ci.yml`'s change-detection table, so a diff
+`python` and `powershell` groups of `pr-require-checks.yml`'s detect-changes table, so a diff
 that touches none of them starts no Windows run; the two are kept in step by
-hand. Inside a run, its `scope-windows` job runs the same planner over the same
+hand. Inside a run, its `select-tests-windows` job runs the same planner over the same
 diff, and a Windows step runs only when the change selects its suite
 (`scripts/test-windows-plan.txt`); a schedule run (09:17 and 16:17 UTC), a
 dispatch, and a change to that workflow run every step. The
 metadata checks (Conventional Commits title,
-`do-not-merge` label, issue linkage) run as the `pr-contract` composite step
+`do-not-merge` label, issue linkage) run as the `check-contract` composite step
 inside the same `ci-status` job on the same hosted runner, so they no longer
 carry status contexts of their own. Fork pull requests receive no secrets and
 no automated review, by design.
@@ -90,7 +90,7 @@ steps.
 
 ## What each event tests
 
-The `scope` job resolves one diff base, published as `lane_base`, and every
+The `select-tests` job resolves one diff base, published as `lane_base`, and every
 diff-scoped step diffs against it:
 
 - **Pull request:** the base branch. The contract suites are the affected
@@ -100,11 +100,11 @@ diff-scoped step diffs against it:
   (`github.event.merge_group.base_sha`), so the lanes run what the group's own
   diff selects, as on its pull request. The queue merges a commit only after
   this run passed on it, so main's commits carry its checks. The
-  change-detection groups read only a pull request's files and report true
-  here; the check-25 scan diffs its own inputs instead.
-- **Push to `main`:** no run, in `ci.yml` or `test-windows.yml`. Every commit
-  reaches `main` through the merge queue, whose merge-group run already tested
-  that SHA.
+  detect-changes groups read only a pull request's files and report true here;
+  the check-25 scan diffs its own inputs instead.
+- **Push to `main`:** no run, in `pr-require-checks.yml` or
+  `pr-test-windows.yml`. Every commit reaches `main` through the merge queue,
+  whose merge-group run already tested that SHA.
 - **Schedule (09:17 and 16:17 UTC, two of the workflow's quietest hours) and
   dispatch:** the whole tree. That means
   the full contract corpus, the whole-repository ShellCheck, and the check-25
@@ -118,11 +118,11 @@ diff touched (a set's `files` entries resolve anywhere in it), `claude plugin
 validate` runs for the touched plugins, the manifest and workflow schemas run
 when their filter group matched, and the skill-count, eval-coverage and
 fixture-isolation scans skip when none of their inputs changed. Each falls back
-to the whole tree when there is no diff base or `ci.yml` changed, and the
+to the whole tree when there is no diff base or `pr-require-checks.yml` changed, and the
 scheduled run scans everything. Replayed on 20 recent pull requests, every
 skipped or narrowed scan landed on a whole-tree success.
 
-`scope` also plans the test lanes, once, with `scripts/plan-test-lanes.sh`:
+`select-tests` also plans the test lanes, once, with `scripts/plan-test-lanes.sh`:
 each selected suite goes to the lane of its ecosystem (a Node suite with a
 sibling `.test.sh` runs through it in `test-bash`), `test-bash` gets one to six
 legs of about 120 suite-seconds each and `test-python` one to four of about
@@ -132,11 +132,11 @@ legs of about 120 suite-seconds each and `test-python` one to four of about
 suites need. `test-node` runs the Node packages the change reaches. An
 UNMAPPED code file adds the whole corpus of its language; unmapped data adds
 nothing, since no suite reads it, and is still counted. A Python pin runs every
-Python suite, a Node pin every Node package, and a change to `ci.yml` or
-`.github/actions/checkout-with-base/` every suite of every lane. `lint-shell`
-skips when the change touches none of its inputs (the `lint_shell` filter
-group: shell and Python source, hook and bin directories, skill and agent
-markdown, its gates and their baselines).
+Python suite, a Node pin every Node package, and a change to
+`pr-require-checks.yml` or `.github/actions/download-full-history/` every suite
+of every lane. `lint-shell` skips when the change touches none of its inputs
+(the `lint_shell` filter group: shell and Python source, hook and bin
+directories, skill and agent markdown, its gates and their baselines).
 
 A suite that scans a directory never names the file that changed, so it
 declares what it reads in a `# test-scope:` header, and the selector's rule R8
@@ -154,12 +154,12 @@ newest status the Actions bot wrote is `success`.
 
 No run waits on another run:
 
-1. A full run's `scope` job first writes `ci-lanes=pending` on the head SHA.
+1. A full run's `select-tests` job first writes `ci-lanes=pending` on the head SHA.
    A contract-only run that reads it goes red at once instead of carrying an
    older verdict forward while the lanes are in flight. Before its marker is
    written, the full run is queued or in progress on the SHA, and the
    contract-only run goes red at once on that too: one runs listing, where a
-   sibling whose `scope` job was skipped (contract-only) or whose `ci-status`
+   sibling whose `select-tests` job was skipped (contract-only) or whose `ci-status`
    job has started (writing its verdict) does not count.
 2. The full run's own `ci-status` check run appears only when its lanes finish.
    It is newer than the red one, and the newest same-name check run is the one

@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "stages": [{ "name": "pr" }, { "name": "post-merge" }],
+  "functions": {
+    "pr": [
+      { "name": "address-feedback" },
+      { "name": "explain" },
+      { "name": "fix-ci" },
+      { "name": "merge" },
+      { "name": "refine" },
+      { "name": "require-checks" },
+      { "name": "review" },
+      { "name": "review-security" },
+      { "name": "run-checks" },
+      { "name": "update" },
+      { "name": "verify" }
+    ],
+    "post-merge": [{ "name": "sweep-comments" }, { "name": "verify" }]
+  },
+  "verbs": [
+    "address",
+    "check",
+    "explain",
+    "fix",
+    "format",
+    "measure",
+    "merge",
+    "report",
+    "require",
+    "review",
+    "run",
+    "simplify",
+    "sweep",
+    "update"
+  ],
+  "engines": ["claude"],
+  "activityGrammar": {
+    "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*(#[a-z]+)?$",
+    "modes": [["diff", "tree"]]
+  }
+}

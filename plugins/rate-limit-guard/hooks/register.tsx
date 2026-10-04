@@ -4,7 +4,7 @@ import type { EngineInterface, PromptOrigin, Register, SessionRateLimit, Timer }
 const CONTRACT_DIR = 'rate-limit-guard'
 const SNAPSHOT_FILE = 'rate-limits.json'
 const HELPER = 'lib/write-snapshot.mjs'
-const PAUSE_EDGE = 90
+const PAUSE_EDGE = 95
 const FLOOR_MS = 300_000
 const WRITE_TIMER_MS = 60_000
 const REOFFER_MS = 5_000
@@ -108,7 +108,7 @@ export const parseConfig = (options: Record<string, unknown>): Config => {
     lines: options.rate_limit_lines_enabled !== false,
     operator: options.rate_limit_report_mode === 'operator',
     threshold: number('rate_limit_line_threshold', PAUSE_EDGE),
-    approach: number('rate_limit_approach_pct', 85),
+    approach: number('rate_limit_approach_pct', 90),
     data,
     band: options.rate_limit_guard_band === true,
     toast: options.rate_limit_guard_toast !== false,
@@ -139,15 +139,19 @@ const resetLabel = (iso: string) => {
   return Number.isNaN(at.getTime()) ? iso : `${at.toISOString().slice(0, 16).replace('T', ' ')} UTC`
 }
 
+// The person's wording; Claude's names the threshold alone, since Claude Code waits out a usage limit itself.
 const verdictText = (event: Event, cfg: Config) =>
   ({ edge: 'at', approach: 'nearing', quiet: 'below', reset: 'reset and below' })[event] + ` the ${edgeName(cfg)}`
+
+const modelVerdict = (event: Event, cfg: Config) =>
+  ({ edge: 'at or above', approach: 'nearing', quiet: 'below', reset: 'reset, now below' })[event] + ` ${cfg.threshold}%`
 
 const windowOf = (kind: string) => WINDOWS.find(w => w.kind === kind)
 
 const clause = (kind: string, event: Event, limit: SessionRateLimit | undefined, cfg: Config) => {
   const subject = cfg.data.has('window') ? `${windowOf(kind)?.name ?? kind} window` : 'a rate-limit window'
   const percent = limit !== undefined && cfg.data.has('percent') ? `${limit.percentUsed}% used` : undefined
-  let text = `${subject} ${verdictText(event, cfg)}${percent ? ` (${percent})` : ''}`
+  let text = `${subject} ${modelVerdict(event, cfg)}${percent ? ` (${percent})` : ''}`
   if (event !== 'reset' && cfg.data.has('reset') && limit?.resetsAt !== undefined) {
     text += `, resets at ${resetLabel(limit.resetsAt)}`
   }
@@ -197,18 +201,27 @@ export const recordCrossings = (st: State, reading: Reading, cfg: Config, nowMs:
 
 // The events due now, one per window, without consuming them.
 const dueEvents = (st: State): [string, Event][] => {
-  // After /clear or a fresh load mid-session, only a window at the edge is restated.
+  // After /clear or a fresh load mid-session, only a window at the edge is restated; after a
+  // compaction, a resume or a /branch, each window past quiet. A quiet window is never restated.
   const atEdge = st.restateIfLoud ? [...st.levels].filter(([, w]) => w.level === 'edge').map(([kind]) => kind) : []
   return st.restate
-    ? [...(st.reading ?? new Map()).keys()].map(kind => [kind, st.levels.get(kind)?.level ?? 'quiet'])
+    ? [...st.levels].filter(([kind, w]) => w.level !== 'quiet' && st.reading?.has(kind)).map(([kind, w]) => [kind, w.level])
     : [...new Map<string, Event>([...st.pending.entries(), ...atEdge.map(kind => [kind, 'edge'] as const)])]
 }
 
 const dueLines = (st: State, cfg: Config): string[] => {
   const reading = st.reading ?? new Map()
-  return dueEvents(st)
-    .sort(([a], [b]) => order(a) - order(b))
-    .map(([kind, event]) => `rate-limit-guard: ${clause(kind, event, reading.get(kind), cfg)}.`)
+  const events = dueEvents(st).sort(([a], [b]) => order(a) - order(b))
+  const lastEdge = events.map(([, event]) => event).lastIndexOf('edge')
+  return events.map(
+    ([kind, event], i) => `rate-limit-guard: ${clause(kind, event, reading.get(kind), cfg)}.${i === lastEdge ? ' Keep working.' : ''}`,
+  )
+}
+
+// Appends lines to what Claude reads and writes each to the debug log, so the log holds what Claude was told.
+const withLines = <T extends { context?: readonly string[] }>($: EngineInterface, e: T, lines: readonly string[]): T => {
+  for (const line of lines) $.ui.log(line, { to: 'debug' })
+  return lines.length === 0 ? e : { ...e, context: [...(e.context ?? []), ...lines] }
 }
 
 const consume = (st: State) => {
@@ -255,7 +268,7 @@ async function takeLines($: EngineInterface, st: State, cfg: Config): Promise<st
   if (await operatorHolds($, st, cfg)) return []
   const lines = dueLines(st, cfg)
   // A restatement with no reading to restate waits for the first carrier that has one.
-  if (st.restate && lines.length === 0) return []
+  if (st.restate && (st.reading?.size ?? 0) === 0) return []
   consume(st)
   if (lines.length > 0 && st.notice?.kind === 'operator') {
     releaseHeld(st, st.rowSeen)
@@ -314,7 +327,7 @@ async function statusText($: EngineInterface, st: State, cfg: Config) {
     const limit = st.reading?.get(kind)
     if (limit === undefined) return `${name} window: no reading`
     const reset = limit.resetsAt === undefined ? '' : `, resets at ${resetLabel(limit.resetsAt)}`
-    return `${name} window: ${limit.percentUsed}% used, ${verdictText(levelOf(limit.percentUsed, cfg), cfg)}${reset}`
+    return `${name} window: ${limit.percentUsed}% used, ${modelVerdict(levelOf(limit.percentUsed, cfg), cfg)}${reset}`
   })
   const home = await homeDir($)
   const snapshot = !cfg.writes
@@ -534,9 +547,7 @@ export const register: Register = (on, options) => {
       $.tool.register({
         name: 'status',
         description:
-          "Read-only. Returns this session's rate-limit windows as the last API response reported them " +
-          '(five_hour, seven_day, and a gateway spend_limit when present) with rate-limit-guard\'s verdict ' +
-          'for each, as JSON. Takes no input.',
+          "Read-only. This session's rate-limit windows and spend limit, with rate-limit-guard's verdict for each, as JSON.",
         inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       }),
       $.command.register({
@@ -611,7 +622,7 @@ export const register: Register = (on, options) => {
     const held = cfg.lines && (await operatorHolds($, st, cfg))
     const lines = await takeLines($, st, cfg)
     await flushToasts($, st, cfg, held)
-    return next(lines.length === 0 ? e : { ...e, context: [...(e.context ?? []), ...lines] })
+    return next(withLines($, e, lines))
   }).catch(($, e, next) => next(e))
 
   on('turn.start', async ($, e, next) => {
@@ -664,7 +675,7 @@ export const register: Register = (on, options) => {
     const held = cfg.lines && (await operatorHolds($, st, cfg))
     const lines = await takeLines($, st, cfg)
     await flushToasts($, st, cfg, held)
-    return lines.length === 0 ? result : { ...result, context: [...(result.context ?? []), ...lines] }
+    return withLines($, result, lines)
   }).catch(($, e, next) => next(e))
 
   on('command.run', { command: 'rate-limit-guard' }, async ($, e, next) => {

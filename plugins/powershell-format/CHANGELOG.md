@@ -3,6 +3,31 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.8] - 2026-10-04
+
+### Changed
+
+- **Hook text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** The trust-gate notice is split per channel: the user's copy keeps the `mkdir -p` approval command, and Claude's copy states the verdict without it, as `... is not approved. Approval is the user's.` for an approvable state, or `... cannot be approved ...; lint stays off.` for the unverifiable, unpinnable and no-store states. Findings read `powershell-format: <file> has findings:` and each line drops the `PSScriptAnalyzer:` prefix. An unchanged finding set on a re-edit sends nothing; it is sent again after a clean run, or after compaction or `/clear`, which a new `SessionStart` `compact|clear` row handles. A report lists at most 20 findings; telemetry keeps them all. A pwsh break reads `powershell-format: pwsh failed on <file>:`. The rewrite notice reads `powershell-format: reformatted <file>.`. The `degrade` text for pwsh drops "edits still go through".
+
+## [0.10.7] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice and formatter probe rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
+
+## [0.10.6] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
+
+## [0.10.5] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing hook tool goes to the user only, and names where the hook looks for it; the model hears of it at the hook's first skip. The SessionStart notice for a missing node goes to the user only, in one shorter line. The jq `degrade` text in `prerequisites.json` no longer says the skip lasts the session or that the hook says so once.
+
 ## [0.10.4] - 2026-10-04
 
 ### Changed
