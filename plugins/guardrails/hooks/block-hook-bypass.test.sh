@@ -610,9 +610,10 @@ cut_out=$(printf '%s' "$CUT_BYPASS" | env CLAUDE_PROJECT_DIR= bash "$HOOK" 2>"$T
 assert_exit "cut-short payload (early EOF) is allowed" 0 "$cut_rc"
 assert_contains "cut-short payload: stderr names the transport fault" "$(cat "$TEST_TMPDIR/cut.err")" "cut short"
 assert_absent "cut-short payload: nothing is BLOCKED" "$(cat "$TEST_TMPDIR/cut.err")" "BLOCKED"
-assert_contains "cut-short payload: systemMessage carries the notice" "$(jq -r '.systemMessage' <<<"$cut_out")" "not evaluated"
-assert_contains "cut-short payload: additionalContext carries the notice" "$(jq -r '.hookSpecificOutput.additionalContext' <<<"$cut_out")" "not evaluated"
-assert_eq "cut-short payload: hookEventName is PreToolUse" "PreToolUse" "$(jq -r '.hookSpecificOutput.hookEventName' <<<"$cut_out" | tr -d '\r')"
+# The user can act on a starved host; the model cannot, so the notice is the
+# user's alone.
+assert_contains "cut-short payload: systemMessage carries the notice" "$(jq -r '.systemMessage' <<<"$cut_out")" "ran unchecked"
+assert_eq "cut-short payload: nothing reaches the model" "false" "$(jq 'has("hookSpecificOutput")' <<<"$cut_out" | tr -d '\r')"
 CUT_FIFO="$TEST_TMPDIR/cut.fifo"
 if mkfifo "$CUT_FIFO" 2>/dev/null; then
   cut_hold() { read -r _ <"$CUT_FIFO"; }

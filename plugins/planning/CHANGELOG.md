@@ -17,6 +17,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - **A Tier B early exit keeps its type sketch, and `design-resolution.md` is its only gate artifact.** `/planning:plan` no longer accepts a `type-inventory.md` alone for Tier B, so a plan that passed Step 1 no longer bounces off `/planning:design-handoff`. The handoff fails a `tier: B` artifact with no type sketch, and writes a `### Contracts` subsection quoting the sketch under the one-line early-exit record in PLAN.md `## Design`.
 - **The skill cheat sheet lists `/planning:prd`, `/planning:design`, and `/planning:design-handoff` under the ladder's PRD and Design stages.** Their `workflow-stage` metadata moves from `contract` and `plan` to `prd` and `design`.
 
+## [0.67.8] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
 ## [0.67.7] - 2026-10-04
 
 ### Changed
