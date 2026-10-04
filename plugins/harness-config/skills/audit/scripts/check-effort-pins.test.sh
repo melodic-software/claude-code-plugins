@@ -16,6 +16,8 @@ SCRIPT="$SCRIPT_DIR/check-effort-pins.sh"
 FX="$SCRIPT_DIR/fixtures/effort-pins"
 T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
+# No DOCS_CACHE_* setting and no machine config file of the caller's is ever read.
+while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)
 export DOCS_CACHE_DIR="$T/cache" XDG_CONFIG_HOME="$T/config"
 
 FAILED=0
