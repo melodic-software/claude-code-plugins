@@ -4,6 +4,23 @@ Notable changes to the upstream-drift contract (SemVer). Changing a required par
 name, or an enforceability verdict is a major bump; additive guidance is a minor bump; docs-only
 clarification is a patch.
 
+## [3.0.0] - 2026-10-04
+
+Major under this contract's own rule: an enforceability verdict changes.
+
+A new section, "Pinned git upstreams", defines the form for a `docs/upstream/` page that records a
+git repository: a pin marker naming `<owner>/<repo>@<40-hex sha>` and an optional `under` scope,
+row links carrying that pin, drift inputs (links outside `## Map`, a `## Map` unit only on removal,
+a new file under the scope), page status, and one recheck trigger worded the same on every such
+page. On these pages the pin stands in for the as-of date, and the content-hashing deferral does
+not apply because git blob SHAs are a content hash. `scripts/check-upstream-drift.sh` compares each
+pinned page's trees at the pin and at upstream HEAD, with `--report` and `--links` modes, and exits
+2 rather than report clean on any unread tree. A monthly workflow keeps one issue per drifted
+upstream and fails only on a script error. The "A trigger has fired" verdict becomes
+detect-then-judge for these pages and stays reasoning-only for every other record. Pages that
+record a docs site keep their own forms. `docs/upstream/` pages adopt the git form as they are
+converted, and each joins the Adopters table once it conforms.
+
 ## [2.1.0] - 2026-10-02
 
 Additive guidance; minor under this contract's own rule. No required part, canonical name, or
