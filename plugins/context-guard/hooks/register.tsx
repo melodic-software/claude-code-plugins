@@ -129,7 +129,9 @@ const asRule = (value: unknown): Rule | undefined => {
   if (typeof value !== 'object' || value === null) return undefined
   const v = value as Record<string, unknown>
   if (!ACTIONS.includes(v.action as Action)) return undefined
-  return { action: v.action as Action, ...(typeof v.text === 'string' && v.text.trim() !== '' ? { text: v.text.trim() } : {}) }
+  // one line: a newline in the operator's text must not start a line that reads as the guard's own
+  const text = typeof v.text === 'string' ? v.text.replace(/[\x00-\x1f\x7f]+/g, ' ').trim() : ''
+  return { action: v.action as Action, ...(text !== '' ? { text } : {}) }
 }
 
 // zones.json: the bands as the resolver reads them, plus the mod's keys; an absent or invalid key
