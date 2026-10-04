@@ -1055,6 +1055,43 @@ unchecked; self-judging those stays the same-context judgment the rule targets e
 sits downstream. A step that self-reviews both is exempt only for the gated part. The rest is still owed a
 fresh-context pass.
 
+### Non-author verdicts across stages
+
+The author-verifier class applies at every stage of a change, not only at the merge gate. Skills cite
+this rule instead of restating it.
+
+1. **Every verdict comes from a non-author.** A review finding, a verification result, a judgment on
+   test quality, and the evidence a merge relies on each come from an agent or session that did not
+   write the change being judged. This holds while the work is planned, implemented, reviewed,
+   verified and merged.
+2. **Tests under TDD stay with the implementer.** The agent writing the code may also write its
+   tests, red then green, in the same context. Giving tests to one session and code to another is a
+   choice a consumer can make, not a default this marketplace imposes; upstream describes it as one
+   option among several multi-session patterns.
+   - **Pointer**: <https://code.claude.com/docs/en/best-practices#run-multiple-claude-sessions>.
+   - **As of**: 2026-10-04.
+   - **Recheck trigger**: that section drops the separate test-writer option or recommends it as
+     the default.
+3. **Mechanical phases keep their carve-out.** In `/implementation:implement-dispatch`, a mechanical,
+   behavior-preserving phase is verified by the orchestrator from the diff and the build and test
+   signal by default. Those phases still get a non-author verdict: the PR's verify stage, the
+   pipeline's verify verdict over the whole pull request, is their fresh-context check. A consumer
+   who wants a verifier on every phase sets `verify_mechanical_phases` to `true`, which turns the
+   carve-out off.
+   - **Pointer**: `/implementation:implement-dispatch`, its `verify_mechanical_phases` setting.
+   - **As of**: 2026-10-04.
+   - **Recheck trigger**: that setting is renamed or removed, or the carve-out stops naming the PR's
+     verify stage as its verdict.
+4. **The testing plugin's task-end judge is the precedent.** With `test_judge_enabled` on, a
+   separate model reviews the tests a session created or changed at the end of each task, so the
+   session that wrote a test never grades it.
+   - **Pointer**: the `test_judge_enabled` option of the testing plugin, documented in `/testing:setup`.
+   - **As of**: 2026-10-04.
+   - **Recheck trigger**: the option is renamed or removed, or the judge stops running in a context
+     separate from the session it judges.
+5. **Deterministic gates stay exempt**, within the narrow scope stated above: a script's pass or fail
+   is the verdict, so no author bias reaches it.
+
 ## Delegation mechanics
 
 How a fresh-eyes checkpoint dispatches. The mechanics live here once; a checkpoint site states its
