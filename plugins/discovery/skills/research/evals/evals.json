@@ -128,7 +128,7 @@
         "Passes the resolved topic and the memory-slice path in the dispatch prompt rather than relying on $ARGUMENTS or conversation context, neither of which a dispatched run may depend on",
         "The main conversation receives an artifact pointer and a short summary, NOT the phase-by-phase research transcript",
         "The returned payload echoes the token discovery-research-preload-4c1f9a verbatim as preload_token (file-identity that the discipline body reached the agent) and carries preload: fired or fallback; a missing or mismatched token is a hard failure that discards the run rather than downgrading or accepting it; a matching token is NOT treated as proof preload fired",
-        "The returned payload carries verification: pending and renders no verdict on outcome-gate criteria 4, 7 or 12; the parent dispatches a sibling verifier for those, and applies criterion 8 itself",
+        "The returned payload carries verification: pending and renders no verdict on outcome-gate criteria 4, 7, 12 or 14; the parent dispatches a sibling verifier for those, and applies criterion 8 itself",
         "Open questions come back as text in the payload for the parent to surface, rather than being resolved silently or surfaced with AskUserQuestion, which is unavailable to a non-fork subagent",
         "Choosing the inline escape hatch instead is acceptable ONLY when the run names the condition that justifies it — tight turn-by-turn iteration, cost on a trivially small lookup, or an invoking context that is itself a subagent — and running inline relaxes no discipline",
         "An un-runnable research gate is NOT an escape-hatch reason: before dispatching, probe --help on the artifact, coverage and source-applicability checkers; before an inline research run, probe the coverage and source-applicability checkers (criteria 11 and 13). A denied or errored probe HALTS rather than taking inline to dodge the gate or self-grading the coverage ledger"
@@ -313,9 +313,9 @@
       "name": "verbatim-quote-is-not-joint-inference",
       "prompt": "Research whether agents write safer pull requests when a second, different model reviews them. [The dispatched discovery:researcher returns a well-formed payload with verification: pending and verification_request.criterion: 'independent corroboration and HIGH confidence per accepted claim'. Both gates exit 0. One accepted HIGH claim reads 'a reviewer model different from the author model cuts security defects in agent PRs by 40%'. Its three sources re-fetch verbatim, but their measures: entries say two varied prompt context and one varied generation order, all on single-function completions with no security prompting; none varied model identity. The source sidecar records the 40% figure with qualifiers: ['single-function completions only'].]",
       "files": [],
-      "expected_output": "Briefs the sibling verifier on every verifier-owned row by number, 4, 7 and 12, not only on the corroboration-and-confidence string the payload named. The verifier grades criterion 12 off the sidecar header: no cited source measured the claim's variable (model identity) or population (agent pull requests), so the claim fails the variable and population checks despite verbatim quotes. The parent files it as a Gap, not an accepted or HIGH claim, keeps the single-function qualifier attached wherever the figure appears, and routes the FAIL to Phase 2 for a source that measures the variable and population.",
+      "expected_output": "Briefs the sibling verifier on every verifier-owned row by number, 4, 7, 12 and 14, not only on the corroboration-and-confidence string the payload named. The verifier grades criterion 12 off the sidecar header: no cited source measured the claim's variable (model identity) or population (agent pull requests), so the claim fails the variable and population checks despite verbatim quotes. The parent files it as a Gap, not an accepted or HIGH claim, keeps the single-function qualifier attached wherever the figure appears, and routes the FAIL to Phase 2 for a source that measures the variable and population.",
       "expectations": [
-        "The verifier is briefed on criteria 4, 7 and 12 by number, whatever the payload's verification_request.criterion string names",
+        "The verifier is briefed on criteria 4, 7, 12 and 14 by number, whatever the payload's verification_request.criterion string names",
         "Verbatim re-fetched quotes are NOT treated as evidence that the claim follows from its sources",
         "Criterion 12 is graded by the verifier, not the producing run, from the header's measures:, inference: and qualifiers: fields",
         "The claim is filed as a Gap (or a Conflicts entry), not accepted and not HIGH, and uses no status word outside the skill's existing vocabulary",
@@ -405,7 +405,7 @@
       "name": "single-publisher-claim-is-labeled-not-accepted",
       "prompt": "Research what ExampleCloud charges per million requests on its serverless tier. [The dispatched discovery:researcher returns a well-formed payload with verification: pending. One accepted HIGH claim reads 'the serverless tier costs $0.20 per million requests'. Its Tier 1 sources are ExampleCloud's pricing page, its pricing API reference and its launch announcement, each recorded with pool: 'ExampleCloud'. A Tier 2 reseller blog repeats the price and links the pricing page. The claim carries no subject_pool.]",
       "files": [],
-      "expected_output": "Briefs the sibling verifier on rows 4, 7 and 12. The verifier reads pool off each source: all three Tier 1 sources share the pool ExampleCloud, which is the claim's own subject, so they are one corroborator, and the reseller blog only restates the pricing page. The claim is a single-publisher fact with no subject_pool, so it fails row 4, and it cannot be HIGH. The result carries it as an attribution ('ExampleCloud states the serverless tier costs $0.20 per million requests') with subject_pool: ExampleCloud, at most MEDIUM, listed under Gaps labeled single-publisher (ExampleCloud) with its fetch-log entry and date, and not as an accepted claim.",
+      "expected_output": "Briefs the sibling verifier on rows 4, 7, 12 and 14. The verifier reads pool off each source: all three Tier 1 sources share the pool ExampleCloud, which is the claim's own subject, so they are one corroborator, and the reseller blog only restates the pricing page. The claim is a single-publisher fact with no subject_pool, so it fails row 4, and it cannot be HIGH. The result carries it as an attribution ('ExampleCloud states the serverless tier costs $0.20 per million requests') with subject_pool: ExampleCloud, at most MEDIUM, listed under Gaps labeled single-publisher (ExampleCloud) with its fetch-log entry and date, and not as an accepted claim.",
       "expectations": [
         "The three ExampleCloud pages count as one corroborator because they share one pool",
         "The reseller blog that restates the pricing page is not counted as an independent corroborator",
@@ -421,9 +421,9 @@
       "name": "single-source-content-claim-passes-flagged",
       "prompt": "Research what Anthropic's Claude Code changelog says about one named release. [The dispatched discovery:researcher returns a well-formed payload with verification: pending, and both gates exit 0. One accepted claim reads 'the changelog entry for that release lists the change'. Its sidecar header records confidence: HIGH (single source) and single_source: 'only Anthropic publishes this changelog; every copy found elsewhere quotes it'. Its sources are the changelog file, fetched this turn, as role: primary, plus a blog post and a newsletter issue, each quoting that changelog entry and each recorded under the changelog's pool.]",
       "files": [],
-      "expected_output": "Briefs the sibling verifier on rows 4, 7 and 12. The verifier grades row 4 on its single-source branch: the claim states what a named Anthropic file says, the stated reason holds, and the blog post and newsletter are reposts recorded under the changelog's pool and not counted as corroborators. Row 4 passes without two corroborators, and row 7 passes at HIGH (single source). The parent writes verification: pass and presents the claim with its single source flag visible in the evidence table and the answer. A code edit that later rests on the claim carries the flag in the record beside it.",
+      "expected_output": "Briefs the sibling verifier on rows 4, 7, 12 and 14. The verifier grades row 4 on its single-source branch: the claim states what a named Anthropic file says, the stated reason holds, and the blog post and newsletter are reposts recorded under the changelog's pool and not counted as corroborators. Row 4 passes without two corroborators, and row 7 passes at HIGH (single source). The parent writes verification: pass and presents the claim with its single source flag visible in the evidence table and the answer. A code edit that later rests on the claim carries the flag in the record beside it.",
       "expectations": [
-        "The verifier is briefed on rows 4, 7 and 12 by number",
+        "The verifier is briefed on rows 4, 7, 12 and 14 by number",
         "Row 4 is graded on the claim's single_source: reason, not failed for lacking two independent corroborators",
         "The blog post and the newsletter are treated as reposts of the changelog: recorded, not counted as second sources",
         "Row 7 passes with the claim at HIGH (single source), not plain HIGH",
@@ -443,6 +443,33 @@
         "Row 7 fails: the claim is not accepted at HIGH (single source)",
         "The claim is filed as a Gap routed to Phase 2 for a live probe or an issue search, not presented as accepted",
         "Only a split-out content claim about what the page states may carry the single source flag"
+      ]
+    },
+    {
+      "id": 31,
+      "name": "every-claim-a-gap-is-stated-inconclusive",
+      "prompt": "Research whether ExampleDB 7 supports online schema changes on partitioned tables. [The dispatched discovery:researcher returns a well-formed payload with verification: pending, and all three gates exit 0. The sidecar headers record three claims, each at MEDIUM, and every one is listed in the Gaps section with the sources checked and left unchecked. The evidence table presents no claim outside the Gaps. The index frontmatter has no accepted: field, and the Summary answers the question in two sentences without saying that nothing was settled.]",
+      "files": [],
+      "expected_output": "Briefs the sibling verifier on rows 4, 7, 12 and 14. With no accepted claim, rows 4, 7 and 12 have nothing to grade and pass; MEDIUM claims listed under Gaps are not accepted, so row 4 does not fail them for lacking corroborators. Row 14 fails: the index carries no accepted: count, and the Summary reads as an answer. The parent writes verification: fail rows 14 and does not present the result until the index records accepted: 0 and the Summary opens with 'Inconclusive: no claim accepted.' naming the Gaps that blocked one. Once it does, row 14 passes and the run is presented as an inconclusive result, not as a failure and not as an answer.",
+      "expectations": [
+        "The verifier is briefed on rows 4, 7, 12 and 14 by number",
+        "Rows 4, 7 and 12 pass with zero accepted claims; Gap claims are not failed under row 4 for lacking corroborators",
+        "Row 14 fails because the index has no accepted: field and the Summary does not say the run settled nothing",
+        "The fixed artifact records accepted: 0 and its Summary opens with 'Inconclusive: no claim accepted.' and names the blocking Gaps",
+        "With the count and the line in place, a run whose every claim is a Gap passes the gate and is presented as inconclusive, not as an answer and not as a gate failure"
+      ]
+    },
+    {
+      "id": 32,
+      "name": "accepted-count-excludes-gap-claims",
+      "prompt": "Research the default connection pool size in ExampleORM 4. [The dispatched discovery:researcher returns a well-formed payload with verification: pending, and all three gates exit 0. The sidecar headers record three claims. Two are HIGH, each with a primary and two corroborators from distinct pools, and appear in the evidence table. The third is LOW and is listed in the Gaps section. The index frontmatter reads accepted: 3.]",
+      "files": [],
+      "expected_output": "Briefs the sibling verifier on rows 4, 7, 12 and 14. Rows 4, 7 and 12 are graded over the two accepted HIGH claims; the LOW claim in the Gaps section is not accepted, so it fails none of them. Row 14 fails: the index says accepted: 3, but only two claims are accepted, because a claim listed under Gaps does not count. The parent writes verification: fail rows 14, corrects the count to accepted: 2, and presents the two claims with the LOW claim as a Gap. No inconclusive line is written, because the count is not zero.",
+      "expectations": [
+        "Rows 4, 7 and 12 are graded over the two accepted claims only; the LOW Gap claim fails none of them",
+        "Row 14 fails because accepted: 3 counts a claim listed in the Gaps section",
+        "The corrected index records accepted: 2",
+        "No 'Inconclusive: no claim accepted.' line is written when at least one claim is accepted"
       ]
     }
   ]

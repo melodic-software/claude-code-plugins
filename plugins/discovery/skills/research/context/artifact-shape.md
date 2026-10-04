@@ -25,7 +25,15 @@ indexable-artifact hook: a slice whose sole artifact is this index
 is an index-less leaf, and the parent slice's `INDEX.md` regeneration mirrors this header's abstract
 verbatim, so the header is part of the artifact's public shape, not decoration. It applies to all
 three of this plugin's index families (`RESEARCH.md`, `EXPLORE.md`, `INTENT.md`). `RESEARCH.md`
-also carries `evidence_use:` (see the sidecar header below) and `verification:`.
+also carries `evidence_use:` (see the sidecar header below), `verification:`, and `accepted:`.
+
+**`accepted:` is the number of accepted claims**, an integer the final write sets: claims the
+evidence table presents that the Gaps section does not list. Gap claims stay in the sidecar headers
+and do not count. `accepted: 0` is a valid result, an inconclusive run, and the Summary then opens
+with `Inconclusive: no claim accepted.` and names the Gaps that blocked one. Without the field, an
+artifact whose every claim is a Gap passes every row quantified over accepted claims and reads like
+an answer. The verifier grades the count and the line under outcome-gate criterion 14, and a parent
+that later files an accepted claim as a Gap lowers the count to match.
 
 **`verification:` takes one of the values** defined in
 [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md),

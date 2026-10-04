@@ -40,7 +40,7 @@ outcome gate's artifact-grounded criteria, or not at all.
   sweep across every surface that class plausibly uses, or the publisher's own completeness
   declaration.
 - **Self-grading the verifier rows.** Criteria 4, 7 and 12 ask the run to judge the quality of its
-  own choices. They belong to a fresh context whatever the execution posture: a dispatched run returns
+  own choices, and criterion 14 counts the accepted set those three leave. They belong to a fresh context whatever the execution posture: a dispatched run returns
   `verification: pending`, and an inline run hands them off rather than answering them.
 - **Verbatim quotes do not make a claim follow.** Every quote can re-fetch word for word while the
   claim rests on a source that measured a different variable or population, or drops the qualifier

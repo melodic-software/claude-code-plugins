@@ -55,7 +55,7 @@ Agent({
   subagent_type: "discovery:research-verifier",
   description: "Verify research: <topic>",
   prompt: "Target: <the index= path the artifact gate printed>
-           Rows: 4, 7, 12"
+           Rows: 4, 7, 12, 14"
 })
 ```
 
@@ -72,7 +72,7 @@ Each criterion is binary. **Any FAIL returns to the named phase (bounded at `Bud
 | 1 | Every claim row has ≥1 Tier 0/1 source whose URL/command was captured THIS turn | run | Phase 2. Fetch the primary directly |
 | 2 | No claim row's sources are ALL Tier-2 secondary | run | Phase 2. Get a primary |
 | 3 | Every Phase 2/3 query traces to a numbered gap/conflict in a written analysis block | run | re-run the phase chained to the list |
-| 4 | Every claim has ≥2 INDEPENDENT `current` corroborators (not 2 cites of one upstream pool, as in the discipline file's "Single-publisher facts"; a `historical` source never counts), or is a first-party content claim flagged `single source` that states why only one publisher exists; a repost is not a second source, and a behavior claim gets no flag | **verifier** | Phase 2. Widen sources |
+| 4 | Every accepted claim has ≥2 INDEPENDENT `current` corroborators (not 2 cites of one upstream pool, as in the discipline file's "Single-publisher facts"; a `historical` source never counts), or is a first-party content claim flagged `single source` that states why only one publisher exists; a repost is not a second source, and a behavior claim gets no flag | **verifier** | Phase 2. Widen sources |
 | 5 | The Phase 2 falsification query ran and is recorded | run | Phase 2. Run it |
 | 6 | Recency gate satisfied for every tool/library/API claim: the LATEST upstream changelog/release was fetched THIS turn and cross-checked against the claim. Read the confirmed-latest release and the verdict off the fetch log's changelog entry, an absent verdict or an `invalidated` one FAILs, and `unresolved` passes only as an enumerated Gap, never under an accepted claim. Windows, and what a major bump invalidates: the discipline file's "Recency gate" | run | Phase 2. Fetch changelog |
 | 7 | Every accepted claim is HIGH confidence, or `HIGH (single source)` under row 4's flag; a MEDIUM or LOW claim listed in the Gaps section is not accepted | **verifier** | Phase 4 follow-up. Iterate to HIGH or list as a Gap |
@@ -82,6 +82,7 @@ Each criterion is binary. **Any FAIL returns to the named phase (bounded at `Bud
 | 11 | **Coverage ledger fully marked**, when Phase 0 wrote `research-checklist.md`, `${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh <ledger>` (or `.py`) exits 0. Cite the **exit status**, not a reading of the table: the context that wants to be finished is the one grading it. It fails closed, a ledger it cannot parse exits 2, and 2 is a FAIL; a script that could not run at all is the same FAIL, never a skip or a hand-grade. Not applicable when Phase 0 recorded the corpus as unbounded | run, **script verdict** | Phase 0. Cover the unmarked items, or narrow the corpus explicitly |
 | 12 | Every accepted claim follows jointly from its cited sources: the claim's primary source measures the claim's variable and population, every cited source passes the variable, population, era and scenario checks or is recorded and not counted toward criterion 4, counter-evidence already read is resolved, and every recorded qualifier survives. Under `evidence_use: publish`, the answer quotes only `current` sources as support. Recipe: the discipline file's "Joint-inference check" | **verifier** | Phase 2. Fetch a source that measures the claim's variable, population, version and scenario, or reattach the qualifier or resolve the counter-evidence in the artifact; else a Gap or Conflicts entry |
 | 13 | **Source applicability recorded and consistent**: `${CLAUDE_PLUGIN_ROOT}/scripts/check-source-applicability.py <slice>` exits 0. It checks that every claim names its target `applies_to:`, every source its `published:`, `applies_to:` and `standing:`, that each stored `standing:` matches the one derived from those fields, and that each primary is dated and `current`. Cite the **exit status**; 1 and 2 FAIL, and so does a script that could not run. Applies to every run with claims, inline included | run, **script verdict** | Phase 2. Record the fields, or relabel the source, or find a `current` primary |
+| 14 | The index's `accepted:` counts the claims not listed under Gaps; at 0 the Summary opens `Inconclusive: no claim accepted.` A zero with that line passes; a missing or wrong count, or a bare zero, FAILs | **verifier** | revisit before presenting |
 
 **A claim that cannot pass the gate is a Gap, not a finding**, never laundered into the answer. Report the gate result (pass, or which criterion failed and what you re-ran); no limit on iterations. Tier-3 reconciliation: "Reconciling sources at the gate" below.
 
@@ -144,7 +145,7 @@ a reason to search on.
 
 **The verify-and-rework loop at `low` is bounded.** A verifier FAIL on a verifier-owned row (Owner
 column, "Outcome gate") is not reworked: no `SendMessage` resume of the researcher. Record it in the
-artifact as a Gap or Conflicts entry, or leave it as the named `verification: fail rows` value, and
+artifact as a Gap or Conflicts entry, lowering `accepted:` to match (criterion 14), or leave it as the named `verification: fail rows` value, and
 present the result with that caveat. Medium and above return a FAIL row to its phase as the gate
 routes. Rows the run owns and gate exit codes stay mandatory at every budget, and an ungradeable or
 missing artifact still takes the recovery ladder, resume before discard.
@@ -232,7 +233,7 @@ Local counterpart: `/discovery:explore` (what IS in the repo); this skill covers
 
 Present research findings as, and if invoked standalone present them directly, while inside a larger workflow they feed the subsequent planning step:
 
-1. **Summary**. 2-3 sentence answer to the research question, preceded by one line naming any decision the findings leave to the user (e.g. two primary sources conflict, or a gap blocks the answer), or omitted when none
+1. **Summary**. 2-3 sentence answer to the research question, preceded by one line naming any decision the findings leave to the user (e.g. two primary sources conflict, or a gap blocks the answer), or omitted when none. A run with no accepted claim opens instead with `Inconclusive: no claim accepted.` (criterion 14)
 2. **Evidence table**. `Claim | Sources (Tier 0/1 entries cite the URL/command fetched THIS turn) | Tier | Tool diversity | Confidence`. A source whose `standing:` is `historical` carries the label historical in its Sources cell, and a flagged claim's Confidence cell reads `HIGH (single source)`
 3. **Fetch log**, the written record criteria 6 and 9 are graded against, so it is WRITTEN, not recalled. One entry per fetch PER CLAIM: `Claim | URL or command | artifact-ladder rung | tool used | outcome`, and each accepted claim carries the entry for the rung it came from AND one for every rung above it. **The outcome vocabulary is a parsed schema, not free text**. Five values, three of which look interchangeable and are not, plus the composite changelog entry criterion 6 grades. Write it to the spec in `${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md` ("The fetch log")
 4. **Conflicts**. Disagreements between sources (flagged explicitly; primary wins over blog consensus)
@@ -249,7 +250,7 @@ Write the research output to `<memory_dir>/<slug>/RESEARCH.md`, a memory-tier ar
 
 **One writer per slice.** The index and `research-checklist.md` have fixed names, so two runs writing one slice overwrite each other. When the slice root is occupied, or a parent is running several topics in parallel, **each run writes its whole set into its own sub-slice** `<memory_dir>/<slug>/<topic-slug>/` under the normal filenames and reports the path it used. The parent assigns those sub-slices; a worker never picks its own. Why renaming the index instead is not an option: the artifact-shape file.
 
-**Read [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md) before writing the first sidecar**, the sidecar header and the fetch log are both schemas a verifier parses, and an improvised one silently costs criteria 4, 6, 9, 12 and 13 their evidence. Carry this much into the read: `claims[]` is a LIST, each entry with its own `confidence`, its own target `applies_to`, its own `sources[]` of `{url, tier, pool, measures, role, published, applies_to, standing}`, and its own `inference` and `qualifiers`, plus `subject_pool` on a single-publisher claim; the index records `evidence_use`.
+**Read [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md) before writing the first sidecar**, the sidecar header and the fetch log are both schemas a verifier parses, and an improvised one silently costs criteria 4, 6, 9, 12 and 13 their evidence. Carry this much into the read: `claims[]` is a LIST, each entry with its own `confidence`, its own target `applies_to`, its own `sources[]` of `{url, tier, pool, measures, role, published, applies_to, standing}`, and its own `inference` and `qualifiers`, plus `subject_pool` on a single-publisher claim; the index records `evidence_use` and `accepted`.
 
 **Intra-task pivot. Delete stale research, don't layer.** If the approach you researched is abandoned mid-task for a different direction *before shipping*, delete the now-stale section and re-run on the new direction; a superseded section makes the planning step plan against a dead approach. Failure modes this skill has actually hit: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/gotchas.md`.
 

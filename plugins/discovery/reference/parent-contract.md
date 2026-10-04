@@ -541,7 +541,7 @@ environment variable, so it is a cost defect in a worker definition.
 
 ### The verdict lane pins `opus` at `effort: high`
 
-*Decision.* `research-verifier` grades outcome-gate rows 4, 7 and 12, the rows the producer may
+*Decision.* `research-verifier` grades outcome-gate rows 4, 7, 12 and 14, the rows the producer may
 not grade, so it is a verdict lane and pins `model: opus` and `effort: high`; `explorer`,
 mechanical preparation, stays on `sonnet` at `effort: medium`. *Pointer:*
 [docs/plugin-philosophy.md](../../../docs/plugin-philosophy.md), "Model tiers" (the verdict rule
