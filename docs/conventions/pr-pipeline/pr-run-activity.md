@@ -87,7 +87,8 @@ Holds `contents: read` and `pull-requests: read`, and no other permission; it ne
    permission. A `read` activity mints nothing and uses the job's read-only `GITHUB_TOKEN`.
 7. [`select-trusted-text`](../../../.github/actions/select-trusted-text/README.md) to
    `$RUNNER_TEMP/trusted-context.json` when the activity `reads-untrusted`, with the App token or,
-   for `read`, the `GITHUB_TOKEN`.
+   for `read`, the `GITHUB_TOKEN`, which has no `issues` grant: in a private repository a PR that
+   closes an issue may fail the step red.
 8. Copies what the activity runs from the base out of `.base`: a script's whole directory to
    `$RUNNER_TEMP/base-script`, or for a skill the base `plugins/` and `.claude-plugin/` to
    `$RUNNER_TEMP/base-marketplace`.
@@ -106,7 +107,7 @@ Holds `contents: read` and `pull-requests: read`, and no other permission; it ne
 A stacked PR, one whose base is not the default branch, gets a failure check from step 4. Retarget
 it to the default branch to run its lanes.
 
-Its outputs are `base-sha`, `head-sha`, `pr-number`, `gate-reason`, `can-commit`, `applies` and
+Its outputs are `base-sha`, `head-sha`, `pr-number`, `gate-reason`, `can-commit` and
 `act-outcome`. All but `act-outcome` are outputs of steps that ran before any head code:
 `gate-reason` is the kill switch's reason if it stopped, else the trigger's if it stopped, else
 empty; `head-sha` is the trigger gate's; `base-sha` is set only by step 4, so it is always on the
@@ -128,7 +129,9 @@ project or local settings, hooks, `CLAUDE.md`, `AGENTS.md` or `.mcp.json` from t
 plugin installs only from `$RUNNER_TEMP/base-marketplace`. Commits go through the API, signed
 (`use_commit_signing`), on the gate's head branch (`CLAUDE_BRANCH`). A mutating activity's commits
 are made against that branch, which may have moved since the gate; the push that moved it starts
-its own `synchronize` run, which gates the new head again.
+its own `synchronize` run, which gates the new head again. Why a skill activity loads nothing from
+the PR head:
+[ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md).
 
 On PR events claude-code-action adds a second head-isolation layer beside `--setting-sources user`:
 when it treats the PR head as untrusted, it replaces `.claude`, `.mcp.json`, `CLAUDE.md` and its
@@ -189,7 +192,8 @@ the verdict (`continue-on-error`: a missing verdict is already decided below), r
 `GITHUB_TOKEN` unless `can-commit` is `false`, reads the PR's current head SHA with its
 `GITHUB_TOKEN` (empty when there is no PR or the read fails), and posts the check with
 [`report-check-run`](../../../.github/actions/report-check-run/README.md), passing that SHA as
-`pr-head-sha`.
+`pr-head-sha`. Why the check is written by this job and not the run job:
+[ADR 0053](../../adr/0053-run-each-pipeline-activity-as-a-model-job-and-a-scripted-report-job.md).
 
 What it trusts:
 
@@ -199,7 +203,9 @@ What it trusts:
   that ran before any head code; that one rests on the rule that a gate skill runs no head code.
 - Its own signed-commit result. On an unverified commit, `check-signed-commits` fails closed: the
   check is a failure, and the report job adds no label and posts no comment, because its
-  `GITHUB_TOKEN` cannot write issues or pull requests.
+  `GITHUB_TOKEN` cannot write issues or pull requests. Why signing is not also enforced by an
+  all-branch rule:
+  [ADR 0054](../../adr/0054-keep-commit-signing-on-the-default-branch-rule-and-add-no-all-branch-rule.md).
 
 The activity ran on exactly the commit the check is posted on: the run job checks out the gate's
 `head-sha`, not the branch, and fails before the activity if `HEAD` differs. A push after the gate
@@ -233,7 +239,8 @@ to mint, and every skill job references the Claude OAuth token. Two routes reach
   route.
 
 Both are mitigations, not a fix: the full fix is a token broker that keeps the App key off any
-runner that runs head code. That design is open for a decision.
+runner that runs head code. The broker is decided and not yet built; until it lands, no live lane
+runs head code or holds a write effect.
 
 The verdict is written after head code ran in the same job, so it is never trusted: its lane,
 activity, gate stop reason and `head-sha` must match the values above or the check fails, and its
@@ -246,7 +253,6 @@ failure. The full decision order is in the report-check-run README.
 
 - A fork PR, whose read-only `GITHUB_TOKEN` cannot write checks: the report job's `if:` skips it.
 - A `pull_request` event sent by the lanes App (`AUTOMATION_LANES_APP_SENDER_ID`): both jobs skip.
-- A `no-pr` trigger stop with no head SHA.
 - Any event other than `pull_request` whose run job gated no head SHA: the fallback there would be
   `github.sha`, the dispatch ref, not the PR's commit. The report job notes it in its step summary.
 

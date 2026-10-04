@@ -468,6 +468,7 @@ test("a paths miss outputs not-applicable-paths", async () => {
 
 test("pulls/{n}/files returning 3000 files fails red with no output file", async (t) => {
   const { env } = workspace();
+  env.ACTIVITY = "measure-coverage";
   const github = fakeGitHub(
     pullRoutes({ changedFiles: 3000, files: fileList(3000) }),
   ).github;
@@ -476,6 +477,7 @@ test("pulls/{n}/files returning 3000 files fails red with no output file", async
 
 test("pulls/{n}/files returning fewer files than changed_files fails red with no output file", async (t) => {
   const { env } = workspace();
+  env.ACTIVITY = "measure-coverage";
   const github = fakeGitHub(
     pullRoutes({ changedFiles: 5, files: fileList(4) }),
   ).github;
@@ -484,7 +486,19 @@ test("pulls/{n}/files returning fewer files than changed_files fails red with no
 
 test("a paths predicate with no PR number fails red", async (t) => {
   const { env } = workspace();
-  await assertFailsRed(t, { ...env, PR_NUMBER: "" }, /no pr-number/);
+  await assertFailsRed(
+    t,
+    { ...env, ACTIVITY: "measure-coverage", PR_NUMBER: "" },
+    /no pr-number/,
+  );
+});
+
+test("another slot's paths predicate makes no API call for the selected activity", async () => {
+  const { env } = workspace();
+  const { github, calls } = fakeGitHub({});
+  assert.equal(await main({ env: { ...env, PR_NUMBER: "" }, github }), 0);
+  assert.deepEqual(calls, []);
+  assert.equal(readOutputs(env.GITHUB_OUTPUT).applies, "true");
 });
 
 test("a config with no predicate makes no API call", async () => {

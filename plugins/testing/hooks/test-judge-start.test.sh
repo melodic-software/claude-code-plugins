@@ -17,7 +17,7 @@ F="$REPO/src/add.test.ts"
 js_file "$F" adds
 ledger() {
   mkdir -p "$DATA/verdicts/$PKEY/$1"
-  jq -cn --arg f "$3" --arg r "$REPO" --arg v "$4" '{file: $f, repo: $r, name: "adds", ordinal: 1, start: 3, end: 5,
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg f "$3" --arg r "$REPO" --arg v "$4" '{file: $f, repo: $r, name: "adds", ordinal: 1, start: 3, end: 5,
     verdict: $v, evidence: ["  expect(add(1, 2)).toBe(3);"], source: "the spec", diff: "", reason: "", model: "opus",
     effort: "medium"}' >"$DATA/verdicts/$PKEY/$1/$2.json"
 }

@@ -426,29 +426,29 @@ else
   assert_eq "no jq: with no blocking document the first one is emitted" "$standalone" "$OUT"
   assert_contains "no jq: the second context document is dropped to stderr" "$ERR" "ctx two"
 
-  # The arbitration above runs on documents this file writes. With jq gone, two
-  # SHIPPED guards each emit their own prerequisite notice on the same payload,
-  # so the same code path can be asserted on documents the guards wrote — the
-  # shape an operator without jq actually meets.
-  NOJQ_CMD=$(command_json 'cat > foo.txt && git commit -m x')
+  # With jq gone, the SHIPPED fail-open guards share one notice latch (the
+  # plugin name), so the first guard of the call tells the user and the model
+  # once and the next guard says nothing: one document, nothing dropped.
+  NOJQ_CMD=$(jq -c '. + {session_id: "nojq-s1"}' <<<"$(command_json 'cat > foo.txt && git commit -m x')")
   run_nojq "$NOJQ_CMD" block-hook-bypass.sh block-noncanonical-commit.sh
   assert_exit "no jq, real guards: the advisory notices exit 0" 0 "$RC"
   assert_eq "no jq, real guards: exactly one JSON document on stdout" \
     "1" "$(grep -c '^{' <<<"$OUT")"
-  assert_contains "no jq, real guards: the first guard's notice is the one emitted" \
-    "$OUT" "guardrails-block-hook-bypass: jq not on the hook PATH"
-  assert_contains "no jq, real guards: the second guard's notice is dropped, prefixed" \
-    "$ERR" "run-guards: dropped without jq:"
-  assert_contains "no jq, real guards: the dropped notice names its guard" \
-    "$ERR" "guardrails-block-noncanonical-commit: jq not on the hook PATH"
-  assert_absent "no jq, real guards: the emitted notice is not also dropped" \
-    "$ERR" "run-guards: dropped without jq: {\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"guardrails-block-hook-bypass"
-  # A guard that denies on a missing prerequisite still denies through the
-  # arbitration, and its reason still reaches stderr beside the dropped notice.
-  run_nojq "$NOJQ_CMD" block-hook-bypass.sh block-no-verify.sh
+  assert_contains "no jq, real guards: one plugin-level notice is emitted" \
+    "$OUT" "guardrails: jq not on the hook PATH"
+  assert_absent "no jq, real guards: the second guard's notice is not produced" \
+    "$ERR" "run-guards: dropped"
+  # A later call in the same session says nothing: the latch holds.
+  run_nojq "$NOJQ_CMD" block-hook-bypass.sh block-noncanonical-commit.sh
+  assert_silent "no jq, real guards: a later call in the session stays quiet" "$OUT$ERR"
+  # A guard that denies on a missing prerequisite still denies, and its reason
+  # reaches stderr with no dropped document beside it.
+  run_nojq "$(jq -c '.session_id = "nojq-s2"' <<<"$NOJQ_CMD")" block-hook-bypass.sh block-no-verify.sh
   assert_exit "no jq, real guards: a fail-closed guard still wins the exit code" 2 "$RC"
-  assert_contains "no jq, real guards: the fail-closed reason survives arbitration" \
-    "$ERR" "BLOCKED: jq is not on PATH, so guardrails-block-no-verify cannot read the command"
+  assert_contains "no jq, real guards: the fail-closed reason reaches stderr" \
+    "$ERR" "BLOCKED: jq is not on PATH, so guardrails denies every Bash and PowerShell call, and every file write on Windows."
+  assert_absent "no jq, real guards: a block's deny reason carries no dropped document" \
+    "$ERR" "run-guards: dropped"
 fi
 
 # --- an unknown guard is reported, the rest still run ------------------------
@@ -524,29 +524,71 @@ assert_eq "hard error, closed posture: the next guard still ran" $'hardc\ngit st
 # skip". Left armed from block-dangerous-git's walk, it answered
 # block-noncanonical-commit's walk of the same chain and that guard's
 # --config-env refusal never fired. The dispatcher resets the analysis state
-# before each guard, and this pins that both reasons reach stderr, as they did
-# when each guard had its own process.
+# before each guard, and this pins that both guards still refuse (the profile
+# line carries each guard's status), as they did when each guard had its own
+# process. The refusal text is shared, so the deny reason carries it once.
 ALIAS_CMD='git -c "alias.sh=!git --config-env=alias.c=AV c --allow-empty -m x" sh'
 alias_alone_rc=0
 alias_alone_err=$(bash "$HOOK_DIR/block-noncanonical-commit.sh" <<<"$(command_json "$ALIAS_CMD")" 2>&1 >/dev/null) || alias_alone_rc=$?
 assert_exit "alias chain: block-noncanonical-commit alone denies" 2 "$alias_alone_rc"
-run "$(command_json "$ALIAS_CMD")" block-dangerous-git.sh block-noncanonical-commit.sh
-assert_exit "alias chain: dispatched pair denies" 2 "$RC"
-assert_contains "alias chain: the first guard's reason is on stderr" "$ERR" "block_dangerous_git_enabled"
-assert_contains "alias chain: the second guard's reason is on stderr too (its memo was reset)" \
-  "$ERR" "$(head -1 <<<"$alias_alone_err")"
+guard_invoke --via dispatched --payload "$(command_json "$ALIAS_CMD")" \
+  --hook block-dangerous-git.sh --also block-noncanonical-commit.sh -- RUN_GUARDS_PROFILE=1
+assert_exit "alias chain: dispatched pair denies" 2 "$GUARD_RC"
+assert_contains "alias chain: the first guard refuses" "$GUARD_ERR" "rc=2 block-dangerous-git.sh"
+assert_contains "alias chain: the second guard refuses too (its memo was reset)" \
+  "$GUARD_ERR" "rc=2 block-noncanonical-commit.sh"
+assert_eq "alias chain: the shared refusal is printed once" 1 \
+  "$(grep -c "$(head -1 <<<"$alias_alone_err")" <<<"$GUARD_ERR")"
 
-# --- dual-blocked PowerShell sink: both denials print (#4236) ----------------
+# --- dual-blocked PowerShell sink: both guards deny, one message (#4236) -----
 # Invoke-Command { git reset --hard } is unparsable (special-construct) and
-# mutating. block-no-verify and block-dangerous-git both refuse it. Stopping
-# the chain at the first exit 2 would hide the second lever; the dispatcher
-# keeps walking so the operator sees both. Over-length (#4528) remains the
-# one first-block short-circuit.
+# mutating. block-no-verify and block-dangerous-git both refuse it, and both
+# honor the same allow token, so the deny reason carries the sink message once.
+# Over-length (#4528) remains the one first-block short-circuit.
 DUAL_PS=$(pwsh_command_json 'Invoke-Command -ScriptBlock { git reset --hard }')
-run "$DUAL_PS" --lib lib/powershell/ps-command.sh block-no-verify.sh block-dangerous-git.sh
-assert_exit "PS dual sink: dispatched pair denies" 2 "$RC"
-assert_contains "PS dual sink: block-no-verify reason is on stderr" "$ERR" "block_no_verify_enabled"
-assert_contains "PS dual sink: block-dangerous-git reason is on stderr too" "$ERR" "block_dangerous_git_enabled"
+guard_invoke --via dispatched --payload "$DUAL_PS" --lib lib/powershell/ps-command.sh \
+  --hook block-no-verify.sh --also block-dangerous-git.sh -- RUN_GUARDS_PROFILE=1
+assert_exit "PS dual sink: dispatched pair denies" 2 "$GUARD_RC"
+assert_contains "PS dual sink: block-no-verify denies" "$GUARD_ERR" "rc=2 block-no-verify.sh"
+assert_contains "PS dual sink: block-dangerous-git denies too" "$GUARD_ERR" "rc=2 block-dangerous-git.sh"
+assert_eq "PS dual sink: the sink message is printed once" 1 \
+  "$(grep -c 'cannot be parsed with confidence' <<<"$GUARD_ERR")"
+assert_contains "PS dual sink: the one message names the token both guards honor" \
+  "$GUARD_ERR" "the user adds ps-unparsable-special-construct to block_dangerous_git_allow; it clears block-dangerous-git too"
+assert_absent "PS dual sink: no kill switch in the deny reason" "$GUARD_ERR" "_enabled"
+
+# Two guards that refuse one call on different sink triggers each print their
+# own token: one token would not clear both. The same trigger prints once.
+SINK_ERR=$(bash -c '
+  . "$1/../lib/powershell/ps-command.sh"
+  PS_SINK_TRIGGER=special-construct
+  ps::print_unparsable_block_message x
+  ps::print_unparsable_git_block_message
+  PS_SINK_TRIGGER=launcher
+  ps::print_unparsable_git_block_message
+  ps::print_sink_budget_message
+  ps::print_sink_budget_message
+' _ "$HOOK_DIR" 2>&1)
+assert_eq "PS sink latch: the same trigger prints once" 1 \
+  "$(grep -c 'ps-unparsable-special-construct' <<<"$SINK_ERR")"
+assert_contains "PS sink latch: a second trigger still prints its token" \
+  "$SINK_ERR" "the user adds ps-unparsable-launcher"
+assert_eq "PS sink latch: the budget message prints once" 1 \
+  "$(grep -c 'five allowed sink shapes' <<<"$SINK_ERR")"
+
+# --- payload refusals several guards share print once per call --------------
+# Every fail-closed guard of the row refuses a NUL payload; the deny reason
+# carries the line once. An unparsable payload never reaches a guard under the
+# dispatcher (its own stdin read refuses it first), and that refusal is one line too.
+NUL_PAYLOAD=$(jq -cn '{tool_name:"Bash",tool_input:{command:("git status" + ([0] | implode) + "x")}}')
+guard_invoke --via dispatched --payload "$NUL_PAYLOAD" --hook block-no-verify.sh \
+  --also block-dangerous-git.sh --also block-credential-read.sh --also block-root-delete-target.sh
+assert_exit "NUL payload: the row denies" 2 "$GUARD_RC"
+assert_eq "NUL payload: the refusal is printed once" 1 "$(grep -c 'NUL byte' <<<"$GUARD_ERR")"
+guard_invoke --via dispatched --payload '{"tool_name":"Bash","tool_input":"x"}' --hook block-no-verify.sh \
+  --also block-dangerous-git.sh --also block-credential-read.sh --also block-root-delete-target.sh
+assert_exit "unparsable payload: the row denies" 2 "$GUARD_RC"
+assert_eq "unparsable payload: one refusal line" 1 "$(grep -c 'BLOCKED' <<<"$GUARD_ERR")"
 
 # --- a real guard decides the same inside the dispatcher as alone ------------
 bypass=$(command_json 'git commit --no-verify -m x')
@@ -590,9 +632,9 @@ assert_eq "two real emitters: exactly one JSON document on stdout" \
 POST_CTX=$(jq -r '.hookSpecificOutput.additionalContext' <<<"$GUARD_OUT")
 POST_CTX="${POST_CTX//$'\r'/}" # the Windows jq build writes CRLF
 assert_contains "two real emitters: the stale path is in the merged context" \
-  "$POST_CTX" "STALE_PATH: docs/gone.md"
+  "$POST_CTX" "  docs/gone.md"
 assert_contains "two real emitters: the unresolved skill is in the merged context" \
-  "$POST_CTX" "UNRESOLVED_SKILL: /alpha:nosuch"
+  "$POST_CTX" "  /alpha:nosuch"
 assert_eq "two real emitters: merged hookEventName kept" \
   "PostToolUse" "$(jq -r '.hookSpecificOutput.hookEventName' <<<"$GUARD_OUT")"
 # Dispatch order decides the order of the merged blocks, as it decided the order
@@ -940,7 +982,7 @@ cap_run() { # <stdin> <run-guards argv>... -> OUT, ERR, RC
   OUT=$(timeout 20 bash "$DISPATCH" "$@" <<<"$input" 2>"$TEST_TMPDIR/err") || RC=$?
   ERR=$(cat "$TEST_TMPDIR/err")
 }
-CAP_MSG="more than the $ROW_CAP the guards can read"
+CAP_MSG="over the $ROW_CAP the guards can check in time"
 
 cap_run "$(tool_payload Bash "$(subst_cmd "$ROW_CAP")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
 assert_exit "cap: a command at the cap reaches the guards" 0 "$RC"
@@ -948,7 +990,7 @@ assert_contains "cap: the guard ran on a command at the cap" "$(cat "$SEEN")" 'e
 cap_run "$(tool_payload Bash "$(subst_cmd "$((ROW_CAP + 1))")")" --max-substitutions "$ROW_CAP" "$TEST_TMPDIR/allow.sh"
 assert_exit "cap: one past the cap is refused" 2 "$RC"
 assert_contains "cap: the refusal names the cap" "$ERR" "$CAP_MSG"
-assert_contains "cap: the refusal names the count" "$ERR" "holds $((ROW_CAP + 1)) command or process substitutions"
+assert_contains "cap: the refusal names the count" "$ERR" "BLOCKED: $((ROW_CAP + 1)) command or process substitutions"
 assert_eq "cap: no guard is sourced past the cap" "" "$(cat "$SEEN")"
 cap_run "$(tool_payload Bash "$(subst_cmd 2339)")" "$TEST_TMPDIR/allow.sh"
 assert_exit "cap: without --max-substitutions nothing is counted" 0 "$RC"
@@ -1182,7 +1224,7 @@ ROW_ERR=$(cd "$HOOK_DIR" && RUN_GUARDS_PROFILE=1 bash "$DISPATCH" "${BASH_ROW_AR
 ROW_RC=$?
 row_t1=${EPOCHREALTIME:-}
 assert_exit "the shipped row blocks a ~70 KB command" 2 "$ROW_RC"
-assert_contains "the shipped row names the ceiling" "$ROW_ERR" "too long to parse safely"
+assert_contains "the shipped row names the ceiling" "$ROW_ERR" "too long to check"
 assert_eq "the shipped row runs one guard on a ~70 KB command" "1" "$(grep -c '^run-guards: .* ms rc=' <<<"$ROW_ERR")"
 if [[ -n "$row_t0" && -n "$row_t1" ]]; then
   row_ms=$(((${row_t1/./} - ${row_t0/./}) / 1000))

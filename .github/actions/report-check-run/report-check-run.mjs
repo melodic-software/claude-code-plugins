@@ -88,10 +88,6 @@ export async function main({
     log(`::error::report-check-run: refused (${decision.why})`);
     return 1;
   }
-  if (decision.kind === "none") {
-    log(`report-check-run: no check posted (${decision.why})`);
-    return 0;
-  }
   const body = { ...decision.report };
   if (RUN_ID.test(env.GITHUB_RUN_ID ?? "")) {
     body.details_url = `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${env.GITHUB_REPOSITORY}/actions/runs/${env.GITHUB_RUN_ID}`;

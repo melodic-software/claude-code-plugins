@@ -1,0 +1,5 @@
+# Plugins in changelog-fragment mode (ADR 0048), one name per line; `#` starts
+# a comment. A listed plugin's pull requests add a fragment under
+# .changes/<plugin>/ (scripts/new-changelog-fragment.sh) instead of bumping
+# plugin.json and CHANGELOG.md, and scripts/release-plugins.sh releases it.
+# Read by scripts/lib/changelog-fragments.sh.

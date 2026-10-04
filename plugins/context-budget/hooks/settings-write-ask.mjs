@@ -53,11 +53,11 @@ process.stdin.on('end', () => {
     const userGlobal = home !== ''
       && target.toLowerCase() === `${home}/.claude/settings.json`.toLowerCase();
 
-    const reason = `${target} is a Claude Code settings surface. This prompt is the context-budget `
-      + 'plugin\'s checkpoint: settings edits change every future session, so confirm the exact diff '
-      + 'before it lands. If this write came from the /context-budget:audit fix path, the printed '
-      + 'config and the measured delta should match what you approved'
-      + (userGlobal ? '; note the audit itself never writes user-global settings — it prints them.' : '.');
+    // The permission prompt already shows the target path.
+    const reason = 'context-budget: this edit changes settings for every future session. Check the diff; '
+      + (userGlobal
+        ? '/context-budget:audit fix never writes user-global settings, so this write is not from it.'
+        : 'from /context-budget:audit fix, it should match the config you approved.');
 
     process.stdout.write(JSON.stringify({
       hookSpecificOutput: {

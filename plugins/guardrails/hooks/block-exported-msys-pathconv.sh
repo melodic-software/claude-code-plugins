@@ -110,6 +110,15 @@ source "$_HOOK_SELF/hook-utils.sh" || exit 70 # not a chosen status: the boundar
 # still fires). Referencing it bare under `set -u` would abort before exit.
 start=${EPOCHREALTIME:-}
 
+# Non-Windows hosts: MSYS argv rewriting does not exist, so neither variable has
+# any effect and nothing here is a defect. Ahead of the jq gate: a guard that
+# checks nothing on this host must not deny every call when jq is missing.
+# Tests force OSTYPE=msys to exercise the Windows lane on Linux CI.
+case "${OSTYPE:-}" in
+msys* | cygwin* | win32) ;;
+*) exit 0 ;;
+esac
+
 # rc 1 (empty stdin) skips like the empty-COMMAND guard below; rc 2 (text that
 # is not JSON) FAILS CLOSED — the guard cannot evaluate the tool call, and a
 # silent skip would pass exactly the traffic this guard exists to stop; rc 3 (a
@@ -128,30 +137,20 @@ hook::require_jq_blocking "guardrails-block-exported-msys-pathconv" "block_expor
 jq_rc=0
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || jq_rc=$?
 if ((jq_rc == 2)); then
-  echo "BLOCKED: the hook payload could not be parsed." >&2
+  guard::refuse_unparsable
   exit 2
 fi
 ((jq_rc != 0)) && exit 0
 
 # A NUL byte in EITHER field is fail-CLOSED (#2136 / #2122).
 if ((HOOK_JQ_FIELDS_NUL)); then
-  echo "BLOCKED: the payload carries a NUL byte, which a command cannot reliably carry." >&2
-  echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
-  echo "Fix: reissue the tool call without the embedded NUL." >&2
+  guard::refuse_nul
   exit 2
 fi
 
 COMMAND="${HOOK_JQ_FIELDS[0]}"
 [[ -n "$COMMAND" ]] || exit 0
 TOOL_NAME="${HOOK_JQ_FIELDS[1]:-Bash}"
-
-# Non-Windows hosts: MSYS argv rewriting does not exist, so neither variable has
-# any effect and nothing here is a defect. Tests force OSTYPE=msys to exercise
-# the Windows lane on Linux CI.
-case "${OSTYPE:-}" in
-msys* | cygwin* | win32) ;;
-*) exit 0 ;;
-esac
 
 # Cheap substring pre-filter BEFORE any length ceiling or parsing: a command
 # that never names either variable cannot be this defect at any length, so it
@@ -174,19 +173,9 @@ emit_tel() {
 
 block() {
   local form="$1"
-  # Single-quoted on purpose: the Fix line must show the literal spellings to
-  # the agent, not expand them in the hook process.
-  # shellcheck disable=SC2016
   printf '%s\n' \
-    'BLOCKED: exporting MSYS_NO_PATHCONV / MSYS2_ARG_CONV_EXCL switches off MSYS path conversion for EVERY later command in this command string.' \
-    'A later path argument then reaches a Windows-native program unconverted, and git resolves a leading / against the CURRENT DRIVE:' \
-    '  git worktree add /d/worktrees/x   ->   <current-drive>:/d/worktrees/x   (a phantom tree, and a run that measured the wrong thing)' \
-    'Fix, in preference order:' \
-    '  1. Use Windows-native paths for path arguments -- git -C <repo-root> show ... -- so the question does not arise.' \
-    '  2. If you need the suppressor for a <rev>:<path> argument, use it as a PER-COMMAND PREFIX, which scopes it to that one command:' \
-    '       MSYS_NO_PATHCONV=1 git show "origin/main:.github/workflows/ci.yml"' \
-    'A bare assignment (MSYS_NO_PATHCONV=1; ...) has no effect at all -- the MSYS runtime reads the environment, so only export leaks.' \
-    'See docs/conventions/windows-path-emit/README.md.' >&2
+    'BLOCKED: export of MSYS_NO_PATHCONV / MSYS2_ARG_CONV_EXCL turns off MSYS path conversion for every later command in this string, so git reads a leading / against the current drive.' \
+    'Use Windows-native paths, or scope it to one command as a prefix: MSYS_NO_PATHCONV=1 git show "origin/main:.github/workflows/ci.yml".' >&2
   emit_tel "blocked" "$form"
   exit 2
 }

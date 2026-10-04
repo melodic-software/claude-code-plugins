@@ -101,8 +101,8 @@ BASH_FORCE_PUSH=$(jq -nc '{hook_event_name:"PreToolUse",tool_name:"Bash",cwd:"/x
 # --- The registered hook set, read from hooks.json --------------------------
 # Every command is tokenised; `--lib <path>` pairs are dropped (a library, not
 # a hook); every remaining *.sh token is a registered script, the dispatcher
-# included. EVENTS records the event(s) each script is registered under, which
-# the forced-abort assertions below compare against the notice's hookEventName.
+# included. EVENTS records the event(s) each script is registered under, so a
+# script registered under two events is listed once.
 declare -A EVENTS=()
 REGISTERED=()
 # Libraries a registered hook sources at run time, plugin-relative:
@@ -256,8 +256,7 @@ fi
 # the real `set -u` abort path, at the point every guard reaches on every fire.
 # Expected on each: exit 0 (the declared fail-open posture), one stderr line
 # naming the guard and the status, and one hook JSON document on stdout whose
-# systemMessage and additionalContext carry the same text and whose
-# hookEventName is an event the guard is registered for.
+# systemMessage carries the same text, with nothing on the model's channel.
 COPY="$TEST_TMPDIR/plugin"
 cp -R "$PLUGIN_DIR" "$COPY"
 for name in "${REGISTERED[@]}"; do
@@ -268,7 +267,7 @@ for name in "${REGISTERED[@]}"; do
   run_hook CLAUDE_PLUGIN_ROOT="$COPY" OSTYPE=msys -- feed_run "$BASH_BENIGN" bash "$COPY/hooks/$name"
   assert_exit "$stem: forced abort exits with the declared fail-open posture" 0 "$RC"
   assert_contains "$stem: stderr names the guard and the status" "$ERR" \
-    "guardrails ${stem}: ${NOTICE}1); fail-open"
+    "guardrails ${stem}: ${NOTICE}1); this call was not checked"
   assert_eq "$stem: exactly one notice line on stderr" 1 "$(count_notices "$ERR")"
   if printf '%s' "$OUT" | jq -e . >/dev/null 2>&1; then
     ok "$stem: stdout is one JSON document"
@@ -277,14 +276,7 @@ for name in "${REGISTERED[@]}"; do
   fi
   assert_contains "$stem: systemMessage names the guard" \
     "$(json_field "$OUT" .systemMessage)" "guardrails ${stem}: ${NOTICE}"
-  assert_contains "$stem: additionalContext names the guard" \
-    "$(json_field "$OUT" .hookSpecificOutput.additionalContext)" "guardrails ${stem}: ${NOTICE}"
-  ev_out=$(json_field "$OUT" .hookSpecificOutput.hookEventName)
-  if [[ -n "$ev_out" && "${EVENTS[$name]}" == *" $ev_out "* ]]; then
-    ok "$stem: hookEventName ($ev_out) is an event the guard is registered for"
-  else
-    bad "$stem: hookEventName '$ev_out' is not among registered events (${EVENTS[$name]})"
-  fi
+  assert_eq "$stem: nothing on the model's channel" "" "$(json_field "$OUT" .hookSpecificOutput)"
 done
 
 # --- Mid-hook abort through a shared helper that fails ----------------------
@@ -300,9 +292,9 @@ run_hook CLAUDE_PLUGIN_ROOT="$MID" OSTYPE=msys -- \
   feed_run "$(write_json 'D:/tmp/x' 'body')" bash "$MID/hooks/block-windows-drive-tmp.sh"
 assert_exit "block-windows-drive-tmp: helper failure after stdin fails open (declared posture)" 0 "$RC"
 assert_contains "block-windows-drive-tmp: helper failure is named on stderr" "$ERR" \
-  "guardrails block-windows-drive-tmp: ${NOTICE}1); fail-open"
-assert_eq "block-windows-drive-tmp: helper failure emits hookEventName PreToolUse" PreToolUse \
-  "$(json_field "$OUT" .hookSpecificOutput.hookEventName)"
+  "guardrails block-windows-drive-tmp: ${NOTICE}1); this call was not checked"
+assert_eq "block-windows-drive-tmp: helper failure tells the user only" "" \
+  "$(json_field "$OUT" .hookSpecificOutput)"
 # The same payload on the shipped guard is a deny, which is what makes the
 # fail-open above a documented, visible allow rather than a silent one.
 run_hook OSTYPE=msys -- feed_run "$(write_json 'D:/tmp/x' 'body')" bash "$HOOK_DIR/block-windows-drive-tmp.sh"
@@ -316,9 +308,9 @@ run_hook CLAUDE_PLUGIN_ROOT="$MID" CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/data" -- \
   feed_run "$(write_json "$TEST_TMPDIR/notes.md" 'run git status')" bash "$MID/hooks/cli-flag-verify.sh"
 assert_exit "cli-flag-verify: helper failure after stdin fails open (declared posture)" 0 "$RC"
 assert_contains "cli-flag-verify: helper failure is named on stderr" "$ERR" \
-  "guardrails cli-flag-verify: ${NOTICE}1); fail-open"
-assert_eq "cli-flag-verify: helper failure emits hookEventName PostToolUse" PostToolUse \
-  "$(json_field "$OUT" .hookSpecificOutput.hookEventName)"
+  "guardrails cli-flag-verify: ${NOTICE}1); this call was not checked"
+assert_eq "cli-flag-verify: helper failure tells the user only" "" \
+  "$(json_field "$OUT" .hookSpecificOutput)"
 
 # --- Dispatched: an aborting guard neither masks a sibling's deny nor hides --
 DISPATCH="$HOOK_DIR/run-guards.sh"
@@ -333,8 +325,8 @@ run_hook -- feed_run "$BASH_BENIGN" bash "$DISPATCH" "$ABORTING" "$HOOK_DIR/bloc
 assert_exit "dispatched: benign call with one aborting guard exits 0" 0 "$RC"
 assert_contains "dispatched: benign call carries the notice as systemMessage" \
   "$(json_field "$OUT" .systemMessage)" "guardrails block-no-verify: ${NOTICE}"
-assert_eq "dispatched: notice hookEventName survives the dispatcher" PreToolUse \
-  "$(json_field "$OUT" .hookSpecificOutput.hookEventName)"
+assert_eq "dispatched: the notice stays off the model's channel" "" \
+  "$(json_field "$OUT" .hookSpecificOutput)"
 
 # Two aborting guards: the dispatcher merges both notices into ONE document.
 run_hook -- feed_run "$BASH_BENIGN" bash "$DISPATCH" "$ABORTING" "$COPY/hooks/block-dangerous-git.sh"
@@ -345,15 +337,18 @@ assert_contains "dispatched: merged systemMessage names the first guard" "$merge
 assert_contains "dispatched: merged systemMessage names the second guard" "$merged_sys" "guardrails block-dangerous-git:"
 
 # --- The dispatcher's own boundary ------------------------------------------
-# Before stdin: the event is not known yet, so the notice is systemMessage
-# only. After priming: the event read from the payload names the block. A
-# deliberate aggregated status (a stub's 3) is released, not reported.
+# The notice is systemMessage only, before stdin and after. After priming the
+# dispatcher holds the event read from the payload (its telemetry names it);
+# the probe line injected before the abort prints it. A deliberate aggregated
+# status (a stub's 3) is released, not reported.
+# shellcheck disable=SC2016  # expands in the injected copy, not here
+EVENT_PROBE='printf "event=%s\n" "$_GAB_EVENT" >&2'
 RG_EARLY="$TEST_TMPDIR/rg-early"
 cp -R "$PLUGIN_DIR" "$RG_EARLY"
 inject_after "$RG_EARLY/hooks/run-guards.sh" '^guard::abort_boundary run-guards ' ": \"\${${MARKER}?forced abort}\""
 run_hook -- feed_run "$BASH_FORCE_PUSH" bash "$RG_EARLY/hooks/run-guards.sh" block-dangerous-git.sh
 assert_exit "dispatcher abort before stdin fails open (declared posture)" 0 "$RC"
-assert_contains "dispatcher abort before stdin names run-guards" "$ERR" "guardrails run-guards: ${NOTICE}1); fail-open"
+assert_contains "dispatcher abort before stdin names run-guards" "$ERR" "guardrails run-guards: ${NOTICE}1); this call was not checked"
 assert_contains "dispatcher abort before stdin carries systemMessage" \
   "$(json_field "$OUT" .systemMessage)" "guardrails run-guards:"
 assert_eq "dispatcher abort before stdin has no hookSpecificOutput (event unknown)" "" \
@@ -362,23 +357,25 @@ assert_eq "dispatcher abort before stdin has no hookSpecificOutput (event unknow
 RG_LATE="$TEST_TMPDIR/rg-late"
 cp -R "$PLUGIN_DIR" "$RG_LATE"
 inject_after "$RG_LATE/hooks/run-guards.sh" '^# --- run -{3,}' ": \"\${${MARKER}?forced abort}\""
+inject_after "$RG_LATE/hooks/run-guards.sh" '^# --- run -{3,}' "$EVENT_PROBE"
 run_hook -- feed_run "$BASH_FORCE_PUSH" bash "$RG_LATE/hooks/run-guards.sh" block-dangerous-git.sh
 assert_exit "dispatcher abort after priming fails open (declared posture)" 0 "$RC"
-assert_eq "dispatcher abort after priming names the event from the payload" PreToolUse \
-  "$(json_field "$OUT" .hookSpecificOutput.hookEventName)"
+assert_contains "dispatcher abort after priming holds the event from the payload" "$ERR" "event=PreToolUse"
+assert_eq "dispatcher abort after priming tells the user only" "" "$(json_field "$OUT" .hookSpecificOutput)"
 
 # A prime filter added AHEAD of `.hook_event_name` shifts every later slot. The
-# dispatcher resolves the event by name, so the notice still names it. The
-# positional index this replaced read the neighboring slot instead (empty for
-# this payload) and the notice lost its hookSpecificOutput block.
+# dispatcher resolves the event by name, so it still holds it. The positional
+# index this replaced read the neighboring slot instead (empty for this
+# payload).
 RG_SHIFT="$TEST_TMPDIR/rg-shift"
 cp -R "$PLUGIN_DIR" "$RG_SHIFT"
 inject_after "$RG_SHIFT/hooks/run-guards.sh" "^  '[.]tool_input[.]content' " "  '.tool_input.abort_boundary_test_probe'"
 inject_after "$RG_SHIFT/hooks/run-guards.sh" '^# --- run -{3,}' ": \"\${${MARKER}?forced abort}\""
+inject_after "$RG_SHIFT/hooks/run-guards.sh" '^# --- run -{3,}' "$EVENT_PROBE"
 run_hook -- feed_run "$BASH_FORCE_PUSH" bash "$RG_SHIFT/hooks/run-guards.sh" block-dangerous-git.sh
 assert_exit "dispatcher: a prime filter inserted ahead of .hook_event_name still fails open" 0 "$RC"
-assert_eq "dispatcher: a prime filter inserted ahead of .hook_event_name still names the event" PreToolUse \
-  "$(json_field "$OUT" .hookSpecificOutput.hookEventName)"
+assert_contains "dispatcher: a prime filter inserted ahead of .hook_event_name still resolves the event" \
+  "$ERR" "event=PreToolUse"
 
 printf '#!/usr/bin/env bash\nexit 3\n' >"$TEST_TMPDIR/three.sh"
 run_hook -- feed_run "$BASH_BENIGN" bash "$DISPATCH" "$TEST_TMPDIR/three.sh"
@@ -420,7 +417,7 @@ for code in 1 3 70 127; do
   stub "conv$code.sh" 'guard::abort_boundary stub-conv PreToolUse open 0 2' "exit $code"
   run_hook -- bash "$TEST_TMPDIR/conv$code.sh"
   assert_exit "unchosen status $code becomes the open posture (0)" 0 "$RC"
-  assert_contains "unchosen status $code is named" "$ERR" "guardrails stub-conv: ${NOTICE}${code}); fail-open"
+  assert_contains "unchosen status $code is named" "$ERR" "guardrails stub-conv: ${NOTICE}${code}); this call was not checked"
 done
 stub "closed.sh" 'guard::abort_boundary stub-closed PreToolUse closed 0 2' 'exit 3'
 run_hook -- bash "$TEST_TMPDIR/closed.sh"
@@ -457,7 +454,7 @@ fi
 stub "unbound.sh" 'guard::abort_boundary stub-unbound PreToolUse open 0 2' ': "$STUB_UNBOUND_VARIABLE"' 'exit 0'
 run_hook -- bash "$TEST_TMPDIR/unbound.sh"
 assert_exit "set -u abort in a stub fails open" 0 "$RC"
-assert_contains "set -u abort in a stub is named with rc=1" "$ERR" "guardrails stub-unbound: ${NOTICE}1); fail-open"
+assert_contains "set -u abort in a stub is named with rc=1" "$ERR" "guardrails stub-unbound: ${NOTICE}1); this call was not checked"
 
 # --- The handler cannot re-enter ----------------------------------------------
 # The handler's first act is `trap - EXIT`. When its own body then fails (an

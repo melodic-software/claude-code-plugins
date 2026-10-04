@@ -106,7 +106,7 @@ hook::require_jq_blocking "guardrails-block-no-verify" "block_no_verify_enabled"
 jq_rc=0
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || jq_rc=$?
 if ((jq_rc == 2)); then
-  echo "BLOCKED: the hook payload could not be parsed." >&2
+  guard::refuse_unparsable
   exit 2
 fi
 ((jq_rc != 0)) && exit 0
@@ -126,9 +126,7 @@ fi
 # correct under all of them, so it needs no such trace. A NUL here is malformed
 # input, not an exotic-but-valid command.
 if ((HOOK_JQ_FIELDS_NUL)); then
-  echo "BLOCKED: the payload carries a NUL byte, which a command cannot reliably carry." >&2
-  echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
-  echo "Fix: reissue the tool call without the embedded NUL." >&2
+  guard::refuse_nul
   exit 2
 fi
 
@@ -175,13 +173,17 @@ emit_tel() {
   hook::emit_telemetry "block-no-verify" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
+# block <form> [<line>...]: print each line, then deny.
 block() {
-  local form="$1" msg1="$2" msg2="$3"
-  echo "$msg1" >&2
-  echo "$msg2" >&2
+  local form="$1"
+  shift
+  (($#)) && printf '%s\n' "$@" >&2
   emit_tel "blocked" "$form"
   exit 2
 }
+
+# The fix for every hook-bypass form.
+BYPASS_FIX="Fix what the hook reports instead."
 
 # Same-command git aliases: `git config alias.NAME VALUE` records the definition
 # (a later definition wins), and `git -c alias.NAME=VALUE NAME` carries its own; a
@@ -230,9 +232,10 @@ alias_expand() {
   local name="${1,,}" idx=$2 i v
   local -a ALIAS_HEAD ALIAS_TAIL defs=()
   # --config-env=alias.NAME=VAR expands to a variable's value this parser never reads.
-  [[ "$HOOK_GITINV_ALIAS_TERM" == "config-env" ]] && block "config-env-alias" \
-    "BLOCKED: git alias '$1' is defined via --config-env, so its expansion cannot be verified." \
-    "Define the alias in git config or run the subcommand directly."
+  if [[ "$HOOK_GITINV_ALIAS_TERM" == "config-env" ]]; then
+    guard::refuse_config_env_alias "$1"
+    block "config-env-alias"
+  fi
   [[ "$HOOK_GITINV_ALIAS_TERM" == "inline" ]] && defs=("${HOOK_GITINV_ALIAS_EXPS[@]}")
   shift 2
   ALIAS_HEAD=("${@:1:idx}")
@@ -310,8 +313,7 @@ check_segment() {
   for cv in ${HOOK_GITINV_CONFIG_VALUES[@]+"${HOOK_GITINV_CONFIG_VALUES[@]}"}; do
     lc="${cv,,}"
     [[ "$lc" == *core.hookspath=* ]] && block "hooksPath" \
-      "BLOCKED: core.hooksPath assignment silently disables every git hook, not just the one failing." \
-      "Fix the hook failure instead of bypassing git hooks."
+      "BLOCKED: a core.hooksPath override disables every git hook. $BYPASS_FIX"
   done
 
   # Form 2: hook-manager env-var prefix (commit OR push) — only leading env
@@ -319,15 +321,13 @@ check_segment() {
   for ((k = 0; k < gi; k++)); do
     lc="${w[k],,}"
     [[ "$lc" =~ ^(${HM_ALT})[_a-z0-9]*=(0|false)$ ]] && block "hook-manager-env" \
-      "BLOCKED: a hook-manager env-var bypass disables the hook manager, letting this commit/push land unchecked." \
-      "Fix the hook lane failure instead of bypassing."
+      "BLOCKED: ${w[k]} disables the hook manager for this git $sub. $BYPASS_FIX"
   done
 
   # Form 2, PowerShell spelling: `$env:X=0` or `Set-Item env:X 0` anywhere in
   # the same command (found on the original text by ps_env_disables_hook_manager).
   ((PS_HM_ENV_DISABLED)) && block "hook-manager-env" \
-    "BLOCKED: a hook-manager env-var bypass disables the hook manager, letting this commit/push land unchecked." \
-    "Fix the hook lane failure instead of bypassing."
+    "BLOCKED: a hook-manager env var set to 0 or false (HUSKY, LEFTHOOK, ...) disables the hooks for this git $sub. $BYPASS_FIX"
 
   # Form 1: --no-verify / -n (commit or push) — words after the subcommand,
   # skipping values consumed by commit/push options (e.g. -m message text).
@@ -349,15 +349,13 @@ check_segment() {
     *) ;;
     esac
     [[ "$x" == "--no-verify" ]] && block "no-verify" \
-      "BLOCKED: --no-verify / -n skips the hooks meant to catch problems in this git $sub before they land." \
-      "Fix the issues that caused the hook failure instead of bypassing."
+      "BLOCKED: --no-verify / -n skips the hooks on this git $sub. $BYPASS_FIX"
     if [[ "$sub" == "commit" && "$x" =~ ^-[A-Za-z]+$ ]]; then
       rest="${x#-}"
       for ((ch = 0; ch < ${#rest}; ch++)); do
         case "${rest:ch:1}" in
         n) block "no-verify" \
-          "BLOCKED: --no-verify / -n skips the hooks meant to catch problems in this git commit before they land." \
-          "Fix the issues that caused the hook failure instead of bypassing." ;;
+          "BLOCKED: --no-verify / -n skips the hooks on this git commit. $BYPASS_FIX" ;;
         m | F | c | C | t | u | S | G)
           if ((ch + 1 < ${#rest})); then
             ((k++))
@@ -380,8 +378,7 @@ check_segment() {
 
 if ((${#COMMAND} > MAX_COMMAND_LEN)); then
   block "too-long" \
-    "BLOCKED: command too long to parse safely (> $MAX_COMMAND_LEN chars)." \
-    "Shorten the command, or set the guardrails block_no_verify_enabled option to false (/plugin configure) to bypass."
+    "BLOCKED: command over $MAX_COMMAND_LEN chars is too long to check. Split it into shorter commands."
 fi
 
 # Sink-shape tokens from the sibling block_dangerous_git_allow list (#4252).
@@ -490,8 +487,7 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
       exit 2
     fi
     if ((_ps_sink_attempts > 4)); then
-      echo "BLOCKED: this PowerShell command still cannot be parsed with confidence after five rounds of setting aside allowed sink shapes — blocked (fail-closed)." >&2
-      echo "No allow token clears this. Split the command into smaller ones, or set the guardrails block_no_verify_enabled option to false (/plugin configure) to bypass." >&2
+      ps::print_sink_budget_message
       emit_tel "blocked" "powershell-unparsable-budget-exhausted"
       exit 2
     fi

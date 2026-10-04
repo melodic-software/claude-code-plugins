@@ -83,10 +83,11 @@ stanza=$(wt_stanza "$REPO" wt-hook)
 assert_contains "the hook-locked tree is locked" "$stanza" "locked"
 assert_contains "the hook reason names the session" "$stanza" "sess-hook-one"
 assert_contains "the hook reason uses the claim prefix" "$stanza" "worktree-claim.sh"
-assert_contains "the hook tells the agent it claimed" "$OUT" "claimed unlocked worktree"
+assert_silent "a successful claim adds no context" "$OUT"
 
 run "$REPO" "git worktree add $EXT/wt-hook -b feat/hook" "sess-hook-two"
 assert_exit "second hook pass is still exit 0" 0 "$RC"
+assert_contains "a foreign claim names the worktree to the agent" "$OUT" "wt-hook already carries another session's live claim"
 stanza2=$(wt_stanza "$REPO" wt-hook)
 assert_contains "original session reason survived the second pass" "$stanza2" "sess-hook-one"
 assert_not_contains "a later session did not overwrite the reason" "$stanza2" "sess-hook-two"
