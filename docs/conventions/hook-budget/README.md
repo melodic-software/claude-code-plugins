@@ -168,7 +168,7 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
   [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs)).
 - **Scope.** The `SessionStart` node-notice row of every hook plugin (the [prerequisites convention](../prerequisites/README.md#hook-notices)) and the `hook-failure-audit` Stop row in `harness-ops` stay shell form so they can report a missing `node`.
   Neither check script inspects a shell-form row; `scripts/node-notice-rows.test.sh` pins the node-notice
-  rows and the hook test of `harness-ops` pins its Stop row, so a sweep back to `node` fails them. A plugin hook config carries no
+  rows (and the matcher that skips them on compaction) and the hook test of `harness-ops` pins its Stop row, so a sweep back to `node` fails them. A plugin hook config carries no
   `${user_config.*}` token (the [philosophy Hooks row](../../plugin-philosophy.md#component-stances)),
   so no `userConfig` rule requires exec form and exec form fleet-wide is this sweep's choice.
 - **Measurement.** The reference figures above (Windows, 2026-07-31 and 2026-09-02) were taken before

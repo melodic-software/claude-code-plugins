@@ -17,18 +17,24 @@ ROOT="$(cd "$SELF_DIR/.." && pwd)"
 . "$SELF_DIR/lib/test-harness.sh"
 
 MARKER='prerequisites.sh" node-notice'
+# Every SessionStart source but compact (https://code.claude.com/docs/en/hooks, SessionStart
+# matcher table, as of 2026-10-04): the notice and probe latches outlive a compaction, so a
+# re-fire there prints nothing and only starts processes.
+MATCHER='startup|resume|clear|fork'
 
 # --- fleet shape ----------------------------------------------------------------
 rows_checked=0
 for hooks in "$ROOT"/plugins/*/hooks/hooks.json; do
   plugin="$(basename "$(dirname "$(dirname "$hooks")")")"
-  mapfile -t rows < <(jq -r '[.hooks.SessionStart[]?.hooks[]? | select((.command // "") | contains("prerequisites.sh")) | .command] | .[]' "$hooks")
+  mapfile -t rows < <(jq -r '[.hooks.SessionStart[]? | . as $g | .hooks[]? | select((.command // "") | contains("prerequisites.sh")) | "\($g.matcher // "")\t\(.command)"] | .[]' "$hooks")
   if ((${#rows[@]} != 1)); then
     bad "$plugin: want exactly one node-notice SessionStart row" "found ${#rows[@]}"
     continue
   fi
   rows_checked=$((rows_checked + 1))
-  row="${rows[0]}"
+  matcher="${rows[0]%%$'\t'*}"
+  row="${rows[0]#*$'\t'}"
+  [[ "$matcher" == "$MATCHER" ]] || bad "$plugin: the node-notice row's group matcher is not $MATCHER" "matcher=$matcher"
   [[ "$row" == *"$MARKER"* ]] || bad "$plugin: the row does not call prerequisites.sh node-notice" "$row"
   skill=check
   [[ -d "$ROOT/plugins/$plugin/skills/check-prerequisites" ]] && skill=check-prerequisites
@@ -54,6 +60,22 @@ if ((rows_checked >= 20)); then
   ok "$rows_checked hook plugins carry exactly one canonical node-notice row"
 else
   bad "too few plugins carry the row" "$rows_checked"
+fi
+
+# --- the probe rows: the same matcher -------------------------------------------
+probes=0
+for hooks in "$ROOT"/plugins/*/hooks/hooks.json; do
+  plugin="$(basename "$(dirname "$(dirname "$hooks")")")"
+  while IFS= read -r matcher; do
+    probes=$((probes + 1))
+    matcher="${matcher%$'\r'}"
+    [[ "$matcher" == "$MATCHER" ]] || bad "$plugin: the prerequisites.mjs probe row's group matcher is not $MATCHER" "matcher=$matcher"
+  done < <(jq -r '.hooks.SessionStart[]? | . as $g | .hooks[]? | select(((.args // [])[0] // "" | endswith("/lib/prerequisites.mjs")) and (.args[1] == "probe")) | $g.matcher // ""' "$hooks")
+done
+if ((probes >= 8)); then
+  ok "$probes SessionStart probe rows checked for the $MATCHER matcher"
+else
+  bad "too few SessionStart probe rows found" "$probes"
 fi
 
 # --- the row, run with node absent ------------------------------------------------
