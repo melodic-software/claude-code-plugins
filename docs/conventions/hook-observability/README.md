@@ -372,7 +372,8 @@ quiet skip needs a sanctioned helper call or an explicit `# silent-skip-ok:` ann
 
 `context-guard`'s and `rate-limit-guard`'s mods add lines to tool results and prompts about the
 session's context and rate-limit windows, which the Frequency rule's "no countdown or budget line
-after tool results" would otherwise bar. They are admitted on this shape, and only on it:
+after tool results" would otherwise bar. They are admitted on this shape, and only on it (the owner
+amended the What bullet on 2026-10-04, dropping the standing-rule sentence):
 
 - **When.** One line per boundary crossing, one per approach margin (a set number of points before
   a boundary), and one restatement after a compaction, a resume, a `/branch`, a reload of the mod
