@@ -115,7 +115,8 @@ fi
 
 # Prune stale sibling markers with the same 14-day cutoff the snapshot writer
 # applies to snapshots — the shared contract dir must not grow unboundedly, and
-# the writer's own prune matches *.json, .last and .lock files only.
+# the writer's own prune matches *.json, .last and .lock files after 14 days
+# and .*.json.tmp.* temps after 60 s, never *.compacted.
 find "$CTX_DIR" -maxdepth 1 -name '*.compacted' -mmin +20160 -exec rm -f {} + 2>/dev/null || true
 
 # SIDE-EFFECT-ONLY contract still holds: PostCompact has no decision control,

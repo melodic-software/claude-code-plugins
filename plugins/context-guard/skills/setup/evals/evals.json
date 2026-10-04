@@ -68,6 +68,18 @@
       ]
     },
     {
+      "id": 35,
+      "name": "unwire-a-sibling-shim-alone",
+      "prompt": "/context-guard:setup check\n\nI just updated context-guard. My ~/.claude/settings.json has statusLine.command set to: bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh ~/.claude/statusline/render.sh",
+      "expected_output": "Reports the rate-limit-guard shim as a wiring route of a retired tee and prints the unwire edit: statusLine.command becomes exactly ~/.claude/statusline/render.sh, because the unwire step removes both guards' pairs even when only the sibling's is present.",
+      "files": [],
+      "expectations": [
+        "Prints the edited value as exactly: ~/.claude/statusline/render.sh",
+        "Removes the rate-limit-guard shim even though no context-guard pair is present, because both tees retired in the same release",
+        "Does not edit settings.json itself"
+      ]
+    },
+    {
       "id": 15,
       "name": "unwire-keeps-a-generated-sh-c-layer",
       "prompt": "/context-guard:setup check\n\nI just updated context-guard. My ~/.claude/settings.json has statusLine.command set to: bash ~/.claude/context-guard/bin/statusline-shim.sh sh -c 'THEME=dark my-statusline --flag'",

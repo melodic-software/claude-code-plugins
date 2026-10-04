@@ -125,9 +125,10 @@ nothing is written and readers read `unknown`, as with no file.
   As of: 2026-10-03. Recheck trigger: a release note or that section changes the `context_window`
   fields or the states in which they are null.
 - **File modes and siblings.** The snapshot file is owner-only (`0600`) and the directory `0700`
-  where POSIX modes work. Beside each snapshot the writer keeps a lock file,
-  `.<session_id>.json.lock`, and writes through a temp file, `.<session_id>.json.tmp.w<pid>-<hex>`,
-  removed after the rename. A `.<session_id>.json.last` file is one that versions before 0.11.0
+  where POSIX modes work. For each write the writer creates a lock file,
+  `.<session_id>.json.lock`, and removes it when the write ends; one is left behind only when that
+  removal fails, and the next write steals it once it is 60 seconds old. It writes through a temp
+  file, `.<session_id>.json.tmp.w<pid>-<hex>`, removed after the rename. A `.<session_id>.json.last` file is one that versions before 0.11.0
   left behind; the writer's hourly prune deletes it, and every lock file, after 14 days. Readers
   read only `<session_id>.json` and `<session_id>.compacted` and ignore every file whose name
   starts with a dot.

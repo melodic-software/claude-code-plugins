@@ -59,9 +59,11 @@ options and `zones.json`:
 | After `/clear` | nothing: the new session starts in `smart` and a fresh cycle |
 
 A dip below a boundary sends nothing and starts no new cycle; only a return to `smart` does. An
-`unknown` reading sends nothing and changes nothing. Every line carries its zone word and the note
-that a zone is a measurement, not an instruction, worded as facts with their source; in `dumb` it
-also carries the save-state note. `zone_line_data` adds figures (percent, tokens, window); by
+`unknown` reading sends nothing and changes nothing. Every line carries its zone word and its
+source, the last API response. Crossing, restatement and threshold lines also carry the note that
+a zone is a measurement, not an instruction, worded as facts; an approach line carries only the
+zone and the boundary it approaches. A crossing or restatement in `dumb` also carries the
+save-state note. `zone_line_data` adds figures (percent, tokens, window); by
 default a line carries none, and it never carries a session id. A configured action's sentence
 (`zones.json` `actions` and `thresholds`, see the [reader contract](reference/reader-contract.md))
 appears at its crossing, never before. Subagents get no line.
@@ -186,10 +188,13 @@ through unchanged.
 
 ### Process budget
 
-The module's hooks run inside Claude Code. The only process they start is the snapshot write: one
-`node lib/write-snapshot.mjs`, at most once per changed body or per 60 seconds for an unchanged one,
-which also runs the hourly prune. A tool call or prompt that writes nothing starts no process and
-writes no file, and the gate and the lines start none. The write is awaited inside the `tool.call`
+The module's hooks run inside Claude Code and start two kinds of process. The snapshot write runs
+one `node lib/write-snapshot.mjs`, at most once per changed body or per 60 seconds for an unchanged
+one, which also runs the hourly prune. With `HOOK_TELEMETRY_SINK` set, each telemetry envelope
+starts one sink process, not awaited: one per fire that sends lines, per operator-mode suggestion
+shown and per gate denial. A tool call or prompt that writes nothing and sends no envelope starts
+no process and writes no file; the gate and the lines start none of their own beyond that
+envelope. The write is awaited inside the `tool.call`
 hook, so a slow write holds that one tool result, within Claude Code's own-time limit for a hook.
 
 - **Pointer**: [mods reference: limits](https://code.claude.com/docs/en/plugins/mods/reference#limits).
@@ -197,8 +202,9 @@ hook, so a slow write holds that one tool result, within Claude Code's own-time 
 - **Recheck trigger**: that section changes a hook's time limit or what happens when it is reached.
 
 `claude plugin test plugins/context-guard` enforces it: the `budget:` case in
-`hooks/context-guard.test.ts` asserts no process on calls that write nothing, one per write and none
-for the gate, and the `floor:` case asserts the 60-second floor. The tests the module replaced, and
+`hooks/context-guard.test.ts` asserts, with no telemetry sink set, no process on calls that write
+nothing, one per write and none for the gate; the `telemetry:` cases assert one envelope per acting
+fire and none on other calls; and the `floor:` case asserts the 60-second floor. The tests the module replaced, and
 what holds their budget now:
 
 | Retired test | What it held | Held now by |
