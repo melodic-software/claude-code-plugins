@@ -3,7 +3,7 @@
 Owner doc for **how a plugin in this marketplace ships a mod**: a hooks module of function hooks
 that Claude Code calls in its own process. Anthropic owns the mods API and its docs; this doc points
 at them and keeps only the facts about this repository, or found by its probes, that they do not
-state. [ADR 0049](../../adr/0049-adopt-claude-code-mods.md) records the decisions: when to choose a
+state. [ADR 0052](../../adr/0052-adopt-claude-code-mods.md) records the decisions: when to choose a
 mod, one mod per plugin, the 2.1.287 floor, and what is committed.
 
 ## Boundary
@@ -48,7 +48,7 @@ mod, one mod per plugin, the 2.1.287 floor, and what is committed.
 
 ## Mod, settings hook, or skill
 
-Apply ADR 0049's rule for choosing a mod, which starts from upstream's comparison table.
+Apply ADR 0052's rule for choosing a mod, which starts from upstream's comparison table.
 
 - **Pointer**: see
   [overview: compare mods, settings hooks, skills, and MCP servers](https://code.claude.com/docs/en/plugins/mods/overview#compare-mods-settings-hooks-skills-and-mcp-servers).

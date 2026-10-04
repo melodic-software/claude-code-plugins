@@ -1,6 +1,6 @@
 # Defer Claude Code mods, with five go criteria and two recheck triggers
 
-- Status: superseded by [ADR 0049](0049-adopt-claude-code-mods.md)
+- Status: superseded by [ADR 0052](0052-adopt-claude-code-mods.md)
 - Date: 2026-09-19
 
 ## Context

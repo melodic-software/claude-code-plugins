@@ -2,7 +2,7 @@
 
 Run this top to bottom on Windows, compare every output with the recorded runs, and record each
 criterion's state. It assumes no memory of the 2026-09-19 investigation. The runs feed
-[ADR 0049](../../adr/0049-adopt-claude-code-mods.md), which supersedes
+[ADR 0052](../../adr/0052-adopt-claude-code-mods.md), which supersedes
 [ADR 0035](../../adr/0035-defer-claude-code-mods-with-five-go-criteria.md), and the
 mods row under "Recorded gate runs" in [docs/plugin-philosophy.md](../../plugin-philosophy.md).
 
@@ -15,10 +15,10 @@ open; [sources.md](sources.md) indexes every external link both files rely on;
 
 ## The verdict rule
 
-[ADR 0049](../../adr/0049-adopt-claude-code-mods.md) decides: mods are adopted with no policy
+[ADR 0052](../../adr/0052-adopt-claude-code-mods.md) decides: mods are adopted with no policy
 narrowing of what a mod may do, and criterion 5 is replaced by the check under
 [Criterion 5 as replaced](#criterion-5-as-replaced). A run records each criterion's state. A
-criterion that changes state is a reason to re-derive ADR 0049, not a verdict by itself.
+criterion that changes state is a reason to re-derive ADR 0052, not a verdict by itself.
 
 ADR 0035's rule, which decided the 2026-09-19 baseline: go requires **all five** criteria. Any one
 failing is **no-go**. They are not weighted and none substitutes for another.
@@ -399,7 +399,7 @@ a genuine false positive: read the file's last paragraph, do not only count.
 
 ### Criterion 5 as replaced
 
-ADR 0049 judges stability on the ten docs pages and on the header of the `plugin-authoring` types
+ADR 0052 judges stability on the ten docs pages and on the header of the `plugin-authoring` types
 for the build in use. The README check above is still run and recorded; it no longer gates.
 
 ```sh
@@ -422,13 +422,13 @@ note to remove the old enable variable rather than a stability warning; types li
 `// Written by Claude Code 2.1.288.` and line 4 is the early-access line. Adoption accepted that
 header as it stood.
 
-**Re-derive ADR 0049 when** a docs page gains an early-access or "without notice" warning. Record
+**Re-derive ADR 0052 when** a docs page gains an early-access or "without notice" warning. Record
 any change to the types header in the run, with the build that wrote it.
 
 ## Quick check for a Claude Code pin bump
 
 Any pull request bumping the `@anthropic-ai/claude-code` pin in `package.json` runs **criteria 1 to 3
-and the replaced criterion 5**. A few minutes. Owned by whoever bumps the pin. This is ADR 0049's
+and the replaced criterion 5**. A few minutes. Owned by whoever bumps the pin. This is ADR 0052's
 first recheck trigger.
 
 1. Record the version three ways, because every baseline is pinned to a build and a minor bump can
@@ -456,7 +456,7 @@ first recheck trigger.
 All unchanged from the last run: record the run, nothing else to do. Any one changed: do the full
 run (criterion 4 and the README check here, then every experiment and open probe in
 [experiments.md](experiments.md)), re-derive
-[ADR 0049](../../adr/0049-adopt-claude-code-mods.md), and update the mods
+[ADR 0052](../../adr/0052-adopt-claude-code-mods.md), and update the mods
 row in [docs/plugin-philosophy.md](../../plugin-philosophy.md).
 
 ## After a run
@@ -465,7 +465,7 @@ Record the run whatever the outcome. A run that is not written down gets re-deri
 
 - **[docs/plugin-philosophy.md](../../plugin-philosophy.md)**, the mods row: update the `As of`
   date every run, and the row's reason if the *reason* for the verdict moved.
-- **[ADR 0049](../../adr/0049-adopt-claude-code-mods.md)**: leave it alone while its decisions and
+- **[ADR 0052](../../adr/0052-adopt-claude-code-mods.md)**: leave it alone while its decisions and
   verdict hold. If a re-derivation changes either, a superseding record or an amendment carries the
   new decision; a runbook run does not amend an ADR by itself.
   [ADR 0035](../../adr/0035-defer-claude-code-mods-with-five-go-criteria.md) is superseded and stays
@@ -476,7 +476,7 @@ Record the run whatever the outcome. A run that is not written down gets re-deri
   re-fetched.
 
 **Guard conversion is a parity question, not a criterion.** ADR 0035 kept three conditions on
-converting a guard hook to a mod; ADR 0049 replaces them with one rule: a guard moves into a mod
+converting a guard hook to a mod; ADR 0052 replaces them with one rule: a guard moves into a mod
 only when the mod matches every behavior of the hook it replaces, and a settings hook stays where it
 must run with mods off. Passing criteria says a consumer who installs one of this repository's
 plugins gets a working mod, which is a distribution question. Whether a *guard*, a hook whose whole

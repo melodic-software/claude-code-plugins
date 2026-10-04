@@ -1124,7 +1124,7 @@ operator's statusline unchanged, and both setup skills document the two-step man
 Triggered by the review record's own rule: the writer of both guards' contract files changes from
 an operator-wired status-line tee to a mod, a hooks module (`hooks/register.tsx`) Claude Code runs
 in its own process on every tool call and prompt, under
-[ADR 0049](adr/0049-adopt-claude-code-mods.md). The files, their paths and their readers' trust
+[ADR 0052](adr/0052-adopt-claude-code-mods.md). The files, their paths and their readers' trust
 class are unchanged. Reviewed as a delta; the base records and the shim delta stand as history.
 
 - **Code execution (1).** New: in-process code on `tool.call`, `prompt.submit`, `session.*`,
@@ -1156,7 +1156,7 @@ class are unchanged. Reviewed as a delta; the base records and the shim delta st
   written.
 
 **Verdict: ACCEPT.** The new surface is in-process code with the user's permissions, which
-ADR 0049 adopts for every mod. Its reach here is bounded: no `tool.check`, one bundled helper per
+ADR 0052 adopts for every mod. Its reach here is bounded: no `tool.check`, one bundled helper per
 write, the same files in the same directories. Readers keep the base record's rules: the contract
 files are untrusted data, the writer is not authenticated, and no zone or rate-limit verdict
 drives a security decision.
