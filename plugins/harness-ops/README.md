@@ -114,6 +114,19 @@ plugin, not in the plugin it might report on, deliberately: an in-plugin
 detector shares its plugin's registration form and dies with it, which is
 exactly how disk-hygiene's guard monitor missed the #1416 incident class.
 
+Each failure record is classed one of four ways, and the warning gives each
+class its own diagnosis and remedy:
+
+- **launch failure**: stderr carries an exec-failure signature; the hook never
+  ran.
+- **stale config**: exit 127 and the whole stderr is bash's missing-script line
+  (`bash: <path>: No such file or directory`). The session still runs hook
+  config it loaded before a plugin update or an in-place edit deleted that
+  script; the remedy is `/reload-plugins`, or a restart.
+- **ambiguous**: exit 126 or 127 with neither of the above, so the registered
+  command and the hook's own commands are both suspects.
+- **completed non-zero exit**: the hook ran and failed.
+
 Its budget share is stated as a **process count**, not a duration, and the host
 is the reason. The [hook-budget
 convention](../../docs/conventions/hook-budget/README.md) states each

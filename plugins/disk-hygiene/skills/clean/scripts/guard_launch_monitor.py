@@ -290,14 +290,9 @@ def _build_message(failures: list[dict]) -> str:
     plural = "s" if count != 1 else ""
     return (
         f"disk-hygiene: {_GUARD_DISPLAY_NAME} failed to run or exited "
-        f"non-zero {count} time{plural} this session and its failure(s) were "
-        "not visible as a denial. Most recent failure: "
-        f"exitCode: {exit_code}, durationMs: {duration_ms}, stderr: {stderr_text} "
-        "This means destructive-action review may not have been enforced for "
-        "the guarded command(s) in question. This detector covers only "
-        f"{_GUARD_DISPLAY_NAME}'s own command string in this session's "
-        "transcript; it does not cover repo-hygiene's guard and does not "
-        "retroactively scan past sessions."
+        f"non-zero {count} time{plural} this session, so those calls may have "
+        f"run unchecked. Latest: exitCode: {exit_code}, durationMs: "
+        f"{duration_ms}, stderr: {stderr_text} /disk-hygiene:check diagnoses."
     )
 
 

@@ -1264,6 +1264,12 @@ others.
 | workflow-resilience-check | `workflow_resilience_check_enabled` |
 | flag-commit-pr-skill-bypass | `flag_commit_pr_skill_bypass_enabled` |
 
+Hook cost of the three verifiers: their PostToolUse rows (`.md`, `.sh`, `.bash`, `.ps1`,
+`.psm1` edits) carry the launcher gate `--skip-if-all-false` over all three switches. With
+`cli_flag_verify_enabled`, `skill_reference_verify_enabled` and `stale_path_verify_enabled` all
+`false`, an edit starts node only, never bash. Any other value, one switch left on included, runs
+the row as before, and each verifier still checks its own switch.
+
 Set them interactively with `/plugin configure guardrails@<marketplace>`, or headless on the
 install command:
 
