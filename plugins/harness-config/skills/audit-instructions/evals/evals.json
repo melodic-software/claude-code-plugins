@@ -17,11 +17,11 @@
       "id": 2,
       "name": "scope-boundary-routes-out",
       "prompt": "/harness-config:audit-instructions is my CLAUDE.md too long, and can you prune the always-loaded hygiene lines out of it?",
-      "expected_output": "Recognizes memory-layer hygiene (line budget, whether CLAUDE.md is too long, pruning always-loaded content) as the harness-memory plugin's audit skill's concern. On memory-layer surfaces (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md, .claude/rules) this skill runs only the model-era checks I6-I37 and routes the I1-I5 hygiene findings to harness-memory:audit when that plugin is installed, falling back to the official CLAUDE.md include/exclude guidance pointer when it is not, rather than answering the hygiene question itself.",
+      "expected_output": "Recognizes memory-layer hygiene (line budget, whether CLAUDE.md is too long, pruning always-loaded content) as the harness-memory plugin's audit skill's concern. On memory-layer surfaces (CLAUDE.md, a natively read AGENTS.md, CLAUDE.local.md, .claude/rules) this skill runs only the model-era checks I6-I39 and routes the I1-I5 hygiene findings to harness-memory:audit when that plugin is installed, falling back to the official CLAUDE.md include/exclude guidance pointer when it is not, rather than answering the hygiene question itself.",
       "files": [],
       "expectations": [
         "Routes memory-layer hygiene (line budget, 'CLAUDE.md too long', pruning) to the harness-memory plugin's audit skill when installed",
-        "On memory-layer surfaces runs only the model-era checks I6-I37 (I16, I19, and I22 only under --opinion), not the I1-I5 hygiene checks",
+        "On memory-layer surfaces runs only the model-era checks I6-I39 (I16, I19, and I22 only under --opinion), not the I1-I5 hygiene checks",
         "Falls back to the official CLAUDE.md include/exclude guidance pointer when harness-memory is not installed instead of silently skipping"
       ]
     },
@@ -408,6 +408,34 @@
         "Says Claude-specific text belongs in `.claude/rules/` with a `paths:` glob",
         "Routes the progressive-disclosure question to `/docs-hygiene:audit-progressive-disclosure`",
         "Produces no I1-I5 hygiene finding on the CLAUDE.md"
+      ]
+    },
+    {
+      "id": 32,
+      "name": "i38-progress-update-suppressor-versus-final-report-contract",
+      "prompt": "/harness-config:audit-instructions skills --target-model opus-5-5. One of my long-running skills says: \"Hold all findings for the final response and don't narrate while you work.\" A second skill dispatches a worker and tells it: \"Your final message is exactly one fenced block with no preamble.\"",
+      "expected_output": "Reports an I38 progress-update suppressor finding on the first skill's line, behavioral tier, proposing to remove the line first and re-test, and, where more updates are still wanted, to say when user-facing text is wanted instead of restoring a blanket rule. The finding fires on the opus-5-5 target because I38 is unscoped. It is not reported as I8-b, since deferring findings to the final response drops none, and not as I8-e. The second skill's line is not a finding: it fixes the shape of the final message and says nothing about text between tool calls.",
+      "files": [],
+      "expectations": [
+        "Reports I38 on the 'Hold all findings for the final response' line",
+        "Proposes removing the line and re-testing, with a when-to-update line as the fallback, not a forced cadence",
+        "Does not report the line under I8-b or I8-e",
+        "Does not flag the worker's final-message contract"
+      ]
+    },
+    {
+      "id": 33,
+      "name": "i39-same-file-contradiction-versus-narrower-exception",
+      "prompt": "/harness-config:audit-instructions evals/fixtures/i39-same-file.md relative to the skill directory, treated as this repository's root CLAUDE.md; no other instruction surface exists.",
+      "expected_output": "Reports one I39 finding on the file: the Branches section requires every release commit to go through a release branch and a pull request, while the Tagging section pushes release commits straight to main with no pull request, and nothing in the file says which wins. The finding quotes both lines, is anchored on the earlier one, and reports the pair as unresolved for the operator, since the file does not show which is current. The Formatting section is not a finding: skipping the formatter under vendor/ is a narrower exception to the general rule. The run reports no I15 finding, because only one surface is in scope.",
+      "files": [
+        "evals/fixtures/i39-same-file.md"
+      ],
+      "expectations": [
+        "Reports exactly one I39 finding, on the release-branch versus straight-to-main pair",
+        "Quotes both lines and reports the pair as unresolved rather than picking a winner",
+        "Does not flag the formatter rule and its vendor/ exception",
+        "Reports no I15 finding"
       ]
     }
   ]

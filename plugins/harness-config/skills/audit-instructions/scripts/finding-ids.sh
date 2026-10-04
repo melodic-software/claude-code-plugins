@@ -121,6 +121,8 @@ claim_template() {
   I35) echo "I35.settled-answers-instruction" ;;
   I36) echo "I36.tool-discouraging-language" ;;
   I37) echo "I37.harness-text-after-every-tool-result" ;;
+  I38) echo "I38.progress-update-suppressor" ;;
+  I39) echo "I39.same-file-contradiction" ;;
   *) return 1 ;;
   esac
 }
