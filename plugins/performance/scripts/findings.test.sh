@@ -1013,6 +1013,7 @@ SHAPES=(
   "glab glp""at-gl1515aaaaaaaa" "npm np""m_npm1616aaaaaaaaaaaaaaaaaaaaaa" "curl ey""JhbGc1717.eyJzdWIi.c2ln"
   'az "https://a.blob/c?sv=1&sig=sg1818&x=1"' 'psql postgres://u:''pa/ss1919@h/db'
   'psql postgres://u:''p@ss2020@h/db' 'aws configure set aws_secret_access_key ''as2121'
+  'somecli -p ''sp2222 run' 'npm run lint'
 )
 OUT="$TR3"
 # shellcheck disable=SC2016  # the backticks are a literal command under test, never run here
@@ -1023,9 +1024,12 @@ for _ in 1 2; do bash_use3 Read '{"file_path":"docs/a`b.md"}'; done
 run transcript-counts "$TR3"
 assert_eq "transcript-counts exits 0 on more secret shapes" "0" "$RUN_RC"
 for secret in hunter3 pw4444 key5555 tok6666 ck7777 br8888 pw9999 dl1010 ps1111 pk1212 abc1313 \
-  SyA1414 gl1515 npm1616 hbGc1717 sg1818 ss1919 ss2020 as2121; do
+  SyA1414 gl1515 npm1616 hbGc1717 sg1818 ss1919 ss2020 as2121 sp2222; do
   assert_not_contains "no secret reaches the counts: $secret" "$secret" "$RUN_OUT"
 done
+assert_eq "a space-separated -p value is redacted and still counted" "2" \
+  "$(count_of "$(tagged 'somecli -p *** run')")"
+assert_eq "a command with no secret shape keeps its text" "2" "$(q '.repeated_commands["npm run lint"]')"
 assert_eq "a backtick in a repeated read becomes a quote" "2" "$(q '.repeated_reads["docs/a'"'"'b.md"]')"
 assert_eq "a backtick in a repeated command becomes a quote" "2" "$(count_of "$(tagged "echo 'id'")")"
 assert_not_contains "no backtick reaches the counts" '`' "$RUN_OUT"

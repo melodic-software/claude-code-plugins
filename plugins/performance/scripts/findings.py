@@ -766,6 +766,8 @@ SECRETS = (
         r"\1***",
     ),
     (re.compile(r"(?<!\S)(-p)(?=\S)\S+"), r"\1***"),
+    # A standalone -p before a value is often a password; `mkdir -p dir` over-redacts, accepted.
+    (re.compile(r"(?<!\S)(-p\s{1,16})(?!-)" + VALUE), r"\1***"),
     (re.compile(r"(?i)(\blogin\b[^|;&\n]{0,100}?\s-p\s+)" + VALUE), r"\1***"),
     (
         re.compile(rf"(?i)\b([\w-]{{0,64}}{SECRET_WORD}[\w-]{{0,64}}\s+)(?!-)" + VALUE),
