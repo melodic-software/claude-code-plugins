@@ -7,6 +7,7 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Added
 
+- **`/planning:interview` asks the quality bar in round 1 and scales grilling depth to it.** When the request does not state whether the work is a throwaway prototype, an internal tool, or production, round 1 asks; a stated bar is never re-asked. A prototype gets scoping questions only, with production concerns left out or deferred; production gets the full depth, including failure handling, data correctness, security, monitoring, and rollback.
 - **`/planning:design` Phase 3 applies a stack-agnostic type-discipline reference and reads a TypeScript file when it detects TypeScript.**
   `reference/type-discipline.md` covers unrepresentable illegal states, values built from always-valid parts, parsing outside input once at the boundary, no unproven casts, compiler-enforced exhaustiveness, one source per shape, and strengthening only where a value can be wrong.
   `reference/type-discipline/typescript.md` loads when the repository has a `tsconfig.json` or the change touches `.ts`, `.tsx`, `.mts` or `.cts` files; it parses through the schema library the manifest already declares (none named as a default), types the schema against a type written first, and falls back to a hand-written parse function with no new dependency.
