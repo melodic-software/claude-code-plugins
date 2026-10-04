@@ -103,9 +103,10 @@ fi
 # Drift detection
 # --------------------------------------------------------------------------
 out="$(run_hook "$(payload_for "$repo/.claude/rules/csharp.md")")"
-expect_has "a rules-tree write on a drifted index reports drift" "$out" "stale"
-expect_has "the notice names the rule that changed" "$out" "csharp.md"
-expect_has "the notice says why it matters" "$out" "goes unnamed"
+expect_has "a rules-tree write on a drifted index reports drift" "$out" "no longer matches"
+expect_has "the notice goes to the model, which can regenerate" "$out" '"additionalContext"'
+expect_lacks "the notice is not also shown to the user" "$out" "systemMessage"
+expect_has "the notice gives the regenerate command" "$out" "render-index.sh"
 
 run_hook "$(payload_for "$repo/.claude/rules/csharp.md")" >/dev/null
 expect_eq "the hook is advisory — it exits 0 even on drift" "0" "$?"
@@ -160,19 +161,19 @@ killrepo="$(build_drifted)"
 kill_payload="$(payload_for "$killrepo/.claude/rules/csharp.md")"
 
 out="$(run_hook "$kill_payload")"
-expect_has "control: the fixture really is drifted with no switch set" "$out" "stale"
+expect_has "control: the fixture really is drifted with no switch set" "$out" "no longer matches"
 
 out="$(printf '%s' "$kill_payload" |
   CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED=false bash "$HOOK" 2>&1)"
-expect_lacks "the documented kill switch silences the hook" "$out" "stale"
+expect_lacks "the documented kill switch silences the hook" "$out" "no longer matches"
 
 out="$(printf '%s' "$kill_payload" |
   CLAUDE_PLUGIN_OPTION_INSTRUCTION_PLACEMENT_INDEX_DRIFT_ENABLED=false bash "$HOOK" 2>&1)"
-expect_has "a variable Claude Code never sets does NOT silence the hook" "$out" "stale"
+expect_has "a variable Claude Code never sets does NOT silence the hook" "$out" "no longer matches"
 
 out="$(printf '%s' "$kill_payload" |
   CLAUDE_PLUGIN_OPTION_INDEX_DRIFT_HOOK_ENABLED=true bash "$HOOK" 2>&1)"
-expect_has "an explicit true leaves the hook running" "$out" "stale"
+expect_has "an explicit true leaves the hook running" "$out" "no longer matches"
 
 # --- #3713 advisory abort boundary ------------------------------------------
 idx_empty_rc=0
@@ -197,7 +198,7 @@ idx_body_case() { # label repo expect-stale
   expect_eq "$label: exits 0" "0" "$rc"
   expect_eq "$label: stderr is empty (body ran to completion)" "" "$err"
   if [[ "$stale" == yes ]]; then
-    expect_has "$label: stdout carries the stale notice" "$out" "stale"
+    expect_has "$label: stdout carries the stale notice" "$out" "no longer matches"
   else
     expect_eq "$label: stdout is empty" "" "$out"
   fi

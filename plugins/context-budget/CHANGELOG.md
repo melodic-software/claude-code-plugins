@@ -7,6 +7,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [0.9.7] - 2026-10-04
+
+### Changed
+
+- **Shorter settings-write prompt (#6225).** The permission prompt's reason drops the target path (the prompt shows it) and the checkpoint description, and keeps the note that the audit's fix path never writes user-global settings.
+
 ## [0.9.6] - 2026-10-04
 
 ### Changed
