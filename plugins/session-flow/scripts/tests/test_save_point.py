@@ -480,6 +480,9 @@ def test_validate_flags_a_github_app_installation_token_in_jwt_form(tmp_path):
         "ghs_1_eyJa." * 30000,
         "ghs_1_eyJ-" * 30000,
         "-eyJ" * 75000,
+        "eyJ" + "A" * 600000,
+        ("eyJ" + "A" * 600) * 1000,
+        ("-eyJ" * 127 + " ") * 600,
         "a." * 150000,
         "a." * 32 + "a@" + "a." * 150000,
         "-----BEGIN a PRIVATE KEY-----" * 20000,
@@ -490,6 +493,9 @@ def test_validate_flags_a_github_app_installation_token_in_jwt_form(tmp_path):
         "dotted",
         "header-dash",
         "jwt-header",
+        "jwt-long-header",
+        "jwt-long-header-repeated",
+        "jwt-header-near-bound",
         "scheme",
         "scheme-at",
         "private-key",
@@ -514,6 +520,8 @@ def test_secret_shape_scan_of_an_adversarial_line_finishes_promptly(line):
             "JWT",
         ),
         ("eyJ" + "A" * 509 + ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal", "JWT"),
+        ("eyJ" + "A" * 513 + ".eyJzdWIiOiJGQUtFIn0" ".FAKEsignatureNOTreal", "JWT"),
+        ("eyJ" + "A" * 4000 + ".eyJzdWIiOiJGQUtFIn0" ".FAKEsignatureNOTreal", "JWT"),
         ("dsn postgres://u:p@h/db", "connection string"),
         (
             "postgresql+psycopg2://user:FAKEpass@db.example.com:5432/app",
@@ -521,7 +529,15 @@ def test_secret_shape_scan_of_an_adversarial_line_finishes_promptly(line):
         ),
         ("m" * 64 + "://u:p@h", "connection string"),
     ],
-    ids=["jwt", "jwt-512-header", "url", "url-compound-scheme", "url-64-scheme"],
+    ids=[
+        "jwt",
+        "jwt-512-header",
+        "jwt-513-header",
+        "jwt-4000-header",
+        "url",
+        "url-compound-scheme",
+        "url-64-scheme",
+    ],
 )
 def test_bounded_secret_shapes_still_flag_realistic_secrets(text, label):
     labels = {

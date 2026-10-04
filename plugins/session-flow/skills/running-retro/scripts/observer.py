@@ -938,6 +938,12 @@ _REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
         "<REDACTED: JWT>",
     ),
     (
+        # A header past the bound: the whole run, dots included, in one match.
+        # After the JWT rule, since a long payload segment also starts `eyJ`.
+        re.compile(r"\beyJ[A-Za-z0-9_-]{513}[A-Za-z0-9_.-]*"),
+        "<REDACTED: JWT>",
+    ),
+    (
         re.compile(
             r"(?i)\b(?:bearer|token|api[_-]?key|secret|password|passwd|pwd)"
             r"['\"]?\s*[:=]\s*['\"]?[A-Za-z0-9._+/=-]{8,}"

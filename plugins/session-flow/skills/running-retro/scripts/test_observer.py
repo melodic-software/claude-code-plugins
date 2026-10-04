@@ -858,12 +858,15 @@ class Redaction(unittest.TestCase):
                 "<REDACTED: email>",
             )
         ]
-        self.assertEqual(len(patterns), 3)
+        self.assertEqual(len(patterns), 4)
         for text in (
             "ghs_1_-" * 50000,
             "ghs_1_eyJa." * 30000,
             "ghs_1_eyJ-" * 30000,
             "-eyJ" * 75000,
+            "eyJ" + "A" * 600000,
+            ("eyJ" + "A" * 600) * 1000,
+            ("-eyJ" * 127 + " ") * 600,
             "a." * 150000,
             "a." * 32 + "a@" + "a." * 150000,
         ):
@@ -898,6 +901,16 @@ class Redaction(unittest.TestCase):
         self.assertEqual("auth <REDACTED: JWT> x", r(f"auth {jwt} x"))
         long_header = "eyJ" + "A" * 509 + ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal"
         self.assertEqual("<REDACTED: JWT>", r(long_header))
+        # A header past the bound, as with an embedded x5c chain, is redacted
+        # whole, payload and signature included.
+        for size in (513, 4000):
+            with self.subTest(header=size):
+                token = (
+                    "eyJ" + "A" * size + ".eyJzdWIiOiJGQUtFIn0" ".FAKEsignatureNOTreal"
+                )
+                self.assertEqual("auth <REDACTED: JWT> x", r(f"auth {token} x"))
+        long_payload = "eyJhbGciOiJIUzI1NiJ9" ".eyJ" + "B" * 2000 + ".FAKEsignature"
+        self.assertEqual("<REDACTED: JWT>", r(long_payload))
         self.assertEqual(
             "dsn <REDACTED: connection string>",
             r("dsn postgresql+psycopg2://user:FAKEpass@db.example.com:5432/app"),
