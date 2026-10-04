@@ -251,7 +251,9 @@ skill's module check), none of the following runs except the PostCompact marker.
   crossings the module sends one approach line per boundary per cycle (`approach_margin`
   percentage points before it), one line per `thresholds` entry passed, the verdict restated once
   after a compaction (not a `precompute` one) and after an in-process resume, and, on a reload or a
-  worker respawn (a load with earlier turns), the verdict only when it is past `smart`. After
+  worker respawn (a load with earlier turns), the verdict only when it is past `smart`. Lines due
+  at one carrier: a crossing or restatement recorded before a pending restatement merges into it;
+  a crossing recorded after it is the newer verdict and replaces it. After
   `/clear` it sends nothing: the new session starts in `smart`. Lines go to the main conversation
   only, never to a subagent. In `operator` report mode a turn a person typed holds the lines and
   offers them as the prompt box's suggestion plus a notice row when the turn ends; headless,
@@ -259,7 +261,11 @@ skill's module check), none of the following runs except the PostCompact marker.
   transcript line Claude does not read and a toast, plus a notice row on every surface but the
   terminal, where a toast may not show) carries the same crossing plus the continuation menu that
   is the human's call to make (continue / `/compact` / `/clear` / `/session-flow:handoff` then
-  `/clear`). The transcript line ends `more: /context-guard`, and the `/context-guard` status
+  `/clear`), at the reading that saw the crossing rather than at the carrier that takes Claude's
+  line (a measurement, a tool call, a prompt, or a `/context-guard` or status-tool read), and not
+  for a first reading already past `smart`, which has no earlier zone to name. A crossing already
+  shown in an unattended turn is not offered again as a typed turn's suggestion. The
+  transcript line ends `more: /context-guard`, and the `/context-guard` status
   output carries the router pointer and the docs link: the menu does not say which option fits
   when, so the status output says to route the next step with `/session-flow:workflow` (if
   installed). Without session-flow, we send the operator to the docs section on a filling context

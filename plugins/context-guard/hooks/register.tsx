@@ -52,8 +52,11 @@ type Snapshot = {
   }
 }
 type Reading = { zone: Zone | undefined; degraded: boolean; percent?: number; tokens?: number; window: number; token?: TokenShape }
+// shown: the person's channel has handled it: the batch's last crossing got the transcript line
+// (and the toast, when on), or it came from 'unobserved' and was deliberately skipped.
+type Crossing = { kind: 'crossing'; from: string; zone: Zone; degraded: boolean; handedOff?: boolean; shown?: boolean; armedBefore: number }
 type Event =
-  | { kind: 'crossing'; from: string; zone: Zone; degraded: boolean; handedOff?: boolean; armedBefore: number }
+  | Crossing
   | { kind: 'restate'; zone: Zone; degraded: boolean }
   | { kind: 'approach'; zone: Zone; toward: string }
   | { kind: 'threshold'; zone: Zone; degraded: boolean; rule: Threshold }
@@ -482,12 +485,21 @@ async function takeLines($: EngineInterface, st: State, cfg: Config, fire: Fire)
     s.pending = []
     return []
   }
-  if (cfg.lines && (await operatorHolds($, st, cfg))) return []
-  const taken = s.pending.splice(0)
-  // A restatement says the current verdict, so a crossing or an earlier restatement due at the same
-  // carrier merges into it rather than reaching Claude twice.
-  const lastRestate = taken.findLastIndex(e => e.kind === 'restate')
-  const events = lastRestate < 0 ? taken : taken.filter((e, i) => i === lastRestate || (e.kind !== 'crossing' && e.kind !== 'restate'))
+  const holds = cfg.lines && (await operatorHolds($, st, cfg))
+  // A restatement says the verdict as of when it was recorded, so a crossing or an earlier
+  // restatement before it merges into it rather than reaching Claude twice. A crossing recorded
+  // after it is the newer verdict and replaces it. No await from here until s.pending is replaced.
+  const pending = s.pending
+  const lastRestate = pending.findLastIndex(e => e.kind === 'restate')
+  const keep = pending.findLastIndex(e => e.kind === 'crossing') > lastRestate ? -1 : lastRestate
+  const merged =
+    lastRestate < 0 ? pending : pending.filter((e, i) => i > lastRestate || i === keep || (e.kind !== 'crossing' && e.kind !== 'restate'))
+  // A hold keeps lines for the suggestion, except a crossing the person was already shown (read in an
+  // unattended turn): offering it again would repeat it, so it goes to Claude as in automatic mode.
+  const seen = (e: Event) => e.kind === 'crossing' && e.shown === true
+  const events = holds ? merged.filter(seen) : merged
+  s.pending = holds ? merged.filter(e => !seen(e)) : []
+  if (holds && events.length === 0) return []
   st.forceAutomatic = false
   let lines: string[] = []
   if (cfg.lines && events.length > 0) {
@@ -495,27 +507,48 @@ async function takeLines($: EngineInterface, st: State, cfg: Config, fire: Fire)
     lines = renderAll(events, s, cfg, st.settings)
   }
   // The person's channel runs after Claude's lines are built, so a failing toast never drops one.
-  const crossed = events.filter(e => e.kind === 'crossing' && !e.handedOff).at(-1)
-  if (crossed?.kind === 'crossing') {
-    const to = menuZone(crossed.zone, crossed.degraded)
+  showCrossing($, st, cfg, events)
+  return lines
+}
+
+// Shows the person the last crossing among events not yet shown: a toast, a transcript line and the
+// crossing notice. Each crossing is shown once. A handed-off suggestion already reached the person,
+// and a crossing from 'unobserved' (a first reading already past smart) is never shown.
+function showCrossing($: EngineInterface, st: State, cfg: Config, events: Event[]) {
+  const due = events.filter((e): e is Crossing => e.kind === 'crossing' && !e.handedOff && !e.shown)
+  const crossed = due.at(-1)
+  const showable = crossed !== undefined && crossed.from !== 'unobserved'
+  const to = showable ? menuZone(crossed.zone, crossed.degraded) : ''
+  if (showable) {
     st.notice = { text: menuLine(crossed.from, to), kind: 'crossing' }
     $.ui.log(st.notice.text)
-    if (cfg.toast) {
-      try {
-        $.ui.toast(toastText(crossed.from, to))
-      } catch (error) {
-        logOnce($, st, 'toast', `toast failed: ${error instanceof Error ? error.message : String(error)}`)
-      }
-    }
-    $.ui.invalidate('ui.render')
   }
-  return lines
+  for (const e of due) e.shown = true
+  if (!showable) return
+  if (cfg.toast) {
+    try {
+      $.ui.toast(toastText(crossed.from, to))
+    } catch (error) {
+      logOnce($, st, 'toast', `toast failed: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+  $.ui.invalidate('ui.render')
+}
+
+// A crossing read with a turn's final answer has no carrier until the next prompt, so the person
+// sees it at the measurement; Claude's line still waits for that carrier. A turn operator mode
+// holds keeps it for the suggestion.
+async function showPending($: EngineInterface, st: State, cfg: Config) {
+  const s = st.sessions.get(await $.session.id())
+  if (s === undefined || !cfg.enabled) return
+  if (cfg.lines && (await operatorHolds($, st, cfg))) return
+  showCrossing($, st, cfg, s.pending)
 }
 
 // Offers the held lines as the prompt box's suggestion. With text in the box it waits (false);
 // where a suggestion cannot show, the lines go to Claude at the next carrier.
 async function offer($: EngineInterface, st: State, s: Session, fire: Fire) {
-  if (st.notice === undefined) return true
+  if (st.notice?.kind !== 'operator') return true
   const box = await $.prompt.read()
   if (box.text.trim() !== '') return false
   const { isShown } = await $.prompt.suggest({ text: st.notice.text })
@@ -550,6 +583,7 @@ const DOCS = 'https://code.claude.com/docs/en/context-window#when-your-context-f
 // to go next. The person's channel only; Claude never reads it.
 async function statusText($: EngineInterface, st: State, cfg: Config) {
   const { s, body, settings } = await refresh($, st)
+  await showPending($, st, cfg)
   const r = s.reading
   const w = body.context_window
   const verdict = r?.zone === undefined ? 'zone unknown' : verdictText(r.zone, r.degraded)
@@ -560,7 +594,7 @@ async function statusText($: EngineInterface, st: State, cfg: Config) {
   const home = await homeDir($)
   const zones = home === undefined ? 'zones.json: no home directory' : `${home}/.claude/${CONTRACT_DIR}/zones.json (${st.zonesText === null ? 'absent' : 'present'})`
   return [
-    `context-guard: ${verdict}, ${figures}`,
+    `${verdict}, ${figures}`,
     `Bands: smart up to ${settings.bands.smart}%, acceptable up to ${settings.bands.acceptable}%; approach margin ${settings.margin} points; gate ${cfg.blocking ? `blocking, ${cfg.grace} grace calls` : 'advisory'}`,
     `This session: band row ${st.bandShown ? 'on' : 'off'}, zone-change toast ${cfg.toast ? 'on' : 'off'}`,
     `Settings: ${zones}`,
@@ -571,6 +605,7 @@ async function statusText($: EngineInterface, st: State, cfg: Config) {
 
 async function statusJson($: EngineInterface, st: State, cfg: Config) {
   const { s, body, settings } = await refresh($, st)
+  await showPending($, st, cfg)
   const w = body.context_window
   return JSON.stringify({
     source: 'the last API response',
@@ -781,6 +816,7 @@ export const register: Register = (on, options) => {
   on('session.measure', async ($, e, next) => {
     await refresh($, st)
     await queueWrite($, st)
+    await showPending($, st, cfg)
     return next(e)
   }).catch(($, e, next) => next(e))
 
@@ -824,7 +860,8 @@ export const register: Register = (on, options) => {
     if (sub !== 'band' || rest.length > 0 || (arg !== undefined && arg !== 'on' && arg !== 'off')) return { text: USAGE }
     st.bandShown = arg === undefined ? !st.bandShown : arg === 'on'
     $.ui.invalidate('ui.render')
-    return { text: `context-guard: band row ${st.bandShown ? 'on' : 'off'} for this session` }
+    // Claude Code puts the plugin's name before a command's reply, so no reply carries it again.
+    return { text: `band row ${st.bandShown ? 'on' : 'off'} for this session` }
   }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {

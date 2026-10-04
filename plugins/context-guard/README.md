@@ -62,8 +62,10 @@ A dip below a boundary sends nothing and starts no new cycle; only a return to `
 `unknown` reading sends nothing and changes nothing. Every line carries only the verdict: the zone
 word, its rank of three, and "Continuing is the user's call." A crossing or restatement inside the
 approach margin of the next zone adds ", nearing <zone>", and an approach line that would repeat
-it is not sent. A crossing or restatement in `dumb` also carries the save-state note. `zone_line_data` adds figures (percent, tokens, window); by
-default a line carries none, and it never carries a session id. A configured action's sentence
+it is not sent. A crossing or restatement in `dumb` also carries the save-state note. Lines due at
+one carrier: a crossing or restatement recorded before a pending restatement merges into it; a
+crossing recorded after it is the newer verdict and replaces it. `zone_line_data` adds figures (percent, tokens,
+window); by default a line carries none, and it never carries a session id. A configured action's sentence
 (`zones.json` `actions` and `thresholds`, see the [reader contract](reference/reader-contract.md))
 appears at its crossing, never before. Subagents get no line.
 
@@ -71,8 +73,13 @@ At a crossing the person gets the continuation menu (continue, `/compact`, `/cle
 `/session-flow:handoff` then `/clear`) as a 4-second toast, such as
 `smart → acceptable · continue, /compact, /clear or handoff`, and one transcript line Claude does
 not read, ending `more: /context-guard`. `context_guard_toast` turns the toast off; the transcript
-line stays. On every surface but the terminal (the Desktop app, VS Code), where a toast may not
-show, the line is also drawn as one notice row above the prompt until the next typed prompt.
+line stays. Both come right after the response, tool call, prompt or status read (`/context-guard`
+or the status tool) that showed the crossing, even when Claude's line waits for the next prompt. A
+turn [operator mode](#operator-mode) holds gets neither, and neither does a session whose first
+reading is already past `smart`, which gets only Claude's line. A crossing already shown in an
+unattended turn is not offered again in the next typed turn; Claude gets it at that turn's first
+carrier. On every surface but the terminal (the Desktop app, VS Code), where a toast may not show, the
+line is also drawn as one notice row above the prompt until the next typed prompt.
 `/context-guard` holds the route through `/session-flow:workflow` and
 [When your context fills up](https://code.claude.com/docs/en/context-window#when-your-context-fills-up).
 The menu never reaches Claude: an exit menu in model context manufactures the model's own

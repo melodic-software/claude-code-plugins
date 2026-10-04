@@ -1014,6 +1014,99 @@ test('operator mode: a suggestion that cannot show goes to Claude at the next pr
   expect(own((await prompt($, 'composer')).context)).toEqual([crossing('acceptable')])
 })
 
+const measure = ($: any, percent: number) =>
+  $.session.measure({ context: { window: 200_000, percent, tokens: percent * 2_000 }, rateLimits: [], changed: ['context'] } as any)
+
+test('menu: a crossing read with the turn\'s final answer reaches the person before the next prompt, and Claude at the next carrier with no second toast', async ($, on) => {
+  const { w } = world(on)
+  await bash($)
+  w.percent = 60
+  await measure($, 60)
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  expect(w.toasts).toEqual([TOAST('smart', 'acceptable')])
+  expect(w.logs).toEqual([MENU('smart', 'acceptable')])
+  expect(await notice($, 'desktop')).toBe(MENU('smart', 'acceptable'))
+  expect(own((await prompt($, 'sdk')).context)).toEqual([crossing('acceptable')])
+  expect(w.toasts).toHaveLength(1)
+  expect(w.logs).toHaveLength(1)
+})
+
+test('menu: a crossing read after a pending restatement reaches the person at once and gives Claude the current verdict', async ($, on) => {
+  const { w } = world(on, { turns: 3, percent: 60 })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
+  await measure($, 60)
+  w.percent = 80
+  await measure($, 80)
+  expect(w.toasts).toEqual([TOAST('acceptable', 'dumb')])
+  expect(w.logs).toEqual([MENU('acceptable', 'dumb')])
+  expect(own((await prompt($, 'sdk')).context)).toEqual([`${crossing('dumb')} ${SAVE}`])
+  expect(w.toasts).toHaveLength(1)
+})
+
+test('operator mode: a crossing shown at the end of an unattended turn is not offered again in the next typed turn, and Claude gets its line', OPERATOR, async ($, on) => {
+  const { w } = world(on)
+  await prompt($, 'sdk')
+  await bash($)
+  w.percent = 60
+  await measure($, 60)
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  expect(own((await prompt($, 'composer')).context)).toEqual([crossing('acceptable')])
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  expect(w.suggested).toEqual([])
+  expect(await notice($)).toBeUndefined()
+  expect(w.toasts).toEqual([TOAST('smart', 'acceptable')])
+  expect(w.logs).toEqual([MENU('smart', 'acceptable')])
+})
+
+test('operator mode: a shown crossing recorded before a pending restatement merges into it, and the restatement is offered, not the stale crossing', OPERATOR, async ($, on) => {
+  const { w } = world(on)
+  await prompt($, 'sdk')
+  await bash($)
+  w.percent = 60
+  await measure($, 60)
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  await compact($, 'manual')
+  expect(own((await prompt($, 'composer')).context)).toEqual([])
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  expect(w.suggested).toEqual([`FYI, ${restated('degraded', ` ${SAVE}`)}`])
+})
+
+for (const [via, read] of [
+  ['/context-guard', ($: any) => cmd($)],
+  ['the status tool', ($: any) => $.tool.call({ tool: 'mcp__context-guard__status' } as any)],
+] as const) {
+  test(`menu: a crossing first read by ${via} reaches the person in that call, and Claude at the next carrier with no second toast`, async ($, on) => {
+    const { w } = world(on)
+    await bash($)
+    w.percent = 60
+    await read($)
+    expect(w.toasts).toEqual([TOAST('smart', 'acceptable')])
+    expect(w.logs).toEqual([MENU('smart', 'acceptable')])
+    expect(own((await bash($)).context)).toEqual([crossing('acceptable')])
+    expect(w.toasts).toHaveLength(1)
+  })
+}
+
+test('menu: a crossing read with the final answer of a turn operator mode holds is not toasted', OPERATOR, async ($, on) => {
+  const { w } = world(on)
+  await prompt($, 'composer')
+  await bash($)
+  w.percent = 60
+  await measure($, 60)
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  expect(w.toasts).toEqual([])
+  expect(w.logs).toEqual([])
+  expect(w.suggested).toEqual([`FYI, ${crossing('acceptable')}`])
+})
+
+test('menu: a first reading already past smart gives the person no toast and no transcript line, and Claude its line', async ($, on) => {
+  const { w } = world(on)
+  expect((await walk($, w, [80])).flat()).toEqual([`${crossing('dumb')} ${SAVE}`])
+  expect(w.toasts).toEqual([])
+  expect(w.logs).toEqual([])
+  expect(await notice($, 'desktop')).toBeUndefined()
+})
+
 test('menu: a crossing in automatic mode gives the person one transcript line and one toast, never Claude', async ($, on) => {
   const { w } = world(on)
   const lines = (await walk($, w, [30, 47, 60])).flat()
@@ -1123,13 +1216,13 @@ test('command: band on, band off and a bare band toggle the row for the session'
   world(on)
   await bash($)
   expect((await bandRow($)).row).toBeUndefined()
-  expect((await cmd($, 'band on')).text).toBe('context-guard: band row on for this session')
+  expect((await cmd($, 'band on')).text).toBe('band row on for this session')
   expect((await bandRow($)).row).toBe('ctx 30% (smart)')
-  expect((await cmd($, 'band on')).text).toBe('context-guard: band row on for this session')
-  expect((await cmd($, 'band off')).text).toBe('context-guard: band row off for this session')
+  expect((await cmd($, 'band on')).text).toBe('band row on for this session')
+  expect((await cmd($, 'band off')).text).toBe('band row off for this session')
   expect((await bandRow($)).row).toBeUndefined()
-  expect((await cmd($, 'band')).text).toBe('context-guard: band row on for this session')
-  expect((await cmd($, ' BAND ')).text).toBe('context-guard: band row off for this session')
+  expect((await cmd($, 'band')).text).toBe('band row on for this session')
+  expect((await cmd($, ' BAND ')).text).toBe('band row off for this session')
 })
 
 test('command: an unknown argument gets the usage line and changes nothing', async ($, on) => {
@@ -1144,8 +1237,10 @@ test('command: no argument prints the status and details', BLOCKING(7), async ($
   const { w } = world(on, { percent: 60 })
   zonesFile(w, { approach_margin: 4 })
   const text = String((await cmd($)).text)
+  // Claude Code puts the plugin's name before a command's reply, so the reply carries none of its own.
+  expect(text.startsWith('acceptable zone (2 of 3), ')).toBe(true)
+  expect(text).not.toContain('context-guard: ')
   for (const part of [
-    'context-guard: acceptable zone (2 of 3)',
     '60% of a 200000-token window used (120000 tokens)',
     'smart up to 50%, acceptable up to 75%',
     'approach margin 4 points',
@@ -1164,7 +1259,7 @@ test('command: no argument prints the status and details', BLOCKING(7), async ($
 test('command: the status says when zones.json is absent and the zone is unknown', async ($, on) => {
   world(on, { percent: undefined })
   const text = String((await cmd($)).text)
-  expect(text).toContain('context-guard: zone unknown')
+  expect(text.startsWith('zone unknown, ')).toBe(true)
   expect(text).toContain('/srv/u/.claude/context-guard/zones.json (absent)')
 })
 
