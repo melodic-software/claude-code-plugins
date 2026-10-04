@@ -1,40 +1,38 @@
 # wizard
 
-A Claude Code plugin that generates **interactive bash wizards**, scripts that
-walk a human, step by step, through the manual procedures an agent cannot
-perform: provisioning infrastructure or credentials, setting CI secrets,
-clicking through an unfamiliar third-party dashboard, or sequencing a one-off
-migration or cutover. The wizard opens each URL, says exactly what to click and
-copy, captures the values, writes them where they belong (`.env`, CI secrets),
-and confirms at every stage.
+A Claude Code plugin for setup work that depends on a person's own logins and
+approvals. It writes **interactive bash wizards**. When the person has run one,
+the project's `.env` and CI secret store hold the values it needs, and a closing
+summary names anything still left to do by hand.
 
 | Skill | What it does |
 |---|---|
 | `/wizard:generate` | Scope the manual procedure from the repo, author its stages onto the fixed hardened template, verify statically, and hand off to the human after explicit approval |
 | `/wizard:unattended` | Author a PowerShell script the human launches once when the work is scriptable and the human is only the privilege or policy boundary. The script writes `cutover.result/1` JSON. Needs PowerShell 7 (`pwsh`); see Prerequisites |
 
-The skill is model-invoked: when the agent hits a step only a human can take,
-a key it can't mint, a dashboard it can't click, it can reach for this instead
-of dumping numbered instructions into the chat. It is fenced the other way too:
-it never fires for steps the agent can perform itself.
+Invocation: `/wizard:generate` is model-invoked as well as typed. Its
+description limits it to steps outside the agent's reach and excludes any step
+the agent could carry out itself.
 
 ## Security posture
 
-- **The agent authors the script; it never runs it.** The human runs the wizard
-  in their own terminal. The script itself refuses to start without a
+- **Only the person runs a wizard.** It runs in their own terminal; the agent's
+  part ends once the file is written. The script itself refuses to start without a
   controlling TTY (`/dev/tty`), so its confirmation gates cannot be satisfied by
   piped or pasted input.
 - **Human approval gate.** The skill's verify step is stop-the-line: the full
   `STAGES` block is printed to the user and explicitly approved BEFORE the
   script is made executable or offered for running.
-- **Captured values never reach the model.** Runtime capture happens in the
-  human's terminal (hidden entry for secrets) and writes straight to `.env` or
-  `gh`; the model is not connected to the running script. At authoring time the
-  skill reads key **names** only from a live `.env`, never values. The honest
-  caveat: a value the user pastes into the chat is in context like any other
-  pasted text.
-- **Hardened template.** The fixed library above the `STAGES` marker is never hand-edited and is
-  identical in every wizard. It enforces:
+- **What the model can see.** It depends on how a value travels:
+
+  | Value | Visible to the model |
+  |---|---|
+  | Entered at a wizard prompt (secrets unechoed), then written to `.env` or `gh` | Never: the running script has no model attached |
+  | In a live `.env` the skill scans while planning | Key **names** only |
+  | Pasted by the user into the chat | Yes |
+
+- **Hardened template.** Every wizard carries the same library ahead of its `STAGES` marker, and
+  nobody edits that part by hand. It enforces:
   - https-only URL opening, with the full URL printed before dispatch.
   - Fail-closed prompts: a closed terminal aborts rather than falling through.
   - Key-name validation.
@@ -55,9 +53,9 @@ it never fires for steps the agent can perform itself.
   `winget install --id Microsoft.PowerShell --source winget`
   ([install guide](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows)).
 - **`gh` (GitHub CLI), optional**. Only for stages that write GitHub Actions
-  secrets or variables. When `gh` is missing or unauthenticated those stages
-  warn visibly and land in the closing to-do summary instead of failing the
-  run. Wizards whose values live only in `.env` never touch `gh`.
+  secrets or variables. Without an installed, signed-in `gh`, those stages
+  print a warning and are listed in the closing to-do summary; the run
+  continues. Wizards whose values live only in `.env` never touch `gh`.
 
 ## Unattended secrets
 
@@ -74,10 +72,10 @@ lists declared names, never values.
 
 ## Ephemeral by default
 
-A wizard is built for one run: save it to a scratch or `scripts/` path, run it,
-delete it. Commit it only when it is a repeatable setup path the next person on
-the repo will also need. Then link it from the README so they run the script
-instead of re-asking an agent.
+| Will this setup be repeated? | What happens to the script |
+|---|---|
+| No (the default) | Scratch directory or `scripts/`, never committed, removed after the run |
+| Yes, by other contributors | Committed and linked from the project README |
 
 ## Setup skill assessment
 

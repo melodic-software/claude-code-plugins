@@ -1,5 +1,5 @@
 ---
-description: "Generate an interactive bash wizard script that walks a human through the steps only they can perform. The agent authors the script and never runs it; the human runs it in their own terminal. Use when: 'provisioning infrastructure', 'provisioning credentials', 'set up CI secrets', 'walk me through the dashboard', 'guided setup script', 'one-off migration', 'cutover', or a manual dashboard, credential, or third-party-console step is what blocks progress. Don't invoke this for steps the agent can perform itself."
+description: "Write a bash script, an interactive wizard, to guide a person through setup work only they can carry out. The agent writes the script and never executes it; the person runs it in their own terminal. Use when: 'provisioning infrastructure', 'provisioning credentials', 'set up CI secrets', 'walk me through the dashboard', 'guided setup script', 'one-off migration', 'cutover', or progress is blocked on a manual dashboard, credential, or third-party-console step. Skip it for any step the agent can do on its own."
 argument-hint: "<procedure to wizardize>"
 user-invocable: true
 disable-model-invocation: false
@@ -10,102 +10,131 @@ metadata:
 
 # Generate a wizard
 
-A **wizard** is a bash script that walks a human, step by step, through a manual
-procedure that's tedious to do by hand and tedious to re-explain every time. It
-opens each URL, says exactly what to click and copy, captures the values, writes
-them where they belong (`.env`, CI secrets), confirms at every stage, and shows
-how many stages are left.
+Some setup needs a person at a browser: signing in to a vendor console, creating a token, adding a
+DNS record, approving a cutover. Chat instructions for that get lost and have to be written again
+for the next person. A wizard keeps those instructions in a bash script instead. The person
+runs it, and it leads them through the work one screen at a time.
 
-The UX and the security hardening are already solved by [template.sh](template.sh).
-Stage-by-stage progress, fail-closed TTY-only prompts, https-only URL opening
-(cross-platform incl. WSL and Git Bash), hidden secret entry, quoted `0600`
-`.env` upserts with a gitignore check, repo-confirmed `gh secret`/`gh variable`
-writes over stdin, and a closing names-only summary. **Your job is only to scope
-the procedure and author its stages.** The library above the `STAGES` marker is
-identical in every wizard; that consistency is the point. Never hand-edit it.
+## Running example
 
-A wizard is ephemeral by default. It is built for one run, saved to a scratch or
-`scripts/` path, deleted when the job's done. Commit it only when the user wants
-a repeatable setup path that should live in the repo.
+This page uses one fictional case throughout. A project is adding a transactional mail provider and
+needs three stages:
 
-The generated script requires bash; on Windows the supported path is Git Bash or
-WSL. `gh` (authenticated) is needed only by stages that write CI secrets or
-variables. When it's absent those stages warn and land in the closing summary
-instead of failing the run.
+- **Sending domain.** The person registers the domain in the provider's console; the wizard keeps
+  `MAIL_FROM_DOMAIN` (public) in `.env`.
+- **DNS records.** The person adds the records the console lists at their registrar. Nothing is
+  captured; the stage is an action only.
+- **API token.** The person creates a token with send scope. The wizard keeps `MAIL_API_TOKEN`
+  (secret) in `.env`, and also as a CI secret, because the deploy workflow reads
+  `secrets.MAIL_API_TOKEN`.
 
-## Process
+At stage 3 the person sees a `Stage 3/3` header, the console's API page opens in their browser, a
+line tells them which button creates the token, they paste it into a prompt that does not echo, and
+the script confirms it was saved to `.env` and to the repository's CI secrets.
 
-### 1. Scope the procedure
+## What you write, and what is fixed
 
-Work out every manual step the human must take and every value that gets
-captured along the way. Read the repo first. Don't ask cold:
+[template.sh](template.sh) has two parts. Above its `STAGES` marker is a library that is the same in
+every wizard: never edit it, because a wizard can be trusted only while that part does not vary.
+Below the marker is an example stage that you replace. Your work is the stage plan and the stage
+code, nothing else. The library already covers:
 
-- For setup: read `.env.example`, `README`, `docker-compose*`, framework config,
-  and `.github/workflows/*` fully (every `secrets.*` / `vars.*` reference is a
-  value the wizard must produce). From a **live** `.env`, take **key names
-  only**, e.g. `grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' .env`. Never values.
-- For a migration or transition: the current state, the target state, and the
-  irreversible actions between them.
+| Concern | How the library handles it |
+|---|---|
+| Prompts | Read only from `/dev/tty` and fail closed, so a pipe, a CI job or a pasted block cannot answer them |
+| Opening pages | Accepts `https://` URLs only and prints each one before opening it, on macOS, Linux, WSL and Git Bash |
+| Secret input | `ask_secret` hides what is typed |
+| `.env` writes | Values quoted, file mode `0600`, rewritten atomically, with a warning when the file is not gitignored |
+| CI writes | `gh secret` / `gh variable` with the value on stdin, after the person confirms the target repository |
+| Progress and wrap-up | A stage counter, and a closing summary that lists names, never values |
 
-Be honest about what reaches the model if the user asks: values the wizard
-captures at runtime never reach the model. The human runs the script and it
-writes captures straight to `.env` or `gh`. Authoring-time reads are names-only
-by the rule above. A value the user pastes into the chat, though, is in context
-like any other pasted text.
+Running a wizard needs bash; on Windows, use Git Bash or WSL. An authenticated `gh` matters only to
+stages that write CI secrets or variables. Without it, those stages print a warning and appear in
+the closing summary as manual work, and the rest of the run carries on.
 
-Then show the user the ordered list of stages and the values each produces, and
-confirm. They may add, drop, or reorder.
+## Phase 1: the stage plan
 
-**Done when:** every stage is named in order, and for each captured value you
-know (a) where the human gets it, (b) where it's written (`.env`, a CI secret,
-both, or nowhere; some stages are pure actions), and (c) whether it's secret
-(hidden entry) or public.
+The plan is one table, a row per stage in run order. For the running example:
 
-### 2. Map each stage's journey
+| Stage | Value | Secret | Saved to | How the person gets it |
+|---|---|---|---|---|
+| Sending domain | `MAIL_FROM_DOMAIN` | no | `.env` | Mail console: Domains, Add domain, enter the domain |
+| DNS records | none | n/a | nowhere | Registrar: DNS settings, add each record the console listed |
+| API token | `MAIL_API_TOKEN` | yes | `.env` and CI secret | Mail console: API, Create token, send scope, copy it |
 
-For each stage, write the precise path a human follows: which URL to open, what
-to do there, where a value is shown, which variable it fills, e.g. "Dashboard →
-Developers → API keys → Reveal test key → copy". Where you don't actually know
-the current UI or the exact command, say so and ask the user or check the docs.
-Never invent steps that may not exist.
+Fill the table from the repository; the user answers only what the files cannot. Which file answers
+which column:
 
-**Done when:** every stage traces to concrete instructions a stranger could follow.
+| To learn | Look in |
+|---|---|
+| Values CI must receive | Each workflow under `.github/workflows/*`, read whole: a `secrets.*` or `vars.*` reference means a row whose Saved to includes CI |
+| Values the app reads locally | `.env.example`, `docker-compose*`, the framework's config files |
+| Manual steps already written down | `README` |
+| Keys this machine already has | The live `.env`, key names only: `grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' .env`. Its values are never read |
 
-### 3. Author the wizard
+A migration or cutover table gets two extra things: a first row stating the system as it stands and
+a last row stating the state it must reach, and a column marking each row in between that cannot be
+reversed (those rows get a `confirm` in Phase 2).
 
-Copy [template.sh](template.sh) to the target path. Replace the example stage
-with one `stage` per step, in dependency order. Use the library helpers:
-`stage`, `say`/`step`/`note`/`warn`, `open_url`, `ask`/`ask_secret`,
-`write_env`, `set_secret`/`set_var`, `pause`/`confirm`. Then set `TOTAL_STAGES`
-to the number of stages you wrote.
+The last column is written for a newcomer: page address, menu, button, field. A cell you cannot fill
+from knowledge you trust (a console redesigned since you last saw it, a CLI flag you are not sure
+of) is marked `unverified`. Before the table goes to the user, resolve each such cell from the
+vendor's documentation, or ask the user for it in the same message.
 
-Hold the bar the template sets: open the URL (https only) before asking for its
-value, use `ask_secret` for anything secret, `write_env` every persisted value,
-`set_secret` only the values CI actually needs, and `confirm` before any
-irreversible action. Each `stage` clears the screen so only the current step is
-visible. Keep a stage to one focused task so nothing the human needs scrolls
-away. Don't touch the library above the marker.
+The table is the user's to change until they confirm it. Phase 1 ends at that confirmation, with
+no empty or `unverified` cell left.
 
-### 4. Verify and hand off
+What the model sees, if the user asks, depends on the path a value takes:
 
-1. `bash -n <script>`; run `shellcheck` if available. Fix what they find.
-2. Trace it statically. Never run it end-to-end yourself: it opens browsers and
-   blocks on human input, and the agent-never-executes line is the security
-   model. Dispatch a fresh-context subagent to do the trace: hand it the script
-   and the step-1 value list (artifact only, not your reasoning), and have it
-   verify that every value from step 1 is captured and lands where step 1 said,
+| Path | Reaches the model? |
+|---|---|
+| The person types it into the running wizard, which writes `.env` or calls `gh` | No |
+| The skill reads the live `.env` while planning | Key names only |
+| The user pastes it into this chat | Yes, as any pasted text does |
+
+## Phase 2: the stage code
+
+Work in a copy of [template.sh](template.sh) at the chosen path. Delete its example stage and leave
+every line above the `STAGES` marker exactly as it is. The confirmed table then decides the code,
+cell by cell:
+
+| Table content | Code it produces |
+|---|---|
+| Each row, in table order | One `stage` call; `TOTAL_STAGES` equals the row count |
+| How the person gets it | `say`, `step`, `note` and `warn` lines, plus `open_url` (https only) for the page, placed before any prompt for a value from that page |
+| Secret: no / yes | `ask` / `ask_secret` |
+| Saved to `.env` | `write_env` |
+| Saved to CI | `set_secret` for a secret, `set_var` for a public value; never for a value CI does not read |
+| A step that cannot be undone | `confirm` (a yes-or-no question) ahead of it |
+| Value: none | No prompt; `step` lines and a `pause`, which waits for the person |
+
+`stage` clears the terminal and prints the counter, so a row that holds two tasks loses the first
+task's instructions off the top of the screen. Split such a row in two. In the running example,
+stage 2 is the no-prompt case; stage 3 calls `open_url` on the API page, `ask_secret
+MAIL_API_TOKEN`, `write_env`, and `set_secret`, in that order.
+
+## Phase 3: checks and approval
+
+1. Run `bash -n <script>`, and `shellcheck` when it is installed. Fix whatever they report.
+2. Never execute the wizard. It opens a browser and waits for a person, and the fact that the agent
+   never runs it is what keeps captured values away from the model. Check it by reading instead,
+   in a fresh-context subagent given the script and the Phase 1 table only (not your reasoning).
+   The subagent confirms:
+   - each value in the table is captured and saved to the destination the table names;
    <!-- portability-ok: matching set_secret names to CI secrets.* references applies only when the consumer's declared CI-secret destination is GitHub Actions -->
-   that every `set_secret`/`set_var` name exactly matches a `secrets.*`/`vars.*`
-   reference in CI, and that nothing above the `STAGES` marker was edited.
-3. **Stop the line. Human approval gate.** Print the full `STAGES` block
-   (everything below the marker) to the user and get their explicit approval.
-   Do NOT `chmod +x` the script, and do NOT tell the user to run it, until they
-   have read the stages and approved them. This is a hard ordering, not a
-   suggestion: the human is about to feed real credentials to this script, so
-   the human reads it first.
-4. Only after approval: `chmod +x <script>`, then tell the user how to run it.
-   If it's a repeatable setup path, offer to commit it and link it from the
-   README so the next person runs the script instead of asking an AI.
+   - each `set_secret` / `set_var` name is spelled exactly as a `secrets.*` / `vars.*` reference
+     in the CI workflows;
+   - the library above the `STAGES` marker is unchanged.
+3. **Stop the line. Human approval gate.** Show the user the whole `STAGES` block, everything below
+   the marker, and wait for their explicit approval. Until it arrives, do NOT run `chmod +x` and do
+   NOT give the user a command to run. The order is fixed, not advisory: the person is about to type
+   real credentials into this script, so they read it before it can run.
+4. After approval, run `chmod +x <script>` and tell the user how to start it.
+5. Ask the user one question: will this setup recur for other contributors? Without a yes, the
+   script is a one-time tool: it sits in a scratch directory or `scripts/`, never enters git, and
+   is deleted after its run. With a yes, it becomes the repository's record of the setup, kept as
+   code rather than rebuilt in each contributor's chat: commit it and add a link to it in the
+   README.
 
 ## Next
 
@@ -113,12 +142,12 @@ away. Don't touch the library above the marker.
 
 ## Gotchas
 
-- **No back button.** A wrong answer means Ctrl-C and re-run. Cheap by design:
-  values already in `.env` are offered back as defaults, so the human presses
-  Enter through the stages they got right.
-- **TTY required.** The script refuses to start without `/dev/tty`, so it will
-  not run piped, in CI, or driven by pasted input. That is deliberate.
-- **Arrow keys** work in `ask` prompts (readline) but not in `ask_secret`
-  (hidden entry has no line editing). Backspace works in both.
-- **`gh` absence is not an error.** CI-secret stages degrade to a warning plus a
-  closing-summary entry telling the human what to set by hand.
+- **Corrections cost a restart and little else.** Stages only move forward. Each prompt whose key
+  is already in `.env` shows `[Enter keeps current]`, so after Ctrl-C and a fresh start every
+  correct stage takes one keypress, and the mistyped key is the only one to enter anew.
+- **A terminal is required.** Without `/dev/tty` the script exits at once, so it cannot run under a
+  pipe, in CI, or from pasted input. This is intended.
+- **Line editing differs by prompt.** `ask` uses readline, so arrow keys move the cursor;
+  `ask_secret` hides input and has no line editing. Backspace works in both.
+- **A missing `gh` is expected.** CI-secret stages print a warning and add a closing-summary line
+  naming each value the person still has to set themselves.
