@@ -17,8 +17,10 @@
 # Each file's payload carries the call's session_id, transcript_path and cwd,
 # and <tool_use_id>-<n> as its own id, so test-scan.sh leaves the per-write
 # session record the task-end judge reads, as for a Write or Edit. A path
-# under the system temp directory or a Claude session scratchpad is not
-# recorded (testing::record_skip), the same working copies test-scan.sh skips.
+# under the system temp directory or a Claude session scratchpad
+# (testing::record_skip) is dropped here, so it is neither scanned nor
+# recorded. On a Write or Edit test-scan.sh still scans such a copy and only
+# leaves no record.
 #
 # test-scan.sh's own stderr (a scanner that failed or timed out) passes
 # through, as on the Write and Edit route.

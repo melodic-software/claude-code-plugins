@@ -160,7 +160,7 @@ testing::under_copy_root() {
 # would lose the whole batch.
 testing::record_skip() {
   local p raw root out form seen="|"
-  local -a raws=() dirs=() lines=()
+  local -a raws=() dirs=() cyg_lines=()
   testing::norm_copy_path p "$1"
   [[ -n "$p" ]] || return 1
   [[ "$p" =~ (^|/)claude/[^/]+/[^/]+/scratchpad/ ]] && return 0
@@ -183,9 +183,9 @@ testing::record_skip() {
   ((${#dirs[@]})) && command -v cygpath >/dev/null 2>&1 || return 1
   for form in -l -s; do
     out="$(cygpath "$form" -m -- "${dirs[@]}" 2>/dev/null)" || continue
-    mapfile -t lines <<<"$out"
-    ((${#lines[@]} == ${#dirs[@]})) || continue
-    for root in "${lines[@]}"; do
+    mapfile -t cyg_lines <<<"$out"
+    ((${#cyg_lines[@]} == ${#dirs[@]})) || continue
+    for root in "${cyg_lines[@]}"; do
       testing::norm_copy_path root "$root"
       testing::under_copy_root "$p" "$root" && return 0
     done
