@@ -239,7 +239,7 @@ async function takeLines($: EngineInterface, st: State, cfg: Config): Promise<st
   return lines
 }
 
-// The tee's standalone status line, less the context figure: [<model>] 5h <x>% | 7d <y>%.
+// The module's band row: [<model>] 5h <x>% | 7d <y>%.
 export const bandText = (reading: Reading | undefined, model: string | undefined) =>
   `[${model || 'Claude'}] ${WINDOWS.map(({ kind, short }) => {
     const limit = reading?.get(kind)

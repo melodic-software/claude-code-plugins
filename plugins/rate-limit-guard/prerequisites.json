@@ -12,7 +12,7 @@
           "node"
         ]
       },
-      "degrade": "Without node, the rate-limit-guard hooks cannot launch, so they do nothing.",
+      "degrade": "Without node, the StopFailure hook cannot launch and records nothing, and the module cannot write the snapshot file; its lines and band row still work.",
       "install": {
         "docs": "https://nodejs.org/en/download"
       },
@@ -40,24 +40,6 @@
       "degrade": "Claude Code older than 2.1.287 is unsupported: the module that sends rate-limit lines, draws the band row, serves the status tool and writes the snapshot does not load there.",
       "install": {
         "docs": "https://code.claude.com/docs/en/setup#update-claude-code"
-      },
-      "check": "/rate-limit-guard:check"
-    },
-    {
-      "id": "jq",
-      "kind": "cli",
-      "need": "required",
-      "for": [
-        "hook:record-rate-limit-stop.sh"
-      ],
-      "detect": {
-        "any": [
-          "jq"
-        ]
-      },
-      "degrade": "Without jq, the rate-limit-guard hooks skip their work for the session and say so once.",
-      "install": {
-        "docs": "https://jqlang.org/download/"
       },
       "check": "/rate-limit-guard:check"
     }

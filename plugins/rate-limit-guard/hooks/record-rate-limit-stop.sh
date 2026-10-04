@@ -5,13 +5,13 @@
 # SIDE-EFFECT-ONLY: the harness ignores StopFailure output and exit codes
 # entirely (hooks reference, verified 2026-08-10), so this hook's one job is
 # the record it appends — the reactive-fallback signal consumers read when the
-# statusline tee carries no usable window data (see
+# module's snapshot carries no usable window data (see
 # ../reference/reader-contract.md). The payload carries no reset or quota
-# data; resume timing comes from the tee file or from error text the consuming
-# session itself sees.
+# data; resume timing comes from the contract file rate-limits.json or from
+# error text the consuming session itself sees.
 #
 # Record sink: ~/.claude/rate-limit-guard/stop-events.jsonl — the fixed
-# contract path (HOME-anchored, machine-scope, matching the tee file's
+# contract path (HOME-anchored, machine-scope, matching rate-limits.json's
 # no-account-id scope). Deliberately OUTSIDE
 # ${CLAUDE_PLUGIN_DATA}: plugin data is cache-isolated per plugin, and this
 # file is a documented cross-plugin artifact seam that sibling-plugin lane
