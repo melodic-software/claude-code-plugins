@@ -54,10 +54,10 @@ config has chosen no Markdown style, so the hook does not run there at all
   `PATH`, no working tree, `git check-ignore` erroring), the hook lints. A
   scope check that failed closed would disable the plugin invisibly.
 - **Auto-fix on edit.** Fixable violations (final newline, list-marker style,
-  trailing spaces, …) are corrected in place, and the count of fixes written is
-  reported to Claude and to you. A run that changed your file never passes
-  unannounced. `markdownlint-cli2` reports no per-fix detail, so neither can
-  this hook; the count is what there is.
+  trailing spaces, …) are corrected in place, and you are told
+  (`markdown-format: reformatted <file>.`). A run that changed your file never
+  passes unannounced. Claude learns of the rewrite at its next edit of the
+  file, which reports that the file changed on disk.
 - **Advisory, never blocking.** The hook always exits `0`. Unfixable findings are
   reported via `additionalContext`; they never reject the edit. Make a commit
   hook or CI your hard gate.
@@ -66,18 +66,15 @@ config has chosen no Markdown style, so the hook does not run there at all
   `CLAUDE_PROJECT_DIR` is unset) a file outside every git working tree. From
   the session, a hook that linted a clean file and a hook that never linted
   look the same. Only missing prerequisites and the trust gate announce
-  themselves, by class. A missing `markdownlint-cli2` is a prerequisite notice:
-  once per session (a subagent does not repeat it), renewed with the install
-  route every eighth skip (`HOOK_NOTICE_RENEW_EVERY`). The missing-`jq` notice and
-  the trust-gate notice are once per session and agent, renewed every eighth
-  skip. Silent in between. To tell the cases apart, wire a
+  themselves, each once per session. Silent in between. To tell the cases apart, wire a
   [telemetry sink](../../docs/conventions/hook-telemetry/README.md) through
   `HOOK_TELEMETRY_SINK`: each run's envelope carries `status` `ok` for a lint
   that ran and `skipped` for every skip arm.
 - **Bounded reporting.** Every run reports the total finding count and the rules
   that dominate it. Individual violation lines are capped (20 by default,
-  `markdown_format_max_findings`), and an unchanged finding set on a re-edited
-  file reports its summary without repeating the detail. The linter's own banner
+  `markdown_format_max_findings`). An unchanged finding set on a re-edited file
+  sends nothing; it is sent again after a clean run, after a cap change, or
+  after the context is compacted or cleared. The linter's own banner
   lines never enter the report. A rule firing in bulk is a signal to configure
   that rule once in your markdownlint config, not to re-read it on every edit.
 - **Config from the consumer.** `markdownlint-cli2` discovers config
@@ -121,7 +118,7 @@ place before the hook composes its report, so a cancel between the two leaves
 your file rewritten with no disclosure on either channel. This window has not
 been reproduced; a clean run costs about 2.6 s of reference-host work in
 the cost table below, well inside 15 s. If you see a
-Markdown file change after an edit with no `markdown-format rewrote` notice,
+Markdown file change after an edit with no `markdown-format: reformatted` notice,
 this is the likely cause.
 
 ## Requirements
@@ -145,19 +142,14 @@ The hook requires the following tools:
 Missing prerequisites do not block an edit. Following Claude Code's
 [PostToolUse contract](https://code.claude.com/docs/en/hooks#posttooluse-decision-control),
 the hook exits `0` and reports a notice to both Claude (`additionalContext`)
-and you (`systemMessage`). A missing-`markdownlint-cli2` notice is shown once
-per session, not per subagent, and renewed with the install route every eighth
-skip (`HOOK_NOTICE_RENEW_EVERY`). The `SessionStart` probe below uses the same
-notice key, so its notice counts as skip number one, the first per-edit skip is
-number two and stays silent, and the next per-edit notice appears at the eighth
-skip. The missing-`jq` notice and the trust-gate notice are once per session and
-agent, renewed every eighth skip.
+and you (`systemMessage`). Each notice is shown once per session and does not
+renew. The `SessionStart` probe below uses the same notice key, so its notice is
+yours and Claude hears at the first per-edit skip.
 The binary probe re-runs on every Markdown edit and recovers mid-session when
-the tool becomes resolvable. A missing-`markdownlint-cli2` notice includes a
-`PATH probed:` line naming the plausible directories the hook process actually
-searched (Claude Code plugin-bin entries collapse to a count). When
-the edited file is outside a repository the notice names a durable user-scope
-directory already on that PATH instead of recommending a repo-local
+the tool becomes resolvable. The `PATH` the hook process searched goes to the
+debug log, not to either channel. Your copy of the notice carries the install
+route; when the edited file is outside a repository it names a durable
+user-scope directory already on that PATH instead of recommending a repo-local
 `npm i -D`. The hook never falls back to `npx`, installs a package, or
 performs a network request during a hook run.
 
@@ -176,13 +168,12 @@ would announce it in repositories that never opted in.
 Telemetry timing uses `EPOCHREALTIME` (Bash 5.0+); on older Bash the telemetry
 envelope is skipped while formatting still runs.
 
-`git` is **not** required. Without it, formatting and linting still run; three
+`git` is **not** required. Without it, formatting and linting still run; two
 things that ask git a question degrade instead of blocking: the gitignore scope
-lints rather than skipping (as above), the working-tree scope that applies when
-`CLAUDE_PROJECT_DIR` is unset stops narrowing anything (config discovery is then
-anchored at the edited file's own directory, so it opens only for a config
-sitting there), and the repeat-report suppression stops deduplicating, so an
-unchanged finding set is reported in full each time.
+lints rather than skipping (as above), and the working-tree scope that applies
+when `CLAUDE_PROJECT_DIR` is unset stops narrowing anything (config discovery is
+then anchored at the edited file's own directory, so it opens only for a config
+sitting there).
 
 ### Configuration trust boundary
 
@@ -191,11 +182,11 @@ load custom rules, Markdown-it plugins, and output formatters. Running it
 under such configuration executes code the repository supplies. The hook
 therefore never runs the linter under a code-loading configuration without an
 explicit approval: it skips the lint run and reports a visible trust-gate
-notice (on both the agent and user channels, renewed like the
-missing-prerequisite notice) naming the
-risky files and the approval marker to create. To approve, review those files
-and their installed dependencies, then create the marker directory using the
-exact `mkdir -p` command the notice carries. The marker lives under
+notice, once per session. Your copy names the risky files and the approval
+marker to create; Claude's copy says the run was skipped and that approval is
+yours, without the command that grants it. To approve, review those files and
+their installed dependencies, then create the marker directory using the exact
+`mkdir -p` command your notice carries. The marker lives under
 `${CLAUDE_PLUGIN_DATA}/trust-approvals` and is content-addressed over the
 repository, its risky configuration files, and every repository file those
 files' string literals resolve to (transitively, bounded), so a change to the
