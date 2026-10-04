@@ -78,8 +78,8 @@ or the status tool) that showed the crossing, even when Claude's line waits for 
 turn [operator mode](#operator-mode) holds gets neither, and neither does a session whose first
 reading is already past `smart`, which gets only Claude's line. A crossing already shown in an
 unattended turn is not offered again in the next typed turn; Claude gets it at that turn's first
-carrier. On every surface but the terminal (the Desktop app, VS Code), where a toast may not show, the
-line is also drawn as one notice row above the prompt until the next typed prompt.
+carrier. On every surface but the terminal (the Desktop app, VS Code, mobile), where a toast may not
+show, the line is also drawn as one notice row above the prompt until the next typed prompt.
 `/context-guard` writes the route through `/session-flow:workflow` and
 [When your context fills up](https://code.claude.com/docs/en/context-window#when-your-context-fills-up)
 as a transcript line Claude does not read.

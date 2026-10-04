@@ -15,7 +15,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **The band row is off by default** (`context_guard_band` now defaults to `false`), and it no longer shows the model id: it reads `ctx <n>% (<zone>)`.
 - **The command is `/context-guard`, with `band on`, `band off`, and a bare `band` to toggle.** It replaces `/context-guard:band show|hide`, which never resolved. With no argument it prints the verdict and its figures, the bands, the gate mode, the band and toast state, and where `zones.json` lives. Claude reads a command's reply, so the continuation route, the docs link and the README link go to a separate transcript line Claude does not read. Its replies carry no `context-guard:` prefix of their own, since Claude Code already names the plugin before a command's reply.
-- **The crossing notice row is drawn only on surfaces other than the terminal** (the Desktop app, VS Code), where a toast may not show, and it carries the plugin prefix once. Operator mode's held line still shows as one row on every surface, and is never toasted.
+- **The crossing notice row is drawn only on surfaces other than the terminal** (the Desktop app, VS Code, mobile), where a toast may not show, and it carries the plugin prefix once. Operator mode's held line still shows as one row on every surface, and is never toasted.
 - **The lines Claude reads carry only the verdict**, such as `context-guard: acceptable zone (2 of 3). Continuing is the user's call.`, with `, nearing dumb` inside the approach margin. They drop the source note and the measurement-not-instruction sentence.
 
 ### Fixed
