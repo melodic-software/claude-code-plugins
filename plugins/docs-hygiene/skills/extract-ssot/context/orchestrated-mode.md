@@ -79,7 +79,7 @@ the marketplace repository), cited for provenance only, since an
 installed plugin cannot read a sibling plugin's files at runtime.
 
 - **Tee file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
-- **Pause threshold (fixed):** pause when **either** window reports `used_percentage >= 90`
+- **Pause threshold (fixed):** pause when **either** window reports `used_percentage >= 95`
 - **Pause end:** the **tripped** window's `resets_at`; when **both** windows trip, the **later**
   `resets_at`
 - **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale. Treat
@@ -100,8 +100,8 @@ installed plugin cannot read a sibling plugin's files at runtime.
   with no latched account there is no switch to detect. Read `.claude.json` at pause entry and on
   every re-evaluation (each Monitor tick and each wake). When it differs from the latched account,
   re-evaluate at once against the new account's windows, taken from a fresh tee snapshot whose
-  `account.email` equals the new account: below 90, drop the latched pause and resume; at or above
-  90, keep pausing and re-latch the pause end and the latched account against the new account's
+  `account.email` equals the new account: below 95, drop the latched pause and resume; at or above
+  95, keep pausing and re-latch the pause end and the latched account against the new account's
   `resets_at`; with no fresh or attributable snapshot, treat the windows as **unknown**, drop the
   latch, and fall back to reactive-only. An unreadable, absent, or malformed state file, or a
   missing key, means **cannot attribute**: keep the existing latch, never a spurious drop. Never
@@ -118,7 +118,7 @@ installed plugin cannot read a sibling plugin's files at runtime.
 | No window plausible | whole guard | **unknown → reactive-only** |
 
 One malformed window must not suppress a valid sibling: if the five-hour record is absurd but the
-seven-day window is plausible and already ≥ 90, pause on the seven-day trip (and vice versa). Only
+seven-day window is plausible and already ≥ 95, pause on the seven-day trip (and vice versa). Only
 the whole-guard rows above drop the run to reactive-only.
 
 **Reactive-only mode:** keep the static concurrency cap, never fabricate a pause from untrusted

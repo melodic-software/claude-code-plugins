@@ -1242,7 +1242,9 @@ test('command: no argument prints the status and details', BLOCKING(7), async ($
   expect(text).not.toContain('context-guard: ')
   for (const part of [
     '60% of a 200000-token window used (120000 tokens)',
-    'smart up to 50%, acceptable up to 75%',
+    // The token band of the session's window class is shown beside the percent band, since the
+    // worse of the two decides the zone.
+    'Bands (the worse decides): smart up to 50% and 100000 tokens, acceptable up to 75% and 160000 tokens',
     'approach margin 4 points',
     'gate blocking, 7 grace calls',
     'band row off',
@@ -1338,7 +1340,7 @@ test('pull tool: the latest figures and zone, with no line attached, whatever th
     total_input_tokens: 120_000,
     total_output_tokens: 900,
     context_window_size: 200_000,
-    bands: { smart_max_used_percentage: 50, acceptable_max_used_percentage: 75 },
+    bands: { smart_max_used_percentage: 50, acceptable_max_used_percentage: 75, smart_max_tokens: 100_000, acceptable_max_tokens: 160_000 },
     approach_margin: 5,
     gate: { mode: 'advisory', grace_calls: 20, calls_counted: 0 },
   })

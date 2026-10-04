@@ -5,11 +5,21 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.12.1] - 2026-10-04
+## [0.12.2] - 2026-10-04
 
 ### Changed
 
 - **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing node goes to the user only, in one shorter line.
+
+## [0.12.1] - 2026-10-04
+
+### Changed
+
+- **The reader contract states the token-shape premise as judgment.** It no longer cites the Chroma context-rot report for quality loss tracking absolute tokens rather than window fraction: the report never compares the two, and Anthropic publishes no context-quality threshold.
+
+### Fixed
+
+- **`/context-guard` and the status tool show the token bands that decide the zone.** Both printed only the percent bands, so on a 1M-token window a session could read `acceptable` at 22% beside "smart up to 50%": the token band (200,000 tokens there) had decided it. The reply now reads `Bands (the worse decides): smart up to 50% and 200000 tokens, acceptable up to 75% and 400000 tokens`, and the status tool's `bands` adds `smart_max_tokens` and `acceptable_max_tokens` (`null` when the token shape is not computable).
 
 ## [0.12.0] - 2026-10-04
 
