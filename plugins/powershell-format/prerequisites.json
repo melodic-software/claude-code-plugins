@@ -12,7 +12,7 @@
           "pwsh"
         ]
       },
-      "degrade": "Without pwsh, the hook cannot format or lint edited PowerShell scripts; edits still go through.",
+      "degrade": "Without pwsh, the hook cannot format or lint edited PowerShell scripts.",
       "install": {
         "docs": "https://learn.microsoft.com/powershell/scripting/install/installing-powershell"
       },

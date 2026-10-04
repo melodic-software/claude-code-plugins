@@ -70,6 +70,21 @@
             "statusMessage": "Checking that node is on PATH..."
           }
         ]
+      },
+      {
+        "matcher": "compact|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs",
+              "${CLAUDE_PLUGIN_ROOT}/hooks/powershell-format.sh",
+              "--reset-digests"
+            ],
+            "timeout": 10
+          }
+        ]
       }
     ]
   }

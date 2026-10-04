@@ -12,7 +12,7 @@
           "goimports"
         ]
       },
-      "degrade": "Without goimports, the hook cannot format edited Go files; edits still go through.",
+      "degrade": "Without goimports, the hook cannot format edited Go files.",
       "install": {
         "go": "go install golang.org/x/tools/cmd/goimports@latest"
       },

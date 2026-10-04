@@ -12,7 +12,7 @@
           "shfmt"
         ]
       },
-      "degrade": "Without shfmt, the hook cannot format edited shell scripts; edits still go through.",
+      "degrade": "Without shfmt, the hook cannot format edited shell scripts.",
       "install": {
         "docs": "https://github.com/mvdan/sh#shfmt"
       },
@@ -30,7 +30,7 @@
           "shellcheck"
         ]
       },
-      "degrade": "Without shellcheck, the hook cannot lint edited shell scripts; edits still go through.",
+      "degrade": "Without shellcheck, the hook cannot lint edited shell scripts.",
       "install": {
         "docs": "https://github.com/koalaman/shellcheck#installing"
       },

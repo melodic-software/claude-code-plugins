@@ -3,6 +3,12 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.9] - 2026-10-04
+
+### Changed
+
+- **Hook text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** actionlint runs with `-oneline`, so each finding is one line without the source excerpt, and the report names the file once in its heading while each line drops the path prefix. An unchanged finding set on a re-edit sends nothing; it is sent again after a clean run, or after compaction or `/clear`, which a new `SessionStart` `compact|clear` row handles. A report lists at most 20 findings; telemetry keeps them all. The missing-actionlint notice is composed from `prerequisites.json`, with the install route on the user's copy only, and its `degrade` text drops "edits still go through".
+
 ## [0.12.8] - 2026-10-04
 
 ### Changed
