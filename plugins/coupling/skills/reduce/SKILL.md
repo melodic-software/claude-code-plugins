@@ -134,8 +134,8 @@ the report.
 
 Then check the ranked files for a second list. Ranked paths come from pull requests and are
 untrusted: never type one into a command. Pipe the ranking straight in from the repository root,
-`bash "${CLAUDE_SKILL_DIR}/scripts/collision-hotspots.sh" --prs <n> | awk -F'\t' 'NF == 3 && $1 ~
-/^[0-9]+$/ { print $3 }' | python3 "${CLAUDE_SKILL_DIR}/scripts/derivable-list.py" --paths-from -`
+`bash "${CLAUDE_SKILL_DIR}/scripts/collision-hotspots.sh" --prs <n> | awk -F'\t' 'NF == 3 && \$1 ~
+/^[0-9]+$/ { print \$3 }' | python3 "${CLAUDE_SKILL_DIR}/scripts/derivable-list.py" --paths-from -`
 (same flags as the ranking run), or write the paths one per line to a file with the Write tool
 and pass `--paths-from <file>`; with no ranking, write the files co-change mining ranked highest
 the same way. It prints `candidate`
