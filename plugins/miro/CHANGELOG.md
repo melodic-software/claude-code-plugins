@@ -3,6 +3,13 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.4] - 2026-10-04
+
+### Changed
+
+- **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+- The setup skill's default-enablement links now cite `plugins/manifest-reference#defaultenabled`; the old `plugins-reference#default-enablement` anchor no longer exists. The enable-scope auto-detect note now cites `plugins/cli-reference#plugin-enable`, where it lives.
+
 ## [0.6.3] - 2026-10-03
 
 ### Changed
