@@ -44,6 +44,12 @@ under any `.claude` directory (project or user-global), plus `managed-settings.j
 checkpoint, not a guarantee (a `PermissionRequest` hook can allow the call; `disableAllHooks`
 removes non-managed hooks). Kill switch: the `settings_write_ask_enabled` plugin option.
 
+An installed mod can stop this plugin's `PreToolUse` hooks from running: they run after the last
+mod calls `next`, so a mod that answers a `tool.call` without calling it skips them
+([where settings hooks run in the order](https://code.claude.com/docs/en/plugins/mods/events#where-settings-hooks-run-in-the-order)).
+A mod can also approve a call they blocked, because its `tool.check` hook runs after them
+([approve or refuse a tool call before the user is asked](https://code.claude.com/docs/en/plugins/mods/events#approve-or-refuse-a-tool-call-before-the-user-is-asked)).
+
 **What it does not see.** The checkpoint matches tool names and file paths, not the file on
 disk. These routes change a settings file without an ask:
 

@@ -54,6 +54,18 @@ which route identically, so the agent can reissue the call itself. That is what 
 instructions" a complete answer rather than a dead end, and it is why no hook here needs to rewrite
 a call to get the right one run.
 
+Auto mode makes the escape hatch a refusal. Claude Code refuses a tool call whose input a hook
+changed after the server-side classifier reviewed it, tells Claude to reissue the call as recorded,
+and refuses again when the hook rewrites every time. This covers `PreToolUse` settings hooks as well
+as mods. This repository's unattended lanes run with `--permission-mode auto`, so a hook that can
+fire in a lane denies with instructions and never returns `updatedInput`.
+
+- **Pointer**: for the refusal and the hooks it covers, see
+  <https://code.claude.com/docs/en/plugins/mods/troubleshoot#a-hook-changed-this-calls-input-after-the-model-wrote-it>.
+- **As of**: 2026-10-02
+- **Recheck trigger**: that section stops naming `PreToolUse` settings hooks, or auto mode starts
+  sending a hook's changed input back through the classifier.
+
 ## Boundary
 
 - **Not about `PostToolUse`.** A `PostToolUse` hook that reformats a file it just observed being

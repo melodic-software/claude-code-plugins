@@ -3,6 +3,12 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.5] - 2026-10-03
+
+### Changed
+
+- **`lane-stop-gate.sh` comments no longer cite the retired `statusline-tee.sh`.** No behavior change.
+
 ## [0.26.4] - 2026-10-03
 
 ### Fixed

@@ -60,6 +60,12 @@ that is not an https URL on a first-party docs host with no query string. Every
 other agent and the main thread pass through. The workflow drops any source
 outside those hosts before a stage runs.
 
+An installed mod can stop this plugin's `PreToolUse` hooks from running: they run after the last
+mod calls `next`, so a mod that answers a `tool.call` without calling it skips them
+([where settings hooks run in the order](https://code.claude.com/docs/en/plugins/mods/events#where-settings-hooks-run-in-the-order)).
+A mod can also approve a call they blocked, because its `tool.check` hook runs after them
+([approve or refuse a tool call before the user is asked](https://code.claude.com/docs/en/plugins/mods/events#approve-or-refuse-a-tool-call-before-the-user-is-asked)).
+
 ## The fan-out guard
 
 A stage that runs more than one agent never runs them on a frontier model by

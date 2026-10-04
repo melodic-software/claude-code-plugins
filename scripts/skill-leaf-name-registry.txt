@@ -142,7 +142,8 @@ audit ai-slop,attribution,harness-config,harness-memory,codebase-health,context-
 # session-flow, source-control and testing join on the same grounds: each reports
 # whether node and jq resolve for its hooks. context-budget and rate-limit-guard
 # join on the same grounds: context-budget reports whether node resolves for its
-# hooks, rate-limit-guard whether node and jq resolve for its hook and statusline tee.
+# hooks, rate-limit-guard whether node resolves for its hook and snapshot writes and
+# whether its mod can load.
 # speech joins on the same grounds: it reports whether Python, espeak-ng, the
 # hook-installed Python packages and the Kokoro model files resolve, read-only,
 # never installing. It is its own skill because `setup` is manual-only.

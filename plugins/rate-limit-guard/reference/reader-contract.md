@@ -1,20 +1,25 @@
 # Rate-limit guard reader contract
 
 The consumer-facing contract for the machine-scope rate-limit artifacts this plugin produces.
-Writers are the plugin's `scripts/statusline-tee.sh` (proactive window data) and
-`hooks/record-rate-limit-stop.sh` (reactive detection records). Readers are loop-lane session
+Writers are the plugin's hooks module, `hooks/register.tsx`, which writes the proactive window data
+through `lib/write-snapshot.mjs` in interactive and headless (`-p`, `--bg`, `/loop`) sessions
+alike, and `hooks/record-rate-limit-stop.sh` (reactive detection records). The module needs Claude
+Code 2.1.287 or later and runs only where mods are on. Readers are loop-lane session
 bodies; an installed plugin cannot read a sibling plugin's files at runtime, so **consumers inline
 the operable floor below verbatim** and cite this file for provenance only. The inline-floor rule,
 and the requirement that the inlined values stay byte-identical across consumers, is owned by the
 loop-lane convention (`docs/conventions/loop-lane/README.md` §6 in the marketplace repository).
 
-**Recheck trigger:** re-verify the statusline stdin schema citation under "Tee file shape" below
-if `https://code.claude.com/docs/en/statusline` changes the `rate_limits` object shape, or the
-`used_percentage` / `resets_at` field names or ranges; re-verify the cloud/remote-session
-observation under "Cloud / remote sessions" below if Claude Code ships statusline wiring or a
-persistent `~/.claude/rate-limit-guard/` filesystem inside cloud or remote-session containers,
-the shipped producer the "Documented residual" paragraph below names as the path to proactive
-mode there; and re-verify the `account` field's source under "Tee file shape" below, and the
+**Recheck trigger:** re-verify the `rate_limits` source under "Tee file shape" below if the
+`SessionRateLimit` entries `$.session.usage()` returns change their `kind`, `percentUsed` or
+`resetsAt` fields (the doc comments in the `claude-code/index.d.ts` types Claude Code writes for its
+build, see
+[create: get the types for your build](https://code.claude.com/docs/en/plugins/mods/create#get-the-types-for-your-build),
+as of 2026-10-03, Claude Code 2.1.288); re-verify the cloud/remote-session observation under
+"Cloud / remote sessions" below if a persistent `~/.claude/rate-limit-guard/` filesystem ships
+inside cloud or remote-session containers, the producer the "Documented residual" paragraph below
+names as the path to proactive mode there; and re-verify the `account` field's source under "Tee
+file shape" below, and the
 consumer read in the floor's "Account switch" bullet, if `.oauthAccount.emailAddress` moves or is
 renamed in `~/.claude.json`. That key is **internal CLI state**, not a documented surface: nothing
 upstream promises it, so the writer treats a missing or unrecognized value as "cannot attribute"
@@ -55,18 +60,17 @@ keeps its latch.
 
 ## Tee file shape
 
-One JSON object, rewritten atomically on a **drain cadence** rather than on every refresh (temp
-file + rename, so a reader never sees torn JSON; the file is **last-writer-wins** across all
-sessions on the machine). Each refresh records its observation to a private per-session spool file
-with no external process at all, and one elected refresh per cadence flushes the batch into this
-file, so a **changed** payload reaches the snapshot within the drain cadence (30 seconds by
-default). A payload that has **not changed** since the last real write, `captured_at` aside, is
-skipped: the file and its `captured_at` may stay untouched for up to the no-change floor, **300
-seconds by default** (`RLG_TEE_NOCHANGE_FLOOR`), after which an identical payload is written
-again. The floor is half the 10-minute staleness budget below, so a fresh-but-unmoving snapshot
-never approaches stale, and the operable floor values are unchanged. `captured_at` is the
-**observation time of the record the drain chose**, meaning when those windows were seen, not the
-time the file was written:
+"Tee file" is this contract's name for the snapshot file the module writes; the floor and its
+consumers use that name. One JSON object, replaced atomically (temp file + rename, so a reader
+never sees torn JSON; the file is **last-writer-wins** across all sessions on the machine). The module decides in memory
+whether to write, from main-thread tool results, each measurement after a turn, a 60-second timer
+that runs only while a turn runs, and the session's end. A window that moves a whole point, appears,
+leaves, or resets is written at once. Otherwise the module and the helper keep to a machine-wide
+floor of **one write per 300 seconds**, checked against the `captured_at` on disk under the
+helper's lock, after which an unchanged reading is written again. The floor is half the 10-minute
+staleness budget below, so a fresh-but-unmoving snapshot never approaches stale, and the operable
+floor values are unchanged. The module never writes from a turn a task notification started (a
+paused lane's own Monitor tick). `captured_at` is the time the module wrote the reading:
 
 ```json
 {
@@ -83,51 +87,42 @@ time the file was written:
 (The example is internally consistent: `1784841300` is 2026-07-23T21:15:00Z, within five hours of
 `captured_at`, and `1785142800` is 2026-07-27T09:00:00Z, within the seven-day window.)
 
-- `captured_at`: ISO-8601 UTC **observation** time of the chosen record; always present. Drives the
-  staleness rule. It can trail the file's mtime by up to the drain cadence (30 s), and an unchanged
-  payload can leave it, and the file, untouched for up to the no-change floor (300 s by default),
-  which is why the rule is written against this field and never against the file's modification
-  time.
-- `rate_limits`: copied verbatim from the statusline stdin schema
-  (<https://code.claude.com/docs/en/statusline>, verified 2026-08-10): `used_percentage` is 0–100,
-  `resets_at` is Unix epoch seconds. The key is present **only** when the session observes
-  subscription windows; each window may be independently absent.
-- Session-distinguishing fields: `session_id`, `session_name`, and any **top-level** key whose name
-  **contains** `account` (case-insensitive) are copied through automatically. The writer selects on
-  the **top-level key name only**, and a selected key carries its **whole value** across, nested
-  objects included: `account_info: {uuid, display_name}` arrives complete. A key that does not match
-  is dropped with no diagnostic: `user`, `identity`, `org`, and `seat` all vanish silently, and so
-  does an `account_uuid` buried inside a non-matching object such as `user`, because nothing at the
-  top level matched. A future account identifier therefore arrives without a writer change only when
-  its own top-level key name contains `account`; every other shape needs one. Treat these values as
-  **untrusted**: `session_name`, and any account field, which may be an **object of arbitrary
-  strings** and not just a scalar, are user/AI-influenced, so consumers parse them only with a JSON
-  parser and never string-interpolate them into a shell command, another interpreter, or a prompt.
+- `captured_at`: ISO-8601 UTC time of the write, to the second; always present. Drives the
+  staleness rule. An unchanged reading can leave it, and the file, untouched for up to the 300 s
+  floor, which is why the rule is written against this field and never against the file's
+  modification time. The helper never replaces a file with an older `captured_at` unless the file's
+  is more than 300 s later than the body's (an implausible clock).
+- `rate_limits`: the `five_hour` and `seven_day` entries of the module's latest reading,
+  `$.session.usage()` (see the recheck trigger at the top of this file): `used_percentage` is
+  0–100, `resets_at` is Unix epoch seconds. The key is present **only** when the session observes
+  subscription windows; each window may be independently absent, and a window whose reset time has
+  passed is left out. A body without the key (a windowless session) is written only when the file
+  on disk has no `rate_limits` either, so it never replaces a file that has windows. No other
+  window is written: a gateway's `spend_limit` and any further window the reading reports reach
+  Claude only through the module's `mcp__rate-limit-guard__status` tool.
+- `session_id`: the writing session's id. After `/branch` the file takes the new session's id at
+  its first write. The file carries no `session_name` and no other session field.
 - `account`: `{"email": "<address>"}`, the account whose windows this snapshot describes. Present
   only when the writer could **attribute** the observation. The value is Claude Code's own
-  `.oauthAccount.emailAddress`, read from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json` once per drain
-  (see the recheck trigger at the top of this file: that key is internal CLI state).
-  **Absence is normal and never means "one account on this machine".** The writer omits the key
-  rather than risk mislabeling, in four cases:
-  - The state file is absent or unreadable, or holds no email-shaped value.
-  - The stdin payload already carried a top-level `account*` key. That one wins under the
-    forward-pass rule above, and no `account` object is added beside it.
-  - **The staleness guard:** the state file is not **strictly older** than the chosen record's
-    spool file. A newer state file means an account switch may have happened between the
-    observation and the flush; an **equal** timestamp is treated the same way, because mtime
-    resolution is coarse on several filesystems the writer runs on and a same-tick login is
-    indistinguishable there from a later one. The windows are still teed; only the identity is
-    withheld.
-  - The writer ran on a path that has no spool file to date that comparison against
-    (`RLG_TEE_ASYNC=1`, or bash below 4.2, which never drains).
+  `.oauthAccount.emailAddress`, read from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json` (see the
+  recheck trigger at the top of this file: that key is internal CLI state).
+  **Absence is normal and never means "one account on this machine".** The module reads the state
+  file at each API response and again at the write, and writes the key only when both reads
+  return the same email-shaped value. It omits the key rather than risk mislabeling when:
+  - the state file is absent or unreadable, or holds no email-shaped value, at either read;
+  - the account changed between the last API response and the write, which means an account
+    switch may have happened between the observation and the write; the windows are still
+    written, only the identity is withheld;
+  - the session has seen no API response yet.
 
   A reader that needs identity therefore treats a missing `account.email` as **unattributed**, never
   as a match, and a snapshot whose `account.email` differs from the account a consumer is running
-  under describes **someone else's windows**. The untrusted-value rule above covers this field too:
-  the writer validates only enough to keep its own JSON well-formed, judging the value's
-  **codepoints** (3–254 of them, none below 32 and none equal to 34, 92, or 127, at least one `@`)
-  before it leaves the JSON parser. That is a shape whitelist, not an assertion that the address is
-  real or that it belongs to the reader.
+  under describes **someone else's windows**. Treat the value as **untrusted**: it is
+  user-influenced, so consumers parse it only with a JSON parser and never string-interpolate it
+  into a shell command, another interpreter, or a prompt. The writer validates only enough to keep
+  its own JSON well-formed, judging the value's **codepoints** (3–254 of them, none below 32 and
+  none equal to 34, 92, or 127, at least one `@`). That is a shape whitelist, not an assertion that
+  the address is real or that it belongs to the reader.
 
 ## Capability detection (fail-open)
 
@@ -154,19 +149,30 @@ throttles proactively on data it cannot trust, and never fabricates a pause.
 `~/.claude/rate-limit-guard/stop-events.jsonl` (below) and to the rate-limit error text its own
 session sees; resume timing comes from that error text where available, otherwise
 backoff-and-retry. A later fresh snapshot with plausible windows upgrades the mode back to
-proactive.
+proactive. A machine where no active session runs the module (mods off, Claude Code older than
+2.1.287, or the plugin disabled in every active project) gets no fresh snapshot, which classifies
+the same way.
 
 ## Cloud / remote sessions (expected degraded mode)
 
-The tee path and the StopFailure detection file are **machine-local and statusline-driven**. Cloud
-and remote-session containers (Claude Code on the web, remote-control targets, and similar
-ephemeral environments) typically have **no statusline wiring** and an **ephemeral filesystem**:
-`~/.claude/rate-limit-guard/` is absent, so there is no fresh snapshot and usually no
-`stop-events.jsonl` either. Verified empirically in a live cloud session (2026-08-15).
+The tee path and the StopFailure detection file are **machine-local**: each session writes them on
+the machine it runs on. Cloud and remote-session containers (Claude Code on the web,
+remote-control targets, and similar ephemeral environments) have an **ephemeral filesystem**:
+`~/.claude/rate-limit-guard/` was absent in a live cloud session (2026-08-15), so there was no
+fresh snapshot and no `stop-events.jsonl` either. Where the plugin reaches such a session and its
+module runs, it writes inside that container, where only sessions in the same container can read
+the file; no run of the module in a cloud session has been made, so this contract does not count on
+it.
+
+- **Pointer**: [mods overview: where mods run](https://code.claude.com/docs/en/plugins/mods#where-mods-run),
+  the cloud session row.
+- **As of**: 2026-10-03, Claude Code 2.1.288.
+- **Recheck trigger**: that section changes whether mods run in cloud sessions, or a cloud run of
+  this module is made.
 
 That observation is **not a misconfiguration**. Under the capability-detection table above it
 classifies as **unknown → reactive-only**. Consumers must not invent window percentages, pause
-ends, or "healthy headroom" from the absence of the tee. Fabricating proactive state is exactly
+ends, or "healthy headroom" from the absence of the tee file. Fabricating proactive state is exactly
 what fail-open forbids.
 
 **What a cloud / remote consumer may use as signal (reactive only):**
@@ -185,13 +191,12 @@ what fail-open forbids.
 rate-limit headroom (notably `session-flow`'s `/session-flow:orchestrate` imperative 7) treat
 unobservable headroom as **thin by default**: start at a small conservative concurrent-worker cap,
 prefer shorter waves over a wide tree, and scale only on the reactive signals above, never on the
-missing tee. The orchestrate skill owns the imperative wording; this contract owns the
+missing tee file. The orchestrate skill owns the imperative wording; this contract owns the
 classification that makes the fallback mandatory rather than optional.
 
-**Documented residual (not closed here):** a live statusline (or equivalent) producer that would
-write the tee inside cloud / remote containers does not exist in those environments today. Shipping
-that producer, whether fleet `cloud-environment` wiring, a synced snapshot, or a harness/API
-exposure, is the residual path to proactive mode in cloud. Until it lands, unknown → reactive-only plus the
+**Documented residual (not closed here):** no producer is known to write the tee file where a cloud
+/ remote consumer can read it today. Shipping or verifying one, whether fleet `cloud-environment` wiring, a synced
+snapshot, or a harness/API exposure, is the residual path to proactive mode in cloud. Until it lands, unknown → reactive-only plus the
 orchestration fallback above is the complete honest contract. Do not open a tracking issue solely
 to restate this residual; the residual is this paragraph.
 
@@ -221,58 +226,40 @@ never justify a new pause on their own. The baseline is per-consumer and in-memo
 persists it, and a fresh consumer deliberately ignores prior sessions' records.
 
 The contract directory holds the further shapes below, none of which readers consume, listed so
-tooling sweeping the directory expects them:
+tooling sweeping the directory expects them. The module's helper creates a missing directory
+owner-only (0700) and writes the contract file owner-only (0600).
 
 - `stop-events.jsonl.lock`: the advisory-lock sibling the hook's serialized append and rotation use
   (present wherever `flock` exists).
-- `spool/`: the tee's per-session write-ahead spool, owner-only by inheritance from the contract
-  directory. `spool/<session>.json` holds ONE line: the newest observation that session recorded,
-  overwritten in place each refresh (never appended, so no two writers ever share a file). The name
-  is a shard key derived from `session_id` and reduced to `misc` unless it matches
-  `^[A-Za-z0-9._-]{1,64}$` without a leading dot. It is **never** trusted as a path. `spool/.last-drain`
-  holds the epoch seconds of the last flush and is what elects the next draining refresh; a stale
-  `spool/.drain.lock` file (a directory from versions before 0.8.36) can appear if a drain is
-  killed and is stolen after two minutes.
-  Records older than 15 minutes are swept, on a 5-minute cadence rather than on every drain.
-  Readers consume none of this: the contract file above is still the only proactive surface.
-- `.tee-disabled`: written by a drain that read `rate_limit_guard_enabled: false`, holding the epoch
-  seconds at which it was written. While it is present and younger than the recheck interval the
-  refreshes stop recording entirely; when it ages out the next drain re-reads the real setting and
-  removes the marker, so re-enabling the plugin recovers without a restart.
-- `.last-write` and `spool/.last-sweep` are writer-private stamps holding epoch seconds, the first
-  for the last real snapshot write and the second for the last spool sweep. They bound how often the
-  writer repeats work that changed nothing. Readers must ignore both: neither carries session data,
-  and staleness is still decided by `captured_at` alone, never by a stamp or by a file's mtime.
-- `.statusline-tee-path`: the statusline shim's resolved-tee cache, one line holding the path it
-  last resolved. Written only when the shim has to resolve from scratch, never on a reuse. It is the
-  one entry here that is NOT anchored on `$HOME`: the shim anchors it on the effective configuration
-  directory, `${CLAUDE_CONFIG_DIR:-$HOME/.claude}`, because the path it caches lives under that
-  directory's own plugin cache. An operator running a relocated `CLAUDE_CONFIG_DIR` therefore has
-  this file beside their relocated cache and not in the contract directory at all. Readers ignore it
-  and a cleanup tool may delete it freely; the shim revalidates it on every use and re-resolves when
-  it is empty, malformed, stale, or names a path that is gone.
-- `.rate-limits.json.tmp.<pid>.<random>`: the tee's atomic-write staging file. Normally it exists
-  for well under a second between write and rename. It can outlive its writer: Claude Code
-  [cancels an in-flight statusline script](https://code.claude.com/docs/en/statusline) when a new
-  update arrives, and a cancellation inside that window leaves the file behind. The tee reclaims its
-  own on exit and on a catch-able signal, and sweeps siblings older than a minute on the next
-  refresh, which is what recovers from a SIGKILL, a crash, or power loss. A cleanup tool should
-  leave these alone: one may belong to a live concurrent session, and the tee reclaims them itself.
+- `.rate-limits.json.lock`: the helper's write lock, created exclusively for the length of one
+  write and stolen when older than 60 seconds. Readers ignore it.
+- `.rate-limits.json.tmp.w<pid>-<hex>`: the helper's atomic-write staging file. Normally it exists
+  for well under a second between write and rename, and a failed rename removes it. One left by a
+  killed writer is swept by the next write once it is older than 60 seconds. A cleanup tool should
+  leave these alone: one may belong to a live concurrent write, and the helper reclaims them itself.
+
+Left by versions before 0.12.0, which wrote the snapshot through a statusline tee, and safe to
+delete after unwiring that tee (`/rate-limit-guard:setup` prints the steps): `.last-write`,
+`spool/`, `.tee-disabled`, `.statusline-tee-path` (under
+`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/rate-limit-guard/`, which differs from the contract directory
+under a relocated `CLAUDE_CONFIG_DIR`), and `bin/statusline-shim.sh`.
+The helper also sweeps a `.rate-limits.json.tmp.<pid>.<random>` staging file those versions left
+once it is older than 60 seconds.
 
 ## Invariants and boundaries
 
 - **Single-account-per-machine is a narrowed gap, not a closed one.** The tee file is still
-  last-writer-wins across every session on the machine: a mid-drain login to a second account feeds
+  last-writer-wins across every session on the machine: a login to a second account between writes feeds
   that account's healthy windows to lanes exhausted on the first. What changed is that a snapshot
   says **whose** windows it carries whenever the writer could attribute it, so a reader can detect
   the mismatch instead of being blind to it. The loop-lane convention §6 owns the framing. Of the
   three sides that design named (a writer-side field, reader-side invalidation of latched state, a
   lane-floor re-audit), the writer-side field has landed as `account.email` above; reader-side
   invalidation is a **MUST**, taken from the direct `.claude.json` read in the floor's "Account
-  switch" bullet rather than from the tee; and the lane-floor re-audit is the drift gate's job,
+  switch" bullet rather than from the tee file; and the lane-floor re-audit is the drift gate's job,
   which fails until every inlined copy carries the floor block (see "Consumers"). Two residuals
   keep this a gap rather than an invariant: the field is **absent** whenever the writer could not
-  attribute the observation (four cases, listed under "Tee file shape"), and absence is
+  attribute the observation (the cases listed under "Tee file shape"), and absence is
   indistinguishable from "the writer never attributes on this platform"; and a reader that cannot
   read `.oauthAccount.emailAddress` keeps its latch, so a switch it cannot attribute goes unseen
   until the latched pause ends.
@@ -285,7 +272,10 @@ tooling sweeping the directory expects them:
   that page stops calling monitors experimental, or when a release note names the monitors component.
 - **Fixed constants.** The tee path and the 90% threshold are contract constants, deliberately not
   configurable: cross-plugin consumers read the documented values, so a per-user override could
-  silently split writer and readers. The only `userConfig` is the hook kill switch.
+  silently split writer and readers. None of the plugin's 7 `userConfig` options changes either:
+  `rate_limit_line_threshold` sets only when Claude gets the threshold line, and
+  `rate_limit_guard_enabled` stops this machine's writes, never the path or the threshold readers
+  apply.
 
 ## Consumers
 

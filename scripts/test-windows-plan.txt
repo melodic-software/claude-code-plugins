@@ -27,6 +27,7 @@ test-windows-hooks .claude/hooks/cloud-bootstrap-plugins.test.sh
 test-windows-hooks plugins/guardrails/hooks/exec-bash.test.sh
 test-windows-hooks scripts/check-exec-form-windows-probe.sh scripts/check-exec-form-windows-probe.test.sh plugins/guardrails/hooks/exec-bash.test.sh
 test-windows-hooks lib/exec-bash.resolver.test.mjs lib/exec-bash.resolver.test.mjs lib/exec-bash.resolver.test.sh
+test-windows-hooks lib/write-snapshot.test.mjs lib/write-snapshot.test.mjs lib/write-snapshot.test.sh
 test-windows-lib plugins/guardrails/hooks/block-windows-drive-tmp.test.sh
 test-windows-lib lib/hook-utils.test.sh
 test-windows-lib plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.ps1 plugins/gaming/skills/dlss5/scripts/Invoke-Dlss5Mod.test.sh

@@ -5,6 +5,25 @@ Notable changes to the hook-telemetry envelope contract. The envelope is version
 compatibility"). Removal, rename, or type-change of a field is a major `schema_version` bump; a field is
 marked deprecated here for one minor cycle before removal.
 
+## Data schemas, envelope unchanged at 1.1 - 2026-10-03
+
+`data` schemas are not version-stamped (README "Versioning"), so this entry carries no
+`schema_version`. context-guard's zone lines and gate moved from settings hooks into its mod, which
+now produces `zone-crossing-inject` and `zone-gate`.
+
+- `zone-crossing-inject`: added optional `armed` (the worst zone reached in the current cycle
+  before the fire) and `suggested` (an operator-mode suggestion was shown). `zone` is always
+  present. Emitted only on a fire that sends lines or shows a suggestion, so no record carries an
+  unchanged zone or a silent improvement. `hook_event` is `tool.call`, `prompt.submit` or
+  `turn.complete`.
+- `zone-crossing-inject.path` is **deprecated**: the mod never writes it, and it stays in the
+  schema, optional, for records from the retired settings hook. Removing it from the schema is a
+  later change under the deprecation policy.
+- `zone-gate`: `zone` is the zone a block rule names, no longer always `dumb`; `grace` is the
+  module option; `calls_seen` resets when the session leaves the blocked zone, reads as unknown,
+  or compacts. `hook_event` is `tool.call`.
+- No field removed, renamed or type-changed.
+
 ## [1.1] - 2026-09-05
 
 Additive minor: four optional correlation keys on the envelope spine (#3758, closing the thread #930
