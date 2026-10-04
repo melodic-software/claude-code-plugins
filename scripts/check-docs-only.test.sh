@@ -48,7 +48,7 @@ mk_repo() {
   printf 'seed\n' >"$dir/docs/migration-playbook.md"
   printf 'seed\n' >"$dir/plugins/p1/skills/alpha/SKILL.md"
   printf 'seed\n' >"$dir/plugins/miro/index.ts"
-  printf 'seed\n' >"$dir/.github/workflows/ci.yml"
+  printf 'seed\n' >"$dir/.github/workflows/pr-require-checks.yml"
   printf 'seed\n' >"$dir/package-lock.json"
   git_test_config "$dir" add -A >/dev/null
   git_test_config "$dir" commit -qm base
@@ -94,7 +94,7 @@ assert_flag "non-allowlisted docs/ file" false "docs/migration-playbook.md"
 assert_flag "plugin SKILL.md is code" false "plugins/p1/skills/alpha/SKILL.md"
 assert_flag "plugin source" false "plugins/miro/index.ts"
 assert_flag "scripts/ change" false "scripts/run-plugin-tests.sh"
-assert_flag ".github/ workflow change" false ".github/workflows/ci.yml"
+assert_flag ".github/ workflow change" false ".github/workflows/pr-require-checks.yml"
 assert_flag "toolchain lockfile" false "package-lock.json"
 assert_flag "sibling of an allowed prefix (docs/inert-archive/)" false "docs/inert-archive/old.md"
 assert_flag "mixed docs+code" false "docs/inert/example/PLAN.md" "plugins/p1/skills/alpha/SKILL.md"

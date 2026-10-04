@@ -48,7 +48,7 @@ MIN_PYTHON = (3, 7)
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Same file set as the "Validate plugin manifests" / "Validate marketplace
-# manifest" steps in .github/workflows/ci.yml.
+# manifest" steps in .github/workflows/pr-require-checks.yml.
 DEFAULT_GLOBS = (
     "plugins/*/.claude-plugin/plugin.json",
     ".claude-plugin/marketplace.json",

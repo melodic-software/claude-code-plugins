@@ -5,11 +5,26 @@ user has approved the plan, and the status-tag grammar that file carries from th
 PLAN.md *file* shape; the plan *body* template scaled by task size is a different artifact, at
 [`../context/plan-template.md`](../context/plan-template.md).
 
-**PLAN.md anatomy.** PLAN holds Brief + Plan; per-phase status lives in the phase tags (`[TODO]` / `[DOING]` / `[DONE]`):
+**PLAN.md anatomy.** PLAN holds Brief + Design + Plan; per-phase status lives in the phase tags (`[TODO]` / `[DOING]` / `[DONE]`):
 
 ```markdown
 ## Brief
 <from /planning:interview if applicable — task restatement, scope boundaries, success criteria>
+
+## Design
+<written by /planning:design-handoff when the design gate passes; /planning:plan keeps it as written. Omit for work with no design stage>
+
+### Module layout
+<modules or packages, what goes where, dependency direction>
+
+### Contracts
+<interfaces, type shapes, signatures, typed-artifact blocks, quoted>
+
+### Variation verdicts
+<per axis the design considered: designed to vary (and through which seam) or held fixed, with the reason>
+
+### Conventions followed
+<repository paths of the existing patterns, rules, and ADRs this design follows>
 
 ## Plan
 
@@ -44,5 +59,10 @@ Approval: <attended: approved by <who> on <date>; unattended: standing mandate <
 ### Mechanical work
 <commit boundaries, verification checkpoints, sequential fallback path (when parallel recommended). Standard implementation boilerplate — rarely needs user-specific override>
 ```
+
+An early-exit design (`design-resolution.md`) writes `## Design` as one line naming the early
+exit and its reason; a Tier B early exit adds a `### Contracts` subsection quoting its type sketch. `## Design` is how the design decisions reach a cleared session, a dispatched
+worker's brief, and the published plan; the design directory itself is never published. A phase
+cites the subsection it implements rather than paraphrasing it.
 
 Advance the phase tag (`[TODO]` → `[DOING]` → `[DONE]`) as implementation completes each phase. The tags are what a resuming session reads to know where to continue.

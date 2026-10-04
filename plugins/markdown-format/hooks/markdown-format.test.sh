@@ -995,8 +995,9 @@ fi
 # With neither PATH nor a contained local binary available, the hook must not
 # invoke the package runner (which could fetch from the network).
 PD_NO_MDLINT="$(mktemp -d "$WORK/pd.XXXXXX")"
+ERR_NO_MDLINT="$WORK/no-mdlint.err"
 OUT_NO_MDLINT="$(run_hook_env "$FA" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_NO_MDLINT" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
+  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true 2>"$ERR_NO_MDLINT")"
 RC_NO_MDLINT=$?
 if [[ $RC_NO_MDLINT -eq 0 ]]; then ok "missing markdownlint exits 0 (advisory)"; else fail "missing markdownlint exit $RC_NO_MDLINT"; fi
 if printf '%s' "$OUT_NO_MDLINT" | jq -e '.hookSpecificOutput.additionalContext | contains("was not found on this hook'"'"'s PATH or as a contained repository-local")' >/dev/null 2>&1; then
@@ -1004,17 +1005,18 @@ if printf '%s' "$OUT_NO_MDLINT" | jq -e '.hookSpecificOutput.additionalContext |
 else
   fail "missing markdownlint warning absent: $OUT_NO_MDLINT"
 fi
-# #2740: notice must not claim a session-long skip latch, and must carry the
-# probed PATH so a PATH-layer miss (nvm prefix, cloud harness env) is diagnosable.
+# #2740: notice must not claim a session-long skip latch. The probed PATH, which
+# makes a PATH-layer miss (nvm prefix, cloud harness env) diagnosable, goes to
+# stderr, which Claude Code keeps in the debug log, and to neither channel.
 if printf '%s' "$OUT_NO_MDLINT" | jq -e '
   (.hookSpecificOutput.additionalContext | contains("there is no skip latch")) and
-  (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
-  (.systemMessage | contains("PATH probed:")) and
+  ((.hookSpecificOutput.additionalContext | contains("PATH probed:")) | not) and
+  ((.systemMessage | contains("PATH probed:")) | not) and
   ((.hookSpecificOutput.additionalContext | contains("skipped for this session")) | not)
-' >/dev/null 2>&1; then
-  ok "missing markdownlint notice: notice-only latch + PATH diagnostic"
+' >/dev/null 2>&1 && grep -q '^PATH probed: ' "$ERR_NO_MDLINT"; then
+  ok "missing markdownlint notice: notice-only latch, PATH diagnostic on stderr only"
 else
-  fail "missing markdownlint latch/PATH diagnostic wrong: $OUT_NO_MDLINT"
+  fail "missing markdownlint latch/PATH diagnostic wrong: $OUT_NO_MDLINT stderr: $(cat "$ERR_NO_MDLINT")"
 fi
 # The notice is shown on the first skip and renewed every eighth (prerequisite
 # class, session-keyed); the renewal keeps the install route.
@@ -1034,14 +1036,13 @@ for n in 1 2 3 4 5 6 7 8; do
   renew_out[n]="$(cd "$UNRELATED" && env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_RENEW" \
     CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK" <<<"$RENEW_PAYLOAD")"
 done
-[[ "${renew_out[1]}" == *"was not found on this hook"* && "${renew_out[1]}" == *"PATH probed:"* ]] || renew_ok=0
-for n in 2 3 4 5 6 7; do
+[[ "${renew_out[1]}" == *"was not found on this hook"* && "${renew_out[1]}" == *"/markdown-format:check"* &&
+  "${renew_out[1]}" == *"This hook does not invoke npx"* ]] || renew_ok=0
+for n in 2 3 4 5 6 7 8; do
   [[ -z "${renew_out[n]}" ]] || renew_ok=0
 done
-[[ "${renew_out[8]}" == *"[8 skips this session]"* && "${renew_out[8]}" == *"/markdown-format:check"* &&
-  "${renew_out[8]}" == *"This hook does not invoke npx"* ]] || renew_ok=0
 if ((renew_ok)); then
-  ok "missing markdownlint: fire 1 full, fires 2-7 silent, fire 8 renews with the install route"
+  ok "missing markdownlint: fire 1 carries the install route, fires 2-8 are silent (no renewal)"
 else
   fail "missing markdownlint 8-fire sequence wrong: 1=[${renew_out[1]}] 2=[${renew_out[2]}] 7=[${renew_out[7]}] 8=[${renew_out[8]}]"
 fi
@@ -1059,45 +1060,39 @@ done
 # jq may live outside /usr/bin (mise, Homebrew); without it the hook skips first.
 JQ_DIR="$(dirname "$(type -P jq)")"
 PD_TRIM="$(mktemp -d "$WORK/pd.XXXXXX")"
-OUT_TRIM="$(run_hook_env "$FA" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_TRIM" \
+run_hook_env "$FA" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_TRIM" \
   CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true \
-  PATH="/usr/bin:${PLUGIN_BIN_HOME}/.local/bin:${JQ_DIR}${plugin_bins}:/bin")"
+  PATH="/usr/bin:${PLUGIN_BIN_HOME}/.local/bin:${JQ_DIR}${plugin_bins}:/bin" >/dev/null 2>"$WORK/trim.err"
+ERR_TRIM="$(grep '^PATH probed: ' "$WORK/trim.err")"
 # silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
 if host_cygpath_rewrites_posix_path; then
   skip "PATH probed trims plugin-bin directories to a count" \
     "cygpath rewrites the POSIX fixture spelling these cases pin"
 else
-  if printf '%s' "$OUT_TRIM" | jq -e --arg local "$PLUGIN_BIN_HOME/.local/bin" '
-    (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
-    (.hookSpecificOutput.additionalContext | contains("/usr/bin")) and
-    (.hookSpecificOutput.additionalContext | contains($local)) and
-    (.hookSpecificOutput.additionalContext | contains("+20 plugin-bin directories omitted")) and
-    ((.hookSpecificOutput.additionalContext | contains(".claude/plugins/cache/mp/plugin-0/bin")) | not)
-  ' >/dev/null 2>&1; then
-    ok "PATH probed trims plugin-bin directories to a count"
+  if [[ "$ERR_TRIM" == *"/usr/bin"* && "$ERR_TRIM" == *"$PLUGIN_BIN_HOME/.local/bin"* &&
+    "$ERR_TRIM" == *"+20 plugin-bin directories omitted"* &&
+    "$ERR_TRIM" != *".claude/plugins/cache/mp/plugin-0/bin"* ]]; then
+    ok "PATH probed (stderr) trims plugin-bin directories to a count"
   else
-    fail "PATH probed trim wrong: $OUT_TRIM"
+    fail "PATH probed trim wrong: $ERR_TRIM"
   fi
 fi
 # Empty PATH components are cwd. Word-split with IFS=: would drop them.
 PD_EMPTY="$(mktemp -d "$WORK/pd.XXXXXX")"
-OUT_EMPTY="$(run_hook_env "$FA" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_EMPTY" \
+run_hook_env "$FA" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_EMPTY" \
   CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true \
-  PATH="/usr/bin::${PLUGIN_BIN_HOME}/.local/bin:${JQ_DIR}${plugin_bins}:/bin:")"
+  PATH="/usr/bin::${PLUGIN_BIN_HOME}/.local/bin:${JQ_DIR}${plugin_bins}:/bin:" >/dev/null 2>"$WORK/empty.err"
+ERR_EMPTY="$(grep '^PATH probed: ' "$WORK/empty.err")"
 # silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
 if host_cygpath_rewrites_posix_path; then
   skip "PATH probed preserves empty components as cwd" \
     "cygpath rewrites the POSIX fixture spelling these cases pin"
 else
-  if printf '%s' "$OUT_EMPTY" | jq -e --arg local "$PLUGIN_BIN_HOME/.local/bin" '
-    (.hookSpecificOutput.additionalContext | contains("PATH probed: /usr/bin:.:")) and
-    (.hookSpecificOutput.additionalContext | contains($local)) and
-    (.hookSpecificOutput.additionalContext | contains(":/bin:.")) and
-    (.hookSpecificOutput.additionalContext | contains("+20 plugin-bin directories omitted"))
-  ' >/dev/null 2>&1; then
-    ok "PATH probed preserves empty components as cwd"
+  if [[ "$ERR_EMPTY" == "PATH probed: /usr/bin:.:"* && "$ERR_EMPTY" == *"$PLUGIN_BIN_HOME/.local/bin"* &&
+    "$ERR_EMPTY" == *":/bin:."* && "$ERR_EMPTY" == *"+20 plugin-bin directories omitted"* ]]; then
+    ok "PATH probed (stderr) preserves empty components as cwd"
   else
-    fail "PATH probed empty-component trim wrong: $OUT_EMPTY"
+    fail "PATH probed empty-component trim wrong: $ERR_EMPTY"
   fi
 fi
 # In-repo missing-tool: repo-local `npm i -D` is still the reliable route (#2868).
@@ -1144,7 +1139,7 @@ else
     (.hookSpecificOutput.additionalContext | contains("outside a repository")) and
     (.hookSpecificOutput.additionalContext | contains("would accept one at " + $bun)) and
     (.hookSpecificOutput.additionalContext | contains("bun install --global markdownlint-cli2")) and
-    (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
+    ((.hookSpecificOutput.additionalContext | contains("PATH probed:")) | not) and
     ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not) and
     ((.hookSpecificOutput.additionalContext | contains("is the reliable route")) | not) and
     ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $fnm)) | not)
@@ -1285,7 +1280,7 @@ OUT_NO_JQ="$(run_hook_env "$FA" BASH_ENV="$NO_JQ_ENV" CLAUDE_PLUGIN_DATA="$PD_NO
   CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
 RC_NO_JQ=$?
 if [[ $RC_NO_JQ -eq 0 ]]; then ok "missing jq exits 0 (advisory)"; else fail "missing jq exit $RC_NO_JQ"; fi
-if printf '%s' "$OUT_NO_JQ" | jq -e '(.hookSpecificOutput.additionalContext | contains("jq not found on PATH")) and (.systemMessage | contains("jq not found on PATH"))' >/dev/null 2>&1; then
+if printf '%s' "$OUT_NO_JQ" | jq -e '(.hookSpecificOutput.additionalContext | contains("jq not on the hook PATH")) and (.systemMessage | contains("jq not on the hook PATH"))' >/dev/null 2>&1; then
   ok "missing jq emits visible notice on both channels"
 else
   fail "missing jq warning absent: $OUT_NO_JQ"
@@ -1338,7 +1333,7 @@ OUT_NO_JQ_NOGIT="$(run_hook_env "$NOJQ_NESTED" BASH_ENV="$NO_JQ_NO_GIT_ENV" CLAU
   CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
 RC_NO_JQ_NOGIT=$?
 if [[ $RC_NO_JQ_NOGIT -eq 0 ]] &&
-  printf '%s' "$OUT_NO_JQ_NOGIT" | grep -q 'jq not found on PATH'; then
+  printf '%s' "$OUT_NO_JQ_NOGIT" | grep -q 'jq not on the hook PATH'; then
   ok "missing jq + missing git, nested .md -> the opt-in pre-check still finds the root config and the notice is emitted"
 else
   fail "missing jq + missing git, nested .md -> notice swallowed, the pre-check read an opted-in repo as opted-out (rc=$RC_NO_JQ_NOGIT out=$OUT_NO_JQ_NOGIT)"
@@ -1981,7 +1976,8 @@ if command -v node >/dev/null 2>&1; then
   fi
   OUT_PROBE_ON="$(run_probe_launcher)"
   RC_PROBE_ON=$?
-  CTX_PROBE_ON="$(ctx_of "$OUT_PROBE_ON")"
+  # The SessionStart probe tells the user only; the model hears at the first skip.
+  CTX_PROBE_ON="$(printf '%s' "$OUT_PROBE_ON" | jq -r '.systemMessage // empty' 2>/dev/null)"
   if [[ $RC_PROBE_ON -eq 0 &&
     "$CTX_PROBE_ON" == *markdownlint-cli2* &&
     "$CTX_PROBE_ON" == */markdown-format:check* &&
@@ -2967,7 +2963,7 @@ fi
 # such a path, and hook::repo_root reads an empty hint as `.`, the hook process
 # CWD, where the `dirname` it replaced answered `/`. An empty extraction fails
 # loudly so a refactor that moves the block cannot pass by testing nothing.
-FILE_DIR_LINES="$(awk 'index($0, "FILE_DIR=\"${FILE%/*}\"") { p = 1 } index($0, "REPO_ROOT=") { p = 0 } p' "$HOOK_DIR/hook-utils.sh")"
+FILE_DIR_LINES="$(awk 'index($0, "FILE_DIR=\"${FILE%") { p = 1 } index($0, "REPO_ROOT=") { p = 0 } p' "$HOOK_DIR/hook-utils.sh")"
 if [[ -z "$FILE_DIR_LINES" ]]; then
   fail "root-level: FILE_DIR block not found in hook-utils.sh"
 else

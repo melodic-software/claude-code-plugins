@@ -294,6 +294,7 @@ hand-written; the publish destination comes from the `medium` cascade key. Proce
 ## Next
 
 - The topology settles a decision worth keeping: `/architecture:record-decision`.
+- The topology needs a deployment change decided: `/planning:design system`.
 - The question is which systems the repository sits among: `/architecture:map-landscape`.
 
 ## Gotchas

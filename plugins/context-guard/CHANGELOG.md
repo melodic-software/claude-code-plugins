@@ -5,6 +5,33 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.1] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
+
+## [0.13.0] - 2026-10-04
+
+### Changed
+
+- **Tighter shipped token bands.** On a 1M-token window a session now leaves `smart` above 128,000 tokens (was 200,000) and reads `dumb` above 250,000 (was 400,000); on a 200k window `dumb` starts above 150,000 (was 160,000). Percent bands stay at 50/75 and the worse of the two still decides. 128K is the last length at which a current Claude model was measured strong on long-context retrieval; the reader contract records the basis. Set `token_bands` in `zones.json` to keep the old edges.
+
+## [0.12.3] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing node goes to the user only, in one shorter line.
+
+## [0.12.2] - 2026-10-04
+
+### Changed
+
+- **Shorter lines to Claude.** Zone lines drop "Continuing is the user's call." unless `zone_line_data` adds a figure, and the gate denial is one short sentence with no off-switch hint: `context-guard: Write denied: dumb zone, grace budget of 20 calls spent. Reads, Bash, Skill and handoff-path writes still run; /session-flow:handoff (if installed) writes a save-point.` The README keeps the switches.
+- **No smart verdict after a resume.** A resume or `/branch` restates the verdict only when it is past smart, as a reload already did.
+- **Debug log mirror.** Each line sent to Claude, and each gate denial, is written as sent to the debug log.
+- **Shorter status tool description.**
+
 ## [0.12.1] - 2026-10-04
 
 ### Changed

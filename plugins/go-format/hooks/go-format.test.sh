@@ -590,7 +590,7 @@ else
       else
         fail "probe-gate/false: want rc 0 and empty stdout (rc=$PROBE_RC out=$PROBE_OUT)"
       fi
-    elif [[ $PROBE_RC -eq 0 && "$PROBE_OUT" == *"goimports was not found"* ]]; then
+    elif [[ $PROBE_RC -eq 0 && "$PROBE_OUT" == *"goimports not on the hook PATH"* ]]; then
       ok "probe-gate/$probe_case: go_format_enabled $probe_case still reports the missing goimports"
     else
       fail "probe-gate/$probe_case: want rc 0 and the missing-goimports notice (rc=$PROBE_RC out=$PROBE_OUT)"

@@ -3,11 +3,23 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.22.12] - 2026-10-04
+## [0.22.13] - 2026-10-04
 
 ### Fixed
 
 - The Bash route of the test-scan hook no longer scans or records a test file that git reports unchanged from HEAD when git last moved HEAD with a checkout, pull, merge, reset, rebase, cherry-pick or clone (line-ending conversion is applied as `git diff` applies it), so the test judge no longer reviews tests the session did not write at the next Stop. A test edited and committed in one Bash call is still recorded. Files git brought in no longer take the four scan slots from a test the same call wrote, and the per-file scan time is what the git checks leave of the hook's budget. The file's repository is found from either path separator. A test edited, committed and then followed by a checkout, pull or merge in one Bash call is still skipped ([#6016](https://github.com/melodic-software/claude-code-plugins/issues/6016)).
+
+## [0.22.12] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
+
+## [0.22.11] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing node goes to the user only, in one shorter line. The jq `degrade` text in `prerequisites.json` no longer says the skip lasts the session or that the hook says so once.
 
 ## [0.22.10] - 2026-10-04
 

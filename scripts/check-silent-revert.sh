@@ -332,7 +332,7 @@
 #
 # The self-test (scripts/check-silent-revert.test.sh) runs BEFORE this script in
 # CI, so a broken detector cannot mask a regression behind a green canary --
-# the same never-skip, self-test-first, fail-closed shape the ci.yml gates use.
+# the same never-skip, self-test-first, fail-closed shape the pr-require-checks.yml gates use.
 set -uo pipefail
 
 _SILENT_REVERT_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/changed-files.sh"
@@ -425,7 +425,7 @@ declares_removal() {
   # The Conventional-Commits revert type, and the ONLY revert spelling that can
   # reach main here (#2837). This repo is squash-only with
   # squash_merge_commit_title: PR_TITLE, so the squash subject is the PR title,
-  # and the pr-contract step of .github/workflows/ci.yml's ci-status job gates
+  # and the check-contract step of .github/workflows/pr-require-checks.yml's ci-status job gates
   # every title through a required Conventional-Commits check whose type list is
   # all-lowercase and contains `revert` but nothing a `Revert "…"` subject could
   # match. Measured over every first-parent commit of main: `Revert "` 0,

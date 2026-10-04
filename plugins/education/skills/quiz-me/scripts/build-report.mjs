@@ -104,13 +104,37 @@ function questionRows(source) {
   return asList(source.questions).filter((row) => row && typeof row === "object");
 }
 
+// Authors tend to write the correct choice first, and an instruction does not
+// stop it, so the builder orders choices itself. The seed comes from the
+// question's own text, so rebuilding the same model gives the same page.
+function seededRandom(text) {
+  let state = 2166136261;
+  for (const char of text) state = Math.imul(state ^ char.codePointAt(0), 16777619);
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function choicesOf(row) {
+  const choices = asList(row.choices)
+    .map((item) => asText(item))
+    .filter((item) => item !== "");
+  const random = seededRandom(JSON.stringify([asText(row.question), choices]));
+  for (let i = choices.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [choices[i], choices[j]] = [choices[j], choices[i]];
+  }
+  return choices;
+}
+
 function questionItems(questions) {
   if (questions.length === 0) return "<li>None.</li>";
   return questions
     .map((row) => {
-      const choices = asList(row.choices)
-        .map((item) => asText(item))
-        .filter((item) => item !== "");
+      const choices = choicesOf(row);
       const choiceList =
         choices.length === 0 ? "" : `<ol>${choices.map((item) => `<li>${e(item)}</li>`).join("")}</ol>`;
       return `<li><p>${e(row.question)}</p>${choiceList}</li>`;
@@ -118,12 +142,17 @@ function questionItems(questions) {
     .join("\n");
 }
 
+function keyAnswer(row) {
+  const position = choicesOf(row).indexOf(asText(row.answer)) + 1;
+  return position === 0 ? e(row.answer) : `Choice ${position}: ${e(row.answer)}`;
+}
+
 function keyItems(questions) {
   if (questions.length === 0) return "<li>None.</li>";
   return questions
     .map(
       (row) =>
-        `<li><p>${e(row.answer)}</p><p class="muted">If missed, reread: ${e(sectionName(row.section) || row.section)}</p></li>`,
+        `<li><p>${keyAnswer(row)}</p><p class="muted">If missed, reread: ${e(sectionName(row.section) || row.section)}</p></li>`,
     )
     .join("\n");
 }

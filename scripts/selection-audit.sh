@@ -19,14 +19,14 @@
 #       commit whose selector could not run is an error row, and a range with
 #       errors and no selecting commit is INCONCLUSIVE, not a miss.
 #
-# An unmapped file counts as selecting a suite only when ci.yml's UNMAPPED
-# fallback runs that suite: in a tree whose ci.yml plans its test lanes with
+# An unmapped file counts as selecting a suite only when pr-require-checks.yml's UNMAPPED
+# fallback runs that suite: in a tree whose pr-require-checks.yml plans its test lanes with
 # scripts/plan-test-lanes.sh, the corpus of the file's language, which the
 # selector adds itself under --unmapped-corpus; in an older tree, the corpus
-# fallback_corpus reads from ci.yml.
+# fallback_corpus reads from pr-require-checks.yml.
 #
 #   scripts/selection-audit.sh red-replay --run-id ID [--repo OWNER/REPO]
-#       For a failed ci run on main: read the failing suites from its job logs
+#       For a failed pr-require-checks run on main: read the failing suites from its job logs
 #       (FAIL: lines), find each suite's last green run (the newest earlier
 #       successful run whose job logs name the suite), and replay that
 #       range. Needs gh with actions: read.
@@ -84,16 +84,20 @@ reads() {
     }' "$1" | sort -u
 }
 
-# planned: this tree's ci.yml takes its test lanes from scripts/plan-test-lanes.sh,
+# gate_workflow: this tree's gate workflow; a tree from before the rename
+# names it ci.yml.
+gate_workflow() { if [[ -f .github/workflows/ci.yml ]]; then echo .github/workflows/ci.yml; else echo .github/workflows/pr-require-checks.yml; fi; }
+
+# planned: this tree's gate workflow takes its test lanes from scripts/plan-test-lanes.sh,
 # whose selection already holds an unmapped file's language corpus.
-planned() { grep -q 'scripts/plan-test-lanes\.sh' .github/workflows/ci.yml 2>/dev/null; }
+planned() { grep -q 'scripts/plan-test-lanes\.sh' "$(gate_workflow)" 2>/dev/null; }
 
 # unmapped_flag: the selector flag that answers for an unmapped file the way
-# this tree's ci.yml does.
+# this tree's gate workflow does.
 unmapped_flag() { if planned; then echo --unmapped-corpus; else echo --allow-unmapped; fi; }
 
-# fallback_corpus: the suites an older ci.yml's UNMAPPED fallback runs, one per line,
-# read from the commands in that branch of ci.yml rather than assumed. Of its
+# fallback_corpus: the suites an older gate workflow's UNMAPPED fallback runs, one per line,
+# read from the commands in that branch of the workflow rather than assumed. Of its
 # runners only run-plugin-tests.sh runs a suite of this corpus (it lists what
 # it discovers); run-outside-node-suites.sh runs Node packages' npm test.
 # Prints nothing when the branch runs no run-plugin-tests.sh; exit 1 when the
@@ -102,7 +106,7 @@ fallback_corpus() {
   local block
   planned && return 0
   block="$(awk '/grep -q .\^UNMAPPED:/ { f = 1 } f && /^[[:space:]]*else$/ { exit } f' \
-    .github/workflows/ci.yml 2>/dev/null)"
+    "$(gate_workflow)" 2>/dev/null)"
   [[ -n "$block" ]] || return 1
   grep -q 'scripts/run-plugin-tests\.sh' <<<"$block" || return 0
   bash scripts/run-plugin-tests.sh --list 2>/dev/null
@@ -174,7 +178,7 @@ cmd_trace() {
   out="$(cd "$out" && pwd -P)"
 
   git ls-files >"$out/tracked"
-  fallback_corpus >"$out/fallback" || die "cannot derive the suites ci.yml's UNMAPPED fallback runs"
+  fallback_corpus >"$out/fallback" || die "cannot derive the suites pr-require-checks.yml's UNMAPPED fallback runs"
   if ((${#suites[@]} == 0)); then
     mapfile -t suites < <(grep -E '(\.test\.sh|(^|/)test_[^/]*\.py)$' "$out/tracked" |
       awk -v i="$i" -v n="$n" '(NR - 1) % n == i')
@@ -412,7 +416,7 @@ cmd_red_replay() {
 
   local report="$out/report.md" rc=0 suite green sha good
   {
-    echo "## Red replay of ci run [$run](https://github.com/$repo/actions/runs/$run)"
+    echo "## Red replay of pr-require-checks run [$run](https://github.com/$repo/actions/runs/$run)"
     echo
     echo "Failed at \`${bad:0:9}\`; ${#failing[@]} failing suite(s) found in the failed jobs' logs."
     echo
