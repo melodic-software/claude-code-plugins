@@ -1078,6 +1078,7 @@ CORPUS="$FIX/corpus"
 corpus_files=(
   bash-bats/bad/bats-greet-against-itself.bats.fixture
   bash-bats/bad/bats-greet-prints-only.bats.fixture
+  bash-bats/bad/bats-greet-run-twice-one-line.bats.fixture
   bash-bats/bad/bats-greet-run-unchecked.bats.fixture
   bash-bats/bad/bats-last-bang-or-true.bats.fixture
   bash-bats/bad/bats-page-source-text.bats.fixture
@@ -1085,6 +1086,7 @@ corpus_files=(
   bash-bats/good/bats-config-removed-last-bang.bats.fixture
   bash-bats/good/bats-greet-against-literal.bats.fixture
   bash-bats/good/bats-greet-asserts-output.bats.fixture
+  bash-bats/good/bats-greet-run-checked-one-line.bats.fixture
   bash-bats/good/bats-greet-run-status.bats.fixture
   bash-bats/good/bats-greet-skipped.bats.fixture
   bash-bats/good/bats-greet-test-command.bats.fixture
@@ -1107,6 +1109,7 @@ corpus_files=(
   bash-harness/good/sources-test-harness.test.sh.fixture
   cs-mstest/bad/OrderAlwaysTrueBesideWeakTests.cs.fixture
   cs-mstest/bad/OrderAlwaysTrueTests.cs.fixture
+  cs-mstest/bad/OrderConstructedIsNotNullTests.cs.fixture
   cs-mstest/bad/OrderDiscountIfTests.cs.fixture
   cs-mstest/bad/OrderIsNotNullTests.cs.fixture
   cs-mstest/bad/OrderLinesSumTests.cs.fixture
@@ -1115,6 +1118,7 @@ corpus_files=(
   cs-mstest/bad/OrderSourceTextTests.cs.fixture
   cs-mstest/bad/OrderTotalFormatTests.cs.fixture
   cs-mstest/good/OrderArchiveIgnoredClassTests.cs.fixture
+  cs-mstest/good/OrderConstructedIdTests.cs.fixture
   cs-mstest/good/OrderParseExpectedExceptionTests.cs.fixture
   cs-mstest/good/OrderPlacementAssertedTests.cs.fixture
   cs-mstest/good/OrderRepaired4bTests.cs.fixture
@@ -1122,6 +1126,7 @@ corpus_files=(
   cs-mstest/good/OrderSyncIgnoredTests.cs.fixture
   cs-mstest/good/OrderTotalFormatLiteralTests.cs.fixture
   cs-nunit/bad/CartCheckoutThatAsyncTests.cs.fixture
+  cs-nunit/bad/CartConstructedNotNullTests.cs.fixture
   cs-nunit/bad/CartDiscountTests.cs.fixture
   cs-nunit/bad/CartIsNotNullTests.cs.fixture
   cs-nunit/bad/CartPlaceOrderCatchTests.cs.fixture
@@ -1131,6 +1136,7 @@ corpus_files=(
   cs-nunit/bad/CartSourceTextTests.cs.fixture
   cs-nunit/bad/CartTotalSumTests.cs.fixture
   cs-nunit/good/CartBenchmarkExplicitTests.cs.fixture
+  cs-nunit/good/CartConstructedCurrencyTests.cs.fixture
   cs-nunit/good/CartDiscountLiteralTests.cs.fixture
   cs-nunit/good/CartDivideExpectedResultTests.cs.fixture
   cs-nunit/good/CartExportIgnoredTests.cs.fixture
@@ -1138,6 +1144,7 @@ corpus_files=(
   cs-nunit/good/CartRepaired4bTests.cs.fixture
   cs-nunit/good/CartRepairedOraclesTests.cs.fixture
   cs-nunit/good/CartSyncIgnoredFixtureTests.cs.fixture
+  cs-xunit/bad/ConfigEarlyReturnTests.cs.fixture
   cs-xunit/bad/DiagnosticsCheckPrintsOnlyTests.cs.fixture
   cs-xunit/bad/InvoiceExpressionNotNullTests.cs.fixture
   cs-xunit/bad/InvoiceExpressionVerifyTests.cs.fixture
@@ -1158,13 +1165,17 @@ corpus_files=(
   cs-xunit/bad/ParserAsyncWrappedExpressionThrowsTests.cs.fixture
   cs-xunit/bad/QuoteExpectedParameterTests.cs.fixture
   cs-xunit/bad/SlugifyTests.cs.fixture
+  cs-xunit/bad/UnitTest1.cs.fixture
   cs-xunit/bad/WidgetAlwaysTrueTests.cs.fixture
+  cs-xunit/bad/WidgetConstructedNotNullTests.cs.fixture
   cs-xunit/bad/WidgetExpressionAlwaysFalseTests.cs.fixture
+  cs-xunit/bad/WidgetInertBesideWeakOneLineTests.cs.fixture
   cs-xunit/bad/WidgetNameofTypeNameTests.cs.fixture
   cs-xunit/bad/WidgetTypeofAndWeakTests.cs.fixture
   cs-xunit/bad/WidgetTypeofNotNullTests.cs.fixture
   cs-xunit/bad/WorkerRunAsyncTests.cs.fixture
   cs-xunit/good/AnalyzerHarnessRunAsyncTests.cs.fixture
+  cs-xunit/good/CheckoutStepDefinitions.cs.fixture
   cs-xunit/good/DiagnosticsCheckAssertsTests.cs.fixture
   cs-xunit/good/HttpStatusFieldTests.cs.fixture
   cs-xunit/good/InvoiceMailerTests.cs.fixture
@@ -1177,10 +1188,14 @@ corpus_files=(
   cs-xunit/good/InvoiceTotalShouldlyTests.cs.fixture
   cs-xunit/good/InvoiceVerifyHelperTests.cs.fixture
   cs-xunit/good/OrderPricedHelperTests.cs.fixture
+  cs-xunit/good/ReportTrialGuardTests.cs.fixture
   cs-xunit/good/SameFileAssertingHelperTests.cs.fixture
   cs-xunit/good/SlugifyLiteralTests.cs.fixture
+  cs-xunit/good/WidgetConstructedOraclesTests.cs.fixture
+  cs-xunit/good/WidgetTwoStatementsOneLineTests.cs.fixture
   cs-xunit/good/WidgetTypeOraclesTests.cs.fixture
   go-testing/bad/go_add_deepequal_derived_test.go.fixture
+  go-testing/bad/go_check_named_runs_test.go.fixture
   go-testing/bad/go_handler_source_text_test.go.fixture
   go-testing/bad/go_query_diff_itself_test.go.fixture
   go-testing/bad/go_render_snapshot_test.go.fixture
@@ -1189,6 +1204,7 @@ corpus_files=(
   go-testing/bad/go_slugify_runs_test.go.fixture
   go-testing/bad/go_user_nil_check_test.go.fixture
   go-testing/good/go_cart_helper_test.go.fixture
+  go-testing/good/go_check_named_asserts_test.go.fixture
   go-testing/good/go_codec_fuzz_test.go.fixture
   go-testing/good/go_export_skipped_test.go.fixture
   go-testing/good/go_hash_bench_test.go.fixture
@@ -1214,6 +1230,7 @@ corpus_files=(
   js-jest/good/jest-discount-checked.test.ts.fixture
   js-jest/good/jest-repaired-4b.test.ts.fixture
   js-jest/good/jest-repaired-oracles.test.ts.fixture
+  js-jest/good/jest-slug-literal.spec.cts.fixture
   js-jest/good/jest-slug-literal.test.js.fixture
   js-jest/good/jest-split-call.test.ts.fixture
   js-node-test/bad/node-test-config-rejects-unawaited.test.mjs.fixture
@@ -1265,7 +1282,10 @@ corpus_files=(
   js-vitest/bad/vitest-queue-poll-unawaited.test.ts.fixture
   js-vitest/bad/vitest-rows-loop-unchecked.test.ts.fixture
   js-vitest/bad/vitest-session-truthy.test.ts.fixture
+  js-vitest/bad/vitest-slug-prints.test.mts.fixture
+  js-vitest/bad/vitest-total-bare-expect-one-line.test.ts.fixture
   js-vitest/bad/vitest-user-fixture-literal.test.ts.fixture
+  js-vitest/good/vitest-average-non-null.test.ts.fixture
   js-vitest/good/vitest-cart-checked.test.ts.fixture
   js-vitest/good/vitest-duration-literal.test.ts.fixture
   js-vitest/good/vitest-generated-types-fresh.test.ts.fixture
@@ -1277,6 +1297,7 @@ corpus_files=(
   js-vitest/good/vitest-repaired-4b.test.ts.fixture
   js-vitest/good/vitest-repaired-oracles.test.ts.fixture
   js-vitest/good/vitest-split-call-options.test.ts.fixture
+  js-vitest/good/vitest-two-statements-one-line.test.ts.fixture
   planted/bad/PlantedShouldAloneTests.cs.fixture
   planted/bad/PlantedSumRecomputedTests.cs.fixture
   planted/bad/PlantedUnawaitedAsyncTests.cs.fixture
@@ -1308,6 +1329,7 @@ corpus_files=(
   pwsh-pester/good/pester-sum-it-skip.Tests.ps1.fixture
   pwsh-pester/good/pester-sum-set-itresult.Tests.ps1.fixture
   pwsh-pester/good/pester-sum-should-be.Tests.ps1.fixture
+  py-pytest/bad/test_pytest_check_named_runs.py.fixture
   py-pytest/bad/test_pytest_limit_restated.py.fixture
   py-pytest/bad/test_pytest_order_fixture_literal.py.fixture
   py-pytest/bad/test_pytest_parametrize_split_runs.py.fixture
@@ -1318,9 +1340,11 @@ corpus_files=(
   py-pytest/bad/test_pytest_slugify_runs.py.fixture
   py-pytest/bad/test_pytest_split_signature_runs.py.fixture
   py-pytest/bad/test_pytest_total_tuple_assert.py.fixture
+  py-pytest/bad/test_pytest_total_tuple_one_line.py.fixture
   py-pytest/bad/test_pytest_user_not_none.py.fixture
   py-pytest/bad/test_pytest_views_source_text.py.fixture
   py-pytest/good/test_pytest_ast_parse_source.py.fixture
+  py-pytest/good/test_pytest_check_named_asserts.py.fixture
   py-pytest/good/test_pytest_deterministic_report.py.fixture
   py-pytest/good/test_pytest_exec_tool_script.py.fixture
   py-pytest/good/test_pytest_helper_check_returncode.py.fixture
@@ -1337,6 +1361,7 @@ corpus_files=(
   py-pytest/good/test_pytest_snapshot_local.py.fixture
   py-pytest/good/test_pytest_split_signature.py.fixture
   py-pytest/good/test_pytest_try_fail.py.fixture
+  py-pytest/good/test_pytest_two_statements_one_line.py.fixture
   py-pytest/good/test_pytest_unittest_mock.py.fixture
   py-unittest/bad/test_unittest_after_skipped_class.py.fixture
   py-unittest/bad/test_unittest_config_recomputed.py.fixture
@@ -1349,6 +1374,7 @@ corpus_files=(
   py-unittest/bad/test_unittest_render_snapshot.py.fixture
   py-unittest/bad/test_unittest_slugify_runs.py.fixture
   py-unittest/bad/test_unittest_total_recomputed.py.fixture
+  py-unittest/bad/test_unittest_validate_named_runs.py.fixture
   py-unittest/bad/test_unittest_views_source_text.py.fixture
   py-unittest/good/test_unittest_config_literal.py.fixture
   py-unittest/good/test_unittest_deterministic_call.py.fixture
@@ -1361,6 +1387,7 @@ corpus_files=(
   py-unittest/good/test_unittest_skipunless.py.fixture
   py-unittest/good/test_unittest_skipunless_split.py.fixture
   py-unittest/good/test_unittest_slugify.py.fixture
+  py-unittest/good/test_unittest_validate_named_asserts.py.fixture
 )
 on_disk="$(cd "$CORPUS" && find . -type f -name '*.fixture' | sed 's|^\./||' | sort)"
 listed="$(printf '%s\n' "${corpus_files[@]}" | sort)"
@@ -1442,6 +1469,25 @@ done
 # (c) the whole-tree walk, not --file, resolves the read against the tracked source.
 run_scan "$RO/source"
 assert_contains "(c) a whole-tree run reports the T2 read of its tracked source" "$out" \
+  "test/vitest-pitch-detail-source-order.test.ts:12: reads tracked source file app/pitch-detail.tsx as text"
+# (c) git may print the toplevel in another spelling of the same directory
+# than pwd -P does (Git for Windows: C:/..., Git Bash: /c/...). A git shim
+# that appends /. to the toplevel stands in for that on every platform.
+SHIM="$TMP_ROOT/git-shim"
+mkdir -p "$SHIM"
+REAL_GIT="$(command -v git)"
+cat >"$SHIM/git" <<EOF
+#!/usr/bin/env bash
+if [[ " \$* " == *" --show-toplevel "* ]]; then
+  "$REAL_GIT" "\$@" | sed '1s|\$|/.|'
+  exit "\${PIPESTATUS[0]}"
+fi
+exec "$REAL_GIT" "\$@"
+EOF
+chmod +x "$SHIM/git"
+rc=0
+out="$(PATH="$SHIM:$PATH" CANT_FAIL_SCAN_ROOT="$RO/source" bash "$SCAN" 2>&1)" || rc=$?
+assert_contains "(c) a toplevel git spells another way than pwd -P still keeps the read" "$out" \
   "test/vitest-pitch-detail-source-order.test.ts:12: reads tracked source file app/pitch-detail.tsx as text"
 git -C "$RO/source" rm -q --cached app/pitch-detail.tsx
 run_scan "$RO/source"
@@ -1546,7 +1592,8 @@ assert_contains "Surfaces counts the report-only rules" "$out" \
 for pair in cond:rule-conditional-assertion:js-vitest/bad/vitest-rows-loop-unchecked.test.ts \
   derived:rule-recomputed-derived:py-pytest/bad/test_pytest_price_sum_recomputed.py \
   snap:rule-snapshot-only:js-jest/bad/jest-receipt-snapshot.test.ts \
-  weak:rule-weak-oracle:cs-xunit/bad/InvoiceNotNullTests.cs; do
+  weak:rule-weak-oracle:cs-xunit/bad/InvoiceNotNullTests.cs \
+  throw:rule-throw-only-oracle:cs-xunit/bad/WidgetConstructedNotNullTests.cs; do
   IFS=: read -r name rule rel <<<"$pair"
   ro_repo "$RO/$name"
   cp "$CORPUS/$rel.fixture" "$RO/$name/test/${rel##*/}"
@@ -1648,10 +1695,26 @@ for f in js-jest/bad/jest-create-user-defined-verbatim.test.ts py-unittest/bad/t
   assert_contains "weak remedy ($f) asks for the exact value or exception" "$a" "Assert the value the code should produce"
   assert_not_contains "weak remedy ($f) is not the zero-assertion remedy" "$a" "passes vacuously"
 done
+a="$(remedy "$C/cs-xunit/bad/WidgetConstructedNotNullTests.cs" rule-throw-only-oracle)"
+assert_contains "throw-only remedy asks for what the constructor sets" "$a" "Assert what the constructed value should hold"
+assert_contains "throw-only remedy names the cant-fail-ok: exemption for a smoke test" "$a" "cant-fail-ok: <why>"
+# An early return is a conditional-assertion finding, and its C# remedy names a
+# skip that xUnit v2 lacks as a package rather than assuming Assert.Skip.
+a="$(remedy "$C/cs-xunit/bad/ConfigEarlyReturnTests.cs" rule-conditional-assertion)"
+assert_contains "conditional remedy (cs) offers xUnit v3's Assert.Skip" "$a" "Assert.Skip on xUnit v3"
+assert_contains "conditional remedy (cs) offers a skip package on xUnit v2" "$a" "a skip package such as Xunit.SkippableFact on xUnit v2"
+run_file --file "$C/cs-xunit/bad/ConfigEarlyReturnTests.cs"
+if [[ "$(count_lines "$out" 'a return before every assertion')" == 3 ]]; then
+  pass "an early return before each test's only assertion is one finding per test"
+else
+  fail "an early return before each test's only assertion is one finding per test" "$out"
+fi
+a="$(remedy "$C/js-vitest/bad/vitest-rows-loop-unchecked.test.ts" rule-conditional-assertion)"
+assert_not_contains "conditional remedy (js) offers no C# skip" "$a" "Assert.Skip"
 
 # The findings file carries the tiers: conditional is can't-fail; derived,
 # snapshot-only and weak-oracle can fail.
-for name in cond derived snap weak; do cp "$RO/$name/test/"* "$RO/constant/test/"; done
+for name in cond derived snap weak throw; do cp "$RO/$name/test/"* "$RO/constant/test/"; done
 rc=0
 out="$(CANT_FAIL_SCAN_ROOT="$RO/constant" bash "$SCAN" --findings 2>/dev/null)" || rc=$?
 assert_exit "--findings persists the 4b report-only findings" 0 "$rc"
@@ -1661,6 +1724,7 @@ assert_matches "a recomputed-derived row is SUGGESTION with Confidence omitted" 
   '^\| [0-9]+ \| SUGGESTION \|  \| test/test_pytest_price_sum_recomputed.py:9 \|'
 assert_matches "a snapshot-only row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/jest-receipt-snapshot.test.ts:8 \|'
 assert_matches "a weak-oracle row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/InvoiceNotNullTests.cs:11 \|'
+assert_matches "a throw-only-oracle row is SUGGESTION" "$out" '^\| [0-9]+ \| SUGGESTION \|  \| test/WidgetConstructedNotNullTests.cs:12 \|'
 assert_contains "Surfaces counts the 4b report-only rules" "$out" \
   "testing/audit/rule-conditional-assertion 1, testing/audit/rule-recomputed-derived 1, testing/audit/rule-snapshot-only 1, testing/audit/rule-weak-oracle 1"
 
