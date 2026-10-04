@@ -211,11 +211,17 @@ four-part records live in [reference/native-debug.md](reference/native-debug.md)
 - **Does not refactor mid-fix**. Keep the diff focused. Architectural findings go to Phase 6
 - **Does not re-derive a known classification**. When the symptom matches a shape your environment already classifies (a known-error taxonomy, a test-investigation routine), lean on that instead of re-deriving it
 
+## Next
+
+- The fix landed with its regression test, or a documented seam gap: `/review:quality-gate`.
+- The root cause is a design flaw that a focused patch cannot fix: `/planning:plan`.
+- No feedback loop could be built and the failure needs recording for later: `/bugs:write --file`.
+
 ## When to escalate
 
 If after 3 hypothesis-test cycles no candidate is panning out:
 
 - The hypothesis ranking was probably wrong. Go back to Phase 3, re-survey the repo, look for what was missed
 - The loop may not be tight enough. Re-iterate Phase 1 (faster, sharper, more deterministic)
-- The bug may need redesign rather than a patch. Switch to broader replanning (an architecture/plan-review capability, if available)
+- The bug may need redesign rather than a patch. Switch to broader replanning with `/planning:plan`
 - Do not push through a fifth or sixth attempt. That is how technical debt compounds and "fixes" break unrelated code

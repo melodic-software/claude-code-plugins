@@ -3,6 +3,12 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.3] - 2026-10-04
+
+### Changed
+
+- **`/debugging:debug` names its successors ([#6279](https://github.com/melodic-software/claude-code-plugins/issues/6279)).** A new `## Next` section routes a landed fix with its regression test to `/review:quality-gate`, a design-flaw root cause to `/planning:plan`, and a failure no loop could reproduce to `/bugs:write --file`. The redesign escalation now names `/planning:plan`.
+
 ## [0.8.2] - 2026-10-04
 
 ### Fixed

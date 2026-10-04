@@ -3,6 +3,12 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.15] - 2026-10-04
+
+### Changed
+
+- **`/bugs:write` names its successors ([#6279](https://github.com/melodic-software/claude-code-plugins/issues/6279)).** A new `## Next` section routes a report ready to file to `/work-items:track add`, an undiagnosed defect to `/debugging:debug`, and one whose root cause is known to `/implementation:implement`. The Step 5 "A fix is next" hand-off names the same two skills.
+
 ## [0.11.14] - 2026-10-04
 
 ### Changed
