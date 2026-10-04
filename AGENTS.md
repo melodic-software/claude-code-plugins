@@ -33,8 +33,9 @@ head, and no hold applies (the `do-not-merge` label, a hold in the body, or a hu
 to wait); ask first when any of those is missing, or when the change alters what agents may do
 unattended. Launch unattended local lanes with
 `--permission-mode auto`; a lane whose action the auto-mode classifier denies records the denial
-in its lane telemetry and moves on. CI lanes run `--permission-mode dontAsk` instead
-([pr-pipeline](docs/conventions/pr-pipeline/README.md#lanes)). A hook `ask` or `permissions.ask` rule can open a dialog no one
+in its lane telemetry and moves on. CI lanes run `--permission-mode dontAsk` instead, under
+the hardening in [ADR 0049](docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md),
+which also answers the untrusted-text risk below for them. A hook `ask` or `permissions.ask` rule can open a dialog no one
 answers, so lane sessions carry none. `--permission-prompts none` is documented for print mode and
 unattended runs; that a `--bg` lane denies with it is not probed. Never use bypass mode or
 `--dangerously-skip-permissions`: lanes read untrusted issue and PR text while holding push

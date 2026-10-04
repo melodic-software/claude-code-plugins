@@ -74,7 +74,7 @@ activities:
     skill: source-control:pull-request#monitor
     effect: mutate-branch
     gating: advisory
-    reads-untrusted: false
+    reads-untrusted: true
     inputs: [pr, head-sha]
   update:
     skill: source-control:resolve-conflicts

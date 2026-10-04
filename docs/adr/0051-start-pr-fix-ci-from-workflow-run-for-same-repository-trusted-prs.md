@@ -30,12 +30,13 @@ repository names, and acts only when all of these hold:
 
 1. The run's PR comes from the same repository, never a fork. A run with no associated PR is
    ignored.
-2. The PR's author and the actor that started the failed run are on the central trusted-actor list.
+2. The PR's author, the actor that started the failed run and every author of a commit on the PR
+   are on the central trusted-actor list.
 3. The PR is not a draft and carries no hold.
 4. The lane checks out the PR head by the SHA recorded on the failed run, and stops if the PR head
    has moved since.
 5. Logs and artifacts from the failed run are read as data, never as instructions, and the lane
-   restores no cache the failed run wrote.
+   restores no cache the failed run wrote and writes no cache of its own.
 
 The lane's token is the per-job App token from ADR 0049, and its fix commits count toward the
 per-PR no-progress cap. The review-lane tripwire stays as it is.

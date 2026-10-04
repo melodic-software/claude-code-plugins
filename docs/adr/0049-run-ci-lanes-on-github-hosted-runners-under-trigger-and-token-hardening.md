@@ -26,14 +26,17 @@ never to remove a capability the job needs.
 A CI lane on a GitHub-hosted runner may run unattended without default-deny egress when all of
 these hold:
 
-1. **Trusted actors only.** Only the operator and trusted bots reach a lane prompt, in public and
-   private repositories alike. The trusted-actor list is one centrally managed standards component
+1. **Trusted actors only.** Only text from the operator and trusted bots reaches a lane prompt, in
+   public and private repositories alike, checked per item (each comment, reply and linked issue
+   by its own author). The trusted-actor list is one centrally managed standards component
    that every lane reads; no lane hard-codes it.
 2. **Same-repository PRs only.** No lane acts on a PR from a fork.
 3. **Short-lived, scoped credentials.** Each job mints its own App token (`melodic-automation-lanes`),
-   valid for at most one hour and scoped to the permissions that job needs. No long-lived write
-   token reaches a model step.
-4. **A kill switch.** One org-level switch stops every lane without a code change.
+   valid for at most one hour, scoped to the permissions that job needs and revoked when the job
+   ends. No long-lived write token reaches a model step, and no model step holds `checks: write`
+   or `workflows` permission, so no lane can write `ci-status` or change a workflow.
+4. **A kill switch.** One org-level switch stops every lane without a code change. Each lane reads
+   it before its model step, and a switch it cannot read counts as off.
 5. **Fresh runner per job.** No state carries from one job to the next.
 
 Lanes keep unrestricted network access and every tool, and hold the write token their job needs in
@@ -59,5 +62,7 @@ lane or any other surface keeps `L2`.
   that holds a write token, so the gate needs its own tests and every lane must call it.
 - The autonomy plugin's isolation ladder needs a matching change naming this surface and its
   conditions; until it lands, the ladder and this record disagree and this record governs CI lanes.
-- Hosted runners can reach any host, so a prompt-injected lane could send data out. The exposure is
-  bounded by the trusted-actor gate and by what a one-hour scoped token can reach.
+- Hosted runners can reach any host, so a prompt-injected lane could send data out. The
+  trusted-actor gate covers text from GitHub, but not web pages or CI logs, which reach a lane
+  whoever triggered it. The exposure is bounded by what a job-scoped token can reach before it is
+  revoked, and by `ci-status` and workflow files staying out of every lane's reach.

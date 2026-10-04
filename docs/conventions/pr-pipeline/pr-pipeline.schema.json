@@ -124,7 +124,7 @@
 				"skill": { "$ref": "#/$defs/skill" },
 				"script": {
 					"type": "string",
-					"pattern": "^[^/][^:]*$",
+					"pattern": "^(?!/)(?!(.*/)?\\.\\.(/|$))[^:]+$",
 					"description": "Repository-relative path of a scripted step with no model in it."
 				},
 				"effect": {
@@ -199,7 +199,20 @@
 		"merge": {
 			"type": "object",
 			"additionalProperties": false,
-			"description": "How far pr-merge may merge without a human. A lane-power setting: raised only by a merged change to this file.",
+			"description": "How far pr-merge may merge without a human. A lane-power setting: raised only by a merged change to this file. Any rung above off requires a diff-check with denied paths.",
+			"if": {
+				"required": ["rung"],
+				"properties": { "rung": { "enum": ["C2", "C3"] } }
+			},
+			"then": {
+				"required": ["diff-check"],
+				"properties": {
+					"diff-check": {
+						"required": ["denied-paths"],
+						"properties": { "denied-paths": { "minItems": 1 } }
+					}
+				}
+			},
 			"properties": {
 				"rung": {
 					"enum": ["off", "C2", "C3"],

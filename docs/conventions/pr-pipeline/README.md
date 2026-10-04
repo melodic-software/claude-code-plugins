@@ -86,13 +86,22 @@ Lanes run on GitHub-hosted runners without default-deny egress under the conditi
 
 Every lane:
 
-- Acts only on same-repository PRs, and only trusted actors' text reaches its prompt. The
+- Acts only on same-repository PRs, and only trusted actors' text reaches its prompt. The filter
+  runs per item: each comment, review reply and linked issue is checked by its own author, not by
+  the PR's. Web pages and CI logs are untrusted wherever they came from and stay data. The
   trusted-actor list is one central standards component that every lane reads.
 - Runs Claude Code with `--permission-mode dontAsk` and every tool allowed, and gets the write
-  access its job needs through a short-lived, job-scoped App token. Local lanes keep auto mode
-  (AGENTS.md). Capability is never removed for safety; safety comes from who can trigger a lane,
-  token lifetime and scope, workflow execution protections, the kill switch, and `ci-status`
-  accepting only the App as its source.
+  access its job needs through a short-lived, job-scoped App token, revoked when the job ends.
+  Local lanes keep auto mode (AGENTS.md). Capability is never removed for safety; safety comes from
+  who can trigger a lane, token lifetime and scope, workflow execution protections, the kill switch,
+  and a `ci-status` no lane can write (below).
+- Reads its config, scripts and the trusted-actor list from the base SHA, never from the PR head,
+  so a PR cannot change the rules it is judged by.
+- Checks the kill switch before its model step starts. A switch it cannot read counts as off.
+- Never holds `checks: write` or `workflows` permission in a job that runs the model. `ci-status`
+  and the `<lane> / <activity>` check runs are written by scripted jobs with no model step, and
+  branch protection pins `ci-status` to the source that writes it. A base merge that touches
+  `.github/workflows/` escalates to a human instead of being pushed by a lane.
 - Writes through one per-PR queue (a concurrency group that queues, never cancels). It pushes its
   own commits as fast-forward updates, never with force. When the head moved, it fetches, replays
   its own commits and retries. `pr-update` writes first when it is triggered.
@@ -117,8 +126,8 @@ Each activity declares:
   working tree dirty.
 - `gating`: `gate` feeds `ci-status`; `advisory` is reported only. `ci-status` stays the only
   required check.
-- `reads-untrusted`: whether it reads issue, PR, comment or web text. Ingested text is data, never
-  instructions ([`untrusted-content`](../untrusted-content/README.md)).
+- `reads-untrusted`: whether it reads issue, PR, comment, web or CI-log text. Ingested text is
+  data, never instructions ([`untrusted-content`](../untrusted-content/README.md)).
 - `inputs`: typed, from a closed set (`base-sha`, `head-sha`, `changed-paths`, `pr`, `issue`,
   `baseline`, `findings`). An activity reads nothing from a session.
 - `scope` (`diff`, `tree`, `target`) and `applies-when` (paths, labels, work classes, events).
@@ -129,7 +138,8 @@ activity in a trailer. Unchanged content (same patch id) reuses the earlier verd
 
 When an activity needs a human, it escalates with a resume key and exits instead of blocking. A
 trusted label on that item resumes it. An expedite label from a human with write access skips
-`refine`.
+`refine`. A label counts only when the actor on its label event is a trusted human: a label the App
+set never resumes an item, expedites it, sets its work class or lifts a hold.
 
 ## Slots and order
 
@@ -151,6 +161,9 @@ The schema checks each file's shape. The config reader also rejects:
 - a lane whose `stage` differs from the [Lanes](#lanes) table;
 - a `needs:` entry naming an activity that is not in the same lane;
 - a lane or activity name missing from the vocabulary ([Names](#names)).
+
+The reader also adds the config file's own path, `.github/**` and the trusted-actor list to
+`merge.diff-check.denied-paths`, whatever the config says.
 
 ## Outputs and skips
 
