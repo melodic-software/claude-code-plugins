@@ -87,7 +87,7 @@ classified, acquisition iterates browser cookie profiles before giving up. Recov
 
 The HTTP 403 row is this spoke's decision: treat a media-fragment 403 as a stale client and update yt-dlp before any other recovery. The probe that an aging client failed that way and a newer build succeeded is [#6048](https://github.com/melodic-software/claude-code-plugins/issues/6048).
 
-- **Pointer**: when a media download returns HTTP 403, fetch the current yt-dlp release notes live. No docs page in this repo owns that client's failure text.
+- **Pointer**: when a media download returns HTTP 403, fetch the probe in [#6048](https://github.com/melodic-software/claude-code-plugins/issues/6048) and the current yt-dlp release at <https://github.com/yt-dlp/yt-dlp/releases> live.
 - **As of**: 2026-10-03
 - **Recheck trigger**: a yt-dlp release note that changes how an aging binary fails a media download.
 
