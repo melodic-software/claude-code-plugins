@@ -23,7 +23,9 @@ moves in lockstep with the first. The coupling remains, plus a layer.
   indirection, not loose coupling.
 - **Replace control coupling with separate operations or polymorphism**: a boolean/mode
   parameter switched on inside becomes two methods, a strategy, or a lookup; a type-code switch
-  duplicated across sites becomes polymorphic dispatch or a registration table.
+  duplicated across sites becomes polymorphic dispatch or a registration table. When each case
+  already lives in its own file or folder, a hand-kept table naming those files is a second
+  list: discover or generate it instead (see "Second lists").
   *Not when:* the switch exists once, is closed by construction (exhaustive over a sealed set),
   and reads clearly. One honest switch beats a class-per-case explosion.
 - **Weaken the connascence**: positional arguments → named/keyword or a parameter object;
@@ -112,6 +114,45 @@ moves in lockstep with the first. The coupling remains, plus a layer.
     `/review:audit-enforceability` is among the available skills, the report offers
     `/review:audit-enforceability <file>`; it never invokes that skill unasked. Without it, the
     report names the file and the proposed rule only.
+
+## Second lists
+
+A second list is a hand-kept file whose entries each name a file or folder the tree already holds:
+a plugin registry, a route table, a list of copied files. Every new entry edits it, so parallel
+changes collide on it, and an entry can outlive the file it names. `derivable-list.py` flags one
+among the ranked hotspots (SKILL.md phase B). It is report-only: a second list goes to the route
+lane, never into the apply batch, and the consumer picks the remedy.
+
+Report each confirmed second list as a Design-It-Twice comparison: the three designs below, each
+judged for this list on the same three questions, then one recommendation the human may reject.
+
+| Design | A new entry costs | Drift is caught by | Needs |
+|---|---|---|---|
+| **Keep the list** | one edit to the shared file beside the new folder | nothing until something reads the dangling entry | nothing |
+| **Discover at build time** | the new folder alone | the loader, at the next build or start | a stack with a loader that reads a folder (a glob import, a plugin scan, a file-based router) |
+| **Generate the list, check for drift** | the new folder, then a regenerate step | a `--check` run in the consumer's CI that fails when the file differs from a fresh generation | a generator script and one CI step |
+
+- **Keep the list.** *Fits when* entries carry data the tree does not hold (an order, a category,
+  a display name) and new entries are rare, or a tool outside the consumer's control reads the file
+  in this exact shape. *Not when* the hotspot run shows parallel changes conflicting on it.
+- **Discover at build time.** The tree is the only list; each folder's own reserved file (an
+  index, a manifest) carries what an entry used to. *Not when* the stack has no loader that reads
+  a folder, or a published file must exist for outside readers. Adding a bundler or a framework to
+  get one is a larger change than the coupling it removes.
+- **Generate the list, check for drift.** The file stays where outside readers expect it, but no
+  one edits it by hand: a script writes it from the tree and per-folder files, and `--check` fails
+  CI when the file and a fresh generation differ. Needs no bundler, so it fits any stack. This repo
+  applies the form to its plugin catalog:
+  <https://github.com/melodic-software/claude-code-plugins/blob/main/scripts/generate-catalog.mjs>
+  (header lines 3-7: generated block, `--check` as the CI gate). *Not when* two generators would
+  write the one file, which is a duplicate writer (see "Duplicate writers"). Parallel changes still
+  touch the generated file; regenerating after a merge settles each conflict, so the file stops
+  being a place for judgment.
+
+Entry data the tree does not hold moves into each folder's own file before either discovery or
+generation can replace the list; name that move in the report. A list a generator already writes
+(a marker block, a header saying so, a `--check` step in CI) is the third design in place: report
+it as already derived and do not ledger it.
 
 ## Sequencing rule
 

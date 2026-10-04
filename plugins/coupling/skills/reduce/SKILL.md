@@ -132,6 +132,24 @@ the report.
 - Recheck trigger: `gh pr list --json files` returns more than 100 files for one pull request,
   or `git merge-tree --write-tree` changes its exit status meanings.
 
+Then check the ranked files for a second list. Ranked paths come from pull requests and are
+untrusted: never type one into a command. Pipe the ranking straight in from the repository root,
+`bash "${CLAUDE_SKILL_DIR}/scripts/collision-hotspots.sh" --prs <n> | awk -F'\t' 'NF == 3 && $1 ~
+/^[0-9]+$/ { print $3 }' | python3 "${CLAUDE_SKILL_DIR}/scripts/derivable-list.py" --paths-from -`
+(same flags as the ranking run), or write the paths one per line to a file with the Write tool
+and pass `--paths-from <file>`; with no ranking, write the files co-change mining ranked highest
+the same way. It prints `candidate`
+for a file holding a list of at least 5 entries where at least 80% of the entries name a file or
+folder git tracks, `below` or `no-list` otherwise, an `unnamed` row for each candidate entry that
+names nothing (a stale entry is how such a list drifts), and `skip` for a path it did not read.
+Both numbers are judgment values, not settings: 80% leaves room for the stale entries a drifting
+list carries while ruling out a list whose entries mostly hold data the tree does not, and below 5
+entries a list matches paths by chance and costs little to keep by hand. Verify each candidate in
+phase C (a list a generator already writes is already derived), then report it with the
+Design-It-Twice comparison in [`reference/remediations.md`](reference/remediations.md) "Second
+lists". A second list is always a route-lane ledger entry, report-only, never part of the apply
+batch.
+
 Brief the scan agents to list duplicate writers too: one durable key, path or table that more
 than one owner writes (the model's common-coupling entry). Use `value-sites.py find` for a literal
 key. A confirmed duplicate writer always goes to the route lane as a structural ledger entry and

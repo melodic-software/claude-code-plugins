@@ -1,6 +1,36 @@
 {
   "requires": [
     {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "skill:reduce"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python",
+          "py"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "Python ([0-9.]+)",
+          "min": "3.9"
+        }
+      },
+      "degrade": "Without Python 3.9 or later, /coupling:reduce cannot run its change-mode inventory (value-sites.py) or its second-list check (derivable-list.py), so those steps stop.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
       "id": "gh",
       "kind": "cli",
       "need": "optional",

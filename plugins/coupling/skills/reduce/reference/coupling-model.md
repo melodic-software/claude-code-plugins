@@ -106,6 +106,9 @@ coupling nobody minds. Weight every finding by:
   across few pairs is the strongest candidate. Changelogs, lockfiles and version manifests
   conflict on every version bump and say nothing about design, so they are reported apart
   and never ranked. Without pull-request data from the host, co-change evidence stands in.
+  A hotspot that is a hand-kept list of files or folders the tree already holds is a **second
+  list**: every new entry edits it, and an entry can outlive what it names. It is typed here and
+  remedied per the catalog's "Second lists" section.
 - **Blast radius**: afferent coupling (how many depend on it). Instability `I = Ce / (Ca + Ce)`
   gives the orientation rule: depend in the direction of stability; things many depend on
   should be abstract and stable, things that change freely should have few dependents.

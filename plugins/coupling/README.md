@@ -26,7 +26,10 @@ On a GitHub-hosted repository the scan also measures collision hotspots: files t
 requests open at the same time keep editing together. It replays the merge of each such pair
 with `git merge-tree` and ranks files by the conflicts it counts, leaving changelogs, lockfiles
 and version manifests out of the ranking. This needs `gh` and `jq`; without them the scan uses
-co-change history alone and says so.
+co-change history alone and says so. A ranked file that is a hand-kept list of files or folders
+the tree already holds (a plugin registry, a route table) is reported as a second list, with a
+comparison of keeping it, discovering its entries at build time, and generating it from the tree
+with a drift check. The report never changes the list.
 
 Two lanes keep the skill honest:
 

@@ -87,6 +87,34 @@
         "Writes the findings file under the coupling/<branch-slug>/ memory directory, not under reviews/, and names it in the ledger and the report",
         "Offers /review:audit-enforceability for the file when that skill is available and does not invoke it unasked"
       ]
+    },
+    {
+      "id": 8,
+      "name": "second-list-hotspot-design-it-twice",
+      "prompt": "/coupling:reduce repo\n\nThe hotspot lens ranked config/services.json first: 40 entries, each with a name, an owner team and a path under services/, and every new service PR edits it. We build with plain shell scripts, no bundler.",
+      "expected_output": "Runs derivable-list.py on the ranked file, verifies the list is a second list (most entries name folders git tracks), ledgers it as a route-lane entry without editing it, and reports a Design-It-Twice comparison of keeping the list, build-time discovery and generating the list from the tree with a --check drift step, noting that discovery needs a loader this stack lacks and that the owner-team data must move into each service's own file before the list can be derived, then recommends one design for the human to pick.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Checks the ranked file with derivable-list.py or the same 80%-of-at-least-5-entries rule rather than by eye",
+        "Puts the second list in the route lane and does not edit, delete or regenerate config/services.json in this run",
+        "Compares all three designs: keep the list, discover at build time, generate with a drift check",
+        "Says build-time discovery needs a loader the stack does not have, and that the owner-team field must move into each service folder first",
+        "Ends with one recommendation and leaves the choice to the human"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "second-list-not-flagged-when-entries-hold-data",
+      "prompt": "/coupling:reduce dry-run repo\n\nThe hotspot lens ranked i18n/strings.json first: 600 translation keys, none of which name a file.",
+      "expected_output": "Checks the ranked file for a second list, finds no list whose entries mostly name tracked paths (a below row), and does not report it as a second list or offer the derive-from-tree comparison; it stays a collision hotspot ranked like any other.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not call i18n/strings.json a second list",
+        "Does not present the keep, discover or generate comparison for it",
+        "Keeps it as an ordinary ranked collision hotspot and makes no repository edits"
+      ]
     }
   ]
 }
