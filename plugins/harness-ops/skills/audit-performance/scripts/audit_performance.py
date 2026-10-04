@@ -1021,7 +1021,10 @@ def attribute_orphans(
     `dead_parent_any_age` is a census, not a kill list. It applies the same
     parent rules to the verdict names plus the MSYS coreutils names, at any age
     above a few seconds of teardown, and counts per name before any truncation.
-    The orphan verdict, its age floor, and its candidate set are unchanged.
+    A census process whose parent start time is unreadable is counted in
+    `dead_parent_any_age_unknown_count`; the verdict's `unknown_*` holds only
+    verdict candidates. The orphan verdict, its age floor, and its candidate set
+    are unchanged.
 
     The census runs only on a Windows table, whose parent pid is the creator's
     and stays so after the creator exits. POSIX reparents an orphan to init or
@@ -1038,6 +1041,7 @@ def attribute_orphans(
     # name -> [count, youngest_hours, oldest_hours]. Counted in full before the
     # orphan sample cap below; this table is not a kill list.
     census_by_name: dict[str, list] = {}
+    census_unknown = 0
     census_names = (
         candidate_names | DEAD_PARENT_CENSUS_EXTRA_NAMES
         if creator_ppids
@@ -1106,12 +1110,8 @@ def attribute_orphans(
                     row[1] = age_hours
                 if age_hours > row[2]:
                     row[2] = age_hours
-        elif census_aged and parent_state == "unknown" and not verdict_aged:
-            summary["parent_alive"] = None
-            summary["reason"] = (
-                "parent start time unreadable; PID reuse cannot be excluded"
-            )
-            unknown.append(summary)
+        elif census_aged and parent_state == "unknown":
+            census_unknown += 1
     dead_parent_any_age = [
         {
             "name": name,
@@ -1126,7 +1126,10 @@ def attribute_orphans(
             "Census, not a kill list. Per-name counts of processes whose parent is gone "
             "or whose parent pid was recycled, at any age above 5 seconds of teardown. "
             "The name set is the orphan candidate set plus tail.exe, grep.exe, sleep.exe, "
-            "and cat.exe. An unreadable parent start time is unknown, not a row here. "
+            "and cat.exe. A process whose parent start time is unreadable is not a row "
+            "here; dead_parent_any_age_unknown_count counts every such census process, "
+            "while the orphan verdict's unknown_count holds only its own 24-hour "
+            "candidates. "
             "Counts are taken per name before any sample cap. This engine reports and "
             "never kills."
         )
@@ -1166,6 +1169,7 @@ def attribute_orphans(
         "unknown_count": len(unknown),
         "unknown_sample": unknown[:10],
         "dead_parent_any_age": dead_parent_any_age if creator_ppids else None,
+        "dead_parent_any_age_unknown_count": census_unknown if creator_ppids else None,
         "dead_parent_any_age_note": census_note,
         "note": (
             "Only a dead-parent process is an orphan. Live-parent processes of the same age "

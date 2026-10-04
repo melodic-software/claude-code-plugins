@@ -1089,10 +1089,51 @@ class TestDeadParentAnyAgeCensus(unittest.TestCase):
         rows = {row["name"]: row for row in result["dead_parent_any_age"]}
         self.assertEqual(rows["grep.exe"]["count"], 1)
         self.assertNotIn("cat.exe", rows)
+        self.assertEqual(result["dead_parent_any_age_unknown_count"], 1)
         self.assertEqual(result["orphan_count"], 0)
+        self.assertEqual(result["unknown_count"], 0)
+        self.assertEqual(result["unknown_sample"], [])
+
+    def test_census_only_unknowns_stay_out_of_the_verdict_unknowns(self):
+        now = self.NOW
+        records = [
+            {"pid": 20, "ppid": 1, "name": "protected.exe", "started_epoch": None},
+            # Verdict candidate past the 24-hour floor: verdict unknown and census unknown.
+            {
+                "pid": 21,
+                "ppid": 20,
+                "name": "bash.exe",
+                "started_epoch": now - 2 * 86400,
+            },
+            # Verdict name under the floor, and a census-only name: census unknown only.
+            {"pid": 22, "ppid": 20, "name": "bash.exe", "started_epoch": now - 60},
+            {"pid": 23, "ppid": 20, "name": "tail.exe", "started_epoch": now - 60},
+        ]
+        result = self.attribute(records, now)
+        expected = [
+            {
+                "name": "bash.exe",
+                "pid": 21,
+                "ppid": 20,
+                "age_hours": 48.0,
+                "parent_alive": None,
+                "reason": "parent start time unreadable; PID reuse cannot be excluded",
+            }
+        ]
         self.assertEqual(result["unknown_count"], 1)
-        self.assertEqual(result["unknown_sample"][0]["name"], "cat.exe")
-        self.assertIsNone(result["unknown_sample"][0]["parent_alive"])
+        self.assertEqual(result["unknown_sample"], expected)
+        self.assertEqual(result["dead_parent_any_age_unknown_count"], 3)
+        self.assertEqual(result["dead_parent_any_age"], [])
+        # Off Windows the census is off and the verdict is the unchanged one.
+        verdict_only = engine.attribute_orphans(records, now, platform="linux")
+        self.assertIsNone(verdict_only["dead_parent_any_age_unknown_count"])
+        for key in (
+            "unknown_count",
+            "unknown_sample",
+            "orphan_count",
+            "live_parent_count",
+        ):
+            self.assertEqual(result[key], verdict_only[key], key)
 
     def test_more_than_twenty_of_one_name_are_counted_before_any_truncation(self):
         now = self.NOW
@@ -1226,6 +1267,7 @@ class TestDeadParentCensusNeedsCreatorParentPids(unittest.TestCase):
                     self.adopted_table(init_name), self.NOW, platform=platform
                 )
                 self.assertIsNone(result["dead_parent_any_age"])
+                self.assertIsNone(result["dead_parent_any_age_unknown_count"])
                 note = result["dead_parent_any_age_note"]
                 self.assertIn("not measured", note)
                 self.assertIn("subreaper", note)
