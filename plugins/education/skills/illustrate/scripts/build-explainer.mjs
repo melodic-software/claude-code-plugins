@@ -8,6 +8,7 @@
 // The page comes only from the checked-in template plus the model as JSON data,
 // through the shared view builder's interactive profile, so no model text is
 // ever written into markup. Exit 0 ok, 1 the page fails its profile, 2 usage.
+// A step label cut to the cap prints one warning line on stderr and still exits 0.
 
 import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
@@ -18,18 +19,45 @@ import { buildView, validateView, ViewBuildError } from "../../../lib/view-build
 
 const TEMPLATE = new URL("../templates/explainer.html", import.meta.url);
 
-/** @param {Record<string, unknown>} model */
-function normalize(model) {
+// A longer flow goes one step per line: a wrapped row of arrows would start a line with one.
+const FLOW_ROW_MAX = 4;
+const LABEL_MAX = 40;
+
+// A label over the cap, cut at the last space that fits, else hard, ending in an ellipsis.
+function capLabel(label) {
+  const chars = [...label];
+  if (chars.length <= LABEL_MAX) return label;
+  const head = chars.slice(0, LABEL_MAX);
+  const space = head.findLastIndex((char) => /\s/.test(char));
+  const kept = space > 0 ? head.slice(0, space) : head.slice(0, LABEL_MAX - 1);
+  return `${kept.join("").trimEnd()}…`;
+}
+
+/**
+ * @param {Record<string, unknown>} model
+ * @param {string[]} [warnings] receives one line per step label cut to the cap
+ */
+function normalize(model, warnings = []) {
   const source = model && typeof model === "object" ? model : {};
   return {
     title: asText(source.title) || "Explainer",
     summary: textList(source.summary),
-    diagrams: rows(source.diagrams).map((diagram) => {
-      const steps = textList(diagram.steps);
+    diagrams: rows(source.diagrams).map((diagram, d) => {
+      const steps = textList(diagram.steps).map((step, s) => {
+        const label = capLabel(step);
+        if (label !== step) {
+          warnings.push(
+            `diagram ${d + 1} step ${s + 1}: label of ${[...step].length} characters cut to ${LABEL_MAX}; put the detail in the diagram's text lines`,
+          );
+        }
+        return label;
+      });
       const stack = asText(diagram.kind) === "stack";
+      const column = !stack && steps.length > FLOW_ROW_MAX;
       return {
         heading: asText(diagram.heading),
-        flow: stack ? [] : steps,
+        flow: stack || column ? [] : steps,
+        flowcol: column ? steps : [],
         stack: stack ? steps : [],
         caption: asText(diagram.caption),
         text: textList(diagram.text),
@@ -77,7 +105,8 @@ export function buildExplainerRecord(model) {
   for (const line of view.summary) out.push(md(line), "");
   for (const diagram of view.diagrams) {
     out.push(`## ${md(diagram.heading) || "Picture"}`, "");
-    if (diagram.flow.length) out.push(diagram.flow.map(md).join(" → "), "");
+    const flow = [...diagram.flow, ...diagram.flowcol];
+    if (flow.length) out.push(flow.map(md).join(" → "), "");
     if (diagram.stack.length) out.push(...diagram.stack.map((step) => `- ${md(step)}`), "");
     if (diagram.caption) out.push(`**${md(diagram.caption)}**`, "");
     for (const line of diagram.text) out.push(md(line), "");
@@ -163,7 +192,9 @@ function main(args) {
         throw error;
       }
     }
-    return [0, out, ""];
+    const warnings = [];
+    normalize(model, warnings);
+    return [0, out, warnings.join("\n")];
   } catch (error) {
     return [error instanceof ViewBuildError ? 1 : 2, "", error.message];
   }
@@ -172,6 +203,6 @@ function main(args) {
 if (invokedDirectly()) {
   const [code, out, err] = main(process.argv.slice(2));
   if (out) process.stdout.write(out);
-  if (err) process.stderr.write(`build-explainer: ${err}\n`);
+  for (const line of err ? err.split("\n") : []) process.stderr.write(`build-explainer: ${line}\n`);
   process.exitCode = code;
 }
