@@ -225,7 +225,11 @@ OUTPUT="${OUTPUT//$'\n'"${RUFF_ARG//\//\\}:"/$'\n'}"
 RUFF_CTX=""
 if [[ $RC -eq 0 || ($RC -eq 1 && -n "${OUTPUT//$'\n'/}") ]]; then
   FINDINGS_JSON='[]'
-  hook::findings_to RUFF_CTX "ruff-format: $RUFF_ARG has findings:" \
+  # The heading names the repo-relative path, or the basename when that did not
+  # resolve; never the absolute path the tool is handed as a fallback.
+  RUFF_SHOWN="$RUFF_ARG"
+  [[ "$RUFF_ARG" == "$FILE" ]] && RUFF_SHOWN="$FILE_BASE"
+  hook::findings_to RUFF_CTX "ruff-format: $RUFF_SHOWN has findings:" \
     "$OUTPUT" FINDINGS_JSON --max 20 --delta "$INPUT" "$FILE"
   # Findings AND a rewrite disclosure compose into one document (#3406).
   # Status "ok" — the linter RAN and produced a judgment (findings live in

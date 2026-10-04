@@ -639,7 +639,9 @@ else
   RESIDUAL_HEAD=""
   RESIDUAL_IN=""
 fi
-hook::findings_to RESIDUAL_CTX "$RESIDUAL_HEAD" "$RESIDUAL_IN" --delta "$INPUT" "$FILE"
+# --max covers the classifier's MAX_REPORT lines plus its remainder line, which
+# stays in the record so a grown set is sent again.
+hook::findings_to RESIDUAL_CTX "$RESIDUAL_HEAD" "$RESIDUAL_IN" --max "$((MAX_REPORT + 1))" --delta "$INPUT" "$FILE"
 [[ -n "$RESIDUAL_CTX" ]] && CTX+="$RESIDUAL_CTX"$'\n'
 
 # The allow-list pointer, once per file: the autocorrect has no memory, so on

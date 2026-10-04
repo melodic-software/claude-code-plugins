@@ -55,10 +55,10 @@ restores the FAIL semantics. A missing `node` stays FAIL: the launcher runs befo
    report this itself; the transcript shows a hook error notice. Probed here through Bash, which
    works without the launcher.
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: the hook then skips with a visible
-   notice, once per session and agent and renewed every eighth skip, instead of linting.
+   notice, once per session (it does not repeat this session), instead of linting.
 3. **`actionlint`.** The pre-computed `actionlint` row. FAIL if absent: the hook skips workflow lint
-   with a visible notice, once per session (all agents share it) and renewed every eighth
-   skip (it ships no binary of its own).
+   with a visible notice, once per session (it does not repeat this session)
+   (it ships no binary of its own).
 4. **actionlint config.** INFO: actionlint auto-discovers an optional
    `.github/actionlint.yaml` from the repository when present. It is not required. actionlint
    runs with its built-in defaults without one. Report whether one exists for the reader's

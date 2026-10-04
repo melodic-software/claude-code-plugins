@@ -7,7 +7,7 @@
 #
 # Graceful degrade: when actionlint (or jq) is not on PATH the hook skips
 # (exit 0) with a visible notice on both the agent and user channels, once per
-# session (renewed every eighth skip) — the plugin ships no binary of its own.
+# session (the notice does not repeat this session) — the plugin ships no binary of its own.
 
 set -uo pipefail
 
@@ -122,7 +122,11 @@ AL_OUTPUT=$'\n'"$AL_OUTPUT"
 AL_OUTPUT="${AL_OUTPUT//$'\n'"$AL_TARGET:"/$'\n'}"
 FINDINGS_JSON='[]'
 AL_CTX=""
-hook::findings_to AL_CTX "actionlint: $AL_TARGET has findings:" \
+# The heading names the repo-relative path, or the basename when that did not
+# resolve; never the absolute path the tool is handed as a fallback.
+AL_SHOWN="$AL_TARGET"
+[[ "$AL_TARGET" == "$FILE" ]] && AL_SHOWN="$FILE_BASE"
+hook::findings_to AL_CTX "actionlint: $AL_SHOWN has findings:" \
   "$AL_OUTPUT" FINDINGS_JSON --max 20 --delta "$INPUT" "$FILE"
 
 hook::finish --id actionlint-check --context "$AL_CTX" ok findings array "$FINDINGS_JSON"

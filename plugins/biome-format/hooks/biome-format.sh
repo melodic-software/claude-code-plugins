@@ -192,7 +192,11 @@ while IFS= read -r _line; do
 done <<<"$OUTPUT"
 if [[ -n "$FINDINGS" ]]; then
   # --delta sends a finding set once per (session, agent, file).
-  hook::findings_to BIOME_CTX "biome-format: $BIOME_ARG has findings:" \
+  # The heading names the config-relative path, or the basename when that did
+  # not resolve; never the absolute path the tool is handed as a fallback.
+  BIOME_SHOWN="$BIOME_ARG"
+  [[ "$BIOME_ARG" == "$FILE" ]] && BIOME_SHOWN="$FILE_BASE"
+  hook::findings_to BIOME_CTX "biome-format: $BIOME_SHOWN has findings:" \
     "$FINDINGS" FINDINGS_JSON --max 20 --delta "$INPUT" "$FILE"
   # Findings AND a rewrite disclosure compose into one document (#3406).
   hook::finish --context "$BIOME_CTX" --disclose "$BIOME_REWRITE_MESSAGE" \

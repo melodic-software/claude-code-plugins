@@ -10,7 +10,7 @@
       "expectations": [
         "Reports the lint pass (shellcheck) and the format pass (shfmt) as two independent rows rather than one combined formatter verdict",
         "Reports missing node as FAIL and states the consequence: every hook row launches through node hooks/exec-bash.mjs, so the hook does not launch and no shell edit is linted or formatted",
-        "Reports missing jq as FAIL and states the consequence: the hook skips with a visible notice, once per session and agent, renewed every eighth skip, instead of running either pass",
+        "Reports missing jq as FAIL and states the consequence: the hook skips with a visible notice, once per session (it does not repeat this session), instead of running either pass",
         "Reports .shellcheckrc absence as INFO, not FAIL, because ShellCheck applies its own defaults when it discovers none",
         "Modifies nothing during check and reports the effective bash_format_enabled and bash_format_lint_gitignored values rather than parsing settings files for hook registration"
       ]

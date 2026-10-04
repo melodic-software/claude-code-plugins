@@ -538,6 +538,12 @@ if ln -s "$WORK/symlink-real" "$WORK/symlink-link" 2>/dev/null; then
   else
     fail "symlinked root: actionlint got a nonexistent target: $CTX_SL"
   fi
+  # The tool got the absolute path; the heading names the basename, never it.
+  if [[ "$CTX_SL" == "actionlint: violation.yml has findings:"$'\n'* && "$CTX_SL" != *"$WORK"* ]]; then
+    ok "symlinked root: the heading falls back to the basename, not the absolute path"
+  else
+    fail "symlinked root: heading fallback: $CTX_SL"
+  fi
   # The redaction itself must still hold on the telemetry side: data.file is
   # the basename, never the absolute path that embeds the developer's username.
   SL_OUT="$WORK/sl-telemetry.json"
