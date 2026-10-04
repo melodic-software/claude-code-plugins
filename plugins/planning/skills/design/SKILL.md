@@ -96,6 +96,8 @@ Break the domain into capabilities or concerns. For each one:
 - Storage needs (stateless? persistent? app-specific?)
 - Cross-app reuse potential. Decide shared-library-worthy vs app-specific per capability, following the consuming project's own library-organization and dependency-preference conventions when it declares them
 
+When the work adds a requirement to code that already exists, ask one question before Phase 3: had this requirement been known when the code was first written, which types and boundaries would it have? Take that answer as the target shape, rather than the current shape with the requirement attached to its side.
+
 Produce: `capability-matrix.md` (library scope) or equivalent per scope.
 
 Survey-then-deep: broad scan of the problem space before diving into any single capability.
@@ -110,6 +112,16 @@ Identify cross-cutting design decisions that affect multiple capabilities. For e
 
 Track resolution status: **resolved** (decision made), **directional** (direction agreed, details deferred), **deferred** (needs research).
 
+**Two-candidate step.** A thread takes this step when the codebase has nothing to copy for it, more than one approach is workable, and the decision is hard to reverse later (a public contract, a stored format, a boundary other modules will build on):
+
+1. Write the criteria the candidates will be judged by into the thread before drafting any candidate.
+2. Draft at least two candidates that differ in structure: who owns the state, where the module split falls, or what shape the contract takes. A copy of the first candidate with renamed or reordered parts is not a second candidate.
+3. Judge each candidate against the written criteria, and record the rejected ones with the reason in `design-threads.md`.
+
+When the thread is about how a screen or interaction looks or feels, invoke `/prototype:explore-directions` via the Skill tool when it is among the available skills, after confirming the scope of the throwaway with the user; otherwise run the three steps here, describing each candidate in prose.
+
+When a type can be read and changed by more than one concurrent actor (threads, processes, overlapping requests, background jobs), open a **shared-state** thread: which actors write it, what a reader sees halfway through an update, and whether the type is confined to one owner, made immutable, or guarded.
+
 For SaaS or B2B org-scoped products, open a **tenancy posture** thread early: single- vs multi-tenant, isolation model, shared vs tenant-scoped data catalog.
 
 When exploration surfaces high coupling, large types, or multi-responsibility files (refactor or strangler scope), open a **refactoring posture** thread: characterization-test strategy, seam map, incremental extract order, change budget.
@@ -120,7 +132,7 @@ Produce: `design-threads.md`
 
 ### Phase 3: Type Modeling
 
-Derive types from capabilities, applying the rules in [`reference/type-discipline.md`](reference/type-discipline.md). When the repository has a `tsconfig.json` or the change touches `.ts`, `.tsx`, `.mts` or `.cts` files, also read [`reference/type-discipline/typescript.md`](reference/type-discipline/typescript.md).
+Start from the callers. Write two or three short call sites that use the new contract the way its consumers will; for a library or API, at least one is written from the importing package's side. Then derive the types those call sites need from the capabilities. For each type, list how code will read and change it (lookup by key, ordered walk, append, bulk replace), mark the paths that run most often, and pick the structure that serves those. Apply the rules in [`reference/type-discipline.md`](reference/type-discipline.md). When the repository has a `tsconfig.json` or the change touches `.ts`, `.tsx`, `.mts` or `.cts` files, also read [`reference/type-discipline/typescript.md`](reference/type-discipline/typescript.md).
 
 - Records, enums, strongly-typed IDs, value objects
 - Contracts: interfaces with method signatures

@@ -154,6 +154,46 @@
         "design-threads.md gets no Stub scaffold section",
         "The handoff output does not list stub files or stub signatures"
       ]
+    },
+    {
+      "id": 13,
+      "name": "no-precedent-contract-gets-two-structural-candidates",
+      "prompt": "/planning:design data for saving and reloading simulation snapshots in our physics engine. Nothing in the repository persists engine state today, and once users have saved snapshots we must keep loading them across releases. I could store one flat binary blob per snapshot or something else; I have not decided. Open the snapshot format thread.",
+      "expected_output": "The skill treats the snapshot format as a hard-to-reverse thread the repository has nothing to copy for. It writes the judging criteria into the thread first (for example load compatibility across releases, partial reads, size), then drafts at least two candidates that differ in structure, such as one flat blob versus a versioned header with per-body sections, judges each against the written criteria, and records the rejected candidate with its reason in design-threads.md. It presents a recommendation for the user to confirm rather than settling the format alone.",
+      "files": [],
+      "expectations": [
+        "The judging criteria are written into the thread before any candidate is drafted",
+        "At least two candidates are drafted, and they differ in structure (layout, ownership or contract shape), not only in names or field order",
+        "Each candidate is judged against the written criteria",
+        "design-threads.md records the rejected candidate with the reason it lost",
+        "The format is presented for the user to confirm, not decided alone"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "look-and-feel-thread-goes-to-explore-directions",
+      "prompt": "/planning:design module for seat selection in a theatre ticketing app. One thread is how the seat map should look and behave when a patron picks seats on a phone: zoom, tapping a seat, showing held seats. The prototype plugin is enabled and /prototype:explore-directions is among the available skills.",
+      "expected_output": "The skill identifies the seat-map thread as a look-and-feel question, confirms the scope of a throwaway with the user, and invokes /prototype:explore-directions through the Skill tool for that thread instead of drafting the layouts itself. The other threads (seat hold types, contracts) stay in the design session.",
+      "files": [],
+      "expectations": [
+        "The seat-map interaction thread is identified as a look-and-feel question",
+        "The run confirms the throwaway's scope with the user before handing off",
+        "The run invokes /prototype:explore-directions via the Skill tool for that thread",
+        "Non-visual threads such as seat-hold types stay in the design session"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "library-types-follow-written-call-sites",
+      "prompt": "/planning:design library for a units-of-measure package that other teams will import to convert and add lengths, masses and temperatures. Threads are settled; move on to type modeling.",
+      "expected_output": "Phase 3 opens by writing two or three short call sites, at least one from an importing package's side (for example converting a recipe's grams to ounces), and only then derives the types those call sites need. For each type it lists how code reads and changes it and picks structures for the most frequent paths. type-inventory.md follows from those call sites.",
+      "files": [],
+      "expectations": [
+        "Two or three call sites are written before any type is proposed",
+        "At least one call site is written from the importing package's side",
+        "The proposed types are the ones the written call sites need, with no type that no call site uses",
+        "Each type lists its read and change paths, and the chosen structure is tied to the most frequent ones"
+      ]
     }
   ]
 }
