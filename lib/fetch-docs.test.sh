@@ -10,8 +10,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/fetch-docs.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
-# A caller's cache settings must never receive this suite's fixture bytes.
-unset DOCS_CACHE_DIR DOCS_CACHE_NOW
+# A caller's cache settings must never receive this suite's fixture bytes, and no
+# DOCS_CACHE_* setting or machine config file of the caller's is ever read.
+while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)
+export HOME="$TEST_TMPDIR/suite-home" XDG_CONFIG_HOME="$TEST_TMPDIR/suite-config"
 
 FAILED=0
 CASE_NUM=0
@@ -451,6 +453,64 @@ DOCS_CACHE_PATH_MAX=10 DOCS_CACHE_DIR="$TEST_TMPDIR/cache22p" fixture_run "$fx" 
 assert_eq "case 22: a refused cache write names its reason in the manifest and the warning" "read null 1 1" \
   "$(page "$TEST_TMPDIR/out22k/manifest.json" skills '"\(.state) \(.cache_key)"') $(page "$TEST_TMPDIR/out22k/manifest.json" skills .cache_error | grep -c 'path too long') $(grep -c 'skills.md was read but not cached in .*: path too long' "$TEST_TMPDIR/err22k")"
 assert_eq "case 22: a stored page has no cache_error" null "$(page "$TEST_TMPDIR/out22h/manifest.json" skills .cache_error)"
+
+# --- Case 22c: the docs-cache configuration layers ------------------------------
+CFGX="$TEST_TMPDIR/cfg22/claude-docs-cache"
+mkdir -p "$CFGX"
+# cfg_run <out> <VAR=value>... -- <args...>: a fixture run with case 22c's config home.
+cfg_run() {
+  local out="$TEST_TMPDIR/$1"
+  shift
+  local envs=()
+  while [[ "$1" != -- ]]; do
+    envs+=("$1")
+    shift
+  done
+  shift
+  env XDG_CONFIG_HOME="$TEST_TMPDIR/cfg22" ${envs[@]+"${envs[@]}"} FETCH_DOCS_FIXTURE_DIR="$fx" FETCH_DOCS_CLAUDE_BIN="$CLAUDE_STUB" \
+    bash "$SCRIPT" --index-url "$INDEX" --out "$out" "$@"
+}
+printf '%s\n' '{"ttl_seconds": 0}' >"$CFGX/config.json"
+cfg_run out22c1 DOCS_CACHE_DIR="$TEST_TMPDIR/cache22c" -- --cache skills
+cfg_run out22c2 DOCS_CACHE_DIR="$TEST_TMPDIR/cache22c" -- --cache skills
+assert_eq "case 22c: ttl_seconds 0 in the file is the default --max-age: a stored page is not served" "fixture 1" \
+  "$(page "$TEST_TMPDIR/out22c2/manifest.json" skills '"\(.source) \(.cache_key | length / 64)"')"
+cfg_run out22c3 DOCS_CACHE_DIR="$TEST_TMPDIR/cache22c" -- --cache --max-age 86400 skills
+assert_eq "case 22c: an explicit --max-age wins over ttl_seconds" cache "$(page "$TEST_TMPDIR/out22c3/manifest.json" skills .source)"
+cfg_run out22c4 DOCS_CACHE_DIR="$TEST_TMPDIR/cache22c" DOCS_CACHE_TTL_SECONDS=86400 -- --cache skills
+assert_eq "case 22c: DOCS_CACHE_TTL_SECONDS wins over the file" cache "$(page "$TEST_TMPDIR/out22c4/manifest.json" skills .source)"
+assert_eq "case 22c: with the cache on, the manifest says nothing is disabled" null "$(jq -r .cache_disabled "$TEST_TMPDIR/out22c4/manifest.json")"
+assert_eq "case 22c: without --cache nothing is disabled either" null "$(jq -r .cache_disabled "$TEST_TMPDIR/out22/manifest.json")"
+
+printf '%s\n' '{"cache_enabled": false}' >"$CFGX/config.json"
+cfg_run out22d1 DOCS_CACHE_DIR="$TEST_TMPDIR/cache22d" -- --cache skills
+assert_eq "case 22c: cache_enabled false in the file: --cache reads as without it and the manifest names the layer" "read fixture null file" \
+  "$(page "$TEST_TMPDIR/out22d1/manifest.json" skills '"\(.state) \(.source) \(.cache_key)"') $(jq -r .cache_disabled "$TEST_TMPDIR/out22d1/manifest.json")"
+assert_no_file "case 22c: cache_enabled false writes no cache" "$TEST_TMPDIR/cache22d"
+cfg_run out22d2 DOCS_CACHE_DIR="$TEST_TMPDIR/cache22d" DOCS_CACHE_ENABLED=true -- --cache skills
+assert_eq "case 22c: DOCS_CACHE_ENABLED=true wins over the file" "1 null" \
+  "$(page "$TEST_TMPDIR/out22d2/manifest.json" skills '.cache_key | length / 64') $(jq -r .cache_disabled "$TEST_TMPDIR/out22d2/manifest.json")"
+rm -f "$CFGX/config.json"
+rc=0
+cfg_run out22d3 DOCS_CACHE_ENABLED=false -- --cache skills || rc=$?
+assert_eq "case 22c: disabled by DOCS_CACHE_ENABLED, fixture mode needs no cache directory" "0 read env" \
+  "$rc $(page "$TEST_TMPDIR/out22d3/manifest.json" skills .state) $(jq -r .cache_disabled "$TEST_TMPDIR/out22d3/manifest.json")"
+
+printf '{"cache_dir": "%s"}\n' "$TEST_TMPDIR/cache22e" >"$CFGX/config.json"
+rc=0
+cfg_run out22e -- --cache skills 2>/dev/null || rc=$?
+assert_eq "case 22c: in fixture mode a cache_dir from the machine file is not enough: fatal, nothing written" "2 0" \
+  "$rc $([[ -e "$TEST_TMPDIR/cache22e" ]] && echo 1 || echo 0)"
+src="$(new_served served22e)"
+XDG_CONFIG_HOME="$TEST_TMPDIR/cfg22" shim_run "$src" "$TEST_TMPDIR/out22e2" --cache skills
+assert_eq "case 22c: a fetch stores in the machine file's cache_dir" "1 1" \
+  "$(page "$TEST_TMPDIR/out22e2/manifest.json" skills '.cache_key | length / 64') $([[ -f "$TEST_TMPDIR/cache22e/store_version" ]] && echo 1 || echo 0)"
+printf '{' >"$CFGX/config.json"
+rc=0
+err="$(cfg_run out22e3 DOCS_CACHE_DIR="$TEST_TMPDIR/cache22e3" -- --cache skills 2>&1 >/dev/null)" || rc=$?
+assert_eq "case 22c: a malformed machine file warns and the run goes on" "0 read 1" \
+  "$rc $(page "$TEST_TMPDIR/out22e3/manifest.json" skills .state) $(grep -c '^WARNING: docs-cache config: .*config.json is not one JSON object' <<<"$err")"
+rm -f "$CFGX/config.json"
 
 # --- Case 23: clock skew, a server error, removal and notes ---------------------
 src="$(new_served served23)"

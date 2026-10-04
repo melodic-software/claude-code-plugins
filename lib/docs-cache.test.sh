@@ -13,7 +13,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/docs-cache.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
-unset DOCS_CACHE_DIR DOCS_CACHE_NOW
+# No DOCS_CACHE_* setting and no machine config file of the caller's is ever read.
+while IFS= read -r v; do unset "$v"; done < <(compgen -e DOCS_CACHE_)
+export HOME="$TEST_TMPDIR/suite-home" XDG_CONFIG_HOME="$TEST_TMPDIR/suite-config"
 
 FAILED=0
 CASE_NUM=0
@@ -645,6 +647,144 @@ assert_eq "prune: a write prunes the store: the old key goes, the one just writt
     dc "$S" info "$KB" >/dev/null || rc=$?
     echo "$rc"
   )"
+
+# --- configuration layers --------------------------------------------------------------
+# Each key resolves on its own: a flag, then its DOCS_CACHE_* variable, then the
+# machine file, then the bundled default. Every expected value is a bundled default
+# the contract states or a value the case itself writes.
+CFG_HOME="$TEST_TMPDIR/cfg-home"
+CFG_XDG="$TEST_TMPDIR/cfg-xdg"
+CFG_FILE="$CFG_XDG/claude-docs-cache/config.json"
+CFG_CACHE="$TEST_TMPDIR/cfg-cache"
+mkdir -p "${CFG_FILE%/*}" "$CFG_HOME"
+# cfg <VAR=value>... <command...>: run with this section's config and cache homes.
+cfg() { env HOME="$CFG_HOME" XDG_CONFIG_HOME="$CFG_XDG" XDG_CACHE_HOME="$CFG_CACHE" "$@"; }
+# cfg_get <key> [VAR=value]... [flag value]...: that key's line from `config`.
+cfg_get() {
+  local key="$1" envs=()
+  shift
+  while [[ $# -gt 0 && "$1" != -* ]]; do
+    envs+=("$1")
+    shift
+  done
+  cfg ${envs[@]+"${envs[@]}"} bash "$SCRIPT" "$@" config 2>/dev/null | grep "^$key="
+}
+
+want="cache_dir=$CFG_CACHE/claude-docs-cache layer=default
+ttl_seconds=86400 layer=default
+whole_page_bytes=51200 layer=default
+escalate_section_percent=25 layer=default
+escalate_bytes=61440 layer=default
+size_cap_bytes=209715200 layer=default
+prune_grace_seconds=300 layer=default
+cache_enabled=true layer=default"
+out="$(cfg bash "$SCRIPT" config)"
+assert_eq "config: with no flag, variable or file every key is its bundled default, one line each" "$want" "$(grep 'layer=' <<<"$out")"
+assert_eq "config: names the machine file it looked for" "file: $CFG_FILE (absent)" "$(grep '^file: ' <<<"$out")"
+
+printf '%s\n' '{"whole_page_bytes": 100, "ttl_seconds": 60}' >"$CFG_FILE"
+assert_eq "config: the machine file supplies a key it sets" "whole_page_bytes=100 layer=file" "$(cfg_get whole_page_bytes)"
+assert_eq "config: per key: a key the file omits keeps its default" "escalate_bytes=61440 layer=default" "$(cfg_get escalate_bytes)"
+assert_eq "config: DOCS_CACHE_* wins over the file" "whole_page_bytes=200 layer=env" \
+  "$(cfg_get whole_page_bytes DOCS_CACHE_WHOLE_PAGE_BYTES=200)"
+assert_eq "config: per key: the variable for one key leaves the file's other keys" "ttl_seconds=60 layer=file" \
+  "$(cfg_get ttl_seconds DOCS_CACHE_WHOLE_PAGE_BYTES=200)"
+assert_eq "config: a flag wins over the variable and the file" "whole_page_bytes=300 layer=flag" \
+  "$(cfg_get whole_page_bytes DOCS_CACHE_WHOLE_PAGE_BYTES=200 --whole-page-bytes 300)"
+assert_eq "config: an empty variable is unset" "whole_page_bytes=100 layer=file" "$(cfg_get whole_page_bytes DOCS_CACHE_WHOLE_PAGE_BYTES=)"
+
+# Every key from each layer: key, variable, value; flag, value.
+for row in "cache_dir DOCS_CACHE_DIR $TEST_TMPDIR/env-dir --cache-dir $TEST_TMPDIR/flag-dir" \
+  "ttl_seconds DOCS_CACHE_TTL_SECONDS 11 - -" \
+  "whole_page_bytes DOCS_CACHE_WHOLE_PAGE_BYTES 12 --whole-page-bytes 22" \
+  "escalate_section_percent DOCS_CACHE_ESCALATE_SECTION_PERCENT 13 --escalate-percent 23" \
+  "escalate_bytes DOCS_CACHE_ESCALATE_BYTES 14 --escalate-bytes 24" \
+  "size_cap_bytes DOCS_CACHE_SIZE_CAP_BYTES 15 --max-bytes 25" \
+  "prune_grace_seconds DOCS_CACHE_PRUNE_GRACE_SECONDS 16 --grace 26" \
+  "cache_enabled DOCS_CACHE_ENABLED false - -"; do
+  read -r k var val flag fval <<<"$row"
+  assert_eq "config: $var sets $k" "$k=$val layer=env" "$(cfg_get "$k" "$var=$val")"
+  [[ "$flag" == - ]] || assert_eq "config: $flag sets $k" "$k=$fval layer=flag" "$(cfg_get "$k" "$var=$val" "$flag" "$fval")"
+done
+printf '{"cache_dir": "%s", "ttl_seconds": 31, "whole_page_bytes": 32, "escalate_section_percent": 33, "escalate_bytes": 34, "size_cap_bytes": 35, "prune_grace_seconds": 36, "cache_enabled": false}\n' \
+  "$TEST_TMPDIR/file-dir" >"$CFG_FILE"
+want="cache_dir=$TEST_TMPDIR/file-dir layer=file
+ttl_seconds=31 layer=file
+whole_page_bytes=32 layer=file
+escalate_section_percent=33 layer=file
+escalate_bytes=34 layer=file
+size_cap_bytes=35 layer=file
+prune_grace_seconds=36 layer=file
+cache_enabled=false layer=file"
+assert_eq "config: the file sets every key" "$want" "$(cfg bash "$SCRIPT" config | grep 'layer=')"
+assert_eq "config: the file was read" "file: $CFG_FILE (read)" "$(cfg bash "$SCRIPT" config | grep '^file: ')"
+
+# The resolved values are the ones the commands use.
+S="$TEST_TMPDIR/s-cfg"
+KEY="$(DOCS_CACHE_NOW=$T1 dc "$S" put "$URL" markdown "$BIG")"
+printf '%s\n' '{"whole_page_bytes": 50, "size_cap_bytes": 12345}' >"$CFG_FILE"
+assert_eq "config: read uses the file's whole_page_bytes (103 bytes over 50: the map)" 1 \
+  "$(cfg bash "$SCRIPT" --cache-dir "$S" read "$KEY" | head -1 | grep -c '^docs-cache read: .* over the whole-page threshold of 50 bytes')"
+assert_eq "config: read uses the variable over the file (103 bytes under 1000: the page)" "$(cat "$BIG")" \
+  "$(cfg DOCS_CACHE_WHOLE_PAGE_BYTES=1000 bash "$SCRIPT" --cache-dir "$S" read "$KEY")"
+assert_eq "config: prune uses the file's size_cap_bytes" 12345 "$(cfg bash "$SCRIPT" --cache-dir "$S" prune | tail -1 | cut -f3)"
+printf '{"cache_dir": "%s"}\n' "$TEST_TMPDIR/file-store" >"$CFG_FILE"
+cfg bash "$SCRIPT" put "$URL" markdown "$PAGE" >/dev/null
+assert_eq "config: put stores in the file's cache_dir" 1 "$([[ -f "$TEST_TMPDIR/file-store/store_version" ]] && echo 1 || echo 0)"
+
+# Where the file is.
+mkdir -p "$CFG_HOME/.config/claude-docs-cache"
+printf '%s\n' '{"ttl_seconds": 42}' >"$CFG_HOME/.config/claude-docs-cache/config.json"
+printf '%s\n' '{"ttl_seconds": 43}' >"$CFG_FILE"
+assert_eq "config: without XDG_CONFIG_HOME the file is \$HOME/.config/claude-docs-cache/config.json" "ttl_seconds=42 layer=file" \
+  "$(env -u XDG_CONFIG_HOME HOME="$CFG_HOME" bash "$SCRIPT" config | grep '^ttl_seconds=')"
+assert_eq "config: XDG_CONFIG_HOME moves it" "ttl_seconds=43 layer=file" "$(cfg_get ttl_seconds)"
+rm -rf "$CFG_HOME/.config"
+
+# A malformed file resolves as absent, with a warning, never a failure.
+for body in '{"ttl_seconds": 5' '[{"ttl_seconds": 5}]' '' '{"ttl_seconds": 5} {"ttl_seconds": 6}'; do
+  printf '%s' "$body" >"$CFG_FILE"
+  rc=0
+  out="$(cfg bash "$SCRIPT" config 2>/dev/null)" || rc=$?
+  assert_eq "config: malformed file [$body]: exit 0, every key falls to its default" "0 8 ttl_seconds=86400 layer=default" \
+    "$rc $(grep -c 'layer=default' <<<"$out") $(grep '^ttl_seconds=' <<<"$out")"
+  assert_eq "config: malformed file [$body]: config names it" "file: $CFG_FILE (malformed)" "$(grep '^file: ' <<<"$out")"
+done
+rc=0
+err="$(cfg bash "$SCRIPT" key "$URL" markdown 2>&1 >/dev/null)" || rc=$?
+assert_eq "config: malformed file: another command still runs and warns on stderr naming the file" "0 1" \
+  "$rc $(grep -c "^WARNING: docs-cache config: $CFG_FILE" <<<"$err")"
+assert_eq "config: a malformed file does not hide a variable" "ttl_seconds=9 layer=env" "$(cfg_get ttl_seconds DOCS_CACHE_TTL_SECONDS=9)"
+
+# A bad value falls to the next layer, with a warning.
+printf '%s\n' '{"whole_page_bytes": "big", "escalate_bytes": 2.5, "size_cap_bytes": -1, "cache_enabled": "no", "cache_dir": 7, "ttl_seconds": 5}' >"$CFG_FILE"
+out="$(cfg bash "$SCRIPT" config 2>/dev/null)"
+want="cache_dir=$CFG_CACHE/claude-docs-cache layer=default
+ttl_seconds=5 layer=file
+whole_page_bytes=51200 layer=default
+escalate_section_percent=25 layer=default
+escalate_bytes=61440 layer=default
+size_cap_bytes=209715200 layer=default
+prune_grace_seconds=300 layer=default
+cache_enabled=true layer=default"
+assert_eq "config: a bad file value falls to the default; the good one stands" "$want" "$(grep 'layer=' <<<"$out")"
+err="$(cfg bash "$SCRIPT" key "$URL" markdown 2>&1 >/dev/null)"
+assert_eq "config: each bad file value is warned once on stderr" 5 "$(grep -c '^WARNING: docs-cache config: ' <<<"$err")"
+assert_eq "config: the warning names the key" 1 "$(grep -c 'whole_page_bytes' <<<"$err")"
+assert_eq "config: a bad variable falls to the file" "ttl_seconds=5 layer=file" "$(cfg_get ttl_seconds DOCS_CACHE_TTL_SECONDS=soon)"
+err="$(cfg DOCS_CACHE_TTL_SECONDS=soon bash "$SCRIPT" key "$URL" markdown 2>&1 >/dev/null)"
+assert_eq "config: a bad variable is warned, naming it" 1 "$(grep -c '^WARNING: docs-cache config: DOCS_CACHE_TTL_SECONDS' <<<"$err")"
+assert_eq "config: a bad cache_enabled variable falls to the default" "cache_enabled=true layer=default" "$(cfg_get cache_enabled DOCS_CACHE_ENABLED=maybe)"
+
+# An unknown key is inert: config reports it; nothing else notices.
+printf '%s\n' '{"colour": "blue", "ttl_seconds": 5}' >"$CFG_FILE"
+out="$(cfg bash "$SCRIPT" config)"
+assert_eq "config: an unknown key is reported as ignored, outside the layer lines" "ignored: colour (unknown key in the file)" \
+  "$(grep colour <<<"$out")"
+assert_eq "config: an unknown key leaves the others" "ttl_seconds=5 layer=file" "$(grep '^ttl_seconds=' <<<"$out")"
+assert_eq "config: an unknown key adds no layer line" 8 "$(grep -c 'layer=' <<<"$out")"
+assert_eq "config: an unknown key warns nothing on other commands" "" "$(cfg bash "$SCRIPT" key "$URL" markdown 2>&1 >/dev/null)"
+rm -f "$CFG_FILE"
 
 # --- usage --------------------------------------------------------------------------
 rc=0

@@ -56,6 +56,8 @@
 #   claude_version  installed `claude --version` number, or "" when unreadable
 #   index           record for the index itself (null for the generic profile)
 #   pages[]         one record per requested page, in request order
+#   cache_disabled  null, or the layer (env or file) whose cache_enabled false
+#                   made this --cache run read and write no cache
 # Each record: slug, url, mode, source (fetch|fixture|cache), retrieved (UTC
 # ISO, when these bytes were first fetched), validated (UTC ISO, when they were
 # last confirmed current), age_seconds (since validated), cache_key (the
@@ -84,7 +86,8 @@
 #   FETCH_DOCS_HTML2MD      HTML converter (default: html2md.py beside this script)
 #   DOCS_CACHE_DIR          cache directory when --cache-dir is absent; in
 #       fixture mode --cache needs one of the two, so fixture bytes never reach
-#       the default cache
+#       the default or the machine file's cache. The other DOCS_CACHE_*
+#       settings and the machine file are docs-cache.sh's (its header).
 #   DOCS_CACHE_NOW          epoch seconds docs-cache.sh uses as the current time
 
 set -uo pipefail
@@ -108,10 +111,11 @@ Usage:
   --mode <m>         how the caller will use the pages that follow: full (default) or search
   --follow <depth>   reserved for link-following; accepted, default 0, acted on by no caller
   --cache            read through the docs cache and store what is fetched
-  --max-age <s>      serve a cached entry validated at most <s> seconds ago (default 86400);
-                     0 always asks the server
-  --cache-dir <dir>  cache directory (default: DOCS_CACHE_DIR, else
-                     \${XDG_CACHE_HOME:-\$HOME/.cache}/claude-docs-cache)
+  --max-age <s>      serve a cached entry validated at most <s> seconds ago (default: the
+                     docs cache's ttl_seconds, 86400 unless configured); 0 always asks the server
+  --cache-dir <dir>  cache directory (default: the docs cache's cache_dir)
+                     Both defaults, and cache_enabled, resolve from DOCS_CACHE_* and the machine
+                     file; docs-cache.sh config prints them with their layer.
   <slug|url>         a page slug (settings-reference) or an origin URL the index lists;
                      for --profile generic, any https URL (its slug is host/path)
 
@@ -131,7 +135,7 @@ MANIFEST=""
 DISCOVER=0
 MODE=full
 CACHE=0
-MAX_AGE=86400
+MAX_AGE=""
 CACHE_DIR=""
 TARGETS=()
 TARGET_MODES=()
@@ -221,15 +225,24 @@ FIXTURE_SET=0
 FIXTURE="${FETCH_DOCS_FIXTURE_DIR:-}"
 CURL_MISSING=0
 if [[ $FIXTURE_SET -eq 0 ]] && ! command -v curl >/dev/null 2>&1; then CURL_MISSING=1; fi
+CACHE_DISABLED=""
 if [[ $CACHE -eq 1 ]]; then
-  [[ $FIXTURE_SET -eq 0 || -n "$CACHE_DIR" || -n "${DOCS_CACHE_DIR:-}" ]] ||
-    die "--cache with FETCH_DOCS_FIXTURE_DIR needs --cache-dir or DOCS_CACHE_DIR"
   DOCS_CACHE="$(dirname "${BASH_SOURCE[0]}")/docs-cache.sh"
   [[ -f "$DOCS_CACHE" ]] || die "docs-cache.sh not found beside fetch-docs.sh"
   # shellcheck source=docs-cache.sh
   . "$DOCS_CACHE"
-  dc_set_dir "$CACHE_DIR"
+  dc_config cache_dir="$CACHE_DIR" ttl_seconds="$MAX_AGE"
+  dc_config_warn
+  if [[ "$DC_CFG_cache_enabled" == false ]]; then
+    CACHE=0 CACHE_DISABLED="$DC_LAYER_cache_enabled"
+  else
+    # Fixture bytes reach only a cache this invocation named, never the machine file's.
+    [[ $FIXTURE_SET -eq 0 || "$DC_LAYER_cache_dir" == flag || "$DC_LAYER_cache_dir" == env ]] ||
+      die "--cache with FETCH_DOCS_FIXTURE_DIR needs --cache-dir or DOCS_CACHE_DIR"
+    MAX_AGE="$DC_CFG_ttl_seconds"
+  fi
 fi
+MAX_AGE="${MAX_AGE:-0}"
 CONVERTER="${FETCH_DOCS_HTML2MD:-$(dirname "${BASH_SOURCE[0]}")/html2md.py}"
 
 mkdir -p "$OUT" || die "cannot create $OUT"
@@ -823,8 +836,8 @@ if [[ -n "$claude_bin" && -f "$claude_bin" ]]; then
   [[ "$raw" =~ ([0-9]+\.[0-9]+\.[0-9]+) ]] && claude_version="${BASH_REMATCH[1]}"
 fi
 
-if jq -n --arg v "$claude_version" --slurpfile idx "$INDEX_REC" --slurpfile pages "$PAGE_RECS" \
-  '{claude_version: $v, index: $idx[0], pages: $pages}' >"$MANIFEST.tmp"; then
+if jq -n --arg v "$claude_version" --slurpfile idx "$INDEX_REC" --slurpfile pages "$PAGE_RECS" --arg cd "$CACHE_DISABLED" \
+  '{claude_version: $v, index: $idx[0], pages: $pages, cache_disabled: (if $cd == "" then null else $cd end)}' >"$MANIFEST.tmp"; then
   mv "$MANIFEST.tmp" "$MANIFEST" || die "could not write $MANIFEST"
 else
   die "could not write $MANIFEST"

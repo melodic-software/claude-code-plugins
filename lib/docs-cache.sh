@@ -80,9 +80,28 @@
 #   1  miss: no usable entry for the key, or an unknown section id
 #   2  fatal (bad arguments, jq missing, nothing stored)
 #
-# Env overrides:
-#   DOCS_CACHE_DIR  cache directory when --cache-dir is absent (default:
-#                   ${XDG_CACHE_HOME:-$HOME/.cache}/claude-docs-cache)
+# Configuration: each key resolves on its own from the first layer that sets a
+# valid value: a flag, its DOCS_CACHE_* variable (empty counts as unset), the
+# machine file ${XDG_CONFIG_HOME:-$HOME/.config}/claude-docs-cache/config.json
+# (one JSON object), the bundled default. A file that is not one JSON object
+# resolves as absent and a value of the wrong type or range is skipped, each
+# with a warning on stderr; an unknown key in the file is ignored. `config`
+# prints every value with the layer that supplied it.
+#   key                       variable                             flag                  default
+#   cache_dir                 DOCS_CACHE_DIR                       --cache-dir           ${XDG_CACHE_HOME:-$HOME/.cache}/claude-docs-cache
+#   ttl_seconds               DOCS_CACHE_TTL_SECONDS               fetch-docs --max-age  86400
+#   whole_page_bytes          DOCS_CACHE_WHOLE_PAGE_BYTES          --whole-page-bytes    51200
+#   escalate_section_percent  DOCS_CACHE_ESCALATE_SECTION_PERCENT  --escalate-percent    25
+#   escalate_bytes            DOCS_CACHE_ESCALATE_BYTES            --escalate-bytes      61440
+#   size_cap_bytes            DOCS_CACHE_SIZE_CAP_BYTES            --max-bytes           209715200
+#   prune_grace_seconds       DOCS_CACHE_PRUNE_GRACE_SECONDS       --grace               300
+#   cache_enabled             DOCS_CACHE_ENABLED                   none                  true
+# cache_dir is a non-empty string, cache_enabled true or false, every other key
+# a non-negative integer. ttl_seconds is fetch-docs.sh's --max-age when the
+# caller passes none; cache_enabled false makes fetch-docs.sh --cache read and
+# write no cache. This CLI's own commands read and write whatever they are told.
+#
+# Other env overrides:
 #   DOCS_CACHE_NOW  epoch seconds to use as the current time (the test seam)
 #   DOCS_CACHE_PATH_MAX  the path-length limit for writes (default 259 on
 #                   Windows, none elsewhere)
@@ -91,12 +110,113 @@
 # shellcheck disable=SC2016
 DC_STORE_VERSION=2
 
-# Bundled defaults; the CLI flags of the same names override them.
-DC_WHOLE_PAGE_BYTES=51200
-DC_ESCALATE_PERCENT=25
-DC_ESCALATE_BYTES=61440
-DC_MAX_BYTES=209715200
-DC_GRACE=300
+DC_CONFIG_KEYS=(cache_dir ttl_seconds whole_page_bytes escalate_section_percent escalate_bytes size_cap_bytes prune_grace_seconds cache_enabled)
+# Bundled defaults (cache_dir's is computed by dc_config); a caller that sources
+# this file without calling dc_config runs on them.
+# shellcheck disable=SC2034 # read by name (dc_config_print) and by fetch-docs.sh
+{
+  DC_CFG_cache_dir="" DC_CFG_ttl_seconds=86400 DC_CFG_whole_page_bytes=51200 DC_CFG_escalate_section_percent=25
+  DC_CFG_escalate_bytes=61440 DC_CFG_size_cap_bytes=209715200 DC_CFG_prune_grace_seconds=300 DC_CFG_cache_enabled=true
+  DC_LAYER_cache_dir=default DC_LAYER_ttl_seconds=default DC_LAYER_whole_page_bytes=default
+  DC_LAYER_escalate_section_percent=default DC_LAYER_escalate_bytes=default DC_LAYER_size_cap_bytes=default
+  DC_LAYER_prune_grace_seconds=default DC_LAYER_cache_enabled=default
+}
+DC_DEFAULTS=()
+for DC_KV in "${DC_CONFIG_KEYS[@]:1}"; do
+  DC_V="DC_CFG_$DC_KV"
+  DC_DEFAULTS+=("$DC_KV=${!DC_V}")
+done
+unset DC_KV DC_V
+
+# dc_config_valid <key> <JSON type, or text> <value>: the value fits the key.
+# Sets DC_WANT to what the key takes.
+dc_config_valid() {
+  local type=number re='^[0-9]{1,18}$'
+  DC_WANT="a non-negative integer"
+  case "$1" in
+  cache_dir) type=string re='.' DC_WANT="a non-empty string" ;;
+  cache_enabled) type=boolean re='^(true|false)$' DC_WANT="true or false" ;;
+  *) ;;
+  esac
+  [[ ("$2" == text || "$2" == "$type") && "$3" =~ $re && "$3" != *[[:cntrl:]]* ]]
+}
+
+# dc_config [<key>=<value>]...: resolve every key, the arguments being the flag
+# layer (an empty value counts as unset), and point the store at cache_dir. Sets
+# DC_CFG_<key>, DC_LAYER_<key> (flag, env, file or default), DC_CONFIG_FILE,
+# DC_CONFIG_STATE (absent, read or malformed), DC_CONFIG_UNKNOWN (the file's
+# unknown keys) and DC_CONFIG_WARN (one line per value or file skipped).
+dc_config() {
+  local k kv v layer var rows="" fk ft fv
+  DC_CONFIG_FILE="${XDG_CONFIG_HOME:-${HOME:-}/.config}/claude-docs-cache/config.json"
+  DC_CONFIG_STATE=absent DC_CONFIG_UNKNOWN=() DC_CONFIG_WARN=()
+  if [[ -f "$DC_CONFIG_FILE" ]]; then
+    # One row per key: key, JSON type, value (a string raw, anything else as JSON).
+    if rows="$(jq -rs 'if length != 1 or (.[0] | type) != "object" then error("not one object") else .[0] end
+        | to_entries[] | [.key, (.value | type), (.value | if type == "string" then . else tojson end)]
+        | if (.[0] + .[2]) | test("[[:cntrl:]]") then [(.[0] | gsub("[[:cntrl:]]"; "?")), "control", ""] else . end
+        | join("\t")' "$DC_CONFIG_FILE" 2>/dev/null)"; then
+      DC_CONFIG_STATE=read rows="${rows//$'\r'/}"
+    else
+      DC_CONFIG_STATE=malformed rows=""
+      DC_CONFIG_WARN+=("$DC_CONFIG_FILE is not one JSON object; resolving every key without it")
+    fi
+  fi
+  while IFS=$'\t' read -r fk _; do
+    [[ -z "$fk" || " ${DC_CONFIG_KEYS[*]} " == *" $fk "* ]] || DC_CONFIG_UNKNOWN+=("$fk")
+  done <<<"$rows"
+  for k in "${DC_CONFIG_KEYS[@]}"; do
+    v="" layer=""
+    for kv in "$@"; do
+      [[ "${kv%%=*}" != "$k" || -z "${kv#*=}" ]] || v="${kv#*=}" layer=flag
+    done
+    var="${k#cache_}"
+    var="DOCS_CACHE_${var^^}"
+    if [[ -z "$layer" && -n "${!var:-}" ]]; then
+      if dc_config_valid "$k" text "${!var}"; then
+        v="${!var}" layer=env
+      else
+        DC_CONFIG_WARN+=("$var=${!var} is not $DC_WANT; ignored")
+      fi
+    fi
+    if [[ -z "$layer" ]]; then
+      while IFS=$'\t' read -r fk ft fv; do
+        [[ "$fk" == "$k" ]] || continue
+        if dc_config_valid "$k" "$ft" "$fv"; then
+          v="$fv" layer=file
+        else
+          DC_CONFIG_WARN+=("$k in $DC_CONFIG_FILE is not $DC_WANT ($ft $fv); ignored")
+        fi
+      done <<<"$rows"
+    fi
+    if [[ -z "$layer" ]]; then
+      layer=default v="${XDG_CACHE_HOME:-${HOME:-}/.cache}/claude-docs-cache"
+      for kv in "${DC_DEFAULTS[@]}"; do [[ "${kv%%=*}" != "$k" ]] || v="${kv#*=}"; done
+    fi
+    printf -v "DC_CFG_$k" '%s' "$v"
+    printf -v "DC_LAYER_$k" '%s' "$layer"
+  done
+  dc_set_dir "$DC_CFG_cache_dir"
+}
+
+# dc_config_warn: print the skipped values and file to stderr.
+dc_config_warn() {
+  local w
+  for w in ${DC_CONFIG_WARN[@]+"${DC_CONFIG_WARN[@]}"}; do printf 'WARNING: docs-cache config: %s\n' "$w" >&2; done
+}
+
+# dc_config_print: one `<key>=<value> layer=<layer>` line per key, then the file,
+# its ignored keys and the warnings.
+dc_config_print() {
+  local k v l w
+  for k in "${DC_CONFIG_KEYS[@]}"; do
+    v="DC_CFG_$k" l="DC_LAYER_$k"
+    printf '%s=%s layer=%s\n' "$k" "${!v}" "${!l}"
+  done
+  printf 'file: %s (%s)\n' "$DC_CONFIG_FILE" "$DC_CONFIG_STATE"
+  for k in ${DC_CONFIG_UNKNOWN[@]+"${DC_CONFIG_UNKNOWN[@]}"}; do printf 'ignored: %s (unknown key in the file)\n' "$k"; done
+  for w in ${DC_CONFIG_WARN[@]+"${DC_CONFIG_WARN[@]}"}; do printf 'warning: %s\n' "$w"; done
+}
 
 # dc_set_dir [dir]: set DC_DIR, the store, from the cache directory: the
 # argument, else DOCS_CACHE_DIR, else the default. The store is the cache
@@ -473,7 +593,7 @@ dc_escalates() {
   local map="$1" body="$2" bytes res cnt total asked
   shift 2
   bytes="$(wc -c <"$body" | tr -d ' ')"
-  [[ $bytes -gt $DC_WHOLE_PAGE_BYTES ]] || return 1
+  [[ $bytes -gt $DC_CFG_whole_page_bytes ]] || return 1
   res="$(LC_ALL=C awk -F'\t' -v ids="$*" '
     BEGIN { n = split(ids, want, " "); for (i = 1; i <= n; i++) w[want[i]] = 1 }
     { total++ }
@@ -481,9 +601,9 @@ dc_escalates() {
     END { for (i = 1; i <= n; i++) if (!(want[i] in got)) exit; print cnt + 0, total + 0, b + 0 }' "$map")"
   [[ -n "$res" ]] || return 1
   read -r cnt total asked <<<"$res"
-  [[ $((cnt * 100)) -gt $((DC_ESCALATE_PERCENT * total)) || $asked -gt $DC_ESCALATE_BYTES ]] || return 1
+  [[ $((cnt * 100)) -gt $((DC_CFG_escalate_section_percent * total)) || $asked -gt $DC_CFG_escalate_bytes ]] || return 1
   printf 'docs-cache slice: the %s requested sections (%s bytes) pass the escalation limit (more than %s%% of the page'"'"'s %s sections, or more than %s bytes); printing the whole page (%s bytes) instead\n' \
-    "$cnt" "$asked" "$DC_ESCALATE_PERCENT" "$total" "$DC_ESCALATE_BYTES" "$bytes" >&2
+    "$cnt" "$asked" "$DC_CFG_escalate_section_percent" "$total" "$DC_CFG_escalate_bytes" "$bytes" >&2
 }
 
 # dc_block_open / dc_block_close: delimit model-written text. The markers carry
@@ -564,13 +684,13 @@ dc_notes() {
 dc_read() {
   local bytes n sums notes
   bytes="$(wc -c <"$DC_ENTRY/body" | tr -d ' ')"
-  if [[ $bytes -le $DC_WHOLE_PAGE_BYTES ]]; then
+  if [[ $bytes -le $DC_CFG_whole_page_bytes ]]; then
     cat "$DC_ENTRY/body"
     return
   fi
   n="$(awk 'END { print NR }' "$DC_ENTRY/map.tsv")"
   printf 'docs-cache read: %s is %s bytes in %s sections, over the whole-page threshold of %s bytes, so this is its section map (id level start end bytes sha256 heading_path). Read sections with: docs-cache.sh slice %s <id>...\n' \
-    "$DC_URL" "$bytes" "$n" "$DC_WHOLE_PAGE_BYTES" "$DC_REF"
+    "$DC_URL" "$bytes" "$n" "$DC_CFG_whole_page_bytes" "$DC_REF"
   cat "$DC_ENTRY/map.tsv"
   [[ "$1" -eq 0 ]] || return 0
   if [[ "$DC_QUARANTINED" == 1 ]]; then
@@ -765,7 +885,7 @@ dc_prune_lock() {
   if ! mkdir "$lock" 2>/dev/null; then
     [[ ! -f "$lock/at" ]] || read -r at <"$lock/at"
     [[ "$at" =~ ^[0-9]+$ ]] || at=0
-    [[ $((DC_NOW - at)) -gt $DC_GRACE ]] && mv "$lock" "$old" 2>/dev/null || return 1
+    [[ $((DC_NOW - at)) -gt $DC_CFG_prune_grace_seconds ]] && mv "$lock" "$old" 2>/dev/null || return 1
     rm -rf "$old"
     mkdir "$lock" 2>/dev/null || return 1
   fi
@@ -773,8 +893,8 @@ dc_prune_lock() {
 }
 
 # dc_prune: evict least recently used items until the store is at most
-# DC_MAX_BYTES, skipping keys accessed within DC_GRACE seconds. Prints
-# "evicted <entry|summary|note> <path> <bytes>" per item, then
+# DC_CFG_size_cap_bytes, skipping keys accessed within DC_CFG_prune_grace_seconds
+# seconds. Prints "evicted <entry|summary|note> <path> <bytes>" per item, then
 # "total <bytes> <max>".
 dc_prune() {
   local items total=0 n rel k16 kind tier cur ranked line name gone
@@ -782,10 +902,10 @@ dc_prune() {
   dc_now
   items="$(dc_prune_items)"
   while IFS=$'\t' read -r n rel; do [[ -z "$n" ]] || total=$((total + n)); done <<<"$items"
-  if [[ $total -gt $DC_MAX_BYTES ]]; then
+  if [[ $total -gt $DC_CFG_size_cap_bytes ]]; then
     if ! dc_prune_lock; then
       echo "docs-cache prune: busy: another prune holds $DC_DIR/prune.lock" >&2
-      printf 'total\t%s\t%s\n' "$total" "$DC_MAX_BYTES"
+      printf 'total\t%s\t%s\n' "$total" "$DC_CFG_size_cap_bytes"
       return 0
     fi
     items="$(dc_prune_items)"
@@ -807,8 +927,8 @@ dc_prune() {
       ranked+="$tier"$'\t'"$(dc_access "$k16")"$'\t'"$cur"$'\t'"$n"$'\t'"$rel"$'\t'"$k16"$'\n'
     done <<<"$items"
     while IFS=$'\t' read -r tier _ cur n rel k16; do
-      [[ $total -gt $DC_MAX_BYTES ]] || break
-      [[ $((DC_NOW - $(dc_access "$k16"))) -ge $DC_GRACE ]] || continue
+      [[ $total -gt $DC_CFG_size_cap_bytes ]] || break
+      [[ $((DC_NOW - $(dc_access "$k16"))) -ge $DC_CFG_prune_grace_seconds ]] || continue
       case "$tier" in
       1)
         kind=entry
@@ -832,7 +952,7 @@ dc_prune() {
     done < <(printf '%s' "$ranked" | sort -t "$(printf '\t')" -k1,1n -k2,2n -k3,3n)
     rm -rf "$DC_DIR/prune.lock"
   fi
-  printf 'total\t%s\t%s\n' "$total" "$DC_MAX_BYTES"
+  printf 'total\t%s\t%s\n' "$total" "$DC_CFG_size_cap_bytes"
 }
 
 dc_usage() {
@@ -861,14 +981,18 @@ Usage:
   note get <ref>                           print the unexpired notes in an untrusted block
   note list <ref>                          print id, state (valid|expired|quarantined), date, cited ids
   prune                                    evict least recently used items down to --max-bytes
+  config                                   print each setting: <key>=<value> layer=<flag|env|file|default>,
+                                           then the machine file and any key or value it ignored
 
   <ref> is a key (its current entry) or <key>-<sha256> (that entry).
-  --cache-dir <dir>         default: DOCS_CACHE_DIR, else ${XDG_CACHE_HOME:-$HOME/.cache}/claude-docs-cache
-  --whole-page-bytes <n>    read prints the whole page up to this size (default 51200)
-  --escalate-percent <p>    slice escalates past this share of the sections (default 25)
-  --escalate-bytes <n>      or past this many requested bytes (default 61440)
-  --max-bytes <n>           prune's size cap (default 209715200)
-  --grace <s>               prune skips keys accessed this recently (default 300)
+  Each flag sets one key, over its DOCS_CACHE_* variable, then the machine file
+  ${XDG_CONFIG_HOME:-$HOME/.config}/claude-docs-cache/config.json, then the default.
+  --cache-dir <dir>         cache_dir (default ${XDG_CACHE_HOME:-$HOME/.cache}/claude-docs-cache)
+  --whole-page-bytes <n>    whole_page_bytes: read prints the whole page up to this size (default 51200)
+  --escalate-percent <p>    escalate_section_percent: slice escalates past this share of the sections (default 25)
+  --escalate-bytes <n>      escalate_bytes: or past this many requested bytes (default 61440)
+  --max-bytes <n>           size_cap_bytes: prune's size cap (default 209715200)
+  --grace <s>               prune_grace_seconds: prune skips keys accessed this recently (default 300)
 
 Exit: 0 done; 1 miss or unknown section id; 2 fatal or refused.
 EOF
@@ -876,38 +1000,36 @@ EOF
 
 dc_main() {
   set -uo pipefail
-  local dir="" cmd sub map body tmp rc=0 raw=0
+  local cmd sub map body tmp rc=0 raw=0 key flags=()
   while [[ $# -gt 0 ]]; do
     case "$1" in
-    --cache-dir | --whole-page-bytes | --escalate-percent | --escalate-bytes | --max-bytes | --grace)
-      [[ $# -ge 2 && -n "$2" ]] || {
-        echo "ERROR: $1 needs a value" >&2
-        return 2
-      }
-      [[ "$1" == --cache-dir || "$2" =~ ^[0-9]+$ ]] || {
-        echo "ERROR: $1 needs a non-negative integer" >&2
-        return 2
-      }
-      case "$1" in
-      --cache-dir) dir="$2" ;;
-      --whole-page-bytes) DC_WHOLE_PAGE_BYTES="$2" ;;
-      --escalate-percent) DC_ESCALATE_PERCENT="$2" ;;
-      --escalate-bytes) DC_ESCALATE_BYTES="$2" ;;
-      --max-bytes) DC_MAX_BYTES="$2" ;;
-      *) DC_GRACE="$2" ;;
-      esac
-      shift 2
-      ;;
+    --cache-dir) key=cache_dir ;;
+    --whole-page-bytes) key=whole_page_bytes ;;
+    --escalate-percent) key=escalate_section_percent ;;
+    --escalate-bytes) key=escalate_bytes ;;
+    --max-bytes) key=size_cap_bytes ;;
+    --grace) key=prune_grace_seconds ;;
     *) break ;;
     esac
+    [[ $# -ge 2 && -n "$2" ]] || {
+      echo "ERROR: $1 needs a value" >&2
+      return 2
+    }
+    dc_config_valid "$key" text "$2" || {
+      echo "ERROR: $1 needs $DC_WANT" >&2
+      return 2
+    }
+    flags+=("$key=$2")
+    shift 2
   done
-  dc_set_dir "$dir"
   cmd="${1:-}"
   shift || true
   command -v jq >/dev/null 2>&1 || {
     echo "ERROR: jq required" >&2
     return 2
   }
+  dc_config ${flags[@]+"${flags[@]}"}
+  [[ "$cmd" == config ]] || dc_config_warn
   case "$cmd" in
   -h | --help)
     dc_usage
@@ -1039,6 +1161,13 @@ dc_main() {
       return 2
     }
     dc_prune
+    ;;
+  config)
+    [[ $# -eq 0 ]] || {
+      dc_usage >&2
+      return 2
+    }
+    dc_config_print
     ;;
   *)
     dc_usage >&2

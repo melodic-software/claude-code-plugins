@@ -18,6 +18,15 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   is `host/path`, and the manifest's `index` is null
   ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).
 - **`--profile platform`** reads platform.claude.com pages through its `llms.txt`.
+- **The docs cache is configurable without flags.** `scripts/docs-cache.sh` resolves eight keys
+  (`cache_dir`, `ttl_seconds`, `whole_page_bytes`, `escalate_section_percent`, `escalate_bytes`,
+  `size_cap_bytes`, `prune_grace_seconds`, `cache_enabled`) key by key from a flag, then its
+  `DOCS_CACHE_*` variable, then the machine file
+  `${XDG_CONFIG_HOME:-$HOME/.config}/claude-docs-cache/config.json`, then the bundled default.
+  `docs-cache.sh config` prints each value with the layer that supplied it. A malformed file or a
+  bad value is skipped with a warning; an unknown key is ignored. `fetch-docs.sh --cache` takes
+  `ttl_seconds` as its `--max-age` when none is passed, and with `cache_enabled` false reads and
+  writes no cache and sets the manifest's new top-level `cache_disabled` to the layer that said so.
 - **Revalidation with HTTP validators.** With `--cache`, an entry stored with an `ETag` or
   `Last-Modified` is revalidated with `If-None-Match` or `If-Modified-Since`; a 304 serves the entry
   with `status: 304` and moves only `validated`. A `Last-Modified` equal to the response's `Date`
