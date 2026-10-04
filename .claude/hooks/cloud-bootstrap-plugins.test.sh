@@ -23,7 +23,7 @@
 # both enumerate `find plugins .claude/hooks -type f -name '*.test.sh'`, so this
 # suite runs on every push with no workflow change. A sibling
 # `.claude/cloud-bootstrap.test.sh` would sit outside both roots and outside
-# ci.yml's named `scripts/*.test.sh` steps, and would therefore never run.
+# pr-require-checks.yml's named `scripts/*.test.sh` steps, and would therefore never run.
 #
 # HOW IT DRIVES THE SCRIPT. cloud-bootstrap.sh is a linear provisioning script
 # whose earlier steps install Node, run `npm ci` and pip-install hash-locked CI
