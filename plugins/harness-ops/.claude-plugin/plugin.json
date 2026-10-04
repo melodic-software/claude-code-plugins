@@ -33,7 +33,7 @@
     "install_new": {
       "type": "string",
       "title": "New-plugin install policy",
-      "description": "What the plugins skill's sync action does with catalog plugins not yet installed. ask (default) offers them in one batched multi-select prompt, then installs and enables each pick, including one the CLI installs disabled by default; all installs every one automatically; none reports them and never installs.",
+      "description": "What the plugins skill's sync action does with catalog plugins not yet installed. ask (default) offers them in one batched multi-select prompt, then installs and enables each pick, including one the CLI installs disabled; all installs every one automatically; none reports them and never installs.",
       "default": "ask",
       "options": ["ask", "all", "none"]
     },
