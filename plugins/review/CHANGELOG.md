@@ -16,6 +16,12 @@ All notable changes to the `review` plugin are documented here. Format follows
 - `/review:quality-gate` slice, downstream, spec, close-out and restatement (large-diff batch) modes, `/review:fanout` criteria slices, the `/review:fanout-sweep` workflow's slice agents, and the `/review:explain-change` risk-map check dispatch `brief-reviewer` instead of a general-purpose or `Explore` subagent; self mode drops its general-purpose fallback for `code-reviewer`; fanout's Stage 0 and Stage 3 and the workflow's extractor dispatch `stage-normalizer`; the `/review:code-review` and `/review:security-review` CI lanes dispatch their hunters and verifiers as `lane-verifier`. No path in these skills dispatches a general-purpose or `Explore` subagent now, so a reviewer cannot rediscover a review skill and fan out; the README records the basis with an upstream pointer. The three agents carry the untrusted-content spine with a tail that keeps review criteria refining the lens.
 - `/review:fanout-sweep` slices keep `brief-reviewer`'s pinned model and effort instead of the routed `roles.verifier.fanout` variant, and the workflow reads only `roles.retrieval.single` and returns only `extract` in `roles`.
 
+## [0.41.1] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
 ## [0.41.0] - 2026-10-04
 
 ### Added

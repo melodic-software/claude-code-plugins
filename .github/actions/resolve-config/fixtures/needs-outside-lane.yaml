@@ -1,0 +1,22 @@
+version: 1
+activities:
+  run-tests:
+    script: scripts/run-tests.sh
+    effect: read
+    gating: gate
+    reads-untrusted: false
+  fix-docs:
+    script: scripts/fix-docs.sh
+    effect: mutate-branch
+    gating: advisory
+    reads-untrusted: false
+lanes:
+  pr-run-checks:
+    stage: verify
+    slots:
+      - activity: run-tests
+        needs: [fix-docs]
+  pr-refine:
+    stage: refine
+    slots:
+      - activity: fix-docs
