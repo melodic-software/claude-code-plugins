@@ -81,6 +81,36 @@ against a run that produced none):
    `evidence_use: publish`, say so in the brief: the verifier then grades every cited source for
    applicability rather than quote presence, and checks that the answer quotes only `current`
    sources as support. A quote found at its link answers neither question.
+
+   **Hand it full copies of the pages its fetch cut short.** The verifier has no `Bash`, by design,
+   so it cannot take the `curl` route the discipline file gives a researcher for a page WebFetch
+   truncates. When its `problems:` names a `truncated primary: <url>`, save that page with the
+   recipe under "A size failure is the same trigger" in [`discipline.md`](discipline.md), with
+   `<scratch>` set to a `scratch-snapshots` directory inside the slice. Create that directory before running
+   the recipe: its `mktemp -d` makes only the final path component. Fetch through rung 1
+   of the [upstream-drift read ladder](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#the-rungs),
+   which owns the raw-markdown channel. Then dispatch a fresh verifier with one more prompt line per page:
+
+   ```text
+   Snapshots: <url> -> <absolute path of the saved copy>
+   ```
+
+   The slice sits under the checkout, so the verifier's `Read` reaches the copy without a
+   permission prompt; a copy saved outside the session's working directories makes every graded
+   read wait on one, and a mode that denies prompts turns it into an unread snapshot. Delete `scratch-snapshots` once the verdict is written back,
+   per the scratch rule in
+   [`../../../reference/parent-contract.md`](../../../reference/parent-contract.md).
+
+   - **Pointer**: when choosing where a snapshot goes, fetch
+     [Working directories](https://code.claude.com/docs/en/permissions#working-directories),
+     [permission modes](https://code.claude.com/docs/en/permissions#permission-modes) and the
+     tools reference's
+     [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)
+     live.
+   - **As of**: 2026-10-04
+   - **Recheck trigger**: the tools reference stops marking `Read` as prompting for paths outside
+     the working directories, its WebFetch section stops naming a size limit, or a verifier reports
+     a `Snapshots:` path it could not Read.
 3. **Apply project fit.** The consuming project's conventions and stated direction live with the
    parent; a fresh worker has no access to them.
 4. **Write both results back into the artifact.** This is the obligation easiest to drop, and
