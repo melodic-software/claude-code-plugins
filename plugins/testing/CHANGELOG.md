@@ -3,6 +3,22 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.14] - 2026-10-04
+
+### Added
+
+- `/testing:audit` scans C# Reqnroll step definition files (`*StepDefinitions.cs`) and template test files (`UnitTest*.cs`), and TypeScript `.mts` and `.cts` test files; the test hooks now reach them too. Reqnroll step attributes are not yet read as test starts ([#6040](https://github.com/melodic-software/claude-code-plugins/issues/6040)).
+- A new report-only rule, `rule-throw-only-oracle`, reports a C# test whose every assertion only checks that a value it built with `new` exists or has its own type, so only a throwing constructor can fail it. The test-scan hook counts it among the tests that check little ([#6040](https://github.com/melodic-software/claude-code-plugins/issues/6040)).
+- A bare `return;` before every assertion of a C# test is reported as `rule-conditional-assertion`, with xUnit, NUnit and MSTest skip calls offered instead; a `return` inside a filtered `catch` is not reported ([#6040](https://github.com/melodic-software/claude-code-plugins/issues/6040)).
+
+### Fixed
+
+- A Python or Go test whose name or parameters contain an assertion word, such as `test_check_x` or `expected`, no longer counts as asserting, so a zero-assertion test is reported ([#6211](https://github.com/melodic-software/claude-code-plugins/issues/6211)).
+- Each `;`-separated statement on a line of C#, JavaScript, TypeScript, Python or bash is judged on its own, so a weak assertion after an inert one on the same line is reported ([#6218](https://github.com/melodic-software/claude-code-plugins/issues/6218)).
+- `rule-source-text-read` fires on Windows: git and Git Bash spell the repository path differently, and the scanner now compares them in one spelling.
+- The scanner reads C# names correctly under gawk 5.4.0, which fails to match one of its regular expressions.
+- A TypeScript non-null assertion before a division, `total! / count`, no longer hides the rest of the line as a regular expression, which caused a false zero-assertion and swallowed the next test.
+
 ## [0.22.10] - 2026-10-04
 
 ### Fixed
