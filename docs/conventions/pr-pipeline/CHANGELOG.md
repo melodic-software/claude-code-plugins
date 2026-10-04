@@ -1,5 +1,19 @@
 # Changelog for the PR pipeline convention
 
+## 1.1.1 - 2026-10-04
+
+Fixes to the runner and reader. `version` stays 1.
+
+- A `no-pr` trigger stop on `pull_request` posts neutral `untrusted-trigger` on the event's head
+  SHA instead of no check. Three runs post no check: a fork PR, a `pull_request` event sent by the
+  lanes App, and a run on any other event whose run job gated no head SHA.
+- With an activity requested, `resolve-config` decides only that slot's `applies-when`, so another
+  slot's undecidable predicate no longer fails the run; the other slots carry `applies` null.
+- A requested lane the config lacks is rejected as `undefined-lane`, not `undefined-activity`.
+- The run job's unused `applies` output is removed.
+- `select-trusted-text` takes the job's `GITHUB_TOKEN` for a `read` activity, as the runner already
+  passed it; that token has no `issues` grant.
+
 ## 1.1.0 - 2026-10-04
 
 Additive, except one tightening: the activity names `run` and `report` are now rejected.
@@ -8,8 +22,8 @@ Additive, except one tightening: the activity names `run` and `report` are now r
 - Activities take optional `model` and `max-turns` (skill activities only); `args` now applies to
   `script` activities too.
 - Skip reasons gain `untrusted-trigger` and `not-applicable`; the schema's `$defs/skip-reason`
-  holds the full set. Fork PRs, the lanes App's own `synchronize` runs and a `no-pr` run with no
-  head SHA post no check.
+  holds the full set. Fork PRs, `pull_request` events sent by the lanes App, a `no-pr` run with no
+  head SHA, and a run on any other event whose run job gated no head SHA post no check.
 - A lane is one workflow with one model job; scripted jobs beside it report its check runs.
 - Mechanical and judgment `verify` lanes start together; a failed mechanical gate cancels the
   judgment lanes.
