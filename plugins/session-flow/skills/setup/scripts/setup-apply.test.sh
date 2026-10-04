@@ -6,6 +6,7 @@
 # worker_continuation takes resume or respawn, and the file is
 # docs/conventions/session-flow.yaml at the repository root.
 set -uo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/setup-apply.mjs"
