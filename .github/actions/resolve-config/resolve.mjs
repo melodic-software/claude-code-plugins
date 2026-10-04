@@ -11,7 +11,7 @@ import { applies, factsFor } from "./predicate.mjs";
 import { checkActivityName, checkLaneName } from "./vocabulary.mjs";
 
 const CONFIG_BASENAME = "pr-pipeline.yaml";
-// Runner job names: `<lane> / run` would collide with run-activity's own checks.
+// Runner job names: `<lane> / run` would collide with pr-run-activity's own checks.
 const RESERVED_ACTIVITIES = new Set(["run", "report"]);
 const TRUSTED_ACTORS_PATH =
   ".github/standards/trusted-actors/trusted-actors.json";
@@ -123,7 +123,7 @@ export function loadConfig(files, { configPath }) {
     if (RESERVED_ACTIVITIES.has(name)) {
       throw new Rejection(
         "reserved-name",
-        `activity \`${name}\` is a run-activity job name`,
+        `activity \`${name}\` is a pr-run-activity job name`,
       );
     }
   }

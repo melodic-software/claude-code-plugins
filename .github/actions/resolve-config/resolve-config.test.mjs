@@ -363,13 +363,13 @@ const REJECTIONS = [
   ],
   [
     "rejection 9: an activity named run",
-    /run-activity job name/,
+    /pr-run-activity job name/,
     { config: "reserved-run.yaml" },
     { ACTIVITY: "run" },
   ],
   [
     "rejection 9: an activity named report",
-    /run-activity job name/,
+    /pr-run-activity job name/,
     { config: "reserved-report.yaml" },
     { ACTIVITY: "report" },
   ],

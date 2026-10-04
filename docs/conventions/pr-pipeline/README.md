@@ -64,7 +64,10 @@ cancels every running pipeline lane for it.
 ## Lanes
 
 A lane is one workflow with one model job; scripted jobs beside it report its check runs. The lane
-name is its workflow file stem, and the lane never does another lane's job.
+name is its workflow file stem, and the lane never does another lane's job. Each activity runs
+through the shared runner,
+[`pr-run-activity.yml`](../../../.github/workflows/pr-run-activity.yml); its job contract is
+[`pr-run-activity.md`](pr-run-activity.md).
 
 Each lane's stage, the effects and gating it may not use, and what it never does are in
 [`lane-rules.json`](../../../.github/actions/resolve-config/lane-rules.json), which the config
@@ -129,7 +132,7 @@ Each activity declares:
 - `skill` (`<plugin>:<skill>`) or `script` (a repository path), with optional `args` passed
   verbatim: after the skill name in that skill's own syntax, or to the script.
 - `model` and `max-turns` (optional, `skill` only): the model and turn budget for the Claude Code
-  run. When unset, the runner's defaults apply.
+  run. When unset, `pr-run-activity`'s defaults apply.
 - `effect`: one of `read`, `mutate-branch`, `mutate-tracker`, `publish-artifact`, `merge`. The
   runner derives ordering from it, takes the token grant from
   [`effect-grants.json`](../../../.github/actions/resolve-config/effect-grants.json), and fails a
@@ -171,7 +174,7 @@ The schema checks each file's shape. The config reader also rejects:
 - a lane whose `stage` differs from its `lane-rules.json` row, or a lane with no row;
 - a `needs:` entry naming an activity that is not in the same lane;
 - a lane or activity name missing from the vocabulary ([Names](#names));
-- an activity named `run` or `report`, the runner's own job names;
+- an activity named `run` or `report`, `pr-run-activity`'s own job names;
 - any `extends:` value ([Not settled yet](#not-settled-yet)).
 
 The reader also adds the config file's own path, `.github/**` and the trusted-actor list to
