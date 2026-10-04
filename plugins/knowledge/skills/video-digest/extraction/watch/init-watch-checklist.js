@@ -152,17 +152,17 @@ export function initWatchChecklist(sliceDir, { force = false } = {}) {
     ? buildFloorsLine(contentClass, durationHours, sessionCount, durationSec)
     : "**Floors for this slice:** deferred — pending `key-frames/vision-plan.md` (content class + floors set after the vision-plan lands; re-run with `--force`).";
   // Item 4.9's percent comes from the same floors. Without a vision plan the
-  // class is unknown, so the token stays a deferred word rather than a number.
-  const floorSheetTriagePctText = visionPlanPresent
-    ? String(floorSheetTriagePct(contentClass, durationSec, sessionCount))
-    : "deferred";
+  // class is unknown, so the item names the deferred floor rather than a number.
+  const floorSheetTriageText = visionPlanPresent
+    ? `${floorSheetTriagePct(contentClass, durationSec, sessionCount)}%`
+    : "the deferred floor";
 
   let template = fs.readFileSync(TEMPLATE_PATH, "utf8");
   const replacements = {
     "{{VIDEO_SLUG}}": videoSlug,
     "{{INIT_TIMESTAMP}}": new Date().toISOString(),
     "{{FLOORS_LINE}}": floorsLine,
-    "{{FLOOR_SHEET_TRIAGE_PCT}}": floorSheetTriagePctText,
+    "{{FLOOR_SHEET_TRIAGE}}": floorSheetTriageText,
     "{{CONTENT_CLASS}}": contentClass,
     "{{DURATION_HOURS}}": durationHours,
     "{{SESSION_COUNT}}": String(sessionCount),
