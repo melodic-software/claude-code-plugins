@@ -3,6 +3,14 @@
 All notable changes to the `coupling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.5] - 2026-10-04
+
+### Changed
+
+- **`/coupling:reduce` reads its per-run budget from the shared PR scope budget convention.** The
+  plugin ships a generated copy at `reference/pr-scope-budget.md`, and the apply step points there
+  instead of restating the target and hard cap.
+
 ## [0.3.4] - 2026-10-02
 
 ### Fixed

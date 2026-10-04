@@ -51,8 +51,8 @@ When the chosen improvement does not fit the hard cap, the run does not grow the
 | Skill | Status |
 |---|---|
 | `/improvement:improve` | Points here through its plugin-shipped copy |
-| `/code-tidying:tidy` | Carries its own copy of these numbers; migration pending |
-| `/coupling:reduce` | Carries its own copy of these numbers; migration pending |
+| `/code-tidying:tidy` | Points here through its plugin-shipped copy |
+| `/coupling:reduce` | Points here through its plugin-shipped copy |
 
 ## Plugin-shipped copies
 

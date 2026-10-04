@@ -1,42 +1,12 @@
 # Scope budget reference
 
-How big is "well-sized" for a tidy PR? This file is the canonical answer. Three sections: the cap and target numbers (with research lineage), the overflow protocol when a hunt finds more than the cap allows, and the deferred-items message template.
+How tidy applies the PR scope budget. The target, the hard cap, and what counts toward them belong to the shared PR scope budget convention, shipped with this plugin as [`${CLAUDE_PLUGIN_ROOT}/reference/pr-scope-budget.md`](../../../reference/pr-scope-budget.md); read the numbers there. This file holds what the convention leaves to each adopter: tidy's overflow priority order and its deferred-items template.
+
+If a lane consistently overflows the cap, the lane scope is too coarse. Split the lane, don't raise the cap.
 
 ---
 
-## 1. PR scope target / hard cap
-
-| Metric | Target | Hard cap |
-|--------|--------|----------|
-| Lines of code (additions + deletions) | ≤200 LOC | ≤400 LOC |
-| Files changed | ≤8 files | ≤15 files |
-
-The **target** is the ideal shape of a tidy PR: small enough to review in under an hour, atomic enough to revert cleanly. The **hard cap** is the absolute upper bound; runs producing more must defer the overflow.
-
-### Research lineage
-
-- **SmartBear "Best Kept Secrets of Peer Code Review" (Cohen et al.)**: the foundational study showing review effectiveness drops sharply above 200 LOC and reviews above 400 LOC are largely ineffective at finding defects. The 200/400 thresholds match this lineage directly
-- **Cisco's code-review study (Bosu, McIntosh, Wagner)**: confirmed SmartBear's findings on a different codebase; ≤60 minutes of review time correlates with ≤200 LOC
-- **CodeScene code-health research (Borg, Hagatulah, Tornhill, and Söderberg)**, AI tooling handles unhealthy code measurably worse than healthy code, so small structure-only PRs keep changes inside the range where an agent is lower risk. The publication is [Code for Machines, Not Just Humans: Quantifying AI-Friendliness with Code Health Metrics](https://arxiv.org/abs/2601.02200), read 2026-09-06; it analyses 5,000 Python files and reports that human-friendly code is also more compatible with AI tooling. No percentage is restated here, so read the figure from the paper before quoting one. Recheck when a revision moves the finding, or when a study measures agentic refactoring defect rates directly.
-
-If a lane consistently overflows the cap, that's a signal the lane scope is too coarse. Split the lane, don't raise the cap.
-
-### What counts toward LOC
-
-- Net additions + net deletions (a change that adds 50 lines and removes 50 lines = 100 LOC for the cap)
-- Generated / formatted diffs (whitespace-only changes from formatters) DO count toward the cap, since they're still code the reviewer must scan past
-- Lockfile changes (`uv.lock`, `package-lock.json`, and similar machine-generated files) DO NOT count, since they're inspection-only
-- Markdown line additions DO count for prose lanes (those lanes are prose-only, so line counts ARE the budget)
-
-### What counts toward files changed
-
-- Every file with at least one non-whitespace edit
-- File renames count as 1 file (not 2)
-- Generated files not in the index don't show up here
-
----
-
-## 2. Overflow protocol
+## 1. Overflow protocol
 
 When the hunt phase produces more candidates than fit in the budget:
 
@@ -59,7 +29,7 @@ Bin-packing-optimal selection is not worth the complexity. Greedy by priority ca
 
 ---
 
-## 3. Deferred-items message template
+## 2. Deferred-items message template
 
 When filing a deferral, use this exact title and body shape so the deferred items are searchable, sortable, and pre-filled for the next tidy run.
 
@@ -82,7 +52,7 @@ Examples:
 ```markdown
 ## Context
 
-Deferred from tidy run on `<branch-name>` (anchor: `<anchor-sha>`). The hunt found this candidate but the PR scope budget (≤200 LOC / ≤8 files target; ≤400 / ≤15 cap) was reached before it could be included.
+Deferred from tidy run on `<branch-name>` (anchor: `<anchor-sha>`). The hunt found this candidate but the PR scope budget's hard cap was reached before it could be included.
 
 ## Tidying type
 
@@ -95,7 +65,7 @@ Deferred from tidy run on `<branch-name>` (anchor: `<anchor-sha>`). The hunt fou
 
 ## Estimated scope
 
-<estimate>: ~<N> LOC across <M> files. Should fit within the standard 200/8 target as a future tidy run.
+<estimate>: ~<N> LOC across <M> files. Should fit within the scope budget's target as a future tidy run.
 
 ## Lane
 
@@ -124,10 +94,10 @@ No upper bound on deferred issues per run. If a single run defers >10 items, tha
 
 ---
 
-## How to apply these numbers during a run
+## How to apply the budget during a run
 
 1. **Phase D (Hunt + prioritize + scope-budget enforce)**: after building the prioritized findings table, sum the LOC deltas. Apply the greedy selection.
 2. **Phase E (Implement)**: periodically check actual LOC delta against the running estimate (`git diff --stat origin/<default-branch>...HEAD`; under `in-place`, `git diff --cached --stat`, since the tidyings are staged on a branch that may carry unrelated commits). The default form measures the full branch diff, all commits since the branch point, not just uncommitted changes relative to HEAD. If actual exceeds estimated by >25%, stop the current tidying mid-flight and re-budget.
 3. **Phase H (Ship)**: the `## Deferred items` section (follow-up comment, or PR body when `source-control` isn't installed) comes directly from this protocol's filed-issue list.
 
-If the cap numbers themselves need to change, that's a research-driven update, not a tidy. See the SELF-UPDATE EXTRA HARD list in `reference/exclusions.md`.
+If the budget numbers themselves need to change, that is a change to the shared convention, not a tidy. See the SELF-UPDATE EXTRA HARD list in `reference/exclusions.md`.

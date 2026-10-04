@@ -3,6 +3,13 @@
 All notable changes to the `improvement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1] - 2026-10-04
+
+### Changed
+
+- **`reference/pr-scope-budget.md` regenerated.** The convention's Adopters table now lists
+  `/code-tidying:tidy` and `/coupling:reduce` as pointing at their own plugin-shipped copies.
+
 ## [0.2.0] - 2026-10-04
 
 ### Added
