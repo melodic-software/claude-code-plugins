@@ -13,7 +13,10 @@
 - [Addendum (2026-09-24): skip-actors list file and evidence guards removed](#addendum-2026-09-24-skip-actors-list-file-and-evidence-guards-removed)
 - [Revisit triggers](#revisit-triggers)
 
-- Status: accepted
+- Status: superseded on 2026-10-04: the `security-review-gate` org ruleset and the
+  `requires-security-review` custom property were retired by melodic-software/github-iac#614.
+  `ci-status` is the only required check; the Claude review lanes stay advisory. The body below
+  is the historical record.
 - Date: 2026-07-20
 - Superseded in part for this repository by ADR 0038 (2026-09-24): the once-per-PR trigger set
   below no longer applies here; both lanes run on every push. The lane wiring and the skip-actor
