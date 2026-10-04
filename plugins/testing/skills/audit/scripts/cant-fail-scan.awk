@@ -376,6 +376,14 @@ function indent_of(s,    i, n, c, w) {
 
 function norm(s) { gsub(/[[:space:]]+/, "", s); return s }
 
+# s after the last character re matches: the identifier that ends it, for re
+# a negated class. A loop, because gawk 5.4.0 fails to match ^.* followed by
+# a negated bracket expression, as in sub(/^.*[^A-Za-z0-9_]/, "", s).
+function after_last(s, re) {
+  while (match(s, re)) s = substr(s, RSTART + 1)
+  return s
+}
+
 function clean_detail(s) { gsub(/\t/, " ", s); return s }
 
 function count_matches(s, re,    c) {
@@ -767,8 +775,7 @@ function sh_assign(m,    s, name) {
     name = substr(s, RSTART, RLENGTH)
     s = substr(s, RSTART + RLENGTH)
     sub(/\+?=$/, "", name)
-    sub(/^.*[^A-Za-z0-9_]/, "", name)
-    SH_SET[name] = 1
+    SH_SET[after_last(name, "[^A-Za-z0-9_]")] = 1
   }
   if (match(m, /(^|[[:space:];&|])(read|for)[[:space:]]+(-[A-Za-z]+[[:space:]]+)*[A-Za-z_][A-Za-z0-9_[:space:]]*/)) {
     s = substr(m, RSTART, RLENGTH)
@@ -828,8 +835,8 @@ function sh_file_facts(    name, rhs, v) {
   if (masked ~ /(^|[[:space:];&|])(cd|pushd)[[:space:]]/) SH_CD = 1
   if (match(raw, /^[[:space:]]*((local|export|readonly|declare)[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=/)) {
     name = substr(raw, RSTART, RLENGTH - 1)
-    sub(/^.*[^A-Za-z0-9_]/, "", name)
     rhs = substr(raw, RSTART + RLENGTH)
+    name = after_last(name, "[^A-Za-z0-9_]")
     if (rhs ~ /mktemp|TMP|TEMP|[Tt]mp|[Tt]emp/) SH_TMP[name] = 1
     else if (match(rhs, /\$\{?[A-Za-z_][A-Za-z0-9_]*/)) {
       v = substr(rhs, RSTART, RLENGTH)
@@ -1230,7 +1237,7 @@ function assign_of(s, rl,    re, p) {
     p = substr(s, 1, RLENGTH)
     AS_RHS = trim(substr(rl, RLENGTH + 1))
     sub(/;[[:space:]]*$/, "", AS_RHS)
-    if (LEXER == "cs") { sub(/[[:space:]]*=$/, "", p); sub(/^.*[^A-Za-z0-9_]/, "", p) }
+    if (LEXER == "cs") { sub(/[[:space:]]*=$/, "", p); p = after_last(p, "[^A-Za-z0-9_]") }
     else { sub(/^(const|let|var)[[:space:]]+/, "", p); sub(/^\$/, "", p); match(p, /^[A-Za-z_$][A-Za-z0-9_$]*/); p = substr(p, 1, RLENGTH) }
   } else if (match(s, /^\$?[A-Za-z_][A-Za-z0-9_]*[[:space:]]*[-+*\/%]?=/) && substr(s, RLENGTH + 1, 1) !~ /[=>]/) {
     p = substr(s, 1, RLENGTH); gsub(/[^A-Za-z0-9_]/, "", p)
@@ -1496,8 +1503,7 @@ function def_name(m,    s) {
   # Where the matched header ends, past the defined name: every pattern is
   # anchored at the line start, and sub leaves RSTART and RLENGTH alone.
   DEF_END = s == "" ? 0 : RSTART + RLENGTH
-  sub(/^.*[^A-Za-z0-9_$]/, "", s)
-  return s
+  return after_last(s, "[^A-Za-z0-9_$]")
 }
 
 # A line outside every test: it opens, continues or closes a function. A
@@ -1538,7 +1544,7 @@ function cls_scan(m,    ind, re) {
   if (LEXER == "cs") re = "^[[:space:]]*([a-z]+[[:space:]]+)*(class|record|struct)[[:space:]]+[A-Za-z_][A-Za-z0-9_]*"
   else if (LEXER == "python" || LEXER == "js") re = "^[[:space:]]*(export[[:space:]]+(default[[:space:]]+)?)?(abstract[[:space:]]+)?class[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*"
   else return
-  if (match(m, re)) { CLS_K++; CLS_I[CLS_K] = ind; CLS_NAME[CLS_K] = substr(m, RSTART, RLENGTH); sub(/^.*[^A-Za-z0-9_$]/, "", CLS_NAME[CLS_K]) }
+  if (match(m, re)) { CLS_K++; CLS_I[CLS_K] = ind; CLS_NAME[CLS_K] = after_last(substr(m, RSTART, RLENGTH), "[^A-Za-z0-9_$]") }
 }
 
 # The names blk calls bare or on self, this or cls, space-separated, a call
@@ -1705,11 +1711,11 @@ function open_block(line, name) {
 # the line itself. A statement ends at a ";" outside parentheses and brackets,
 # so a for (;;) header stays whole; a "{" opens a block whose statements split
 # again, a lambda's body inside a call included. The depths carry from line to
-# line. C#, JS
-# and TS keep the ";" that ends a statement, which their inert forms anchor on;
-# Python and bash separate statements with it, so it is blanked, and bash's
-# case terminators (;; ;& ;;&) never split. Strings, comments and char
-# literals are already masked. Go and PowerShell lines stay whole.
+# line. C#, JS and TS keep the ";" that ends a statement, which their inert
+# forms anchor on; Python and bash separate statements with it, so it is
+# blanked, and bash's case terminators (;; ;& ;;&) never split. Strings,
+# comments and char literals are already masked. Go and PowerShell lines stay
+# whole.
 function split_stmts(m, r,    n, i, c, from) {
   SEG_N = 0
   n = length(m)
