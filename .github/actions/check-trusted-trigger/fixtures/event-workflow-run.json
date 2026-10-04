@@ -1,0 +1,22 @@
+{
+  "action": "completed",
+  "workflow_run": {
+    "id": 9001,
+    "name": "ci",
+    "event": "pull_request",
+    "conclusion": "failure",
+    "head_branch": "feat/lane-probe",
+    "head_sha": "1111111111111111111111111111111111111111",
+    "pull_requests": [],
+    "actor": { "login": "kyle-sexton", "id": 153232337, "type": "User" },
+    "triggering_actor": { "login": "kyle-sexton", "id": 153232337, "type": "User" },
+    "head_repository": {
+      "id": 1,
+      "full_name": "melodic-software/claude-code-plugins",
+      "fork": false
+    },
+    "repository": { "id": 1, "full_name": "melodic-software/claude-code-plugins" }
+  },
+  "repository": { "id": 1, "full_name": "melodic-software/claude-code-plugins" },
+  "sender": { "login": "kyle-sexton", "id": 153232337, "type": "User" }
+}
