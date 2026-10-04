@@ -4,7 +4,7 @@ import type { EngineInterface, PromptOrigin, Register, SessionRateLimit, Timer }
 const CONTRACT_DIR = 'rate-limit-guard'
 const SNAPSHOT_FILE = 'rate-limits.json'
 const HELPER = 'lib/write-snapshot.mjs'
-const PAUSE_EDGE = 90
+const PAUSE_EDGE = 95
 const FLOOR_MS = 300_000
 const WRITE_TIMER_MS = 60_000
 const REOFFER_MS = 5_000
@@ -16,8 +16,11 @@ const WINDOWS = [
 const DATA_ITEMS = ['verdict', 'percent', 'window', 'reset']
 const DEFAULT_DATA = ['verdict', 'window', 'reset']
 const RANK = { quiet: 0, approach: 1, edge: 2 } as const
-const SOURCE_NOTE = '(a measurement from the last API response)'
 const PERSON_ORIGINS = ['composer', 'bridge']
+const COMMAND = 'rate-limit-guard'
+// Command replies carry no plugin prefix: Claude Code shows each under the plugin's name.
+const USAGE = `Usage: /${COMMAND} [band [on|off]]`
+const README = 'https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/rate-limit-guard/README.md'
 
 type Level = 'quiet' | 'approach' | 'edge'
 type Event = Level | 'reset'
@@ -31,7 +34,11 @@ type Config = {
   approach: number
   data: Set<string>
   band: boolean
+  toast: boolean
 }
+// An operator notice offers held lines and shows on every surface; a crossing notice stands in for
+// the toast where toasts may not draw, so it shows only off the terminal.
+type Notice = { text: string; kind: 'crossing' | 'operator' }
 type Body = {
   captured_at: string
   session_id: string
@@ -43,8 +50,13 @@ type State = {
   spend: SessionRateLimit | undefined
   levels: Map<string, { level: Level; resetsMs: number }>
   limits: readonly SessionRateLimit[]
-  model: string | undefined
   pending: Map<string, Event>
+  // Rises from a known level and resets not yet shown to the person.
+  toastQueue: [string, Event][]
+  // Operator mode: the changes the operator notice offers, and whether its row has been drawn.
+  // The row and a shown suggestion are the person's channel, so a change either reached is never toasted.
+  heldToasts: [string, Event][]
+  rowSeen: boolean
   // Operator mode: events a shown suggestion offered, handed to Claude if no person takes them.
   handoff: Map<string, Event>
   restate: boolean
@@ -53,7 +65,7 @@ type State = {
   branched: boolean
   forceAutomatic: boolean
   origin: PromptOrigin | undefined
-  notice: string | undefined
+  notice: Notice | undefined
   bandShown: boolean
   lastResponseAtMs: number | undefined
   responseEmail: string | undefined
@@ -96,9 +108,10 @@ export const parseConfig = (options: Record<string, unknown>): Config => {
     lines: options.rate_limit_lines_enabled !== false,
     operator: options.rate_limit_report_mode === 'operator',
     threshold: number('rate_limit_line_threshold', PAUSE_EDGE),
-    approach: number('rate_limit_approach_pct', 85),
+    approach: number('rate_limit_approach_pct', 90),
     data,
-    band: options.rate_limit_guard_band !== false,
+    band: options.rate_limit_guard_band === true,
+    toast: options.rate_limit_guard_toast !== false,
   }
 }
 
@@ -126,21 +139,28 @@ const resetLabel = (iso: string) => {
   return Number.isNaN(at.getTime()) ? iso : `${at.toISOString().slice(0, 16).replace('T', ' ')} UTC`
 }
 
+const verdictText = (event: Event, cfg: Config) =>
+  ({ edge: 'at', approach: 'nearing', quiet: 'below', reset: 'reset and below' })[event] + ` the ${edgeName(cfg)}`
+
+const windowOf = (kind: string) => WINDOWS.find(w => w.kind === kind)
+
 const clause = (kind: string, event: Event, limit: SessionRateLimit | undefined, cfg: Config) => {
-  const name = WINDOWS.find(w => w.kind === kind)?.name ?? kind
-  const subject = cfg.data.has('window') ? `the ${name} window` : 'a rate-limit window'
+  const subject = cfg.data.has('window') ? `${windowOf(kind)?.name ?? kind} window` : 'a rate-limit window'
   const percent = limit !== undefined && cfg.data.has('percent') ? `${limit.percentUsed}% used` : undefined
-  const verdict = {
-    edge: `is at the ${edgeName(cfg)}`,
-    approach: `is approaching the ${edgeName(cfg)}`,
-    quiet: `is below the ${edgeName(cfg)}`,
-    reset: `reset and is below the ${edgeName(cfg)}`,
-  }[event]
-  let text = `${subject} ${verdict}${percent ? ` (${percent})` : ''}`
+  let text = `${subject} ${verdictText(event, cfg)}${percent ? ` (${percent})` : ''}`
   if (event !== 'reset' && cfg.data.has('reset') && limit?.resetsAt !== undefined) {
     text += `, resets at ${resetLabel(limit.resetsAt)}`
   }
   return text
+}
+
+// The person's short form: the 5-hour window resets within the day, so its time alone is enough.
+const toastBody = (kind: string, event: Event, limit: SessionRateLimit | undefined, cfg: Config) => {
+  if (event === 'reset') return `${windowOf(kind)?.short ?? kind} reset, below the ${edgeName(cfg)}`
+  const text = `${windowOf(kind)?.short ?? kind} ${verdictText(event, cfg)}`
+  if (limit?.resetsAt === undefined) return text
+  const label = resetLabel(limit.resetsAt)
+  return `${text} · resets ${kind === 'five_hour' ? label.replace(/^\d{4}-\d{2}-\d{2} /, '') : label}`
 }
 
 const order = (kind: string) => WINDOWS.findIndex(w => w.kind === kind)
@@ -148,13 +168,18 @@ const order = (kind: string) => WINDOWS.findIndex(w => w.kind === kind)
 // Records crossings since the last check as pending events, one per window, the newest kept.
 // Use only rises within a window, so a dip is reporting noise: a window's level falls, and its
 // lines re-arm, only when the window resets (its reset time passes) or leaves the reading.
+// Returns the events the person is told of: a rise from a known level, or a reset from the edge.
+// A window's first reading is never one, so a fresh load or the reading after a reset stays quiet.
 export const recordCrossings = (st: State, reading: Reading, cfg: Config, nowMs: number) => {
+  const changes: [string, Event][] = []
   for (const { kind } of WINDOWS) {
     const limit = reading.get(kind)
     let prev = st.levels.get(kind)
     if (prev !== undefined && (limit === undefined || prev.resetsMs <= nowMs)) {
-      if (prev.level === 'edge') st.pending.set(kind, 'reset')
-      else st.pending.delete(kind)
+      if (prev.level === 'edge') {
+        st.pending.set(kind, 'reset')
+        changes.push([kind, 'reset'])
+      } else st.pending.delete(kind)
       st.levels.delete(kind)
       prev = undefined
     }
@@ -163,10 +188,12 @@ export const recordCrossings = (st: State, reading: Reading, cfg: Config, nowMs:
     const resetsMs = limit.resetsAt === undefined ? NaN : Date.parse(limit.resetsAt)
     if (prev !== undefined && RANK[level] <= RANK[prev.level]) continue
     st.levels.set(kind, { level, resetsMs: Number.isFinite(resetsMs) ? resetsMs : Infinity })
-    if (level !== 'quiet') st.pending.set(kind, level)
+    if (level === 'quiet') continue
+    st.pending.set(kind, level)
+    if (prev !== undefined) changes.push([kind, level])
   }
+  return changes
 }
-
 
 // The events due now, one per window, without consuming them.
 const dueEvents = (st: State): [string, Event][] => {
@@ -181,7 +208,7 @@ const dueLines = (st: State, cfg: Config): string[] => {
   const reading = st.reading ?? new Map()
   return dueEvents(st)
     .sort(([a], [b]) => order(a) - order(b))
-    .map(([kind, event]) => `rate-limit-guard: ${clause(kind, event, reading.get(kind), cfg)} ${SOURCE_NOTE}`)
+    .map(([kind, event]) => `rate-limit-guard: ${clause(kind, event, reading.get(kind), cfg)}.`)
 }
 
 const consume = (st: State) => {
@@ -199,25 +226,20 @@ async function operatorHolds($: EngineInterface, st: State, cfg: Config) {
 }
 
 async function refresh($: EngineInterface, st: State, cfg: Config, limits?: readonly SessionRateLimit[]) {
-  const [now, rateLimits, model] = await Promise.all([
-    $.clock.now(),
-    limits ?? $.session.usage().then(u => u.rateLimits),
-    $.session.model().catch(() => undefined),
-  ])
+  const [now, rateLimits] = await Promise.all([$.clock.now(), limits ?? $.session.usage().then(u => u.rateLimits)])
   const reading = liveWindows(rateLimits, now)
-  const changed = bandText(reading, model) !== bandText(st.reading, st.model)
+  const changed = bandText(reading) !== bandText(st.reading)
   st.reading = reading
-  st.model = model
   st.limits = rateLimits
   st.spend = rateLimits.find(l => l.kind === 'spend_limit')
   if (changed) $.ui.invalidate('ui.render')
   // No window reported is no reading, never a reset: the levels wait for the next reading.
-  if (rateLimits.some(l => WINDOWS.some(w => w.kind === l.kind))) recordCrossings(st, reading, cfg, now)
+  if (rateLimits.some(l => WINDOWS.some(w => w.kind === l.kind))) st.toastQueue.push(...recordCrossings(st, reading, cfg, now))
   return { now, reading }
 }
 
-function clearNotice($: EngineInterface, st: State) {
-  if (st.notice === undefined) return
+function clearNotice($: EngineInterface, st: State, kind?: Notice['kind']) {
+  if (st.notice === undefined || (kind !== undefined && st.notice.kind !== kind)) return
   st.notice = undefined
   st.reofferTimer = stopTimer(st.reofferTimer)
   $.ui.invalidate('ui.render')
@@ -235,16 +257,81 @@ async function takeLines($: EngineInterface, st: State, cfg: Config): Promise<st
   // A restatement with no reading to restate waits for the first carrier that has one.
   if (st.restate && lines.length === 0) return []
   consume(st)
-  if (lines.length > 0) clearNotice($, st)
+  if (lines.length > 0 && st.notice?.kind === 'operator') {
+    releaseHeld(st, st.rowSeen)
+    clearNotice($, st)
+  }
   return lines
 }
 
-// The module's band row: [<model>] 5h <x>% | 7d <y>%.
-export const bandText = (reading: Reading | undefined, model: string | undefined) =>
-  `[${model || 'Claude'}] ${WINDOWS.map(({ kind, short }) => {
+// Ends the operator notice's hold on its changes: dropped when the person saw them, otherwise
+// queued for the next flush.
+function releaseHeld(st: State, seen: boolean) {
+  if (!seen) st.toastQueue.unshift(...st.heldToasts)
+  st.heldToasts = []
+}
+
+// Tells the person of each queued window change: a transcript line always, a toast when the option
+// allows. Run after a carrier's lines are built and never throws, so a failing toast drops no line.
+// While operator mode holds the lines the queue waits: a shown suggestion or the person's next
+// prompt drops it, and a suggestion that cannot show leaves it for the carrier that sends the line.
+// `held` is the carrier's answer from before its lines were taken, which may end a forced turn.
+async function flushToasts($: EngineInterface, st: State, cfg: Config, held?: boolean) {
+  try {
+    if (st.toastQueue.length === 0) return
+    if (held ?? (cfg.lines && (await operatorHolds($, st, cfg)))) return
+    const changes = st.toastQueue.splice(0).sort(([a], [b]) => order(a) - order(b))
+    const bodies: string[] = []
+    for (const [kind, event] of changes) {
+      const body = toastBody(kind, event, st.reading?.get(kind), cfg)
+      bodies.push(body)
+      $.ui.log(`rate-limit-guard: ${body} · more: /${COMMAND}`, { to: 'transcript' })
+      if (cfg.toast) $.ui.toast(body)
+    }
+    if (st.notice?.kind !== 'operator') {
+      st.notice = { text: `rate-limit-guard: ${bodies.join('; ')} · more: /${COMMAND}`, kind: 'crossing' }
+      $.ui.invalidate('ui.render')
+    }
+  } catch (error) {
+    logOnce($, st, 'flush-failed', `window change not shown: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+const noticeShows = (st: State, surface: string) =>
+  st.notice !== undefined && (st.notice.kind === 'operator' || surface !== 'terminal')
+
+// The module's band row: 5h <x>% | 7d <y>%.
+export const bandText = (reading: Reading | undefined) =>
+  WINDOWS.map(({ kind, short }) => {
     const limit = reading?.get(kind)
     return `${short} ${limit === undefined ? '-' : `${limit.percentUsed}%`}`
-  }).join(' | ')}`
+  }).join(' | ')
+
+// What /rate-limit-guard with no argument prints.
+async function statusText($: EngineInterface, st: State, cfg: Config) {
+  await refresh($, st, cfg)
+  const windows = WINDOWS.map(({ kind, name }) => {
+    const limit = st.reading?.get(kind)
+    if (limit === undefined) return `${name} window: no reading`
+    const reset = limit.resetsAt === undefined ? '' : `, resets at ${resetLabel(limit.resetsAt)}`
+    return `${name} window: ${limit.percentUsed}% used, ${verdictText(levelOf(limit.percentUsed, cfg), cfg)}${reset}`
+  })
+  const home = await homeDir($)
+  const snapshot = !cfg.writes
+    ? 'off (rate_limit_guard_enabled is false)'
+    : home
+      ? `${home}/.claude/${CONTRACT_DIR}/${SNAPSHOT_FILE}`
+      : 'no home directory to write under'
+  return [
+    'From the last API response:',
+    ...windows,
+    ...(st.spend ? [`Spend limit: ${st.spend.percentUsed}% used`] : []),
+    `Line threshold ${cfg.threshold}%, approach mark ${cfg.approach}%.`,
+    `Band row ${st.bandShown ? 'on' : 'off'}, window-change toast ${cfg.toast ? 'on' : 'off'}. Set the row with /${COMMAND} band [on|off].`,
+    `Snapshot: ${snapshot}`,
+    `README: ${README}`,
+  ].join('\n')
+}
 
 const isoSeconds = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z')
 
@@ -384,18 +471,22 @@ async function statusJson($: EngineInterface, st: State, cfg: Config) {
   })
 }
 
-// Operator mode: offer the line as the prompt box's suggestion; with text in the box, show the band
-// notice and offer again once the box is empty; where it cannot show, the line goes to Claude.
-async function offer($: EngineInterface, st: State) {
-  const text = st.notice
-  if (text === undefined) return true
+// Operator mode: offer the line as the prompt box's suggestion; with text in the box, show the
+// notice row and offer again once the box is empty; where it cannot show, the line goes to Claude.
+// A first offer that cannot show leaves the changes to be toasted with the automatic line; a
+// re-offer comes after the row was up, so the person has seen them unless a survey hid the row.
+async function offer($: EngineInterface, st: State, first = false) {
+  if (st.notice?.kind !== 'operator') return true
+  const { text } = st.notice
   const box = await $.prompt.read()
   if (box.text.trim() !== '') return false
   const { isShown } = await $.prompt.suggest({ text })
   if (isShown) {
     st.handoff = new Map([...st.handoff, ...dueEvents(st)])
     consume(st)
+    releaseHeld(st, true)
   } else {
+    releaseHeld(st, !first && st.rowSeen)
     st.notice = undefined
     st.forceAutomatic = true
   }
@@ -415,8 +506,10 @@ export const register: Register = (on, options) => {
     spend: undefined,
     levels: new Map(),
     limits: [],
-    model: undefined,
     pending: new Map(),
+    toastQueue: [],
+    heldToasts: [],
+    rowSeen: false,
     handoff: new Map(),
     restate: false,
     restateIfLoud: false,
@@ -447,9 +540,9 @@ export const register: Register = (on, options) => {
         inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       }),
       $.command.register({
-        name: 'band',
-        description: 'Show or hide the rate-limit-guard band row for this session: show, hide, or nothing to toggle',
-        argumentHint: '[show|hide]',
+        name: 'rate-limit-guard',
+        description: 'Rate-limit windows and verdicts; band on or off sets the band row for this session',
+        argumentHint: '[band [on|off]]',
       }),
     ])
     if (tool.status === 'rejected') {
@@ -487,6 +580,7 @@ export const register: Register = (on, options) => {
     await recordResponse($, st, cfg).catch(() => undefined)
     await refresh($, st, cfg, e.rateLimits)
     await queueWrite($, st, cfg, 'event')
+    await flushToasts($, st, cfg)
     return next(e)
   }).catch(($, e, next) => next(e))
 
@@ -510,10 +604,13 @@ export const register: Register = (on, options) => {
         }
       }
       st.handoff.clear()
+      if (isPersonTurn(st) && st.notice?.kind === 'operator') releaseHeld(st, st.rowSeen)
       if (isPersonTurn(st) || handingOff) clearNotice($, st)
     }
     await refresh($, st, cfg)
+    const held = cfg.lines && (await operatorHolds($, st, cfg))
     const lines = await takeLines($, st, cfg)
+    await flushToasts($, st, cfg, held)
     return next(lines.length === 0 ? e : { ...e, context: [...(e.context ?? []), ...lines] })
   }).catch(($, e, next) => next(e))
 
@@ -530,11 +627,15 @@ export const register: Register = (on, options) => {
     st.writeTimer = stopTimer(st.writeTimer)
     if (cfg.lines && (await operatorHolds($, st, cfg))) {
       await refresh($, st, cfg)
+      await flushToasts($, st, cfg)
       const lines = dueLines(st, cfg)
       if (lines.length > 0) {
-        st.notice = `FYI, ${lines.join(' ')}`
+        // One row, one prefix, however many windows it offers.
+        st.notice = { text: `FYI, rate-limit-guard: ${lines.map(l => l.replace(/^rate-limit-guard: /, '')).join(' ')}`, kind: 'operator' }
+        st.heldToasts.push(...st.toastQueue.splice(0))
+        st.rowSeen = false
         $.ui.invalidate('ui.render')
-        if (!(await offer($, st))) {
+        if (!(await offer($, st, true))) {
           st.reofferTimer ??= $.clock.every(REOFFER_MS, () => {
             void offer($, st)
               .then(done => {
@@ -549,37 +650,51 @@ export const register: Register = (on, options) => {
   }).catch(($, e, next) => next(e))
 
   on('tool.call', async ($, e, next) => {
-    if (e.tool === `mcp__${$.plugin.name}__status`) return { result: await statusJson($, st, cfg) }
+    if (e.tool === `mcp__${$.plugin.name}__status`) {
+      const json = await statusJson($, st, cfg)
+      await flushToasts($, st, cfg)
+      return { result: json }
+    }
     reportOptions($, st, cfg)
     const result = await next(e)
     if (e.agentId !== undefined) return result
     await refresh($, st, cfg)
     await queueWrite($, st, cfg, 'event')
     if (result.deny !== undefined || result.isError) return result
+    const held = cfg.lines && (await operatorHolds($, st, cfg))
     const lines = await takeLines($, st, cfg)
+    await flushToasts($, st, cfg, held)
     return lines.length === 0 ? result : { ...result, context: [...(result.context ?? []), ...lines] }
   }).catch(($, e, next) => next(e))
 
-  on('command.run', async ($, e, next) => {
-    if (e.command !== 'band' && e.command !== `${$.plugin.name}:band`) return next(e)
-    const arg = e.args.trim().toLowerCase()
-    st.bandShown = arg === 'show' ? true : arg === 'hide' ? false : !st.bandShown
+  on('command.run', { command: 'rate-limit-guard' }, async ($, e, next) => {
+    const words = (e.args ?? '').trim().toLowerCase().split(/\s+/).filter(w => w !== '')
+    if (words.length === 0) {
+      const text = await statusText($, st, cfg)
+      await flushToasts($, st, cfg)
+      return { text }
+    }
+    const [word, arg, ...rest] = words
+    if (word !== 'band' || rest.length > 0 || (arg !== undefined && arg !== 'on' && arg !== 'off')) return { text: USAGE }
+    st.bandShown = arg === undefined ? !st.bandShown : arg === 'on'
     $.ui.invalidate('ui.render')
-    return { text: `rate-limit-guard: band row ${st.bandShown ? 'shown' : 'hidden'} for this session` }
+    return { text: `Band row ${st.bandShown ? 'on' : 'off'} for this session` }
   }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const theirs = await next(e)
-    if (e.props.hasSurvey || (!st.bandShown && st.notice === undefined)) return theirs
+    const notice = noticeShows(st, e.surface) ? st.notice : undefined
+    if (e.props.hasSurvey || (!st.bandShown && notice === undefined)) return theirs
+    if (notice?.kind === 'operator') st.rowSeen = true
     const { Box, Text } = $.ui.resolve(e)
     return (
       <Box flexDirection="column">
         {st.bandShown ? (
           <Text dimColor wrap="truncate">
-            {bandText(st.reading, st.model ?? (await $.session.model().catch(() => undefined)))}
+            {bandText(st.reading)}
           </Text>
         ) : null}
-        {st.notice !== undefined ? <Text wrap="truncate">{`rate-limit-guard notice: ${st.notice}`}</Text> : null}
+        {notice !== undefined ? <Text wrap="wrap">{notice.text}</Text> : null}
         {theirs}
       </Box>
     )

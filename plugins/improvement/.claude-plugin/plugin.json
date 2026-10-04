@@ -1,7 +1,7 @@
 {
   "name": "improvement",
-  "version": "0.1.24",
-  "description": "Evidence-first, cross-dimension improvement finder. Point it at a repo, feature, concept, or process surface and it produces a ranked, evidence-cited list of improvement candidates led by value-to-effort, interviews on the pick, and hands off to the planning pipeline; runnable unattended as a tech-debt-sweep routine.",
+  "version": "0.2.1",
+  "description": "Find and make improvements to anything, from one method to a whole feature. find ranks evidence-cited candidates by value-to-effort and hands the pick to planning; improve ships one improvement, measured against the repo's standards and, when the focus asks for it, current upstream guidance, as one small draft PR. Both run unattended on a schedule.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"

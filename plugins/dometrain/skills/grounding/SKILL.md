@@ -48,6 +48,10 @@ Aspire), Git, TypeScript, and AI-assisted development (AI agents, MCP, RAG).
 Skip it for topics clearly outside the catalog. Call `list_courses` with a topic filter if
 unsure whether something is covered.
 
+How a course teaches a pattern is one source, not the authority on it: check the approach against
+the principle it claims to serve, per the
+[recommendation-basis grounding bar](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#grounding-bar).
+
 ## Tool workflow
 
 1. **Conceptual queries** → `search_dometrain(query, tech?, max_results?)` with a
