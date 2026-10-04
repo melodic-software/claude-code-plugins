@@ -3,11 +3,21 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.2] - 2026-10-04
+
+### Added
+
+- `/review:fanout` gains two `claude plugin eval` cases under the plugin's `evals/`: after correctness fixes, the fix pass's re-review covers only the fixed hunks, and it stops after one round, reporting any new finding. Both grant `Read`, `Glob`, `Grep` and `Skill`, and the stop case names `/review:fanout` so the with-arm invokes the skill.
+
+### Changed
+
+- `/review:fanout` fix pass: the required post-fix re-review covers only the hunks the pass changed and runs once; a finding it raises is reported to the operator, not fixed in another automatic round.
+
 ## [0.42.1] - 2026-10-04
 
 ### Added
 
-- `/review:fanout` gains two `claude plugin eval` cases under the plugin's `evals/`: after correctness fixes, the fix pass's re-review covers only the fixed hunks, and it stops after one round, reporting any new finding. Both grant `Read`, `Glob`, `Grep` and `Skill`, so the with-arm can load `context/fix-pass-mode.md`.
+- **`review` ships a `claude plugin eval` suite with three cases for `/review:quality-gate` (tag `row37`).** Each case scaffolds a git branch whose commit removes a guard as a "simplification": an empty-list early return, a null-user check, and a length check that returned short titles unchanged. A case passes when the review names the input the removed guard handled and the behavior that now breaks for it. Each case has a regex grader for the input and a judge rubric for the regression, all with pass and fail samples. The cases need `--scaffold` and `--allow-tools Bash,Write`. No skill text changes.
 
 ## [0.42.0] - 2026-10-04
 

@@ -1,0 +1,7 @@
+// A TypeScript CommonJS spec file: it is scanned like *.spec.ts, and its test
+// asserts a literal from the spec.
+const { slugify } = require('./slug.cts');
+
+test('slugifies a title', () => {
+  expect(slugify('Hello World')).toBe('hello-world');
+});
