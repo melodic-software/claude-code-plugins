@@ -23,7 +23,7 @@
 # docs/conventions/pr-pipeline/pr-run-activity.md, "Secrets and the two files".
 #
 # Output follows the check-script contract (README.md, "The check-script
-# contract"): one `path:line: finding` per offence on stderr, the clean-run
+# contract"): one `path:line: finding` per offender on stderr, the clean-run
 # statement on stdout. Exit: 0 clean, 1 any offender, 2 usage.
 set -euo pipefail
 

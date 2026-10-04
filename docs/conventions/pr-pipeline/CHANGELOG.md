@@ -1,5 +1,21 @@
 # Changelog for the PR pipeline convention
 
+## 1.2.0 - 2026-10-04
+
+The runner splits in two. `version` stays 1; callers of the old file must move.
+
+- `pr-run-activity.yml` becomes `pr-run-activity-write.yml`, for every effect but `read`. It keeps
+  the App key and its mint, fails red with `effect-read` on a `read` activity, and stops with
+  `bot-actor` when the lanes App bot is the sender, a `workflow_run` actor or the re-runner.
+- New `pr-run-activity-read.yml` runs `read` activities with no App key secret and no `id-token`
+  permission, and fails red with `effect-not-read` before the head checkout on any other effect.
+- Both pass the run attempt's `triggering_actor` to `check-trusted-trigger`, so a re-run by an
+  account not on the trusted-actor list stops with `untrusted-actor`.
+- Until the token broker lands, a lane runs head-code read activities only when its caller file
+  references no App key; `scripts/check-read-caller-keys.sh` checks it.
+- The README lists the trust-root paths, and `pr-merge` refuses any PR that touches one. The
+  refusal is recorded now and enforced when `pr-merge` is built.
+
 ## 1.1.1 - 2026-10-04
 
 Fixes to the runner and reader. `version` stays 1.
