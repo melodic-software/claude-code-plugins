@@ -1,0 +1,15 @@
+// good-for: rule-throw-only-oracle
+// The constructed cart is checked for the currency its constructor sets.
+using NUnit.Framework;
+
+[TestFixture]
+public class CartConstructedCurrencyTests
+{
+    [Test]
+    public void Constructor_KeepsTheCurrency()
+    {
+        var cart = new Cart("eur");
+        Assert.That(cart, Is.Not.Null);
+        Assert.That(cart.Currency, Is.EqualTo("eur"));
+    }
+}

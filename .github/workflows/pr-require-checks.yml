@@ -296,11 +296,11 @@ jobs:
       # gate in `check-skills`, check 25 included as a FAIL.
       #
       # `lint_shell` names every input of a `lint-shell` gate: shell and Python
-      # source, hook and bin directories, every plugin markdown file (the
+      # source, hook and bin directories, every file under plugins/ (the
       # portability lint scans skills/ and reference/ markdown, the
-      # hook-frontmatter reader every .md under plugins/), every plugin JSON
-      # file (a plugin.json `hooks` entry may name a hooks file at any path in
-      # its plugin), the gates with their baselines and libraries, the rcfile,
+      # hook-frontmatter reader every .md under plugins/, and a plugin.json
+      # `hooks` entry may name a hooks file of any name or extension at any
+      # path in its plugin), the gates with their baselines and libraries, the rcfile,
       # the PyYAML pin, and this workflow. A change that touches none of them
       # starts no `lint-shell`; scripts/lint-shell-filter.test.sh pins this.
       - name: Match the changed files against the filter groups
@@ -420,10 +420,7 @@ jobs:
               **/bin/**
               **/agents/**
               **/SKILL.md
-              plugins/**/*.md
-              plugins/*/reference/**
-              plugins/*/.claude-plugin/**
-              plugins/**/*.json
+              plugins/**
       # THE TEST LANES ARE PLANNED HERE, ONCE. scripts/plan-test-lanes.sh runs
       # the affected-suite selector over the diff and gives each test lane its
       # suites, packed into legs by suite-seconds, and each leg the optional

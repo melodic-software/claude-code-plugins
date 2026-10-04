@@ -1,0 +1,13 @@
+// expect: rule-zero-assertion
+// The test project template's first test, kept with its empty body: it
+// passes whatever the code does. A UnitTest*.cs file is scanned like
+// *Tests.cs.
+using Xunit;
+
+public class UnitTest1
+{
+    [Fact]
+    public void Test1()
+    {
+    }
+}

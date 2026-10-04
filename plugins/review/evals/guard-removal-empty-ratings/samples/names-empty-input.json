@@ -1,0 +1,34 @@
+{
+  "pass": [
+    {
+      "answer": "IMPORTANT: ratings.py:2 dropped the early return for an empty list, so a product with no reviews now raises ZeroDivisionError.",
+      "why": "names the empty list"
+    },
+    {
+      "answer": "The one-liner crashes for products without reviews, such as Cable tray in products.json.",
+      "why": "paraphrase: without reviews"
+    },
+    {
+      "answer": "When len(reviews) == 0 the division fails; restore the guard.",
+      "why": "names the input as a length check"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "No self-review issues found in changed files. The refactor is cleaner.",
+      "why": "approves"
+    },
+    {
+      "answer": "SUGGESTION: the `if not reviews` early return was removed; the single expression reads better.",
+      "why": "near miss: names the guard, not the input or the failure"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}
