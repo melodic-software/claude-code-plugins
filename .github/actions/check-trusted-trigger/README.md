@@ -32,10 +32,12 @@ condition 1 and the actor and author parts of condition 2).
   Actors are `sender`, `workflow_run.actor` and `workflow_run.triggering_actor`: all three must
   be listed, because ADR 0051 requires the actor that started the failed run to be trusted.
 - **Author.** The PR's `user.id` must be listed.
+- **Head ref.** The PR's head branch must match `^[A-Za-z0-9._/-]+$`; any other branch name, such
+  as one carrying `$(`, stops with `no-pr`.
 - **`no-pr` for everything unhandled.** Any other event (including `pull_request_target`), a
-  missing or malformed `pr-number`, an empty repository, an unreadable event payload, a PR fetch that fails, and a
-  `workflow_run` with zero or more than one matching open PR all stop with `no-pr`; the reason
-  set has no separate error value.
+  missing or malformed `pr-number`, an empty repository, an unreadable event payload, a PR fetch
+  that fails, and a `workflow_run` with zero or more than one matching open PR all stop with
+  `no-pr`; the reason set has no separate error value.
 
 Pass the job token (the default, `${{ github.token }}`) as `github-token`. The gate runs before
 any App token exists, so the job token is the only one available, and it needs
@@ -55,6 +57,10 @@ Reasons are checked in the order list, event and PR, fork, actor, author. Every 
 an unreadable payload or a failed API call, ends in `proceed=false`, and the step always exits 0.
 Set `CLAUDE_BRANCH` for the model step from `head-ref`, and record `head-sha` before the model runs
 for [`check-signed-commits`](../check-signed-commits/README.md).
+
+Pass every output, `head-ref` included, to later steps through `env:` and read it as a shell
+variable. Never write `${{ steps.gate.outputs.head-ref }}` or any other output inside `run:`: the
+runner pastes it into the script before the shell parses it.
 
 ## Job contract
 

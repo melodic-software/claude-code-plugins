@@ -18,8 +18,8 @@ condition 1). Run it after both gates pass and the App token is minted.
 ## What it reads and keeps
 
 It reads the PR, its issue comments, reviews and review comments, the issues the PR closes
-(GraphQL `closingIssuesReferences`, any repository the token can read) and their comments, every
-page of each.
+(GraphQL `closingIssuesReferences`) and their comments, every page of each. A closing issue in any
+repository other than the PR's own is dropped and counted under `linked-issue` without being read.
 
 An item is kept only when its `user` is not null, its `user.id` is listed, and its
 `performed_via_github_app` is null or names an App whose `<slug>[bot]` account id is listed. The
@@ -27,15 +27,23 @@ PR's title and body are kept only when the PR author passes the same check; othe
 empty, the body null, and the PR counts as dropped. An App's bot id comes from a
 `/users/<slug>[bot]` lookup; a lookup that fails counts the App as unlisted.
 
+Text also counts as written by whoever last edited it. For the PR and every item that passed the
+author check, one GraphQL `nodes(ids:)` query per 100 node ids reads `lastEditedAt` and the
+`editor`'s `databaseId` (the `Comment` interface). An item never edited, or last edited by a listed
+id, is kept. Any other edit, including one whose editor is null, drops the item (the PR keeps an
+empty title and a null body) and counts it under `edited-by-untrusted`. REST `updated_at` is not
+used. The query covers body edits only; a PR title edit is not visible to it.
+
 ## Output
 
 The file at `output-path` holds `pr` (number, head and base SHA, author id, title, body), `items`
 (kind, id, author id and login, created time, URL, body) and `dropped`, a count per kind: `pr`,
-`issue-comment`, `review`, `review-comment`, `linked-issue`, `linked-issue-comment`.
+`issue-comment`, `review`, `review-comment`, `linked-issue`, `linked-issue-comment`,
+`edited-by-untrusted`.
 
 The log gets one line, `select-trusted-text: dropped total=<n> {<counts>}`. Dropped text is never
 written or logged. When it cannot run (an unreadable list, a malformed input, any failed read,
-including a closing issue in a repository the token cannot read), the step exits 1 and leaves no
+including a GraphQL error on either query), the step exits 1 and leaves no
 file, so a lane never reads a partial context and the model step does not run. Unlike the gates,
 which exit 0 with `proceed=false`, a failure here is an error a human should see.
 

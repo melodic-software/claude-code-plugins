@@ -1,6 +1,7 @@
 {
   "pull": {
     "number": 42,
+    "commits": 4,
     "head": { "ref": "feat/lane-probe", "sha": "dddddddddddddddddddddddddddddddddddddddd" },
     "base": { "ref": "main", "sha": "2222222222222222222222222222222222222222" }
   },

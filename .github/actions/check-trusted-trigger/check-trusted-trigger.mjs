@@ -10,6 +10,9 @@ import { writeOutputs } from "../check-kill-switch/check-kill-switch.mjs";
 const ACTOR_KEYS = ["id", "kind", "login"];
 const KINDS = new Set(["human", "bot"]);
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
+// Branch names reach later steps; anything beyond these characters stops the
+// lane rather than travel on.
+const HEAD_REF = /^[A-Za-z0-9._/-]+$/;
 
 export class GitHubError extends Error {
   constructor(status, what) {
@@ -164,7 +167,7 @@ export async function evaluateTrigger({ eventName, event, repository, ids, prNum
     throw new Stop("fork");
   }
   if (
-    typeof pull.head.ref !== "string" ||
+    !HEAD_REF.test(pull.head.ref ?? "") ||
     !/^[0-9a-f]{40}$/.test(pull.head.sha ?? "") ||
     !/^[0-9a-f]{40}$/.test(pull.base?.sha ?? "")
   ) {

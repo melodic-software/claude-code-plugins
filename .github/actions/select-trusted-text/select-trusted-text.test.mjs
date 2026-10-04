@@ -21,7 +21,8 @@ function routesFrom(api) {
     [`GET /repos/${REPOSITORY}/issues/42/comments?${page1}`]: api.issueComments,
     [`GET /repos/${REPOSITORY}/pulls/42/reviews?${page1}`]: api.reviews,
     [`GET /repos/${REPOSITORY}/pulls/42/comments?${page1}`]: api.reviewComments,
-    "POST /graphql": api.closingIssues,
+    "POST /graphql closing": api.closingIssues,
+    "POST /graphql edits": api.edits,
     [`GET /repos/${REPOSITORY}/issues/7`]: api.issue7,
     [`GET /repos/${REPOSITORY}/issues/7/comments?${page1}`]: api.issue7Comments,
     "GET /repos/melodic-software/standards/issues/8": api.issue8,
@@ -33,12 +34,29 @@ function routesFrom(api) {
   return routes;
 }
 
+// The `nodes(ids:)` answer: every node unedited unless `edits` names it.
+// `edits: null` stands for a GraphQL error, which the client raises.
+function editNodes(edits, ids) {
+  if (edits === null) {
+    throw new GitHubError(200, "POST /graphql (GraphQL errors)");
+  }
+  return {
+    data: {
+      nodes: ids.map((id) => ({ id, lastEditedAt: null, editor: null, ...edits[id] })),
+    },
+  };
+}
+
 function fakeGitHub(routes) {
   const github = async (method, apiPath, body) => {
-    const key = `${method} ${apiPath}`;
+    let key = `${method} ${apiPath}`;
     github.calls.push(key);
     if (key === "POST /graphql") {
       github.graphql.push(body);
+      if (body.query.includes("nodes(ids")) {
+        return editNodes(routes["POST /graphql edits"], body.variables.ids);
+      }
+      key = "POST /graphql closing";
     }
     if (!(key in routes)) {
       throw new GitHubError(404, key);
@@ -99,6 +117,7 @@ test("keeps listed authors' items and drops every other author's, by kind", asyn
     "review-comment": 1,
     "linked-issue": 1,
     "linked-issue-comment": 1,
+    "edited-by-untrusted": 0,
   });
 });
 
@@ -131,7 +150,7 @@ test("no dropped text reaches the written file or the log; the log carries count
   assert.doesNotMatch(written, /CANARY/);
   assert.doesNotMatch(logged.join("\n"), /CANARY/);
   assert.deepEqual(logged, [
-    'select-trusted-text: dropped total=9 {"pr":0,"issue-comment":5,"review":1,"review-comment":1,"linked-issue":1,"linked-issue-comment":1}',
+    'select-trusted-text: dropped total=9 {"pr":0,"issue-comment":5,"review":1,"review-comment":1,"linked-issue":1,"linked-issue-comment":1,"edited-by-untrusted":0}',
   ]);
 });
 
@@ -213,9 +232,9 @@ test("reads every page of a list endpoint", async () => {
 
 test("asks GraphQL for the PR's closing issue references", async () => {
   const { github } = await filter();
-  assert.equal(github.graphql.length, 1);
-  assert.match(github.graphql[0].query, /closingIssuesReferences/);
-  assert.deepEqual(github.graphql[0].variables, {
+  const closing = github.graphql.filter((body) => body.query.includes("closingIssuesReferences"));
+  assert.equal(closing.length, 1);
+  assert.deepEqual(closing[0].variables, {
     owner: "melodic-software",
     name: "claude-code-plugins",
     number: 42,
@@ -227,10 +246,80 @@ test("a closing reference whose repository is a dot segment is never requested",
   api.closingIssues.data.repository.pullRequest.closingIssuesReferences.nodes[1].repository = {
     nameWithOwner: "melodic-software/..",
   };
-  const { code, written, github } = await filter(api);
+  const { context, github } = await filter(api);
+  assert.equal(context.dropped["linked-issue"], 1);
+  assert.ok(!github.calls.some((call) => call.includes("/..")));
+});
+
+test("a closing issue in another repository is dropped and never read, even from a listed author", async () => {
+  const api = load();
+  api.issue8.user = { login: "kyle-sexton", id: 153232337, type: "User" };
+  const { context, github } = await filter(api);
+  assert.deepEqual(keptIds(context, "linked-issue"), [700]);
+  assert.equal(context.dropped["linked-issue"], 1);
+  assert.ok(!github.calls.some((call) => call.includes("melodic-software/standards")));
+});
+
+// Edit history: an item counts as written by whoever last edited it too.
+
+test("a listed author's comment last edited by an unlisted user is dropped", async () => {
+  const api = load();
+  api.edits.N101 = {
+    lastEditedAt: "2026-10-04T12:00:00Z",
+    editor: { __typename: "User", databaseId: 9999001 },
+  };
+  const { context, written } = await filter(api);
+  assert.ok(!keptIds(context, "issue-comment").includes(101));
+  assert.equal(context.dropped["edited-by-untrusted"], 1);
+  assert.doesNotMatch(written, /keep the change small/);
+});
+
+test("a comment edited by a listed user is kept", async () => {
+  const api = load();
+  api.edits.N101 = {
+    lastEditedAt: "2026-10-04T12:00:00Z",
+    editor: { __typename: "Bot", databaseId: 209825114 },
+  };
+  const { context } = await filter(api);
+  assert.ok(keptIds(context, "issue-comment").includes(101));
+  assert.equal(context.dropped["edited-by-untrusted"], 0);
+});
+
+test("an edit with no resolvable editor drops the item", async () => {
+  const api = load();
+  api.edits.N302 = { lastEditedAt: "2026-10-04T12:00:00Z", editor: null };
+  const { context } = await filter(api);
+  assert.deepEqual(keptIds(context, "review-comment"), []);
+  assert.equal(context.dropped["edited-by-untrusted"], 1);
+});
+
+test("a PR body edited by an unlisted user is withheld", async () => {
+  const api = load();
+  api.edits.N4200 = {
+    lastEditedAt: "2026-10-04T12:00:00Z",
+    editor: { __typename: "User", databaseId: 9999001 },
+  };
+  const { context } = await filter(api);
+  assert.equal(context.pr.title, "");
+  assert.equal(context.pr.body, null);
+  assert.equal(context.dropped["edited-by-untrusted"], 1);
+});
+
+test("asks GraphQL for the edit history of every kept item, PR included", async () => {
+  const { github } = await filter();
+  const edits = github.graphql.find((body) => body.query.includes("nodes(ids"));
+  assert.deepEqual(
+    [...edits.variables.ids].sort(),
+    ["N101", "N105", "N106", "N201", "N302", "N4200", "N700", "N701"].sort(),
+  );
+});
+
+test("a GraphQL error on the edit query writes nothing and exits non-zero", async () => {
+  const api = load();
+  api.edits = null;
+  const { code, written } = await filter(api);
   assert.equal(code, 1);
   assert.equal(written, undefined);
-  assert.ok(!github.calls.some((call) => call.includes("/..")));
 });
 
 test("an unreadable trusted-actor list writes nothing and exits non-zero", async () => {

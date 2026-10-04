@@ -18,15 +18,19 @@ or force-pushes.
 
 ## Rules
 
-- New commits are the PR's commits that the comparison `since-sha...head` lists, so base commits
-  brought in by a merge are not counted.
+- New commits are the commits the comparison `since-sha...head` lists that are also PR commits,
+  so base commits brought in by a merge are not counted. Their verification is read from the
+  comparison's commit objects.
+- GitHub lists at most 250 commits for a PR. When the PR's `commits` count is higher than the
+  number listed, or missing, the PR cannot be checked whole: `all-verified` is `false` and the
+  escalation runs, with a fixed sentence saying the PR exceeds the checkable count.
 - When `since-sha` is malformed, unknown to GitHub, not an ancestor of the head, or the comparison
   is truncated, every PR commit is checked and `since-is-ancestor` is `false` in the first three
   cases.
 - A commit counts as verified only when `commit.verification.verified` is `true` and its SHA is
   40 hex characters. A commit with a malformed SHA counts as unverified and is reported as
   `<invalid-sha>`, so no free text reaches the output or the comment.
-- On any unverified commit it adds `escalation-label` only if that label already exists on the
+- On any unverified commit, or a PR it cannot check whole, it adds `escalation-label` only if that label already exists on the
   repository (it never creates one), then posts one fixed comment listing the SHAs. No model text
   reaches the comment.
 

@@ -27,6 +27,18 @@ const CLOSING_ISSUES = `query($owner: String!, $name: String!, $number: Int!) {
   }
 }`;
 
+// PullRequest, Issue, IssueComment, PullRequestReview and
+// PullRequestReviewComment all implement Comment.
+const LAST_EDITORS = `query($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    id
+    ... on Comment {
+      lastEditedAt
+      editor { __typename ... on User { databaseId } ... on Bot { databaseId } }
+    }
+  }
+}`;
+
 // An item is trusted when its author's id is listed and, if it was posted
 // through a GitHub App, that App's bot account is listed too.
 function createTrustCheck(github, ids) {
@@ -65,6 +77,7 @@ export async function buildTrustedContext({ github, repository, prNumber, ids })
     "review-comment": 0,
     "linked-issue": 0,
     "linked-issue-comment": 0,
+    "edited-by-untrusted": 0,
   };
   const items = [];
   async function keep(kind, list) {
@@ -74,6 +87,7 @@ export async function buildTrustedContext({ github, repository, prNumber, ids })
         continue;
       }
       items.push({
+        nodeId: item.node_id,
         kind,
         id: item.id,
         author_id: item.user.id,
@@ -102,13 +116,37 @@ export async function buildTrustedContext({ github, repository, prNumber, ids })
   });
   const references = closing?.data?.repository?.pullRequest?.closingIssuesReferences?.nodes ?? [];
   for (const reference of references) {
-    const issueRepository = reference?.repository?.nameWithOwner;
-    if (!REPOSITORY.test(issueRepository ?? "") || !Number.isInteger(reference.number)) {
+    // Only issues in the PR's own repository: an issue elsewhere sits under
+    // another repository's permissions and authors.
+    if (reference?.repository?.nameWithOwner !== repository) {
+      dropped["linked-issue"] += 1;
+      continue;
+    }
+    if (!Number.isInteger(reference.number)) {
       throw new Error("closing issue reference has an unexpected shape");
     }
-    const issuePath = `/repos/${issueRepository}/issues/${reference.number}`;
+    const issuePath = `${base}/issues/${reference.number}`;
     await keep("linked-issue", [await github("GET", issuePath)]);
     await keep("linked-issue-comment", await paginate(github, `${issuePath}/comments`));
+  }
+
+  // Text counts as written by its last editor too: keep an edited item only
+  // when that editor is listed.
+  const editedByListed = await readEditors(github, ids, [
+    ...(prTrusted ? [pull.node_id] : []),
+    ...items.map((item) => item.nodeId),
+  ]);
+  const prKept = prTrusted && editedByListed(pull.node_id);
+  if (prTrusted && !prKept) {
+    dropped["edited-by-untrusted"] += 1;
+  }
+  const kept = [];
+  for (const { nodeId, ...item } of items) {
+    if (editedByListed(nodeId)) {
+      kept.push(item);
+    } else {
+      dropped["edited-by-untrusted"] += 1;
+    }
   }
 
   return {
@@ -117,12 +155,35 @@ export async function buildTrustedContext({ github, repository, prNumber, ids })
       head_sha: pull.head.sha,
       base_sha: pull.base.sha,
       author_id: pull.user?.id ?? 0,
-      title: prTrusted ? pull.title : "",
-      body: prTrusted ? pull.body : null,
+      title: prKept ? pull.title : "",
+      body: prKept ? pull.body : null,
     },
-    items,
+    items: kept,
     dropped,
   };
+}
+
+// Returns a predicate over node ids: true when the node was never edited or
+// its last editor is listed. A node missing from the answer, or an edit with
+// no resolvable editor, is false. GraphQL errors raise.
+async function readEditors(github, ids, nodeIds) {
+  const unique = [...new Set(nodeIds.filter((id) => typeof id === "string" && id !== ""))];
+  const trustedNodes = new Set();
+  for (let start = 0; start < unique.length; start += 100) {
+    const answer = await github("POST", "/graphql", {
+      query: LAST_EDITORS,
+      variables: { ids: unique.slice(start, start + 100) },
+    });
+    for (const node of answer?.data?.nodes ?? []) {
+      if (typeof node?.id !== "string") {
+        continue;
+      }
+      if (node.lastEditedAt === null || isListed(ids, { id: node.editor?.databaseId })) {
+        trustedNodes.add(node.id);
+      }
+    }
+  }
+  return (nodeId) => trustedNodes.has(nodeId);
 }
 
 // Returns the process exit code. On any failure nothing is written, so a lane

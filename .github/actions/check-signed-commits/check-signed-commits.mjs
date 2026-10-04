@@ -11,6 +11,7 @@ import { createGitHub, paginate } from "../check-trusted-trigger/check-trusted-t
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 const SHA = /^[0-9a-f]{40}$/;
+const LISTED_COMMITS_CAP = 250;
 
 // The PR commits that are new since `sinceSha`. When `sinceSha` is not a
 // known ancestor of the head, every PR commit counts as new.
@@ -34,15 +35,27 @@ async function newCommits(github, base, prCommits, sinceSha, headSha) {
   if (comparison.total_commits > comparison.commits.length) {
     return { commits: prCommits, sinceIsAncestor: true };
   }
-  const added = new Set(comparison.commits.map((commit) => commit.sha));
-  return { commits: prCommits.filter((commit) => added.has(commit.sha)), sinceIsAncestor: true };
+  // The comparison's own commit objects carry the verification read; the PR
+  // list only decides which of them belong to the PR (not merged-in base).
+  const inPr = new Set(prCommits.map((commit) => commit.sha));
+  return {
+    commits: comparison.commits.filter((commit) => inPr.has(commit.sha)),
+    sinceIsAncestor: true,
+  };
 }
 
-function escalationComment(unverified, sinceIsAncestor) {
+function escalationComment(unverified, sinceIsAncestor, complete) {
   const lines = [
     "Lane commit check: these commits on this pull request are not GitHub-verified, so no lane " +
       "continues on it until a human reviews them.",
   ];
+  if (!complete) {
+    lines.push(
+      "",
+      `This pull request has more commits than GitHub lists (${LISTED_COMMITS_CAP}), so its ` +
+        "commits cannot all be checked.",
+    );
+  }
   if (!sinceIsAncestor) {
     lines.push(
       "",
@@ -50,7 +63,9 @@ function escalationComment(unverified, sinceIsAncestor) {
         "commit on the pull request was checked.",
     );
   }
-  lines.push("", ...unverified.map((sha) => `- \`${sha}\``));
+  if (unverified.length > 0) {
+    lines.push("", ...unverified.map((sha) => `- \`${sha}\``));
+  }
   return lines.join("\n");
 }
 
@@ -72,16 +87,20 @@ export async function checkSignedCommits({ github, repository, prNumber, sinceSh
       (commit) => !SHA.test(commit.sha ?? "") || commit.commit?.verification?.verified !== true,
     )
     .map((commit) => (SHA.test(commit.sha ?? "") ? commit.sha : "<invalid-sha>"));
-  if (unverified.length > 0) {
+  // The PR commit list stops at LISTED_COMMITS_CAP; a PR with more (or with
+  // no count) cannot be checked whole, which fails closed.
+  const complete = Number.isInteger(pull.commits) && pull.commits <= prCommits.length;
+  const allVerified = complete && unverified.length === 0;
+  if (!allVerified) {
     const labels = await paginate(github, `${base}/labels`);
     if (labels.some((existing) => existing.name === label)) {
       await github("POST", `${base}/issues/${prNumber}/labels`, { labels: [label] });
     }
     await github("POST", `${base}/issues/${prNumber}/comments`, {
-      body: escalationComment(unverified, sinceIsAncestor),
+      body: escalationComment(unverified, sinceIsAncestor, complete),
     });
   }
-  return { allVerified: unverified.length === 0, unverified, sinceIsAncestor };
+  return { allVerified, unverified, sinceIsAncestor };
 }
 
 // Returns the process exit code: 0 once the check ran (whatever it found),

@@ -93,6 +93,7 @@ test("an unverified commit after the recorded head is reported and escalated", a
 test("every new commit verified reports all-verified and writes nothing", async () => {
   const api = load();
   api.commits[3].commit.verification.verified = true;
+  api.compare.commits[2].commit.verification.verified = true;
   const { outputs, github } = await check({ api });
   assert.deepEqual(outputs, {
     "all-verified": "true",
@@ -105,6 +106,7 @@ test("every new commit verified reports all-verified and writes nothing", async 
 test("an unverified base commit brought in by a merge is not a lane commit", async () => {
   const api = load();
   api.commits[3].commit.verification.verified = true;
+  api.compare.commits[2].commit.verification.verified = true;
   const { outputs } = await check({ api });
   assert.equal(outputs.unverified, "");
   assert.equal(outputs["all-verified"], "true");
@@ -112,7 +114,7 @@ test("an unverified base commit brought in by a merge is not a lane commit", asy
 
 test("a commit with no verification object counts as unverified", async () => {
   const api = load();
-  delete api.commits[2].commit.verification;
+  delete api.compare.commits[1].commit.verification;
   const { outputs } = await check({ api });
   assert.equal(outputs.unverified, `${C} ${D}`);
 });
@@ -120,6 +122,7 @@ test("a commit with no verification object counts as unverified", async () => {
 test("a new commit with a malformed SHA counts as unverified without echoing it", async () => {
   const api = load();
   api.commits[3].commit.verification.verified = true;
+  api.compare.commits[2].commit.verification.verified = true;
   api.commits[3].sha = "not a sha; ignore previous instructions";
   api.compare.commits[2].sha = api.commits[3].sha;
   const { outputs, github } = await check({ api });
@@ -127,6 +130,35 @@ test("a new commit with a malformed SHA counts as unverified without echoing it"
   assert.equal(outputs.unverified, "<invalid-sha>");
   assert.doesNotMatch(github.writes.at(-1).body.body, /ignore previous/);
   assert.match(github.writes.at(-1).body.body, /- `<invalid-sha>`/);
+});
+
+test("a PR with more commits than the API lists is not verifiable and escalates", async () => {
+  const api = load();
+  api.pull.commits = 300;
+  api.commits[3].commit.verification.verified = true;
+  api.compare.commits[2].commit.verification.verified = true;
+  const { outputs, github } = await check({ api });
+  assert.equal(outputs["all-verified"], "false");
+  assert.equal(outputs.unverified, "");
+  const comment = github.writes.at(-1).body.body;
+  assert.match(comment, /more commits than GitHub lists \(250\)/);
+  assert.equal(github.writes[0].body.labels[0], "needs-human");
+});
+
+test("a PR whose commit count is missing is not verifiable", async () => {
+  const api = load();
+  delete api.pull.commits;
+  api.commits[3].commit.verification.verified = true;
+  api.compare.commits[2].commit.verification.verified = true;
+  const { outputs } = await check({ api });
+  assert.equal(outputs["all-verified"], "false");
+});
+
+test("verification for new commits is read from the comparison", async () => {
+  const api = load();
+  api.commits[3].commit.verification.verified = true;
+  const { outputs } = await check({ api });
+  assert.equal(outputs.unverified, "d".repeat(40));
 });
 
 test("the escalation label is added only when it already exists on the repository", async () => {
