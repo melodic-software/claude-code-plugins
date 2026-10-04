@@ -9,12 +9,18 @@ import { hasCapability } from "./capability.ts";
 export function registerFrameTools(server: McpServer, api: MiroApi): void {
   server.tool(
     "miro_create_frame",
-    "Create a frame on a Miro board. Use this to define layout zones that group child items (sticky notes, shapes). Use the returned frame ID as parent_id when creating sticky notes inside it.",
+    "Create a frame on a Miro board. Use this to define a layout zone that groups child items such as sticky notes. Returns the frame's { id, type } plus the title, position and geometry as sent; pass that id as parent_id when creating sticky notes inside it, whose x/y are then relative to the frame's top-left corner.",
     {
       board_id: z.string().describe("The board ID"),
       title: z.string().describe("Frame title"),
-      x: z.number().default(0).describe("X position on the board"),
-      y: z.number().default(0).describe("Y position on the board"),
+      x: z
+        .number()
+        .default(0)
+        .describe("X coordinate of the frame's center. Board-center-relative (0 = board center)"),
+      y: z
+        .number()
+        .default(0)
+        .describe("Y coordinate of the frame's center. Board-center-relative (0 = board center)"),
       width: z.number().default(800).describe("Frame width in pixels"),
       height: z.number().default(600).describe("Frame height in pixels"),
     },
@@ -38,7 +44,7 @@ export function registerFrameTools(server: McpServer, api: MiroApi): void {
 
   server.tool(
     "miro_get_frame_items",
-    "List all items inside a specific frame. Use this to see what's grouped within a frame. Returns item IDs, types, and positions relative to the frame.",
+    "List the items inside one frame. Use this to see what a frame groups, for example to check a zone before adding notes to it. Returns an array of { id, type, position }, positions relative to the frame's top-left corner; it does not return item content (use miro_list_board_items for that). Stops at limit (default 50, max 1000) and gives no sign that more items exist: a result of exactly limit items may be incomplete, so raise limit. Returns an error if frame_id is not a frame.",
     {
       board_id: z.string().describe("The board ID"),
       frame_id: z.string().describe("The frame item ID"),
@@ -47,7 +53,7 @@ export function registerFrameTools(server: McpServer, api: MiroApi): void {
         .min(1)
         .max(1000)
         .default(50)
-        .describe("Max items to return (the SDK auto-paginates beyond a single API page)"),
+        .describe("Max items to return (default 50, max 1000)"),
     },
     { readOnlyHint: true, openWorldHint: true },
     async ({ board_id, frame_id, limit }) => {

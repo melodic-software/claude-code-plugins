@@ -66,7 +66,7 @@ function formatItem(item: OverlapItem) {
 export function registerOverlapTools(server: McpServer, api: MiroApi): void {
   server.tool(
     "miro_detect_overlaps",
-    "Detect overlapping sticky notes on a Miro board. Returns all pairs of stickies whose centers are closer than the threshold on both axes. Square sticky notes are ~199px wide, so the default threshold of 195px catches items that visually overlap. Rectangle stickies are wider (~350px); raise the threshold on rectangle-heavy boards so their overlaps are not missed.",
+    "Find sticky notes that cover each other on a Miro board. Use this after placing many notes, for example after miro_bulk_create_sticky_notes, then move the overlapping ones with miro_update_sticky_note. Returns { total_items, overlap_count, overlaps }, each overlap a pair a/b of { id, content, x, y } (content cut to 60 characters) with their center distances dx and dy. A pair overlaps when its centers are closer than threshold on both axes. Scans at most max_items notes (default 500, max 2000) and does not say whether more exist: if total_items equals max_items, raise max_items. The default threshold of 195px fits square notes (~199px wide); raise it on boards with many rectangle notes (~350px wide).",
     {
       board_id: z.string().describe("The board ID"),
       threshold: z
@@ -80,7 +80,7 @@ export function registerOverlapTools(server: McpServer, api: MiroApi): void {
         .min(1)
         .max(2000)
         .default(500)
-        .describe("Maximum sticky notes to scan (limits API pagination calls)"),
+        .describe("Maximum sticky notes to scan (default 500, max 2000)"),
     },
     { readOnlyHint: true, openWorldHint: true },
     async ({ board_id, threshold, max_items }) => {
