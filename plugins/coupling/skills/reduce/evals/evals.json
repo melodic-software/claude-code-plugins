@@ -74,6 +74,19 @@
         "Records a gap: line naming the missing gh as the reason collision hotspots were not measured",
         "Completes the dry-run pass with a ranked ledger and makes no repository edits"
       ]
+    },
+    {
+      "id": 7,
+      "name": "duplicate-writer-ledgered-and-handed-off",
+      "prompt": "/coupling:reduce app\n\nThe billing worker and the admin API both update the invoices.status column, and the nightly export job rewrites the export-path settings file that the CLI's setup command also writes.",
+      "expected_output": "Verifies both write sites of each value, types each as a duplicate writer under common coupling, ledgers both as structural route-lane entries without editing either writer, writes one review-findings file under <memory_dir>/coupling/<branch-slug>/ whose rows state an ownership rule per value (after checking the memory root carries a .gitignore with *), names that file in the ledger outcome and the report, and offers /review:audit-enforceability on it without running it.",
+      "files": [],
+      "expectations": [
+        "Classifies each value with two writers as a duplicate writer and puts it in the route lane, never the apply batch",
+        "Edits no writer code, schema or file-writing script",
+        "Writes the findings file under the coupling/<branch-slug>/ memory directory, not under reviews/, and names it in the ledger and the report",
+        "Offers /review:audit-enforceability for the file when that skill is available and does not invoke it unasked"
+      ]
     }
   ]
 }

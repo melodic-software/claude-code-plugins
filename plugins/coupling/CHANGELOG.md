@@ -8,6 +8,7 @@ All notable changes to the `coupling` plugin are documented here. Format follows
 ### Added
 
 - **Collision-hotspot lens in `reduce`.** `scripts/collision-hotspots.sh` reads recent pull requests through `gh`, pairs those that were open at the same time and share a file, replays each pair with `git merge-tree --write-tree`, and ranks files by measured conflicts once at least 3 pairs touched them. Changelogs, lockfiles and version manifests are left out of the ranking and named on one `known bump hotspots` line; replays are capped by `--max-pairs` (default 200); PR heads are fetched into a per-run ref namespace that is deleted on exit. Without `gh`, `jq` or a `git` with `merge-tree --write-tree`, the scan falls back to co-change mining and reports a `gap:` line. The plugin now declares `gh` and `jq` in `prerequisites.json` and ships the prerequisites checker copies.
+- **One-writer-per-value candidate in `reduce`.** The coupling model's common-coupling entry now names the duplicate writer: one durable key, path or table that more than one owner writes. It is always a structural route-lane ledger entry, never part of the apply batch. A confirmed one hands its ownership rule to a review-findings file under `<memory_dir>/coupling/<branch-slug>/`, written with the memory-tier write discipline; the ledger and report name the file and offer `/review:audit-enforceability` when it is available.
 
 ## [0.3.4] - 2026-10-02
 
