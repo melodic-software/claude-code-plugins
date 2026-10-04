@@ -18,7 +18,7 @@ Single source of truth for the leaf surfaces this skill fans out across. Both th
 
 ## Ownerless slices (discovered from the consuming project)
 
-When the project ships per-concern review criteria documents, each one becomes a slice leaf, a fresh subagent that reads that document plus the diff and reviews against ONLY that document's criteria (prompt template: this plugin's `quality-gate` skill, per-slice mode).
+When the project ships per-concern review criteria documents, each one becomes a slice leaf, a fresh `review:brief-reviewer` agent (never a general-purpose subagent, so a slice cannot fan out) that reads that document plus the diff and reviews against ONLY that document's criteria (prompt template: this plugin's `quality-gate` skill, per-slice mode).
 
 **Discovery recipe (run at dispatch time, never a hardcoded list):**
 

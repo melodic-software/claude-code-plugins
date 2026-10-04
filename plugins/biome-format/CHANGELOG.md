@@ -3,11 +3,17 @@
 All notable changes to the `biome-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.8.6] - 2026-10-04
+## [0.8.7] - 2026-10-04
 
 ### Changed
 
 - **Hook text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Biome runs with `--reporter=concise`, and the findings report names the file once in its heading, without "(advisory)": each line is `<line>:<col>: <rule>: <message>`, without the reporter's mark, path or summary footer. An unchanged finding set on a re-edit sends nothing; it is sent again after a clean run, or after compaction or `/clear`, which a new `SessionStart` `compact|clear` row handles. A report lists at most 20 findings; telemetry keeps them all. A Biome break reads `biome-format: biome failed on <file>:`. The rewrite notice reads `biome-format: reformatted <file>.`. The missing-biome notice is composed from `prerequisites.json`, with the install route on the user's copy only, and its `degrade` text drops "edits still go through".
+
+## [0.8.6] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
 
 ## [0.8.5] - 2026-10-04
 

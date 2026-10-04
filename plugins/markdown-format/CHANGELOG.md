@@ -3,7 +3,7 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.12.7] - 2026-10-04
+## [0.12.8] - 2026-10-04
 
 ### Changed
 
@@ -13,6 +13,12 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 
 - **A subagent no longer gets "detail omitted" for findings it never saw.** The old digest was keyed per session; the shared gate keys per session, agent and file.
 - **Findings that return after a clean run are reported again.** The old digest was never cleared on a clean run, so a set that disappeared and came back matched the stale digest.
+
+## [0.12.7] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
 
 ## [0.12.6] - 2026-10-04
 

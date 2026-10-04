@@ -3,11 +3,17 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.9.6] - 2026-10-04
+## [0.9.7] - 2026-10-04
 
 ### Changed
 
 - **Hook text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** The rewrite notice reads `eol-normalizer: line endings in <file> set to LF.`, or `set to CRLF.` on the CRLF arm.
+
+## [0.9.6] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
 
 ## [0.9.5] - 2026-10-04
 

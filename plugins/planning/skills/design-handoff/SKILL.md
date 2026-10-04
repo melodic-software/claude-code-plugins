@@ -3,7 +3,7 @@ description: "Gate a finished design for /planning:plan: FAILs on any design thr
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  workflow-stage: plan
+  workflow-stage: design
   summary: Gate a finished design and package it for planning
 ---
 
@@ -25,7 +25,7 @@ contains git. The dated record for that composition claim is the worktree skill'
 
 The seam between design and planning. `/planning:plan`'s prerequisite check blocks on design-gate evidence; this skill produces that evidence honestly. A binary check read off the artifact, then a handoff summary sourced from the artifacts rather than recalled from conversation memory.
 
-Takes no arguments. It reads the design-threads artifact in the topic's design slice.
+Takes no arguments. It reads the design-threads artifact in the topic's design slice and, on PASS, writes the `## Design` section of the topic's PLAN.md.
 
 Design artifacts live in `<memory_dir>/<topic-slug>/design/` (default `.work/`), never committed; placement per the lifecycle artifact protocol [`${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md`](${CLAUDE_PLUGIN_ROOT}/reference/artifact-protocol.md). Derive `<topic-slug>` from the task or branch name (kebab-case, ≤40 chars; shared with `/planning:design` and `/planning:plan`).
 
@@ -39,7 +39,7 @@ Read `design-threads.md` in the topic's design slice (`<memory_dir>/<topic-slug>
 
 A thread that is unresolved AND untagged is a silent gap → **FAIL**: list the offending thread(s), route back by invoking `/planning:design` via the Skill tool (its design-threads and discussion rounds) to resolve or tag, and do NOT hand off. This is a binary check read off `design-threads.md`, not a "did we cover enough?" recap. A producing model rubber-stamps its own recap, so the gate must be read off the file rather than judged from memory.
 
-If `design-threads.md` does not exist, check for `design-resolution.md` at the same path (the `/planning:design` early-exit artifact). Early-exit slices hand off on that artifact alone. Neither present → FAIL: no design evidence; route back by invoking `/planning:design` via the Skill tool.
+If `design-threads.md` does not exist, check for `design-resolution.md` at the same path (the `/planning:design` early-exit artifact). Early-exit slices hand off on that artifact alone. A `tier: B` artifact with no type sketch → FAIL: route back by invoking `/planning:design` via the Skill tool to record one. A `type-inventory.md` on its own is not a gate artifact. Neither present → FAIL: no design evidence; route back by invoking `/planning:design` via the Skill tool.
 
 ## Coverage report (advisory)
 
@@ -74,6 +74,32 @@ own second column:
 In a real emission each `Covered by` cell carries the thread's own name and each `Status` cell that
 thread's own status. An uncovered row reads `none` in both.
 
+## Write the plan's Design section (gate passed)
+
+On PASS, and only on PASS, write the design into `## Design` of the topic's
+`<memory_dir>/<topic-slug>/PLAN.md` (default `.work/`). This is the copy that reaches the
+implementer: `/planning:plan` keeps it and audits its phases against it, and
+`/implementation:implement-dispatch` and `/work-items:decompose` quote from it, because a worker's
+worktree and a tracker item never see the design directory. The section anatomy is
+`/planning:plan`'s PLAN.md template; fill its four subsections from the artifacts, never from
+memory:
+
+- **Module layout**: modules or packages, what goes where, and dependency direction (from the
+  topology, boundary, or component artifact the scope produced)
+- **Contracts**: interfaces, type shapes, and signatures, quoted from the type inventory or
+  contracts artifact; a typed artifact's first fenced block is copied verbatim with its info string
+- **Variation verdicts**: for each configurability or extension thread, whether the axis is
+  designed to vary (and through which seam) or held fixed, with the recorded reason
+- **Conventions followed**: repository paths of the existing patterns, rules, and ADRs the design
+  follows. Never a memory-slice path: PLAN.md is published, and that path would dangle
+
+An early exit (`design-resolution.md`) writes the section as one line naming the early exit and
+its reason. A Tier B early exit adds a `### Contracts` subsection under that line, quoting the
+artifact's type sketch verbatim (or, when the artifact links `type-inventory.md`, that file's
+sketch). Re-read PLAN.md from disk before writing and replace only the `## Design` section;
+when PLAN.md does not exist yet, create it holding that section alone, for `/planning:plan` to
+complete. Write no other section.
+
 ## Handoff summary (gate passed)
 
 Hand off by invoking `/planning:plan` via the Skill tool. Sourced from the artifacts, not recalled from memory:
@@ -81,7 +107,7 @@ Hand off by invoking `/planning:plan` via the Skill tool. Sourced from the artif
 - Resolved decisions with their recorded rationale (from `design-threads.md`)
 - **ADR candidates.** Each resolved decision that is hard to reverse, surprising without context, and the result of a real trade-off. When the `architecture` plugin is enabled, offer to invoke `/architecture:record-decision` via the Skill tool for each one, passing the decision and its recorded rationale from `design-threads.md`; that skill owns convention discovery, the no-convention offer-and-defer, and the write. Otherwise list them under an "ADR candidates" heading in the summary for the human to record by hand. The offer never blocks the handoff
 - Deferred research items with tags
-- Design artifacts produced
+- Design artifacts produced, and that PLAN.md's `## Design` section now holds them
 - Dependency order for implementation (which decisions block others)
 - Extension / config / observability threads **RESOLVED** or **TAGGED-DEFERRED**. `/planning:plan` next walks its design-default checklist against the plan
 - **Review-routing notes**. When the consuming project declares review checklists (architecture, code-design, security, multi-tenancy, messaging, and the like), list which apply to this slice so `/planning:plan` and the implementation stage inherit proactive review targets
@@ -98,7 +124,9 @@ Emit a resume prompt so a fresh cleared session can pick up at `/planning:plan` 
 
 ## Next
 
-/planning:plan consumes the plan-ready summary.
+- The gate passed: /planning:plan, reading the plan-ready summary and PLAN.md's `## Design`.
+- A resolved decision is an ADR candidate: /architecture:record-decision, before the plan.
+- The gate failed: /planning:design.
 
 ## Gotchas
 

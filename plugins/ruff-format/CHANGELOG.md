@@ -3,11 +3,17 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.9.6] - 2026-10-04
+## [0.9.7] - 2026-10-04
 
 ### Changed
 
 - **Hook text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** The findings report names the file once in its heading, without "(advisory)", and each line drops Ruff's path prefix. An unchanged finding set on a re-edit sends nothing; it is sent again after a clean run, or after compaction or `/clear`, which a new `SessionStart` `compact|clear` row handles. A report lists at most 20 findings; telemetry keeps them all. A Ruff break reads `ruff-format: ruff failed on <file>:`. The rewrite notice reads `ruff-format: reformatted <file>.`. The missing-ruff notice is composed from `prerequisites.json`, with the install route on the user's copy only, and its `degrade` text drops "edits still go through".
+
+## [0.9.6] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
 
 ## [0.9.5] - 2026-10-04
 

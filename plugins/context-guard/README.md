@@ -13,8 +13,8 @@ degraded context **before** quality slips, instead of guessing. Four parts:
   word: `smart` / `acceptable` / `dumb` / `unknown`. Two band shapes, combined conservatively (the
   worse computable zone wins): percentage bands over `used_percentage` (shipped defaults
   smart ≤ 50 < acceptable ≤ 75 < dumb) and window-class token bands over occupancy
-  (`total_input_tokens + total_output_tokens`; shipped defaults 100k/160k on a 200k window,
-  200k/400k on a 1M window). Bands come from the machine-scope
+  (`total_input_tokens + total_output_tokens`; shipped defaults 100k/150k on a 200k window,
+  128k/250k on a 1M window). Bands come from the machine-scope
   `~/.claude/context-guard/zones.json` when present and valid, else from the shipped defaults.
   Zones say *where you are*; consumers decide *what to do*.
 - **PostCompact marker hook** (`hooks/post-compact-mark.sh`), a settings hook, so it runs where
