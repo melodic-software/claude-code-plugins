@@ -107,7 +107,7 @@ Spend the first turn grounding yourself, in parallel:
 - List the project's own rules files that govern the area (architecture, modules, conventions)
 - Note what the topic's memory slice `<memory_dir>/<topic-slug>/` (default `.work/`) already contains: prior PRD, PLAN, design artifacts, exploration and research artifacts
 
-If a prior `PRD.md` exists for this topic, ask: **resume** (continue from open questions), **revise** (in-place edits, bump `updated:`), or **start fresh** (append a dated restart note capturing why below the PRD's frontmatter, then rewrite; the commit carrying the rewrite states the pivot rationale. The contract is branch-tracked, so git log is the history).
+If a prior `PRD.md` exists for this topic, ask: **resume** (continue from open questions), **revise** (in-place edits, bump `updated:`), or **start fresh** (append a dated restart note capturing why below the PRD's frontmatter, then rewrite. PRD.md is never committed, so the restart note is its only history; the copy pasted into the pull request body or the linked issue carries it).
 
 Survey output is a one-paragraph summary in your reply. Then transition to frontier-rounds Q&A.
 

@@ -3,6 +3,14 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.67.2] - 2026-10-04
+
+### Fixed
+
+- **`interview` (SKILL.md and `context/loop.md`), `plan` and `prd` no longer say the Brief, PLAN.md or PRD is branch-tracked with git log as its history ([#5783](https://github.com/melodic-software/claude-code-plugins/issues/5783)).**
+  Since #5719 these files live in the uncommitted memory slice, so each pivot or restart note now says the dated note is the document's only history and the copy published to the pull request body or linked issue carries it.
+  The interview edit sits in the digested Step 1 section; `interview-defenses.test.sh` re-pins that one digest.
+
 ## [0.67.1] - 2026-10-03
 
 ### Changed

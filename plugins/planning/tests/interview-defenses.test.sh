@@ -544,7 +544,7 @@ pin_section "SKILL.md Step 1 section is unchanged (a preamble here reads as gove
   "$SKILL" \
   "### Step 1. Survey before you ask" \
   "### Step 1.5. Auto-detect (default action only)" \
-  "aa394832ccce4a164b025ac0f9953f8cabbdf01b535423f5b17cda38dca31351"
+  "6cc95d0a77848f2ac6f0528460f6648ad1f28ce1daab79aea3db48edd91d9b5f"
 # The "memory slice is not a durable home" paragraph names where content that outlives the
 # branch goes and touches no assumption or Brief rule.
 # The `scope` persist path also returns each `deferred` and `blocked` row with its arbiter
