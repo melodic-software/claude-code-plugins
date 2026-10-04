@@ -13,12 +13,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import pathlib
 import tempfile
 import unittest
 from unittest import mock
 
 import inventory as inv
+
+# A git fixture must not write into the caller's repository under an inherited GIT_DIR.
+for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
+    os.environ.pop(_leaked_git_var, None)
 
 
 class TestBraceMap(unittest.TestCase):
