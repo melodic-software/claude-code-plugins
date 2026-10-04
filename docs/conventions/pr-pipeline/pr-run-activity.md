@@ -36,6 +36,7 @@ jobs:
 | `pr-number` | `''` | The PR on `workflow_dispatch` |
 | `default-model` | `''` | The model when the activity sets none; empty omits `--model` |
 | `default-max-turns` | `75` | The turn budget when the activity sets none |
+| `timeout-minutes` | `30` | The run job's timeout; the report job's is fixed at 10 |
 
 Secrets are passed by name, never `inherit`: `claude-code-oauth-token` (skill activities) and
 `app-private-key` (the lanes App). Repository variables: `CLAUDE_LANES_DISABLED` (the kill switch),
@@ -62,40 +63,62 @@ The caller must:
 ## The run job
 
 Holds `contents: read` and `pull-requests: read`, and no other permission; it never holds
-`checks: write` or `workflows`. In order:
+`checks: write` or `workflows`. It times out after the `timeout-minutes` input. In order:
 
-1. Checks out the base SHA (the default branch outside `pull_request`) to `.base`, and runs every
-   action from there as `./.base/.github/actions/<name>`.
-2. [`check-kill-switch`](../../../.github/actions/check-kill-switch/README.md), then
+1. Fails red unless `AUTOMATION_LANES_APP_SENDER_ID` is a numeric id and the event names a default
+   branch.
+2. Checks out the default branch tip, with full history, to `.base`. Every action runs from `.base`
+   as `./.base/.github/actions/<name>`, so the next two run from the default branch whatever branch
+   the PR targets.
+3. [`check-kill-switch`](../../../.github/actions/check-kill-switch/README.md), then
    [`check-trusted-trigger`](../../../.github/actions/check-trusted-trigger/README.md). Neither has
    `continue-on-error`. A stop at either ends the job green with no token minted and no head
    checked out; the check is neutral.
-3. Re-checks out `.base` at the trigger gate's `base-sha` when it differs (dispatch and
-   `workflow_run`).
-4. `resolve-config`. An invalid config fails the step red and the check is a failure, never a skip.
+4. Asserts the PR targets the default branch and fails red otherwise. On `pull_request` the base
+   branch is the event's `pull_request.base.ref`; on any other event (`workflow_dispatch`,
+   `workflow_run`) it is read from the PR with the job's `GITHUB_TOKEN`. It then fails red unless
+   the gate's `base-sha` is an ancestor of the default branch tip (`git merge-base --is-ancestor`),
+   and checks that SHA out in `.base`. Nothing the PR's base branch chose runs before this check.
+5. `resolve-config`. An invalid config fails the step red and the check is a failure, never a skip.
    A config skip (`disabled-by-config`, `not-applicable-paths`, `not-applicable`) mints nothing.
-5. Asserts the grant's `contents`, `pull-requests` and `issues` are each exactly `read` or `write`,
-   then mints the App token for this repository only with those three permissions. An empty
-   `permission-*` would widen the token to every installation permission.
-6. [`select-trusted-text`](../../../.github/actions/select-trusted-text/README.md) to
-   `$RUNNER_TEMP/trusted-context.json` when the activity `reads-untrusted`.
-7. Copies what the activity runs from the base out of `.base`: a script's whole directory to
+6. For an effect other than `read`: asserts the grant's `contents`, `pull-requests` and `issues`
+   are each exactly `read` or `write`, then mints the App token for this repository only with those
+   three permissions. An empty `permission-*` would widen the token to every installation
+   permission. A `read` activity mints nothing and uses the job's read-only `GITHUB_TOKEN`.
+7. [`select-trusted-text`](../../../.github/actions/select-trusted-text/README.md) to
+   `$RUNNER_TEMP/trusted-context.json` when the activity `reads-untrusted`, with the App token or,
+   for `read`, the `GITHUB_TOKEN`.
+8. Copies what the activity runs from the base out of `.base`: a script's whole directory to
    `$RUNNER_TEMP/base-script`, or for a skill the base `plugins/` and `.claude-plugin/` to
    `$RUNNER_TEMP/base-marketplace`.
-8. Checks out the trigger gate's `head-sha` with the App token and `persist-credentials: false`,
-   then fails red unless `git rev-parse HEAD` equals that SHA. This replaces `.base`.
-9. Runs the activity (below), then for a `read` activity records whether the tree is dirty.
-10. Writes `verdict.json` with `jq` (`if: always()`) and uploads it as
+9. Removes sudo and docker access for the rest of the job: `/var/run/docker.sock` becomes
+   root-only and the runner user's `/etc/sudoers.d/runner` entry is deleted. It fails red if
+   `sudo -n true` still succeeds or the socket is still open to the runner user.
+10. Checks out the trigger gate's `head-sha` with `persist-credentials: false`, then fails red
+    unless `git rev-parse HEAD` equals that SHA. This replaces `.base`.
+11. Runs the activity (below), then for a `read` activity records whether the tree is dirty.
+12. Writes `verdict.json` with `jq` (`if: always()`) and uploads it as
     `verdict-<lane>-<activity>-<run_attempt>`, unique per activity and attempt.
+
+A stacked PR, one whose base is not the default branch, gets a failure check from step 4. Retarget
+it to the default branch to run its lanes.
 
 Its outputs are `base-sha`, `head-sha`, `pr-number`, `gate-reason`, `can-commit`, `applies` and
 `act-outcome`. Each is a step outcome or an output of a step that ran before any head code:
 `gate-reason` is the kill switch's reason if it stopped, else the trigger's if it stopped, else
-empty; `head-sha` is the trigger gate's.
+empty; `head-sha` is the trigger gate's; `base-sha` is set only by step 4, so it is always on the
+default branch. `act-outcome` is the activity step's outcome, except that a gate skill whose step
+succeeded takes the verdict check's outcome (below).
 
 ### Skill activities
 
-The prompt is `/<plugin>:<skill> <args>`. `claude_args` passes `--setting-sources user`, so no
+The prompt is `/<plugin>:<skill> <args>`; for a `reads-untrusted` activity a second line,
+`Trusted PR context: <path>`, names the `select-trusted-text` output, which the step also gets as
+`TRUSTED_CONTEXT_FILE`. A `reads-untrusted` skill must read PR text (title, body, comments,
+reviews, linked issues) only from that file, never through the API. Existing skills are not yet
+adapted to this and still read PR text themselves; until each is, its untrusted-text exposure is a
+known residual. The skill gets the App token as `github_token` when its effect is not `read`, and
+the job's read-only `GITHUB_TOKEN` otherwise. `claude_args` passes `--setting-sources user`, so no
 project or local settings, hooks, `CLAUDE.md`, `AGENTS.md` or `.mcp.json` from the PR head load;
 `--permission-mode dontAsk`; `--allowedTools "Skill(<plugin>:<skill>)"`, so the skill's own
 `allowed-tools` decide what else it may use; `--max-turns`; and `--model` when one is set. The
@@ -109,10 +132,24 @@ when it treats the PR head as untrusted, it replaces `.claude`, `.mcp.json`, `CL
 other listed config paths with the PR base branch's copies before Claude starts. For a `read`
 skill, the next step puts back only what that restore changed, so the dirty-tree check does not
 fail on the action's own edits, and a file the skill created or edited under those paths still
-counts as dirty.
+counts as dirty. That step sets `GIT_LITERAL_PATHSPECS=1`, so a head file name is never read as a
+glob. Its one blind spot is accepted: a head file under those paths that the skill deletes is put
+back from the head, so the deletion does not count as dirty. A `read` skill's token cannot push, so
+the deletion never leaves the runner.
+
+A skill whose `gating` is `gate` must end with a verdict. `claude_args` adds `--json-schema` with a
+schema requiring `{"verdict": "pass" | "fail", "summary": string}`; claude-code-action fails its
+step when no structured output returns. The next step reads the action's `structured_output`
+output through `env`, parses it with `jq`, writes the summary to the step summary as data, and fails
+red unless the verdict is exactly `pass`. A `fail` verdict therefore makes `act-outcome` `failure`
+and the check a failure. A `gating` value other than `gate` or `advisory` fails the job red before
+the head checkout.
 
 The job's step summary shows the skill's final reply (at most 4000 characters, backticks
-neutralized) for audit. It is model output, printed as data.
+neutralized) for audit. It is model output, printed as data. The same text is uploaded as the
+artifact `skill-reply-<lane>-<activity>-<run_attempt>` (7-day retention) whenever the skill step
+ran, as audit evidence, because the REST API cannot read step summaries. Nothing in the workflow
+reads that artifact.
 
 ### Script activities
 
@@ -122,7 +159,7 @@ root-level script path fails red rather than copying the whole base tree. Its en
 
 | Variable | Value |
 |---|---|
-| `PR_NUMBER`, `HEAD_SHA`, `BASE_SHA` | The gated PR, its head SHA, and the base SHA in `.base` |
+| `PR_NUMBER`, `HEAD_SHA`, `BASE_SHA` | The gated PR, its head SHA, and the default-branch base SHA from run job step 4 |
 | `ACTIVITY_ARGS` | The activity's `args`, verbatim; empty when unset |
 | `SKIP_REASON_FILE` | Write one `$defs/skip-reason` value here and exit 0 for neutral |
 | `GH_TOKEN` | The App token, only when the effect is not `read`; unset otherwise |
@@ -134,11 +171,16 @@ persists no credentials, so a `read` script cannot push.
 ## The report job
 
 Runs after the run job whatever its result, with `checks: write`, `contents: read` and
-`pull-requests: read`, and no model step. It checks out exactly the run job's `base-sha` output to
-`.base` (the event's base only when the run job stopped before its own checkout), downloads the
-verdict, runs [`check-signed-commits`](../../../.github/actions/check-signed-commits/README.md)
-with its `GITHUB_TOKEN` unless `can-commit` is `false`, and posts the check with
-[`report-check-run`](../../../.github/actions/report-check-run/README.md).
+`pull-requests: read`, no model step, and a 10-minute timeout. It checks out the default branch
+tip, with full history, to `.base`, then checks out the run job's `base-sha` output only when that
+SHA is an ancestor of the tip; otherwise it stays on the tip. It never checks out the event's base
+SHA, so a PR into another branch cannot choose the actions that write its check. It then downloads
+the verdict (`continue-on-error`: a missing verdict is already decided below), runs
+[`check-signed-commits`](../../../.github/actions/check-signed-commits/README.md) with its
+`GITHUB_TOKEN` unless `can-commit` is `false`, reads the PR's current head SHA with its
+`GITHUB_TOKEN` (empty when there is no PR or the read fails), and posts the check with
+[`report-check-run`](../../../.github/actions/report-check-run/README.md), passing that SHA as
+`pr-head-sha`.
 
 What it trusts:
 
@@ -162,10 +204,20 @@ test or build of the PR runs through Bash. A lane that needs to run head code wi
 is outside this contract until a split design exists (a read-only run, then a separate step that
 makes the signed commit).
 
+Secrets in the job that runs head code: a `read` activity mints no App token, so its job never
+references `app-private-key`. A job whose effect is not `read` still references `app-private-key`
+to mint, and every skill job references the Claude OAuth token. A hosted runner holds referenced
+secrets in the runner's memory, where a process with root can read them. Removing sudo and docker
+access before the head checkout blocks the documented memory-dump route, but it is a mitigation,
+not a fix: the full fix is a token broker that keeps the App key off any runner that runs head
+code. That design is open for a decision.
+
 The verdict is written after head code ran in the same job, so it is never trusted: its lane,
 activity, gate stop reason and `head-sha` must match the values above or the check fails, and its
-`dirty-tree` counts only as `true` (failure). A missing verdict is a failure; a cancelled run job
-posts neutral `superseded-sha`. The full decision order is in the report-check-run README.
+`dirty-tree` counts only as `true` (failure). A missing verdict is a failure. A cancelled run job
+posts neutral `superseded-sha` only when the PR's current head SHA is non-empty and differs from
+the gated `head-sha`; a cancel with no newer head, such as a manual cancel or a timeout, is a
+failure. The full decision order is in the report-check-run README.
 
 ## Runs that post no check
 
@@ -177,6 +229,6 @@ posts neutral `superseded-sha`. The full decision order is in the report-check-r
 
 On `pull_request`, the caller and this workflow run from the PR's merge commit: a `./` reusable
 workflow comes from the same commit as its caller. A PR that edits `.github/workflows/**`
-therefore controls both, and the base-SHA reads above guard only against changes outside
-`.github/workflows`. The real bound is who can push `.github/workflows`: kyle-sexton, and Apps
+therefore controls both, and the default-branch base reads above guard only against changes
+outside `.github/workflows`. The real bound is who can push `.github/workflows`: kyle-sexton, and Apps
 holding the `workflows` permission, such as the standards sync bot.
