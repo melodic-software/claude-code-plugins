@@ -61,6 +61,10 @@ Writes:
 Bulk frames and working contact sheets stay in `tempSession` dirs (the sheets are additionally
 snapshotted to `key-frames/contact-sheets/` for local disaster recovery, see
 `output-contract.md`); re-run `run-watch.js` to regenerate bulk frames when temp expired.
+A successful `close` writes `status: complete` and then removes the three directories recorded in
+that slice's `tempSession`, only those and only when each resolves inside the OS temp dir. A
+directory it cannot remove gets a stderr warning naming it and stays for removal by hand; the close
+still succeeds. A failed close leaves them in place for the re-run.
 `highVolume: true` in output → fan out vision subagents; no hard frame cap.
 
 ## Prerequisites gate

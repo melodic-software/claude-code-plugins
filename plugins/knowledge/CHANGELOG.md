@@ -4,6 +4,24 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.19.5] - 2026-10-04
+
+### Fixed
+
+- **`video-digest` watch-pipeline papercuts** ([#6048](https://github.com/melodic-software/claude-code-plugins/issues/6048)).
+  `rebuild-visual-frames.js` treats a missing `key-frames/frames` directory as an empty synthesis
+  tier. The watch checklist's sheet-triage floor (item 4.9) renders from the same floors as the
+  floors line, and reads "the deferred floor" until `vision-plan.md` exists. YouTube failure
+  patterns name an HTTP 403 on media fragments as a cue to update yt-dlp. `run-watch.js` writes a stderr progress line at
+  the start and end of acquire, transcript (with the strategy), and watching. `mark-phase vision`
+  records contact sheets triaged, cells triaged, and the promotion-map count so
+  `vision-metrics-honesty` runs. A bare URL in the action router, the argument hint, and the
+  Arguments line means `watch <url>`. A successful `close` writes `status: complete`, then removes
+  the resolved directories recorded in that slice's `tempSession`, after checking each one is
+  inside the OS temp dir. A directory it cannot remove (on Windows, EBUSY or EPERM from a file held
+  open) gets a stderr warning naming it and does not fail the close. `watch-pipeline.md` and
+  `gotchas.md` describe the cleanup.
+
 ## [0.19.4] - 2026-10-03
 
 ### Changed
