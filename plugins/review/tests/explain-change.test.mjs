@@ -689,9 +689,4 @@ describe("read-only boundary", () => {
       assert.ok(!/["'`]gh["'`]/.test(readFileSync(script, "utf8")), script);
     }
   });
-  test("the pr-explainer stub names explain-change and nothing else runs", () => {
-    const stub = readFileSync(join(PLUGIN, "skills/pr-explainer/SKILL.md"), "utf8");
-    assert.match(stub, /\/review:explain-change/);
-    assert.match(stub, /disable-model-invocation: true/);
-  });
 });

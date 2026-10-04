@@ -25,6 +25,25 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   reductions count only open PRs whose head branch lives in the item's own repository, so an
   outsider's `Closes #N` PR does not hold the item off the frontier for the stale window.
 
+## [0.48.9] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.48.8] - 2026-10-04
+
+### Changed
+
+- **`/work-items:attend-queue`'s description names triage as the owner of untriaged intake ([#6282](https://github.com/melodic-software/claude-code-plugins/issues/6282)).**
+  It drives escalations to resolution and hands each untriaged intake row to `/work-items:triage`; it no longer claims to resolve intake itself.
+
+## [0.48.7] - 2026-10-04
+
+### Changed
+
+- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** The work loop and the attend-queue skill now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limit-guard 0.14.0's reader contract.
+
 ## [0.48.6] - 2026-10-04
 
 ### Changed

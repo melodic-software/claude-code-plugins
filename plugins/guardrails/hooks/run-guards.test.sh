@@ -187,8 +187,8 @@ assert_exit "cut-short stdin (early EOF): loud allow, taken once" 0 "$RC"
 assert_contains "cut-short stdin (early EOF): the lib diagnostic names the cause" "$ERR" "cut short"
 assert_absent "cut-short stdin (early EOF): nothing is BLOCKED" "$ERR" "BLOCKED"
 assert_eq "cut-short stdin (early EOF): exactly one JSON document on stdout" "1" "$(jq -s 'length' <<<"$OUT")"
-assert_contains "cut-short stdin (early EOF): systemMessage carries the notice" "$(jq -r '.systemMessage' <<<"$OUT")" "not evaluated"
-assert_eq "cut-short stdin (early EOF): notice printed exactly once" "1" "$(grep -c 'not evaluated' <<<"$ERR")"
+assert_contains "cut-short stdin (early EOF): systemMessage carries the notice" "$(jq -r '.systemMessage' <<<"$OUT")" "ran unchecked"
+assert_eq "cut-short stdin (early EOF): notice printed exactly once" "1" "$(grep -c 'ran unchecked' <<<"$ERR")"
 assert_eq "cut-short stdin (early EOF): no guard ran" "" "$(cat "$SEEN")"
 # The SAME prefix with the pipe HELD OPEN past the idle bound is a stall, and
 # a stall is rc 2 by decision: the exit above precedes every guard, so an
@@ -436,11 +436,11 @@ else
   assert_eq "no jq, real guards: exactly one JSON document on stdout" \
     "1" "$(grep -c '^{' <<<"$OUT")"
   assert_contains "no jq, real guards: the first guard's notice is the one emitted" \
-    "$OUT" "guardrails-block-hook-bypass: jq not found on PATH"
+    "$OUT" "guardrails-block-hook-bypass: jq not on the hook PATH"
   assert_contains "no jq, real guards: the second guard's notice is dropped, prefixed" \
     "$ERR" "run-guards: dropped without jq:"
   assert_contains "no jq, real guards: the dropped notice names its guard" \
-    "$ERR" "guardrails-block-noncanonical-commit: jq not found on PATH"
+    "$ERR" "guardrails-block-noncanonical-commit: jq not on the hook PATH"
   assert_absent "no jq, real guards: the emitted notice is not also dropped" \
     "$ERR" "run-guards: dropped without jq: {\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"guardrails-block-hook-bypass"
   # A guard that denies on a missing prerequisite still denies through the
@@ -448,7 +448,7 @@ else
   run_nojq "$NOJQ_CMD" block-hook-bypass.sh block-no-verify.sh
   assert_exit "no jq, real guards: a fail-closed guard still wins the exit code" 2 "$RC"
   assert_contains "no jq, real guards: the fail-closed reason survives arbitration" \
-    "$ERR" "the required prerequisite \`jq\` is not on PATH"
+    "$ERR" "BLOCKED: jq is not on PATH, so guardrails-block-no-verify cannot read the command"
 fi
 
 # --- an unknown guard is reported, the rest still run ------------------------

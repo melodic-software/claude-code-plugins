@@ -18,7 +18,7 @@ Columns:
   handed to a fresh subagent. A plugin-scope row whose script takes no plugin argument names how its
   output is narrowed.
 - `checks`: the existing scripts and skills the lane composes, or `judgment` when none exists.
-- `ci`: `yes` when `.github/workflows/ci.yml` runs every script named in `checks`, `indirect` when a
+- `ci`: `yes` when `.github/workflows/pr-require-checks.yml` runs every script named in `checks`, `indirect` when a
   CI step reaches them through another script, `no` otherwise.
 - `scope`: `plugin` runs once per audited plugin; `fleet` runs once per audit run.
 

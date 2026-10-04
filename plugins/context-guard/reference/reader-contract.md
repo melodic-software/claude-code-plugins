@@ -184,10 +184,10 @@ questions. Never equate them without normalizing:
   and we treat quality loss as tracking **absolute tokens in context, not window fraction**. It
   answers *distance to quality loss*. That is also why the token bands are absolute numbers
   selected by window class rather than percentages: 50% of a 1M window is a materially different
-  cognitive state than 50% of a 200k window. Pointer: for the degradation evidence, see the Chroma
-  context-rot report, <https://research.trychroma.com/context-rot>. As of: 2026-10-01. Recheck
-  trigger: Chroma revises or withdraws the report, or a newer study finds degradation tracking
-  window fraction.
+  cognitive state than 50% of a 200k window. This is a declared judgment: no published study
+  compares absolute tokens with window fraction, and Anthropic publishes no context-quality
+  threshold. As of: 2026-10-04. Recheck trigger: Anthropic publishes a context-quality threshold,
+  or a study compares the two.
 
 **Window-class selection:** use the band row whose class key is the **largest one ≤
 `context_window_size`**. A window smaller than every configured class has no row, so the token
@@ -244,14 +244,15 @@ skill's module check), none of the following runs except the PostCompact marker.
 - **Zone lines** (on each tool result of the main conversation and each prompt): on a transition
   into a zone worse than any this session has already reported, report the crossing on **two
   channels with two audiences**. The **model channel** (the `context` a `tool.call` or
-  `prompt.submit` hook adds) carries the verdict only: the zone word and its rank of three, and
-  "Continuing is the user's call." on crossing, restatement, approach and threshold lines. In `dumb` it also
+  `prompt.submit` hook adds) carries the verdict only: the zone word and its rank of three. In `dumb` it also
   carries the save-state note, labeled as the dumb zone's default. A line carries no figure
-  unless `zone_line_data` adds one (percent, tokens, window), and never a session id. Beside the
+  unless `zone_line_data` adds one (percent, tokens, window), and a line with a figure ends
+  "Continuing is the user's call."; it never carries a session id. Beside the
   crossings the module sends one approach line per boundary per cycle (`approach_margin`
-  percentage points before it), one line per `thresholds` entry passed, the verdict restated once
-  after a compaction (not a `precompute` one) and after an in-process resume, and, on a reload or a
-  worker respawn (a load with earlier turns), the verdict only when it is past `smart`. Lines due
+  percentage points before it), one line per `thresholds` entry passed, and the verdict restated
+  once, only when it is past `smart`, after a compaction (not a `precompute` one), after an
+  in-process resume, and on a reload or a worker respawn (a load with earlier turns). Each line
+  sent, and each gate denial, is also written as sent to the debug log. Lines due
   at one carrier: a crossing or restatement recorded before a pending restatement merges into it;
   a crossing recorded after it is the newer verdict and replaces it. After
   `/clear` it sends nothing: the new session starts in `smart`. Lines go to the main conversation
@@ -279,13 +280,13 @@ skill's module check), none of the following runs except the PostCompact marker.
   pointer ever reaches the model channel.** A menu injected into
   model context manufactures the model's own initiative to stop, summarize, or hand off. That is a
   live finding under I23 of `/harness-config:audit-instructions`,
-  whose Remediate clause says that where the harness must surface a budget, it pairs it with a
-  reassurance rather than with an exit menu. The module sends the verdict, one reassurance
-  clause, "Continuing is the user's call.", in `dumb` the save-state note that zone carries by
-  default, and any operator-configured `zones.json` action; it sends no counter-steer rule about
-  what a zone means. The
+  whose Remediate clause says that where the harness must surface a count, it pairs it with a
+  reassurance rather than with an exit menu. By default the module surfaces no count: it sends the
+  verdict, in `dumb` the save-state note that zone carries by default, and any operator-configured
+  `zones.json` action; a count `zone_line_data` adds is paired with "Continuing is the user's
+  call."; it sends no counter-steer rule about what a zone means. The
   measurement decides only *when to ask*; the model still decides whether to stop. The model
-  channel states that continuing is the user's call, never that the user has seen the menu. No documented hook behavior tells a hook whether an operator is present, so a delivery
+  channel never says the user has seen the menu. No documented hook behavior tells a hook whether an operator is present, so a delivery
   claim would be a fact the hook cannot know. Silent while the zone is unchanged, improving, or
   `unknown`. **Hysteresis**: the gate is the worst zone already *reported*, not the zone last
   *seen*. That marker decays only when the session returns to `smart`, the bottom of the ladder.
@@ -315,8 +316,9 @@ skill's module check), none of the following runs except the PostCompact marker.
   including `unknown`. That implements this contract's own "evidence-degraded regardless of zone"
   rule, so the marker is never write-only.
 - **Status tool** `mcp__context-guard__status`: returns the session's latest figures (the last API
-  response's), its zone, whether the evidence is degraded, the bands in force and the gate state,
-  as JSON. A zone lookup for a session that has the module loaded; it has no switch.
+  response's), its zone, whether the evidence is degraded, the bands in force (the token edges of
+  the session's window class as `smart_max_tokens` and `acceptable_max_tokens`, `null` when the
+  token shape is not computable) and the gate state, as JSON. A zone lookup for a session that has the module loaded; it has no switch.
 
 Module state (last-seen zone, armed rank, gate counter) lives in the module's memory, per session
 id; it is plugin-private and not part of this contract. The module adds no new snapshot
