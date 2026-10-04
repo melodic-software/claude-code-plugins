@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.7.2] - 2026-10-04
+
+### Fixed
+
+- The inventory parser accepts an inherited `CLAUDE_PLUGIN_DATA` only when the last path segment is `harness-ops` or starts with `harness-ops-`. A lookalike such as `harness-opsx-foo` is ignored, so an install does not land in another directory that merely shares the prefix ([#6072](https://github.com/melodic-software/claude-code-plugins/issues/6072)).
+
 ## [3.7.1] - 2026-10-04
 
 ### Fixed

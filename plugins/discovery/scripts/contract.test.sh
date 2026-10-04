@@ -534,20 +534,20 @@ assert_present 'an improvised header costs criteria 12 and 13 their evidence too
   'skills/research/SKILL.md' 'costs criteria 4, 6, 9, 12 and 13 their evidence'
 assert_present 'the carry-forward line lists the new header fields' \
   'skills/research/SKILL.md' 'Carry this much into the read:.*measures.*inference.*qualifiers'
-assert_present 'the fan-out obligation sends the synthesis to a criterion-12 verifier' \
-  'skills/research/context/dispatch.md' '^\*\*The synthesis .*fresh verifier for criterion 12'
+assert_present 'the fan-out obligation sends the synthesis to a verifier on every verifier-owned row' \
+  'skills/research/context/dispatch.md' '^\*\*The synthesis .*fresh verifier for every verifier-owned row\*\* \(currently rows 4, 7, 12 and 14\)'
 assert_present 'the synthesis verifier also checks claims the synthesis adds' \
   'skills/research/context/dispatch.md' 'a claim the synthesis adds'
-assert_present 'the SKILL.md fan-out paragraph points at the synthesis criterion-12 check' \
-  'skills/research/SKILL.md' '^ +\*\*Fanning out over N topics.*verifier for criterion 12'
-assert_present 'the verifier is briefed on rows 4, 7 and 12 by number' \
-  'skills/research/context/dispatch.md' 'rows 4, 7 and 12'
+assert_present 'the SKILL.md fan-out paragraph sends the synthesis to the verifier-owned rows' \
+  'skills/research/SKILL.md' '^ +\*\*Fanning out over N topics.*fresh verifier for the verifier-owned rows'
+assert_present 'the verifier is briefed on rows 4, 7, 12 and 14 by number' \
+  'skills/research/context/dispatch.md' 'rows 4, 7, 12 and 14'
 assert_present 'the verifier brief overrides the payload criterion string' \
   'skills/research/context/dispatch.md' 'verification_request\.criterion'
 assert_present 'gotchas name criterion 12 among the verifier rows' \
   'skills/research/context/gotchas.md' 'Criteria 4, 7 and 12'
-assert_present 'evals name criterion 12 among the verifier rows' \
-  'skills/research/evals/evals.json' 'criteria 4, 7 or 12'
+assert_present 'evals name criteria 12 and 14 among the verifier rows' \
+  'skills/research/evals/evals.json' 'criteria 4, 7, 12 or 14'
 assert_present 'evals grade a verbatim quote attached to a claim it does not support' \
   'skills/research/evals/evals.json' 'verbatim-quote-is-not-joint-inference'
 status_words="$(grep -rnE -- 'CONFLICTED|UNSUPPORTED|CONFIRMED' "$PLUGIN_ROOT/skills/research" 2>/dev/null)"
@@ -561,16 +561,16 @@ assert_absent 'no stale two-row verifier count' \
   '([Cc]riteri(a|on)|rows) 4 (and|or) 7([^,0-9]|$)|[Tt]wo criteria are'
 assert_present 'the gate states the Owner column governs over any other enumeration' \
   'skills/research/SKILL.md' 'Owner column governs over any enumeration'
-assert_present 'researcher withholds three criteria' \
-  'agents/researcher.md' 'Three criteria are'
+assert_present 'researcher withholds four criteria' \
+  'agents/researcher.md' 'Four criteria are'
 assert_present 'researcher lists joint inference as a withheld criterion' \
   'agents/researcher.md' '^- the criterion requiring every accepted claim to follow jointly'
 assert_present 'researcher verification request names joint-inference validity' \
   'agents/researcher.md' '^  criterion: ".*joint-inference validity'
 assert_present 'research-deep lists joint inference among the verifier rows' \
-  'skills/research-deep/SKILL.md' 'verifier-owned rows \(independent corroboration, HIGH confidence, joint inference\)'
-assert_present 'research-deep points at the synthesis criterion-12 check' \
-  'skills/research-deep/SKILL.md' 'synthesized root index also goes to a fresh verifier for criterion 12'
+  'skills/research-deep/SKILL.md' 'verifier-owned rows \(independent corroboration, HIGH confidence, joint inference, the accepted-claim count\)'
+assert_present 'research-deep sends the synthesis to the verifier on every verifier-owned row' \
+  'skills/research-deep/SKILL.md' 'synthesized root index also goes to a fresh verifier for every verifier-owned row, the accepted-claim count included'
 assert_present 'row 12 has one pass bar: the primary measures the variable and population' \
   'skills/research/SKILL.md' "^\| 12 \|.*the claim's primary source measures the claim's variable and population"
 assert_present 'a non-measuring corroborator is recorded, not counted' \
@@ -1136,7 +1136,7 @@ assert_present 'the Phase 1 gap list names criterion 7' \
 assert_present 'each claim can carry subject_pool' \
   'skills/research/context/artifact-shape.md' '^ {4}subject_pool: '
 assert_present 'the researcher names criterion 7 beside the corroborator floor' \
-  'agents/researcher.md' '^- the criterion requiring ≥2 \*\*independent\*\* corroborators per claim.*criterion 7'
+  'agents/researcher.md' '^- the criterion requiring ≥2 \*\*independent\*\* corroborators per accepted claim.*criterion 7'
 assert_present 'the researcher verification request names single-publisher labeling' \
   'agents/researcher.md' '^  criterion: ".*single-publisher'
 for field in pool subject_pool; do
@@ -1159,6 +1159,72 @@ assert_present 'how to invoke gives the worktree-isolation reason' \
   'reference/parent-contract.md' 'worktree-isolated session'
 assert_present 'research-deep fan-out says a sub-slice is not named git' \
   'skills/research-deep/SKILL.md' 'Do not name a sub-slice `git`'
+
+# ---------------------------------------------------------------------------
+# 22. A run with zero accepted claims says so (#5833)
+#
+# Rows 4, 7 and 12 are quantified over accepted claims, so an artifact whose
+# every claim is a Gap passed all three vacuously and read like an answer.
+# Row 14 makes the count part of the artifact: `accepted:` in the index, and
+# at zero an inconclusive line, which passes rather than fails.
+# ---------------------------------------------------------------------------
+assert_present 'gate row 4 is quantified over accepted claims' \
+  'skills/research/SKILL.md' '^\| 4 \| Every accepted claim has ≥2 INDEPENDENT'
+assert_absent 'no gate row 4 quantified over every claim' \
+  '^\| 4 \| Every claim has'
+assert_present 'gate row 14 grades the accepted count and the inconclusive line, owned by the verifier' \
+  'skills/research/SKILL.md' '^\| 14 \|.*`accepted:`.*`Inconclusive: no claim accepted\.`.*A zero with that line passes.*\| \*\*verifier\*\* \|'
+assert_present 'the verifier dispatch block names row 14' \
+  'skills/research/SKILL.md' '^ +Rows: 4, 7, 12, 14"$'
+assert_present 'the Summary opens with the inconclusive line at zero accepted' \
+  'skills/research/SKILL.md' '^1\. \*\*Summary\*\*.*`Inconclusive: no claim accepted\.`'
+assert_present 'the index frontmatter carries accepted:' \
+  'skills/research/context/artifact-shape.md' '^\*\*`accepted:` is the number of accepted claims\*\*'
+assert_present 'the verifier names row 14 among its rows' \
+  'agents/research-verifier.md' 'currently 4, 7, 12 and 14'
+assert_present 'the verifier return block carries row 14' \
+  'agents/research-verifier.md' '^  "14": pass'
+assert_present 'the verifier grades a zero-accepted artifact under row 14' \
+  'agents/research-verifier.md' 'Rows 4, 7 and 12 hold vacuously when no claim is accepted'
+assert_present 'the researcher sets accepted: in its final write' \
+  'agents/researcher.md' 'sets the frontmatter.s `accepted:` count'
+assert_present 'the parent contract names row 14 among the verifier rows' \
+  'reference/parent-contract.md' 'rows 4, 7, 12 and 14'
+assert_absent 'no stale three-row verifier count' \
+  'on (rows|criteria) 4, 7 and 12[ .]|currently (rows )?4, 7 and 12|outcome-gate rows 4, 7 and 12|criteria 4, 7 or 12;|Three criteria are|Rows: 4, 7, 12"'
+assert_present 'evals cover an artifact whose every claim is a Gap' \
+  'skills/research/evals/evals.json' '"name": "every-claim-a-gap-is-stated-inconclusive"'
+assert_present 'evals cover a count that includes a Gap claim' \
+  'skills/research/evals/evals.json' '"name": "accepted-count-excludes-gap-claims"'
+
+# ---------------------------------------------------------------------------
+# 23. Conflicts and the synthesis both reach row 14 (#5833 review)
+#
+# A rejected claim may be recorded only under Conflicts (row 12's Gap-or-
+# Conflicts route, a refuted engine finding), so a count that excluded only
+# Gaps stayed nonzero when every claim took that route. And a synthesized root
+# index went to its verifier for criterion 12 alone, so row 14 never ran on it.
+# ---------------------------------------------------------------------------
+assert_present 'gate row 14 excludes Gap claims and unresolved Conflicts claims from the count' \
+  'skills/research/SKILL.md' '^\| 14 \| The index.s `accepted:` counts the claims neither in Gaps nor unresolved in Conflicts;'
+assert_present 'artifact-shape counts a Conflicts claim only when the entry resolves in its favor' \
+  'skills/research/context/artifact-shape.md' 'A claim recorded under Conflicts counts only when its entry resolves in the claim.s favor'
+assert_present 'the verifier excludes unresolved Conflicts claims from the count it compares' \
+  'agents/research-verifier.md' 'nor left unresolved in Conflicts'
+assert_present 'the researcher counts neither Gap nor unresolved Conflicts claims' \
+  'agents/researcher.md' 'claims in neither Gaps nor an unresolved Conflicts entry'
+assert_absent 'no accepted count defined by the Gaps section alone' \
+  'counts the claims not listed under Gaps|evidence table presents that the Gaps section does not list'
+assert_present 'evals cover an artifact whose every claim is rejected under Conflicts' \
+  'skills/research/evals/evals.json' '"name": "every-claim-in-conflicts-is-stated-inconclusive"'
+assert_present 'the synthesis verifier counts the root index under row 14' \
+  'skills/research/context/dispatch.md' 'Row 14 counts the synthesized index.s own accepted claims'
+assert_present 'the verifier reads the sub-slice indexes a synthesized root names' \
+  'agents/research-verifier.md' 'A synthesized slice-root index is the one exception'
+assert_present 'research-deep evals send the synthesized root to rows 4, 7, 12 and 14' \
+  'skills/research-deep/evals/evals.json' 'synthesized slice-root RESEARCH.md goes to a fresh verifier on rows 4, 7, 12 and 14'
+assert_absent 'no synthesis verifier briefed on criterion 12 alone' \
+  'verifier for criterion 12'
 
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then

@@ -13,10 +13,12 @@ the lockfile installs beside the old set instead of over it.
 Install base, first match wins:
 
   --deps-dir <dir>       explicit
-  $CLAUDE_PLUGIN_DATA    when it names a harness-ops data directory; Claude
-                         Code exports it to hooks and MCP servers, not to
-                         Bash-tool commands, and a skill subprocess has been
-                         seen holding another plugin's value
+  $CLAUDE_PLUGIN_DATA    when the last path segment is harness-ops or starts
+                         with harness-ops- (not a mere prefix such as
+                         harness-opsx-foo); Claude Code exports it to hooks
+                         and MCP servers, not to Bash-tool commands, and a
+                         skill subprocess has been seen holding another
+                         plugin's value
   <checkout>/.work/harness-ops
                          when this file runs from a git checkout of the
                          marketplace, whose .work/ is gitignored
@@ -93,8 +95,12 @@ def deps_base(explicit: str | None) -> tuple[Path, str]:
     if explicit:
         return Path(explicit), "--deps-dir"
     env = os.environ.get("CLAUDE_PLUGIN_DATA")
-    if env and Path(env).name.startswith("harness-ops"):
-        return Path(env), "CLAUDE_PLUGIN_DATA"
+    # Exact plugin match. startswith("harness-ops") also accepts a lookalike
+    # such as harness-opsx-foo.
+    if env:
+        name = Path(env).name
+        if name == "harness-ops" or name.startswith("harness-ops-"):
+            return Path(env), "CLAUDE_PLUGIN_DATA"
     root = checkout_root()
     if root is not None:
         return root / ".work" / "harness-ops", "checkout .work/"

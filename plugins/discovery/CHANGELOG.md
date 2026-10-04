@@ -1,5 +1,22 @@
 # Changelog: discovery plugin
 
+## [0.28.4] - 2026-10-04
+
+### Fixed
+
+- **A research run that accepts no claim now says so (#5833).** Outcome-gate rows 7 and 12 apply to
+  accepted claims only, so an artifact that listed every claim as a Gap passed them and read like an
+  answer. Row 4 now also applies to accepted claims only, so it no longer contradicts the Gap route.
+  New verifier-owned row 14 checks that the index's `accepted:` count matches the accepted claims.
+  The count leaves out claims listed under Gaps and claims left unresolved in Conflicts, so a run
+  that rejects every claim through Conflicts also counts zero. At `accepted: 0`, the Summary must
+  open with `Inconclusive: no claim accepted.`; with that line, a run that settles nothing passes
+  as inconclusive. The verifier now grades rows 4, 7, 12 and 14, and the researcher sets
+  `accepted:` in its final write. On the N-topic path the synthesized root index now goes to the
+  verifier for all four rows, not criterion 12 alone, so row 14 also runs on it. Three eval cases
+  cover an artifact whose every claim is a Gap, one whose every claim is an unresolved Conflicts
+  entry, and a count that includes a Gap claim.
+
 ## [0.28.3] - 2026-10-03
 
 ### Changed
