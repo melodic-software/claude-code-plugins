@@ -6,6 +6,7 @@
              [--scope machine|project] [--state-key K] [--catalog SKILL ...]
              [--canaries FILE] [--min-count N] [--versions N] [--session-floor N]
              [--format json|md] [--write-report]
+    sweep.py --data-dir D --excerpts [--since ...] [--until ...] [--scope ...] [--state-key K]
 
 Reads only the `session-record/v1` files `collect.py` wrote; it never opens a transcript. Each
 rule in `reference/sweep-rules.json` names one metric: per-session metrics report their median and
@@ -15,6 +16,10 @@ headless or Agent SDK ones (`census.session_class`) is set aside and counted, on
 entrypoint is kept and counted, and the drift check reads every record. A
 metric fed by a lost drift canary (census.py) is withheld. Prints one JSON envelope (or markdown)
 on stdout; exit 0 pass, 1 warning (a metric degraded), 2 error. Stdlib only; Python 3.10+.
+
+`--excerpts` prints, instead of the report, one JSON line per stored typed-turn excerpt inside the
+window and scope (`project`, `session`, `started`, `excerpt`); `--format` and `--write-report` do
+not apply. A record collected while redaction failed closed contributes none and makes the exit 1.
 """
 
 from __future__ import annotations
@@ -293,6 +298,39 @@ def write_report(data_dir: Path, key: str, envelope: dict) -> None:
             path.unlink(missing_ok=True)
 
 
+def project_of(record: dict) -> str | None:
+    for key in ("repo_identity", "cwd"):
+        if isinstance(record.get(key), str) and record[key]:
+            return record[key]
+    return None
+
+
+def print_excerpts(records: list[dict]) -> int:
+    """One JSON line per stored typed-turn excerpt; the text stays a JSON string, never a shell word."""
+    suppressed = 0
+    for record in records:
+        redaction = record.get("redaction")
+        if isinstance(redaction, dict) and redaction.get("excerpts_suppressed"):
+            suppressed += 1
+            continue
+        human, start = record.get("human"), record.get("time")
+        turns = human.get("flagged") if isinstance(human, dict) else None
+        for turn in turns if isinstance(turns, list) else []:
+            text = turn.get("excerpt") if isinstance(turn, dict) else None
+            if isinstance(text, str) and text:
+                line = {
+                    "project": project_of(record),
+                    "session": record.get("session_id"),
+                    "started": start.get("start") if isinstance(start, dict) else None,
+                    "excerpt": text,
+                }
+                sys.stdout.write(json.dumps(line) + "\n")
+    if suppressed:
+        print(f"sweep.py: {suppressed} records in scope hold no excerpts: redaction failed closed at collect", file=sys.stderr)
+        return 1
+    return 0
+
+
 def emit(fmt: str, status: str, summary: str, data: dict, code: int) -> int:
     if fmt == "md" and status != "error":
         sys.stdout.write(render_md(data))
@@ -322,6 +360,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--session-floor", type=_positive, default=census.DEFAULT_SESSION_FLOOR)
     parser.add_argument("--format", choices=("json", "md"), default="json")
     parser.add_argument("--write-report", action="store_true")
+    parser.add_argument("--excerpts", action="store_true", help="print stored typed-turn excerpts as JSON lines")
     try:
         args = parser.parse_args(argv)
     except SystemExit as exc:
@@ -340,16 +379,19 @@ def main(argv: list[str] | None = None) -> int:
     if skipped:
         message = f"{skipped} store files unreadable or not {census.RECORD_SCHEMA}; re-run collect"
         return emit("json", "error", message, {}, 2)
-    drift = census.drift(
-        records, canaries, min_count=args.min_count, versions=args.versions, session_floor=args.session_floor
-    )
     if args.scope == "project":
         identity = args.state_key.rsplit("/", 1)[0]
         scope, key = f"repo:{identity}", args.state_key
-        records = [r for r in records if r.get("repo_identity") == identity]
+        scoped = [r for r in records if r.get("repo_identity") == identity]
     else:
-        scope, key = "machine", "machine"
-    records = [r for r in records if in_window(r, args.since, args.until)]
+        scope, key, scoped = "machine", "machine", records
+    scoped = [r for r in scoped if in_window(r, args.since, args.until)]
+    if args.excerpts:
+        return print_excerpts(scoped)
+    drift = census.drift(
+        records, canaries, min_count=args.min_count, versions=args.versions, session_floor=args.session_floor
+    )
+    records = scoped
     classes = Counter(census.session_class(r) for r in records)
     records = [r for r in records if census.session_class(r) != "automated"]
     window = {

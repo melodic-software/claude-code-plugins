@@ -150,7 +150,11 @@ a kill on a hunch. Safe, idempotent work auto-resumes; re-running side-effectful
 comment, a deploy) *and* killing or restarting work it cannot prove is dead are gated. After a usage
 limit lifts it continues rather than summarizing-and-stalling (the block is already over if it is
 running again); while a limit still holds it hands back via `handoff` rather than self-arming a
-scheduler. Intent is inferred from the conversation; arguments are optional.
+scheduler. A failed restart is retried by its failure mode, at most twice, then abandoned and the
+work replanned; work whose session died is found by its branch or PR, not an agent id; and
+resuming another agent's trail names one verdict (continue, ship the finished recommendation,
+ratify, restart) and reports what was inherited versus redone. Intent is inferred from the
+conversation; arguments are optional.
 
 ```shell
 /session-flow:keep-going              # inventory → inspect → goal-align → recover → reconcile → report
@@ -223,12 +227,15 @@ Cross-session audit: a stdlib collector reads every transcript under `~/.claude/
 durable local store (one redacted record per session, incremental, retention-bounded), and a sweep
 reports per-session metrics against this machine's own thresholds, flags transcript-format drift
 between Claude Code versions, and routes each finding to the skill that would act on it. It never
-applies a finding.
+applies a finding. The `style` action reads the stored excerpts of your own typed turns, keeps
+preferences two or more sessions show, and hands each one you confirm to `retro codify` for a
+user-scope file, never a repository file.
 
 ```shell
 /session-flow:audit-sessions                                # collect, then sweep every session
 /session-flow:audit-sessions sweep --since 2026-09-01       # a date window
 /session-flow:audit-sessions --scope project --write-report # this repository, saved report
+/session-flow:audit-sessions style --scope machine          # preferences seen in 2+ sessions, to retro codify
 ```
 
 ### running-retro

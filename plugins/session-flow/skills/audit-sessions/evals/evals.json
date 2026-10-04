@@ -70,6 +70,19 @@
         "Runs lib/state-key.sh to get the project key",
         "Passes --scope project, --state-key and --write-report to sweep.py"
       ]
+    },
+    {
+      "id": 7,
+      "name": "style-pass-needs-two-sessions-and-a-user-scope-target",
+      "prompt": "/audit-sessions style. I keep telling you the same things about how I like answers; put the ones that stick into my own instructions.",
+      "expected_output": "The skill asks for a user-scope target (user CLAUDE.md, a user rule or a user output style), passes --scope explicitly and says which scope it read, runs sweep.py --excerpts, keeps only preferences that two or more distinct sessions show, shows each one's projects and excerpts, and hands each preference the user confirms to /session-flow:retro codify with the user-scope target. It never proposes a repository file and writes nothing itself.",
+      "files": [],
+      "expectations": [
+        "Runs sweep.py with --excerpts and an explicit --scope, and states the scope it read",
+        "Keeps a preference only when two or more distinct sessions show it; a preference seen in one session is dropped",
+        "Shows, for each kept preference, the projects that contributed and the excerpts behind it, and asks the user to confirm each one",
+        "Hands each confirmed preference to /session-flow:retro codify naming user CLAUDE.md, a user rule or a user output style as the target, never a repository file such as a project CLAUDE.md or AGENTS.md"
+      ]
     }
   ]
 }

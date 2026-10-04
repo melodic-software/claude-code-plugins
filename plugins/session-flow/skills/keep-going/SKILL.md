@@ -1,5 +1,5 @@
 ---
-description: "Recover and continue after an interruption, rate limit, crash, or gap, or check on off-thread work that looks stalled: inspect its real output, act on evidence (resume, rerun, kill-and-restart), then continue the main task. Use when: asked to keep going, continue, or resume; 'what were you doing'; 'check the monitor', 'is it stuck', 'stop staring at it'. Gates killing or re-firing side-effectful work. To retire finished work and reconcile the ledger instead, use /session-flow:reconcile."
+description: "Recover and continue after an interruption, rate limit, crash, or gap, or check on off-thread work that looks stalled: inspect its real output, act on evidence (resume, rerun, kill-and-restart), then continue the main task. Use when: asked to keep going, continue, or resume; 'what were you doing'; 'pick up where that agent left off'; 'check the monitor', 'is it stuck', 'stop staring at it'. Gates killing or re-firing side-effectful work. To retire finished work and reconcile the ledger instead, use /session-flow:reconcile."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -58,7 +58,10 @@ itself the thing this skill removes.
 2. **Inspect real state, never assume.** Read each item's actual state
    from the source of truth, per that doc's inspect-real-state invariant:
    do not infer "it probably finished" or "it probably died". Only the
-   artifact tells you which.
+   artifact tells you which. When the session that launched the work is
+   gone (a crash, a restart, a closed terminal), its agent and task ids
+   went with it: find the work by what it left behind, its branch, its
+   PR, its worktree and commits, not by an id that no longer resolves.
 3. **Goal alignment, before any recovery ACTION.** When the resume
    follows a `/session-flow:handoff`, read that file rather than trusting
    memory, and when the handoff's path was lost (a `/clear` without
@@ -87,14 +90,50 @@ itself the thing this skill removes.
      the mechanism supports one (a workflow resume reuses the cached
      prefix instead of redoing work).
    - **Dead but safe to redo** → restart it (subject to the autonomy
-     policy below).
+     policy below), shaped by why it died, as the evidence shows it:
+     - it ran out of room (a turn, context or time budget) → rerun a
+       smaller piece of the work;
+     - a passing fault outside it (a dropped connection, a server error,
+       a limit that has since reset) → rerun it unchanged;
+     - an error that will repeat (the same command fails the same way,
+       a bad input) → change the input or the approach first;
+     - no clear cause → one rerun, to see whether it repeats.
+
+     Two retries per item at most. After the second failure, stop
+     retrying it: record it as abandoned, with the last evidence, and
+     replan the remaining work without it.
    - **Unrecoverable** → surface it plainly; do not fake a recovery.
 5. **Reconcile the main thread.** Restate where the primary task
    actually stood, grounded in a fresh read of any plan / checklist /
    task artifact backing it, not a prior turn's claim, and continue it.
 6. **Report.** Lead with anything waiting on the user (a gated kill or
    re-fire, a goal question), then one list: recovered, restarted,
-   still-running, and lost / unrecoverable.
+   still-running, abandoned, and lost / unrecoverable. When the work came
+   from another agent's trail, add the verdict and what you inherited
+   versus redid (next section).
+
+## Picking up another agent's trail
+
+When the work being resumed was done by another session or agent (a
+background agent's branch, a worker's output, a handoff someone else
+wrote), its record is your starting point: read it rather than repeat
+it. After step 3's goal check, name one verdict for the trail:
+
+- **Continue**: the work stopped partway and its direction still serves
+  the goal. Resume from the point it reached.
+- **Ship the finished recommendation**: the trail reached a conclusion
+  or a finished change that was never delivered. Check it against the
+  real artifact, then deliver it.
+- **Ratify**: the trail reached a conclusion someone has to accept.
+  Test it against current evidence and say whether it holds, and where
+  it does not.
+- **Restart**: the trail failed, or it served a goal that drifted. Start
+  again from the goal and say why the trail was set aside.
+
+A claim the trail makes about itself ("tests pass", "done") is
+something to check on the artifact, not proof. In the report, list what
+you inherited as-is and what you redid, with the reason for each redo;
+redoing work the trail already proved is waste.
 
 ## Zone input (presence-gated, conservative)
 

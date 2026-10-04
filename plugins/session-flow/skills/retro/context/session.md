@@ -183,6 +183,13 @@ Present findings as a GFM table per dimension:
 Map each Phase 2 finding to an improvement target. Also identify improvements not tied to specific
 findings.
 
+**Keep only durable findings.** A finding earns a row when all three hold: it will still be true in
+six months, after file names, versions and commit hashes have moved on; it is specific enough that
+a later session knows when it applies; and acting on it would change a decision, not only add
+reading. Drop commit SHAs, line numbers and one-off facts. "The 14:02 build failed on a stale lock
+file" is a one-off; "a build that fails on a lock file is retried only after the lock's owner is
+checked" can hold for years.
+
 **Research before recommending.** For any recommendation involving skills, hooks, agents, or Claude
 Code configuration: verify it against current official docs before presenting. Never recommend
 features from training-data assumptions.
@@ -260,6 +267,12 @@ true only for this machine/person.
 
 **Every approved codification follows the workflow:** verify the claim, cross-reference existing
 content for duplication, then edit. No "just save it" shortcut.
+
+**Guidance that existed but did not fire.** When the cross-reference finds a rule or memory entry
+that already covers the finding and the session went wrong anyway (a 2C regression, or a rule
+nobody applied), propose a placement fix first: move it where it loads at the right moment, or
+reword it so it is hard to miss. Propose a new rule beside it only when the placement fix cannot
+work, and say why.
 
 End Phase 4 with an explicit question, e.g.: "Which of these recommendations should I execute now?
 Reply with the numbers, 'all', or 'skip' to proceed to the summary."
