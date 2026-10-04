@@ -39,6 +39,26 @@ LINKED_ISSUE = 999  # distinct from the PR so the two comment fetches are separa
 LINKED_REF = f"owner/repo#{LINKED_ISSUE}"
 
 
+def _queue_read(
+    *,
+    in_queue: bool = False,
+    required: bool = False,
+    armed: bool = False,
+    state: str | None = None,
+    position: int | None = None,
+) -> dict[str, Any]:
+    """A `read_merge_queue` answer; the default is a base with no merge queue."""
+    return {
+        "readError": None,
+        "merged": False,
+        "inQueue": in_queue,
+        "queueRequired": required,
+        "autoMergeArmed": armed,
+        "state": state,
+        "position": position,
+    }
+
+
 def _comment(
     login: str,
     body: str = "",
@@ -1384,7 +1404,11 @@ class AutoMergeArming(unittest.TestCase):
         self.assertFalse(result["autoMerge"]["ready"])
 
     def _main(
-        self, auto_ready: bool, *extra: str, ready: bool = False
+        self,
+        auto_ready: bool,
+        *extra: str,
+        ready: bool = False,
+        queue: dict[str, Any] | None = None,
     ) -> tuple[int, list[list[str]]]:
         result = {
             "ready": ready,
@@ -1415,11 +1439,92 @@ class AutoMergeArming(unittest.TestCase):
                 "pull_request_landed",
                 return_value={"merged": True, "head": HEAD},
             ),
+            mock.patch.object(
+                merge, "read_merge_queue", return_value=queue or _queue_read()
+            ),
+            mock.patch.object(merge, "_poll_sleep"),
             contextlib.redirect_stdout(io.StringIO()) as out,
         ):
             code = merge.main()
         self.output = json.loads(out.getvalue()) if out.getvalue() else {}
         return code, calls
+
+    def test_auto_on_a_queue_base_reports_queued_with_its_position(self) -> None:
+        # The rules read missed the queue, so the arm ran `gh pr merge --auto`,
+        # which GitHub answered by putting the PR in the queue with no auto-merge
+        # request.
+        code, _ = self._main(
+            True,
+            "--merge",
+            "--expected-head",
+            HEAD,
+            "--auto",
+            queue=_queue_read(in_queue=True, required=True, state="QUEUED", position=1),
+        )
+        self.assertEqual(code, 0)
+        self.assertEqual(self.output["action"], "enqueue")
+        self.assertTrue(self.output["enqueued"])
+        self.assertFalse(self.output["autoMergeEnabled"])
+        self.assertFalse(self.output["merged"])
+        self.assertEqual(self.output["mergeQueue"], {"state": "QUEUED", "position": 1})
+
+    def test_auto_armed_to_enter_a_queue_reports_the_queue(self) -> None:
+        code, _ = self._main(
+            True,
+            "--merge",
+            "--expected-head",
+            HEAD,
+            "--auto",
+            queue=_queue_read(required=True, armed=True),
+        )
+        self.assertEqual((code, self.output["action"]), (0, "auto-merge"))
+        self.assertTrue(self.output["autoMergeEnabled"])
+        self.assertNotIn("enqueued", self.output)
+        self.assertTrue(self.output["mergeQueue"]["entersWhenReady"])
+
+    def test_auto_on_a_plain_base_reports_the_arm_unchanged(self) -> None:
+        code, _ = self._main(
+            True,
+            "--merge",
+            "--expected-head",
+            HEAD,
+            "--auto",
+            queue=_queue_read(armed=True),
+        )
+        self.assertEqual((code, self.output["action"]), (0, "auto-merge"))
+        self.assertTrue(self.output["autoMergeEnabled"])
+        self.assertFalse(self.output["merged"])
+        self.assertNotIn("enqueued", self.output)
+        self.assertNotIn("mergeQueue", self.output)
+
+    def test_a_queue_base_showing_no_queue_entry_or_arm_is_not_reported_armed(
+        self,
+    ) -> None:
+        code, _ = self._main(
+            True,
+            "--merge",
+            "--expected-head",
+            HEAD,
+            "--auto",
+            queue=_queue_read(required=True),
+        )
+        self.assertEqual((code, self.output["action"]), (10, "merge-pending"))
+        self.assertFalse(self.output["autoMergeEnabled"])
+        self.assertFalse(self.output["ready"])
+        self.assertTrue(self.output["mergeQueue"]["unconfirmed"])
+        self.assertIn("merge pending, unconfirmed", self.output["blockers"][0])
+        self.assertIn("without --state-dir", self.output["merge"]["message"])
+
+    def test_an_unreadable_queue_keeps_the_arm_report(self) -> None:
+        unreadable = {"readError": "could not read the merge queue: HTTP 403"}
+        code, _ = self._main(
+            True, "--merge", "--expected-head", HEAD, "--auto", queue=unreadable
+        )
+        self.assertEqual(code, 0)
+        self.assertTrue(self.output["autoMergeEnabled"])
+        self.assertEqual(
+            self.output["merge"]["queueReadError"], unreadable["readError"]
+        )
 
     def test_auto_arms_squash_pinned_to_head(self) -> None:
         code, calls = self._main(True, "--merge", "--expected-head", HEAD, "--auto")
@@ -1563,6 +1668,7 @@ class RepoPolicyReachesTheGate(unittest.TestCase):
             # Not the default branch: the merge stays on `gh pr merge`, which is
             # the path these method-resolution tests read.
             mock.patch.object(merge, "repository_default_branch", return_value=None),
+            mock.patch.object(merge, "read_merge_queue", return_value=_queue_read()),
             contextlib.redirect_stdout(out),
         ):
             code = merge.main()

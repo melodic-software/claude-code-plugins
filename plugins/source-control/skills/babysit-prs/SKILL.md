@@ -409,7 +409,7 @@ repo#number (@author) | checks | action | open items
 
 Material findings: fixes committed or pushed; new failing or pending required checks; new
 blocking bot feedback; new ordinary human comments (one notification per stable comment ID,
-never an automatic reply); PRs merged, enqueued in a merge queue (`action: enqueue`, `enqueued: true`, not merged until a later cycle reads it merged), a merge still pending on GitHub (`action: merge-pending`, may still land), or armed for auto-merge (`action: auto-merge`, still open, stays queued); checks held for approval (escalate them); a PR the host runtime's permission layer left "ready,
+never an automatic reply); PRs merged, enqueued in a merge queue (`action: enqueue`, `enqueued: true`, with its `mergeQueue.position`, not merged until a later cycle reads it merged), dequeued (`dequeued: true`, left the queue unmerged), a merge still pending on GitHub (`action: merge-pending`, may still land), or armed for auto-merge (`action: auto-merge`, still open, stays queued); checks held for approval (escalate them); a PR the host runtime's permission layer left "ready,
 awaiting human execution" with its exact pinned command
 ([reference/safety.md](reference/safety.md)); escalations that need a user decision; and
 suspicious state changes such as missing permissions, changed branch protection, merge
