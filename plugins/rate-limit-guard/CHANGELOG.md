@@ -3,6 +3,20 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.1] - 2026-10-04
+
+### Changed
+
+- **No quiet window restated.** After a compaction, a resume or `/branch`, only windows at or above the approach mark are restated; a session with only quiet windows gets nothing.
+- **Debug log mirror.** Each line sent to Claude is written as sent to the debug log.
+- **Shorter status tool description.**
+
+## [0.14.0] - 2026-10-04
+
+### Changed
+
+- **The lane pause edge is 95%, the line threshold defaults to 95 and the approach mark to 90.** Loop lanes now pause when either window reports `used_percentage >= 95`, and Claude's lines read `at the 95% pause edge` and `nearing the 95% pause edge`. At 90 a lane stopped with a tenth of the window unused; drain-then-pause still lets in-flight work finish below 100. The marks are judgment defaults: Anthropic publishes no subscription-window warning threshold. A `rate_limit_line_threshold` or `rate_limit_approach_pct` set in settings keeps its value.
+
 ## [0.13.0] - 2026-10-04
 
 ### Added

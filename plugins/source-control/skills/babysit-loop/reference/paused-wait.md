@@ -69,9 +69,9 @@ bounds how late a switch is seen.
    (`captured_at` within 10 minutes) and whose `account.email` fingerprint equals the new one. Apply
    the per-window rule from `SKILL.md`: a window that is absent or absurd is unknown, and the other
    window still counts.
-   - Every plausible window below 90: **resume**. Clear `rate_limit_latch`, `paused_until`, and
+   - Every plausible window below 95: **resume**. Clear `rate_limit_latch`, `paused_until`, and
      `latched_account` together, and resume mutating work and the normal schedule.
-   - Any plausible window at or above 90: **re-latch**. Stay paused, rewrite `paused_until` to the
+   - Any plausible window at or above 95: **re-latch**. Stay paused, rewrite `paused_until` to the
      new account's pause end (the floor's Pause end rule) and `latched_account` to the new
      fingerprint. `rate_limit_latch` stays set.
    - No plausible window (no fresh, attributable snapshot, or neither window usable): windows are

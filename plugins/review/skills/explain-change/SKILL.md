@@ -130,6 +130,23 @@ With no session listening, the page says so and its copy and save buttons still 
 
 This skill reads the pull request and nothing else. It never comments, reviews, labels, or sets a check status, and the digest gates nothing. A question from the page changes none of this.
 
+## Boundary, the bundled `artifact-pr-review` skill
+
+Both can put a page about one pull request on claude.ai, so the two get confused when someone asks for "a page about this PR":
+
+- **`artifact-pr-review` (bundled skill)**: a reviewer's briefing with a bottom line, a recommendation and judgment calls, published as a shareable page. It is not a narrative walkthrough.
+- **This skill (marketplace plugin)**: explains the change to its reader, recommends nothing, and gates nothing.
+
+**Routing.** When the bundled `artifact-pr-review` skill resolves in this session, prefer it when the reader wants a verdict on the pull request; prefer this skill when they want to understand the change.
+
+**Mutation gate.** `artifact-pr-review` publishes a page. Never chain into `artifact-pr-review` on this skill's behalf; name it and let the reader invoke it.
+
+**Availability is never assumed.** The bundled skill is gated; this section says what to do when it resolves, never that it is present.
+
+- **Pointer**: the `artifact-pr-review` row in [`docs/native-surfaces.md`](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/native-surfaces.md); no upstream page documents the skill.
+- **As of**: 2026-10-04
+- **Recheck trigger**: a Claude Code release removes, renames, or ungates `artifact-pr-review` or changes its description, or the commands reference documents it.
+
 ## Next
 
 /review:quality-gate pr
