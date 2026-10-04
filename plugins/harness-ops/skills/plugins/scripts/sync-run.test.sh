@@ -1635,6 +1635,22 @@ for variant in no-root project-root; do
 done
 
 # ============================================================================
+# Case: in audit, `would run:` marks the calls sync would make; a remedy sync
+# never runs itself reads as it does in sync, and the header says which is which
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+remedy_text=$(needs_digest audit '{"source_checkout": {"path": "/src", "state": "tracking", "branch": "main",
+  "upstream": "origin/main", "ahead": 0, "behind": 2, "dirty": false},
+  "project_enable_rows": [{"id": "p@m", "project_path": "/w/repo"}]}' | jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_eq "audit remedies: the header scopes the prefix to calls sync would make" \
+  "Audit (read-only): every call sync would make is a prediction, prefixed would run:" \
+  "$(head -n 1 <<<"$remedy_text")"
+assert_contains "audit remedies: the git pull remedy is unprefixed" "$remedy_text" \
+  "and the catalog is read from it as it is: run \`git -C '/src' pull --ff-only\`"
+assert_contains "audit remedies: the project-scope enable remedy is unprefixed" "$remedy_text" \
+  "  - project-scope enable gap: (cd \"/w/repo\" && claude plugin enable p@m -s project)"
+
+# ============================================================================
 if ((FAILED > 0)); then
   printf '\n%d test(s) failed\n' "$FAILED" >&2
   exit 1

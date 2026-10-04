@@ -294,7 +294,7 @@ def block($d):
 
 . as $d
 | [
-    (if $d.mode == "audit" then "Audit (read-only): every mutating call below is a prediction, prefixed would run:" else empty end),
+    (if $d.mode == "audit" then "Audit (read-only): every call sync would make is a prediction, prefixed would run:" else empty end),
     ($d.marketplaces[] | block($d)),
     (if ($d.marketplaces | length) == 0 then "Marketplace: none resolved for this run" else empty end),
     "",
