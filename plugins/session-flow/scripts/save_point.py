@@ -235,6 +235,11 @@ SECRET_SHAPES: tuple[tuple[re.Pattern[str], str], ...] = (
         ),
         "GitHub token",
     ),
+    (
+        # A header past the bound: the whole run, dots included, in one match.
+        re.compile(r"\bghs_[0-9]+_eyJ[A-Za-z0-9_-]{513}[A-Za-z0-9_.-]*"),
+        "GitHub token",
+    ),
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"), "Slack token"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "AWS key id"),
     (

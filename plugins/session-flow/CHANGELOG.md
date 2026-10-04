@@ -6,7 +6,7 @@
 
 - **The private key, JWT, connection-string and email redaction patterns no longer take seconds to minutes on adversarial text ([#5951](https://github.com/melodic-software/claude-code-plugins/issues/5951)).**
   The running-retro observer's ledger redaction and the `save_point.py` secret-shape scan re-scanned an unbounded run from every start position, so a long line with no `.`, `://` or `@`, or a repeated private key header, was quadratic. The JWT header is now capped at 512 characters, the URL scheme at 64, and the email local part and domain at the RFC 5321 limits of 64 and 255. The observer's private key body now stops at the next `-----BEGIN` and at 16384 characters, over twice the size of an 8192-bit RSA key.
-  Every realistic key, token, connection string and address is still redacted. A JWT whose header runs past the cap, as with an embedded `x5c` certificate chain, matches a linear fallback instead: the observer redacts the whole token, payload and signature included, and `save_point.py` still flags it.
+  Every realistic key, token, connection string and address is still redacted. A JWT whose header runs past the cap, as with an embedded `x5c` certificate chain, matches a linear fallback instead: the observer redacts the whole token, payload and signature included, and `save_point.py` still flags it, and the same holds for a `ghs_<APPID>_<JWT>` GitHub token.
 
 ## [0.48.4] - 2026-10-03
 

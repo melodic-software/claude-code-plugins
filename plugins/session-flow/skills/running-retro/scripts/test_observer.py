@@ -830,20 +830,23 @@ class Redaction(unittest.TestCase):
 
     def test_github_token_pattern_finishes_promptly_on_adversarial_text(self):
         # Shapes that made the pattern backtrack for seconds to minutes.
-        (github,) = (
+        github = [
             p
             for p, marker in observer._REDACTIONS
             if marker == "<REDACTED: GitHub token>"
-        )
+        ]
+        self.assertEqual(len(github), 2)
         for text in (
             "ghs_1_-" * 50000,
             "ghs_1_eyJ" * 30000,
             "ghs_1_eyJa." * 30000,
             "ghs_1_eyJ-" * 30000,
+            ("ghs_1_eyJ" + "A" * 600) * 1000,
         ):
             with self.subTest(text=text[:12]):
                 start = time.monotonic()
-                github.sub("x", text)
+                for pattern in github:
+                    pattern.sub("x", text)
                 self.assertLess(time.monotonic() - start, 1.0)
 
     def test_jwt_url_and_email_patterns_finish_promptly_on_adversarial_text(self):
@@ -909,6 +912,10 @@ class Redaction(unittest.TestCase):
                     "eyJ" + "A" * size + ".eyJzdWIiOiJGQUtFIn0" ".FAKEsignatureNOTreal"
                 )
                 self.assertEqual("auth <REDACTED: JWT> x", r(f"auth {token} x"))
+                ghs = "ghs" + "_1234567_" + token
+                self.assertEqual(
+                    "tok <REDACTED: GitHub token> z", r(f"tok {ghs} z")
+                )
         long_payload = "eyJhbGciOiJIUzI1NiJ9" ".eyJ" + "B" * 2000 + ".FAKEsignature"
         self.assertEqual("<REDACTED: JWT>", r(long_payload))
         self.assertEqual(
