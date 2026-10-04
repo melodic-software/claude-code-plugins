@@ -443,10 +443,10 @@ on the session's behalf and the boundary was reached too late. Auto-compact offe
 hook, so a firing is best read diagnostically: **it means the boundary was missed**, not that the
 window was managed. Lowering the window moves the trigger, so the bands in `zones.json` must move
 with it, normalized into the percentage shape. A 400000-token window on a 1M-class model puts the
-trigger at **40% of the full window**, which is *inside* the shipped `smart` band (≤ 50), so
-auto-compact would fire while every zone still reads green. Keeping bands below that trigger means
-pulling the percentage bands under 40, not comparing 400000 against the token bands' occupancy edges,
-which measure a different quantity.
+trigger at **40% of the full window**, which is *inside* the shipped percentage `smart` band
+(≤ 50), so the percentage shape still reads smart when auto-compact fires (the token shape decides
+the zone there). Keeping the percentage bands below that trigger means pulling them under 40, not
+comparing 400000 against the token bands' occupancy edges, which measure a different quantity.
 
 That diagnostic reading is adopted; the prescription that usually travels with it is not. **Leave
 auto-compact enabled.** Disabling it is a defensible operator choice on an attended machine, but it
