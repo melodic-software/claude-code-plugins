@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Older Windows consoles (conhost) may show the box characters as ?, so fall back to +-|.",
+      "why": "conhost"
+    },
+    {
+      "answer": "Test it in PowerShell too.",
+      "why": "PowerShell"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Uses Unicode box drawing; works in any modern terminal.",
+      "why": "no Windows"
+    },
+    {
+      "answer": "Falls back when NO_COLOR is set.",
+      "why": "no target"
+    }
+  ]
+}

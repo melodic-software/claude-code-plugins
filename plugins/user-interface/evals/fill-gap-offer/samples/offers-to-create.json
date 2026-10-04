@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Want me to create a src/theme/tokens.js with these values so the components share them?",
+      "why": "offer, asks"
+    },
+    {
+      "answer": "I can add a tokens file for these colors if you'd like.",
+      "why": "offer"
+    },
+    {
+      "answer": "I can propose a small colour file in the W3C Design Tokens format. I'd only do it if you want it.",
+      "why": "British spelling, propose"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I created tokens.json with the colors below.",
+      "why": "acted without asking"
+    },
+    {
+      "answer": "Use #1565C0 for info, #F9A825 for warning, #C62828 for error.",
+      "why": "no offer"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 ---
-description: "Design anything a person or agent interacts with: CLI output, TUIs, prompt themes, PowerShell formatting, banners, Claude Code mods, web and app UI. Detects the project's own design system and the design tools installed, routes each concern to the best present source with the project first, and fills gaps with its own guidance. Use when: 'design this CLI output', 'how should this TUI look', 'style this error message', 'design a mod band', 'make this UI match our design system', 'which design tool should I use'. Throwaway layout variants: /prototype:explore-directions."
+description: "Design anything a person or agent interacts with: CLI output, TUIs, prompt themes, PowerShell formatting, banners, Claude Code mods, web and app UI. Detects the project's own design system and the design tools installed, routes each concern to the best present source with the project first, and fills gaps with its own guidance. Use when: 'design this CLI output', 'how should this TUI look', 'style this error message', 'when should my CLI use color', 'design a mod band', 'make this UI match our design system', 'which design tool should I use'. Throwaway layout variants: /prototype:explore-directions."
 argument-hint: "[what to design]"
 user-invocable: true
 disable-model-invocation: false
@@ -35,7 +35,9 @@ It prints JSON:
 For every concern where `project` has signals, or the codebase and conversation show an
 established look, the project's own system decides: its tokens, components, conventions, MCP
 servers and existing screens. Read them before proposing anything and name what you found.
-Suggest improvements; never override the existing look. A style-imposing tool (frontend-design,
+Suggest improvements; never override the existing look. When the request itself asks for something
+the project's system rules out, keep to the system, name the conflict, and offer the request as a
+proposed change to the system for the user to decide. A style-imposing tool (frontend-design,
 design-taste-frontend, ui-ux-pro-max) is offered only for a concern the project leaves undefined.
 
 ## Step 3: Pick the interface type
@@ -60,7 +62,8 @@ its rows in rank order and use the first one for which all of these hold:
   only when no free row covers the concern.
 
 Invoke a skill route by its exact id; for a plugin route, use the skill it provides for the
-concern. Say which route you took and why.
+concern. A skill only its user can start (the Skill tool refuses it) is handed over instead: give
+the user its slash command. Say which route you took and why.
 
 ## Combine routes and settle conflicts
 
@@ -82,10 +85,16 @@ These apply whatever the route, and the type files give the detail:
   carry meaning in color alone.
 - **Plain-text fallback**: with `TERM=dumb`, an unknown terminal, or no Nerd Font, use plain ASCII
   in place of glyphs, box drawing and emoji (`[ok]`, `[!]`), and no color.
+- **Theme-safe color**: use the terminal's named ANSI colors, not fixed 24-bit values, and set no
+  background on body text, so light and dark themes both stay readable.
+- **Display width**: measure in terminal columns, not characters; emoji and East Asian wide
+  characters take two and terminals disagree on some, so keep emoji out of aligned columns.
 - **Accessibility floor**: meaning never rests on color alone, text stays readable in light and dark
   themes, motion can be turned off, and everything works from the keyboard.
-- **Establish the target**: for terminal work, find the operating systems, shells and terminals
-  first; default to Windows, macOS, Linux and WSL.
+- **Establish the target**: before designing terminal output, name the operating systems, shells
+  and terminals it must work in. When the request does not say, state in the answer that you are
+  designing for Windows (Windows Terminal, conhost, PowerShell), macOS, Linux and WSL, and give the
+  fallback for the weakest of them.
 
 ## Fill gaps
 

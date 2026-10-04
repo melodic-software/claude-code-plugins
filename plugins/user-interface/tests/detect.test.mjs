@@ -54,6 +54,19 @@ describe("installed tools", () => {
     assert.ok(!installed.includes("figma@claude-plugins-official"), "project record enabled elsewhere, not here");
   });
 
+  test("a local record for this project counts though projectEnabled is false", () => {
+    // `claude plugin list --json` run in the project shows a fresh local install this way.
+    const project = join(FIX, "with-ds");
+    const list = join(scratch, "local-install.json");
+    writeFileSync(list, JSON.stringify([
+      { id: "playwright@claude-plugins-official", scope: "local", enabled: true, projectEnabled: false, projectPath: project },
+      { id: "canva@claude-plugins-official", scope: "local", enabled: true, projectEnabled: false, projectPath: "/elsewhere" },
+    ]));
+    const out = detect(["--project", project, "--home", HOME, "--plugin-list-json", list, "--mcp-list", MCP]).installed;
+    assert.ok(out.includes("playwright@claude-plugins-official"));
+    assert.ok(!out.includes("canva@claude-plugins-official"), "a local record for another project");
+  });
+
   test("an installed but disabled plugin does not count, nor does an absent one", () => {
     assert.ok(!installed.includes("canva@claude-plugins-official"));
     assert.ok(!installed.includes("superdesign@claude-plugins-official"));

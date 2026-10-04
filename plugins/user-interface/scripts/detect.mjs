@@ -7,7 +7,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 
@@ -66,10 +66,13 @@ function claude(args) {
 }
 const fromFileOr = (file, args) => (file ? readFileSync(file, "utf8") : claude(args));
 
-/** Plugin ids in effect here: user scope enabled, or a project or local record enabled for this project. */
+/** Plugin ids in effect here: user scope enabled, or a project or local record enabled for this project.
+ * A fresh local install reads `enabled: true, projectEnabled: false` with this project as `projectPath`. */
 function enabledPlugins(text) {
+  const here = resolve(opts.project);
+  const forHere = (r) => r.projectEnabled || (r.enabled && r.projectPath !== undefined && resolve(r.projectPath) === here);
   const records = JSON.parse(text);
-  return new Set(records.filter((r) => (r.scope === "user" ? r.enabled : r.projectEnabled)).map((r) => r.id));
+  return new Set(records.filter((r) => (r.scope === "user" ? r.enabled : forHere(r))).map((r) => r.id));
 }
 
 /** Server name to connected (true or false) from `claude mcp list` lines shaped `name: target - status`. */
