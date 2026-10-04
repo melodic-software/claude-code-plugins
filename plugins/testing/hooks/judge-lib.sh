@@ -62,19 +62,29 @@ judge::same_path() {
 # under the directory. A rule path is absolute only with a leading `//`; one
 # `/` anchors at the primary working directory for a CLI flag, and on Windows
 # C:\a is matched as /c/a, so the rule is Read(//c/a/**). A Read rule also
-# covers Grep and Glob; path rules for those two are never consulted.
-# https://code.claude.com/docs/en/permissions#read-and-edit and
+# covers Grep and Glob; path rules for those two are never consulted. The
+# rule is a gitignore pattern, so each \ * ? [ ] in the path is escaped with
+# a backslash and the rule names that one directory, as the rules Claude Code
+# writes itself are escaped.
+# https://code.claude.com/docs/en/permissions#read-and-edit,
+# https://git-scm.com/docs/gitignore#_pattern_format and
 # https://code.claude.com/docs/en/tools-reference (as of 2026-10-04; recheck
-# when the anchor table or the tools a Read rule covers changes).
+# when the anchor table, the escaping of path rules or the tools a Read rule
+# covers changes).
 judge::read_rule() {
-  local p="$2"
+  local p="$2" q="" c i
   if ((JUDGE_WIN)); then
     p="${p//\\//}"
     [[ "$p" =~ ^([a-zA-Z]):(/.*)?$ ]] && p="/${BASH_REMATCH[1],,}${BASH_REMATCH[2]}"
   fi
   while [[ "$p" == */ && "$p" != / ]]; do p="${p%/}"; done
   [[ "$p" == / ]] && p=""
-  printf -v "$1" 'Read(/%s/**)' "$p"
+  for ((i = 0; i < ${#p}; i++)); do
+    c="${p:i:1}"
+    case "$c" in \\ | '*' | '?' | '[' | ']') q+=\\ ;; *) ;; esac
+    q+="$c"
+  done
+  printf -v "$1" 'Read(/%s/**)' "$q"
 }
 
 # judge::file_repo <file>: set FREPO to the git toplevel of the file's own

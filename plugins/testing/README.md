@@ -137,7 +137,9 @@ scratchpad (`.../claude/<project>/<session>/scratchpad/`) is a working copy, not
 it is not recorded, so it is not judged. A Write or Edit of such a copy is still scanned; a Bash
 call's copy is neither scanned nor recorded. A test file in no git repository is not judged: the judge's reads are scoped to the repository, so
 it is reported UNKNOWN, "no repository". The judge runs from the repository with one absolute
-`Read(//<repository>/**)` allow rule, which also covers Grep and Glob. A test file outside the
+`Read(//<repository>/**)` allow rule, which also covers Grep and Glob; a `\`, `*`, `?`, `[` or
+`]` in the repository's path is escaped with a backslash, so the rule's gitignore pattern names
+that one directory. A test file outside the
 repository git names for it (a `core.worktree` set elsewhere) is not judged: that is logged as a
 malfunction and the test is named as not judged. A run in which Claude Code denied the judge a
 tool call (the result's `permission_denials`) and that gives no test a FLAG or PASS is a

@@ -860,6 +860,12 @@ check "msys: C:, a, b joined by backslashes give Read(//c/a/b/**)" '[[ "$(rule_f
 check "msys: C:/a/b/ and /c/a/b give the same rule" \
   '[[ "$(rule_for msys "C:/a/b/")" == "Read(//c/a/b/**)" && "$(rule_for msys /c/a/b)" == "Read(//c/a/b/**)" ]]'
 check "linux: /tmp/x/repo gives Read(//tmp/x/repo/**)" '[[ "$(rule_for linux-gnu /tmp/x/repo)" == "Read(//tmp/x/repo/**)" ]]'
+# The rule is a gitignore pattern: each glob character in the path, and a
+# backslash, is escaped so the rule names that one directory.
+check "linux: [ ] * ? and a backslash in the path are escaped" \
+  '[[ "$(rule_for linux-gnu "/tmp/r [old]*/a?b${BS}c")" == "Read(//tmp/r ${BS}[old${BS}]${BS}*/a${BS}?b${BS}${BS}c/**)" ]]'
+check "msys: [old] in a Windows path is escaped after the separators are converted" \
+  '[[ "$(rule_for msys "C:${BS}x${BS}[old]")" == "Read(//c/x/${BS}[old${BS}]/**)" ]]'
 repo_for() { (cd "$REPO" && P="$2" lib "$1" 'judge::file_repo "$P"; printf %s "$FREPO"'); }
 RTOP="$(git -C "$REPO" rev-parse --show-toplevel)"
 check "msys: a backslash path resolves at its own directory" '[[ "$(repo_for msys "$REPO${BS}src${BS}x.test.ts")" == "$RTOP" ]]'
@@ -867,6 +873,19 @@ check "linux: a backslash is part of the name, so that path's directory is $TMP,
   '[[ -z "$(repo_for linux-gnu "$REPO${BS}src${BS}x.test.ts")" ]]'
 check "msys: a backslash-only path whose directory is missing is in no repository, not the working directory's" \
   '[[ -z "$(repo_for msys "C:${BS}nowhere${BS}x.test.ts")" ]]'
+# A repository whose path holds [old] and * is judged with the escaped rule.
+GL="$TMP/r [old]*"
+mkdir -p "$GL/src"
+git -C "$GL" init -q
+GTOP="$(git -C "$GL" rev-parse --show-toplevel)"
+PTMP="$(cd -P "$TMP" && pwd)"
+js_file "$GL/src/glob.test.ts" globrepo
+transcript gl1 claude-sonnet-5
+record gl1 w1 "$GL/src/glob.test.ts" null
+stub_reset
+stop gl1
+check "a repository path holding [old] and * is judged there, with its glob characters escaped in the rule" \
+  '[[ "$(stub_calls)" == 1 && "$(cat "$STUB_DIR"/call-*.env)" == "$GTOP "* && "$(stub_args 1 | sed -n "/^--allowedTools$/{n;p;}")" == "Read(/$PTMP/r ${BS}[old${BS}]${BS}*/**)" ]]'
 # Re-review: the memory root itself, non-regular names, the write race and
 # the branch in the frontmatter.
 # fdir <repo> <branch>: FDIR as judge::findings_dir resolves it, within 5 s.
