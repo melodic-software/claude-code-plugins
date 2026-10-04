@@ -43,8 +43,22 @@ D/audit-sessions/
   `audit_sessions_retention_days` days ago (0 keeps every record), and never ingests one already
   outside that window.
 
+- **How a session was launched.** `entrypoints` lists every `entrypoint` value the main transcript
+  carries, or `["unknown"]` when it carries none; a record written before the field existed reads
+  as unknown too. Collect skips a transcript Claude Code set aside as `<session>.orphaned-*.jsonl`
+  and counts it in `skipped_orphaned`, so it never becomes a second session.
+
 ## Reports
 
+- **Interactive sessions only.** Sweep sets aside a session whose entrypoints are all headless or
+  Agent SDK ones (the set is `AUTOMATED_ENTRYPOINTS` in `scripts/census.py`) and reports how many;
+  a session with no known entrypoint stays in and is counted as unclassified. The drift check still
+  reads every record. A headless run of real work is set aside too.
+  - **Pointer**: the transcript key is undocumented; its values match the `app.entrypoint`
+    attribute in <https://code.claude.com/docs/en/monitoring-usage#standard-attributes>.
+  - **As of**: 2026-10-04
+  - **Recheck trigger**: that row adds an SDK entrypoint, or a drift run reports
+    `key_path:user:entrypoint` as a lost canary.
 - `sweep.py --write-report` writes one JSON and one markdown report per run, named by a UTC stamp
   with microseconds, and appends one line to that scope's `history.jsonl`: the stamp, scope, session
   count and each metric's value. The newest 20 report pairs per scope are kept; `history.jsonl` is

@@ -8,7 +8,8 @@
     collect.py drift --data-dir D [--min-count N] [--versions N] [--session-floor N] [--canaries FILE]
 
 Writes one `session-record/v1` file per main session (the main transcript plus its subagents)
-under `D/audit-sessions/store/v1/`, the machine-wide store `sweep.py` reads. A session whose
+under `D/audit-sessions/store/v1/`, the machine-wide store `sweep.py` reads; a transcript Claude
+Code set aside (`<session>.orphaned-*.jsonl`) is skipped and counted, not ingested. A session whose
 fingerprint matches its stored record is skipped, unless that record was written by another
 collector version, under other excerpt limits, or with redaction failing closed where it now
 works or the reverse. With a retention window, records of sessions
@@ -100,6 +101,10 @@ CENSUS_LABEL = re.compile(r"[A-Za-z0-9_.:-]{1,64}")
 TEXT_CAP_FLOOR = 4096
 TOO_LONG = "<too-long>"
 SUPPRESSED = "<suppressed>"
+# `<session>.orphaned-<timestamp>-<suffix>.jsonl` is an earlier transcript Claude Code set aside, not
+# a second session. Pointer: https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically
+# (as of 2026-10-04; recheck when that table renames the set-aside transcript).
+ORPHANED = ".orphaned-"
 
 
 def emit(status: str, summary: str, data: dict, code: int, schema: str = SCHEMA) -> int:
@@ -263,6 +268,7 @@ class SessionScan:
         self.timestamps: list[float] = []
         self.human_timestamps: list[float] = []
         self.versions: set[str] = set()
+        self.entrypoints: set[str] = set()
         self.branches: set[str] = set()
         self.prs: set[tuple[str, int]] = set()
         self.permission_modes: Counter = Counter()
@@ -299,6 +305,8 @@ class SessionScan:
             for field, values in (("version", self.versions), ("gitBranch", self.branches)):
                 if isinstance(record.get(field), str) and record[field]:
                     values.add(record[field])
+            if isinstance(record.get("entrypoint"), str) and record["entrypoint"]:
+                self.entrypoints.add(_label(record["entrypoint"]))
         handler = getattr(self, "_" + kind.replace("-", "_"), None)
         if handler is not None:
             handler(record, side, ts)
@@ -379,8 +387,8 @@ class SessionScan:
             self.slash[command.group(1)] += 1
             if command.group(1) == "clear" and self.human_turns == 0 and not self.messages["main"]:
                 self.started_with_clear = True
-        elif transcript_reader.is_typed_turn(record):
-            self._typed_turn(record, text, ts)
+        elif (typed := transcript_reader.typed_text(record)) is not None:
+            self._typed_turn(record, typed, ts)
 
     def _typed_turn(self, record: dict, text: str, ts: float | None) -> None:
         index = self.human_turns
@@ -641,6 +649,7 @@ def build_record(
         "repo_identity": repo_identity,
         "worktree": worktree,
         "cc_versions": sorted(scan.versions, key=census.version_key),
+        "entrypoints": sorted(scan.entrypoints) or [census.UNKNOWN_ENTRYPOINT],
         "time": scan.time_block(),
         "models": {side: dict(counts) for side, counts in scan.models.items()},
         "effort": {side: dict(counts) for side, counts in scan.effort.items()},
@@ -773,10 +782,13 @@ def cmd_collect(args: argparse.Namespace) -> int:
     index = load_store(store)
     # A record stored under other settings is re-ingested, so a lowered excerpt limit reaches old records.
     policy = (version, {"chars": args.excerpt_chars, "words": args.excerpt_words}, redactor.fail_closed)
-    scanned = ingested = skipped = expired = too_long = 0
+    scanned = ingested = skipped = expired = orphaned = too_long = 0
     failed: list[dict] = []
     unknown_types: Counter = Counter()
     for main in sorted(root.glob("*/*.jsonl")):
+        if ORPHANED in main.stem:
+            orphaned += 1
+            continue
         if wanted and main.stem not in wanted:
             continue
         try:
@@ -831,6 +843,7 @@ def cmd_collect(args: argparse.Namespace) -> int:
         "ingested": ingested,
         "skipped_unchanged": skipped,
         "skipped_expired": expired,
+        "skipped_orphaned": orphaned,
         "failed": failed,
         "pruned": pruned,
         "store_records": sum(1 for _ in store.glob("p-*/*.json")),

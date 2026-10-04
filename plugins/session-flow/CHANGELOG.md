@@ -1,5 +1,15 @@
 # Changelog: session-flow plugin
 
+## [0.48.6] - 2026-10-04
+
+### Fixed
+
+- **`/session-flow:audit-sessions` takes its medians and findings over interactive sessions only ([#6076](https://github.com/melodic-software/claude-code-plugins/issues/6076)).**
+  Each store record now carries the transcript's `entrypoint` values in `entrypoints`, or `["unknown"]`. Sweep sets aside a session whose entrypoints are all headless or Agent SDK ones (`sdk-cli`, `sdk-ts`, `sdk-py`), says how many in the report, and keeps a session with no known entrypoint, counted as unclassified; drift still reads every record. A new canary, `key_path:user:entrypoint`, withholds the four metrics automated sessions moved most if Claude Code stops writing the key.
+- **One interrupt in a session is no longer a `tools.interrupts` finding.** The threshold is now 1, so a session needs two.
+- **Claude Desktop prompts count as typed turns.** Desktop writes the person's prompts with `promptSource: sdk`, which the shared transcript reader rejected. A record whose `origin.kind` is `human` now counts whatever its `promptSource`, after one leading `<system-reminder>` block is dropped; `/session-flow:retro` counts them too. CLI records count as before.
+- **A transcript Claude Code set aside as `<session>.orphaned-*.jsonl` is no longer collected as a second session.** Collect skips it and reports the count in `skipped_orphaned`.
+
 ## [0.48.5] - 2026-10-04
 
 ### Fixed
