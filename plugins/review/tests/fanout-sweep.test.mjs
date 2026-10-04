@@ -53,19 +53,11 @@ test('a diffBase that is not a ref is refused', async () => {
   assert.equal(calls.length, 0)
 })
 
-test('frontier session: every slice fan-out agent gets opus at high effort; the single extractor runs as routed', async () => {
-  const roles = {
-    verifier: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'opus', effort: 'high' } },
-    retrieval: { single: { model: 'sonnet', effort: 'low' }, fanout: { model: 'sonnet', effort: 'low' } },
-  }
-  const { calls } = await run({ diffBase: 'origin/main', slices: ['a.md', 'b.md', 'c.md'], roles })
-  assert.equal(slices(calls).length, 3)
-  for (const s of slices(calls)) {
-    assert.equal(s.opts.model, 'opus')
-    assert.equal(s.opts.effort, 'high')
-  }
-  assert.equal(extract(calls).opts.model, 'sonnet')
-  assert.equal(extract(calls).opts.effort, 'low')
+test('the extractor runs as routed', async () => {
+  const roles = { retrieval: { single: { model: 'haiku', effort: 'medium' }, fanout: { model: 'sonnet', effort: 'low' } } }
+  const { calls } = await run({ diffBase: 'origin/main', slices: ['a.md'], roles })
+  assert.equal(extract(calls).opts.model, 'haiku')
+  assert.equal(extract(calls).opts.effort, 'medium')
 })
 
 test('the single judge may inherit: an inherit single variant omits model', async () => {
@@ -79,48 +71,51 @@ test('the single judge may inherit: an inherit single variant omits model', asyn
   assert.equal(x.opts.effort, 'high')
 })
 
-test('non-frontier session: slice fan-out agents omit model and keep explicit effort', async () => {
-  const roles = {
-    verifier: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'inherit', effort: 'high' } },
-    retrieval: { single: { model: 'sonnet', effort: 'low' }, fanout: { model: 'sonnet', effort: 'low' } },
-  }
-  const { calls } = await run({ diffBase: 'origin/main', slices: ['a.md', 'b.md'], roles })
-  for (const s of slices(calls)) {
-    assert.ok(!('model' in s.opts), 'slice carries no model option')
-    assert.equal(s.opts.effort, 'high')
-  }
-})
-
-test('session model unknown (no roles passed): slice fan-out agents get opus', async () => {
-  const { calls, logs } = await run({ diffBase: 'origin/main', slices: ['a.md', 'b.md'] })
-  for (const s of slices(calls)) {
-    assert.equal(s.opts.model, 'opus')
-    assert.equal(s.opts.effort, 'high')
-  }
+test('session model unknown (no roles passed): the extractor falls back to sonnet at low', async () => {
+  const { calls, logs } = await run({ diffBase: 'origin/main', slices: ['a.md'] })
   assert.equal(extract(calls).opts.model, 'sonnet')
+  assert.equal(extract(calls).opts.effort, 'low')
   assert.ok(logs.some(l => l.includes('built-in fallbacks')))
 })
 
 test('a malformed role variant falls back and is logged', async () => {
-  const roles = { verifier: { fanout: { model: 'claude-opus-5-5', effort: 'high' } } }
+  const roles = { retrieval: { single: { model: 'claude-opus-5-5', effort: 'low' } } }
   const { calls, logs } = await run({ diffBase: 'origin/main', slices: ['a.md'], roles })
-  assert.equal(slices(calls)[0].opts.model, 'opus')
-  assert.ok(logs.some(l => l.includes('roles.verifier.fanout')))
+  assert.equal(extract(calls).opts.model, 'sonnet')
+  assert.ok(logs.some(l => l.includes('roles.retrieval.single')))
 })
 
-test('every slice runs as review:brief-reviewer, which holds no Agent or Skill tool', async () => {
+test('every slice runs as review:brief-reviewer and the extractor as review:stage-normalizer', async () => {
   const { calls } = await run({ diffBase: 'origin/main', slices: ['a.md', 'b.md'] })
   assert.equal(slices(calls).length, 2)
   for (const s of slices(calls)) assert.equal(s.opts.agentType, 'review:brief-reviewer')
+  assert.equal(extract(calls).opts.agentType, 'review:stage-normalizer')
 })
 
-test('every generic or slice agent passes effort explicitly; reviewer agents pass neither model nor effort', async () => {
-  const { calls } = await run({ diffBase: 'origin/main', slices: ['a.md'] })
+// A general-purpose agent holds Agent and Skill, so every call must name a plugin agent, and each
+// named definition must withhold both. docs/plugin-philosophy.md "Named agents keep their pins":
+// a definition that pins effort gets neither option; one that inherits and pins none gets the route.
+const agentsDir = join(here, '..', 'agents')
+const frontmatter = type => readFileSync(join(agentsDir, type.replace(/^review:/, '') + '.md'), 'utf8').split('\n---')[0]
+
+test('every call names a plugin agent whose tools exclude Agent and Skill', async () => {
+  const roles = { retrieval: { single: { model: 'sonnet', effort: 'low' } } }
+  const { calls } = await run({ diffBase: 'origin/main', slices: ['a.md'], roles })
   for (const c of calls) {
-    if (c.opts.agentType && !c.opts.label.startsWith('slice:')) {
+    assert.match(c.opts.agentType || '', /^review:/, `${c.opts.label} names an agent`)
+    const tools = /^tools:\s*"([^"]*)"/m.exec(frontmatter(c.opts.agentType))[1].split(/,\s*/)
+    assert.ok(!tools.includes('Agent') && !tools.includes('Skill'), `${c.opts.agentType} withholds Agent and Skill`)
+  }
+})
+
+test('named agents that pin effort pass neither model nor effort; an inheriting unpinned one passes the route', async () => {
+  const roles = { retrieval: { single: { model: 'sonnet', effort: 'low' } } }
+  const { calls } = await run({ diffBase: 'origin/main', slices: ['a.md'], roles })
+  for (const c of calls) {
+    if (/^effort:/m.test(frontmatter(c.opts.agentType))) {
       assert.ok(!('model' in c.opts) && !('effort' in c.opts), `${c.opts.label} keeps its pins`)
     } else {
-      assert.ok(typeof c.opts.effort === 'string', `${c.opts.label} passes effort`)
+      assert.equal(c.opts.effort, 'low', `${c.opts.label} passes the routed effort`)
     }
   }
 })

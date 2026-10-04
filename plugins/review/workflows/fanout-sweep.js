@@ -36,14 +36,11 @@ const MAX_CONCURRENT = Number.isInteger(input.maxConcurrent)
   ? Math.min(16, Math.max(1, input.maxConcurrent))
   : 4
 
-// Role variants as /multi-agent:route emits them. `single` serves a stage that
-// runs one agent; `fanout` a stage that runs several. The fallback names opus
-// for every fan-out because the session model is unknown here, and a frontier
-// session must never fan out on its own model.
+// Role variants as /multi-agent:route emits them. Only the extractor is routed:
+// the review leaves, slices included, are named agents that keep their own pins.
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 const MODELS = ['inherit', 'opus', 'sonnet', 'haiku', 'fable', 'best']
 const FALLBACK_ROLES = {
-  verifier: { single: { model: 'inherit', effort: 'high' }, fanout: { model: 'opus', effort: 'high' } },
   retrieval: { single: { model: 'sonnet', effort: 'low' }, fanout: { model: 'sonnet', effort: 'low' } },
 }
 const passed = input.roles && typeof input.roles === 'object' ? input.roles : {}
@@ -57,7 +54,7 @@ for (const role of Object.keys(FALLBACK_ROLES)) {
     R[role][v] = ok ? got : FALLBACK_ROLES[role][v]
   }
 }
-if (!input.roles) log('no roles in args: built-in fallbacks apply (fan-out stages on opus)')
+if (!input.roles) log('no roles in args: built-in fallbacks apply')
 
 // `inherit` omits opts.model. Effort is always explicit.
 function opts(variant) {
@@ -98,7 +95,6 @@ const TIER1 = [
 const TIER2_AGENTS = [{ label: 'doc-drift-detector', agentType: 'review:doc-drift-detector' }]
 const TIER2_SLICES = SLICES.map(s => ({ label: 'slice:' + s, slice: s }))
 // Slices run as brief-reviewer, whose tools exclude Agent and Skill, so a slice cannot fan out.
-// They still take the routed fan-out model and effort, which override its pins.
 const SLICE_AGENT = 'review:brief-reviewer'
 
 // SKILL.md "Dispatch contract": every finding-producing leaf prompt carries this clause verbatim.
@@ -131,7 +127,7 @@ const named = leaf => () => agentRetry(AGENT_PROMPT, { agentType: leaf.agentType
 const t1 = await inWaves(TIER1.map(named), MAX_CONCURRENT)
 const t2a = await inWaves(TIER2_AGENTS.map(named), MAX_CONCURRENT)
 const t2s = await inWaves(TIER2_SLICES.map(leaf => () =>
-  agentRetry(slicePrompt(leaf.slice), { agentType: SLICE_AGENT, label: leaf.label, phase: 'Review', ...opts(R.verifier.fanout) })
+  agentRetry(slicePrompt(leaf.slice), { agentType: SLICE_AGENT, label: leaf.label, phase: 'Review' })
 ), MAX_CONCURRENT)
 
 const roster = [...TIER1, ...TIER2_AGENTS, ...TIER2_SLICES]
@@ -178,7 +174,8 @@ if (returned.length) {
     'several review surfaces, each under a "### Surface:" header. Emit one record per finding (surface, file, ' +
     'line, line_basis, category, native_severity, native_confidence, raw_text). Do NOT crosswalk severity or ' +
     'confidence (later stages do that). Preserve EVERY finding, never drop one.\n\n' + extractInput,
-    { schema: RECORD_SCHEMA, label: 'stage0-extract', phase: 'Extract', ...opts(R.retrieval.single) }
+    // stage-normalizer inherits the model and pins no effort, so the routed variant applies to it.
+    { agentType: 'review:stage-normalizer', schema: RECORD_SCHEMA, label: 'stage0-extract', phase: 'Extract', ...opts(R.retrieval.single) }
   )
   records = extracted && Array.isArray(extracted.records) ? extracted.records : []
 } else {
@@ -191,5 +188,5 @@ return {
   raw: returned.map(r => ({ label: r.label, output: r.output })),
   nulls,
   ran: roster.map(l => l.label),
-  roles: { slices: R.verifier.fanout, extract: R.retrieval.single },
+  roles: { extract: R.retrieval.single },
 }

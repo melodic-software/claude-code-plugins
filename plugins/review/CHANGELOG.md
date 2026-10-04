@@ -7,11 +7,13 @@ All notable changes to the `review` plugin are documented here. Format follows
 
 ### Added
 
-- `brief-reviewer` agent: a read-only reviewer that runs the brief it is dispatched with. Its tools are Read, Grep, Glob and Bash, so it cannot spawn agents or invoke skills.
+- `brief-reviewer` agent: a read-only reviewer that runs the brief it is dispatched with. Its tools are Read, Grep, Glob and Bash, so it cannot spawn agents or invoke skills. `maxTurns` is 60 because a restatement batch hands it 40 to 50 files.
+- `stage-normalizer` agent: runs fanout's Stage 0 extraction and Stage 3 dedup with Read only. It inherits the model and pins no effort, so role routing still sets both.
 
 ### Changed
 
-- `/review:quality-gate` slice, downstream and restatement (large-diff batch) modes, `/review:fanout` criteria slices, and the `/review:fanout-sweep` workflow's slice agents dispatch `brief-reviewer` instead of a general-purpose subagent, and self mode drops its general-purpose fallback for `code-reviewer`. A general-purpose subagent can spawn agents and invoke skills, so a reviewer could rediscover a review skill and fan out; no review path in these modes dispatches one now.
+- `/review:quality-gate` slice, downstream, spec, close-out and restatement (large-diff batch) modes, `/review:fanout` criteria slices, the `/review:fanout-sweep` workflow's slice agents, and the `/review:explain-change` risk-map check dispatch `brief-reviewer` instead of a general-purpose or `Explore` subagent; self mode drops its general-purpose fallback for `code-reviewer`; fanout's Stage 0 and Stage 3 and the workflow's extractor dispatch `stage-normalizer`. A general-purpose subagent can spawn agents and invoke skills (and `Explore` keeps the skill tool), so a reviewer could rediscover a review skill and fan out; no path in these skills dispatches one now.
+- `/review:fanout-sweep` slices keep `brief-reviewer`'s pinned model and effort instead of the routed `roles.verifier.fanout` variant, and the workflow's returned `roles` now carries only `extract`.
 
 ## [0.40.3] - 2026-10-04
 

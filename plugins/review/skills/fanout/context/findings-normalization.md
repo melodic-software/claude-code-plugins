@@ -39,7 +39,7 @@ The `length == 1` guard is the refusal to guess. Zero new heading-bearing commen
 
 **Not in this table:** the bundled `/code-review` command and the managed Code Review GitHub App service (SKILL.md "Boundary, the bundled command and the managed service"), both distinct from the `code-review` plugin row above. The managed service posts its findings to the PR rather than returning them to normalize; bare `/code-review` is report-only, but is itself a multi-agent review of the same diff whose output has no documented schema to parse. Neither is dispatched as a fan-out leaf here.
 
-## Stage 0: Extraction (subagent)
+## Stage 0: Extraction (`review:stage-normalizer`)
 
 Per-surface free-text → records `{surface, file, line, line_basis, category, native_severity, native_confidence, raw_text}`.
 
@@ -61,7 +61,7 @@ Map native severity → the tier vocabulary in effect (the project's own, else `
 
 Per `<plugin-root>/context/severity.md` "Confidence axis": plugin-filtered high scores → `high`; a native high/medium/low label (every agent leaf per its output format; slice-subagents via the per-slice template's Confidence column) passes straight through; surfaces emitting none → `unscored`. **Absent confidence ≠ low.**
 
-## Stage 3: Dedup (subagent)
+## Stage 3: Dedup (`review:stage-normalizer`)
 
 Key = normalized file path + line-proximity bucket (±3 lines), NOT category. File-scoped findings (null `line`) bucket by path + category + a content-gist check: merge two line-less records only when their `raw_text` describes the same issue. Path alone would collapse distinct architecture/doc findings in the same file. Doc-space never merges with source-space. **Minimize FALSE-MERGE over FALSE-SPLIT.** A false merge silently drops a real issue; a false split only adds noise. When in doubt, do NOT merge.
 
@@ -74,4 +74,4 @@ Key = normalized file path + line-proximity bucket (±3 lines), NOT category. Fi
 
 ## Model assignment
 
-Stages 0 and 3 are judgment steps and run as subagent calls: Stage 0 for parse fidelity, Stage 3 for semantic merge. Stages 1, 2, and 4 are table lookups and a sort; apply them directly on the main thread, never through a model call.
+Stages 0 and 3 are judgment steps and run as `review:stage-normalizer` agent calls: Stage 0 for parse fidelity, Stage 3 for semantic merge. They read untrusted reviewer output, so they never run as a general-purpose subagent, which can spawn agents and invoke skills; `stage-normalizer` holds Read only. Stages 1, 2, and 4 are table lookups and a sort; apply them directly on the main thread, never through a model call.

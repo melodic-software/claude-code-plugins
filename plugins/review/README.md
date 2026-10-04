@@ -1,13 +1,13 @@
 # review
 
-A Claude Code plugin bundling one cohesive capability: **code review**. Seven reviewer
+A Claude Code plugin bundling one cohesive capability: **code review**. Eight
 agents, read-only over the reviewed code, plus orchestration skills: a single-lens quality gate, a
 multi-surface review fan-out that normalizes every reviewer's output into one
 severity-ranked, deduplicated findings report, and the other review skills listed below.
 
 ## Components
 
-### Agents (seven, read-only over the reviewed code)
+### Agents (eight, read-only over the reviewed code)
 
 | Agent | Concern |
 |---|---|
@@ -17,7 +17,8 @@ severity-ranked, deduplicated findings report, and the other review skills liste
 | `doc-drift-detector` | Documentation that no longer matches the code. Stale, missing, aspirational |
 | `ecosystem-specialist` | Multi-language build/test/lint verification, detected from changed paths |
 | `ci-log-auditor` | GitHub Actions run audit. Masked failures, skipped jobs, suspicious successes, perf outliers |
-| `brief-reviewer` | Runs the review brief it is dispatched with: quality-gate slice, downstream and restatement batches, and fanout criteria slices. Its tools exclude `Agent` and `Skill`, so it cannot fan out |
+| `brief-reviewer` | Runs the review brief it is dispatched with: quality-gate slice, downstream, spec, close-out and restatement work, fanout criteria slices, and the explain-change risk-map check. Its tools exclude `Agent` and `Skill`, so it cannot fan out |
+| `stage-normalizer` | Fanout findings pipeline Stage 0 (extraction) and Stage 3 (dedup). Holds `Read` only, because it reads untrusted reviewer output; inherits the model so role routing applies |
 
 The first six declare persistent per-project memory (`memory: local`, stored under
 `.claude/agent-memory-local/` and never checked into version control) so they can learn a
@@ -27,10 +28,10 @@ limits apply:
 - **Memory needs auto memory.** With `autoMemoryEnabled: false` or
   `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in your settings, the `memory` field has no effect: nothing
   persists across sessions and each agent's `## Memory` section does nothing.
-- **"Read-only" is an instruction, not a tool boundary.** None of the seven lists `Write` or `Edit`,
+- **"Read-only" is an instruction, not a tool boundary.** None of the eight lists `Write` or `Edit`,
   but with auto memory on the harness enables both so the agent can manage its memory files,
   and nothing scopes them to the memory directory. `permissionMode` cannot narrow a plugin
-  subagent either. Bash is a second unenforced write path for all seven agents, and
+  subagent either. Bash is a second unenforced write path for every agent except `stage-normalizer`, and
   `ecosystem-specialist` runs build and test commands that write artifacts. Keeping writes to
   the memory directory and off the reviewed code is the agents' own convention.
 
@@ -90,12 +91,12 @@ Invoke via `@review:<agent>` or let Claude delegate.
 
 - **`/review:fanout-sweep`** (`workflows/fanout-sweep.js`). The leaf fan-out of
   `/review:fanout run-everything` as a saved workflow: the four reviewer agents by tier, then one
-  `brief-reviewer` agent per project criteria slice, then one extraction agent that turns the raw findings into
-  records. Its `args` carry `diffBase` (required; without it the run dispatches nothing),
+  `brief-reviewer` agent per project criteria slice, then one `stage-normalizer` agent that turns the raw findings
+  into records. Its `args` carry `diffBase` (required; without it the run dispatches nothing),
   `slices`, `roles` and `maxConcurrent` (default 4). `roles` is the map `/multi-agent:route all`
-  prints. Without it, built-in fallbacks run slice agents on `opus` at `high` effort and the
-  extractor on `sonnet` at `low`. The reviewer agents keep the model and effort pinned in their
-  own definitions.
+  prints; only the extractor is routed, and without it a built-in fallback runs the extractor on
+  `sonnet` at `low`. The reviewer agents, slices included, keep the model and effort pinned in
+  their own definitions.
 
 ## Requirements
 
