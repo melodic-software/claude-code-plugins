@@ -59,9 +59,15 @@ make_repo() {
   printf '%s' "$dir"
 }
 
+# One pinned instant for every fixture commit. The record carries `last_touched`
+# (committer date, whole seconds), so two checkouts committed a second apart
+# would otherwise differ in a field the identity case compares byte for byte.
+FIXTURE_COMMIT_DATE="2026-01-01T00:00:00+00:00"
+
 commit_repo() {
   git -C "$1" add -A 2>/dev/null
-  git -C "$1" commit --quiet --no-verify -m "fixture" 2>/dev/null
+  GIT_AUTHOR_DATE="$FIXTURE_COMMIT_DATE" GIT_COMMITTER_DATE="$FIXTURE_COMMIT_DATE" \
+    git -C "$1" commit --quiet --no-verify -m "fixture" 2>/dev/null
 }
 
 if ! command -v git >/dev/null 2>&1; then

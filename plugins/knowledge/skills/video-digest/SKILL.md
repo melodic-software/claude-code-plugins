@@ -1,12 +1,12 @@
 ---
 description: "Watch a single public video from YouTube or X (Twitter): transcript, links, and repo-applicability recommendations. Use when: 'youtube', '/youtube-digest', 'watch this YouTube video', 'transcript for YouTube', 'watch this video', 'digest this video', 'digest this post', 'summarize this talk', or a youtube.com, youtu.be, x.com, or twitter.com URL for one public video. Auth-walled courses go to /knowledge:course-digest."
-argument-hint: "<watch [<url>|<n>]|queue <url>...|queue list|transcript <url>|resume <slug>>"
+argument-hint: "<watch [<url>|<n>]|<url>|queue <url>...|queue list|transcript <url>|resume <slug>>"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
 ---
 
-**Arguments.** `<watch [<url>|<n>]|queue <url>...|queue list|transcript <url>|resume <slug>>`. Full form: watch <url> [--target <repo>] | watch [--target <repo>] | watch <n> [--target <repo>] | queue <url> | queue list | transcript <url> | resume <slice-slug>
+**Arguments.** `<watch [<url>|<n>]|<url>|queue <url>...|queue list|transcript <url>|resume <slug>>`. Full form: watch <url> [--target <repo>] | watch [--target <repo>] | watch <n> [--target <repo>] | <url> | queue <url> | queue list | transcript <url> | resume <slice-slug>
 
 ## Pre-computed context
 
@@ -72,6 +72,7 @@ conflicts explicitly; never silently adopt a video's shortcut over team rules.
 | `watch` | Dequeue first `pending` queue row (FIFO). Claim stub → bootstrap → full pipeline. |
 | `watch <n>` | Dequeue queue row `#n` only (parallel path across terminals). |
 | `watch <url>` | Full pipeline: download → frame selection → vision absorption → link harvest → research agenda → repo-applicability synthesis. |
+| `<url>` | A bare URL, with no action word, means `watch <url>`. |
 | `resume <slice-slug>` | Continue an interrupted watch from `watch.json` phase-map state in the named slice under `.work/<watch-epic>/` (the same directory documented elsewhere in this skill as `<video-slug>`). |
 
 `--target <repo>` is an optional modifier on any `watch` form (not a dispatchable action of its

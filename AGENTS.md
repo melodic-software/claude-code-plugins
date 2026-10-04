@@ -31,9 +31,11 @@ loop prompt that explicitly authorizes one of those covers it. Merging is a judg
 stop: merge when the user or the task wants the work landed, `ci-status` is green on the current
 head, and no hold applies (the `do-not-merge` label, a hold in the body, or a human comment asking
 to wait); ask first when any of those is missing, or when the change alters what agents may do
-unattended. Launch unattended lanes with
+unattended. Launch unattended local lanes with
 `--permission-mode auto`; a lane whose action the auto-mode classifier denies records the denial
-in its lane telemetry and moves on. A hook `ask` or `permissions.ask` rule can open a dialog no one
+in its lane telemetry and moves on. CI lanes run `--permission-mode dontAsk` instead, under
+the hardening in [ADR 0049](docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md),
+which also answers the untrusted-text risk below for them. A hook `ask` or `permissions.ask` rule can open a dialog no one
 answers, so lane sessions carry none. `--permission-prompts none` is documented for print mode and
 unattended runs; that a `--bg` lane denies with it is not probed. Never use bypass mode or
 `--dangerously-skip-permissions`: lanes read untrusted issue and PR text while holding push
@@ -76,7 +78,7 @@ and its content is not already in context, read the file directly.
 |---|---|---|
 | `.claude/rules/cost-claims.md` | `plugins/*/skills/**, plugins/*/agents/**, plugins/*/reference/**, docs/**/*.md, prompts/**` | Cost claims link the costs and pricing docs and state no prices or per-task figures; `docs/upstream/` records may list vendor figures labeled vendor-reported, and a skill that prices its own runs may state its dated, measured run costs |
 | `.claude/rules/eval-case-transcripts.md` | `plugins/*/evals/**, plugins/*/skills/*/evals/**` | Eval cases in this public repository never hold a raw session or product transcript; a one-to-one rewrite with every identifying detail changed is allowed after the identifying-details review |
-| `.claude/rules/mod-authoring.md` | `plugins/*/hooks/**, plugins/*/types/**` | Mods stay deferred under ADR 0035: no plugin gains a `modules` key until its five go criteria pass; when they do, load the built-in `plugin-authoring` skill and the upstream mods docs first |
+| `.claude/rules/mod-authoring.md` | `plugins/*/hooks/**` | Mods stay deferred under ADR 0035: no plugin gains a `modules` key until its five go criteria pass; when they do, load the built-in `plugin-authoring` skill and the upstream mods docs first |
 | `.claude/rules/ruff-pin.md` | `**/*.py` | Python linting runs through the pinned ruff wrapper, never a bare ruff on PATH |
 | `.claude/rules/skill-bodies-state-current-rules.md` | `plugins/*/skills/**, plugins/*/agents/**` | Skill and agent bodies point at the live upstream source for any volatile specific instead of restating it, recorded as pointer, as-of date and recheck trigger, and name their successor in a `## Next` section; read before editing any skill body |
 | `plugins/attribution/skills/audit/AGENTS.md` | `plugins/attribution/skills/audit/**` | Editing the attribution audit skill: contributor conventions |

@@ -83,6 +83,22 @@ assert_contains "and the PASS verdict with its evidence" "$(cat "$findings")" ">
 stop s1
 assert_empty "a relayed set is not relayed again" "$out"
 
+# All PASS: the findings file and the systemMessage are written, and Stop is
+# not blocked. There is nothing for the user to decide (#6037). This case
+# stays quiet on purpose and fails against a hook that blocks on every relay.
+transcript s1p claude-sonnet-5
+FP="$REPO/src/allpass.test.ts"
+js_file "$FP" allpass
+record s1p w1 "$FP" null
+bg s1p w1 "$FP"
+stub_reset
+stop s1p
+check "all PASS: no block" '[[ "$(field .decision)" != block ]]'
+assert_contains "all PASS: the systemMessage carries the counts" "$(field .systemMessage)" "1 test (0 FLAG, 1 PASS, 0 UNKNOWN)"
+findings="$(field .systemMessage | sed -n 's/.*Findings: //p')"
+check "all PASS: the findings file is written" '[[ -n "$findings" && -f "$findings" ]]'
+assert_contains "all PASS: the systemMessage carries the findings path" "$(field .systemMessage)" "$findings"
+
 # stop_hook_active: never blocks or judges, even with unrelayed verdicts,
 # which wait for the next task end.
 transcript s2 claude-sonnet-5
@@ -95,7 +111,7 @@ stop s2 true
 check "stop_hook_active: no block" '[[ "$(field .decision)" != block ]]'
 check "stop_hook_active: no judge run" '[[ "$(stub_calls)" == 0 ]]'
 stop s2
-check "the unrelayed verdict is relayed at the next task end" '[[ "$(field .decision)" == block && "$(field .reason)" == *"reviewed 1 test "* ]]'
+check "the unrelayed verdict is relayed at the next task end" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test "* ]]'
 
 # A key with no job is judged at Stop, under the lock.
 transcript s3 claude-sonnet-5
@@ -104,7 +120,7 @@ js_file "$H" nojob
 record s3 w1 "$H" null
 stub_reset
 stop s3
-check "a key with no job is judged at Stop" '[[ "$(stub_calls)" == 1 && "$(field .reason)" == *"reviewed 1 test "* ]]'
+check "a key with no job is judged at Stop" '[[ "$(stub_calls)" == 1 && "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test "* ]]'
 check "and its lock is released" '[[ -z "$(find "$DATA/locks" -type f)" ]]'
 
 # A live pending/ job is waited on, not judged twice.
@@ -117,7 +133,7 @@ payload s4 w1 "$P" | TEST_JUDGE_DEBOUNCE=2 bash "$BG" &
 sleep 0.5
 stop s4
 wait
-check "a live pending/ job is waited on" '[[ "$(stub_calls)" == 1 && "$(field .reason)" == *"reviewed 1 test "* ]]'
+check "a live pending/ job is waited on" '[[ "$(stub_calls)" == 1 && "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test "* ]]'
 
 # A live lock is waited on too: its holder writes the verdict.
 transcript s5 claude-sonnet-5
@@ -141,7 +157,7 @@ printf '%s %s %s\n' "$holder" "${HOSTNAME:-localhost}" "$(date +%s)" >"$DATA/loc
 stub_reset
 stop s5
 wait
-check "a live lock is waited on" '[[ "$(stub_calls)" == 0 && "$(field .reason)" == *"reviewed 1 test (0 FLAG, 1 PASS"* ]]'
+check "a live lock is waited on" '[[ "$(stub_calls)" == 0 && "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test (0 FLAG, 1 PASS"* ]]'
 
 # The 11th key: named, handed to a background job with a pending/ marker; the
 # following stop_hook_active Stop does not block; its verdict is relayed at
@@ -154,7 +170,7 @@ js_file "$E" "${names[@]}"
 record s6 w1 "$E" null
 stub_reset
 STUB_SLEEP=1 stop s6
-check "ten keys are judged at Stop" '[[ "$(field .reason)" == *"reviewed 10 tests"* ]]'
+check "ten keys are judged at Stop" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 10 tests"* ]]'
 assert_contains "the 11th key is named as waiting" "$(field .systemMessage)" "eleven.test.ts: t11"
 check "the 11th key is handed to a background job with a pending/ marker" '[[ -n "$(find "$DATA/pending/$PKEY/s6" -type f)" ]]'
 stop s6 true
@@ -164,7 +180,7 @@ for _ in $(seq 1 40); do
   sleep 0.25
 done
 stop s6
-check "the 11th verdict is relayed at the next task end" '[[ "$(field .reason)" == *"reviewed 1 test "* ]]'
+check "the 11th verdict is relayed at the next task end" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test "* ]]'
 check "the 11th was judged once, by the background job" '[[ "$(stub_calls)" == 2 ]]'
 
 # An 11th key whose job died is judged at the next task end.
@@ -181,7 +197,7 @@ sleep 0.3
 stub_reset
 stop s7
 check "an 11th key whose job died is judged at the next task end" \
-  '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" == *"block 1 33-35 t11"* && "$(field .reason)" == *"reviewed 1 test "* ]]'
+  '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" == *"block 1 33-35 t11"* && "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test "* ]]'
 
 # Time budget exhaustion: a systemMessage naming the tests not judged and the
 # time spent, and no block.
@@ -375,8 +391,11 @@ transcript mg claude-opus-5-5 claude-haiku-4-5-20251001
 subagent mg a3 claude-sonnet-5
 subagent mg a5 claude-opus-5-5
 record mg w0 "$REPO/src/model-mg.test.ts" null a5
-check "opus, sonnet and haiku all among the writers: no judge, never fable" '[[ -z "$(AGENT=a3 model_for mg X=1)" ]]'
+AGENT=a3 model_for mg X=1 >"$TMP/model-mg.out"
+check "opus, sonnet and haiku all among the writers: no judge, never fable" '[[ -z "$(cat "$TMP/model-mg.out")" ]]'
 assert_contains "and the key is UNKNOWN with the reason" "$(cat "$DATA/verdicts/$PKEY/mg/"*.json)" "no judge class differs from the writers"
+check "no judge class: no block" '[[ "$(field .decision)" != block ]]'
+assert_contains "no judge class: the systemMessage carries the counts" "$(field .systemMessage)" "(0 FLAG, 0 PASS, 1 UNKNOWN)"
 
 # Unattended (CLAUDE_CODE_SESSION_ATTENDED not exactly 1): no block, the
 # systemMessage and the findings file only.
@@ -395,7 +414,7 @@ js_file "$Z" sturdy
 record z1 w1 "$Z" null
 printf '{not json' >"$DATA/sessions/$PKEY/z1/broken.json"
 stop z1
-check "a malformed state file is skipped" '((rc == 0)) && [[ "$(field .reason)" == *"reviewed 1 test "* ]]'
+check "a malformed state file is skipped" '((rc == 0)) && [[ "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test "* ]]'
 transcript z2 claude-sonnet-5
 record z2 w1 "$Z" null
 printf '#!/usr/bin/env bash\nexit 2\n' >"$TMP/scanner-2.sh"
@@ -430,7 +449,7 @@ jq -cn --arg t "$TDIR/sbash.jsonl" --arg c "$REPO" --arg f "$BF" '{hook_event_na
   bash "$HOOK_DIR/test-scan-bash.sh" >/dev/null 2>&1
 stub_reset
 stop sbash
-check "a Bash-written test file is judged at the Stop" '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" == *"block 1 3-5 bashmade"* && "$(field .reason)" == *"reviewed 1 test "* ]]'
+check "a Bash-written test file is judged at the Stop" '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" == *"block 1 3-5 bashmade"* && "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test "* ]]'
 
 # The Stop reserves each run as the background jobs do: with a session limit
 # of 1 and three files to judge, one run starts and the rest are named.
@@ -462,7 +481,7 @@ jq -cn --arg r '{"verdicts": [{"name": "orphan", "ordinal": 1, "verdict": "PASS"
   '{type: "result", subtype: "success", is_error: false, result: $r}' >"$d/.run-1-1"
 stub_reset
 stop h1
-check "an orphaned raw run is harvested, not judged again" '[[ "$(stub_calls)" == 0 && "$(field .reason)" == *"reviewed 1 test (0 FLAG, 1 PASS"* ]]'
+check "an orphaned raw run is harvested, not judged again" '[[ "$(stub_calls)" == 0 && "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test (0 FLAG, 1 PASS"* ]]'
 check "and the raw file is removed" '[[ -z "$(find "$d" -name ".run-*")" ]]'
 
 # Successors: a /clear or fork successor adopts the sessions whose last write
@@ -487,7 +506,7 @@ start ca clear >/dev/null
 stub_reset
 stop ca
 check "after a clear marker, the predecessor's in-doubt block is judged" '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" == *"block 1 6-8 unjudged"* ]]'
-check "and its unrelayed verdict relayed with it" '[[ "$(field .reason)" == *"reviewed 2 tests"* ]]'
+check "and its unrelayed verdict relayed with it" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 2 tests"* ]]'
 transcript cb claude-sonnet-5
 start cb clear >/dev/null
 stub_reset
@@ -518,7 +537,7 @@ record sib w1 "$S1" null "" null 0 "$(iso $((now + 120)))"
 bg sib w1 "$S1"
 stop cc
 check "a sibling whose last write postdates the marker is not adopted" '[[ "$out" != *sibling* && "$(field .reason)" != *"reviewed"*"sibling"* ]]'
-check "while the marker adopts pb, within the hour" '[[ "$(field .reason)" == *"reviewed 1 test "* ]]'
+check "while the marker adopts pb, within the hour" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test "* ]]'
 # A session whose last write is over an hour before the marker is not adopted;
 # the SessionStart catch-up names its verdicts instead.
 transcript po claude-sonnet-5
@@ -532,7 +551,7 @@ assert_contains "the successor's SessionStart catch-up names its verdicts instea
   "1 test (0 FLAG, 1 PASS, 0 UNKNOWN)"
 record cd w1 "$REPO/src/add.test.ts" "[]"
 stop cd
-check "and its Stop does not adopt that session" '[[ "$(field .reason)" != *reviewed* ]]'
+check "and its Stop does not adopt that session" '[[ "$out" != *reviewed* ]]'
 transcript ce claude-sonnet-5
 out="$(start ce startup)"
 assert_empty "the catch-up names them once" "$out"
@@ -542,7 +561,7 @@ transcript st claude-sonnet-5
 record st w1 "$A1" "$(blocks judged:1:3:5)"
 bg st w1 "$A1"
 stop st
-check "a startup session relays its own verdict for block text another session relayed" '[[ "$(field .reason)" == *"reviewed 1 test "* ]]'
+check "a startup session relays its own verdict for block text another session relayed" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test "* ]]'
 
 # The re-derive is cached by the file's content: a Stop over an unchanged
 # file with ready verdicts runs no scanner; a changed file, a changed config
@@ -560,13 +579,13 @@ record cache w1 "$CF" null
 TEST_SCAN_SCANNER="$TMP/count-scan.sh" bg cache w1 "$CF"
 rm -f "$TMP/scans"
 TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
-check "an unchanged file with ready verdicts: the Stop runs no scanner" '[[ "$(scans)" == 0 && "$(field .reason)" == *"reviewed 2 tests"* ]]'
+check "an unchanged file with ready verdicts: the Stop runs no scanner" '[[ "$(scans)" == 0 && "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 2 tests"* ]]'
 js_file "$CF" one two three
 record cache w2 "$CF" "$(blocks three:1:9:11)"
 stub_reset
 TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
 check "a changed file is scanned again and its new block judged" \
-  '[[ "$(scans)" == 1 && "$(stub_args 1)" == *"block 1 9-11 three"* && "$(field .reason)" == *"reviewed 1 test "* ]]'
+  '[[ "$(scans)" == 1 && "$(stub_args 1)" == *"block 1 9-11 three"* && "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test "* ]]'
 rm -f "$TMP/scans"
 TEST_SCAN_SCANNER="$TMP/count-scan.sh" stop cache
 check "and is not scanned a third time while unchanged" '[[ "$(scans)" == 0 ]]'
@@ -638,7 +657,7 @@ bg crlf w1 "$CR1"
 out="$(payload crlf stop "" '{"hook_event_name": "Stop", "stop_hook_active": true}' | PATH="$WIN_JQ:$PATH" TESTING_OSTYPE=msys bash "$HOOK" 2>/dev/null)"
 check "CRLF jq: stop_hook_active true does not block" '[[ "$(field .decision)" != block ]]'
 out="$(payload crlf stop "" '{"hook_event_name": "Stop"}' | PATH="$WIN_JQ:$PATH" TESTING_OSTYPE=msys bash "$HOOK" 2>/dev/null)"
-check "CRLF jq: the next task end relays the verdict" '[[ "$(field .reason)" == *"reviewed 1 test (0 FLAG, 1 PASS"* ]]'
+check "CRLF jq: the next task end relays the verdict" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test (0 FLAG, 1 PASS"* ]]'
 
 # Under Git Bash one file is C:\x in a payload, C:/x from git and /c/x from
 # MSYS, with any case; a diff path from git must match the payload's file, and
@@ -740,8 +759,10 @@ jq -n --arg f "$NR/n.test.ts" '{file: $f, repo: null, agent_id: null, create: tr
   written_at: (now | todate)}' >"$DATA/sessions/$PKEY/sec6/w1.json"
 stub_reset
 stop sec6
-check "a test file in no repository: no judge run, UNKNOWN 'no repository'" \
-  '[[ "$(stub_calls)" == 0 && "$(field .reason)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* && "$(cat "$DATA/verdicts/$PKEY/sec6/"*.json)" == *"no repository"* ]]'
+check "a test file in no repository: no judge run, UNKNOWN 'no repository', no block" \
+  '[[ "$(stub_calls)" == 0 && "$(field .decision)" != block && "$(field .systemMessage)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* && "$(cat "$DATA/verdicts/$PKEY/sec6/"*.json)" == *"no repository"* ]]'
+sf="$(field .systemMessage | sed -n 's/.*Findings: //p')"
+check "a test file in no repository: the findings file is written" '[[ -n "$sf" && -f "$sf" ]]'
 # Re-review: the memory root itself, non-regular names, the write race and
 # the branch in the frontmatter.
 # fdir <repo> <branch>: FDIR as judge::findings_dir resolves it, within 5 s.
@@ -822,7 +843,7 @@ record sec7 w1 "$REPO/src/sec7.test.ts" null
 # shellcheck disable=SC2016  # the expansion is the attack, kept literal
 out="$(payload sec7 stop "" '{"hook_event_name": "Stop"}' | TEST_JUDGE_TIMEOUT='a[$(touch '"$TMP"'/pwned5)]' \
   TEST_JUDGE_DEBOUNCE='b[$(touch '"$TMP"'/pwned5b)]' bash "$HOOK" 2>/dev/null)"
-check "a timeout or debounce value is not evaluated as arithmetic" '[[ ! -e "$TMP/pwned5" && ! -e "$TMP/pwned5b" && "$(field .reason)" == *"reviewed 1 test "* ]]'
+check "a timeout or debounce value is not evaluated as arithmetic" '[[ ! -e "$TMP/pwned5" && ! -e "$TMP/pwned5b" && "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 1 test "* ]]'
 
 check "no real claude was ever called" '[[ ! -e "$TMP/real-claude-called" ]]'
 finish

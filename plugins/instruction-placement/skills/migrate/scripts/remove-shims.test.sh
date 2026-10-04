@@ -314,6 +314,7 @@ OUT=$(bash "$SCRIPT" --root "$ZERO" --confirm --installed-plugins "$TMP/installe
 assert_eq "a zero-byte AGENTS.md exits 1" 1 "$rc"
 assert_contains "and says it cannot be canaried" "$OUT" "cannot be canaried"
 assert_eq "and removes nothing" "" "$(cd "$ZERO" && git status --porcelain)"
+assert_contains "and names the shim-over-empty state, not content-in-claude" "$OUT" "shim-empty-target"
 
 # --- Case 6: a surface that cannot be verified is never de-shimmed --------
 

@@ -77,7 +77,11 @@ set -uo pipefail
 # spelling of the same one: it replaces the file the `git config` subcommand
 # reads and writes, so a fixture identity write follows it regardless of -C, of
 # GIT_DIR, and of the working directory.
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
+#
+# CLAUDE_PLUGIN_DATA is cleared with them. A Bash-run caller can inherit
+# another plugin's value, and a hook suite would then write its digest or
+# skip-notice into that directory. A suite that needs a data dir sets its own.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG CLAUDE_PLUGIN_DATA
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 runner="$script_dir/${BASH_SOURCE[0]##*/}"

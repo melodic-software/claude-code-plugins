@@ -3,12 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.79.6] - 2026-10-04
+## [0.79.7] - 2026-10-04
 
 ### Fixed
 
 - **The babysit merge gate reports a PR GitHub put in a merge queue as queued, and confirms it on later runs ([#5953](https://github.com/melodic-software/claude-code-plugins/issues/5953)).**
   `gh pr merge` adds a PR to the queue on any base that has one, `--auto` or not, and exits 0, so a queue the branch-rules read missed was reported as `autoMergeEnabled` or `merged`. After every successful `gh pr merge` the gate now reads the PR's queue state back and reports `action: enqueue`, `enqueued: true`, and `mergeQueue` with the entry's state and position. With `--state-dir`, an enqueue from either the async API or `gh pr merge` is recorded, and every later run reports it still queued (merge pending, nothing sent), merged at the vetted head, or `dequeued` when it left the queue without merging. A queue base whose read-back shows the PR neither queued, armed, nor merged is re-read briefly, then reported `action: merge-pending` with `ready: false` and `mergeQueue.unconfirmed: true` and recorded, so later runs confirm it without sending another merge, and the second later run that still sees nothing reports it `dequeued`. A base without a merge queue reports as before.
+
+## [0.79.6] - 2026-10-04
+
+### Fixed
+
+- The pull-request body linkage gate tests unset an inherited `CLAUDE_PLUGIN_DATA` before they run. The missing-jq case no longer writes a skip-notice into another plugin's data directory ([#6072](https://github.com/melodic-software/claude-code-plugins/issues/6072)).
 
 ## [0.79.5] - 2026-10-03
 

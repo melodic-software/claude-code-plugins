@@ -2,7 +2,6 @@
 description: "Mods stay deferred under ADR 0035: no plugin gains a `modules` key until its five go criteria pass; when they do, load the built-in `plugin-authoring` skill and the upstream mods docs first"
 paths:
   - "plugins/*/hooks/**"
-  - "plugins/*/types/**"
 ---
 
 # Mod authoring
