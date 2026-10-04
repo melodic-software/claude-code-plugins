@@ -26,7 +26,7 @@ updates:
     # Let a brand-new release settle before proposing it (supply-chain caution); security-advisory
     # updates bypass cooldown and still surface immediately.
     cooldown:
-      default-days: 3 # zizmor: ignore[dependabot-cooldown] the org floor is 3 days (standards dependabot-policy)
+      default-days: 3
     groups:
       vendor-actions:
         patterns:
@@ -59,7 +59,7 @@ updates:
       # Biome waits out the supply-chain settle window like every other locked
       # dependency. Claude Code is excluded so it keeps tracking the latest
       # release immediately, matching this root's daily schedule.
-      default-days: 3 # zizmor: ignore[dependabot-cooldown] the org floor is 3 days (standards dependabot-policy)
+      default-days: 3
       exclude:
         - "@anthropic-ai/claude-code"
     # Batch minor + patch bumps into one reviewed PR; majors stay individual.
@@ -81,7 +81,7 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     cooldown:
-      default-days: 3 # zizmor: ignore[dependabot-cooldown] the org floor is 3 days (standards dependabot-policy)
+      default-days: 3
     groups:
       npm-minor-patch:
         patterns:
@@ -102,7 +102,7 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     cooldown:
-      default-days: 3 # zizmor: ignore[dependabot-cooldown] the org floor is 3 days (standards dependabot-policy)
+      default-days: 3
     groups:
       npm-minor-patch:
         patterns:
@@ -121,7 +121,7 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     cooldown:
-      default-days: 3 # zizmor: ignore[dependabot-cooldown] the org floor is 3 days (standards dependabot-policy)
+      default-days: 3
     groups:
       npm-minor-patch:
         patterns:
@@ -140,7 +140,7 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     cooldown:
-      default-days: 3 # zizmor: ignore[dependabot-cooldown] the org floor is 3 days (standards dependabot-policy)
+      default-days: 3
     groups:
       pip-minor-patch:
         patterns:
@@ -159,7 +159,7 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     cooldown:
-      default-days: 3 # zizmor: ignore[dependabot-cooldown] the org floor is 3 days (standards dependabot-policy)
+      default-days: 3
     groups:
       pip-minor-patch:
         patterns:
@@ -176,7 +176,7 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     cooldown:
-      default-days: 3 # zizmor: ignore[dependabot-cooldown] the org floor is 3 days (standards dependabot-policy)
+      default-days: 3
     groups:
       pip-minor-patch:
         patterns:
@@ -194,4 +194,4 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     cooldown:
-      default-days: 3 # zizmor: ignore[dependabot-cooldown] the org floor is 3 days (standards dependabot-policy)
+      default-days: 3
