@@ -3,11 +3,17 @@
 All notable changes to the `speech` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.2.5] - 2026-10-04
+## [0.2.6] - 2026-10-04
 
 ### Changed
 
 - **Python package notices go to the user only (#6225).** The SessionStart notices for a missing Python or a failed package install are shorter and no longer reach the model: `/speech:narrate` prints the repair line itself when it runs.
+
+## [0.2.5] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
 
 ## [0.2.4] - 2026-10-04
 

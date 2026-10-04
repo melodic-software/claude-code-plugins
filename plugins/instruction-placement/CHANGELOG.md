@@ -3,11 +3,17 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.21.9] - 2026-10-04
+## [0.21.10] - 2026-10-04
 
 ### Changed
 
 - **Index-drift notice goes to the model (#6225).** The agent that edited the rule is the one that can regenerate the index, so the notice is now context for the model with the full `render-index.sh write` command, in place of a user message naming a bare script.
+
+## [0.21.9] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
 
 ## [0.21.8] - 2026-10-04
 

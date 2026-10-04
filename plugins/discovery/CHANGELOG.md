@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.28.8] - 2026-10-04
+
+### Changed
+
+- **Explore, research, and trace-intent route design-significant work to `/planning:design` ([#6278](https://github.com/melodic-software/claude-code-plugins/issues/6278)).** Their `## Next` sections name `/planning:design` when the findings touch types, contracts, or boundaries, and `/planning:plan` when no design question is open.
+
 ## [0.28.7] - 2026-10-04
 
 ### Changed

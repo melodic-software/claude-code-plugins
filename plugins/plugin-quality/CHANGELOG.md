@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.8] - 2026-10-04
+
+### Changed
+
+- **Shared `context-zone.sh` resolver synced to context-guard's tighter token bands.** Shipped defaults are now 100000/150000 on a 200000 window and 128000/250000 on a 1000000 window; the resolver tests and the zones inline-drift check follow.
+
 ## [0.13.7] - 2026-10-04
 
 ### Changed

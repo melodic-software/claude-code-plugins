@@ -3,11 +3,17 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.79.16] - 2026-10-04
+## [0.79.17] - 2026-10-04
 
 ### Changed
 
 - **Shorter hook text (#6225).** Both PR-contract gates print one shared block message (`linkage::block_message` in `pr-linkage-validator.sh`): the problems found and one sentence naming the required shape, in place of two drifted ten-line templates. The negated-closer and missing-closing-line problems are one line each. The worktree containment block is one sentence and no longer names its kill switch. The worktree claim hook is silent after a successful claim and names the worktree when another session already holds it. The four hooks share one missing-jq notice per session.
+
+## [0.79.16] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
 
 ## [0.79.15] - 2026-10-04
 
