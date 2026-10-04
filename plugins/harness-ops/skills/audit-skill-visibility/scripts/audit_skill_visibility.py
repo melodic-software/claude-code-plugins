@@ -643,6 +643,19 @@ def collect_user_and_project_skills(
 SYNCED_PREFIX = "anthropic-skills:"
 
 
+def synced_skills_folder(config_root: str, claude_json_path: str) -> str | None:
+    """The signed-in account's synced-skills folder, or None with no account."""
+    try:
+        with open(claude_json_path, encoding="utf-8") as handle:
+            account = (json.load(handle) or {}).get("oauthAccount") or {}
+    except (OSError, ValueError, AttributeError):
+        return None
+    org, user = account.get("organizationUuid"), account.get("accountUuid")
+    if not (isinstance(org, str) and isinstance(user, str) and org and user):
+        return None
+    return os.path.join(config_root, "skills", "synced", f"{org}_{user}")
+
+
 def collect_synced_skills(
     config_root: str, claude_json_path: str, overrides: Mapping[str, str]
 ) -> list[dict]:
@@ -658,15 +671,9 @@ def collect_synced_skills(
     signed-in account readable, nothing is enumerated and a capture is the
     only way to count them.
     """
-    try:
-        with open(claude_json_path, encoding="utf-8") as handle:
-            account = (json.load(handle) or {}).get("oauthAccount") or {}
-    except (OSError, ValueError, AttributeError):
+    folder = synced_skills_folder(config_root, claude_json_path)
+    if folder is None:
         return []
-    org, user = account.get("organizationUuid"), account.get("accountUuid")
-    if not (isinstance(org, str) and isinstance(user, str) and org and user):
-        return []
-    folder = os.path.join(config_root, "skills", "synced", f"{org}_{user}")
     entries = collect_local_skills(folder, "synced", {})
     for entry in entries:
         leaf = entry["qualified_name"]
@@ -2527,22 +2534,38 @@ def _reconcile(events: list[dict]) -> int:
     return sum(max(per_source.values()) for per_source in by_instant.values())
 
 
-def _walkable_name(name: str, walked_synced: bool) -> bool:
+@dataclass(frozen=True)
+class Walked:
+    """Which sources this run enumerated from disk.
+
+    `plugins` is None when every installed plugin and the user's and project's
+    own skills were walked (an installed run), or the names of the only
+    plugins walked (a checkout). `synced` is whether the signed-in account's
+    synced folder was resolved, even when it held nothing.
+    """
+
+    plugins: frozenset[str] | None = None
+    synced: bool = False
+
+
+def _walkable_name(name: str, walked: Walked) -> bool:
     """Whether a disk walk would have found this captured name had it existed.
 
-    A qualified `plugin:skill` name comes from a plugin, which the walk
-    enumerates, so one the fleet lacks belongs to a plugin uninstalled or a
-    skill renamed since the capture. A claude.ai-synced name counts only when
-    this run walked the synced skills. An unqualified name may be built-in,
-    which no walk sees, so it stays a fixed cost.
+    A qualified name the walk covers but the fleet lacks belongs to a plugin
+    uninstalled or a skill renamed since the capture. A checkout covers only
+    its own plugins, and a claude.ai-synced name counts only when the synced
+    folder was walked. An unqualified name may be built-in, which no walk
+    sees, so it stays a fixed cost.
     """
     if ":" not in name:
         return False
-    return walked_synced or not name.startswith(SYNCED_PREFIX)
+    if name.startswith(SYNCED_PREFIX):
+        return walked.synced
+    return walked.plugins is None or name.split(":", 1)[0] in walked.plugins
 
 
 def _capture_gap(
-    denominator: list[dict], capture: dict, cfg: ListingConfig
+    denominator: list[dict], capture: dict, cfg: ListingConfig, walked: Walked
 ) -> dict[str, list[str]]:
     """Where a read capture fails to cover the counted fleet.
 
@@ -2555,11 +2578,10 @@ def _capture_gap(
     means the capture came from a different fleet and cannot confirm a fit.
     """
     known = {entry["qualified_name"] for entry in denominator}
-    walked_synced = any(entry.get("source") == "synced" for entry in denominator)
     stale = sorted(
         e["name"]
         for e in capture["entries"]
-        if e["name"] not in known and _walkable_name(e["name"], walked_synced)
+        if e["name"] not in known and _walkable_name(e["name"], walked)
     )
     captured = {e["name"]: e for e in capture["entries"]}
     missing: list[str] = []
@@ -2644,6 +2666,7 @@ def classify(
     listing_config: ListingConfig | None = None,
     listing_axes: ListingAxes | None = None,
     listing_capture: dict | None = None,
+    walked: Walked | None = None,
 ) -> dict:
     """Pure. Fleet + events + config + clock + horizons -> report model.
 
@@ -2651,7 +2674,10 @@ def classify(
     and carries the provenance of every budget input; without it the listing
     is the single row `listing_config` describes, which is the replay path.
     `listing_capture` is `read_listing_capture`'s result: its entries that the
-    denominator does not name are charged at their captured length.
+    denominator does not name are charged at their captured length, unless
+    `walked` says a disk walk would have found them. Without `walked`, as on
+    replay, every plugin counts as walked and synced skills count as walked
+    when the denominator holds one.
     """
     tier = resolve_tier(set(horizons))
     events_by_skill, ambiguous_keys = resolve_event_keys(denominator, events)
@@ -2681,7 +2707,13 @@ def classify(
 
     listing_cfg = listing_config or ListingConfig()
     captured = (listing_capture or {}).get("status") == "read"
-    gap = _capture_gap(denominator, listing_capture, listing_cfg) if captured else {}
+    if walked is None:
+        walked = Walked(synced=any(e.get("source") == "synced" for e in denominator))
+    gap = (
+        _capture_gap(denominator, listing_capture, listing_cfg, walked)
+        if captured
+        else {}
+    )
     # Only what no walk could enumerate is a fixed cost; a captured entry the
     # walk would have found is stale and lands in the gap instead.
     known = {entry["qualified_name"] for entry in denominator}
@@ -3662,6 +3694,7 @@ def main(argv: list[str] | None = None) -> int:
         # the single row it describes, and no settings or environment are
         # consulted on top of it.
         listing_axes = None
+        walked = None
     else:
         # Live collection. Each source is optional: a missing one narrows the
         # tier rather than failing the run, which is the same honesty the
@@ -3709,6 +3742,9 @@ def main(argv: list[str] | None = None) -> int:
                 else os.path.expanduser("~/.claude.json")
             )
             denominator += collect_synced_skills(config_root, account_json, overrides)
+            walked = Walked(
+                synced=synced_skills_folder(config_root, account_json) is not None
+            )
         else:
             plugins_root = args.plugins_root or os.path.join(os.getcwd(), "plugins")
             denominator = collect_fleet(plugins_root)
@@ -3719,6 +3755,11 @@ def main(argv: list[str] | None = None) -> int:
                     file=sys.stderr,
                 )
                 return 2
+            walked = Walked(
+                plugins=frozenset(
+                    e["qualified_name"].split(":", 1)[0] for e in denominator
+                )
+            )
 
         events, horizons = [], {}
         native_path = args.claude_json or os.path.expanduser("~/.claude.json")
@@ -3755,6 +3796,7 @@ def main(argv: list[str] | None = None) -> int:
         listing_capture=(
             read_listing_capture(args.listing_capture) if args.listing_capture else None
         ),
+        walked=walked,
     )
 
     if not args.fixture:

@@ -7,7 +7,7 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 
 ### Fixed
 
-- `/harness-ops:audit-skill-visibility` no longer charges a captured `plugin:skill` entry the fleet lacks (a plugin uninstalled or a skill renamed since the capture) as a fixed built-in cost. It lists it under `listing.capture.not_in_fleet`, and an overflow only the mismatched capture's charges produce is `overflow-unconfirmed` instead of `overflowing`. A plugin command with no frontmatter is no longer `malformed-frontmatter`; its first non-empty line is charged as its description (#6262).
+- `/harness-ops:audit-skill-visibility` no longer charges a captured `plugin:skill` entry the fleet lacks (a plugin uninstalled or a skill renamed since the capture) as a fixed built-in cost. It lists it under `listing.capture.not_in_fleet`, and an overflow only the mismatched capture's charges produce is `overflow-unconfirmed` instead of `overflowing`. A checkout run treats only its own plugins as walked, and an installed run treats synced skills as walked whenever the signed-in account resolves, even with none synced. A plugin command with no frontmatter is no longer `malformed-frontmatter`; its first non-empty line is charged as its description (#6262).
 
 ## [3.8.7] - 2026-10-04
 

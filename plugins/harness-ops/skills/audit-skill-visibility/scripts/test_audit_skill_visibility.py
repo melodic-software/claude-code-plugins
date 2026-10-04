@@ -3683,6 +3683,57 @@ class StaleCaptureEntryTest(unittest.TestCase):
         )["listing"]
         self.assertEqual(walked["capture"]["not_in_fleet"], ["anthropic-skills:old"])
 
+    def test_an_empty_synced_walk_still_marks_a_synced_entry_stale(self):
+        capture = _capture_of("- p:a: " + "x" * 5, "- anthropic-skills:old")
+        listing = engine.classify(
+            denominator=[_competing("p:a", 5)],
+            events=[],
+            config=engine.Config(),
+            clock=_utc(2026, 8, 18),
+            horizons={},
+            listing_config=engine.ListingConfig(env_char_budget=1000),
+            listing_capture=capture,
+            walked=engine.Walked(synced=True),
+        )["listing"]
+        self.assertEqual(listing["capture"]["not_in_fleet"], ["anthropic-skills:old"])
+        self.assertEqual(listing["capture"]["unenumerated_names"], [])
+
+    def test_a_checkout_charges_names_outside_its_own_plugins(self):
+        # A checkout walks only its own plugins: another marketplace's plugin
+        # and a nested project skill are fixed costs, while a skill gone from
+        # a checkout plugin is stale.
+        capture = _capture_of(
+            "- p:a: " + "x" * 5, "- other:b", "- sub/dir:c", "- p:gone"
+        )
+        listing = engine.classify(
+            denominator=[_competing("p:a", 5)],
+            events=[],
+            config=engine.Config(),
+            clock=_utc(2026, 8, 18),
+            horizons={},
+            listing_config=engine.ListingConfig(env_char_budget=1000),
+            listing_capture=capture,
+            walked=engine.Walked(plugins=frozenset({"p"})),
+        )["listing"]
+        self.assertEqual(listing["capture"]["not_in_fleet"], ["p:gone"])
+        self.assertEqual(
+            listing["capture"]["unenumerated_names"], ["other:b", "sub/dir:c"]
+        )
+
+    def test_a_synced_folder_resolves_without_any_synced_skills(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            claude_json = os.path.join(tmp, ".claude.json")
+            with open(claude_json, "w", encoding="utf-8") as handle:
+                json.dump(
+                    {"oauthAccount": {"organizationUuid": "o", "accountUuid": "u"}},
+                    handle,
+                )
+            self.assertEqual(
+                engine.synced_skills_folder(tmp, claude_json),
+                os.path.join(tmp, "skills", "synced", "o_u"),
+            )
+            self.assertEqual(engine.collect_synced_skills(tmp, claude_json, {}), [])
+
 
 class CommandWithoutFrontmatterTest(unittest.TestCase):
     """Command frontmatter is optional; the prompt's first line describes it."""

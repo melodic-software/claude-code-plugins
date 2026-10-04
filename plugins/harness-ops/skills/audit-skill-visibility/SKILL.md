@@ -274,8 +274,9 @@ a session that loaded a different fleet; it is listed under
 only adds to the listing.
 `--listing-capture <transcript.jsonl>` reads the listing a session actually
 received from its transcript (`~/.claude/projects/<project>/<session>.jsonl`),
-counts every entry no disk walk could find (built-in, bundled, and synced
-skills when they were not walked) at its captured length, and reports in
+counts every entry no disk walk could find (built-in, bundled, synced skills
+when no signed-in account was read, and, in a checkout, any plugin outside the
+checkout and the project's own skills) at its captured length, and reports in
 `listing.capture.not_in_fleet` the qualified `plugin:skill` entries it names
 that the fleet lacks, as when a plugin was uninstalled after the captured
 session. Those are not counted, the capture is from a different fleet, and an
