@@ -2,7 +2,6 @@ import type { EngineInterface, PromptOrigin, Register, Timer, ToolCallInput } fr
 import { RANK, readBands, resolveZone, tokenShape, type Bands, type TokenShape, type Zone } from './zone.ts'
 
 const CONTRACT_DIR = 'context-guard'
-const CALL = "Continuing is the user's call."
 const PREFIX = 'context-guard: '
 const NEXT_ZONE: Partial<Record<Zone, Zone>> = { smart: 'acceptable', acceptable: 'dumb' }
 const SESSION_ID = /^[A-Za-z0-9_-]+$/
@@ -67,7 +66,7 @@ type Session = {
   approached: Set<string>
   compacted: boolean
   pending: Event[]
-  restate: 'all' | 'loud' | undefined
+  restate: boolean
   reading: Reading | undefined
   grace: number
   written: { sig: string; at: number } | undefined
@@ -90,7 +89,7 @@ type State = {
   writing: Promise<void>
   loggedOnce: Set<string>
   sessions: Map<string, Session>
-  carry: 'all' | undefined
+  carry: boolean
   settings: Settings
   zonesText: string | null
   zonesKey: string | undefined
@@ -206,9 +205,9 @@ export const recordReading = (s: Session, reading: Reading, settings: Settings) 
   s.reading = reading
   const { zone, percent } = reading
   if (zone === undefined) return
-  if (s.restate !== undefined) {
-    if (s.restate === 'all' || zone !== 'smart') s.pending.push({ kind: 'restate', zone, degraded: reading.degraded })
-    s.restate = undefined
+  if (s.restate) {
+    if (zone !== 'smart') s.pending.push({ kind: 'restate', zone, degraded: reading.degraded })
+    s.restate = false
     s.armed = Math.max(s.armed, RANK[zone])
     s.last = zone
     for (const t of settings.thresholds) if (percent !== undefined && percent >= t.at) s.fired.add(t.at)
@@ -278,24 +277,22 @@ const sentence = (source: string, rule: Rule) => {
 
 // The rules a zone carries: its zones.json action, else blocking mode's block at the dumb zone,
 // then the dumb zone's default save-state note.
-const zoneRules = (zone: Zone, settings: Settings, cfg: Config): { source: string; rule: Rule; via: 'zones' | 'option' | 'default' }[] => {
+const zoneRules = (zone: Zone, settings: Settings, cfg: Config): { source: string; rule: Rule }[] => {
   const set = settings.actions[zone]
-  if (set) return [{ source: `operator setting for the ${zone} zone`, rule: set, via: 'zones' }]
+  if (set) return [{ source: `operator setting for the ${zone} zone`, rule: set }]
   if (zone !== 'dumb') return []
   return [
-    ...(cfg.blocking ? [{ source: 'operator setting for the dumb zone', rule: { action: 'block' as const }, via: 'option' as const }] : []),
-    { source: 'default for the dumb zone', rule: { action: 'save-state' as const }, via: 'default' as const },
+    ...(cfg.blocking ? [{ source: 'operator setting for the dumb zone', rule: { action: 'block' as const } }] : []),
+    { source: 'default for the dumb zone', rule: { action: 'save-state' as const } },
   ]
 }
 
-// The block in force for this session now, if any: its zone's, or a passed threshold's.
+// The zone whose block is in force for this session now, if any: its zone's, or a passed threshold's.
 const blockFor = (s: Session, settings: Settings, cfg: Config) => {
   const zone = s.reading?.zone
   if (zone === undefined) return undefined
-  const rule = zoneRules(zone, settings, cfg).find(r => r.rule.action === 'block')
-  if (rule) return { zone, source: rule.source, via: rule.via }
-  const t = settings.thresholds.find(th => th.action === 'block' && s.fired.has(th.at))
-  return t ? { zone, source: 'operator setting for a threshold', via: 'zones' as const } : undefined
+  if (zoneRules(zone, settings, cfg).some(r => r.rule.action === 'block')) return zone
+  return settings.thresholds.some(th => th.action === 'block' && s.fired.has(th.at)) ? zone : undefined
 }
 
 export const renderEvent = (e: Event, s: Session, cfg: Config, settings: Settings) => {
@@ -304,7 +301,7 @@ export const renderEvent = (e: Event, s: Session, cfg: Config, settings: Setting
     zoneRules(zone, settings, cfg)
       .map(z => sentence(z.source, z.rule))
       .join('')
-  const line = (zone: Zone, degraded: boolean, hint: string) => `context-guard: ${verdictText(zone, degraded)}${data}${hint}. ${CALL}`
+  const line = (zone: Zone, degraded: boolean, hint: string) => `context-guard: ${verdictText(zone, degraded)}${data}${hint}.`
   // Within the approach margin of the next zone's boundary, the verdict says which zone is near.
   const near = (zone: Zone) => {
     const toward = NEXT_ZONE[zone]
@@ -326,6 +323,12 @@ export const renderEvent = (e: Event, s: Session, cfg: Config, settings: Setting
 const renderAll = (events: Event[], s: Session, cfg: Config, settings: Settings) => {
   const lines = [...new Set(events.map(e => renderEvent(e, s, cfg, settings)))]
   return lines.filter(l => !lines.some(o => o !== l && o.startsWith(l)))
+}
+
+// Appends lines to what Claude reads and writes each to the debug log, so the log holds what Claude was told.
+const withLines = <T extends { context?: readonly string[] }>($: EngineInterface, e: T, lines: readonly string[]): T => {
+  for (const line of lines) $.ui.log(line, { to: 'debug' })
+  return lines.length === 0 ? e : { ...e, context: [...(e.context ?? []), ...lines] }
 }
 
 const homeDir = async ($: EngineInterface) => (await $.env.get('HOME')) || (await $.env.get('USERPROFILE')) || undefined
@@ -353,7 +356,7 @@ const sessionFor = (st: State, sid: string) => {
   let s = st.sessions.get(sid)
   if (s === undefined) {
     s = newSession(st.carry)
-    st.carry = undefined
+    st.carry = false
     st.sessions.set(sid, s)
   }
   return s
@@ -675,9 +678,7 @@ async function registerSurfaces($: EngineInterface, st: State) {
     $.tool.register({
       name: 'status',
       description:
-        "Read-only. Returns this session's context-window figures as the last API response reported them, with " +
-        "context-guard's zone (smart, acceptable, dumb or unknown), whether a compaction degraded the evidence, the " +
-        'bands in force and the gate state, as JSON. Takes no input.',
+        "Read-only. This session's context-window figures, context-guard's zone, bands and gate state, as JSON.",
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     }),
     $.command.register({
@@ -710,12 +711,10 @@ async function gate($: EngineInterface, st: State, cfg: Config, e: ToolCallInput
   if (/handoff/i.test(target)) return undefined
   s.grace += 1
   if (s.grace <= cfg.grace) return undefined
-  await emitTelemetry($, 'zone-gate', 'blocked', { zone: block.zone, grace: cfg.grace, calls_seen: s.grace }, fire)
-  const off = block.via === 'option' ? 'zone_hook_mode advisory turns the gate off.' : 'The actions entry in zones.json sets this gate.'
+  await emitTelemetry($, 'zone-gate', 'blocked', { zone: block, grace: cfg.grace, calls_seen: s.grace }, fire)
   return (
-    `context-guard blocking mode (${block.source}): this session is in the ${block.zone} context zone and the grace budget of ` +
-    `${cfg.grace} matched calls is spent, so new ${e.tool} work is denied. Handoff-path writes, read-only tools, Bash and Skill ` +
-    `calls stay allowed; /session-flow:handoff (if installed) writes a save-point this gate exempts. ${off}`
+    `${PREFIX}${e.tool} denied: ${block} zone, grace budget of ${cfg.grace} calls spent. ` +
+    'Reads, Bash, Skill and handoff-path writes still run; /session-flow:handoff writes a save-point.'
   )
 }
 
@@ -734,7 +733,7 @@ export const register: Register = (on, options) => {
     writing: Promise.resolve(),
     loggedOnce: new Set(),
     sessions: new Map(),
-    carry: undefined,
+    carry: false,
     settings: parseSettings(null),
     zonesText: null,
     zonesKey: undefined,
@@ -751,7 +750,7 @@ export const register: Register = (on, options) => {
     if ((await $.session.turns()) > 0) {
       const s = await current($, st)
       s.pending = []
-      s.restate = 'loud'
+      s.restate = true
     }
     return next(e)
   }).catch(($, e, next) => next(e))
@@ -763,7 +762,7 @@ export const register: Register = (on, options) => {
     // a fresh read: usage at exit can come back empty, and a session never refreshed writes nothing.
     await queueWrite($, st)
     st.sessions.delete(e.sessionId)
-    st.carry = e.reason === 'resume' ? 'all' : undefined
+    st.carry = e.reason === 'resume'
     st.origin = undefined
     st.recheckTool = true
     return next(e)
@@ -774,7 +773,7 @@ export const register: Register = (on, options) => {
     if (e.agentId === undefined && e.trigger !== 'precompute' && !('skip' in result && result.skip)) {
       const s = await current($, st)
       s.compacted = true
-      s.restate = 'all'
+      s.restate = true
       s.grace = 0
     }
     return result
@@ -804,8 +803,7 @@ export const register: Register = (on, options) => {
       if (tools !== undefined && !tools.some(t => t.name === `mcp__${$.plugin.name}__status`)) await registerSurfaces($, st)
     }
     await refresh($, st)
-    const lines = await takeLines($, st, cfg, { event: 'prompt.submit', startMs })
-    return next(lines.length === 0 ? e : { ...e, context: [...(e.context ?? []), ...lines] })
+    return next(withLines($, e, await takeLines($, st, cfg, { event: 'prompt.submit', startMs })))
   }).catch(($, e, next) => next(e))
 
   on('session.measure', async ($, e, next) => {
@@ -885,7 +883,10 @@ export const register: Register = (on, options) => {
     if (e.tool === `mcp__${$.plugin.name}__status`) return { result: await statusJson($, st, cfg) }
     const fire: Fire = { event: 'tool.call', startMs: await $.clock.now(), toolUseId: (e as { tool_use_id?: unknown }).tool_use_id, agentId: e.agentId }
     const deny = await gate($, st, cfg, e, fire)
-    if (deny !== undefined) return { deny }
+    if (deny !== undefined) {
+      $.ui.log(deny, { to: 'debug' })
+      return { deny }
+    }
     const result = await next(e)
     // The gate's envelope timed the call before the tool ran; the line work after it starts its own clock.
     const after: Fire = { ...fire, startMs: await $.clock.now() }
@@ -893,7 +894,6 @@ export const register: Register = (on, options) => {
     await queueWrite($, st)
     if (e.agentId !== undefined) return result
     if (result.deny !== undefined || result.isError) return result
-    const lines = await takeLines($, st, cfg, after)
-    return lines.length === 0 ? result :{ ...result, context: [...(result.context ?? []), ...lines] }
+    return withLines($, result, await takeLines($, st, cfg, after))
   }).catch(($, e, next) => next(e))
 }

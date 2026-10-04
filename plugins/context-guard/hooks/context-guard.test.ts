@@ -6,7 +6,6 @@ const HOME = '/srv/u'
 const CTX = '/srv/u/.claude/context-guard/context'
 const ZONES = '/srv/u/.claude/context-guard/zones.json'
 const SAVE = 'context-guard (default for the dumb zone): compaction distance is short, so each expensive conclusion goes to a durable note as it stabilizes.'
-const CALL = "Continuing is the user's call."
 // Each zone with its rank of three, as the lines name it.
 const VERDICT = {
   smart: 'smart zone (1 of 3)',
@@ -15,7 +14,7 @@ const VERDICT = {
   degraded: 'dumb zone (3 of 3, compacted)',
 } as const
 type Verdict = keyof typeof VERDICT
-const crossing = (to: Verdict) => `context-guard: ${VERDICT[to]}. ${CALL}`
+const crossing = (to: Verdict) => `context-guard: ${VERDICT[to]}.`
 
 type World = {
   percent: number | undefined
@@ -267,7 +266,7 @@ test('lines: the default line carries the verdict and its rank, and no figure, s
     expect(line.replace(/\(\d of 3\)/, '')).not.toMatch(/\d/)
     expect(line).not.toContain('sess-1')
     expect(line).not.toContain('/')
-    expect(line).toContain(CALL)
+    expect(line).not.toContain("user's call")
   }
 })
 
@@ -303,7 +302,7 @@ test(
 
 // ---- Approach lines, zones.json additions and line data --------------------------------------
 
-const approach = (zone: Verdict, toward: string) => `context-guard: ${VERDICT[zone]}, nearing ${toward}. ${CALL}`
+const approach = (zone: Verdict, toward: string) => `context-guard: ${VERDICT[zone]}, nearing ${toward}.`
 const zonesFile = (w: World, zones: unknown, mtimeMs = 1) => {
   w.files[ZONES] = { text: typeof zones === 'string' ? zones : JSON.stringify(zones), mtimeMs }
 }
@@ -403,7 +402,7 @@ test('zones.json: action none at the dumb zone drops the save-state note', async
 test('zones.json: an extra threshold gets its approach line and its line once per cycle', async ($, on) => {
   const { w } = world(on)
   zonesFile(w, { thresholds: [{ at_percent: 60, action: 'handoff' }] })
-  const passed = `context-guard: acceptable zone (2 of 3), past an operator threshold. ${CALL} context-guard (operator setting for a threshold): hand off at the next clean stopping point.`
+  const passed = `context-guard: acceptable zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): hand off at the next clean stopping point.`
   expect(await walk($, w, [30, 52, 56, 60, 58, 61, 30, 61])).toEqual([
     [],
     [crossing('acceptable')],
@@ -501,7 +500,7 @@ test('zones.json: invalid additions fall back to the defaults', async ($, on) =>
 test('line data: percent, tokens and window are carried when configured', { options: { zone_line_data: 'zone, percent, tokens, window' } }, async ($, on) => {
   const { w } = world(on)
   expect((await walk($, w, [30, 60])).flat()).toEqual([
-    `context-guard: acceptable zone (2 of 3), 60% of the window used, 120000 tokens in context, a 200000-token window. ${CALL}`,
+    `context-guard: acceptable zone (2 of 3), 60% of the window used, 120000 tokens in context, a 200000-token window.`,
   ])
 })
 
@@ -524,7 +523,7 @@ test('switch: context_guard_hooks_enabled false sends no line', { options: { con
 
 // ---- Restatement: compaction, resume, reload, /clear -------------------------------------------
 
-const restated = (zone: Verdict, tail = '') => `context-guard: ${VERDICT[zone]}. ${CALL}${tail}`
+const restated = (zone: Verdict, tail = '') => `context-guard: ${VERDICT[zone]}.${tail}`
 const compact = ($: any, trigger: string, extra: object = {}) => $.session.compact({ trigger, messages: MESSAGES, ...extra } as any)
 
 test('compaction: the verdict is restated once as the evidence-degraded dumb zone, with the save-state note', async ($, on) => {
@@ -569,12 +568,21 @@ test('compaction: the settings hook marker alone forces the degraded dumb zone, 
   expect((await walk($, w, [10, 12])).flat()).toEqual([`${crossing('degraded')} ${SAVE}`])
 })
 
-test('resume: the verdict is restated once after an in-process resume', async ($, on) => {
+test('resume: a smart verdict is not restated after an in-process resume', async ($, on) => {
   const { w } = world(on)
   await walk($, w, [30])
   await $.session.end({ reason: 'resume', sessionId: 'sess-1', resume: { id: 'sess-1' } } as any)
   w.sid = 'sess-2'
-  expect(own((await prompt($)).context)).toEqual([restated('smart')])
+  expect(own((await prompt($)).context)).toEqual([])
+  expect(own((await bash($)).context)).toEqual([])
+})
+
+test('resume: a verdict past smart is restated once after an in-process resume', async ($, on) => {
+  const { w } = world(on)
+  await walk($, w, [30, 60])
+  await $.session.end({ reason: 'resume', sessionId: 'sess-1', resume: { id: 'sess-1' } } as any)
+  w.sid = 'sess-2'
+  expect(own((await prompt($)).context)).toEqual([restated('acceptable')])
   expect(own((await prompt($)).context)).toEqual([])
 })
 
@@ -615,7 +623,7 @@ test('/clear: nothing on the first prompt, and the new session starts a fresh cy
 
 const BLOCKING = (grace: number, extra: object = {}) => ({ options: { zone_hook_mode: 'blocking', zone_gate_grace_calls: grace, ...extra } })
 const denial = (tool: string, grace: number) =>
-  `context-guard blocking mode (operator setting for the dumb zone): this session is in the dumb context zone and the grace budget of ${grace} matched calls is spent, so new ${tool} work is denied. Handoff-path writes, read-only tools, Bash and Skill calls stay allowed; /session-flow:handoff (if installed) writes a save-point this gate exempts. zone_hook_mode advisory turns the gate off.`
+  `context-guard: ${tool} denied: dumb zone, grace budget of ${grace} calls spent. Reads, Bash, Skill and handoff-path writes still run; /session-flow:handoff writes a save-point.`
 const writes = async ($: any, n: number, path?: string) => {
   const out: (string | undefined)[] = []
   for (let i = 0; i < n; i += 1) out.push((await write($, path)).deny)
@@ -821,7 +829,38 @@ test('gate: a block action in zones.json arms it without zone_hook_mode, and an 
   await prompt($, 'composer')
   expect((await write($)).deny).toBeUndefined()
   expect((await writes($, 19)).every(d => d === undefined)).toBe(true)
-  expect((await write($)).deny).toContain('the grace budget of 20 matched calls is spent')
+  expect((await write($)).deny).toBe(denial('Write', 20))
+})
+
+// The debug log holds exactly what Claude was told, line for line.
+const debugWorld = (on: any, init: object = {}) => {
+  const debug: string[] = []
+  const { w } = world(on, init, { HOME }, ['ui.log'])
+  on('ui.log', ($: unknown, e: { text: string; to?: string }) => {
+    ;(e.to === 'debug' ? debug : w.logs).push(e.text)
+    return { value: undefined }
+  })
+  return { w, debug }
+}
+
+test('debug mirror: each line sent to Claude at a tool call or a prompt is written to the debug log as sent', async ($, on) => {
+  const { w, debug } = debugWorld(on)
+  await bash($)
+  w.percent = 60
+  const atTool = own((await bash($)).context)
+  w.percent = 80
+  const atPrompt = own((await prompt($)).context)
+  expect(atTool).toEqual([crossing('acceptable')])
+  expect(atPrompt).toEqual([`${crossing('dumb')} ${SAVE}`])
+  expect(debug.filter(l => l.startsWith('context-guard: ') && l.includes('zone ('))).toEqual([...atTool, ...atPrompt])
+})
+
+test('debug mirror: a gate denial is written to the debug log as sent', BLOCKING(0), async ($, on) => {
+  const { debug } = debugWorld(on, { percent: 80 })
+  await prompt($, 'composer')
+  const deny = (await write($)).deny
+  expect(deny).toBe(denial('Write', 0))
+  expect(debug).toContain(deny)
 })
 
 test('gate: an action other than block at the dumb zone in zones.json leaves blocking mode inert', BLOCKING(0), async ($, on) => {
@@ -835,7 +874,7 @@ test('gate: a block action at the acceptable zone gates there', async ($, on) =>
   const { w } = world(on, { percent: 60 })
   zonesFile(w, { actions: { acceptable: { action: 'block' } } })
   await prompt($, 'composer')
-  expect(await writes($, 21)).toEqual([...Array(20).fill(undefined), expect.stringContaining('this session is in the acceptable context zone')])
+  expect(await writes($, 21)).toEqual([...Array(20).fill(undefined), denial('Write', 20).replace('dumb zone', 'acceptable zone')])
 })
 
 test('gate: blocking mode adds its sentence to the dumb-zone line, before the save-state note', BLOCKING(20), async ($, on) => {
@@ -906,9 +945,9 @@ test('operator mode: two held lines show as one row with one prefix, and reach C
   w.percent = 61
   await bash($)
   await $.turn.complete({ text: 'done', reason: 'answer' } as any)
-  const passed = `context-guard: acceptable zone (2 of 3), past an operator threshold. ${CALL} context-guard (operator setting for a threshold): hand off at the next clean stopping point.`
+  const passed = `context-guard: acceptable zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): hand off at the next clean stopping point.`
   const row = await notice($)
-  expect(row).toBe(`FYI, ${crossing('acceptable')} acceptable zone (2 of 3), past an operator threshold. ${CALL} context-guard (operator setting for a threshold): hand off at the next clean stopping point.`)
+  expect(row).toBe(`FYI, ${crossing('acceptable')} acceptable zone (2 of 3), past an operator threshold. context-guard (operator setting for a threshold): hand off at the next clean stopping point.`)
   expect(prefixes(row)).toBe(1)
   expect(own((await prompt($, 'scheduled-trigger')).context)).toEqual([crossing('acceptable'), passed])
 })
@@ -1691,8 +1730,8 @@ test('fallback: where $.process.run is unavailable, nothing is written, it is lo
   expect(called.text).toBe('ok')
   expect(own(called.context)).toEqual([crossing('acceptable')])
   // A stub that throws is skipped, so the engine answers that nothing implements process.run.
-  expect(debug).toHaveLength(1)
-  expect(debug[0]).toMatch(/^context-guard: snapshot write did not run: /)
+  expect(debug.filter(l => l.includes('snapshot'))).toHaveLength(1)
+  expect(debug.find(l => l.includes('snapshot'))).toMatch(/^context-guard: snapshot write did not run: /)
 })
 
 test('snapshot: a failed write is logged once; a skip by rule is not', async ($, on) => {
@@ -1710,7 +1749,7 @@ test('snapshot: a failed write is logged once; a skip by rule is not', async ($,
     w.percent = p
     await bash($)
   }
-  expect(debug).toEqual(['context-guard: snapshot write failed (exit 1): write-snapshot: rename failed'])
+  expect(debug.filter(l => l.includes('snapshot'))).toEqual(['context-guard: snapshot write failed (exit 1): write-snapshot: rename failed'])
 })
 
 test('fail open: a throw after the tool ran leaves its result and the context beneath, and the tool runs once', async ($, on) => {
