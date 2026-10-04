@@ -52,6 +52,7 @@ else
   fail "unexpected content: $(cat "$f/$first")"
 fi
 printf '### Added\n\n- New thing.\n' >>"$f/$first"
+# shellcheck source=lib/changelog-fragments.sh
 if (cd "$f" && . scripts/lib/changelog-fragments.sh && changelog_fragments::validate "$first"); then
   ok "a created fragment, once filled in, passes validation"
 else
@@ -77,6 +78,22 @@ if [[ $? -eq 2 && "$out" == *usage* ]]; then
   ok "refuses an unknown bump level"
 else
   fail "expected usage exit 2, got: $out"
+fi
+git_test_config "$f" checkout -qb _lead
+lead="$(run_new "$f" alpha patch)"
+[[ -f "$f/$lead" ]] && printf '### Fixed\n\n- x\n' >>"$f/$lead"
+# shellcheck source=lib/changelog-fragments.sh
+if [[ "$lead" =~ ^\.changes/alpha/lead-[0-9a-f]{8}\.md$ ]] && (cd "$f" && . scripts/lib/changelog-fragments.sh && changelog_fragments::validate "$lead"); then
+  ok "strips a leading non-alphanumeric so the slug passes validation"
+else
+  fail "expected .changes/alpha/lead-<hex>.md that validates, got: $lead"
+fi
+git_test_config "$f" checkout -qb __
+out="$(run_new "$f" alpha patch 2>&1)"
+if [[ $? -eq 2 && "$out" == *"no letter or digit"* ]]; then
+  ok "refuses a branch with no letter or digit"
+else
+  fail "expected exit 2 for branch __, got: $out"
 fi
 git_test_config "$f" checkout -q --detach
 out="$(run_new "$f" alpha patch 2>&1)"

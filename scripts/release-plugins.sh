@@ -18,7 +18,8 @@
 # UTC.
 #
 # Fragment order comes from `git log`, so the release job needs the history of
-# .changes/; an uncommitted fragment sorts after every committed one.
+# .changes/ and refuses a shallow clone; an uncommitted fragment sorts after
+# every committed one.
 #
 # Exit: 0 released (or nothing pending), 2 usage, an invalid fragment, or a
 # manifest or changelog this script cannot update.
@@ -57,6 +58,10 @@ for path in "${fragments[@]}"; do
   }
 done
 
+if [[ "$(git rev-parse --is-shallow-repository 2>/dev/null)" == true ]]; then
+  echo "$self: this clone is shallow, so the order the fragments were committed in is unknown; fetch the full history (fetch-depth: 0) and run again." >&2
+  exit 2
+fi
 if ! added_log="$(git log --reverse --diff-filter=A --name-only --format= -- .changes/)"; then
   echo "$self: git log of .changes/ failed; the fragment commit order is unknown." >&2
   exit 2

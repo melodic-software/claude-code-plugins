@@ -204,6 +204,26 @@ else
 fi
 rm -rf "$f"
 
+# --- a shallow clone is refused, since commit order is unknown -------------------
+base_fixture f
+add_fragment "$f" alpha a-11111111 minor "### Added
+
+- x"
+add_fragment "$f" alpha b-22222222 patch "### Fixed
+
+- y"
+g=""
+fixture_tree::build g --label release-shallow || exit 2
+git clone -q --depth 1 "file://$f" "$g/repo" 2>/dev/null
+out="$(cd "$g/repo" && bash scripts/release-plugins.sh --date 2026-10-04 2>&1)"
+rc=$?
+if ((rc == 2)) && [[ "$out" == *"shallow"* ]] && grep -q '"version": "1.2.3"' "$g/repo/plugins/alpha/.claude-plugin/plugin.json"; then
+  ok "refuses a shallow clone with exit 2 and writes nothing"
+else
+  fail "expected exit 2 naming the shallow clone, got rc=$rc: $out"
+fi
+rm -rf "$f" "$g"
+
 # --- usage ------------------------------------------------------------------------
 base_fixture f
 out="$(cd "$f" && bash scripts/release-plugins.sh --date tomorrow 2>&1)"

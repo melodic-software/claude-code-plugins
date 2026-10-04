@@ -48,6 +48,11 @@ fi
 
 slug="${branch,,}"
 slug="${slug//[^a-z0-9._-]/-}"
+slug="${slug#"${slug%%[a-z0-9]*}"}"
+if [[ -z "$slug" ]]; then
+  echo "$self: branch '$branch' has no letter or digit to name the fragment after." >&2
+  exit 2
+fi
 path=".changes/$plugin/$slug-$suffix.md"
 if [[ -e "$path" ]]; then
   echo "$self: $path already exists; run it again for a new suffix." >&2
