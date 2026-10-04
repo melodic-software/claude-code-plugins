@@ -1,0 +1,41 @@
+specification {
+  element container
+  deploymentNode environment
+  deploymentNode node
+}
+model {
+  c1_api_one = container 'api(at)one' {
+    technology 'acme/api:1'
+    description 'replicas 2'
+  }
+  c3_api_two = container 'api(at)two' {
+    technology 'acme/api:1'
+    description 'replicas 5'
+  }
+  c5_proxy_one = container 'proxy(at)one' {
+    technology 'acme/proxy:1'
+    description 'replicas 2'
+  }
+  c7_proxy_two = container 'proxy(at)two' {
+    technology 'acme/proxy:1'
+    description 'replicas 5'
+  }
+}
+deployment {
+  env1_prod = environment 'prod' {
+    cn1_a = node 'a' 'compute aws_ecs_cluster' {
+      instanceOf c1_api_one
+      instanceOf c5_proxy_one
+    }
+    cn2_b = node 'b' 'compute aws_ecs_cluster' {
+      instanceOf c3_api_two
+      instanceOf c7_proxy_two
+    }
+  }
+}
+views {
+  deployment view view1_prod {
+    title 'prod'
+    include env1_prod.**
+  }
+}
