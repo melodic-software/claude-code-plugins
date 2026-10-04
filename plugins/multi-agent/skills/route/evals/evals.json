@@ -37,6 +37,32 @@
         "The rejected key is reported from notes, with the reason that only aliases are accepted",
         "The skill does not edit the overlay file"
       ]
+    },
+    {
+      "id": 4,
+      "name": "route-mechanical-sonnet",
+      "prompt": "Which model should the workers use for a pass that reformats 80 markdown tables? This session runs on Opus.",
+      "narration": true,
+      "expected_output": "Runs route.sh worker mechanical session=opus. With no layer overriding it, both the single and the fan-out variant of the worker name sonnet at effort medium, and the answer says the mechanical workload supplies sonnet by default, with roles.worker.workloads.mechanical.model: inherit as the opt-out.",
+      "expectations": [
+        "The mechanical workload is passed to route.sh, not code",
+        "The worker line names sonnet for both the single and the fan-out variant, not inherit",
+        "The worker effort is medium",
+        "The opt-out key roles.worker.workloads.mechanical.model: inherit is named"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "route-effort-cap-note",
+      "prompt": "Route all roles for a workflow; my managed settings set maxEffortLevel to medium. This session is Sonnet.",
+      "narration": true,
+      "expected_output": "Runs route.sh all session=sonnet and prints the JSON unchanged: the verifier still reads effort high, because route reads no settings file. After the per-role lines it writes `Effort above maxEffortLevel runs at the cap; see reference/config.md \"Hard cap\".` and says the verifier will run at medium under that cap.",
+      "expectations": [
+        "The printed JSON is not edited to lower any effort to medium",
+        "The cap note line appears after the per-role lines",
+        "The answer says effort above medium runs at medium at run time",
+        "No settings file is read or written"
+      ]
     }
   ]
 }

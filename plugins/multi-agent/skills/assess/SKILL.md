@@ -25,6 +25,19 @@ tasks fit the turn, or when the work is one dependent chain that still needs a
 fresh context. **Single** when the task fits this context and is one dependent
 chain.
 
+A run of more than one agent also has a **shape**:
+
+- **sections**: each agent gets a separate slice of the work, and the results
+  are combined.
+- **race**: agents get identical briefs and one result is picked. The selection
+  rule is stated before any agent is spawned: first to pass a stated check,
+  rank all results, or best-of a stated criterion.
+- **mixed**: sections, some of which run as races.
+
+A run's total worker count is not its concurrency cap. Forty sections run
+under a cap of four are forty workers, four at a time; say both numbers when
+they differ.
+
 The comparison this rule rests on lives upstream; read it there when a case is
 close rather than recalling it:
 
@@ -55,15 +68,22 @@ close rather than recalling it:
    you have a number or a context estimate and a dependency shape.
 3. **Verdict.** Apply the rule. When workflows are unavailable, `workflow`
    becomes `subagent`, and the reason names the switch or the missing tool.
-   Done when the two output lines are written.
+   Done when the verdict and reason lines are written.
+4. **Shape.** With a `workflow` or `subagent` verdict, name the run's shape.
+   For a race or a mixed run, take the selection rule from the task; when the
+   task states none, write `race (no selection rule stated)` and say in the
+   reason that the race must not start until one is stated. Done when the
+   shape line is written, or the verdict is `single`.
 
 ## Output
 
-Two lines, nothing else:
+Two lines for a `single` verdict, three for `workflow` or `subagent`, nothing
+else:
 
 ```text
 verdict: <workflow|subagent|single>
 reason: <one line naming the size, the dependency shape, and any downgrade>
+shape: <sections|race (<selection rule>)|mixed>
 ```
 
 ## What this skill does NOT do
@@ -84,3 +104,7 @@ reason: <one line naming the size, the dependency shape, and any downgrade>
   step 1 is the half that decides.
 - Effort and size scale the verdict, not the topic: a review of three files is
   `single` even though reviews are a common workflow shape.
+- A race with no selection rule stated before spawning is reported, not run:
+  picking a winner after reading the results lets the reading choose the rule.
+- `shape:` describes how the agents divide the work, not their count. Report
+  the total and the concurrency cap in the reason when they differ.

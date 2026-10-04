@@ -3,6 +3,17 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Added
+
+- **`/multi-agent:assess` names the run's shape.** A `workflow` or `subagent` verdict gains a third line, `shape: <sections|race (<selection rule>)|mixed>`. A race states its selection rule before any agent is spawned; one without a rule is reported, not run.
+- **`/multi-agent:route` notes the effort cap.** The output ends with a line pointing at the new "Hard cap" section of `reference/config.md`, which documents `maxEffortLevel` and where role effort applies (workflow `agent()` calls, not Agent tool dispatches).
+
+### Changed
+
+- **The `mechanical` workload runs the worker on `sonnet` by default** (`roles.worker.workloads.mechanical.model: sonnet`); `code` and `research` keep the role's model. Opt out with `roles.worker.workloads.mechanical.model: inherit` in any layer.
+
 ## [0.4.3] - 2026-10-03
 
 ### Fixed
