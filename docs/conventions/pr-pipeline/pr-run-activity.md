@@ -129,7 +129,9 @@ project or local settings, hooks, `CLAUDE.md`, `AGENTS.md` or `.mcp.json` from t
 plugin installs only from `$RUNNER_TEMP/base-marketplace`. Commits go through the API, signed
 (`use_commit_signing`), on the gate's head branch (`CLAUDE_BRANCH`). A mutating activity's commits
 are made against that branch, which may have moved since the gate; the push that moved it starts
-its own `synchronize` run, which gates the new head again.
+its own `synchronize` run, which gates the new head again. Why a skill activity loads nothing from
+the PR head:
+[ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md).
 
 On PR events claude-code-action adds a second head-isolation layer beside `--setting-sources user`:
 when it treats the PR head as untrusted, it replaces `.claude`, `.mcp.json`, `CLAUDE.md` and its
@@ -190,7 +192,8 @@ the verdict (`continue-on-error`: a missing verdict is already decided below), r
 `GITHUB_TOKEN` unless `can-commit` is `false`, reads the PR's current head SHA with its
 `GITHUB_TOKEN` (empty when there is no PR or the read fails), and posts the check with
 [`report-check-run`](../../../.github/actions/report-check-run/README.md), passing that SHA as
-`pr-head-sha`.
+`pr-head-sha`. Why the check is written by this job and not the run job:
+[ADR 0053](../../adr/0053-run-each-pipeline-activity-as-a-model-job-and-a-scripted-report-job.md).
 
 What it trusts:
 
@@ -200,7 +203,9 @@ What it trusts:
   that ran before any head code; that one rests on the rule that a gate skill runs no head code.
 - Its own signed-commit result. On an unverified commit, `check-signed-commits` fails closed: the
   check is a failure, and the report job adds no label and posts no comment, because its
-  `GITHUB_TOKEN` cannot write issues or pull requests.
+  `GITHUB_TOKEN` cannot write issues or pull requests. Why signing is not also enforced by an
+  all-branch rule:
+  [ADR 0054](../../adr/0054-keep-commit-signing-on-the-default-branch-rule-and-add-no-all-branch-rule.md).
 
 The activity ran on exactly the commit the check is posted on: the run job checks out the gate's
 `head-sha`, not the branch, and fails before the activity if `HEAD` differs. A push after the gate

@@ -92,6 +92,8 @@ reader applies.
 holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
 Lanes run on GitHub-hosted runners without default-deny egress under the conditions in
 [ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md).
+Lane commits are signed, and signing is enforced by the default-branch rule only:
+[ADR 0054](../../adr/0054-keep-commit-signing-on-the-default-branch-rule-and-add-no-all-branch-rule.md).
 
 Every lane:
 
@@ -105,11 +107,15 @@ Every lane:
   who can trigger a lane, token lifetime and scope, workflow execution protections, the kill switch,
   and a `ci-status` no lane can write (below).
 - Reads its config, scripts and the trusted-actor list from the base SHA, never from the PR head,
-  so a PR cannot change the rules it is judged by.
+  so a PR cannot change the rules it is judged by. Only the default branch is a trusted base, and a
+  skill activity loads nothing else from the head:
+  [ADR 0055](../../adr/0055-load-nothing-head-controlled-into-a-pipeline-skill-activity.md).
 - Checks the kill switch before its model step starts. A switch it cannot read counts as off.
 - Never holds `checks: write` or `workflows` permission in a job that runs the model. `ci-status`
   and the `<lane> / <activity>` check runs are written by scripted jobs with no model step, and
-  branch protection pins `ci-status` to the source that writes it. A base merge that touches
+  branch protection pins `ci-status` to the source that writes it
+  ([ADR 0053](../../adr/0053-run-each-pipeline-activity-as-a-model-job-and-a-scripted-report-job.md)).
+  A base merge that touches
   `.github/workflows/` escalates to a human instead of being pushed by a lane.
 - Writes through one per-PR queue (a concurrency group that queues, never cancels). It pushes its
   own commits as fast-forward updates, never with force. When the head moved, it fetches, replays
