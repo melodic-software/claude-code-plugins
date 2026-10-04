@@ -1226,6 +1226,35 @@ assert_present 'research-deep evals send the synthesized root to rows 4, 7, 12 a
 assert_absent 'no synthesis verifier briefed on criterion 12 alone' \
   'verifier for criterion 12'
 
+# ---------------------------------------------------------------------------
+# 23. The verifier grades a truncated primary from a parent-saved snapshot
+#     (#6071)
+#
+# WebFetch cut long pages short before the cited sections, and the verifier
+# holds no Bash to fetch them in full. The parent saves the page and names it
+# on a Snapshots: line; the tools line stays read-only.
+# ---------------------------------------------------------------------------
+assert_present 'the verifier contract documents an optional Snapshots: field' \
+  'agents/research-verifier.md' '^- \*\*Snapshots\*\* \(optional\): `<url> -> <path>` lines'
+assert_present 'the verifier Reads a listed snapshot in place of re-fetching the page' \
+  'agents/research-verifier.md' 'For a listed URL, Read the snapshot'
+assert_present 'the verifier return block records which URLs it graded from a snapshot' \
+  'agents/research-verifier.md' '^graded_from_snapshot: \[\]'
+assert_present 'the verifier reports a truncated primary instead of grading it absent' \
+  'agents/research-verifier.md' '`truncated primary: <url>` in `problems:`'
+assert_present 'the verifier points at the live WebFetch tool behavior section' \
+  'agents/research-verifier.md' 'tools-reference#webfetch-tool-behavior'
+assert_present 'the dispatch brief saves a truncated primary with the discipline fetch recipe' \
+  'skills/research/context/dispatch.md' 'recipe under "A size failure is the same trigger"'
+assert_present 'the dispatch brief creates the snapshot directory before the fetch recipe runs' \
+  'skills/research/context/dispatch.md' 'makes only the final path component'
+assert_present 'the dispatch brief points at the upstream-drift rung for the raw-markdown channel' \
+  'skills/research/context/dispatch.md' 'upstream-drift/README.md#the-rungs'
+assert_present 'the dispatch brief re-dispatches the verifier with a Snapshots: line' \
+  'skills/research/context/dispatch.md' '^   Snapshots: <url> -> <absolute path of the saved copy>$'
+assert_present 'the dispatch brief keeps snapshots where the verifier Read reaches them' \
+  'skills/research/context/dispatch.md' 'permissions#working-directories'
+
 printf '\n'
 if [[ "$fails" -eq 0 ]]; then
   printf 'All contract assertions passed.\n'

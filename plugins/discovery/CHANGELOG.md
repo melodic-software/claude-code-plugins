@@ -1,10 +1,24 @@
 # Changelog: discovery plugin
 
-## [0.28.5] - 2026-10-04
+## [0.28.6] - 2026-10-04
 
 ### Fixed
 
 - Shared `view-runtime.js` synced ([#6173](https://github.com/melodic-software/claude-code-plugins/issues/6173)): pages built by `/discovery:blindspot` no longer say they saved a file. The claude.ai artifact viewer blocks a download the page starts itself without an error the page can see, so the page reported a save that never happened. The "Save as file" button now appears only on a page opened from `file://` or served by the session bridge on `127.0.0.1`, and after a download attempt the status reads "If no file was saved, select the text below and copy it." "Copy reply" and the selectable payload text are unchanged.
+
+## [0.28.5] - 2026-10-04
+
+### Fixed
+
+- **The research verifier can grade a long page that WebFetch cut short (#6071).** The verifier has
+  no `Bash`, so it could not fetch the full page itself, and a cited section past the cut read as
+  missing. It now reports such a page as `truncated primary: <url>` and leaves the rows that claim
+  decides ungraded. The parent saves the page with the discipline file's existing fetch recipe,
+  into a `scratch-snapshots` directory in the slice, and dispatches a fresh verifier with a
+  `Snapshots: <url> -> <path>` line, creating that directory first because the recipe's
+  `mktemp -d` makes only the final path component, and fetching through the upstream-drift
+  convention's raw-markdown rung. The verifier Reads a listed snapshot in place of re-fetching
+  that page and lists the URL under `graded_from_snapshot`. Its tools line is unchanged.
 
 ## [0.28.4] - 2026-10-04
 

@@ -3,11 +3,20 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.67.4] - 2026-10-04
+## [0.67.5] - 2026-10-04
 
 ### Fixed
 
 - Shared `view-runtime.js` synced ([#6173](https://github.com/melodic-software/claude-code-plugins/issues/6173)): pages built by `/planning:plan` and `/planning:brainstorm` no longer say they saved a file. The claude.ai artifact viewer blocks a download the page starts itself without an error the page can see, so the page reported a save that never happened. The "Save as file" button now appears only on a page opened from `file://` or served by the session bridge on `127.0.0.1`, and after a download attempt the status reads "If no file was saved, select the text below and copy it." "Copy reply" and the selectable payload text are unchanged.
+
+## [0.67.4] - 2026-10-04
+
+### Changed
+
+- **The `plan-reviewer` dispatch prompt no longer carries the 18-tool-call ceiling, chunked-read and always-end-with-Summary lines added in 0.67.3 ([#6126](https://github.com/melodic-software/claude-code-plugins/issues/6126)).**
+  The marketplace adds a standing instruction only on repeated stumble evidence, the same failure seen more than once (`docs/plugin-philosophy.md`, "Instruction economy"), and the record holds one failed review; the two later reviews were trials of the lines, not repeat failures.
+  `maxTurns: 25` stays the hard stop, and `/planning:plan` Step 3 still treats a return without `### Summary` as incomplete and resumes it.
+  The lines can return when a second overrun is observed in a real dispatch.
 
 ## [0.67.3] - 2026-10-04
 
