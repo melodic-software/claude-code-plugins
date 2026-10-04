@@ -129,7 +129,7 @@ start=${EPOCHREALTIME:-}
 
 hook::buffer_stdin_to INPUT || exit 0
 
-hook::require jq "PreToolUse" "source-control-pr-body-linkage-gate" "$INPUT"
+hook::require jq "PreToolUse" "source-control" "$INPUT"
 
 # Both payload fields in ONE jq process (#3509). The per-field form this
 # replaced was `printf '%s' "$INPUT" | jq -r … 2>/dev/null | tr -d '\r'` twice
@@ -287,31 +287,12 @@ is_dynamic() {
 }
 
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-block() {
-  local p
-  echo "BLOCKED: PR body fails this repo's PR-contract check." >&2
-  for p in "$@"; do echo "  - $p" >&2; done
-  echo "Gate: ${GATE_FILE#"$REPO_ROOT/"} (its pr-contract step)." >&2
-  echo "Add to the body:" >&2
-  echo "  Closes #<issue>      (or on its own line: Refs: #<issue> to link without closing, or No linked issue)" >&2
-  echo "  ## Summary" >&2
-  echo "  <what and why>" >&2
-  echo "  ## Fix" >&2
-  echo "  <concrete change>" >&2
-  echo "  ## Verification" >&2
-  echo "  <evidence the change works>" >&2
-  echo "  ## Related" >&2
-  echo "  - <related PR / ADR / decision this PR does not close, or N/A>" >&2
-  echo "Or create the PR through /source-control:pull-request create, which gates the body first." >&2
-  emit_tel "blocked"
-  exit 2
-}
-
-# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 validate_body() {
   # shellcheck disable=SC2310  # the return status IS the verdict
   linkage::problems "$1" && return 0
-  block "${LINKAGE_PROBLEMS[@]}"
+  linkage::block_message "${GATE_FILE#"$REPO_ROOT/"}"
+  emit_tel "blocked"
+  exit 2
 }
 
 # gh long flags that consume the following argv word. Enumerated so a

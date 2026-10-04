@@ -425,9 +425,20 @@ linkage::problems() {
   scan_linkage "$_plv_body" || _plv_linked=1
   ((${#LINKAGE_NEGATED[@]} == 0)) || {
     printf -v _plv_negated '%s, ' "${LINKAGE_NEGATED[@]}"
-    LINKAGE_PROBLEMS+=("Negated closing reference (${_plv_negated%, }). GitHub's linkage parser ignores the surrounding words, so this still registers a closing reference and still auto-closes the issue when this PR merges. Remove the closing keyword and use \"Refs: #N\" (or \"Relates to: #N\") on its own line instead.")
+    LINKAGE_PROBLEMS+=("Negated closing reference (${_plv_negated%, }): GitHub still auto-closes the issue on merge. Use \"Refs: #N\" on its own line instead.")
   }
   ((_plv_linked == 0)) ||
-    LINKAGE_PROBLEMS+=('Missing a native closing keyword (Closes/Fixes/Resolves #N). If this PR references an issue it must not close, put "Refs: #N" (or "Relates to: #N") on its own line. If it relates to no GitHub issue at all, state "No linked issue" (or "No related issue:") in the body instead.')
+    LINKAGE_PROBLEMS+=('No closing line: add Closes #N, Refs: #N (link without closing), or No linked issue.')
   ((${#LINKAGE_PROBLEMS[@]} == 0))
+}
+
+# linkage::block_message <gate-path>: the PreToolUse block text for the current
+# LINKAGE_PROBLEMS, to stderr. One printer for both gates so the text cannot
+# drift between the Bash and MCP surfaces. The closing sentence names the
+# required shape for a repository with no PR-body rule of its own.
+linkage::block_message() {
+  local p
+  echo "BLOCKED: PR body fails the pr-contract step in $1." >&2
+  for p in "${LINKAGE_PROBLEMS[@]}"; do echo "  - $p" >&2; done
+  echo "The body needs a closing line (Closes #N, Refs: #N, or No linked issue) and non-empty ## Summary, ## Fix, ## Verification and ## Related sections." >&2
 }
