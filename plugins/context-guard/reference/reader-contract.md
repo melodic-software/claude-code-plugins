@@ -244,9 +244,8 @@ skill's module check), none of the following runs except the PostCompact marker.
 - **Zone lines** (on each tool result of the main conversation and each prompt): on a transition
   into a zone worse than any this session has already reported, report the crossing on **two
   channels with two audiences**. The **model channel** (the `context` a `tool.call` or
-  `prompt.submit` hook adds) carries the zone word and a counter-steer worded as facts with their
-  source: the reading is a measurement rather than an instruction, degradation shows in the work
-  itself and never in a zone word, and continuation is the operator's call. In `dumb` it also
+  `prompt.submit` hook adds) carries the verdict only: the zone word and its rank of three, and
+  "Continuing is the user's call." on crossing, restatement, approach and threshold lines. In `dumb` it also
   carries the save-state note, labeled as the dumb zone's default. A line carries no figure
   unless `zone_line_data` adds one (percent, tokens, window), and never a session id. Beside the
   crossings the module sends one approach line per boundary per cycle (`approach_margin`
@@ -255,20 +254,21 @@ skill's module check), none of the following runs except the PostCompact marker.
   worker respawn (a load with earlier turns), the verdict only when it is past `smart`. After
   `/clear` it sends nothing: the new session starts in `smart`. Lines go to the main conversation
   only, never to a subagent. In `operator` report mode a turn a person typed holds the lines and
-  offers them as the prompt box's suggestion plus a band notice when the turn ends; headless,
+  offers them as the prompt box's suggestion plus a notice row when the turn ends; headless,
   loop, schedule and notification turns get the lines either way. The **operator channel** (a
-  transcript line Claude does not read, and a band notice) carries the same crossing plus the
-  continuation menu that is the human's call
-  to make (continue / `/compact` / `/clear` / handoff-then-`/clear`, with a hand-written resume
-  note as the standalone-install fallback). The menu does not say which option fits when: it says
-  to route the next step with `/session-flow:workflow` (if installed). Without session-flow, we
-  send the operator to the docs section on a filling context and restate none of it. Pointer: for
-  what to do when the context fills up, see
-  <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>. As of: 2026-10-02.
+  transcript line Claude does not read and a toast, plus a notice row on every surface but the
+  terminal, where a toast may not show) carries the same crossing plus the continuation menu that
+  is the human's call to make (continue / `/compact` / `/clear` / `/session-flow:handoff` then
+  `/clear`). The transcript line ends `more: /context-guard`, and the `/context-guard` status
+  output carries the router pointer and the docs link: the menu does not say which option fits
+  when, so the status output says to route the next step with `/session-flow:workflow` (if
+  installed). Without session-flow, we send the operator to the docs section on a filling context
+  and restate none of it. Pointer: for what to do when the context fills up, see
+  <https://code.claude.com/docs/en/context-window#when-your-context-fills-up>. As of: 2026-10-04.
   Recheck trigger: that section is renamed, moved or removed. **Neither the menu nor the router
-   pointer ever reaches the model channel.** A menu injected into
+  pointer ever reaches the model channel.** A menu injected into
   model context manufactures the model's own initiative to stop, summarize, or hand off. That is a
-  live finding under the instruction-audit catalog's I23 (`harness-config`, `reference/criteria.md`),
+  live finding under I23 of `/harness-config:audit-instructions`,
   whose Remediate clause prescribes exactly this shape: state the counter-steer plainly, and where
   the harness must surface a budget, pair it with a reassurance rather than with an exit menu. The
   measurement decides only *when to ask*; the model still decides whether to stop. The model

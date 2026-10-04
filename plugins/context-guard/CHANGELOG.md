@@ -5,6 +5,23 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-10-04
+
+### Added
+
+- **A crossing reaches the person as a toast**: `smart → acceptable · continue, /compact, /clear or handoff`, shown for 4 seconds, beside one transcript line Claude does not read that ends `more: /context-guard`. The new `context_guard_toast` option (on by default) turns the toast off; the transcript line stays.
+
+### Changed
+
+- **The band row is off by default** (`context_guard_band` now defaults to `false`), and it no longer shows the model id: it reads `ctx <n>% (<zone>)`.
+- **The command is `/context-guard`, with `band on`, `band off`, and a bare `band` to toggle.** It replaces `/context-guard:band show|hide`, which never resolved. With no argument it prints the verdict and its figures, the bands, the gate mode, the band and toast state, where `zones.json` lives, the continuation route and the README.
+- **The crossing notice row is drawn only on surfaces other than the terminal** (the Desktop app, VS Code), where a toast may not show, and it carries the plugin prefix once. Operator mode's held line still shows as one row on every surface, and is never toasted.
+- **The lines Claude reads carry only the verdict**, such as `context-guard: acceptable zone (2 of 3). Continuing is the user's call.`, with `, nearing dumb` inside the approach margin. They drop the source note and the measurement-not-instruction sentence.
+
+### Fixed
+
+- **`/context-guard` resolves, and no longer collides with another plugin's command.** The module registered the bare name `band`, which rate-limit-guard registers too, so only one of the two owned `/band`, and the `/context-guard:band` the 0.11.0 entry below documents never existed.
+
 ## [0.11.1] - 2026-10-04
 
 ### Changed
