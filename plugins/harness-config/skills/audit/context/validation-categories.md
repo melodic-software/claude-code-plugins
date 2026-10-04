@@ -170,19 +170,45 @@ user). Managed-scope `enabledPlugins` is not merged.
 
 **E.2 Upstream drift detection** (live network, via `scripts/check-plugin-drift.sh`):
 
-Compares the audited file's `enabledPlugins` keys against the live `marketplace.json` of each
-marketplace declared in that file's `extraKnownMarketplaces`. Detects three drift modes static
-checks miss:
+Compares the audited file's `enabledPlugins` keys against the `marketplace.json` of each marketplace
+declared in that file's `extraKnownMarketplaces`. The catalog is the authority for a rename. For each
+enabled key that the catalog does not list, the check reads that catalog's top-level `renames` object
+before it guesses:
+
+- A key the map sends to a name is followed to the end of the chain. The rename row names that final
+  name and is marked `source: "renames"`. The walk keeps a visited set, so a chain that repeats a name
+  stops. That key stays an orphan with reason `renames chain cycles` and gets no final name.
+- A key the map sends to `null`, including through a chain that ends at `null`, is a removed row with
+  reason `removed per catalog renames map`. It is not an orphan and it is not a rename.
+- A key the map does not mention keeps the name-similarity fallback (`source: "heuristic"`): a shared
+  4-character prefix or suffix, or one name of 5 or more characters contained in the other.
+
+The check does not edit the file. For a settings file, a catalog rename is remediated by replacing the
+key in this file, or by opening a Claude Code session in this checkout and committing the rewrite it
+makes. For managed settings (`managed-settings.json`, a file in `managed-settings.d`, or
+`remote-settings.json`), the remediation is to update managed `enabledPlugins`. A removed row uses the
+same split: remove the key from the file or commit the session's rewrite, or update managed
+`enabledPlugins`. `fix-plugin-drift.sh` writes nothing for any rename row, catalog or heuristic, and
+never turns a removed row into a rename to `null`. It still removes only an orphan whose value is
+exactly `false`.
+
+- **Pointer**: when a catalog rename's effect on a settings file is in question, fetch [Migrate users with a renames map](https://code.claude.com/docs/en/plugins/host-marketplace#migrate-users-with-a-renames-map) live.
+- **As of**: 2026-10-03
+- **Recheck trigger**: that section changes what a renames entry points at, how a chain is followed, or which settings files a session rewrites.
 
 | Mode | Definition | Fix policy |
 |---|---|---|
-| **ORPHAN** (false) | Plugin in `enabledPlugins` set to `false`, NOT in upstream catalog | Removal candidate, removed by `--yes`. The removal moves to manual review when a lower-precedence scope file (the user file, and the sibling `settings.json` when the audited file is `settings.local.json`) holds `true` for the key, because removing the `false` would let that `true` take effect; an unreadable or invalid lower scope file does the same. Other developers' user scopes and managed settings are not checked, and a plan with a pending removal says so |
-| **ORPHAN** (true) | Plugin in `enabledPlugins` set to `true`, NOT in upstream catalog | REPORT ONLY. The user explicitly enabled a plugin that is now gone upstream; surface for manual review, never auto-remove |
+| **ORPHAN** (false) | Plugin in `enabledPlugins` set to `false`, NOT in the upstream catalog, and not a `null` renames entry | Removal candidate, removed by `--yes`. The removal moves to manual review when a lower-precedence scope file (the user file, and the sibling `settings.json` when the audited file is `settings.local.json`) holds `true` for the key, because removing the `false` would let that `true` take effect; an unreadable or invalid lower scope file does the same. Other developers' user scopes and managed settings are not checked, and a plan with a pending removal says so |
+| **ORPHAN** (true) | Plugin in `enabledPlugins` set to `true`, NOT in the upstream catalog, and not a `null` renames entry | REPORT ONLY. The user explicitly enabled a plugin that is now gone upstream; surface for manual review, never auto-remove |
 | **NEW** | Plugin in upstream catalog with no entry in the audited file | REPORT ONLY. `fix-plugin-drift.sh` never adds a key. The engine reports catalog plugins with no entry in any scope as one `ok` inventory row per marketplace (check `E/drift-new`) |
-| **RENAME?** | Heuristic match between an ORPHAN and a NEW within the same marketplace | REPORT ONLY. Flag for human review, no automation |
+| **RENAME** (catalog) | The catalog `renames` map sends the enabled key to a name; the row names the final name in the chain (`source: "renames"`) | REPORT ONLY. Replace the key in this file, or open a Claude Code session in this checkout and commit the rewrite it makes. For managed settings, update managed `enabledPlugins`. The fixer writes nothing |
+| **RENAME?** (heuristic) | ORPHAN and NEW with similar names, and the orphan is not a key of the renames map (`source: "heuristic"`) | REPORT ONLY. Flag for human review, no automation |
+| **REMOVED** | The renames map sends the key to `null` | REPORT ONLY. Not an orphan and not a rename. Remove the key from this file, or open a Claude Code session in this checkout and commit the rewrite it makes. For managed settings, update managed `enabledPlugins` |
 
-`check-plugin-drift.sh` exits 1 only when it finds an orphan (a rename pair always holds one); a run that finds
-only NEW plugins exits 0.
+`check-plugin-drift.sh` exits 1 when it finds an orphan or a removed entry (a catalog rename still holds
+an orphan, the old key); a run that finds only NEW plugins exits 0. A repo-sourced catalog is read from
+the local marketplace clone when one is present (`source: "local-clone"`), and fetched otherwise.
+`SETTINGS_AUDIT_FIXTURE_DIR` still wins over both.
 
 **Coverage:** a marketplace the audited file does not declare is not diffed. Every
 `check-plugin-drift.sh` run prints a `Not diffed:` line with the count and the keys, including when
