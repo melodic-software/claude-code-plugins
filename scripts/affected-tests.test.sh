@@ -878,14 +878,9 @@ rm -rf "$repo"
 # this suite name it, and R3 would select this suite the same way.
 #
 # The candidate is additionally FILTERED to one that no grepped-language file
-# names at all, rather than assuming the sole `.github/*.yaml` qualifies. That
-# assumption held until a suite acquired a real transitive claim on it:
-# .claude/cloud-bootstrap.sh's pin comment names .github/actionlint.yaml, and
-# scripts/check-plugin-catalog-enablement.sh reads cloud-bootstrap.sh, so the
-# walk now runs actionlint.yaml -> cloud-bootstrap.sh -> that gate's suite and
-# reaches exit 0 through R3 exactly the way pr-require-checks.yml does. Both edges are real and
-# neither should be severed to keep a probe convenient, so the probe moves
-# instead — the same resolution the pr-require-checks.yml sentence above records.
+# names at all, rather than assuming the sole `.github/*.yaml` qualifies: a
+# file some suite reaches through R3 reaches exit 0 the way
+# pr-require-checks.yml does, so it cannot serve as this probe either.
 #
 # The filter is an INDEPENDENT oracle (a direct git grep for the basename), not
 # a call to affected-tests.sh: picking the probe with the tool under test would
@@ -1192,7 +1187,7 @@ printf 'export const mixed = 1;\n' >"$repo2/plugins/alpha/hooks/mixed.js"
 printf 'source "lib/mixed.sh"\nnode mixed.js\n' >"$repo2/eco/agg/zed.sh"
 # A genuine crossing OUT of zed.sh, which is exactly what a wrongly-spent budget
 # would block. Its suite is the assertion.
-printf 'import subprocess  # drives zed.sh\n' >"$repo2/eco/agg/zed_user.py"
+printf 'import subprocess\nsubprocess.run(["bash", "zed.sh"])\n' >"$repo2/eco/agg/zed_user.py"
 printf 'import zed_user\n' >"$repo2/eco/agg/test_zed_user.py"
 
 run_sel "$repo2" lib/mixed.sh
@@ -1351,9 +1346,10 @@ rm -rf "$repo3"
 # --- a comment-only mention makes no dependent and selects no suite ----------
 # Hub files cite neighboring scripts in prose, and counting those as edges
 # fanned one plugin's change out to most of the corpus; a suite citing a file
-# in prose does not run it either. Every code line still names the file, as do
-# a trailing comment on one, a shellcheck source directive and a JSDoc type
-# import.
+# in prose does not run it either. A trailing comment on a shell or Python
+# code line is prose too, and a `#` inside quotes is not a comment. Every code
+# line still names the file, as do a shellcheck source directive and a JSDoc
+# type import.
 mk_repo repo3
 mkdir -p "$repo3/eco/cmt"
 printf 'echo hub\n' >"$repo3/eco/cmt/hub-target.sh"
@@ -1369,6 +1365,13 @@ mk_cmt_dependent js-comment js '// see hub-target.sh\n/* hub-target.sh */\n/**\n
 # shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
 mk_cmt_dependent sh-code sh 'source "$(dirname "$0")/hub-target.sh"\n'
 mk_cmt_dependent sh-trailing sh 'echo ok # runs after hub-target.sh\n'
+mk_cmt_dependent sh-quoted-hash sh 'echo "# hub-target.sh"\n'
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
+mk_cmt_dependent sh-redirect sh 'printf x >"$T/hub-target.sh"\necho y >>$T/hub-target.sh\n'
+printf 'X = 2  # see hubmod.py\n' >"$repo3/eco/cmt/pytrail.py"
+printf 'import pytrail\n' >"$repo3/eco/cmt/test_pytrail.py"
+printf 'import hubmod  # eco/cmt/hubmod.py\n' >"$repo3/eco/cmt/pyimport.py"
+printf 'import pyimport\n' >"$repo3/eco/cmt/test_pyimport.py"
 # shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
 mk_cmt_dependent sh-directive sh '# shellcheck source=hub-target.sh\n. "$HUB"\n'
 mk_cmt_dependent js-code js 'spawnSync("bash", ["hub-target.sh"]);\n'
@@ -1384,18 +1387,20 @@ git_test_config "$repo3" commit -qm comments >/dev/null
 run_sel "$repo3" eco/cmt/hub-target.sh
 if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/cmt/hub-target.test.sh &&
   ! has_line "$OUT" eco/cmt/sh-comment.test.sh &&
+  ! has_line "$OUT" eco/cmt/sh-trailing.test.sh &&
+  ! has_line "$OUT" eco/cmt/sh-redirect.test.sh &&
   ! has_line "$OUT" eco/cmt/js-comment.test.js; then
-  ok "a comment-only mention in a non-suite file no longer selects"
+  ok "a comment-only, trailing-comment or redirect-target mention in a non-suite file no longer selects"
 else
   fail "comment-only mention still made a dependent (rc=$RC): $OUT"
 fi
 
 if has_line "$OUT" eco/cmt/sh-code.test.sh &&
-  has_line "$OUT" eco/cmt/sh-trailing.test.sh &&
+  has_line "$OUT" eco/cmt/sh-quoted-hash.test.sh &&
   has_line "$OUT" eco/cmt/sh-directive.test.sh &&
   has_line "$OUT" eco/cmt/js-code.test.js &&
   has_line "$OUT" eco/cmt/js-typeimport.test.js; then
-  ok "a code mention, a trailing comment, a shellcheck directive and a JSDoc import still select"
+  ok "a code mention, a quoted '#', a shellcheck directive and a JSDoc import still select"
 else
   fail "a non-comment mention lost its dependent (rc=$RC): $OUT"
 fi
@@ -1408,8 +1413,9 @@ fi
 
 run_sel "$repo3" eco/cmt/hubmod.py
 if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/cmt/test_hubmod.py &&
-  ! has_line "$OUT" eco/cmt/test_pyprose.py; then
-  ok "a Python comment naming a module selects nothing"
+  ! has_line "$OUT" eco/cmt/test_pyprose.py && ! has_line "$OUT" eco/cmt/test_pytrail.py &&
+  has_line "$OUT" eco/cmt/test_pyimport.py; then
+  ok "a Python comment naming a module selects nothing, except one on its import line"
 else
   fail "python: a comment-only mention still selected (rc=$RC): $OUT"
 fi
@@ -1619,6 +1625,23 @@ if contains "$out" 'UNMAPPED: 1 changed file(s)'; then
   ok "--unmapped-corpus: the unmapped report is still printed"
 else
   fail "--unmapped-corpus: the unmapped report went missing: $out"
+fi
+# Data no rule reaches is read by no suite, so it starts no corpus; the exit
+# still reports it. An extensionless file with a `#!` line is code.
+printf 'name: orphan\n' >"$repo/plugins/alpha/zz-orphan-data.cfg"
+run_sel "$repo" --unmapped-corpus plugins/alpha/zz-orphan-data.cfg
+if [[ "$RC" -eq 4 && -z "$OUT" ]]; then
+  ok "--unmapped-corpus: unmapped data selects no corpus, at exit 4"
+else
+  fail "--unmapped-corpus: unmapped data should select nothing at exit 4 (rc=$RC): $OUT"
+fi
+printf '#!/usr/bin/env bash\necho orphan\n' >"$repo/plugins/alpha/zz-orphan-tool"
+run_sel "$repo" --unmapped-corpus plugins/alpha/zz-orphan-tool
+if [[ "$RC" -eq 4 ]] && has_line "$OUT" plugins/alpha/tests/scan.test.sh &&
+  ! has_line "$OUT" plugins/alpha/tests/test_scan.py; then
+  ok "--unmapped-corpus: an unmapped extensionless script selects the shell corpus"
+else
+  fail "--unmapped-corpus: wrong corpus for an extensionless script (rc=$RC): $OUT"
 fi
 run_sel "$repo" --unmapped-corpus --allow-unmapped plugins/alpha/zz_orphan_mod.py
 if [[ "$RC" -eq 2 ]]; then

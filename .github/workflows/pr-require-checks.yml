@@ -211,6 +211,10 @@ jobs:
       run_bash: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.bash != 'false' }}
       run_python: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.python != 'false' }}
       run_node: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.node != 'false' }}
+      # Whether `lint-shell` has input: its filter group matched. No docs-only
+      # term, because a shell file under a docs-only prefix is still ShellCheck
+      # input (scripts/docs-only-paths.txt).
+      run_shell: ${{ github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['lint_shell'] != 'false' }}
       run_workflows: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
       run_skill_checker: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
       run_manifests: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}
@@ -304,6 +308,15 @@ jobs:
       # and awk only, so no lockfile or interpreter pin can move that verdict.
       # A CHANGED skill is already checked on every diff by the changed-skills
       # gate in `check-skills`, check 25 included as a FAIL.
+      #
+      # `lint_shell` names every input of a `lint-shell` gate: shell and Python
+      # source, hook and bin directories, every file under plugins/ (the
+      # portability lint scans skills/ and reference/ markdown, the
+      # hook-frontmatter reader every .md under plugins/, and a plugin.json
+      # `hooks` entry may name a hooks file of any name or extension at any
+      # path in its plugin), the gates with their baselines and libraries, the rcfile,
+      # the PyYAML pin, and this workflow. A change that touches none of them
+      # starts no `lint-shell`; scripts/lint-shell-filter.test.sh pins this.
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
@@ -389,6 +402,39 @@ jobs:
               plugins/*/.claude-plugin/**
               scripts/check-manifest-duplicate-keys*
               .python-version
+            lint_shell:
+              .github/workflows/pr-require-checks.yml
+              .github/actions/download-full-history/**
+              .github/requirements-ci.txt
+              .python-version
+              .shellcheckrc
+              lib/**
+              scripts/lib/**
+              scripts/aggregate-hygiene-results*
+              scripts/check-killswitch-hoist*
+              scripts/check-hook-slow-shapes*
+              scripts/check-hook-exec-form-frontmatter*
+              scripts/check-silent-skips*
+              scripts/check-discriminating-test-skips*
+              scripts/check-fixture-git-isolation*
+              scripts/fixture-git-isolation-baseline.txt
+              scripts/check-drive-root-litter*
+              scripts/check-shell-portability*
+              scripts/shell-portability-*
+              scripts/cross-plugin-source-registry.txt
+              scripts/orphaned-fixtures-baseline.txt
+              scripts/check-pipefail-grep-q*
+              scripts/check-test-tmp-cleanup*
+              scripts/test-tmp-cleanup-baseline.txt
+              **/*.sh
+              **/*.bash
+              **/*.bats
+              **/*.py
+              **/hooks/**
+              **/bin/**
+              **/agents/**
+              **/SKILL.md
+              plugins/**
       # THE TEST LANES ARE PLANNED HERE, ONCE. scripts/plan-test-lanes.sh runs
       # the affected-suite selector over the diff and gives each test lane its
       # suites, packed into legs by suite-seconds, and each leg the optional
@@ -984,11 +1030,15 @@ jobs:
   # file outside plugins/ changes; inside `lint-repo` that scan would set the
   # critical path.
   #
-  # The job skips only on a contract-only event or a draft (see `lint-repo`).
+  # The job skips on a contract-only event, on a draft, and on a change that
+  # touches none of its inputs (`select-tests`'s `run_shell` row, the `lint_shell`
+  # filter group). `ci-status` passes that skip only against the row, as it
+  # does a test lane's.
   lint-shell:
     needs: [select-tests]
-    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
-    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
+    # The contract-only gate, verbatim, the draft gate (see `ci-status`), and
+    # this lane's ordered skip.
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.select-tests.outputs.run_shell == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 9
     steps:
@@ -2457,8 +2507,9 @@ jobs:
           fi
           echo "::error::draft: lanes not run. Mark the pull request ready to lint and test this SHA."
           exit 1
-      # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>` skips as a job
-      # when `select-tests`'s `run_<x>` row says the change gives it no work. Its
+      # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>`, or `lint-shell`
+      # on its `run_shell` row, skips as a job when `select-tests`'s `run_<x>`
+      # row says the change gives it no work. Its
       # `skipped` becomes `success` for the aggregate only when `select-tests`
       # succeeded and that row is exactly 'false'; every other result passes
       # through as it is, so a skip that hid work stays `skipped` and the
@@ -2475,8 +2526,8 @@ jobs:
             | to_entries
             | map(.key as $lane | .value.result as $r
                 | if $r == "skipped" and $s.result == "success"
-                    and ($lane | test("^test-[a-z]+$"))
-                    and ($s.outputs["run_" + ($lane | ltrimstr("test-"))] == "false")
+                    and ($lane | test("^(test-[a-z]+|lint-shell)$"))
+                    and ($s.outputs["run_" + ($lane | sub("^(test|lint)-"; ""))] == "false")
                   then "success" else $r end)
             | join(" ")' <<<"$LANES")
           if [ -z "$results" ]; then

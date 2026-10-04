@@ -56,7 +56,13 @@ MIN_PYTHON = (3, 11)
 # 1.3.0: reachability gains `not-enabled` (cause `plugin-never-enabled`);
 # consumers keyed on `hidden` for "plugin off" must also accept it.
 # 1.4.0: `hidden` gains cause `settings-file-rejected`.
-SCHEMA_VERSION = "1.4.0"
+# 1.5.0: `overflow_chars` is the whole rendered listing (`listing_chars`)
+# over budget, not descriptions alone; `listing` and every band row gain
+# `floor_chars` and `listing_chars` (band rows also `demand_chars`), `listing`
+# gains `coverage` and, with --listing-capture, `capture`; eligibility gains
+# `exempt-name-only`; rows may be user or project skills, plugin commands or
+# workflows (`kind`).
+SCHEMA_VERSION = "1.5.0"
 
 
 @dataclass(frozen=True)
@@ -133,8 +139,11 @@ def tier_supports(tier: str, claim: str) -> bool:
 #   unchanged at 2.1.252 and again at 2.1.263, where the truncation runs in two
 #   places with identical semantics (the system-prompt listing, which collects
 #   grants, and `budgetTruncatedSkills`, which collects refusals). Evidence in
-#   reference/listing-scorer.md, beside this skill.
-# As-of: 2026-09-11, re-verified against Claude Code 2.1.263.
+#   reference/listing-scorer.md, beside this skill. Re-verified at 2.1.289,
+#   together with the fit check `compute_listing` mirrors (the whole rendered
+#   listing against the budget) and the 3-bytes-per-token default for every
+#   model outside the product's 4-byte list.
+# As-of: 2026-10-04, re-verified against Claude Code 2.1.289.
 # Locate it by SHAPE, never by name. The minified identifier is not stable across
 #   builds: the scorer was `zPe` in 2.1.251, `WPe` in 2.1.252 and `t$e` in
 #   2.1.263, with a byte-identical body. Grep for the arithmetic instead, e.g.
@@ -287,6 +296,60 @@ def parse_otel(records: list[dict]) -> tuple[list[dict], datetime | None]:
     return events, horizon
 
 
+BLOCK_SCALAR = re.compile(r"^([|>])[+-]?\d*(?:\s+#.*)?$")
+DOUBLE_QUOTED = re.compile(r'^"((?:[^"\\]|\\.)*)"\s*(?:#.*)?$', re.DOTALL)
+SINGLE_QUOTED = re.compile(r"^'((?:[^']|'')*)'\s*(?:#.*)?$", re.DOTALL)
+DOUBLE_QUOTED_ESCAPES = {'"': '"', "\\": "\\", "n": "\n", "t": "\t", "/": "/"}
+
+
+def _fold_lines(lines: list[str], separator: str) -> str:
+    """Join scalar lines the way YAML does: a blank line is a kept newline."""
+    text = ""
+    pending = 0
+    for line in lines:
+        if not line.strip():
+            pending += 1
+            continue
+        if text:
+            text += "\n" * pending if pending else separator
+        text += line
+        pending = 0
+    return text
+
+
+def _yaml_scalar(value: str, continuation: list[str]) -> str:
+    """One scalar value as YAML loads it, for the forms skill files use.
+
+    Block scalars (`>`, `|`, any chomping), quoted scalars with their
+    escapes, and plain scalars continued on indented lines. The listing is
+    charged for the loaded text, so measuring the raw source (`>-`, or each
+    `\\"` as two characters) misstates what a description costs.
+    """
+    block = BLOCK_SCALAR.match(value)
+    if block:
+        indents = [len(ln) - len(ln.lstrip()) for ln in continuation if ln.strip()]
+        cut = min(indents, default=0)
+        body = [line[cut:] for line in continuation]
+        # No trailing newline whatever the chomping indicator: Claude Code
+        # 2.1.289 listed a `description: |` skill without the newline YAML
+        # keeps, one character shorter than a literal YAML load.
+        if block.group(1) == ">":
+            return _fold_lines(body, " ")
+        return "\n".join(body).rstrip("\n")
+    joined = _fold_lines([value] + [line.strip() for line in continuation], " ")
+    double = DOUBLE_QUOTED.match(joined)
+    if double:
+        return re.sub(
+            r"\\(.)",
+            lambda m: DOUBLE_QUOTED_ESCAPES.get(m.group(1), m.group(0)),
+            double.group(1),
+        )
+    single = SINGLE_QUOTED.match(joined)
+    if single:
+        return single.group(1).replace("''", "'")
+    return re.sub(r"\s+#.*$", "", joined)
+
+
 def parse_frontmatter(text: str) -> dict:
     """Minimal YAML-frontmatter read for the fields reachability needs.
 
@@ -294,7 +357,9 @@ def parse_frontmatter(text: str) -> dict:
     block, and anything it cannot parse is reported as `_malformed` rather than
     guessed. A real parser would be a third-party dependency the sibling engines
     do not take, and a wrong-but-confident parse is worse here than an honest
-    "cannot tell" -- `misconfigured` is a fix-me, not a delete-me.
+    "cannot tell" -- `misconfigured` is a fix-me, not a delete-me. Scalar
+    values are read in the forms `_yaml_scalar` names, so a description is
+    measured at the length the listing charges for it.
     """
     if not text.startswith("---"):
         return {"_malformed": True}
@@ -304,25 +369,28 @@ def parse_frontmatter(text: str) -> dict:
     block = text[3:end]
 
     out: dict = {}
-    key = None
-    for raw in block.splitlines():
+    lines = block.splitlines()
+    index = 0
+    while index < len(lines):
+        raw = lines[index]
+        index += 1
         if not raw.strip() or raw.lstrip().startswith("#"):
             continue
-        if raw[:1] not in (" ", "\t") and ":" in raw:
-            key, _, value = raw.partition(":")
-            key = key.strip()
-            value = value.strip()
-            if value:
-                out[key] = value.strip('"').strip("'")
-                key = None
-        elif key and raw.strip():
-            # A folded/continued scalar; keep the first line's worth.
-            out.setdefault(key, raw.strip().strip('"').strip("'"))
-            key = None
+        if raw[:1] in (" ", "\t") or ":" not in raw:
+            continue
+        key, _, value = raw.partition(":")
+        continuation: list[str] = []
+        while index < len(lines) and (
+            not lines[index].strip() or lines[index][:1] in (" ", "\t")
+        ):
+            continuation.append(lines[index])
+            index += 1
+        out[key.strip()] = _yaml_scalar(value.strip(), continuation)
     if not out:
         return {"_malformed": True}
 
     return {
+        "name": out.get("name", ""),
         "description": out.get("description", ""),
         "when_to_use": out.get("when_to_use", ""),
         "disable_model_invocation": str(
@@ -378,22 +446,12 @@ def collect_fleet_at(
     `plugin@marketplace` id an install carries, so a remedy can name it.
     """
     entries: list[dict] = []
-    skills_dir = os.path.join(plugin_root, "skills")
-    if not os.path.isdir(skills_dir):
-        return entries
-    for leaf in sorted(os.listdir(skills_dir)):
-        path = os.path.join(skills_dir, leaf, "SKILL.md")
-        if not os.path.isfile(path):
-            continue
-        try:
-            with open(path, encoding="utf-8") as handle:
-                frontmatter = parse_frontmatter(handle.read())
-        except OSError:
-            frontmatter = {"_malformed": True}
+    for kind, leaf, path, frontmatter in _plugin_listing_files(plugin_root):
         entries.append(
             {
                 "qualified_name": f"{plugin}:{leaf}",
                 "source": "plugin",
+                "kind": kind,
                 "plugin_enabled": plugin_enabled,
                 "plugin_enabled_evidence": plugin_enabled_evidence,
                 "plugin_key": plugin_key,
@@ -402,6 +460,251 @@ def collect_fleet_at(
             }
         )
     return entries
+
+
+def _read_text(path: str) -> str | None:
+    try:
+        with open(path, encoding="utf-8") as handle:
+            return handle.read()
+    except OSError:
+        return None
+
+
+def _plugin_listing_files(plugin_root: str) -> list[tuple[str, str, str, dict]]:
+    """Every file a plugin contributes to the skill listing, as (kind, leaf,
+    path, frontmatter).
+
+    The listing names a plugin's `commands/*.md` and its `workflows/*.js`
+    beside its skills, each charged like a skill, so all three are counted.
+    """
+    found: list[tuple[str, str, str, dict]] = []
+    skills_dir = os.path.join(plugin_root, "skills")
+    if os.path.isdir(skills_dir):
+        for leaf in sorted(os.listdir(skills_dir)):
+            path = os.path.join(skills_dir, leaf, "SKILL.md")
+            if os.path.isfile(path):
+                text = _read_text(path)
+                frontmatter = (
+                    {"_malformed": True} if text is None else parse_frontmatter(text)
+                )
+                found.append(("skill", leaf, path, frontmatter))
+    commands_dir = os.path.join(plugin_root, "commands")
+    if os.path.isdir(commands_dir):
+        for name in sorted(os.listdir(commands_dir)):
+            path = os.path.join(commands_dir, name)
+            if name.endswith(".md") and os.path.isfile(path):
+                text = _read_text(path)
+                frontmatter = (
+                    {"_malformed": True} if text is None else parse_frontmatter(text)
+                )
+                found.append(("command", name[: -len(".md")], path, frontmatter))
+    workflows_dir = os.path.join(plugin_root, "workflows")
+    if os.path.isdir(workflows_dir):
+        for name in sorted(os.listdir(workflows_dir)):
+            path = os.path.join(workflows_dir, name)
+            if name.endswith(".js") and os.path.isfile(path):
+                meta = parse_workflow_meta(_read_text(path) or "")
+                if meta is not None:
+                    leaf = meta.pop("name", "") or name[: -len(".js")]
+                    found.append(("workflow", leaf, path, meta))
+    return found
+
+
+SKILL_OVERRIDE_VALUES = ("on", "name-only", "user-invocable-only", "off")
+
+
+def collect_local_skills(
+    skills_dir: str, source: str, overrides: Mapping[str, str]
+) -> list[dict]:
+    """User (`~/.claude/skills`) or project (`.claude/skills`) skills.
+
+    Listed beside plugin skills and charged the same way, but governed by
+    `skillOverrides` rather than `enabledPlugins`; the entry carries its
+    override so eligibility and reachability can apply it. Subfolders without
+    a `SKILL.md` (such as the claude.ai `synced` tree) are not walked. A user
+    or project skill is listed under its frontmatter `name` when it sets one,
+    else under its folder name.
+    """
+    entries: list[dict] = []
+    if not os.path.isdir(skills_dir):
+        return entries
+    for leaf in sorted(os.listdir(skills_dir)):
+        path = os.path.join(skills_dir, leaf, "SKILL.md")
+        if not os.path.isfile(path):
+            continue
+        text = _read_text(path)
+        frontmatter = {"_malformed": True} if text is None else parse_frontmatter(text)
+        configured = frontmatter.get("name")
+        name = (
+            configured
+            if source in ("user", "project")
+            and isinstance(configured, str)
+            and configured
+            else leaf
+        )
+        # Two folders declaring one `name` list once; the first in folder
+        # order is the one counted.
+        if any(e["qualified_name"] == name for e in entries):
+            continue
+        entries.append(
+            {
+                "qualified_name": name,
+                "source": source,
+                "kind": "skill",
+                "skill_override": overrides.get(name, "on"),
+                "frontmatter": frontmatter,
+                "path": path,
+            }
+        )
+    return entries
+
+
+def _project_skill_dirs(project: str) -> list[str]:
+    """Every `.claude/skills` loaded at startup, the repository root's first.
+
+    Claude Code loads project skills from the starting directory and each
+    parent up to the repository root. Skills under directories below the
+    starting one load only once the session works there, so no static walk
+    can count them.
+    """
+    chain = []
+    current = os.path.abspath(project)
+    while True:
+        chain.append(current)
+        if os.path.exists(os.path.join(current, ".git")):
+            break
+        parent = os.path.dirname(current)
+        if parent == current:
+            # No repository above: only the starting directory loads.
+            chain = chain[:1]
+            break
+        current = parent
+    return [os.path.join(d, ".claude", "skills") for d in reversed(chain)]
+
+
+def collect_user_and_project_skills(
+    config_root: str, project: str, overrides: Mapping[str, str]
+) -> list[dict]:
+    """User skills, then the project's, resolved the way Claude Code resolves
+    a shared name: personal over project, and a nested project skill whose
+    name a skill nearer the root already took listed as `<relative path>:<name>`.
+    """
+    user_dir = os.path.join(config_root, "skills")
+    entries = collect_local_skills(user_dir, "user", overrides)
+    taken = {e["qualified_name"] for e in entries}
+    user_names = set(taken)
+    root = None
+    for skills_dir in _project_skill_dirs(project):
+        if os.path.normcase(os.path.abspath(skills_dir)) == os.path.normcase(
+            os.path.abspath(user_dir)
+        ):
+            continue
+        base = os.path.dirname(os.path.dirname(skills_dir))
+        root = root or base
+        for entry in collect_local_skills(skills_dir, "project", overrides):
+            name = entry["qualified_name"]
+            if name in user_names:
+                continue
+            if name in taken:
+                prefix = os.path.relpath(base, root).replace(os.sep, "/")
+                name = f"{prefix}:{name}"
+                entry["qualified_name"] = name
+                entry["skill_override"] = overrides.get(name, "on")
+            taken.add(name)
+            entries.append(entry)
+    return entries
+
+
+SYNCED_PREFIX = "anthropic-skills:"
+
+
+def collect_synced_skills(
+    config_root: str, claude_json_path: str, overrides: Mapping[str, str]
+) -> list[dict]:
+    """The signed-in account's claude.ai-synced skills.
+
+    They sync under `<config>/skills/synced/<organizationUuid>_<accountUuid>/`,
+    one folder per account that has signed in, and list as
+    `anthropic-skills:<name>`; only the folder of the account in
+    `~/.claude.json` (`oauthAccount`) is the one loaded. Verified against
+    Claude Code 2.1.289 (the `anthropic-skills:` prefix in the shipped binary,
+    the folder of the signed-in account matching the nine synced entries a
+    session listed); recheck when a release note names synced skills. With no
+    signed-in account readable, nothing is enumerated and a capture is the
+    only way to count them.
+    """
+    try:
+        with open(claude_json_path, encoding="utf-8") as handle:
+            account = (json.load(handle) or {}).get("oauthAccount") or {}
+    except (OSError, ValueError, AttributeError):
+        return []
+    org, user = account.get("organizationUuid"), account.get("accountUuid")
+    if not (isinstance(org, str) and isinstance(user, str) and org and user):
+        return []
+    folder = os.path.join(config_root, "skills", "synced", f"{org}_{user}")
+    entries = collect_local_skills(folder, "synced", {})
+    for entry in entries:
+        leaf = entry["qualified_name"]
+        entry["qualified_name"] = SYNCED_PREFIX + leaf
+        entry["skill_override"] = overrides.get(
+            entry["qualified_name"], overrides.get(leaf, "on")
+        )
+    return entries
+
+
+def merge_skill_overrides(layers: list[dict]) -> dict[str, str]:
+    """`skillOverrides` merged per skill name, a later scope winning.
+
+    A file Claude Code rejects for a non-Boolean `enabledPlugins` value
+    contributes nothing, as in `merge_listing_settings`.
+    """
+    merged: dict[str, str] = {}
+    for layer in layers:
+        settings = layer.get("settings")
+        if not isinstance(settings, dict) or _non_boolean_plugins(settings):
+            continue
+        block = settings.get("skillOverrides")
+        if not isinstance(block, dict):
+            continue
+        for name, value in block.items():
+            if value in SKILL_OVERRIDE_VALUES:
+                merged[name] = value
+    return merged
+
+
+JS_STRING = r"""('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`)"""
+WORKFLOW_META = re.compile(r"export\s+const\s+meta\s*=\s*\{")
+
+
+def _js_string_field(block: str, key: str) -> str:
+    match = re.search(rf"(?m)^\s*{key}\s*:\s*{JS_STRING}", block)
+    if not match:
+        return ""
+    return re.sub(
+        r"\\(.)",
+        lambda m: {"n": "\n", "t": "\t"}.get(m.group(1), m.group(1)),
+        match.group(1)[1:-1],
+    )
+
+
+def parse_workflow_meta(text: str) -> dict | None:
+    """The `name`, `description` and `whenToUse` of a workflow's `meta` export.
+
+    Reads string literals only; a workflow without a `meta` export is not
+    listed and returns None. The listing renders a workflow's
+    `description - whenToUse` exactly as it renders a skill's two fields.
+    """
+    start = WORKFLOW_META.search(text)
+    if not start:
+        return None
+    block = text[start.end() :]
+    return {
+        "name": _js_string_field(block, "name"),
+        "description": _js_string_field(block, "description"),
+        "when_to_use": _js_string_field(block, "whenToUse"),
+        "disable_model_invocation": False,
+        "user_invocable": "",
+    }
 
 
 # Scope precedence, highest first. NOT a guess and NOT re-derived here: the
@@ -664,6 +967,92 @@ def collect_native(claude_json_path: str) -> tuple[list[dict], datetime | None]:
     if not first_start:
         return [], None
     return parse_native(blob.get("skillUsage") or {}, _parse_ts(first_start))
+
+
+# -- Verification stamp (docs/conventions/upstream-drift) ----------------------
+# Claim: a session transcript (`~/.claude/projects/<project>/<session>.jsonl`)
+#   records the listing the model received as an `attachment` line of type
+#   `skill_listing` carrying `content` (the rendered listing, entries joined by
+#   newlines), `names` (entry names in order), `skillCount` and `isInitial`; a
+#   `model` attachment carries `identity.modelId`.
+# Basis: observed in a Claude Code 2.1.289 transcript, where `content` was
+#   149,934 characters for 289 names and matched the rendered entries plus
+#   288 newlines exactly. Not a published format.
+# As-of: 2026-10-04, Claude Code 2.1.289.
+# Recheck trigger: a release note naming transcripts or the skill listing, or
+#   this reader returning `not-read` on a fresh transcript.
+# On mismatch: the capture reports `not-read` with its reason and the verdict
+#   falls back to enumerated coverage; nothing is guessed from a partial parse.
+# -----------------------------------------------------------------------------
+def parse_listing_capture(lines: list[str]) -> dict:
+    """The last full skill listing in a transcript, split into entries.
+
+    Only an initial listing (`isInitial` not false) is read: a later delta
+    names the skills added since, not the whole listing.
+    """
+    listing = None
+    model = None
+    for raw in lines:
+        try:
+            record = json.loads(raw)
+        except ValueError:
+            continue
+        attachment = record.get("attachment") if isinstance(record, dict) else None
+        if not isinstance(attachment, dict):
+            continue
+        if attachment.get("type") == "model":
+            model = (attachment.get("identity") or {}).get("modelId") or model
+        elif (
+            attachment.get("type") == "skill_listing"
+            and attachment.get("isInitial") is not False
+        ):
+            listing = attachment
+    if listing is None:
+        return {"status": "not-read", "reason": "no skill_listing attachment found"}
+    content, names = listing.get("content"), listing.get("names")
+    if not isinstance(content, str) or not isinstance(names, list) or not names:
+        return {"status": "not-read", "reason": "skill_listing lacks content or names"}
+    entries: list[dict] = []
+    position = 0
+    for index, name in enumerate(names):
+        head = f"- {name}"
+        if not content.startswith(head, position):
+            return {
+                "status": "not-read",
+                "reason": f"entry {index + 1} does not start with {head!r}",
+            }
+        end = (
+            content.find(f"\n- {names[index + 1]}", position + len(head))
+            if index + 1 < len(names)
+            else len(content)
+        )
+        if end == -1:
+            return {"status": "not-read", "reason": f"entry {index + 2} not found"}
+        text = content[position:end]
+        if text != head and not text.startswith(head + ": "):
+            return {"status": "not-read", "reason": f"entry {head!r} is malformed"}
+        entries.append(
+            {"name": name, "rendered_chars": len(text), "name_only": text == head}
+        )
+        position = end + 1
+    return {
+        "status": "read",
+        "model": model,
+        "skill_count": len(entries),
+        "chars": len(content),
+        "entries": entries,
+    }
+
+
+def read_listing_capture(path: str) -> dict:
+    """Read an operator-supplied transcript; never launches Claude Code."""
+    try:
+        with open(path, encoding="utf-8") as handle:
+            capture = parse_listing_capture(handle.read().splitlines())
+    except OSError as exc:
+        capture = {"status": "not-read", "reason": str(exc)}
+    capture["path"] = path
+    return capture
 
 
 def collect_jsonl(store_path: str) -> tuple[list[dict], datetime | None]:
@@ -1483,16 +1872,21 @@ def _eligibility(entry: dict) -> str:
     nothing either. `exempt-hidden` covers both not-loading answers, `hidden`
     and `not-enabled`; only a settled not-loading answer exempts, because
     `None` (not assessed, or undetermined) keeps competing.
-    `skillOverrides` is not a fourth class: it never applies to plugin skills,
-    the only kind this audit enumerates.
+    `skillOverrides` applies to non-plugin (user and project) skills only:
+    `off` drops the entry, `user-invocable-only` keeps it out of the model's
+    listing, and `name-only` lists the name and never competes for a
+    description (`exempt-name-only`).
     """
     frontmatter = entry.get("frontmatter") or {}
+    override = entry.get("skill_override")
     if entry.get("source") == "bundled":
         return "exempt-bundled"
-    if entry.get("plugin_enabled") is False:
+    if entry.get("plugin_enabled") is False or override == "off":
         return "exempt-hidden"
-    if frontmatter.get("disable_model_invocation"):
+    if frontmatter.get("disable_model_invocation") or override == "user-invocable-only":
         return "exempt-user-only"
+    if override == "name-only":
+        return "exempt-name-only"
     return "competing"
 
 
@@ -1526,11 +1920,24 @@ def compute_listing(
     denominator: list[dict],
     cfg: ListingConfig,
     scores: dict[str, float] | None = None,
+    unenumerated: list[dict] | None = None,
+    capture_covers: bool = True,
 ) -> dict:
     """Budget arithmetic, split by confidence.
 
-    CERTAIN: whether the listing overflows and by how much -- pure arithmetic
-    over documented settings against summed description lengths.
+    CERTAIN: whether the listing overflows and by how much -- the whole
+    rendered listing against the budget, the same comparison the product
+    makes. Every listed entry renders `- <name>: <description>` (name + 4 +
+    capped description) or, name-only, `- <name>` (name + 2), and entries are
+    joined by one newline each. Comparing the descriptions alone against the
+    budget left out every name, every `: ` and every newline, and on a fleet
+    of about 290 skills that hid an over-budget listing behind "fits".
+
+    `unenumerated` carries entries a captured listing showed that no disk walk
+    found (built-in, bundled and claude.ai-synced skills), each at its captured
+    rendered length. They are a fixed cost: the capture shows what they took,
+    and a captured name-only entry's description length is unknown, so the
+    total is a lower bound whenever one is present.
 
     INFERENTIAL: which particular skills lose their descriptions. That ordering
     comes from a scorer recovered from one build of the product (see
@@ -1554,6 +1961,9 @@ def compute_listing(
     # because they are never candidates.
     floor = 0
     listed = 0
+    # The full rendering, every description granted: what the product compares
+    # with the budget to decide whether the listing fits at all.
+    full = 0
     for entry in denominator:
         eligibility = _eligibility(entry)
         desc_chars = _demand_chars(entry, cfg)
@@ -1568,8 +1978,13 @@ def compute_listing(
             if eligibility == "exempt-bundled":
                 # Keeps its description unconditionally, so it is charged for it.
                 floor += name_chars + 4 + desc_chars
+                full += name_chars + 4 + desc_chars
+            elif eligibility == "exempt-name-only":
+                floor += name_chars + 2
+                full += name_chars + 2
             else:
                 floor += name_chars + 2
+                full += name_chars + 4 + desc_chars
         rows.append(
             {
                 "qualified_name": entry["qualified_name"],
@@ -1582,10 +1997,29 @@ def compute_listing(
             }
         )
 
-    overflow = max(0, demand - budget)
-    verdict = "overflowing" if overflow > 0 else "listing-fits"
+    extra = unenumerated or []
+    extra_chars = sum(e["rendered_chars"] for e in extra)
+    listed += len(extra)
+    floor += extra_chars
+    full += extra_chars
+    separators = max(0, listed - 1)
+    floor += separators
+    full += separators
 
-    floor += max(0, listed - 1)
+    overflow = max(0, full - budget)
+    # Overflow survives missing entries, since adding one only grows the
+    # listing. A fit does not: without a capture the built-in and bundled
+    # entries go uncounted, so the counted ones fitting is not the listing
+    # fitting, and the verdict says so instead of claiming it. A capture
+    # confirms a fit only when it covers the counted fleet (`capture_covers`):
+    # one from a session that loaded a different fleet says nothing about this
+    # one.
+    fits = (
+        "listing-fits"
+        if unenumerated is not None and capture_covers
+        else "fit-unconfirmed"
+    )
+    verdict = "overflowing" if overflow > 0 else fits
 
     competing = [r for r in rows if r["eligibility"] == "competing"]
 
@@ -1619,10 +2053,13 @@ def compute_listing(
     competing.sort(key=lambda r: -r["usage_score"])
     remaining = max(0, budget - floor)
     for row in competing:
+        # A grant costs the description plus its `: ` joiner: the entry grows
+        # from `- <name>` to `- <name>: <description>`.
+        grant = row["demand_chars"] + 2
         if overflow <= 0:
-            row["verdict"] = "listing-fits"
-        elif row["demand_chars"] <= remaining:
-            remaining -= row["demand_chars"]
+            row["verdict"] = fits
+        elif grant <= remaining:
+            remaining -= grant
             row["verdict"] = "likely-retained"
         else:
             row["verdict"] = "likely-starved"
@@ -1666,14 +2103,23 @@ def compute_listing(
             row["band"] = None
 
     return {
-        "label": band_label(cfg.context_window_tokens, cfg.bytes_per_token),
+        # The env override sets the budget whatever the window and bytes per
+        # token, so its row is named for the variable, not for those axes.
+        "label": "SLASH_COMMAND_TOOL_CHAR_BUDGET"
+        if cfg.env_char_budget is not None
+        else band_label(cfg.context_window_tokens, cfg.bytes_per_token),
         "context_window_tokens": cfg.context_window_tokens,
         "bytes_per_token": cfg.bytes_per_token,
         "budget_chars": budget,
         "budget_basis": budget_basis(cfg),
         "demand_chars": demand,
+        "floor_chars": floor,
+        "listing_chars": full,
         "overflow_chars": overflow,
         "verdict": verdict,
+        "coverage": "enumerated+capture"
+        if unenumerated is not None
+        else "enumerated-only",
         "score_basis": score_basis,
         "competing_count": len(competing),
         "starved_count": starved_count,
@@ -1688,6 +2134,9 @@ BAND_ROW_FIELDS = (
     "bytes_per_token",
     "budget_chars",
     "budget_basis",
+    "demand_chars",
+    "floor_chars",
+    "listing_chars",
     "overflow_chars",
     "verdict",
     "starved_count",
@@ -1699,6 +2148,8 @@ def compute_listing_band(
     cfg: ListingConfig,
     axes: ListingAxes,
     scores: dict[str, float] | None = None,
+    unenumerated: list[dict] | None = None,
+    capture_covers: bool = True,
 ) -> dict:
     """The listing budget over every window x bytes-per-token combination.
 
@@ -1718,12 +2169,14 @@ def compute_listing_band(
     all of them.
     """
     if cfg.env_char_budget is not None:
-        return compute_listing(denominator, cfg, scores)
+        return compute_listing(denominator, cfg, scores, unenumerated, capture_covers)
     rows = [
         compute_listing(
             denominator,
             replace(cfg, context_window_tokens=window, bytes_per_token=bpt),
             scores,
+            unenumerated,
+            capture_covers,
         )
         for window in axes.windows
         for bpt in axes.bytes_per_tokens
@@ -1764,8 +2217,11 @@ def compute_listing_band(
         "budget_chars": None,
         "budget_basis": "band",
         "demand_chars": rows[0]["demand_chars"],
+        "floor_chars": rows[0]["floor_chars"],
+        "listing_chars": rows[0]["listing_chars"],
         "overflow_chars": None,
         "verdict": verdicts.pop() if len(verdicts) == 1 else "band-dependent",
+        "coverage": rows[0]["coverage"],
         "score_basis": rows[0]["score_basis"],
         "competing_count": rows[0]["competing_count"],
         "starved_count": None,
@@ -1872,11 +2328,23 @@ def reachability(entry: dict) -> dict:
     frontmatter = entry.get("frontmatter") or {}
     enabled = entry.get("plugin_enabled")
     enabled_evidence = entry.get("plugin_enabled_evidence")
+    override = entry.get("skill_override")
 
     # A settled `False` comes first: a skill that never loads has no listing
     # entry for its frontmatter to misconfigure.
     if enabled is False:
         return _not_loaded(entry, enabled_evidence or "")
+    if override == "off":
+        return {
+            "value": "hidden",
+            "causes": ["skill-override-off"],
+            "remedy": (
+                "`skillOverrides` sets this skill to off, so it is not listed "
+                "at all. Remove the entry or set it to on to show it."
+            ),
+            "evidence": "skillOverrides",
+            "provenance": "documented",
+        }
 
     causes: list[str] = []
     if frontmatter.get("_malformed"):
@@ -1897,10 +2365,39 @@ def reachability(entry: dict) -> dict:
             "provenance": "assembled-from-docs-and-binary, not an official list",
         }
 
-    # `skillOverrides` is deliberately not consulted: plugin skills are
-    # governed by `enabledPlugins` alone, and the product's listing resolver
-    # returns "on" for every plugin-sourced skill before it reads the override
-    # map. Non-plugin skills, which it does govern, are not enumerated here.
+    # `skillOverrides` governs non-plugin skills only: the product's listing
+    # resolver returns "on" for every plugin-sourced skill before it reads the
+    # override map, so a plugin entry never carries one.
+    if override is not None:
+        if override == "user-invocable-only" or frontmatter.get(
+            "disable_model_invocation"
+        ):
+            return {
+                "value": "user-only",
+                "causes": [
+                    "skill-override-user-invocable-only"
+                    if override == "user-invocable-only"
+                    else "disable-model-invocation"
+                ],
+                "remedy": "By design: the description is kept out of the model's context.",
+                "evidence": "skillOverrides"
+                if override == "user-invocable-only"
+                else "frontmatter",
+                "provenance": "documented",
+            }
+        return {
+            "value": "model-reachable",
+            "causes": ["skill-override-name-only"] if override == "name-only" else [],
+            "remedy": (
+                "`skillOverrides` lists this skill by name only, so its "
+                "description never reaches the model."
+                if override == "name-only"
+                else ""
+            ),
+            "evidence": "skillOverrides" if override == "name-only" else "frontmatter",
+            "provenance": "documented",
+        }
+
     if enabled is None and enabled_evidence == ENABLEMENT_NOT_ASSESSED:
         # A checkout is not an install: there is no enablement to read, so
         # the question is declined rather than answered `unknown`.
@@ -1973,6 +2470,84 @@ def _reconcile(events: list[dict]) -> int:
     return sum(max(per_source.values()) for per_source in by_instant.values())
 
 
+def _capture_gap(
+    denominator: list[dict], capture: dict, cfg: ListingConfig
+) -> dict[str, list[str]]:
+    """Where a read capture fails to cover the counted fleet.
+
+    `not_in_capture`: listed entries the capture does not name, as when a
+    plugin was installed after the captured session started. `longer_in_capture`:
+    entries the capture rendered in full at more characters than they are
+    counted here, so the count is short. Either one means the capture came from
+    a different fleet and cannot confirm a fit.
+    """
+    captured = {e["name"]: e for e in capture["entries"]}
+    missing: list[str] = []
+    longer: list[str] = []
+    for entry in denominator:
+        eligibility = _eligibility(entry)
+        if eligibility in ("exempt-user-only", "exempt-hidden"):
+            continue
+        name = entry["qualified_name"]
+        seen = captured.get(name)
+        if seen is None:
+            missing.append(name)
+            continue
+        counted = (
+            len(name) + 2
+            if eligibility == "exempt-name-only"
+            else len(name) + 4 + _demand_chars(entry, cfg)
+        )
+        if not seen["name_only"] and seen["rendered_chars"] > counted:
+            longer.append(name)
+    return {"not_in_capture": sorted(missing), "longer_in_capture": sorted(longer)}
+
+
+def _capture_summary(
+    listing: dict,
+    capture: dict,
+    unenumerated: list[dict] | None,
+    gap: dict[str, list[str]] | None = None,
+) -> dict:
+    """What a captured listing adds to the verdict, and where it disagrees.
+
+    A captured name-only entry that no override forces is a description the
+    product shed, which is observed overflow. Any budget row that still says
+    the listing fits disagrees with what the model actually received.
+    """
+    if capture.get("status") != "read":
+        return {k: capture.get(k) for k in ("status", "reason", "path")}
+    forced = {
+        r["qualified_name"]
+        for r in listing["skills"]
+        if r["eligibility"] == "exempt-name-only"
+    }
+    shed = sorted(
+        e["name"]
+        for e in capture["entries"]
+        if e["name_only"] and e["name"] not in forced
+    )
+    rows = listing.get("band") or [listing]
+    extra = unenumerated or []
+    return {
+        "status": "read",
+        "path": capture.get("path"),
+        "model": capture.get("model"),
+        "skill_count": capture["skill_count"],
+        "chars": capture["chars"],
+        "unenumerated_count": len(extra),
+        "unenumerated_chars": sum(e["rendered_chars"] for e in extra),
+        "unenumerated_names": sorted(e["name"] for e in extra),
+        "lower_bound": any(e["name_only"] for e in extra),
+        "observed_name_only": shed,
+        "not_in_capture": (gap or {}).get("not_in_capture", []),
+        "longer_in_capture": (gap or {}).get("longer_in_capture", []),
+        "disagrees": [
+            r["label"] for r in rows if shed and r["verdict"] == "listing-fits"
+        ],
+    }
+
+
 def classify(
     denominator: list[dict],
     events: list[dict],
@@ -1981,12 +2556,15 @@ def classify(
     horizons: dict[str, datetime],
     listing_config: ListingConfig | None = None,
     listing_axes: ListingAxes | None = None,
+    listing_capture: dict | None = None,
 ) -> dict:
     """Pure. Fleet + events + config + clock + horizons -> report model.
 
     `listing_axes` names the window and bytes-per-token values to budget for
     and carries the provenance of every budget input; without it the listing
     is the single row `listing_config` describes, which is the replay path.
+    `listing_capture` is `read_listing_capture`'s result: its entries that the
+    denominator does not name are charged at their captured length.
     """
     tier = resolve_tier(set(horizons))
     events_by_skill, ambiguous_keys = resolve_event_keys(denominator, events)
@@ -2015,13 +2593,28 @@ def classify(
         )
 
     listing_cfg = listing_config or ListingConfig()
+    captured = (listing_capture or {}).get("status") == "read"
+    known = {entry["qualified_name"] for entry in denominator}
+    unenumerated = (
+        [e for e in listing_capture["entries"] if e["name"] not in known]
+        if captured
+        else None
+    )
+    gap = _capture_gap(denominator, listing_capture, listing_cfg) if captured else {}
+    covers = not any(gap.values())
     if listing_axes is None:
-        listing = compute_listing(denominator, listing_cfg, native_scores)
+        listing = compute_listing(
+            denominator, listing_cfg, native_scores, unenumerated, covers
+        )
     else:
         listing = compute_listing_band(
-            denominator, listing_cfg, listing_axes, native_scores
+            denominator, listing_cfg, listing_axes, native_scores, unenumerated, covers
         )
         listing["inputs"] = listing_axes.inputs
+    if listing_capture is not None:
+        listing["capture"] = _capture_summary(
+            listing, listing_capture, unenumerated, gap
+        )
     starvation_by_name = {r["qualified_name"]: r for r in listing["skills"]}
     # Narrowest horizon = the most recent start = the least we can see back to.
     # Two different questions, two different horizons.
@@ -2257,6 +2850,7 @@ def _render_markdown(model: dict) -> str:
             lines += _render_band(listing)
         else:
             lines += _render_single_budget(listing)
+        lines += _render_coverage(listing)
         any_overflow = listing_overflows(listing)
         if any_overflow:
             # An unscored run has no usage behind its ordering at all. Saying
@@ -2335,6 +2929,11 @@ def _render_markdown(model: dict) -> str:
     return "\n".join(lines)
 
 
+def _hidden_by_override(row: dict) -> bool:
+    """A non-plugin skill set off by `skillOverrides`, not a disabled plugin."""
+    return "skill-override-off" in row["reachability"]["causes"]
+
+
 def _render_reachability(skills: list[dict]) -> list[str]:
     """Per-value counts, the one checkout line, the hidden table, and the
     not-enabled summary.
@@ -2355,9 +2954,18 @@ def _render_reachability(skills: list[dict]) -> list[str]:
     lines += ["- " + " · ".join(shown), ""]
 
     hidden: dict[str, dict] = {}
+    overridden = [r for r in skills if _hidden_by_override(r)]
+    if overridden:
+        lines += [
+            "Off by `skillOverrides`: "
+            + ", ".join(f"`{r['qualified_name']}`" for r in overridden[:10])
+            + (f" and {len(overridden) - 10} more" if len(overridden) > 10 else "")
+            + ".",
+            "",
+        ]
     for row in skills:
         reach = row["reachability"]
-        if reach["value"] != "hidden":
+        if reach["value"] != "hidden" or _hidden_by_override(row):
             continue
         plugin = row["qualified_name"].partition(":")[0]
         bucket = hidden.setdefault(plugin, {"skills": 0, "evidence": reach["evidence"]})
@@ -2544,7 +3152,8 @@ def _render_next_actions(model: dict) -> list[str]:
     """
     counts: dict[str, int] = defaultdict(int)
     for row in model["skills"]:
-        counts[row["reachability"]["value"]] += 1
+        if not _hidden_by_override(row):
+            counts[row["reachability"]["value"]] += 1
     listing = model.get("listing") or {}
     steps: list[str] = []
     if counts.get("misconfigured"):
@@ -2576,11 +3185,16 @@ def _render_next_actions(model: dict) -> list[str]:
 def _render_single_budget(listing: dict) -> list[str]:
     """The pinned single-row paragraph."""
     if listing["overflow_chars"] > 0:
+        axes = (
+            ""
+            if listing["budget_basis"] == "env-override"
+            else f" (window {listing['context_window_tokens']:,} tokens, "
+            f"{listing['bytes_per_token']} bytes per token)"
+        )
         over_budget = (
             f"**Your skill listing is over budget by "
             f"{listing['overflow_chars']:,} characters** at "
-            f"{listing['label']} (window {listing['context_window_tokens']:,} "
-            f"tokens, {listing['bytes_per_token']} bytes per token). "
+            f"{listing['label']}{axes}. "
             f"{listing['competing_count']} skills compete for "
             f"{listing['budget_chars']:,} characters of description budget, "
         )
@@ -2609,14 +3223,108 @@ def _render_single_budget(listing: dict) -> list[str]:
             f"description length matters too.",
             "",
         ]
+    subject = (
+        "Counted entries fit (unconfirmed, see coverage)"
+        if listing["verdict"] == "fit-unconfirmed"
+        else "Listing fits"
+    )
     return [
-        f"Listing fits at {listing['label']}: {listing['demand_chars']:,} of "
-        f"{listing['budget_chars']:,} characters used by "
-        f"{listing['competing_count']} competing skills. No description "
-        f"is being dropped, so starvation is not the reason any skill "
-        f"here goes unused.",
+        f"{subject} at {listing['label']}: {listing['listing_chars']:,} of "
+        f"{listing['budget_chars']:,} characters, of which "
+        f"{listing['demand_chars']:,} are the descriptions of "
+        f"{listing['competing_count']} competing skills and "
+        f"{listing['floor_chars']:,} the floor (names, exempt entries and "
+        f"separators). No counted description is being dropped.",
         "",
     ]
+
+
+def _render_coverage(listing: dict) -> list[str]:
+    """What the verdict counted, and what a captured listing says about it."""
+    capture = listing.get("capture") or {}
+    if capture.get("status") != "read":
+        counted = listing.get("counted") or ["the entries in the collection"]
+        missing = listing.get("not_counted") or ["built-in and bundled skills"]
+        lines = [
+            f"**Counted: {'; '.join(counted)}. Not counted: "
+            f"{'; '.join(missing)}**, which the session lists too, so a fit "
+            "here is `fit-unconfirmed`, never `listing-fits`: the session can "
+            "still be over budget. Pass `--listing-capture <transcript.jsonl>` to count "
+            "them from the listing a session actually received.",
+            "",
+        ]
+        if capture:
+            lines[0:0] = [
+                f"Listing capture `{capture.get('path')}` was not read: "
+                f"{capture.get('reason')}.",
+                "",
+            ]
+        return lines + [_SUBAGENT_NOTE, ""]
+    lines = [
+        f"Captured listing (`{capture['path']}`, model "
+        f"`{capture.get('model') or 'unknown'}`): {capture['skill_count']} "
+        f"entries, {capture['chars']:,} characters. "
+        f"{capture['unenumerated_count']} of them are not on disk and are "
+        f"counted at their captured length ({capture['unenumerated_chars']:,} "
+        "characters)"
+        + (
+            "; some arrived name-only, so the total is a lower bound."
+            if capture["lower_bound"]
+            else "."
+        ),
+        "",
+    ]
+    absent, longer = capture["not_in_capture"], capture["longer_in_capture"]
+    if absent or longer:
+        parts = []
+        if absent:
+            parts.append(
+                f"{len(absent)} counted {_plural(len(absent), 'skill')} "
+                "absent from it ("
+                + ", ".join(f"`{name}`" for name in absent[:10])
+                + ("…" if len(absent) > 10 else "")
+                + ")"
+            )
+        if longer:
+            parts.append(
+                f"{len(longer)} rendered longer there than counted here ("
+                + ", ".join(f"`{name}`" for name in longer[:10])
+                + ("…" if len(longer) > 10 else "")
+                + ")"
+            )
+        lines += [
+            "**The capture does not cover the counted fleet**: "
+            + " and ".join(parts)
+            + ". It came from a session that loaded a different fleet, so a fit "
+            "stays `fit-unconfirmed`. Capture a session started after the last "
+            "install or edit to confirm one.",
+            "",
+        ]
+    shed = capture["observed_name_only"]
+    if shed:
+        lines += [
+            f"The capture shows {len(shed)} "
+            f"{_plural(len(shed), 'description')} shed: "
+            + ", ".join(f"`{name}`" for name in shed[:10])
+            + ("…" if len(shed) > 10 else "")
+            + ".",
+            "",
+        ]
+    if capture["disagrees"]:
+        lines += [
+            "**The captured listing disagrees with the arithmetic**: rows "
+            + ", ".join(f"`{label}`" for label in capture["disagrees"])
+            + " say the listing fits, but the session dropped descriptions.",
+            "",
+        ]
+    return lines + [_SUBAGENT_NOTE, ""]
+
+
+_SUBAGENT_NOTE = (
+    "A verdict covers the main session at the stated window. A subagent gets a "
+    "listing sized to its own window, so a smaller-window subagent can shed "
+    "descriptions where this verdict says the listing fits."
+)
 
 
 def _render_band(listing: dict) -> list[str]:
@@ -2629,15 +3337,21 @@ def _render_band(listing: dict) -> list[str]:
         "and `--bytes-per-token` to collapse the band.",
         "",
         f"{listing['competing_count']} competing skills demand "
-        f"{listing['demand_chars']:,} characters of description.",
+        f"{listing['demand_chars']:,} characters of description. Before any "
+        f"description, the listing's names, exempt entries and separators "
+        f"(the floor) take {listing['floor_chars']:,}; rendered in full it is "
+        f"{listing['listing_chars']:,} characters, and that total is what "
+        f"must fit the budget.",
         "",
-        "| Row | Window | Bytes/token | Budget | Overflow | Verdict | Starved |",
-        "|---|---|---|---|---|---|---|",
+        "| Row | Window | Bytes/token | Demand | Floor | Budget | Overflow "
+        "| Verdict | Starved |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for row in listing["band"]:
         lines.append(
             f"| {row['label']} | {row['context_window_tokens']:,} | "
-            f"{row['bytes_per_token']} | {row['budget_chars']:,} | "
+            f"{row['bytes_per_token']} | {row['demand_chars']:,} | "
+            f"{row['floor_chars']:,} | {row['budget_chars']:,} | "
             f"{row['overflow_chars']:,} | {row['verdict']} | "
             f"{row['starved_count']} |"
         )
@@ -2770,6 +3484,14 @@ def main(argv: list[str] | None = None) -> int:
         help="pin skillListingMaxDescChars instead of reading it from the "
         "settings scopes",
     )
+    parser.add_argument(
+        "--listing-capture",
+        metavar="TRANSCRIPT",
+        help="a session transcript (.jsonl) whose recorded skill listing "
+        "supplies the entries no disk walk sees (built-in, bundled, "
+        "claude.ai-synced) and is checked against the verdict. Read only; "
+        "Claude Code is never launched",
+    )
     parser.add_argument("--render", choices=("markdown", "json"), default="markdown")
     parser.add_argument("--now", help="RFC3339 instant to use as the clock")
     parser.add_argument(
@@ -2846,6 +3568,18 @@ def main(argv: list[str] | None = None) -> int:
                     file=sys.stderr,
                 )
                 return 2
+            # The listing also carries the user's and the project's own
+            # skills, governed by `skillOverrides` instead of enabledPlugins.
+            overrides = merge_skill_overrides(layers)
+            denominator += collect_user_and_project_skills(
+                config_root, current_project, overrides
+            )
+            account_json = args.claude_json or (
+                os.path.join(os.environ["CLAUDE_CONFIG_DIR"], ".claude.json")
+                if os.environ.get("CLAUDE_CONFIG_DIR")
+                else os.path.expanduser("~/.claude.json")
+            )
+            denominator += collect_synced_skills(config_root, account_json, overrides)
         else:
             plugins_root = args.plugins_root or os.path.join(os.getcwd(), "plugins")
             denominator = collect_fleet(plugins_root)
@@ -2889,7 +3623,19 @@ def main(argv: list[str] | None = None) -> int:
         horizons=horizons,
         listing_config=listing_cfg,
         listing_axes=listing_axes,
+        listing_capture=(
+            read_listing_capture(args.listing_capture) if args.listing_capture else None
+        ),
     )
+
+    if not args.fixture:
+        local = "user, project and claude.ai-synced skills"
+        model["listing"]["counted"] = ["plugin skills, commands and workflows"] + (
+            [local] if resolution is not None else []
+        )
+        model["listing"]["not_counted"] = ["built-in and bundled skills"] + (
+            [] if resolution is not None else [local]
+        )
 
     if resolution is not None:
         model["fleet"] = {

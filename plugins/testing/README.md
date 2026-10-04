@@ -91,12 +91,20 @@ implementation), PASS or UNKNOWN, quotes its evidence, and proposes a diff for a
 applies anything. A background job judges soon after a write; at the end of the task the Stop hook
 waits for any run still going, judges what is left (10 tests per task end, the rest at the next
 one), and writes a review-findings file (under `.work/reviews/<branch>/`). In an
-interactive session, when a verdict is a FLAG or an UNKNOWN for a reason other than "no repository"
-or no judge class, it asks Claude once to show you each verdict and proposed diff and wait.
-Otherwise there is nothing to decide and the stop is not blocked: when every verdict is a PASS
-you get one line with the count, and in the other cases, or in an unattended session, the counts
-and the file. Tests left for a later task end are counted, never named. A session that ended
-before a FLAG or UNKNOWN verdict was shown gets it named at the next session start. The writing agent never supplies the judge's prompt, model or output, and
+interactive session, when a verdict is a FLAG, or an UNKNOWN that started as a FLAG and failed the
+checks below, it asks Claude once to show you each verdict and proposed diff and wait. Every
+other UNKNOWN (no repository, no judge class, the judge's own UNKNOWN, a PASS that failed the
+checks) carries no finding. Otherwise there is nothing to decide and the stop is not blocked: when
+every verdict is a PASS you get one line with the count, and in the other cases, or in an
+unattended session, the counts and the file. Each UNKNOWN records its reason kind and the verdict
+it started as. Tests left for a later task end are counted, never named. Tests a subagent wrote
+are judged when that subagent finishes (SubagentStop), by the same rules: a FLAG asks the
+subagent, not you, to fix the test or say why it stands, you still get the counts and the file,
+and the parent's Stop does not show those verdicts again. The parent's Stop leaves a file a
+subagent still running in the background wrote to that subagent's end, and shows a finished
+subagent's verdicts that no SubagentStop showed. A session that ended before a FLAG or UNKNOWN
+verdict was shown gets it named at the next session start. The writing agent never supplies the
+judge's prompt, model or output, and
 the judge's model class always differs from every model that wrote the tests: when the configured
 class wrote them, the fallback or the next of `opus`, `sonnet`, `haiku` is used, and when all
 three wrote them the tests are reported UNKNOWN. `test_judge_effort` has no effect on a judge model that
@@ -106,8 +114,16 @@ effort levels.
 Before a verdict is shown, each quote must appear verbatim, whitespace trimmed, in the test file or
 in another file of the repository (tracked, or untracked and not ignored), since the line of code
 an expected value restates is often the best evidence; a quote found nowhere, or a FLAG whose
-diff does not apply or touches another file, is shown as UNKNOWN with only that reason, never its
-evidence, source or diff. The repository is the git toplevel of the test file's own directory,
+diff does not apply, touches another file or changes only comments and blank lines (by the comment
+syntax of the file's language), is shown as UNKNOWN with only that reason, never its
+evidence, source or diff. Within the session, a test whose body matches one already judged PASS
+(its name taken out and runs of whitespace collapsed), in a file whose lines outside the test are
+the same, under the same judge model, effort and prompt in the same repository, gets that verdict without a new run, recorded as `reused_from`; a body judged
+FLAG in an earlier run is judged again, since its diff edits one file. Within one task end,
+identical bodies are judged once and share the verdict, a FLAG included; a shared FLAG carries no
+diff of its own, and its findings entry points at the diff proposed for the test that was judged. The judge's copy of the test file is kept under its blob id, so a quote
+the file held when the judge read it but an edit has since removed is reported as stale, not as
+made up. The repository is the git toplevel of the test file's own directory,
 whatever the hook's working directory, and the judge resolves it again from the file before it
 runs, so a test file in a linked worktree is judged in that worktree. In the findings file each judge field is kept on one line
 and cut at 500 characters, at most 20 quotes are shown, a diff is cut at 20,000 characters, and
@@ -125,7 +141,7 @@ steps can still race them; that residual is accepted. A
 What you can tune: both hooks on or off, the judge's model classes and effort, the per-session run
 limit, the test-file globs, adapters and rule levels in the testing config, and a per-test
 `cant-fail-ok: <reason>` marker. What is fixed: the judge's one question; its one forced turn,
-taken only when there is a FLAG or an UNKNOWN to decide, relays verdicts for you to approve, and it never gates a stop, a commit or `--check` and never
+taken only when there is a FLAG (or an UNKNOWN that started as one) to decide, relays verdicts for you to approve, and it never gates a stop, a commit or `--check` and never
 blocks on its own failure; it never applies a fix; and its malfunction guards (a
 $0.90 budget per started ten tests in one run, a 150 s hang bound, three judge runs at once per
 machine).
@@ -247,7 +263,7 @@ reads it from.
 | --- | --- | --- | --- | --- |
 | `test_guards_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED` | Scan each test file Claude writes or edits for tests that cannot fail, and ask Claude for a reason when an edit removes or skips tests or assertions. Off by default. |
 | `test_judge_enabled` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_ENABLED` | At each task's end, a separate model asks where the expected value of each test the session created or changed came from, and reports FLAG, PASS or UNKNOWN with quoted evidence and a proposed fix it never applies. Needs test_guards_enabled, whose scan records the tests it judges. Off by default. |
-| `test_judge_model` | string | `"sonnet"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL` | Model class the judge runs on: fable, opus, sonnet (default) or haiku. When a model of that class wrote the tests, the fallback or another class is used. |
+| `test_judge_model` | string | `"sonnet"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_MODEL` | Model class the judge runs on: fable, opus, sonnet (default) or haiku. When a model of that class wrote the tests, the fallback or another class is used. The judge was not calibrated on haiku, so its verdicts may be less consistent. |
 | `test_judge_fallback_model` | string | `"opus"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_FALLBACK_MODEL` | Model class the judge uses when the main class wrote the tests: fable, opus (default), sonnet or haiku. |
 | `test_judge_effort` | string | `"medium"` | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_EFFORT` | Effort level for the judge; medium by default. For the levels the judge's model supports, see https://code.claude.com/docs/en/model-config#adjust-effort-level (as of 2026-10-02; recheck when the level list changes). It has no effect on a model that page lists without effort levels. |
 | `test_judge_session_runs` | number<br>*min 1* | *(none)* | `CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS` | Most judge runs one session may start (one run judges one file). Unset means no limit. |
