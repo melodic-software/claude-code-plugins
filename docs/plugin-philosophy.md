@@ -778,7 +778,8 @@ current refusals. They stay; they are not defects against a missing subaction.
 Declare every required runtime, shell, CLI, service, credential, and platform constraint at the point
 of use and in the plugin README. Never download or execute an undeclared tool as an incidental fallback.
 The [prerequisites convention](conventions/prerequisites/README.md) owns the machine-readable
-declaration and its checker.
+declaration and its checker, and the rule for running a declared fix: the agent offers it and runs
+it only on the user's yes ([When a check fails](conventions/prerequisites/README.md#when-a-check-fails-offer-the-fix-run-it-on-a-yes)).
 
 Classify absence deliberately:
 

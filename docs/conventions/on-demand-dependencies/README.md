@@ -1,7 +1,7 @@
 # On-demand dependencies: install pinned packages, never vendor them
 
-Version: 2.2.0
-Last updated: 2026-10-02
+Version: 2.3.0
+Last updated: 2026-10-04
 
 A marketplace-wide rule for **third-party packages a plugin needs at run time**: commit the pinned
 manifest and lockfile, install from them on demand into the plugin's data directory, and fail
@@ -156,7 +156,9 @@ is the installer run in the foreground with the same interpreter and data direct
 or Windows PowerShell 5.1 on Windows, as in Rule 3). The hook exits
 0, so a failed install never blocks the session, and it leaves no partial directory. A launcher run
 with no installed set prints the same line and exits 2. Neither falls back to another interpreter's
-packages, installs on its own, or reports a partial result as complete.
+packages, installs on its own, or reports a partial result as complete. In an interactive session
+the agent offers to run the repair line and runs it on the user's yes, per
+[When a check fails](../prerequisites/README.md#when-a-check-fails-offer-the-fix-run-it-on-a-yes).
 
 ## Exceptions
 

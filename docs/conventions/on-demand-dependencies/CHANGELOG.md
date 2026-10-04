@@ -4,6 +4,12 @@ Notable changes to the on-demand dependency contract. The contract is versioned 
 stamp in `README.md` (SemVer). A `[SPEC]` rule that tightens is a major bump; a new rule, exception
 or adopter is a minor bump; wording is a patch.
 
+## [2.3.0] - 2026-10-04
+
+- **Rule P4**: in an interactive session the agent offers to run the repair line and runs it on the
+  user's yes, per the prerequisites convention's
+  [When a check fails](../prerequisites/README.md#when-a-check-fails-offer-the-fix-run-it-on-a-yes).
+
 ## [2.2.0] - 2026-10-02
 
 - **Exceptions**: `explainer-video` installs `srt`, and on some platforms `pycairo` and `manimpango`,

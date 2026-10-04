@@ -138,7 +138,9 @@ Two notices cover a hook's dependencies. Both name `/<plugin>:check`, never `/<p
 because `setup` is manual-only (the
 [philosophy](../../plugin-philosophy.md#setup-is-explicit-and-repeatable) explains the split). A
 plugin whose `check` skill already means something else (`instruction-placement`, `skill-quality`
-and `toolchain`) ships `check-prerequisites` and names that. No hook installs anything.
+and `toolchain`) ships `check-prerequisites` and names that. No hook installs anything except the
+`SessionStart` install hook of
+[on-demand dependencies Rule P2](../on-demand-dependencies/README.md#rule-p2-install-from-a-hook-never-while-a-skill-runs-spec).
 
 | Notice | Fires | How |
 | --- | --- | --- |
@@ -157,6 +159,40 @@ that has not seen the notice. `scripts/node-notice-rows.test.sh` pins the matche
 
 `hook::require_jq_blocking` stays separate. It denies the call, so it prints its reason every time
 and does not latch.
+
+## When a check fails: offer the fix, run it on a yes
+
+A notice or a failed `check` tells the person what is missing; it does not leave them to run the
+fix. When a prerequisite check fails in an interactive session, the agent offers the fix and runs
+it only after the user says yes in this session. Nothing installs without that yes. An unattended
+or autonomous run (a loop lane, CI, a background session) has no one to say yes, so it keeps the
+report-only behavior: it prints the repair line and stops or degrades per the absence class.
+
+How the agent offers and runs the fix depends on what the fix writes:
+
+| Fix | Offer and run |
+| --- | --- |
+| Plugin-owned, hash-pinned install into the plugin data directory: the same command the plugin's `SessionStart` install hook runs ([Rule P2](../on-demand-dependencies/README.md#rule-p2-install-from-a-hook-never-while-a-skill-runs-spec)), or the repair line of Rule 3 or P4 | Name the command, then run it directly on a yes. |
+| `sudo`, a system-wide package, or a global install | Write the commands to a script file, show its contents, and run it on a yes, reading the result back from a log file. When it needs a password the agent cannot supply, the user runs the script and the agent reads the log. |
+| A large download, such as a model | State its size and source before asking; then run it per the row above that matches where it lands. |
+
+A plugin enabled mid-session needs the first row: `SessionStart` does not fire for that enable, so
+its install hook has not run. The hooks reference lists `startup`, `resume`, `clear`, `compact` and
+`fork` as the only `SessionStart` sources and says plugin hooks merge when the plugin is enabled,
+not that `SessionStart` fires then ([hooks](https://code.claude.com/docs/en/hooks), as of
+2026-10-04; recheck when the matcher table gains a source or the page describes a mid-session
+enable). The speech plugin's own error says the same, telling the user to "start a new session,
+whose SessionStart hook installs them" (`plugins/speech/scripts/narrate.py`). Running the hook's
+command on a yes makes that new session unnecessary.
+
+The fix is the declared one: the `install` hints, the repair line, or a `setup` skill's
+`apply install-*` subaction. This rule adds no `apply` verb and no subaction
+([install subactions](../../plugin-philosophy.md#install-subactions-and-refusal)), and it never
+runs an undeclared tool.
+
+Observed stumble (2026-10-04): the speech plugin was enabled mid-session, so its install hook never
+ran; `/speech:check` printed commands only, and `espeak-ng` (sudo) and the Kokoro model download
+were left for the user to run by hand.
 
 ## The CI gate
 
