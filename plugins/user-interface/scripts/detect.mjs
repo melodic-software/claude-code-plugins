@@ -58,9 +58,13 @@ function projectSignals() {
   };
 }
 
-/** stdout of `claude <args>`, or an Error naming why it could not run. */
+/** stdout of `claude <args>`, or an Error naming why it could not run.
+ * The project is the cwd (scope resolution needs it), so on Windows the lookup skips the cwd:
+ * a `claude.cmd` planted in a cloned project must not run. */
 function claude(args) {
-  const r = spawnSync("claude", args, { encoding: "utf8", shell: process.platform === "win32", timeout: 60_000 });
+  const win = process.platform === "win32";
+  const env = win ? { ...process.env, NoDefaultCurrentDirectoryInExePath: "1" } : process.env;
+  const r = spawnSync("claude", args, { encoding: "utf8", shell: win, env, timeout: 60_000 });
   if (r.error || r.status !== 0) return new Error(`claude ${args.join(" ")} failed: ${r.error?.code ?? r.stderr?.trim() ?? r.status}`);
   return r.stdout;
 }
