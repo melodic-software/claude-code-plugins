@@ -49,7 +49,7 @@ Every accepted claim has at least one Tier 0/1 source plus two independent corro
 
 ## Single-source first-party content claims
 
-Some claims can have only one publisher. A **first-party content claim** states what a named Anthropic page, file or changelog says. The content exists in one place, so searching for an independent second source finds only copies of it. Such a claim passes criterion 4 with no counted corroborator when all of these hold:
+Some claims can have only one publisher. A **first-party content claim** states what a publisher's own artifact says: a page, file, changelog or binary's help text published by the party that owns the subject it documents (Anthropic's Claude Code docs, Microsoft's Playwright docs, a maintainer's own README or `--help` output). A claim about a third party's write-up of someone else's product is not first-party. The content exists in one place, so searching for an independent second source finds only copies of it. Such a claim passes criterion 4 with no counted corroborator when all of these hold:
 
 - **The claim states why only one publisher exists**, in the sidecar header's `single_source:` field. The verifier grades that reason; one that does not hold fails criterion 4 like any other uncorroborated claim.
 - **A repost is not a second source.** A blog post, forum answer, mirror or synthesis answer that quotes or restates the page shares its pool. Record it with the page's `pool`, never count it, and keep the flag: a repost does not turn the claim into a corroborated one.
@@ -59,7 +59,7 @@ The claim's confidence is `HIGH (single source)` (see "Confidence calibration"),
 
 **A behavior claim is not a content claim.** What a product does when it runs (a default that takes effect, a limit it enforces, an error it raises) can be checked by a live probe or found in an issue report, so it still needs two independent corroborators, whatever its docs page says. A content claim about a page and a behavior claim drawn from that page are two claims: split them, and only the content claim can carry the flag.
 
-**A content claim is not a single-publisher fact.** Its subject is the named artifact, not the publisher. When the page states the publisher's own pricing, roadmap or internal metrics, "the page says X" can carry the flag, while X as a fact about the publisher is a separate claim under "Single-publisher facts" below and is never accepted.
+**A content claim is not a single-publisher fact.** Its subject is the named artifact, not the publisher, so it carries no `subject_pool` and the cap in "Single-publisher facts" below does not apply to it, even though its one source is the publisher's. When the artifact states the publisher's own pricing, roadmap, internal metrics, or how its product behaves or performs, "the artifact says X" can carry the flag, while X as a fact about the publisher or its product is a separate claim under "Single-publisher facts" and is never accepted on the publisher's word alone.
 
 ## Recency gate (for libraries, tools, CLIs, APIs)
 
@@ -322,7 +322,7 @@ Only HIGH and HIGH (single source) claims are accepted (the outcome gate enforce
 
 Some facts only their publisher can state: its own pricing, roadmap, internal metrics, or how its own product behaves. Two sources sharing a `pool` are one corroborator (`artifact-shape.md`), so the publisher's own pages count once toward criterion 4 however many repeat the fact, and such a fact never reaches criterion 7 or counts as independently corroborated.
 
-A claim is single-publisher when every Tier 0/1 source behind it shares one `pool` and that pool is the claim's subject: the publisher speaking about itself. Carry it this way:
+A claim is single-publisher when every Tier 0/1 source behind it shares one `pool` and that pool is the claim's subject: the publisher speaking about itself. A flagged first-party content claim never fits this definition: its subject is the artifact, and it is graded under "Single-source first-party content claims" above. A claim carries `single_source:` or `subject_pool:`, never both. Carry a single-publisher claim this way:
 
 - **Worded as an attribution.** The claim reads "<publisher> states ...", never as a bare fact, in the sidecar, the evidence table and the answer.
 - **`subject_pool:` on the claim** names the subject publisher and equals the one `pool` its Tier 0/1 sources share (schema: `artifact-shape.md`). A claim that fits the definition and carries no `subject_pool` is unlabeled, and the verifier fails it on criterion 4.

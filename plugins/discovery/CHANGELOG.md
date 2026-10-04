@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [0.28.9] - 2026-10-04
+
+### Changed
+
+- `/discovery:research`: a single-source first-party content claim now covers any publisher's own artifact (a page, file, changelog or binary help text published by the party that owns the subject), not only Anthropic's. Behavior claims still need two independent corroborators. A flagged content claim's subject is the artifact, so it carries no `subject_pool` and the single-publisher MEDIUM cap no longer applies to it; the cap still applies to a publisher's claims about its own product, sourced only from that publisher. A claim carries `single_source:` or `subject_pool:`, never both. The research verifier, sidecar schema, gotchas, evals and contract test follow. Verifiers had failed rows 4 and 7 on non-Anthropic first-party claims whose quotes held on re-fetch.
+
 ## [0.28.8] - 2026-10-04
 
 ### Changed
