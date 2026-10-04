@@ -74,7 +74,9 @@ and note that re-enabling restores the FAIL semantics.
 2. **Resolve the values.** With complete `<key>=<value>` arguments, use them. Otherwise ask one key
    at a time, recommendation first, from the table in `${CLAUDE_PLUGIN_ROOT}/reference/config.md`
    (`worker_continuation`: `resume`, the default, unless the team wants each new unit in a fresh
-   worker). Never invent a key the schema does not list.
+   worker; `encode_policy`: `promote-when-must-hold`, the default, unless the team wants every
+   lesson proposed at its strongest rung; `review_mining_prs`: `20`, the default, an unquoted
+   integer from 2 to 200). Never invent a key the schema does not list.
 3. **Write.** One call with every value:
 
    ```bash
@@ -130,13 +132,15 @@ before and after, the diff when one was shown, the written path, and whether the
 
 ## Next
 
-`/session-flow:orchestrate`, which reads `worker_continuation`.
+`/session-flow:orchestrate`, which reads `worker_continuation`; `/session-flow:retro codify`,
+which reads `encode_policy` and `review_mining_prs`.
 
 ## Gotchas
 
-- **Prerequisites are the observer's alone.** The other session-flow skills need no installed
-  tool; the only repository setting today is `worker_continuation`, read by
-  `/session-flow:orchestrate`.
+- **Prerequisites are the observer's, plus `gh` and `jq` for `retro codify reviews`.** The other
+  session-flow skills need no installed tool. The repository settings are `worker_continuation`,
+  read by `/session-flow:orchestrate`, and `encode_policy` and `review_mining_prs`, read by
+  `/session-flow:retro codify`.
 - **The repository file reaches the team only once committed.** `apply` leaves it uncommitted on
   purpose, and the tracked-file pair says so.
 - **`observer_analysis_bare` and auth.** `--bare` drops the login credential state on OAuth-login

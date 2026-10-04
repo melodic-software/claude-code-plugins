@@ -74,6 +74,7 @@ mid-flight checkpoint captures and routes, it does not score or codify.
 | Skill change | An existing skill should change behavior | flagged for the skill's own change flow |
 | New-skill candidate | A genuinely repeatable multi-step workflow (3+ steps, reused monthly+, needs judgment) | flagged as a candidate, not built |
 | Tracker issue | Deferred work, a discovered gap, research worth preserving | consumer's work-item tracker (offered) |
+| Encode a repeated correction | A correction the session needed more than once | `/session-flow:retro codify`, through its Strength step (offered) |
 
 running-retro **captures and routes only**. The subagent proposes the route; nothing edits
 `CLAUDE.md`, rules, or memory, and nothing files a tracker issue. The SKILL.md step 5 offer gate

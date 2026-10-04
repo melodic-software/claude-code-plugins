@@ -81,6 +81,18 @@
         "The launch is fire-and-forget and never blocks the session; the observer runs the analysis after the session ends",
         "It defers substrate/lifecycle detail to reference/observer.md rather than restating it"
       ]
+    },
+    {
+      "id": 8,
+      "name": "repeated-correction-routes-to-codify-strength-step",
+      "prompt": "Running retro checkpoint please. So far I've had to correct you three times for editing generated files under dist/ instead of their sources.",
+      "expected_output": "The checkpoint records the repeated correction as a finding and suggests the route 'Encode a repeated correction' to /session-flow:retro codify, through its Strength step, which decides whether the lesson becomes a check or a line. running-retro neither picks the rung itself nor edits CLAUDE.md, rules or memory; the route is offered, not applied.",
+      "files": [],
+      "expectations": [
+        "The repeated correction is a finding whose suggested route is /session-flow:retro codify through its Strength step",
+        "running-retro does not choose the enforcement rung itself or restate the Strength step",
+        "Nothing is written to CLAUDE.md, rules files or memory; the route is offered only"
+      ]
     }
   ]
 }

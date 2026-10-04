@@ -1,14 +1,15 @@
 ---
 description: "Run a structured session retrospective: extract transcript metrics, assess quality across five dimensions, check feedback-memory regressions, and codify learnings durably. Use when: 'retro', 'retrospective', 'what did we learn', 'how did I do', 'codify learnings', 'show trends', or at end of session; modes: session (default), codify, trends, quick."
-argument-hint: "[unattended] [session|codify|trends|quick]"
+argument-hint: "[unattended] [session|codify [reviews]|trends|quick]"
 user-invocable: true
 disable-model-invocation: false
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/fetch-review-comments.sh:*)"]
 metadata:
   workflow-stage: retro
   summary: Structured session retrospective with codified learnings
 ---
 
-**Arguments.** `[unattended] [session|codify|trends|quick]`. e.g., /retro, /retro session, /retro codify, /retro trends, /retro quick
+**Arguments.** `[unattended] [session|codify [reviews]|trends|quick]`. e.g., /retro, /retro session, /retro codify, /retro codify reviews, /retro trends, /retro quick
 
 ## Context. Gather first
 
@@ -67,6 +68,7 @@ Resolve at runtime, never hardcode machine-specific paths:
 |--------|------|-------------|
 | End of session, bare `/session-flow:retro`, post-merge | **session** | `context/session.md`, full 5-phase analysis |
 | "codify", "save learnings", mid-session learning | **codify** | `context/codify.md`, targeted codification only |
+| "codify reviews", "what do reviewers keep telling us", "mine review comments" | **codify**, `reviews` input | `context/codify.md`, lessons from recent merged PRs' review comments |
 | "trends", "scores", "how am I doing" | **trends** | `context/trends.md`, cross-session score history |
 | "quick retro", short session, limited context | **quick** | `context/quick.md`, abbreviated pass |
 
@@ -86,6 +88,13 @@ checkpoints.
 | File | Load when |
 |---|---|
 | [reference/ecosystem-improvement-catalog.md](reference/ecosystem-improvement-catalog.md) | Before filling session mode's Phase 3 recommendation table, and any other time a finding has to be mapped to an ecosystem target. It owns the project-vs-personal placement decision tree and the per-target recommendation format for memory, rules, hooks, skills, agents, MCP servers, and settings. |
+
+### Codify settings
+
+The user options codify reads, as rendered for this run (a literal, unexpanded placeholder means
+unset): `encode_policy` = `${user_config.encode_policy}`, `review_mining_prs` =
+`${user_config.review_mining_prs}`. `context/codify.md` "Settings" resolves them against the
+repository's `docs/conventions/session-flow.yaml`, which wins.
 
 ## Step 2: Handoff
 

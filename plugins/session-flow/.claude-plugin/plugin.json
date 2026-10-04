@@ -120,6 +120,21 @@
       "description": "How /session-flow:orchestrate runs a worker's next unit: resume (default) continues the same worker; respawn starts a fresh worker with consolidated scope unless that worker holds state costly to move. A repository's worker_continuation in docs/conventions/session-flow.yaml wins.",
       "default": "resume",
       "options": ["resume", "respawn"]
+    },
+    "encode_policy": {
+      "type": "string",
+      "title": "Codify encode policy",
+      "description": "Where /session-flow:retro codify starts a lesson: promote-when-must-hold (default) writes an instruction line, moving to a checking rung only for a rule that must always hold; strongest-first proposes the strongest rung that can assert it. docs/conventions/session-flow.yaml wins.",
+      "default": "promote-when-must-hold",
+      "options": ["promote-when-must-hold", "strongest-first"]
+    },
+    "review_mining_prs": {
+      "type": "number",
+      "title": "Review mining window (merged PRs)",
+      "description": "How many recent merged pull requests /session-flow:retro codify reviews reads for review comments; default 20, from 2 to 200. A lesson is routed only when it recurs in two or more of them. A repository's review_mining_prs in docs/conventions/session-flow.yaml wins.",
+      "default": 20,
+      "min": 2,
+      "max": 200
     }
   }
 }

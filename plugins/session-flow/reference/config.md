@@ -11,6 +11,15 @@ file after validating it against the schema; `/session-flow:setup check` validat
 | Key | Values | Default | Reader | Level rule |
 |---|---|---|---|---|
 | `worker_continuation` | `resume`, `respawn` | `resume` | `/session-flow:orchestrate` (priming addendum only; export modes omit it) | repository file over user option over default |
+| `encode_policy` | `promote-when-must-hold`, `strongest-first` | `promote-when-must-hold` | `/session-flow:retro codify` (Strength step) | repository file over user option over default |
+| `review_mining_prs` | an unquoted integer from 2 to 200 | `20` | `/session-flow:retro codify reviews` | repository file over user option over default |
+
+`encode_policy` decides where codify starts a lesson on the enforcement ladder. Under
+`promote-when-must-hold`, a lesson becomes a line in `CLAUDE.md`, a rules file or `REVIEW.md`,
+and only a rule that must hold every time moves up to a rung that checks it. Under
+`strongest-first`, every lesson is proposed at the strongest rung that can assert it.
+`review_mining_prs` is how many of the repository's most recent merged pull requests
+`codify reviews` reads; a lesson is routed only when it recurs in two or more of them.
 
 `resume` keeps a worker across related units, as imperative 4 of the orchestration brief says.
 `respawn` gives each new unit (a fix round, a follow-up, a retry, the next queue item) a fresh
@@ -30,7 +39,13 @@ The reading skill resolves each key once, lowest layer first:
    since the two cannot be told apart.
 3. The key in the repository's `docs/conventions/session-flow.yaml`, read with the plugin's copy
    of the shared reader, `skills/retro/scripts/parse-concern-value.sh`. A missing file or key
-   leaves this layer unset.
+   leaves this layer unset. The reader prints nothing both for an absent key and for an empty
+   one (`key:`), so a skill that reads `encode_policy` or `review_mining_prs` first runs
+   `node skills/setup/scripts/setup-apply.mjs --check --root <git root>` from the plugin root.
+   When it exits 1, a problem line naming the key marks the repository value invalid, and a
+   parse-error line (`line <n>: ...`, no key named) marks every key in the file invalid; any other
+   exit leaves the reader's output standing. A quoted number is a string, so
+   `review_mining_prs: "20"` is invalid.
 
 The later layer wins. The skill reports one line naming the resolved value and the layer that
 supplied it, for example `worker_continuation: respawn (docs/conventions/session-flow.yaml)`. A

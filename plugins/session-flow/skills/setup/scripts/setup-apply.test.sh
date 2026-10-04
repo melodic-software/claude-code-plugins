@@ -231,6 +231,46 @@ run "$repo" --check
 assert_true '--check with a file where docs/ should be exits 1' code_is 1
 assert_true '--check with a file where docs/ should be gives no stack trace' no_trace
 
+# encode_policy takes promote-when-must-hold or strongest-first;
+# review_mining_prs takes an unquoted integer from 2 to 200.
+repo="$(new_repo)"
+run "$repo" encode_policy=strongest-first review_mining_prs=40
+assert_true 'both retro keys write in one call' code_is 0
+assert_true 'encode_policy reads back as strongest-first' [ "$(bash "$READER" "$repo/$REL" encode_policy)" = strongest-first ]
+assert_true 'review_mining_prs reads back as 40' [ "$(bash "$READER" "$repo/$REL" review_mining_prs)" = 40 ]
+run "$repo" --check
+assert_true '--check prints review_mining_prs' out_has 'review_mining_prs: 40'
+for pair in encode_policy=strongest review_mining_prs=1 review_mining_prs=201 review_mining_prs=abc \
+  review_mining_prs=020 review_mining_prs=2.5 review_mining_prs=; do
+  repo="$(new_repo)"
+  run "$repo" "$pair"
+  assert_true "$pair exits 1" code_is 1
+  assert_true "$pair writes nothing" [ ! -e "$repo/docs" ]
+done
+for doc in 'review_mining_prs: "20"\n' 'review_mining_prs: 500\n' 'review_mining_prs: 1\n' 'review_mining_prs: ~\n'; do
+  repo="$(new_repo)"
+  seed "$repo" "$doc"
+  run "$repo" --check
+  assert_true "--check flags $(printf '%b' "$doc" | tr '\n' ' ')" code_is 1
+  assert_true "--check names review_mining_prs for $(printf '%b' "$doc" | tr '\n' ' ')" out_has 'review_mining_prs'
+  run "$repo" --yes review_mining_prs=30
+  assert_true "apply replaces $(printf '%b' "$doc" | tr '\n' ' ')" code_is 0
+  assert_true "the replaced file holds review_mining_prs: 30 for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(cat "$repo/$REL")" = 'review_mining_prs: 30' ]
+done
+for doc in 'review_mining_prs: [20]\n' 'review_mining_prs: ""\n' 'encode_policy:\n  - strongest-first\n'; do
+  repo="$(new_repo)"
+  seed "$repo" "$doc"
+  before="$(cat "$repo/$REL")"
+  run "$repo" --yes review_mining_prs=30
+  assert_true "apply refuses $(printf '%b' "$doc" | tr '\n' ' ')" code_is 1
+  assert_true "the file is unchanged for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(cat "$repo/$REL")" = "$before" ]
+done
+repo="$(new_repo)"
+seed "$repo" 'review_mining_prs: 1\n'
+run "$repo" --yes worker_continuation=respawn
+assert_true 'an invalid value on a key not being written is refused' code_is 1
+assert_true 'that refusal leaves the file unchanged' [ "$(cat "$repo/$REL")" = 'review_mining_prs: 1' ]
+
 # --check: absent and valid.
 repo="$(new_repo)"
 run "$repo" --check

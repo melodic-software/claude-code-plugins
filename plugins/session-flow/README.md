@@ -205,6 +205,7 @@ analysis.
 ```shell
 /session-flow:retro            # full 5-phase analysis (default)
 /session-flow:retro codify     # persist a specific mid-session learning
+/session-flow:retro codify reviews  # lessons from recent merged PRs' review comments
 /session-flow:retro trends     # cross-session score history
 /session-flow:retro quick      # abbreviated, for limited context
 ```
@@ -474,6 +475,14 @@ worker_continuation=<value>` writes that file after validating it. Resolution an
 [`reference/config.md`](reference/config.md). Picking a value from a list needs Claude Code
 v2.1.271 or later.
 
+**`encode_policy` and `review_mining_prs`.** Read by `/session-flow:retro codify`.
+`encode_policy` sets where a lesson starts on the enforcement ladder: `promote-when-must-hold`
+(default) writes it as an instruction line unless the rule must hold every time;
+`strongest-first` proposes the strongest rung that can assert it. `review_mining_prs` (2-200,
+default 20) is how many recent merged PRs `codify reviews` reads. Both resolve like
+`worker_continuation`, from the same `docs/conventions/session-flow.yaml`, and
+`/session-flow:setup apply` writes them.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -497,6 +506,8 @@ reads it from.
 | `audit_sessions_drift_min_count` | number<br>*min 1* | `20` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_DRIFT_MIN_COUNT` | How often a transcript key must appear in a Claude Code version before audit-sessions' drift check reports it as new or vanished; default 20. Raise it if rare keys clutter the drift section. |
 | `audit_sessions_drift_versions` | number<br>*min 1, max 20* | `3` | `CLAUDE_PLUGIN_OPTION_AUDIT_SESSIONS_DRIFT_VERSIONS` | How many of the newest Claude Code versions a key must be absent from before audit-sessions' drift check reports it vanished; default 3, maximum 20. |
 | `worker_continuation` | string | `"resume"` | `CLAUDE_PLUGIN_OPTION_WORKER_CONTINUATION` | How /session-flow:orchestrate runs a worker's next unit: resume (default) continues the same worker; respawn starts a fresh worker with consolidated scope unless that worker holds state costly to move. A repository's worker_continuation in docs/conventions/session-flow.yaml wins. |
+| `encode_policy` | string | `"promote-when-must-hold"` | `CLAUDE_PLUGIN_OPTION_ENCODE_POLICY` | Where /session-flow:retro codify starts a lesson: promote-when-must-hold (default) writes an instruction line, moving to a checking rung only for a rule that must always hold; strongest-first proposes the strongest rung that can assert it. docs/conventions/session-flow.yaml wins. |
+| `review_mining_prs` | number<br>*min 2, max 200* | `20` | `CLAUDE_PLUGIN_OPTION_REVIEW_MINING_PRS` | How many recent merged pull requests /session-flow:retro codify reviews reads for review comments; default 20, from 2 to 200. A lesson is routed only when it recurs in two or more of them. A repository's review_mining_prs in docs/conventions/session-flow.yaml wins. |
 
 ### How to set these
 

@@ -23,18 +23,40 @@
       "kind": "cli",
       "need": "required",
       "for": [
-        "hook:observer-arm.sh"
+        "hook:observer-arm.sh",
+        "skill:retro"
       ],
       "detect": {
         "any": [
           "jq"
         ]
       },
-      "degrade": "Without jq, the session-flow hooks skip their work for the session and say so once.",
+      "degrade": "Without jq, the session-flow hooks skip their work for the session and say so once, and /session-flow:retro codify reviews cannot read review comments.",
       "install": {
         "docs": "https://jqlang.org/download/"
       },
       "check": "/session-flow:check"
+    },
+    {
+      "id": "gh",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:retro"
+      ],
+      "detect": {
+        "any": [
+          "gh"
+        ]
+      },
+      "degrade": "Without gh, /session-flow:retro codify reviews cannot read pull request review comments; every other retro mode and codify input still works.",
+      "install": {
+        "docs": "https://cli.github.com/",
+        "brew": "gh",
+        "winget": "GitHub.cli",
+        "apt": "gh"
+      },
+      "check": "/harness-ops:prerequisites"
     }
   ]
 }

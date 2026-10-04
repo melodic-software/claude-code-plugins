@@ -191,6 +191,10 @@ features from training-data assumptions.
 before filling the table. The placement decision tree and the per-target recommendation formats
 (memory, rules, hooks, skills, agents, MCP servers, settings) live there.
 
+**Repeated corrections.** A finding that is a correction the session needed more than once is
+encoded through codify's Strength step (`context/codify.md`, step 2), which picks its rung before
+its place. Its row here names that route.
+
 Present as a GFM table with a **Scope** column distinguishing:
 
 - **project.** Git-tracked, shared with the team (the repo's `CLAUDE.md`, rules, skills, settings)

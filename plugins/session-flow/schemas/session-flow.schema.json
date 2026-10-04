@@ -11,6 +11,18 @@
       "enum": ["resume", "respawn"],
       "default": "resume",
       "description": "How /session-flow:orchestrate runs a worker's next unit (fix round, follow-up, retry, next queue item). resume continues the same worker; respawn starts a fresh worker whose brief consolidates the original brief, later directives, the prior report and its branch, and resumes only when that worker holds state costly to move (its checkout, uncommitted changes, a running process)."
+    },
+    "encode_policy": {
+      "enum": ["promote-when-must-hold", "strongest-first"],
+      "default": "promote-when-must-hold",
+      "description": "Where /session-flow:retro codify starts a lesson on the enforcement ladder. promote-when-must-hold writes it as a CLAUDE.md, rules-file or REVIEW.md line and moves it to a checking rung only when the rule must hold every time; strongest-first proposes the strongest rung that can assert it for every lesson."
+    },
+    "review_mining_prs": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 200,
+      "default": 20,
+      "description": "How many of the repository's most recent merged pull requests /session-flow:retro codify reviews reads for review comments. A lesson is routed only when it recurs in two or more of them."
     }
   }
 }

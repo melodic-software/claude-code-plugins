@@ -95,6 +95,17 @@ const keys = Object.fromEntries(
 );
 const target = join(root, REL);
 
+// A key either lists its values (enum) or takes an unquoted integer within
+// the schema's minimum and maximum. A quoted number is a string, not an
+// integer, so it is invalid.
+function allowedText(spec) {
+  return spec.enum ? `one of ${spec.enum.join(", ")}` : `an integer from ${spec.minimum} to ${spec.maximum}`;
+}
+function allows(spec, value, quoted = false) {
+  if (spec.enum) return spec.enum.includes(value);
+  return !quoted && /^(0|[1-9][0-9]*)$/.test(value) && Number(value) >= spec.minimum && Number(value) <= spec.maximum;
+}
+
 function lstatOrNull(p) {
   try {
     return lstatSync(p);
@@ -191,17 +202,18 @@ function validate(text) {
     if (k !== "$schema" && !Object.hasOwn(keys, k)) bad(`key ${k} is not in the schema`);
   }
   for (const [k, spec] of Object.entries(keys)) {
-    const allowed = spec.enum.join(", ");
+    const allowed = allowedText(spec);
     const lines = tops.filter((t) => t.key === k);
     const scalar = records.find((r) => r.path === k);
+    const quoted = lines.some((t) => /^["']/.test(t.value));
     if (records.some((r) => r.path.startsWith(`${k}.`)) || lines.some((t) => /^[[{]/.test(t.value))) {
-      bad(`${k} holds a map or a list; it takes one of ${allowed}`);
+      bad(`${k} holds a map or a list; it takes ${allowed}`);
     } else if (scalar?.value === "") {
-      bad(`${k} is an empty quoted string; it takes one of ${allowed}`);
+      bad(`${k} is an empty quoted string; it takes ${allowed}`);
     } else if (!scalar && lines.length) {
-      bad(`${k} is empty; it takes one of ${allowed}`, true);
-    } else if (scalar && !spec.enum.includes(scalar.value)) {
-      bad(`${k}=${scalar.value} is not one of ${allowed}`, true);
+      bad(`${k} is empty; it takes ${allowed}`, true);
+    } else if (scalar && !allows(spec, scalar.value, quoted)) {
+      bad(`${k}=${quoted ? lines[0].value : scalar.value} is not ${allowed}`, true);
     }
   }
   return [...new Map(problems.map((p) => [p.msg, p])).values()];
@@ -233,9 +245,7 @@ for (const pair of pairs) {
   const v = pair.slice(eq + 1);
   if (!Object.hasOwn(keys, k)) die(1, `${k} is not a key of ${REL} (keys: ${Object.keys(keys).join(", ")}); nothing written`);
   if (wanted.some(([w]) => w === k)) die(1, `${k} is given more than once; pass each key once, nothing written`);
-  if (!keys[k].enum.includes(v)) {
-    die(1, `${k}=${v} is not one of ${keys[k].enum.join(", ")}; nothing written`);
-  }
+  if (!allows(keys[k], v)) die(1, `${k}=${v} is not ${allowedText(keys[k])}; nothing written`);
   wanted.push([k, v]);
 }
 
