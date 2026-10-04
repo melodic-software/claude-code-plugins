@@ -187,6 +187,7 @@ hand-written; the publish destination comes from the `medium` cascade key. Proce
 ## Next
 
 - The schema settles a decision worth keeping: `/architecture:record-decision`.
+- The schema needs a data-model change decided: `/planning:design data`.
 - The question is which systems the repository sits among: `/architecture:map-landscape`.
 
 ## Gotchas

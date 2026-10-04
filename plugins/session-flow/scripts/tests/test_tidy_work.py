@@ -36,11 +36,11 @@ HOME_REF = "melodic-software/claude-code-plugins#98"
 SHIPPED = "Shipped in PR #7."
 
 CHECKLIST_DONE = (
-    "# Workflow Checklist\n\n## Stages\n\n- [x] 0. Contract\n"
+    "# Workflow Checklist\n\n## Stages\n\n- [x] 4. Contract\n"
     "- [ ] 1. Explore: SKIPPED, intent crisp\n\n## PR lifecycle\n\n- [ ] PR created\n"
 )
 CHECKLIST_OPEN = (
-    "# Workflow Checklist\n\n## Stages\n\n- [x] 0. Contract\n- [ ] 1. Explore\n"
+    "# Workflow Checklist\n\n## Stages\n\n- [x] 4. Contract\n- [ ] 1. Explore\n"
 )
 
 

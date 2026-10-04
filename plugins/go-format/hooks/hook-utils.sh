@@ -2812,9 +2812,11 @@ hook::data_json_to() {
 #   FILE               the parsed, existence- and scope-checked path
 #   FILE_BASE          FILE's last component, trimmed on either separator so a
 #                      mixed-form Windows path still yields it
-#   FILE_DIR           FILE's directory (`.` for a bare name, `/` under the
-#                      filesystem root, where the strip leaves an empty string
-#                      that hook::repo_root_to would read as the process CWD)
+#   FILE_DIR           FILE's directory, split on either separator on Windows
+#                      and on `/` alone on POSIX (`.` for a bare name, `/` under
+#                      the filesystem root, where the strip leaves an empty
+#                      string that hook::repo_root_to would read as the process
+#                      CWD, and `C:\` or `C:/` under a drive root)
 #   REPO_ROOT          the consuming repo root, anchored at FILE_DIR
 #   TOOL               tool_name, ONLY when a telemetry sink is wired
 #   FILE_REL           the repo-relative path the telemetry schema requires,
@@ -2952,12 +2954,21 @@ hook::begin() {
   # Write and Edit. The two fallbacks cover the shapes where the strip and
   # dirname disagree: a bare relative filename, where dirname answers `.`, and
   # a file directly under the filesystem root, where the strip leaves an empty
-  # string and dirname answers `/`.
+  # string and dirname answers `/`. On Windows the directory strip splits on
+  # either separator, so a backslash-only path yields its own directory, not `.`
+  # (which would resolve the CWD's repository). On POSIX a backslash is a
+  # filename character, so `/a/b\c.md` stays in `/a`. A bare drive keeps its
+  # separator: `C:` alone is drive-relative, the drive's current directory.
   FILE_BASE="${FILE##*/}"
   FILE_BASE="${FILE_BASE##*\\}"
   FILE_DIR="${FILE%/*}"
+  case "${OSTYPE:-}" in
+  msys* | cygwin* | win32) FILE_DIR="${FILE%[/\\]*}" ;;
+  *) ;; # POSIX: keep the slash-only split
+  esac
   [[ "$FILE_DIR" == "$FILE" ]] && FILE_DIR=.
   [[ -n "$FILE_DIR" ]] || FILE_DIR=/
+  [[ "$FILE_DIR" == [A-Za-z]: ]] && FILE_DIR+="${FILE:2:1}"
 
   # File-anchored, not CWD-anchored: the hook process CWD is not guaranteed to
   # be the repo root, and the root bounds every opt-in walk and names data.file.

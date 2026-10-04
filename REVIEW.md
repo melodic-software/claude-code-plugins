@@ -9,9 +9,9 @@ plugin reads this file too, and additionally follows its citations into the
 
 Review in this organization is split into two mutually exclusive scopes,
 so a finding belongs to exactly one scope and is never reported twice.
-The **code-review lane** (`claude-review` or `pr-review`, and Managed Code Review)
+The **code-review lane** (`pr-review`, and Managed Code Review)
 reads this file and applies the code-review scope below. The **security
-lane** (`claude-security-review` or `pr-review-security`) runs from its own security-only prompt
+lane** (`pr-review-security`) runs from its own security-only prompt
 rather than reading this file; its scope section below records the same
 split for every surface that does read it, so the code-review lane
 knows what to leave to the security lane, and so a self-hosted or local
@@ -54,7 +54,6 @@ the `standards` checkout root is available: this repository's own root when
 This lane owns every review dimension except security: correctness,
 design, conventions, error handling, observability, tests, and
 documentation. On a repository whose CI runs the security lane (a
-`.github/workflows/claude-security-review*.yml` or
 `.github/workflows/pr-review-security*.yml` workflow exists), it does
 **not** report security findings, such as vulnerabilities, authorization
 or tenancy gaps, credential exposure, or injection: every security
