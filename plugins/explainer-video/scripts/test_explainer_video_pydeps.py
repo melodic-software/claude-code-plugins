@@ -269,7 +269,7 @@ class PyLauncher(unittest.TestCase):
     registers with the py launcher and puts no python3.13.exe on PATH."""
     PY = r'C:\Windows\py.exe'
     PY313 = r'C:\Program Files\Python313\python.exe'
-    PY314 = r'C:\Users\me\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe'
+    PY314 = r'C:\Users\<user>\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe'
 
     def discover(self, on_path, listing, supported, platform='win32', listing_rc=0):
         """supported: the paths whose probe passes, or {path: (version_info, Py_GIL_DISABLED)} to run the probe's
