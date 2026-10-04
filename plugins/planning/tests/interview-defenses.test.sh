@@ -491,11 +491,12 @@ done
 # resolves nothing. The three recommendation-basis links point at the plugin-shipped
 # context file instead of an org URL; a link target changes no rule.
 # The `Source:` block and the sentence that alternatives exclude the recommendation shape how a question is shown; neither resolves a row.
+# The quality-bar paragraph adds a round-1 question and depth scaling; deferred prototype concerns are named in the reply, so it resolves nothing silently.
 pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolve rule lives here)" \
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "2e30ebb48aab249847767b9106c8ff11e0a311fb2f25cfbbbcd1699307c66870"
+  "2b77fde9f862a71b1201bbd7af95b575d159892e511cc4267853bec1ad7c6368"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \

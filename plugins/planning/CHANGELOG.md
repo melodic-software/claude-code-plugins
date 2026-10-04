@@ -19,6 +19,12 @@ All notable changes to the `planning` plugin are documented here. Format follows
 - Shared `README.md` synced as `reference/standards-contract.md`; no change to this plugin's skills. The standards contract is now 1.1.0 and adds the `paved-path` index row kind, which planning resolves like any other row.
 - **Passages adapted from an upstream course are reworded in our own words.** `design`'s test-seam thread, `plan`'s ADR admission test, `prd`'s durability rule and prototype-snippet exception, and `interview`'s relentless-mode framing and two Q&A gotchas no longer share phrasing with the upstream skills they came from. Every rule is unchanged. `interview`'s SKILL.md and `context/loop.md` still carry shared phrasing in sections `tests/interview-defenses.test.sh` digests; they are left for an attended edit.
 
+## [0.67.8] - 2026-10-04
+
+### Added
+
+- **`/planning:interview` asks the quality bar in round 1 and scales grilling depth to it.** When the request does not state whether the work is a throwaway prototype, an internal tool, or production, round 1 asks; a stated bar is never re-asked. A prototype gets scoping questions only, with production concerns left out or deferred; production gets the full depth, including failure handling, data correctness, security, monitoring, and rollback.
+
 ## [0.67.6] - 2026-10-04
 
 ### Changed
