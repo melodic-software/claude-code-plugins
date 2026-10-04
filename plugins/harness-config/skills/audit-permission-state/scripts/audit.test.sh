@@ -8,6 +8,7 @@
 #
 # Stage behavior itself belongs to each stage's own suite. Nothing here asserts a
 # finding.
+# test-scope: .claude/settings.json
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

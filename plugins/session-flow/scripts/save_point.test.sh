@@ -3,6 +3,7 @@
 #
 # SKIPs (exit 0) when Python 3.10+ or pytest is unavailable, matching the
 # repo test-runner convention for optional toolchains.
+# test-scope: plugins/session-flow/scripts/tests/fixtures/*
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1

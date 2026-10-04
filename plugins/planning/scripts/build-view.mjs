@@ -5,12 +5,15 @@
 // never beside the record, and prints that path.
 //
 //   node build-view.mjs plan|brainstorm < data.json
+//   node build-view.mjs plan|brainstorm --connect http://127.0.0.1:<port> --out <data_dir>/page.html < data.json
+//     the Claude-interactive page that view-bridge (../view-bridge/) serves; <data_dir> must be
+//     a private view-bridge data dir outside any working tree, or the build is refused (exit 2)
 //
 // Exit 0 built, 1 the data or the page fails its checks, 2 usage or environment.
 
-import { chmodSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildView, ViewBuildError } from "../lib/view-builder.mjs";
 
@@ -56,10 +59,59 @@ const shapeFailures = (shape, data) => {
   return failures;
 };
 
-const kind = process.argv[2];
-if (!Object.hasOwn(TEMPLATES, kind)) {
-  console.error("usage: build-view.mjs plan|brainstorm < data.json");
+const insideWorkingTree = (dir) => {
+  for (let at = dir; ; at = dirname(at)) {
+    if (existsSync(join(at, ".git"))) return at;
+    if (dirname(at) === at) return null;
+  }
+};
+
+/** Why out cannot take a connected page for origin, or null: it must be page.html in a private view-bridge data dir. */
+const bridgeOutProblem = (out, origin) => {
+  const dir = dirname(resolve(out));
+  if (basename(out) !== "page.html") return `${out} must be named page.html`;
+  let st;
+  try {
+    st = lstatSync(dir);
+  } catch {
+    return `${dir} does not exist`;
+  }
+  if (!st.isDirectory()) return `${dir} is not a plain directory`;
+  if (process.platform !== "win32" && (st.uid !== process.getuid() || st.mode & 0o077)) {
+    return `${dir} must be owned by you with mode 0700`;
+  }
+  if (realpathSync(dir) !== dir) return `${dir} is not a plain directory path (a link is in it)`;
+  const root = insideWorkingTree(dir);
+  if (root) return `${dir} is inside the working tree ${root}`;
+  let session;
+  try {
+    session = JSON.parse(readFileSync(join(dir, ".view-session.json"), "utf8"));
+  } catch {
+    return `${dir} holds no view-bridge session; run view-bridge.sh ensure-running first`;
+  }
+  const port = /^http:\/\/127\.0\.0\.1:([0-9]{1,5})$/.exec(origin)?.[1];
+  if (!port || Number(port) !== session?.port) return `${origin} is not the origin this data dir serves`;
+  return null;
+};
+
+const [kind, ...rest] = process.argv.slice(2);
+const flags = {};
+for (let i = 0; i < rest.length; i += 2) flags[rest[i]] = rest[i + 1];
+const flagsOk =
+  Object.keys(flags).every((key) => ["--connect", "--out"].includes(key)) &&
+  ("--connect" in flags) === ("--out" in flags) &&
+  Object.values(flags).every((value) => typeof value === "string" && value !== "");
+if (!Object.hasOwn(TEMPLATES, kind) || !flagsOk) {
+  console.error("usage: build-view.mjs plan|brainstorm [--connect <session-bridge origin> --out <data_dir>/page.html] < data.json");
   process.exit(2);
+}
+
+if (flags["--out"]) {
+  const problem = bridgeOutProblem(flags["--out"], flags["--connect"]);
+  if (problem) {
+    console.error(`build-view: refused: ${problem}`);
+    process.exit(2);
+  }
 }
 
 try {
@@ -70,7 +122,18 @@ try {
     profile: "interactive",
     template: readFileSync(fileURLToPath(new URL(TEMPLATES[kind], import.meta.url)), "utf8"),
     data,
+    connect: flags["--connect"] ?? null,
   });
+  if (flags["--out"]) {
+    // Replace a planted link or file rather than write through it.
+    if (existsSync(flags["--out"]) && lstatSync(flags["--out"]).isDirectory()) {
+      throw new Error(`build-view: refused: ${flags["--out"]} is a directory`);
+    }
+    rmSync(flags["--out"], { force: true });
+    writeFileSync(flags["--out"], page, { flag: "wx", mode: 0o600 });
+    console.log(flags["--out"]);
+    process.exit(0);
+  }
   // The temp root is shared: keep the directory private and never write through a link.
   const dir = join(tmpdir(), "planning-views");
   mkdirSync(dir, { recursive: true, mode: 0o700 });

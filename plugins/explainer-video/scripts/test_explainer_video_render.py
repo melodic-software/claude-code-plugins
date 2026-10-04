@@ -95,11 +95,43 @@ class Renders(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.out = Path(tmp.name)
 
-    def render(self, scene_file, scene_class):
+    def render(self, scene_file, scene_class, *extra):
         r = subprocess.run([sys.executable, str(HERE / 'render.py'), str(scene_file), scene_class,
-                            '--out', str(self.out)], capture_output=True, text=True)
+                            '--out', str(self.out), *extra], capture_output=True, text=True)
         report = self.out / 'report.json'
         return r, json.loads(report.read_text(encoding='utf-8')) if report.is_file() else None
+
+    def narration(self, starts, duration):
+        """The sample's narration script with words.json placing paragraph k at starts[k], over a tone."""
+        folder = self.out / 'narration'
+        folder.mkdir()
+        script = (PLUGIN / 'skills/produce/examples/pythagoras.txt').read_text(encoding='utf-8')
+        (folder / 'script.txt').write_text(script, encoding='utf-8')
+        paras = [p.split() for p in script.split('\n\n') if p.split()]
+        words = [{'word': w, 'start': t + 0.2 * i, 'end': t + 0.2 * i + 0.15}
+                 for p, t in zip(paras, starts) for i, w in enumerate(p)]
+        (folder / 'words.json').write_text(json.dumps({'audio': 'narration.wav', 'duration': duration,
+                                                       'words': words}), encoding='utf-8')
+        subprocess.run(['ffmpeg', '-v', 'error', '-f', 'lavfi', '-i', f'sine=frequency=440:duration={duration}',
+                        '-ar', '24000', '-ac', '1', str(folder / 'narration.wav')], check=True)
+        return folder
+
+    def test_the_sample_narrated_follows_the_word_timings_and_muxes_audio_and_captions(self):
+        folder = self.narration([0.2, 1.5, 3.5, 7.0], 10.0)
+        r, report = self.render(PLUGIN / 'skills/produce/examples/pythagoras.py', 'Pythagoras',
+                                '--narration', str(folder))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(report['defects'], [])
+        self.assertEqual(report['narration']['beats'], [0.0, 1.5, 3.5, 7.0, 10.0])
+        self.assertIn('Take a right triangle.', (self.out / 'captions.srt').read_text(encoding='utf-8'))
+        self.assertFalse((self.out / 'Pythagoras.silent.mp4').exists())
+
+    def test_a_beat_that_overruns_its_narration_fails(self):
+        folder = self.narration([0.2, 0.5, 3.5, 7.0], 10.0)
+        r, report = self.render(PLUGIN / 'skills/produce/examples/pythagoras.py', 'Pythagoras',
+                                '--narration', str(folder))
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertIn('beat 1 narration starts at 0.50 s', '\n'.join(report['defects']))
 
     def test_the_sample_renders_a_silent_mp4_that_passes(self):
         r, report = self.render(PLUGIN / 'skills/produce/examples/pythagoras.py', 'Pythagoras')

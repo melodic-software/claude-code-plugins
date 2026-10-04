@@ -51,7 +51,8 @@
 #                    silent credential exfiltration. Containment blocks that; pipe
 #                    via `-` for a body generated in memory.
 #   --body-dir DIR   Directory a real --body-file must resolve under
-#                    (default: $CLAUDE_PLUGIN_DATA).
+#                    (default: $CLAUDE_PLUGIN_DATA, only when its last path
+#                    segment names harness-ops).
 #   --repo owner/name  Target repo (default: `gh repo view` for the cwd's repo).
 #                    Validated as owner/repo before URL interpolation so a
 #                    traversal value can't redirect the API to another repo.
@@ -261,9 +262,20 @@ else
     err "body file must not be a symlink: $BODY_FILE"
     exit 3
   }
-  safe_dir="${BODY_DIR:-${CLAUDE_PLUGIN_DATA:-}}"
+  # An inherited CLAUDE_PLUGIN_DATA bounds the body file only when its last path
+  # segment names this plugin: another plugin's SessionStart hook can export its
+  # own data dir under that name, which would widen the containment to it.
+  safe_dir="$BODY_DIR"
+  if [[ -z "$safe_dir" ]]; then
+    seg="${CLAUDE_PLUGIN_DATA:-}"
+    seg="${seg%[/\\]}"
+    seg="${seg##*[/\\]}"
+    if [[ "$seg" == harness-ops || "$seg" == harness-ops-* ]]; then
+      safe_dir="$CLAUDE_PLUGIN_DATA"
+    fi
+  fi
   [[ -n "$safe_dir" ]] || {
-    err "no safe body dir: set \$CLAUDE_PLUGIN_DATA or pass --body-dir DIR (or pipe the body via --body-file -)"
+    err "no safe body dir: pass --body-dir DIR (or pipe the body via --body-file -); an inherited CLAUDE_PLUGIN_DATA counts only when it names harness-ops"
     exit 4
   }
   # Canonicalize the PARENT dir of each side to a physical path via the same

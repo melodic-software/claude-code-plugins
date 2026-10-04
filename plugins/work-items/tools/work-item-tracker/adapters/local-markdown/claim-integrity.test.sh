@@ -5,6 +5,7 @@
 # field). Covers: (1) an expired lease returns the item to the frontier even though
 # this adapter has no reclaim, and (2) a failed assignee write fails the claim and
 # rolls the just-appended lease marker back, leaving no orphaned marker.
+# test-scope: plugins/work-items/tools/work-item-tracker/adapters/local-markdown/*
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 set -uo pipefail
 

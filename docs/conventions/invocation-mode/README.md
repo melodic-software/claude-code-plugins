@@ -70,7 +70,7 @@ reasons, each measured rather than assumed:
 - **At least five candidates are operative Skill-tool targets, so a flip breaks live chains.**
   Examples: `docs-hygiene:audit-encapsulation` from `extract-ssot`,
   `docs-hygiene:audit-progressive-disclosure` from `instruction-placement:migrate` and
-  `docs-hygiene:write-for-agents`, and `harness-ops:audit-native-overlap` from `education:eli5`.
+  `docs-hygiene:write-for-agents`, and `harness-ops:audit-native-overlap` from `overengineering:justify`.
   The invocation-reach invariant below makes each of those unreachable under `true`.
 
 `/skill-doctor` ("flags skills in the listing that have never been invoked and says where to turn

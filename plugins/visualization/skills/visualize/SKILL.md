@@ -67,7 +67,8 @@ rendering-surface facts these rest on. The summary:
 | The shape of code before any of it exists | **types and signatures** (a code-shape sketch) |
 | What changes, when the surrounding shape is already in the conversation | a **diff-shaped delta** over any of the shapes above (a code-shape sketch) |
 | Mostly new code, or a copyable target shape, when no sketch is smaller than the code | **the whole block**, the fallback among the code-shape sketches |
-| A composite, interactive, or large multi-part view; an infographic; a short slide deck | a **rich rendered page** |
+| A composite, interactive, or large multi-part view; an infographic | a **rich rendered page** |
+| A slide deck | hand off to `/visualization:present`, which builds it from the account's Slides Artifact type |
 | A visual layout the user would rather tweak by hand: a UI mockup, screen flow, poster, banner, one-pager | a **rich rendered page**, with the **design canvas** (`/design`, the bundled `design` skill, which the person runs) offered alongside it |
 
 **Code-shape sketches** are fenced text: they render in any GFM surface and need
@@ -261,6 +262,12 @@ interrogate form by form; one question, then render.
   plugin chrome; use real labels and data; support desktop and mobile.
 - Report what you produced and, for a page, its path or link.
 
+## Next
+
+/visualization:present
+
+It turns the material into a slide deck when the request is for slides rather than one visual.
+
 ## Gotchas
 
 - **Terminal mermaid is source, not a picture.** If the user wants to *see* the
@@ -348,6 +355,6 @@ report the refusal and never retry around it. The four-part records live in
 - **Does not teach artifact-design fundamentals**. Those route to an artifact-design capability and the Artifact tool's contract.
 - **Does not restate rendering-surface facts**. They live once in the catalog spoke.
 - **Does not digest or re-explain dense text**. That is a comprehension concern, not a form concern.
-- **Does not explain a topic from zero prior knowledge**. A one-idea-per-diagram picture explainer that assumes the reader knows nothing is `education:eli5` (if enabled). This skill picks a form for what is already in the conversation.
+- **Does not explain a topic from scratch**. A one-idea-per-diagram picture explainer of a concept or codebase topic, ELI5 included, is `education:illustrate` (if enabled). This skill picks a form for what is already in the conversation.
 - **Does not render a pull-request diff, fetched content, or another repository's files to HTML** until this lane is wired through the rendered-views escape helper. Those stay terminal fences.
 - **Does not publish an Artifact when that surface is absent or when the preference is `file`**. It degrades to a local file or terminal.

@@ -3,6 +3,29 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.3] - 2026-10-03
+
+### Fixed
+
+- **The `SessionStart` node-notice row no longer runs `powershell` on Linux.** It stopped at `${BASH_VERSION:+exit}`, which only bash sets; Claude Code runs hooks with `/bin/sh`, which is dash on Debian and Ubuntu (WSL included), so every session printed `powershell: not found`. The row now stops at `${PPID:+exit}`, which every POSIX shell sets.
+
+## [0.10.2] - 2026-10-03
+
+### Fixed
+
+- **No more false "pwsh was not found on PATH" notice for a Microsoft Store pwsh ([#6084](https://github.com/melodic-software/claude-code-plugins/issues/6084)).** The SessionStart
+  prerequisite check now counts a Windows App Execution Alias, such as the Store build's
+  `%LOCALAPPDATA%\Microsoft\WindowsApps\pwsh.exe`, as found. App Installer's Python install stub still reports
+  missing. Shared `prerequisites.mjs` synced; it also accepts a per-entry `reject_store_alias`, which no entry here sets.
+
+## [0.10.1] - 2026-10-03
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5838](https://github.com/melodic-software/claude-code-plugins/issues/5838)); no change to this plugin's hooks.**
+  It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copy.
+
 ## [0.10.0] - 2026-10-03
 
 ### Added

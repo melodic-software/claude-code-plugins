@@ -6,6 +6,7 @@
 # code, stderr, and the stdout document. The registered set is read from
 # hooks.json, never enumerated here, so a hook added without the boundary
 # fails this suite. Self-contained; no host-repo assertion library.
+# test-scope: plugins/guardrails/hooks/* plugins/guardrails/lib/*
 
 set -uo pipefail
 
