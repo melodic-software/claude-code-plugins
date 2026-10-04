@@ -1,0 +1,12 @@
+version: 1
+activities:
+  coverage-report:
+    script: scripts/coverage-report.sh
+    effect: read
+    gating: advisory
+    reads-untrusted: false
+lanes:
+  pr-run-checks:
+    stage: verify
+    slots:
+      - activity: coverage-report

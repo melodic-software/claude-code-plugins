@@ -33,7 +33,7 @@ mk_tree() {
   printf '#!/usr/bin/env bash\n' >"$dir/scripts/not-in-ci.sh"
   printf -- '---\nname: s\n---\n' >"$dir/plugins/p/skills/s/SKILL.md"
   printf -- '---\nname: local\n---\n' >"$dir/.claude/skills/local/SKILL.md"
-  printf 'jobs:\n  x:\n    steps:\n      - run: scripts/existing.sh --check\n' >"$dir/.github/workflows/ci.yml"
+  printf 'jobs:\n  x:\n    steps:\n      - run: scripts/existing.sh --check\n' >"$dir/.github/workflows/pr-require-checks.yml"
   {
     printf '# Conformance dimensions\n\n%s\n' "$HEADER"
     local row

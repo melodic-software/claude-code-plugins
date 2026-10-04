@@ -244,14 +244,15 @@ skill's module check), none of the following runs except the PostCompact marker.
 - **Zone lines** (on each tool result of the main conversation and each prompt): on a transition
   into a zone worse than any this session has already reported, report the crossing on **two
   channels with two audiences**. The **model channel** (the `context` a `tool.call` or
-  `prompt.submit` hook adds) carries the verdict only: the zone word and its rank of three, and
-  "Continuing is the user's call." on crossing, restatement, approach and threshold lines. In `dumb` it also
+  `prompt.submit` hook adds) carries the verdict only: the zone word and its rank of three. In `dumb` it also
   carries the save-state note, labeled as the dumb zone's default. A line carries no figure
-  unless `zone_line_data` adds one (percent, tokens, window), and never a session id. Beside the
+  unless `zone_line_data` adds one (percent, tokens, window), and a line with a figure ends
+  "Continuing is the user's call."; it never carries a session id. Beside the
   crossings the module sends one approach line per boundary per cycle (`approach_margin`
-  percentage points before it), one line per `thresholds` entry passed, the verdict restated once
-  after a compaction (not a `precompute` one) and after an in-process resume, and, on a reload or a
-  worker respawn (a load with earlier turns), the verdict only when it is past `smart`. Lines due
+  percentage points before it), one line per `thresholds` entry passed, and the verdict restated
+  once, only when it is past `smart`, after a compaction (not a `precompute` one), after an
+  in-process resume, and on a reload or a worker respawn (a load with earlier turns). Each line
+  sent, and each gate denial, is also written as sent to the debug log. Lines due
   at one carrier: a crossing or restatement recorded before a pending restatement merges into it;
   a crossing recorded after it is the newer verdict and replaces it. After
   `/clear` it sends nothing: the new session starts in `smart`. Lines go to the main conversation
@@ -279,13 +280,13 @@ skill's module check), none of the following runs except the PostCompact marker.
   pointer ever reaches the model channel.** A menu injected into
   model context manufactures the model's own initiative to stop, summarize, or hand off. That is a
   live finding under I23 of `/harness-config:audit-instructions`,
-  whose Remediate clause says that where the harness must surface a budget, it pairs it with a
-  reassurance rather than with an exit menu. The module sends the verdict, one reassurance
-  clause, "Continuing is the user's call.", in `dumb` the save-state note that zone carries by
-  default, and any operator-configured `zones.json` action; it sends no counter-steer rule about
-  what a zone means. The
+  whose Remediate clause says that where the harness must surface a count, it pairs it with a
+  reassurance rather than with an exit menu. By default the module surfaces no count: it sends the
+  verdict, in `dumb` the save-state note that zone carries by default, and any operator-configured
+  `zones.json` action; a count `zone_line_data` adds is paired with "Continuing is the user's
+  call."; it sends no counter-steer rule about what a zone means. The
   measurement decides only *when to ask*; the model still decides whether to stop. The model
-  channel states that continuing is the user's call, never that the user has seen the menu. No documented hook behavior tells a hook whether an operator is present, so a delivery
+  channel never says the user has seen the menu. No documented hook behavior tells a hook whether an operator is present, so a delivery
   claim would be a fact the hook cannot know. Silent while the zone is unchanged, improving, or
   `unknown`. **Hysteresis**: the gate is the worst zone already *reported*, not the zone last
   *seen*. That marker decays only when the session returns to `smart`, the bottom of the ladder.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Resolve the ref every diff-scoped step of ci.yml diffs against, for the
-# `scope` job's "Resolve the diff base" step.
+# Resolve the ref every diff-scoped step of pr-require-checks.yml diffs against, for the
+# `select-tests` job's "Resolve the diff base" step.
 #
 #   scripts/resolve-diff-base.sh
 #
@@ -42,7 +42,7 @@ push) ;;
 *) whole "A $event run has no diff base" ;;
 esac
 
-runs="repos/${GITHUB_REPOSITORY:-}/actions/workflows/ci.yml/runs?branch=${GITHUB_REF_NAME:-}&event=push"
+runs="repos/${GITHUB_REPOSITORY:-}/actions/workflows/pr-require-checks.yml/runs?branch=${GITHUB_REF_NAME:-}&event=push"
 green='[.workflow_runs[] | select(.conclusion == "success") | .head_sha]'
 
 [[ "$(git rev-parse --is-shallow-repository 2>&1)" == false ]] ||
@@ -78,7 +78,7 @@ for sha in $line; do
 done
 [[ -n "$base" ]] || whole "No commit among the last $WALK on HEAD's first-parent line has a green ci push run"
 
-infra=$(git diff --name-only "$base" HEAD -- .github/workflows/ci.yml .github/actions \
+infra=$(git diff --name-only "$base" HEAD -- .github/workflows/pr-require-checks.yml .github/actions \
   '.github/requirements-ci*.txt' 'scripts/run-plugin-tests*' 'scripts/affected-tests*' \
   'scripts/plan-test-lanes*' 'scripts/run-outside-node-suites*' 'scripts/outside-node-*.txt' \
   'scripts/resolve-diff-base*' scripts/lib \

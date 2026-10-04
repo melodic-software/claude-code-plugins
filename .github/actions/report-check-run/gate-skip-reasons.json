@@ -1,0 +1,8 @@
+{
+  "kill-switch": "prerequisite-missing",
+  "list-unreadable": "prerequisite-missing",
+  "fork": "untrusted-trigger",
+  "no-pr": "untrusted-trigger",
+  "untrusted-actor": "untrusted-trigger",
+  "untrusted-author": "untrusted-trigger"
+}
