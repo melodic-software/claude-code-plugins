@@ -111,16 +111,23 @@ version bumps and CHANGELOG entries.
     the open release land, not on every main commit.
 - **Release check:** a `check-changelog-fragments.sh --check-release <base>` step, run only on the
   `release/plugins` pull request, fails when the base holds an unconsumed fragment for a plugin the
-  release bumps. Every rebuild re-runs it. That alone does not stop a stale merge: main's status
+  release bumps. Every rebuild re-runs it. The gates recognize the release pull request by its head
+  branch alone: CI passes `CHANGELOG_HEAD_REF`, the head branch of a pull request from this
+  repository (empty for a fork), and the scripts compare it to `release/plugins`. A path-based
+  exemption could not tell a release from a hand-written bump, which is the change the gates must
+  reject. That alone does not stop a stale merge: main's status
   checks are not strict (see Context), so a green result from before a fragment landed still allows
   a merge while the push-triggered rebuild is in flight. The merge path closes that gap (next
   bullet).
 - **Merge path:** the release pull request merges only through the workflow's own `merge` step,
-  never the merge button. The step runs `--check-release` against main's live tip, then calls the
-  merge endpoint with the release head SHA it checked; a failing check starts a rebuild instead of
-  a merge. That leaves only the seconds between the check and the merge call. Once main's merge
-  queue is active, `--check-release` also runs on `merge_group`, which tests the release against the
-  exact base it lands on and closes the window.
+  never the merge button. The step runs `--check-release` against main's live tip, then queues the
+  release head SHA it checked (`enqueuePullRequest` with `expectedHeadOid`; `mergePullRequest`
+  with the same pin only when main has no merge queue); a failing check starts a rebuild instead of
+  a merge. Main's merge queue went live on 2026-10-03 (ruleset 24422263, squash), so
+  `--check-release` also runs on every `merge_group` commit with `HEAD^1` as its base: the tree the
+  queued squash commit lands on, which is main plus every entry ahead of it. `merge_group.base_sha`
+  alone would miss a fragment queued ahead of the release. A queued commit that bumps no plugin
+  with pending fragments passes, so the step needs no release detection there.
 - **Aggregation**, by a new `scripts/release-plugins.sh` the workflow runs:
   1. Group the fragments under `.changes/<plugin>/`.
   2. The new version is the manifest's current version raised once at the highest `bump` among
@@ -131,6 +138,10 @@ version bumps and CHANGELOG entries.
   4. Set `version` in `plugin.json` only. No marketplace entry carries a version, and the bot does
      not add one.
   5. Delete the consumed fragments.
+
+  When no plugin gets a new version (every pending fragment is `bump: none`), the workflow opens
+  no release pull request: one titled `release 0 plugins` would only delete files. The `none`
+  fragments wait and go with the next release.
 - **Token and signed commits:** a GitHub App installation token, not `GITHUB_TOKEN`. Pull request
   events that `GITHUB_TOKEN` causes start no workflow runs or start them waiting for approval
   (`dependabot-plugin-release.yml:15-20`), and the release pull request needs `ci-status` to run.
@@ -150,7 +161,7 @@ version bumps and CHANGELOG entries.
 | `check-changelog-parity.sh --check`, `--check-preserved`, `--check-order` | Kept as they are. They guard CHANGELOG integrity, which now changes only in release pull requests |
 | `--check-bump` | Kept for the release pull request. Its "bump without change" rule (`check-changelog-parity.sh:93-96`) counts a consumed fragment as the change. For a plugin in fragment mode, any other pull request that changes its `version` or adds a CHANGELOG heading fails with a message pointing at `.changes/` |
 | New `check-changelog-fragments.sh` | Validates every added or modified fragment: path names an existing plugin, front matter has a valid `bump`, the body has at least one known `###` section (a `bump: none` fragment needs only a non-empty reason line instead), and an added fragment's path is new on the base |
-| New `check-changelog-fragments.sh --check-required <base>` | For each fragment-mode plugin whose shipped files (anything under `plugins/<name>/`) the pull request changes, requires an added or modified fragment for that plugin, `bump: none` included. The release pull request is exempt |
+| New `check-changelog-fragments.sh --check-required <base>` | For each fragment-mode plugin whose shipped files (anything under `plugins/<name>/`) the pull request changes, requires an added or modified fragment for that plugin, `bump: none` included. Only the release pull request's own writes (the root `CHANGELOG.md` and a version-only `plugin.json` edit) are exempt; the same edits in any other pull request need a fragment |
 | New `check-changelog-fragments.sh --check-release <base>` | Runs on the release pull request only. Fails when the base holds an unconsumed fragment for a plugin the release bumps (see The release pull request) |
 | `check-vendor-version-bump.sh` and the `sync-*.sh --check-bump` steps | One shared predicate in `scripts/lib/` replaces "manifest version moved" with "manifest version moved, or a fragment for that plugin with a `bump` other than `none` was added". The version-moved branch stays so legacy plugins pass during the dual mode |
 | `check-stale-base-overlap.sh` | Unchanged. It stops firing on version files because pull requests no longer touch them |
