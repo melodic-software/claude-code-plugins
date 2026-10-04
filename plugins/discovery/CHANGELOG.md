@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`explore_output` picks what `/discovery:explore` replies with.** `explain` replies with a
+  walkthrough of how the scope works, each step citing `path:line`; `change-prep` replies with the
+  handoff summary for the next stage. The default, `auto`, picks `explain` only when a person asks
+  how something works and `change-prep` otherwise, including every call from another skill, so no
+  calling skill changes; a caller can pass `--output explain`. `EXPLORE.md` is written the same
+  way under every value. Set it per user in `userConfig` or per repository in
+  `docs/conventions/discovery.yaml` (schema `schemas/discovery.schema.json`), which wins; the run
+  names the layer that supplied it, and a value outside the three is reported with its file and
+  key while the run uses `auto`. Keys: `reference/config.md`.
+
 ### Changed
 
 - **`trace-intent` searches incident records for code that only matters when something fails.**

@@ -199,6 +199,115 @@
         "The acceptance gate (check-dispatch-artifact.sh against the parent's own slice path) is run before the run is accepted; the payload's own status: complete is not enough",
         "The artifact set is graded off disk, not from the payload's description of it"
       ]
+    },
+    {
+      "id": 16,
+      "name": "explore-output-default-auto-how-it-works-gets-walkthrough",
+      "narration": true,
+      "prompt": "How does the invoice retry scheduler in this repo decide when to try a failed charge again? [The repository has no docs/conventions/discovery.yaml. The discovery userConfig option explore_output is not set by the user, so SKILL.md's userConfig line substitutes to its declared default, auto.]",
+      "expected_output": "explore_output resolves to auto at the default level. A person asked how something works, so auto picks explain. The run still writes EXPLORE.md and its sidecars (dispatching with Output: explain), and the reply is a numbered walkthrough of the scheduler with a path:line citation per step, plus the line naming the shape and the default level.",
+      "files": [],
+      "expectations": [
+        "The reported value is auto from the default level, and the concrete shape picked is explain",
+        "The reply is a walkthrough in call order with a path:line citation on each step, not a next-stage handoff summary",
+        "EXPLORE.md is still written (or its path named) for this run",
+        "Under dispatch, the explorer's prompt carries Output: explain, not auto"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "explore-output-default-auto-before-change-gets-handoff",
+      "narration": true,
+      "prompt": "Before I add a signature check to the order-intake webhook endpoint, explore that endpoint and what touches it. [No docs/conventions/discovery.yaml, and the explore_output userConfig option substitutes to its default, auto.]",
+      "expected_output": "explore_output resolves to auto at the default level, and because the request comes before a change, auto picks change-prep. EXPLORE.md is written as usual, and the reply is the handoff summary: what exists, the constraints the change must respect, open questions with recommended defaults, and the next stage.",
+      "files": [],
+      "expectations": [
+        "The reported value is auto from the default level, and the concrete shape picked is change-prep",
+        "The reply is a handoff summary naming the constraints and the next stage, not a step-by-step walkthrough",
+        "EXPLORE.md is written (or its path named) for this run"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "explore-output-userconfig-explain-holds-for-change-request",
+      "narration": true,
+      "prompt": "I'm about to rewrite the shipment-label printer module. Explore it first. [No docs/conventions/discovery.yaml. The discovery userConfig option explore_output is set to explain, so SKILL.md's userConfig line substitutes to explain.]",
+      "expected_output": "The per-user level pins explain, so the change request does not switch the reply to change-prep: the reply is a cited walkthrough of the label printer, the line names explain and the userConfig level, and EXPLORE.md is still written.",
+      "files": [],
+      "expectations": [
+        "The value resolves to explain from the userConfig level, and the reply names that level",
+        "The reply is a walkthrough with path:line citations even though the request precedes a change",
+        "EXPLORE.md is still written (or its path named) for this run"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "explore-output-repo-file-change-prep-holds-for-how-it-works",
+      "prompt": "How does the coupon stacking logic work? [The repository's docs/conventions/discovery.yaml is captured in evals/fixtures/discovery-output-change-prep.yaml relative to the skill directory. The explore_output userConfig option substitutes to its default, auto.]",
+      "expected_output": "The repository file sets change-prep, which wins over the default auto, so the how-does-it-work question gets the handoff summary rather than a walkthrough. The line names change-prep and docs/conventions/discovery.yaml as the level.",
+      "files": [
+        "evals/fixtures/discovery-output-change-prep.yaml"
+      ],
+      "expectations": [
+        "The value resolves to change-prep from docs/conventions/discovery.yaml",
+        "The reply is the handoff summary, not a walkthrough, despite the how-does-it-work wording",
+        "The reported level is the repository file, not userConfig or the default"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "explore-output-repo-file-wins-over-userconfig",
+      "prompt": "Explore the tenant provisioning job before I change its retry limit. [The repository's docs/conventions/discovery.yaml is captured in evals/fixtures/discovery-output-explain.yaml relative to the skill directory. The explore_output userConfig option is set to change-prep.]",
+      "expected_output": "Both levels set the key and the repository level wins: the value is explain from docs/conventions/discovery.yaml even though userConfig says change-prep. The reply is a cited walkthrough, the line names the repository level, and EXPLORE.md is written.",
+      "files": [
+        "evals/fixtures/discovery-output-explain.yaml"
+      ],
+      "expectations": [
+        "The repository file's explain wins over the userConfig value change-prep",
+        "The reply is a walkthrough with path:line citations",
+        "The reported level is docs/conventions/discovery.yaml, not userConfig"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "explore-output-unknown-value-falls-back-to-auto",
+      "prompt": "Explore the audit-log exporter before I change its batch size. [The repository's docs/conventions/discovery.yaml is captured in evals/fixtures/discovery-output-invalid.yaml relative to the skill directory. The explore_output userConfig option is set to explain.]",
+      "expected_output": "The repository level holds tutorial, which is not auto, change-prep or explain. The run names docs/conventions/discovery.yaml, the key explore_output and the value tutorial, then continues on the default auto rather than the userConfig value explain. Because the request comes before a change, auto picks change-prep: the explorer is dispatched with Output: change-prep, EXPLORE.md is written, and the reply is the handoff summary with the level reported as the default and the invalid value named.",
+      "files": [
+        "evals/fixtures/discovery-output-invalid.yaml"
+      ],
+      "expectations": [
+        "The reply names docs/conventions/discovery.yaml, explore_output and the invalid value tutorial",
+        "The value used is the default auto, not the userConfig value explain, and the reported level is the default",
+        "The run continues: the explorer is dispatched (with Output: change-prep under dispatch) and EXPLORE.md is written",
+        "The reply is the change-prep handoff summary, not a walkthrough"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "explore-output-auto-skill-caller-gets-handoff",
+      "narration": true,
+      "prompt": "[You are the fresh sub-agent /planning:devils-advocate dispatched in incumbent mode. Its procedure tells you to invoke /discovery:explore on the incumbent.] /discovery:explore the in-house feature-flag client: what it is, where it is used, what it is coupled to, and any recorded reason it was chosen. [No docs/conventions/discovery.yaml; the explore_output userConfig option substitutes to auto.]",
+      "expected_output": "explore_output is auto at the default level, but the invocation comes from another skill's procedure, so auto picks change-prep even though the scope reads like a what-is-it question. The reply is the handoff summary, and EXPLORE.md is written as usual.",
+      "files": [],
+      "expectations": [
+        "The concrete shape is change-prep because another skill invoked explore, not explain",
+        "The reported level is the default, with the value auto",
+        "The reply is the handoff summary, not a walkthrough"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "explore-output-skill-caller-passes-explain",
+      "narration": true,
+      "prompt": "[A skill body you are following tells you to run /discovery:explore and show the person how the code works.] /discovery:explore --output explain the password-reset token flow [No docs/conventions/discovery.yaml; the explore_output userConfig option substitutes to auto.]",
+      "expected_output": "The calling skill passed --output explain, which wins over every layer, so the reply is a cited walkthrough even though another skill invoked explore. The scope is the password-reset token flow, without the --output argument, and the line names the invocation argument as the level.",
+      "files": [],
+      "expectations": [
+        "The concrete shape is explain, taken from the --output argument",
+        "The scope used (and any scope_as_received) is the password-reset token flow, without --output explain in it",
+        "The reply is a walkthrough with path:line citations and names the invocation argument as the supplying level"
+      ]
     }
   ]
 }

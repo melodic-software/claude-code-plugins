@@ -1,0 +1,2 @@
+# Eval fixture: a discovery.yaml whose explore_output is outside the key's values.
+explore_output: tutorial

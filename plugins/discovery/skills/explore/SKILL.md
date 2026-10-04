@@ -1,6 +1,6 @@
 ---
 description: "Explore the local codebase before changes; a folder outside any repo, or machine state, is research's. Persists EXPLORE.md via a fresh-context subagent. Use when: 'explore the codebase', 'what exists for X', 'how does this work', 'trace the dependencies', 'what tests cover this', or as step 1 before a code change. Skip a bare locate ('where is X', 'what calls Y'): dispatch the built-in Explore agent. Skip why it was built that way: '/discovery:trace-intent'."
-argument-hint: "[scope]"
+argument-hint: "[--output change-prep|explain] [scope]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Explore code, history, tests, and config before changing anything
 ---
 
-**Arguments.** `[scope]`. e.g., /discovery:explore payments module dependencies, /discovery:explore tests, /discovery:explore git, /discovery:explore config
+**Arguments.** `[--output change-prep|explain] [scope]`. `--output` sets the reply shape for this run ([Reply shape](#reply-shape-explore_output)) and is not part of the scope. e.g., /discovery:explore payments module dependencies, /discovery:explore tests, /discovery:explore git, /discovery:explore config
 
 ## Repository context. Gather first
 
@@ -32,9 +32,57 @@ contains git. The dated record for that composition claim is the worktree skill'
 
 These values orient this session only. The project root is an absolute machine path. Use it to resolve files while working, but never echo it into `EXPLORE.md`; the handoff artifact records relative paths (see the outcome gate below).
 
+## Reply shape: `explore_output`
+
+Resolve `explore_output` before routing; it decides only the final reply. `EXPLORE.md` and its
+sidecars are written the same way under every value. Lowest layer first, a later one winning
+(key contract: [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md)):
+
+1. the default, `auto`;
+2. the `userConfig` value, `${user_config.explore_output}` (a literal unexpanded token means unset;
+   `auto` here is reported as the default, since the two cannot be told apart);
+3. `explore_output` in `docs/conventions/discovery.yaml` at the project root;
+4. an `--output change-prep` or `--output explain` argument on this invocation.
+
+Read the file with the Read tool; a missing file or key leaves that layer unset, and the file does
+not apply when the project root is unknown. No `~/.claude` file, `.claude/` file or local overlay
+sets this key. A value other than `auto`, `change-prep` or
+`explain` in any layer (or an `--output` value other than the two) is named in the reply, with the
+file or `userConfig` that held it, the key, and the value, and that layer is dropped. A valid
+higher layer (such as `--output`) still wins; with none, the run continues on the default, `auto`,
+reported as the default level with the invalid value named. It never falls through to a lower
+layer's value.
+
+Under `auto`, pick the concrete shape:
+
+- `explain` only when a person asked, in their own message, how something works ("how does the
+  retry scheduler work", "walk me through the login flow").
+- `change-prep` for everything else: a request made before a change, and **every invocation from
+  another skill** (a skill body told you to run `/discovery:explore`, or you are a subagent another
+  skill dispatched), however its scope is worded. A calling skill that wants a walkthrough passes
+  `--output explain`.
+
+State one line in the reply: the concrete shape and the layer that supplied the value, e.g.
+`explore_output: explain (auto from the default; how-does-it-work request)` or
+`explore_output: change-prep (docs/conventions/discovery.yaml)`.
+
+The two shapes:
+
+- **`change-prep`**: the handoff summary: what exists, the constraints and patterns a change must
+  respect, the open questions with recommended defaults, and the next stage
+  (`/discovery:research` or `/planning:plan`).
+- **`explain`**: a walkthrough of how the scope works, in the order a request or call moves
+  through it, each step citing the `path:line` it rests on, from files the run Read. Open
+  questions are still surfaced. No next-stage recommendation unless the person asked for one.
+
 ## Routing. Dispatch by default
 
 **From the main conversation, this skill dispatches the `discovery:explorer` subagent.** Exploration reads many files; keeping that out of the orchestrator's context window is the point. The agent loads the project's path-scoped rules, runs the six dimensions, writes the artifact set, and returns a bounded summary plus a file pointer, not the reads. The parent resolves the **pre-dispatch envelope** first, six fields (scope, reason, memory-slice path, memory root, budget, capability flags), written into the dispatch prompt as the labeled template in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), not as prose the agent has to parse, and owns the **post-dispatch boundary** after: re-surfacing `open_questions` to the user, dispatching the sibling verifier, and **writing its verdict back into `EXPLORE.md`** (which agent, its prompt, the literal `verification:` line, and what to write when no verifier can run: [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md), "The sibling verifier, stated once"), the explorer always returns `verification: pending` because it may not grade its own work, so an artifact left saying `pending` after the parent verified it cannot be told apart from one whose verifier never ran, and this artifact is the whole handoff a fresh session resumes from.
+
+**The dispatch prompt also carries `Output: change-prep` or `Output: explain`**, the concrete shape
+resolved under Reply shape above, never `auto`: the explorer cannot see the request or who made it.
+After the acceptance gate passes, the reply to the person (or the calling skill) is the explorer's
+prose in that shape plus the `explore_output:` line.
 
 **Run inline instead when any of these holds**. Inline runs the identical workflow, and the escape hatch relaxes nothing:
 
@@ -115,6 +163,8 @@ Before writing EXPLORE.md (or returning the summary), check the artifact against
 ## Scope
 
 Explore the following: $ARGUMENTS
+
+A leading `--output <value>` in that line is the reply shape, not part of the scope.
 
 **A dispatched run does not read that line.** The scope does not reach a preloaded body by argument substitution, and a non-fork subagent has no view of the conversation to fall back on, so **do not rely on seeing an unfilled slot**: for a dispatched run the scope arrives in the dispatch prompt, and its absence is a parent-envelope failure the agent reports rather than repairs, whatever the line above renders as. There is no unscoped orientation mode under dispatch: a general repository sweep would hand back a plausible artifact answering a question nobody asked. What is documented about that path, and what is not, in either direction, is recorded once in [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md). Running **inline** with no scope supplied above, infer it from the current conversation context. Identify what area of the codebase is relevant to the task at hand and explore that.
 

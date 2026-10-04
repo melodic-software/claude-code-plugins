@@ -55,6 +55,10 @@ inventory.
   That question is answered after the fact by `persistence:` below. Full reasoning:
   [`${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md`](${CLAUDE_PLUGIN_ROOT}/reference/parent-contract.md).
 
+- **The reply shape**, `Output: change-prep` or `Output: explain`, resolved by the parent from
+  `explore_output` and the request. It changes only your closing prose (see "Return exactly this"
+  below), never the artifact. Degradable: when absent, reply as `change-prep`.
+
 **If the scope, the reason, or the slice path is absent or ambiguous, stop and return the payload
 below with `status: truncated` and the missing field named in `open_questions`.** The memory root is
 the one field on this list that is **degradable rather than a hard stop**: when it is missing, derive
@@ -262,8 +266,17 @@ Two dimension-level notes where the preloaded text assumes a human turn or a mai
 
 ## Return exactly this, and nothing resembling the full report
 
-One fenced YAML block, then at most one paragraph of prose carrying the highest-signal
-findings. The 7-section report is what the artifact is for. Your file reads and search output stay
+One fenced YAML block, then prose in the shape your dispatch prompt's `Output:` line names. The
+7-section report is what the artifact is for, and the artifact is the same under both shapes.
+
+- **`Output: change-prep`**: at most one paragraph, the handoff summary: what exists, the
+  constraints a change must respect, and the next stage it feeds.
+- **`Output: explain`**: a numbered walkthrough of how the scope works, in the order a request or
+  call moves through it, one step per line, each citing the `path:line` you Read it from; at most
+  twelve steps. A step you could not Read-verify is marked `(grep only)`.
+
+A missing `Output:` line, or `auto` or any other value, is degradable: reply as `change-prep` and
+say so in `open_questions`. Your file reads and search output stay
 here; that is the entire point of dispatching you.
 
 ```yaml
