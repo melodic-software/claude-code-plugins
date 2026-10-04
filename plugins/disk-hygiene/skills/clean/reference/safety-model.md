@@ -962,8 +962,16 @@ execution enabled. Nothing checks the script against the approved list except th
 reads the script's contents and then answers the UAC prompt. Making the belt `ask` or deny
 `-Verb RunAs` would be a guard change and stays with the owner.
 
-**Unverified.** No Windows UAC pilot has run this lane. Until the operator runs one, treat it as
-documented intent, not observed behavior.
+**Partly verified.** On 2026-10-01 a native PowerShell replica of this lane's per-path re-check
+passed on Windows with no failures. Launched with `Start-Process -Verb RunAs -Wait` and approved at
+the UAC prompt, it ran with a High-integrity token. Against a folder only Administrators and SYSTEM
+could modify, it removed only paths whose re-check was clear, and kept the missing,
+identity-changed, reparse-point, unrecorded-child and locked cases. `-Wait` returned only after a
+descendant that outlived the script exited.
+That pilot did not exercise the engine itself on Windows, the `handoff-verify` trigger, per-tier
+approval, a script written under the run directory, real system paths, Recycle Bin removal, policy
+overlay precedence, or credential prompts outside the console or for a standard user. The skill's
+shipped lane has not run end to end; treat that part as documented intent, not observed behavior.
 
 ## Outcome vocabulary
 
