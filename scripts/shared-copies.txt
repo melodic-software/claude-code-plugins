@@ -119,6 +119,9 @@ lib/prerequisites.ps1 plugins/context7/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/coupling/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/coupling/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/coupling/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/debugging/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/debugging/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/debugging/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/desktop-notification/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/desktop-notification/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/desktop-notification/lib/prerequisites.ps1

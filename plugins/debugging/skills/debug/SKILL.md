@@ -1,5 +1,5 @@
 ---
-description: "Debug and diagnose broken behavior via a disciplined six-phase loop: build feedback loop → reproduce → hypothesize → instrument → fix + regression test → cleanup. Use when: the user reports an OBSERVED FAILURE with no pre-existing reproduction, in any of three shapes: wrong or broken behavior ('diagnose this', 'debug this', 'why is X broken', 'X is throwing'), a performance regression ('this is slow'), or an intermittent or flaky failure, whether seen in the UI, logs, production, or a screenshot. Phase 1 builds the loop; no phase proceeds without a fast, deterministic signal. Skip when: the symptom is already a failing test with no reproduction gap. Cycle it directly. Outputs: reproduction loop, root-cause hypothesis, regression test or documented seam gap, cleaned fix, post-mortem finding."
+description: "Debug and diagnose broken behavior via a disciplined six-phase loop: build feedback loop → reproduce → hypothesize → instrument → fix + regression test → cleanup. Use when: the user reports an OBSERVED FAILURE with no pre-existing reproduction, in any of three shapes: wrong or broken behavior ('diagnose this', 'debug this', 'why is X broken', 'X is throwing'), a performance regression ('this is slow'), or an intermittent or flaky failure, whether seen in the UI, logs, production, or a screenshot. Phase 1 builds the loop; no phase proceeds without a fast, deterministic signal. Skip when: the symptom is already a failing test with no reproduction gap. Cycle it directly. Skip when a captured profile, trace or heap snapshot is in hand and the failure does not reproduce (`/debugging:analyze-profile`). Outputs: reproduction loop, root-cause hypothesis, regression test or documented seam gap, cleaned fix, post-mortem finding."
 argument-hint: "[bug description or observation]"
 user-invocable: true
 disable-model-invocation: false
@@ -93,6 +93,8 @@ The goal is not a clean repro but a **higher reproduction rate**. Loop the trigg
 
 Stop and say so explicitly. List what was tried. Ask the user for: (a) access to whatever environment reproduces it, (b) a redacted captured artifact (HAR file, log dump, core dump, screen recording with timestamps), or (c) permission to add temporary production instrumentation.
 
+When the artifact in hand is a CPU profile, heap snapshot or performance trace and nothing reproduces, hand it to `/debugging:analyze-profile`. It reads the recording down to a file:line cause without a loop; bring that cause back here for the fix and its regression test.
+
 **Do not proceed to Phase 2 until you have a loop you believe in.**
 
 ## Phase 2: Reproduce
@@ -142,6 +144,8 @@ Tool preference, in order:
 Per-ecosystem logging API (idiomatic structured-logger choice for ad-hoc debug instrumentation), banned debug-output APIs, and the required tag-prefix convention live in the bundled reference at `${CLAUDE_PLUGIN_ROOT}/skills/debug/reference/ecosystem-debugging.md`. See the `logging` + `banned-output` rows for your stack.
 
 **Performance branch.** For perf regressions, logs are usually wrong. Instead: establish a **baseline measurement** using your ecosystem's standard timing / benchmark primitives, then bisect against the baseline. **Measure first, fix second.** Per-ecosystem perf-tooling references (micro-bench libraries, query-plan inspection, profile primitives) live in the reference. See the `perf-tooling` row for your stack.
+
+**A probe that writes a profile.** When an instrument step produces a CPU profile, heap snapshot or trace, read it with `/debugging:analyze-profile` and test its file:line finding against the Phase 3 prediction it was meant to check.
 
 **Cold-vs-warm + contention.** A single timing datapoint taken right after filesystem churn (freshly-created fixtures, a just-cloned repo) or while the box is under load (leaked process trees, a parallel build, antivirus scanning) is cold-cache- and contention-inflated, often by multiples. Before calling a perf number reproducible: re-measure warm, on a quiet box, best-of-N (or worst-of-N for a regression ceiling). A number that drops several-fold on the second clean run was measuring contention, not the code path. Never trust one datapoint after churn.
 
@@ -228,6 +232,7 @@ four-part records live in [reference/native-debug.md](reference/native-debug.md)
 
 - Fixed with a regression test: /verification:confirm fix.
 - Stopped at a diagnosis on request: /implementation:implement fix.
+- Artifact with no reproduction: /debugging:analyze-profile.
 
 ## When to escalate
 

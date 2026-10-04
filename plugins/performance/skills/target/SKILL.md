@@ -110,6 +110,10 @@ On a re-scan after a MET result, look first for the next slow spot in the same j
   `/performance:snapshot` captures.
 - **Does not root-cause an observed failure.** A specific broken or slow behavior with a
   reproduction is a debugging task, not a candidate ranking.
+- **Does not read a captured profile down to a line.** A CPU profile, trace or heap snapshot
+  already on disk goes to `/debugging:analyze-profile` when the debugging plugin is enabled;
+  otherwise open it in the tool that recorded it. Either way, its finding enters this ranking as
+  E1 or E2 evidence.
 - **Does not diagnose a slow Claude Code installation.** That is
   `/harness-ops:audit-performance`, which this skill consumes as a telemetry source rather than
   duplicating.

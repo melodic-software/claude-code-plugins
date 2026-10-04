@@ -10,6 +10,13 @@ agent-runnable pass/fail signal.
 Invoke it with `/debugging:debug <bug description>`, or let Claude reach for it
 when you describe broken behavior with no pre-existing reproduction.
 
+## Skills
+
+| Skill | Use it for |
+|---|---|
+| `/debugging:debug` | A failure you can see: build a loop, reproduce, hypothesize, instrument, fix with a regression test, clean up. |
+| `/debugging:analyze-profile` | A CPU profile, heap snapshot or performance trace: read it down to a file:line cause with no fix, or record one first with your approval. Needs Python 3.10 or later. |
+
 ## The six phases
 
 1. **Build a tight feedback loop**, the load-bearing work. A fast, deterministic

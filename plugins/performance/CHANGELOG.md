@@ -13,6 +13,10 @@ All notable changes to the `performance` plugin are documented here. Format foll
   change is judged by the wait it removes. `/performance:target` cites
   section F when it names a candidate's mechanism.
 
+### Changed
+
+- `/performance:target` hands a captured CPU profile, trace or heap snapshot to `/debugging:analyze-profile` when the debugging plugin is enabled, and counts its finding as measured evidence in the ranking.
+
 ## [0.6.0] - 2026-10-03
 
 ### Added

@@ -1,5 +1,5 @@
 ---
-description: "Diagnose and fix failing tests. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. Use when: 'why does this fail', 'this test is failing', 'fix the failing tests', 'why is this test flaky', visible test failures, stack traces, or flaky tests; for authoring new tests use /testing:write, for running the suite /toolchain:check."
+description: "Diagnose and fix failing tests. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. Use when: 'why does this fail', 'this test is failing', 'fix the failing tests', 'why is this test flaky', visible test failures, stack traces, or flaky tests; for authoring new tests use /testing:write, for running the suite /toolchain:check. Skip when a captured profile, trace or heap snapshot needs reading (`/debugging:analyze-profile`)."
 argument-hint: "[failure]"
 user-invocable: true
 disable-model-invocation: false
@@ -72,9 +72,8 @@ When `/implementation:implement` hits a test failure during its TDD cadence it c
 
 ## Next
 
-/testing:write
-
-Writes the feature tests the diagnosis showed were missing.
+- All green after the regression pass: /verification:confirm fix.
+- The diagnosis showed feature tests are missing: /testing:write.
 
 ## Gotchas
 

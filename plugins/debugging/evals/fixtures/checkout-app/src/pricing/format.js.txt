@@ -1,0 +1,11 @@
+"use strict";
+const DEFAULT_LOCALE = "en-US";
+
+const CURRENCIES = ["USD", "EUR", "GBP"];
+
+function formatPrice(cents, currency, locale = DEFAULT_LOCALE) {
+  const formatter = new Intl.NumberFormat(locale, { style: "currency", currency });
+  return formatter.format(cents / 100);
+}
+
+module.exports = { formatPrice, CURRENCIES };

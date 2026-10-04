@@ -1,0 +1,54 @@
+{
+  "nodes": [
+    {
+      "id": 1,
+      "callFrame": { "functionName": "(root)", "scriptId": "0", "url": "", "lineNumber": -1, "columnNumber": -1 },
+      "hitCount": 0,
+      "children": [2, 3]
+    },
+    {
+      "id": 2,
+      "callFrame": { "functionName": "(program)", "scriptId": "0", "url": "", "lineNumber": -1, "columnNumber": -1 },
+      "hitCount": 1
+    },
+    {
+      "id": 3,
+      "callFrame": {
+        "functionName": "handleCheckout",
+        "scriptId": "41",
+        "url": "file:///srv/checkout/src/checkout/handler.js",
+        "lineNumber": 11,
+        "columnNumber": 29
+      },
+      "hitCount": 0,
+      "children": [4]
+    },
+    {
+      "id": 4,
+      "callFrame": {
+        "functionName": "renderLineItems",
+        "scriptId": "42",
+        "url": "file:///srv/checkout/src/checkout/render.js",
+        "lineNumber": 3,
+        "columnNumber": 25
+      },
+      "hitCount": 1,
+      "children": [5]
+    },
+    {
+      "id": 5,
+      "callFrame": {
+        "functionName": "formatPrice",
+        "scriptId": "43",
+        "url": "file:///srv/checkout/src/pricing/format.js",
+        "lineNumber": 5,
+        "columnNumber": 20
+      },
+      "hitCount": 5
+    }
+  ],
+  "startTime": 1000000,
+  "endTime": 1007000,
+  "samples": [5, 5, 4, 5, 2, 5, 5],
+  "timeDeltas": [1000, 1000, 1000, 1000, 1000, 1000, 1000]
+}

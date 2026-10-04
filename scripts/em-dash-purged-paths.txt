@@ -219,6 +219,8 @@ plugins/coupling/skills/reduce/reference/*.md
 plugins/debugging/README.md
 plugins/debugging/CHANGELOG.md
 plugins/debugging/skills/*/SKILL.md
+plugins/debugging/skills/analyze-profile/reference/*.md
+plugins/debugging/skills/analyze-profile/reference/formats/*.md
 plugins/desktop-notification/README.md
 plugins/desktop-notification/CHANGELOG.md
 plugins/desktop-notification/skills/*/SKILL.md

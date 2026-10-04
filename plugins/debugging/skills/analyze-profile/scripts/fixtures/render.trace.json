@@ -1,0 +1,59 @@
+{
+  "traceEvents": [
+    { "name": "thread_name", "ph": "M", "pid": 7, "tid": 1, "ts": 0, "args": { "name": "CrRendererMain" } },
+    { "name": "RunTask", "cat": "devtools.timeline", "ph": "X", "pid": 7, "tid": 1, "ts": 5000, "dur": 48000, "args": {} },
+    { "name": "Layout", "cat": "devtools.timeline", "ph": "X", "pid": 7, "tid": 1, "ts": 9000, "dur": 31000, "args": {} },
+    {
+      "name": "Profile",
+      "cat": "disabled-by-default-v8.cpu_profiler",
+      "ph": "P",
+      "id": "0x1",
+      "pid": 7,
+      "tid": 1,
+      "ts": 4000,
+      "args": { "data": { "startTime": 4000 } }
+    },
+    {
+      "name": "ProfileChunk",
+      "cat": "disabled-by-default-v8.cpu_profiler",
+      "ph": "P",
+      "id": "0x1",
+      "pid": 7,
+      "tid": 1,
+      "ts": 60000,
+      "args": {
+        "data": {
+          "cpuProfile": {
+            "nodes": [
+              { "id": 1, "callFrame": { "functionName": "(root)", "scriptId": "0", "url": "", "lineNumber": -1, "columnNumber": -1 } },
+              {
+                "id": 2,
+                "parent": 1,
+                "callFrame": {
+                  "functionName": "measureRows",
+                  "scriptId": "12",
+                  "url": "https://shop.example/assets/table.js",
+                  "lineNumber": 87,
+                  "columnNumber": 14
+                }
+              },
+              {
+                "id": 3,
+                "parent": 2,
+                "callFrame": {
+                  "functionName": "getBoundingClientRect",
+                  "scriptId": "0",
+                  "url": "",
+                  "lineNumber": -1,
+                  "columnNumber": -1
+                }
+              }
+            ],
+            "samples": [2, 3, 3, 3]
+          },
+          "timeDeltas": [500, 500, 500, 500]
+        }
+      }
+    }
+  ]
+}
