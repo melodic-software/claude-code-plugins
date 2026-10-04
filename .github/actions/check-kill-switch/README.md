@@ -24,8 +24,9 @@ The step always exits 0. A stopped lane is an expected outcome, not a failure.
 
 A lane job that uses this gate:
 
-- Sets `permissions: contents: read`. claude-code-action passes the job's `GITHUB_TOKEN` into the
-  model's environment, so every write goes through the lane's App token.
+- Sets `permissions: contents: read, pull-requests: read`, both read-only. claude-code-action
+  passes the job's `GITHUB_TOKEN` into the model's environment, so
+  every write goes through the lane's App token.
 - Runs this gate and [`check-trusted-trigger`](../check-trusted-trigger/README.md) with no
   `continue-on-error`.
 - Gives the model step, and the App token step before it, this condition:

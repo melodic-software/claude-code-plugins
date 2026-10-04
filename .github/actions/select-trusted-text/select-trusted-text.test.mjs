@@ -6,7 +6,7 @@ import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { GitHubError } from "../check-trusted-trigger/check-trusted-trigger.mjs";
-import { main } from "./filter-trusted-text.mjs";
+import { main } from "./select-trusted-text.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const LIST = path.join(HERE, "..", "check-trusted-trigger", "fixtures", "trusted-actors.json");
@@ -52,7 +52,7 @@ function fakeGitHub(routes) {
 
 let dir;
 beforeEach(() => {
-  dir = mkdtempSync(path.join(tmpdir(), "filter-trusted-text-"));
+  dir = mkdtempSync(path.join(tmpdir(), "select-trusted-text-"));
 });
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
@@ -131,7 +131,7 @@ test("no dropped text reaches the written file or the log; the log carries count
   assert.doesNotMatch(written, /CANARY/);
   assert.doesNotMatch(logged.join("\n"), /CANARY/);
   assert.deepEqual(logged, [
-    'filter-trusted-text: dropped total=9 {"pr":0,"issue-comment":5,"review":1,"review-comment":1,"linked-issue":1,"linked-issue-comment":1}',
+    'select-trusted-text: dropped total=9 {"pr":0,"issue-comment":5,"review":1,"review-comment":1,"linked-issue":1,"linked-issue-comment":1}',
   ]);
 });
 

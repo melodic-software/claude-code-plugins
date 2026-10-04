@@ -72,7 +72,8 @@ lane or any other surface keeps `L2`.
   ([`untrusted-content`](../conventions/untrusted-content/README.md)).
 - claude-code-action passes the job's `GITHUB_TOKEN` into the model's environment
   (`DEFAULT_WORKFLOW_TOKEN`, `action.yml:308` at `ed670b4`), so every job that runs the model
-  grants that token only `contents: read`, and every write goes through the App token.
+  grants that token only `contents: read` and `pull-requests: read` (the trigger gate reads the
+  PR with it before any App token exists), and every write goes through the App token.
 - A listed bot (a review bot, dependabot) can relay text someone else wrote, such as a quote from
   a PR thread or upstream release notes, and the filter keeps it because it judges the item's
   author. This is accepted in the same class as web pages.

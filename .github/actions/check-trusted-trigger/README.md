@@ -29,12 +29,19 @@ condition 1 and the actor and author parts of condition 2).
 - **`workflow_run`.** Same repository when `workflow_run.head_repository.full_name` equals the
   repository. The PR is looked up from the run's head SHA, because `pull_requests` is empty for
   more than forks: exactly one open same-repository PR whose head is still that SHA, or `no-pr`.
-  Actors are `sender`, `workflow_run.actor` and `workflow_run.triggering_actor`.
+  Actors are `sender`, `workflow_run.actor` and `workflow_run.triggering_actor`: all three must
+  be listed, because ADR 0051 requires the actor that started the failed run to be trusted.
 - **Author.** The PR's `user.id` must be listed.
-- Any other event stops with `no-pr`.
+- **`no-pr` for everything unhandled.** Any other event (including `pull_request_target`), a
+  missing or malformed `pr-number`, an unreadable event payload, a PR fetch that fails, and a
+  `workflow_run` with zero or more than one matching open PR all stop with `no-pr`; the reason
+  set has no separate error value.
 
-The token on `workflow_dispatch` and `workflow_run` needs read access to pull requests; a token
-that cannot read the PR stops the lane with `no-pr`.
+Pass the job token (the default, `${{ github.token }}`) as `github-token`. The gate runs before
+any App token exists, so the job token is the only one available, and it needs
+`pull-requests: read` to fetch the PR on `workflow_dispatch` and `workflow_run`. That grant is
+read-only, so no write token reaches the model. A token that cannot read the PR stops the lane
+with `no-pr`.
 
 ## Outputs
 
@@ -53,8 +60,9 @@ for [`check-signed-commits`](../check-signed-commits/README.md).
 
 A lane job that uses this gate:
 
-- Sets `permissions: contents: read`. claude-code-action passes the job's `GITHUB_TOKEN` into the
-  model's environment, so every write goes through the lane's App token.
+- Sets `permissions: contents: read, pull-requests: read`, both read-only. claude-code-action
+  passes the job's `GITHUB_TOKEN` into the model's environment, so
+  every write goes through the lane's App token.
 - Checks out the base SHA to `.base/` before the gates, and the PR head only after both pass, so
   a PR cannot change the list or scripts it is judged by.
 - Runs this gate and [`check-kill-switch`](../check-kill-switch/README.md) with no

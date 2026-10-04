@@ -1,4 +1,4 @@
-name: Filter trusted text
+name: Select trusted text
 description: >
   Build a lane's prompt context from a PR (title, body, issue comments,
   reviews, review comments, and the issues it closes with their comments),
@@ -38,4 +38,4 @@ runs:
         TRUSTED_ACTORS_PATH: ${{ inputs.trusted-actors-path }}
         OUTPUT_PATH: ${{ inputs.output-path }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
-      run: node "$GITHUB_ACTION_PATH/filter-trusted-text.mjs"
+      run: node "$GITHUB_ACTION_PATH/select-trusted-text.mjs"

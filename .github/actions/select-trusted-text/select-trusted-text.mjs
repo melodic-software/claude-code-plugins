@@ -146,14 +146,14 @@ export async function main({ env = process.env, github, log = console.log } = {}
     });
     writeFileSync(outputPath, `${JSON.stringify(context, null, 2)}\n`);
     const total = Object.values(context.dropped).reduce((sum, count) => sum + count, 0);
-    log(`filter-trusted-text: dropped total=${total} ${JSON.stringify(context.dropped)}`);
+    log(`select-trusted-text: dropped total=${total} ${JSON.stringify(context.dropped)}`);
     return 0;
   } catch (error) {
     if (outputPath) {
       rmSync(outputPath, { force: true });
     }
     const detail = error?.name === "GitHubError" ? error.message : (error?.name ?? "error");
-    log(`filter-trusted-text: failed (${detail}); no context written`);
+    log(`select-trusted-text: failed (${detail}); no context written`);
     return 1;
   }
 }

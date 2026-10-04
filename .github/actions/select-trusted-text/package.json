@@ -1,5 +1,5 @@
 {
-  "name": "filter-trusted-text",
+  "name": "select-trusted-text",
   "private": true,
   "scripts": {
     "test": "node --test"

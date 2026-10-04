@@ -43,8 +43,9 @@ not run.
 
 A lane job that uses this check:
 
-- Sets `permissions: contents: read`. claude-code-action passes the job's `GITHUB_TOKEN` into the
-  model's environment, so every write goes through the lane's App token.
+- Sets `permissions: contents: read, pull-requests: read`, both read-only. claude-code-action
+  passes the job's `GITHUB_TOKEN` into the model's environment, so
+  every write goes through the lane's App token.
 - Records the PR head SHA before the App token is minted (the
   [`check-trusted-trigger`](../check-trusted-trigger/README.md) `head-sha` output) and passes it as
   `since-sha`, with one concurrency group per PR so no other lane pushes in between.
