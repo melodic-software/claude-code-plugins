@@ -54,8 +54,8 @@ restores the FAIL semantics.
    opt-in telemetry envelope is skipped while notifications still fire, a degrade, not a
    failure.
 2. **`jq`**. The pre-computed `jq` row. FAIL if absent: without it the hook can neither classify the
-   notification nor emit its terminal sequence, so it surfaces a `systemMessage` notice, once per session and
-   agent and renewed every eighth skip, and drops every notification for the session.
+   notification nor emit its terminal sequence, so it drops every notification without a notice (a
+   Notification hook has no channel the user reads).
 3. **Node.js**. The pre-computed `node` row. FAIL if absent: every hook row launches through
    `node hooks/exec-bash.mjs`, and Claude Code's native binary neither ships nor uses Node, so
    without it the hook does not launch and no notification fires. The probe runs through the Bash

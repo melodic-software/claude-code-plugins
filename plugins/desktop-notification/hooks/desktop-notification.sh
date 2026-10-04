@@ -62,15 +62,11 @@ hook::buffer_stdin_to INPUT \
   '.notification_type // "unknown"' \
   '.message // "Needs your attention"' || exit 0
 
-# jq is load-bearing for parsing; absent → visible notice (once per session and agent, renewed every eighth skip)
-# instead of silently dropping every notification (dim-9 doctrine).
-# systemMessage-only: the Notification event has no additionalContext channel.
-if ! command -v jq >/dev/null 2>&1; then
-  if hook::notice_once "desktop-notification-jq" "$INPUT"; then
-    hook::emit_system_message "desktop-notification: jq not found on PATH — desktop notifications disabled for this session. Install jq (https://jqlang.org/download/) to enable them."
-  fi
-  exit 0
-fi
+# jq is load-bearing for parsing; absent → skip. No notice: Claude Code
+# discards a Notification hook's systemMessage
+# (https://code.claude.com/docs/en/hooks#notification), so nobody would read
+# it. /desktop-notification:check reports the missing jq.
+command -v jq >/dev/null 2>&1 || exit 0
 
 # Strip ALL C0 control bytes (\001-\037 — includes ESC, BEL, CR, LF, TAB) from
 # untrusted text before it can reach ANY sink: an embedded ESC/BEL would
