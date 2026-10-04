@@ -390,6 +390,7 @@ def parse_frontmatter(text: str) -> dict:
         return {"_malformed": True}
 
     return {
+        "name": out.get("name", ""),
         "description": out.get("description", ""),
         "when_to_use": out.get("when_to_use", ""),
         "disable_model_invocation": str(
@@ -520,7 +521,9 @@ def collect_local_skills(
     Listed beside plugin skills and charged the same way, but governed by
     `skillOverrides` rather than `enabledPlugins`; the entry carries its
     override so eligibility and reachability can apply it. Subfolders without
-    a `SKILL.md` (such as the claude.ai `synced` tree) are not walked.
+    a `SKILL.md` (such as the claude.ai `synced` tree) are not walked. A user
+    or project skill is listed under its frontmatter `name` when it sets one,
+    else under its folder name.
     """
     entries: list[dict] = []
     if not os.path.isdir(skills_dir):
@@ -530,18 +533,81 @@ def collect_local_skills(
         if not os.path.isfile(path):
             continue
         text = _read_text(path)
+        frontmatter = {"_malformed": True} if text is None else parse_frontmatter(text)
+        configured = frontmatter.get("name")
+        name = (
+            configured
+            if source in ("user", "project")
+            and isinstance(configured, str)
+            and configured
+            else leaf
+        )
         entries.append(
             {
-                "qualified_name": leaf,
+                "qualified_name": name,
                 "source": source,
                 "kind": "skill",
-                "skill_override": overrides.get(leaf, "on"),
-                "frontmatter": (
-                    {"_malformed": True} if text is None else parse_frontmatter(text)
-                ),
+                "skill_override": overrides.get(name, "on"),
+                "frontmatter": frontmatter,
                 "path": path,
             }
         )
+    return entries
+
+
+def _project_skill_dirs(project: str) -> list[str]:
+    """Every `.claude/skills` loaded at startup, the repository root's first.
+
+    Claude Code loads project skills from the starting directory and each
+    parent up to the repository root. Skills under directories below the
+    starting one load only once the session works there, so no static walk
+    can count them.
+    """
+    chain = []
+    current = os.path.abspath(project)
+    while True:
+        chain.append(current)
+        if os.path.exists(os.path.join(current, ".git")):
+            break
+        parent = os.path.dirname(current)
+        if parent == current:
+            # No repository above: only the starting directory loads.
+            chain = chain[:1]
+            break
+        current = parent
+    return [os.path.join(d, ".claude", "skills") for d in reversed(chain)]
+
+
+def collect_user_and_project_skills(
+    config_root: str, project: str, overrides: Mapping[str, str]
+) -> list[dict]:
+    """User skills, then the project's, resolved the way Claude Code resolves
+    a shared name: personal over project, and a nested project skill whose
+    name a skill nearer the root already took listed as `<relative path>:<name>`.
+    """
+    user_dir = os.path.join(config_root, "skills")
+    entries = collect_local_skills(user_dir, "user", overrides)
+    taken = {e["qualified_name"] for e in entries}
+    user_names = set(taken)
+    root = None
+    for skills_dir in _project_skill_dirs(project):
+        if os.path.normcase(os.path.abspath(skills_dir)) == os.path.normcase(
+            os.path.abspath(user_dir)
+        ):
+            continue
+        base = os.path.dirname(os.path.dirname(skills_dir))
+        root = root or base
+        for entry in collect_local_skills(skills_dir, "project", overrides):
+            name = entry["qualified_name"]
+            if name in user_names:
+                continue
+            if name in taken:
+                prefix = os.path.relpath(base, root).replace(os.sep, "/")
+                name = f"{prefix}:{name}"
+                entry["qualified_name"] = name
+                entry["skill_override"] = overrides.get(name, "on")
+            taken.add(name)
+            entries.append(entry)
     return entries
 
 
@@ -583,10 +649,17 @@ def collect_synced_skills(
 
 
 def merge_skill_overrides(layers: list[dict]) -> dict[str, str]:
-    """`skillOverrides` merged per skill name, a later scope winning."""
+    """`skillOverrides` merged per skill name, a later scope winning.
+
+    A file Claude Code rejects for a non-Boolean `enabledPlugins` value
+    contributes nothing, as in `merge_listing_settings`.
+    """
     merged: dict[str, str] = {}
     for layer in layers:
-        block = (layer.get("settings") or {}).get("skillOverrides")
+        settings = layer.get("settings")
+        if not isinstance(settings, dict) or _non_boolean_plugins(settings):
+            continue
+        block = settings.get("skillOverrides")
         if not isinstance(block, dict):
             continue
         for name, value in block.items():
@@ -1844,6 +1917,7 @@ def compute_listing(
     cfg: ListingConfig,
     scores: dict[str, float] | None = None,
     unenumerated: list[dict] | None = None,
+    capture_covers: bool = True,
 ) -> dict:
     """Budget arithmetic, split by confidence.
 
@@ -1932,8 +2006,15 @@ def compute_listing(
     # Overflow survives missing entries, since adding one only grows the
     # listing. A fit does not: without a capture the built-in and bundled
     # entries go uncounted, so the counted ones fitting is not the listing
-    # fitting, and the verdict says so instead of claiming it.
-    fits = "listing-fits" if unenumerated is not None else "fit-unconfirmed"
+    # fitting, and the verdict says so instead of claiming it. A capture
+    # confirms a fit only when it covers the counted fleet (`capture_covers`):
+    # one from a session that loaded a different fleet says nothing about this
+    # one.
+    fits = (
+        "listing-fits"
+        if unenumerated is not None and capture_covers
+        else "fit-unconfirmed"
+    )
     verdict = "overflowing" if overflow > 0 else fits
 
     competing = [r for r in rows if r["eligibility"] == "competing"]
@@ -2064,6 +2145,7 @@ def compute_listing_band(
     axes: ListingAxes,
     scores: dict[str, float] | None = None,
     unenumerated: list[dict] | None = None,
+    capture_covers: bool = True,
 ) -> dict:
     """The listing budget over every window x bytes-per-token combination.
 
@@ -2083,13 +2165,14 @@ def compute_listing_band(
     all of them.
     """
     if cfg.env_char_budget is not None:
-        return compute_listing(denominator, cfg, scores, unenumerated)
+        return compute_listing(denominator, cfg, scores, unenumerated, capture_covers)
     rows = [
         compute_listing(
             denominator,
             replace(cfg, context_window_tokens=window, bytes_per_token=bpt),
             scores,
             unenumerated,
+            capture_covers,
         )
         for window in axes.windows
         for bpt in axes.bytes_per_tokens
@@ -2383,8 +2466,44 @@ def _reconcile(events: list[dict]) -> int:
     return sum(max(per_source.values()) for per_source in by_instant.values())
 
 
+def _capture_gap(
+    denominator: list[dict], capture: dict, cfg: ListingConfig
+) -> dict[str, list[str]]:
+    """Where a read capture fails to cover the counted fleet.
+
+    `not_in_capture`: listed entries the capture does not name, as when a
+    plugin was installed after the captured session started. `longer_in_capture`:
+    entries the capture rendered in full at more characters than they are
+    counted here, so the count is short. Either one means the capture came from
+    a different fleet and cannot confirm a fit.
+    """
+    captured = {e["name"]: e for e in capture["entries"]}
+    missing: list[str] = []
+    longer: list[str] = []
+    for entry in denominator:
+        eligibility = _eligibility(entry)
+        if eligibility in ("exempt-user-only", "exempt-hidden"):
+            continue
+        name = entry["qualified_name"]
+        seen = captured.get(name)
+        if seen is None:
+            missing.append(name)
+            continue
+        counted = (
+            len(name) + 2
+            if eligibility == "exempt-name-only"
+            else len(name) + 4 + _demand_chars(entry, cfg)
+        )
+        if not seen["name_only"] and seen["rendered_chars"] > counted:
+            longer.append(name)
+    return {"not_in_capture": sorted(missing), "longer_in_capture": sorted(longer)}
+
+
 def _capture_summary(
-    listing: dict, capture: dict, unenumerated: list[dict] | None
+    listing: dict,
+    capture: dict,
+    unenumerated: list[dict] | None,
+    gap: dict[str, list[str]] | None = None,
 ) -> dict:
     """What a captured listing adds to the verdict, and where it disagrees.
 
@@ -2417,6 +2536,8 @@ def _capture_summary(
         "unenumerated_names": sorted(e["name"] for e in extra),
         "lower_bound": any(e["name_only"] for e in extra),
         "observed_name_only": shed,
+        "not_in_capture": (gap or {}).get("not_in_capture", []),
+        "longer_in_capture": (gap or {}).get("longer_in_capture", []),
         "disagrees": [
             r["label"] for r in rows if shed and r["verdict"] == "listing-fits"
         ],
@@ -2475,15 +2596,21 @@ def classify(
         if captured
         else None
     )
+    gap = _capture_gap(denominator, listing_capture, listing_cfg) if captured else {}
+    covers = not any(gap.values())
     if listing_axes is None:
-        listing = compute_listing(denominator, listing_cfg, native_scores, unenumerated)
+        listing = compute_listing(
+            denominator, listing_cfg, native_scores, unenumerated, covers
+        )
     else:
         listing = compute_listing_band(
-            denominator, listing_cfg, listing_axes, native_scores, unenumerated
+            denominator, listing_cfg, listing_axes, native_scores, unenumerated, covers
         )
         listing["inputs"] = listing_axes.inputs
     if listing_capture is not None:
-        listing["capture"] = _capture_summary(listing, listing_capture, unenumerated)
+        listing["capture"] = _capture_summary(
+            listing, listing_capture, unenumerated, gap
+        )
     starvation_by_name = {r["qualified_name"]: r for r in listing["skills"]}
     # Narrowest horizon = the most recent start = the least we can see back to.
     # Two different questions, two different horizons.
@@ -3094,7 +3221,7 @@ def _render_single_budget(listing: dict) -> list[str]:
         ]
     subject = (
         "Counted entries fit (unconfirmed, see coverage)"
-        if listing["coverage"] == "enumerated-only"
+        if listing["verdict"] == "fit-unconfirmed"
         else "Listing fits"
     )
     return [
@@ -3143,6 +3270,32 @@ def _render_coverage(listing: dict) -> list[str]:
         ),
         "",
     ]
+    absent, longer = capture["not_in_capture"], capture["longer_in_capture"]
+    if absent or longer:
+        parts = []
+        if absent:
+            parts.append(
+                f"{len(absent)} counted {_plural(len(absent), 'skill')} "
+                "absent from it ("
+                + ", ".join(f"`{name}`" for name in absent[:10])
+                + ("…" if len(absent) > 10 else "")
+                + ")"
+            )
+        if longer:
+            parts.append(
+                f"{len(longer)} rendered longer there than counted here ("
+                + ", ".join(f"`{name}`" for name in longer[:10])
+                + ("…" if len(longer) > 10 else "")
+                + ")"
+            )
+        lines += [
+            "**The capture does not cover the counted fleet**: "
+            + " and ".join(parts)
+            + ". It came from a session that loaded a different fleet, so a fit "
+            "stays `fit-unconfirmed`. Capture a session started after the last "
+            "install or edit to confirm one.",
+            "",
+        ]
     shed = capture["observed_name_only"]
     if shed:
         lines += [
@@ -3414,21 +3567,15 @@ def main(argv: list[str] | None = None) -> int:
             # The listing also carries the user's and the project's own
             # skills, governed by `skillOverrides` instead of enabledPlugins.
             overrides = merge_skill_overrides(layers)
-            user_skills = os.path.join(config_root, "skills")
-            project_skills = os.path.join(current_project, ".claude", "skills")
-            denominator += collect_local_skills(user_skills, "user", overrides)
+            denominator += collect_user_and_project_skills(
+                config_root, current_project, overrides
+            )
             account_json = args.claude_json or (
                 os.path.join(os.environ["CLAUDE_CONFIG_DIR"], ".claude.json")
                 if os.environ.get("CLAUDE_CONFIG_DIR")
                 else os.path.expanduser("~/.claude.json")
             )
             denominator += collect_synced_skills(config_root, account_json, overrides)
-            if os.path.normcase(os.path.abspath(project_skills)) != os.path.normcase(
-                os.path.abspath(user_skills)
-            ):
-                denominator += collect_local_skills(
-                    project_skills, "project", overrides
-                )
         else:
             plugins_root = args.plugins_root or os.path.join(os.getcwd(), "plugins")
             denominator = collect_fleet(plugins_root)

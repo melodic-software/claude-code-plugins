@@ -3109,6 +3109,72 @@ class NonPluginSkillTest(unittest.TestCase):
         self.assertEqual(by_name["proj"]["source"], "project")
         self.assertEqual(by_name["quiet"]["skill_override"], "name-only")
 
+    def test_a_frontmatter_name_replaces_the_folder_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._skill_dir(tmp, "deploy-staging", 'name: deploy\ndescription: "x"')
+            entries = engine.collect_local_skills(
+                tmp, "project", {"deploy": "name-only"}
+            )
+        self.assertEqual([e["qualified_name"] for e in entries], ["deploy"])
+        self.assertEqual(entries[0]["skill_override"], "name-only")
+
+    def test_a_personal_skill_shadows_a_project_skill_of_the_same_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_root = os.path.join(tmp, "config")
+            project = os.path.join(tmp, "repo")
+            os.makedirs(os.path.join(project, ".git"))
+            self._skill_dir(
+                os.path.join(config_root, "skills"), "deploy", 'description: "u"'
+            )
+            self._skill_dir(
+                os.path.join(project, ".claude", "skills"),
+                "deploy",
+                'description: "p"',
+            )
+            entries = engine.collect_user_and_project_skills(config_root, project, {})
+        self.assertEqual(
+            [(e["qualified_name"], e["source"]) for e in entries],
+            [("deploy", "user")],
+        )
+
+    def test_project_skills_load_from_every_parent_up_to_the_repository(self):
+        # Started in packages/web: the root's skills load too, and a nested
+        # name the root already took is listed under its relative path.
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = os.path.join(tmp, "repo")
+            start = os.path.join(repo, "packages", "web")
+            os.makedirs(os.path.join(repo, ".git"))
+            self._skill_dir(
+                os.path.join(repo, ".claude", "skills"), "deploy", 'description: "r"'
+            )
+            self._skill_dir(
+                os.path.join(start, ".claude", "skills"), "deploy", 'description: "n"'
+            )
+            self._skill_dir(
+                os.path.join(start, ".claude", "skills"), "lint", 'description: "n"'
+            )
+            entries = engine.collect_user_and_project_skills(
+                os.path.join(tmp, "config"), start, {}
+            )
+        self.assertEqual(
+            sorted(e["qualified_name"] for e in entries),
+            ["deploy", "lint", "packages/web:deploy"],
+        )
+
+    def test_a_rejected_settings_file_contributes_no_overrides(self):
+        merged = engine.merge_skill_overrides(
+            [
+                {"settings": {"skillOverrides": {"a": "off"}}},
+                {
+                    "settings": {
+                        "enabledPlugins": {"p@m": "yes"},
+                        "skillOverrides": {"b": "off"},
+                    }
+                },
+            ]
+        )
+        self.assertEqual(merged, {"a": "off"})
+
     def test_an_installed_run_counts_user_synced_and_project_skills(self):
         """End to end through `main --installed`: one plugin skill, one user,
         one synced and one name-only project skill all land in the listing."""
@@ -3498,6 +3564,33 @@ class ListingCaptureTest(unittest.TestCase):
         self.assertEqual(model["listing"]["coverage"], "enumerated+capture")
         self.assertEqual(model["listing"]["verdict"], "listing-fits")
         self.assertEqual(model["skills"][0]["starvation"]["verdict"], "listing-fits")
+
+    def _fleet_model(self, denominator):
+        return engine.classify(
+            denominator=denominator,
+            events=[],
+            config=engine.Config(),
+            clock=_utc(2026, 8, 18),
+            horizons={},
+            listing_config=engine.ListingConfig(context_window_tokens=200_000),
+            listing_capture=self._capture(),
+        )
+
+    def test_a_capture_missing_a_counted_skill_leaves_the_fit_unconfirmed(self):
+        # p:b was not in the captured session, so the capture is of another fleet.
+        model = self._fleet_model([_competing("p:a", 5), _competing("p:b", 5)])
+        listing = model["listing"]
+        self.assertEqual(listing["verdict"], "fit-unconfirmed")
+        self.assertEqual(listing["capture"]["not_in_capture"], ["p:b"])
+        rendered = engine._render_markdown(model)
+        self.assertNotIn("Listing fits at", rendered)
+        self.assertIn("does not cover the counted fleet", rendered)
+
+    def test_a_capture_longer_than_the_count_leaves_the_fit_unconfirmed(self):
+        # Captured `- p:a: hello` is 12; a 3-character description counts 10.
+        model = self._fleet_model([_competing("p:a", 3)])
+        self.assertEqual(model["listing"]["verdict"], "fit-unconfirmed")
+        self.assertEqual(model["listing"]["capture"]["longer_in_capture"], ["p:a"])
 
 
 if __name__ == "__main__":

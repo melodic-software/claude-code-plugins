@@ -257,14 +257,20 @@ that over the budget. [reference/listing-scorer.md](reference/listing-scorer.md)
 carries the arithmetic and its stamp.
 
 The entries come from every source on disk: plugin skills, commands and
-workflows, and with `--installed` the user's `~/.claude/skills`, the project's
-`.claude/skills`, and the signed-in account's claude.ai-synced skills, each
-with `skillOverrides` applied. Built-in and bundled skills ship inside Claude
-Code and cannot be read from disk, so without a capture `coverage` is
-`enumerated-only`, the Markdown says what was not counted, and a row whose
-counted entries fit reports `fit-unconfirmed`, never `listing-fits`: only a
-read capture can confirm a fit. `overflowing` needs no capture, since an
-uncounted entry only adds to the listing.
+workflows, and with `--installed` the user's `~/.claude/skills`, the
+`.claude/skills` of the project and each parent up to the repository root, and
+the signed-in account's claude.ai-synced skills, each under its frontmatter
+`name` when it sets one and with `skillOverrides` applied. A personal skill
+shadows a project skill of the same name. Built-in and bundled skills ship
+inside Claude Code and cannot be read from disk, so without a capture
+`coverage` is `enumerated-only`, the Markdown says what was not counted, and a
+row whose counted entries fit reports `fit-unconfirmed`, never `listing-fits`:
+only a read capture that covers the counted fleet can confirm a fit. A capture
+that omits a counted entry, or renders one longer than it is counted, came from
+a session that loaded a different fleet; it is listed under
+`listing.capture.not_in_capture` or `longer_in_capture` and the fit stays
+`fit-unconfirmed`. `overflowing` needs no capture, since an uncounted entry
+only adds to the listing.
 `--listing-capture <transcript.jsonl>` reads the listing a session actually
 received from its transcript (`~/.claude/projects/<project>/<session>.jsonl`),
 counts every entry the disk walk missed at its captured length, and reports in
@@ -362,7 +368,7 @@ lists the name alone), and `exempt-hidden` (the owning plugin is `hidden` or
 `not-enabled`, or an `off` override drops the skill, so it is never listed).
 Only `exempt-bundled` and `exempt-name-only` rows are listed, so a fleet whose
 only excess sits in plugins that do not load reports a fit (`listing-fits`
-with a capture, `fit-unconfirmed` without one).
+with a capture that covers the fleet, `fit-unconfirmed` otherwise).
 `exempt-hidden` covers both not-loading answers, and
 only a settled not-loading answer (`hidden` or `not-enabled`) exempts: a
 `not-assessed` checkout row or an `unknown` one keeps competing, because
