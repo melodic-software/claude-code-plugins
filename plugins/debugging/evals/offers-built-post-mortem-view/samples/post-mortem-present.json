@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Post-mortem: checkout timed out above $1k because the pricing client retried without a bound.",
+      "why": "post-mortem"
+    },
+    {
+      "answer": "Cause: an unbounded retry loop in the pricing client.",
+      "why": "names the cause"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}
