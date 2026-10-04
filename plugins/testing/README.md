@@ -87,7 +87,7 @@ waits for any run still going, judges what is left (10 tests per task end, the r
 one), writes a review-findings file (under `.work/reviews/<branch>/`), and shows the counts. In an
 interactive session, when a verdict is a FLAG or an UNKNOWN for a reason other than "no repository"
 or no judge class, it also asks Claude once to show you each verdict and proposed diff and wait.
-When every verdict is a PASS or one of those two UNKNOWNs, there is nothing to decide and the stop
+When every verdict is a PASS or one of those two UNKNOWN verdicts, there is nothing to decide and the stop
 is not blocked; that case, and an unattended session, get the counts and the file only. A session that ended before its verdicts were shown gets them named at
 the next session start. The writing agent never supplies the judge's prompt, model or output, and
 the judge's model class always differs from every model that wrote the tests: when the configured
