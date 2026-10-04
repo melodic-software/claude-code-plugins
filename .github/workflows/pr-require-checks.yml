@@ -745,7 +745,7 @@ jobs:
           path: |
             ~/.npm/_npx
             ~/.npm/_cacache
-          key: npx-markdownlint-cli2-${{ runner.os }}-7446b5165511796b7b0d30b68d341689ebb8de61
+          key: npx-markdownlint-cli2-${{ runner.os }}-fb56986808750d6856c27de78df15e150027b8dc
       - name: Lint markdown
         id: markdown
         continue-on-error: true
