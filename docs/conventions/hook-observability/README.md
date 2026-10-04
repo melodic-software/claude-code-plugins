@@ -378,9 +378,11 @@ after tool results" would otherwise bar. They are admitted on this shape, and on
   a boundary), and one restatement after a compaction, a resume, a `/branch`, a reload of the mod
   mid-session, or a `/clear` that leaves a verdict past the quiet one. Nothing on a call where no
   boundary moved.
-- **What.** Each line is a verdict worded as a fact, naming its source, the plugin. It names no
-  action, claims no authority and gives no order; a line about a boundary carries one
-  counter-steer clause, that continuing is the user's call. By default it carries no raw count; the
+- **What.** Each line is a verdict worded as a fact, naming its source, the plugin. The verdict
+  names no action, claims no authority and gives no order. `context-guard`'s boundary lines add
+  that continuing is the user's call, and may be followed by the dumb-zone save note or an
+  operator-configured `zones.json` action; `rate-limit-guard`'s lines carry the verdict only. By
+  default a line carries no raw count; the
   operator can add figures through the plugin's line-data option.
 - **Telemetry.** The guard mods emit an envelope only on a fire that acts: lines sent, an operator
   suggestion shown, a tool call denied. A fire that reached a decision and changed nothing emits
