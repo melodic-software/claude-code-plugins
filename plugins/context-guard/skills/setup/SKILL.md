@@ -176,8 +176,8 @@ The `defaults` argument changes only how a present file is treated:
      "smart_max_used_percentage": 50,
      "acceptable_max_used_percentage": 75,
      "token_bands": {
-       "200000": { "smart_max_tokens": 100000, "acceptable_max_tokens": 160000 },
-       "1000000": { "smart_max_tokens": 200000, "acceptable_max_tokens": 400000 }
+       "200000": { "smart_max_tokens": 100000, "acceptable_max_tokens": 150000 },
+       "1000000": { "smart_max_tokens": 128000, "acceptable_max_tokens": 250000 }
      }
    }
    ```

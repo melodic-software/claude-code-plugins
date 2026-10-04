@@ -160,7 +160,8 @@ The four-part records live in [reference/native-explore.md](reference/native-exp
 
 - Findings raise a question about current external practice: `/discovery:research <topic>`.
 - Findings raise a question about why the code is the way it is: `/discovery:trace-intent <subject>`.
-- The local picture is enough to decide what to build: `/planning:plan`.
+- The picture is enough and the work adds types, contracts, or module boundaries: `/planning:design`.
+- The picture is enough and no design question is open: `/planning:plan`.
 
 ## Gotchas
 

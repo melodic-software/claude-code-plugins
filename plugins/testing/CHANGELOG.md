@@ -3,7 +3,7 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.22.12] - 2026-10-04
+## [0.22.13] - 2026-10-04
 
 ### Changed
 
@@ -12,6 +12,12 @@ All notable changes to the `testing` plugin are documented here. Format follows
 ### Fixed
 
 - **The task-end test judge no longer floods the end of a task ([#6226](https://github.com/melodic-software/claude-code-plugins/issues/6226)).** Tests left to a background job (past the 10-test cap, late, or held by another job) and tests whose judge run failed are counts in one line, never a list of test names. A run where every verdict is a PASS shows one line, `test judge: N tests PASS.`, with the deferred count in the same line. A blocking Stop shows only its reason, with the findings path relative to the project, and no repeated summary. A forced Stop turn and an earlier session whose verdicts were all PASS say nothing.
+
+## [0.22.12] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
 
 ## [0.22.11] - 2026-10-04
 
