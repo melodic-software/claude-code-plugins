@@ -1,5 +1,5 @@
 ---
-description: "When the built-in ClaudeDesign tool resolves in this session and the person names, links, or asks for work in an existing claude.ai/design project, prefer it for that project; this skill for throwaway variants. Builds throwaway UI variations, several radically different layouts on one route switchable from a floating bar, to answer 'what should this look like' before committing to a design. Use when the question is what a page, screen, or dashboard should look like, or for design options to compare: 'mock up a UI', 'what should this page look like', 'try a different layout'. Runs on the real stack by default or as a self-contained HTML mockup; the user keeps one variant or bits of each. Logic or state questions: /prototype:pressure-test. Not for an interactive parameter explorer whose output returns as a prompt: that is the first-party playground skill, routed via /playgrounds:use where the upstream playground plugin is installed from its marketplace."
+description: "When the built-in ClaudeDesign tool resolves in this session and the person names, links, or asks for work in an existing claude.ai/design project, prefer it for that project; this skill for throwaway variants. Builds throwaway UI variations, a few structurally different layouts (three by default) behind one route, toggled from a floating switcher, to answer 'what should this look like' before committing to a design. Use when the question is what a page, screen, or dashboard should look like, or for design options to compare: 'mock up a UI', 'how should this screen be laid out', 'show me layout options'. Runs on the real stack by default or as a self-contained HTML mockup; the user keeps one variant or bits of each. Logic or state questions: /prototype:pressure-test. Not for an interactive parameter explorer whose output returns as a prompt: that is the first-party playground skill, routed via /playgrounds:use where the upstream playground plugin is installed from its marketplace."
 argument-hint: "[scope]"
 user-invocable: true
 disable-model-invocation: false
@@ -39,75 +39,64 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-Generate **several radically different visual variations** on a single route, switchable from a
-floating control bar. The user flips between variants in the browser, picks one (or steals bits
-from each), then throws the rest away.
+The output is a recorded decision about one screen's layout, made by a user who has clicked
+through working candidates rather than sketches. The candidates are mounted in the app itself (or
+in a local mockup) with a switcher attached; the verdict may combine parts of several of them, and
+once it is written down, all candidate code is deleted.
 
-The shared throwaway rules, the auto-invoke gate, and how to capture the answer live in
-[`${CLAUDE_PLUGIN_ROOT}/context/discipline.md`](../../context/discipline.md). Read it before you
-start. This file covers only the UI facet.
+The examples in this file follow one case: the `/shipments` page of an order-tracking app, where
+the team cannot agree on how to show parcels in transit.
 
-If the question is about logic/state rather than appearance. Wrong facet. Invoke `/prototype:pressure-test` via the Skill tool.
+Read [`${CLAUDE_PLUGIN_ROOT}/context/discipline.md`](../../context/discipline.md) first. It holds
+the rules every prototype follows, the auto-invoke gate, and where the answer gets written down.
+This file adds only what is specific to the UI facet.
 
-## When this is the right shape
+A question about behavior (a reducer, a transition, the shape of the data) is a logic/state
+question, not an appearance question, and belongs to the other facet: invoke
+`/prototype:pressure-test` via the Skill tool instead.
 
-- "What should this page look like?"
-- "Show me a few options for this dashboard."
-- "Try a different layout for the settings screen."
-- Any time the user would otherwise spend a day picking between vague mockups in their head
+## Signs this skill fits
 
-## Two sub-shapes. Prefer A
+| Sign | Example ask |
+|---|---|
+| Nobody can picture the screen yet | "How should `/shipments` show delayed parcels?" |
+| Several layouts look plausible and discussion will not settle it | "One dense table, or a card per parcel?" |
+| A new piece needs a home inside a page that exists | "Where would a returns panel sit on `/shipments`?" |
+| The team keeps arguing from sketches nobody has built | "We discussed this in two meetings and still disagree." |
 
-UI prototypes are easier to judge against the rest of the app. Real header, real sidebar, real
-data, real density. Default to sub-shape A whenever a plausible existing page exists.
+## Where the variants live
 
-Two substrates back these variants, the **real stack** (default) and a **self-contained HTML
-mockup**. Both run the same variant-comparison process below; only the substrate swaps. Pick by
-intent, not by mount target:
+Choose a host before drafting anything. This table is the intent selector the rest of the file
+refers to: the question decides the row, not whichever mount point is easiest. A direct request
+for a real-stack page or for an HTML mockup overrides it in either direction.
 
-- **Existing page** (or a new thing that naturally lives inside one) → real-stack **sub-shape A**
-  (the default).
-- **No existing page, want it judged in the real app**. Real components, real density, needs the
-  app plus a dev server → real-stack **sub-shape B**.
-- **No existing page, want the fastest standalone feel**. No app or dev server running, no app
-  yet, or a non-dev exploring → the **HTML mockup substrate** (below).
-- **Explicit override wins both ways**. Ask for a real-stack page or an HTML mockup directly and
-  that beats the default routing.
+| Host | Choose it when | How the variants are mounted | When the exercise ends |
+|---|---|---|---|
+| **Sub-shape A** (default) | A page already exists, or the new piece would sit inside one (a panel, a card, one step of a flow) | Inside that page, selected by a `?variant=` query parameter or the framework's equivalent. The page keeps its data loading, route parameters and auth; only the subtree under test changes | Merge the winning variant into the page; remove the switcher and every losing variant |
+| **Sub-shape B** (last resort) | The candidate-page check below found nothing, as for a carrier sign-up wizard in an area the app does not have yet | A new route, placed and named under the discipline's "Marked as disposable from the start" rule, with the same `?variant=` selection | Turn the winning variant into a real route; remove the switcher along with the throwaway route |
+| **HTML mockup substrate** | No page to host it and speed matters more than realism: no app or dev server running, no app yet, or someone who is not a developer exploring | One local `file://` page, described in the next section | Discard the file once the winning key and notes are written down; nothing tracked is left |
+| **Design canvas** (the user runs it) | The user took the `/design` offer described below | Artboards on a published canvas | Write down the winning key and notes the same way, then ask whether the user wants the canvas kept (it persists under their account) or cleared; nothing tracked points at it either way |
 
-The HTML mockup is a sibling of sub-shape B: both answer "no existing page," split only by whether
-you want the variant judged inside the real app or as the fastest throwaway standalone.
+**Candidate-page check.** Before choosing B, list every existing page the piece could be added to
+and say why each one fails. For a returns panel the list is `/shipments`, the order detail page
+and the account page. The check matters because a parcel card that
+looks roomy on a bare route can push the order summary off screen on the real `/shipments`, with
+its header, its filters and forty parcels in transit.
 
-### Sub-shape A. Adjustment to existing page (preferred)
-
-The route already exists. Variants are rendered on the same route, gated by a `?variant=` URL param
-(or framework equivalent). Existing data fetching, params, and auth stay. Only the rendered
-subtree swaps.
-
-If you're prototyping something that doesn't have a page yet but WOULD naturally live inside one (a
-new dashboard section, a new card on settings, a new step in an existing flow). Still sub-shape A.
-Mount variants inside the host page.
-
-### Sub-shape B. New page (last resort)
-
-Only when the thing being prototyped has no existing page to live inside, an entirely new
-top-level surface, or a flow that can't embed anywhere sensible.
-
-Create a throwaway route following the project's existing routing convention. Name it obviously as
-a prototype (include "prototype" in the path or filename). Same `?variant=` pattern.
-
-Before committing to B, is there really no existing page this could embed in? An empty route hides
-design problems a populated one would expose.
+Sub-shape B and the mockup substrate cover the same situation, no page to host the work. B costs
+a running app and buys a judgment made inside it; the mockup gives up that realism for a page that
+opens with nothing running.
 
 ## HTML mockup substrate
 
-When the intent selector routes here, no app or dev server, no app yet, or a non-dev exploring,
-the variants live in one self-contained `file://` HTML page with synthetic data and an in-page
-switcher. Assemble one per task (there is no canned template to copy):
+When the intent selector picks this row, the variants live in one self-contained `file://` HTML
+page with synthetic data and an in-page switcher. Assemble one per task (there is no canned
+template to copy):
 
 1. **N variant containers**. One block per variant, all in the single page.
 2. **An in-memory switcher**. `file://` has no routing, so there is no `?variant=` URL; toggle
-   container visibility in memory instead. Give it a floating control bar with left/right arrows
-   and keyboard nav, modeled on the real-stack switcher in step 4 below.
+   container visibility in memory instead. Build its floating bar, buttons and keyboard handling
+   to the real-stack switcher table in step 3 below.
 3. **A copy-out terminator**, a small control that lifts the winning-variant key plus notes back
    out as text you can paste into your durable answer.
 
@@ -173,13 +162,12 @@ the repo references it. The surface facts and their verified-on record live in
 
 ## Process
 
-### 1. State the question and pick N
+### 1. Write the plan
 
-Default to **3 variants**. More than 5 stops being radically different and starts being noise. Cap
-there.
-
-Write the plan in one line: "Three variants of the settings page, switchable via `?variant=`, on
-the existing `/settings` route."
+Before any code, record the plan as one line naming the route, the host and the keys, for example:
+"Plan: `/shipments`, sub-shape A, variants A to C selected by `?variant=`." The count is **3
+variants** unless the user asks for another number, and never more than 5: past five, new variants
+repeat earlier ones instead of disagreeing with them.
 
 **Optional reference pass.** It applies only while nothing fixes the look: no direction from the
 user and no host page under sub-shape A. Then, before step 2, ask whether the user wants one. If
@@ -188,59 +176,62 @@ nearest screens) and reduce them to two to four candidate directions, each named
 density, color and type. The variants in step 2 follow the directions the user keeps; with the pass
 declined, step 2 starts as usual.
 
-### 2. Generate radically different variants
+### 2. Draft the variants
 
-Each variant must respect:
+Sort every design choice into what must change between variants and what must not:
 
-- The page's purpose and available data
-- The project's component library / styling system
-- A clear exported component name (`VariantA`, `VariantB`, `VariantC`)
+| Choice | Between variants | `/shipments` example |
+|---|---|---|
+| Layout: how the regions are arranged | Must differ | A: one full-width table. B: a column of parcel cards. C: a map with a side list |
+| Information hierarchy: what the eye reads first | Must differ | A: status. B: expected delivery date. C: current location |
+| Primary affordance: the main thing to do | Must differ | A: select several and export. B: open one parcel. C: filter by region |
+| Visual direction | Must differ wherever the project's styling system leaves room, and always on the HTML mockup substrate; each variant declares its own direction instead of sharing one default look | A: muted grays. B: the brand blue. C: high-contrast map tiles |
+| The job the page does and the records it can reach | Identical | Every variant shows the same in-transit parcels for the same customer |
+| Component library and styling system | Identical | All three use the app's own table, card and map components |
 
-**Variants must be structurally different and visually distinct**. Different layout, different
-information hierarchy, different primary affordance; a recolor alone is not a variant. Three
-slightly-tweaked card grids isn't a UI prototype, it's wallpaper. <!-- ai-slop-ignore: deliberate voice; the contrast is the operative point --> Structure is the floor, not the
-whole exercise: on the real stack the project's styling system carries the visual axis, and where
-it leaves room (and always on the HTML mockup substrate) each variant also declares its own visual
-direction rather than sharing one default aesthetic. If two drafts come out too similar, redo one
-with an explicit constraint ("do not use a card grid").
+Every variant is required to be structurally different and visually distinct. When two drafts
+agree on the three structural "must differ" rows, they are one design shown twice, however
+different their colors or wording; structure comes first and the visual direction sits on top. Rewrite one of the
+pair under an explicit ban, such as "no table".
 
-### 3. Wire them together
+### 3. Build the switcher
 
-A single switcher component on the route. Framework-idiomatic routing. Use the `?variant=` param
-or equivalent. For sub-shape A, keep all existing data fetching above the switcher; only the
-rendered subtree changes per variant.
+Add one switcher component to the page at that route, using the framework's own routing and the
+`?variant=` parameter or its equivalent. Under sub-shape A, all data loading stays above the switcher, so every
+variant receives the same records and only the subtree under test changes.
 
-### 4. Build the floating switcher
+The switcher is a small floating bar, fixed at the bottom center of the viewport:
 
-A small fixed-position bar at bottom-center with:
+| Part | Requirement |
+|---|---|
+| URL | Each step rewrites `?variant=`, so a reload or a shared link opens the same variant |
+| Keyboard | Left and right arrow keys step through the variants, except while a text input or textarea has focus |
+| Buttons | Previous and next; both ends wrap around, so after the last variant comes the first and before the first comes the last |
+| Label | The current key, plus a descriptive name if exported (`B · parcel cards`); export each variant component under a name built from its key (`VariantB` for key B) |
+| Reuse | One shared component that sub-shape A and sub-shape B both mount |
+| Production | Never rendered in a production build; an environment check gates it |
+| Look | Built from none of the app's own colors or components (black on yellow over a blue-and-white `/shipments`), so no reviewer judges it as part of a variant |
 
-- **Left/right arrows**. Cycle between variants (wrap around)
-- **Variant label**. Current key + descriptive name if exported
-- **Keyboard nav**. Arrow keys cycle (don't intercept when an input/textarea is focused)
+### 4. Hand it over
 
-Requirements:
+The handover message has four parts, in this order:
 
-- Update the URL param on switch (shareable, reload-stable)
-- Visually distinct from the page being evaluated (high-contrast pill, subtle shadow)
-- Hidden in production builds. Gate on an environment check
-- Single shared component so both sub-shapes reuse it
+1. **Where to look.** The route URL, and under it one line per variant: its key and, when
+   evidence was captured, its screenshot path.
+2. **Evidence per variant.** With `/playwright:playwright` among the available skills, load each
+   variant in it, use its main control once (open the menu, submit the form, change the tab), and
+   capture a screenshot; the handover pairs every variant key with its screenshot path. Without
+   that skill, the handover says no screenshots exist.
+3. **Tradeoffs and a pick to start from.** Give every variant one line of strengths and one of
+   costs, and close with the variant you would choose and why. That choice is advice: the reply
+   template still decides, and no variant is folded in before the user answers it.
+4. **The reply template** below, machine-legible, for the user to fill, so the answer comes back
+   as the next prompt in a form that needs no re-reading (on the mockup substrate, the copy-out
+   terminator lifts it).
 
-### 5. Hand it over
-
-**Evidence per variant.** With `/playwright:playwright` among the available skills, load each
-variant in it, use its main control once (open the menu, submit the form, change the tab), and
-capture a screenshot; the handover pairs every variant key with its screenshot path. Without that
-skill, the handover says no screenshots exist.
-
-**Tradeoffs and a pick to start from.** Give every variant one line of strengths and one of costs,
-and close with the variant you would choose and why. That choice is advice: the reply template
-below still decides, and no variant is folded in before the user answers it.
-
-Surface the URL and variant keys. Interesting feedback is usually "I want the header from B with
-the sidebar from C". That's the actual design discovered. Close the handover with a
-machine-legible reply template the user fills, so their reaction comes back as the next prompt
-rather than prose to re-parse (on the mockup substrate this is what the copy-out terminator
-lifts):
+The template has repeatable `steal` lines and a `graft` direction because a mixed verdict is a
+complete answer, not an indecisive one. On `/shipments` it might read `direction: graft`, then
+`steal: delivery-date cards from B` and `steal: map layout from C`.
 
 ```text
 direction: <winning variant key, or "graft">
@@ -249,25 +240,19 @@ skip: <piece or variant> because <one line>
 next-target: <what to explore or build next>
 ```
 
-### 6. Capture the answer and clean up
+### 5. Record the answer, then delete
 
 Per the shared discipline. Record which variant won and why, and record the directions that lost
 with their reasons. Capture at single-decision granularity: each named piece (a header, a
 hierarchy choice, a primary affordance) gets its own steal/skip/adapt entry, so grafts compose
 across variants instead of collapsing into one "variant B, mostly" note. When the verdict is a
 graft rather than a single winner, say which piece came from where **and what the discarded parts
-held that the graft deliberately left behind**. The deletions below are irreversible: whatever is
-not written down now is gone.
+held that the graft deliberately left behind**.
 
-- **Sub-shape A**. Delete losing variants and the switcher; fold the winner into the existing page.
-- **Sub-shape B**. Promote the winner to a real route; delete the throwaway route and switcher.
-- **HTML mockup substrate**. Discard the mockup file once the winning-variant key and notes are
-  captured; nothing tracked is left behind.
-- **Design canvas**, when the user ran `/design`. Capture the winning-variant key and notes the
-  same way; then ask whether the user wants the canvas kept (it persists under their account) or cleared. Nothing tracked
-  references it either way.
-
-Don't leave variant components or the switcher lying around. They rot fast.
+Then carry out the "When the exercise ends" column of the intent selector for the host you used.
+Those deletions are irreversible: whatever is not written down first is gone. Delete the switcher and
+every variant file in the same change that merges the winner; code left behind gets imported by
+mistake and falls out of date.
 
 ## Boundary, the bundled `design` skill
 
@@ -347,7 +332,7 @@ visually" can mean either:
 **Routing.** When the ask is to explore a parameter space and hand back a prompt, route it to the
 `playground` skill when that plugin is installed, or to `/playgrounds:use` when that wrapper is
 installed. When neither is, say the capability exists as an installable plugin and do not build an
-imitation. Keep "what should this page look like" here.
+imitation. Keep questions about how the user's own screen should be laid out here.
 
 **Mutation gate.** A playground writes its own page; this skill never builds one on its behalf.
 
@@ -362,11 +347,11 @@ four-part records live in [reference/native-playground.md](reference/native-play
 
 ## Anti-patterns
 
-- **Variants differing only in color or copy.** That's a tweak, not a prototype. Real variants
-  disagree about structure, and then differ visually on top of it, not instead of it.
-- **Sharing too much code between variants.** A shared `<Header>` is fine; a shared `<Layout>`
-  defeats the point. Each variant should be free to throw out the layout.
-- **Wiring variants to real mutations.** Read-only prototypes are fine. Stub mutations. The
-  question is "what should this look like", not "does the backend work".
-- **Promoting a prototype directly to production.** Variant code was written under prototype
-  constraints (no tests, minimal error handling). Rewrite properly when folding in.
+Ordered from the costliest outcome on `/shipments` down:
+
+| What goes wrong | What it costs | Prevent it |
+|---|---|---|
+| B's "Cancel shipment" button calls the live API while the team clicks through the review | A customer's real parcel is cancelled | Point every write (cancel, reroute, refund) at a stub, so the variants are read-only |
+| The chosen variant is merged as written | Prototype code with no tests and minimal error handling reaches customers and fails on the first carrier timeout | Rebuild the chosen design to production standards as part of folding it in |
+| A gets five sample parcels while B renders the live list of two hundred | B is judged on volume rather than on its layout | Load the records once, above the switcher, and pass the same set to every variant |
+| The variants cannot differ: one parcel table recolored three times, or three variants forced into one shared frame with a fixed sidebar and column grid | There is nothing to choose between | Settle the step 2 must-differ rows first, and let each variant own its whole arrangement; share only small parts such as the page header |

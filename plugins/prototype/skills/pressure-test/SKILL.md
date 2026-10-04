@@ -1,5 +1,5 @@
 ---
-description: "Builds a throwaway interactive terminal app to pressure-test business logic, a state machine, a data model, or an API surface before committing to it. Use when the question is whether a state model, reducer, or data shape holds up under real cases: 'does this state machine handle X then Y', 'sanity-check this data model', 'feel out the API'. Any question answered by driving state by hand and watching it change. Produces a portable pure logic module (liftable into production) behind a disposable shell, a terminal app by default, or a self-contained HTML demo a non-developer can drive by clicking buttons when no terminal fits. Captures the validated answer in a durable note. Not for visual or design questions. Use /prototype:explore-directions for those."
+description: "Builds a throwaway interactive terminal app to pressure-test business logic, a state machine, a data model, or an API surface before committing to it. Use when nobody can say yet what a set of rules does with an awkward sequence of events or an odd record, and stepping through it by hand would show: 'what happens if a refund arrives after the order ships', 'is this transition allowed from that status', 'will this schema fit our odd records', 'which arguments should this call take', 'prototype this reducer'. Produces a portable pure logic module (liftable into production) behind a disposable shell, a terminal app by default, or a self-contained HTML demo that someone outside engineering operates by clicking buttons when no terminal fits. Captures the validated answer in a durable note. Not for visual or design questions. Use /prototype:explore-directions for those."
 argument-hint: "[scope]"
 user-invocable: true
 disable-model-invocation: false
@@ -39,68 +39,69 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-A disposable interactive shell driving a state model by hand, a terminal app by default, a
-shareable HTML demo when the audience calls for it. Use when the question is about
-**business logic, state transitions, or data shape**. Things that look reasonable on paper but
-only feel wrong once pushed through real cases.
+This skill checks a set of rules by running them. It puts the logic in question into a small pure
+module, wraps that module in a disposable shell a person drives one action at a time, and shows
+the whole state after every action. The shell is a terminal app by default, or one HTML file for
+a driver who does not use a terminal.
 
-The shared throwaway rules, the auto-invoke gate, and how to capture the answer live in
-[`${CLAUDE_PLUGIN_ROOT}/context/discipline.md`](../../context/discipline.md). Read it before you
-start. This file covers only the logic facet.
+The examples in this file follow one case: a library's loan rules. A copy can be on the shelf, on
+loan, overdue or reserved, and the events are borrow, renew, return, reserve and a day passing. A
+rule such as "a loan can be renewed twice" fits on one line and still says nothing about the
+patron waiting on a reservation for that copy; the gap appears when someone renews such a copy and
+reads the resulting state.
 
-If the question is "what should this look like". Wrong facet. Invoke `/prototype:explore-directions` via the Skill tool.
+Read [`${CLAUDE_PLUGIN_ROOT}/context/discipline.md`](../../context/discipline.md) first. It holds
+the rules every prototype follows, the auto-invoke gate, and where the answer gets written down.
+This file adds only what is specific to the logic facet.
 
-## When this is the right shape
+A question about how a screen should look ("what should this look like") is a visual/appearance
+question, not a logic/state question, and belongs to the other facet: invoke
+`/prototype:explore-directions` via the Skill tool instead.
 
-- "Does this state machine handle the edge case where X then Y?"
-- "Does this data model represent the case where...?"
-- "What should the API surface look like before writing it?"
-- Anything where pressing buttons and watching state change reveals the answer
+## Does the question need a running model?
+
+Use this skill when acting on a running model would settle the question sooner than reading code or
+arguing about it. In the loans case:
+
+| What is in doubt | Loans example | Use this skill? |
+|---|---|---|
+| How the rules treat events in an awkward order, including the ones they should refuse | A reserved copy comes back late and its borrower then tries to renew it | Yes |
+| Whether the record shape can hold a case the library really has | One patron borrows two copies of the same title | Yes |
+| What the calls should take and return | Renew by loan id or by copy id | Yes; the module's interface is the draft |
+| What today's code already does | Does the current `renew()` check reservations? | No; read the code |
 
 ## Two shells. TUI default
 
-Two disposable shells can front the same portable logic module (step 3 below), the **terminal
+Two disposable shells can front the same portable logic module (step 2 below), the **terminal
 app** (the default) and a **self-contained HTML demo**. Both run the same process; only the shell
 swaps. Route by audience:
 
 - **The driver is a developer with a terminal** → the TUI (the default below).
-- **The driver is a non-developer**, a designer, PM, or domain expert pressing the buttons, or
-  **no terminal fits the handoff** → the HTML demo shell (next section): one file, nothing to
-  install, opened by double-click.
+- **The driver works outside engineering** (design, product, or the business side) and will press
+  the buttons, or **no terminal fits the handoff** → the HTML demo shell (next section): one file,
+  nothing to install, opened by double-click.
 - **Explicit override wins both ways**. Ask for a TUI or an HTML demo directly and that beats
   the default routing.
 
 ## HTML demo shell
 
-When the audience routing selects it, the shell is one self-contained `file://` HTML page over the
-same pure logic module, the module lives in a single inline `<script>` block written so it could
-be lifted out unchanged; the page calls into it, and nothing flows the other direction. It
-replaces steps 4–5 below; the rest of the process holds (in step 6, the run command is the page's
-`file://` path).
+When the audience routing selects it, the shell is one self-contained `file://` HTML page. This
+shell takes the place of step 3 below; every other step holds (in step 4, the run command is the
+page's `file://` path). The step 2 module goes into the page unchanged as its own inline
+`<script>` block, and step 2's one-way dependency rule applies to the page exactly as it does to
+a terminal shell.
 
-Lay the page out top to bottom, in **domain language**. Every button and field reads like the
-business, not the reducer, because the driver is not reading code:
+The person driving the page does not read code, so the page speaks the library's language: buttons
+say "Renew loan", fields say "Days overdue" with a value beside them, and nothing shows `RENEW`,
+`state.loans[0].due` or a JSON dump. The page has these regions, top to bottom:
 
-1. **Title and one-line explanation**, the question from step 1, visible on the page.
-2. **State panel**, the full relevant state as a readable labeled panel (not a raw JSON dump),
-   re-rendered after every click so the change is visible.
-3. **Free-play buttons**. One button per action, always available, so the driver can poke at the
-   model in any order.
-4. **Guided walkthroughs**, a few scenarios worth demonstrating: the happy path, a tricky edge
-   case, an attempt at something that should be illegal. Each is a short plain-language
-   description plus the ordered buttons to press; starting a walkthrough **resets to a known
-   initial state** so the scenario runs the same way every time.
-5. **Validation answer set**, the questions this demo exists to answer, each as a forced choice
-   with a small authored option set, every option naming its cost in plain language (what
-   picking it gives up), plus a free-text escape hatch for the answer the options missed. The
-   driver's picks are the demo's real output; pair the set with a copy-out control that lifts
-   the filled answers back out as text to paste into the session.
-6. **Fake-data disclosure footer**, one visible line stating the page is synthetic end to end,
-   that nothing on it reads from or writes to the real app, and, when decided, where the real
-   wiring lives (or will live) and behind which flag; when integration is not yet decided, or no
-   flag is planned, the footer says so explicitly rather than inventing production details. The
-   driver is not reading code; the footer is what keeps a convincing mock from being mistaken
-   for the wired feature.
+| Region | What the driver does there (loans case) |
+|---|---|
+| Header | Reads the title and the step 1 question in one sentence |
+| State panel and free-play buttons | Presses Borrow, Renew, Return, Reserve or Next day in any order, at any time, and watches the copy's status, due date, reservation holder and fine change after each press |
+| Guided walkthroughs | Runs scripted scenarios. Each opens on the same fresh library, says in a sentence what to watch, and lists its presses in order. Include one the rules must refuse (borrowing a copy someone else reserved), one awkward case (renewing on the due date) and one ordinary run (borrow, then return on time) |
+| Validation answer set | The questions this demo exists to answer, each as a forced choice with a small authored option set, every option naming its cost in plain language (what picking it gives up), plus a free-text escape hatch for the answer the options missed. The driver's picks are the demo's real output; pair the set with a copy-out control that lifts the filled answers back out as text to paste into the session |
+| Fake-data disclosure footer | One visible line stating the page is synthetic end to end, that nothing on it reads from or writes to the real app, and, when decided, where the real wiring lives (or will live) and behind which flag; when integration is not yet decided, or no flag is planned, the footer says so explicitly rather than inventing production details. The driver is not reading code; the footer is what keeps a convincing mock from being mistaken for the wired feature |
 
 Constraints (the same set as explore-directions' HTML mockup substrate):
 
@@ -126,85 +127,85 @@ Constraints (the same set as explore-directions' HTML mockup substrate):
   must still be readable when they open it.
 - **Markdown captures the answer.** Copy what the demo taught into your durable answer (per the
   shared discipline), then discard the page like any other shell, the validated logic module is
-  the only artifact that outlives the prototype (lifted into production per step 7).
+  the only artifact that outlives the prototype (lifted into production per step 5).
 
 ## Process
 
-### 1. State the question
+### 1. Write the question down
 
-Write down what state model and what question you're prototyping. One paragraph, comment at top of
-file. A logic prototype answering the wrong question is pure waste. Make the question explicit.
+For the loans case the paragraph reads: "State model: one copy's loan record. Question: can the
+current borrower renew a copy that someone else has reserved, and if so, what happens to the
+reservation?" Write a paragraph like that before any code, as the opening comment of the module
+file (for the HTML demo shell, also in the page header). Without it, the build drifts toward
+whatever question is easiest to answer.
 
-### 2. Pick the language
+### 2. Build the logic module
 
-Use whatever the host project uses. Match existing conventions for tooling. Don't add a new
-runtime for a prototype.
+Write it in the host project's language with its existing tooling; a prototype never brings in a
+new runtime.
 
-### 3. Isolate logic in a portable module
+Decide what belongs on each side of the split before writing either side:
 
-Put the logic, the bit answering the question, behind a small, pure interface that could be
-lifted into the real codebase later. The shell around it (TUI or HTML page) is throwaway; the
-logic module should not be.
+| | Module | Shell (TUI or HTML page) |
+|---|---|---|
+| After the answer is recorded | Committed to production unchanged | Deleted |
+| Loans contents | The loan record, the borrow/renew/return/reserve rules, the fine | Key or click handling, drawing the state, the sample patrons |
+| Allowed inside | Plain values in, plain values out | Terminal codes, DOM access, printing, reading input |
+| Imports | Nothing from the shell | The module (the one-way dependency rule) |
 
-Pick the shape that fits the question:
+Before the shell exists, search the module for terminal codes, DOM access, I/O and any console
+output that decides a branch, and read its import list. A hit on either means the module cannot
+be committed unchanged.
 
-| Shape | When |
-|-------|------|
-| **Pure reducer**. `(state, action) => state` | Actions are discrete events, state is a single value |
-| **State machine**. Explicit states and transitions | "Which actions are even legal right now" is part of the question |
-| **Pure functions** over a plain data type | No implicit current state. Just transformations |
-| **Class/module with clear method surface** | Logic genuinely owns ongoing internal state |
+Then pick the module's form by asking who holds the loan state between two calls:
 
-Keep it pure: no I/O, no terminal code, no DOM access, no console output for control flow. The
-shell imports and calls into the logic module; nothing flows the other direction.
+| Who holds it | Form | Loans example |
+|---|---|---|
+| Nobody; each call computes from its arguments | Separate pure functions over plain values | `fineFor(daysLate)` |
+| The caller, who passes it in each time | One function from the current record and an event to the next record. When the doubt is which events a status refuses, give it an explicit table of statuses and the events each accepts, which makes it a state machine | `next(loan, "renew")`; `overdue` accepts `return`, refuses `renew` |
+| The module itself | An object with a few methods, used only when the caller cannot reasonably carry the state | a `Ledger` with `borrow()` and `history()` |
 
-This is what makes the prototype useful past its own lifetime. When the question's been answered,
-the validated module can be lifted into production code, the shell gets deleted.
+### 3. Build the TUI shell
 
-### 4. Build the smallest TUI that exposes state
+(Terminal default. When the audience routing selected the HTML demo shell, that section replaces
+this step.)
 
-(TUI default. When the audience routing selected the HTML demo shell, that section replaces this
-step and step 5.)
+Redraw the whole screen after every action: clear it and print the full frame again, so the user
+watches one view change in place instead of a log growing down the terminal. The frame fits on one
+screen and has two parts:
 
-On every tick, clear the screen and re-render the whole frame. The user sees one stable view, not
-growing scrollback.
+1. **State**, one field per line, with field names in bold and secondary details (timestamps, ids,
+   computed values) dimmed.
+2. **Keys**, listed at the bottom: `[b] borrow  [w] renew  [r] return  [d] next day  [q] quit`.
 
-Each frame has two parts:
+The loop: create the state as one in-memory value and draw the first frame; read one key (or one
+line); pass it to a handler that updates the state through the logic module; draw the full frame
+again, replacing the old one; repeat until quit.
 
-1. **Current state**. Pretty-printed, one field per line or formatted output. Bold field names,
-   dim less-important context (timestamps, IDs, derived values).
-2. **Actions**. Listed at bottom: `[a] add item  [d] delete item  [t] tick clock  [q] quit`.
+Make it start with one command. Add an entry to the project's existing task runner, so the user
+types the equivalent of `pnpm run loans-proto` or `dotnet run --project <path>` and never has to
+remember a file path. With no task runner, write the command at the top of a prototype README.
 
-Behavior loop:
+### 4. Hand it over
 
-1. Initialize state, a single in-memory object. Render the first frame on start.
-2. Read one keystroke (or one line), dispatch to a handler that mutates state via the logic module.
-3. Re-render the full frame after every action. Replace, don't append.
-4. Loop until quit.
+Give the user the run command (for the HTML demo shell, the page's `file://` path; open the page
+for them or pass them the file).
 
-The whole frame should fit on one screen.
+Sort each remark the user makes while driving into one of two piles:
 
-### 5. Make it runnable in one command
+- **A finding about the rules.** Write down the presses that led to it, in order, and the state
+  the user expected instead. For the loans case: borrow, reserve as a second patron, renew; the
+  renewal went through and the user expected a refusal. These lists feed step 5.
+- **A state the prototype cannot reach yet**, such as a reservation that lapses unclaimed. Add the
+  event to the module, give it a key or button in the shell, and hand the prototype back.
 
-Add a script to the project's existing task runner. The user runs the equivalent of
-`dotnet run --project <path>` or `pnpm run <name>`, never needs to remember a file path.
+### 5. Capture the answer
 
-If there's no task runner, put the command at the top of a prototype README.
-
-### 6. Hand it over
-
-Give the user the run command (for the HTML demo shell, the page's `file://` path: send them the
-file or open it for them). Interesting moments, "wait, that shouldn't be possible" or "huh, I
-assumed X would be different", are bugs in the IDEA. Add new actions as the user requests them.
-Prototypes evolve.
-
-### 7. Capture the answer
-
-When done, capture what the prototype taught (per the shared discipline). For the HTML demo
-shell, carry the filled validation answer set into the durable answer verbatim: the chosen
-option per question, with the cost the driver accepted, is the record of what was actually
-decided. The logic module behind the shell is often worth keeping; the shell, TUI or HTML page,
-is not: lift the validated module into production and delete the shell.
+Write down what the prototype showed, per the shared discipline. For the HTML demo shell, carry
+the filled validation answer set into the durable answer verbatim: the chosen option per question,
+with the cost the driver accepted, is the record of what was actually decided. Then move the
+validated module into production and delete the shell, terminal app or page alike; the module is
+often worth keeping, the shell never is.
 
 ## Next
 
@@ -213,13 +214,11 @@ is not: lift the validated module into production and delete the shell.
 
 ## Anti-patterns
 
-- **Adding tests.** A prototype needing tests is no longer a prototype.
-- **Wiring to a real database.** In-memory store unless the question IS about persistence.
-- **Generalizing.** No "what if we wanted to support X later."
-- **Blurring logic and shell.** If the reducer/state machine references console output, terminal
-  codes, or the DOM, it's no longer portable. The shell (TUI or page) is a thin layer over a pure
-  module.
-- **Shipping the shell to production.** The shell, TUI or HTML page, is optimized for
-  hand-driving. The logic module behind it is the reusable bit.
-- **Reaching for a framework, bundler, or server in the HTML demo shell.** One file the driver
-  double-clicks; a dev server defeats "nothing to install".
+| Mistake | Why it fails | Instead |
+|---|---|---|
+| Shell code inside the module | A `renew()` that prints to the terminal or reads a form field runs only inside that one shell, so it cannot be copied into production | Let `renew()` take a loan and return a loan; the shell, TUI or page, does all printing and reading around it |
+| Connecting the real database | Every click becomes a real write to the loans table, and storage was not the thing under test | Hold the loans in a plain in-process map that disappears on exit, unless persistence is the question itself |
+| Writing a test suite for the prototype | The renewal rules are meant to change after each answer the driver gives; once it needs a test suite it has stopped being a prototype, and tests would freeze rules still being decided, and the effort belongs to the module that survives | Write tests for the module once it is lifted into production |
+| Building for cases nobody asked about | Interlibrary loans or e-books added "for later" blur the answer to the one question asked | Answer the step 1 question and stop |
+| A build step, bundler, framework or server behind the HTML demo shell | The librarian who drives the demo gets a file by email and has no toolchain; a page that must be built or served never opens for them | One HTML file with every script and style inlined |
+| Shipping the shell | The loan screen hard-codes sample patrons and skips every failure case, so the library would run on demo scaffolding | Ship the module; delete the shell |

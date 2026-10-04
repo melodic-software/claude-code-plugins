@@ -1310,7 +1310,7 @@ and when. See [`docs/conventions/native-references/`](conventions/native-referen
 - **Our component:** `prototype:explore-directions` (skill)
 - **Evidence:**
   - upstream SKILL.md read at commit ed404106fcd80ba98ecb7c851e531dcb626d13b7: 'especially when the input space is large, visual, or structural and hard to express as plain text'
-  - our description: builds throwaway UI variations, several radically different visual layouts on one route, switchable from a floating control bar
+  - our description: builds throwaway UI variations, a few structurally different layouts (three by default) behind one route, toggled from a floating switcher
   - the baked routing clause carries the marketplace parity token so fleet parity traces it to this row
   - corpus slice: 27-resource verified map (2026-08-31)
 - **Observation:** upstream-source: anthropics/claude-plugins-official at commit ed404106fcd80ba98ecb7c851e531dcb626d13b7 (HEAD of main, re-verified by fetch 2026-09-01) (2026-09-01)
