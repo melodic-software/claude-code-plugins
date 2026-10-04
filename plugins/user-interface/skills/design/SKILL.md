@@ -111,6 +111,8 @@ the user agrees.
 
 ## Gotchas
 
+- When `node` is missing, detect cannot run: read the project's design files yourself and treat
+  `installed` as `null`.
 - `installed` lists only what detect can see. A plugin installed but disabled for this project does
   not count, so do not route to it; tell the user it is installed and off.
 - A `null` in `reachable` is not a yes. Use the free routes, and say the account-bound one may work
