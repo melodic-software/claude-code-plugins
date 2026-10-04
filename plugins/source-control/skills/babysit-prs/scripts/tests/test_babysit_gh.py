@@ -709,7 +709,7 @@ class ViewPrBaseCompareTests(unittest.TestCase):
         self,
         merge_state: str,
         compare: dict[str, Any],
-        rules: list[dict[str, Any]] | None = None,
+        rules: Any = None,
     ) -> tuple[dict[str, Any], list[str]]:
         paths: list[str] = []
 
@@ -724,6 +724,8 @@ class ViewPrBaseCompareTests(unittest.TestCase):
             if "/compare/" in args[1]:
                 return compare
             if "/rules/branches/" in args[1]:
+                if isinstance(rules, Exception):
+                    raise rules
                 return rules or []
             raise AssertionError(f"unexpected gh_json call: {args}")
 
@@ -748,6 +750,14 @@ class ViewPrBaseCompareTests(unittest.TestCase):
     def test_a_queue_rule_is_recorded(self) -> None:
         data, _ = self._view("HAS_HOOKS", self.BEHIND, [{"type": "merge_queue"}])
         self.assertIs(data["_base_merge_queue"], True)
+
+    def test_an_unreadable_rules_answer_leaves_the_queue_unknown(self) -> None:
+        # Unknown, not "no queue": the snapshot then reports the head not
+        # behind, so a transient failure cannot refresh a queue-base head.
+        for rules in (RuntimeError("gh: Server Error (HTTP 502)"), {"message": "x"}):
+            with self.subTest(rules=rules):
+                data, _ = self._view("CLEAN", self.BEHIND, rules)
+                self.assertIsNone(data["_base_merge_queue"])
 
     def test_an_up_to_date_clean_head_pays_no_rules_read(self) -> None:
         data, paths = self._view("CLEAN", self.CURRENT)

@@ -12,6 +12,7 @@ from __future__ import annotations
 import pathlib
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
@@ -157,6 +158,21 @@ class BranchFreshnessTests(unittest.TestCase):
         result = delta.compute_branch_freshness(pr)
         self.assertEqual(result["state"], "not_reported_behind")
 
+    def test_clean_head_behind_an_unread_queue_answer_is_not_reported_behind(
+        self,
+    ) -> None:
+        # The refresh disarms auto-merge and reruns CI and the AI reviews, so a
+        # failed rules read must not start one on what may be a queue base.
+        for queue in (None, "absent"):
+            with self.subTest(queue=queue):
+                over: dict[str, object] = {
+                    "_base_compare": {"status": "behind", "behind_by": 4}
+                }
+                if queue is None:
+                    over["_base_merge_queue"] = None
+                result = delta.compute_branch_freshness(make_pr(**over))
+                self.assertEqual(result["state"], "not_reported_behind")
+
     def test_clean_head_up_to_date_is_not_reported_behind(self) -> None:
         pr = make_pr(_base_compare={"status": "ahead", "behind_by": 0})
         result = delta.compute_branch_freshness(pr)
@@ -180,6 +196,21 @@ class BranchFreshnessTests(unittest.TestCase):
             "branch behind main; reported CLEAN (confirmed via base compare)",
             result["blockers"],
         )
+
+    def test_the_review_request_candidate_sees_the_behind_verdict(self) -> None:
+        for queue, behind in ((False, True), (True, False)):
+            with self.subTest(queue=queue):
+                pr = make_pr(
+                    _base_compare={"status": "behind", "behind_by": 4},
+                    _base_merge_queue=queue,
+                )
+                with mock.patch.object(
+                    delta,
+                    "classify_review_request",
+                    wraps=delta.classify_review_request,
+                ) as spy:
+                    classify(pr, make_prev())
+                self.assertIs(spy.call_args.kwargs["branch_behind"], behind)
 
 
 class MutationPolicyTests(unittest.TestCase):

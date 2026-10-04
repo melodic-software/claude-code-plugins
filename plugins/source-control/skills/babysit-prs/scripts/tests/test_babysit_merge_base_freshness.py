@@ -76,8 +76,9 @@ def _pr(**overrides: Any) -> dict[str, Any]:
 class BaseFreshnessHarness(unittest.TestCase):
     def _evaluate(
         self,
-        rules: list[dict[str, Any]],
+        rules: list[dict[str, Any]] | Exception,
         compare: Any = UP_TO_DATE,
+        self_logins: frozenset[str] = frozenset(),
         **pr_overrides: Any,
     ) -> dict[str, Any]:
         self.compare_calls: list[list[str]] = []
@@ -91,6 +92,8 @@ class BaseFreshnessHarness(unittest.TestCase):
                     raise compare
                 return compare
             if args[0] == "api" and "/rules/branches/" in args[1]:
+                if isinstance(rules, Exception):
+                    raise rules
                 return rules
             if args[0] == "api" and args[1] == "repos/owner/repo":
                 return {"name": "main"}
@@ -101,7 +104,7 @@ class BaseFreshnessHarness(unittest.TestCase):
             mock.patch.object(merge, "fetch_review_threads", return_value=[]),
         ):
             return merge.evaluate(
-                "owner/repo", PR_NUMBER, HEAD, {"owner"}, frozenset(), False, False,
+                "owner/repo", PR_NUMBER, HEAD, {"owner"}, self_logins, False, False,
             )
 
     def _freshness_blockers(self, result: dict[str, Any]) -> list[str]:
@@ -145,6 +148,39 @@ class LooseBaseHoldsABehindCleanHead(BaseFreshnessHarness):
             any("freshness is UNPROVEN" in b for b in result["blockers"]),
             result["blockers"],
         )
+
+    def test_an_unreadable_rules_answer_still_compares_and_holds(self) -> None:
+        # The snapshot reports this head not behind (no refresh this cycle), so
+        # the gate must not read the failure as a strict or queue base. A
+        # self-authored PR passes the unprotected-base hold that would
+        # otherwise hold it first.
+        result = self._evaluate(
+            RuntimeError("gh: Server Error (HTTP 502)"),
+            BEHIND,
+            self_logins=frozenset({"me"}),
+            author={"login": "me"},
+        )
+        self.assertFalse(result["ready"])
+        self.assertEqual(len(self._freshness_blockers(result)), 1, result["blockers"])
+        self.assertTrue(result["baseFreshness"]["behind"])
+
+    def test_a_strict_rule_that_lists_no_check_compares(self) -> None:
+        strict_without_checks = {
+            "type": "required_status_checks",
+            "parameters": {
+                "required_status_checks": [],
+                "strict_required_status_checks_policy": True,
+            },
+        }
+        result = self._evaluate(
+            [strict_without_checks],
+            BEHIND,
+            self_logins=frozenset({"me"}),
+            author={"login": "me"},
+        )
+        self.assertFalse(result["ready"])
+        self.assertEqual(len(self._freshness_blockers(result)), 1, result["blockers"])
+        self.assertEqual(len(self.compare_calls), 1)
 
     def test_auto_merge_is_not_armed_over_a_behind_head(self) -> None:
         # Only a running required check holds the merge, which `--auto` may arm
@@ -195,6 +231,24 @@ class StrictRequiredChecksFold(unittest.TestCase):
         with mock.patch.object(merge, "gh_json", return_value=LOOSE):
             summary = merge.branch_rules("owner/repo", "main")
         self.assertFalse(summary["requireUpToDate"])
+
+    def test_a_strict_rule_needs_a_required_check_of_its_own(self) -> None:
+        # GitHub: the strict setting "will not take effect unless at least one
+        # status check is enabled" (https://docs.github.com/en/rest/repos/rules).
+        # Another rule's check does not count for it.
+        strict_without_checks = {
+            "type": "required_status_checks",
+            "parameters": {
+                "required_status_checks": [{"integration_id": 1}],
+                "strict_required_status_checks_policy": True,
+            },
+        }
+        with mock.patch.object(
+            merge, "gh_json", return_value=[*LOOSE, strict_without_checks]
+        ):
+            summary = merge.branch_rules("owner/repo", "main")
+        self.assertFalse(summary["requireUpToDate"])
+        self.assertEqual(summary["requiredContexts"], ["ci-status"])
 
 
 if __name__ == "__main__":

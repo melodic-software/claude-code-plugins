@@ -243,8 +243,9 @@ def compute_branch_freshness(pr: dict[str, Any]) -> dict[str, Any]:
 
     Falls back to the compare-confirmed signal only when the compare proves
     outstanding base commits (`behind_by > 0`, `status` in {behind, diverged})
-    and `mergeStateStatus` is BLOCKED, or CLEAN/HAS_HOOKS on a base that does not
-    require a merge queue (a queue tests the PR against the latest base itself).
+    and `mergeStateStatus` is BLOCKED, or CLEAN/HAS_HOOKS on a base whose rules
+    were read and require no merge queue (a queue tests the PR against the
+    latest base itself; an unread answer leaves the head not behind this cycle).
     Every other cause of BLOCKED (a real merge conflict, a pending human review,
     ...) is untouched by this function -- it only ever flips those states to
     "behind"; conflict, human-stop, lease, unique head-ref, and the
@@ -262,7 +263,10 @@ def compute_branch_freshness(pr: dict[str, Any]) -> dict[str, Any]:
     compare = pr.get("_base_compare")
     if compare_shows_behind(compare) and (
         merge_state == "BLOCKED"
-        or (merge_state in {"CLEAN", "HAS_HOOKS"} and not pr.get("_base_merge_queue"))
+        or (
+            merge_state in {"CLEAN", "HAS_HOOKS"}
+            and pr.get("_base_merge_queue") is False
+        )
     ):
         return {"state": "behind", "source": "compare_api", "compare": compare}
     return {"state": "not_reported_behind", "source": "mergeStateStatus"}
@@ -531,6 +535,7 @@ def classify_pr(
         reaction_signals,
         bool(human_stop["required"]),
         review_trigger_allowed=bool(mutation_policy["review_trigger_allowed"]),
+        branch_behind=branch_freshness["state"] == "behind",
         config=config.review_trigger,
     )
     foreign_activity = detect_foreign_activity(pr, prev, config)

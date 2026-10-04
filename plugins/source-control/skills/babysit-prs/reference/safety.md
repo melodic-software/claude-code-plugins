@@ -476,12 +476,16 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   states that this leaves mergeability checks, conflict reporting, and rule enforcement unchanged.
   So the gate keeps trusting `CLEAN` for mergeability; what can be up to 12 hours behind the base
   is the merge commit `pull_request` CI ran against. Only a strict up-to-date rule (`BEHIND`) proves
-  the head is current at merge. Under a base with neither that rule nor a merge queue, a behind
-  head still reads `CLEAN`, so once a PR is otherwise ready the gate compares its head against the
-  live base and holds it while it is behind, or while the compare cannot be read (`baseFreshness`
-  in the output). The snapshot reports the same head `branch_freshness.state == "behind"`, and
-  [freshness.md](freshness.md)'s refresh clears the hold. A merge-queue base makes no compare: the
-  queue tests the PR against the latest base itself. **Claim, basis, as of, recheck:** that
+  the head is current at merge. Under a base whose rulesets carry neither that rule nor a merge
+  queue, a behind head still reads `CLEAN`, so when the gate runs on an otherwise-ready PR it
+  compares the head against the live base and holds it if it is behind or the compare cannot be
+  read (`baseFreshness` in the output). The compare runs at gate time, including when the gate
+  arms `--auto`; an auto-merge already armed is not re-checked if the base moves afterwards, a
+  race that predates this check. The snapshot reports the same head
+  `branch_freshness.state == "behind"`, and [freshness.md](freshness.md)'s refresh clears the
+  hold; a compare that keeps failing holds the PR until a human acts. A merge-queue base makes no
+  compare: the queue tests the PR against the latest base itself. Only rulesets are read, not
+  classic branch protection. **Claim, basis, as of, recheck:** that
   regeneration rule,
   [changes to test merge commit generation](https://github.blog/changelog/2026-02-19-changes-to-test-merge-commit-generation-for-pull-requests),
   2026-10-02, and a GitHub changelog entry that changes test-merge regeneration or says it now

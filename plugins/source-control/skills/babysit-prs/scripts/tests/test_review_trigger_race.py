@@ -395,6 +395,18 @@ class ClassifyReviewRequestTests(unittest.TestCase):
         self.assertEqual(result["state"], "eligible")
         self.assertTrue(result["request_eligible"])
 
+    def test_a_head_the_snapshot_reports_behind_is_no_candidate(self) -> None:
+        # A loose base reports a behind head CLEAN; `request_review.py` rejects
+        # it live, so candidacy must not spend the window on it first (#5955).
+        prior = {"review_trigger": {"missing_head_sha": HEAD,
+                                    "missing_first_seen_at": "2026-07-10T00:00:00Z",
+                                    "missing_observations": 1}}
+        result = review_trigger.classify_review_request(
+            self._pr(), self._gate(), prior, "2026-07-10T00:05:00Z",
+            review_trigger_allowed=True, branch_behind=True, config=configured())
+        self.assertFalse(result["request_eligible"])
+        self.assertEqual(result["missing_head_sha"], "")
+
     def test_dormant_gate_never_produces_a_candidate(self) -> None:
         gate = review_trigger.review_gate_state(
             checks.classify_checks([]),

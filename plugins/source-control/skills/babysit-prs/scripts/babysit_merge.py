@@ -349,7 +349,8 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
       legitimately require the same context, hence the dedupe; the sort makes
       the reported set stable regardless of the order rulesets are returned in.
     * `requireUpToDate` (strict required status checks) is the OR: one active
-      strict ruleset is enough for GitHub to report a behind head BEHIND.
+      strict rule that lists a required check is enough for GitHub to report
+      a behind head BEHIND.
     * `requiredApprovingReviews` takes the max and `requireThreadResolution`
       the OR. That is the fail-closed direction whatever GitHub's own
       composition rule turns out to be: max/OR can only ever over-report, which
@@ -388,12 +389,18 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
             # A context-less entry is dropped rather than carried: it names no
             # check to reconcile, and a None would sort-crash the union and
             # surface downstream as a literal "None" required context.
-            required_contexts.update(
+            rule_contexts = [
                 str(c["context"])
-                for c in params.get("required_status_checks", [])
+                for c in json_array(params.get("required_status_checks"))
                 if is_json_object(c) and c.get("context")
-            )
-            if params.get("strict_required_status_checks_policy") is True:
+            ]
+            required_contexts.update(rule_contexts)
+            # The strict setting "will not take effect unless at least one status
+            # check is enabled" (https://docs.github.com/en/rest/repos/rules).
+            if (
+                params.get("strict_required_status_checks_policy") is True
+                and rule_contexts
+            ):
                 summary["requireUpToDate"] = True
         elif rtype == "pull_request":
             # Absence and unreadability are different facts. No key means the

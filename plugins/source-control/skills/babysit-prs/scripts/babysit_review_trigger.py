@@ -406,13 +406,16 @@ def classify_review_request(
     human_stop_required: bool = False,
     *,
     review_trigger_allowed: bool = False,
+    branch_behind: bool = False,
     config: ReviewTriggerConfig = DEFAULT_REVIEW_TRIGGER_CONFIG,
 ) -> dict[str, Any]:
     """Advance the review-request state machine for one PR.
 
     `review_trigger_allowed` is the caller's already-computed mutation-policy
     verdict (base repo allowed and not archived); passing it in keeps this
-    module free of any trust-boundary policy import.
+    module free of any trust-boundary policy import. `branch_behind` is the
+    caller's `branch_freshness` verdict: a behind head is refreshed before it
+    is reviewed, and `request_review.py` rejects one on its live re-check.
     """
     head_sha = str(pr.get("headRefOid") or "")
     merge_state = str(pr.get("mergeStateStatus") or "").upper()
@@ -455,6 +458,7 @@ def classify_review_request(
         and head_sha not in refresh_history
         and not pr.get("isDraft")
         and merge_state not in {"", "BEHIND", "DIRTY", "DRAFT", "UNKNOWN"}
+        and not branch_behind
         and mergeable != "CONFLICTING"
         and not current_head_review
         # Only reactions tied to THIS head gate candidacy. Reactions carry no

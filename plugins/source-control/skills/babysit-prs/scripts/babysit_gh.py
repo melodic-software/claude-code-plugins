@@ -860,18 +860,22 @@ def compare_shows_behind(compare: Any) -> bool:
     )
 
 
-def base_requires_merge_queue(repo: str, base_ref: str) -> bool:
+def base_requires_merge_queue(repo: str, base_ref: str) -> bool | None:
     """Whether a ruleset requires a merge queue on the base branch.
 
     A queue tests the PR against the latest base itself, so a behind head on a
     queue base needs no refresh (`reference/freshness.md` carries the source
-    record). An unreadable answer is False: refreshing a genuinely behind
-    branch is always safe.
+    record). An unreadable answer is None, not False: the refresh disarms
+    auto-merge and its push reruns CI and the AI reviews, so a transient read
+    failure must not start one on a queue base. The head reads not behind for
+    that cycle and the next snapshot reads the rules again.
     """
     try:
         rules = gh_json(["api", f"repos/{repo}/rules/branches/{quote(base_ref, safe='')}"])
     except (RuntimeError, json.JSONDecodeError):
-        return False
+        return None
+    if not is_json_array(rules):
+        return None
     return any(
         is_json_object(rule) and rule.get("type") == "merge_queue"
         for rule in json_array(rules)
