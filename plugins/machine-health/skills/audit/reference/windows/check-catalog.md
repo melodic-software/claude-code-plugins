@@ -553,10 +553,13 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
   `<root>/<project-key>/<session-id>/tasks/*.output` (exactly those three directory levels, never
   recursive) and keeps the five largest in `detail.largest_task_outputs`, largest first. Each entry
   carries `path` and `session_dir` (long form), `bytes`, `gb` and `last_write_utc`.
-  `detail.task_output_count` counts every match and `detail.largest_task_output_gb` is the top
-  entry's size. Only directory listings and file metadata are read, never file contents: task
-  output can hold secrets. The listing stops at 20 seconds on the check's own clock and sets
-  `detail.task_output_truncated`, so the walk keeps at least 40 of its 60 seconds. Whether the owning
+  `detail.task_output_count` counts every match, `detail.task_output_over_count` counts every match
+  at or above the per-file threshold, and `detail.largest_task_output_gb` is the top entry's size.
+  Only directory listings and file metadata are read, never file contents: task output can hold
+  secrets. Each directory is streamed and the 20-second cap is tested per entry on the check's own
+  clock, so one `tasks` directory with millions of entries cannot hold the listing past it. Hitting
+  the cap sets `detail.task_output_truncated`, and the walk keeps at least 40 of its 60 seconds.
+  Whether the owning
   session is still live is not inferred, because age cannot separate a live scratchpad from an
   abandoned one (`/disk-hygiene:clean` safety model); `last_write_utc` is reported and the reader
   judges.
@@ -564,12 +567,15 @@ All checks emit the schema in `reference/shared/output-schema.md`, and dot-sourc
 - **Severity rubric:**
   - `WARN`: total ≥5 GB, **or** the oldest session directory is ≥14 days old, **or** one task output
     is ≥1 GB. The summary then names the largest such file by the longest form that fits the
-    240-character summary cap: full path, then the path under the root, then the file name. The full
-    path is always in `detail.largest_task_outputs`.
+    240-character summary cap: full path, then the path under the root, then the file name, and says
+    how many more outputs are over the threshold. The full path is always in
+    `detail.largest_task_outputs`.
   - `INFO`: total ≥1 GB and no WARN arm trips.
   - `OK`: total <1 GB, **or** the root does not exist.
   - `UNKNOWN`: the walk did not complete. Its 60-second budget was exceeded, **or** any path under
-    the root could not be read, **or** the walk threw. Partial figures still ship in `detail` so the
+    the root could not be read, **or** the walk threw, **or** the task-output listing hit its
+    20-second cap. A completed walk proves the totals but not that no unlisted output reached the
+    per-file threshold, so a cut-off listing takes this row too. Partial figures still ship in `detail` so the
     human sees the floor. An incomplete walk undercounts by an unbounded amount, so it cannot clear
     a threshold in either direction. An inaccessible multi-gigabyte session would otherwise read as
     `OK`. `ran_successfully = false` also keeps the run out of `checks_ran`, which is what keeps an

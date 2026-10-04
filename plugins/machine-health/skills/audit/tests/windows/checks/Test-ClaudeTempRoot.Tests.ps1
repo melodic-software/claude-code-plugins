@@ -58,6 +58,28 @@ BeforeAll {
         param([hashtable] $Parameters)
         return ConvertFrom-CheckOutput (& $script:ScriptPath @Parameters)
     }
+
+    # Running the script would also run the envelope, so the listing function is
+    # lifted out of the script's AST to be called with a stand-in clock.
+    $scriptAst = [System.Management.Automation.Language.Parser]::ParseFile(
+        $script:ScriptPath, [ref]$null, [ref]$null)
+    $listingAst = $scriptAst.Find({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+            $node.Name -eq 'Find-LargestTaskOutput'
+        }, $true)
+    . ([scriptblock]::Create($listingAst.Extent.Text))
+
+    function New-TickingClock {
+        # Each read of Elapsed advances one second, so a budget runs out after a
+        # known number of deadline tests rather than after wall-clock time.
+        $clock = [pscustomobject]@{ Seconds = 0 }
+        $clock | Add-Member -MemberType ScriptProperty -Name Elapsed -Value {
+            $this.Seconds++
+            [timespan]::FromSeconds($this.Seconds)
+        }
+        return $clock
+    }
 }
 
 Describe 'Test-ClaudeTempRoot' -Tag 'check' {
@@ -92,6 +114,7 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
             $result.summary | Should -Match 'not present'
             @($result.detail.largest_task_outputs).Count | Should -Be 0
             $result.detail.task_output_count | Should -Be 0
+            $result.detail.task_output_over_count | Should -Be 0
         }
     }
 
@@ -346,6 +369,50 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
             $list.Count | Should -Be 5
             $result.detail.task_output_count | Should -Be 7
             $list.bytes | Should -Be @(70, 60, 50, 40, 30)
+        }
+
+        It 'counts every output over the threshold, not only the five it lists' {
+            $session = New-SessionDir -Root $script:root -ProjectKey 'key' -SessionId 'aaa'
+            1..7 | ForEach-Object {
+                $null = New-TaskOutput -SessionPath $session -Name "big$_.output" -Bytes (2000 + $_)
+            }
+
+            $result = Invoke-ClaudeTempRootWith @{ TaskOutputWarnBytes = 1024 }
+            { Assert-CheckResult $result } | Should -Not -Throw
+            $result.severity | Should -Be 'WARN'
+            @($result.detail.largest_task_outputs).Count | Should -Be 5
+            $result.summary | Should -Match '; 6 more over the threshold'
+            $result.detail.task_output_over_count | Should -Be 7
+        }
+
+        It 'stops inside one tasks directory once the listing budget runs out' {
+            $session = New-SessionDir -Root $script:root -ProjectKey 'key' -SessionId 'aaa'
+            1..50 | ForEach-Object {
+                $null = New-TaskOutput -SessionPath $session -Name "t$_.output" -Bytes 1
+            }
+
+            $listing = Find-LargestTaskOutput -Root $script:root -Stopwatch (New-TickingClock) `
+                -BudgetSeconds 10 -Top 5 -WarnBytes 1024
+            $listing.Truncated | Should -BeTrue
+            $listing.Count | Should -BeGreaterThan 0 `
+                -Because 'the budget held through the project and session levels and ran out among the files'
+            $listing.Count | Should -BeLessThan 50 `
+                -Because 'the deadline is tested per entry, not once per directory'
+        }
+
+        It 'reports UNKNOWN when the listing is cut off even though the walk completes' {
+            $session = New-SessionDir -Root $script:root -ProjectKey 'key' -SessionId 'aaa'
+            $null = New-TaskOutput -SessionPath $session -Name 'unseen.output' -Bytes 4096
+
+            $result = Invoke-ClaudeTempRootWith @{ TaskOutputWarnBytes = 1024; TaskOutputBudgetSeconds = 0 }
+            { Assert-CheckResult $result } | Should -Not -Throw
+            $result.detail.scan_truncated | Should -BeFalse
+            $result.detail.task_output_truncated | Should -BeTrue
+            $result.severity | Should -Be 'UNKNOWN' `
+                -Because 'an output the listing never reached may be over the threshold'
+            $result.ran_successfully | Should -BeFalse
+            $result.error | Should -Match 'Task-output listing budget'
+            $result.summary | Should -Match 'listing partial'
         }
 
         It 'lists only the tasks directory .output files of each session, not other files or depths' {
