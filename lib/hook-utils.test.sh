@@ -4579,7 +4579,7 @@ if command -v cygpath >/dev/null 2>&1; then
   bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO")
   bg_got_root="$(bg_field "$bg_out" ROOT)"
   if ((bg_rc == 0)) && [[ -n "$bg_want_root" && "$bg_want_root" != "$bg_cwd_root" &&
-  "$bg_got_root" == "$bg_want_root" ]]; then
+    "$bg_got_root" == "$bg_want_root" ]]; then
     ok "begin: a backslash path resolves REPO_ROOT to the file's repository, not the CWD's"
   else
     fail "begin backslash REPO_ROOT (rc=$bg_rc): got '$bg_got_root', want '$bg_want_root', CWD repo '$bg_cwd_root', output: [$bg_out]"
