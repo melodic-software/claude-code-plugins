@@ -1,6 +1,6 @@
 {
   "name": "rate-limit-guard",
-  "version": "0.12.2",
+  "version": "0.13.1",
   "description": "Shared rate-limit guard for loop lanes and Claude: a hooks module writes the subscription rate-limit windows to a fixed machine-scope file and tells Claude where they stand at boundaries, a StopFailure hook records rate-limit stops reactively, and a reader contract fixes how consuming sessions pause and resume.",
   "author": {
     "name": "Melodic Software",
@@ -30,7 +30,7 @@
     "rate_limit_report_mode": {
       "type": "string",
       "title": "Rate-limit report mode",
-      "description": "automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a band notice when the turn ends. Headless, loop and schedule turns get automatic lines either way.",
+      "description": "automatic (default) sends the lines to Claude; operator holds them in a turn a person typed and offers the person a ready-made prompt and a notice row above the prompt when the turn ends. Headless, loop and schedule turns get automatic lines either way.",
       "default": "automatic",
       "options": ["automatic", "operator"]
     },
@@ -55,7 +55,13 @@
     "rate_limit_guard_band": {
       "type": "boolean",
       "title": "Rate-limit band row",
-      "description": "Draws the 5-hour and 7-day window figures in a row above the prompt. On by default; /rate-limit-guard:band shows or hides it for the session.",
+      "description": "Draws the 5-hour and 7-day window figures in a row above the prompt. Off by default. Turn it on in /config, or for one session with /rate-limit-guard band on.",
+      "default": false
+    },
+    "rate_limit_guard_toast": {
+      "type": "boolean",
+      "title": "Window-change toast",
+      "description": "Shows a toast and writes one transcript line when a rate-limit window nears or reaches the line threshold, or resets from it. Off keeps the transcript line. On by default.",
       "default": true
     }
   }

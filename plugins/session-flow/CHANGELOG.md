@@ -1,12 +1,18 @@
 # Changelog: session-flow plugin
 
-## [0.48.9] - 2026-10-04
+## [0.48.10] - 2026-10-04
 
 ### Changed
 
 - The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
 - The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
 - `/session-flow:audit-sessions` re-collects the transcript store only when the collector inputs have changed (#6257).
+
+## [0.48.9] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve.
 
 ## [0.48.8] - 2026-10-04
 

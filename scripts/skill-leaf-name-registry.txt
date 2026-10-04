@@ -272,3 +272,11 @@ sync dometrain,repo-fleet-hygiene
 # namespace supplies which kind, each description's first clause names it, and
 # explainer-video's routes hand-drawn film to animation:produce.
 produce animation,explainer-video
+
+# Kept on merit. architecture:improve scans module structure for deepening
+# opportunities and interviews one through Design-It-Twice, editing nothing;
+# improvement:improve ships one improvement of any kind in any target as a draft
+# PR. Both improve something; the namespace supplies the object, each
+# description's first clause names it, and improvement:improve routes a
+# structural fix to its owning lane rather than repeating architecture's lens.
+improve architecture,improvement

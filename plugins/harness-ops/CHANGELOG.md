@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.8.2] - 2026-10-04
+## [3.8.3] - 2026-10-04
 
 ### Added
 
@@ -18,6 +18,12 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 
 - A stale hook config now prints a notice that names it and suggests `/reload-plugins` (#6247).
 - The latency action names a route when it cannot evaluate (#6259).
+
+## [3.8.2] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve.
 
 ## [3.8.1] - 2026-10-04
 
