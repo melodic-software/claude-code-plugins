@@ -650,6 +650,21 @@ stub_reset
 bgstop sa3 ag9
 check "once that subagent has finished, its unrelayed FLAG is relayed at the parent" \
   '[[ "$(stub_calls)" == 1 && "$(field .decision)" == block && "$(field .reason)" == *"reviewed 1 test (1 FLAG, 0 PASS, 0 UNKNOWN). Findings: "*"$TEMPLATE_END" ]]'
+# A file the parent and a still-running subagent both wrote waits for that
+# subagent: the parent's Stop does not judge the subagent's latest version
+# and mark it relayed, so the subagent's own SubagentStop still gets it.
+transcript sa4 claude-sonnet-5
+SS="$REPO/src/subagent-shared.test.ts"
+js_file "$SS" sharedpass
+record sa4 w1 "$SS" null
+record sa4 w2 "$SS" null ag5
+stub_reset
+bgstop sa4 ag5
+check "a parent Stop leaves a file a running subagent also wrote: not judged, not relayed" \
+  '[[ "$(stub_calls)" == 0 && "$(field .systemMessage)" != *"reviewed"* ]]'
+substop sa4 ag5
+check "that subagent's SubagentStop judges and relays it" \
+  '[[ "$(stub_calls)" == 1 && "$(field .systemMessage)" == *"reviewed 1 test (0 FLAG, 1 PASS, 0 UNKNOWN) subagent ag5 wrote"* ]]'
 
 # A malformed state file is skipped; scanner exit 2 and a crash end in exit 0.
 transcript z1 claude-sonnet-5
@@ -917,11 +932,14 @@ PYD=$'--- a/t.py\n+++ b/t.py\n@@ -1,2 +1,3 @@\n def test_x():\n+    # the value 
 CSD=$'--- a/T.cs\n+++ b/T.cs\n@@ -1,1 +1,3 @@\n+    /* the value\n+     * is 3 */\n+\n     Assert.Equal(3, F());'
 CODE=$'--- a/t.py\n+++ b/t.py\n@@ -1,1 +1,1 @@\n-    assert f() == 3  # spec\n+    assert f() == 1 + 2  # spec'
 STAR=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,2 +1,2 @@\n   const want = 3\n-    * 1;\n+    * 2;'
-JSDOC=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,1 +1,4 @@\n+  /**\n+   * The expected value is the spec value 3.\n+   */\n   test("x", () => {'
-GLOB=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,3 +1,3 @@\n   const files = glob("src/**/*.ts");\n   const want = 3\n-    * 1;\n+    * 2;'
-INLINE=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,1 +1,2 @@\n   test("x", () => {\n+  /* x */ expect(1).toBe(2);'
+JSDOC=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,1 +1,4 @@\n+  /**\n+   * The expected value is the spec value 3.\n+   */\n   test(x, () => {'
+GLOB=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,3 +1,3 @@\n   const files = glob(src/**/*.ts);\n   const want = 3\n-    * 1;\n+    * 2;'
+INLINE=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,1 +1,2 @@\n   test(x, () => {\n+  /* x */ expect(1).toBe(2);'
 REMOVED=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,3 +1,2 @@\n   const want = 3\n-    /* the old note\n+    * 2;'
-export PYD CSD CODE STAR JSDOC GLOB INLINE REMOVED
+PSB=$'--- a/t.Tests.ps1\n+++ b/t.Tests.ps1\n@@ -1,1 +1,5 @@\n+<#\n+.SYNOPSIS\n+  The expected value is the spec value 3.\n+#>\n It x {'
+PSAFTER=$'--- a/t.Tests.ps1\n+++ b/t.Tests.ps1\n@@ -1,1 +1,2 @@\n+<# x #> $want = 2\n It x {'
+SHB=$'--- a/t.test.sh\n+++ b/t.test.sh\n@@ -1,1 +1,2 @@\n+<#\n check x'
+export PYD CSD CODE STAR JSDOC GLOB INLINE REMOVED PSB PSAFTER SHB
 check "a Python diff that adds and removes only # comments is comment-only" 'lib linux-gnu "judge::comment_only t_test.py \"\$PYD\""'
 check "a C# diff that adds a /* */ comment and a blank line is comment-only" 'lib linux-gnu "judge::comment_only TTests.cs \"\$CSD\""'
 check "a changed code line with a trailing comment is not" '! lib linux-gnu "judge::comment_only t_test.py \"\$CODE\""'
@@ -931,6 +949,9 @@ check "an added /** ... */ JSDoc block is comment-only" 'lib linux-gnu "judge::c
 check "/* inside a glob string on a context line opens no comment: a * 2 change is code" '! lib linux-gnu "judge::comment_only a.test.ts \"\$GLOB\""'
 check "/* x */ followed by code is code" '! lib linux-gnu "judge::comment_only a.test.ts \"\$INLINE\""'
 check "a /* on a removed line does not make a later * line a comment" '! lib linux-gnu "judge::comment_only a.test.ts \"\$REMOVED\""'
+check "an added multiline <# #> PowerShell help block is comment-only" 'lib linux-gnu "judge::comment_only t.Tests.ps1 \"\$PSB\""'
+check "<# x #> followed by code is code" '! lib linux-gnu "judge::comment_only t.Tests.ps1 \"\$PSAFTER\""'
+check "<# opens no comment in bash" '! lib linux-gnu "judge::comment_only t.test.sh \"\$SHB\""'
 WA='C:\w\repo\src\a.test.ts' # portability-ok: a literal Windows path, not a regex escape
 WB='C:\W\Repo\a.ts'          # portability-ok: a literal Windows path, not a regex escape
 WL='/r/a\b.ts'               # portability-ok: a literal path holding a backslash, not a regex escape

@@ -175,14 +175,17 @@ judge::session_set() {
 # IFILES holds each info's file path, the same index. One jq reads every
 # record; only when a malformed record fails it does each file get its own.
 # JUDGE_AGENT_ONLY keeps only the records that subagent wrote (its
-# SubagentStop); JUDGE_AGENT_SKIP, space-separated agent ids, drops the
-# records of subagents still running (the parent's Stop).
+# SubagentStop); JUDGE_AGENT_SKIP, space-separated agent ids, drops every
+# file a subagent still running wrote (the parent's Stop), the parent's own
+# records of it too: a key is a block's current text, so judging the parent's
+# record would relay the subagent's latest version at the parent.
 judge::load() {
   # shellcheck disable=SC2016 # $only, $skip and $a are jq variables
   local s f files=() out i fa group='map(select(.file | type == "string")
-      | (.agent_id // "" | tostring) as $a
-      | select(($only == "" or $a == $only) and ($a == "" or ($skip | contains(" \($a) ") | not))))
-    | group_by(.file)[] | {
+      | select($only == "" or (.agent_id // "" | tostring) == $only))
+    | group_by(.file)[]
+    | select(all(.[]; (.agent_id // "" | tostring) as $a | $a == "" or ($skip | contains(" \($a) ") | not)))
+    | {
       file: .[0].file,
       repo: (map(.repo | strings) | .[0] // null),
       whole: any(.[]; .blocks == null),
@@ -814,7 +817,8 @@ judge::comment_only() {
   local style line body rest hunk=0 open=0 comment new
   case "${1,,}" in
   *.js | *.jsx | *.ts | *.tsx | *.mjs | *.cjs | *.mts | *.cts | *.cs | *.go) style=slash ;;
-  *.sh | *.bash | *.bats | *.py | *.ps1 | *.psm1) style=pound ;;
+  *.sh | *.bash | *.bats | *.py) style=pound ;;
+  *.ps1 | *.psm1) style=powershell ;;
   *) return 1 ;;
   esac
   while IFS= read -r line; do
@@ -852,8 +856,29 @@ judge::comment_only() {
             ((new)) && open=1
           fi
         fi
+      elif [[ "$style" == powershell ]]; then
+        # <# #> follows the new file the same way; every line inside it is
+        # a comment, and the closing line is one when nothing follows `#>`.
+        if ((open)) && [[ "$body" == *'#>'* ]]; then
+          rest="${body#*'#>'}"
+          [[ -z "${rest//[[:space:]]/}" ]] && comment=1
+          ((new)) && open=0
+        elif ((open)); then
+          comment=1
+        elif [[ "$body" == '<#'* ]]; then
+          rest="${body#'<#'}"
+          if [[ "$rest" == *'#>'* ]]; then
+            rest="${rest#*'#>'}"
+            [[ -z "${rest//[[:space:]]/}" ]] && comment=1
+          else
+            comment=1
+            ((new)) && open=1
+          fi
+        elif [[ "$body" == \#* ]]; then
+          comment=1
+        fi
       else
-        [[ "$body" == \#* || "$body" == '<#'* ]] && comment=1
+        [[ "$body" == \#* ]] && comment=1
       fi
       [[ "${line:0:1}" == " " ]] || ((comment)) || return 1
       ;;
