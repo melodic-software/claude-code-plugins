@@ -135,6 +135,9 @@ async function resolveRunPull(github, repository, run) {
 }
 
 export async function evaluateTrigger({ eventName, event, repository, ids, prNumber, github }) {
+  if (typeof repository !== "string" || !repository.includes("/")) {
+    throw new Stop("no-pr");
+  }
   let pull;
   let actors = [event.sender];
   if (eventName === "pull_request") {

@@ -23,7 +23,9 @@ or force-pushes.
 - When `since-sha` is malformed, unknown to GitHub, not an ancestor of the head, or the comparison
   is truncated, every PR commit is checked and `since-is-ancestor` is `false` in the first three
   cases.
-- A commit counts as verified only when `commit.verification.verified` is `true`.
+- A commit counts as verified only when `commit.verification.verified` is `true` and its SHA is
+  40 hex characters. A commit with a malformed SHA counts as unverified and is reported as
+  `<invalid-sha>`, so no free text reaches the output or the comment.
 - On any unverified commit it adds `escalation-label` only if that label already exists on the
   repository (it never creates one), then posts one fixed comment listing the SHAs. No model text
   reaches the comment.

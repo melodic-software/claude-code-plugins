@@ -33,7 +33,7 @@ condition 1 and the actor and author parts of condition 2).
   be listed, because ADR 0051 requires the actor that started the failed run to be trusted.
 - **Author.** The PR's `user.id` must be listed.
 - **`no-pr` for everything unhandled.** Any other event (including `pull_request_target`), a
-  missing or malformed `pr-number`, an unreadable event payload, a PR fetch that fails, and a
+  missing or malformed `pr-number`, an empty repository, an unreadable event payload, a PR fetch that fails, and a
   `workflow_run` with zero or more than one matching open PR all stop with `no-pr`; the reason
   set has no separate error value.
 

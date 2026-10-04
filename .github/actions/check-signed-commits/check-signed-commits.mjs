@@ -65,10 +65,13 @@ export async function checkSignedCommits({ github, repository, prNumber, sinceSh
     sinceSha,
     pull.head.sha,
   );
+  // A commit whose SHA is malformed cannot be named safely, so it counts as
+  // unverified and is reported as `<invalid-sha>`, never echoed.
   const unverified = commits
-    .filter((commit) => commit.commit?.verification?.verified !== true)
-    .map((commit) => commit.sha)
-    .filter((sha) => SHA.test(sha));
+    .filter(
+      (commit) => !SHA.test(commit.sha ?? "") || commit.commit?.verification?.verified !== true,
+    )
+    .map((commit) => (SHA.test(commit.sha ?? "") ? commit.sha : "<invalid-sha>"));
   if (unverified.length > 0) {
     const labels = await paginate(github, `${base}/labels`);
     if (labels.some((existing) => existing.name === label)) {

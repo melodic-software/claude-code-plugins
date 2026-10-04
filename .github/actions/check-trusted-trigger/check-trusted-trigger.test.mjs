@@ -343,6 +343,22 @@ test("an unreadable event payload stops the gate instead of throwing", async () 
   assert.equal(readOutputs(readFileSync(outputPath, "utf8")).proceed, "false");
 });
 
+test("a missing repository stops the gate even when the head repo is null", async () => {
+  const event = fixture("event-pull-request.json");
+  event.pull_request.head.repo = null;
+  const outputPath = writeJson("output", "");
+  await main({
+    env: {
+      EVENT_NAME: "pull_request",
+      EVENT_PATH: writeJson("event.json", event),
+      TRUSTED_ACTORS_PATH: LIST,
+      GITHUB_OUTPUT: outputPath,
+    },
+    github: fakeGitHub({}),
+  });
+  assert.deepEqual(readOutputs(readFileSync(outputPath, "utf8")), STOPPED("no-pr"));
+});
+
 test("the CLI exits 0 with proceed=false when its inputs are missing", () => {
   const outputPath = writeJson("output", "");
   const result = spawnSync(process.execPath, [SCRIPT], {

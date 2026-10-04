@@ -46,7 +46,7 @@ Consequences record both.
 
 ## Job contract
 
-A lane job that uses this filter:
+A lane job that uses this action:
 
 - Sets `permissions: contents: read, pull-requests: read`, both read-only. claude-code-action
   passes the job's `GITHUB_TOKEN` into the model's environment, so
@@ -54,7 +54,15 @@ A lane job that uses this filter:
 - Runs it only after [`check-kill-switch`](../check-kill-switch/README.md) and
   [`check-trusted-trigger`](../check-trusted-trigger/README.md) both report `proceed == 'true'`,
   and after the App token is minted.
-- Leaves it without `continue-on-error`, so a failed filter stops the model step.
+- Leaves it without `continue-on-error`, so a failed selection stops the model step.
+- Runs both gate steps with no `continue-on-error`.
+- Gives the model step, and the App token step before it, this condition:
+
+  ```yaml
+  if: steps.kill.outputs.proceed == 'true' && steps.gate.outputs.proceed == 'true'
+  ```
+
+  A gate step that errors or writes no output leaves `proceed` empty, which also stops the lane.
 
 ## Tests
 

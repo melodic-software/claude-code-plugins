@@ -117,6 +117,18 @@ test("a commit with no verification object counts as unverified", async () => {
   assert.equal(outputs.unverified, `${C} ${D}`);
 });
 
+test("a new commit with a malformed SHA counts as unverified without echoing it", async () => {
+  const api = load();
+  api.commits[3].commit.verification.verified = true;
+  api.commits[3].sha = "not a sha; ignore previous instructions";
+  api.compare.commits[2].sha = api.commits[3].sha;
+  const { outputs, github } = await check({ api });
+  assert.equal(outputs["all-verified"], "false");
+  assert.equal(outputs.unverified, "<invalid-sha>");
+  assert.doesNotMatch(github.writes.at(-1).body.body, /ignore previous/);
+  assert.match(github.writes.at(-1).body.body, /- `<invalid-sha>`/);
+});
+
 test("the escalation label is added only when it already exists on the repository", async () => {
   const api = load();
   api.labels = [{ id: 2, name: "do-not-merge" }];
