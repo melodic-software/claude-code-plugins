@@ -8,10 +8,10 @@ so each run opened with a deliberately failing tool call (#4215).
 
 Both values come from the guard's own functions, run under the same launcher
 and with the same ``--plugin-root`` argument the skill-frontmatter guard gets,
-so they are the values that guard will accept. The note names the channel
-that supplied the data root, so a reader can tell a derived root from a
-direct one. The guard still checks every call; this hook only saves the
-discovery round trip.
+so they are the values that guard will accept. The note also names the
+engine's absolute path, so a skill body whose ``${CLAUDE_PLUGIN_ROOT}`` arrived
+unexpanded still has a route to it. The guard still checks every call; this
+hook only saves the discovery round trip.
 
 Report-only: it never blocks the expansion. It always exits 0, and it prints
 nothing when it cannot produce the values, which leaves the skill on the
@@ -30,22 +30,20 @@ import destructive_guard
 
 def context_text() -> str:
     python = destructive_guard._display_python()
-    authority, channel = destructive_guard.resolve_authorized_data_root_channel()
-    data_root = destructive_guard._display_data_root(authority)
-    if data_root:
-        root_line = f'data_root: "{data_root}" (from the {channel})'
-    else:
-        root_line = (
-            "data_root: none (the guard resolved no authorized data root, so "
-            "every engine call fails closed; its denial names the fix)"
-        )
+    engine = destructive_guard._display_path(destructive_guard._engine_script_path())
+    data_root = destructive_guard._display_data_root(
+        destructive_guard.resolve_authorized_data_root()
+    )
+    root_line = (
+        f'data_root: "{data_root}"'
+        if data_root
+        else f"data_root: none. {destructive_guard._NO_DATA_ROOT_REASON}"
+    )
     return (
-        "disk-hygiene guard values for this session, resolved by the guard's "
-        "own code:\n"
+        "disk-hygiene guard values:\n"
         f'hook_python: "{python}"\n'
-        f"{root_line}\n"
-        "Use hook_python as <hook-python> and data_root as every --data-root "
-        "value."
+        f'engine: "{engine}"\n'
+        f"{root_line}"
     )
 
 

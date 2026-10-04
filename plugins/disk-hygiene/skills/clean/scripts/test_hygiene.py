@@ -10074,14 +10074,11 @@ class GuardTests(unittest.TestCase):
         self.assertEqual("engine-gate", entry["mode"])
         self.assertNotIn("command", entry)
         self.assertEqual(len(command), entry["command_chars"])
-        # The reason the host was given is the reason the record carries (to
-        # the record's bounded length), so the two can never disagree about
-        # why this was denied.
+        # The reason the host was given is the reason the record carries, so
+        # the two can never disagree about why this was denied.
         host_reason = result["hookSpecificOutput"]["permissionDecisionReason"]
-        recorded = entry["reason"]
-        self.assertTrue(recorded.endswith("..."), recorded)
-        self.assertTrue(host_reason.startswith(recorded[:-3]), recorded)
-        self.assertIn("this specific engine invocation", recorded)
+        self.assertEqual(host_reason, entry["reason"])
+        self.assertIn("disk-hygiene: denied:", host_reason)
         self.assertTrue(entry["timestamp"].endswith("Z"), entry["timestamp"])
 
     def test_allow_and_ask_verdicts_are_recorded_with_distinct_rules(self) -> None:
@@ -10522,33 +10519,38 @@ class GuardTests(unittest.TestCase):
         self.assertIsNone(guard._plugin_cache_family_root())
         self.assertFalse(guard._within_plugin_cache_family(str(SCRIPT_DIR)))
 
-    def test_bash_denial_names_every_shape_the_classifier_accepts(self) -> None:
-        # The documented bootstrap path is to submit a wrong shape so the denial
-        # teaches the grammar. It enumerated four engine subcommands and omitted
-        # the read-only kill-switch probe, which `_decide` allows before it ever
-        # reaches the classifier — so a consumer learning the allow-list from
-        # the denial never learned the probe is permitted, and the probe is the
-        # step that lets the model state the kill-switch value honestly instead
-        # of assuming the default. Both surfaces share that list; only the
-        # scope framing differs (#3348).
-        for mode in (guard._MODE_BELT, guard._MODE_ENGINE_GATE):
-            with self.subTest(mode=mode):
-                guidance = guard._bash_denial_guidance("/data/root", mode=mode)
-                for subcommand in guard._ALLOWED_ENGINE_SUBCOMMANDS:
-                    self.assertIn(subcommand, guidance, subcommand)
-                self.assertIn("kill_switch_probe.py", guidance)
-                # The engine's own path: without it, a body whose
-                # ${CLAUDE_PLUGIN_ROOT} arrived unexpanded leaves no disclosed
-                # route to the engine, and the exact-path identity check denies
-                # every guess.
-                self.assertIn(
-                    guard._display_path(guard._engine_script_path()), guidance
-                )
-                for head in guard._READONLY_SUPPORTING_BASH_HEADS:
-                    self.assertIn(head, guidance, head)
-                self.assertIn("[", guidance)
-                self.assertIn("absolute path", guidance)
-                self.assertIn("bare names are denied", guidance)
+    def test_clean_skill_names_every_shape_the_classifier_accepts(self) -> None:
+        # Both denials point at /disk-hygiene:clean for the allowed shapes, so
+        # its deny-by-default bullet is the one prose copy of the classifier's
+        # lists and must match them in both directions.
+        skill = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
+        bullet = skill[skill.index("- The Bash lane is deny-by-default") :]
+        bullet = bullet[: bullet.index("\n- ")]
+        shapes = re.search(r"bundled (.+?) shapes", bullet, re.DOTALL)
+        heads = re.search(r"trusted system directory: (.+?) \(", bullet, re.DOTALL)
+        assert shapes and heads, bullet
+        self.assertEqual(
+            set(guard.engine_grammar.SUBCOMMAND_NAMES),
+            set(re.findall(r"[a-z][a-z-]*", shapes.group(1))) - {"and"},
+        )
+        self.assertEqual(
+            guard._READONLY_SUPPORTING_BASH_HEADS | {"["},
+            set(re.findall(r"`([^`]+)`", heads.group(1))),
+        )
+        self.assertIn("kill-switch probe", bullet)
+
+    def test_belt_denial_of_a_bare_python_probe_names_the_hook_interpreter(
+        self,
+    ) -> None:
+        # clean/SKILL.md and audit/SKILL.md fall back to one bare-python probe
+        # call to learn the guard's interpreter from this denial.
+        probe = guard._display_path(guard._probe_script_path())
+        output = self.run_guard(f'python "{probe}"')["hookSpecificOutput"]
+        self.assertEqual("deny", output["permissionDecision"])
+        self.assertIn(
+            f'the interpreter must be "{guard._display_python()}"',
+            output["permissionDecisionReason"],
+        )
 
     def test_bash_denial_modes_frame_opposite_scopes(self) -> None:
         """Each guard explains itself; the always-on gate does not claim the belt's lockout."""
@@ -10558,20 +10560,13 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(
             belt, guard._bash_denial_guidance("/data/root"), "default is belt"
         )
-
-        self.assertIn("this specific engine invocation", gated)
-        self.assertIn("rest of the Bash lane is unaffected", gated)
-        self.assertIn("/disk-hygiene:clean need not have been invoked", gated)
-        self.assertNotIn("Bash is restricted", gated)
-        self.assertNotIn("was invoked in this session", gated)
-
-        self.assertIn("/disk-hygiene:clean was invoked in this session", belt)
-        self.assertIn("persists until the session ends", belt)
-        self.assertIn("Bash is restricted", belt)
-        self.assertIn("start a new session", belt)
-        self.assertNotIn("subagent does not inherit", belt)
-        self.assertNotIn("this specific engine invocation", belt)
-        self.assertNotIn("need not have been invoked", belt)
+        for body in (belt, gated):
+            self.assertIn("Allowed shapes: /disk-hygiene:clean.", body)
+            self.assertNotIn("basename", body)
+        self.assertNotIn("session belt", gated)
+        self.assertNotIn("until the session ends", gated)
+        self.assertIn("/disk-hygiene:clean session belt", belt)
+        self.assertIn("until the session ends", belt)
 
         script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
         command = f'python "{script}" scan --target t --output {self.output_arg}'
@@ -10586,10 +10581,10 @@ class GuardTests(unittest.TestCase):
         )
         belt_reason = belt_result["hookSpecificOutput"]["permissionDecisionReason"]
         gated_reason = gated_result["hookSpecificOutput"]["permissionDecisionReason"]
-        self.assertNotEqual(belt_reason, gated_reason)
-        self.assertIn("/disk-hygiene:clean was invoked in this session", belt_reason)
-        self.assertIn("this specific engine invocation", gated_reason)
-        self.assertNotIn("Bash is restricted", gated_reason)
+        self.assertIn("/disk-hygiene:clean session belt", belt_reason)
+        self.assertNotIn("session belt", gated_reason)
+        for reason in (belt_reason, gated_reason):
+            self.assertIn(f'through "{guard._display_python()}"', reason)
 
     def _engine_words(self, tail: str) -> str:
         script = (SCRIPT_DIR / "hygiene.py").resolve().as_posix()
@@ -10609,17 +10604,9 @@ class GuardTests(unittest.TestCase):
         self.assertIn("'--root-children'", reason)
         self.assertIn("required flags first", reason)
         self.assertIn("--target, --output", reason)
-        self.assertIn(guard._ENGINE_GATE_SCOPE, reason)
-        self.assertIn("read-only forms that work", reason)
-        # belt-mode text is unchanged by the reason
-        belt = guard._bash_denial_guidance("/data/root", mode=guard._MODE_BELT)
-        self.assertEqual(
-            belt,
-            guard._bash_denial_guidance(
-                "/data/root", mode=guard._MODE_BELT, command=command
-            ),
-        )
-        self.assertNotIn("required flags first", belt)
+        belt = self.run_guard(command)["hookSpecificOutput"]
+        self.assertEqual("deny", belt["permissionDecision"])
+        self.assertIn("required flags first", belt["permissionDecisionReason"])
 
     def test_engine_mismatch_reason_names_each_early_stage(self) -> None:
         script = guard._display_path(guard._engine_script_path())
@@ -10664,6 +10651,10 @@ class GuardTests(unittest.TestCase):
                 self.assertIn("is the engine path", reason)
                 self.assertIn(command.split()[0], reason)
                 self.assertNotIn("not this hook's Python", reason)
+                self.assertIn("The Read and Grep tools can read it.", reason)
+        run = guard._engine_mismatch_reason(f'python "{engine}" scan', "/data/root")
+        self.assertIn("is the engine path", run)
+        self.assertNotIn("Read and Grep", run)
         plugin_root = guard._engine_script_path().parents[3]
         relative = guard._engine_script_path().relative_to(plugin_root).as_posix()
         with chdir_context(plugin_root):
@@ -10786,8 +10777,7 @@ class GuardTests(unittest.TestCase):
                 self.assertTrue(guard._engine_gate_relevant(command, "Bash"))
                 self.assertFalse(guard._engine_gate_relevant(rev_form, "Bash"))
                 self.assertIn(
-                    "resolves to the installed engine from the current directory "
-                    "is still gated",
+                    "resolves to the engine from the current directory",
                     self._gated_reason(command),
                 )
 
@@ -12263,7 +12253,7 @@ class GuardTests(unittest.TestCase):
             result = self.run_guard_hook_argv(f'{base} --data-root "{target}"', None)
             self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
             self.assertIn(
-                "--authorized-data-root",
+                "No authorized data root resolved",
                 result["hookSpecificOutput"]["permissionDecisionReason"],
             )
 
@@ -15539,8 +15529,7 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
                     decision = self.run_main(command, argv)
                     self.assertEqual("deny", decision["permissionDecision"])
                     self.assertIn(
-                        f'--data-root "{self.expected.as_posix()}"',
-                        decision["permissionDecisionReason"],
+                        "--data-root is missing", decision["permissionDecisionReason"]
                     )
 
     def test_engine_call_with_data_root_keeps_its_verdict(self) -> None:
@@ -15572,13 +15561,12 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
 
     def test_no_authority_denial_names_the_marketplace_recovery(self) -> None:
         belt = guard._bash_denial_guidance(None, mode=guard._MODE_BELT)
-        self.assertIn("known_marketplaces.json", belt)
-        self.assertIn("CLAUDE_PLUGIN_DATA", belt)
-        self.assertIn("never trusted", belt)
+        self.assertIn("No authorized data root resolved", belt)
         self.assertIn("claude plugin marketplace add", belt)
+        # The env var is never a channel, so it is never offered as a recovery.
+        self.assertNotIn("CLAUDE_PLUGIN_DATA", belt)
         self.assertNotIn("start Claude Code from a shell", belt)
-        self.assertIn("persists until the session ends", belt)
-        self.assertIn("start a new session", belt)
+        self.assertIn("until the session ends", belt)
 
     # --- AC15: memoized per process -----------------------------------------
 
