@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Plan the test lanes from the change's suite selection: which suites each lane
-# of ci.yml runs, on how many legs and with which optional toolchains, and which
-# jobs and steps of test-windows.yml run.
+# of pr-require-checks.yml runs, on how many legs and with which optional toolchains, and which
+# jobs and steps of pr-test-windows.yml run.
 #
 #   scripts/plan-test-lanes.sh                 the whole tree
 #   scripts/plan-test-lanes.sh --base <ref>    the change since the merge base with <ref>
@@ -16,8 +16,8 @@
 #                             its suites need: animation (the animation and
 #                             speech suites), inventory, duckdb
 #   node_packages             the Node packages to install and test, space-separated
-#   windows_jobs              the test-windows.yml jobs to run, a JSON list
-#   windows_steps             the test-windows.yml steps to run, a JSON list of the keys
+#   windows_jobs              the pr-test-windows.yml jobs to run, a JSON list
+#   windows_steps             the pr-test-windows.yml steps to run, a JSON list of the keys
 #                             in scripts/test-windows-plan.txt
 #   unmapped                  how many changed files mapped to no suite
 #
@@ -34,8 +34,8 @@
 #
 # WIDER THAN THE SELECTION, NEVER NARROWER:
 #   - the whole tree (no base and no paths: a schedule, a dispatch, a push with no
-#     usable base), or a change to ci.yml or .github/actions/: every suite of
-#     every ci.yml lane. test-windows.yml, .github/actions/ and .python-version
+#     usable base), or a change to pr-require-checks.yml or .github/actions/: every suite of
+#     every pr-require-checks.yml lane. pr-test-windows.yml, .github/actions/ and .python-version
 #     (every Windows job sets up its Python from it) do the same for the Windows
 #     plan.
 #   - a Python pin (.python-version, pyproject.toml, uv.lock, requirements*.txt,
@@ -134,8 +134,8 @@ elif [[ "$given" -eq 0 ]]; then
 fi
 for f in ${changed[@]+"${changed[@]}"}; do
   case "$f" in
-  .github/workflows/ci.yml) whole=1 ;;
-  .github/workflows/test-windows.yml) whole_windows=1 ;;
+  .github/workflows/pr-require-checks.yml) whole=1 ;;
+  .github/workflows/pr-test-windows.yml) whole_windows=1 ;;
   .github/actions/*)
     whole=1
     whole_windows=1

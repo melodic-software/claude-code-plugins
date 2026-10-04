@@ -3,6 +3,14 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.1] - 2026-10-04
+
+### Changed
+
+- **No quiet window restated.** After a compaction, a resume or `/branch`, only windows at or above the approach mark are restated; a session with only quiet windows gets nothing.
+- **Debug log mirror.** Each line sent to Claude is written as sent to the debug log.
+- **Shorter status tool description.**
+
 ## [0.14.0] - 2026-10-04
 
 ### Changed

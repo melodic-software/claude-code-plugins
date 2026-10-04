@@ -51,23 +51,24 @@ options and `zones.json`:
 
 | When | Line |
 |---|---|
-| The session first reaches a worse zone this cycle | once per zone, "acceptable zone (2 of 3). Continuing is the user's call." |
-| The session comes within `approach_margin` points (5) of a zone edge or a `zones.json` threshold; where a token band edge decides the crossing, within that many points of the window in tokens | once per boundary, "acceptable zone (2 of 3), nearing dumb. Continuing is the user's call." |
+| The session first reaches a worse zone this cycle | once per zone, "acceptable zone (2 of 3)." |
+| The session comes within `approach_margin` points (5) of a zone edge or a `zones.json` threshold; where a token band edge decides the crossing, within that many points of the window in tokens | once per boundary, "acceptable zone (2 of 3), nearing dumb." |
 | The session passes a `zones.json` threshold | once per threshold, "past an operator threshold", with the threshold's action |
-| After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict, once; after a compaction it is `dumb zone (3 of 3, compacted)` |
+| After a compaction (not the precompute kind), and after `/resume` or `/branch` | the verdict, once, only when it is past `smart`; after a compaction it is `dumb zone (3 of 3, compacted)` |
 | When the module loads into a session that already has turns (a `--resume` launch, a reload after an options change, a hooks-worker restart) | the verdict, once, only when it is past `smart` |
 | After `/clear` | nothing: the new session starts in `smart` and a fresh cycle |
 
 A dip below a boundary sends nothing and starts no new cycle; only a return to `smart` does. An
 `unknown` reading sends nothing and changes nothing. Every line carries only the verdict: the zone
-word, its rank of three, and "Continuing is the user's call." A crossing or restatement inside the
+word and its rank of three. A crossing or restatement inside the
 approach margin of the next zone adds ", nearing <zone>", and an approach line that would repeat
 it is not sent. A crossing or restatement in `dumb` also carries the save-state note. Lines due at
 one carrier: a crossing or restatement recorded before a pending restatement merges into it; a
 crossing recorded after it is the newer verdict and replaces it. `zone_line_data` adds figures (percent, tokens,
-window); by default a line carries none, and it never carries a session id. A configured action's sentence
+window) and then "Continuing is the user's call."; by default a line carries neither, and it never carries a session id. A configured action's sentence
 (`zones.json` `actions` and `thresholds`, see the [reader contract](reference/reader-contract.md))
-appears at its crossing, never before. Subagents get no line.
+appears at its crossing, never before. Subagents get no line. Each line sent to Claude, and each
+gate denial, is also written as sent to the debug log (`claude --debug`).
 
 At a crossing the person gets the continuation menu (continue, `/compact`, `/clear`,
 `/session-flow:handoff` then `/clear`) as a 4-second toast, such as

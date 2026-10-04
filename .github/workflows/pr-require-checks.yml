@@ -1,4 +1,4 @@
-name: ci
+name: pr-require-checks
 
 on:
   # A dispatch runs the full contract corpus.
@@ -6,7 +6,7 @@ on:
   push:
     branches: [main]
   # THE WHOLE TREE, TWICE A DAY. A push tests only what changed since the last
-  # green push run (see the `scope` job), so this run is the net for what a
+  # green push run (see the `select-tests` job), so this run is the net for what a
   # diff cannot show: a suite that asserts against the live tree, and a
   # dependency the affected-suite selector does not see. It takes the same path
   # as a dispatch: the full contract corpus, the whole-repository ShellCheck and
@@ -45,9 +45,9 @@ on:
   # every expression below that reads one takes its non-PR branch: the
   # contract-only and draft gates are false, so every lane runs in full; the
   # concurrency group falls back to `github.run_id`, so no queued run cancels
-  # another; the docs-only detector does not run, the change-detection action
-  # fails open and `scope` resolves no diff base, so the whole tree is
-  # tested; the base-diff gates decline as on a push; `pr-contract` finds no pull
+  # another; the docs-only detector does not run, the detect-changes action
+  # fails open and `select-tests` resolves no diff base, so the whole tree is
+  # tested; the base-diff gates decline as on a push; `check-contract` finds no pull
   # request number and reports `skipped`, because the title, label and linkage
   # were already checked on the pull request before it could enter the queue;
   # and `ci-status` aggregates the lanes and records `ci-lanes` on the
@@ -95,9 +95,9 @@ concurrency:
 # Quality lanes run the ci-workflows composite actions (referenced by SHA,
 # bumped via Dependabot — never copied) against this repo's exact standards
 # materializations. Tool configs live at their tool-native root paths;
-# comment-hygiene's default policy is bundled with its action. The `ci-status`
+# check-comment-markers' default policy is bundled with its action. The `ci-status`
 # gateway aggregates every lane into the single required check the org ci-gate
-# ruleset keys on, through the ci-workflows composite of the same name, and
+# ruleset keys on, through the ci-workflows `aggregate-results` composite, and
 # carries the pull-request contract (title, do-not-merge label, issue linkage)
 # as steps of that one check.
 #
@@ -105,7 +105,7 @@ concurrency:
 # says what a job does: `lint` runs linters over source, `check` holds a
 # repository contract across files, `test` executes code. The domain says over
 # what: `repo`, `shell`, `plugins`, `skills`, or the ecosystem a test job runs
-# (`bash`, `python`, `node`). One resolver, `scope`, seven working jobs,
+# (`bash`, `python`, `node`). One resolver, `select-tests`, seven working jobs,
 # `lint-repo`, `lint-shell`, `check-plugins`, `check-skills`, `test-bash`,
 # `test-python` and `test-node`, and one aggregate, `ci-status`, whose name,
 # like this workflow's and this file's, is what the org ci-gate ruleset and its
@@ -119,7 +119,7 @@ concurrency:
 # change selects suites of its ecosystem, and skips otherwise, so a change to
 # shell code starts no Python or Node runner and a C# or docs change starts
 # none. The informational Windows lane runs in
-# .github/workflows/test-windows.yml: nothing gates on it, and in this file it
+# .github/workflows/pr-test-windows.yml: nothing gates on it, and in this file it
 # held the run open past its own required lanes.
 #
 # EVERY JOB'S TIMEOUT IS ceil(max(1.5 x p95, 1.1 x max) / 60) MINUTES, at least
@@ -128,7 +128,7 @@ concurrency:
 # (the case a checker change and the scheduled run pay). Until a job has runs
 # of its own, its wall is the sum of the measured seconds of the steps it
 # holds, plus the setup of the job whose toolchain it copies. Job, p95 / max
-# seconds, minutes: scope 24 / 35 plus the planner (up to 21 s measured), 3;
+# seconds, minutes: select-tests 24 / 35 plus the planner (up to 21 s measured), 3;
 # lint-repo 244 / 265, 7, sized for its whole-tree load (the push runs);
 # lint-shell 345 / 385 with a whole-repository ShellCheck, 9; check-plugins
 # 110 / 120, 3; check-skills at most 585 / 645, the wall of a measured job
@@ -141,7 +141,7 @@ concurrency:
 # not given a longer one.
 jobs:
   # Single resolution of the diff scope. Every gated step reads a
-  # `needs.scope.outputs.*` row instead of re-running the detector, so the
+  # `needs.select-tests.outputs.*` row instead of re-running the detector, so the
   # detector runs once per workflow rather than once per lane and there is one
   # place to reason about what the answer means.
   #
@@ -161,7 +161,7 @@ jobs:
   # resolves toward running, and the full suite runs. The same unset-output
   # path covers a run with no diff base (a schedule or dispatch run, or a push
   # that could not use one), where the detect step does not run at all. The
-  # narrowing clauses read the change-detection action through fromJSON with a
+  # narrowing clauses read the detect-changes action through fromJSON with a
   # `|| '{}'` default and compare `!= 'false'`, never `== 'true'`, for the same
   # reason: an unset filter group must run its lane, not skip it.
   #
@@ -183,7 +183,7 @@ jobs:
   # The detector self-test runs first and is NOT `continue-on-error`, so a
   # broken detector turns this job red rather than resolving a scope nobody
   # verified.
-  scope:
+  select-tests:
     # The contract-only gate, verbatim on every job but `ci-status` (see the
     # predicate spelled out under `on.pull_request.types`). It carries no
     # status-check function, so on every job that has `needs` those edges still
@@ -193,7 +193,7 @@ jobs:
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 3
-    # The change-detection action lists the pull request's files through the
+    # The detect-changes action lists the pull request's files through the
     # API. Nothing else in this workflow needs that read, so it is granted here
     # and nowhere else. `statuses: write` is for the in-flight marker below,
     # `actions: read` for the green push runs the diff base is chosen from.
@@ -236,7 +236,9 @@ jobs:
       # verdict. A write that keeps failing fails this job, and so the run: a
       # missing marker is the one way a stale `success` could be carried.
       - name: Mark the lanes in flight
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        # Same repository by id, not full_name: the fleet governance verifier reads
+        # every head.repo.full_name expression as the contract-only predicate.
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.id == github.repository_id
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -258,7 +260,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
+        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
       # THE DIFF BASE, RESOLVED ONCE. A pull request diffs against its base
       # branch. A push diffs against the newest commit on HEAD's first-parent
       # line with a green push run, not against its parent: a push run
@@ -289,7 +291,7 @@ jobs:
       # ShellCheck configuration changes what every lane would find, so it must
       # run every lane rather than none. `shell`, `python`, `docs` and
       # `powershell` feed no output: `shell`, `python` and `powershell` are the
-      # groups the path filters of .github/workflows/test-windows.yml repeat,
+      # groups the path filters of .github/workflows/pr-test-windows.yml repeat,
       # and the unread groups exist so a consumer can be added without touching
       # the resolver. The test lanes read the plan below, not a group.
       # Patterns are ROOT-ANCHORED gitignore rules, and the action rejects `!`,
@@ -305,7 +307,7 @@ jobs:
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/change-detection@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/detect-changes@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
         with:
           filters: |
             shell:
@@ -380,7 +382,7 @@ jobs:
               scripts/check-all-skills-verb-contract*.sh
               scripts/verb-contract-baseline.txt
               scripts/lib/**
-              .github/workflows/ci.yml
+              .github/workflows/pr-require-checks.yml
             manifests:
               .github/**
               .claude-plugin/**
@@ -470,7 +472,7 @@ jobs:
   # and returns early from its own script when there is no base ref to diff
   # against.
   lint-repo:
-    needs: [scope]
+    needs: [select-tests]
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
@@ -481,7 +483,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
+        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
 
       # zizmor is a wheel in the pinned, hash-locked requirements file, so this
       # install is what puts the Actions security lint on PATH.
@@ -506,20 +508,20 @@ jobs:
       # threshold. GH_TOKEN comes from the job's read-only workflow token, for
       # the online audits.
       #
-      # Every `uses: ./.github/actions/checkout-with-base` in this repository
+      # Every `uses: ./.github/actions/download-full-history` in this repository
       # carries `# zizmor: ignore[self-repository]`. zizmor 1.30 added that
       # audit to recommend GitHub's `$/...` form over the workspace-relative
       # `./...` form, and its auto-fix rewrites the call sites. The rewrite
       # cannot be taken yet (#4130): actionlint (pinned by SHA in the
       # melodic-software/ci-workflows action this lane also runs) rejects
-      # `$/.github/actions/checkout-with-base` as "invalid format because ref
+      # `$/.github/actions/download-full-history` as "invalid format because ref
       # is missing", so adopting the audit's advice turns the zizmor finding
       # into an actionlint error and the lane stays red either way. Drop the
       # ignore comments and take the auto-fix once that actionlint pin
       # understands the syntax (#4130).
       - name: Run zizmor
         id: zizmor
-        if: needs.scope.outputs.run_workflows == 'true'
+        if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -647,7 +649,7 @@ jobs:
       # propagated, an unweakened self-test, exactly one spelling for a
       # consumer to copy, and a required-lane closure in which no job-level
       # condition may hide — are what this step checks against this workflow.
-      - name: Check the docs-only scope contract holds in ci.yml
+      - name: Check the docs-only scope contract holds in pr-require-checks.yml
         id: docs_only_contract
         continue-on-error: true
         run: scripts/check-docs-only-gate.sh --check
@@ -660,7 +662,7 @@ jobs:
       # merge proceeds: informational, not a gate. This step closes the loop
       # mechanically: every job here is in `ci-status.needs`, or carries a
       # `# lane-coverage-ok: <reason>` annotation recording why it stays out.
-      - name: Check every ci.yml job and gate step is fed to the ci-status aggregate
+      - name: Check every pr-require-checks.yml job and gate step is fed to the ci-status aggregate
         id: lane_coverage
         continue-on-error: true
         run: scripts/check-lane-coverage.sh --check
@@ -675,7 +677,7 @@ jobs:
       - name: Select the changed markdown
         id: changed_md
         env:
-          DIFF_BASE: ${{ needs.scope.outputs.lane_base }}
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
         run: |
           globs='**/*.md'
           if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only --diff-filter=d "$DIFF_BASE...HEAD") &&
@@ -697,11 +699,11 @@ jobs:
           path: |
             ~/.npm/_npx
             ~/.npm/_cacache
-          key: npx-markdownlint-cli2-${{ runner.os }}-a267a27f7a321452267e20c82d57699b6c057cb0
+          key: npx-markdownlint-cli2-${{ runner.os }}-7446b5165511796b7b0d30b68d341689ebb8de61
       - name: Lint markdown
         id: markdown
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/markdown@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/markdownlint@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
         with:
           config: .markdownlint-cli2.jsonc
           globs: ${{ steps.changed_md.outputs.globs }}
@@ -709,7 +711,7 @@ jobs:
       - name: Spell-check
         id: typos
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/typos@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/typos@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
         with:
           config: _typos.toml
           # A pack's vendored baseline is replaced verbatim from upstream by its
@@ -729,7 +731,7 @@ jobs:
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
         with:
           config: .gitleaks.toml
           scan-mode: git
@@ -737,7 +739,7 @@ jobs:
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/editorconfig@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
         with:
           config: .editorconfig-checker.json
 
@@ -748,40 +750,40 @@ jobs:
       # term, and on a push, schedule or dispatch every group reports true.
       - name: Lint workflows
         id: actionlint
-        if: needs.scope.outputs.run_workflows == 'true'
+        if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
 
       - name: Validate dependabot.yml
         id: dependabot_schema
-        if: needs.scope.outputs.run_workflows == 'true'
+        if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
         with:
           builtin-schema: vendor.dependabot
           files: .github/dependabot.yml
       - name: Validate workflows
         id: workflow_schema
-        if: needs.scope.outputs.run_workflows == 'true'
+        if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
         with:
           builtin-schema: vendor.github-workflows
           files: >-
-            .github/workflows/ci.yml
-            .github/workflows/dependabot-plugin-release.yml
-            .github/workflows/silent-revert-canary.yml
-            .github/workflows/test-windows.yml
+            .github/workflows/pr-require-checks.yml
+            .github/workflows/pr-bump-plugin-version.yml
+            .github/workflows/post-merge-detect-silent-revert.yml
+            .github/workflows/pr-test-windows.yml
 
       - name: Verify shebang files are executable
         id: exec_bit
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/exec-bit@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
 
       - name: Check for machine-specific paths
         id: machine_paths
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@69e506b7c119517ef1dfc421479232b386b93a52 # v0.35.0
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector. The autonomy
@@ -814,12 +816,12 @@ jobs:
       - name: Check index-level EOL drift
         id: eol
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/eol-renormalize@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
 
       - name: Scan comment hygiene
         id: comment_hygiene
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/comment-hygiene@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@69e506b7c119517ef1dfc421479232b386b93a52 # v0.35.0
         with:
           # The audit-comment-residue skill IS a code-comment linter: its detector
           # fixtures and shape library necessarily contain the markers this policy
@@ -863,19 +865,19 @@ jobs:
         id: skill_count_claims
         continue-on-error: true
         env:
-          DIFF_BASE: ${{ needs.scope.outputs.lane_base }}
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
         run: |
           if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD" -- \
             'plugins/*.md' 'plugins/*/.claude-plugin/plugin.json' 'plugins/*/skills/*' \
             'scripts/check-skill-count-claims.sh' scripts/skill-count-claim-exemptions.txt \
-            .github/workflows/ci.yml) && [ -z "$changed" ]; then
+            .github/workflows/pr-require-checks.yml) && [ -z "$changed" ]; then
             echo "::notice::No skill-count claim input changed since $DIFF_BASE; the scheduled run scans the whole tree."
             exit 0
           fi
           scripts/check-skill-count-claims.sh --check
 
       - name: Report docs-irrelevant checks not applicable to a docs-only diff
-        if: needs.scope.outputs.run_full == 'false'
+        if: needs.select-tests.outputs.run_full == 'false'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the path-scoped linters (actionlint, the dependabot and workflow schemas, zizmor, the runner policy) cannot be affected — reporting success for them. Exec-bit, hook-wiring-liveness, and purged-em-dashes scan the whole repo and stay unconditional."
 
       # ONE DETERMINISTIC PROSE DETECTOR, AS WARNINGS. The ai-slop audit's own
@@ -901,18 +903,18 @@ jobs:
       # label. Its Node install is gated on the same group so a run that will
       # not enforce the policy does not pay for its toolchain either.
       - name: Set up Node
-        if: needs.scope.outputs.run_workflows == 'true'
+        if: needs.select-tests.outputs.run_workflows == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: .github/standards/runner-policy/package-lock.json
       - name: Install pinned runner-policy dependencies
-        if: needs.scope.outputs.run_workflows == 'true'
+        if: needs.select-tests.outputs.run_workflows == 'true'
         run: npm ci --prefix .github/standards/runner-policy
       - name: Enforce runner policy
         id: runner_policy
-        if: needs.scope.outputs.run_workflows == 'true'
+        if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
         env:
           CI_REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
@@ -939,7 +941,7 @@ jobs:
           # never happened, and that is the direction that fails open. The
           # ungated whole-repo scanners feed their raw outcome.
           CHECK_RESULTS: |
-            zizmor=${{ needs.scope.outputs.run_workflows == 'false' && 'success' || steps.zizmor.outcome }}
+            zizmor=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.zizmor.outcome }}
             loop-lane-floor-drift=${{ steps.loop_lane_floor_drift.outcome }}
             conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
@@ -955,9 +957,9 @@ jobs:
             typos=${{ steps.typos.outcome }}
             gitleaks=${{ steps.gitleaks.outcome }}
             editorconfig=${{ steps.editorconfig.outcome }}
-            actionlint=${{ needs.scope.outputs.run_workflows == 'false' && 'success' || steps.actionlint.outcome }}
-            dependabot-schema=${{ needs.scope.outputs.run_workflows == 'false' && 'success' || steps.dependabot_schema.outcome }}
-            workflow-schema=${{ needs.scope.outputs.run_workflows == 'false' && 'success' || steps.workflow_schema.outcome }}
+            actionlint=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.actionlint.outcome }}
+            dependabot-schema=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.dependabot_schema.outcome }}
+            workflow-schema=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.workflow_schema.outcome }}
             exec-bit=${{ steps.exec_bit.outcome }}
             machine-specific-paths=${{ steps.machine_paths.outcome }}
             eol-renormalize=${{ steps.eol.outcome }}
@@ -965,7 +967,7 @@ jobs:
             hook-wiring-liveness=${{ steps.hook_wiring.outcome }}
             purged-em-dashes=${{ steps.purged_em_dashes.outcome }}
             skill-count-claims=${{ steps.skill_count_claims.outcome }}
-            runner-policy=${{ needs.scope.outputs.run_workflows == 'false' && 'success' || steps.runner_policy.outcome }}
+            runner-policy=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.runner_policy.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 
   # THE SHELL LINTERS: ShellCheck, and the repo-local gates that read shell
@@ -984,7 +986,7 @@ jobs:
   #
   # The job skips only on a contract-only event or a draft (see `lint-repo`).
   lint-shell:
-    needs: [scope]
+    needs: [select-tests]
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
@@ -995,7 +997,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
+        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
 
       # PyYAML reads the frontmatter surface (YAML has no jq) for the slow-shapes
       # gate, which fails closed if the module is missing rather than clearing
@@ -1062,10 +1064,10 @@ jobs:
         id: fixture_git_isolation
         continue-on-error: true
         env:
-          DIFF_BASE: ${{ needs.scope.outputs.lane_base }}
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
         run: |
           if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD" -- \
-            '*.sh' '*.py' scripts/fixture-git-isolation-baseline.txt .github/workflows/ci.yml) &&
+            '*.sh' '*.py' scripts/fixture-git-isolation-baseline.txt .github/workflows/pr-require-checks.yml) &&
             [ -z "$changed" ]; then
             echo "::notice::No shell or Python file changed since $DIFF_BASE; the scheduled run scans the whole tree."
             exit 0
@@ -1160,7 +1162,7 @@ jobs:
       - name: Select the changed shell scripts
         id: changed_shell
         env:
-          DIFF_BASE: ${{ needs.scope.outputs.lane_base }}
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
         run: |
           files=''
           if [ -n "$DIFF_BASE" ]; then
@@ -1197,7 +1199,7 @@ jobs:
       - name: Lint shell scripts
         id: shellcheck
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
         with:
           files: ${{ steps.changed_shell.outputs.files }}
           rcfile: .shellcheckrc
@@ -1231,14 +1233,14 @@ jobs:
   # that read them. The manifest schema steps run last: their composite leaves
   # uv on PATH for every later step.
   #
-  # The shared-library bump checks need base history: `checkout-with-base`
+  # The shared-library bump checks need base history: `download-full-history`
   # runs once, at the top, and every bump check below resolves
   # `origin/$BASE_REF` from it. Each returns early on a push rather than
   # diffing against a ref that does not exist.
   #
   # The job skips only on a contract-only event or a draft (see `lint-repo`).
   check-plugins:
-    needs: [scope]
+    needs: [select-tests]
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
@@ -1249,7 +1251,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
+        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
 
       # PyYAML reads the frontmatter surface (YAML has no jq) for the
       # hook-exec-form and summary-reader-parity gates. Those gates fail closed
@@ -1432,17 +1434,17 @@ jobs:
 
       - name: Validate marketplace manifest
         id: marketplace_schema
-        if: needs.scope.outputs.run_manifests == 'true'
+        if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
         with:
           schemafile: https://json.schemastore.org/claude-code-marketplace.json
           files: .claude-plugin/marketplace.json
       - name: Validate plugin manifests
         id: plugin_schema
-        if: needs.scope.outputs.run_manifests == 'true'
+        if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
         with:
           schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
           files: plugins/*/.claude-plugin/plugin.json
@@ -1457,7 +1459,7 @@ jobs:
       # catches what the schema step next to it cannot. See #1498.
       - name: Detect duplicate keys in plugin/marketplace manifests
         id: duplicate_keys
-        if: needs.scope.outputs.run_manifests == 'true'
+        if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
         run: python3 scripts/check-manifest-duplicate-keys.py
 
@@ -1466,14 +1468,14 @@ jobs:
       # and the counter ceilings. Gated like those steps,
       # so a docs-only diff does not pay for it.
       - name: Set up Node
-        if: needs.scope.outputs.run_tests == 'true'
+        if: needs.select-tests.outputs.run_tests == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: package-lock.json
       - name: Install the locked root toolchain
-        if: needs.scope.outputs.run_tests == 'true'
+        if: needs.select-tests.outputs.run_tests == 'true'
         run: |
           npm ci
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
@@ -1483,14 +1485,14 @@ jobs:
       # asset must lint clean and be registered in the gate's manifest, per the
       # rendered-views convention.
       - name: Check rendered-view HTML assets
-        if: needs.scope.outputs.run_tests == 'true'
+        if: needs.select-tests.outputs.run_tests == 'true'
         run: scripts/check-html-assets.sh
       - name: Validate plugin and catalog manifests
-        if: needs.scope.outputs.run_tests == 'true'
+        if: needs.select-tests.outputs.run_tests == 'true'
         # validate-plugins.sh runs scripts/validate-plugin-contracts.mjs, whose
         # retirements append-only check diffs each plugins/*/retirements.yaml
         # against this ref and skips (with a notice) when it is unset. The
-        # checkout-with-base step above already deepens history and fetches
+        # download-full-history step above already deepens history and fetches
         # origin/<base_ref> on pull_request, so the ref resolves here.
         #
         # A diff validates the plugins it touched: each per-plugin pass reads
@@ -1500,7 +1502,7 @@ jobs:
         # renderer, the CLI's lockfile or this workflow changed.
         env:
           VALIDATE_CONTRACTS_BASE_REF: origin/${{ github.base_ref || 'main' }}
-          DIFF_BASE: ${{ needs.scope.outputs.lane_base }}
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
         run: |
           if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD") &&
             ! grep -qE '^(\.github/workflows/ci\.yml|scripts/validate-plugins\.sh|scripts/plugin-validate-report\.mjs|package(-lock)?\.json)$' <<<"$changed"; then
@@ -1521,16 +1523,16 @@ jobs:
       # ref, so they return early on a push rather than diffing against a ref
       # that does not exist.
       - name: Verify generated shared-library copies match their canonical sources
-        if: needs.scope.outputs.run_tests == 'true'
+        if: needs.select-tests.outputs.run_tests == 'true'
         run: scripts/sync-shared-copies.sh --check
       # docs/conventions/prerequisites/: the gate validates every
       # prerequisites.json and fails on an undeclared tool not listed in
       # scripts/prerequisites-baseline.txt. Its suites run through the selector.
       - name: Check plugin prerequisites are declared
-        if: needs.scope.outputs.run_tests == 'true'
+        if: needs.select-tests.outputs.run_tests == 'true'
         run: node scripts/check-declared-prerequisites.mjs
       - name: Verify carrying plugins bumped when a generated copy's canonical changed
-        if: needs.scope.outputs.run_tests == 'true'
+        if: needs.select-tests.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
@@ -1540,7 +1542,7 @@ jobs:
           fi
           scripts/sync-shared-copies.sh --check-bump "origin/$BASE_REF"
       - name: Verify contract, changelog, and carrying plugins bumped together
-        if: needs.scope.outputs.run_tests == 'true'
+        if: needs.select-tests.outputs.run_tests == 'true'
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
@@ -1551,7 +1553,7 @@ jobs:
           scripts/check-standards-contract-bump.sh "origin/$BASE_REF"
 
       - name: Check for unregistered or drifted cross-plugin source clusters
-        if: needs.scope.outputs.run_tests == 'true'
+        if: needs.select-tests.outputs.run_tests == 'true'
         run: scripts/check-cross-plugin-source-drift.sh --check
 
       # Counter ceilings from .performance/ratchets.json: each counter's command
@@ -1567,14 +1569,14 @@ jobs:
       # and coreutils, so the versions are printed beside every check: an ABOVE
       # after an image bump reads in one log.
       - name: Check performance counter ceilings
-        if: needs.scope.outputs.run_tests == 'true'
+        if: needs.select-tests.outputs.run_tests == 'true'
         run: |
           bash scripts/hook-census.test.sh
           bash scripts/hook-census.sh --versions
           python3 plugins/performance/scripts/ratchet.py check --file .performance/ratchets.json
 
       - name: Report not applicable to a docs-only diff
-        if: needs.scope.outputs.run_tests == 'false'
+        if: needs.select-tests.outputs.run_tests == 'false'
         run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the manifest schemas and duplicate-key detector, the plugin validation, the shared-library sync gates and the counter ceilings cannot be affected — reporting success."
 
       - name: Aggregate hygiene results
@@ -1596,9 +1598,9 @@ jobs:
             changelog-parity-preserved=${{ steps.changelog_parity_preserved.outcome }}
             changelog-parity-order=${{ steps.changelog_parity_order.outcome }}
             vendor-version-bump=${{ steps.vendor_version_bump.outcome }}
-            marketplace-schema=${{ needs.scope.outputs.run_manifests == 'false' && 'success' || steps.marketplace_schema.outcome }}
-            plugin-schema=${{ needs.scope.outputs.run_manifests == 'false' && 'success' || steps.plugin_schema.outcome }}
-            manifest-duplicate-keys=${{ needs.scope.outputs.run_manifests == 'false' && 'success' || steps.duplicate_keys.outcome }}
+            marketplace-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.marketplace_schema.outcome }}
+            plugin-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.plugin_schema.outcome }}
+            manifest-duplicate-keys=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.duplicate_keys.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 
   # SKILL AND EVAL CONTRACTS: check 25 and the changed-skills gate, the
@@ -1615,7 +1617,7 @@ jobs:
   #
   # The job skips only on a contract-only event or a draft (see `lint-repo`).
   check-skills:
-    needs: [scope]
+    needs: [select-tests]
     # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
     if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
     runs-on: ubuntu-24.04
@@ -1626,7 +1628,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
+        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
 
       # The pinned interpreter and requirements: the fleet grammar gate probes a
       # collector that runs python3.
@@ -1687,11 +1689,11 @@ jobs:
         id: detector_eval_coverage
         continue-on-error: true
         env:
-          DIFF_BASE: ${{ needs.scope.outputs.lane_base }}
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
         run: |
           if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD" -- \
             'plugins/*/skills/*/scripts/*' 'plugins/*/skills/*/evals/*' \
-            'scripts/check-detector-eval-coverage.sh' .github/workflows/ci.yml) && [ -z "$changed" ]; then
+            'scripts/check-detector-eval-coverage.sh' .github/workflows/pr-require-checks.yml) && [ -z "$changed" ]; then
             echo "::notice::No skill script or eval set changed since $DIFF_BASE; the scheduled run checks every pair."
             exit 0
           fi
@@ -1753,14 +1755,14 @@ jobs:
       # scripts/verb-contract-baseline.txt row left by fixing a listed skill;
       # the list has no active rows, and the scheduled run still reports one.
       #
-      # change-detection reads only a pull request's files, so on a push every
+      # detect-changes reads only a pull request's files, so on a push every
       # group reports true and the range is checked here instead, against the
       # group's inputs less scripts/lib/ and this workflow, which already give
       # a push no diff base.
       - name: Gate every skill on description/verb-contract polarity (check 25)
-        if: needs.scope.outputs.run_skill_checker == 'true'
+        if: needs.select-tests.outputs.run_skill_checker == 'true'
         env:
-          DIFF_BASE: ${{ needs.scope.outputs.lane_base }}
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
         run: |
           if [ "$GITHUB_EVENT_NAME" = push ] && [ -n "$DIFF_BASE" ]; then
             touched=$(git diff --name-only "$DIFF_BASE" HEAD -- plugins/skill-quality/scripts \
@@ -1786,7 +1788,7 @@ jobs:
       - name: Validate every eval set against the bundled schema
         id: evals_schema
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
         with:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
@@ -1806,12 +1808,12 @@ jobs:
         id: evals_quality
         continue-on-error: true
         env:
-          DIFF_BASE: ${{ needs.scope.outputs.lane_base }}
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
         run: |
           sets=(plugins/*/skills/*/evals/evals.json)
           if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD" -- \
             'plugins/*/skills/*' 'plugins/skill-quality/scripts/check-evals-quality*' \
-            .github/workflows/ci.yml); then
+            .github/workflows/pr-require-checks.yml); then
             if [ -z "$changed" ]; then
               sets=()
             elif ! grep -qvE '^plugins/[^/]+/skills/[^/]+/' <<<"$changed"; then
@@ -1926,18 +1928,18 @@ jobs:
             portability-lint=${{ steps.portability.outcome }}
         run: scripts/aggregate-hygiene-results.sh
 
-  # THE TEST LANES RUN WHAT THE SELECTION SAYS. `scope` plans them once
+  # THE TEST LANES RUN WHAT THE SELECTION SAYS. `select-tests` plans them once
   # (scripts/plan-test-lanes.sh): the shell suites the change selects go to
   # `test-bash`, its Python suites to `test-python`, and the Node packages they
   # reach to `test-node`; a Node suite with a sibling .test.sh runs through
-  # that wrapper in `test-bash`, and a Pester suite in test-windows.yml. The
+  # that wrapper in `test-bash`, and a Pester suite in pr-test-windows.yml. The
   # whole tree (a schedule, a dispatch, a push with no usable base, or a change
   # to this workflow or its actions) runs every suite of every lane.
   #
   # ORDERED SKIPS. Each test lane carries the contract-only and draft gates and
-  # one more term, its own `run_<lane>` row of `scope`: a lane the plan gives no
+  # one more term, its own `run_<lane>` row of `select-tests`: a lane the plan gives no
   # work skips as a job instead of paying a runner and a queue slot to report
-  # nothing. `ci-status` passes such a skip only where `scope` succeeded and
+  # nothing. `ci-status` passes such a skip only where `select-tests` succeeded and
   # its row for that lane says 'false'; any other skipped lane is red
   # (scripts/check-docs-only-gate.sh pins both halves).
   #
@@ -1958,27 +1960,27 @@ jobs:
   # ceilings run one at a time regardless, from
   # scripts/run-plugin-tests-serial.txt, and the plan weighs them three times.
   test-bash:
-    needs: [scope]
+    needs: [select-tests]
     # The contract-only gate, verbatim, the draft gate (see `ci-status`), and
     # this lane's ordered skip.
-    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.scope.outputs.run_bash == 'true' }}
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.select-tests.outputs.run_bash == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 9
     strategy:
       fail-fast: false
       matrix:
-        leg: ${{ fromJSON(needs.scope.outputs.bash_legs || '[0]') }}
+        leg: ${{ fromJSON(needs.select-tests.outputs.bash_legs || '[0]') }}
     env:
       LEG: ${{ strategy.job-index }}
-      PLAN: ${{ needs.scope.outputs.bash_plan }}
-      LEG_PLAN: ${{ needs.scope.outputs.bash_needs }}
+      PLAN: ${{ needs.select-tests.outputs.bash_plan }}
+      LEG_PLAN: ${{ needs.select-tests.outputs.bash_needs }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
+        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
       # Node, Python, ShellCheck, shfmt, Biome and Ruff are declared here so
       # hosted and local runs exercise the same contract suites instead of
       # inheriting different image tool inventories.
@@ -2003,7 +2005,7 @@ jobs:
         # available to the bash-format contract suites in this same job. It
         # verifies the install on one small file that sources nothing; the
         # ShellCheck gate in `lint-shell` is what lints the repository.
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
         with:
           files: scripts/aggregate-hygiene-results.sh
           rcfile: .shellcheckrc
@@ -2116,27 +2118,27 @@ jobs:
   # npm install come too: Python suites run the claude CLI from
   # node_modules/.bin and the inventory's parser packages through node.
   test-python:
-    needs: [scope]
+    needs: [select-tests]
     # The contract-only gate, verbatim, the draft gate (see `ci-status`), and
     # this lane's ordered skip (see `test-bash`).
-    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.scope.outputs.run_python == 'true' }}
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.select-tests.outputs.run_python == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 7
     strategy:
       fail-fast: false
       matrix:
-        leg: ${{ fromJSON(needs.scope.outputs.python_legs || '[0]') }}
+        leg: ${{ fromJSON(needs.select-tests.outputs.python_legs || '[0]') }}
     env:
       LEG: ${{ strategy.job-index }}
-      PLAN: ${{ needs.scope.outputs.python_plan }}
-      LEG_PLAN: ${{ needs.scope.outputs.python_needs }}
+      PLAN: ${{ needs.select-tests.outputs.python_plan }}
+      LEG_PLAN: ${{ needs.select-tests.outputs.python_needs }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
+        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -2197,14 +2199,14 @@ jobs:
   # (`PACKAGES`). A step for a package the plan does not name exits 0 on
   # its first line. One job: the chains measure 31 s together.
   test-node:
-    needs: [scope]
+    needs: [select-tests]
     # The contract-only gate, verbatim, the draft gate (see `ci-status`), and
     # this lane's ordered skip (see `test-bash`).
-    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.scope.outputs.run_node == 'true' }}
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.select-tests.outputs.run_node == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
-      PACKAGES: ${{ needs.scope.outputs.node_packages }}
+      PACKAGES: ${{ needs.select-tests.outputs.node_packages }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -2336,7 +2338,7 @@ jobs:
 
   ci-status:
     needs:
-      - scope
+      - select-tests
       - lint-repo
       - lint-shell
       - check-plugins
@@ -2365,14 +2367,14 @@ jobs:
       # the default is none, and the call would 403.
       actions: write
       contents: read
-      # pr-contract upserts the advisory linkage comment and moves the linkage
+      # check-contract upserts the advisory linkage comment and moves the linkage
       # label; ci-status records the `ci-lanes` commit status the carry-forward
       # branch reads back on the next contract-only event.
       pull-requests: write
       statuses: write
     steps:
       - name: Check the pull-request contract
-        uses: melodic-software/ci-workflows/.github/actions/pr-contract@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
         with:
           token: ${{ github.token }}
           # Carried over verbatim from `pr-issue-linkage.yml`, the caller this
@@ -2385,7 +2387,7 @@ jobs:
       # OR IN PROGRESS. A queued full run has not written its `ci-lanes=pending`
       # marker yet, so the status read below could carry an older verdict across
       # the run that is about to replace it. One listing, no wait. A sibling
-      # whose `scope` job was skipped is contract-only and does not count, and
+      # whose `select-tests` job was skipped is contract-only and does not count, and
       # neither does one whose `ci-status` job has started: its verdict is being
       # written, and the status read below sees the marker or the verdict. That
       # is also what lets the re-run this full run's last step starts pass. A
@@ -2409,7 +2411,7 @@ jobs:
           done
           for id in $ids; do
             jobs=$(gh api "$api/runs/$id/jobs?filter=latest" \
-              --jq '([.jobs[] | select(.name == "scope") | .conclusion][0] // "") + " " + ([.jobs[] | select(.name == "ci-status") | .status][0] // "none")') || jobs=""
+              --jq '([.jobs[] | select(.name == "select-tests") | .conclusion][0] // "") + " " + ([.jobs[] | select(.name == "ci-status") | .status][0] // "none")') || jobs=""
             case "$jobs" in
               "skipped "* | *" in_progress" | *" completed") continue ;;
             esac
@@ -2423,7 +2425,7 @@ jobs:
       # nothing. The aggregate below fails on the skipped lanes and records
       # `ci-lanes=failure`; this step says why.
       #
-      # A contract-only run (`scope` skipped) reads the live draft state, not
+      # A contract-only run (`select-tests` skipped) reads the live draft state, not
       # its payload. A re-run keeps the payload, and the last step re-runs the
       # contract-only runs a body edit or label flip drew while this was a
       # draft: on the payload they would fail here again and be the newest red
@@ -2434,7 +2436,7 @@ jobs:
       - name: Fail a draft
         if: github.event.pull_request.draft == true
         env:
-          SCOPE: ${{ needs.scope.result }}
+          SCOPE: ${{ needs.select-tests.result }}
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
         run: |
@@ -2446,8 +2448,8 @@ jobs:
           echo "::error::draft: lanes not run. Mark the pull request ready to lint and test this SHA."
           exit 1
       # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>` skips as a job
-      # when `scope`'s `run_<x>` row says the change gives it no work. Its
-      # `skipped` becomes `success` for the aggregate only when `scope`
+      # when `select-tests`'s `run_<x>` row says the change gives it no work. Its
+      # `skipped` becomes `success` for the aggregate only when `select-tests`
       # succeeded and that row is exactly 'false'; every other result passes
       # through as it is, so a skip that hid work stays `skipped` and the
       # aggregate fails it. Pinned by scripts/ci-ordered-skips.test.sh, which
@@ -2459,7 +2461,7 @@ jobs:
           LANES: ${{ toJSON(needs) }}
         run: |
           results=$(jq -r '
-            .scope as $s
+            .["select-tests"] as $s
             | to_entries
             | map(.key as $lane | .value.result as $r
                 | if $r == "skipped" and $s.result == "success"
@@ -2475,11 +2477,11 @@ jobs:
           echo "Results after the ordered-skip check: $results"
           echo "results=$results" >>"$GITHUB_OUTPUT"
       - name: Aggregate lane results
-        # `!cancelled()` so a failing pr-contract step does not skip the
+        # `!cancelled()` so a failing check-contract step does not skip the
         # aggregation: the job still fails on the contract step's exit code, and
         # the `ci-lanes` status is on the SHA for the next contract-only run.
         if: ${{ !cancelled() }}
-        uses: melodic-software/ci-workflows/.github/actions/ci-status@a267a27f7a321452267e20c82d57699b6c057cb0 # v0.30.2
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
         with:
           # Every lane of the needs graph above — the single source of truth
           # for the lane list — through the ordered-skip check. Adding a lane
@@ -2489,7 +2491,7 @@ jobs:
           treat-skipped-as: fail
           # A CONTRACT-ONLY RUN NEVER WAITS. It reads the newest bot-written
           # `ci-lanes` status once and passes only on `success`. While a full
-          # run is in flight that status is the `pending` its `scope` job
+          # run is in flight that status is the `pending` its `select-tests` job
           # wrote, so the contract-only run goes red in seconds; the full run's
           # own `ci-status` check run is newer and decides the merge gate, and
           # the next step re-runs the red one so it does not linger. Waiting
@@ -2509,7 +2511,8 @@ jobs:
       # verdict above is already recorded, and a refused re-run must not turn
       # the required check red over a check run that is no longer the newest.
       - name: Re-run the red contract-only runs on this SHA
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && needs.scope.result == 'success' && success()
+        # Same repository by id, as in the in-flight marker step.
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.id == github.repository_id && needs.select-tests.result == 'success' && success()
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -2526,7 +2529,7 @@ jobs:
           }
           for id in $failed; do
             scope=$(gh api "$api/runs/$id/jobs?filter=latest" \
-              --jq '[.jobs[] | select(.name == "scope") | .conclusion][0] // ""') || continue
+              --jq '[.jobs[] | select(.name == "select-tests") | .conclusion][0] // ""') || continue
             [ "$scope" = skipped ] || continue
             if gh api --method POST "$api/runs/$id/rerun-failed-jobs" >/dev/null; then
               echo "Re-ran contract-only run $id."
