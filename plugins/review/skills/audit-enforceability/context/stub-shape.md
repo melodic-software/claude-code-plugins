@@ -12,7 +12,7 @@ source-branch: <the findings file's branch: value>
 rank: <Rank>
 finding-class: <class>
 class-basis: rule-id | rule-family | dimension | judgment | unresolved
-rung: editorconfig-severity | analyzer-pack-rule | custom-analyzer | semgrep-rule | architecture-test | hook | llm-only
+rung: make-impossible | editorconfig-severity | analyzer-pack-rule | custom-analyzer | semgrep-rule | architecture-test | hook | llm-only
 owner: <invocation, plugin name, or URL>
 ---
 

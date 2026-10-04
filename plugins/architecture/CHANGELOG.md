@@ -3,6 +3,12 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Added
+
+- **The enforcement ladder ships with `/architecture:improve`.** A generated copy of the enforcement-ladder convention sits at `skills/improve/research/enforcement-ladder.md`, carrying the rung list and the "Where boundary rules live" list that boundary reviews read.
+
 ## [0.22.0] - 2026-10-04
 
 ### Added

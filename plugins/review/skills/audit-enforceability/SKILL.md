@@ -68,9 +68,11 @@ count of classified rows equals the count of rows the table carried.
 
 ## 3. Crosswalk lookup
 
-Class to rung to owner or pointer, from [`context/crosswalk.md`](context/crosswalk.md). The rungs
-sit in a fixed cheapest-first order; take the cheapest rung whose check can actually assert the
-finding, not the cheapest rung imaginable.
+Class to rung to owner or pointer, from [`context/crosswalk.md`](context/crosswalk.md). The rung
+list and this skill's selection rule come from the enforcement ladder,
+[`${CLAUDE_PLUGIN_ROOT}/context/enforcement-ladder.md`](../../context/enforcement-ladder.md): take
+the cheapest rung whose check can actually assert the finding, not the cheapest rung imaginable.
+An `invalid-state` finding is offered `make-impossible` first.
 
 ## 4. Resolve two homes
 
@@ -135,6 +137,9 @@ A table with one row per finding: rank, class, class basis, rung, owner, stub pa
 writer's own line, `N findings → N stubs in <home>`. Then, grouped per rung, the next step, each
 with its gate and its fallback:
 
+- **`make-impossible`**: name the type, data structure or API whose shape lets the invalid state
+  exist, and the change that would remove it. Hand that proposal to `/architecture:improve` when
+  that skill is available; otherwise to `/planning:design`. Nothing is redesigned here.
 - **`editorconfig-severity`**: name the setting and the file; no plugin is involved.
 - **`analyzer-pack-rule`**: name the diagnostic id and the config file that raises its severity.
   Where the producing detector already is the deterministic check, the next step is to keep it.
@@ -144,9 +149,7 @@ with its gate and its fallback:
   .NET-only; the same invariant elsewhere belongs on the Semgrep rung.
 - **`semgrep-rule`**: invoke `/semgrep-rule-creator:semgrep-rule-creator` (if the
   `semgrep-rule-creator` plugin is installed); otherwise the stub points at Semgrep's rule-writing
-  documentation (<https://docs.semgrep.dev/writing-rules/overview>) and stops. Print the install
-  recipe in the report only: `/plugin marketplace add trailofbits/skills` then
-  `/plugin install semgrep-rule-creator@trailofbits`.
+  documentation (<https://docs.semgrep.dev/writing-rules/overview>) and stops.
 - **`architecture-test`**: point at ArchUnitNET (<https://archunitnet.readthedocs.io/>) for .NET
   and the dependency-cruiser repository docs (<https://github.com/sverweij/dependency-cruiser>)
   for JS/TS.
