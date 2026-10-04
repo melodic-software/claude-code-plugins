@@ -1,0 +1,7 @@
+Marketplace: m: current (autoUpdate: on)
+In-repo: 0 project/local install(s) updated in /w/repo
+Divergences: 3 behind here → run `/harness-ops:plugins converge`; on this whole machine 67 actionable: 24 pre-existing, 43 newly created by this run (5 by the in-repo update, 38 by the user-scope sweep)
+Timing: 1s this marketplace (seconds)
+
+Run journal: /r
+Timing: 1s whole invocation (seconds)

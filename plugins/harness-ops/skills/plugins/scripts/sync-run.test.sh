@@ -96,6 +96,12 @@ case "$verb" in
     echo "✘ Failed to clone marketplace repository"
     exit 1
   fi
+  # A refresh rewrites the marketplace's lastUpdated, as the real one does.
+  if [[ -n "${CLAUDE_STUB_REFRESH_STAMP:-}" ]]; then
+    jq --arg mp "$mp" --arg t "$CLAUDE_STUB_REFRESH_STAMP" '.[$mp].lastUpdated = $t' \
+      "$FLEET_STATE_MARKETPLACES_JSON" >"$FLEET_STATE_MARKETPLACES_JSON.next" &&
+      mv "$FLEET_STATE_MARKETPLACES_JSON.next" "$FLEET_STATE_MARKETPLACES_JSON"
+  fi
   echo "Successfully updated marketplace: $mp"
   ;;
 "plugin update")
@@ -790,22 +796,34 @@ esac
 "
   chmod +x "$case_dir/stubs/date"
 }
-# Every non-null timing is a non-negative number, and the marketplace total is at
-# least the sum of its steps.
+# Every non-null timing is a non-negative number, the marketplace total is at
+# least the sum of its steps, and the steps plus the named remainder account for
+# every second of it, at both levels.
 assert_timings_shape() {
   local label="$1" digest="$2" t
   t=$(jq -c '.marketplaces[0].timings' <<<"$digest")
-  assert_eq "$label: the timings object carries the eight step keys and resolution" \
-    "cache_content_check,in_repo_update,install_enable,marketplace_update,post_read,pre_refresh_read,resolution,total,user_sweep" \
+  assert_eq "$label: the timings object carries the nine step keys, the remainder and resolution" \
+    "cache_content_check,finalize,in_repo_update,install_enable,marketplace_update,post_read,pre_install_read,pre_refresh_read,resolution,total,unattributed,user_sweep" \
     "$(jq -r 'keys | join(",")' <<<"$t")"
   assert_eq "$label: every non-null timing is a non-negative number" "true" \
     "$(jq -r 'del(.resolution) | [.[] | select(. != null)] | all(type == "number" and . >= 0)' <<<"$t")"
   assert_eq "$label: the total is at least the sum of the steps" "true" \
     "$(jq -r '. as $t | [.pre_refresh_read, .marketplace_update, .in_repo_update, .user_sweep,
-        .install_enable, .cache_content_check, .post_read] | map(select(. != null)) | (add // 0) <= $t.total' <<<"$t")"
+        .pre_install_read, .install_enable, .cache_content_check, .post_read, .finalize]
+        | map(select(. != null)) | (add // 0) <= $t.total' <<<"$t")"
+  assert_eq "$label: the steps plus unattributed sum to the marketplace total" "true" \
+    "$(jq -r '. as $t | [.pre_refresh_read, .marketplace_update, .in_repo_update, .user_sweep,
+        .pre_install_read, .install_enable, .cache_content_check, .post_read, .finalize, .unattributed]
+        | map(select(. != null)) | (add // 0) - $t.total | . < 0.0015 and . > -0.0015' <<<"$t")"
+  assert_eq "$label: the post-read work is a named step" "number" "$(jq -r '.finalize | type' <<<"$t")"
+  assert_eq "$label: the pre-install read is a named step" "number" "$(jq -r '.pre_install_read | type' <<<"$t")"
   assert_eq "$label: the whole invocation is timed at top level with the same clock" "true" \
     "$(jq -r '(.timings.total | type == "number") and .timings.total >= .marketplaces[0].timings.total
         and .timings.resolution == .marketplaces[0].timings.resolution' <<<"$digest")"
+  assert_eq "$label: the marketplace totals plus outside_marketplaces sum to the run total" "true" \
+    "$(jq -r '(0.0015 * ((.marketplaces | length) + 1)) as $tol
+        | ([.marketplaces[].timings.total] | add) + .timings.outside_marketplaces - .timings.total
+        | . < $tol and . > -$tol' <<<"$digest")"
 }
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
@@ -869,6 +887,38 @@ assert_exit "date rung: exit 0" 0 $?
 assert_eq "date rung: without EPOCHREALTIME the run reports the date rung the host has" "$expected_rung" \
   "$(jq -r '.marketplaces[0].timings.resolution' <<<"$out")"
 assert_timings_shape "date rung" "$out"
+
+# The default-marketplace path: the resolving read runs in main, before the
+# loop body, and it is that marketplace's pre_refresh_read. A wrapper slows only
+# that zero-argument read, so a block window that opened after it would report
+# a total below the sum of its own steps.
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+catalog_plugin "$case_dir" market1 alpha 0.2.0
+mkdir -p "$case_dir/self/.claude-plugin"
+write "$case_dir/self/.claude-plugin/plugin.json" '{"name":"alpha","version":"0.1.0"}'
+self_root=$(norm_path "$case_dir/self")
+write "$case_dir/installed_plugins.json" "{
+  \"version\": 1,
+  \"plugins\": {\"alpha@market1\": [{\"scope\": \"user\", \"installPath\": \"$self_root\", \"version\": \"0.1.0\"}]}
+}"
+write "$case_dir/known_marketplaces.json" "{\"market1\": {\"source\": {\"source\": \"github\", \"repo\": \"e/m\"}, \"installLocation\": \"$case_dir/mkt\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": true}}'
+setup_case "$case_dir"
+write "$case_dir/stubs/slow-fleet-state.sh" "#!/usr/bin/env bash
+if [[ \$# -eq 0 ]]; then sleep 1; fi
+exec bash \"$SCRIPT_DIR/fleet-state.sh\" \"\$@\"
+"
+chmod +x "$case_dir/stubs/slow-fleet-state.sh"
+EXTRA_ENV=(CLAUDE_PLUGIN_ROOT="$case_dir/self" SYNC_RUN_FLEET_STATE="$case_dir/stubs/slow-fleet-state.sh"
+  CLAUDE_STUB_NEW_VERSION=0.2.0)
+out=$(run_sync "$case_dir" --install-new none --journal-root "$case_dir/journal")
+assert_exit "default path: exit 0" 0 $?
+assert_eq "default path: the default marketplace resolved" "market1" "$(jq -r '.marketplaces[0].name' <<<"$out")"
+assert_eq "default path: the resolving read is timed as pre_refresh_read" "true" \
+  "$(jq -r '.marketplaces[0].timings.pre_refresh_read >= 1' <<<"$out")"
+assert_timings_shape "default path" "$out"
 
 # ============================================================================
 # Cases: the Step 6 report is rendered by the script. Golden files under
@@ -939,10 +989,10 @@ assert_eq "render: the renderer carries no user_config placeholder token" "0" \
   "$(grep -c -F '${user_config' "$SCRIPT_DIR/render-report.jq")"
 # The Timing row's shape, asserted here because the golden elides its figures.
 out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal" --render)
-assert_contains "render: the marketplace Timing row names the slowest step and the clock" \
-  "$(printf '%s\n' "$out" | grep -E '^Timing: [0-9.]+s this marketplace; slowest step [a-z_]+ [0-9.]+s \((microseconds|nanoseconds|seconds)\)$' | head -n 1)" "Timing: "
-assert_contains "render: the run Timing row times the whole invocation" \
-  "$(printf '%s\n' "$out" | grep -E '^Timing: [0-9.]+s whole invocation \((microseconds|nanoseconds|seconds)\)$')" "whole invocation"
+assert_contains "render: the marketplace Timing row names the slowest step, the remainder and the clock" \
+  "$(printf '%s\n' "$out" | grep -E '^Timing: [0-9.]+s this marketplace; slowest step [a-z_]+ [0-9.]+s; [0-9.]+s outside the named steps \((microseconds|nanoseconds|seconds)\)$' | head -n 1)" "Timing: "
+assert_contains "render: the run Timing row times the whole invocation and its remainder" \
+  "$(printf '%s\n' "$out" | grep -E '^Timing: [0-9.]+s whole invocation; [0-9.]+s outside the marketplace blocks \((microseconds|nanoseconds|seconds)\)$')" "whole invocation"
 
 # --- a withheld downgrade, with the source named as the likely cause --------
 CASE_NUM=$((CASE_NUM + 1))
@@ -1514,6 +1564,75 @@ assert_contains "delisted in-repo audit: the report names it as a prediction" "$
   "delisted in this repo, absent from the unrefreshed catalog: stale@market1 (project) (audit prediction"
 assert_eq "delisted in-repo audit: not a would-update" "0" \
   "$(jq -r '[.marketplaces[0].in_repo.would_update[]?.id] | map(select(. == "stale@market1")) | length' <<<"$REPORT_DIGEST")"
+
+# ============================================================================
+# Case: catalog_last_updated is the stamp after Step 1's refresh, on the first
+# pass and on the `--only-install` re-entry
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+catalog_plugin "$case_dir" market1 beta 0.1.0
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha", "source": "alpha"}, {"name": "beta", "source": "beta"}]}'
+EXTRA_ENV=(CLAUDE_STUB_NOOP_ID=alpha@market1 CC_STUB_CLEAN=1 CLAUDE_STUB_REFRESH_STAMP=2026-02-02T00:00:00Z)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new ask --journal-root "$case_dir/journal")
+assert_exit "catalog stamp: exit 0" 0 $?
+assert_eq "catalog stamp: the digest carries the stamp the refresh wrote" "2026-02-02T00:00:00Z" \
+  "$(jq -r '.marketplaces[0].catalog_last_updated' <<<"$out")"
+run_dir=$(jq -r '.run_dir' <<<"$out")
+assert_eq "catalog stamp: the pre-refresh snapshot still holds the older stamp" "2026-01-01T00:00:00Z" \
+  "$(jq -r '.marketplace.lastUpdated' "$run_dir/pre-refresh.market1.json")"
+out=$(run_sync "$case_dir" --only-install beta@market1 --run-dir "$run_dir")
+assert_exit "catalog stamp re-entry: exit 0" 0 $?
+assert_eq "catalog stamp re-entry: the re-emitted digest keeps the post-refresh stamp" "2026-02-02T00:00:00Z" \
+  "$(jq -r '.marketplaces[0].catalog_last_updated' <<<"$out")"
+
+# ============================================================================
+# Case: the cache-content check names the scope it covered, in the digest and
+# in every rendered row
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+golden_fixture "$case_dir" 0.1.0 0.1.0 true
+EXTRA_ENV=(CLAUDE_STUB_NOOP_ID=alpha@market1)
+out=$(run_sync "$case_dir" --marketplace market1 --install-new none --journal-root "$case_dir/journal")
+assert_exit "cache scope: exit 0" 0 $?
+assert_eq "cache scope: the checker is asked for user scope explicitly" "1" \
+  "$(grep -c -- '--scope user' "$case_dir/cc.log")"
+assert_eq "cache scope: the digest names the scope checked" "user" \
+  "$(jq -r '.marketplaces[0].cache_content.scope' <<<"$out")"
+assert_eq "cache scope: the always-zero project-path counter is not carried" "false" \
+  "$(jq -r '.marketplaces[0].cache_content | has("skipped_absent_project_paths")' <<<"$out")"
+cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 10, "match": 7, "stale_content": 0,
+  "unverifiable": 3, "stale": [], "stale_ids": []}}' | jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_contains "cache scope: the unverifiable-only row names user scope" "$cache_text" \
+  "Cache content: 3 of 10 user-scope install(s) unverifiable"
+cache_text=$(needs_digest sync '{"cache_content": {"scope": "user", "checked": 10, "match": 7, "stale_content": 1,
+  "unverifiable": 2, "stale": [{"id": "a@m", "version": "1.0.0", "files_differ": 2}], "stale_ids": ["a@m"]}}' |
+  jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_contains "cache scope: the stale row names user scope" "$cache_text" \
+  "Cache content: 1 user-scope install(s) whose cache files disagree"
+assert_contains "cache scope: the checked sub-line names user scope" "$cache_text" \
+  "(checked 10 user-scope install(s): 7 match, 2 unverifiable"
+
+# ============================================================================
+# Case: the Divergences split follows the total it sums to, with and without a
+# project root
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+split_divergences='{"post": 67, "pre_existing": 24, "new_total": 43, "new_by_interval": {"in_repo": 5, "user_sweep": 38}}'
+div_text=$(needs_digest sync "{\"divergences\": $split_divergences}" | jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_golden "divergence split, no project root: the report matches the golden" divergence-split-no-root.txt "$div_text"
+div_text=$(needs_digest sync "{\"divergences\": $split_divergences, \"project_root\": \"/w/repo\",
+  \"in_repo_records\": 4, \"divergences_here\": 3}" | jq -r -f "$SCRIPT_DIR/render-report.jq")
+assert_golden "divergence split, project root: the report matches the golden" divergence-split-project-root.txt "$div_text"
+# The number each split follows is the sum of its parts, in both variants.
+for variant in no-root project-root; do
+  assert_eq "divergence split, $variant: the split sums to the count it follows" "true" \
+    "$(grep '^Divergences:' "$GOLDEN_DIR/divergence-split-$variant.txt" |
+      sed -E 's/.* ([0-9]+) actionable: ([0-9]+) pre-existing, ([0-9]+) newly created by this run \(([0-9]+) by the in-repo update, ([0-9]+) by the user-scope sweep\).*/\1 \2 \3 \4 \5/' |
+      awk '{print ($1 == $2 + $3 && $3 == $4 + $5) ? "true" : "false"}')"
+done
 
 # ============================================================================
 if ((FAILED > 0)); then
