@@ -1,4 +1,4 @@
-name: dependabot-plugin-release
+name: pr-bump-plugin-version
 
 # Dependabot can edit package manifests and lockfiles under plugins/** but cannot
 # bump plugins/<name>/.claude-plugin/plugin.json or write CHANGELOG.md. The
@@ -29,11 +29,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: dependabot-plugin-release-${{ github.event.pull_request.number || github.run_id }}
+  group: pr-bump-plugin-version-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
-  release-for-dependabot:
+  bump-plugin-version:
     # zizmor: ignore[bot-conditions] dependabot-only job; login is read from the PR user, not github.actor
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-24.04
@@ -47,7 +47,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch base
-        uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
+        uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
       - name: Switch to PR head
         env:
           HEAD_REF: ${{ github.head_ref }}

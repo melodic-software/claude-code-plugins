@@ -3,11 +3,23 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.28.7] - 2026-10-04
+## [0.28.8] - 2026-10-04
 
 ### Changed
 
 - **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.28.7] - 2026-10-04
+
+### Changed
+
+- **`/code-tidying:tidy` reads its scope budget from the shared PR scope budget convention.** The
+  plugin ships a generated copy at `reference/pr-scope-budget.md`; Phase D, the self-update
+  exclusions and the README point there instead of restating the target and hard cap.
+  `reference/scope-budget.md` keeps only tidy's overflow priority order and deferred-items
+  template, and drops its own research lineage. The convention leaves overflow handling to each
+  adopter, so tidy's own overflow protocol stays in force. Spokes write the plugin directory as
+  `<plugin-root>`.
 
 ## [0.28.6] - 2026-10-04
 

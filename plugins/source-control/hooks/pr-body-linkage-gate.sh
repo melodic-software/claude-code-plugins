@@ -2,10 +2,9 @@
 # PreToolUse hook: block a bare `gh pr create` / `gh pr edit` whose PR BODY
 # would fail the consuming repository's own PR-contract CI gate.
 #
-# WHY IT EXISTS — the gate is a REQUIRED check, so a body missing any of the
-# five requirements blocks the merge; but nothing enforced the contract at
-# authoring time, so the failure was only ever discovered post-hoc, one CI
-# round trip after the PR was already open. `/source-control:pull-request
+# WHY IT EXISTS — CI reports a body missing any of the five requirements with
+# an advisory comment and label, one CI round trip after the PR is already
+# open; nothing else checks the contract at authoring time. `/source-control:pull-request
 # create` runs the equivalent pre-create gate (skills/pull-request/reference/
 # create.md §2.4.2); this hook covers the calls that never go through the skill.
 #

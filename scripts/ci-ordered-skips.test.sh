@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # Runs the `Check each skipped lane against scope` step body of
-# .github/workflows/ci.yml's ci-status under the shell Actions gives a step with
+# .github/workflows/pr-require-checks.yml's ci-status under the shell Actions gives a step with
 # no `shell:` (bash -e), against `toJSON(needs)` fixtures.
 #
-# A test lane `test-<x>` that skipped turns into `success` only where `scope`
+# A test lane `test-<x>` that skipped turns into `success` only where `select-tests`
 # succeeded and its `run_<x>` row is exactly 'false'. Every other result passes
 # through unchanged, so a skip that hid work stays `skipped` and the aggregate
 # (treat-skipped-as: fail) reds it.
-# test-scope: .github/workflows/ci.yml
+# test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WORKFLOW="$ROOT/.github/workflows/ci.yml"
+WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
 
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
@@ -44,7 +44,7 @@ fi
 
 # lanes <scope-result> <run_bash> <run_python> <run_node> <bash> <python> <node>
 lanes() {
-  printf '{"scope":{"result":"%s","outputs":{"run_bash":"%s","run_python":"%s","run_node":"%s"}},' "$1" "$2" "$3" "$4"
+  printf '{"select-tests":{"result":"%s","outputs":{"run_bash":"%s","run_python":"%s","run_node":"%s"}},' "$1" "$2" "$3" "$4"
   printf '"lint-repo":{"result":"success","outputs":{}},'
   printf '"test-bash":{"result":"%s","outputs":{}},"test-python":{"result":"%s","outputs":{}},' "$5" "$6"
   printf '"test-node":{"result":"%s","outputs":{}}}' "$7"

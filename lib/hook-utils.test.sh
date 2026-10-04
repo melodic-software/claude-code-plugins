@@ -1433,11 +1433,7 @@ if jq -e '.systemMessage == "user: y" and (has("hookSpecificOutput") | not)' <<<
 else
   fail "emit_skip_notice: user only" "got '$useronly16'"
 fi
-gated16="$(
-  HOOK_NOTICE_TO_MODEL=1
-  HOOK_NOTICE_TO_USER=0
-  hook::emit_skip_notice PostToolUse 'same text'
-)"
+gated16="$(HOOK_NOTICE_TO_MODEL=1 HOOK_NOTICE_TO_USER=0 hook::emit_skip_notice PostToolUse 'same text')"
 if jq -e '.hookSpecificOutput.additionalContext == "same text" and (has("systemMessage") | not)' \
   <<<"$gated16" >/dev/null 2>&1; then
   ok "emit_skip_notice: a channel notice_once did not clear gets the one-argument text alone"
@@ -1468,16 +1464,20 @@ fi
 # Agents of one session that hit the same key at once: exactly one of them owns
 # the user notice, and each still owns its own model notice.
 DATA16R="$(mktemp -d)"
-for i in $(seq 1 12); do
-  (
-    CLAUDE_PLUGIN_DATA="$DATA16R" hook::notice_once race "{\"session_id\":\"sess-r\",\"agent_id\":\"agent-$i\"}"
-    # shellcheck disable=SC2031 # notice_once just set both in this subshell
-    printf '%s%s\n' "$HOOK_NOTICE_TO_USER" "$HOOK_NOTICE_TO_MODEL" >"$DATA16R/out.$i"
-  ) &
-done
+race16_probe() {
+  CLAUDE_PLUGIN_DATA="$DATA16R" hook::notice_once race "{\"session_id\":\"sess-r\",\"agent_id\":\"agent-$1\"}"
+  [[ "$HOOK_NOTICE_TO_USER" == 1 ]] && : >"$DATA16R/user.$1"
+  [[ "$HOOK_NOTICE_TO_MODEL" == 1 ]] && : >"$DATA16R/model.$1"
+  return 0
+}
+for i in $(seq 1 12); do race16_probe "$i" & done
 wait
-race16_user="$(cat "$DATA16R"/out.* | cut -c1 | grep -c 1)"
-race16_model="$(cat "$DATA16R"/out.* | cut -c2 | grep -c 1)"
+shopt -s nullglob
+race16_users=("$DATA16R"/user.*)
+race16_models=("$DATA16R"/model.*)
+shopt -u nullglob
+race16_user=${#race16_users[@]}
+race16_model=${#race16_models[@]}
 if [[ "$race16_user" == 1 && "$race16_model" == 12 ]]; then
   ok "notice_once: racing agents send the user notice once and each its model notice"
 else

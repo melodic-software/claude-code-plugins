@@ -99,8 +99,10 @@ carries its `Basis:`: the standard's `file:line` or the fetched URL, or `judgmen
   whole target rather than one call site.
 - It must fit the hard cap in
   [`${CLAUDE_PLUGIN_ROOT}/reference/pr-scope-budget.md`](${CLAUDE_PLUGIN_ROOT}/reference/pr-scope-budget.md).
-  When the best candidate does not fit, follow that file's Overflow section: offer the user a
-  smaller slice or `/planning:plan` for the whole change, and never grow the PR past the cap.
+  When the best candidate does not fit, never grow the PR past the cap. Interactive runs offer a
+  smaller complete slice or `/planning:plan` for the whole change; unattended runs file the
+  remainder as a deduplicated work item (Unattended mode). The PR body names any deferred item by
+  number.
 - A candidate a `judgment` basis supports alone is never picked for a consequential change
   (cross-repo, shared infrastructure, irreversible, security). Present it as an open question
   instead.
@@ -136,7 +138,7 @@ Otherwise, and after a lane that does not ship, fix it here:
 3. **Measure.** `git diff --cached --shortstat` against the hard cap in
    `pr-scope-budget.md`. The estimate in Step 3 can miss references and formatting, so the cap
    is checked on the real diff. Over the cap: cut to a complete slice that fits, or unstage and
-   follow the Overflow section.
+   hand the remainder on as in Step 3.
 4. **Verify.** Invoke `/toolchain:check` via the Skill tool for the changed files, or the
    project's documented build, test, and lint commands where that skill is absent. A failing
    check is fixed or the change is dropped; it never ships red.

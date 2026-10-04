@@ -3,11 +3,18 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.1] - 2026-10-04
+## [0.6.2] - 2026-10-04
 
 ### Changed
 
 - **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.6.1] - 2026-10-04
+
+### Changed
+
+- **`/performance:go-faster`**: the CI/CD catalog entry points at this repository's renamed
+  gateway workflow, `.github/workflows/pr-require-checks.yml`.
 
 ## [0.6.0] - 2026-10-03
 

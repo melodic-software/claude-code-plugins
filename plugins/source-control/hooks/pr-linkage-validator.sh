@@ -264,7 +264,8 @@ section_content_to() {
     t="${LINKAGE_LINES[i]}"
     t="${t#"${t%%[![:space:]]*}"}"
     t="${t%"${t##*[![:space:]]}"}"
-    [[ "${t,,}" =~ ^##[[:space:]]+${heading_lc}$ ]] && {
+    # Quoted: a configured heading such as `What changed?` matches as text.
+    [[ "${t,,}" =~ ^##[[:space:]]+"${heading_lc}"$ ]] && {
       start=$((i + 1))
       break
     }
@@ -398,6 +399,23 @@ mask_markdown_code_to() {
   linkage::chomp_to "$__plv_dest" "$out"
 }
 
+# Section half of the verdict: append one LINKAGE_PROBLEMS line per <heading>
+# that is missing or empty in <body>, which must already be comment-stripped
+# and code-masked. Shared by linkage::problems and the pull-request skill's
+# pre-create check, which passes its own configured headings.
+linkage::section_problems() {
+  local _plv_content="" _plv_masked="$1" heading
+  shift
+  for heading in "$@"; do
+    # shellcheck disable=SC2310  # the two exits ARE the verdict: absent vs present
+    if section_content_to _plv_content "$_plv_masked" "$heading"; then
+      [[ -n "$_plv_content" ]] || LINKAGE_PROBLEMS+=("The \"## ${heading}\" section is empty.")
+    else
+      LINKAGE_PROBLEMS+=("Missing a \"## ${heading}\" section.")
+    fi
+  done
+}
+
 # Aggregate verdict: strip comments, mask Markdown code (CI does both before
 # any heading or keyword scan), then every required section plus the linkage
 # half: a negated closing reference, and missing linkage. Fills the global LINKAGE_PROBLEMS array with one line per
@@ -408,19 +426,12 @@ LINKAGE_PROBLEMS=()
 linkage::problems() {
   # `_plv_`-prefixed per the DEST-NAME CONTRACT above: an out-variable named
   # `body`, `out`, or `line` would be captured by the callee's own local.
-  local _plv_stripped="" _plv_body="" _plv_content="" heading
+  local _plv_stripped="" _plv_body=""
   local _plv_linked=0 _plv_negated=""
   strip_html_comments_to _plv_stripped "$1"
   mask_markdown_code_to _plv_body "$_plv_stripped"
   LINKAGE_PROBLEMS=()
-  for heading in "${REQUIRED_SECTIONS[@]}"; do
-    # shellcheck disable=SC2310  # the two exits ARE the verdict: absent vs present
-    if section_content_to _plv_content "$_plv_body" "$heading"; then
-      [[ -n "$_plv_content" ]] || LINKAGE_PROBLEMS+=("The \"## ${heading}\" section is empty.")
-    else
-      LINKAGE_PROBLEMS+=("Missing a \"## ${heading}\" section.")
-    fi
-  done
+  linkage::section_problems "$_plv_body" "${REQUIRED_SECTIONS[@]}"
   # shellcheck disable=SC2310  # the exit IS the verdict: linkage present or not
   scan_linkage "$_plv_body" || _plv_linked=1
   ((${#LINKAGE_NEGATED[@]} == 0)) || {
