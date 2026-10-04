@@ -917,9 +917,9 @@ PYD=$'--- a/t.py\n+++ b/t.py\n@@ -1,2 +1,3 @@\n def test_x():\n+    # the value 
 CSD=$'--- a/T.cs\n+++ b/T.cs\n@@ -1,1 +1,3 @@\n+    /* the value\n+     * is 3 */\n+\n     Assert.Equal(3, F());'
 CODE=$'--- a/t.py\n+++ b/t.py\n@@ -1,1 +1,1 @@\n-    assert f() == 3  # spec\n+    assert f() == 1 + 2  # spec'
 STAR=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,2 +1,2 @@\n   const want = 3\n-    * 1;\n+    * 2;'
-JSDOC=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,1 +1,4 @@\n+  /**\n+   * The expected value is the spec\'s 3.\n+   */\n   test(\'x\', () => {'
-GLOB=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,3 +1,3 @@\n   const files = glob(\'src/**/*.ts\');\n   const want = 3\n-    * 1;\n+    * 2;'
-INLINE=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,1 +1,2 @@\n   test(\'x\', () => {\n+  /* x */ expect(1).toBe(2);'
+JSDOC=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,1 +1,4 @@\n+  /**\n+   * The expected value is the spec value 3.\n+   */\n   test("x", () => {'
+GLOB=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,3 +1,3 @@\n   const files = glob("src/**/*.ts");\n   const want = 3\n-    * 1;\n+    * 2;'
+INLINE=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,1 +1,2 @@\n   test("x", () => {\n+  /* x */ expect(1).toBe(2);'
 REMOVED=$'--- a/a.test.ts\n+++ b/a.test.ts\n@@ -1,3 +1,2 @@\n   const want = 3\n-    /* the old note\n+    * 2;'
 export PYD CSD CODE STAR JSDOC GLOB INLINE REMOVED
 check "a Python diff that adds and removes only # comments is comment-only" 'lib linux-gnu "judge::comment_only t_test.py \"\$PYD\""'
