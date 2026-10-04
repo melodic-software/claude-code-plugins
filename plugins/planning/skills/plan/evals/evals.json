@@ -234,6 +234,124 @@
         "The for clause names only the checkout tests, not the whole suite",
         "Step 4.7 reports criterion=planned-breakage status=pass from check-plan-outcome.sh"
       ]
+    },
+    {
+      "id": 19,
+      "name": "phase-order-composed",
+      "narration": true,
+      "prompt": "/planning:plan add a recurring-booking feature to the clinic scheduler: a new RecurrenceRule type in scheduling/, an API endpoint, and a calendar UI control. The old WeeklySlotGenerator in scheduling/legacy/ has no callers left and sits in the files this change touches. Nobody knows yet whether the calendar library can render recurring events. I never set phase_order and the repository has no docs/conventions/planning.yaml. We are committed to ship; plan it as a walking skeleton.",
+      "expected_output": "The skill reports phase_order composed from the default. Phase 1 removes WeeklySlotGenerator (through /code-tidying:audit-dead-code when it is available, else the candidates from the plan's own reads with the search that found no caller). Phase 2 is the integration slice through RecurrenceRule, the endpoint and the UI control, with an end-to-end runtime probe as its Sanity Check. Phase 3 resolves the calendar-library rendering unknown. Scaffold and the remaining features follow.",
+      "files": [],
+      "expectations": [
+        "Reports phase_order composed and names the default as the supplying layer",
+        "The first phase removes WeeklySlotGenerator, before any building phase",
+        "The integration slice comes next, and its Sanity Check is an end-to-end runtime probe",
+        "The calendar-library rendering unknown is the phase after the integration slice, before the remaining features"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "phase-order-bug-fix-skips-removal",
+      "narration": true,
+      "prompt": "/planning:plan fix the bug where the clinic scheduler double-books a room when two bookings end and start at the same minute. The overlap check is in scheduling/overlap.ts. The same folder also holds an unused helper, formatSlotLegacy, with no callers. phase_order is not set anywhere, so it is the default.",
+      "expected_output": "The skill reports phase_order composed from the default and, because the task is a bug fix, skips the dead-code removal step: no phase removes formatSlotLegacy, and the plan starts with the failing regression test and the fix in scheduling/overlap.ts. It may mention the unused helper as a separate follow-up.",
+      "files": [],
+      "expectations": [
+        "Reports phase_order composed",
+        "No phase of the plan deletes formatSlotLegacy or any other code outside the fix",
+        "States that the removal step is skipped because the task is a bug fix",
+        "The first phase targets the double-booking fix in scheduling/overlap.ts"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "phase-order-riskiest-first",
+      "narration": true,
+      "prompt": "/planning:plan move the clinic's appointment reminders from SMS to a new push-notification provider: provider SDK integration, a token-registration endpoint, a migration of stored phone preferences, and an admin toggle. Whether the provider's SDK can send from our region is unconfirmed, and every other step depends on it. The repository's docs/conventions/planning.yaml contains `phase_order: riskiest-first`.",
+      "expected_output": "The skill reports phase_order riskiest-first from docs/conventions/planning.yaml. Phase 1 proves the provider SDK can send from the region, because its failure would invalidate every later phase; the endpoint, migration and admin toggle follow in dependency order.",
+      "files": [],
+      "expectations": [
+        "Reports phase_order riskiest-first and names docs/conventions/planning.yaml as the supplying layer",
+        "Phase 1 tests whether the provider SDK can send from the region",
+        "The token endpoint, preference migration and admin toggle all come after that phase"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "phase-order-subtraction-first",
+      "narration": true,
+      "prompt": "/planning:plan add CSV export to the invoice list. The invoices/ folder has two unused exporters, PdfExportV1 and XmlExportOld, with no callers. My planning plugin user config sets phase_order to subtraction-first; the repository has no docs/conventions/planning.yaml.",
+      "expected_output": "The skill reports phase_order subtraction-first from the user config. Phase 1 removes PdfExportV1 and XmlExportOld, the next phase scaffolds the export entry point, and the CSV export feature follows; no integration or risk phase is pulled ahead of the scaffold.",
+      "files": [],
+      "expectations": [
+        "Reports phase_order subtraction-first and names the user config as the supplying layer",
+        "Phase 1 removes PdfExportV1 and XmlExportOld",
+        "A scaffold phase comes before the CSV export feature phase"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "phase-order-layer-user-config-only",
+      "narration": true,
+      "prompt": "/planning:plan add a waitlist to the clinic scheduler: a Waitlist table, an endpoint, and a notification when a slot frees. My planning plugin user config sets phase_order to riskiest-first. This repository has no docs/conventions/planning.yaml.",
+      "expected_output": "The skill resolves phase_order to riskiest-first from the user config, treats the missing repository file as an unset layer, reports one line naming riskiest-first and the user config, and orders the riskiest step first.",
+      "files": [],
+      "expectations": [
+        "Reports phase_order riskiest-first and names the user config as the supplying layer",
+        "Treats the missing docs/conventions/planning.yaml as an unset layer, not an error",
+        "The first phase is the step whose failure would invalidate the most later work"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "phase-order-layer-repo-file-only",
+      "narration": true,
+      "prompt": "/planning:plan add a waitlist to the clinic scheduler: a Waitlist table, an endpoint, and a notification when a slot frees. I never set the planning plugin's phase_order option. The repository's docs/conventions/planning.yaml contains the single line `phase_order: subtraction-first`.",
+      "expected_output": "The skill reads phase_order from docs/conventions/planning.yaml, reports subtraction-first with that file as the supplying layer, and orders removal, then scaffold, then features.",
+      "files": [],
+      "expectations": [
+        "Reads the phase_order key from docs/conventions/planning.yaml in the checkout",
+        "Reports phase_order subtraction-first and names docs/conventions/planning.yaml as the supplying layer",
+        "Orders any removal phase before scaffold, and scaffold before the waitlist features"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "phase-order-layer-repo-file-wins-over-user-config",
+      "narration": true,
+      "prompt": "/planning:plan add a waitlist to the clinic scheduler: a Waitlist table, an endpoint, and a notification when a slot frees. My planning plugin user config sets phase_order to riskiest-first, but the repository's docs/conventions/planning.yaml contains `phase_order: composed`.",
+      "expected_output": "The repository value wins: the skill reports phase_order composed from docs/conventions/planning.yaml and orders the phases by the composed rule, not riskiest-first.",
+      "files": [],
+      "expectations": [
+        "Reports phase_order composed and names docs/conventions/planning.yaml as the supplying layer",
+        "States or acts on the repository file overriding the user config value riskiest-first",
+        "Orders the phases by the composed rule"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "phase-order-layer-default-when-neither-sets-it",
+      "narration": true,
+      "prompt": "/planning:plan add a waitlist to the clinic scheduler: a Waitlist table, an endpoint, and a notification when a slot frees. I never set the planning plugin's phase_order option, and this repository has no docs/conventions/planning.yaml.",
+      "expected_output": "The skill reports phase_order composed from the default layer and orders the phases by the composed rule.",
+      "files": [],
+      "expectations": [
+        "Reports phase_order composed and names the default as the supplying layer",
+        "Orders the phases by the composed rule"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "phase-order-invalid-repo-value-drops-the-layer",
+      "narration": true,
+      "prompt": "/planning:plan add a waitlist to the clinic scheduler: a Waitlist table, an endpoint, and a notification when a slot frees. My planning plugin user config sets phase_order to riskiest-first. The repository's docs/conventions/planning.yaml contains the single line `phase_order: risky-first`.",
+      "expected_output": "The skill names `risky-first` in docs/conventions/planning.yaml as an invalid phase_order value and drops that layer. With no valid layer above it, the key resolves to the default composed, not to the user config's riskiest-first. The run continues and orders the phases by the composed rule.",
+      "files": [],
+      "expectations": [
+        "Names the file docs/conventions/planning.yaml, the key phase_order and the value risky-first as invalid",
+        "Reports phase_order composed, not the user config value riskiest-first",
+        "Continues and produces a plan rather than stopping on the invalid value"
+      ]
     }
   ]
 }

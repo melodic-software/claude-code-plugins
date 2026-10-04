@@ -11,6 +11,11 @@
       "description": "Where /planning:plan keeps an approved plan. local: PLAN.md in the memory slice only. tracker: also posted as one marked comment on the claimed work item, updated in place on re-publish.",
       "enum": ["local", "tracker"],
       "default": "local"
+    },
+    "phase_order": {
+      "description": "How /planning:plan orders phases. composed: remove dead code the change touches (skipped for a bug fix), then the integration slice, then the riskiest remaining unknown, then scaffold, then the remaining features. subtraction-first: dead code, scaffold, features. riskiest-first: the step whose failure would invalidate the most downstream work goes first.",
+      "enum": ["composed", "subtraction-first", "riskiest-first"],
+      "default": "composed"
     }
   }
 }

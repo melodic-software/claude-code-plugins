@@ -92,14 +92,15 @@
       "kind": "cli",
       "need": "optional",
       "for": [
-        "plugin"
+        "plugin",
+        "skill:setup"
       ],
       "detect": {
         "any": [
           "node"
         ]
       },
-      "degrade": "Without node, the prerequisites checker cannot run, so a missing tool above goes unreported; the plugin's own skills are unaffected.",
+      "degrade": "Without node, the prerequisites checker cannot run, so a missing tool above goes unreported, and /planning:setup cannot check or write docs/conventions/planning.yaml; the planning skills still read that file themselves.",
       "install": {
         "docs": "https://nodejs.org/en/download",
         "brew": "node",

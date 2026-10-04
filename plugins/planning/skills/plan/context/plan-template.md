@@ -217,7 +217,7 @@ For plans with ≥2 phases. Single-phase plans and trivial fixes skip this secti
 - <Phase C activates a hook that affects Phase D's commit>
 - <Phase E is independent of A, B, D>
 - (or one-liner: "all phases sequential, semantic-source-first ordering")
-- Integration-first ordering is a third axis beyond dependency-order and parallelism: among phases not forced by a dependency, the integration slice goes first.
+- `phase_order` (plan Step 2) is a third axis beyond dependency order and parallelism: among phases no dependency forces, it sets the order (under the default `composed`: dead-code removal, then the integration slice, then the riskiest unknown, then scaffold, then the remaining features).
 
 ### Recommended shape
 

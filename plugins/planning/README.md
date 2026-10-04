@@ -99,6 +99,16 @@ unrecognized value, so a repo that declares nothing sees no change in output.
 in `docs/conventions/planning.yaml` (schema: `schemas/planning.schema.json`), which wins over this
 option. Any other value resolves `local`. `tracker` needs the work-items plugin and a claimed item.
 
+**`phase_order`.** Decides the order of a plan's phases after the build technique is chosen.
+`composed` removes dead code the change touches first (a bug fix skips this), then builds the
+integration slice, then the riskiest remaining unknown, then scaffold, then the remaining features.
+`subtraction-first` runs dead-code removal, then scaffold, then features. `riskiest-first` puts the
+step whose failure would invalidate the most later work first. A repository sets it for everyone
+with the `phase_order` key in `docs/conventions/planning.yaml`, which wins over this option. A value
+outside the three is named and that layer is dropped; with no valid layer left the plan uses
+`composed`. `/planning:setup apply phase_order=<value>` writes the repository file. All keys and
+layers: [`reference/config.md`](reference/config.md).
+
 **`use_emoji_question_markers`.** On the page surface the anchors sit on the question title and
 the Recommendation heading; the terminal line they lead is `My recommendation:`. Q<N> numbering
 stays the functional handle, and persisted artifacts (ledger, register, Brief) never carry the
@@ -119,6 +129,7 @@ reads it from.
 | `use_ask_user_question` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_USE_ASK_USER_QUESTION` | When enabled, the planning skills' question rounds (interview, prd, design, plan) render a round of up to 4 independent questions through the AskUserQuestion tool instead of inline prose. Default: inline prose (dictation-friendly). |
 | `use_emoji_question_markers` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_USE_EMOJI_QUESTION_MARKERS` | When on, each interview round question leads with a ❓ anchor on its Q<N> line and its My recommendation line leads with ➡️, in the terminal and on the page surface. Purely presentational: persisted artifacts never carry the emoji. Default: plain text. |
 | `plan_store` | string | `"local"` | `CLAUDE_PLUGIN_OPTION_PLAN_STORE` | Where /planning:plan keeps an approved plan: local (default, PLAN.md in the memory slice only) or tracker (also posted as one comment on the claimed work item). A repository's docs/conventions/planning.yaml plan_store key overrides this value. |
+| `phase_order` | string | `"composed"` | `CLAUDE_PLUGIN_OPTION_PHASE_ORDER` | How /planning:plan orders phases: composed (default: dead-code removal, integration slice, riskiest unknown, scaffold, features), subtraction-first (removal, scaffold, features) or riskiest-first. A repository's docs/conventions/planning.yaml phase_order key overrides this value. |
 
 ### How to set these
 
