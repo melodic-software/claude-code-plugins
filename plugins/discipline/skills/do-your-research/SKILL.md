@@ -111,7 +111,8 @@ yet settled is audited too, whether it is an option, verdict, default, or
 next step. Apply the contract in
 [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md):
 ground the affected code and its consumers or blast radius through
-`/discovery:explore`, and current consensus through `/discovery:research`,
+`/discovery:explore`, and the authoritative sources the contract names
+through `/discovery:research`,
 when the `discovery` plugin is installed; without it, do the same reads and
 fetches inline. Report each as old → new → why when the evidence moved it,
 or unchanged with why, in one of the contract's three outcomes:
