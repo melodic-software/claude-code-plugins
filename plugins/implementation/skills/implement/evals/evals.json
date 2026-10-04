@@ -127,6 +127,32 @@
         "Has a fresh-context verifier, not the producing context, check the mechanical rename phase before marking it [DONE]",
         "Does NOT mark the phase [DONE] on the build/test/lint pass alone"
       ]
+    },
+    {
+      "id": 11,
+      "name": "planned-breakage-red-commit-inside-span",
+      "narration": true,
+      "prompt": "/implementation:implement execute the approved plan. Phase 1 reads `**Planned breakage:** tests red until Phase 2 for tests/checkout/: RateTable stubs land before the callers move`. Before any edit the suite was green. I added RateTable with throwing stubs; now four tests in tests/checkout/ fail and every other test passes. Commit the Phase 1 checkpoint.",
+      "expected_output": "Records that the suite was green at the span's start, confirms every failing test lies in tests/checkout/, and makes the red commit with a body naming the span (tests red until Phase 2 for tests/checkout/). It does not treat the four failures as a regression and does not stop. It notes that Phase 2 must turn tests/checkout/ green and that Step 5's end gate stays green.",
+      "files": [],
+      "expectations": [
+        "Checks that every failing test lies under tests/checkout/ before committing",
+        "Commits with a body that names the planned breakage span",
+        "States that the failures must be green by the end of Phase 2 and that the end gate is green"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "planned-breakage-undeclared-red-stops",
+      "narration": true,
+      "prompt": "/implementation:implement execute the approved plan. Phase 1 reads `**Planned breakage:** tests red until Phase 2 for tests/checkout/: RateTable stubs land before the callers move`. Before any edit the suite was green. After adding the stubs, three tests in tests/checkout/ fail and one test in tests/invoices/test_totals.py also fails. Commit the Phase 1 checkpoint.",
+      "expected_output": "Does not make the red commit. The tests/invoices/test_totals.py failure lies outside the declared paths, so it is a real failure: the skill stops to investigate it under the break-the-cadence rules, and does not widen the declaration to cover tests/invoices/.",
+      "files": [],
+      "expectations": [
+        "Names tests/invoices/test_totals.py as a failure outside the declared paths",
+        "Does NOT commit while that failure stands",
+        "Does NOT edit the Planned breakage line to add tests/invoices/"
+      ]
     }
   ]
 }

@@ -86,6 +86,7 @@ Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-plan-outcome.sh" <PLAN.md>` and r
 - **Every phase carries a valid status tag**. Each `### Phase N:` ends in `[TODO]`, `[DOING]`, or `[DONE]`; no untagged phase.
 - **Every unilateral decision has a table row**. When the plan carries an `[EXEC-SHAPE]` / `[FALLBACK]` tag from Step 4.6, the "Decisions made (gate-passed)" table (`| Decision | What it changes in the plan | ...`) is persisted in PLAN.md with at least one row.
 - **Blast radius assessed**. A Blast-radius line naming LOW, MEDIUM, HIGH, or CRITICAL exists (from Step 3b), not omitted.
+- **Planned breakage is well formed**. Each `**Planned breakage:**` line (the optional per-phase line in [context/plan-template.md](context/plan-template.md)) sits in a phase section, names a kind of `build`, `tests` or `lint`, a later `### Phase` heading to stay red until, and the failing paths or test filter: the `planned-breakage` criterion. A plan with no such line passes.
 - **Paths are portable**. No drive-letter path and no `/Users/<name>` or `/home/<name>` path, since a published PLAN.md is read on other machines; a deliberate example carries `<!-- path-example -->` on its line.
 
 The rest are judgment checked by reading, or have their own script:

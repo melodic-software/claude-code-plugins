@@ -16,6 +16,12 @@ Do not edit files. Your tools include Bash for read-only probes only, and the to
 enforce that.
 Your job is to surface gaps the authoring thread would rubber-stamp, not to rewrite the plan.
 
+One check on every plan, whatever axes the prompt names: for each `**Planned breakage:**` line,
+confirm the phase's work items actually leave that build, test or lint step red, that its `for`
+clause names no more than the paths or test filter they break, and that Phase `<M>`'s work items
+turn those failures green. Report a declaration wider than its cause, or a span no phase closes,
+as a finding.
+
 Keep reasoning **brief**. Return the findings table from the prompt template, not a narrative essay.
 
 **Verification.** Claim: `effort` in this agent definition overrides the session effort, and the

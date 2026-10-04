@@ -11,6 +11,7 @@
 - [Execution-Shape Analysis](#execution-shape-analysis)
 - [Large-scale changes (migrations, library swaps, broad refactoring)](#large-scale-changes-migrations-library-swaps-broad-refactoring)
 - [Phase Review tags (optional per phase)](#phase-review-tags-optional-per-phase)
+- [Planned breakage (optional per phase)](#planned-breakage-optional-per-phase)
 - [Phase-entry checks for tracker writes](#phase-entry-checks-for-tracker-writes)
 - [Checkbox inventory pattern](#checkbox-inventory-pattern)
 - [Domain-specialist skills during planning](#domain-specialist-skills-during-planning)
@@ -328,6 +329,22 @@ Review: code-design    # configurability, testability, observability
 ```
 
 Omit `Review:` when the phase is docs-only or trivial with no new types/contracts.
+
+## Planned breakage (optional per phase)
+
+When a phase knowingly leaves the build, the tests or the lint red until a later phase lands (stub signatures before their callers, a schema change before its readers), declare it in that phase so implementation tells the planned failure from a regression:
+
+```markdown
+### Phase N: <name> [TODO]
+**Planned breakage:** <build | tests | lint> red until Phase <M> for <failing paths or test filter>: <reason>
+```
+
+- `<M>` is a later `### Phase` heading; order is the heading order, so `2.5`, `3a` and `IV` all work. The span runs from this phase to the end of Phase `<M>`, where the named failures must be green.
+- The `for` clause names exactly what may fail: paths (`src/billing/`) or a test filter (`-k invoice_totals`). Implementation treats any failure outside it as a real failure.
+- One line per kind. The last phase cannot declare one: nothing after it closes the span.
+- Step 4.7's `planned-breakage` criterion fails a line with another kind, no `until Phase`, no `for` clause, or a target phase that is missing or not later.
+
+Omit the line when every phase ends green.
 
 ## Phase-entry checks for tracker writes
 

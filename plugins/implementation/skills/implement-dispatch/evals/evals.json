@@ -279,6 +279,19 @@
         "States that the repository layer was skipped because the root is the home directory",
         "Resolves verify_mechanical_phases to false and verifies the rename phase from the diff plus the build/test signal"
       ]
+    },
+    {
+      "id": 22,
+      "name": "planned-breakage-build-gate",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: a worker returned Phase 1 of the approved plan, whose Phase 1 reads `**Planned breakage:** build red until Phase 3 for src/shipping/: interface lands before its implementations`. The build was green before Phase 1. Your main-side build now reports two compile errors in src/shipping/rates.ts and one in src/orders/summary.ts. No pull request exists yet.",
+      "expected_output": "The main-side build gate fails the phase: the src/orders/summary.ts error lies outside the declared src/shipping/ paths, so the return is not accepted, and the phase is not marked [DONE]. The orchestrator routes it like a failed gate (a fix or a divergence report), never widening the declaration. Had both errors been in src/shipping/, the gate would pass for this span and the worker's early push could carry the red commit, since no pull request exists.",
+      "files": [],
+      "expectations": [
+        "Names the src/orders/summary.ts error as outside the declared paths and fails the build gate",
+        "Does NOT mark Phase 1 [DONE] or accept the return as-is",
+        "States that a red commit is pushable only while every failure lies in src/shipping/ and before a pull request exists"
+      ]
     }
   ]
 }

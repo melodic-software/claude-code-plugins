@@ -19,6 +19,12 @@ All notable changes to the `implementation` plugin are documented here. Format f
   either layer wins, and the skill reports the layer that supplied the value. The new settings
   page `reference/config.md` holds the resolution and root rules, and a plugin-level eval case
   under `evals/` checks that a repository `true` dispatches the verifier for a rename phase.
+- **Planned breakage tells a declared red step from a regression.** When the plan's phase carries a
+  `**Planned breakage:**` line, `/implementation:implement` records the failure set at the span's
+  start and allows a red commit only when every new failure lies in the declared paths or test
+  filter, with a body naming the span; any other failure stops the run, and Step 5's end gate is
+  always green. `/implementation:implement-dispatch`'s build gate and phase-verifier brief apply
+  the same rule, and the early push carries a red commit only before a pull request exists.
 
 ## [0.21.3] - 2026-10-04
 

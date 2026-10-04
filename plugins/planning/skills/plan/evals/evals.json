@@ -221,6 +221,19 @@
         "Reports the resolved value local, not the user config value tracker",
         "Does not invoke /work-items:track publish-plan and posts no comment to item #812"
       ]
+    },
+    {
+      "id": 18,
+      "name": "planned-breakage-declared",
+      "narration": true,
+      "prompt": "/planning:plan split the shipping-rate calculator into a RateTable type and its callers. I agreed the design: Phase 1 adds RateTable with stub methods that throw, Phase 2 moves the three callers in checkout/ onto it. The checkout tests will fail after Phase 1 and pass again after Phase 2. I approve the plan as presented.",
+      "expected_output": "The plan's Phase 1 carries a per-phase line `**Planned breakage:** tests red until Phase 2 for <the checkout test paths or filter>: <reason>`, with kind tests, a later phase as the end of the span, and only the checkout tests in the for clause. Phase 2's Sanity Check expects those tests green. Step 4.7 runs check-plan-outcome.sh and its planned-breakage criterion passes.",
+      "files": [],
+      "expectations": [
+        "Phase 1 has a line starting **Planned breakage:** with kind tests, until Phase 2, and a for clause naming the checkout tests",
+        "The for clause names only the checkout tests, not the whole suite",
+        "Step 4.7 reports criterion=planned-breakage status=pass from check-plan-outcome.sh"
+      ]
     }
   ]
 }
