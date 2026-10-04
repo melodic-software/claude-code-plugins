@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "review:ratchet", "args": "the end-to-end suite's wall time"}}],
+      "why": "the ratchet skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "performance:snapshot", "args": "baseline"}}],
+      "why": "a different skill"
+    }
+  ]
+}

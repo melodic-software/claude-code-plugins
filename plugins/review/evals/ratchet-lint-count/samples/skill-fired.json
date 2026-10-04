@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "review:ratchet", "args": "the no-console rule"}}],
+      "why": "the ratchet skill"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "performance:protect", "args": "the no-console rule"}}],
+      "why": "a different skill"
+    }
+  ]
+}

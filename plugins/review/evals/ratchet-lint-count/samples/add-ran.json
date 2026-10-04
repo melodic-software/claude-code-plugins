@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "python3 \"/plugins/review/skills/ratchet/scripts/ratchet.py\" add --file .ratchets.json --name no-console --field violations --command 'bash lint-count.sh' --goal 'no new no-console violations'"}}
+      ],
+      "why": "the ceiling is measured by add"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "python3 \"/plugins/review/skills/ratchet/scripts/ratchet.py\" check --file .ratchets.json"}}
+      ],
+      "why": "check measures nothing new"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "bash lint-count.sh"}}
+      ],
+      "why": "running the counter by hand records no ceiling"
+    }
+  ]
+}

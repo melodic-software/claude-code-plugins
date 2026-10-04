@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "bash time-e2e.sh"}},
+        {"tool": "Bash", "input": {"command": "git grep -n -E 'ratchet\\.py.{0,2} check'"}}
+      ],
+      "why": "reading the time and looking for a check records nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "python3 \"/plugins/review/skills/ratchet/scripts/ratchet.py\" add --file .ratchets.json --name e2e-seconds --field seconds --command 'bash time-e2e.sh' --goal 'e2e under 212 s'"}}
+      ],
+      "why": "a ceiling on a duration"
+    }
+  ]
+}

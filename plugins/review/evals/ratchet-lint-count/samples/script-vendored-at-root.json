@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [".ratchets.json", "ratchet.py"],
+      "why": "the script sits beside the new ceilings file at the root"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [".ratchets.json", "tools/ratchet.py"],
+      "why": "vendored somewhere other than beside .ratchets.json"
+    },
+    {
+      "answer": [".ratchets.json"],
+      "why": "no vendored script, so CI has nothing to run"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "jobs:\n  tests:\n    runs-on: ubuntu-24.04\n    steps:\n      - name: Unit tests\n        run: python3 -m unittest\n      - name: Check counter ceilings\n        run: python3 .performance/ratchet.py check\n",
+      "why": "the existing step covers the new entry"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "jobs:\n  tests:\n    runs-on: ubuntu-24.04\n    steps:\n      - name: Unit tests\n        run: python3 -m unittest\n      - name: Check counter ceilings\n        run: python3 .performance/ratchet.py check\n      - name: Check count ceilings\n        run: python3 ratchet.py check --file .ratchets.json\n",
+      "why": "a second ratchet step"
+    }
+  ]
+}

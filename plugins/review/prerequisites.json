@@ -6,7 +6,8 @@
       "need": "optional",
       "for": [
         "skill:audit-enforceability",
-        "skill:explain-change"
+        "skill:explain-change",
+        "skill:ratchet"
       ],
       "detect": {
         "any": [
@@ -21,7 +22,7 @@
           "min": "3"
         }
       },
-      "degrade": "Without Python 3, the stub emitter skips Unicode normalization of file paths and proceeds with the raw path, and the change digest cannot reach the session, so the reader copies questions back instead.",
+      "degrade": "Without Python 3, the stub emitter skips Unicode normalization of file paths and proceeds with the raw path, and the change digest cannot reach the session, so the reader copies questions back instead. The count ratchet cannot measure or record a ceiling.",
       "install": {
         "docs": "https://www.python.org/downloads/",
         "brew": "python",

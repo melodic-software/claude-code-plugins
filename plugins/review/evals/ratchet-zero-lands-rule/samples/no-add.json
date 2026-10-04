@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "bash lint-count.sh"}}
+      ],
+      "why": "measuring once records nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "python3 \"/plugins/review/skills/ratchet/scripts/ratchet.py\" add --file .ratchets.json --name no-console --field violations --command 'bash lint-count.sh' --goal 'no console calls'"}}
+      ],
+      "why": "a zero ceiling where the rule should land"
+    }
+  ]
+}

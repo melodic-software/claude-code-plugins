@@ -65,6 +65,7 @@ lib/state-key.sh plugins/code-metrics/lib/state-key.sh
 lib/state-key.sh plugins/session-flow/lib/state-key.sh
 lib/state-key.sh plugins/performance/lib/state-key.sh
 plugins/session-flow/scripts/transcript_reader.py plugins/performance/lib/transcript_reader.py
+plugins/performance/scripts/ratchet.py plugins/review/skills/ratchet/scripts/ratchet.py
 lib/rewrite-guard.sh plugins/bash-format/hooks/rewrite-guard.sh
 lib/rewrite-guard.sh plugins/biome-format/hooks/rewrite-guard.sh
 lib/rewrite-guard.sh plugins/eol-normalizer/hooks/rewrite-guard.sh

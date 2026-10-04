@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "name: ci\non:\n  pull_request:\njobs:\n  build:\n    runs-on: ubuntu-24.04\n    steps:\n      - name: Lint\n        run: npx eslint src\n",
+      "why": "the lint step alone fails on a violation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "name: ci\non:\n  pull_request:\njobs:\n  build:\n    runs-on: ubuntu-24.04\n    steps:\n      - name: Lint\n        run: npx eslint src\n      - name: Check count ceilings\n        run: python3 ratchet.py check --file .ratchets.json\n",
+      "why": "a ratchet step for a zero count"
+    }
+  ]
+}

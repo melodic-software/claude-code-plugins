@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "ratchet", "args": "the no-console rule"}}],
+      "why": "the ratchet skill, unqualified"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "review:audit-enforceability", "args": "findings.md"}}],
+      "why": "a different review skill"
+    }
+  ]
+}

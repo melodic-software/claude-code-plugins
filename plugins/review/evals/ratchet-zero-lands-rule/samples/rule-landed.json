@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "{\n  \"root\": true,\n  \"rules\": {\n    \"no-console\": \"error\"\n  }\n}\n",
+      "why": "error severity"
+    },
+    {
+      "answer": "{\n  \"root\": true,\n  \"rules\": {\n    \"no-console\": [\"error\", { \"allow\": [] }]\n  }\n}\n",
+      "why": "error severity with options"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\n  \"root\": true,\n  \"rules\": {\n    \"no-console\": \"off\"\n  }\n}\n",
+      "why": "still off"
+    },
+    {
+      "answer": "{\n  \"root\": true,\n  \"rules\": {\n    \"no-console\": \"warn\"\n  }\n}\n",
+      "why": "a warning does not fail the build"
+    }
+  ]
+}

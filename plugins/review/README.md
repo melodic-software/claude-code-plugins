@@ -78,6 +78,13 @@ Invoke via `@review:<agent>` or let Claude delegate.
   rung (editorconfig severity, analyzer-pack rule, custom analyzer, Semgrep rule, architecture
   test, hook, or llm-only), and writes one proposal stub per finding naming that rung and its
   owner. It proposes a rung and never implements one.
+- **`/review:ratchet [<counter, rule or claim>]`**. Holds a count with a checked-in CI ceiling: a
+  lint rule's violations, a suppression count, a verified performance counter, or a telemetry
+  count. A zero count turns the rule on with no ceiling; a non-zero one is recorded at its measured
+  value in the ceilings file CI already checks (`.performance/ratchets.json` when CI calls
+  `ratchet.py check` with no `--file`), or in a new `.ratchets.json`, with a check step inside the
+  required job and a same-PR or scheduled tightening plan. Counters only, never durations. It
+  writes proposed files uncommitted and never merges.
 - **`/review:code-review`**. CI code-review lane command for a pull request
   (correctness / maintainability; security scoped out where a separate security
   lane runs, folded back in where none does).

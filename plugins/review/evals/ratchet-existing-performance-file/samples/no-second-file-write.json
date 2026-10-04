@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/w/.performance/ratchets.json", "content": "{\"counters\": []}"}}
+      ],
+      "why": "writing the existing performance file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Write", "input": {"file_path": "/w/.ratchets.json", "content": "{\"counters\": []}"}}
+      ],
+      "why": "a second ceilings file at the root"
+    }
+  ]
+}

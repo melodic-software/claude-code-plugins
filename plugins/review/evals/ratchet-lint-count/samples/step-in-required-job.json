@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "name: ci\non:\n  pull_request:\njobs:\n  build:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n      - name: Unit tests\n        run: node --test\n      - name: Check count ceilings\n        run: python3 ratchet.py check --file .ratchets.json\n  docs-preview:\n    runs-on: ubuntu-24.04\n    steps:\n      - name: Build docs\n        run: echo \"docs preview\"\n",
+      "why": "the step sits inside the required build job"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "name: ci\non:\n  pull_request:\njobs:\n  build:\n    runs-on: ubuntu-24.04\n    steps:\n      - name: Unit tests\n        run: node --test\n  docs-preview:\n    runs-on: ubuntu-24.04\n    steps:\n      - name: Check count ceilings\n        run: python3 ratchet.py check --file .ratchets.json\n",
+      "why": "the step is in docs-preview, which blocks nothing"
+    },
+    {
+      "answer": "name: ci\non:\n  pull_request:\njobs:\n  build:\n    runs-on: ubuntu-24.04\n    steps:\n      - name: Unit tests\n        run: node --test\n      - name: Check count ceilings\n        run: python3 ratchet.py check\n",
+      "why": "no --file, so the script checks .performance/ratchets.json"
+    }
+  ]
+}

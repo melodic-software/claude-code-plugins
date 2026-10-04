@@ -41,6 +41,18 @@ for the technique entries this skill applies.
   on it. Re-copy `ratchet.py`, `ab.sh` and `summarize.py` from `${CLAUDE_PLUGIN_ROOT}/scripts/`
   before using the new flags.
 
+## Who writes the ceiling
+
+Check whether `/review:ratchet` is among the available skills in this session.
+
+- **It is available:** hand it the counter's name, command, field and goal (with its Correlation
+  value), and skip §2-§4 here. It picks the ceilings file the repository's CI already checks, or
+  proposes one, and writes the CI step and the tightening plan. Then continue at §5.
+- **It is not available:** run §2-§4 below against `.performance/ratchets.json` with
+  `${CLAUDE_PLUGIN_ROOT}/scripts/ratchet.py`. Nothing here needs the review plugin.
+
+Either way, the Output block names the ceilings file and which path ran.
+
 ## 2. The ceilings file
 
 Propose `.performance/ratchets.json`, created by
@@ -203,7 +215,8 @@ Propose these beside the ratchet. The ratchet alone passes a subject that got ch
 
 ```text
 Counter:   <name> = <measured> (<field>), deterministic across <runs> runs
-Ceiling:   <value> in .performance/ratchets.json    Protects: <goal>. Correlation: <goal's value>
+Ceiling:   <value> in <ceilings file>, written by <review:ratchet | protect §2-§4>
+Protects:  <goal>. Correlation: <goal's value>
 CI step:   <workflow file and job>                   Required check: <name>
 Tighten:   same-PR | scheduled draft PR (<workflow file>)
 Guardrails proposed: <tests, or none needed and why>
@@ -220,7 +233,8 @@ Awaiting:  human approval of the files above
 
 ## Next
 
-`/source-control:pull-request` with the proposed files, once a human approves them.
+- The counter still needs its ceiling, CI step and tightening plan: `/review:ratchet`
+- A human approved the proposed files: `/source-control:pull-request`
 
 ## Gotchas
 

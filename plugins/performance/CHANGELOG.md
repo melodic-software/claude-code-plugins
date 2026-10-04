@@ -23,6 +23,7 @@ All notable changes to the `performance` plugin are documented here. Format foll
 
 ### Changed
 
+- `/performance:protect` hands the verified counter to `/review:ratchet` when that skill is among the session's available skills, and skips its own ceilings-file, CI-check and tightening steps. Without it, protect runs those steps itself against `.performance/ratchets.json` as before. The Output block names the ceilings file and which path wrote the ceiling. The plugin declares no dependency on review.
 - `/performance:target` hands a captured CPU profile, trace or heap snapshot to `/debugging:analyze-profile` when the debugging plugin is enabled, and counts its finding as measured evidence in the ranking.
 - `/performance:goal` takes an optional `min_attempts` when the work will run as a loop.
   `/performance:snapshot` freezes a harness for a loop only after `discriminate.py` shows it sees a

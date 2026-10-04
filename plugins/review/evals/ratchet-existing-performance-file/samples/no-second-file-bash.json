@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "python3 .performance/ratchet.py add --name type-ignores --field ignores --command 'bash count-ignores.sh' --goal 'no new type: ignore comments'"}},
+        {"tool": "Bash", "input": {"command": "python3 \"/plugins/review/skills/ratchet/scripts/ratchet.py\" check --file .performance/ratchets.json"}}
+      ],
+      "why": "the default file and the explicit performance path both name .performance/ratchets.json"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "python3 \"/plugins/review/skills/ratchet/scripts/ratchet.py\" add --file .ratchets.json --name type-ignores --field ignores --command 'bash count-ignores.sh' --goal 'no new type: ignore comments'"}}
+      ],
+      "why": "a second ceilings file"
+    }
+  ]
+}
