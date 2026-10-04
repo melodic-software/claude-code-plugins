@@ -213,7 +213,7 @@ write_snapshot_tok "$HT" g5 null 160000 10000 200000 '' '"3.0.0"' &&
 write_snapshot_tok "$HT" g6 null 160000 10000 200000 '' '"2.1.99"' &&
   expect "2.1.99 (numeric, not lexical, comparison): token shape dropped" unknown "$HT" g6
 write_snapshot_tok "$HT" g7 null 160000 10000 200000 '' omit &&
-  expect "cli_version absent (older tee, or no version on stdin): token shape dropped" unknown "$HT" g7
+  expect "cli_version absent (the session reported no version, or a file an older writer left): token shape dropped" unknown "$HT" g7
 write_snapshot_tok "$HT" g8 null 160000 10000 200000 '' '"2.1.132-beta"' &&
   expect "non-numeric version string: token shape dropped" unknown "$HT" g8
 write_snapshot_tok "$HT" g9 null 160000 10000 200000 '' 2 &&

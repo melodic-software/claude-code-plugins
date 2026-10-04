@@ -897,10 +897,10 @@ identical to each other, which is the half a reviewer notices, while all three d
 source. The scan exists because a registry alone repeats that shape one level up: the first report
 of this coupling named five copies, and building the registry found six.
 
-**Single-account-per-machine is a known gap, not a safe assumption.** The tee file is
-last-writer-wins and carries no account identifier, so a machine running lanes under more than one
-account feeds one account's healthy windows to lanes running on the exhausted one, and the guard
-cannot detect it. Same-machine account rotation is real operating practice, not a hypothetical.
+**Single-account-per-machine was a known gap, not a safe assumption.** The tee file was
+last-writer-wins and carried no account identifier, so a machine running lanes under more than one
+account fed one account's healthy windows to lanes running on the exhausted one, and the guard
+could not detect it. Same-machine account rotation is real operating practice, not a hypothetical.
 
 This is recorded as a **gap** rather than as an invariant because the previous framing, "operation
 assumes one account per machine", was descriptive of how the guard happened to be built rather

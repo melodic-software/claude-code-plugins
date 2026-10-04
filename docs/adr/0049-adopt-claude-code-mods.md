@@ -26,8 +26,8 @@ reproduce it on Linux). Criterion 5 fails as written: the early-access line is s
 Every fact about mods here rests on Anthropic as the single publisher (the docs pages, the per-build
 types, the changelog), plus this repository's own probes. None is independently confirmed.
 
-Two plugins in this marketplace, context-guard and rate-limit-guard, work around missing native
-surfaces today: a status-line tee writes files that settings hooks read and inject back as context.
+Two plugins in this marketplace, context-guard and rate-limit-guard, worked around missing native
+surfaces: a status-line tee wrote files that settings hooks read and injected back as context.
 A mod does those jobs in-process (session events, context lines added to a tool result, a band in
 the interface, a tool Claude can call), which is the gap this record answers.
 
