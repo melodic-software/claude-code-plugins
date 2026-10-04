@@ -216,6 +216,65 @@
         "Emits the rationale removal as a proposal with its narrative staged",
         "Names safe mode as the effective mode in the report rather than the standing posture"
       ]
+    },
+    {
+      "id": 19,
+      "name": "report-mode-applies-nothing-and-asks-nothing",
+      "prompt": "/code-tidying:dissolve-comments report lib/worker.sh\n\n(lib/worker.sh is committed. It carries a '# set the counter to zero' comment above 'counter=0', a rationale comment whose reasoning is absent from git history, and a two-line comment that a function extraction would make superfluous. A test suite exists. AskUserQuestion is unavailable.)",
+      "narration": true,
+      "expectations": [
+        "Edits no file: the class-A deletion, the rationale deletion, and the extraction are all emitted as proposals",
+        "Each proposal names the file and line, the class, and the treatment it would apply",
+        "Says the report has no census delta because nothing was edited, rather than reporting +0",
+        "Finishes without asking a question"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "report-added-since-scopes-to-added-lines",
+      "prompt": "/code-tidying:dissolve-comments report --added-since main\n\n(The branch adds two comment lines to src/app.sh and nothing else. src/app.sh also carries older comments on lines the branch did not touch.)",
+      "narration": true,
+      "expectations": [
+        "Runs added-lines.sh with main to resolve the scope instead of scope-code-files.sh",
+        "Proposes treatments only for the two added comments; the older comments are not triaged or reported",
+        "Edits no file"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "report-constraint-comment-yields-test-or-lint-proposal",
+      "prompt": "/code-tidying:dissolve-comments report src/\n\n(The current branch is feat/Retry-Fix. src/client.ts has '// Never call fetch directly; go through httpClient so the retry policy applies', and src/queue.ts has '// open() must run before push(), or push() throws'. The memory root .work/ exists without a .gitignore. /review:audit-enforceability is among the available skills.)",
+      "narration": true,
+      "expectations": [
+        "Proposes a lint rule for the forbidden direct fetch call and a regression test for the open-before-push order",
+        "Announces the findings file path under .work/comment-pass/feat-retry-fix/ before writing it, and creates .work/.gitignore containing * with an announcement",
+        "The findings file declares type: review-findings, and its row for the lint proposal carries Tier SUGGESTION, the comment's path:line as Location, and code-tidying:dissolve-comments as the surface",
+        "Names the file and offers /review:audit-enforceability with that path without running it",
+        "Edits no file in src/"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "aggressive-keeps-outside-constraints-and-deletes-local-rationale",
+      "prompt": "/code-tidying:dissolve-comments aggressive lib/sync.sh\n\n(lib/sync.sh is committed and tree-sitter is present for bash. It has '# The storage API rejects batches over 100 items, so chunk at 100' above a chunking loop, '# Field order is fixed by RFC 8785 section 3.2.3' above a serializer call, and '# Picked 4 workers after a local benchmark' above 'workers=4'.)",
+      "narration": true,
+      "expectations": [
+        "Keeps the storage API comment, naming it as behavior an outside party forces",
+        "Keeps the RFC 8785 comment, naming it as a link that explains a constraint",
+        "Deletes the benchmark comment with its narrative staged, since the reason sits inside the repository",
+        "Certifies the deletion COMMENT-ONLY"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "removed-workaround-is-listed-as-open-root-cause-work",
+      "prompt": "/code-tidying:dissolve-comments aggressive lib/cache.sh\n\n(lib/cache.sh is committed and tree-sitter is present for bash. It has '# Workaround: write twice, our cache wrapper drops the first write after a reconnect' above two identical cache_set calls. The comment gives no link and no removal condition.)",
+      "narration": true,
+      "expectations": [
+        "Deletes the workaround comment with its narrative staged",
+        "Lists the comment by file and line as open root-cause work, saying the double write is still in the code and its cause is unfixed",
+        "Does not change the two cache_set calls and does not attempt the root-cause fix"
+      ]
     }
   ]
 }

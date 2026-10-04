@@ -93,9 +93,9 @@ Beck's framing: small, named refactorings nobody could hate on. Structural-only.
 
 ### #14: Explaining Comments
 
-- **When to apply:** code does something non-obvious (a workaround for a bug, a subtle invariant, a constraint from outside the code). Add a brief `// Why:` comment.
+- **When to apply:** code does something non-obvious (a workaround for a bug, a subtle invariant, a constraint from outside the code). Add a brief `// Why:` comment. A workaround comment also carries a link (an issue, a URL) or a removal condition, so a reader knows when it can go; without one, `/code-tidying:audit-comment-residue` reports it as `unjustified-workaround`.
 - **When NOT to apply:** the code is self-explanatory and the comment would just restate it. Only comment *why*, never *what*.
-- **Example:** `// Workaround: the IDE locks analyzer DLLs; output to bin/cli/ when not building inside it`.
+- **Example:** `// Workaround: the IDE locks analyzer DLLs; output to bin/cli/ when not building inside it, and remove when the IDE releases the lock after a build`.
 
 ### #15: Delete Redundant Comments
 

@@ -30,7 +30,7 @@
     "comment_posture": {
       "type": "string",
       "title": "Comment posture",
-      "description": "How dissolve-comments treats a kept comment. strict (default) rewrites one over class_c_max_lines terser; balanced reports it instead; conservative applies class-A deletions only and proposes the rest; aggressive keeps only exempt surfaces, paired records, and terse warnings.",
+      "description": "How dissolve-comments treats a kept comment. strict (default) rewrites one over class_c_max_lines terser; balanced reports it instead; conservative applies class-A deletions only and proposes the rest; aggressive keeps only exempt surfaces, paired records, terse warnings, and outside constraints.",
       "default": "strict",
       "options": ["strict", "balanced", "conservative", "aggressive"]
     },

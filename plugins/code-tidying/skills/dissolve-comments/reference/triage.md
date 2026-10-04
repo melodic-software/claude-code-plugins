@@ -97,7 +97,8 @@ modes apply class-A deletions only, and a comment that reached this branch is cl
 test returned. What the run may apply is set by the mode, never by a verdict reached inside it.
 
 Under `aggressive` and `strip` the criteria are not what decides. The survivor list in `SKILL.md`
-does: an exempt surface, a paired record, and (under `aggressive`) a warning of consequence stay,
+does: an exempt surface, a paired record, and (under `aggressive`) an outside-constraint comment
+or a warning of consequence stay,
 and every other comment here is staged and deleted behind the same token proof, recoverable
 rationale or not. Criterion 2 is not evaluated for them, since its answer changes nothing.
 

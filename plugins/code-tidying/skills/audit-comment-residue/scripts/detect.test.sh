@@ -883,6 +883,75 @@ ex_noval_exit=0
 timeout 10 bash "$DETECT" --exclude-from >/dev/null 2>&1 || ex_noval_exit=$?
 assert_exit "--exclude-from with no value exits 2" 2 "$ex_noval_exit"
 
+# --- unjustified-workaround: a workaround comment with no link and no removal condition ---
+
+WORK="$TEST_TMPDIR/workaround.sh"
+cat >"$WORK" <<'EOF'
+# Workaround: the cache client drops the first write after a reconnect, so write twice.
+cache_set "$k" "$v"  # work around the stale lock by writing again
+# Workaround for the parser crash: https://example.org/bugs/88
+# Workaround until the vendor SDK 4.2 ships: pin the v1 endpoint.
+# Works around a renderer bug; remove when the renderer upgrade lands.
+# Workaround: retry, and drop it once the driver fix ships.
+# Workaround for upstream issue #412.
+# Working around the encoder bug in owner/encoder#77.
+workaround_count=0
+echo "workaround in use"
+# Workaround: the IDE holds a lock on the output folder;
+# remove when the IDE releases it after a build.
+EOF
+work_out="$(bash "$DETECT" "$WORK")"
+wk_at() { printf 'Finding shape: unjustified-workaround\nFinding line: %s\n' "$1"; }
+assert_contains "workaround with no link or removal condition is flagged" "$work_out" "$(wk_at 1)"
+assert_contains "trailing workaround comment on a code line is flagged" "$work_out" "$(wk_at 2)"
+assert_contains "unjustified-workaround is tier 2" "$work_out" $'Finding tier: 2\nFinding shape: unjustified-workaround'
+assert_not_contains "a URL justifies the workaround" "$work_out" "$(wk_at 3)"
+assert_not_contains "'until' justifies the workaround" "$work_out" "$(wk_at 4)"
+assert_not_contains "'remove when' justifies the workaround" "$work_out" "$(wk_at 5)"
+assert_not_contains "'once ... ships' justifies the workaround" "$work_out" "$(wk_at 6)"
+assert_not_contains "an issue number justifies the workaround" "$work_out" "$(wk_at 7)"
+assert_not_contains "an owner/repo#n reference justifies the workaround" "$work_out" "$(wk_at 8)"
+assert_not_contains "the word in an identifier is not flagged" "$work_out" "$(wk_at 9)"
+assert_not_contains "the word in a string literal is not flagged" "$work_out" "$(wk_at 10)"
+assert_not_contains "a removal condition on the next comment line justifies the run" "$work_out" "$(wk_at 11)"
+assert_not_contains "a workaround's justifying issue reference is not ticket residue" "$work_out" $'Finding shape: ticket-pr-residue\nFinding line: 7'
+assert_contains "the file counts exactly the two unjustified workarounds" "$work_out" "Summary file: $WORK | T1=0 T2=2 T3=0"
+
+# tidy's #14 example: the old form is flagged, the reconciled form carries its removal condition.
+TIDY_OLD="$TEST_TMPDIR/tidy-old.cs"
+printf '%s\n' '// Workaround: the IDE locks analyzer DLLs; output to bin/cli/ when not building inside it' >"$TIDY_OLD"
+assert_contains "tidy's old #14 example is flagged" "$(bash "$DETECT" "$TIDY_OLD")" "$(wk_at 1)"
+TIDY_NEW="$TEST_TMPDIR/tidy-new.cs"
+printf '%s\n' '// Workaround: the IDE locks analyzer DLLs; output to bin/cli/ when not building inside it, and remove when the IDE releases the lock after a build' >"$TIDY_NEW"
+assert_contains "tidy's new #14 example is not flagged" "$(bash "$DETECT" "$TIDY_NEW")" "T1=0 T2=0 T3=0"
+
+# --- --added-since <base>: only comments on lines the branch adds --------------------------
+
+REPOADD="$TEST_TMPDIR/repoadd"
+mkdir -p "$REPOADD"
+git -C "$REPOADD" init -q
+printf '%s\n' '# used to buffer writes' 'x = 1' >"$REPOADD/old.py"
+printf '%s\n' '# used to buffer writes' >"$REPOADD/untouched.py"
+git -C "$REPOADD" add -A
+git -C "$REPOADD" -c user.email=t@example.com -c user.name=t commit -qm base
+printf '%s\n' '# Workaround: write twice' 'y = 2' >>"$REPOADD/old.py"
+
+add_out="$(cd "$REPOADD" && bash "$DETECT" --added-since HEAD)"
+assert_contains "--added-since reports a finding on an added line" "$add_out" "$(wk_at 3)"
+assert_not_contains "--added-since skips a finding on an unchanged line" "$add_out" "Finding line: 1"
+assert_not_contains "--added-since leaves an unchanged file out" "$add_out" "untouched.py"
+assert_contains "--added-since counts only the changed file" "$add_out" "Summary total: files=1 T1=0 T2=1 T3=0"
+
+add_out="$(cd "$REPOADD" && bash "$DETECT" --added-since HEAD old.py untouched.py)"
+assert_contains "--added-since with targets still filters to added lines" "$add_out" "Summary total: files=1 T1=0 T2=1 T3=0"
+
+add_rc=0
+(cd "$REPOADD" && bash "$DETECT" --added-since no-such-ref >/dev/null 2>&1) || add_rc=$?
+assert_exit "--added-since with an unknown base exits 2" 2 "$add_rc"
+add_rc=0
+timeout 10 bash "$DETECT" --added-since >/dev/null 2>&1 || add_rc=$?
+assert_exit "--added-since with no value exits 2" 2 "$add_rc"
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

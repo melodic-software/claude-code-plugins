@@ -25,6 +25,7 @@ cr_anchor_path() {
 
 PATHS_FILE=""
 EXCLUDE_FILE=""
+ADDED_SINCE=""
 TARGETS=()
 
 usage() {
@@ -35,6 +36,7 @@ Usage:
   detect.sh <file>...
   detect.sh --paths-file <file>
   detect.sh [--exclude-from <file>] [<file>...]
+  detect.sh --added-since <base> [<file>...]
   detect.sh --help
 
 Audits code files only (markdown is /audit-noise's territory and is skipped).
@@ -43,9 +45,14 @@ it runs in (from git status).
 
 --exclude-from <file> skips targets matching a root-relative glob, one per line
 (blank lines and lines starting with '#' are ignored) and reports how many.
+
+--added-since <base> reports only comments on lines the branch adds against
+the merge base of <base> and HEAD (added-lines.sh). With no paths it audits the
+files that gained lines; with paths, only those of them that gained lines.
+
 A file whose first 10 lines carry sync-managed, do not edit or @generated gets
 a "Note: upstream" line before its summary. Exit: 0 on audit, 2 on unknown
-arguments or a missing --exclude-from file.
+arguments, a missing --exclude-from file, or a base added-lines.sh refuses.
 EOF
 }
 
@@ -65,6 +72,14 @@ while [[ $# -gt 0 ]]; do
       exit 2
     fi
     EXCLUDE_FILE="$2"
+    shift 2
+    ;;
+  --added-since)
+    if [[ $# -lt 2 ]]; then
+      echo "detect.sh: --added-since requires a value" >&2
+      exit 2
+    fi
+    ADDED_SINCE="$2"
     shift 2
     ;;
   -h | --help)
@@ -110,6 +125,46 @@ if [[ -n "$repo_root" ]]; then
   cd "$repo_root" 2>/dev/null || true
 fi
 
+# --added-since: the added lines, keyed "<repo-relative path><TAB><line>", and the files
+# that gained any. added-lines.sh prints `<start><TAB><count><TAB><path>`, path last.
+declare -A ADDED_LINES=() ADDED_FILES=()
+if [[ -n "$ADDED_SINCE" ]]; then
+  if [[ -z "$repo_root" ]]; then
+    echo "detect.sh: --added-since needs a git repository" >&2
+    exit 2
+  fi
+  added_rows="$("$SCRIPT_DIR/added-lines.sh" "$ADDED_SINCE")" || exit 2
+  while IFS=$'\t' read -r a_start a_count a_path; do
+    [[ -z "$a_path" ]] && continue
+    # Digits only before arithmetic: (( )) evaluates array subscripts, which run commands.
+    if [[ ! "$a_start" =~ ^[0-9]+$ || ! "$a_count" =~ ^[0-9]+$ ]]; then
+      echo "detect.sh: added-lines.sh printed a row that is not digits, tab, digits, tab, path" >&2
+      exit 2
+    fi
+    ADDED_FILES["$a_path"]=1
+    for ((a_line = a_start; a_line < a_start + a_count; a_line++)); do
+      ADDED_LINES["$a_path"$'\t'"$a_line"]=1
+    done
+  done <<<"$added_rows"
+  if [[ ${#TARGETS[@]} -eq 0 && -z "$PATHS_FILE" ]]; then
+    for a_path in "${!ADDED_FILES[@]}"; do TARGETS+=("$a_path"); done
+  fi
+fi
+
+# A target's path relative to the repository root, resolving symlinked directories so an
+# anchored absolute path still matches added-lines.sh's repository-relative one.
+cr_repo_rel() {
+  local file="$1" dir
+  case "$file" in
+  /* | ?:[\\/]*)
+    dir="$(cd "$(dirname "$file")" 2>/dev/null && pwd -P)" || dir="$(dirname "$file")"
+    file="$dir/$(basename "$file")"
+    printf '%s' "${file#"$repo_root"/}"
+    ;;
+  *) printf '%s' "${file#./}" ;;
+  esac
+}
+
 if [[ ${#TARGETS[@]} -eq 0 ]]; then
   if [[ -n "$PATHS_FILE" ]]; then
     while IFS= read -r line || [[ -n "$line" ]]; do
@@ -117,7 +172,7 @@ if [[ ${#TARGETS[@]} -eq 0 ]]; then
       [[ -z "$line" ]] && continue
       TARGETS+=("$(cr_anchor_path "$line")")
     done <"$PATHS_FILE"
-  elif [[ -n "$repo_root" ]]; then
+  elif [[ -n "$repo_root" && -z "$ADDED_SINCE" ]]; then
     # Read the -z form, which git documents as unquoted and unescaped; the default output
     # C-escapes unusual paths beyond reliable splitting. Paths are already repo-relative.
     while IFS= read -r -d '' record; do
@@ -176,9 +231,22 @@ for target in ${TARGETS[@]+"${TARGETS[@]}"}; do
   fi
 done
 
+# Under --added-since, a target that gained no lines has nothing in scope.
+if [[ -n "$ADDED_SINCE" && ${#EXPANDED[@]} -gt 0 ]]; then
+  IN_SCOPE=()
+  for target in "${EXPANDED[@]}"; do
+    [[ -n "${ADDED_FILES["$(cr_repo_rel "$target")"]:-}" ]] && IN_SCOPE+=("$target")
+  done
+  EXPANDED=(${IN_SCOPE[@]+"${IN_SCOPE[@]}"})
+fi
+
 if [[ ${#EXPANDED[@]} -eq 0 ]]; then
   echo "Summary total: files=0 T1=0 T2=0 T3=0"
-  echo "Note: no code targets — pass code file paths or edit some tracked code files"
+  if [[ -n "$ADDED_SINCE" ]]; then
+    echo "Note: no code file gained lines since the base"
+  else
+    echo "Note: no code targets — pass code file paths or edit some tracked code files"
+  fi
   cr_excluded_note
   exit 0
 fi
@@ -204,6 +272,17 @@ emit_finding() {
   esac
 }
 
+# Under --added-since, true when any named line of the file is an added line. Reads rel
+# from audit_file's frame (dynamic scope). Always true without --added-since.
+in_scope() {
+  [[ -z "$ADDED_SINCE" ]] && return 0
+  local l
+  for l in "$@"; do
+    [[ -n "${ADDED_LINES["$rel"$'\t'"$l"]:-}" ]] && return 0
+  done
+  return 1
+}
+
 audit_file() {
   local file="$1"
   [[ -f "$file" ]] || return 0
@@ -215,11 +294,19 @@ audit_file() {
 
   # Pre-pass: every line of a comment run carrying a license cue is exempt from origin-note,
   # even when the cue sits on another line of the same NOTICE block.
-  local -A license_block=()
+  local -A license_block=() justified_run=()
   local n
   while IFS= read -r n; do
     [[ -n "$n" ]] && license_block["$n"]=1
   done < <(cr_license_block_lines "$file")
+  # Likewise a workaround comment run is justified whole by a link or removal condition on
+  # any of its lines.
+  while IFS= read -r n; do
+    [[ -n "$n" ]] && justified_run["$n"]=1
+  done < <(cr_justified_run_lines "$file")
+
+  local rel=""
+  [[ -n "$ADDED_SINCE" ]] && rel="$(cr_repo_rel "$file")"
 
   # shellcheck disable=SC2094 # emit_finding only prints the file name; it never writes the file
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -229,7 +316,7 @@ audit_file() {
       prev_ct=""
       continue
     fi
-    shapes="$(cr_detect_shapes "$line" "${license_block[$line_num]:-0}" || true)"
+    shapes="$(cr_detect_shapes "$line" "${license_block[$line_num]:-0}" "${justified_run[$line_num]:-0}" || true)"
 
     # A comment line that continues a comment on the line before it is also read joined to
     # that line, so a phrase wrapped across the break is found. Only a shape neither line
@@ -240,7 +327,7 @@ audit_file() {
       ct="${ct#"${ct%%[![:space:]]*}"}"
       ct="${ct%"${ct##*[![:space:]]}"}"
     fi
-    if [[ -n "$ct" && -n "$prev_ct" ]]; then
+    if [[ -n "$ct" && -n "$prev_ct" ]] && in_scope $((line_num - 1)) "$line_num"; then
       joined="$(cr_trim_excerpt "$prev_ct $ct")"
       while IFS= read -r shape; do
         [[ -z "$shape" ]] && continue
@@ -249,10 +336,10 @@ audit_file() {
         *) ;;
         esac
         emit_finding "$file" "$shape" $((line_num - 1)) "$joined"
-      done < <(cr_detect_shapes_text "$prev_ct $ct" "${license_block[$line_num]:-0}" || true)
+      done < <(cr_detect_shapes_text "$prev_ct $ct" "${license_block[$line_num]:-0}" "${justified_run[$line_num]:-0}" || true)
     fi
 
-    if [[ -n "$shapes" ]]; then
+    if [[ -n "$shapes" ]] && in_scope "$line_num"; then
       excerpt="$(cr_trim_excerpt "$line")"
       while IFS= read -r shape; do
         [[ -z "$shape" ]] && continue
