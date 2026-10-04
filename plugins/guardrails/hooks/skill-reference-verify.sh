@@ -65,7 +65,7 @@ hook::ctx_reset
 
 hook::buffer_stdin_to INPUT || exit 0
 
-hook::require jq "PostToolUse" "guardrails-skill-reference-verify" "$INPUT"
+hook::require jq "PostToolUse" guardrails "$INPUT"
 
 FILE=""
 hook::read_file_path_to FILE "$INPUT" || exit 0
@@ -885,8 +885,11 @@ emit_tel() {
 }
 
 if ((${#UNRESOLVED[@]} > 0)); then
-  hook::ctx_append "skill-reference-verify: ${#UNRESOLVED[@]} skill reference(s) do not resolve in $FILE"
-  hook::ctx_append "This repo owns each plugin named below, so it can say the skill is not there:"
+  # The file as the model names it: repo-relative when it sits under the root
+  # spelled the same way, else as given.
+  show_file="$FILE"
+  [[ "$FILE" == "${REPO_ROOT%/}/"?* ]] && show_file="${FILE#"${REPO_ROOT%/}/"}"
+  lines=""
   # Name the directories the search ACTUALLY covered, from the same skill_roots
   # the resolution used. Naming only `skills/` understates the search for a plugin
   # whose manifest declares paths, and the advisory ends by telling the reader to
@@ -902,12 +905,14 @@ if ((${#UNRESOLVED[@]} > 0)); then
     for root in "${roots[@]}"; do
       searched+="${searched:+, }plugins/${root#"$PLUGINS_DIR/"}/"
     done
-    hook::ctx_append "  UNRESOLVED_SKILL: $r (no such skill under $searched)"
+    lines+="$r (no such skill under $searched)"$'\n'
   done
-  hook::ctx_append ""
-  hook::ctx_append "Detect-then-judge: this is a prompt for your verdict, not a determination."
-  hook::ctx_append "Confirm against the tree. A reference retained deliberately — documenting"
-  hook::ctx_append "a rename, or a capability another marketplace ships — is correct as written."
+  srv_ctx=""
+  hook::findings_to srv_ctx \
+    "skill-reference-verify: skill reference(s) in $show_file do not resolve; this repo owns the plugin:" \
+    "$lines" --max 10
+  hook::ctx_append "$srv_ctx"
+  hook::ctx_append "A reference kept on purpose (a rename record, another marketplace's skill) is correct as written."
   hook::ctx_flush PostToolUse
 fi
 
