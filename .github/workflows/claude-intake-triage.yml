@@ -14,7 +14,7 @@ permissions: {}
 # No top-level concurrency block: the standards `concurrency-policy` shape for
 # one requires `cancel-in-progress: true`, and canceling a triage run mid-way
 # could leave a comment without its labels. Per-issue serialization without
-# cancellation lives on the job, as in claude-security-review-hosted.yml.
+# cancellation lives on the job, as in pr-review-security-hosted.yml.
 
 jobs:
   intake-triage:
