@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Text to speech with the kokoro backend: a script in, narration.wav and words.json out.
 
-usage: pydeps.py run --data-dir DIR -- narrate.py --data-dir DIR --script FILE [--out DIR] [--voice NAME] [--speed X]
+usage: pydeps.py run --data-dir DIR -- narrate.py --data-dir DIR [--model-dir DIR] --script FILE [--out DIR]
+       [--voice NAME] [--speed X]
 
 Every whitespace-separated token of the script is a word in words.json, with a start and end in seconds. The timings
 come from the model itself: the Kokoro-82M export in kokoro-assets.json reports how many frames each input token
@@ -151,12 +152,12 @@ def write_wav(path, audio):
         w.writeframes(pcm.tobytes())
 
 
-def narrate(text, out, data, voice=DEFAULT_VOICE, speed=1.0, phonemize=None):
+def narrate(text, out, data, voice=DEFAULT_VOICE, speed=1.0, phonemize=None, model_dir=None):
     if voice not in assets.voices():
         raise ValueError(f'unknown voice {voice!r}; choose one of {", ".join(assets.voices())}')
     if not 0.5 <= speed <= 2.0:
         raise ValueError(f'speed must be between 0.5 and 2.0, got {speed}')
-    gaps = assets.missing(data)
+    gaps = assets.missing(data, model_dir=model_dir)
     if gaps:
         raise Missing(f'the Kokoro model files are not downloaded ({len(gaps)} missing, first {gaps[0]}). '
                       'Run /speech:setup apply install-model, which downloads them from the pinned revision.')
@@ -166,7 +167,7 @@ def narrate(text, out, data, voice=DEFAULT_VOICE, speed=1.0, phonemize=None):
     except ImportError as e:
         raise Missing(f'the Python packages do not import ({e}); start a new session, whose SessionStart hook '
                       'installs them, or run the repair line from /speech:check.') from e
-    root = assets.assets_dir(data)
+    root = assets.assets_dir(data, model_dir=model_dir)
     vocab = json.loads((root / 'tokenizer.json').read_text(encoding='utf-8'))['model']['vocab']
     phonemize = phonemize or espeak_phonemizer(LANGS[voice[0]])
     words = plan(text, phonemize, vocab)
@@ -200,10 +201,12 @@ def main(argv=None):
     ap.add_argument('--voice', default=DEFAULT_VOICE)
     ap.add_argument('--speed', type=float, default=1.0)
     ap.add_argument('--data-dir')
+    ap.add_argument('--model-dir', help='the model_dir option: the folder holding the kokoro-<revision> set')
     a = ap.parse_args(argv)
     try:
         data = pydeps.data_dir(a.data_dir)
-        record = narrate(a.script.read_text(encoding='utf-8'), a.out or a.script.parent, data, a.voice, a.speed)
+        record = narrate(a.script.read_text(encoding='utf-8'), a.out or a.script.parent, data, a.voice, a.speed,
+                         model_dir=a.model_dir)
     except (Missing, pydeps.Broken) as e:
         sys.stderr.write(f'speech: {e}\n')
         return 2

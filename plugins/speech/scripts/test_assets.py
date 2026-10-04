@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
@@ -20,7 +21,9 @@ sys.modules.pop("pydeps", None)
 REVISION = 'abc123abc123abc123'
 
 
-class Fetch(unittest.TestCase):
+class Served(unittest.TestCase):
+    """A fixture manifest served from a file:// source."""
+
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -37,6 +40,8 @@ class Fetch(unittest.TestCase):
             'files': {rel: {'sha256': hashlib.sha256(b).hexdigest(), 'size': len(b)} for rel, b in self.files.items()},
         }
 
+
+class Fetch(Served):
     def test_fetch_downloads_every_missing_file_then_nothing_is_missing(self):
         self.assertEqual(sorted(assets.missing(self.data, self.manifest)), sorted(self.files))
         assets.fetch(self.data, self.manifest, log=io.StringIO())
@@ -62,6 +67,30 @@ class Fetch(unittest.TestCase):
         assets.fetch(self.data, self.manifest, log=io.StringIO())
         (assets.assets_dir(self.data, self.manifest) / 'tokenizer.json').write_bytes(b'{}')
         self.assertEqual(assets.missing(self.data, self.manifest), ['tokenizer.json'])
+
+
+class ModelDir(Served):
+    """The model_dir option moves the kokoro-<revision> set; unset, the path is <data>/models as before."""
+
+    def test_unset_keeps_the_data_directory_path(self):
+        for unset in (None, '', '   ', '${user_config.model_dir}'):
+            with self.subTest(unset=unset):
+                self.assertEqual(assets.assets_dir(self.data, self.manifest, unset),
+                                 self.data / 'models' / f'kokoro-{REVISION[:12]}')
+                self.assertEqual(assets.models_root(self.data, unset)[1], 'plugin data directory')
+
+    def test_set_downloads_there_and_check_passes_against_it(self):
+        shared = self.tmp / 'shared-models'
+        assets.fetch(self.data, self.manifest, log=io.StringIO(), model_dir=str(shared))
+        self.assertTrue((shared / f'kokoro-{REVISION[:12]}' / 'tokenizer.json').is_file())
+        self.assertFalse((self.data / 'models').exists())
+        self.assertEqual(assets.missing(self.data, self.manifest, str(shared)), [])
+        self.assertEqual(sorted(assets.missing(self.data, self.manifest)), sorted(self.files))
+        with mock.patch.object(assets, 'manifest', lambda: self.manifest):
+            status, _, detail = check.model_row(self.data, str(shared))
+        self.assertEqual(status, 'PASS')
+        self.assertIn(str(shared), detail)
+        self.assertIn('model_dir option', detail)
 
 
 class PinnedManifest(unittest.TestCase):

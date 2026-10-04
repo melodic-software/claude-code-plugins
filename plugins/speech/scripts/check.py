@@ -2,7 +2,7 @@
 """Read-only prerequisite report for the speech plugin: one PASS or FAIL row per prerequisite, then a summary.
 Standard library only, and it installs nothing.
 
-usage: check.py [--data-dir DIR]
+usage: check.py [--data-dir DIR] [--model-dir DIR]
 
 Rows: each cli and runtime entry in ../prerequisites.json (found on PATH, at its version floor), each env entry (set
 or not; an unset optional one is an INFO row, and the value is never printed), the hash-locked
@@ -70,23 +70,26 @@ def package_row(data):
             f'{pydeps.repair_line(data)}')
 
 
-def model_row(data):
-    gaps = assets.missing(data)
+def model_row(data, model_dir=None):
+    gaps = assets.missing(data, model_dir=model_dir)
+    where = f'{assets.assets_dir(data, model_dir=model_dir)} (set by the {assets.models_root(data, model_dir)[1]})'
     if not gaps:
-        return 'PASS', 'kokoro-model', str(assets.assets_dir(data))
+        return 'PASS', 'kokoro-model', where
     size = sum(assets.manifest()['files'][g]['size'] for g in gaps) / 1e6
     return ('FAIL', 'kokoro-model',
-            f'{len(gaps)} of the pinned files are missing ({size:.0f} MB); run /speech:setup apply install-model to download them')
+            f'{len(gaps)} of the pinned files are missing from {where} ({size:.0f} MB); run /speech:setup apply '
+            'install-model to download them')
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument('--data-dir')
+    ap.add_argument('--model-dir')
     a = ap.parse_args(argv)
     rows = declared_rows()
     try:
         data = pydeps.data_dir(a.data_dir)
-        rows += [package_row(data), model_row(data)]
+        rows += [package_row(data), model_row(data, a.model_dir)]
     except pydeps.Broken as e:
         rows.append(('FAIL', 'data-dir', str(e)))
     for status, name, detail in rows:
