@@ -3,6 +3,16 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.14] - 2026-10-04
+
+### Changed
+
+- **Shorter hook text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** The `test-scan` hook lists findings without their thresholds, gives one Action per rule rather than per finding, lists at most 10 findings, and points to `/testing:test-value` once per file and only when there are findings. `test-scan` and `test-weaken` no longer tell Claude to state a reason before continuing. `test-weaken` names at most five changed expected values, and its deny reason under `test-weaken-block: error` is shorter. `cant-fail-scan.sh --brief` prints the hooks' form, and the `rule-zero-assertion` Action is one sentence.
+
+### Fixed
+
+- **The task-end test judge no longer floods the end of a task ([#6226](https://github.com/melodic-software/claude-code-plugins/issues/6226)).** Tests left to a background job (past the 10-test cap, late, or held by another job) and tests whose judge run failed are counts in one line, never a list of test names. A run where every verdict is a PASS shows one line, `test judge: N tests PASS.`, with the deferred count in the same line. A blocking Stop shows only its reason, with the findings path relative to the project, and no repeated summary. A forced Stop turn and an earlier session whose verdicts were all PASS say nothing.
+
 ## [0.22.13] - 2026-10-04
 
 ### Changed
