@@ -28,7 +28,24 @@ axis, repo scope sets the `L2` unattended floor as the class prerequisite
 Advisory report only: a narrative digest over the period's repository, CI, and tracker
 signals, delivered through the queue's audit trail. No work-item filing obligation and no
 repository mutation. Anything actionable the digest surfaces routes to other classes or
-to humans.
+to humans. The narrative includes the [trust inputs](#trust-inputs).
+
+## Trust inputs
+
+The digest reports, for the period, the inputs the
+[suggested default predicates](../guardrails/work-classes.md#suggested-default-predicates)
+use to decide whether a work class could be promoted:
+
+- autonomous completions
+- the deterministic-gate pass rate
+- human-reverted merges
+- demotion events
+- human-confirmed missed-blocking AI-review findings
+
+That section owns each input's definition and every threshold; this leaf restates neither. The
+digest only reports the inputs so an operator reading it sees them. It decides no promotion:
+promotion stays a human-ratified flip under
+[Promotion and demotion](../guardrails/work-classes.md#promotion-and-demotion).
 
 ## Derived guardrail row
 
