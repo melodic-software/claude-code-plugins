@@ -227,6 +227,45 @@ class Launcher(unittest.TestCase):
             self.assertEqual(r.returncode, 0, r.stderr)
             self.assertEqual(log.read_text(encoding='utf-8').split(), [str(SCRIPT), 'run', '--', 'x.py'])
 
+    def test_the_probe_and_the_handed_over_child_get_no_foreign_pythonhome_or_pythonpath(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fake, log = Path(tmp) / 'bin', Path(tmp) / 'log'
+            fake.mkdir()
+            (fake / 'python3.13').write_text('#!/bin/sh\nexit 1\n', encoding='utf-8')
+            (fake / 'python3.12').write_text(
+                f'#!/bin/sh\necho "$1 home=[$PYTHONHOME] path=[$PYTHONPATH] uv=[$UV_INTERNAL__PYTHONHOME] '
+                f'over=[${pydeps.HANDED_OVER}]" >> {log}\n', encoding='utf-8')
+            for f in fake.iterdir():
+                f.chmod(0o755)
+            # A real foreign home would break this test's own Python, so set it only for main()'s subprocesses.
+            code = ('import os, sys, pydeps; '
+                    'os.environ.update(PYTHONHOME="/opt/py314", PYTHONPATH="/opt/py314/lib", '
+                    'UV_INTERNAL__PYTHONHOME="/opt/py314"); '
+                    'sys.exit(pydeps.main(["run", "--", "x.py"]))')
+            env = {**{k: v for k, v in os.environ.items() if k != pydeps.HANDED_OVER},
+                   'PATH': f'{fake}{os.pathsep}/usr/bin{os.pathsep}/bin'}
+            r = subprocess.run([sys.executable, '-c', code], cwd=HERE, env=env, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertEqual(log.read_text(encoding='utf-8').splitlines(), [
+                '-c home=[] path=[] uv=[] over=[]',
+                f'{SCRIPT} home=[] path=[] uv=[] over=[{fake / "python3.12"}]',
+            ])
+
+
+class ForeignEnv(unittest.TestCase):
+    def test_a_different_interpreter_gets_no_pythonhome_pythonpath_or_uv_marker(self):
+        env = {'PYTHONHOME': r'C:\uv\python\cpython-3.14', 'PYTHONPATH': '/elsewhere',
+               'UV_INTERNAL__PYTHONHOME': r'C:\uv\python\cpython-3.14', 'PATH': '/bin', 'PYTHONUTF8': '1'}
+        old = dict(os.environ)
+        os.environ.clear()
+        os.environ.update(env)
+        try:
+            got = pydeps._foreign_env({pydeps.HANDED_OVER: '/usr/bin/python3.13'})
+        finally:
+            os.environ.clear()
+            os.environ.update(old)
+        self.assertEqual(got, {'PATH': '/bin', 'PYTHONUTF8': '1', pydeps.HANDED_OVER: '/usr/bin/python3.13'})
+
 
 class NoRuntimeFetch(unittest.TestCase):
     """Nothing the skills or scripts run fetches a package; the install hook, through pydeps.py, is the only fetch."""
