@@ -86,6 +86,24 @@
       "check": "/harness-ops:prerequisites"
     },
     {
+      "id": "claude",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:work-loop"
+      ],
+      "detect": {
+        "any": [
+          "claude"
+        ]
+      },
+      "degrade": "Without the claude CLI, /work-items:work-loop cannot send an item's build to a cloud session, so an item whose execution target is cloud-session runs locally.",
+      "install": {
+        "docs": "https://code.claude.com/docs/en/setup"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
       "id": "node",
       "kind": "cli",
       "need": "optional",

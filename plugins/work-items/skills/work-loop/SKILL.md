@@ -98,12 +98,12 @@ the source of truth for these counters):
  "paused_until":null,"latched_account":null,"effort":"unset",
  "loop_started_at":"2026-07-23T15:00:00Z","restart_request":null,
  "usage_sample":{"at":"2026-07-23T15:04:05Z","five_hour_pct":23.5,"seven_day_pct":41.2,
- "five_hour_delta_pct":1.8}}
+ "five_hour_delta_pct":1.8},"cloud_dispatches":[]}
 ```
 
 `stop_mode`, `ordering`, `shard` (`{"index":i,"count":n}` or `null`), and `scope` (label string or
 `null`) record the resolved invocation surface so a `/loop` relaunch can read them back from the
-telemetry comment; they are not re-derived from prose in the launch prompt.
+telemetry comment; they are not re-derived from prose in the launch prompt. `cloud_dispatches` lists the items this lane sent to a cloud session and still counts in flight ([reference/cloud-dispatch.md](reference/cloud-dispatch.md)); an absent key reads as `[]`.
 
 `loop_started_at` makes the approaching seven-day expiry visible; `restart_request` is where a
 budget/expiry hit records the relaunch ask; `guard_mode` is recorded every cycle. `latched_account`
@@ -238,7 +238,7 @@ owns the steps. A resume clears `rate_limit_latch`, `paused_until`, and `latched
    role plus a `kind=escalated` marker carrying the proposed class), and that marker carries
    step 5's record write the same way.
 3. **Admission gate.** Drop every frontier candidate that is already in flight (the gate's
-   in-flight precondition below) or held by its Objection window ([reference/objection-window.md](reference/objection-window.md),
+   in-flight precondition below, or a `cloud_dispatches` entry) or held by its Objection window ([reference/objection-window.md](reference/objection-window.md),
    which also escalates an objected one), then classify the rest and admit per the gate. Fail-closed.
 4. **Execute.** Work admitted items by invoking `/work-items:work` via the Skill tool (one invocation per item slot), up to
    the adaptive item cap. When more than one item was admitted, sort the admitted set on
@@ -268,6 +268,7 @@ owns the steps. A resume clears `rate_limit_latch`, `paused_until`, and `latched
    - **Quality signal.** Read each item's outcome from the pipeline's return payload (verdict +
      identifiers, per `${CLAUDE_PLUGIN_ROOT}/reference/pipeline-shape.md` "Contracts this shape
      composes") for the clean/dirty accounting below.
+   - **Execution target.** Before each item's invocation, run `scripts/cloud-dispatch.sh` per [reference/cloud-dispatch.md](reference/cloud-dispatch.md): it reads the repository's execution-target policy (`docs/conventions/execution-target.yaml` on origin's default branch, the execution-target convention) and, when the item resolves `cloud-session` and the launch rule holds, runs `claude --cloud` with today's `/work-items:work` run for the item instead of the local invocation. An item that may hold untrusted input never goes to a cloud host and escalates instead; every other result runs the item locally as above.
 5. **Escalate.** Anything the gate or execution rejects for human judgment follows the
    convention's escalation contract: the human-gated role label **resolved from
    `config.role_labels`, never a literal**, plus a machine-marked escalation comment per
@@ -301,8 +302,7 @@ owns the steps. A resume clears `rate_limit_latch`, `paused_until`, and `latched
    the recommended mode: one lane's record Write there was refused with "parent bg session
    hasn't isolated yet, so writes to the shared checkout are blocked", and otherwise the session
    moves into an auto-created worktree under `.claude/worktrees/`; that launch was not probed
-   here. Either
-   way the tracker marker comment is the escalation of record, and a refused record Write does
+   here. Either way the tracker marker comment is the escalation of record, and a refused record Write does
    not stop the cycle. This lane must not call `EnterWorktree` (it would end the long-lived
    orchestrator), so isolation comes from where the operator launches it. Foreground on the
    default-branch checkout remains the known-good mode.
@@ -401,7 +401,7 @@ The per-cycle item cap adapts between the configured floor and ceiling; bounds c
 `userConfig`, and a surviving literal `${user_config.…}` placeholder means the key is unset,
 apply the manifest default:
 
-- Start at `${user_config.work_loop_item_cap_start}` (default 2).
+- Start at `${user_config.work_loop_item_cap_start}` (default 2). Each `cloud_dispatches` entry holds one slot until it leaves the list ([reference/cloud-dispatch.md](reference/cloud-dispatch.md) "In flight").
 - **+1** after 3 consecutive **clean** items, up to `${user_config.work_loop_item_cap_ceiling}`
   (default 3). Never ramp up while `rate_limit_latch` is set.
 - **−1** on any **dirty** item, down to `${user_config.work_loop_item_cap_floor}` (default 1).
@@ -441,12 +441,12 @@ citation. This lane's specifics:
 
 - **Qualifying progress** (worker lane, an item advanced or a PR opened): an admitted item
   executed to an opened PR or a closed item, or an item's tracker state advanced by this lane,
-  swept to a triage routing outcome, escalated (step 5), or queued for C3 ratification. A stale
+  swept to a triage routing outcome, escalated (step 5), queued for C3 ratification, or sent to a cloud session. A stale
   in-flight escalation is not progress. A dirty execution that changed no tracker state (retried next cycle) is not progress; a dirty item that
   escalated off the item is.
 - **Actionable work in view**: the cycle-start snapshot holds at least one autonomous-frontier
   candidate or untriaged intake item. A candidate the admission gate's in-flight precondition
-  excluded is waiting on its PR, not on this lane, so it does not count, stale or not. Otherwise the cycle is
+  excluded is waiting on its PR, not on this lane, so it does not count, stale or not; nor does one waiting in `cloud_dispatches`. Otherwise the cycle is
   idle and the counter holds. A cycle in which the rate-limit guard barred this lane from claiming new work is **held**, and the
   counter likewise holds whatever the snapshot carries. For this lane the bar is the pause window
   itself (the inlined floor above. Drain-then-pause): `rate_limit_latch` gates only adaptive-cap

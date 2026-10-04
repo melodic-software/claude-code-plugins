@@ -281,6 +281,71 @@
         "Does not skip #305 for an objection window",
         "Admits #305 through classification as C2 mechanical"
       ]
+    },
+    {
+      "id": 20,
+      "name": "work-loop-class-cloud-session-dispatches-claude-cloud",
+      "prompt": "/work-items:work-loop\n\nThe bound provider is github and origin is github.com/acme/ledger. The execution-target policy on origin's default branch reads `class: {mechanical: cloud-session}` and nothing else. #412 is admitted this cycle as C2 mechanical, item_cap is 2, and cloud_dispatches is empty. The dispatch script prints {\"item\":412,\"class\":\"mechanical\",\"target\":\"cloud-session\",\"key\":\"class.mechanical\",\"dispatch\":\"cloud\",\"launched\":true,\"session_url\":\"https://claude.ai/code/session_01Ledger\",\"sha\":\"1f0c\",\"reason\":\"cloud-session launched\"}.",
+      "expected_output": "Before invoking /work-items:work for #412 the loop runs the bundled cloud-dispatch script with --item 412 --class mechanical --launch, which resolves cloud-session from class.mechanical and starts the build with claude --cloud. Because dispatch is cloud, the loop does not invoke /work-items:work locally for #412; it appends #412 with its session URL, the policy SHA and the UTC time to cloud_dispatches in the durable state and reports the cloud dispatch in the cycle report. The loop composes no cloud brief itself and passes no item text to it. It never merges.",
+      "files": [],
+      "expectations": [
+        "Runs the cloud-dispatch script for #412 with the C2 class mapped to the label mechanical and --launch, before any local /work-items:work invocation",
+        "Does not invoke /work-items:work locally for #412 once the script reports dispatch cloud",
+        "Records #412 in cloud_dispatches with the session URL, the policy SHA and a UTC time",
+        "Reports the cloud dispatch and the key that supplied cloud-session in the cycle report",
+        "Writes no cloud brief by hand and passes none of the item's text to the cloud session"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "work-loop-local-worktree-keeps-todays-worker",
+      "prompt": "/work-items:work-loop\n\nThe execution-target policy on origin's default branch reads `default: local-worktree` and `skill: {work-items: {work: local-worktree}}`. #418 is admitted as C3 bug-fix-shaped with a recorded ratification. The dispatch script prints {\"item\":418,\"target\":\"local-worktree\",\"key\":\"skill.work-items.work\",\"dispatch\":\"local\",\"launched\":false,\"session_url\":null,\"reason\":\"resolved local-worktree\"}.",
+      "expected_output": "The dispatch result is local, so the loop invokes /work-items:work for #418 through the Skill tool on its autonomous invocation path, exactly as before: the local worker claims, builds and opens the draft PR. Nothing is added to cloud_dispatches and claude --cloud is not run.",
+      "files": [],
+      "expectations": [
+        "Invokes /work-items:work for #418 locally through the Skill tool on the autonomous invocation path",
+        "Adds no cloud_dispatches entry for #418",
+        "Does not run claude --cloud for #418"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "work-loop-fallback-marker-runs-local",
+      "prompt": "/work-items:work-loop\n\nThe policy sends class mechanical to cloud-session. Last cycle #430 (C2 mechanical) was sent to a cloud session and recorded in cloud_dispatches. Its probe comment now reads `<!-- execution-target:probe v1 -->` followed by `<!-- execution-target:fallback v1 -->` and \"source-control plugin not loaded\". #430 has no open closing PR. This cycle the dispatch script prints {\"item\":430,\"target\":\"cloud-session\",\"dispatch\":\"local\",\"reason\":\"item carries the execution-target fallback marker (or its comments could not be read); it runs local-worktree\"}.",
+      "expected_output": "At the cycle start #430's cloud_dispatches entry leaves the list because the item carries the fallback marker; the fallback changes neither the clean streak nor the cap. #430 is admitted again, the script resolves local because of the marker, and the loop runs #430 through today's local /work-items:work invocation. It does not send #430 to the cloud again while the marker stands.",
+      "files": [],
+      "expectations": [
+        "Removes #430 from cloud_dispatches because the item carries the fallback marker",
+        "Leaves the clean streak and item cap unchanged for the fallback",
+        "Runs #430 through the local /work-items:work invocation this cycle",
+        "Does not dispatch #430 to a cloud session while the marker stands"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "work-loop-untrusted-input-never-goes-to-cloud",
+      "prompt": "/work-items:work-loop\n\nThe policy reads `default: cloud-session`. #441 was filed by an account outside the organization and carries work-class: untrusted-provenance (C5). #442 is admitted as C2 mechanical.",
+      "expected_output": "#441 is C5 untrusted-provenance, which the admission gate human-gates, so the loop never dispatches it: it does not send it to a cloud session (the policy's cloud-session value cannot override the gate, and the dispatch script would answer escalate because there is no deterministic check for connector tools and denied egress) and it does not run it locally. It escalates #441 through step 5 with the human-gated role label and a kind=escalated marker, leaving it for /work-items:attend-queue. #442 (trusted input) goes through the dispatch script normally.",
+      "files": [],
+      "expectations": [
+        "Does not send untrusted-provenance item #441 to a cloud session",
+        "Does not run #441 locally as a fallback",
+        "Escalates #441 with the human-gated role label and a kind=escalated marker for /work-items:attend-queue",
+        "Runs the dispatch script for trusted-input item #442 as usual"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "work-loop-cloud-items-hold-cap-slots",
+      "prompt": "/work-items:work-loop\n\nDurable state: item_cap 2, cloud_dispatches [{\"item\":450,\"session_url\":null,\"sha\":\"9ab2\",\"at\":\"2026-10-05T09:00:00Z\"}]. The cycle starts at 2026-10-05T10:00:00Z; the binding's lease TTL is 24 hours. #450 has no open closing PR yet but carries a live seam lease. The frontier holds #450, #451 and #452, all C2 mechanical, and the policy sends mechanical items to cloud-session.",
+      "expected_output": "#450 is in flight on a cloud host: its entry stays (no PR, no fallback marker, lease TTL not passed) and the admission gate drops it like a candidate with an open closing PR, so it is not dispatched again. The entry holds one of the two cap slots, so only one new item starts this cycle: #451 (oldest first) goes through the dispatch script, and #452 waits for a later cycle. #450 does not count as actionable work in view for the no-progress detector.",
+      "files": [],
+      "expectations": [
+        "Keeps #450's cloud_dispatches entry because it has no PR, no fallback marker and its lease TTL has not passed",
+        "Drops #450 from admission so it is not dispatched a second time",
+        "Starts only one new item (#451) because the cloud entry holds one of the two cap slots",
+        "Leaves #452 for a later cycle"
+      ]
     }
   ]
 }
