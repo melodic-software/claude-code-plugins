@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "climb", "args": "converter-spawns"}}],
+      "why": "the bare skill name"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Skill", "input": {"skill": "performance:verify"}}],
+      "why": "verify instead of climb"
+    }
+  ]
+}

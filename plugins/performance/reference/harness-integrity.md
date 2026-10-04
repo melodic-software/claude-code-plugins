@@ -134,6 +134,13 @@ produces numbers that look like measurements. Failure 7 completed with plausible
   or version. A before/after pair taken with two tool copies does not isolate the change, so its
   ratio is not reported.
 
+### 8. A frozen harness prints its error and work counts
+
+A harness frozen for repeated runs prints, on every run, how many operations failed and how many
+units of work it completed. A change that makes the subject fail sooner or skip work lowers a
+duration or a counter just as a real gain does; the two counts are what tell them apart. A run
+whose error count rose, or whose work count differs from the baseline arm's, is not a gain.
+
 ## Process counting on MSYS/Cygwin (Git Bash)
 
 **Claim:** On Git Bash under MSYS, many Windows-side process counters (Job Object child counts,

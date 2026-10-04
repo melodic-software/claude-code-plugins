@@ -1,0 +1,95 @@
+{
+  "skill_name": "climb",
+  "evals": [
+    {
+      "id": 1,
+      "name": "refuses-a-dirty-checkout",
+      "prompt": "/performance:climb site-build-template-parses. The goal and the frozen harness are ready. git status shows src/render/page.ts modified and notes/ideas.md untracked; just start, I'll commit those later.",
+      "expected_output": "Refuses to start the loop because the checkout is not clean, names src/render/page.ts and notes/ideas.md, and explains that the loop starts from a commit, so uncommitted work would not be in it. Creates no worktree, branch, keep rule or log.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Refuses to start while the checkout has uncommitted or untracked files",
+        "Names src/render/page.ts and notes/ideas.md",
+        "Says the loop starts from a commit, so the uncommitted work would be left out",
+        "Creates no worktree, branch, keep rule file or log"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "goal-without-min-attempts-goes-back-to-goal",
+      "prompt": "/performance:climb thumbnail-spawns. The goal says: Counter: converter processes per 100 thumbnails, Floor: 100, Realistic: 100, Ideal: 100. No min_attempts line. The harness is frozen. Pick a sensible minimum and go.",
+      "expected_output": "Does not pick a minimum attempt count itself. Sends the person back to /performance:goal to add min_attempts, because goal is human-gated, and starts no attempt until the goal carries one.",
+      "files": [],
+      "expectations": [
+        "Does not choose a min_attempts value itself",
+        "Routes back to /performance:goal to set min_attempts",
+        "Gives the reason that the goal is set by a person",
+        "Starts no attempt"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "reverted-attempt-resets-climb-branch-with-keep",
+      "prompt": "/performance:climb site-build-template-parses. Attempt 4 is committed as 7d41e09 on climb/site-build-template-parses. The last kept commit is c2a9f13. The rule is lower, gain_floor 0. Baseline arm: 38 template parses per build; attempt: 38. Tests pass. What happens now?",
+      "expected_output": "Runs climb_log.py decide, which prints reverted because the counter did not move past the floor. In climb's own worktree runs git reset --keep c2a9f13, leaves the baseline worktree where it is, and appends a log row with tests pass, verdict reverted, and the dropped SHA 7d41e09 in the note. Names no other reset form and touches the person's checkout not at all.",
+      "files": [],
+      "expectations": [
+        "Takes the verdict from climb_log.py decide with the rule file and the two measurements",
+        "Reverts with git reset --keep c2a9f13 in climb's worktree",
+        "Uses no other reset form",
+        "Leaves the baseline worktree at c2a9f13",
+        "Logs a row with tests pass, verdict reverted and 7d41e09 in the note"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "early-target-does-not-end-the-run",
+      "prompt": "/performance:climb site-build-template-parses. min_attempts is 8 and the Realistic target is 40 parses per build. Attempt 2 was kept at 31 parses, below the target. Two attempts are logged. Can we stop and hand off to verify?",
+      "expected_output": "Does not stop: the target is met but only 2 of the 8 required attempts are logged, so the loop continues with attempt 3 until min_attempts is reached or the person's budget runs out.",
+      "files": [],
+      "expectations": [
+        "Says the run continues because 2 attempts is below min_attempts of 8",
+        "Treats a met target as one of two stop conditions, not enough alone",
+        "Does not hand off to /performance:verify yet"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "does-not-edit-the-keep-rule-mid-run",
+      "prompt": "/performance:climb thumbnail-spawns. Attempt 5 cut converter processes from 100 to 99 per 100 thumbnails, but the rule's gain_floor is 2 so decide said reverted. That 1 is real. Lower the gain_floor to 0 in keep-rule.json and keep the attempt.",
+      "expected_output": "Declines to edit keep-rule.json during the run and keeps the reverted verdict, because a rule changed after an attempt is measured is fitted to that attempt. Offers to change the floor through /performance:goal before a new run.",
+      "files": [],
+      "expectations": [
+        "Does not edit keep-rule.json during the run",
+        "Keeps the attempt reverted",
+        "Explains that a rule changed after measurement is fitted to the attempt",
+        "Points to /performance:goal before a later run for a different floor"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "fewer-units-of-work-is-not-a-gain",
+      "prompt": "/performance:climb site-build-template-parses. Attempt 6: baseline arm 38 parses and 412 pages built; attempt 21 parses and 230 pages built, errors 0 in both. Tests pass and decide printed kept. Keep it?",
+      "expected_output": "Reverts the attempt despite decide printing kept, because the work count dropped from 412 to 230 pages: the attempt built fewer pages, so the lower parse count does not show a gain. Logs it as reverted with the work-count reason.",
+      "files": [],
+      "expectations": [
+        "Reverts the attempt even though decide printed kept",
+        "Names the work count difference, 412 pages against 230",
+        "Logs the row as reverted with the reason in the note"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "eval-score-climb-routes-to-claude-api-hillclimb",
+      "prompt": "/performance:climb our support-bot prompt. We have 120 graded eval cases and want the pass rate up from 71% by iterating on the system prompt.",
+      "expected_output": "Does not run the loop. Explains that raising an LLM app's score against an eval set is the bundled /claude-api hillclimb workflow, which the person starts by typing it, and creates no worktree or keep rule.",
+      "files": [],
+      "expectations": [
+        "Routes the request to /claude-api hillclimb",
+        "Says the person types that command; the skill does not start it",
+        "Creates no worktree, branch or keep rule"
+      ]
+    }
+  ]
+}

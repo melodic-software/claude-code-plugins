@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: climb-routes-eval-score-to-hillclimb
+description: 'A request to raise an LLM app''s pass rate on a graded eval set by iterating on its system prompt is routed to /claude-api hillclimb, which the person starts; no climb worktree, branch or keep rule is created.'
+tags: [climb, routing]
+plugins: ["../.."]
+expected_outcome: 'The answer routes the work to the bundled /claude-api hillclimb workflow, says the person types that command, and creates no worktree, branch, keep rule or log.'
+execution:
+  prompt: 'Our support chatbot passes 84 of our 120 graded eval cases. Set up a loop that keeps changing its system prompt and keeps whatever raises the pass rate.'
+  allowed_tools: [Bash, Read, Grep, Glob, Skill]
+  max_turns: 15
+  timeout_seconds: 600
+graders:
+  - name: names-hillclimb
+    type: regex
+    pattern: '/claude-api hillclimb'
+    arm: both
+  - name: no-climb-setup
+    type: tool_used
+    tool: Bash
+    input_match: 'worktree\s+add|climb_log\.py'
+    min: 0
+    max: 0
+    arm: both
+  - name: routes-not-climbs
+    type: llm
+    criteria: 'PASS only if the answer sends this eval-score work to /claude-api hillclimb, says the person starts it by typing the command, and does not offer to run a code-performance keep-or-revert loop on a counter instead. FAIL otherwise.'

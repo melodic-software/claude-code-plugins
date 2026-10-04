@@ -12,10 +12,23 @@ All notable changes to the `performance` plugin are documented here. Format foll
   Deletion candidates come from reading callers rather than from the profile, and a rescheduled
   change is judged by the wait it removes. `/performance:target` cites
   section F when it names a candidate's mechanism.
+- **`/performance:climb`**: a keep-or-revert loop on a frozen harness. Each attempt is one
+  hypothesis that names a mechanism, one commit in climb's own worktree on `climb/<goal-slug>`,
+  and a fresh measurement of both arms through `ab.sh`. `climb_log.py decide` applies a keep rule
+  written before the first attempt; a reverted attempt runs `git reset --keep` to the last kept
+  commit, and every attempt is logged to a tab-separated file in the memory slice. The plugin now
+  declares `python3` and `git` as required for climb in `prerequisites.json`, and its plugin-level
+  eval suite gains three climb cases. The glossary's Hill climbing entry and techniques.md
+  section I now point at climb for the loop inside one goal.
 
 ### Changed
 
 - `/performance:target` hands a captured CPU profile, trace or heap snapshot to `/debugging:analyze-profile` when the debugging plugin is enabled, and counts its finding as measured evidence in the ranking.
+- `/performance:goal` takes an optional `min_attempts` when the work will run as a loop.
+  `/performance:snapshot` freezes a harness for a loop only after `discriminate.py` shows it sees a
+  known change and the harness prints its failure and work-unit tallies, and its `## Next`
+  names `/performance:climb`. `reference/harness-integrity.md` gains rule 8: a frozen harness
+  prints its error and work counts.
 
 ## [0.6.0] - 2026-10-03
 

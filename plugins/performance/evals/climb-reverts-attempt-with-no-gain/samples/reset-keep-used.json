@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git -C /tmp/tmp.k2/climb reset --keep 4be1c07a9d2e"}}
+      ],
+      "why": "reset --keep in the climb worktree"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git -C /tmp/tmp.k2/climb revert --no-edit HEAD"}}
+      ],
+      "why": "a revert commit is not the reset the skill names"
+    },
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git -C /tmp/tmp.k2/climb log --oneline --keep-going"}}
+      ],
+      "why": "a --keep-going flag is not reset --keep"
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "python3 \"/plugins/performance/skills/climb/scripts/climb_log.py\" decide --rule /w/.work/site-build/climb/template-parses/keep-rule.json --before 15 --after 15"}}
+      ],
+      "why": "the keep rule applied through the script"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "python3 \"/plugins/performance/skills/climb/scripts/climb_log.py\" show --log /w/.work/site-build/climb/template-parses/log.tsv"}}
+      ],
+      "why": "reading the log is not applying the rule"
+    }
+  ]
+}

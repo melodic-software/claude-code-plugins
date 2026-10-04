@@ -1,0 +1,34 @@
+schema_version: "1.1"
+name: climb-continues-before-min-attempts
+description: 'A climb run met its Realistic target on attempt a2, but the goal asks for six attempts. The answer keeps the run going instead of finishing, removes no worktree and does not hand off to verify. A run needs --scaffold and --allow-tools Bash.'
+tags: [climb, stop-condition]
+plugins: ["../.."]
+expected_outcome: 'The run is not finished: two of the six required attempts are logged, so the target being met is not enough. The answer says the loop continues with a3 and names a next hypothesis or asks to proceed, keeps both worktrees, and does not route to /performance:verify yet.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: '/performance:climb converter-spawns. State is in .work/thumbnails/climb/converter-spawns/state.txt. Attempt a2 got us to 2 spawns, under the target of 3. Are we done? Answer before doing anything else.'
+  allowed_tools: [Bash, Read, Grep, Glob, Skill]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: names-min-attempts
+    type: regex
+    pattern: 'min_attempts|minimum (?:number of )?attempts'
+    flags: i
+    arm: both
+  - name: no-worktree-removed
+    type: tool_used
+    tool: Bash
+    input_match: 'worktree\s+remove'
+    min: 0
+    max: 0
+    arm: both
+  - name: keeps-going
+    type: llm
+    criteria: 'PASS only if the answer says the run is not finished because only 2 of the 6 required attempts are logged, treats the met target as one stop condition that is not enough alone, and continues (or offers to continue) with attempt a3 rather than handing off to /performance:verify. FAIL if it declares the run done or recommends verify now.'
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:performance:)?climb"'
+    arm: with-only

@@ -205,6 +205,19 @@
         "Checks that the ab.sh copy supports --percentiles before timing",
         "Does not drop the flag to make an old copy run"
       ]
+    },
+    {
+      "id": 17,
+      "name": "freezing-a-harness-needs-counts-and-discrimination",
+      "prompt": "/performance:snapshot baseline. The goal has Min attempts: 6, so this harness will be frozen for /performance:climb. The harness prints `parses=38` and nothing else. Freeze it as is.",
+      "expected_output": "Refuses to freeze the harness yet because it prints neither an error count nor a count of work done, and says why: a run that fails early or skips work would read as a gain. Once both counts print, runs discriminate.py with a patch known to change the measured path, freezes only on exit 0, and records the command, the commit and the discrimination exit code in the baseline report.",
+      "files": [],
+      "expectations": [
+        "Refuses to freeze a harness that prints no error count and no work count",
+        "Explains that a run that fails early or skips work would look like a gain",
+        "Runs discriminate.py before freezing and freezes only on exit 0",
+        "Records the frozen command, its commit and the discrimination exit code"
+      ]
     }
   ]
 }

@@ -1,0 +1,19 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "cat .work/thumbnails/climb/converter-spawns/state.txt"}},
+        {"tool": "Bash", "input": {"command": "git worktree list"}}
+      ],
+      "why": "reads state and lists worktrees without removing any"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {"tool": "Bash", "input": {"command": "git worktree remove /tmp/tmp.q8/climb"}}
+      ],
+      "why": "removes climb's worktree as if the run had finished"
+    }
+  ]
+}

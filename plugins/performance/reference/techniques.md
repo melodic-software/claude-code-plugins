@@ -756,8 +756,10 @@ by: no skill step; the human steering the push.
 **Widen scope only behind guardrails.** Ask the agent for larger changes only when the guardrails
 in [G](#g-protect-the-win) are in place. When the agent holds back a change because merging or
 deploying is slow, **remove the latency excuse**: the human commits to merging and deploying it
-promptly. A met target does not close a workstream that still has measured candidates; the human,
-not an automated nudge, asks it to continue, within the human's own `/goal` or `/loop` condition.
+promptly. Inside one goal, `/performance:climb` keeps attempting after the target is met until the
+goal's `min_attempts` is reached. Past that goal, a met target does not close a workstream that
+still has measured candidates; the human, not an automated nudge, starts the next goal, within the
+human's own `/goal` or `/loop` condition.
 When: guardrails from [G](#g-protect-the-win) are in place. Counter: none. Fails when: wider scope
 is pushed without them. Used by: no skill step; the human steering the push.
 

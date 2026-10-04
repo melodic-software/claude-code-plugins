@@ -20,6 +20,57 @@
         "apt": "gh"
       },
       "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "required",
+      "for": [
+        "skill:climb"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python",
+          "py"
+        ],
+        "version": {
+          "args": [
+            "--version"
+          ],
+          "pattern": "Python ([0-9.]+)",
+          "min": "3.10"
+        }
+      },
+      "degrade": "Without Python 3.10 or later, climb cannot apply its keep rule or write its attempt log, so it stops before the first attempt; the other performance skills are unaffected.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.12",
+        "apt": "python3"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "git",
+      "kind": "cli",
+      "need": "required",
+      "for": [
+        "skill:climb"
+      ],
+      "detect": {
+        "any": [
+          "git"
+        ]
+      },
+      "degrade": "Without git, climb cannot create its worktrees, commit an attempt or reset its branch, so it stops before the first attempt.",
+      "install": {
+        "docs": "https://git-scm.com/downloads",
+        "brew": "git",
+        "winget": "Git.Git",
+        "apt": "git"
+      },
+      "check": "/harness-ops:prerequisites"
     }
   ]
 }
