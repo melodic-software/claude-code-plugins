@@ -8,7 +8,7 @@
   Each store record now carries the transcript's `entrypoint` values in `entrypoints`, or `["unknown"]`. Sweep sets aside a session whose entrypoints are all headless or Agent SDK ones (`sdk-cli`, `sdk-ts`, `sdk-py`), says how many in the report, and keeps a session with no known entrypoint, counted as unclassified; drift still reads every record. A new canary, `key_path:user:entrypoint`, withholds the four metrics whose medians automated sessions were measured to move if Claude Code stops writing the key.
 - **One interrupt in a session is no longer a `tools.interrupts` finding.** The threshold is now 1, so a session needs two.
 - **Claude Desktop prompts count as typed turns.** Desktop writes the person's prompts with `promptSource: sdk`, which the shared transcript reader rejected. A record whose `origin.kind` is `human` now counts whatever its `promptSource`, after one leading `<system-reminder>` block is dropped; `/session-flow:retro` counts them too. CLI records count as before.
-- **A transcript Claude Code set aside as `<session>.orphaned-*.jsonl` is no longer collected as a second session.** Collect skips it and reports the count in `skipped_orphaned`.
+- **A transcript Claude Code set aside as `<session>.orphaned-*.jsonl` is no longer collected as a second session.** Collect skips it and reports the count in `skipped_orphaned`, and deletes a record an earlier version stored for one, even when the transcript is gone, reporting the count in `purged_orphaned`.
 
 ## [0.48.5] - 2026-10-04
 

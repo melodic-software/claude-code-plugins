@@ -46,7 +46,9 @@ D/audit-sessions/
 - **How a session was launched.** `entrypoints` lists every `entrypoint` value the main transcript
   carries, or `["unknown"]` when it carries none; a record written before the field existed reads
   as unknown too. Collect skips a transcript Claude Code set aside as `<session>.orphaned-*.jsonl`
-  and counts it in `skipped_orphaned`, so it never becomes a second session.
+  and counts it in `skipped_orphaned`, so it never becomes a second session. A record an earlier
+  collector stored for such a transcript is deleted on the next collect, whether or not the
+  transcript still exists and whatever `--session` selects, and counted in `purged_orphaned`.
 
 ## Reports
 

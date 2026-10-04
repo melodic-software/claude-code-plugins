@@ -9,7 +9,8 @@
 
 Writes one `session-record/v1` file per main session (the main transcript plus its subagents)
 under `D/audit-sessions/store/v1/`, the machine-wide store `sweep.py` reads; a transcript Claude
-Code set aside (`<session>.orphaned-*.jsonl`) is skipped and counted, not ingested. A session whose
+Code set aside (`<session>.orphaned-*.jsonl`) is skipped and counted, not ingested, and a record an
+earlier collector stored for one is deleted. A session whose
 fingerprint matches its stored record is skipped, unless that record was written by another
 collector version, under other excerpt limits, or with redaction failing closed where it now
 works or the reverse. With a retention window, records of sessions
@@ -782,9 +783,18 @@ def cmd_collect(args: argparse.Namespace) -> int:
     index = load_store(store)
     # A record stored under other settings is re-ingested, so a lowered excerpt limit reaches old records.
     policy = (version, {"chars": args.excerpt_chars, "words": args.excerpt_words}, redactor.fail_closed)
-    scanned = ingested = skipped = expired = orphaned = too_long = 0
+    scanned = ingested = skipped = expired = orphaned = purged = too_long = 0
     failed: list[dict] = []
     unknown_types: Counter = Counter()
+    # Earlier collectors stored a set-aside transcript as a session, and its source may since be gone.
+    for path in [p for p in index if ORPHANED in p.stem]:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as exc:
+            failed.append({"session_id": path.stem, "reason": str(exc)})
+            continue
+        del index[path]
+        purged += 1
     for main in sorted(root.glob("*/*.jsonl")):
         if ORPHANED in main.stem:
             orphaned += 1
@@ -844,6 +854,7 @@ def cmd_collect(args: argparse.Namespace) -> int:
         "skipped_unchanged": skipped,
         "skipped_expired": expired,
         "skipped_orphaned": orphaned,
+        "purged_orphaned": purged,
         "failed": failed,
         "pruned": pruned,
         "store_records": sum(1 for _ in store.glob("p-*/*.json")),

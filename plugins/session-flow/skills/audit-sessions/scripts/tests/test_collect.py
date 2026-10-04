@@ -663,6 +663,29 @@ def test_orphaned_transcript_is_not_a_second_session(data_dir, tmp_path):
     assert set(records(data_dir)) == {"gold-0009"}
 
 
+@pytest.mark.parametrize("source_kept", [True, False])
+def test_orphaned_record_an_earlier_collector_stored_is_purged(data_dir, tmp_path, source_kept):
+    project = tmp_path / "projects" / "proj-o"
+    write_records(project, "gold-0010", [turn(0, "current", promptSource="typed")])
+    assert collect(data_dir, tmp_path / "projects").returncode == 0
+    normal = next((data_dir / "audit-sessions" / "store" / "v1" / "sessions").glob("p-*/gold-0010.json"))
+    before = normal.read_bytes()
+    # The record an earlier collector wrote for the set-aside transcript, beside the real one.
+    orphan_id = "gold-0010.orphaned-1759500000000-cd34"
+    stale = json.loads(before)
+    stale["session_id"] = orphan_id
+    (normal.parent / f"{orphan_id}.json").write_text(json.dumps(stale), encoding="utf-8")
+    if source_kept:
+        write_records(project, orphan_id, [turn(0, "set aside", promptSource="typed")])
+    result = collect(data_dir, tmp_path / "projects")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert set(records(data_dir)) == {"gold-0010"}
+    assert normal.read_bytes() == before
+    data = envelope(result)["data"]
+    assert (data["purged_orphaned"], data["skipped_orphaned"], data["store_records"]) == (1, int(source_kept), 1)
+    assert envelope(collect(data_dir, tmp_path / "projects"))["data"]["purged_orphaned"] == 0
+
+
 # resolve_bash mirrors hooks/exec-bash.mjs; the filesystem is injected, as the JS tests do.
 WIN_ENV = {"ProgramFiles": "C:\\Program Files", "PATH": "C:\\Windows\\System32;\"D:\\tools\";C:\\Program Files\\WindowsApps"}
 
