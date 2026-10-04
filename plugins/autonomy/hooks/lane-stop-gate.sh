@@ -205,10 +205,17 @@ emit_tel() {
 # gate that cannot read the payload must not trap the lane).
 hook::buffer_stdin_to INPUT || exit 0
 
-# jq parses the payload and the trusted config. Absent → visible once per session and agent
-# notice, then allow the stop (fail-open). Stop supports additionalContext, so
-# the notice reaches both the agent and the user.
-hook::require jq "Stop" "autonomy-lane-stop-gate" "$INPUT"
+# jq parses the payload and the trusted config. Absent → a once-per-session
+# notice, then allow the stop (fail-open). User only: Stop additionalContext
+# continues the conversation, which would spend a model turn on a notice.
+if ! command -v jq >/dev/null 2>&1; then
+  # shellcheck disable=SC2034 # the model text is filled and dropped: user only on Stop
+  JQ_MODEL="" JQ_USER=""
+  if hook::prereq_notice_to JQ_MODEL JQ_USER jq "$INPUT" --label autonomy --no-path; then
+    hook::emit_skip_notice "Stop" "" "$JQ_USER"
+  fi
+  exit 0
+fi
 
 # Every payload field the gate reads, in ONE jq pass: five `printf | jq | tr`
 # pipelines used to read the same buffer one field at a time. EVENT, SESSION_ID,
@@ -474,23 +481,24 @@ if [[ "$ENABLED" != "true" ]]; then
   # No trusted source says "on". A trusted explicit false stays silent — that is
   # a configured verdict, not a claim the gate declined to honor. The two ways a
   # gate a lane EXPECTED can end up off get distinct, accurate notices, once
-  # per session and agent, instead of a silent disengage:
+  # per session and to the user only (only the operator can relaunch a lane),
+  # instead of a silent disengage:
   if [[ -z "$ENABLED" ]]; then
     if [[ -n "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ARM_ID:-}" && -z "$GATE_ARM_JSON" ]]; then
       # An arm id reached the hook, but no valid record backs it — spent,
       # TTL-expired, claimed by a different session, or malformed. This is the
       # legitimately-armed-then-stale case; do NOT blame a repo env block.
       if hook::notice_once "autonomy-lane-stop-gate-stale-arm" "$INPUT"; then
-        hook::emit_skip_notice "Stop" \
-          "autonomy lane-stop gate: this session carries an arm id but no matching arm record is present (it may have expired, been claimed by another session, or been cleaned up), so the gate stays off. Relaunch the lane through the harness-ops lane launcher to re-arm it."
+        hook::emit_skip_notice "Stop" "" \
+          "autonomy: lane-stop gate off: no matching arm record (expired, claimed by another session, or cleaned up). Relaunch the lane through the harness-ops lane launcher."
       fi
     elif [[ "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED:-}" == "true" ]]; then
       # Enablement claimed on the untrusted env channel with no arm id at all —
       # a pre-0.12.0 launcher still delivering over --settings/env, or a repo
       # env block attempting the pre-#1784 attack. Surfacing it beats silence.
       if hook::notice_once "autonomy-lane-stop-gate-untrusted-enable" "$INPUT"; then
-        hook::emit_skip_notice "Stop" \
-          "autonomy lane-stop gate: enablement was claimed on the environment channel only — no managed/user setting configures it and no arm record matches — so the gate stays off. A lane launched expecting the gate needs the current harness-ops lane launcher (which arms it at launch); a repository cannot opt sessions in via its own settings.json env block."
+        hook::emit_skip_notice "Stop" "" \
+          "autonomy: lane-stop gate off: enabled only on the environment channel, which it does not trust. Launch the lane through the harness-ops lane launcher."
       fi
     fi
   fi
@@ -708,7 +716,7 @@ fi
 # completion self-check. This directly counters the fabricated-context-percentage
 # premature-stop failure (#576/#577): a self-estimated "~50% context" is not a
 # completion condition. Emitted as the documented Stop stdout decision.
-REASON="Autonomy lane-stop gate: you attempted to stop, but this lane's completion condition is not yet signaled. A lane that stops itself before its stated goal is met is a bug. Do NOT stop on a self-estimated context percentage, a turn count, a status summary, an offer to continue, or a vague sense that enough was done. None of those is completion; put status notes in the same message as your next action. Either (1) continue working toward the lane's stated goal, or (2) if the goal is genuinely and verifiably met, declare completion by emitting the exact token ${SENTINEL} on its own line (or by creating the configured completion-marker file), then stop. If you cannot continue without the operator, or the next step is destructive, irreversible, or outward-facing and this lane's prompt does not authorize it, do not take it and do not declare completion: say what you are blocked on and stop again. This is your one automated nudge; if you stop again without signaling completion, the operator will be alerted that the lane went down."
+REASON="Lane-stop gate: this lane's completion is not signaled. A context estimate, turn count, status summary, offer to continue or a sense that enough was done is not completion; put status in the same message as your next action. Continue toward the lane's goal. If the goal is verifiably met, print ${SENTINEL} on its own line (or create the completion-marker file), then stop. If you need the operator, or the next step is destructive, irreversible or outward-facing and the lane prompt does not authorize it, say what blocks you and stop without the token; do not take that step. A second unsignaled stop alerts the operator."
 
 emit_tel "blocked" "nudged" "none"
 jq -nc --arg r "$REASON" '{decision:"block", reason:$r}'
