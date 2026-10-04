@@ -14,7 +14,7 @@ import {
 } from "../check-trusted-trigger/check-trusted-trigger.mjs";
 
 const PR_NUMBER = /^[1-9][0-9]{0,9}$/;
-const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
 const APP_SLUG = /^[a-z0-9][a-z0-9-]*$/;
 
 const CLOSING_ISSUES = `query($owner: String!, $name: String!, $number: Int!) {

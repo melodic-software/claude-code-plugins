@@ -36,6 +36,7 @@ function routesFrom(api) {
 function fakeGitHub(routes) {
   const github = async (method, apiPath, body) => {
     const key = `${method} ${apiPath}`;
+    github.calls.push(key);
     if (key === "POST /graphql") {
       github.graphql.push(body);
     }
@@ -44,6 +45,7 @@ function fakeGitHub(routes) {
     }
     return structuredClone(routes[key]);
   };
+  github.calls = [];
   github.graphql = [];
   return github;
 }
@@ -218,6 +220,17 @@ test("asks GraphQL for the PR's closing issue references", async () => {
     name: "claude-code-plugins",
     number: 42,
   });
+});
+
+test("a closing reference whose repository is a dot segment is never requested", async () => {
+  const api = load();
+  api.closingIssues.data.repository.pullRequest.closingIssuesReferences.nodes[1].repository = {
+    nameWithOwner: "melodic-software/..",
+  };
+  const { code, written, github } = await filter(api);
+  assert.equal(code, 1);
+  assert.equal(written, undefined);
+  assert.ok(!github.calls.some((call) => call.includes("/..")));
 });
 
 test("an unreadable trusted-actor list writes nothing and exits non-zero", async () => {
