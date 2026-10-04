@@ -170,8 +170,10 @@ them live when a command's output, or the files you find, do not match the entry
   `"$PY" "$ROOT/scripts/findings.py" compare --data "$DATA" --findings "$RUN/findings.json" --id <id>`
   and keep its line for your return. From the probe: exit 0 (`result=supported`) while the config
   read is not `true` is a candidate, tier E3, title naming the `volume=` it printed,
-  `expected_size` null (a status time in ms is not a count, so it sorts unsized), `command` `bash "$ROOT/scripts/untracked-cache-probe.sh"`, `fix_owner` `steps-for-you`, horizon
-  `later`, route `next-run`. Exit 1 (`unsupported`) or a config already `true` adds nothing.
+  `expected_size` null (a status time in ms is not a count, so it sorts unsized), unit
+  `elapsed-ms`, `command` `bash "$ROOT/scripts/untracked-cache-probe.sh"`, `fix_owner`
+  `steps-for-you` with `fix_steps` "run `git config core.untrackedCache true` in this repository",
+  horizon `later`, route `next-run`. Exit 1 (`unsupported`) or a config already `true` adds nothing.
 - **Not checked**: outside a repository: `no-data`, reason "not inside a git repository; run
   /performance:go-faster from inside the repository's working tree". A guard refuses
   status-timing: `refused-by-guard`, reason "git status timing refused by a guard; this area
@@ -242,10 +244,11 @@ them live when a command's output, or the files you find, do not match the entry
   finding; the line-count candidate still stands.
 - **Record**: a candidate, tier E3, `expected_size`
   `{count: <total lines>, source_kind: repo-count, source: "always-loaded instruction lines"}`,
-  `command` "run /context-budget:audit to measure startup tokens", `fix_owner`
+  unit `count`, `command` "run /context-budget:audit to measure startup tokens", `fix_owner`
   `/instruction-placement:audit`, horizon `later`, route `next-run`. When the ledger row reports
   instruction tokens on its own, add a measured finding instead: unit `tokens`, tier E2, workload
-  `startup ledger, latest row`, `command` `/context-budget:audit --ledger`.
+  `startup ledger, latest row`, `command` `/context-budget:audit --ledger`, `fix_owner`
+  `/instruction-placement:audit`, horizon `later`, route `next-run`.
 - **Not checked**: no instruction file exists: `no-data`, reason "no always-loaded instruction
   file found: nothing loads at launch, so there is no instruction cost to measure".
 - **Guard**: an instruction that blocks, denies or asks is a guard; a finding that would remove or
@@ -364,8 +367,9 @@ them live when a command's output, or the files you find, do not match the entry
   `open_to_merge` (`mergedAt` minus `createdAt`): median each, unit `wait-ms`, tier E2, workload
   `merged PRs, last 20`, `command` its `command`, horizon `later`, route `next-run`, `fix_owner`
   `/performance:goal`. PR size is a
-  candidate only: `expected_size`
-  `{count: <size value>, source_kind: repo-count, source: "merged PRs, last 20"}`.
+  candidate only: tier E3, unit `count`, `expected_size`
+  `{count: <size value>, source_kind: repo-count, source: "merged PRs, last 20"}`, `command` its
+  `command`, `fix_owner` `/performance:goal`, horizon `later`, route `next-run`.
 - **Not checked**: `prs` is 0: `no-data`, reason "no merged pull requests to time; this area
   applies once this repository has merged pull requests on GitHub". GitHub probe
   failed or `pr-timing` exited 1: `auth-gap`, with that reason.
@@ -409,8 +413,9 @@ them live when a command's output, or the files you find, do not match the entry
   `errors` exceed one (unit `count`). A repeat whose cure changes only how this session works
   (reuse the earlier output while its inputs are unchanged) is horizon `now`, effect `batching`,
   confidence `HIGH` (a direct count), with `guard_metric` "a reused result differs from a fresh run" and `revert_if` "the inputs
-  changed since the earlier run"; its route is `next-run`. Everything else is `later`, route
-  `next-run`, `fix_owner` `/performance:goal`.
+  changed since the earlier run"; its `fix_owner` is `steps-for-you` with `fix_steps` "reuse the
+  earlier output while its inputs are unchanged" and its route is `next-run`. Everything else is
+  `later`, route `next-run`, `fix_owner` `/performance:goal`.
 - **Not checked**: `TRANSCRIPT` `none` and `SESSION` `unknown`: `no-data`, reason "no transcript
   found for session unknown: the session id did not expand; this area reads only the live
   session's transcript". `TRANSCRIPT` `none` otherwise: `no-data`, reason "no transcript found
@@ -442,7 +447,8 @@ them live when a command's output, or the files you find, do not match the entry
 - **Record**: a candidate per catalog row with area `skills` whose cause these counts size, one
   per skill invoked more than once: tier E3, `expected_size`
   `{count: <invocations>, source_kind: session-count, source: "skill invocations this session"}`,
-  horizon `later`, route `next-run`.
+  unit `count`, `command` the `transcript-counts` line, `fix_owner` `/performance:goal`, horizon
+  `later`, route `next-run`.
 - **Not checked**: `TRANSCRIPT` `none` and `SESSION` `unknown`: `no-data`, reason "no transcript
   found for session unknown: the session id did not expand; this area reads only the live
   session's transcript". `TRANSCRIPT` `none` otherwise: `no-data`, reason "no transcript found
@@ -484,7 +490,8 @@ them live when a command's output, or the files you find, do not match the entry
 - **Owner**: none.
 - **Record**: a measured finding, unit `tokens`, value `cache_creation`, title naming
   `cache_read` and `input` beside it, tier E1, workload `transcript counts`, `command` the
-  transcript-counts line, horizon `later`, route `next-run`. Counts only, never a price.
+  transcript-counts line, `fix_owner` `/performance:goal`, horizon `later`, route `next-run`.
+  Counts only, never a price.
 - **Not checked**: `TRANSCRIPT` `none` and `SESSION` `unknown`: `no-data`, reason "no transcript
   found for session unknown: the session id did not expand; this area reads only the live
   session's transcript". `TRANSCRIPT` `none` otherwise: `no-data`, reason "no transcript found
