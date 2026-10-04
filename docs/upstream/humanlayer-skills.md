@@ -11,8 +11,14 @@ actually uses are not provenance records and stay in place.
 2026-08-13T15:05:30Z). `plugins/show-me/skills/show-me/SKILL.md` last changed at `6ab9013` and is
 byte-identical at that HEAD. "v1.0.1" is the plugin manifest version; the repository has no git
 tags. Git history of this file records *when*; this line records only *what was audited*.
+Trigger fired and re-audited 2026-10-04: `bba9d13` (2026-09-12) is the only later change to the
+file. It adds `disable-model-invocation: true` to the frontmatter (plus a Codex
+`allow_implicit_invocation: false` sidecar) and leaves the body untouched, so no row below changes.
+Watch next: mattpocock/skills v1.3 `pr` re-hosts this skill's view menu (see
+[`mattpocock-skills.md`](mattpocock-skills.md), `pr` row), so a later body change here should be
+diffed against both `visualization`'s `code-shapes.md` and his `pr`.
 
-**Recheck trigger:** a change to `plugins/show-me/skills/show-me/SKILL.md` against `6ab9013` — re-audit
+**Recheck trigger:** a change to `plugins/show-me/skills/show-me/SKILL.md` against `bba9d13` (was `6ab9013`) — re-audit
 the affected rows below. The upstream publishes no release notes and no tags, so the trigger is a
 file change rather than a release, and the audit is a diff against the pinned commit.
 

@@ -18,16 +18,31 @@
 # a routine or loop, never from a SessionStart hook.
 #
 # Exit: 0 nothing flagged, 1 at least one row flagged, 2 cannot evaluate (no duckdb, no store,
-# or no hook_execution_complete rows in the window).
+# or no hook_execution_complete rows in the window). Those three exits name two routes forward:
+# turning telemetry on, and the stop_hook_summary transcript records for Stop hooks.
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OTEL_DIR="$SCRIPT_DIR/../otel"
 
-usage() { sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,22p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
 die() {
   printf 'hook-latency: %s\n' "$1" >&2
+  exit 2
+}
+routes() {
+  cat >&2 <<'EOF'
+hook-latency: routes to hook latency:
+  1. Turn telemetry on: CLAUDE_CODE_ENABLE_TELEMETRY=1 with OTEL_LOGS_EXPORTER=otlp to the
+     collector at http://127.0.0.1:4318; see the observability skill's context/operator-setup.md.
+  2. Stop hooks, no telemetry needed: the stop_hook_summary records in session transcripts; see
+     /harness-ops:audit-performance, gotcha "Never time a hook by running it".
+EOF
+}
+cannot_evaluate() {
+  printf 'hook-latency: %s\n' "$1" >&2
+  routes
   exit 2
 }
 
@@ -83,9 +98,9 @@ sql_path() { # native duckdb.exe cannot read MSYS paths; double quotes for a SQL
   printf '%s\n' "${p//\'/\'\'}"
 }
 
-command -v duckdb >/dev/null 2>&1 || die "duckdb not found"
+command -v duckdb >/dev/null 2>&1 || cannot_evaluate "duckdb not found"
 store="${CC_OTEL_STORE:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/observability/otel}"
-[[ -f "$store/cc-logs.json" ]] || die "no logs store at $store/cc-logs.json"
+[[ -f "$store/cc-logs.json" ]] || cannot_evaluate "no logs store at $store/cc-logs.json"
 
 err="$(mktemp)"
 trap 'rm -f "$err"' EXIT
@@ -137,3 +152,6 @@ NR == 1 {
   printf fmt, (reason ? "!" : ""), $3, $4, $5, $6, $7, $8, b, $9, ($10 == "" ? "-" : $10), $11, reason
 }
 END { exit(empty ? 2 : flagged ? 1 : 0) }'
+rc=$?
+((rc == 2)) && routes
+exit "$rc"

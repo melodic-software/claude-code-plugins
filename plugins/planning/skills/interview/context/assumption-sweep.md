@@ -59,7 +59,8 @@ Fields:
 - **id:** `S<N>`, contiguous within the sweep.
 - **category:** `undecided`, `hidden-default`, `contradiction`, `inherited`, or `hedged`.
 - **class:** `decision` (the user's call), `fact` (the environment answers it), `tenant` (a
-  setting of the environment the work targets, confirmed by whoever owns it), or `person` (only a
+  setting of the environment the work targets, confirmed by whoever owns it or read from a
+  connected system that holds it), or `person` (only a
   named person other than the user can answer it).
 - **source:** where the item was found: a row id, a recommendation, an artifact path and section.
 - **dependencies:** the `Q<N>` and `C<N>` ids the item rests on.
@@ -71,8 +72,13 @@ Fields:
 You write the results, not the sub-agent, so register ids stay contiguous.
 `S<N>` never reaches the register.
 
-- **fact:** resolve it from the environment and state it. No row.
-- **decision, tenant, person:** a register row at the next contiguous `Q<N>`, written `open` and
+- **fact and tenant:** run the self-answer step first
+  ([`self-answer.md`](../../../context/self-answer.md)), connected and connectable sources
+  included. An item it answers is stated with its source tag and basis, with no row (loop.md
+  "Self-answer gate"); one an unconnected system would answer joins the offer to connect. An
+  item no source answers falls through to the next line.
+- **decision, person, and an unanswered tenant or fact:** a register row at the next contiguous
+  `Q<N>`, written `open` and
   asked in the next round with a recommendation. A `person` item the user cannot answer, and a
   `tenant` item when the user is not the setting's owner, are `deferred` to the Brief's
   `### Deferred questions` with its arbiter tag.

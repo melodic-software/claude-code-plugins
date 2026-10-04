@@ -19,7 +19,7 @@ section each decision rests on, which a reader opens to read the author's own wo
 
 - [Why this exists](#why-this-exists)
 - [The unknowns taxonomy](#the-unknowns-taxonomy)
-- [The five-pass pre-implementation workflow](#the-five-pass-pre-implementation-workflow)
+- [The pre-implementation workflow](#the-pre-implementation-workflow)
 - [Prompt-pattern catalog](#prompt-pattern-catalog)
 - [Reply-affordance convention](#reply-affordance-convention)
 - [Export-button rule](#export-button-rule)
@@ -72,22 +72,34 @@ We run the method as a loop: what an artifact teaches becomes the starting map f
 round. The author's own framing of this loop (S1, section "Matching map and territory") is his
 metaphor, not adopted as house vocabulary (see `glossary.md` rejected terms).
 
-## The five-pass pre-implementation workflow
+## The pre-implementation workflow
 
-The corpus composes its pre-implementation demos into one ordered flow. This repo ships a
-skill per pass; the composition itself is judgment, not a gate. Run the passes whose
+The corpus composes its pre-implementation demos into one ordered flow, and this repo adds the
+design, PRD, and decompose passes its own stage ladder (`/session-flow:workflow`) carries. This
+repo ships a skill per pass; the composition itself is judgment, not a gate. Run the passes whose
 unknowns you actually have, in this order when you run several:
 
 1. **Blindspot pass**, `/discovery:blindspot`: surface unknown unknowns in the task's
    blast radius.
-2. **Brainstorm / prototype**, `/planning:brainstorm` for direction candidates;
+2. **Wayfind** (conditional), `/planning:wayfind`: only when the effort is too big to hold at
+   once and still too foggy to phrase as decisions; it charts the fog until one of the later
+   passes can start.
+3. **Brainstorm / prototype**, `/planning:brainstorm` for direction candidates;
    `/prototype:explore-directions` or `/prototype:pressure-test` when the unknown is
    visual or interactive.
-3. **Interview**, `/planning:interview`: convert known unknowns into decisions on the
+4. **PRD** (conditional), `/planning:prd`: only when the change is user-facing,
+   business-driven, and needs alignment on the problem, the users, and the success metrics.
+5. **Interview**, `/planning:interview`: convert known unknowns into decisions on the
    record.
-4. **Reference port**, `/discipline:point-dont-copy` when the work leans on an external
+6. **Reference port**, `/discipline:point-dont-copy` when the work leans on an external
    reference whose semantics must survive the port.
-5. **Plan**, `/planning:plan`: lock the approach with the unknowns now known.
+7. **Design**, `/planning:design` then `/planning:design-handoff`: settle module layout,
+   contracts, and variation verdicts when the work adds types, contracts, modules, or a
+   topology or data-model change; the handoff writes them into PLAN.md's `## Design`, which is
+   how they reach the implementer. Work with no design question records a one-line early exit.
+8. **Plan**, `/planning:plan`: lock the approach with the unknowns now known.
+9. **Decompose** (conditional), `/work-items:decompose`: only when the plan holds more than one
+   independently shippable ticket; each ticket quotes its part of the design.
 
 Notes: the sequencing is chat-portable. Every pass works as plain conversation, and the
 artifact form is optional. Running later passes in a fresh session with the earlier
@@ -98,7 +110,7 @@ independently corroborates it; see `session-flow` plugin).
 
 Patterns the corpus demonstrated that have no owning skill; each entry is one house
 prompt-line to adapt. Patterns with an owning skill are listed in the
-[workflow](#the-five-pass-pre-implementation-workflow) above. Invoke the skill instead.
+[workflow](#the-pre-implementation-workflow) above. Invoke the skill instead.
 
 - **Disclose your starting point** (primer for any pass): "Before we start: my starting
   point is X, my current thinking is Y, my experience level with this area is Z."
@@ -197,7 +209,7 @@ extends existing planning artifacts rather than minting a parallel one.
 **Objection-evidence checklist** (reusable in PR descriptions): for each objection you
 expect, write the question, the factual answer, and the evidence citation, before
 anyone asks. An objection you can't answer factually is an unknown; route it back
-through the [workflow](#the-five-pass-pre-implementation-workflow).
+through the [workflow](#the-pre-implementation-workflow).
 
 ## Cautions from the source author
 

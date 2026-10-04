@@ -61,6 +61,18 @@ assert_contains "names the dead hook" "$OUT" "PreToolUse:Bash"
 assert_contains "systemMessage emitted" "$OUT" "systemMessage"
 assert_contains "explains fail-open" "$OUT" "fail-open"
 assert_contains "stale-session guidance" "$OUT" "restart"
+assert_contains "stale-session guidance names /reload-plugins before restart" "$OUT" \
+  "Run /reload-plugins to load the current config, or restart the session."
+
+# --- No jq: the user is told, the model is not (Stop context continues the turn)
+NOJQ_BIN="$TEST_TMPDIR/nojq-bin"
+mkdir -p "$NOJQ_BIN" "$TEST_TMPDIR/data-nojq/skip-notices"
+for t in bash cat env mkdir find tr grep sed uname date; do
+  real_t="$(command -v "$t" 2>/dev/null)" && ln -s "$real_t" "$NOJQ_BIN/$t"
+done
+OUT_NOJQ=$(PATH="$NOJQ_BIN" run_hook "$T1" "$TEST_TMPDIR/data-nojq")
+assert_contains "no jq -> user notice" "$OUT_NOJQ" "systemMessage"
+assert_absent "no jq -> nothing for the model on Stop" "$OUT_NOJQ" "additionalContext"
 
 # --- Structural matching: neither false-positive shape fires ----------------
 assert_absent "hook_success quoting an error does not fire" "$OUT" "PostToolUse:Edit"
@@ -122,6 +134,7 @@ assert_contains "completed record is still surfaced" "$OUT_DONE" "Stop:ran-and-f
 assert_contains "diagnosed as a completed non-zero exit" "$OUT_DONE" "completed non-zero exit"
 assert_absent "not described as a launch failure" "$OUT_DONE" "fails to launch"
 assert_absent "no restart-the-session remedy" "$OUT_DONE" "restart"
+assert_absent "no reload remedy for a hook that ran" "$OUT_DONE" "/reload-plugins"
 assert_absent "harness placeholder not attributed to the hook" "$OUT_DONE" "$HARNESS_NO_STDERR"
 assert_contains "no-stderr rendered as an explicit marker" "$OUT_DONE" "last stderr: (none — hook produced no stderr)"
 
@@ -198,6 +211,7 @@ assert_contains "bare exit 127 says both readings are possible" "$OUT_127" "Both
 assert_absent "bare exit 127 is not asserted to be a launch failure" "$OUT_127" "fails to launch"
 assert_absent "bare exit 127 is not asserted to have completed" "$OUT_127" "no exec-failure evidence"
 assert_contains "bare exit 127 still offers the restart remedy" "$OUT_127" "restart"
+assert_contains "bare exit 127 names /reload-plugins first" "$OUT_127" "Run /reload-plugins"
 assert_contains "bare exit 127 also points at the hook's own commands" "$OUT_127" \
   "read the hook's own logic"
 
@@ -209,6 +223,74 @@ assert_contains "bare exit 126 is reported ambiguous" "$OUT_126" \
 assert_absent "bare exit 126 is not asserted to be a launch failure" "$OUT_126" "fails to launch"
 assert_absent "bare exit 126 is not asserted to have completed" "$OUT_126" "no exec-failure evidence"
 assert_contains "bare exit 126 still offers the restart remedy" "$OUT_126" "restart"
+
+# STALE CONFIG: the session's startup-loaded config names a script the checkout
+# has since deleted, and bash reports its missing script operand at exit 127.
+# The first two stderr forms are copied from real records (context-guard
+# zone-gate.sh, source-control pr-ready-evidence-gate.sh); the backslash-only
+# and MSYS forms are synthetic. Backslashes are JSON-escaped here. Every
+# statusMessage-shaped command is a real row's statusMessage, which is what
+# the attachment's `command` holds when the row sets one.
+STALE_LABEL="stale config: registered script missing from disk"
+STATUS_MSG="Checking the context-zone gate..."
+PFX="Failed with non-blocking status code: "
+stale_case() { # <name> <command> <stderr>
+  local t="$TEST_TMPDIR/stale-$1.jsonl"
+  custom_record "PreToolUse:Edit" "$2" "$3" 127 40 >"$t"
+  run_hook "$t" "$TEST_TMPDIR/data-stale-$1"
+}
+assert_stale() { # <name> <output>
+  assert_contains "$1: classed stale config" "$2" "$STALE_LABEL"
+  assert_contains "$1: names /reload-plugins before restart" "$2" \
+    "Run /reload-plugins to load the current config, or restart the session."
+  assert_contains "$1: says the guard enforced nothing" "$2" "enforced nothing for the calls listed"
+  assert_absent "$1: not called ambiguous" "$2" "ambiguous"
+  assert_absent "$1: no false lead into the hook's own logic" "$2" "read the hook's own logic"
+  assert_absent "$1: remedy given once, not twice" "$2" "If a plugin update"
+}
+OUT_S=$(stale_case observed-mixed "$STATUS_MSG" \
+  "${PFX}/usr/bin/bash: C:\\\\code\\\\melodic\\\\claude-code-plugins\\\\plugins\\\\context-guard/hooks/zone-gate.sh: No such file or directory")
+assert_stale "observed mixed separators" "$OUT_S"
+OUT_S=$(stale_case observed-forward "Checking the ready-for-review flip against the mandatory pre-PR skill evidence..." \
+  "${PFX}bash: C:/code/melodic/claude-code-plugins/plugins/source-control/hooks/pr-ready-evidence-gate.sh: No such file or directory")
+assert_stale "observed forward-slash drive" "$OUT_S"
+OUT_S=$(stale_case backslash "$STATUS_MSG" \
+  "${PFX}bash: C:\\\\code\\\\plugins\\\\context-guard\\\\hooks\\\\zone-gate.sh: No such file or directory")
+assert_stale "backslash-only Windows path" "$OUT_S"
+OUT_S=$(stale_case msys "$STATUS_MSG" \
+  "${PFX}/usr/bin/bash: /c/code/plugins/context-guard/hooks/zone-gate.sh: No such file or directory")
+assert_stale "MSYS /c/ path" "$OUT_S"
+# shellcheck disable=SC2016 # literal ${CLAUDE_PLUGIN_ROOT} must not expand
+OUT_S=$(stale_case literal-root 'node ${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs ${CLAUDE_PLUGIN_ROOT}/hooks/zone-gate.sh' \
+  "${PFX}/usr/bin/bash: C:\\\\code\\\\plugins\\\\context-guard/hooks/zone-gate.sh: No such file or directory")
+assert_stale "command with literal CLAUDE_PLUGIN_ROOT" "$OUT_S"
+OUT_S=$(stale_case expanded-root 'node C:\\code\\plugins\\context-guard\\hooks\\exec-bash.mjs C:\\code\\plugins\\context-guard\\hooks\\zone-gate.sh' \
+  "${PFX}/usr/bin/bash: /c/code/plugins/context-guard/hooks/zone-gate.sh: No such file or directory")
+assert_stale "command with CLAUDE_PLUGIN_ROOT expanded" "$OUT_S"
+
+# STAY QUIET: shapes that must keep today's classification.
+# bash reporting a missing file from INSIDE a script that ran carries `line N:`.
+OUT_S=$(stale_case in-script "$STATUS_MSG" \
+  "${PFX}/c/code/plugins/x/hooks/my-hook.sh: line 12: /c/code/plugins/x/hooks/child.sh: No such file or directory")
+assert_contains "missing child inside a running hook stays ambiguous" "$OUT_S" \
+  "ambiguous: exit 126/127 with no exec-failure signature"
+assert_absent "missing child inside a running hook is not stale config" "$OUT_S" "$STALE_LABEL"
+OUT_S=$(stale_case bash-c-line "$STATUS_MSG" "${PFX}bash: line 1: helper.sh: No such file or directory")
+assert_absent "bash -c line-numbered error is not stale config" "$OUT_S" "$STALE_LABEL"
+# A command line that names a different script than the missing path.
+# shellcheck disable=SC2016 # literal ${CLAUDE_PLUGIN_ROOT} must not expand
+OUT_S=$(stale_case other-basename 'bash ${CLAUDE_PLUGIN_ROOT}/hooks/wrapper.sh' \
+  "${PFX}bash: C:/code/plugins/x/hooks/child-helper.sh: No such file or directory")
+assert_contains "missing path not in the registered command stays ambiguous" "$OUT_S" \
+  "ambiguous: exit 126/127 with no exec-failure signature"
+assert_absent "missing path not in the registered command is not stale config" "$OUT_S" "$STALE_LABEL"
+# The same line at exit 1 is not bash failing to open its script operand.
+T_S1="$TEST_TMPDIR/stale-exit1.jsonl"
+custom_record "PreToolUse:Edit" "$STATUS_MSG" \
+  "${PFX}bash: C:/code/plugins/x/hooks/zone-gate.sh: No such file or directory" 1 40 >"$T_S1"
+OUT_S=$(run_hook "$T_S1" "$TEST_TMPDIR/data-stale-exit1")
+assert_contains "missing-operand line at exit 1 stays completed" "$OUT_S" "completed non-zero exit"
+assert_absent "missing-operand line at exit 1 is not stale config" "$OUT_S" "$STALE_LABEL"
 
 # A hook that LAUNCHED and whose own subcommand was missing must NOT be called a
 # launch failure. cmd.exe's not-found phrasing is the Windows spelling of

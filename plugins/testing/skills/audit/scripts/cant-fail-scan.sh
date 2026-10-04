@@ -22,7 +22,7 @@
 #                                            benign case, so this rule is advisory
 #                                            in --check unless --strict.
 #
-# Seven report-only rules print and count, and never gate --check, --strict
+# Eight report-only rules print and count, and never gate --check, --strict
 # included:
 #
 #   testing/audit/rule-inert-assertion       an assertion statement that never
@@ -41,9 +41,11 @@
 #                                            detector: it can fail.
 #   testing/audit/rule-conditional-assertion every assertion inside an if, a
 #                                            catch or a loop over a result,
-#                                            with no else and no length check
-#                                            (threshold: 100%). Can't fail on
-#                                            the path that skips them.
+#                                            with no else and no length check,
+#                                            or in C# a bare return; before
+#                                            every assertion (threshold: 100%).
+#                                            Can't fail on the path that skips
+#                                            them.
 #   testing/audit/rule-recomputed-derived    an expected value built from the
 #                                            arguments of the call under test
 #                                            with an operator or an aggregate
@@ -56,6 +58,12 @@
 #                                            (toBeDefined, is not None,
 #                                            Assert.NotNull) or an over-broad
 #                                            exception check (threshold: 100%).
+#   testing/audit/rule-throw-only-oracle     every assertion checks only that a
+#                                            value the test built with new
+#                                            exists or has its type, so only a
+#                                            throwing constructor fails the test
+#                                            (threshold: 100%). A smoke test: it
+#                                            can fail.
 #
 # Two runner-config rules find the same shape one level up, in the Playwright
 # config rather than in a test body (engine: runner-config-scan.awk, one config
@@ -117,6 +125,9 @@
 #                <ordinal> <name>` per examined test block (in --lines scope);
 #                the ordinal tells same-named blocks apart and is the block's
 #                identity with its name, since line numbers drift
+#   --brief      with the default mode: finding lines with no threshold or
+#                Action, then one `action [rule-<slug>] <text>` line per
+#                distinct Action; the form the hooks pass to the agent
 #   --help
 #
 # Scan-root resolution: $CANT_FAIL_SCAN_ROOT (sanctioned operator lever, not a
@@ -143,7 +154,7 @@ usage() {
   cat <<'EOF'
 cant-fail-scan.sh — detect tests that cannot fail.
 
-Usage: cant-fail-scan.sh [--file <path> [--lines <list>]] [--blocks | --check [--strict] | --findings | --count | --help]
+Usage: cant-fail-scan.sh [--file <path> [--lines <list>]] [[--blocks] [--brief] | --check [--strict] | --findings | --count | --help]
        cant-fail-scan.sh --file <path> --inventory <text> [--inventory <text>...]
 
   (no arg)    print one finding line per detection, then the coverage block; exit 0 (2 on scan gap)
@@ -160,6 +171,8 @@ Usage: cant-fail-scan.sh [--file <path> [--lines <list>]] [--blocks | --check [-
               (a list like 12,20-24), for an edit hook scoped to what the edit changed
   --blocks    also print `block <file>:<start>-<end> <ordinal> <name>` per examined test
               block (within --lines); the ordinal tells same-named blocks apart
+  --brief     finding lines with no threshold or Action, then one `action [rule-<slug>] <text>`
+              line per distinct Action
   --inventory <text>
               with --file, repeatable: no rules; for the n-th <text>, one record per line
               `n<TAB>test|assertion|skip<TAB><count><TAB><line>`, one per equality with a
@@ -174,7 +187,8 @@ testing/audit/rule-flaky-passes-suite and testing/audit/rule-only-not-forbidden.
 Report-only, never gating: testing/audit/rule-inert-assertion,
 testing/audit/rule-constant-restatement, testing/audit/rule-source-text-read,
 testing/audit/rule-conditional-assertion, testing/audit/rule-recomputed-derived,
-testing/audit/rule-snapshot-only, testing/audit/rule-weak-oracle.
+testing/audit/rule-snapshot-only, testing/audit/rule-weak-oracle,
+testing/audit/rule-throw-only-oracle.
 Exempt a deliberate case with `cant-fail-ok: <reason>` in the test, or anywhere in the
 config. Scan root: $CANT_FAIL_SCAN_ROOT, else the cwd's git toplevel, else
 $CLAUDE_PROJECT_DIR; unresolvable refuses rather than guessing.
@@ -187,6 +201,7 @@ FILE=""
 LINES=""
 INV_TEXTS=()
 list_blocks=0
+brief=0
 blk_lines=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -195,6 +210,7 @@ while [[ $# -gt 0 ]]; do
     exit 0
     ;;
   --blocks) list_blocks=1 ;;
+  --brief) brief=1 ;;
   --check) mode="check" ;;
   --findings) mode="findings" ;;
   --count) mode="count" ;;
@@ -254,8 +270,8 @@ LOADER="$SCRIPT_DIR/adapter-load.awk"
 require_readable "$LOADER" 'adapter loader'
 ADAPTER_DIR="$SCRIPT_DIR/../adapters"
 
-if ((list_blocks)) && [[ "$mode" != report ]]; then
-  printf 'ERROR: --blocks lists blocks in the report mode only\n' >&2
+if ((list_blocks || brief)) && [[ "$mode" != report ]]; then
+  printf 'ERROR: --blocks and --brief apply to the report mode only\n' >&2
   exit 2
 fi
 if [[ (-n "$LINES" || "$mode" == inventory) && -z "$FILE" ]]; then
@@ -612,6 +628,7 @@ n_ca=0
 n_rd=0
 n_so=0
 n_wo=0
+n_to=0
 
 # source_target <test file> <path>: the repo-relative path <path> names when
 # resolved against the test file's directory, then the repository root, and
@@ -620,16 +637,19 @@ n_wo=0
 # so this is where a candidate read becomes a finding or is dropped.
 SOURCE_EXT_RE='\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py|cs|razor|go|sh|bash|ps1|psm1|vue|svelte)$'
 source_target() {
-  local file="$1" path="$2" cand dir rel glob
+  local file="$1" path="$2" cand dir rel glob top
   [[ "$path" =~ $SOURCE_EXT_RE && "$path" != /* ]] || return 0
   [[ -n "$TOP" ]] || TOP="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
   [[ -n "$TOP" ]] || return 0
+  # Both sides of the prefix test come from pwd -P: git may spell the same
+  # directory another way (C:/... where Git Bash's pwd prints /c/...).
+  top="$(cd "$TOP" 2>/dev/null && pwd -P)" || return 0
   for cand in "${file%/*}/$path" "$TOP/$path"; do
     [[ -f "$cand" ]] || continue
     dir="$(cd "${cand%/*}" 2>/dev/null && pwd -P)" || continue
     rel="$dir/${cand##*/}"
-    [[ "$rel" == "$TOP"/* ]] || continue
-    rel="${rel#"$TOP"/}"
+    [[ "$rel" == "$top"/* ]] || continue
+    rel="${rel#"$top"/}"
     for glob in "${all_globs[@]}"; do
       # shellcheck disable=SC2053 # the glob is a pattern on purpose
       [[ "${rel##*/}" == $glob ]] && return 0
@@ -705,6 +725,7 @@ scan_one() {
       recomputed-derived) n_rd=$((n_rd + 1)) ;;
       snapshot-only) n_so=$((n_so + 1)) ;;
       weak-oracle) n_wo=$((n_wo + 1)) ;;
+      throw-only-oracle) n_to=$((n_to + 1)) ;;
       *) printf 'engine drift: unknown finding rule %s\n' "$slug" >>"$WALK_ERR" ;;
       esac
       # An advisory adapter's findings of the two gating rules stay out of the gate.
@@ -720,7 +741,7 @@ scan_one() {
       # Recognized, no per-rule tally: nothing consumes an exempt count for the
       # line-scoped rules — x_cf1/x_cf3 feed the block-rule fired/declined math
       # below, and the aggregate `exempted` above already counted this record.
-      recomputed-expectation | inert-assertion | constant-restatement | source-text-read | conditional-assertion | recomputed-derived | snapshot-only | weak-oracle) ;;
+      recomputed-expectation | inert-assertion | constant-restatement | source-text-read | conditional-assertion | recomputed-derived | snapshot-only | weak-oracle | throw-only-oracle) ;;
       mock-only-oracle) x_cf3=$((x_cf3 + 1)) ;;
       *) printf 'engine drift: unknown exempt rule %s\n' "$slug" >>"$WALK_ERR" ;;
       esac
@@ -821,7 +842,7 @@ done
 
 cfg_findings=$((n_cfg1 + n_cfg2))
 advisory=$((n_cf3 + cfg_findings + n_adv))
-report_only=$((n_ia + n_cr + n_st + n_ca + n_rd + n_so + n_wo))
+report_only=$((n_ia + n_cr + n_st + n_ca + n_rd + n_so + n_wo + n_to))
 total=$((n_cf1 + n_cf2 + n_cf3 + cfg_findings + report_only))
 gating=$((n_cf1 + n_cf2 - n_adv))
 [[ "$strict" -eq 1 ]] && gating=$((gating + n_cf3 + cfg_findings + n_adv))
@@ -847,10 +868,11 @@ threshold_of() {
   inert-assertion) printf 'threshold: >=1 assertion statement that never evaluates' ;;
   constant-restatement) printf 'threshold: >=1 constant or local literal compared to a literal, with no call under test' ;;
   source-text-read) printf 'threshold: >=1 static-path read of a tracked non-test source file' ;;
-  conditional-assertion) printf 'threshold: 100%% of assertions inside an if, a catch or a loop over a result, no else and no length check' ;;
+  conditional-assertion) printf 'threshold: 100%% of assertions inside an if, a catch or a loop over a result, no else and no length check, or a C# return; before every assertion' ;;
   recomputed-derived) printf 'threshold: >=1 expected value built from the arguments of the call under test' ;;
   snapshot-only) printf 'threshold: 100%% of assertions are snapshot calls' ;;
   weak-oracle) printf 'threshold: 100%% of assertions are weak matchers or over-broad exception checks' ;;
+  throw-only-oracle) printf 'threshold: 100%% of assertions check only that a value the test constructed exists or has its type' ;;
   *) printf 'threshold: unknown rule' ;;
   esac
 }
@@ -887,6 +909,10 @@ action_of() {
   source-text-read:*)
     printf 'Exercise the code (render it, call it, run it) instead of reading its source text; a policy test over many files reads them through a glob or a directory walk.'
     ;;
+  conditional-assertion:cs)
+    # xUnit v2 has no Assert.Skip, so the skip advice names both routes.
+    printf 'Make every path assert: assert an expected error with the framework'"'"'s throws or rejects assertion instead of inside a catch, move the assertion out of the if, and assert the length of a result before looping over it, so an empty result fails. Where a return stands in for a skip, skip the test explicitly so the run does not report it as passed: Assert.Skip on xUnit v3, a skip package such as Xunit.SkippableFact on xUnit v2, Assert.Ignore on NUnit, Assert.Inconclusive on MSTest.'
+    ;;
   conditional-assertion:*)
     printf 'Make every path assert: assert an expected error with the framework'"'"'s throws or rejects assertion instead of inside a catch, move the assertion out of the if, and assert the length of a result before looping over it, so an empty result fails.'
     ;;
@@ -899,12 +925,15 @@ action_of() {
   weak-oracle:*)
     printf 'Assert the value the code should produce (an exact value, or the exact exception type and message) instead of only that a value exists or that something threw.'
     ;;
+  throw-only-oracle:*)
+    printf 'Assert what the constructed value should hold (a property the constructor sets, a result its first call returns) instead of only that it exists. A smoke test kept to prove construction or wiring succeeds records that with a cant-fail-ok: <why> annotation.'
+    ;;
   *) ;;
   esac
   case "$1" in
-  inert-assertion | constant-restatement | source-text-read | conditional-assertion | recomputed-derived | snapshot-only | weak-oracle) return 0 ;;
+  inert-assertion | constant-restatement | source-text-read | conditional-assertion | recomputed-derived | snapshot-only | weak-oracle | throw-only-oracle) return 0 ;;
   zero-assertion)
-    printf 'Repair, not pruning: add an assertion on the observable behavior this test exercises; today it passes vacuously and its coverage claim is false.'
+    printf 'Add an assertion on the observable behavior this test exercises.'
     ;;
   recomputed-expectation)
     printf 'State the expected value independently (a literal or precomputed constant) instead of recomputing it with the same expression, so the assertion can discriminate. A determinism contract, f(x) == f(x) on purpose, records that with a cant-fail-ok: annotation.'
@@ -937,10 +966,10 @@ confidence_of() {
   # read exactly, but whether it is a defect is a team policy call (a team may
   # accept flaky tolerance, or trust review to catch a committed .only).
   # constant-restatement and source-text-read omit it too: a contract constant
-  # or a codegen test is the known benign case. So do the four heuristic rules:
+  # or a codegen test is the known benign case. So do the five heuristic rules:
   # an if whose branch always runs, a derivation checked on purpose, a reviewed
-  # snapshot and a null check that is the contract are benign cases the text
-  # cannot tell apart.
+  # snapshot, a null check that is the contract and a smoke test kept to prove
+  # wiring are benign cases the text cannot tell apart.
   case "$1" in
   zero-assertion | recomputed-expectation | inert-assertion) printf 'high' ;;
   *) printf '' ;;
@@ -949,19 +978,19 @@ confidence_of() {
 
 tier_of() {
   # The two change-detector rules flag tests that CAN fail, on a harmless
-  # change, and a derived expectation, a snapshot or a weak oracle can fail
-  # too, so all five sit below the can't-fail rules (detector-findings
-  # crosswalk).
+  # change, and a derived expectation, a snapshot, a weak oracle or a throwing
+  # constructor can fail too, so all six sit below the can't-fail rules
+  # (detector-findings crosswalk).
   case "$1" in
-  constant-restatement | source-text-read | recomputed-derived | snapshot-only | weak-oracle) printf 'SUGGESTION' ;;
+  constant-restatement | source-text-read | recomputed-derived | snapshot-only | weak-oracle | throw-only-oracle) printf 'SUGGESTION' ;;
   *) printf 'IMPORTANT' ;;
   esac
 }
 
 surfaces_line() {
-  printf 'Ran: [testing:audit — %d test file(s) examined (js/ts %d, python %d, csharp %d, bash %d, powershell %d, go %d), %d test block(s) parsed; findings: testing/audit/rule-zero-assertion %d, testing/audit/rule-recomputed-expectation %d, testing/audit/rule-mock-only-oracle %d; report-only findings (never gate --check): testing/audit/rule-inert-assertion %d, testing/audit/rule-constant-restatement %d, testing/audit/rule-source-text-read %d, testing/audit/rule-conditional-assertion %d, testing/audit/rule-recomputed-derived %d, testing/audit/rule-snapshot-only %d, testing/audit/rule-weak-oracle %d; declined (examined, rule did not fire): rule-zero-assertion %d, rule-mock-only-oracle %d, rule-recomputed-expectation not tallied (line-scoped rule; v1 does not count candidate assertions); exempted via cant-fail-ok: %d; playwright configs: %d examined of %d enumerated (%d shadowed, %d without a recognizable config object, %d unreadable); config findings: testing/audit/rule-flaky-passes-suite %d, testing/audit/rule-only-not-forbidden %d; config declined (examined, rule did not fire): rule-flaky-passes-suite %d, rule-only-not-forbidden %d; config exempted via cant-fail-ok: rule-flaky-passes-suite %d, rule-only-not-forbidden %d]. Returned no result: [%s].\n' \
+  printf 'Ran: [testing:audit — %d test file(s) examined (js/ts %d, python %d, csharp %d, bash %d, powershell %d, go %d), %d test block(s) parsed; findings: testing/audit/rule-zero-assertion %d, testing/audit/rule-recomputed-expectation %d, testing/audit/rule-mock-only-oracle %d; report-only findings (never gate --check): testing/audit/rule-inert-assertion %d, testing/audit/rule-constant-restatement %d, testing/audit/rule-source-text-read %d, testing/audit/rule-conditional-assertion %d, testing/audit/rule-recomputed-derived %d, testing/audit/rule-snapshot-only %d, testing/audit/rule-weak-oracle %d, testing/audit/rule-throw-only-oracle %d; declined (examined, rule did not fire): rule-zero-assertion %d, rule-mock-only-oracle %d, rule-recomputed-expectation not tallied (line-scoped rule; v1 does not count candidate assertions); exempted via cant-fail-ok: %d; playwright configs: %d examined of %d enumerated (%d shadowed, %d without a recognizable config object, %d unreadable); config findings: testing/audit/rule-flaky-passes-suite %d, testing/audit/rule-only-not-forbidden %d; config declined (examined, rule did not fire): rule-flaky-passes-suite %d, rule-only-not-forbidden %d; config exempted via cant-fail-ok: rule-flaky-passes-suite %d, rule-only-not-forbidden %d]. Returned no result: [%s].\n' \
     "$examined" "$enum_js" "$enum_py" "$enum_cs" "$enum_sh" "$enum_ps" "$enum_go" "$blocks" \
-    "$n_cf1" "$n_cf2" "$n_cf3" "$n_ia" "$n_cr" "$n_st" "$n_ca" "$n_rd" "$n_so" "$n_wo" "$declined_cf1" "$declined_cf3" "$exempted" \
+    "$n_cf1" "$n_cf2" "$n_cf3" "$n_ia" "$n_cr" "$n_st" "$n_ca" "$n_rd" "$n_so" "$n_wo" "$n_to" "$declined_cf1" "$declined_cf3" "$exempted" \
     "$cfg_examined" "$cfg_enum" "$cfg_shadowed" "$cfg_unparsed" "$cfg_unreadable" \
     "$n_cfg1" "$n_cfg2" "$d_cfg1" "$d_cfg2" "$x_cfg1" "$x_cfg2" \
     "$(if [[ "$unreadable" -gt 0 || "$cfg_unreadable" -gt 0 || "$walk_errors" -gt 0 ]]; then
@@ -1030,7 +1059,7 @@ advisory_note() {
   # A rule raised to error in the testing config gates, so it is not listed.
   local pair n=0 list=""
   for pair in "inert-assertion $n_ia" "constant-restatement $n_cr" "source-text-read $n_st" \
-    "conditional-assertion $n_ca" "recomputed-derived $n_rd" "snapshot-only $n_so" "weak-oracle $n_wo"; do
+    "conditional-assertion $n_ca" "recomputed-derived $n_rd" "snapshot-only $n_so" "weak-oracle $n_wo" "throw-only-oracle $n_to"; do
     [[ "${rule_level[${pair% *}]:-}" != error ]] || continue
     n=$((n + ${pair#* }))
     list+="${list:+, }$pair"
@@ -1137,7 +1166,21 @@ emit_findings_file() {
 }
 
 print_findings_lines() {
-  local i
+  local i a
+  if ((brief)); then
+    # One Action per distinct rule and text: inert-assertion's differs by language.
+    local -A seen=()
+    for i in ${f_rule[@]+"${!f_rule[@]}"}; do
+      printf 'finding [rule-%s] %s: %s\n' "${f_rule[$i]}" "${f_loc[$i]}" "${f_detail[$i]}"
+    done
+    for i in ${f_rule[@]+"${!f_rule[@]}"}; do
+      a="$(action_of "${f_rule[$i]}" "${f_lang[$i]}")"
+      [[ -n "$a" && -z "${seen["${f_rule[$i]}|$a"]:-}" ]] || continue
+      seen["${f_rule[$i]}|$a"]=1
+      printf 'action [rule-%s] %s\n' "${f_rule[$i]}" "$a"
+    done
+    return 0
+  fi
   for i in ${f_rule[@]+"${!f_rule[@]}"}; do
     printf 'finding [%s] %s: %s (%s). Action: %s\n' \
       "$(rule_id "${f_rule[$i]}")" "${f_loc[$i]}" "${f_detail[$i]}" \

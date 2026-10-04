@@ -20,13 +20,16 @@
 # under the system temp directory or a Claude session scratchpad
 # (testing::record_skip) is dropped here, so it is neither scanned nor
 # recorded. On a Write or Edit test-scan.sh still scans such a copy and only
-# leaves no record.
+# leaves no record. A path unchanged from HEAD as git sees it, after git last
+# moved HEAD with a checkout, pull or merge (matches_head), is dropped the
+# same way: that checkout, pull or merge brought it in.
 #
 # test-scan.sh's own stderr (a scanner that failed or timed out) passes
 # through, as on the Write and Edit route.
 #
 # Test seams: TEST_SCAN_TIMEOUT is passed through to test-scan.sh; unset, each
-# file gets an equal share of 8 seconds, inside the hooks.json timeout of 10.
+# file gets an equal share of what the hook has left of 8 seconds, inside the
+# hooks.json timeout of 10.
 
 set -uo pipefail
 
@@ -68,10 +71,57 @@ done < <(printf '%s' "$INPUT" | jq -r --slurpfile h "$HOOK_DIR/hooks.json" '
     | select(startswith("Write(")) | "G" + .[6:-1]),
   (.tool_response.bashEditDiff.changedFiles[]? | strings | "P" + .)' 2>/dev/null)
 ((${#paths[@]})) || exit 0
-# ponytail: test files past the cap are not scanned; raise it with the hook timeout.
-paths=("${paths[@]:0:MAX_FILES}")
 
-export TEST_SCAN_TIMEOUT="${TEST_SCAN_TIMEOUT:-$((8 / ${#paths[@]}))}"
+# matches_head <path>: true when git last moved HEAD in the file's own
+# repository with a tree-rewriting action (checkout or switch, pull, merge,
+# reset, rebase, cherry-pick, clone), and the file is tracked at HEAD and
+# unchanged from it as git sees it (git diff): a checkout, pull or merge
+# brought it in. HEAD last moved by a commit means the session may have
+# written and committed the file in this call, so it is kept. The directory is
+# taken at either separator, since a Windows payload path may use only
+# backslashes. No HEAD blob (untracked, new, unborn HEAD, no repository), a
+# change, another or no reflog entry, or a git error is false, so the file is
+# still scanned and recorded.
+# Known false negative: a test edited and committed and then followed by a
+# checkout, pull or merge, all in one Bash call, is skipped.
+matches_head() {
+  local c d="" base cands=("$1")
+  [[ "$1" == *\\* ]] && cands=("${1//\\//}" "$1")
+  for c in "${cands[@]}"; do
+    [[ "$c" == */* ]] || continue
+    [[ -d "${c%/*}/" ]] && d="${c%/*}/" base="${c##*/}" && break
+  done
+  [[ -n "$d" ]] || return 1
+  (
+    unset GIT_DIR GIT_WORK_TREE
+    case "$(git -C "$d" reflog -1 --format=%gs 2>/dev/null)" in
+    checkout:* | pull* | merge\ * | reset:* | rebase* | cherry-pick:* | clone:*) ;;
+    *) exit 1 ;;
+    esac
+    git -C "$d" rev-parse --verify -q "HEAD:./$base" >/dev/null 2>&1 &&
+      git -C "$d" diff --quiet HEAD -- "./$base" 2>/dev/null
+  )
+}
+# A file git brought in is not the session's work: it is neither recorded for
+# the judge nor scanned, so its findings are not put to the agent either. The
+# filter runs before the cap, so files a pull brought in do not take the slots
+# of a file the session wrote in the same call; it probes at most twice the cap.
+# ponytail: test files past the cap are not scanned; raise it with the hook timeout.
+kept=()
+probes=0
+for p in "${paths[@]}"; do
+  ((${#kept[@]} < MAX_FILES && probes < 2 * MAX_FILES)) || break
+  probes=$((probes + 1))
+  matches_head "$p" || kept+=("$p")
+done
+((${#kept[@]})) || exit 0
+paths=("${kept[@]}")
+
+# The git probes above come out of the same 8 seconds, so each file gets an
+# equal share of what is left, at least one second.
+left=$((8 - SECONDS))
+((left >= ${#paths[@]})) || left=${#paths[@]}
+export TEST_SCAN_TIMEOUT="${TEST_SCAN_TIMEOUT:-$((left / ${#paths[@]}))}"
 docs=()
 n=0
 for p in "${paths[@]}"; do

@@ -31,7 +31,7 @@
           "jq"
         ]
       },
-      "degrade": "Without jq, the guards that block irreversible operations deny the call, and the other guards skip their work.",
+      "degrade": "Without jq, guardrails denies Bash and PowerShell calls, and file writes on Windows; it skips its other file checks.",
       "install": {
         "docs": "https://jqlang.org/download/"
       },

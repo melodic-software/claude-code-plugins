@@ -4679,6 +4679,8 @@ source "$BG_LIB"
 if [[ -n "${BG_STUB_FILE:-}" ]]; then
   hook::read_file_path_to() { printf -v "$1" '%s' "$BG_STUB_FILE"; }
 fi
+# A host override, so one host checks the path splits of both platforms.
+[[ -z "${BG_OSTYPE:-}" ]] || OSTYPE="$BG_OSTYPE"
 # A repo-root resolver whose answer is NOT an ancestor of the file, which is
 # what makes hook::repo_relative_path_to degrade to the basename.
 bg_fake_root() { printf -v "$1" '%s' "${BG_ROOT_VALUE:-}"; }
@@ -4778,10 +4780,17 @@ else
 fi
 
 # The post-read half, table-driven over path shapes no fixture can create.
-# Columns: label | file_path | want FILE_DIR | want FILE_BASE.
-while IFS='|' read -r bg_label bg_path bg_want_dir bg_want_base; do
+# Columns: label | file_path | want FILE_DIR | want FILE_BASE | host. A backslash
+# separates directories only on Windows, so a `win` row runs as an msys host and
+# a `posix` row as a Linux one, whatever host runs the suite.
+while IFS='|' read -r bg_label bg_path bg_want_dir bg_want_base bg_row_host; do
   [[ -n "$bg_label" ]] || continue
   bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" BG_STUB_FILE="$bg_path")
+  case "$bg_row_host" in
+  win) bg_env+=(BG_OSTYPE=msys) ;;
+  posix) bg_env+=(BG_OSTYPE=linux-gnu) ;;
+  *) ;;
+  esac
   bg_row=$(bg_run "$(bg_payload "$BG_REPO/sub/a.sh")" sample PostToolUse)
   bg_row_rc=$?
   bg_got_dir="$(bg_field "$bg_row" DIR)"
@@ -4792,12 +4801,17 @@ while IFS='|' read -r bg_label bg_path bg_want_dir bg_want_base; do
     fail "begin: $bg_label → FILE_DIR '$bg_got_dir' (want '$bg_want_dir'), FILE_BASE '$bg_got_base' (want '$bg_want_base'), rc=$bg_row_rc, output: [$bg_row]"
   fi
 done <<'BGTABLE'
-a file under the filesystem root|/README.md|/|README.md
-a bare relative name|README.md|.|README.md
-a nested path|/a/b.md|/a|b.md
-a deeper nested path|/a/b/c.md|/a/b|c.md
-a Windows backslash path|C:\repo\x.md|.|x.md
-a mixed-form path|/a/b\c.md|/a|c.md
+a file under the filesystem root|/README.md|/|README.md|any
+a bare relative name|README.md|.|README.md|any
+a nested path|/a/b.md|/a|b.md|any
+a deeper nested path|/a/b/c.md|/a/b|c.md|any
+a file under a forward-slash drive root|C:/x.cs|C:/|x.cs|any
+a forward-slash drive path|C:/a/b/x.cs|C:/a/b|x.cs|any
+a Windows backslash path|C:\repo\x.md|C:\repo|x.md|win
+a mixed-form path|/a/b\c.md|/a/b|c.md|win
+a file under a backslash drive root|C:\x.cs|C:\|x.cs|win
+a mixed path under a drive|C:/p\q\x.cs|C:/p\q|x.cs|win
+a POSIX name holding a backslash|/a/b\c.md|/a|c.md|posix
 BGTABLE
 bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO")
 
@@ -4843,6 +4857,35 @@ if ((bg_rc == 0)) && [[ "$(bg_field "$bg_out" REACHED)" == "1" ]]; then
   ok "begin: an escaped Windows separator matches a glob naming an interior directory"
 else
   fail "begin escaped separator (rc=$bg_rc): $bg_out"
+fi
+
+# REPO_ROOT is anchored at the file, not the hook's CWD, for the backslash-only
+# spelling Claude Code sends on Windows. The CWD sits in one repository and the
+# file in another, so a FILE_DIR that falls back to `.` resolves the wrong one.
+# A backslash path names a real directory only on Windows, hence the gate.
+if command -v cygpath >/dev/null 2>&1; then
+  bg_cwd_repo="$BG_WORK/cwd-repo"
+  bg_file_repo="$BG_WORK/file-repo"
+  mkdir -p "$bg_cwd_repo" "$bg_file_repo/tests/unit"
+  git -C "$bg_cwd_repo" init -q . >/dev/null 2>&1
+  git -C "$bg_file_repo" init -q . >/dev/null 2>&1
+  : >"$bg_file_repo/tests/unit/x.cs"
+  bg_want_root=$(git -C "$bg_file_repo" rev-parse --show-toplevel)
+  bg_cwd_root=$(git -C "$bg_cwd_repo" rev-parse --show-toplevel)
+  bg_bs_file=$(cygpath -w -- "$bg_file_repo/tests/unit/x.cs")
+  bg_env=(CLAUDE_PROJECT_DIR="$bg_file_repo" BG_STUB_FILE="$bg_bs_file")
+  bg_out=$(cd "$bg_cwd_repo" && bg_run "$(bg_payload "${bg_bs_file//\\/\\\\}")" --no-membership sample PostToolUse '*.cs')
+  bg_rc=$?
+  bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO")
+  bg_got_root="$(bg_field "$bg_out" ROOT)"
+  if ((bg_rc == 0)) && [[ -n "$bg_want_root" && "$bg_want_root" != "$bg_cwd_root" &&
+    "$bg_got_root" == "$bg_want_root" ]]; then
+    ok "begin: a backslash path resolves REPO_ROOT to the file's repository, not the CWD's"
+  else
+    fail "begin backslash REPO_ROOT (rc=$bg_rc): got '$bg_got_root', want '$bg_want_root', CWD repo '$bg_cwd_root', output: [$bg_out]"
+  fi
+else
+  ok "begin: backslash REPO_ROOT SKIPPED (no cygpath — a backslash path names a directory only on Windows)"
 fi
 
 # A well-formed JSON PREFIX and then a closed pipe is hook::buffer_stdin_to's

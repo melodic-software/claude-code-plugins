@@ -10,12 +10,16 @@ files:
   - '*.test.tsx'
   - '*.test.mjs'
   - '*.test.cjs'
+  - '*.test.mts'
+  - '*.test.cts'
   - '*.spec.js'
   - '*.spec.jsx'
   - '*.spec.ts'
   - '*.spec.tsx'
   - '*.spec.mjs'
   - '*.spec.cjs'
+  - '*.spec.mts'
+  - '*.spec.cts'
 detect:
   any_regex:
     - '@jest/globals'

@@ -26,7 +26,7 @@ run() {
   assert_exit "$label" "$expected" "$rc"
   if ((expected == 2)); then
     assert_contains "$label -> says what was blocked" "$out" "prints a credential"
-    assert_contains "$label -> names the presence check" "$out" "check that the credential is present"
+    assert_contains "$label -> names the presence check" "$out" "Check that it is present instead"
     assert_contains "$label -> names the escape" "$out" "block_credential_read_allow"
   fi
 }
@@ -177,10 +177,19 @@ run "kill switch true keeps the guard on" 'gh auth token' 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=true
 run "kill switch typo stays enabled (blocked)" 'gh auth token' 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=maybe
-typo_out=$(env CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=maybe \
-  bash "$HOOK" <<<"$(command_json 'gh auth token')" 2>&1)
-assert_contains "kill switch typo names the bad value" "$typo_out" "block_credential_read_enabled=maybe"
-assert_contains "kill switch typo says it stays enabled" "$typo_out" "treating as enabled"
+# The user is told once per session; the model, which cannot change a plugin
+# option, is not told at all.
+TYPO_DATA="$TEST_TMPDIR/typo-data"
+TYPO_PAYLOAD=$(jq -c '. + {session_id: "s-typo"}' <<<"$(command_json 'git status')")
+typo_out=$(env CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=maybe CLAUDE_PLUGIN_DATA="$TYPO_DATA" \
+  bash "$HOOK" <<<"$TYPO_PAYLOAD" 2>/dev/null)
+assert_contains "kill switch typo names the bad value and says the guard stays on" \
+  "$(jq -r '.systemMessage // empty' <<<"$typo_out")" "block_credential_read_enabled=maybe is not true or false, so the guard stays on"
+assert_eq "kill switch typo: nothing on the model's channel" "" \
+  "$(jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$typo_out")"
+typo_out=$(env CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ENABLED=maybe CLAUDE_PLUGIN_DATA="$TYPO_DATA" \
+  bash "$HOOK" <<<"$TYPO_PAYLOAD" 2>&1)
+assert_silent "kill switch typo: the second call in the session stays quiet" "$typo_out"
 
 allow="CLAUDE_PLUGIN_OPTION_BLOCK_CREDENTIAL_READ_ALLOW"
 run "allow gh-auth-token" 'gh auth token' 0 "$allow=gh-auth-token"

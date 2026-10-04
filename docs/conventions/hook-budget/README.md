@@ -140,7 +140,15 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
 - **What shipped.** Every row in `plugins/*/hooks/hooks.json` and in the skill-frontmatter hooks of
   `disk-hygiene:clean` and `repo-hygiene:clean`, except the shell-form rows named under "Scope",
   carries `args` and `"command": "node"`. Option gates
-  that used to be shell tests are launcher flags (`--require-true`, `--run-if-unset-or-true`). Two
+  that used to be shell tests are launcher flags (`--require-true`, `--run-if-unset-or-true`).
+  Two more flags skip the bash start on a row whose script would exit at once:
+  `--skip-if-all-false A,B,...` skips only when every named option is exactly `false` (the
+  guardrails verify rows, whose three verifiers each keep their own switch), and
+  `--skip-unless-stdin-contains TEXT` buffers stdin and skips a payload without TEXT (the testing
+  `Bash` row). `--skip-unless-stdin-contains` is advisory-only and must never gate a blocking
+  guard row: a stdin stall past the idle bound exits 0 without running the script, so a guard
+  behind it would fail open. The flag list is in the header of
+  [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs). Two
   scripts check the spelling. `scripts/check-exec-form-windows-probe.sh` rejects a `.sh` path, a
   `.cmd`/`.bat` shim, or bare `bash` as `command`; a non-Windows skip of its spawn half does not show
   that [anthropics/claude-code#90495](https://github.com/anthropics/claude-code/issues/90495) is
@@ -160,7 +168,7 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
   [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs)).
 - **Scope.** The `SessionStart` node-notice row of every hook plugin (the [prerequisites convention](../prerequisites/README.md#hook-notices)) and the `hook-failure-audit` Stop row in `harness-ops` stay shell form so they can report a missing `node`.
   Neither check script inspects a shell-form row; `scripts/node-notice-rows.test.sh` pins the node-notice
-  rows and the hook test of `harness-ops` pins its Stop row, so a sweep back to `node` fails them. A plugin hook config carries no
+  rows (and the matcher that skips them on compaction) and the hook test of `harness-ops` pins its Stop row, so a sweep back to `node` fails them. A plugin hook config carries no
   `${user_config.*}` token (the [philosophy Hooks row](../../plugin-philosophy.md#component-stances)),
   so no `userConfig` rule requires exec form and exec form fleet-wide is this sweep's choice.
 - **Measurement.** The reference figures above (Windows, 2026-07-31 and 2026-09-02) were taken before

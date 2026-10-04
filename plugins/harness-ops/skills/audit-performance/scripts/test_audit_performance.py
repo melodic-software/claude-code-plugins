@@ -21,6 +21,7 @@ import os
 import struct
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -1054,7 +1055,15 @@ class TestDeadParentAnyAgeCensus(unittest.TestCase):
         self.assertEqual(result["orphan_count"], 0)
         self.assertEqual(
             result["dead_parent_any_age"],
-            [{"name": "bash.exe", "count": 1, "youngest_h": 0.0, "oldest_h": 0.0}],
+            [
+                {
+                    "name": "bash.exe",
+                    "count": 1,
+                    "youngest_h": 0.0,
+                    "oldest_h": 0.0,
+                    "cpu_seconds": None,
+                }
+            ],
         )
 
     def test_a_name_outside_the_census_set_appears_in_neither(self):
@@ -1177,7 +1186,7 @@ class TestDeadParentAnyAgeCensus(unittest.TestCase):
     def test_coreutils_names_stay_out_of_the_verdict_set(self):
         self.assertEqual(engine.ORPHAN_MIN_AGE_HOURS, 24.0)
         self.assertEqual(len(engine.ORPHAN_CANDIDATE_NAMES), 18)
-        extras = {"tail.exe", "grep.exe", "sleep.exe", "cat.exe"}
+        extras = {"tail.exe", "grep.exe", "sleep.exe", "cat.exe", "rm.exe", "du.exe"}
         self.assertEqual(extras, engine.DEAD_PARENT_CENSUS_EXTRA_NAMES)
         self.assertTrue(extras.isdisjoint(engine.ORPHAN_CANDIDATE_NAMES))
         result = self.attribute([], self.NOW)
@@ -1206,7 +1215,15 @@ class TestDeadParentAnyAgeCensus(unittest.TestCase):
         self.assertEqual(result["unknown_count"], 0)
         self.assertEqual(
             result["dead_parent_any_age"],
-            [{"name": "sleep.exe", "count": 1, "youngest_h": 0.0, "oldest_h": 0.0}],
+            [
+                {
+                    "name": "sleep.exe",
+                    "count": 1,
+                    "youngest_h": 0.0,
+                    "oldest_h": 0.0,
+                    "cpu_seconds": None,
+                }
+            ],
         )
 
     def test_a_live_parent_keeps_a_census_name_out_of_the_census(self):
@@ -1233,6 +1250,159 @@ class TestDeadParentAnyAgeCensus(unittest.TestCase):
         result = self.attribute([], self.NOW)
         self.assertIn("never kills", result["note"])
         self.assertIn("not a kill list", result["dead_parent_any_age_note"])
+
+
+class TestDeadParentByCpu(unittest.TestCase):
+    """Every dead-parent process, any name, ranked by CPU seconds. Not a kill list."""
+
+    NOW = 1_700_000_000.0
+
+    def attribute(self, records: list[dict], platform: str = "win32") -> dict:
+        return engine.attribute_orphans(records, self.NOW, platform=platform)
+
+    def proc(self, pid: int, name: str, age: float | None, cpu: float | None) -> dict:
+        started = None if age is None else self.NOW - age
+        return {
+            "pid": pid,
+            "ppid": 999,
+            "name": name,
+            "started_epoch": started,
+            "cpu_seconds": cpu,
+        }
+
+    def table(self) -> list[dict]:
+        now = self.NOW
+        return [
+            # Dead parent, 60,000 s old, 30,000 CPU seconds: cpu_share 0.5.
+            {
+                "pid": 40,
+                "ppid": 900,
+                "name": "rm.exe",
+                "started_epoch": now - 60_000,
+                "cpu_seconds": 30_000.0,
+            },
+            # Dead parent, detached by design, 1 CPU second over 5 days.
+            {
+                "pid": 41,
+                "ppid": 901,
+                "name": "dotnet.exe",
+                "started_epoch": now - 5 * 86400,
+                "cpu_seconds": 1.0,
+            },
+            # Dead parent, 7,200 s old, 3,600 CPU seconds.
+            {
+                "pid": 42,
+                "ppid": 902,
+                "name": "du.exe",
+                "started_epoch": now - 7_200,
+                "cpu_seconds": 3_600.0,
+            },
+            # Live parent burning more CPU than anything above.
+            {
+                "pid": 43,
+                "ppid": 0,
+                "name": "code.exe",
+                "started_epoch": now - 86400,
+                "cpu_seconds": 90_000.0,
+            },
+            {
+                "pid": 44,
+                "ppid": 43,
+                "name": "busy.exe",
+                "started_epoch": now - 3600,
+                "cpu_seconds": 80_000.0,
+            },
+        ]
+
+    def test_a_cpu_heavy_dead_parent_rm_ranks_first_over_an_idle_dotnet(self):
+        ranked = self.attribute(self.table())["dead_parent_by_cpu"]
+        names = [row["name"] for row in ranked]
+        self.assertEqual(names, ["rm.exe", "du.exe", "dotnet.exe"])
+        self.assertEqual(
+            ranked[0],
+            {
+                "name": "rm.exe",
+                "pid": 40,
+                "age_h": 16.7,
+                "cpu_seconds": 30_000.0,
+                "cpu_share": 0.5,
+            },
+        )
+
+    def test_the_idle_dotnet_stays_out_of_the_verdict_and_the_census(self):
+        result = self.attribute(self.table())
+        self.assertNotIn(41, {row["pid"] for row in result["orphans"]})
+        self.assertNotIn(
+            "dotnet.exe", {row["name"] for row in result["dead_parent_any_age"]}
+        )
+
+    def test_dead_parent_rm_and_du_are_counted_in_the_census_with_cpu(self):
+        census = self.attribute(self.table())["dead_parent_any_age"]
+        rows = {row["name"]: row for row in census}
+        self.assertEqual(rows["rm.exe"]["count"], 1)
+        self.assertEqual(rows["rm.exe"]["cpu_seconds"], 30_000.0)
+        self.assertEqual(rows["du.exe"]["count"], 1)
+        self.assertEqual(rows["du.exe"]["cpu_seconds"], 3_600.0)
+
+    def test_census_cpu_sums_per_name_and_an_unreadable_member_makes_it_unknown(self):
+        records = [
+            self.proc(1, "rm.exe", 60, 2.0),
+            self.proc(2, "rm.exe", 60, 3.5),
+            self.proc(3, "du.exe", 60, 4.0),
+            self.proc(4, "du.exe", 60, None),
+        ]
+        census = self.attribute(records)["dead_parent_any_age"]
+        rows = {row["name"]: row for row in census}
+        self.assertEqual(rows["rm.exe"]["cpu_seconds"], 5.5)
+        self.assertIsNone(rows["du.exe"]["cpu_seconds"])
+
+    def test_a_live_parent_process_never_appears_in_the_ranking(self):
+        ranked = self.attribute(self.table())["dead_parent_by_cpu"]
+        pids = {row["pid"] for row in ranked}
+        self.assertNotIn(43, pids)
+        self.assertNotIn(44, pids)
+
+    def test_unreadable_cpu_ranks_last_as_unknown_not_zero(self):
+        records = [self.proc(1, "a.exe", 60, None), self.proc(2, "b.exe", 60, 0.0)]
+        ranked = self.attribute(records)["dead_parent_by_cpu"]
+        self.assertEqual([row["pid"] for row in ranked], [2, 1])
+        self.assertIsNone(ranked[1]["cpu_seconds"])
+        self.assertIsNone(ranked[1]["cpu_share"])
+
+    def test_teardown_guard_and_unreadable_start_keep_a_process_out(self):
+        no_parent = self.proc(3, "c.exe", 60, 9.0)
+        no_parent["ppid"] = 0
+        records = [
+            self.proc(1, "a.exe", 5.0, 4.0),
+            self.proc(2, "b.exe", None, 9.0),
+            no_parent,
+        ]
+        self.assertEqual(self.attribute(records)["dead_parent_by_cpu"], [])
+
+    def test_the_ranking_keeps_the_top_ten(self):
+        records = [self.proc(i, f"p{i}.exe", 3600, float(i)) for i in range(1, 13)]
+        ranked = self.attribute(records)["dead_parent_by_cpu"]
+        pids = [row["pid"] for row in ranked]
+        self.assertEqual(pids, [12, 11, 10, 9, 8, 7, 6, 5, 4, 3])
+
+    def test_on_a_posix_table_the_ranking_is_not_measured(self):
+        result = self.attribute(self.table(), platform="linux")
+        self.assertIsNone(result["dead_parent_by_cpu"])
+        self.assertIn("not measured", result["dead_parent_by_cpu_note"])
+        windows = self.attribute(self.table())
+        self.assertIn("not a kill list", windows["dead_parent_by_cpu_note"])
+        self.assertEqual(self.attribute([])["dead_parent_by_cpu"], [])
+
+    @unittest.skipUnless(
+        sys.platform == "win32", "reads the live Windows process table"
+    )
+    def test_the_windows_table_reads_this_process_cpu_time(self):
+        floor = time.process_time()
+        records, error = engine.process_table()
+        self.assertIsNone(error)
+        mine = next(r for r in records if r["pid"] == os.getpid())
+        self.assertIsNotNone(mine["cpu_seconds"])
+        self.assertGreaterEqual(mine["cpu_seconds"] + 0.05, floor)
 
 
 class TestDeadParentCensusNeedsCreatorParentPids(unittest.TestCase):

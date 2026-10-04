@@ -3,7 +3,8 @@
 Build a lane's prompt context from a PR, keeping only text whose own author is on the
 trusted-actor list
 ([ADR 0049](../../../docs/adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md)
-condition 1). Run it after both gates pass and the App token is minted.
+condition 1). Run it after both gates pass and, for an activity whose effect is not `read`, after
+the App token is minted.
 
 ## Inputs
 
@@ -13,7 +14,7 @@ condition 1). Run it after both gates pass and the App token is minted.
 | `repository` | `${{ github.repository }}` | owner/name of the PR's repository |
 | `trusted-actors-path` | `.base/.github/standards/trusted-actors/trusted-actors.json` | The list, from the base-SHA checkout |
 | `output-path` | required | Where the `TrustedContext` JSON file is written |
-| `github-token` | required | The lane's App token |
+| `github-token` | required | The lane's App token, or the job's `GITHUB_TOKEN` for a `read` activity |
 
 ## What it reads and keeps
 
@@ -67,7 +68,11 @@ A lane job that uses this action:
   every write goes through the lane's App token.
 - Runs it only after [`check-kill-switch`](../check-kill-switch/README.md) and
   [`check-trusted-trigger`](../check-trusted-trigger/README.md) both report `proceed == 'true'`,
-  and after the App token is minted.
+  and, for an effect other than `read`, after the App token is minted.
+- Passes the job's `GITHUB_TOKEN` for a `read` activity, which mints no App token. That token holds
+  no `issues` grant. In a public repository it still read a same-repository closing issue and its
+  comments (pr-pipeline-sandbox run 37227390015); in a private repository it may not, and the step
+  then exits 1 and the activity fails red.
 - Leaves it without `continue-on-error`, so a failed selection stops the model step.
 - Runs both gate steps with no `continue-on-error`.
 - Gives the model step, and the App token step before it, this condition:
