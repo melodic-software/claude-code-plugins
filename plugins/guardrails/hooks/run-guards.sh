@@ -140,7 +140,11 @@
 #     hook output): the one carrying a blocking decision (`"decision":"block"`,
 #     `"permissionDecision":"deny"`, then `"ask"`) is emitted, else the first,
 #     and every dropped document is echoed to stderr with a `run-guards:`
-#     prefix so it stays visible in debug output.
+#     prefix so it stays visible in debug output. On a block it is not:
+#     exit-2 stderr is the model's deny reason.
+#   * Shared refusals: the jq-missing denial, the NUL and unparsable-payload
+#     refusals and the PowerShell sink message are printed once per call, by
+#     the first guard that makes them (guard::say_once, abort-boundary.sh).
 #
 # The overrides are scoped to this process: a guard run directly (its tests,
 # `bash hooks/<guard>.sh`) uses the library functions untouched.
@@ -518,8 +522,7 @@ if ((RUN_GUARDS_MAX_SUBST && RUN_GUARDS_STDIN_RC == 0)); then
   unset _rg_text
   unset -f run_guards::count_subst run_guards::counted_text
   if ((_rg_subst > RUN_GUARDS_MAX_SUBST)); then
-    echo "BLOCKED: the command holds $_rg_subst command or process substitutions, more than the $RUN_GUARDS_MAX_SUBST the guards can read before the hook times out, and a timed-out hook blocks nothing." >&2
-    echo "Split it into several smaller commands, or put the work in a script file and run that." >&2
+    echo "BLOCKED: $_rg_subst command or process substitutions, over the $RUN_GUARDS_MAX_SUBST the guards can check in time. Split the command, or run the work from a script file." >&2
     if hook::telemetry_enabled; then
       hook::json_str_object_to _rg_data tool "${RUN_GUARDS_FIELD['.tool_name']-}" form "too-many-substitutions" count "$_rg_subst"
       hook::emit_telemetry run-guards "${_GAB_EVENT:-PreToolUse}" blocked "$RUN_GUARDS_START" "$_rg_data" "${CLAUDE_PROJECT_DIR:-}"
@@ -787,6 +790,15 @@ hook::emit_document() {
   OUTS+=("$1")
 }
 
+# Without jq every fail-closed guard denies the call through this helper. The
+# deny reason says so once for the call, not once per guard.
+# shellcheck disable=SC2329  # invoked by every fail-closed guard sourced below
+hook::require_jq_blocking() {
+  command -v jq >/dev/null 2>&1 && return 0
+  guard::say_once jq "BLOCKED: jq is not on PATH, so guardrails denies every Bash and PowerShell call. Ask the user to install jq (https://jqlang.org/download/)."
+  exit 2
+}
+
 # `exit` for the sourced guards. The status a guard exits with is recorded
 # and the chain continues from inside this call, so control never returns to
 # the guard. No argument means the status of the guard's last command, as the
@@ -936,6 +948,8 @@ run_guards::emit_one() {
   done
   ((pick < 0)) && pick=0
   printf '%s\n' "${OUTS[pick]}"
+  # On a block, stderr is the model's deny reason, not the debug log.
+  ((RC == 2)) && return 0
   for i in "${!OUTS[@]}"; do
     ((i == pick)) && continue
     printf 'run-guards: dropped %s: %s\n' "$why" "${OUTS[i]}" >&2

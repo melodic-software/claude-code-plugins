@@ -2637,10 +2637,10 @@ ps::print_sink_trigger_line() {
     '"') closer="the \"@ terminator" ;;
     *) closer="the terminator matching the opener (@' closes with '@, @\" closes with \"@)" ;;
     esac
-    echo "Trigger: an unbalanced here-string — its extent cannot be determined, so a trailing pipeline could be hidden inside it. Close the here-string ($closer must start at column 0)." >&2
+    echo "Trigger: an unbalanced here-string. Close it: $closer must start at column 0." >&2
     ;;
   special-construct)
-    echo "Trigger: a construct the guard cannot faithfully tokenize (backtick, '--%', subexpression, or {}/() grouping). Rewrite it in PowerShell as flat statements: unroll the loop or grouping into one command per line. Or run the command via the Bash tool." >&2
+    echo "Trigger: a construct the guard cannot tokenize (backtick, '--%', subexpression, or {}/() grouping). Rewrite it as flat statements (unroll the loop or grouping, one command per line), or use the Bash tool." >&2
     ;;
   dynamic-invocation)
     # The INVOCATION FORM is what routes here, not the decidability of the
@@ -2650,31 +2650,31 @@ ps::print_sink_trigger_line() {
     # literal name" describes the form they already used, so the advice has to
     # be to drop the invocation operator instead. A call/dot-source of a bare
     # variable (`& $tool`) never reaches this branch.
-    echo "Trigger: a dynamic invocation — iex/Invoke-Expression, or a call '&' / dot-source '.' whose target is a quoted string. The form itself routes here, a constant literal target included; a target that cannot reach git is then allowed, and this one could. Drop the iex/'&'/'.' and write the program as a plain command word. Or run the command via the Bash tool." >&2
+    echo "Trigger: a dynamic invocation (iex/Invoke-Expression, or a call '&' / dot-source '.' with a quoted-string target, a constant one included). Drop the iex/'&'/'.' and write the program as a plain command word, or use the Bash tool." >&2
     ;;
   launcher)
-    echo "Trigger: a process launcher or nested shell (Start-Process/saps/start, pwsh, powershell, cmd), which the guard must see through the way it sees through 'bash -c'. Run the launched command directly in this session instead: 'git status', not \"pwsh -Command 'git status'\"; for a repo script, 'Set-Location <dir>; & ./<script>.ps1'. Or run the launched command itself via the Bash tool." >&2
+    echo "Trigger: a process launcher or nested shell (Start-Process/saps/start, pwsh, powershell, cmd). Run the launched command directly ('git status', not \"pwsh -Command 'git status'\"; for a repo script, 'Set-Location <dir>; & ./<script>.ps1'), or use the Bash tool." >&2
     ;;
   herestring-subexpr)
     # What is true of EVERY command that reaches here: an expandable body was
     # removed and it carried `$(`. The advice has to work for a body that never
     # named git, because the trigger is the command position, not its content.
-    echo "Trigger: an expandable here-string (@\" … \"@) whose body carries a '\$( … )' subexpression. PowerShell evaluates that subexpression where the here-string is written, so the body is a command position, and the body is removed before the guard's git probe runs, which makes a 'no git here' answer a statement about text the command does not have. Use a verbatim here-string (@' … '@), or compute the value into a variable before the here-string. Or run the command via the Bash tool." >&2
+    echo "Trigger: an expandable here-string (@\" … \"@) containing '\$( … )'. Use a verbatim here-string (@' … '@) or compute the value into a variable first, or use the Bash tool." >&2
     ;;
   herestring-comment-char)
-    echo "Trigger: a here-string opener (@' or @\") on a line that also contains a '#'. PowerShell may read that '#' as the start of a line comment, in which case the opener is comment text and the lines under it are live commands, not here-string body. The guard does not decide between the two readings and refuses the shape. Drop the comment, or move the here-string opener to a line of its own with no '#' on it, or run the command via the Bash tool." >&2
+    echo "Trigger: a here-string opener (@' or @\") on a line that also contains a '#'. Drop the comment or move the opener to a line of its own, or use the Bash tool." >&2
     ;;
   herestring-opener-untrusted)
-    echo "Trigger: a here-string opener (@' or @\") on a line that also contains a quote, backslash, or backtick. Those characters change whether PowerShell sees an opener, and the guard does not pair them. Move the opener to a line of its own, or run the command via the Bash tool." >&2
+    echo "Trigger: a here-string opener (@' or @\") on a line that also contains a quote, backslash, or backtick. Move the opener to a line of its own, or use the Bash tool." >&2
     ;;
   herestring-comment-span)
-    echo "Trigger: a here-string opener (@' or @\") after a '<#' block-comment opener. PowerShell may still be inside the comment, in which case the here-string opener is comment text and the lines under it are live commands. Close the block comment before the here-string, or run the command via the Bash tool." >&2
+    echo "Trigger: a here-string opener (@' or @\") after a '<#' block-comment opener. Close the block comment before the here-string, or use the Bash tool." >&2
     ;;
   herestring-orphan-closer)
-    echo "Trigger: a here-string closer ('@ or \"@) at column zero with no matching opener the guard confirmed. PowerShell or the Bash tokenizer the reduction is handed to may treat that closer as a quote that swallows the following lines. Write a balanced here-string, or run the command via the Bash tool." >&2
+    echo "Trigger: a here-string closer ('@ or \"@) at column zero with no confirmed opener. Write a balanced here-string, or use the Bash tool." >&2
     ;;
   bare-cr)
-    echo "Trigger: a carriage return that is not part of a CRLF pair. PowerShell ends a statement at a bare CR, and this guard splits on LF only, so the text after that CR is not the command it classifies. Rewrite the command with LF or CRLF line endings, or run it via the Bash tool." >&2
+    echo "Trigger: a carriage return that is not part of a CRLF pair. Use LF or CRLF line endings, or use the Bash tool." >&2
     ;;
   *)
     echo "Rewrite the command in PowerShell without the unparsable construct, or run it via the Bash tool." >&2
@@ -2688,8 +2688,9 @@ ps::print_sink_trigger_line() {
 # / a computed launcher can reach here with no git token at all (#2662).
 # Printed to stderr by the caller before it exits 2.
 ps::print_unparsable_block_message() {
+  ps::_sink_once || return 0
   local lc="${1,,}"
-  echo "BLOCKED: this PowerShell command cannot be parsed with confidence — blocked (fail-closed)." >&2
+  echo "BLOCKED: this PowerShell command cannot be parsed with confidence." >&2
   ps::print_sink_trigger_line
   # The commit form is advice for a commit: print it only when `commit` follows
   # `git` (options between them allowed). Called with no argument, it prints.
@@ -2698,20 +2699,49 @@ ps::print_unparsable_block_message() {
     echo "  @'" >&2
     echo "  <subject>" >&2
     echo "  '@ | git commit -F -" >&2
-    echo "or run the commit via the Bash tool (the /commit skill's canonical form)." >&2
+    echo "or commit via the Bash tool (/source-control:commit)." >&2
   fi
-  # The no-token family has no allow token (same reason as the git twin).
+  # Honor the same ps-unparsable-<trigger> tokens the git-guard message names, so
+  # following that printed advice also clears this guard on a mutating shape (#4252).
+  ps::print_sink_token_line block-dangerous-git
+}
+
+# The last line of both sink messages: the user's allow token for this trigger,
+# which block-no-verify and block-dangerous-git both honor, or none.
+# $1 = the other guard the token also clears. The grantable tokens are
+# ps-unparsable-dynamic-invocation, ps-unparsable-launcher,
+# ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced and
+# ps-unparsable-herestring-subexpr; scripts/check-guardrails-ps-differential.sh
+# reads them from this file.
+ps::print_sink_token_line() {
+  # The no-token family: every token-granted sink round spends the caller's
+  # shared attempt budget, and a sixth grantable trigger pushes a four-round
+  # command past the cap, where the caller refuses.
   if [[ "$PS_SINK_TRIGGER" == herestring-comment-char ||
         "$PS_SINK_TRIGGER" == herestring-opener-untrusted ||
         "$PS_SINK_TRIGGER" == herestring-comment-span ||
         "$PS_SINK_TRIGGER" == herestring-orphan-closer ||
         "$PS_SINK_TRIGGER" == bare-cr ]]; then
-    echo "This sink shape has NO allow token. Rewrite instead: drop the comment, or move the here-string opener to a line of its own with no '#' on it. To switch the whole guard off, set the guardrails block_no_verify_enabled option to false (/plugin configure)." >&2
+    echo "No allow token exists for this shape; rewrite it." >&2
     return
   fi
-  # Honor the same ps-unparsable-<trigger> tokens the git-guard message names, so
-  # following that printed advice also clears this guard on a mutating shape (#4252).
-  echo "If this is a false positive for the sink shape named above, allow it via the block_dangerous_git_allow option (add ps-unparsable-<trigger>: ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, or ps-unparsable-herestring-subexpr). This guard honors those sink tokens too, so one entry also clears a mutating block that block-dangerous-git holds. Or set the guardrails block_no_verify_enabled option to false (/plugin configure) to bypass." >&2
+  echo "False positive: the user adds ps-unparsable-${PS_SINK_TRIGGER:-<trigger>} to block_dangerous_git_allow; it clears $1 too." >&2
+}
+
+# The sink messages are printed once per call. Under run-guards.sh the guards
+# that print them share one shell and one deny reason, and the ones that can
+# print on the same shape honor the same token, so a second copy adds nothing.
+_PS_SINK_SAID=0
+ps::_sink_once() {
+  ((_PS_SINK_SAID)) && return 1
+  _PS_SINK_SAID=1
+}
+
+# A PowerShell command still unreadable after the caller set aside five
+# allowed sink shapes. Printed to stderr by the caller before it exits 2.
+ps::print_sink_budget_message() {
+  ps::_sink_once || return 0
+  echo "BLOCKED: this PowerShell command is still unparsable after five allowed sink shapes were set aside, and could reach git. No allow token clears this; split it into smaller commands." >&2
 }
 
 # Shell-agnostic block text for a PowerShell command block-dangerous-git cannot
@@ -2720,27 +2750,12 @@ ps::print_unparsable_block_message() {
 # headline does not assert that a git command is present — the sink is possibly-git
 # (#2662). Printed to stderr by the caller before it exits 2.
 ps::print_unparsable_git_block_message() {
-  echo "BLOCKED: this PowerShell command cannot be parsed with confidence and could reach git — blocked (fail-closed)." >&2
-  echo "A command the guard cannot faithfully tokenize could hide a destructive git form (reset --hard, clean -fd, checkout/restore), so it is blocked rather than waved through." >&2
+  ps::_sink_once || return 0
+  echo "BLOCKED: this PowerShell command cannot be parsed with confidence and could reach git." >&2
   ps::print_sink_trigger_line
-  # `herestring-comment-char` is the one sink shape with no allow token, so the
-  # token line below would be a false lead for it: an operator following it would
-  # set a value the guard never consults on this path. Name the rewrite instead.
-  # A token for this shape cannot exist, because every token-granted sink round
-  # spends the caller's shared attempt budget and a sixth grantable trigger
-  # pushes a four-round command past the cap, where the caller refuses.
-  if [[ "$PS_SINK_TRIGGER" == herestring-comment-char ||
-        "$PS_SINK_TRIGGER" == herestring-opener-untrusted ||
-        "$PS_SINK_TRIGGER" == herestring-comment-span ||
-        "$PS_SINK_TRIGGER" == herestring-orphan-closer ||
-        "$PS_SINK_TRIGGER" == bare-cr ]]; then
-    echo "This sink shape has NO allow token: granting one would spend a shared sink-attempt budget and could fail open a plainly visible destructive sibling in the same command. Rewrite instead. To switch the whole guard off, set the guardrails block_dangerous_git_enabled option to false (/plugin configure)." >&2
-    return
-  fi
   # Sink-shape allow tokens (ps-unparsable-<trigger>) are distinct from destructive
   # form tokens so an existing allow-list value cannot silently open this branch (#2664).
-  echo "If this is a false positive for the sink shape named above, allow it via the block_dangerous_git_allow option (add ps-unparsable-<trigger>: ps-unparsable-dynamic-invocation, ps-unparsable-launcher, ps-unparsable-special-construct, ps-unparsable-herestring-unbalanced, or ps-unparsable-herestring-subexpr), or set the guardrails block_dangerous_git_enabled option to false (/plugin configure) to bypass." >&2
-  echo "A mutating shape is also held by block-no-verify. That guard honors the same ps-unparsable-<trigger> tokens, so one allow-list entry clears both denials." >&2
+  ps::print_sink_token_line block-no-verify
 }
 
 # True (0) when a PowerShell command authors file content in a way that bypasses
