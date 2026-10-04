@@ -47,6 +47,7 @@ lib/parse-concern-value.sh plugins/harness-ops/skills/lanes/scripts/lib/parse-co
 lib/parse-concern-value.sh plugins/education/skills/explain/scripts/parse-concern-value.sh
 lib/parse-concern-value.sh plugins/testing/scripts/parse-concern-value.sh
 lib/parse-concern-value.sh plugins/planning/skills/setup/scripts/parse-concern-value.sh
+lib/parse-concern-value.sh plugins/discipline/skills/setup/scripts/parse-concern-value.sh
 lib/parse-concern-value.sh plugins/docs-hygiene/lib/parse-concern-value.sh
 lib/yaml-subset.awk plugins/harness-memory/skills/audit/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/session-flow/skills/retro/scripts/yaml-subset.awk
@@ -61,6 +62,7 @@ lib/parse-concern-value.sh plugins/review/lib/parse-concern-value.sh
 lib/yaml-subset.awk plugins/review/lib/yaml-subset.awk
 lib/yaml-subset.awk plugins/testing/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/planning/skills/setup/scripts/yaml-subset.awk
+lib/yaml-subset.awk plugins/discipline/skills/setup/scripts/yaml-subset.awk
 lib/config-root.sh plugins/source-control/lib/config-root.sh
 lib/config-root.sh plugins/ai-slop/lib/config-root.sh
 lib/config-root.sh plugins/attribution/lib/config-root.sh

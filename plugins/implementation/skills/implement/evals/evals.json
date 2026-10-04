@@ -181,6 +181,34 @@
         "Does NOT invoke /implementation:implement-dispatch",
         "Does NOT apply the user's dispatch value"
       ]
+    },
+    {
+      "id": 15,
+      "name": "lever-first-implement",
+      "narration": true,
+      "prompt": "/implementation:implement execute Phase 2 of the approved plan at .work/ledger-money/PLAN.md: replace every `new BigDecimal(double)` call in the ledger module with `BigDecimal.valueOf(double)`. A search finds 27 call sites across 11 files. I'm reviewing each turn; the session is on branch feat/ledger-money with a clean tree.\n\n[/discipline:script-the-deterministic-work is among the available skills.]",
+      "expected_output": "Before editing any of the 27 sites, invokes /discipline:script-the-deterministic-work lever-check via the Skill tool with a summary of the change and the site count, and reports the lever_scope layer it returns. On build-a-lever it edits the first call site by hand, runs the lever on a clean copy of that site, diffs the two, and only after they match runs the lever on the other 26 sites, then runs the build check and the commit checkpoint as for any block.",
+      "files": [],
+      "expectations": [
+        "Invokes /discipline:script-the-deterministic-work lever-check via the Skill tool before editing any call site",
+        "Reports the lever_scope value and supplying layer the check returned",
+        "Edits the first site by hand and diffs the lever's result on it before running the lever on the rest",
+        "Does NOT hand-edit all 27 sites one by one after a build-a-lever answer"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "lever-first-discipline-absent",
+      "narration": true,
+      "prompt": "/implementation:implement execute Phase 1 of the approved plan at .work/i18n-keys/PLAN.md: rename the translation key `checkout.btn_pay` to `checkout.pay_button` in 9 locale JSON files and the 4 components that read it. I'm reviewing each turn; branch feat/i18n-keys, clean tree.\n\n[The discipline plugin is not enabled, so /discipline:script-the-deterministic-work is not among the available skills.]",
+      "expected_output": "Does not invoke the unavailable discipline skill. Applies the deterministic rule itself: a key rename follows from each site's text alone, so it is mechanical and gets a lever. It says in one line that the lever check ran on deterministic because the discipline skill was unavailable, edits one site by hand, diffs the lever's result on that site against it, then runs the lever on the remaining sites.",
+      "files": [],
+      "expectations": [
+        "Does NOT invoke /discipline:script-the-deterministic-work or invent a substitute skill",
+        "States that the lever check used deterministic because the discipline skill was unavailable",
+        "Treats the key rename as mechanical and builds a lever",
+        "Diffs the lever's result on one hand-edited site before running it on the rest"
+      ]
     }
   ]
 }

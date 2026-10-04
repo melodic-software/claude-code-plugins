@@ -266,8 +266,21 @@ for the judgment slots. Distinct from a standing-automation capability:
 recurring checks belong in a hook, this corrector owns the one-off,
 session-time script.
 
+Its `lever-check` mode answers one question for a change repeated across
+several sites: build a lever (a script or tool that makes the change) or edit
+each site by hand. `/implementation:implement` asks it before a block that
+applies one change at three or more sites, and
+`/implementation:implement-dispatch` asks it before fanning one change out to
+workers, also asking whether one run of the lever covers every unit. The
+`lever_scope` setting decides the answer: `deterministic` (default) builds a
+lever only for a mechanical change; `non-trivial` builds one for
+judgment-bearing changes too, with an established codemod tool. Either way the
+first site is edited by hand and the lever's result on it is compared before
+the lever runs on the rest.
+
 ```shell
 /discipline:script-the-deterministic-work   # re-anchor + audit + correct
+/discipline:script-the-deterministic-work lever-check rename retryLimit to maxRetries in 31 deploy files
 ```
 
 ### use-your-skills
@@ -419,11 +432,13 @@ No persistent state. Each skill reads the conversation and the consuming
 project's own instruction layer. `follow-our-standards` may fetch a remote
 standards source when the consumer declares one and no local checkout exists.
 
-The correctors themselves are zero-config. Two skills expose optional
+The correctors themselves are zero-config. Three skills expose optional
 `userConfig` scalars. The `sweep-all` runbook adds three that
 overlay batch membership without editing any corrector, each a comma-separated
 list of corrector names, empty by default (tiers run exactly as declared). And
-`do-your-research-deep` adds one that sets its verification depth:
+`do-your-research-deep` adds one that sets its verification depth, and
+`script-the-deterministic-work` adds `lever_scope`, which a repository can also
+set for everyone:
 
 | Option | Effect |
 |---|---|
@@ -431,11 +446,16 @@ list of corrector names, empty by default (tiers run exactly as declared). And
 | `batch_promote` | Run these situational correctors every session instead of gating them on relevance (situational-only; never/core/unknown warn and are not promoted) |
 | `batch_demote` | Run these core correctors only when relevant instead of every session |
 | `research_deep_verification` | `do-your-research-deep` verification depth. `tiered` is the default and fans subagents out only over load-bearing items; `full` subagent-verifies every item. An invocation argument overrides it |
+| `lever_scope` | When `script-the-deterministic-work lever-check` answers build-a-lever: `deterministic` (default) for a mechanical change only, `non-trivial` for judgment-bearing changes too, with an established codemod tool |
 
 Set them through Claude Code's native plugin-config flow
-(`/plugin configure discipline@<marketplace>`); they are personal scalars, not repository
-configuration. `/discipline:setup check` reports the effective configuration
-read-only: it never writes config, so reconfiguration stays the native flow.
+(`/plugin configure discipline@<marketplace>`); they are personal scalars.
+`lever_scope` alone also has a repository layer: the `lever_scope` key in
+`docs/conventions/discipline.yaml` (schema: `schemas/discipline.schema.json`), which
+wins over the option. Keys, layers and the root rule:
+[`reference/config.md`](reference/config.md). `/discipline:setup check` reports the
+effective configuration read-only; `/discipline:setup apply lever_scope=<value>` writes
+the repository file and nothing else, so personal options stay with the native flow.
 Batch membership and order otherwise live in each corrector's own colocated
 tier metadata (`metadata.discipline-batch` + `discipline-batch-rank`), so changing
 a shipped tier is a PR to that corrector.
@@ -444,6 +464,10 @@ a shipped tier is a PR to that corrector.
 
 **`research_deep_verification`.** An empty value, an unexpanded `${user_config.…}` token, or an
 unrecognized string all fall back to `tiered`.
+
+**`lever_scope`.** An empty value or an unexpanded `${user_config.…}` token is unset. A value
+outside the two, in either layer, is named with its file or option and that layer is dropped: an
+invalid repository value resolves `deterministic`, not the user's value.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -459,6 +483,7 @@ reads it from.
 | `batch_promote` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BATCH_PROMOTE` | Comma-separated situational corrector skill names to always run in the batch instead of gating them on relevance to the conversation. Situational-only: a never-tier, core, or unknown name draws a visible warning and is not promoted. |
 | `batch_demote` | string | *(none)* | `CLAUDE_PLUGIN_OPTION_BATCH_DEMOTE` | Comma-separated core corrector skill names to run only when relevant to the conversation instead of every session. |
 | `research_deep_verification` | string | `"tiered"` | `CLAUDE_PLUGIN_OPTION_RESEARCH_DEEP_VERIFICATION` | Default verification depth for do-your-research-deep. tiered (default) resolves trivial and non-load-bearing items inline and fans fresh-context subagents out only over the load-bearing ones; full subagent-verifies every inventory item. An invocation argument overrides this. |
+| `lever_scope` | string | `"deterministic"` | `CLAUDE_PLUGIN_OPTION_LEVER_SCOPE` | When a change repeated across many sites gets a script or tool. deterministic (default): only for a mechanical transformation. non-trivial: for any non-trivial repeated change, using an established codemod tool. A repository's docs/conventions/discipline.yaml lever_scope key overrides it. |
 
 ### How to set these
 

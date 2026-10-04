@@ -47,6 +47,19 @@ either.
   briefs, capped waves, return verification against direct evidence, the main-side build gate, the
   phase-verifier, and divergence routing.
 
+**Lever check before a fan-out.** Before composing worker rows that apply one change across
+several units, and before the `/batch` offer below, invoke
+`/discipline:script-the-deterministic-work lever-check <block summary>` via the Skill tool when it
+is among the available skills, and ask it whether one run of the lever covers every unit. When it
+is not among the available skills (the discipline plugin ships disabled), apply its
+`deterministic` rule: a lever only for a mechanical change, one whose edit at each unit follows
+from that unit's text alone; say in one line that the check ran on `deterministic` because the
+discipline skill was unavailable. `build-a-lever` with `one-pass: yes` replaces the per-unit rows
+with one worker row that builds the lever, makes the change in one unit manually, diffs the
+lever's result on that unit against the manual edit, and then runs the lever over every unit; no `/batch` offer is
+made for that change. `edit-by-hand`, or `one-pass: no` for the units it names, keeps one row per
+unit for those units.
+
 **Routing.** When no approved plan exists and the work is a large mechanical change that splits
 into independent PRs, offer it to the person at the prerequisite check, before any brief: "you can
 run `/batch <instruction>` instead of or alongside this skill". With an approved plan, this skill

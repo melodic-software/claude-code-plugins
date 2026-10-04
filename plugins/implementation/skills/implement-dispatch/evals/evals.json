@@ -333,6 +333,20 @@
         "Does NOT hand any phase back to /implementation:implement's inline cadence",
         "Dispatches the written rows as implementation:implementer without passing a model that undercuts its binding"
       ]
+    },
+    {
+      "id": 26,
+      "name": "lever-first-dispatch-before-fanout",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch execute Phase 3 of the approved plan at .work/log-fields/PLAN.md. The routing table gives Phase 3 one worker row per service: switch the structured-logging field `userId` to `user_id` in 14 services, each its own directory. The session runs autonomously; branch feat/log-fields.\n\n[/discipline:script-the-deterministic-work is among the available skills, and its lever check answers build-a-lever with one-pass: yes.]",
+      "expected_output": "Before composing the 14 per-service worker rows, invokes /discipline:script-the-deterministic-work lever-check via the Skill tool and asks whether one run of the lever covers every unit. On build-a-lever with one-pass: yes it replaces the 14 rows with one worker row whose brief builds the lever, edits the first service by hand, diffs the lever's result on that service against the hand edit, and then runs the lever over all 14 services. It makes no /batch offer for this change and does not edit source in the orchestrator's own checkout.",
+      "files": [],
+      "expectations": [
+        "Invokes /discipline:script-the-deterministic-work lever-check before composing any worker row for the phase",
+        "Asks whether one run of the lever covers every unit",
+        "Dispatches one worker row that pilots and runs the lever over all 14 services instead of 14 per-service rows",
+        "Makes no /batch offer for the change and does not edit source in the orchestrator's checkout"
+      ]
     }
   ]
 }

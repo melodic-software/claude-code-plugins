@@ -228,6 +228,7 @@ plugins/desktop-notification/README.md
 plugins/desktop-notification/CHANGELOG.md
 plugins/desktop-notification/skills/*/SKILL.md
 plugins/discipline/README.md
+plugins/discipline/reference/config.md
 # The discovery plugin was purged whole.
 # The disk-hygiene plugin was purged whole. Its README's generated options block keeps its own
 # pre-existing ignore marker, since that prose belongs to the generator rather than the output.

@@ -58,6 +58,13 @@
       "description": "Default verification depth for do-your-research-deep. tiered (default) resolves trivial and non-load-bearing items inline and fans fresh-context subagents out only over the load-bearing ones; full subagent-verifies every inventory item. An invocation argument overrides this.",
       "default": "tiered",
       "options": ["tiered", "full"]
+    },
+    "lever_scope": {
+      "type": "string",
+      "title": "Lever scope",
+      "description": "When a change repeated across many sites gets a script or tool. deterministic (default): only for a mechanical transformation. non-trivial: for any non-trivial repeated change, using an established codemod tool. A repository's docs/conventions/discipline.yaml lever_scope key overrides it.",
+      "default": "deterministic",
+      "options": ["deterministic", "non-trivial"]
     }
   }
 }

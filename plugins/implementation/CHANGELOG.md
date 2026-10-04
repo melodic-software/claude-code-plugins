@@ -44,6 +44,17 @@ All notable changes to the `implementation` plugin are documented here. Format f
   `docs/conventions/implementation.yaml`, which wins; an invalid value is named and dropped. A
   plugin-level eval case under `evals/` checks that a repository `dispatch` reaches
   implement-dispatch for a main-window phase.
+- **A lever check runs before one change is applied at many sites.** `/implementation:implement`
+  Step 2 gains a multi-site step: before a block that applies one change at three or more sites,
+  it invokes `/discipline:script-the-deterministic-work lever-check` when that skill is among the
+  available skills, which resolves the discipline plugin's `lever_scope` setting and answers
+  `build-a-lever` or `edit-by-hand`; without it, the `deterministic` rule applies (a lever only for
+  a mechanical change) and the run says so. A lever is piloted on one hand-edited site and diffed
+  before it runs on the rest. `/implementation:implement-dispatch` runs the same check before a
+  fan-out of one change and before its `/batch` offer, and when one run of the lever covers every
+  unit it dispatches one worker row for the lever instead of one row per unit. The setting has one
+  home, the discipline plugin; implementation declares no key for it. Three eval cases cover the
+  hand-off, the fan-out and an unavailable discipline skill.
 
 ## [0.21.3] - 2026-10-04
 
