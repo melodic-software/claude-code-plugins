@@ -10,11 +10,13 @@ Python 3.11+, standard library only.
 
 from __future__ import annotations
 
-import http.client
+import json
+import os
 import re
+import shutil
+import subprocess
 import sys
-import urllib.error
-import urllib.request
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -70,32 +72,75 @@ _EVENT_TEXT_MAX = 240
 # Bounds on untrusted fetched text. _ROW_MAX is the longest table line parsed; a
 # longer one is skipped. It caps how much text each row's parsing scans; it does
 # not bound backtracking within that text, which is why the row parsers use no
-# backtracking cell pattern. The fetch has no other size limit.
+# backtracking cell pattern. _FETCH_MAX is the largest page file read.
 _ROW_MAX = 8_000
 _FETCH_MAX = 16_000_000
 
 
-def fetch_text(url: str, timeout: float = 20.0) -> tuple[str | None, str | None]:
-    """The body at `url`, or None and the reason. Never raises."""
-    req = urllib.request.Request(url, headers={"User-Agent": "harness-ops-inventory"})
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            body = resp.read(_FETCH_MAX + 1)
-            if len(body) > _FETCH_MAX:
-                return None, f"response exceeds {_FETCH_MAX} bytes"
-            return body.decode("utf-8", "replace"), None
-    except (
-        urllib.error.URLError,
-        http.client.HTTPException,
-        TimeoutError,
-        OSError,
-        ValueError,
-    ) as exc:
-        return None, f"{type(exc).__name__}: {exc}"
+_FETCHER = Path(__file__).resolve().parents[3] / "scripts" / "fetch-docs.sh"
+_FETCH_TIMEOUT = 300
+
+
+def _bash() -> str | None:
+    """The bash that runs the shared fetcher. On Windows `which bash` can be the
+    System32 WSL launcher, so a Git Bash beside git wins."""
+    if sys.platform == "win32":
+        git = shutil.which("git")
+        if git:
+            for parent in Path(git).resolve().parents:
+                candidate = parent / "bin" / "bash.exe"
+                if candidate.is_file():
+                    return str(candidate)
+    return shutil.which("bash")
+
+
+def fetch_text(profile: str, url: str) -> tuple[str | None, str | None, dict[str, Any]]:
+    """The page at `url` through the shared fetcher: (text, reason, extra source
+    fields). The fetcher checks identity; a page it leaves unread has no text.
+    The default cache lifetime applies; the age of a cached page is returned.
+    Never raises."""
+    bash = _bash()
+    if bash is None:
+        return None, "no-bash", {}
+    env = {**os.environ, "PYTHONUTF8": "1"}
+    with tempfile.TemporaryDirectory() as out:
+        out_dir = Path(out).as_posix()
+        cmd = [bash, _FETCHER.as_posix(), "--profile", profile, "--out", out_dir]
+        if "FETCH_DOCS_FIXTURE_DIR" not in env or env.get("DOCS_CACHE_DIR"):
+            cmd.append("--cache")
+        cmd.append(url)
+        detail = ""
+        try:
+            run = subprocess.run(
+                cmd,
+                env=env,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=_FETCH_TIMEOUT,
+                check=False,
+            )
+            detail = run.stderr.strip()[:200]
+            manifest = json.loads(
+                (Path(out) / "manifest.json").read_text(encoding="utf-8")
+            )
+            page = manifest["pages"][0]
+            if page.get("state") != "read":
+                return None, str(page.get("reason") or "unread"), {}
+            file = Path(page["file"])
+            if file.stat().st_size > _FETCH_MAX:
+                return None, f"page exceeds {_FETCH_MAX} bytes", {}
+            extra: dict[str, Any] = {}
+            if page.get("source") == "cache":
+                extra["age_seconds"] = page.get("age_seconds")
+            return file.read_text(encoding="utf-8", errors="replace"), None, extra
+        except (OSError, ValueError, KeyError, IndexError, subprocess.SubprocessError):
+            return None, f"fetch-failed: {detail}".rstrip(": "), {}
 
 
 def _read_source(
-    file: str | None, url: str
+    file: str | None, url: str, profile: str = "anthropic"
 ) -> tuple[str | None, str | None, dict[str, Any]]:
     """Text from `file` when given, else fetched from `url`: (text, error, source)."""
     if file:
@@ -103,8 +148,8 @@ def _read_source(
             return Path(file).read_text(encoding="utf-8"), None, {"file": file}
         except OSError as exc:
             return None, f"{type(exc).__name__}: {exc}", {"file": file}
-    text, err = fetch_text(url)
-    return text, err, {"url": url}
+    text, err, extra = fetch_text(profile, url)
+    return text, err, {"url": url, **extra}
 
 
 def _row_rest(pattern: re.Pattern[str], line: str) -> tuple[re.Match[str], str] | None:
@@ -476,15 +521,7 @@ def build_crosscheck(
         )
         return block
 
-    if docs_file:
-        try:
-            docs_text, err = Path(docs_file).read_text(encoding="utf-8"), None
-        except OSError as exc:
-            docs_text, err = None, f"{type(exc).__name__}: {exc}"
-        block["sources"]["commands"] = {"file": docs_file}
-    else:
-        docs_text, err = fetch_text(COMMANDS_URL)
-        block["sources"]["commands"] = {"url": COMMANDS_URL}
+    docs_text, err, block["sources"]["commands"] = _read_source(docs_file, COMMANDS_URL)
     if docs_text is None:
         block["status"] = "unavailable"
         block["sources"]["commands"]["error"] = err
@@ -501,15 +538,9 @@ def build_crosscheck(
         return block
 
     changelog: dict[str, dict[str, Any]] | None = None
-    if changelog_file:
-        try:
-            cl_text, cl_err = Path(changelog_file).read_text(encoding="utf-8"), None
-        except OSError as exc:
-            cl_text, cl_err = None, f"{type(exc).__name__}: {exc}"
-        block["sources"]["changelog"] = {"file": changelog_file}
-    else:
-        cl_text, cl_err = fetch_text(CHANGELOG_URL)
-        block["sources"]["changelog"] = {"url": CHANGELOG_URL}
+    cl_text, cl_err, block["sources"]["changelog"] = _read_source(
+        changelog_file, CHANGELOG_URL, "generic"
+    )
     if cl_text is None:
         block["sources"]["changelog"]["error"] = cl_err
         block["advisories"].append(

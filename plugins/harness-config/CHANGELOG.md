@@ -66,6 +66,8 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 
 ### Fixed
 
+- **The curl prerequisite no longer claims the audit runs from cached docs.** Without curl, a fresh
+  cache entry is used with its age when one exists; otherwise the page is reported unread.
 - **The docs cache works under a long cache directory on Windows.** Entry and pointer names are now
   the first 16 hex digits of the key and sha256 (store layout version 2, kept apart from a version-1
   store), so a meta.json path stays under the 260-character limit. A write whose

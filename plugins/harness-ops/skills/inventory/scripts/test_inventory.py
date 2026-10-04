@@ -12,6 +12,7 @@ Run: python3 test_inventory.py
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import tempfile
 import unittest
@@ -2140,25 +2141,13 @@ class TestDocsCrosscheck(unittest.TestCase):
         self.assertNotIn("not-a-row", self.rows)
         self.assertEqual(self.rows["code-review"]["args"], "[low|high] [--fix]")
 
-    def test_a_truncated_response_degrades_instead_of_raising(self) -> None:
-        import http.client
-        import urllib.request
-        from unittest import mock
-
-        class Truncated:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *exc):
-                return False
-
-            def read(self, _n):
-                raise http.client.IncompleteRead(b"partial")
-
-        with mock.patch.object(urllib.request, "urlopen", return_value=Truncated()):
-            body, error = self.dc.fetch_text("https://example.invalid/x")
+    def test_a_fetcher_that_writes_no_manifest_degrades_instead_of_raising(
+        self,
+    ) -> None:
+        with mock.patch.object(self.dc, "_FETCHER", pathlib.Path("missing-fetcher.sh")):
+            body, error, _ = self.dc.fetch_text("anthropic", self.dc.COMMANDS_URL)
         self.assertIsNone(body)
-        self.assertIn("IncompleteRead", error or "")
+        self.assertTrue((error or "").startswith("fetch-failed"))
 
     def test_an_oversized_row_is_skipped_not_backtracked(self) -> None:
         import time
@@ -2244,27 +2233,61 @@ class TestDocsCrosscheck(unittest.TestCase):
         self.assertEqual([e["kinds"] for e in got["foo"]["events"]], [["added"]])
         self.assertEqual(got["baz"]["events"][0]["kinds"], ["renamed"])
 
-    def _run(self, fetched: dict, **kw) -> dict:
-        original = self.dc.fetch_text
-        self.dc.fetch_text = lambda url, timeout=20.0: fetched.get(
-            url, (None, "URLError: offline")
-        )
-        try:
-            return self.dc.build_crosscheck(_report(), **kw)
-        finally:
-            self.dc.fetch_text = original
+    def _run(self, with_commands: bool) -> dict:
+        """build_crosscheck against fixtures with no changelog; with_commands
+        False leaves the fixture directory empty."""
+        with tempfile.TemporaryDirectory() as d:
+            if with_commands:
+                self._fixture_dir(d, None)
+            with mock.patch.dict(os.environ, {"FETCH_DOCS_FIXTURE_DIR": d}):
+                return self.dc.build_crosscheck(_report())
 
-    def test_network_failure_degrades_only_the_block(self) -> None:
-        block = self._run({})
+    def test_unreadable_commands_page_degrades_only_the_block(self) -> None:
+        block = self._run(False)
         self.assertEqual(block["status"], "unavailable")
-        self.assertIn("URLError", block["problems"][0])
+        self.assertIn("index-unread", block["problems"][0])
         self.assertNotIn("names", block)
 
     def test_changelog_failure_is_degraded_not_fabricated(self) -> None:
-        block = self._run({self.dc.COMMANDS_URL: (DOCS, None)})
+        block = self._run(True)
         self.assertEqual(block["status"], "degraded")
+        self.assertIn("fixture-missing", block["advisories"][0])
         self.assertIsNone(block["names"]["add-dir"]["changelog"])
         self.assertEqual(block["counts"]["removed_in_docs"], 1)
+
+    def _fixture_dir(self, root: str, changelog: str | None) -> str:
+        """Fixtures in the shared fetcher's layout: the anthropic index and the
+        commands page, and the generic profile's slug path for the changelog."""
+        base = pathlib.Path(root)
+        (base / "llms.txt").write_text(
+            f"- [Commands]({self.dc.COMMANDS_URL})\n", encoding="utf-8"
+        )
+        (base / "commands.md").write_text(DOCS, encoding="utf-8")
+        if changelog is not None:
+            page = base / "raw-githubusercontent-com/anthropics/claude-code/main"
+            page.mkdir(parents=True)
+            (page / "changelog.md").write_text(changelog, encoding="utf-8")
+        return str(base)
+
+    def test_pages_come_through_the_shared_fetcher(self) -> None:
+        changelog = "## 9.9.9\n\n- Added `/add-dir` for extra directories\n"
+        with tempfile.TemporaryDirectory() as d:
+            fixtures = self._fixture_dir(d, changelog)
+            with mock.patch.dict(os.environ, {"FETCH_DOCS_FIXTURE_DIR": fixtures}):
+                block = self.dc.build_crosscheck(_report())
+        self.assertEqual(block["status"], "ok", block["problems"])
+        self.assertEqual(block["sources"]["commands"]["url"], self.dc.COMMANDS_URL)
+        self.assertEqual(block["sources"]["commands"]["rows"], len(self.rows))
+        self.assertEqual(block["names"]["add-dir"]["status"], "documented")
+        self.assertEqual(
+            block["names"]["add-dir"]["changelog"]["first_mentioned"], "9.9.9"
+        )
+
+    def test_no_bash_leaves_the_page_unread_with_its_reason(self) -> None:
+        with mock.patch.object(self.dc, "_bash", return_value=None):
+            block = self.dc.build_crosscheck(_report())
+        self.assertEqual(block["status"], "unavailable")
+        self.assertIn("no-bash", block["problems"][0])
 
     def test_docs_file_without_the_table_is_broken(self) -> None:
         with tempfile.TemporaryDirectory() as d:

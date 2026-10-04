@@ -9,6 +9,10 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 
 - Shared `docs-cache.sh`, `fetch-docs.sh` synced ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)); no change to this plugin's scripts.
 
+### Fixed
+
+- **`/harness-ops:inventory` reads its docs through the shared fetcher.** The docs cross-check fetches the commands, tools and changelog pages with `fetch-docs.sh` (identity-checked and cached, age reported) instead of its own `urllib` fetcher; a page that cannot be fetched, or a machine with no bash, is reported unread with its reason.
+
 ## [3.8.2] - 2026-10-04
 
 ### Changed

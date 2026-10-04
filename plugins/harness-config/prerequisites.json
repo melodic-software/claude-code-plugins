@@ -61,7 +61,7 @@
           "curl"
         ]
       },
-      "degrade": "Without curl, the docs fetch and the plugin drift check cannot reach upstream; the audit runs from the cached docs and says so.",
+      "degrade": "Without curl, the docs fetch and the plugin drift check cannot reach upstream; a fresh cache entry is used with its age when present, otherwise the page is reported unread.",
       "install": {
         "docs": "https://curl.se/download.html",
         "brew": "curl",
