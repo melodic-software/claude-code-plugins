@@ -39,6 +39,25 @@
         "docs": "https://jqlang.org/download/"
       },
       "check": "/source-control:check"
+    },
+    {
+      "id": "xcrun",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:worktree"
+      ],
+      "detect": {
+        "any": [
+          "xcrun"
+        ]
+      },
+      "degrade": "macOS only. Without xcrun, /source-control:worktree cleanup skips the Xcode build-output and unavailable-simulator report; worktree removal is unaffected.",
+      "install": {
+        "docs": "https://developer.apple.com/xcode/resources/",
+        "xcode-select": "xcode-select --install"
+      },
+      "check": "/harness-ops:prerequisites"
     }
   ]
 }

@@ -20,6 +20,8 @@ Classify the branch's changed files by the table below and run the steps each cl
 | `rules` | `.claude/rules/**` | `instruction-placement:check` | §1.2.1 |
 | `security` | any diff that is not docs-only | `review:security-review` over the pull request's diff | [ready-for-review.md](ready-for-review.md) §2.5.3 |
 
+**Check whether the branch holds more than one change.** While classifying, ask whether the diff breaks into parts that do not need each other: no part reads a file, symbol or behavior another part adds, and each could be reviewed, reverted and released alone. A dependency upgrade, a parser bug fix and a new CLI flag on one branch are three such parts. When the diff breaks apart this way, name the parts and the files in each, propose one pull request per part, and ask before going on; several narrow pull requests are each read and reverted more easily than one that mixes them. This is advice, not a gate: the user may keep one pull request. In a run with no one to ask, put the proposed split in the 1.6 report and continue with one pull request.
+
 **The order of the steps is not this file's to set.** It is the fleet's pre-PR order, owned by [`docs/conventions/pre-pr-ordering/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pre-pr-ordering/README.md). Read the order there; this file cites it rather than restating it.
 
 Every skill named below is invoked through the Skill tool when its plugin is enabled, and replaced by the inline fallback stated beside it when it is not. Report each fallback and what it covered.
@@ -86,6 +88,6 @@ Run the project's full build + test + lint surface, via `/verification:confirm` 
 
 ## 1.6 Report
 
-Report: findings verified/dropped, simplify ran/skipped, verify gate pass/fail per ecosystem, and which classes 1.1 detected. Proceed to PR creation.
+Report: findings verified/dropped, simplify ran/skipped, verify gate pass/fail per ecosystem, which classes 1.1 detected, and any split 1.1 proposed with the user's answer. Proceed to PR creation.
 
 **Prep before create is the developer loop.** The rebase in [create.md](create.md) §2.2 and the base merge in [ready-for-review.md](ready-for-review.md) §2.5.2 both move HEAD after prep, which is why the ready step re-runs the verify gate on the head it flips.

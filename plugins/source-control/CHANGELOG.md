@@ -7,6 +7,16 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
+- **Narrow pull requests, red-first review fixes, and disk freed by cleanup.**
+  `/source-control:pull-request` prep flags a diff that splits into independent changes and
+  proposes one pull request per part (advice the user may decline); a review finding about behavior
+  gets a failing test before its fix (D6 and `monitor`); the briefing body links a longer record
+  instead of reciting review or CI lanes; and `ready` gathers the evidence a plan phase's
+  `Review:` value asks for before the flip, leaving the draft in place when it is missing (a
+  review-concern tag such as `Review: security` asks for none and never holds the flip).
+  `/source-control:worktree cleanup` reports free space before and after, and on macOS with
+  `xcrun` (a new optional prerequisite) lists Xcode build output and unavailable simulators,
+  deleting each only on its own yes.
 - **`/source-control:worktree` runs the consumer's Workspace environment verbs.** `create` runs the
   declared `setup` after the worktree exists and before entering it, on the helper path and the
   plain `git worktree add` path; `cleanup` runs `down` after its guards clear and before removal.

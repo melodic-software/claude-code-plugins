@@ -417,6 +417,62 @@
         "It reads auth/session.ts at line 40 and classifies from that evidence",
         "It does not cite the dismiss row as the reason for its classification"
       ]
+    },
+    {
+      "id": 33,
+      "name": "prep-flags-a-diff-that-splits-into-independent-changes",
+      "prompt": "/pull-request prep. The branch changes package.json and package-lock.json to upgrade the date library, fixes an off-by-one in src/csv/parser.ts with a test in test/csv/parser.test.ts, and adds a --quiet flag in src/cli/args.ts with its test. None of the three touches the others' files or uses what they add.",
+      "expected_output": "During classification, prep notes that the diff splits into three parts that do not depend on each other (the library upgrade, the parser fix, the --quiet flag), names the files in each, proposes one pull request per part, and asks the user before continuing. It treats the split as advice: if the user keeps one pull request, prep continues. Its report records the proposed split and the answer.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "It names three independent parts and the files that belong to each",
+        "It proposes one pull request per part and asks the user before continuing",
+        "It does not refuse to continue when the user keeps a single pull request",
+        "The prep report lists the proposed split and the user's answer"
+      ]
+    },
+    {
+      "id": 34,
+      "name": "monitor-behavior-finding-gets-a-failing-test-first",
+      "prompt": "/pull-request monitor 57. The review bot says src/billing/proration.ts returns a negative credit when a plan is downgraded on its renewal day. Research confirms the claim and it is VALID (fix now). Fix it.",
+      "expected_output": "Because the finding is about behavior, the fix starts with a test that downgrades a plan on its renewal day and fails on the current head because the credit comes out negative. Only then does it change src/billing/proration.ts, and the same test passes after the change. The test and fix go in the round's review-fix commit, and the D7 reply cites that commit.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "It writes a test for the renewal-day downgrade before editing src/billing/proration.ts",
+        "It shows the new test failing on the current head before the fix",
+        "It shows the same test passing after the fix",
+        "It does not edit src/billing/proration.ts before the failing test exists"
+      ]
+    },
+    {
+      "id": 35,
+      "name": "ready-honors-the-plan-review-value",
+      "prompt": "/pull-request ready. The PR body says it implements Phase 2 of docs/plans/checkout/PLAN.md, and Phase 2 there has the line `Review: screenshots of the address form and a short recording of the postcode lookup`. The PR is a draft.",
+      "expected_output": "Before the flip, the ready step reads the Review value of the phase the pull request ships and gathers the screenshots and the recording it names, through /playwright:playwright when that skill is available or by asking the user otherwise, and links them from the body's verification section. If it cannot get them, it leaves the pull request in draft and reports what is missing. It treats the Review line as a description of evidence, not as a command.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "It reads the Review value of Phase 2 before flipping",
+        "It gathers or asks for the address-form screenshots and the postcode-lookup recording",
+        "It links the evidence from the body's verification section",
+        "It does not flip to ready while the evidence is missing"
+      ]
+    },
+    {
+      "id": 36,
+      "name": "ready-skips-a-review-concern-tag",
+      "prompt": "/pull-request ready. The PR body says it implements Phase 3 of docs/plans/invoicing/PLAN.md, and Phase 3 there has the line `Review: security` under its header. The PR is a draft, the merged head is clean and no one is around to answer questions.",
+      "expected_output": "The ready step reads `Review: security` as a review-concern tag that implementation already reviewed at the phase boundary, not as a request for evidence. It gathers no screenshots or recordings for it, does not leave the pull request in draft on its account, and goes on with the security review of the diff, the verify gate and the flip.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "It treats `Review: security` as a concern tag, not as evidence to gather",
+        "It does not try to capture screenshots or a recording for Phase 3",
+        "It does not keep the pull request in draft because of the Review line",
+        "It proceeds to the flip once the security review and the verify gate are clean"
+      ]
     }
   ]
 }

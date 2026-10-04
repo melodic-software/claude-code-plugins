@@ -265,6 +265,7 @@ Track which file/layer supplied the effective value, because the §2.4.2 gate ci
 - `Verification` (required): up to three bullets, one per command or check you ran, with what it printed or returned.
 
 Keep each section to plain statements. Leave out commit hashes and file-by-file listings; the diff already shows them.
+Leave out a run-by-run account of review or CI lanes and their verdicts too: when a longer record exists (a benchmark log, a review report, a test run's output), the section it supports links to it instead of quoting it.
 
 ```bash
 # SECTION_ORDER: every heading the draft may emit, in order. REQUIRED_SECTIONS: the subset the

@@ -56,7 +56,18 @@ Collect the stranded-work record in the same pass, per `status.md`'s data-collec
 ## Step 4: Execute or report
 
 - **`--dry-run`**: Report candidates only, take no action. Exit.
-- **Otherwise**: Ask for confirmation. On "yes", run each candidate through phases 4a → 4b → 4c.
+- **Otherwise**: Ask for confirmation. On "yes", record the free space first (below), then run each candidate through phases 4a → 4b → 4c.
+
+**Free space before removal.** Step 5 reports how much disk the run gave back, so take the first
+reading before any removal on a directory the removal leaves in place: the worktree root that
+holds each candidate (the candidate path's parent directory), one `df -Pk '<worktree-root>'` per
+distinct filesystem among those roots. Type each root inside single quotes, where the shell expands
+nothing: the configured root may hold `$` or a backtick. A root that contains a single quote is
+never put in a command: report it and leave its free-space reading out. Never point `df` at a candidate's own directory: it is gone
+after Step 5, and `df` on a missing path exits non-zero. `-P` keeps each filesystem on one line,
+`-k` reports 1024-byte blocks, and the `Available` column is the number to keep. Note which roots
+you read, because Step 5 runs the identical commands. In PowerShell,
+`(Get-PSDrive -Name <letter>).Free` for the drive holding each root gives the same figure in bytes.
 
 ### Step 4a: Release file locks first (Windows-critical)
 
@@ -314,4 +325,15 @@ Report honestly, and never count a husk as removed:
   A record that survived, or a reap that degraded (exit 3), is named with its path so the user can
   re-run the helper from a directory recreated there; it is never quietly dropped.
 
-Report: "Removed N worktrees (M fully deleted, K husks remaining, paths above); reaped R project-scope plugin install records. Run `/source-control:worktree status` to verify."
+- **Disk freed**: run the identical `df -Pk '<worktree-root>'` (or `Get-PSDrive`) commands from
+  Step 4, on the same worktree roots, never on a removed candidate's directory, and report the free space before, after, and the difference. Other processes write to the
+  same disk while cleanup runs, so call the difference approximate; a husk that remains holds its
+  space until the user removes it.
+
+Report: "Removed N worktrees (M fully deleted, K husks remaining, paths above); reaped R project-scope plugin install records; free space on <filesystem> went from X to Y (about Z freed). Run `/source-control:worktree status` to verify."
+
+**macOS build caches.** On a macOS host (`uname -s` prints `Darwin`) where `command -v xcrun`
+resolves, read [macos-caches.md](macos-caches.md) after this report and follow it: it measures the
+Xcode build cache and unavailable simulators and deletes an item only on its own yes. On any other
+host, or when `xcrun` does not resolve, skip it and do not mention it. `--dry-run` never reaches
+this step.

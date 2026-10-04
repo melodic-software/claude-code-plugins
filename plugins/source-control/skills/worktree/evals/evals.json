@@ -253,6 +253,33 @@
         "Does not run setup for the untrusted-provenance worktree",
         "States the reason: untrusted input and no probed cloud host"
       ]
+    },
+    {
+      "id": 21,
+      "name": "cleanup-reports-disk-freed",
+      "prompt": "/worktree cleanup on a Linux host. Two worktrees under the external root have merged PRs and nothing unpushed; I confirm both.",
+      "expected_output": "Before the first removal, cleanup takes a df reading of the filesystem that holds the worktree root. After removal and verification it takes a second reading and reports the free space before, after and the difference, calling the difference approximate. It does not mention Xcode or simulators, because the host is not macOS.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Takes a df reading before any worktree is removed",
+        "Reports free space before, after, and the difference in the final report",
+        "Does not offer an Xcode or simulator cleanup on a Linux host"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "cleanup-macos-caches-need-a-yes-per-item",
+      "prompt": "/worktree cleanup on a Mac where xcrun resolves. After the worktrees are removed, Xcode's DerivedData has two project folders of 4 GB and 1 GB, and simulator list shows one unavailable iPad simulator of 3 GB. I answer yes to the 4 GB folder only.",
+      "expected_output": "After the worktree report, cleanup reads macos-caches.md, measures the build-output folders and the unavailable simulator, and shows a table with each item's size and the 8 GB total. It deletes only the 4 GB folder, the one item that got a yes, after checking it is a real directory under the DerivedData location. The 1 GB folder and the simulator are kept and reported as kept.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Lists the two build-output folders and the unavailable simulator with their sizes",
+        "Deletes only the item the user said yes to",
+        "Reports the other two items as kept",
+        "Does not run a bulk delete such as xcrun simctl delete unavailable"
+      ]
     }
   ]
 }

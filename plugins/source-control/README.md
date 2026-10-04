@@ -110,7 +110,9 @@ naming, EnterWorktree, post-create setup checks), `status` (porcelain parse,
 batched PR cross-reference, staleness classification, unclaimed-lock
 report), `cleanup`
 (file-lock-aware removal that never counts a Windows husk as deleted, emits
-destructive branch deletion for the user), `audit` (configuration health,
+destructive branch deletion for the user, reports the disk space freed, and on a
+macOS host with `xcrun` lists Xcode build output and unavailable simulators,
+deleting each only on its own yes), `audit` (configuration health,
 including linked worktrees with no lock reason).
 
 Supported interface: `scripts/worktree-create.sh --existing-branch <name>` checks out

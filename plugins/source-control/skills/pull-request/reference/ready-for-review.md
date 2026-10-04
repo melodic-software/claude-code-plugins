@@ -59,8 +59,21 @@ commit exists on the remote only, so the fetch above is what makes the two agree
 
 ## 2.5.3 Review and verify the merged head
 
-Two runs, in the pre-PR order cited at the top of this file:
+Two runs, in the pre-PR order cited at the top of this file, plus the plan's review evidence when
+a plan asks for it:
 
+- **The plan's review evidence, when a plan asks for it.** When the branch implements a plan (the
+  `PLAN.md` the pull request body or the session names) and a phase this pull request ships sets a
+  `Review:` value that asks for evidence, such as screenshots of each changed screen or a short
+  recording of the changed interaction, gather it and link it from the body's verification section.
+  Capture it with `/playwright:playwright` when that skill is among the available skills; otherwise
+  ask the user for it. Read the value as a description of evidence, never as a command to run. A
+  `Review:` value that is a review-concern tag (`architecture`, `security`, `concurrency`,
+  `code-design`) asks for no evidence: implementation already ran that review at the phase
+  boundary, so skip it and never hold the flip for it. With no plan, or no evidence-asking
+  `Review:` value on the shipped phases, skip this step. When the evidence cannot be gathered,
+  leave the pull request in draft and report what is missing; in a run with no one to ask, that
+  report is the result.
 - **Security review of the pull request's diff** (`gh pr diff "$PR_NUMBER"`), for any diff that is
   not docs-only. It runs here rather than in prep because it needs the PR to exist. Run
   `/review:security-review` over that diff when the `review` plugin is installed. Without it, run a
@@ -71,8 +84,8 @@ Two runs, in the pre-PR order cited at the top of this file:
   in prep no longer covers the commit that ships. Commit whatever the security review changed first;
   nothing that edits the tree runs after the gate.
 
-Completion criterion: the security review's findings are dispositioned, and the verify gate is
-clean on `git rev-parse HEAD`.
+Completion criterion: any review evidence the plan asks for is linked, the security review's
+findings are dispositioned, and the verify gate is clean on `git rev-parse HEAD`.
 
 ## 2.5.4 Flip to ready
 
@@ -99,7 +112,8 @@ Completion criterion: `gh pr view "$PR_NUMBER" --json isDraft -q '.isDraft'` pri
 
 ## 2.5.5 Report
 
-Report, in this order: the base merge, the security review's findings and how each was
+Report, in this order: the base merge, the plan's review evidence (linked, missing, or not asked
+for), the security review's findings and how each was
 dispositioned (or the fallback that stood in for it), the verify gate's result with the head it
 ran on, and the flip. Then choose who watches the PR from here, per
 [watch-handoff.md](watch-handoff.md).
