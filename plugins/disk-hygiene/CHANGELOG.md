@@ -7,7 +7,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ### Changed
 
-- **Shorter hook text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Both Bash denials now name what failed and point at `/disk-hygiene:clean`, whose deny-by-default bullet is the one copy of the allowed shapes; a test keeps that bullet equal to the guard's lists. A belt denial of a bare-Python call still names the hook's interpreter. The engine-gate denial drops from about 2,500 characters to about 140, the belt denial from about 1,500 to about 160.
+- **Shorter hook text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Both Bash denials now name what failed and point at `/disk-hygiene:clean`, whose deny-by-default bullet is the one copy of the allowed shapes; a test keeps that bullet equal to the guard's lists. A belt denial of a bare-Python call still names the hook's interpreter, and with no authorized data root it also names the recovery. The engine-gate denial drops from about 2,500 characters to about 140, the belt denial from about 1,500 to about 160.
 - The `/disk-hygiene:clean` guard-values note now carries the engine path and the no-data-root recovery, and drops the channel name and usage line, which the skill body states.
 - With no usable Python 3, the denials and the expansion block are one sentence each, the engine-gate notice goes to the user only, and the task-end notice fires once per session, sharing that notice's marker.
 - The guard-failure task-end notice and the watchdog `ask` drop their scope disclaimers.

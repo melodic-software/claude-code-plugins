@@ -15568,6 +15568,17 @@ class DirectoryMarketplaceAuthorityTests(unittest.TestCase):
         self.assertNotIn("start Claude Code from a shell", belt)
         self.assertIn("until the session ends", belt)
 
+    def test_no_authority_bare_python_probe_denial_names_the_recovery(self) -> None:
+        # Without the guard-values note, the skill learns the interpreter from
+        # this denial and the rerun probe returns data_root null, so this
+        # denial is the only place the recovery can reach it.
+        probe = f'python "{guard._probe_script_path()}"'
+        for mode in (guard._MODE_BELT, guard._MODE_ENGINE_GATE):
+            with self.subTest(mode=mode):
+                text = guard._bash_denial_guidance(None, mode=mode, command=probe)
+                self.assertIn("No authorized data root resolved", text)
+                self.assertIn("claude plugin marketplace add", text)
+
     # --- AC15: memoized per process -----------------------------------------
 
     def test_directory_lookup_is_memoized_per_plugin_root(self) -> None:

@@ -2288,9 +2288,12 @@ def _bash_denial_reason(command: str | None, authority: str | None) -> str:
 
     An engine-shaped command gets the classifier's mismatch; any other command
     whose head is a Python other than this hook's gets the interpreter the guard
-    admits, which is how a skill without the guard-values note learns it.
+    admits, which is how a skill without the guard-values note learns it. Both,
+    and a command-less denial, carry the no-data-root recovery when there is no
+    authority, since the interpreter fallback is the skill's only other source.
     """
     engine = command is not None and _engine_gate_relevant(command)
+    wrong_python = False
     if command is None:
         reason = "Not an allowed shape."
     elif engine:
@@ -2305,7 +2308,7 @@ def _bash_denial_reason(command: str | None, authority: str | None) -> str:
         reason = (
             _wrong_python_reason(tokens[0]) if wrong_python else "Not an allowed shape."
         )
-    if authority is None and (command is None or engine):
+    if authority is None and (command is None or engine or wrong_python):
         reason += " " + _NO_DATA_ROOT_REASON
     return reason
 
