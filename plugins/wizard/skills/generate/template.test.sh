@@ -245,7 +245,9 @@ for k in GOOD _under A1 x_9 A; do
   if (_valid_key "$k") >/dev/null 2>&1; then printf 'accept:%s\n' "$k"; else printf 'reject:%s\n' "$k"; fi
 done
 for k in 'bad-key' '1leading' 'has space' 'K=V' '' 'K;rm -rf /' 'K$(id)' 'K.V'; do
-  if (_valid_key "$k") >/dev/null 2>&1; then printf 'accept:%s\n' "$k"; else printf 'reject:%s\n' "$k"; fi
+  if msg=$(_valid_key "$k" 2>&1); then printf 'accept:%s\n' "$k"
+  elif [[ "$msg" == *"invalid key name: '$k'"* ]]; then printf 'reject:%s\n' "$k"
+  else printf 'error:%s\n' "$k"; fi
 done
 BODY
 )"
@@ -275,21 +277,54 @@ assert_contains "... before the env file is created" "$out" "env:ABSENT"
 
 # A key that names the library's own state would be overwritten by the helper's
 # printf -v: `write_env ENV_FILE x` would send every later write to a file
-# named x. Every top-level global the library assigns must be refused, so a new
-# global added without extending _assignable_key fails here.
-lib_globals="$(grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$LIB" | tr -d '=' | sort -u)"
+# named x. Every global the library sets must be refused, so a new global added
+# without extending _assignable_key fails here. The list is every variable that
+# sourcing the library adds to a clean shell, which covers globals assigned in
+# an indented branch (the colour globals) that a line grep would miss.
+lib_globals="$(
+  env -i PATH="$PATH" WIZARD_TEST_TTY=/dev/null bash -c '
+    compgen -v | sort >"$1"
+    source "$2"
+    compgen -v | sort | comm -13 "$1" -
+  ' _ "$TEST_TMPDIR/vars.before" "$LIB"
+)"
+assert_contains "the global list includes globals assigned in an indented branch" \
+  "$(tr '\n' ' ' <<<"$lib_globals")" "BOLD"
+# A refusal counts only with its message: a missing _assignable_key also exits
+# nonzero, so an exit code alone would pass on code without the gate.
+SHELL_SPECIALS="PATH IFS HOME SHELL CDPATH ENV PS1 PS4 PROMPT_COMMAND BASH_ENV BASHOPTS LC_ALL LANG TMOUT LD_PRELOAD DYLD_INSERT_LIBRARIES"
 out="$(
   case_run "$TTY_EOF" <<BODY
-for k in $(tr '\n' ' ' <<<"$lib_globals") __wiz_key __wiz_value RESET; do
-  if (_assignable_key "\$k") >/dev/null 2>&1; then printf 'accept:%s\n' "\$k"; else printf 'reject:%s\n' "\$k"; fi
+for k in $(tr '\n' ' ' <<<"$lib_globals") __wiz_key __wiz_value $SHELL_SPECIALS STRIPE_KEY PATHNAME HISTORY_ID COMPANY_ID LDAP_URL; do
+  if msg=\$(_assignable_key "\$k" 2>&1); then printf 'accept:%s\n' "\$k"
+  elif [[ "\$msg" == *"reserved key name: '\$k'"* ]]; then printf 'reject:%s\n' "\$k"
+  else printf 'error:%s\n' "\$k"; fi
 done
-(_assignable_key STRIPE_KEY) && echo "plain:accepted"
 BODY
 )"
-for k in $lib_globals __wiz_key __wiz_value RESET; do
+for k in $lib_globals __wiz_key __wiz_value; do
   assert_contains "_assignable_key refuses the library name '$k'" "$out" "reject:$k"
 done
-assert_contains "... and accepts an ordinary key" "$out" "plain:accepted"
+for k in $SHELL_SPECIALS; do
+  assert_contains "_assignable_key refuses the shell variable '$k'" "$out" "reject:$k"
+done
+for k in STRIPE_KEY PATHNAME HISTORY_ID COMPANY_ID LDAP_URL; do
+  assert_contains "... and accepts the ordinary key '$k'" "$out" "accept:$k"
+done
+
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+before="$PATH"
+(write_env PATH /tmp/evil; printf 'inner_path=[%s]\n' "$PATH")
+printf 'rc=%s\n' "$?"
+if [[ "$PATH" == "$before" ]]; then echo "path:UNCHANGED"; else echo "path:CHANGED"; fi
+if [[ -e .env ]]; then echo "env:CREATED"; else echo "env:ABSENT"; fi
+BODY
+)"
+assert_contains "write_env refuses a shell special variable as a key" "$out" "reserved key name: 'PATH' (the shell itself uses it"
+assert_not_contains "... before assigning it" "$out" "inner_path=[/tmp/evil]"
+assert_contains "... exiting nonzero" "$out" "rc=1"
+assert_contains "... and writing nothing" "$out" "env:ABSENT"
 
 out="$(
   case_run "$TTY_EOF" <<'BODY'
@@ -488,6 +523,55 @@ printf 'target=[%s]\n' "$(tr '\n' ' ' <store/secrets.env)"
 BODY
 )"
 assert_contains "a symlink target inside the project is written without a prompt" "$out" "NEW_KEY='via-link'"
+assert_not_contains "... and draws no outside-the-project disclosure" "$out" "outside this project"
+assert_contains "... exiting 0" "$out" "rc=0"
+
+# The env file itself need not be a link: ENV_FILE=sub/.env with `sub` linked to
+# a directory outside the project resolves outside just the same, and gets the
+# same gate. Declined, the outside directory stays empty; confirmed, the value
+# lands there.
+OUTSIDE_DIR_SETUP='outside="$(mktemp -d "${CASE_DIR%/*}/outside.XXXXXX")"
+ln -s "$outside" sub
+ENV_FILE=sub/.env
+_drain_tty() { :; }
+'
+out="$(
+  case_run "$TTY_N" <<BODY
+$OUTSIDE_DIR_SETUP
+(write_env LEAKED 'typed-secret')
+printf 'rc=%s\n' "\$?"
+printf 'outside_files=%s\n' "\$(find "\$outside" -type f | wc -l | tr -d ' ')"
+printf 'resolved=[%s]\n' "\$(cd -P "\$outside" && pwd -P)/.env"
+BODY
+)"
+resolved="$(printf '%s\n' "$out" | sed -n 's/^resolved=\[\(.*\)\]$/\1/p')"
+assert_contains "an env file under a symlinked outside directory names the resolved destination" "$out" "outside this project: $resolved"
+assert_contains "... and a decline writes nothing there" "$out" "outside_files=0"
+assert_contains "... exiting nonzero" "$out" "rc=1"
+
+out="$(
+  case_run "$TTY_Y" <<BODY
+$OUTSIDE_DIR_SETUP
+write_env CONFIRMED 'yes' >/dev/null
+printf 'rc=%s\n' "\$?"
+printf 'target=[%s]\n' "\$(cat "\$outside/.env")"
+BODY
+)"
+assert_contains "a confirmed symlinked outside directory receives the write" "$out" "CONFIRMED='yes'"
+assert_contains "... exiting 0" "$out" "rc=0"
+
+# A directory link that stays inside the project is written without a prompt.
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+mkdir real
+ln -s real sub
+ENV_FILE=sub/.env
+write_env INSIDE 'ok'
+printf 'rc=%s\n' "$?"
+printf 'target=[%s]\n' "$(cat real/.env)"
+BODY
+)"
+assert_contains "an env file under a symlinked directory inside the project is written without a prompt" "$out" "INSIDE='ok'"
 assert_not_contains "... and draws no outside-the-project disclosure" "$out" "outside this project"
 assert_contains "... exiting 0" "$out" "rc=0"
 
