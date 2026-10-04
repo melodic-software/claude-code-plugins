@@ -110,6 +110,7 @@ REGISTRY=(
   "check-stale-base-overlap.sh|-|-|-"
   "check-standards-contract-bump.sh|-|-|-"
   "check-test-tmp-cleanup.sh|git|-|-"
+  "check-upstream-drift.sh|gh|-|upstream_drift"
   "check-vendor-version-bump.sh|-|-|-"
 )
 
@@ -407,6 +408,24 @@ recipe::pipefail_grep_q() { # <clean|violation>
   capture run_in "$f" bash scripts/check-pipefail-grep-q.sh
 }
 
+recipe::upstream_drift() { # <clean|violation>
+  local pin=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa head=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  local blob=1111111111111111111111111111111111111111
+  fixture_tree::build f --sut "$SELF_DIR/check-upstream-drift.sh" --label upstream-drift || return 2
+  mkdir -p "$f/docs/upstream" "$f/fx/acme__widgets"
+  # shellcheck disable=SC2016  # literal marker backticks
+  printf '**Last audited upstream state:** `acme/widgets@%s`\n\n- [a](https://github.com/acme/widgets/blob/%s/a.md)\n' \
+    "$pin" "$pin" >"$f/docs/upstream/widgets.md"
+  printf '%s a.md\n' "$blob" >"$f/fx/acme__widgets/$pin.tree"
+  if [[ "$1" == violation ]]; then
+    printf '%s\n' "$head" >"$f/fx/acme__widgets/HEAD"
+    printf '2222222222222222222222222222222222222222 a.md\n' >"$f/fx/acme__widgets/$head.tree"
+  else
+    printf '%s\n' "$pin" >"$f/fx/acme__widgets/HEAD"
+  fi
+  capture run_in "$f" env UPSTREAM_DRIFT_FIXTURE_DIR="$f/fx" bash scripts/check-upstream-drift.sh
+}
+
 # The finding each recipe's violation arm must produce, keyed by recipe slug.
 declare -A VIOLATION_NEEDLE=(
   [hooks_description]='HOOKS DESCRIPTION:'
@@ -422,6 +441,7 @@ declare -A VIOLATION_NEEDLE=(
   [adr_numbers]='0001: docs/adr/0001-first.md, docs/adr/0001-second.md'
   [spoke_plugin_root]='plugins/demo/skills/audit/context/step.md: contains'
   [pipefail_grep_q]='PIPED EARLY-EXIT GREP:'
+  [upstream_drift]='docs/upstream/widgets.md:3: acme/widgets M a.md'
 )
 
 # --- 1. every member is registered, and every row names a member -------------
