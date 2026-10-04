@@ -193,12 +193,18 @@ def block($d):
 
       (if (.stale_project_records.total // 0) > 0 then
          .stale_project_records as $s
-         | "Stale project records: \($s.total) record(s) across \($s.paths) path(s) not present on this machine",
-           ($s.by_parent[] | "  - \(.parent): \(.count) record(s) across \(.paths) path(s)"),
-           (if ($s.more_parents // 0) > 0 then "  +\($s.more_parents) more parent director(ies)" else empty end),
-           (if $audit then "  Full per-path list: not kept, the audit scratch directory is removed on exit"
-            elif $s.list_file == null then "  Full per-path list: not written this run"
-            else "  Full per-path list: \($s.list_file)" end),
+         # A digest written before 3.8.1 carries only `by_path`; render it the way it was rendered then.
+         | if $s.by_parent == null then
+             "Stale project records: \($s.total) record(s) across \($s.by_path | length) path(s) not present on this machine",
+             ($s.by_path[] | "  - \(.path): \(.count) record(s)")
+           else
+             "Stale project records: \($s.total) record(s) across \($s.paths) path(s) not present on this machine",
+             ($s.by_parent[] | "  - \(.parent): \(.count) record(s) across \(.paths) path(s)"),
+             (if ($s.more_parents // 0) > 0 then "  +\($s.more_parents) more parent director(ies)" else empty end),
+             (if $audit then "  Full per-path list: not kept, the audit scratch directory is removed on exit"
+              elif $s.list_file == null then "  Full per-path list: not written this run"
+              else "  Full per-path list: \($s.list_file)" end)
+           end,
          "  (not counted as divergences: converge cannot cd into a path that is not present. A path can also",
          "   be absent because a volume is unmounted or a share is offline, so this is an observation, not a",
          "   verdict that the directory is gone for good.)"

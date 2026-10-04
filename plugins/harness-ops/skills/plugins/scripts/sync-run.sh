@@ -1368,6 +1368,7 @@ report_extras() {
   if [[ "$MODE" != "audit" ]] &&
     jq_to stale_list -c '[.installed[]? | select(.projectPathPresent == false)] | group_by(.projectPath)
       | map({path: .[0].projectPath, count: length})' "$src" &&
+    [[ "$stale_list" != "[]" ]] &&
     printf '%s\n' "$stale_list" >"$RUN_DIR/stale-project-records.$mp.json"; then
     list_file="$RUN_DIR/stale-project-records.$mp.json"
   fi

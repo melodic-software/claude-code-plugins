@@ -738,6 +738,10 @@ assert_eq "report inputs: the marketplace's autoUpdate rides the digest as a boo
   "$(jq -c '.marketplaces[0].auto_update' <<<"$out")"
 assert_eq "report inputs: the stale-project-record count rides the digest" "0" \
   "$(jq -r '.marketplaces[0].stale_project_records.total' <<<"$out")"
+zero_list=absent
+[[ -e "$(jq -r '.run_dir' <<<"$out")/stale-project-records.market1.json" ]] && zero_list=present
+assert_eq "report inputs: no stale records means no list file is written" "null absent" \
+  "$(jq -r '.marketplaces[0].stale_project_records.list_file' <<<"$out") $zero_list"
 # The `In-repo:` row's own input. This root HAS a project-scope install and the
 # run moved none of it, which is exactly the case an intersection with the
 # divergences cannot tell from "this root has no project/local installs".
@@ -1236,6 +1240,11 @@ needs_check "audit install gap" audit '{"install_gap":["b@m"]}' "not installed a
 stale_unwritten='{"stale_project_records":{"total":1,"paths":1,"by_parent":[{"parent":"/g/","count":1,"paths":1}],"more_parents":0,"list_file":null}}'
 assert_contains "stale render: a sync run with no list file says it was not written" \
   "$(needs_digest sync "$stale_unwritten" | jq -r -f "$SCRIPT_DIR/render-report.jq")" "  Full per-path list: not written this run"
+# A digest saved before 3.8.1 carries only `by_path`; re-rendering it still lists each path.
+stale_legacy='{"stale_project_records":{"total":3,"by_path":[{"path":"/g/a","count":2},{"path":"/h/b","count":1}]}}'
+assert_contains "stale render: a pre-3.8.1 digest still renders its per-path rows" \
+  "$(needs_digest sync "$stale_legacy" | jq -r -f "$SCRIPT_DIR/render-report.jq" | tr -d '\r')" \
+  $'Stale project records: 3 record(s) across 2 path(s) not present on this machine\n  - /g/a: 2 record(s)\n  - /h/b: 1 record(s)'
 needs_check "audit enable gap" audit '{"enable_gap":["b@m"]}' "missing_from_enabled, not enabled this run: b@m"
 
 # --- an install that left userConfig options unset ---------------------------
