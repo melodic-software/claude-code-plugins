@@ -24,7 +24,3 @@ graders:
     type: llm
     arm: both
     criteria: "PASS only if the choice of logging a failed delivery before or after the retry is treated as its own decision, visible outside any phase or step that the plan labels or collapses as mechanical wiring (the logger import and the threading of the logger through the sender). Either surfacing is acceptable: the plan asks it as a question with a recommendation before locking, or it decides it with an [EXEC-SHAPE] or [FALLBACK] tag and a row in a Decisions made (gate-passed) table that names the phase and the concrete delta. FAIL if the choice appears only inside a collapsed or mechanical section, is silently decided without being flagged for the user, or if the plan starts implementing."
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:planning:)?plan"'

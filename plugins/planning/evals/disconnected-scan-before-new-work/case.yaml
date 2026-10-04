@@ -41,7 +41,3 @@ graders:
     type: llm
     arm: both
     criteria: "PASS only if the answer reports the disconnected items (wiring up the existing build_digest, enabling the weekly_digest flag, and using the delivery_receipts table) as candidates that come BEFORE any greenfield option in the ordering, framed as connecting or enabling what is already built before building new. FAIL if the first candidates are new builds, if the disconnected items appear only as an afterthought or footnote, or if they are not offered as candidates at all."
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:planning:)?brainstorm"'
