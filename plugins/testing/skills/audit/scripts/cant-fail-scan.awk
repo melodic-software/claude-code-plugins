@@ -1759,12 +1759,14 @@ function open_block(line, name) {
 # forms anchor on; Python and bash separate statements with it, so it is
 # blanked, and bash's case terminators (;; ;& ;;&) never split. Strings,
 # comments and char literals are already masked. Go and PowerShell lines stay
-# whole.
-function split_stmts(m, r,    n, i, c, from) {
+# whole. Each segment is a full-width copy, so a line of more than 16
+# statements (minified or generated code) is judged whole, keeping the cost of
+# a line linear in its length.
+function split_stmts(m, r,    n, i, c, from, k) {
   SEG_N = 0
   n = length(m)
   if (LEXER != "cs" && LEXER != "js" && LEXER != "python" && LEXER != "bash") { seg_add(m, r, 1, n); return }
-  from = 1
+  from = 1; k = 0
   for (i = 1; i <= n; i++) {
     c = substr(m, i, 1)
     if (c == "(" || c == "[") SP_D++
@@ -1773,11 +1775,12 @@ function split_stmts(m, r,    n, i, c, from) {
     else if (c == "}") SP_D = SP_K > 0 ? SP_S[SP_K--] : 0
     else if (c == ";" && SP_D == 0) {
       if (LEXER == "bash" && substr(m, i + 1, 1) ~ /[;&]/) { i++; continue }
-      seg_add(m, r, from, LEXER == "cs" || LEXER == "js" ? i : i - 1)
+      SP_A[++k] = from; SP_B[k] = LEXER == "cs" || LEXER == "js" ? i : i - 1
       from = i + 1
     }
   }
-  seg_add(m, r, from, n)
+  SP_A[++k] = from; SP_B[k] = n
+  if (k <= 16) for (i = 1; i <= k; i++) seg_add(m, r, SP_A[i], SP_B[i])
   if (!SEG_N) seg_add(m, r, 1, n)
 }
 
