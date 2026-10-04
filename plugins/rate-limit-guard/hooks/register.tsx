@@ -18,7 +18,8 @@ const DEFAULT_DATA = ['verdict', 'window', 'reset']
 const RANK = { quiet: 0, approach: 1, edge: 2 } as const
 const PERSON_ORIGINS = ['composer', 'bridge']
 const COMMAND = 'rate-limit-guard'
-const USAGE = `rate-limit-guard: usage: /${COMMAND} [band [on|off]]`
+// Command replies carry no plugin prefix: Claude Code shows each under the plugin's name.
+const USAGE = `Usage: /${COMMAND} [band [on|off]]`
 const README = 'https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/rate-limit-guard/README.md'
 
 type Level = 'quiet' | 'approach' | 'edge'
@@ -52,6 +53,10 @@ type State = {
   pending: Map<string, Event>
   // Rises from a known level and resets not yet shown to the person.
   toastQueue: [string, Event][]
+  // Operator mode: the changes the operator notice offers, and whether its row has been drawn.
+  // The row and a shown suggestion are the person's channel, so a change either reached is never toasted.
+  heldToasts: [string, Event][]
+  rowSeen: boolean
   // Operator mode: events a shown suggestion offered, handed to Claude if no person takes them.
   handoff: Map<string, Event>
   restate: boolean
@@ -252,20 +257,29 @@ async function takeLines($: EngineInterface, st: State, cfg: Config): Promise<st
   // A restatement with no reading to restate waits for the first carrier that has one.
   if (st.restate && lines.length === 0) return []
   consume(st)
-  if (lines.length > 0) clearNotice($, st, 'operator')
+  if (lines.length > 0 && st.notice?.kind === 'operator') {
+    releaseHeld(st, st.rowSeen)
+    clearNotice($, st)
+  }
   return lines
+}
+
+// Ends the operator notice's hold on its changes: dropped when the person saw them, otherwise
+// queued for the next flush.
+function releaseHeld(st: State, seen: boolean) {
+  if (!seen) st.toastQueue.unshift(...st.heldToasts)
+  st.heldToasts = []
 }
 
 // Tells the person of each queued window change: a transcript line always, a toast when the option
 // allows. Run after a carrier's lines are built and never throws, so a failing toast drops no line.
-// Operator mode's notice is the person's channel for a held turn, so nothing is toasted then.
-async function flushToasts($: EngineInterface, st: State, cfg: Config) {
+// While operator mode holds the lines the queue waits: a shown suggestion or the person's next
+// prompt drops it, and a suggestion that cannot show leaves it for the carrier that sends the line.
+// `held` is the carrier's answer from before its lines were taken, which may end a forced turn.
+async function flushToasts($: EngineInterface, st: State, cfg: Config, held?: boolean) {
   try {
     if (st.toastQueue.length === 0) return
-    if (cfg.lines && (await operatorHolds($, st, cfg))) {
-      st.toastQueue = []
-      return
-    }
+    if (held ?? (cfg.lines && (await operatorHolds($, st, cfg)))) return
     const changes = st.toastQueue.splice(0).sort(([a], [b]) => order(a) - order(b))
     const bodies: string[] = []
     for (const [kind, event] of changes) {
@@ -314,7 +328,7 @@ async function statusText($: EngineInterface, st: State, cfg: Config) {
       ? `${home}/.claude/${CONTRACT_DIR}/${SNAPSHOT_FILE}`
       : 'no home directory to write under'
   return [
-    'rate-limit-guard, from the last API response:',
+    'From the last API response:',
     ...windows,
     ...(st.spend ? [`Spend limit: ${st.spend.percentUsed}% used`] : []),
     `Line threshold ${cfg.threshold}%, approach mark ${cfg.approach}%.`,
@@ -464,7 +478,9 @@ async function statusJson($: EngineInterface, st: State, cfg: Config) {
 
 // Operator mode: offer the line as the prompt box's suggestion; with text in the box, show the
 // notice row and offer again once the box is empty; where it cannot show, the line goes to Claude.
-async function offer($: EngineInterface, st: State) {
+// A first offer that cannot show leaves the changes to be toasted with the automatic line; a
+// re-offer comes after the row was up, so the person has seen them unless a survey hid the row.
+async function offer($: EngineInterface, st: State, first = false) {
   if (st.notice?.kind !== 'operator') return true
   const { text } = st.notice
   const box = await $.prompt.read()
@@ -473,7 +489,9 @@ async function offer($: EngineInterface, st: State) {
   if (isShown) {
     st.handoff = new Map([...st.handoff, ...dueEvents(st)])
     consume(st)
+    releaseHeld(st, true)
   } else {
+    releaseHeld(st, !first && st.rowSeen)
     st.notice = undefined
     st.forceAutomatic = true
   }
@@ -495,6 +513,8 @@ export const register: Register = (on, options) => {
     limits: [],
     pending: new Map(),
     toastQueue: [],
+    heldToasts: [],
+    rowSeen: false,
     handoff: new Map(),
     restate: false,
     restateIfLoud: false,
@@ -589,11 +609,13 @@ export const register: Register = (on, options) => {
         }
       }
       st.handoff.clear()
+      if (isPersonTurn(st) && st.notice?.kind === 'operator') releaseHeld(st, st.rowSeen)
       if (isPersonTurn(st) || handingOff) clearNotice($, st)
     }
     await refresh($, st, cfg)
+    const held = cfg.lines && (await operatorHolds($, st, cfg))
     const lines = await takeLines($, st, cfg)
-    await flushToasts($, st, cfg)
+    await flushToasts($, st, cfg, held)
     return next(lines.length === 0 ? e : { ...e, context: [...(e.context ?? []), ...lines] })
   }).catch(($, e, next) => next(e))
 
@@ -615,8 +637,10 @@ export const register: Register = (on, options) => {
       if (lines.length > 0) {
         // One row, one prefix, however many windows it offers.
         st.notice = { text: `FYI, rate-limit-guard: ${lines.map(l => l.replace(/^rate-limit-guard: /, '')).join(' ')}`, kind: 'operator' }
+        st.heldToasts.push(...st.toastQueue.splice(0))
+        st.rowSeen = false
         $.ui.invalidate('ui.render')
-        if (!(await offer($, st))) {
+        if (!(await offer($, st, true))) {
           st.reofferTimer ??= $.clock.every(REOFFER_MS, () => {
             void offer($, st)
               .then(done => {
@@ -642,8 +666,9 @@ export const register: Register = (on, options) => {
     await refresh($, st, cfg)
     await queueWrite($, st, cfg, 'event')
     if (result.deny !== undefined || result.isError) return result
+    const held = cfg.lines && (await operatorHolds($, st, cfg))
     const lines = await takeLines($, st, cfg)
-    await flushToasts($, st, cfg)
+    await flushToasts($, st, cfg, held)
     return lines.length === 0 ? result : { ...result, context: [...(result.context ?? []), ...lines] }
   }).catch(($, e, next) => next(e))
 
@@ -658,13 +683,14 @@ export const register: Register = (on, options) => {
     if (word !== 'band' || rest.length > 0 || (arg !== undefined && arg !== 'on' && arg !== 'off')) return { text: USAGE }
     st.bandShown = arg === undefined ? !st.bandShown : arg === 'on'
     $.ui.invalidate('ui.render')
-    return { text: `rate-limit-guard: band row ${st.bandShown ? 'on' : 'off'} for this session` }
+    return { text: `Band row ${st.bandShown ? 'on' : 'off'} for this session` }
   }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     const theirs = await next(e)
     const notice = noticeShows(st, e.surface) ? st.notice : undefined
     if (e.props.hasSurvey || (!st.bandShown && notice === undefined)) return theirs
+    if (notice?.kind === 'operator') st.rowSeen = true
     const { Box, Text } = $.ui.resolve(e)
     return (
       <Box flexDirection="column">
@@ -673,7 +699,7 @@ export const register: Register = (on, options) => {
             {bandText(st.reading)}
           </Text>
         ) : null}
-        {notice !== undefined ? <Text wrap="truncate">{notice.text}</Text> : null}
+        {notice !== undefined ? <Text wrap="wrap">{notice.text}</Text> : null}
         {theirs}
       </Box>
     )

@@ -533,9 +533,9 @@ test('command: band on, band off and a bare band set and toggle the row for the 
   await bash($)
   const row = async () => (await drawn($, 'terminal')).find(t => BAND_ROW.test(t))
   expect(await row()).toBeUndefined()
-  expect((await command($, 'band on')).text).toBe('rate-limit-guard: band row on for this session')
+  expect((await command($, 'band on')).text).toBe('Band row on for this session')
   expect(await row()).toBe('5h 20% | 7d 7%')
-  expect((await command($, 'band off')).text).toBe('rate-limit-guard: band row off for this session')
+  expect((await command($, 'band off')).text).toBe('Band row off for this session')
   expect(await row()).toBeUndefined()
   await command($, 'band')
   expect(await row()).toBeDefined()
@@ -547,7 +547,7 @@ test('command: no argument returns the status and details', async ($, on) => {
   world(on, { limits: limits(87) })
   expect((await command($)).text).toBe(
     [
-      'rate-limit-guard, from the last API response:',
+      'From the last API response:',
       '5-hour window: 87% used, nearing the 90% pause edge, resets at 2026-10-03 21:00 UTC',
       '7-day window: 7% used, below the 90% pause edge, resets at 2026-10-08 09:00 UTC',
       'Line threshold 90%, approach mark 85%.',
@@ -569,7 +569,7 @@ test('command: the status says when a window has no reading and when snapshot wr
 test('command: any other argument gets the usage line', NO_WRITES, async ($, on) => {
   world(on)
   for (const args of ['bands', 'band show', 'band on now', 'status']) {
-    expect((await command($, args)).text).toBe('rate-limit-guard: usage: /rate-limit-guard [band [on|off]]')
+    expect((await command($, args)).text).toBe('Usage: /rate-limit-guard [band [on|off]]')
   }
   expect((await drawn($, 'terminal')).some(t => BAND_ROW.test(t))).toBe(false)
 })
@@ -657,11 +657,63 @@ test('toast: a restatement after /clear with a window at the edge does not toast
   expect(w.toasts).toHaveLength(1)
 })
 
-test('toast: a mid-session load at the edge does not toast', NO_WRITES, async ($, on) => {
-  const { w } = world(on, { turns: 3, limits: limits(92) })
+test('toast: a mid-session load restates the edge without a toast, and a later rise of the other window toasts once', NO_WRITES, async ($, on) => {
+  const { w } = world(on, { turns: 3, limits: limits(92, 50) })
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
-  expect(ownLines((await prompt($)).context)).toHaveLength(1)
+  expect(ownLines((await prompt($)).context)).toEqual([EDGE_5H])
   expect(w.toasts).toEqual([])
+  w.limits = limits(92, 91)
+  expect(ownLines((await bash($)).context)).toEqual([EDGE_7D])
+  expect(w.toasts).toEqual(['7d at the 90% pause edge · resets 2026-10-08 09:00 UTC'])
+})
+
+test('operator mode: a held line whose suggestion cannot show reaches the person with Claude\'s line', { options: { rate_limit_guard_enabled: false, rate_limit_report_mode: 'operator' } }, async ($, on) => {
+  const { w } = world(on, { shown: false })
+  await prompt($, 'composer')
+  w.limits = limits(91)
+  expect(ownLines((await bash($)).context)).toEqual([])
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  expect(w.toasts).toEqual([])
+  expect(ownLines((await prompt($, 'composer')).context)).toEqual([EDGE_5H])
+  expect(w.toasts).toEqual([TOAST_EDGE])
+  expect(crossingLogs(w)).toEqual([{ text: LOG_EDGE, to: 'transcript' }])
+})
+
+test('operator mode: a shown suggestion is the person\'s channel, so the held change is never toasted later', { options: { rate_limit_guard_enabled: false, rate_limit_report_mode: 'operator' } }, async ($, on) => {
+  const { w } = world(on)
+  await prompt($, 'composer')
+  w.limits = limits(91)
+  await bash($)
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  expect(w.suggested).toHaveLength(1)
+  expect(ownLines((await prompt($, 'sdk')).context)).toEqual([EDGE_5H])
+  expect(w.toasts).toEqual([])
+  expect(crossingLogs(w)).toEqual([])
+})
+
+test('operator mode: a notice row the person saw before typing again is never toasted later', { options: { rate_limit_guard_enabled: false, rate_limit_report_mode: 'operator' } }, async ($, on) => {
+  const { w } = world(on, { box: 'half typed' })
+  await prompt($, 'composer')
+  w.limits = limits(91)
+  await bash($)
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  expect(await noticeText($)).toBe(`FYI, ${EDGE_5H}`)
+  await prompt($, 'composer')
+  w.surfaces = []
+  await bash($)
+  expect(w.toasts).toEqual([])
+  expect(crossingLogs(w)).toEqual([])
+})
+
+test('notice: a row wraps rather than truncating', NO_WRITES, async ($, on) => {
+  const { w } = world(on)
+  await bash($)
+  w.limits = limits(92, 90)
+  await bash($)
+  const ui = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  const row = await ui.find({ type: 'Text', text: NOTICE })
+  await ui.unmount()
+  expect(row?.props.wrap).toBe('wrap')
 })
 
 test('toast: with lines to Claude off, a rise to the edge still toasts and Claude gets no line', { options: { rate_limit_guard_enabled: false, rate_limit_lines_enabled: false } }, async ($, on) => {
@@ -1151,12 +1203,41 @@ for (const kind of ['sdk', 'scheduled-trigger']) {
     await $.turn.complete({ text: 'done', reason: 'answer' } as any)
     expect(await noticeText($)).toBe(`FYI, ${EDGE_5H}`)
     expect(ownLines((await prompt($, kind)).context)).toEqual([EDGE_5H])
+    expect(w.toasts).toEqual([])
+    expect(crossingLogs(w)).toEqual([])
     expect(await noticeText($)).toBeUndefined()
     w.box = ''
     await clock.advance(20_000)
     expect(w.suggested).toEqual([])
   })
 }
+
+test('operator mode: a re-offer that cannot show, after the row was seen, sends the line to Claude with no toast', OPERATOR, async ($, on) => {
+  const { w, clock } = world(on, { box: 'half typed', shown: false })
+  await prompt($, 'composer')
+  w.limits = limits(91)
+  await bash($)
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  expect(await noticeText($)).toBe(`FYI, ${EDGE_5H}`)
+  w.box = ''
+  await clock.advance(5_000)
+  expect(await noticeText($)).toBeUndefined()
+  expect(ownLines((await prompt($, 'composer')).context)).toEqual([EDGE_5H])
+  expect(w.toasts).toEqual([])
+  expect(crossingLogs(w)).toEqual([])
+})
+
+test('operator mode: a row a survey hid was never seen, so the line sent to Claude brings the toast', OPERATOR, async ($, on) => {
+  const { w } = world(on, { box: 'half typed' })
+  await prompt($, 'composer')
+  w.limits = limits(91)
+  await bash($)
+  await $.turn.complete({ text: 'done', reason: 'answer' } as any)
+  const ui = await $.ui.mount({ ...BAND, surface: 'terminal', props: { ...BAND.props, hasSurvey: true } })
+  await ui.unmount()
+  expect(ownLines((await prompt($, 'sdk')).context)).toEqual([EDGE_5H])
+  expect(w.toasts).toEqual([TOAST_EDGE])
+})
 
 const EDGE_7D = `rate-limit-guard: 7-day window at the 90% pause edge, resets at 2026-10-08 09:00 UTC.`
 

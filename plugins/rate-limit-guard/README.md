@@ -80,11 +80,14 @@ prompt, covering every window that changed, until your next prompt.
 
 With `rate_limit_report_mode` set to `operator`, a turn a person started by typing (or through the
 Remote Control bridge) gets no line. When that turn ends, the line is offered as the prompt box's
-suggestion (Tab takes it) and shown as a notice row above the prompt, on every surface; operator
-mode shows no toast. With text in the box, only the notice row shows, and the suggestion is offered
-again once the box is empty. Where nobody can take a suggestion, the line goes to Claude as in automatic mode: `-p` and SDK turns, `/loop` and scheduled
-turns, task notifications and other non-typed turns, a session with no drawing surface (such as
-the VS Code panel), and a suggestion the session reports it cannot show. A suggestion that showed
+suggestion (Tab takes it) and shown as a notice row above the prompt, on every surface, wrapped
+rather than cut off. With text in the box, only the notice row shows, and the suggestion is offered
+again once the box is empty. Where nobody can take a suggestion, the line goes to Claude as in
+automatic mode: `-p` and SDK turns, `/loop` and scheduled turns, task notifications and other
+non-typed turns, a session with no drawing surface (such as the VS Code panel), and a suggestion
+the session reports it cannot show. The row and a shown suggestion are your channel for a held
+line, so it gets a toast and a transcript line only when you never had either: its first offer
+could not show, or a survey hid the row until the line went to Claude. A suggestion that showed
 but was not taken goes to Claude as the automatic line at the next turn no person started; a turn
 a person starts drops it unsent.
 
