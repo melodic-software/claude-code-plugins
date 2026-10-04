@@ -1,0 +1,10 @@
+// expect: rule-inert-assertion
+// .Should() with no matcher, on a one-line body: it asserts nothing.
+using FluentAssertions;
+using Xunit;
+
+public class InvoiceOneLineShouldTests
+{
+    [Fact]
+    public void Total_AddsLines() { new Invoice(new[] { 10m, 5m }).Total.Should(); }
+}

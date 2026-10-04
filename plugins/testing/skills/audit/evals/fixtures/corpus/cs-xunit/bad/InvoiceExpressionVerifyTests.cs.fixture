@@ -1,0 +1,11 @@
+// expect: rule-snapshot-only
+// Verify's usual expression-bodied form: the snapshot is the only oracle.
+using System.Threading.Tasks;
+using VerifyXunit;
+using Xunit;
+
+public class InvoiceExpressionVerifyTests
+{
+    [Fact]
+    public Task Render_PrintsEveryLine() => Verify(InvoiceRenderer.Render(new Invoice(taxRate: 0.1m)));
+}

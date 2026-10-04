@@ -1,0 +1,13 @@
+// expect: rule-inert-assertion
+// The async test's expression body wraps to the next line. Its value is still
+// discarded, so the ThrowsAsync it returns is never awaited and cannot fail.
+using System;
+using System.Threading.Tasks;
+using Xunit;
+
+public class ParserAsyncWrappedExpressionThrowsTests
+{
+    [Fact]
+    public async Task Parse_Empty_Throws() =>
+        Assert.ThrowsAsync<ArgumentException>(() => InvoiceParser.ParseAsync(""));
+}

@@ -3,6 +3,13 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.9] - 2026-10-04
+
+### Fixed
+
+- `/testing:audit` no longer reads a C# test's own signature as an assertion. A test named `Diagnostics_CheckConnectionStrings`, or a theory with an `expected` parameter, whose body only prints is now reported as `rule-zero-assertion` ([#6040](https://github.com/melodic-software/claude-code-plugins/issues/6040)).
+- A C# test whose body sits on its declaration line, `{ ... }` or `=> ...`, is now checked for `rule-weak-oracle`, `rule-snapshot-only` and `rule-inert-assertion`, as a multi-line body is. An async assertion a `Task`-returning expression body returns (`System.Threading.Tasks.Task` written out included) is awaited by the runner and is not reported; in an `async` test the expression's value is discarded, so it is, also when the expression wraps to the line after its `=>` ([#6040](https://github.com/melodic-software/claude-code-plugins/issues/6040)).
+
 ## [0.22.8] - 2026-10-04
 
 ### Changed
