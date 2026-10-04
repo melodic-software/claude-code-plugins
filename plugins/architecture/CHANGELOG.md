@@ -15,6 +15,11 @@ All notable changes to the `architecture` plugin are documented here. Format fol
   once, on the first service's cluster, and each later service was listed under `## Unmapped resources`.
   A task definition with one service keeps its plain container names, and a `containers.json` name counts as
   placed when only its `@<service>` placements exist.
+- **`map-deployment` places a Bicep or ARM deployment slot with its own container image.** A
+  `Microsoft.Web/sites/slots` nested in its site, or naming it with a Bicep `parent`, whose fx version reads
+  `DOCKER|` is now the container `<site>/<slot>` on the site's App Service plan, with its own `appSettings`.
+  Before, it was listed under `## Unmapped resources` and its image was never drawn. Any other slot is still
+  listed.
 
 ## [0.21.3] - 2026-10-04
 

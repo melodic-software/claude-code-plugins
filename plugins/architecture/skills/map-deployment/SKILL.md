@@ -395,8 +395,11 @@ hand-written; the publish destination comes from the `medium` cascade key. Proce
   as `unresolved:<expression>`. A `for` or `copy` loop is placed once, an `if` or `condition` is
   ignored, a `resourceId` with scope arguments matches nothing, and `Microsoft.App/jobs` is not
   mapped. A child resource nested in its parent (a Bicep `resource` inside a body, an ARM
-  `resources` array inside a resource) is never mapped: it is listed under its full type, such as
-  `Microsoft.Web/sites/slots`, and a slot's own image is not placed. A container app or container
+  `resources` array inside a resource) is listed under its full type, such as
+  `Microsoft.Storage/storageAccounts/blobServices`. A `Microsoft.Web/sites/slots` nested in its site,
+  or naming it as its Bicep `parent`, whose fx version reads `DOCKER|` is the exception: it places
+  the container `<site>/<slot>`, its full resource name, on the site's `serverFarmId`, with its own
+  `appSettings`. Any other slot, including a top-level ARM one, is listed. A container app or container
   group whose containers are an expression, an empty list, or absent places one container named for
   the resource, its image `unresolved:<expression>` or `unresolved:containers`. Every other resource
   type, and a site whose fx version does not read `DOCKER|` (listed as `Microsoft.Web/sites`), is
@@ -419,6 +422,10 @@ hand-written; the publish destination comes from the `medium` cascade key. Proce
   <https://learn.microsoft.com/azure/azure-resource-manager/bicep/child-resource-name-type> and
   <https://learn.microsoft.com/azure/azure-resource-manager/templates/child-resource-name-type>.
   As of: 2026-09-30. Recheck when either page changes the single-segment rule or the nesting depth.
+  Claim: a child's full name is `<parent>/<child>`, and a Bicep child outside its parent names it
+  with `parent: <symbol>`. Basis: the same two pages. Claim: every deployment slot of an app runs on
+  the app's App Service plan. Basis: <https://learn.microsoft.com/azure/app-service/overview-hosting-plans>.
+  As of: 2026-10-04. Recheck when those pages change the name form, `parent`, or where a slot runs.
 - **Terraform values are resolved, never evaluated.** `var.X` resolves from a module call argument,
   then the root's tfvars files, then the variable `default`, and `${var.X}` inside a string the
   same way. A variable declared `sensitive = true`, or named for a credential, is redacted wherever

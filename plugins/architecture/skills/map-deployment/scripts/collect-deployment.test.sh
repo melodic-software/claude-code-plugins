@@ -2212,38 +2212,52 @@ assert_contains "an ARM template that maps no container is refused" "$unm_rec" '
 assert_contains "the ARM type is listed under arm" "$unm_rec" '{"tool":"arm","type":"Microsoft.Storage/storageAccounts","evidence":"main.json"}'
 
 # A child resource nested in its parent is listed under its full type, never dropped behind the
-# parent: a Bicep `resource x 'child'` inside a body, an ARM resources array inside a resource.
-bicep_site=$'resource site \'Microsoft.Web/sites@2022-09-01\' = {\n  name: \'web\'\n  properties: {\n    siteConfig: {\n      linuxFxVersion: \'DOCKER|nginx:1\'\n    }\n  }\n  resource slot \'slots\' = {\n    name: \'staging\'\n    properties: {\n      siteConfig: {\n        linuxFxVersion: \'DOCKER|nginx:2\'\n      }\n    }\n  }\n}'
+# parent: a Bicep `resource x 'child'` inside a body, an ARM resources array inside a resource. A
+# slot with a DOCKER| image is the exception: it is its own container, on its site's plan.
+bicep_plan=$'resource plan \'Microsoft.Web/serverfarms@2022-09-01\' = {\n  name: \'plan\'\n}'
+bicep_site=$'resource site \'Microsoft.Web/sites@2022-09-01\' = {\n  name: \'web\'\n  properties: {\n    serverFarmId: plan.id\n    siteConfig: {\n      linuxFxVersion: \'DOCKER|nginx:1\'\n    }\n  }\n  resource slot \'slots\' = {\n    name: \'staging\'\n    properties: {\n      siteConfig: {\n        linuxFxVersion: \'DOCKER|nginx:2\'\n        appSettings: [\n          { name: \'SLOT\', value: \'staging\' }\n        ]\n      }\n    }\n  }\n}'
 bicep_blob=$'resource sa \'Microsoft.Storage/storageAccounts@2023-01-01\' = {\n  name: \'sa\'\n  resource blob \'blobServices\' = {\n    name: \'default\'\n    resource c \'containers@2023-01-01\' = {\n      name: \'data\'\n    }\n  }\n}'
-unm_fixture bicep-nested main.bicep "$bicep_site"$'\n'"$bicep_blob"
+unm_fixture bicep-nested main.bicep "$bicep_plan"$'\n'"$bicep_site"$'\n'"$bicep_blob"
 unm_check "$TEST_TMPDIR/unm-bicep-nested"
 assert_contains "a site with a nested slot is still drawn" "$unm_rec" '"status": "drawn"'
-assert_contains "the parent site is placed" "$unm_rec" '"container":"web","env":"default","tool":"bicep"'
-assert_not_contains "the nested slot is not placed as if it were the site" "$unm_rec" 'nginx:2'
-assert_contains "a nested slot is listed under its full type" "$unm_rec" '{"tool":"bicep","type":"Microsoft.Web/sites/slots","evidence":"main.bicep"}'
+assert_contains "the parent site is placed" "$unm_rec" '"container":"web","env":"default","tool":"bicep","node":"default/plan","compute":"default/plan","image":"nginx:1"'
+assert_contains "a nested DOCKER slot is placed on its site's plan under its full name" "$unm_rec" '"container":"web/staging","env":"default","tool":"bicep","node":"default/plan","compute":"default/plan","image":"nginx:2","replicas":"undeclared"'
+assert_contains "a slot's app settings are its parameters" "$unm_rec" '"parameter":"SLOT","env":"default","tool":"bicep","container":"web/staging","value":"staging"'
+assert_not_contains "a placed slot is not listed" "$unm_rec" '"type":"Microsoft.Web/sites/slots"'
 assert_contains "a child of a storage account is listed under its full type" "$unm_rec" '{"tool":"bicep","type":"Microsoft.Storage/storageAccounts/blobServices","evidence":"main.bicep"}'
 assert_contains "a grandchild is listed under its full type" "$unm_rec" '{"tool":"bicep","type":"Microsoft.Storage/storageAccounts/blobServices/containers","evidence":"main.bicep"}'
 assert_not_contains "the mapped parent site is not listed" "$unm_rec" '"type":"Microsoft.Web/sites"'
-assert_contains "the nested resources are counted" "$unm_sum" "unmapped=4"
-assert_contains "the nested slot is in the unmapped table" "$unm_md" '| bicep | Microsoft.Web/sites/slots | main.bicep |'
+assert_contains "the nested resources are counted" "$unm_sum" "unmapped=3"
+assert_contains "a nested child is in the unmapped table" "$unm_md" '| bicep | Microsoft.Storage/storageAccounts/blobServices | main.bicep |'
+assert_contains "the slot is drawn inside the plan" "$unm_md" $'instanceOf c1_web\n      instanceOf c2_web_staging'
+
+bicep_slot_top=$'resource slot \'Microsoft.Web/sites/slots@2022-09-01\' = {\n  parent: site\n  name: \'blue\'\n  properties: {\n    siteConfig: {\n      linuxFxVersion: \'DOCKER|nginx:3\'\n    }\n  }\n}\nresource orphan \'Microsoft.Web/sites/slots@2022-09-01\' = {\n  name: \'web/green\'\n  properties: {\n    siteConfig: {\n      linuxFxVersion: \'DOCKER|nginx:4\'\n    }\n  }\n}'
+bicep_slot_node=$'resource code \'Microsoft.Web/sites@2022-09-01\' = {\n  name: \'code\'\n  properties: {\n    serverFarmId: plan.id\n    siteConfig: {\n      linuxFxVersion: \'DOCKER|nginx:5\'\n    }\n  }\n  resource slot \'slots\' = {\n    name: \'node\'\n    properties: {\n      siteConfig: {\n        linuxFxVersion: \'NODE|20-lts\'\n      }\n    }\n  }\n}'
+unm_fixture bicep-slot-forms main.bicep "$bicep_plan"$'\n'"$bicep_site"$'\n'"$bicep_slot_top"$'\n'"$bicep_slot_node"
+unm_check "$TEST_TMPDIR/unm-bicep-slot-forms"
+assert_contains "a top-level slot whose parent names the site is placed on the site's plan" "$unm_rec" '"container":"web/blue","env":"default","tool":"bicep","node":"default/plan","compute":"default/plan","image":"nginx:3"'
+assert_not_contains "a top-level slot with no parent property is not placed" "$unm_rec" 'nginx:4'
+assert_not_contains "a slot whose fx version is not DOCKER| is not placed" "$unm_rec" '"container":"code/node"'
+assert_contains "the unplaced slots are listed under their full type" "$unm_rec" '{"tool":"bicep","type":"Microsoft.Web/sites/slots","evidence":"main.bicep"}'
 
 unm_fixture bicep-nested-refused main.bicep "$bicep_blob"
 unm_check "$TEST_TMPDIR/unm-bicep-nested-refused"
 assert_contains "a Bicep storage account with nested children maps no container and is refused" "$unm_rec" '"reason": "no-mapped-container"'
 assert_contains "the nested Bicep child is listed in the refusal" "$unm_rec" '{"tool":"bicep","type":"Microsoft.Storage/storageAccounts/blobServices","evidence":"main.bicep"}'
 
-arm_site="{\"type\":\"Microsoft.Web/sites\",\"name\":\"web\",\"properties\":{\"siteConfig\":{\"linuxFxVersion\":\"DOCKER|nginx:1\"}},\"resources\":[{\"type\":\"slots\",\"name\":\"staging\",\"properties\":{\"siteConfig\":{\"linuxFxVersion\":\"DOCKER|nginx:2\"}}}]}"
+arm_plan='{"type":"Microsoft.Web/serverfarms","name":"plan"}'
+arm_site="{\"type\":\"Microsoft.Web/sites\",\"name\":\"web\",\"properties\":{\"serverFarmId\":\"[resourceId('Microsoft.Web/serverfarms', 'plan')]\",\"siteConfig\":{\"linuxFxVersion\":\"DOCKER|nginx:1\"}},\"resources\":[{\"type\":\"slots\",\"name\":\"staging\",\"properties\":{\"siteConfig\":{\"linuxFxVersion\":\"DOCKER|nginx:2\"}}}]}"
 arm_blob='{"name":"sa","resources":[{"type":"blobServices","name":"default","resources":[{"type":"containers","name":"data"}]}],"type":"Microsoft.Storage/storageAccounts"}'
-unm_fixture arm-nested main.json "{\"\$schema\":\"$arm_schema\",\"contentVersion\":\"1.0.0.0\",\"resources\":[$arm_site,$arm_blob]}"
+unm_fixture arm-nested main.json "{\"\$schema\":\"$arm_schema\",\"contentVersion\":\"1.0.0.0\",\"resources\":[$arm_plan,$arm_site,$arm_blob]}"
 unm_check "$TEST_TMPDIR/unm-arm-nested"
 assert_contains "an ARM site with a nested slot is still drawn" "$unm_rec" '"status": "drawn"'
-assert_contains "the ARM parent site is placed" "$unm_rec" '"container":"web","env":"default","tool":"arm"'
-assert_not_contains "the nested ARM slot is not placed as if it were the site" "$unm_rec" 'nginx:2'
-assert_contains "a nested ARM slot is listed under its full type" "$unm_rec" '{"tool":"arm","type":"Microsoft.Web/sites/slots","evidence":"main.json"}'
+assert_contains "the ARM parent site is placed" "$unm_rec" '"container":"web","env":"default","tool":"arm","node":"default/resources[0]","compute":"default/resources[0]","image":"nginx:1"'
+assert_contains "a nested ARM DOCKER slot is placed on its site's plan under its full name" "$unm_rec" '"container":"web/staging","env":"default","tool":"arm","node":"default/resources[0]","compute":"default/resources[0]","image":"nginx:2"'
+assert_not_contains "a placed ARM slot is not listed" "$unm_rec" '"type":"Microsoft.Web/sites/slots"'
 assert_contains "an ARM child is listed under its full type" "$unm_rec" '{"tool":"arm","type":"Microsoft.Storage/storageAccounts/blobServices","evidence":"main.json"}'
 assert_contains "an ARM grandchild is listed under its full type" "$unm_rec" '{"tool":"arm","type":"Microsoft.Storage/storageAccounts/blobServices/containers","evidence":"main.json"}'
 assert_not_contains "the mapped ARM parent site is not listed" "$unm_rec" '"type":"Microsoft.Web/sites"'
-assert_contains "the nested ARM resources are counted" "$unm_sum" "unmapped=4"
+assert_contains "the nested ARM resources are counted" "$unm_sum" "unmapped=3"
 
 unm_fixture arm-nested-refused main.json "{\"\$schema\":\"$arm_schema\",\"contentVersion\":\"1.0.0.0\",\"resources\":[$arm_blob]}"
 unm_check "$TEST_TMPDIR/unm-arm-nested-refused"
@@ -2254,6 +2268,10 @@ unm_fixture arm-nested-symbolic main.json "{\"\$schema\":\"$arm_schema\",\"langu
 unm_check "$TEST_TMPDIR/unm-arm-nested-symbolic"
 assert_contains "a nested child under a symbolic-name resource is listed under its full type" "$unm_rec" '{"tool":"arm","type":"Microsoft.Web/sites/slots","evidence":"main.json"}'
 assert_not_contains "the symbolic-name parent site is not listed" "$unm_rec" '"type":"Microsoft.Web/sites"'
+unm_fixture arm-slot-symbolic main.json "{\"\$schema\":\"$arm_schema\",\"languageVersion\":\"2.0\",\"contentVersion\":\"1.0.0.0\",\"resources\":{\"plan\":$arm_plan,\"site\":{\"type\":\"Microsoft.Web/sites\",\"name\":\"web\",\"properties\":{\"serverFarmId\":\"[resourceId('Microsoft.Web/serverfarms', 'plan')]\"},\"resources\":{\"slot\":{\"type\":\"slots\",\"name\":\"staging\",\"properties\":{\"siteConfig\":{\"linuxFxVersion\":\"DOCKER|nginx:2\"}}}}}}}"
+unm_check "$TEST_TMPDIR/unm-arm-slot-symbolic"
+assert_contains "a DOCKER slot under a symbolic-name site is placed on the site's plan" "$unm_rec" '"container":"web/staging","env":"default","tool":"arm","node":"default/plan","compute":"default/plan","image":"nginx:2"'
+assert_contains "a site with no DOCKER image is still listed beside its placed slot" "$unm_rec" '{"tool":"arm","type":"Microsoft.Web/sites","evidence":"main.json"}'
 
 unm_fixture pulumi-bucket Pulumi.yaml $'name: p\nruntime: yaml\nresources:\n  bucket:\n    type: aws:s3:Bucket'
 unm_check "$TEST_TMPDIR/unm-pulumi-bucket"
