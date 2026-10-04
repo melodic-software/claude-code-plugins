@@ -23,5 +23,12 @@ public class InvoiceOneLineOraclesTests
     public Task Parse_Empty_Throws() => Assert.ThrowsAsync<ArgumentException>(() => InvoiceParser.ParseAsync(""));
 
     [Fact]
+    public System.Threading.Tasks.Task Parse_Blank_Throws() => Assert.ThrowsAsync<ArgumentException>(() => InvoiceParser.ParseAsync(" "));
+
+    [Fact]
+    public Task Parse_Null_Throws() =>
+        Assert.ThrowsAsync<ArgumentNullException>(() => InvoiceParser.ParseAsync(null));
+
+    [Fact]
     public async Task Render_MatchesApproved() { await Verify(InvoiceRenderer.Render(new Invoice(new[] { 10m, 5m }, taxRate: 0.1m))); Assert.Equal(16.5m, new Invoice(new[] { 10m, 5m }, taxRate: 0.1m).Total); }
 }

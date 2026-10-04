@@ -1142,6 +1142,7 @@ corpus_files=(
   cs-xunit/bad/InvoiceTotalTests.cs.fixture
   cs-xunit/bad/PageSourceTextTests.cs.fixture
   cs-xunit/bad/ParserAsyncExpressionThrowsTests.cs.fixture
+  cs-xunit/bad/ParserAsyncWrappedExpressionThrowsTests.cs.fixture
   cs-xunit/bad/QuoteExpectedParameterTests.cs.fixture
   cs-xunit/bad/SlugifyTests.cs.fixture
   cs-xunit/bad/WorkerRunAsyncTests.cs.fixture

@@ -967,7 +967,7 @@ function inert_scan(m, r,    s, d) {
     if (s !~ /^\|/) emit(PS_KIND, "inert-assertion", PS_PEND, PS_DET)
     PS_PEND = 0
   }
-  if (s == "" || !stmt_start()) return
+  if (s == "" || !(CS_HEAD || stmt_start())) return
   # A Pester script block nested in the test (a ParameterFilter, a
   # Where-Object) returns its bare comparison; only the It body discards it.
   if (LEXER == "pwsh" && depth != 1) return
@@ -1683,6 +1683,7 @@ function open_block(line, name) {
   OR_S = OR_W = OR_P = OR_WLINE = OR_PLINE = 0
   CD = CR_N = CR_LOOPS = CR_BR = CA_IN = CA_OUT = CA_LINE = 0
   COND_NEXT = SRC_PEND = SIG = PM_NAME = CS_SIG = ""
+  CS_RET = CS_WRAP = CS_HEAD = 0
   SIG_OPEN = LEXER == "python"
   SH_ACT = SH_FN = PS_PEND = 0
 }
@@ -1691,7 +1692,11 @@ function open_block(line, name) {
 # the two before it, which counts as an assertion. The per-line rules that
 # need to know they are inside a test run from here.
 function append_block(m, r,    bm, br) {
-  bm = m; br = r; CS_RET = 0
+  bm = m; br = r
+  # CS_HEAD: the first code line of an expression body that wrapped after its
+  # "=>", which starts the body's statement though the line before ends in "=>".
+  CS_HEAD = CS_WRAP && m !~ /^[[:space:]]*$/
+  if (CS_HEAD) CS_WRAP = 0
   # A C# line before the body opens is signature: the test's name and its
   # parameters are code, and a test named Check_x or a parameter named
   # expected would read as an assertion. Only the body after it is judged.
@@ -1758,7 +1763,8 @@ function cs_body_start(m) {
 # this line too. Blanking keeps the columns fill() pairs masked and raw text by.
 # CS_RET: the body is an expression a Task-returning test returns, so an async
 # assertion there is awaited by the runner. An async test's expression body
-# returns nothing: its value is discarded.
+# returns nothing: its value is discarded. CS_WRAP: nothing follows the "=>",
+# so the expression starts on a later line.
 function cs_cut(m, r,    i, j, k, n) {
   i = index(m, "{"); j = index(m, "=>")
   k = (j && (!i || j < i)) ? j : i
@@ -1767,7 +1773,11 @@ function cs_cut(m, r,    i, j, k, n) {
   n = k == j ? k + 1 : k
   CUT_M = blanks(n) substr(m, n + 1)
   CUT_R = blanks(n) substr(r, n + 1)
-  if (k == j) { CS_RET = CS_SIG ~ /(^|[^A-Za-z0-9_.])(Task|ValueTask)([^A-Za-z0-9_]|$)/ && CS_SIG !~ /(^|[^A-Za-z0-9_])async([^A-Za-z0-9_]|$)/; return }
+  if (k == j) {
+    CS_RET = CS_SIG ~ /(^|[^A-Za-z0-9_.]|System\.Threading\.Tasks\.)(Task|ValueTask)([^A-Za-z0-9_]|$)/ && CS_SIG !~ /(^|[^A-Za-z0-9_])async([^A-Za-z0-9_]|$)/
+    CS_WRAP = substr(CUT_M, n + 1) ~ /^[[:space:]]*$/
+    return
+  }
   if (brace_delta(m) > 0) return
   for (k = length(CUT_M); k > n; k--) if (substr(CUT_M, k, 1) == "}") break
   if (k > n) { CUT_M = substr(CUT_M, 1, k - 1) " " substr(CUT_M, k + 1); CUT_R = substr(CUT_R, 1, k - 1) " " substr(CUT_R, k + 1) }
