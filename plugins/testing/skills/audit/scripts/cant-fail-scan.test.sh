@@ -1067,6 +1067,7 @@ CORPUS="$FIX/corpus"
 corpus_files=(
   bash-bats/bad/bats-greet-against-itself.bats.fixture
   bash-bats/bad/bats-greet-prints-only.bats.fixture
+  bash-bats/bad/bats-greet-run-twice-one-line.bats.fixture
   bash-bats/bad/bats-greet-run-unchecked.bats.fixture
   bash-bats/bad/bats-last-bang-or-true.bats.fixture
   bash-bats/bad/bats-page-source-text.bats.fixture
@@ -1074,6 +1075,7 @@ corpus_files=(
   bash-bats/good/bats-config-removed-last-bang.bats.fixture
   bash-bats/good/bats-greet-against-literal.bats.fixture
   bash-bats/good/bats-greet-asserts-output.bats.fixture
+  bash-bats/good/bats-greet-run-checked-one-line.bats.fixture
   bash-bats/good/bats-greet-run-status.bats.fixture
   bash-bats/good/bats-greet-skipped.bats.fixture
   bash-bats/good/bats-greet-test-command.bats.fixture
@@ -1149,6 +1151,7 @@ corpus_files=(
   cs-xunit/bad/SlugifyTests.cs.fixture
   cs-xunit/bad/WidgetAlwaysTrueTests.cs.fixture
   cs-xunit/bad/WidgetExpressionAlwaysFalseTests.cs.fixture
+  cs-xunit/bad/WidgetInertBesideWeakOneLineTests.cs.fixture
   cs-xunit/bad/WidgetNameofTypeNameTests.cs.fixture
   cs-xunit/bad/WidgetTypeofAndWeakTests.cs.fixture
   cs-xunit/bad/WidgetTypeofNotNullTests.cs.fixture
@@ -1168,6 +1171,7 @@ corpus_files=(
   cs-xunit/good/OrderPricedHelperTests.cs.fixture
   cs-xunit/good/SameFileAssertingHelperTests.cs.fixture
   cs-xunit/good/SlugifyLiteralTests.cs.fixture
+  cs-xunit/good/WidgetTwoStatementsOneLineTests.cs.fixture
   cs-xunit/good/WidgetTypeOraclesTests.cs.fixture
   go-testing/bad/go_add_deepequal_derived_test.go.fixture
   go-testing/bad/go_check_named_runs_test.go.fixture
@@ -1256,6 +1260,7 @@ corpus_files=(
   js-vitest/bad/vitest-queue-poll-unawaited.test.ts.fixture
   js-vitest/bad/vitest-rows-loop-unchecked.test.ts.fixture
   js-vitest/bad/vitest-session-truthy.test.ts.fixture
+  js-vitest/bad/vitest-total-bare-expect-one-line.test.ts.fixture
   js-vitest/bad/vitest-user-fixture-literal.test.ts.fixture
   js-vitest/good/vitest-cart-checked.test.ts.fixture
   js-vitest/good/vitest-duration-literal.test.ts.fixture
@@ -1268,6 +1273,7 @@ corpus_files=(
   js-vitest/good/vitest-repaired-4b.test.ts.fixture
   js-vitest/good/vitest-repaired-oracles.test.ts.fixture
   js-vitest/good/vitest-split-call-options.test.ts.fixture
+  js-vitest/good/vitest-two-statements-one-line.test.ts.fixture
   planted/bad/PlantedShouldAloneTests.cs.fixture
   planted/bad/PlantedSumRecomputedTests.cs.fixture
   planted/bad/PlantedUnawaitedAsyncTests.cs.fixture
@@ -1310,6 +1316,7 @@ corpus_files=(
   py-pytest/bad/test_pytest_slugify_runs.py.fixture
   py-pytest/bad/test_pytest_split_signature_runs.py.fixture
   py-pytest/bad/test_pytest_total_tuple_assert.py.fixture
+  py-pytest/bad/test_pytest_total_tuple_one_line.py.fixture
   py-pytest/bad/test_pytest_user_not_none.py.fixture
   py-pytest/bad/test_pytest_views_source_text.py.fixture
   py-pytest/good/test_pytest_ast_parse_source.py.fixture
@@ -1330,6 +1337,7 @@ corpus_files=(
   py-pytest/good/test_pytest_snapshot_local.py.fixture
   py-pytest/good/test_pytest_split_signature.py.fixture
   py-pytest/good/test_pytest_try_fail.py.fixture
+  py-pytest/good/test_pytest_two_statements_one_line.py.fixture
   py-pytest/good/test_pytest_unittest_mock.py.fixture
   py-unittest/bad/test_unittest_after_skipped_class.py.fixture
   py-unittest/bad/test_unittest_config_recomputed.py.fixture

@@ -967,7 +967,8 @@ function inert_scan(m, r,    s, d) {
     if (s !~ /^\|/) emit(PS_KIND, "inert-assertion", PS_PEND, PS_DET)
     PS_PEND = 0
   }
-  if (s == "" || !(CS_HEAD || stmt_start())) return
+  # A statement after a ";" on the same line starts there (split_stmts).
+  if (s == "" || !(SEG_I > 1 || CS_HEAD || stmt_start())) return
   # A Pester script block nested in the test (a ParameterFilter, a
   # Where-Object) returns its bare comparison; only the It body discards it.
   if (LEXER == "pwsh" && depth != 1) return
@@ -1153,11 +1154,12 @@ function src_scan(m, r,    p, args, low, w) {
 }
 
 # ---------------------------------------------------------------------------
-# Oracle strength: every assertion line of a block is strong, weak (only an
-# assertion.weak call) or a snapshot (only a snapshot call). rule-weak-oracle
-# and rule-snapshot-only fire when a block holds nothing but that kind. The
-# adapter entries match whole calls over the line with strings standing as
-# `_`, so a matcher argument (toThrow('boom')) is never read as absent.
+# Oracle strength: every assertion statement of a block is strong, weak (only
+# an assertion.weak call) or a snapshot (only a snapshot call).
+# rule-weak-oracle and rule-snapshot-only fire when a block holds nothing but
+# that kind. The adapter entries match whole calls over the statement with
+# strings standing as `_`, so a matcher argument (toThrow('boom')) is never
+# read as absent.
 # ---------------------------------------------------------------------------
 
 function fill(m, r,    i, n, out, c) {
@@ -1185,7 +1187,7 @@ function oracle_line(m, r,    s) {
   # C#: a statement inert_scan reports as inert is no oracle, weak or strong,
   # so Assert.NotNull(typeof(T)) is not also a weak oracle. Same precondition
   # as inert_scan, or a statement could be dropped here and not reported there.
-  if (LEXER == "cs" && (CS_HEAD || stmt_start())) {
+  if (LEXER == "cs" && (SEG_I > 1 || CS_HEAD || stmt_start())) {
     s = m
     sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s)
     if (has(s, R_INERT)) return
@@ -1693,8 +1695,49 @@ function open_block(line, name) {
   COND_NEXT = SRC_PEND = SIG = PM_NAME = CS_SIG = ""
   CS_RET = CS_WRAP = CS_HEAD = 0
   SIG_OPEN = PY_HEAD = LEXER == "python"
-  PY_D = 0
+  PY_D = SP_D = SP_K = 0
   SH_ACT = SH_FN = PS_PEND = 0
+}
+
+# The statements of a body line, for the oracle and inert rules: SEG_M[i] and
+# SEG_R[i], i = 1..SEG_N, each the line with every other statement blanked, so
+# masked and raw columns stay paired. A line with one statement is one segment,
+# the line itself. A statement ends at a ";" outside parentheses and brackets,
+# so a for (;;) header stays whole; a "{" opens a block whose statements split
+# again, a lambda's body inside a call included. The depths carry from line to
+# line. C#, JS
+# and TS keep the ";" that ends a statement, which their inert forms anchor on;
+# Python and bash separate statements with it, so it is blanked, and bash's
+# case terminators (;; ;& ;;&) never split. Strings, comments and char
+# literals are already masked. Go and PowerShell lines stay whole.
+function split_stmts(m, r,    n, i, c, from) {
+  SEG_N = 0
+  n = length(m)
+  if (LEXER != "cs" && LEXER != "js" && LEXER != "python" && LEXER != "bash") { seg_add(m, r, 1, n); return }
+  from = 1
+  for (i = 1; i <= n; i++) {
+    c = substr(m, i, 1)
+    if (c == "(" || c == "[") SP_D++
+    else if (c == ")" || c == "]") { if (SP_D > 0) SP_D-- }
+    else if (c == "{") { SP_S[++SP_K] = SP_D; SP_D = 0 }
+    else if (c == "}") SP_D = SP_K > 0 ? SP_S[SP_K--] : 0
+    else if (c == ";" && SP_D == 0) {
+      if (LEXER == "bash" && substr(m, i + 1, 1) ~ /[;&]/) { i++; continue }
+      seg_add(m, r, from, LEXER == "cs" || LEXER == "js" ? i : i - 1)
+      from = i + 1
+    }
+  }
+  seg_add(m, r, from, n)
+  if (!SEG_N) seg_add(m, r, 1, n)
+}
+
+function seg_add(m, r, a, b,    n) {
+  n = length(m)
+  if (a == 1 && b >= n) { SEG_N++; SEG_M[SEG_N] = m; SEG_R[SEG_N] = r; return }
+  if (b < a || substr(m, a, b - a + 1) ~ /^[[:space:]]*$/) return
+  SEG_N++
+  SEG_M[SEG_N] = blanks(a - 1) substr(m, a, b - a + 1) blanks(n - b)
+  SEG_R[SEG_N] = blanks(a - 1) substr(r, a, b - a + 1) blanks(n - b)
 }
 
 # block_raw: an idiom or a delegation matched the raw text of this line and
@@ -1726,12 +1769,18 @@ function append_block(m, r,    bm, br) {
     if ((BW2 " " BW1 " " br) ~ R_RAW) block_raw = 1
     BW2 = BW1; BW1 = br
   }
-  # cs, python and go have cut the start line's signature to its body.
+  # cs, python and go have cut the start line's signature to its body. The
+  # oracle and inert rules judge each statement of the line on its own.
   OR_S0 = OR_S
-  if (FNR != block_line || LEXER != "bash") oracle_line(bm, br)
+  split_stmts(bm, br)
+  if (FNR != block_line || LEXER != "bash")
+    for (SEG_I = 1; SEG_I <= SEG_N; SEG_I++) oracle_line(SEG_M[SEG_I], SEG_R[SEG_I])
+  SEG_I = 0
   if (LEXER != "bash") { cond_scan(m); bind_scan(m, r) }
   else sh_act_scan(m)
-  if (FNR != block_line || LEXER == "cs" || LEXER == "python" || LEXER == "go") inert_scan(bm, br)
+  if (FNR != block_line || LEXER == "cs" || LEXER == "python" || LEXER == "go")
+    for (SEG_I = 1; SEG_I <= SEG_N; SEG_I++) inert_scan(SEG_M[SEG_I], SEG_R[SEG_I])
+  SEG_I = 0
   src_scan(m, r)
   if (LEXER == "js" || LEXER == "python") g8_bind(m, r)
   if (m !~ /^[[:space:]]*$/) { prev_code = code_tail(m, r); block_code_last = FNR }
