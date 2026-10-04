@@ -316,6 +316,26 @@ assert_contains "and says it cannot be canaried" "$OUT" "cannot be canaried"
 assert_eq "and removes nothing" "" "$(cd "$ZERO" && git status --porcelain)"
 assert_contains "and names the shim-over-empty state, not content-in-claude" "$OUT" "shim-empty-target"
 
+# An import that loads like the shim but is not byte-for-byte `@AGENTS.md` is
+# not the finished target: removing it would skip the rewrite Apply owes it.
+for form in dotslash crlf; do
+  NONCANON="$TMP/noncanonical-$form"
+  build_ready_repo "$NONCANON"
+  if [[ "$form" == "dotslash" ]]; then
+    printf '@./AGENTS.md\n' >"$NONCANON/svc/CLAUDE.md"
+  else
+    printf '@AGENTS.md\r\n' >"$NONCANON/svc/CLAUDE.md"
+  fi
+  commit_all "$NONCANON" "a noncanonical nested shim ($form)"
+
+  rc=0
+  OUT=$(bash "$SCRIPT" --root "$NONCANON" --confirm --installed-plugins "$TMP/installed-current.json" \
+    --claude-bin "$TMP/bin/claude-met" "${CHECK_ARGS[@]}") || rc=$?
+  assert_eq "a noncanonical shim ($form) exits 1" 1 "$rc"
+  assert_contains "and names it as not the target shape ($form)" "$OUT" "svc is 'shim-noncanonical'"
+  assert_eq "and removes nothing ($form)" "" "$(cd "$NONCANON" && git status --porcelain)"
+done
+
 # --- Case 6: a surface that cannot be verified is never de-shimmed --------
 
 NOLINE="$TMP/noline"
