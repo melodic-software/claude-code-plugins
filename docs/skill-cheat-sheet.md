@@ -12,8 +12,11 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 - [1. Explore](#1-explore)
 - [2. Research](#2-research)
+- [3. PRD](#3-prd)
 - [4. Contract](#4-contract)
+- [5. Design](#5-design)
 - [6. Plan](#6-plan)
+- [7. Decompose](#7-decompose)
 - [8. Implement](#8-implement)
 - [9. Test](#9-test)
 - [10. Review](#10-review)
@@ -53,6 +56,12 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/dometrain:grounding`](../plugins/dometrain/skills/grounding/SKILL.md) | `dometrain` | Ground an approach in how a Dometrain course teaches it, with lesson links |
 | [`/firecrawl:firecrawl`](../plugins/firecrawl/skills/firecrawl/SKILL.md) | `firecrawl` | Scrape, search, crawl, or parse web pages when WebFetch is blocked |
 
+## 3. PRD
+
+| Skill | Plugin | What it does |
+| --- | --- | --- |
+| [`/planning:prd`](../plugins/planning/skills/prd/SKILL.md) | `planning` | Lock product intent. Problem, users, success metrics. Before planning |
+
 ## 4. Contract
 
 | Skill | Plugin | What it does |
@@ -61,9 +70,15 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/planning:audit-answers`](../plugins/planning/skills/audit-answers/SKILL.md) | `planning` | Adversarially validate interview answers with fresh-context agents |
 | [`/planning:brainstorm`](../plugins/planning/skills/brainstorm/SKILL.md) | `planning` | Diverge into codebase-grounded candidate approaches before scoping |
 | [`/planning:interview`](../plugins/planning/skills/interview/SKILL.md) | `planning` | Interview in frontier rounds until the task contract is locked |
-| [`/planning:prd`](../plugins/planning/skills/prd/SKILL.md) | `planning` | Lock product intent. Problem, users, success metrics. Before planning |
 | [`/planning:questionnaire`](../plugins/planning/skills/questionnaire/SKILL.md) | `planning` | Turn a decision someone else must answer into an async questionnaire |
 | [`/planning:wayfind`](../plugins/planning/skills/wayfind/SKILL.md) | `planning` | Chart a too-big, foggy effort as a decision map worked one decision at a time |
+
+## 5. Design
+
+| Skill | Plugin | What it does |
+| --- | --- | --- |
+| [`/planning:design`](../plugins/planning/skills/design/SKILL.md) | `planning` | Resolve types, contracts, and module boundaries before planning |
+| [`/planning:design-handoff`](../plugins/planning/skills/design-handoff/SKILL.md) | `planning` | Gate a finished design and package it for planning |
 
 ## 6. Plan
 
@@ -75,13 +90,16 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/event-storming:simulation`](../plugins/event-storming/skills/simulation/SKILL.md) | `event-storming` | Multi-persona agentic EventStorming workshop on Miro |
 | [`/naming:name-it-better`](../plugins/naming/skills/name-it-better/SKILL.md) | `naming` | Generate and evaluate name candidates from blind fresh-context lenses |
 | [`/performance:goal`](../plugins/performance/skills/goal/SKILL.md) | `performance` | Build a goal with realistic and ideal targets plus a computed floor |
-| [`/planning:design`](../plugins/planning/skills/design/SKILL.md) | `planning` | Resolve types, contracts, and module boundaries before planning |
-| [`/planning:design-handoff`](../plugins/planning/skills/design-handoff/SKILL.md) | `planning` | Gate a finished design and package it for planning |
 | [`/planning:devils-advocate`](../plugins/planning/skills/devils-advocate/SKILL.md) | `planning` | Stress-test a plan or the incumbent approach adversarially |
 | [`/planning:draft-goal-condition`](../plugins/planning/skills/draft-goal-condition/SKILL.md) | `planning` | Pick the right autonomy lever and craft a /goal completion condition |
 | [`/planning:plan`](../plugins/planning/skills/plan/SKILL.md) | `planning` | Produce a structured implementation plan with an approval gate |
 | [`/prototype:explore-directions`](../plugins/prototype/skills/explore-directions/SKILL.md) | `prototype` | Throwaway UI variations answering what should this look like |
 | [`/prototype:pressure-test`](../plugins/prototype/skills/pressure-test/SKILL.md) | `prototype` | Throwaway terminal app or shareable HTML demo pressure-testing logic or a data model |
+
+## 7. Decompose
+
+| Skill | Plugin | What it does |
+| --- | --- | --- |
 | [`/work-items:decompose`](../plugins/work-items/skills/decompose/SKILL.md) | `work-items` | Break a plan into vertical-slice work items with dependencies |
 
 ## 8. Implement

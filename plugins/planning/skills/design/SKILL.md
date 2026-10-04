@@ -4,7 +4,7 @@ argument-hint: "[library|module|data|integration|system] [status|thread <name>|d
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  workflow-stage: plan
+  workflow-stage: design
   summary: Resolve types, contracts, and module boundaries before planning
 ---
 
@@ -36,7 +36,7 @@ This is the step between research and planning: exploration maps existing code, 
 
 The depth of design exploration scales to the work:
 
-- Single-file fix → early-exit: write `design-resolution.md` with `outcome: early-exit`, tier `C`, and reason. Then proceed by invoking `/planning:plan` via the Skill tool
+- Single-file fix → early-exit: write `design-resolution.md` with `outcome: early-exit`, tier `C`, and reason. Then proceed by invoking `/planning:design-handoff` via the Skill tool, which writes PLAN.md's one-line `## Design` record and hands off to `/planning:plan`
 - New module → light-form (1-2 discussion rounds, basic type sketch)
 - Large library or system → full-form (multiple sessions, all phases, all artifact types)
 

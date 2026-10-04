@@ -3,7 +3,7 @@ description: "Gate a finished design for /planning:plan: FAILs on any design thr
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  workflow-stage: plan
+  workflow-stage: design
   summary: Gate a finished design and package it for planning
 ---
 

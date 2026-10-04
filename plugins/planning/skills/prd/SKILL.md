@@ -4,7 +4,7 @@ argument-hint: "[tier] [task description]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  workflow-stage: contract
+  workflow-stage: prd
   summary: Lock product intent. Problem, users, success metrics. Before planning
 ---
 

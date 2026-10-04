@@ -13,6 +13,8 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 - **`/planning:interview` Step 5 routes design-significant work to `/planning:design`.** The "contract IS the plan" shortcut to implementation no longer skips design for small design-significant work, and Step 5 now matches the skill's `## Next`.
 - **`/planning:design` no longer calls decompose's design-label reading unimplemented.** The `## Next` and relationship rows name the PLAN.md `## Design` path, and the wayfind order matches the workflow ladder's design, PRD, and decompose stages.
+- **A Tier C early exit from `/planning:design` goes through `/planning:design-handoff`.** It used to invoke `/planning:plan` directly, so PLAN.md never got the one-line `## Design` record of the early exit and its reason.
+- **The skill cheat sheet lists `/planning:prd`, `/planning:design`, and `/planning:design-handoff` under the ladder's PRD and Design stages.** Their `workflow-stage` metadata moves from `contract` and `plan` to `prd` and `design`.
 
 ## [0.67.6] - 2026-10-04
 

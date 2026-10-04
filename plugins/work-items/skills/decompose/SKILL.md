@@ -4,7 +4,7 @@ argument-hint: "[source]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  workflow-stage: plan
+  workflow-stage: decompose
   summary: Break a plan into vertical-slice work items with dependencies
 ---
 
