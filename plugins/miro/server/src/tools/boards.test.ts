@@ -30,6 +30,27 @@ describe("board tools", () => {
     expect(JSON.stringify(result.content)).toContain("b1");
   });
 
+  it("return the sharing policy Miro nests under policy after an update", async () => {
+    const lowLevel = {
+      updateBoard: async () => ({
+        body: {
+          id: "b1",
+          name: "N",
+          viewLink: "https://x/b1",
+          policy: { sharingPolicy: { access: "view" } },
+        },
+      }),
+    } as unknown as MiroLowlevelApi;
+    const client = await connect({} as MiroApi, lowLevel);
+    const result = await client.callTool({
+      name: "miro_update_board",
+      arguments: { board_id: "b1", sharing_access: "view" },
+    });
+    expect(result.isError).toBeFalsy();
+    const [content] = result.content as Array<{ text: string }>;
+    expect(JSON.parse(content?.text ?? "{}").sharingPolicy).toEqual({ access: "view" });
+  });
+
   it("return the setup guidance as a tool error when the token is unset", async () => {
     const { api, lowLevel } = createMiroClients("");
     const client = await connect(api, lowLevel);

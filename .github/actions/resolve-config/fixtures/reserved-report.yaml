@@ -1,0 +1,12 @@
+version: 1
+activities:
+  report:
+    script: scripts/report.sh
+    effect: read
+    gating: advisory
+    reads-untrusted: false
+lanes:
+  pr-run-checks:
+    stage: verify
+    slots:
+      - activity: report

@@ -362,11 +362,10 @@ PROG="$(sed -n '/^PROG<</,/^>>PROG/p' "$OSA_LOG" 2>/dev/null)"
 if printf '%s' "$PROG" | grep -q 'danger'; then fail "sanitize/osascript: message text interpolated into program: $PROG"; else ok "sanitize/osascript: message text absent from program (argv-only)"; fi
 if printf '%s' "$PROG" | grep -q 'display notification (item 2 of argv)'; then ok "sanitize/osascript: program reads body from argv"; else fail "sanitize/osascript: program shape unexpected: $PROG"; fi
 
-# --- jq-absent -> visible notice, once per session and agent (dim-9 doctrine) -
+# --- jq-absent -> exit 0 and print nothing -----------------------------------
 # Without jq the hook can neither classify the notification nor emit its
-# terminalSequence; the skip must surface via systemMessage (the Notification
-# event has no additionalContext channel) once per session and agent,
-# renewed every eighth skip.
+# terminalSequence. Claude Code discards a Notification hook's systemMessage, so
+# a notice would reach no one; /desktop-notification:check reports the gap.
 FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
@@ -384,27 +383,10 @@ run_nojq() {
 }
 OUT_NOJQ=$(run_nojq)
 RC_NOJQ=$?
-if [[ $RC_NOJQ -eq 0 && "$OUT_NOJQ" == *'"systemMessage"'* && "$OUT_NOJQ" == *jq* && "$OUT_NOJQ" != *hookSpecificOutput* ]]; then
-  ok "jq-absent -> exit 0 with systemMessage-only notice"
+if [[ $RC_NOJQ -eq 0 && -z "$OUT_NOJQ" ]]; then
+  ok "jq-absent -> exit 0 with no output (a Notification systemMessage is discarded)"
 else
   fail "jq-absent (rc=$RC_NOJQ out=$OUT_NOJQ)"
-fi
-OUT_NOJQ2=$(run_nojq)
-if [[ -z "$OUT_NOJQ2" ]]; then
-  ok "jq-absent -> second run same session is silent (once per session and agent)"
-else
-  fail "jq-absent second run not silent: $OUT_NOJQ2"
-fi
-# Runs 3..7 stay silent; run 8 renews the notice.
-NOJQ_QUIET=1
-for _n in 3 4 5 6 7; do
-  [[ -z "$(run_nojq)" ]] || NOJQ_QUIET=0
-done
-OUT_NOJQ8=$(run_nojq)
-if [[ $NOJQ_QUIET -eq 1 && "$OUT_NOJQ8" == *'"systemMessage"'* && "$OUT_NOJQ8" == *jq* ]]; then
-  ok "jq-absent -> runs 3..7 silent, run 8 renews the systemMessage notice"
-else
-  fail "jq-absent renewal (quiet=$NOJQ_QUIET run8=$OUT_NOJQ8)"
 fi
 
 echo

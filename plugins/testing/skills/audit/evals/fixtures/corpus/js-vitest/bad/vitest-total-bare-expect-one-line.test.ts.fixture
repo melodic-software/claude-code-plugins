@@ -1,0 +1,9 @@
+// expect: rule-inert-assertion
+// Two statements on one line: the expect after the call names no matcher,
+// so it asserts nothing about the total.
+import { expect, it } from 'vitest';
+import { sum } from './sum';
+
+it('sums the lines', () => {
+  const total = sum([1, 2]); expect(total);
+});

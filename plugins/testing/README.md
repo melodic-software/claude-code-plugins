@@ -11,7 +11,7 @@ skills, one concern: proving behavior with tests.
 | `/testing:write` | Test authoring discipline. Vertical-slice TDD, test-type selection, naming, placement, fixture patterns, four-pillars assessment. |
 | `/testing:run-e2e` | Live app verification. Start the app via the project's orchestrator, drive UI/API flows with token-efficient browser automation, capture evidence; includes a non-UI smoke-test playbook (MCP stdio handshake, shell/PowerShell surfaces). |
 | `/testing:diagnose` | Failing-test diagnosis. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
-| `/testing:audit` | Can't-fail test detection: a deterministic script runs twelve rules across JS/TS, Python, C#, Bash, PowerShell and Go, from assertion-free bodies and self-identical (recomputed-expectation) assertions to unawaited assertions, conditional assertions and Playwright retry or `test.only` configs. `--check` fails on the first two (Bash-harness findings only with `--strict`); `--strict` adds mock-only oracles and the two Playwright config rules; the other seven only report. It reports with a coverage denominator and opt-in persists findings for a review fix pass. |
+| `/testing:audit` | Can't-fail test detection: a deterministic script runs thirteen rules across JS/TS, Python, C#, Bash, PowerShell and Go, from assertion-free bodies and self-identical (recomputed-expectation) assertions to unawaited assertions, conditional assertions and Playwright retry or `test.only` configs. `--check` fails on the first two (Bash-harness findings only with `--strict`); `--strict` adds mock-only oracles and the two Playwright config rules; the other eight only report. It reports with a coverage denominator and opt-in persists findings for a review fix pass. |
 | `/testing:cleanup` | Clean up low-value tests in one folder. Reads `/testing:audit` findings, test-judge FLAG verdicts and the tests you name as flaky; a fresh-context classifier picks quarantine, rewrite, delete, merge or keep per test. It rewrites by default and deletes or merges only with a stated no-contract reason and your yes on each item. `/mutation-testing:audit --record-mutants` records the mutants the tests kill before any edit, and `--replay-mutants` blocks the batch when a kill is lost. Nothing is committed until you approve the batch. Needs the `mutation-testing` plugin set up with a `test-command`. |
 | `/testing:setup` | Configure the can't-fail checks: `check` prints the resolved testing config, the test-lint rules missing per language, an optional instruction line to paste, and a settings hook entry for test globs the shipped hook skips; `apply` writes the config block of `docs/conventions/testing.md` (or `.claude/testing.yaml` when that file is the one in use). |
 | `/testing:check` | Read-only and model-invocable. Reports whether `node` and `jq` resolve for the plugin's hooks, with the install route from `prerequisites.json` when it does not. It never installs. |
@@ -67,8 +67,8 @@ below):
 
 - `test_guards_enabled` (default `false`) turns on two hooks. `test-scan` (PostToolUse) runs the
   can't-fail scanner on each test file Claude writes or edits and returns the findings as
-  context. `test-weaken` (PreToolUse) asks Claude for a reason when an edit removes or skips tests
-  or assertions.
+  context. `test-weaken` (PreToolUse) tells Claude which tests, assertions or expected values an
+  edit removes, skips or changes.
 - `test_judge_enabled` (default `false`, and only effective with `test_guards_enabled`, whose scan
   records the tests it judges) turns on the task-end test judge, described below.
   `test_judge_model` (default `sonnet`) and `test_judge_fallback_model` (default `opus`) name the
@@ -90,20 +90,21 @@ changed: where did its expected value come from? It answers FLAG (the value rest
 implementation), PASS or UNKNOWN, quotes its evidence, and proposes a diff for a FLAG. It never
 applies anything. A background job judges soon after a write; at the end of the task the Stop hook
 waits for any run still going, judges what is left (10 tests per task end, the rest at the next
-one), writes a review-findings file (under `.work/reviews/<branch>/`), and shows the counts. In an
+one), and writes a review-findings file (under `.work/reviews/<branch>/`). In an
 interactive session, when a verdict is a FLAG, or an UNKNOWN that started as a FLAG and failed the
-checks below, it also asks Claude once to show you each verdict and proposed diff and wait. Every
+checks below, it asks Claude once to show you each verdict and proposed diff and wait. Every
 other UNKNOWN (no repository, no judge class, the judge's own UNKNOWN, a PASS that failed the
-checks) carries no finding: when there is no FLAG of either kind, there is nothing to decide and the stop
-is not blocked; that case, and an unattended session, get the counts and the file only. Each
-UNKNOWN records its reason kind and the verdict it started as. Tests the Stop hook does not judge
-are counted, never listed: the background jobs' pending markers name their files, and the
-judge log names the tests it failed on. Tests a subagent wrote are judged when that subagent
-finishes (SubagentStop), by the same rules: a FLAG asks the subagent, not you, to fix the test or
-say why it stands, and the parent's Stop does not show those verdicts again. The parent's Stop
-leaves a subagent still running in the background to its own end, and shows a finished
-subagent's verdicts that no SubagentStop showed. A session that ended before its verdicts were shown gets them named at
-the next session start. The writing agent never supplies the judge's prompt, model or output, and
+checks) carries no finding. Otherwise there is nothing to decide and the stop is not blocked: when
+every verdict is a PASS you get one line with the count, and in the other cases, or in an
+unattended session, the counts and the file. Each UNKNOWN records its reason kind and the verdict
+it started as. Tests left for a later task end are counted, never named. Tests a subagent wrote
+are judged when that subagent finishes (SubagentStop), by the same rules: a FLAG asks the
+subagent, not you, to fix the test or say why it stands, you still get the counts and the file,
+and the parent's Stop does not show those verdicts again. The parent's Stop leaves a file a
+subagent still running in the background wrote to that subagent's end, and shows a finished
+subagent's verdicts that no SubagentStop showed. A session that ended before a FLAG or UNKNOWN
+verdict was shown gets it named at the next session start. The writing agent never supplies the
+judge's prompt, model or output, and
 the judge's model class always differs from every model that wrote the tests: when the configured
 class wrote them, the fallback or the next of `opus`, `sonnet`, `haiku` is used, and when all
 three wrote them the tests are reported UNKNOWN. `test_judge_effort` has no effect on a judge model that

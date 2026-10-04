@@ -1,0 +1,23 @@
+name: intake-label-needs-triage
+
+# Applies the bare floor label `needs-triage` to an issue opened or
+# reopened with no `priority:*` label, via the shared intake-label-needs-triage
+# reusable from ci-workflows. The floor is not a priority value. Non-gating:
+# never blocks a merge. `reopened` is
+# included so a reopened issue re-acquires the floor if its tier was cleared
+# while closed. See ci-workflows' intake-label-needs-triage.yml for the mechanism,
+# loop-safety, and fail-closed label-existence contract. Settled per #506.
+on:
+  issues:
+    types: [opened, reopened]
+
+permissions: {}
+
+jobs:
+  intake-label-needs-triage:
+    permissions:
+      issues: write # passed to the reusable, which reads and adds issue labels
+    uses: melodic-software/ci-workflows/.github/workflows/intake-label-needs-triage.yml@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+    with:
+      runner: ubuntu-24.04
+      label: needs-triage

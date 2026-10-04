@@ -87,7 +87,7 @@ start=${EPOCHREALTIME:-}
 hook::buffer_stdin_to INPUT || exit 0
 [[ -n "$INPUT" ]] || exit 0
 
-hook::require jq "PreToolUse" "source-control-pr-linkage-mcp-gate" "$INPUT"
+hook::require jq "PreToolUse" "source-control" "$INPUT"
 
 # Every payload field this gate reads, in ONE jq process (#3509). The per-field
 # form this replaced ran `printf '%s' "$INPUT" | jq -r … 2>/dev/null` five times
@@ -299,18 +299,6 @@ if linkage::problems "$BODY"; then
   exit 0
 fi
 
-echo "BLOCKED: PR body fails this repo's PR-contract check." >&2
-for p in "${LINKAGE_PROBLEMS[@]}"; do echo "  - $p" >&2; done
-echo "Gate: ${GATE_FILE#"$REPO_ROOT/"} (its pr-contract step)." >&2
-echo "Add to the body:" >&2
-echo "  Closes #<issue>      (or on its own line: Refs: #<issue> to link without closing, or No linked issue)" >&2
-echo "  ## Summary" >&2
-echo "  <what and why>" >&2
-echo "  ## Fix" >&2
-echo "  <concrete change>" >&2
-echo "  ## Verification" >&2
-echo "  <evidence the change works>" >&2
-echo "  ## Related" >&2
-echo "  - <links, or N/A>" >&2
+linkage::block_message "${GATE_FILE#"$REPO_ROOT/"}"
 emit_tel "blocked"
 exit 2

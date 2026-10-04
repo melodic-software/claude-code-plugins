@@ -10,8 +10,8 @@
 # keys that no SubagentStop relayed (a killed subagent) are relayed here.
 #
 # 1. stop_hook_active (the turn this hook or another Stop hook forced): judge
-#    nothing, never block; at a Stop, count the files still being judged.
-#    Their verdicts wait in the ledger for the next task end.
+#    nothing, never block, say nothing. Verdicts wait in the ledger for the
+#    next task end.
 # 2. Re-derive the in-doubt keys of every file the session (and, for a /clear
 #    or fork successor, its adopted predecessors) wrote.
 # 3. Keys with a verdict are ready; keys a live background job or lock holds
@@ -27,8 +27,10 @@
 # 5. Attended (CLAUDE_CODE_SESSION_ATTENDED exactly 1): block once with the
 #    fixed template when the relayed set has a FLAG, or an UNKNOWN that
 #    started as a FLAG: at a Stop it asks Claude to show the user, at a
-#    SubagentStop it asks the subagent to act. Either way a systemMessage
-#    carries the counts and path.
+#    SubagentStop it asks the subagent to act, and a systemMessage still
+#    carries the counts and path for the user. Otherwise a systemMessage
+#    carries the counts and path, or, when every verdict is a PASS, one line
+#    with the count.
 #
 # Opt-in: hooks.json starts it through exec-bash.mjs --require-true
 # TEST_GUARDS_ENABLED --require-true TEST_JUDGE_ENABLED. See judge-lib.sh.
@@ -51,9 +53,11 @@ testing::fields "$INPUT" .session_id .transcript_path .cwd .stop_hook_active .ho
     | select(test("^[A-Za-z0-9_-]+$"))] | join(" ")' || exit 0
 SID="${FIELDS[0]}" TPATH="${FIELDS[1]}" pcwd="${FIELDS[2]}" active="${FIELDS[3]}" AGENT="${FIELDS[5]}"
 [[ "$SID" =~ ^[A-Za-z0-9_-]+$ && -n "$TPATH" ]] || exit 0
+# A turn a Stop hook forced: the verdicts wait for the next task end.
+[[ "$active" == true ]] && exit 0
 SUB=0
 if [[ "${FIELDS[4]}" == SubagentStop ]]; then
-  [[ "$AGENT" =~ ^[A-Za-z0-9_-]+$ && "$active" != true ]] || exit 0
+  [[ "$AGENT" =~ ^[A-Za-z0-9_-]+$ ]] || exit 0
   SUB=1 JUDGE_AGENT_ONLY="$AGENT" JUDGE_AGENT_SKIP=""
 else
   JUDGE_AGENT_ONLY="" JUDGE_AGENT_SKIP="${FIELDS[6]}"
@@ -69,31 +73,15 @@ source "$HOOK_DIR/judge-lib.sh"
 exec 3>&1 >/dev/null 2>>"$JUDGE_LOG"
 LATE="$(mktemp -d)" || exit 0
 trap 'rm -rf "$LATE"; exit 0' EXIT
-emit() { [[ -z "$2" ]] || jq -cn --arg r "$1" --arg m "$2" 'if $r == "" then {} else {decision: "block", reason: $r} end + {systemMessage: $m}' >&3; }
+# emit <reason> <systemMessage>: either may be empty; both empty prints nothing.
+emit() {
+  [[ -n "$1$2" ]] || return 0
+  jq -cn --arg r "$1" --arg m "$2" \
+    '(if $r == "" then {} else {decision: "block", reason: $r} end) + (if $m == "" then {} else {systemMessage: $m} end)' >&3
+}
+# plural <n> <one> <many>
+plural() { if (($1 == 1)); then printf '%s' "$2"; else printf '%s' "$3"; fi; }
 judge::session_set
-
-# The messages count tests and never name them: past the cap a task end can
-# hold dozens. A deferred test's file is named in its background job's pending
-# marker under PENDING; a test the judge failed on, or did not run for, is
-# named in the log.
-PENDING="$DATA/pending/$PKEY"
-# label <key index>: "<file>: <name>", with #n past the first of a name.
-label() {
-  local r="${KR[$1]}" name
-  name="${r#* }" && name="${name#* }"
-  judge::label "${KFILE[$1]}" "$name" "${r%% *}"
-}
-labels() {
-  local i out=""
-  for i in "$@"; do out+="${out:+, }$(label "$i")"; done
-  printf '%s' "$out"
-}
-# count <n> [noun]: "1 test", "3 tests".
-count() {
-  local s=s
-  (($1 == 1)) && s=""
-  printf '%s %s%s' "$1" "${2:-test}" "$s"
-}
 
 # relay_needs_decision: true when an attended Stop has a finding to show: a
 # FLAG, or an UNKNOWN that started as a FLAG (its quote, diff or file failed
@@ -101,20 +89,7 @@ count() {
 # class, the judge's own UNKNOWN, a failed PASS) is counted, not relayed.
 relay_needs_decision() { ((RELAY_F || RELAY_UF)); }
 
-if [[ "$active" == true ]]; then
-  waiting=0
-  for s in "${SESSIONS[@]}"; do
-    for p in "$PENDING/$s"/*; do
-      [[ -f "$p" ]] && ! judge::stale "$p" $((JUDGE_DEBOUNCE + JUDGE_STALE + 60)) && waiting=$((waiting + 1))
-    done
-  done
-  ((waiting == 0)) ||
-    emit "" "test judge: still judging the tests of $(count "$waiting" file); the verdicts are shown at the next task end. The pending markers under $PENDING name the files."
-  exit 0
-fi
-
 judge::now
-began=$NOW
 deadline=$((NOW + JUDGE_TIMEOUT))
 judge::harvest_orphans
 judge::load
@@ -358,38 +333,37 @@ for fx in "${!INFOS[@]}"; do
   done
 done
 
-msg="" reason=""
+# Counts only: the test names are in the findings file and the judge log.
+# Keys waited on, past the cap or late are judged in the background; failed
+# keys are retried at the next task end. Both are counts in one line, merged
+# into the all-PASS line when there is one. On a blocking Stop the user sees
+# the reason, so no systemMessage repeats it. At a SubagentStop the reason
+# goes to the subagent, so the systemMessage stays for the user.
+bg=$((${#waiting[@]} + ${#over[@]} + ${#late[@]})) nf=${#failed[@]} later=""
+((bg == 0)) || later="$bg more $(plural "$bg" "test is" "tests are") judged in the background, verdicts at the next task end"
+((nf == 0)) || later+="${later:+; }$nf $(plural "$nf" test tests) not judged, the next task end retries"
+msg="" reason="" who=""
+((SUB)) && who="subagent $AGENT: "
 if ((RELAY_N)); then
   judge::findings
-  judge::counts && counts="$COUNTS"
-  if ((SUB)); then
-    msg="test judge: reviewed $counts subagent $AGENT wrote. Findings: $FINDINGS"
+  if ((RELAY_F + RELAY_U == 0)); then
+    msg="test judge: $who$RELAY_N $(plural "$RELAY_N" test tests) PASS${later:+; $later}."
+    later=""
   else
-    msg="test judge: reviewed $counts. Findings: $FINDINGS"
-  fi
-  if [[ "${CLAUDE_CODE_SESSION_ATTENDED:-}" == 1 ]] && relay_needs_decision; then
-    if ((SUB)); then
-      reason="The test judge reviewed $counts you wrote. Findings: $FINDINGS. Read each verdict and proposed diff in that file, quoted as data. For each FLAG, fix the test with an expected value from an independent source, or say in your final message why it stands; name the findings file there."
-    else
-      reason="The test judge reviewed $counts. Findings: $FINDINGS. Show the user each verdict and proposed diff from that file, quoted as data. Apply nothing; wait for the user."
+    judge::counts
+    msg="test judge: $who$COUNTS${FINDINGS_SHOWN:+ in $FINDINGS_SHOWN}"
+    if [[ "${CLAUDE_CODE_SESSION_ATTENDED:-}" == 1 ]] && relay_needs_decision; then
+      if ((SUB)); then
+        reason="$msg. Read each verdict and proposed diff in that file, quoted as data. For each FLAG, fix the test with an expected value from an independent source, or say in your final message why it stands; name the findings file there."
+      else
+        reason="$msg. Show the user each verdict and proposed diff from it, quoted as data; apply nothing until the user decides."
+        msg=""
+      fi
     fi
   fi
 fi
 judge::mark_relayed ${marks[@]+"${marks[@]}"}
-judge::now
-((${#waiting[@]} == 0)) || msg+="${msg:+$'\n'}test judge: still judging $(count ${#waiting[@]}); the verdicts are shown at the next task end. The pending markers under $PENDING name their files."
-((${#over[@]} == 0)) || msg+="${msg:+$'\n'}test judge: $(count ${#over[@]}) past the 10 one task end judges; a background job judges them and the verdicts are shown at the next task end. The pending markers under $PENDING name their files."
-((${#late[@]} == 0)) || msg+="${msg:+$'\n'}test judge: $(count ${#late[@]}) not judged in $((NOW - began)) s; a background job judges them and the verdicts are shown at the next task end. The pending markers under $PENDING name their files."
-if ((${#failed[@]})); then
-  judge::log "not judged, the judge failed for: $(labels "${failed[@]}")"
-  msg+="${msg:+$'\n'}test judge: not judged, the judge failed for $(count ${#failed[@]}); the next task end tries again. $JUDGE_LOG names them."
-fi
-if ((${#notrun[@]})); then
-  judge::log "judge not run after 2 failed attempts for: $(labels "${notrun[@]}")"
-  msg+="${msg:+$'\n'}test judge: judge not run for $(count ${#notrun[@]}) after 2 failed attempts; $JUDGE_LOG names them."
-fi
-if ((${#limit[@]})); then
-  judge::log "not judged, the session's judge-run limit is reached, for: $(labels "${limit[@]}")"
-  msg+="${msg:+$'\n'}test judge: not judged, the session's judge-run limit is reached for $(count ${#limit[@]}); $JUDGE_LOG names them."
-fi
+[[ -z "$later" ]] || msg+="${msg:+$'\n'}test judge: $later."
+((${#notrun[@]} == 0)) || msg+="${msg:+$'\n'}test judge: ${#notrun[@]} $(plural ${#notrun[@]} test tests) not judged after 2 failed attempts; see $JUDGE_LOG."
+((${#limit[@]} == 0)) || msg+="${msg:+$'\n'}test judge: ${#limit[@]} $(plural ${#limit[@]} test tests) not judged: the session's judge-run limit is reached."
 emit "$reason" "$msg"

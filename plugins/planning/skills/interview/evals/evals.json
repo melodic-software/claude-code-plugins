@@ -385,6 +385,22 @@
         "Q8 is shown with its recommendation unchanged",
         "Neither Q7 nor Q8 is resolved by the re-check; both stay open until the user answers"
       ]
+    },
+    {
+      "id": 28,
+      "name": "self-answer-from-mcp-and-research-and-offer-to-connect",
+      "prompt": "/planning:interview me add a nightly digest of open incidents to our on-call channel\n\n[Session state: a Linear MCP server is connected, and its read tools return the team's incident project, whose issues carry a `severity` field with the values SEV1 to SEV4. No chat MCP server or chat CLI is connected. The repository has no chat integration and no ADR about one. Earlier in the conversation the user said: \"we use Microsoft Teams for on-call.\" The candidate questions drafted for round 1 are: which severities the incident tracker uses; the maximum message size a Teams incoming-webhook post accepts; which Teams channel is the on-call channel and whether it already receives other bot posts; and whether the digest lists every open incident or only SEV1 and SEV2.]",
+      "expected_output": "Before round 1 is shown, the run tries to answer each candidate itself. The severity question is answered from the connected Linear MCP server and stated as a fact tagged answered-from-mcp:linear with a Basis line citing the tool output; it gets no register row. The Teams webhook message-size limit is answered by research against Microsoft's official documentation and stated as a fact tagged answered-from-research with the URL as its basis; it gets no register row. The on-call channel question sits in Teams, which is not connected, so the round carries one offer to connect Teams that names Microsoft Teams, the question it would settle, and how to connect it (an MCP server or connector, or the vendor integration), and lets the user connect it or answer by hand; that question is registered open as awaiting access. The digest-scope question is a decision with real tradeoffs and is asked with a recommendation, never resolved by the agent.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The severity values are stated as a fact tagged answered-from-mcp:linear with a Basis line, and no register row is opened for that question",
+        "The Teams webhook message-size limit is stated as a fact tagged answered-from-research with an official Microsoft documentation URL as its Basis, and no register row is opened for it",
+        "The round makes exactly one offer to connect Microsoft Teams that names the system, the question it would settle, and how to connect it",
+        "The offer lets the user connect Teams or answer by hand, and the on-call channel question is registered open, not answered or assumed",
+        "The digest-scope question (every open incident or only SEV1 and SEV2) is asked with a recommendation and is not resolved by the agent",
+        "No lookup calls a write tool on the Linear MCP server or posts anything to Teams"
+      ]
     }
   ]
 }

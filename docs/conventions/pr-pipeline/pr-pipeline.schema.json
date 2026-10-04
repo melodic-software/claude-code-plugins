@@ -15,7 +15,7 @@
     "extends": {
       "type": "string",
       "minLength": 1,
-      "description": "Org defaults this file layers on. The reference grammar is not settled; the config reader rejects a value it cannot resolve."
+      "description": "Org defaults this file layers on. Deferred: the grammar is not settled, and the config reader rejects any value."
     },
     "activities": {
       "type": "object",
@@ -115,18 +115,41 @@
       }
     },
     "work-class": { "enum": ["C1", "C2", "C3", "C4", "C5"] },
+    "skip-reason": {
+      "enum": [
+        "not-applicable-paths",
+        "not-applicable",
+        "prerequisite-missing",
+        "cost-gated",
+        "awaiting-human",
+        "superseded-sha",
+        "disabled-by-config",
+        "untrusted-trigger"
+      ],
+      "description": "The one reason a skipped activity's neutral check carries. Not used by the config file; the runner and check-run reporter validate reasons against it. Meaning: README.md, Outputs and skips."
+    },
     "activity": {
       "type": "object",
       "additionalProperties": false,
       "required": ["effect", "gating", "reads-untrusted"],
       "oneOf": [{ "required": ["skill"] }, { "required": ["script"] }],
-      "dependentRequired": { "args": ["skill"] },
+      "dependentRequired": { "model": ["skill"], "max-turns": ["skill"] },
       "properties": {
         "skill": { "$ref": "#/$defs/skill" },
         "args": {
           "type": "string",
           "minLength": 1,
-          "description": "Arguments passed verbatim after the skill name, in that skill's own syntax."
+          "description": "Arguments passed verbatim: after the skill name in that skill's own syntax, or to the script."
+        },
+        "model": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._\\[\\]-]*$",
+          "description": "Model for a skill activity, passed as --model. Unset: the runner's default applies."
+        },
+        "max-turns": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Turn budget for a skill activity, passed as --max-turns. Unset: the runner's default applies."
         },
         "script": {
           "type": "string",

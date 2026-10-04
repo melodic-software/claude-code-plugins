@@ -42,7 +42,8 @@ The hook runs on Bash 3.2+. On native Windows, install
 available. It needs Node.js on `PATH`: the hook launches through `node hooks/exec-bash.mjs`, and
 Claude Code's native binary neither ships nor uses Node, so without it the hook does not launch and
 notifications do not fire ([install Node.js](https://nodejs.org/en/download)). It also needs [`jq`](https://jqlang.github.io/jq/) on `PATH`; without jq, notifications
-are disabled with a visible notice, once per session and agent, renewed every eighth skip. macOS needs nothing
+are disabled and `/desktop-notification:check` reports it (a Notification hook cannot show a notice:
+Claude Code [discards its `systemMessage`](https://code.claude.com/docs/en/hooks#notification)). macOS needs nothing
 further; Linux needs `libnotify` only for the `os_toast` channel; Windows needs
 nothing (terminal channels only). Telemetry
 timing uses `EPOCHREALTIME` (Bash 5.0+); on older bash the telemetry envelope is
