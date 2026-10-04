@@ -1,5 +1,5 @@
 ---
-description: "The re-review a fanout fix pass requires after correctness fixes covers only the hunks those fixes changed, not the whole branch diff. Read is granted so the with-arm can load context/fix-pass-mode.md."
+description: "The re-review a fanout fix pass requires after correctness fixes covers only the hunks those fixes changed, not the whole branch diff. Guards against a regression: the base model already scopes it."
 tags: [pocock-r5, fix-pass]
 runs: 3
 max_turns: 10
