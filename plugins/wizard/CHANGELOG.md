@@ -14,7 +14,10 @@ All notable changes to the `wizard` plugin are documented here. Format follows
   We chose this over resolving the link, which needs `realpath` (missing on older macOS) or a
   hand-rolled `readlink` loop, and whose rename would change the target's inode and mode. The cost
   is that a symlinked write is not atomic; a regular `.env` keeps the atomic rename from a `0600`
-  temp file.
+  temp file. A link whose target lies outside the project (a repo can ship `.env -> ~/.bashrc`)
+  is followed with a portable `readlink` loop: the wizard prints the real destination and writes
+  only after the human confirms, asking before any value is prompted for. A decline, or no
+  terminal to answer, aborts with nothing written.
 - A terminal without a `clear` capability (`TERM=dumb`, no terminfo) no longer stops every
   generated wizard silently before its first prompt: `tput` failures are non-fatal.
 - `ask`, `ask_secret` and `write_env` now set a key named like one of their own locals (`key`,

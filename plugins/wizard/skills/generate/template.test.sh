@@ -355,6 +355,89 @@ assert_contains "... keeps the target's existing lines" "$out" "STORED='kept'"
 assert_contains "... leaves the target's mode alone" "$out" "target_mode=[-rw-r-----]"
 assert_contains "... and leaves no staging temp file behind" "$out" "leftovers=0"
 
+# A symlinked env file whose target sits OUTSIDE the project (a hostile repo
+# shipping `.env -> ~/.bashrc`) must name the real destination and get an
+# explicit yes before anything lands there. The outside target is a sibling of
+# the case directory, reached through a two-hop relative chain so the resolver's
+# loop is exercised. The fixture's confirm answer is the only input: a declined
+# or unanswerable gate must leave the target byte-identical and exit nonzero.
+OUTSIDE_LINK_SETUP='outside="$(mktemp -d "${CASE_DIR%/*}/outside.XXXXXX")"
+printf "export PATH=/usr/bin\n" >"$outside/bashrc"
+cp "$outside/bashrc" "$outside/before"
+ln -s "$outside/bashrc" hop
+ln -s hop .env
+_drain_tty() { :; }
+'
+out="$(
+  case_run "$TTY_N" <<BODY
+$OUTSIDE_LINK_SETUP
+(write_env LEAKED 'typed-secret')
+printf 'rc=%s\n' "\$?"
+if cmp -s "\$outside/bashrc" "\$outside/before"; then echo "target:UNCHANGED"; else echo "target:CHANGED"; fi
+printf 'resolved=[%s]\n' "\$(cd -P "\$outside" && pwd -P)/bashrc"
+BODY
+)"
+assert_contains "declining an outside symlink target writes nothing" "$out" "target:UNCHANGED"
+assert_contains "... and exits nonzero" "$out" "rc=1"
+resolved="$(printf '%s\n' "$out" | sed -n 's/^resolved=\[\(.*\)\]$/\1/p')"
+assert_contains "... after naming the resolved destination" "$out" "outside this project: $resolved"
+
+out="$(
+  case_run "$TTY_EOF" <<BODY
+$OUTSIDE_LINK_SETUP
+(write_env LEAKED 'typed-secret')
+printf 'rc=%s\n' "\$?"
+if cmp -s "\$outside/bashrc" "\$outside/before"; then echo "target:UNCHANGED"; else echo "target:CHANGED"; fi
+BODY
+)"
+assert_contains "an outside symlink target with no answer available writes nothing" "$out" "target:UNCHANGED"
+assert_contains "... and exits nonzero" "$out" "rc=1"
+
+# The gate must come BEFORE the secret is typed, not after: a declined
+# ask_secret never shows its prompt.
+out="$(
+  case_run "$TTY_N" <<BODY
+$OUTSIDE_LINK_SETUP
+(ask_secret TOKEN "Paste the secret:")
+printf 'rc=%s\n' "\$?"
+BODY
+)"
+assert_contains "ask_secret asks about an outside symlink target first" "$out" "outside this project"
+assert_not_contains "... and a decline aborts before the secret prompt" "$out" "Paste the secret:"
+assert_contains "... nonzero" "$out" "rc=1"
+
+out="$(
+  case_run "$TTY_Y" <<BODY
+$OUTSIDE_LINK_SETUP
+write_env FIRST 'one' >/dev/null
+write_env SECOND 'two' >/dev/null
+printf 'rc=%s\n' "\$?"
+if [[ -L .env ]]; then echo "link:kept"; else echo "link:replaced"; fi
+printf 'target=[%s]\n' "\$(tr '\n' ' ' <"\$outside/bashrc")"
+BODY
+)"
+assert_contains "a confirmed outside symlink target is written through" "$out" "SECOND='two'"
+assert_contains "... keeping its existing lines" "$out" "export PATH=/usr/bin"
+assert_contains "... asking once per env file (one y answers both writes)" "$out" "FIRST='one'"
+assert_contains "... and the link survives" "$out" "link:kept"
+
+# Inside the project the write-through stays silent: the EOF fixture would make
+# any confirmation prompt abort.
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+mkdir store
+printf "STORED='kept'\n" >store/secrets.env
+ln -s store/secrets.env hop
+ln -s hop .env
+write_env NEW_KEY 'via-link'
+printf 'rc=%s\n' "$?"
+printf 'target=[%s]\n' "$(tr '\n' ' ' <store/secrets.env)"
+BODY
+)"
+assert_contains "a symlink target inside the project is written without a prompt" "$out" "NEW_KEY='via-link'"
+assert_not_contains "... and draws no outside-the-project disclosure" "$out" "outside this project"
+assert_contains "... exiting 0" "$out" "rc=0"
+
 # The escaping contract: what write_env stores must read back byte-identical
 # through _existing AND through a plain dotenv-style shell read.
 out="$(

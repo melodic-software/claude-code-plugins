@@ -53,6 +53,8 @@ TOTAL_STAGES=0
 
 _STAGE_INDEX=0
 ENV_FILE="${ENV_FILE:-.env}"
+# Where a symlinked ENV_FILE may point without asking (_check_env_target).
+_WIZARD_PROJECT_DIR="$(pwd -P)"
 WRITTEN_ENV=()    # KEYs written to ENV_FILE this run
 WRITTEN_SECRET=() # secret names set this run
 WRITTEN_VAR=()    # variable names set this run
@@ -203,6 +205,45 @@ _ask_prompt() {
   fi
 }
 
+# _resolve_link PATH — print PATH's final target, following every symlink hop,
+# as an absolute physical path. Portable to older macOS: plain readlink (no
+# -f) and `cd -P`/`pwd -P`, never realpath.
+_resolve_link() {
+  local path="$1" link dir hops=0
+  while [[ -L "$path" ]]; do
+    hops=$((hops + 1))
+    ((hops <= 40)) || return 1
+    link=$(readlink -- "$path") || return 1
+    case "$link" in
+    /*) path="$link" ;;
+    *) path="$(dirname -- "$path")/$link" ;;
+    esac
+  done
+  dir=$(CDPATH='' cd -P -- "$(dirname -- "$path")" 2>/dev/null && pwd -P) || return 1
+  printf '%s/%s' "$dir" "$(basename -- "$path")"
+}
+
+# _check_env_target — a symlinked ENV_FILE whose target lies outside the
+# project (a hostile repo can ship `.env -> ~/.bashrc`) is written to only
+# after the human sees the real destination and says yes; like open_url, the
+# destination is printed before anything is dispatched. Runs before any value
+# is prompted for, and once per ENV_FILE. A decline or an unanswerable gate
+# aborts with nothing written.
+_ENV_TARGET_CHECKED=""
+# shellcheck disable=SC2310  # every || branch is fatal, which exits the script directly
+_check_env_target() {
+  [[ "$_ENV_TARGET_CHECKED" == "$ENV_FILE" ]] && return 0
+  if [[ -L "$ENV_FILE" ]]; then
+    local target
+    target=$(_resolve_link "$ENV_FILE") || fatal "couldn't resolve where the symlink $ENV_FILE points — nothing written"
+    if [[ "$target" != "$_WIZARD_PROJECT_DIR"/* ]]; then
+      warn "$ENV_FILE is a symlink to a file outside this project: $target"
+      confirm "Write values to $target?" || fatal "declined writing through $ENV_FILE to $target — nothing written"
+    fi
+  fi
+  _ENV_TARGET_CHECKED="$ENV_FILE"
+}
+
 # ask, ask_secret and write_env assign $KEY with printf -v, which writes the
 # innermost variable of that name: a helper local spelled like the key would
 # take the value instead of the caller. Their locals carry a __wiz_ prefix, a
@@ -215,6 +256,7 @@ _ask_prompt() {
 ask() {
   local __wiz_key="$1" __wiz_prompt="$2" __wiz_current __wiz_input
   _valid_key "$__wiz_key"
+  _check_env_target
   __wiz_current=$(_existing "$__wiz_key" || true)
   _ask_prompt "$__wiz_prompt" "$__wiz_current"
   read -r -e -u 3 __wiz_input || fatal "terminal closed while reading $__wiz_key — aborting"
@@ -228,6 +270,7 @@ ask() {
 ask_secret() {
   local __wiz_key="$1" __wiz_prompt="$2" __wiz_current __wiz_input
   _valid_key "$__wiz_key"
+  _check_env_target
   __wiz_current=$(_existing "$__wiz_key" || true)
   _ask_prompt "$__wiz_prompt" "$__wiz_current"
   read -rs -u 3 __wiz_input || fatal "terminal closed while reading secret $__wiz_key — aborting"
@@ -256,10 +299,12 @@ _check_env_ignored() {
 # and dotenv loaders read it back verbatim. A regular file is replaced by an
 # atomic rename of a 0600 temp file. A symlinked ENV_FILE (a shared secret
 # store) is written through instead, so the link survives, its target gets the
-# key and keeps its own mode; that write is not atomic.
+# key and keeps its own mode; that write is not atomic. A link pointing outside
+# the project is written through only after _check_env_target's confirmation.
 write_env() {
   local __wiz_key="$1" __wiz_value="$2" __wiz_escaped __wiz_tmp
   _valid_key "$__wiz_key"
+  _check_env_target
   _check_env_ignored # pre-flight: warn BEFORE the first value lands on disk
   __wiz_tmp=$(mktemp "${ENV_FILE}.XXXXXX") || fatal "mktemp failed next to $ENV_FILE"
   _WIZARD_TMP="$__wiz_tmp"
