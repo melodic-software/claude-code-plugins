@@ -303,6 +303,25 @@ for doc in 'wip_commit: [true]\n' 'wip_commit: ""\n' 'wip_commit:\n  on: true\n'
   assert_true "the file is unchanged for $(printf '%b' "$doc" | tr '\n' ' ')" [ "$(cat "$repo/$REL")" = "$before" ]
 done
 
+# transcript_scope takes worktree, repo or all.
+for v in worktree repo all; do
+  repo="$(new_repo)"
+  run "$repo" "transcript_scope=$v"
+  assert_true "transcript_scope=$v writes" code_is 0
+  assert_true "transcript_scope reads back as $v" [ "$(bash "$READER" "$repo/$REL" transcript_scope)" = "$v" ]
+done
+for pair in transcript_scope=everywhere transcript_scope=Repo transcript_scope=; do
+  repo="$(new_repo)"
+  run "$repo" "$pair"
+  assert_true "$pair exits 1" code_is 1
+  assert_true "$pair writes nothing" [ ! -e "$repo/docs" ]
+done
+repo="$(new_repo)"
+seed "$repo" 'transcript_scope: global\n'
+run "$repo" --check
+assert_true '--check flags transcript_scope: global' code_is 1
+assert_true '--check names transcript_scope' out_has 'transcript_scope'
+
 # --check: absent and valid.
 repo="$(new_repo)"
 run "$repo" --check

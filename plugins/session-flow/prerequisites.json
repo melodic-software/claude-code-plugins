@@ -57,6 +57,28 @@
         "apt": "gh"
       },
       "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "skill:find-handoff"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python"
+        ]
+      },
+      "degrade": "Without Python 3.10+, /session-flow:find-handoff lists only transcript directories whose name matches a worktree exactly, so sessions started in a subdirectory or stored under a hashed long name are not scanned, and it says so.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.13",
+        "apt": "python3"
+      },
+      "check": "/harness-ops:prerequisites"
     }
   ]
 }

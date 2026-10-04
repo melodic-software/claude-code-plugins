@@ -14,6 +14,16 @@ file after validating it against the schema; `/session-flow:setup check` validat
 | `encode_policy` | `promote-when-must-hold`, `strongest-first` | `promote-when-must-hold` | `/session-flow:retro codify` (Strength step) | repository file over user option over default |
 | `review_mining_prs` | an unquoted integer from 2 to 200 | `20` | `/session-flow:retro codify reviews` | repository file over user option over default |
 | `wip_commit` | an unquoted `true` or `false` | `false` | `/session-flow:handoff` ("WIP commit on an explicit pause") | repository file over user option over default |
+| `transcript_scope` | `worktree`, `repo`, `all` | `worktree` | `/session-flow:find-handoff` (step 2, the transcript scan) | narrowest wins (`worktree` < `repo` < `all`); an unset user option counts as `worktree` |
+
+`transcript_scope` bounds which project directories `/session-flow:find-handoff` reads
+transcripts from, through `scripts/transcript_dirs.sh`. `worktree` scans this worktree's
+directories, widens on a miss to the repository's other worktrees, and asks before reading any
+other project's transcripts; unattended, it reports the miss instead of asking. `repo` starts with
+every worktree of the repository and asks the same way. `all` widens to every project without
+asking. This key does not follow the later-layer rule below: the narrower of the two layers wins,
+and an unset or unrendered user option counts as `worktree`. A repository file can therefore
+narrow a user's scan but never widen it, and a user who wants `all` sets it in their own option.
 
 `encode_policy` decides where codify starts a lesson on the enforcement ladder. Under
 `promote-when-must-hold`, a lesson becomes a line in `CLAUDE.md`, a rules file or `REVIEW.md`,
@@ -49,8 +59,8 @@ The reading skill resolves each key once, lowest layer first:
 3. The key in the repository's `docs/conventions/session-flow.yaml`, read with the plugin's copy
    of the shared reader, `skills/retro/scripts/parse-concern-value.sh`. A missing file or key
    leaves this layer unset. The reader prints nothing both for an absent key and for an empty
-   one (`key:`), so a skill that reads `encode_policy`, `review_mining_prs` or `wip_commit` first
-   runs `node skills/setup/scripts/setup-apply.mjs --check --root <git root>` from the plugin root.
+   one (`key:`), so a skill that reads `encode_policy`, `review_mining_prs`, `wip_commit` or
+   `transcript_scope` first runs `node skills/setup/scripts/setup-apply.mjs --check --root <git root>` from the plugin root.
    When it exits 1, a problem line naming the key marks the repository value invalid, and a
    parse-error line (`line <n>: ...`, no key named) marks every key in the file invalid; any other
    exit leaves the reader's output standing. A quoted number or boolean is a string, so
@@ -61,6 +71,12 @@ supplied it, for example `worker_continuation: respawn (docs/conventions/session
 value outside the key's values in either layer is named with its file or option, the key and the
 value, and that layer is dropped: a valid higher layer still wins, otherwise the key's default,
 never a lower layer's value. An invalid value never stops the run.
+
+**`transcript_scope` is the exception.** The narrower of the user option and the repository value
+wins, an unset or unrendered user option counting as `worktree`. An invalid user option counts as
+unset, so the result is `worktree`. An invalid repository value is named and dropped, and the key
+resolves its default, `worktree`, not the user's value. The report line names the layer whose value
+won, for example `transcript_scope: repo (user option; docs/conventions/session-flow.yaml says all)`.
 
 **Root rule.** The repository file is read only when the working directory's git root is neither
 `$HOME` nor an ancestor of it. Otherwise the repository layer is skipped and the report line says

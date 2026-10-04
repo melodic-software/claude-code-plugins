@@ -234,6 +234,125 @@
         "Any below-rail `/loop` re-arm entries are anchored to the last bottom rail and surfaced too, the whole set (`n` entries) rather than the first",
         "The recovered text is redacted, and the skill stops at the yes/no confirm gate before executing any resume"
       ]
+    },
+    {
+      "id": 18,
+      "name": "transcript-scope-layer-user-only",
+      "narration": true,
+      "prompt": "I cleared before copying my resume prompt and there is no handoff file in this repository's handoffs folder. Find it in the transcripts. My session-flow user option transcript_scope is all, and this repository has no docs/conventions/session-flow.yaml.",
+      "expected_output": "Rung 1 finds nothing, so the skill resolves transcript_scope as all from the user option, reports that line, and lists directories with transcript_dirs.sh: first --scope repo, then, on a miss, --scope all without asking. Each listed directory is passed as one quoted argument. Any candidate goes to the yes/no confirm gate.",
+      "files": [],
+      "expectations": [
+        "States one line giving transcript_scope as all and naming the user option as the supplying layer",
+        "Runs transcript_dirs.sh with --scope repo before --scope all",
+        "Widens to --scope all without asking the operator first",
+      "Says, when it widens, that it is now reading every project's transcripts",
+        "Passes each directory the script printed as a single quoted argument, never inside a command string"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "transcript-scope-layer-docs-only",
+      "narration": true,
+      "prompt": "Find my lost handoff, I ran /clear without copying the prompt and no handoff file turned up. I never set session-flow's transcript_scope option. This repository's docs/conventions/session-flow.yaml contains `transcript_scope: repo`.",
+      "expected_output": "The unset user option counts as worktree and the narrower layer wins, so transcript_scope resolves to worktree even though the repository file says repo; the report line says so. The scan lists --scope worktree, widens to --scope repo on a miss, and asks before any --scope all scan.",
+      "files": [],
+      "expectations": [
+        "States one line giving transcript_scope as worktree, saying the user option is unset and that docs/conventions/session-flow.yaml says repo",
+        "Scans transcript_dirs.sh --scope worktree first, then --scope repo",
+        "Asks the operator before running --scope all or reading another project's transcripts"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "transcript-scope-layer-both-narrower-wins",
+      "narration": true,
+      "prompt": "Recover the handoff I lost after /clear; the handoffs folder has nothing for it. My session-flow user option transcript_scope is all, and this repository's docs/conventions/session-flow.yaml says `transcript_scope: repo`.",
+      "expected_output": "The narrower layer wins: transcript_scope resolves to repo from docs/conventions/session-flow.yaml. The scan starts at --scope repo and asks before --scope all; the user's all does not skip the ask.",
+      "files": [],
+      "expectations": [
+        "States one line giving transcript_scope as repo and naming docs/conventions/session-flow.yaml as the supplying layer",
+        "Starts the scan at transcript_dirs.sh --scope repo",
+        "Asks the operator before any --scope all scan"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "transcript-scope-layer-default",
+      "narration": true,
+      "prompt": "I lost my resume prompt after /clear and no handoff file is in the handoffs folder. I have not set transcript_scope anywhere and the repository has no docs/conventions/session-flow.yaml.",
+      "expected_output": "With neither layer set, transcript_scope resolves to its default worktree, reported as the default. The skill scans this worktree's directories, then the repository's other worktrees, and asks before reading any other project's transcripts.",
+      "files": [],
+      "expectations": [
+        "States one line giving transcript_scope as worktree and naming the default as the supplying layer",
+        "Scans transcript_dirs.sh --scope worktree, then --scope repo on a miss",
+        "Asks before --scope all and does not read another project's transcripts unasked"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "transcript-scope-user-all-under-repo-worktree",
+      "narration": true,
+      "prompt": "Find my handoff, it was prompt-only and I cleared before copying it. My user option transcript_scope is all, but this repository's docs/conventions/session-flow.yaml says `transcript_scope: worktree`.",
+      "expected_output": "The repository's worktree is narrower than the user's all, so transcript_scope resolves to worktree from docs/conventions/session-flow.yaml. The scan covers this worktree, then the repository's other worktrees, and asks before any other project.",
+      "files": [],
+      "expectations": [
+        "States one line giving transcript_scope as worktree and naming docs/conventions/session-flow.yaml as the supplying layer",
+        "Does not run transcript_dirs.sh --scope all without the operator's yes"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "transcript-scope-unset-user-under-repo-all-asks",
+      "narration": true,
+      "prompt": "I need my lost resume prompt back after /clear. I never set the transcript_scope option. This repository's docs/conventions/session-flow.yaml says `transcript_scope: all`. The handoff is not in this worktree's or the other worktrees' transcripts as far as I know.",
+      "expected_output": "An unset user option counts as worktree, which is narrower than the repository's all, so transcript_scope resolves to worktree and the repository cannot widen the scan. After misses in --scope worktree and --scope repo, the skill asks before scanning other projects and waits for the answer.",
+      "files": [],
+      "expectations": [
+        "States one line giving transcript_scope as worktree, noting the repository file says all",
+        "Scans --scope worktree and --scope repo before anything wider",
+        "Asks the operator before --scope all and does not skip that question because the repository says all"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "transcript-scope-unattended-miss-reported",
+      "narration": true,
+      "prompt": "Unattended run, nobody will answer questions: find the lost handoff from the session before /clear. transcript_scope is unset in both layers. Neither this worktree's nor the repository's other worktrees' transcripts hold a handoff marker.",
+      "expected_output": "transcript_scope resolves to the default worktree. Both the worktree and repo scans miss. Because the run is unattended, the skill does not ask and does not scan other projects; it reports the miss, names the scopes it scanned, and says a wider scan needs the operator.",
+      "files": [],
+      "expectations": [
+        "Scans --scope worktree and --scope repo only",
+        "Runs no --scope all scan and reads no other project's transcripts",
+        "Reports the miss, naming the scopes scanned and that a wider scan needs the operator"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "transcript-scope-long-candidate-read-by-subagent",
+      "narration": true,
+      "prompt": "Find my lost handoff. The only candidate transcript in this worktree is a 40 MB session with dozens of rails and Read @ matches, many of them in pasted samples and tool inputs, so the tail grep cannot tell which block is the real handoff.",
+      "expected_output": "The marker grep cannot settle the candidate, so the skill hands that one transcript path to a subagent whose brief asks only for the timeline of handoff markers (form, line number, timestamp, whether it is an assistant text entry, the Read @ path or rails line range). The subagent returns no raw transcript text. The main context then reads only the block the timeline points at, redacts it, and stops at the confirm gate.",
+      "files": [],
+      "expectations": [
+        "Dispatches a subagent for the one unsettled transcript instead of reading it whole in the main context",
+        "The subagent's brief asks for a timeline of handoff markers and forbids returning raw transcript text",
+        "The main context reads only the block the timeline points at and applies the redaction pass",
+        "Stops at the yes/no confirm gate before any resume"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "transcript-scope-invalid-repo-value-falls-back",
+      "narration": true,
+      "prompt": "Find my lost handoff after /clear. My user option transcript_scope is repo, and this repository's docs/conventions/session-flow.yaml says `transcript_scope: everywhere`.",
+      "expected_output": "everywhere is not a valid value, so the skill names docs/conventions/session-flow.yaml, the key and the value, drops that layer, and resolves the default worktree rather than the user's repo. It does not stop; it scans --scope worktree, then --scope repo, and asks before anything wider.",
+      "files": [],
+      "expectations": [
+        "Names docs/conventions/session-flow.yaml, transcript_scope and the value everywhere as invalid",
+        "Resolves transcript_scope to worktree, not the user option's repo",
+        "Continues the scan instead of stopping"
+      ]
     }
   ]
 }

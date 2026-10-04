@@ -28,6 +28,11 @@
       "type": "boolean",
       "default": false,
       "description": "Whether /session-flow:handoff makes one local chore(wip): commit of tracked changes when the user asks in this session to pause. Never pushed, never on the default branch, detached HEAD, during a merge, rebase, cherry-pick or revert, or over a partially staged path, and never with commit hooks skipped. A quoted \"true\" is a string, not a boolean, so it is invalid."
+    },
+    "transcript_scope": {
+      "enum": ["worktree", "repo", "all"],
+      "default": "worktree",
+      "description": "How far /session-flow:find-handoff reads transcripts before asking: worktree scans this worktree's sessions, then the repository's other worktrees, and asks before any other project; repo starts with every worktree; all reaches every project without asking. Unlike the other keys, the narrower of this value and the user's option wins (worktree < repo < all), and an unset user option counts as worktree, so this file can narrow the scan but never widen it."
     }
   }
 }

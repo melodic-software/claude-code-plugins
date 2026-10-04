@@ -161,8 +161,9 @@ scheduler. Intent is inferred from the conversation; arguments are optional.
 The recovery counterpart to `handoff`: finds a save-point whose resume prompt was written but never
 copied. The operator ran `/clear` before copying it, leaving the fresh session with zero context
 and no path to the handoff on disk. Runs a read-only detection ladder: known-location glob of the
-current repo's `<memory_dir>/handoffs/`, then a bounded, recency-ranked scan of transcripts
-(excluding the current session's own file, since `/clear` opens a new transcript in the same project
+current repo's `<memory_dir>/handoffs/`, then a bounded, recency-ranked scan of transcripts in the
+project directories the `transcript_scope` option allows (this worktree first by default, asking
+before any other project; see "Option details") (excluding the current session's own file, since `/clear` opens a new transcript in the same project
 dir and the pre-clear content is a sibling) for the handoff directive and dashed-rail markers, which
 `reference/save-point.md` documents as a stable detection contract, then a confirm-before-resume
 gate. Handles both output modes (file-based and prompt-only, which writes no file). A shape-2
@@ -414,6 +415,9 @@ The skills adapt to the consuming repo rather than imposing structure:
 
 - Node.js on PATH: every hook launches through `node hooks/exec-bash.mjs`, so without it the hooks do not run.
 - The observer substrate only: Python 3.10+, `jq`, and `claude` on PATH. `/session-flow:setup` checks each.
+- `/session-flow:find-handoff` uses Python 3.10+ when present to tell which transcript directories
+  belong to this repository; without it, it lists only directories whose name matches a worktree
+  exactly and says so.
 
 ## Configuration
 
@@ -452,8 +456,8 @@ autonomous analysis leg reaches the network only when armed with `observer_analy
 runs a headless `claude -p` (ordinary model API egress); collect-only mode and the in-session
 checkpoint are network-free. Every skill not named above is network-free
 (retro, running-retro and audit-sessions read local `~/.claude/projects/` transcripts with stdlib-only
-Python 3.10+ scripts sharing one transcript reader; find-handoff scans those same local transcripts read-only with no
-parser, and `reconcile` reads them read-only and mutates only the in-session task ledger);
+Python 3.10+ scripts sharing one transcript reader; find-handoff scans those same local transcripts read-only, using
+that reader only to read the launch `cwd` that maps a scope to directories, and `reconcile` reads them read-only and mutates only the in-session task ledger);
 `continue-in-background` spawns a local `claude --bg` process, a new Claude Code session with ordinary
 session network access, but the skill itself performs no egress.
 
@@ -496,6 +500,15 @@ starts never commits. Default `false`. It resolves like `worker_continuation`, f
 `docs/conventions/session-flow.yaml`, where only an unquoted `true` or `false` is valid, and
 `/session-flow:setup apply wip_commit=true` writes it.
 
+**`transcript_scope`.** Read by `/session-flow:find-handoff` for its transcript scan. `worktree`
+(default) scans this worktree's sessions, then the repository's other worktrees, and asks before
+reading any other project's transcripts; `repo` starts with every worktree; `all` reaches every
+project without asking. Unlike the other keys, the narrower of the option and
+`docs/conventions/session-flow.yaml` wins, and an unset option counts as `worktree`, so a
+repository can narrow your scan but never widen it. The transcript store follows
+`CLAUDE_CONFIG_DIR`. `/session-flow:setup apply transcript_scope=<value>` writes the repository
+value.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -522,6 +535,7 @@ reads it from.
 | `encode_policy` | string | `"promote-when-must-hold"` | `CLAUDE_PLUGIN_OPTION_ENCODE_POLICY` | Where /session-flow:retro codify starts a lesson: promote-when-must-hold (default) writes an instruction line, moving to a checking rung only for a rule that must always hold; strongest-first proposes the strongest rung that can assert it. docs/conventions/session-flow.yaml wins. |
 | `review_mining_prs` | number<br>*min 2, max 200* | `20` | `CLAUDE_PLUGIN_OPTION_REVIEW_MINING_PRS` | How many recent merged pull requests /session-flow:retro codify reviews reads for review comments; default 20, from 2 to 200. A lesson is routed only when it recurs in two or more of them. A repository's review_mining_prs in docs/conventions/session-flow.yaml wins. |
 | `wip_commit` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_WIP_COMMIT` | When you ask to pause, /session-flow:handoff makes one local chore(wip): commit of the tracked work. Off by default. Never pushed or run with hooks skipped; refused on the default branch, a detached HEAD, mid-merge or rebase, or a partial staging. docs/conventions/session-flow.yaml wins. |
+| `transcript_scope` | string | `"worktree"` | `CLAUDE_PLUGIN_OPTION_TRANSCRIPT_SCOPE` | How far /session-flow:find-handoff reads transcripts: worktree (default) widens to the repo's other worktrees, then asks before other projects; repo starts with every worktree; all reaches every project unasked. The narrower of this and docs/conventions/session-flow.yaml wins. |
 
 ### How to set these
 

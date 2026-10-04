@@ -28,6 +28,8 @@ Public interface:
   `<session>/subagents/agent-*.jsonl` beside `<session>.jsonl`, in name order; `meta` is the
   parsed `agent-*.meta.json` object, or None when it is missing, unreadable or not an object.
   Stream each `path` through `iter_records`.
+- `first_cwd(path)` is the `cwd` of the first record that carries a non-empty string one, else None.
+  It stops reading at that record, so a long transcript costs one or two lines.
 
 Callers put this directory on `sys.path` and `import transcript_reader`. Stdlib only; Python 3.10+.
 """
@@ -118,6 +120,18 @@ def iter_records(path: Path, stats: dict[str, int] | None = None) -> Iterator[di
             if record_kind(record) == "unknown":
                 counts["unknown"] += 1
             yield record
+
+
+def first_cwd(path: Path) -> str | None:
+    records = iter_records(path)
+    try:
+        for record in records:
+            cwd = record.get("cwd")
+            if isinstance(cwd, str) and cwd:
+                return cwd
+        return None
+    finally:
+        records.close()
 
 
 class Subagent(NamedTuple):

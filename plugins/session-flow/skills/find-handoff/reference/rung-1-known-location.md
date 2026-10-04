@@ -40,7 +40,9 @@ rooted miss and gets the same UNRESOLVED treatment, never "missing". A shape-1 c
 `handoff_shape` key) has no such section; present its metadata as before and let the transcript
 scan supply the prompt when the operator wants it. Nothing here reads the file's body beyond that
 final section, and the confirm gate still holds before any resume. Locate the producer transcript by the candidate's
-own `session_id` (`<session_id>.jsonl` under `~/.claude/projects/*/`, the same lookup step 5
+own `session_id` (`<session_id>.jsonl` in a directory
+`bash "<plugin-root>/scripts/transcript_dirs.sh" --scope repo` prints, the store under
+`$CLAUDE_CONFIG_DIR` or by default the home `.claude` folder; the same lookup step 5
 performs, pulled ahead). That is a bounded, read-only read of ONE already-named file, not the
 step-2 scan reintroduced. **Bind the note to THIS candidate by content, never by taking the
 transcript's last one:** one session can emit several handoffs, so find the rails prompt whose
