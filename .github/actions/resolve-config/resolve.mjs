@@ -190,10 +190,7 @@ export function loadConfig(files, { configPath }) {
 
 function laneSection(doc, lane) {
   if (typeof lane !== "string" || !Object.hasOwn(doc.lanes, lane)) {
-    throw new Rejection(
-      "undefined-activity",
-      `the config has no lane \`${lane}\``,
-    );
+    throw new Rejection("undefined-lane", `the config has no lane \`${lane}\``);
   }
   return doc.lanes[lane];
 }
@@ -228,20 +225,24 @@ function selectedIndex(entries, lane, activity) {
   return indexes[0];
 }
 
-// The facts the lane's enabled slots read. Rejects the same files and request
+// Whether a slot's predicate is decided: every slot without an activity, only
+// the selected one with it, so another slot's predicate cannot fail the run.
+const decides = (index, selected) => selected < 0 || index === selected;
+
+// The facts the decided enabled slots read. Rejects the same files and request
 // resolve() would, before any fact is fetched.
 export function neededFacts(files, { lane, activity, configPath }) {
   const doc = loadConfig(files, { configPath });
   const entries = laneSlots(doc, lane);
-  selectedIndex(entries, lane, activity);
+  const selected = selectedIndex(entries, lane, activity);
   const needed = new Set();
-  for (const { predicate, enabled } of entries) {
-    if (enabled) {
+  entries.forEach(({ predicate, enabled }, index) => {
+    if (enabled && decides(index, selected)) {
       for (const fact of factsFor(predicate)) {
         needed.add(fact);
       }
     }
-  }
+  });
   return [...needed];
 }
 
@@ -249,6 +250,7 @@ function resolveSlot(
   { slot, activity, predicate, enabled },
   effectGrants,
   facts,
+  decided,
 ) {
   if (!Object.hasOwn(effectGrants, activity.effect)) {
     throw new Rejection(
@@ -256,9 +258,12 @@ function resolveSlot(
       `effect-grants.json has no row for \`${activity.effect}\``,
     );
   }
-  const outcome = enabled
-    ? applies(predicate, facts)
-    : { applies: false, skipReason: "disabled-by-config" };
+  let outcome = { applies: null, skipReason: null };
+  if (!enabled) {
+    outcome = { applies: false, skipReason: "disabled-by-config" };
+  } else if (decided) {
+    outcome = applies(predicate, facts);
+  }
   const kind = activity.skill === undefined ? "script" : "skill";
   return {
     name: slot.activity,
@@ -306,8 +311,8 @@ export function resolve(
   const section = laneSection(doc, lane);
   const entries = laneSlots(doc, lane);
   const index = selectedIndex(entries, lane, activity);
-  const slots = entries.map((entry) =>
-    resolveSlot(entry, files.effectGrants, facts),
+  const slots = entries.map((entry, i) =>
+    resolveSlot(entry, files.effectGrants, facts, decides(i, index)),
   );
   return {
     version: 1,
