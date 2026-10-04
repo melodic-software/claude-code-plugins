@@ -474,9 +474,7 @@ def _plugin_listing_files(plugin_root: str) -> list[tuple[str, str, str, dict]]:
     path, frontmatter).
 
     The listing names a plugin's `commands/*.md` and its `workflows/*.js`
-    beside its skills, each charged like a skill; leaving them out undercounts
-    the listing (five workflows and three commands on the machine this was
-    measured against).
+    beside its skills, each charged like a skill, so all three are counted.
     """
     found: list[tuple[str, str, str, dict]] = []
     skills_dir = os.path.join(plugin_root, "skills")
@@ -2015,7 +2013,11 @@ def compute_listing(
             row["band"] = None
 
     return {
-        "label": band_label(cfg.context_window_tokens, cfg.bytes_per_token),
+        # The env override sets the budget whatever the window and bytes per
+        # token, so its row is named for the variable, not for those axes.
+        "label": "SLASH_COMMAND_TOOL_CHAR_BUDGET"
+        if cfg.env_char_budget is not None
+        else band_label(cfg.context_window_tokens, cfg.bytes_per_token),
         "context_window_tokens": cfg.context_window_tokens,
         "bytes_per_token": cfg.bytes_per_token,
         "budget_chars": budget,
@@ -3047,11 +3049,16 @@ def _render_next_actions(model: dict) -> list[str]:
 def _render_single_budget(listing: dict) -> list[str]:
     """The pinned single-row paragraph."""
     if listing["overflow_chars"] > 0:
+        axes = (
+            ""
+            if listing["budget_basis"] == "env-override"
+            else f" (window {listing['context_window_tokens']:,} tokens, "
+            f"{listing['bytes_per_token']} bytes per token)"
+        )
         over_budget = (
             f"**Your skill listing is over budget by "
             f"{listing['overflow_chars']:,} characters** at "
-            f"{listing['label']} (window {listing['context_window_tokens']:,} "
-            f"tokens, {listing['bytes_per_token']} bytes per token). "
+            f"{listing['label']}{axes}. "
             f"{listing['competing_count']} skills compete for "
             f"{listing['budget_chars']:,} characters of description budget, "
         )

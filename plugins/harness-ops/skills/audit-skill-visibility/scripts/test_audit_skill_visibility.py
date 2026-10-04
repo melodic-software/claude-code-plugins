@@ -2933,7 +2933,9 @@ class CliInputErrorTest(unittest.TestCase):
         self.assertIn("cannot write under --write", err)
 
 
-FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tests", "fixtures")
+FIXTURES = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "tests", "fixtures"
+)
 
 
 def _competing(name, chars, **extra):
@@ -3049,7 +3051,9 @@ class NonPluginSkillTest(unittest.TestCase):
     def _skill_dir(root, leaf, frontmatter):
         path = pathlib.Path(root, leaf)
         path.mkdir(parents=True)
-        (path / "SKILL.md").write_text(f"---\n{frontmatter}\n---\nbody\n", encoding="utf-8")
+        (path / "SKILL.md").write_text(
+            f"---\n{frontmatter}\n---\nbody\n", encoding="utf-8"
+        )
 
     def test_user_skills_are_enumerated_with_overrides_applied(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -3076,16 +3080,156 @@ class NonPluginSkillTest(unittest.TestCase):
     def test_only_the_signed_in_accounts_synced_skills_are_enumerated(self):
         with tempfile.TemporaryDirectory() as tmp:
             synced = os.path.join(tmp, "skills", "synced")
-            self._skill_dir(os.path.join(synced, "org1_acct1"), "pdf", 'description: "PDFs"')
-            self._skill_dir(os.path.join(synced, "org2_acct2"), "other", 'description: "x"')
+            self._skill_dir(
+                os.path.join(synced, "org1_acct1"), "pdf", 'description: "PDFs"'
+            )
+            self._skill_dir(
+                os.path.join(synced, "org2_acct2"), "other", 'description: "x"'
+            )
             claude_json = os.path.join(tmp, ".claude.json")
             _write_json(
                 claude_json,
                 {"oauthAccount": {"organizationUuid": "org1", "accountUuid": "acct1"}},
             )
             entries = engine.collect_synced_skills(tmp, claude_json, {})
-        self.assertEqual([e["qualified_name"] for e in entries], ["anthropic-skills:pdf"])
+        self.assertEqual(
+            [e["qualified_name"] for e in entries], ["anthropic-skills:pdf"]
+        )
         self.assertEqual(entries[0]["source"], "synced")
+
+    def test_project_skills_are_enumerated_with_overrides_applied(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._skill_dir(tmp, "proj", 'description: "abcde"')
+            self._skill_dir(tmp, "quiet", 'description: "abcde"')
+            entries = engine.collect_local_skills(
+                tmp, "project", {"quiet": "name-only"}
+            )
+        by_name = {e["qualified_name"]: e for e in entries}
+        self.assertEqual(sorted(by_name), ["proj", "quiet"])
+        self.assertEqual(by_name["proj"]["source"], "project")
+        self.assertEqual(by_name["quiet"]["skill_override"], "name-only")
+
+    def test_an_installed_run_counts_user_synced_and_project_skills(self):
+        """End to end through `main --installed`: one plugin skill, one user,
+        one synced and one name-only project skill all land in the listing."""
+        keys = (
+            "CLAUDE_PROJECT_DIR",
+            "CLAUDE_CONFIG_DIR",
+            "SLASH_COMMAND_TOOL_CHAR_BUDGET",
+            "CLAUDE_CODE_DISABLE_1M_CONTEXT",
+            "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
+            "DISABLE_COMPACT",
+        )
+        saved = {k: os.environ.get(k) for k in keys}
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                config_root = os.path.join(tmp, "config")
+                project_root = os.path.join(tmp, "repo")
+                checkout = os.path.join(tmp, "checkout")
+                plugins_dir = os.path.join(config_root, "plugins")
+                self._skill_dir(
+                    os.path.join(checkout, "plugins", "alpha", "skills"),
+                    "one",
+                    'description: "does a"',
+                )
+                _write_json(
+                    os.path.join(checkout, ".claude-plugin", "marketplace.json"),
+                    {"plugins": [{"name": "alpha", "source": "./plugins/alpha"}]},
+                )
+                _write_json(
+                    os.path.join(plugins_dir, "known_marketplaces.json"),
+                    {
+                        "mkt": {
+                            "source": {"source": "directory", "path": checkout},
+                            "installLocation": checkout,
+                        }
+                    },
+                )
+                _write_json(
+                    os.path.join(plugins_dir, "installed_plugins.json"),
+                    {
+                        "version": 2,
+                        "plugins": {
+                            "alpha@mkt": [
+                                {
+                                    "scope": "user",
+                                    "version": "1.0.0",
+                                    "installPath": "/nowhere",
+                                }
+                            ]
+                        },
+                    },
+                )
+                _write_json(
+                    os.path.join(config_root, "settings.json"),
+                    {
+                        "enabledPlugins": {"alpha@mkt": True},
+                        "skillOverrides": {"proj": "name-only"},
+                    },
+                )
+                self._skill_dir(
+                    os.path.join(config_root, "skills"), "mine", 'description: "abc"'
+                )
+                self._skill_dir(
+                    os.path.join(config_root, "skills", "synced", "org1_acct1"),
+                    "pdf",
+                    'description: "PDFs"',
+                )
+                claude_json = os.path.join(tmp, ".claude.json")
+                _write_json(
+                    claude_json,
+                    {
+                        "oauthAccount": {
+                            "organizationUuid": "org1",
+                            "accountUuid": "acct1",
+                        }
+                    },
+                )
+                self._skill_dir(
+                    os.path.join(project_root, ".claude", "skills"),
+                    "proj",
+                    'description: "abcde"',
+                )
+                for key in keys:
+                    os.environ.pop(key, None)
+                os.environ["CLAUDE_PROJECT_DIR"] = project_root
+                os.environ["CLAUDE_CONFIG_DIR"] = config_root
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    rc = engine.main(
+                        [
+                            "--installed",
+                            plugins_dir,
+                            "--claude-json",
+                            claude_json,
+                            "--context-window",
+                            "200000",
+                            "--bytes-per-token",
+                            "4",
+                            "--render",
+                            "json",
+                        ]
+                    )
+        finally:
+            for key, value in saved.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+        self.assertEqual(rc, 0)
+        model = json.loads(out.getvalue())
+        listing = model["listing"]
+        by_name = {r["qualified_name"]: r for r in model["skills"]}
+        self.assertEqual(
+            sorted(by_name), ["alpha:one", "anthropic-skills:pdf", "mine", "proj"]
+        )
+        self.assertEqual(
+            by_name["proj"]["starvation"]["eligibility"], "exempt-name-only"
+        )
+        # `- alpha:one: does a` (19), `- mine: abc` (11),
+        # `- anthropic-skills:pdf: PDFs` (28), `- proj` (6), three newlines.
+        self.assertEqual(listing["listing_chars"], 67)
+        self.assertIn("user, project and claude.ai-synced skills", listing["counted"])
 
     def test_an_off_override_reads_as_hidden(self):
         entry = {
@@ -3121,7 +3265,9 @@ class NonPluginSkillTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             skill = pathlib.Path(tmp, "plugins", "p", "skills", "s")
             skill.mkdir(parents=True)
-            (skill / "SKILL.md").write_text('---\ndescription: "d"\n---\n', encoding="utf-8")
+            (skill / "SKILL.md").write_text(
+                '---\ndescription: "d"\n---\n', encoding="utf-8"
+            )
             env = {"CLAUDE_CONFIG_DIR": tmp, "CLAUDE_PROJECT_DIR": tmp}
             saved = {k: os.environ.get(k) for k in env}
             os.environ.update(env)
@@ -3170,9 +3316,12 @@ class NonPluginSkillTest(unittest.TestCase):
         by_name = {e["qualified_name"]: e for e in entries}
         self.assertEqual(by_name["p:go"]["frontmatter"]["description"], "Run it")
         self.assertEqual(
-            by_name["p:sweep"]["frontmatter"]["description"], "Sweep sources, don't guess"
+            by_name["p:sweep"]["frontmatter"]["description"],
+            "Sweep sources, don't guess",
         )
-        self.assertEqual(by_name["p:sweep"]["frontmatter"]["when_to_use"], "Run by /p:deep")
+        self.assertEqual(
+            by_name["p:sweep"]["frontmatter"]["when_to_use"], "Run by /p:deep"
+        )
 
 
 class FrontmatterScalarTest(unittest.TestCase):
@@ -3200,7 +3349,9 @@ class FrontmatterScalarTest(unittest.TestCase):
 
     def test_escaped_quotes_in_a_double_quoted_scalar_are_unescaped(self):
         text = '---\ndescription: "say \\"hi\\" twice"\n---\n'
-        self.assertEqual(engine.parse_frontmatter(text)["description"], 'say "hi" twice')
+        self.assertEqual(
+            engine.parse_frontmatter(text)["description"], 'say "hi" twice'
+        )
 
     def test_doubled_quote_in_a_single_quoted_scalar_is_one_quote(self):
         text = "---\ndescription: 'it''s fine'\n---\n"
@@ -3217,7 +3368,9 @@ class ListingCaptureTest(unittest.TestCase):
     """A captured listing supplies the entries no disk walk can see."""
 
     def _capture(self):
-        return engine.read_listing_capture(os.path.join(FIXTURES, "listing-capture.jsonl"))
+        return engine.read_listing_capture(
+            os.path.join(FIXTURES, "listing-capture.jsonl")
+        )
 
     def test_capture_is_parsed_into_rendered_entries(self):
         capture = self._capture()
@@ -3274,8 +3427,30 @@ class ListingCaptureTest(unittest.TestCase):
         listing = model["listing"]
         self.assertEqual(listing["verdict"], "listing-fits")
         self.assertEqual(listing["capture"]["observed_name_only"], ["synced:y"])
-        self.assertEqual(listing["capture"]["disagrees"], ["200k/4"])
+        # The env override is the only budget row, and it is named for the
+        # variable that set it, not for a window it ignores.
+        self.assertEqual(
+            listing["capture"]["disagrees"], ["SLASH_COMMAND_TOOL_CHAR_BUDGET"]
+        )
         self.assertIn("disagree", engine._render_markdown(model).lower())
+
+    def test_every_band_row_that_says_fits_disagrees_with_observed_shedding(self):
+        # The 57-character listing fits every row of the band (the smallest
+        # budget is 6,000), so all four rows SKILL.md names disagree.
+        model = engine.classify(
+            denominator=[_competing("p:a", 5)],
+            events=[],
+            config=engine.Config(),
+            clock=_utc(2026, 8, 18),
+            horizons={},
+            listing_config=engine.ListingConfig(),
+            listing_axes=engine.ListingAxes(),
+            listing_capture=self._capture(),
+        )
+        self.assertEqual(
+            model["listing"]["capture"]["disagrees"],
+            ["200k/4", "200k/3", "1M/4", "1M/3"],
+        )
 
     def test_an_unrecognized_file_is_not_read(self):
         with tempfile.TemporaryDirectory() as tmp:

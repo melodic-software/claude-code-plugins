@@ -226,7 +226,7 @@ The budget has five inputs, and the report states where each one came from:
   pin either value over every scope.
 - `SLASH_COMMAND_TOOL_CHAR_BUDGET` overrides the whole computation
   unconditionally, exactly as the product does, and the row then carries
-  `budget_basis: env-override`.
+  `budget_basis: env-override` and the label `SLASH_COMMAND_TOOL_CHAR_BUDGET`.
 - The context window is per model. `CLAUDE_CODE_DISABLE_1M_CONTEXT` collapses
   it to 200k, and `CLAUDE_CODE_MAX_CONTEXT_TOKENS` names it when
   `DISABLE_COMPACT` is also set; both are read from the process environment and
