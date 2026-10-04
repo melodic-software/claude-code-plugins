@@ -1,5 +1,3 @@
-# GENERATED from lib/yaml-subset.awk by scripts/sync-shared-copies.sh. Do not edit this copy:
-# edit the canonical source, then rerun the script.
 # Flatten a YAML subset to `dotted.key<TAB>value` records, one per scalar.
 #
 # SINGLE SOURCE OF TRUTH: lib/yaml-subset.awk at the marketplace repo root.

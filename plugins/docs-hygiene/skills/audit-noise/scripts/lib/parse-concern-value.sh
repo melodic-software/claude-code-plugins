@@ -1,158 +1,132 @@
 #!/usr/bin/env bash
 # GENERATED from lib/parse-concern-value.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-# Resolve a single scalar value from a concern file the way every
-# consuming plugin must: quote-aware, comment-safe, whitespace-trimmed,
-# trailing-slash-normalized — with a caller-supplied fallback for the case the
-# key is absent.
+# Resolve one value from a YAML concern file the way every consuming plugin
+# must: quote-aware, comment-safe, whitespace-trimmed, trailing-slash-normalized,
+# with a caller-supplied fallback for the case the key is absent.
 #
-# Why this exists: a naive `val="${val%%#*}"` FIRST strip truncates a
-# legitimately-quoted value that contains `#` (`"a#b"` -> `"a`) because it
-# removes comments before quotes are resolved. This helper is the single
-# quote-aware parse for concern files (`.claude/<concern>.yaml`
-# `memory_dir` and siblings); consumers share it instead of each carrying an
-# inline parse that can re-fork that bug.
+# Parsing is yaml-subset.awk's, which sits beside this script in every copy:
+# one YAML parser for the repository. A `#` inside a quoted value is part of the
+# value, never a comment.
 #
-# SINGLE SOURCE OF TRUTH: lib/parse-concern-value.sh at the marketplace repo
-# root. The copies materialized into consuming plugins exist because installed
-# plugins are cache-isolated and must be self-contained — never edit a copy.
-# Edit the source and run scripts/sync-shared-copies.sh; CI rejects drifted
-# copies.
+# SINGLE SOURCE OF TRUTH: lib/parse-concern-value.sh and lib/yaml-subset.awk at
+# the marketplace repo root. The copies materialized into consuming plugins
+# exist because installed plugins are cache-isolated and must be
+# self-contained; never edit a copy. Edit the source and run
+# scripts/sync-shared-copies.sh; CI rejects drifted copies.
 #
 # Usage:
-#   parse-concern-value.sh <concern-file> <key> [fallback]
+#   parse-concern-value.sh [--strict] [--list] [--ref <ref>] <file|-> <key> [fallback]
 #
-#   <concern-file>  path to the concern file (e.g. .claude/<concern>.yaml)
-#   <key>           scalar key to read (e.g. memory_dir)
-#   [fallback]      value to emit when the key is absent/empty — the caller's
-#                   already-resolved rung-2 location (a save-point convention
-#                   declared in CLAUDE.md / .claude/rules). Prose is an
-#                   inference source, not a runtime authority, so the caller
-#                   infers it and passes it in; this script never reads prose.
+#   <file>        path to the concern file; `-` reads the document from stdin
+#                 (a remote reader passes text it fetched itself)
+#   <key>         dotted key: `memory_dir`, `merge.rung`,
+#                 `lanes.pr-merge.slots.0.activity` (sequence items by index)
+#   [fallback]    value to emit when the key is absent or empty: the caller's
+#                 already-resolved location or the schema default. This script
+#                 never reads prose or schemas; the caller passes it in.
+#   --list        print the scalar items of the sequence at <key>, one per line
+#   --ref <ref>   read <file> as committed at <ref>: a 40-hex commit id or
+#                 `origin/<name>`. Validated before any git call and passed to
+#                 git after --end-of-options.
+#   --strict      exit 3 on a parse error instead of taking the fallback
 #
-# Output: the resolved value on stdout, or empty when nothing resolves (the
-# caller applies the documented default, e.g. `.work`). Always exits 0 for a
-# well-formed invocation.
-#
-# Resolution order:
-#   1. key present and non-empty in the concern file -> its parsed value
-#   2. else the caller-supplied fallback (if non-empty)
-#   3. else empty  (interactive/inferred-layout rungs are the caller's job)
+# Output: the resolved value, or empty when nothing resolves (the caller
+# applies its documented default). Exit 0 for a well-formed invocation,
+# including a missing file. A document the parser rejects is treated as absent
+# with one stderr line, so a malformed file never stops a consumer; --strict
+# makes it exit 3 for a caller that must tell an error from an absent key.
+# Exit 2 for a usage error, an invalid key or ref, or a ref that does not
+# resolve.
 set -uo pipefail
 
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-  cat <<'EOF'
-parse-concern-value.sh — resolve a scalar value from a concern file.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARSER="$SCRIPT_DIR/yaml-subset.awk"
 
-Usage:
-  parse-concern-value.sh <concern-file> <key> [fallback]
+usage() {
+  echo "parse-concern-value: usage: parse-concern-value.sh [--strict] [--list] [--ref <ref>] <file|-> <key> [fallback]" >&2
+  exit 2
+}
 
-Reads <key> from <concern-file>, quote-aware and comment-safe: a `#` inside a
-quoted value is preserved; a trailing ` # comment` on an unquoted value is
-stripped; surrounding quotes are peeled, surrounding whitespace trimmed, and a
-trailing slash normalized. Emits [fallback] when the key is absent/empty, or
-nothing when neither resolves. Always exits 0 for a well-formed invocation.
-EOF
-  exit 0
-fi
+strict=0 list=0 has_ref=0 ref=""
+pos=()
+while (($#)); do
+  case "$1" in
+  -h | --help)
+    awk 'NR > 1 && /^set -uo/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
+    exit 0
+    ;;
+  --strict) strict=1 ;;
+  --list) list=1 ;;
+  --ref)
+    (($# >= 2)) || usage
+    has_ref=1 ref="$2"
+    shift
+    ;;
+  --)
+    shift
+    pos+=("$@")
+    break
+    ;;
+  *) pos+=("$1") ;;
+  esac
+  shift
+done
 
-concern_file="${1:-}"
-key="${2:-}"
-fallback="${3:-}"
-
-if [[ -z "$concern_file" || -z "$key" ]]; then
-  echo "parse-concern-value: usage: parse-concern-value.sh <concern-file> <key> [fallback]" >&2
+concern_file="${pos[0]:-}"
+key="${pos[1]:-}"
+fallback="${pos[2]:-}"
+[[ -n "$concern_file" && -n "$key" ]] || usage
+if [[ ! "$key" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+  echo "parse-concern-value: invalid key; expected [A-Za-z0-9_.-]+" >&2
   exit 2
 fi
 
-# Peel a matching surrounding quote pair, strip a comment (quote-aware), trim
-# surrounding whitespace, normalize a trailing slash — in THAT order. Quote
-# resolution comes first so a `#` inside quotes is never mistaken for a comment.
-strip_value() {
-  local raw="$1" val
-  raw="${raw//$'\r'/}" # CRLF guard: Git Bash leaves a trailing \r on read lines
-  # Trim leading whitespace (sed's [[:space:]]* already ate the post-colon run,
-  # but a re-used helper must not assume its caller's extraction).
-  raw="${raw#"${raw%%[![:space:]]*}"}"
+text="" present=1
+if ((has_ref)); then
+  # Only a full commit id or origin/<name> passes; nothing that git could read
+  # as an option, a revision range or a path.
+  if [[ "$concern_file" == "-" ]] ||
+    ! [[ "$ref" =~ ^[0-9a-f]{40}$ || ("$ref" =~ ^origin/[A-Za-z0-9._/-]+$ && "$ref" != *..* && "$ref" != origin/-*) ]]; then
+    echo "parse-concern-value: invalid --ref; expected a 40-hex commit id or origin/<name>, and a file path" >&2
+    exit 2
+  fi
+  if ! git rev-parse --verify --quiet --end-of-options "$ref^{commit}" >/dev/null; then
+    echo "parse-concern-value: --ref does not resolve to a commit: $ref" >&2
+    exit 2
+  fi
+  text="$(git show --end-of-options "$ref:$concern_file" 2>/dev/null)" || present=0
+elif [[ "$concern_file" == "-" ]]; then
+  text="$(cat)"
+elif [[ -f "$concern_file" ]]; then
+  text="$(<"$concern_file")"
+else
+  present=0
+fi
 
-  case "$raw" in
-  '"'*)
-    # Double-quoted: value is the span up to the closing quote; anything after
-    # it (e.g. a trailing comment) is discarded. `#` inside is literal.
-    val="${raw#\"}"
-    val="${val%%\"*}"
-    ;;
-  "'"*)
-    val="${raw#\'}"
-    val="${val%%\'*}"
-    ;;
-  *)
-    # Unquoted: strip a comment at a `#` that starts the value (a comment-only
-    # value like `# use default` — YAML-null, must resolve to empty so the
-    # fallback fires) or is preceded by whitespace (` #…`); a `#` adjacent to a
-    # non-space char (`a#b`, `.work/#t`) is part of the scalar. Then trim
-    # trailing whitespace. Pure parameter expansion, not a `printf | sed`
-    # pipeline: `%%` strips the LONGEST matching suffix, i.e. cuts at the
-    # leftmost ` #` exactly as sed's leftmost match did, without the fork+exec
-    # every consumer paid on every call.
-    val="$raw"
-    if [[ "$val" == '#'* ]]; then
-      val=""
-    else
-      val="${val%%[[:space:]]#*}"
-    fi
-    val="${val%"${val##*[![:space:]]}"}"
-    ;;
-  esac
-
-  val="${val%/}" # normalize a single trailing slash
-  printf '%s' "$val"
-}
-
-resolved=""
-if [[ -f "$concern_file" ]]; then
-  # Only a ROOT key of the document counts. YAML permits whitespace before the
-  # `:` (`memory_dir : .work`) and permits the root block mapping to sit at a
-  # uniform indent, so neither shape may be read as "key absent" — a consumer
-  # that silently took its fallback over a key the file really declares would act
-  # on a value the repo never chose. Equally, a same-named key nested under
-  # another mapping is a DIFFERENT key and must never answer for the root one,
-  # including when the root key is present but deliberately empty.
-  #
-  # The document's base indentation is that of its first MAPPING-KEY line; every
-  # root key shares it, and anything deeper belongs to some other mapping.
-  # Matching on that, rather than on "unindented, else any indent", is what
-  # separates an indented root mapping from a nested one.
-  #
-  # Only a key line can set the base. Deriving it from "first non-blank,
-  # non-comment line" instead would let any preamble at column 0 — a `---`
-  # document marker plain or decorated (`--- # generated`), a `...` end marker, a
-  # `%YAML` directive, a leading sequence entry — fix the base at 0 and hide an
-  # indented root mapping entirely. Keys are `[a-z_]+` identifiers, so they carry
-  # no regex metacharacters.
-  raw_line=$(awk -v key="$key" '
-    BEGIN { base = -1 }
-    {
-      match($0, /^[[:space:]]*/)
-      indent = RLENGTH
-      line = substr($0, indent + 1)
-      if (line !~ /^[A-Za-z_][A-Za-z0-9_-]*[[:space:]]*:/) next
-      if (base < 0) base = indent
-      if (indent != base) next
-      if (line ~ "^" key "[[:space:]]*:") {
-        sub("^" key "[[:space:]]*:[[:space:]]*", "", line)
-        print line
-        exit
-      }
-    }
-  ' "$concern_file")
-  if [[ -n "$raw_line" ]]; then
-    resolved=$(strip_value "$raw_line")
+records=""
+if ((present)); then
+  if ! records="$(LC_ALL=C awk -f "$PARSER" <<<"$text")"; then
+    printf 'parse-concern-value: %s: line %s\n' "$concern_file" \
+      "$(awk -F '\t' '$1 == "error" { print $2 ": " $3 }' <<<"$records" | tail -n 1)" >&2
+    ((strict)) && exit 3
+    records=""
   fi
 fi
 
-if [[ -z "$resolved" ]]; then
-  resolved="$fallback"
+values=()
+# shellcheck disable=SC2016 # awk programs, expanded by awk, not the shell.
+if ((list)); then
+  pattern='index($1, ENVIRON["PCV_KEY"] ".") == 1 && substr($1, length(ENVIRON["PCV_KEY"]) + 2) ~ /^[0-9]+$/'
+else
+  pattern='$1 == ENVIRON["PCV_KEY"] && !seen++'
 fi
+while IFS= read -r v; do
+  v="${v%/}" # normalize a single trailing slash
+  [[ -z "$v" ]] || values+=("$v")
+done < <(PCV_KEY="$key" LC_ALL=C awk -F '\t' "$pattern"' { print substr($0, length($1) + 2) }' <<<"$records")
 
-printf '%s\n' "$resolved"
+if ((${#values[@]} == 0)); then
+  values=("$fallback")
+fi
+printf '%s\n' "${values[@]}"

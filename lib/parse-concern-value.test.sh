@@ -125,6 +125,155 @@ rc=0
 bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
 assert_exit "no args exits 2" 2 "$rc"
 
+# --- Dotted keys and lists, read from the pipeline's canonical example ---
+# Expected values are the literals on the cited lines of that example file.
+EX="$SCRIPT_DIR/../docs/conventions/pr-pipeline/examples/claude-code-plugins.yaml"
+assert_eq 'nested key merge.rung (example :175)' "C2" "$(bash "$SCRIPT" "$EX" merge.rung)"
+assert_eq '--list prints a flow list one item per line, quotes removed (example :177)' \
+  $'.github/**\n.claude/**\ndocs/conventions/pr-pipeline.yaml' \
+  "$(bash "$SCRIPT" "$EX" merge.diff-check.denied-paths --list)"
+assert_eq 'a block sequence of mappings is indexed (example :159)' "merge" \
+  "$(bash "$SCRIPT" "$EX" lanes.pr-merge.slots.0.activity)"
+assert_eq 'an absent nested key takes the fallback' "true" \
+  "$(bash "$SCRIPT" "$EX" lanes.pr-merge.slots.0.enabled true)"
+assert_eq 'a later key of a sequence item (example :168)' "false" \
+  "$(bash "$SCRIPT" "$EX" lanes.post-merge-sweep-comments.slots.0.enabled true)"
+assert_eq 'a flow list inside a sequence item (example :123)' "run-tests" \
+  "$(bash "$SCRIPT" "$EX" lanes.pr-run-checks.slots.1.needs --list)"
+assert_eq 'one item of a flow list by index (example :90)' "dequeued" \
+  "$(bash "$SCRIPT" "$EX" activities.update.applies-when.events.2)"
+assert_eq 'a quoted glob in a flow list (example :19)' '**/*.md' \
+  "$(bash "$SCRIPT" "$EX" activities.fix-docs.applies-when.paths --list)"
+assert_eq 'a list key read as a scalar is absent' ".none" \
+  "$(bash "$SCRIPT" "$EX" merge.diff-check.denied-paths .none)"
+assert_eq '--list on an absent key prints the fallback' "x" \
+  "$(bash "$SCRIPT" "$EX" merge.nope --list x)"
+
+# Flow mappings nested in flow lists, and a sequence at its parent key's indent.
+assert_eq 'a flow mapping inside a flow list' "q" \
+  "$(resolve 'x: [{a: 1, b: [p, q]}, "r, s"]' x.0.b.1)"
+assert_eq 'a quoted comma stays inside its item' "r, s" \
+  "$(resolve 'x: [{a: 1, b: [p, q]}, "r, s"]' x.1)"
+printf 'k:\n- a\n- b\nz: 1\n' >"$TEST_TMPDIR/indentless.yaml"
+assert_eq 'a sequence at its key indent is still the key value' $'a\nb' \
+  "$(bash "$SCRIPT" "$TEST_TMPDIR/indentless.yaml" k --list)"
+assert_eq 'a root key after such a sequence is still a root key' "1" \
+  "$(bash "$SCRIPT" "$TEST_TMPDIR/indentless.yaml" z)"
+
+# --- stdin: `-` reads the document from standard input ---
+assert_eq 'stdin form equals the file form' "$(bash "$SCRIPT" "$EX" merge.rung)" \
+  "$(bash "$SCRIPT" - merge.rung <"$EX")"
+
+# --- YAML quote escapes: '' inside single quotes, \" and \\ inside double quotes ---
+# Expected values are the YAML 1.2 meaning of each literal, worked by hand.
+esc() { printf '%b' "$1" >"$TEST_TMPDIR/esc.yaml"; shift; bash "$SCRIPT" --strict "$TEST_TMPDIR/esc.yaml" "$@" 2>&1; }
+assert_eq "a doubled single quote is one quote" "it's" "$(esc "a: 'it''s'\nb: 2\n" a)"
+assert_eq "a sibling of an escaped value still reads" "2" "$(esc "a: 'it''s'\nb: 2\n" b FB)"
+assert_eq 'a backslash-escaped double quote' 'x "y"' "$(esc 'a: "x \\"y\\""\n' a)"
+assert_eq 'an escaped backslash' 'p\q' "$(esc 'a: "p\\\\q"\n' a)"
+assert_eq 'a trailing comment after an escaped value is dropped' "it's" "$(esc "a: 'it''s' # note\n" a)"
+assert_eq 'escapes inside a flow list' $'it\'s\nx "y"\na,b' \
+  "$(esc "l: ['it''s', \"x \\\\\"y\\\\\"\", \"a,b\"]\n" l --list)"
+assert_eq 'a quoted key with an escape does not break the file' "2" "$(esc "'it''s': 1\nb: 2\n" b FB)"
+assert_eq 'a double-quoted root key reads' ".x" "$(esc '"memory_dir": .x\n' memory_dir)"
+assert_eq 'a quoted key inside a flow mapping' "w" "$(esc "m: {\"k\": v, 'q''r': w, z: 'w'}\n" m.z)"
+assert_eq 'a double-quoted flow-mapping key' "v" "$(esc "m: {\"k\": v}\n" m.k)"
+assert_eq 'a quoted key on a sequence item' "n1" "$(esc 's:\n  - "name": n1\n' s.0.name)"
+
+# --- Parse errors: fallback and one stderr line by default, exit 3 under --strict ---
+printf 'memory_dir: .x\nk: [a, b\n' >"$TEST_TMPDIR/unclosed.yaml"
+printf 'memory_dir: .x\nother:\n\tb: c\n' >"$TEST_TMPDIR/tab.yaml"
+for f in unclosed tab; do
+  rc=0
+  out=$(bash "$SCRIPT" "$TEST_TMPDIR/$f.yaml" memory_dir .fb 2>"$TEST_TMPDIR/err") || rc=$?
+  assert_exit "$f: default mode exits 0" 0 "$rc"
+  assert_eq "$f: default mode prints the fallback" ".fb" "$out"
+  assert_eq "$f: default mode writes one stderr line" "1" "$(wc -l <"$TEST_TMPDIR/err" | tr -d ' ')"
+  rc=0
+  out=$(bash "$SCRIPT" "$TEST_TMPDIR/$f.yaml" memory_dir 2>/dev/null) || rc=$?
+  assert_eq "$f: default mode with no fallback prints nothing" "" "$out"
+  rc=0
+  bash "$SCRIPT" --strict "$TEST_TMPDIR/$f.yaml" memory_dir .fb >/dev/null 2>&1 || rc=$?
+  assert_exit "$f: --strict exits 3" 3 "$rc"
+done
+rc=0
+out=$(bash "$SCRIPT" --strict "$EX" merge.rung) || rc=$?
+assert_exit '--strict on a clean file exits 0' 0 "$rc"
+assert_eq '--strict on a clean file prints the value' "C2" "$out"
+assert_eq '--strict on a missing file prints the fallback' ".x" \
+  "$(bash "$SCRIPT" --strict "$TEST_TMPDIR/nope.yaml" memory_dir .x)"
+
+# --- --ref: validated before any git call; passed after --end-of-options ---
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+FAKE_BIN="$TEST_TMPDIR/fakebin"
+mkdir -p "$FAKE_BIN"
+export FAKE_GIT_LOG="$TEST_TMPDIR/git-calls"
+# shellcheck disable=SC2016 # the fake git body is written literally.
+{
+  printf '#!/usr/bin/env bash\n'
+  printf 'printf "%%s\\n" "$*" >>"$FAKE_GIT_LOG"\n'
+  printf '[[ "$1" == show ]] && printf "rung: C4\\n"\n'
+  printf 'exit 0\n'
+} >"$FAKE_BIN/git"
+chmod +x "$FAKE_BIN/git"
+# shellcheck disable=SC2016 # hostile refs are literal strings.
+for ref in '--output=x' '-p' 'HEAD:../x' 'origin/../x' 'a b' '' 'origin/-p' 'origin/' \
+  'origin/a..b' 'origin/$(touch pwned)' 'deadbeef'; do
+  rm -f "$FAKE_GIT_LOG"
+  rc=0
+  (cd "$TEST_TMPDIR" && PATH="$FAKE_BIN:$PATH" bash "$SCRIPT" --ref "$ref" x.yaml rung >/dev/null 2>&1) || rc=$?
+  assert_exit "hostile ref [$ref] exits 2" 2 "$rc"
+  if [[ -e "$FAKE_GIT_LOG" ]]; then fail "hostile ref [$ref] makes no git call" "git was called"; else pass "hostile ref [$ref] makes no git call"; fi
+done
+if [[ -e "$TEST_TMPDIR/pwned" ]]; then fail 'a ref is never evaluated' "pwned exists"; else pass 'a ref is never evaluated'; fi
+rm -f "$FAKE_GIT_LOG"
+sha40=0123456789abcdef0123456789abcdef01234567
+out=$(PATH="$FAKE_BIN:$PATH" bash "$SCRIPT" --ref "$sha40" x.yaml rung)
+assert_eq 'a 40-hex ref reads through git show' "C4" "$out"
+assert_contains 'git show gets the ref after --end-of-options' "$(cat "$FAKE_GIT_LOG")" \
+  "show --end-of-options $sha40:x.yaml"
+rc=0
+PATH="$FAKE_BIN:$PATH" bash "$SCRIPT" --ref "$sha40" - rung </dev/null >/dev/null 2>&1 || rc=$?
+assert_exit '--ref with stdin is a usage error' 2 "$rc"
+
+# A real repository: the committed value wins over the working tree.
+REPO="$TEST_TMPDIR/repo"
+git init -q "$REPO"
+git -C "$REPO" config user.email t@example.invalid
+git -C "$REPO" config user.name t
+git -C "$REPO" config commit.gpgsign false
+mkdir -p "$REPO/docs/conventions"
+printf 'rung: C3\n' >"$REPO/docs/conventions/x.yaml"
+git -C "$REPO" add docs/conventions/x.yaml
+git -C "$REPO" commit -q -m fixture
+sha=$(git -C "$REPO" rev-parse HEAD)
+git -C "$REPO" update-ref refs/remotes/origin/main "$sha"
+printf 'rung: C9\n' >"$REPO/docs/conventions/x.yaml"
+assert_eq 'a commit ref reads the committed file' "C3" \
+  "$(cd "$REPO" && bash "$SCRIPT" --ref "$sha" docs/conventions/x.yaml rung)"
+assert_eq 'an origin/<name> ref reads the committed file' "C3" \
+  "$(cd "$REPO" && bash "$SCRIPT" --ref origin/main docs/conventions/x.yaml rung)"
+assert_eq 'a path absent at the ref takes the fallback' ".fb" \
+  "$(cd "$REPO" && bash "$SCRIPT" --ref origin/main docs/conventions/none.yaml rung .fb)"
+rc=0
+(cd "$REPO" && bash "$SCRIPT" --ref origin/nope docs/conventions/x.yaml rung >/dev/null 2>&1) || rc=$?
+assert_exit 'a well-formed ref that does not resolve exits 2' 2 "$rc"
+
+# --- Untrusted names: a key or file name is never evaluated ---
+rc=0
+(cd "$TEST_TMPDIR" && bash "$SCRIPT" "$EX" 'a$(touch pwned2)' >/dev/null 2>&1) || rc=$?
+assert_exit 'a key outside [A-Za-z0-9_.-] exits 2' 2 "$rc"
+evil="$TEST_TMPDIR/\$(touch pwned3).yaml"
+printf 'memory_dir: .evil\n' >"$evil"
+# shellcheck disable=SC2016 # a literal name.
+assert_eq 'a file name holding $(...) is read as a name' ".evil" \
+  "$(cd "$TEST_TMPDIR" && BASH_COMPAT=51 bash "$SCRIPT" "$evil" memory_dir)"
+if [[ -e "$TEST_TMPDIR/pwned2" || -e "$TEST_TMPDIR/pwned3" ]]; then
+  fail 'no name is evaluated' "a pwned file exists"
+else
+  pass 'no name is evaluated'
+fi
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

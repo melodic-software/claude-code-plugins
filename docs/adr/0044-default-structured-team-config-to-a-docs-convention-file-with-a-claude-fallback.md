@@ -1,6 +1,8 @@
 # Default a structured surface's team layer to a docs convention file, with `.claude/<name>` as the fallback
 
-- Status: accepted
+- Status: superseded for structured configuration by
+  [ADR 0054](0054-home-plugin-customization-in-docs-conventions-yaml.md); existing ADR 0044 surfaces
+  keep working until they migrate
 - Date: 2026-10-01
 - Supersedes, for structured surfaces only: the clause of [ADR 0018](0018-express-team-shared-conventions-as-consumer-convention-docs.md)
   Decision 1 that keeps structured data in dedicated files under `.claude/`. The rest of ADR 0018

@@ -76,6 +76,11 @@ lib/resolve-convention-pattern.sh -> plugins/*/hooks/resolve-convention-pattern.
 # for the duplication audit: the copies sit at two shapes within a plugin.
 lib/parse-concern-value.sh -> plugins/*/skills/*/scripts/parse-concern-value.sh plugins/*/skills/*/scripts/lib/parse-concern-value.sh
 
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line
+# for the duplication audit: the parser sits beside each reader copy, plus
+# multi-agent's own resolver copy.
+lib/yaml-subset.awk -> plugins/*/skills/*/scripts/yaml-subset.awk plugins/*/skills/*/scripts/lib/yaml-subset.awk plugins/multi-agent/scripts/yaml-subset.awk
+
 # No dedicated check: the recommendation-basis contract each adopting plugin
 # ships, because only the plugin directory installs (the convention's
 # "Plugin-shipped copies"). Canonical copy:

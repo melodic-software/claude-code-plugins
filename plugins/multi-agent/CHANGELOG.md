@@ -13,6 +13,7 @@ All notable changes to the `multi-agent` plugin are documented here. Format foll
 ### Changed
 
 - **The `mechanical` workload runs the worker on `sonnet` by default** (`roles.worker.workloads.mechanical.model: sonnet`); `code` and `research` keep the role's model. Opt out with `roles.worker.workloads.mechanical.model: inherit` in any layer.
+- **`scripts/yaml-subset.awk` is now a generated copy of the repository's `lib/yaml-subset.awk`.** The parser also reads block and flow sequences, flow mappings, quoted keys, YAML quote escapes (`''`, `\"`, `\\`) and a document at a uniform base indent, so the shared concern reader can use it. Valid YAML inside the subset reads the same as before, except that an escape inside quotes now yields the character it stands for. Four non-standard forms the old parser read now make the layer a parse error, so it is skipped and named: a key indented between its parent and the block it closes (`planner:` at two spaces after `worker:` at four, both under `roles:`), text after a closing quote (`a: "x"y"`), an unclosed quote (`a: "x`), and a tag (`a: !true`). A sequence, which used to be an error, now flattens to indexed keys (`a.0`) that the resolver reports as unknown.
 
 ## [0.4.4] - 2026-10-03
 

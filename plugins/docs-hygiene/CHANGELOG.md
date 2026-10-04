@@ -8,6 +8,10 @@
   catalog does not list is named in the reply as a candidate for ai-slop's
   `rule-abstract-metaphor-jargon`, when `/ai-slop:audit` is available. The skill never edits the
   ai-slop catalog.
+- **Shared `parse-concern-value.sh` synced, with its parser `yaml-subset.awk` beside it in
+  `skills/audit-noise/scripts/lib/`.** The reader takes dotted keys, `--list`, stdin (`-`), a
+  validated `--ref` and `--strict`; every existing root-key read resolves as before, and a file the
+  parser rejects now yields the fallback with one stderr line.
 
 ## [0.26.4] - 2026-10-03
 

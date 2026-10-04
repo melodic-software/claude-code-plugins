@@ -7,6 +7,21 @@ by a pointer line). Per-concern keys and schema are versioned by their own owner
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## [1.6] - 2026-10-04
+
+Additive (minor bump): a new default location for the team layer and the plugin `userConfig` named
+as the lowest layer. Existing locations keep working, the precedence among the three file layers
+is unchanged, and no surface has to change.
+
+- **YAML plus JSON Schema for structured configuration.** A structured surface's team layer is
+  `docs/conventions/<concern>.yaml`, validated by a JSON Schema whose home is the plugin's
+  `schemas/` folder (or the convention folder for a cross-plugin concern). ADR 0044's fenced block
+  and `.claude/<name>` stay readable until #5906 migrates each surface. The layers table lists
+  `userConfig` below the three file layers, and the Expression doctrine names the YAML file as a
+  policy floor's dedicated team-layer file.
+  [ADR 0054](../../adr/0054-home-plugin-customization-in-docs-conventions-yaml.md) records the
+  decision.
+
 ## [1.5] - 2026-10-01
 
 Additive option (minor bump): a second location for the team layer of a structured surface. The

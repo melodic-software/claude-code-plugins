@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Shared `parse-concern-value.sh` synced, with its parser `yaml-subset.awk` beside it in `skills/retro/scripts/`.** The reader takes dotted keys, `--list`, stdin (`-`), a validated `--ref` and `--strict`; every existing root-key read resolves as before, and a file the parser rejects now yields the fallback with one stderr line.
+
 ### Added
 
 - **The enforcement ladder ships with `/session-flow:retro`.** A generated copy of the enforcement-ladder convention sits at `skills/retro/reference/enforcement-ladder.md`: the strongest-first rung list and codify's selection rule, for routing a repeated correction to a rung.

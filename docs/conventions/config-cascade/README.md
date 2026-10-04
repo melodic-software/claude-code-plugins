@@ -27,13 +27,18 @@ are not.
 
 ## The layers
 
-Three layers, each optional, resolved in this order, a later layer refining an earlier one:
+Three file layers, each optional, resolved in this order over the plugin's `userConfig`, a later
+layer refining an earlier one
+([ADR 0054](../../adr/0054-home-plugin-customization-in-docs-conventions-yaml.md) Decision 8):
 
 | Order | Layer | Path | Belongs to |
 |---|---|---|---|
+| 0 | plugin `userConfig` | the plugin's `userConfig` option; `pluginConfigs` is read only from user and managed settings | the operator, per user |
 | 1 | user-global | `~/.claude/<name>` | the operator, across every repo and machine they work in |
-| 2 | team | `${CLAUDE_PROJECT_DIR}/.claude/<name>`, or a structured surface's docs convention file ([location](#location-of-the-team-layer-a-docs-convention-file-or-claudename)) | the consuming repository, tracked in version control |
+| 2 | team | `${CLAUDE_PROJECT_DIR}/docs/conventions/<concern>.yaml` validated by a JSON Schema, or the surface's existing location ([location](#location-of-the-team-layer-a-docs-convention-file-or-claudename)) | the consuming repository, tracked in version control |
 | 3 | local overlay | `${CLAUDE_PROJECT_DIR}/.claude/<stem>.local.<ext>` | one operator in one repo, gitignored |
+
+Every resolver reports which layer supplied each value.
 
 `<name>` is the surface's whole path **relative to `.claude/`**, not just its leaf filename. For a
 single-file surface that is `source-control.md`; for a folder-form surface it is
@@ -50,18 +55,31 @@ a bundled default.
 ### Location of the team layer: a docs convention file, or `.claude/<name>`
 
 The team layer of a **structured surface** (a surface whose values are keys, not prose the model
-reads) has two possible locations, resolved in this order
-([ADR 0044](../../adr/0044-default-structured-team-config-to-a-docs-convention-file-with-a-claude-fallback.md)):
+reads) lives in `${CLAUDE_PROJECT_DIR}/docs/conventions/<concern>.yaml`, validated by a JSON Schema
+([ADR 0054](../../adr/0054-home-plugin-customization-in-docs-conventions-yaml.md), superseding
+[ADR 0044](../../adr/0044-default-structured-team-config-to-a-docs-convention-file-with-a-claude-fallback.md)
+for structured configuration). `<concern>` is the owning plugin's name, or the convention's name for
+a cross-plugin concern. The root `docs/conventions` is fixed; the pointer line binds the prose home
+only and never moves a config file. The concern's prose stays in `<concern>.md` at the convention
+home. A plugin concern's schema ships at `plugins/<plugin>/schemas/<concern>.schema.json`; a
+cross-plugin convention's schema sits in its convention folder. CI validation of a committed
+`docs/conventions/*.yaml` reports and does not block; a runtime reader runs no validator and fails
+closed on a value outside the key's enum. A new surface takes this form: no fenced config block
+and no folder form.
+
+Surfaces that already use another location keep working until #5906 migrates them, resolved in
+this order:
 
 | Precedence | Team-layer location | Read when |
 |---|---|---|
-| 1 | `${CLAUDE_PROJECT_DIR}/docs/conventions/<concern>.md`, the fenced config block in it | the file exists and holds the block |
-| 2 | `${CLAUDE_PROJECT_DIR}/.claude/<name>` | the docs file is absent or holds no block |
+| 1 | `${CLAUDE_PROJECT_DIR}/docs/conventions/<concern>.yaml` | the surface reads it |
+| 2 | `${CLAUDE_PROJECT_DIR}/docs/conventions/<concern>.md`, the fenced config block in it (ADR 0044 surfaces) | the file exists and holds the block |
+| 3 | `${CLAUDE_PROJECT_DIR}/.claude/<name>` | neither of the above supplies the layer |
 
-`docs/conventions/<concern>.md` is the default. The path is fixed relative to the repository root,
-and `<concern>` is the stem of the surface's `.claude/<name>` file. The file holds the prose rules
-for the concern and exactly one config block with the same keys the `.claude/<name>` file would
-carry. Other agents and tools read the convention docs; they do not read `.claude/`.
+The rest of this section describes the ADR 0044 block form those surfaces still read. In that
+form `<concern>` is the stem of the surface's `.claude/<name>` file, and the file holds the prose
+rules for the concern and exactly one config block with the same keys the `.claude/<name>` file
+would carry. Other agents and tools read the convention docs; they do not read `.claude/`.
 
 **The block form.** The opening line is three backticks at column 0, then the language of the
 `.claude/<name>` file, then `config`: ` ```yaml config ` or ` ```json config `. The body ends at the
@@ -201,15 +219,19 @@ content *is*, never by the author's preference:
   has an effect, and silence would let a personal deviation look live.
 - **Structured data where YAML/JSON is the right tool** (`routing.yaml`,
   `binding.json`, `testing.yaml`) stays a keyed config surface under the layers above. Its team
-  layer is placed by the [location axis](#location-of-the-team-layer-a-docs-convention-file-or-claudename)
-  ([ADR 0044](../../adr/0044-default-structured-team-config-to-a-docs-convention-file-with-a-claude-fallback.md)):
-  the fenced config block in `docs/conventions/<concern>.md` by default, `.claude/<name>` when the
-  docs file holds no block. The user-global and overlay layers stay dedicated files, so the
-  surface keeps its overlay channel. Each surface adopts the axis in its own change.
+  layer is `docs/conventions/<concern>.yaml`, validated by a JSON Schema
+  ([ADR 0054](../../adr/0054-home-plugin-customization-in-docs-conventions-yaml.md) Decision 1);
+  a surface not yet migrated keeps its existing location per the
+  [location axis](#location-of-the-team-layer-a-docs-convention-file-or-claudename). The
+  user-global and overlay layers stay dedicated files, so the surface keeps its overlay channel.
+  Each surface adopts the YAML file in its own change.
 - **Everything else stays a dedicated file under the layers above, team layer included**:
   per-operator-keyed surfaces (a value keyed by operator identity or machine, or one an operator
   legitimately overrides privately, with `testing`'s e2e config as the fleet example), every
-  policy-floor surface, and all mutable state.
+  policy-floor surface, and all mutable state. For a policy floor, `docs/conventions/<concern>.yaml`
+  is that dedicated file for the team layer (ADR 0054 Decision 5): it is read from the default
+  branch, the team layer wins, personal layers may only tighten it, and the surface may declare no
+  `userConfig` option.
 
 The criterion is applied per surface, in that surface's own migration PR, and recorded in the
 Implementers table's row. Nothing in this contract retroactively re-expresses a surface.

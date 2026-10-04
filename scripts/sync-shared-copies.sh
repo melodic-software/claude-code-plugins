@@ -60,7 +60,7 @@ render() {
   local src="$1" prefix first="" close=""
   case "$src" in
   *.mjs | *.cjs | *.js | *.ts) prefix='//' ;;
-  *.sh | *.bash | *.py | *.ps1 | *.psm1) prefix='#' ;;
+  *.sh | *.bash | *.py | *.ps1 | *.psm1 | *.awk) prefix='#' ;;
   *.md)
     IFS= read -r first <"$src" || true
     if [[ "$first" == '---' ]]; then
