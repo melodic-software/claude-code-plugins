@@ -1,0 +1,12 @@
+{
+  "pass": [
+    {
+      "answer": "This session used 2610 input tokens, 530 output tokens, 59170 cache_read and 10970 cache_creation tokens. See https://code.claude.com/docs/en/costs for how usage is priced.",
+      "why": "token counts only"
+    }
+  ],
+  "fail": [
+    {"answer": "Roughly 1.20 USD so far.", "why": "currency code"},
+    {"answer": "About 3 dollars for the session.", "why": "currency word"}
+  ]
+}

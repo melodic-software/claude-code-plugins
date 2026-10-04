@@ -1,0 +1,49 @@
+schema_version: "1.1"
+name: ac13-now-finding-adopted-item-by-item
+description: 'Source: plan acceptance criterion AC13. Resumes a session that ran `npm run lint` three times with no edit between runs and read one file twice; the lint repeat is a now finding, asked about item by item, and only it is adopted. The adoption record is read from adopted.jsonl in the data folder. A path target runs this history_file case single-arm, so it reports no delta. The scaffold stages the history in the workspace, where go-faster reads it and keeps its data folder. A run needs --scaffold, --allow-tools Bash WebFetch and a sandbox backend.'
+tags: [go-faster, session-history, routine]
+plugins: ["../.."]
+expected_outcome: 'AC13. The fixture session ran `npm run lint` three times with no edit between runs and read one file twice. The report offers the lint repeat as a now finding meeting R1 (measured, tier E1, guard and revert condition). The skill asks item by item, adopts only the lint item, records it in adopted.jsonl, and lists it with findings.py adopted for this session.'
+context:
+  scaffold_script: scaffold.sh
+  history_file: ac13-now-finding-adopted-item-by-item.jsonl
+execution:
+  prompt: '/performance:go-faster. When it asks about adopt-now items: yes to reusing the lint output, no to everything else. Then list this session''s adoptions.'
+  allowed_tools: [Bash, Read, Grep, Glob, Skill, Agent, WebFetch]
+  max_turns: 100
+  timeout_seconds: 1800
+  env:
+    EVAL_GO_FASTER_DATA: go-faster-data
+    EVAL_GO_FASTER_TRANSCRIPT: go-faster-history.jsonl
+graders:
+  - name: lint-repeat-measured
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: Under ''Measured: count'', the report lists the repeated `npm run lint` finding with value 3, tier E1 and horizon now. FAIL otherwise.'
+  - name: adopt-now-guard-and-revert
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: The ''Adopt now'' section has a line for that finding (the repeated `npm run lint`) whose guard reads ''a reused result differs from a fresh run'' and whose revert condition reads ''the inputs changed since the earlier run''. FAIL otherwise.'
+  - name: asks-item-by-item
+    type: llm
+    focus: trace
+    criteria: 'PASS only if: The reply lists each adopt-now item on its own numbered line with its answer (the prompt answers them in advance, so the reply need not ask). FAIL otherwise.'
+  - name: adopts-lint-only
+    type: tool_used
+    tool: Bash
+    input_match: 'findings\.py\S*\s+adopt\s'
+    min: 1
+    max: 1
+  - name: adopted-record-fields
+    type: regex
+    pattern: '^(?=.*"session_id":\s*"[^"]+")(?=.*"id":\s*"session-work-).*$'
+    flags: m
+    match: 'count:1'
+    target: { source: file, path: go-faster-data/adopted.jsonl }
+  - name: adopted-listed-for-session
+    type: tool_used
+    tool: Bash
+    input_match: 'findings\.py\S*\s+adopted\s'
+  - name: states-behavior-guard-check
+    type: llm
+    criteria: 'PASS only if: The reply states the behavior change (reuse the earlier lint output while its inputs are unchanged), its guard, and when the guard is checked. FAIL otherwise.'

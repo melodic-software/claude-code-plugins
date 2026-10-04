@@ -55,6 +55,8 @@ lib/state-key.sh plugins/context-budget/lib/state-key.sh
 lib/state-key.sh plugins/improvement/lib/state-key.sh
 lib/state-key.sh plugins/code-metrics/lib/state-key.sh
 lib/state-key.sh plugins/session-flow/lib/state-key.sh
+lib/state-key.sh plugins/performance/lib/state-key.sh
+plugins/session-flow/scripts/transcript_reader.py plugins/performance/lib/transcript_reader.py
 lib/rewrite-guard.sh plugins/bash-format/hooks/rewrite-guard.sh
 lib/rewrite-guard.sh plugins/biome-format/hooks/rewrite-guard.sh
 lib/rewrite-guard.sh plugins/eol-normalizer/hooks/rewrite-guard.sh
@@ -266,6 +268,9 @@ lib/prerequisites.ps1 plugins/markdown-format/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/multi-agent/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/multi-agent/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/multi-agent/lib/prerequisites.ps1
+lib/prerequisites.mjs plugins/performance/lib/prerequisites.mjs
+lib/prerequisites.sh plugins/performance/lib/prerequisites.sh
+lib/prerequisites.ps1 plugins/performance/lib/prerequisites.ps1
 lib/prerequisites.mjs plugins/playwright/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/playwright/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/playwright/lib/prerequisites.ps1

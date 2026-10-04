@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "{\"session_id\": \"s-1\", \"id\": \"session-work-2\", \"route_suggested\": \"next-run\", \"route_taken\": \"performance-chain\", \"route_overridden\": true}\n",
+      "why": "suggested next-run, taken performance-chain, marked as an override"
+    },
+    {
+      "answer": "{\"session_id\": \"s-1\", \"id\": \"session-work-2\", \"route_suggested\": \"performance-chain\", \"route_taken\": \"performance-chain\", \"route_overridden\": false}\n",
+      "why": "the suggested route was already performance-chain, so no override"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "nothing recorded"
+    },
+    {
+      "answer": "{\"session_id\": \"s-1\", \"id\": \"session-work-2\", \"route_suggested\": \"next-run\", \"route_taken\": \"next-run\", \"route_overridden\": false}\n",
+      "why": "the route the user named was not taken"
+    },
+    {
+      "answer": "{\"session_id\": \"s-1\", \"id\": \"session-work-2\", \"route_suggested\": \"next-run\", \"route_taken\": \"performance-chain\", \"route_overridden\": false}\n",
+      "why": "an override recorded as no override"
+    },
+    {
+      "answer": "{\"session_id\": \"s-1\", \"id\": \"session-work-2\", \"route_taken\": \"performance-chain\", \"route_overridden\": true}\n",
+      "why": "the suggested route is missing from the record"
+    }
+  ]
+}
