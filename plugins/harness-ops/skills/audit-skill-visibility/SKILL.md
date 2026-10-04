@@ -268,6 +268,10 @@ counts every entry the disk walk missed at its captured length, and reports in
 `listing.capture` the descriptions the session shed; a budget row that says
 `listing-fits` while the session shed descriptions is listed under
 `disagrees`. The engine only reads the file; it never launches Claude Code.
+The transcript's listing record is not a published format: its shape, as-of
+date (2026-10-04, Claude Code 2.1.289) and recheck trigger are stamped beside
+`parse_listing_capture` in the script, and a shape it does not recognize
+reports the capture as `not-read` rather than guessing.
 
 A verdict covers the main session at the stated window. A subagent gets a
 listing sized to its own window and can shed where the main session does not.

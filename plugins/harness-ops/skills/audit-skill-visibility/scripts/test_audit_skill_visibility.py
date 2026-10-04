@@ -3096,6 +3096,59 @@ class NonPluginSkillTest(unittest.TestCase):
         }
         self.assertEqual(engine.reachability(entry)["value"], "hidden")
 
+    def test_an_off_override_is_not_reported_as_a_disabled_plugin(self):
+        now = _utc(2026, 8, 18)
+        model = engine.classify(
+            denominator=[
+                {
+                    "qualified_name": "gone",
+                    "source": "user",
+                    "skill_override": "off",
+                    "frontmatter": {"description": "abcde"},
+                }
+            ],
+            events=[],
+            config=engine.Config(),
+            clock=now,
+            horizons={"native": now - timedelta(days=400)},
+        )
+        rendered = engine._render_markdown(model)
+        self.assertIn("Off by `skillOverrides`: `gone`.", rendered)
+        self.assertNotIn("enable the hidden plugins", rendered)
+        self.assertNotIn("| `gone` |", rendered)
+
+    def test_a_checkout_run_names_the_local_skills_as_not_counted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            skill = pathlib.Path(tmp, "plugins", "p", "skills", "s")
+            skill.mkdir(parents=True)
+            (skill / "SKILL.md").write_text('---\ndescription: "d"\n---\n', encoding="utf-8")
+            env = {"CLAUDE_CONFIG_DIR": tmp, "CLAUDE_PROJECT_DIR": tmp}
+            saved = {k: os.environ.get(k) for k in env}
+            os.environ.update(env)
+            out = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(out):
+                    rc = engine.main(
+                        [
+                            "--plugins-root",
+                            os.path.join(tmp, "plugins"),
+                            "--claude-json",
+                            os.path.join(tmp, "absent.json"),
+                        ]
+                    )
+            finally:
+                for key, value in saved.items():
+                    if value is None:
+                        os.environ.pop(key, None)
+                    else:
+                        os.environ[key] = value
+        self.assertEqual(rc, 0)
+        self.assertIn(
+            "Not counted: built-in and bundled skills; user, project and "
+            "claude.ai-synced skills",
+            out.getvalue(),
+        )
+
     def test_plugin_commands_and_workflows_are_enumerated(self):
         with tempfile.TemporaryDirectory() as tmp:
             commands = pathlib.Path(tmp, "commands")

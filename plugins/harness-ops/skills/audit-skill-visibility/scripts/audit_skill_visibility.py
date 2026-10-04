@@ -2791,6 +2791,11 @@ def _render_markdown(model: dict) -> str:
     return "\n".join(lines)
 
 
+def _hidden_by_override(row: dict) -> bool:
+    """A non-plugin skill set off by `skillOverrides`, not a disabled plugin."""
+    return "skill-override-off" in row["reachability"]["causes"]
+
+
 def _render_reachability(skills: list[dict]) -> list[str]:
     """Per-value counts, the one checkout line, the hidden table, and the
     not-enabled summary.
@@ -2811,9 +2816,18 @@ def _render_reachability(skills: list[dict]) -> list[str]:
     lines += ["- " + " · ".join(shown), ""]
 
     hidden: dict[str, dict] = {}
+    overridden = [r for r in skills if _hidden_by_override(r)]
+    if overridden:
+        lines += [
+            "Off by `skillOverrides`: "
+            + ", ".join(f"`{r['qualified_name']}`" for r in overridden[:10])
+            + (f" and {len(overridden) - 10} more" if len(overridden) > 10 else "")
+            + ".",
+            "",
+        ]
     for row in skills:
         reach = row["reachability"]
-        if reach["value"] != "hidden":
+        if reach["value"] != "hidden" or _hidden_by_override(row):
             continue
         plugin = row["qualified_name"].partition(":")[0]
         bucket = hidden.setdefault(plugin, {"skills": 0, "evidence": reach["evidence"]})
@@ -3000,7 +3014,8 @@ def _render_next_actions(model: dict) -> list[str]:
     """
     counts: dict[str, int] = defaultdict(int)
     for row in model["skills"]:
-        counts[row["reachability"]["value"]] += 1
+        if not _hidden_by_override(row):
+            counts[row["reachability"]["value"]] += 1
     listing = model.get("listing") or {}
     steps: list[str] = []
     if counts.get("misconfigured"):
@@ -3080,13 +3095,14 @@ def _render_coverage(listing: dict) -> list[str]:
     """What the verdict counted, and what a captured listing says about it."""
     capture = listing.get("capture") or {}
     if capture.get("status") != "read":
+        counted = listing.get("counted") or ["the entries in the collection"]
+        missing = listing.get("not_counted") or ["built-in and bundled skills"]
         lines = [
-            "**Counted: plugin skills, commands and workflows, plus user and "
-            "project skills when auditing the installed fleet.** Built-in, "
-            "bundled and claude.ai-synced skills are listed too but cannot be "
-            "read from disk, so a `listing-fits` verdict here can still be over "
-            "budget in the session. Pass `--listing-capture <transcript.jsonl>` "
-            "to count them from the listing a session actually received.",
+            f"**Counted: {'; '.join(counted)}. Not counted: "
+            f"{'; '.join(missing)}**, which the session lists too, so a "
+            "`listing-fits` verdict here can still be over budget in the "
+            "session. Pass `--listing-capture <transcript.jsonl>` to count "
+            "them from the listing a session actually received.",
             "",
         ]
         if capture:
@@ -3443,6 +3459,15 @@ def main(argv: list[str] | None = None) -> int:
             read_listing_capture(args.listing_capture) if args.listing_capture else None
         ),
     )
+
+    if not args.fixture:
+        local = "user, project and claude.ai-synced skills"
+        model["listing"]["counted"] = ["plugin skills, commands and workflows"] + (
+            [local] if resolution is not None else []
+        )
+        model["listing"]["not_counted"] = ["built-in and bundled skills"] + (
+            [] if resolution is not None else [local]
+        )
 
     if resolution is not None:
         model["fleet"] = {
