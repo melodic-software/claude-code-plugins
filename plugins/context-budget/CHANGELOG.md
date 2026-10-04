@@ -7,7 +7,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
-## [0.9.6] - 2026-10-04
+## [0.9.7] - 2026-10-04
 
 ### Changed
 
@@ -16,6 +16,12 @@ Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published
 ### Fixed
 
 - `/context-budget:audit` now parses a headless `/context` table that has no `System tools` row (#6260).
+
+## [0.9.6] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** The SessionStart notice for a missing node goes to the user only, in one shorter line.
 
 ## [0.9.5] - 2026-10-04
 

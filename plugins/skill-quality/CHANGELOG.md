@@ -3,11 +3,17 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.28.3] - 2026-10-04
+## [0.28.4] - 2026-10-04
 
 ### Fixed
 
 - `/skill-quality:check listing-budget` reports the configured listing budget when run with `--from-settings` (#6261).
+
+## [0.28.3] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
 
 ## [0.28.2] - 2026-10-04
 

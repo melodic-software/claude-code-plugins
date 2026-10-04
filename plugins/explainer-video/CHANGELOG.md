@@ -3,7 +3,7 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.2.5] - 2026-10-04
+## [0.2.6] - 2026-10-04
 
 ### Changed
 
@@ -13,6 +13,12 @@ All notable changes to the `explainer-video` plugin are documented here. Format 
 ### Fixed
 
 - The `pydeps.py` helper is now passed to native Python as a Windows path (#6250).
+
+## [0.2.5] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing node goes to the user only, in one shorter line.
 
 ## [0.2.4] - 2026-10-04
 
