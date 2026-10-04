@@ -140,7 +140,9 @@ anchored finding.
 ## Adversarial validation
 
 When fanning out hunters, validate each surviving candidate with a separate
-verifier subagent (producer ≠ verifier). Drop rejected candidates.
+verifier subagent (producer ≠ verifier). Dispatch every hunter and verifier as
+the `review:lane-verifier` agent, never a general-purpose subagent, which could
+re-invoke this skill and fan out. Drop rejected candidates.
 
 ## Reporting
 

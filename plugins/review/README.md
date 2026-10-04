@@ -1,13 +1,13 @@
 # review
 
-A Claude Code plugin bundling one cohesive capability: **code review**. Eight
+A Claude Code plugin bundling one cohesive capability: **code review**. Nine
 agents, read-only over the reviewed code, plus orchestration skills: a single-lens quality gate, a
 multi-surface review fan-out that normalizes every reviewer's output into one
 severity-ranked, deduplicated findings report, and the other review skills listed below.
 
 ## Components
 
-### Agents (eight, read-only over the reviewed code)
+### Agents (nine, read-only over the reviewed code)
 
 | Agent | Concern |
 |---|---|
@@ -19,6 +19,7 @@ severity-ranked, deduplicated findings report, and the other review skills liste
 | `ci-log-auditor` | GitHub Actions run audit. Masked failures, skipped jobs, suspicious successes, perf outliers |
 | `brief-reviewer` | Runs the review brief it is dispatched with: quality-gate slice, downstream, spec, close-out and restatement work, fanout criteria slices, and the explain-change risk-map check. Its tools exclude `Agent` and `Skill`, so it cannot fan out |
 | `stage-normalizer` | Fanout findings pipeline Stage 0 (extraction) and Stage 3 (dedup). Holds `Read` only, because it reads untrusted reviewer output; inherits the model so role routing applies |
+| `lane-verifier` | Hunter or verifier subagent for the CI lanes (`/review:code-review`, `/review:security-review`). Its tools exclude `Agent` and `Skill`, so it cannot re-invoke the lane's skill; inherits the model and pins no effort, so the lane's choice holds |
 
 The first six declare persistent per-project memory (`memory: local`, stored under
 `.claude/agent-memory-local/` and never checked into version control) so they can learn a
@@ -28,7 +29,7 @@ limits apply:
 - **Memory needs auto memory.** With `autoMemoryEnabled: false` or
   `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in your settings, the `memory` field has no effect: nothing
   persists across sessions and each agent's `## Memory` section does nothing.
-- **"Read-only" is an instruction, not a tool boundary.** None of the eight lists `Write` or `Edit`,
+- **"Read-only" is an instruction, not a tool boundary.** None of the nine lists `Write` or `Edit`,
   but with auto memory on the harness enables both so the agent can manage its memory files,
   and nothing scopes them to the memory directory. `permissionMode` cannot narrow a plugin
   subagent either. Bash is a second unenforced write path for every agent except `stage-normalizer`, and
