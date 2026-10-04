@@ -143,9 +143,9 @@ ORPHAN_CANDIDATE_NAMES = frozenset(
 #: above this guard.
 DEAD_PARENT_CENSUS_MIN_AGE_SECONDS = 5.0
 #: MSYS coreutils names background tasks and Monitors leave behind, added to the census
-#: and not to the verdict set. Bare spellings match POSIX tables; suffixed spellings are
-#: inert there and match Windows and WSL interop, the same rule as ORPHAN_CANDIDATE_NAMES.
-#: `find` and `find.exe` are omitted: name-only matching cannot tell MSYS find from
+#: and not to the verdict set. Suffixed only: the census runs on Windows process tables
+#: alone (see attribute_orphans), where every image name carries its extension.
+#: `find.exe` is omitted: name-only matching cannot tell MSYS find from
 #: C:\Windows\System32\find.exe.
 DEAD_PARENT_CENSUS_EXTRA_NAMES = frozenset(
     {
@@ -153,10 +153,6 @@ DEAD_PARENT_CENSUS_EXTRA_NAMES = frozenset(
         "grep.exe",
         "sleep.exe",
         "cat.exe",
-        "tail",
-        "grep",
-        "sleep",
-        "cat",
     }
 )
 
@@ -1009,6 +1005,7 @@ def attribute_orphans(
     now_epoch: float,
     min_age_hours: float = ORPHAN_MIN_AGE_HOURS,
     candidate_names: frozenset[str] = ORPHAN_CANDIDATE_NAMES,
+    platform: str | None = None,
 ) -> dict:
     """Classify long-lived fan-out debris by PARENT LIVENESS, never by age alone.
 
@@ -1025,7 +1022,13 @@ def attribute_orphans(
     parent rules to the verdict names plus the MSYS coreutils names, at any age
     above a few seconds of teardown, and counts per name before any truncation.
     The orphan verdict, its age floor, and its candidate set are unchanged.
+
+    The census runs only on a Windows table, whose parent pid is the creator's
+    and stays so after the creator exits. POSIX reparents an orphan to init or
+    the nearest child subreaper, so its ppid names a live adopter the table
+    cannot tell from a real parent: there the census is None, not [].
     """
+    creator_ppids = (platform or sys.platform) == "win32"
     by_pid = {r["pid"]: r for r in records}
     orphans: list[dict] = []
     live_parent: list[dict] = []
@@ -1033,7 +1036,11 @@ def attribute_orphans(
     # name -> [count, youngest_hours, oldest_hours]. Counted in full before the
     # orphan sample cap below; this table is not a kill list.
     census_by_name: dict[str, list] = {}
-    census_names = candidate_names | DEAD_PARENT_CENSUS_EXTRA_NAMES
+    census_names = (
+        candidate_names | DEAD_PARENT_CENSUS_EXTRA_NAMES
+        if creator_ppids
+        else frozenset()
+    )
     for record in records:
         lowered = record["name"].lower()
         in_verdict = lowered in candidate_names
@@ -1048,9 +1055,7 @@ def attribute_orphans(
         age_seconds = now_epoch - started
         age_hours = age_seconds / 3600.0
         verdict_aged = in_verdict and age_hours >= min_age_hours
-        census_aged = (
-            in_census and age_seconds > DEAD_PARENT_CENSUS_MIN_AGE_SECONDS
-        )
+        census_aged = in_census and age_seconds > DEAD_PARENT_CENSUS_MIN_AGE_SECONDS
         if not verdict_aged and not census_aged:
             continue
         parent = by_pid.get(record["ppid"])
@@ -1114,6 +1119,23 @@ def attribute_orphans(
         }
         for name, (count, youngest, oldest) in sorted(census_by_name.items())
     ]
+    if creator_ppids:
+        census_note = (
+            "Census, not a kill list. Per-name counts of processes whose parent is gone "
+            "or whose parent pid was recycled, at any age above 5 seconds of teardown. "
+            "The name set is the orphan candidate set plus tail.exe, grep.exe, sleep.exe, "
+            "and cat.exe. An unreadable parent start time is unknown, not a row here. "
+            "Counts are taken per name before any sample cap. This engine reports and "
+            "never kills."
+        )
+    else:
+        census_note = (
+            "Census, not a kill list, and not measured on this platform. POSIX reparents "
+            "an orphan to init or the nearest child subreaper, so its parent pid names a "
+            "live adopter rather than the dead creator, and the table cannot tell an "
+            "adopter from a real parent. The census needs a Windows process table, which "
+            "keeps the creator's pid. This engine reports and never kills."
+        )
     return {
         "min_age_hours": min_age_hours,
         "candidate_names": sorted(candidate_names),
@@ -1127,16 +1149,8 @@ def attribute_orphans(
         "live_parent_sample": live_parent[:10],
         "unknown_count": len(unknown),
         "unknown_sample": unknown[:10],
-        "dead_parent_any_age": dead_parent_any_age,
-        "dead_parent_any_age_note": (
-            "Census, not a kill list. Per-name counts of processes whose parent is gone "
-            "or whose parent pid was recycled, at any age above 5 seconds of teardown. "
-            "The name set is the orphan candidate set plus tail, grep, sleep, and cat. "
-            "Executable-suffixed names are inert on POSIX process tables and retained for "
-            "WSL interop processes. An unreadable parent start time is unknown, not a row "
-            "here. Counts are taken per name before any sample cap. This engine reports "
-            "and never kills."
-        ),
+        "dead_parent_any_age": dead_parent_any_age if creator_ppids else None,
+        "dead_parent_any_age_note": census_note,
         "note": (
             "Only a dead-parent process is an orphan. Live-parent processes of the same age "
             "are working software; killing them breaks whatever owns them. Scoped to the shells, "

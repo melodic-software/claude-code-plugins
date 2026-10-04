@@ -265,13 +265,15 @@ spawns. Read `fan_out` in this order:
    process with a live parent is working software and killing it breaks whatever owns it, so
    report `parent_alive` per candidate and treat `unknown` as unknown. `dead_parent_any_age`,
    beside that verdict, is a census and not a kill list: one row per name (`name`, `count`,
-   `youngest_h`, `oldest_h`) for a process in the orphan candidate set, or named `tail`,
-   `grep`, `sleep`, or `cat` (bare or `.exe`), whose parent is gone or whose parent pid was
+   `youngest_h`, `oldest_h`) for a process in the orphan candidate set, or named `tail.exe`,
+   `grep.exe`, `sleep.exe`, or `cat.exe`, whose parent is gone or whose parent pid was
    recycled, and which is older than 5 seconds. `count` is every such process of that name.
    The 24-hour orphan floor and the orphan candidate set are unchanged, and a census row is
-   not a process to kill. `processes.population` separates accumulation from churn across two
-   samples; one sample cannot tell them apart, and a count that holds while pids turn over
-   is churn.
+   not a process to kill. The census is `null` off Windows, which is not measured rather than
+   none found: Linux, macOS, and WSL reparent an orphan to a live init or subreaper, so the
+   process table cannot show its dead parent. `processes.population` separates accumulation
+   from churn across two samples; one sample cannot tell them apart, and a count that holds
+   while pids turn over is churn.
 
 Cross-cutting: `sessions.active_last_hour` (concurrent sessions multiply watcher and I/O load),
 `sessions.largest_transcript` (a very large live transcript in a resumed session grows the

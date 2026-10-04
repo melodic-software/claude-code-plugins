@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.7.0] - 2026-10-04
+
+### Added
+
+- **audit-performance counts dead-parent fan-out debris at any age on Windows.** `orphan_attribution.dead_parent_any_age` is a per-name census (`name`, `count`, `youngest_h`, `oldest_h`) of processes whose parent is gone or recycled, older than 5 seconds. The names are the orphan candidate set plus `tail.exe`, `grep.exe`, `sleep.exe`, and `cat.exe`. It is a census, not a kill list: `orphans`, `orphan_count`, and the 24-hour verdict floor stay as they are. On Linux, macOS, and WSL the census is `null` with a note, because those systems reparent an orphan to a live init or subreaper and the process table no longer shows the dead parent ([#6035](https://github.com/melodic-software/claude-code-plugins/issues/6035)).
+
 ## [3.6.6] - 2026-10-03
 
 ### Fixed
