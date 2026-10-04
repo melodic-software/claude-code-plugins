@@ -77,7 +77,8 @@ record which source each finding rests on:
 2. **Current upstream guidance**, interactive runs only, when the focus is `currency` or
    `performance`, or the repo's standards say nothing about the target. Invoke
    `/discovery:research` via the Skill tool for an approach or framework question, or
-   `/context7:lookup` via the Skill tool for a library or API question. Scale the depth to the
+   `/context7:lookup` via the Skill tool for a library or API question, or research official
+   documentation inline where neither skill is installed. Scale the depth to the
    target: one lookup for a method, a full research pass for a framework or architecture change.
    Unattended runs skip this rung (see Unattended mode).
 3. **Model judgment**, the weakest source, labeled `judgment` wherever it is used.
@@ -113,13 +114,18 @@ unless the user redirects. `dry-run` presents the pick with its proposed diff an
 ## Step 4. Route to an owning lane, or fix it here
 
 When an installed skill owns the kind of fix picked, invoke it via the Skill tool, scoped to the
-target, and let it carry the change; its own PR and contract apply. Examples: structure-only
-tidyings go to `/code-tidying:tidy`, a dependency that couples two modules to `/coupling:reduce`,
-a name the user wants options for to `/naming:name-it-better`, prose compression to
-`/docs-hygiene:compress`. Any installed skill whose description owns the gap qualifies; the list
-is not closed.
+target. What happens next depends on what that skill returns:
 
-Otherwise fix it here:
+- **It ships its own PR** (for example `/code-tidying:tidy`): its run is this run's result, and
+  its contract applies. Stop here.
+- **It proposes or edits without shipping** (for example `/naming:name-it-better` offers names
+  for a human to pick; `/docs-hygiene:compress` edits in place): take its output and continue
+  with the steps below. Unattended runs skip a lane that needs a human pick and fix the gap here
+  instead, or move to the next candidate.
+
+Any installed skill whose description owns the gap qualifies; the examples are not a closed list.
+
+Otherwise, and after a lane that does not ship, fix it here:
 
 1. **Branch.** Unattended, or on the default branch: create `<type>/improve-<slug>` from the
    remote default branch, where `<type>` is the Conventional Commits type of the change. On a
@@ -127,17 +133,27 @@ Otherwise fix it here:
    own PR. A dirty working tree that is not this run's work is a stop: say so rather than mix it
    in.
 2. **Edit** with the Edit tool. Stage with `git add <path>` only, never `-A` or `.`.
-3. **Verify.** Invoke `/toolchain:check` via the Skill tool for the changed files, or the
+3. **Measure.** `git diff --cached --shortstat` against the hard cap in
+   `pr-scope-budget.md`. The estimate in Step 3 can miss references and formatting, so the cap
+   is checked on the real diff. Over the cap: cut to a complete slice that fits, or unstage and
+   follow the Overflow section.
+4. **Verify.** Invoke `/toolchain:check` via the Skill tool for the changed files, or the
    project's documented build, test, and lint commands where that skill is absent. A failing
    check is fixed or the change is dropped; it never ships red.
-4. **Commit** through `/source-control:commit` via the Skill tool, one commit for the
-   improvement.
-5. **Open the PR** through `/source-control:pull-request create` via the Skill tool, which opens
-   it as a draft. The PR body names the gap, the standard and its basis, and how the change was
-   verified.
+5. **Commit** through `/source-control:commit` via the Skill tool, one commit for the
+   improvement. Where that skill is absent, `git commit` with a Conventional Commits subject.
+6. **Open the PR** through `/source-control:pull-request create` via the Skill tool, which opens
+   it as a draft. Where that skill is absent, push the branch and run `gh pr create --draft`.
+   The PR body names the gap, the standard and its basis, and how the change was verified, and
+   it states the issue linkage up front: `Closes #N` when the improvement settles a known issue,
+   otherwise `No related issue: improve-one-thing against <standard>`. An unattended run passes
+   that line in, so the create step has nothing to ask.
+7. **Ready.** Follow the repository's own rule for when the author marks a PR ready (some
+   repositories run review and test lanes only on ready PRs). Interactive: offer the flip.
+   Unattended: flip through `/source-control:pull-request ready` only when the caller's prompt
+   authorizes it; otherwise leave the draft and say so in the run report.
 
-A human merges. This skill never merges, never marks its PR ready, and never edits outside the
-picked improvement.
+A human merges. This skill never merges and never edits outside the picked improvement.
 
 ## Unattended mode
 
@@ -151,11 +167,13 @@ Routine, a scheduled workflow, a loop lane). Never inferred from the environment
   standards; the class rules are in the `autonomy` plugin's routines reference. A
   currency-focused improvement is filed as a work item for an interactive run instead.
 - **Throttle.** Count this skill's open PRs:
-  `gh pr list --state open --json headRefName --jq '[.[] | select(.headRefName | test("^[a-z]+/improve-"))] | length'`.
+  `gh pr list --state open --limit 1000 --json headRefName --jq '[.[] | select(.headRefName | test("^[a-z]+/improve-"))] | length'`
+  (`gh pr list` returns 30 PRs unless `--limit` says otherwise).
   At 3 or more, stop and report; the caller's prompt may set another limit. Basis: the
   `/code-tidying:tidy` backlog throttle uses the same limit.
 - **Overflow is filed**, not planned: one work item via `/work-items:track` invoked via the Skill
-  tool, searched for duplicates first, and linked from the PR body.
+  tool, or `gh issue create` where that skill is absent, searched for duplicates first, and
+  linked from the PR body.
 - **A clean, isolated checkout is required.** A dirty tree is a stop, never a stash.
 
 ## Next

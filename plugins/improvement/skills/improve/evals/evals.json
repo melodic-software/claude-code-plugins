@@ -49,7 +49,7 @@
         "Asks the user nothing",
         "Checks the open improve-PR count before working and stops at the throttle limit",
         "Does not fetch upstream guidance or invoke a research skill",
-        "Opens at most one draft PR and never merges or marks it ready"
+        "Opens at most one draft PR, states the issue linkage in its body without asking, and never merges it"
       ]
     },
     {

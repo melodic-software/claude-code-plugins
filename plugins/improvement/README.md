@@ -118,6 +118,10 @@ jobs:
             <the same Routine prompt template as above>
 ```
 
+These permissions fit the `find` prompt, which only files issues. The improve-one-thing prompt
+pushes a branch and opens a pull request, so its job needs `contents: write` and
+`pull-requests: write` in place of `contents: read`, plus `issues: write` for filed overflow.
+
 ### What is NOT a standing wrapper
 
 `/loop` is session-scoped only: it repeats a prompt inside one session and dies with it. It can
