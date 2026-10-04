@@ -139,15 +139,19 @@ const resetLabel = (iso: string) => {
   return Number.isNaN(at.getTime()) ? iso : `${at.toISOString().slice(0, 16).replace('T', ' ')} UTC`
 }
 
+// The person's wording; Claude's names the threshold alone, since Claude Code waits out a usage limit itself.
 const verdictText = (event: Event, cfg: Config) =>
   ({ edge: 'at', approach: 'nearing', quiet: 'below', reset: 'reset and below' })[event] + ` the ${edgeName(cfg)}`
+
+const modelVerdict = (event: Event, cfg: Config) =>
+  ({ edge: 'at', approach: 'nearing', quiet: 'below', reset: 'reset, now below' })[event] + ` ${cfg.threshold}%`
 
 const windowOf = (kind: string) => WINDOWS.find(w => w.kind === kind)
 
 const clause = (kind: string, event: Event, limit: SessionRateLimit | undefined, cfg: Config) => {
   const subject = cfg.data.has('window') ? `${windowOf(kind)?.name ?? kind} window` : 'a rate-limit window'
   const percent = limit !== undefined && cfg.data.has('percent') ? `${limit.percentUsed}% used` : undefined
-  let text = `${subject} ${verdictText(event, cfg)}${percent ? ` (${percent})` : ''}`
+  let text = `${subject} ${modelVerdict(event, cfg)}${percent ? ` (${percent})` : ''}`
   if (event !== 'reset' && cfg.data.has('reset') && limit?.resetsAt !== undefined) {
     text += `, resets at ${resetLabel(limit.resetsAt)}`
   }
@@ -206,9 +210,11 @@ const dueEvents = (st: State): [string, Event][] => {
 
 const dueLines = (st: State, cfg: Config): string[] => {
   const reading = st.reading ?? new Map()
-  return dueEvents(st)
-    .sort(([a], [b]) => order(a) - order(b))
-    .map(([kind, event]) => `rate-limit-guard: ${clause(kind, event, reading.get(kind), cfg)}.`)
+  const events = dueEvents(st).sort(([a], [b]) => order(a) - order(b))
+  const lastEdge = events.map(([, event]) => event).lastIndexOf('edge')
+  return events.map(
+    ([kind, event], i) => `rate-limit-guard: ${clause(kind, event, reading.get(kind), cfg)}.${i === lastEdge ? ' Keep working.' : ''}`,
+  )
 }
 
 const consume = (st: State) => {
@@ -314,7 +320,7 @@ async function statusText($: EngineInterface, st: State, cfg: Config) {
     const limit = st.reading?.get(kind)
     if (limit === undefined) return `${name} window: no reading`
     const reset = limit.resetsAt === undefined ? '' : `, resets at ${resetLabel(limit.resetsAt)}`
-    return `${name} window: ${limit.percentUsed}% used, ${verdictText(levelOf(limit.percentUsed, cfg), cfg)}${reset}`
+    return `${name} window: ${limit.percentUsed}% used, ${modelVerdict(levelOf(limit.percentUsed, cfg), cfg)}${reset}`
   })
   const home = await homeDir($)
   const snapshot = !cfg.writes
@@ -466,7 +472,6 @@ async function statusJson($: EngineInterface, st: State, cfg: Config) {
     verdict: levels.length === 0 ? 'unknown' : levels.includes('edge') ? 'edge' : levels.includes('approach') ? 'approach' : 'quiet',
     line_threshold: cfg.threshold,
     approach_pct: cfg.approach,
-    lanes_pause_edge: PAUSE_EDGE,
     ...(st.spend ? { spend_limit: { used_percentage: st.spend.percentUsed, resets_at: st.spend.resetsAt ?? null } } : {}),
   })
 }
