@@ -310,10 +310,13 @@ jobs:
       # gate in `check-skills`, check 25 included as a FAIL.
       #
       # `lint_shell` names every input of a `lint-shell` gate: shell and Python
-      # source, hook and bin directories, skill and agent markdown (the
-      # portability lint and the hook-frontmatter reader), the gates with their
-      # baselines and libraries, the rcfile, the PyYAML pin, and this workflow.
-      # A change that touches none of them starts no `lint-shell`.
+      # source, hook and bin directories, every plugin markdown file (the
+      # portability lint scans skills/ and reference/ markdown, the
+      # hook-frontmatter reader every .md under plugins/), every plugin JSON
+      # file (a plugin.json `hooks` entry may name a hooks file at any path in
+      # its plugin), the gates with their baselines and libraries, the rcfile,
+      # the PyYAML pin, and this workflow. A change that touches none of them
+      # starts no `lint-shell`; scripts/lint-shell-filter.test.sh pins this.
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
@@ -431,7 +434,10 @@ jobs:
               **/bin/**
               **/agents/**
               **/SKILL.md
-              plugins/*/skills/**/*.md
+              plugins/**/*.md
+              plugins/*/reference/**
+              plugins/*/.claude-plugin/**
+              plugins/**/*.json
       # THE TEST LANES ARE PLANNED HERE, ONCE. scripts/plan-test-lanes.sh runs
       # the affected-suite selector over the diff and gives each test lane its
       # suites, packed into legs by suite-seconds, and each leg the optional
@@ -724,7 +730,7 @@ jobs:
         run: |
           globs='**/*.md'
           if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only --diff-filter=d "$DIFF_BASE...HEAD") &&
-            ! grep -qE '(^|/)\.markdownlint[^/]*$|^\.github/workflows/ci\.yml$' <<<"$changed"; then
+            ! grep -qE '(^|/)\.markdownlint[^/]*$|^\.github/workflows/pr-require-checks\.yml$' <<<"$changed"; then
             md=$(grep -E '\.md$' <<<"$changed" || true)
             if [ -z "$md" ]; then
               globs=README.md
@@ -1214,7 +1220,7 @@ jobs:
           files=''
           if [ -n "$DIFF_BASE" ]; then
             files=$(git diff --name-only "$DIFF_BASE...HEAD")
-            whole='^\.shellcheckrc$|^\.github/workflows/ci\.yml$|^"| '
+            whole='^\.shellcheckrc$|^\.github/workflows/pr-require-checks\.yml$|^"| '
             sourced='(^|/)lib/.*\.(sh|bash)$|-(harness|helpers)\.sh$'
             extra=''
             while IFS= read -r path; do
@@ -1552,7 +1558,7 @@ jobs:
           DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
         run: |
           if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD") &&
-            ! grep -qE '^(\.github/workflows/ci\.yml|scripts/validate-plugins\.sh|scripts/plugin-validate-report\.mjs|package(-lock)?\.json)$' <<<"$changed"; then
+            ! grep -qE '^(\.github/workflows/pr-require-checks\.yml|scripts/validate-plugins\.sh|scripts/plugin-validate-report\.mjs|package(-lock)?\.json)$' <<<"$changed"; then
             touched=''
             while IFS= read -r plugin; do
               [ -d "plugins/$plugin" ] && touched+="$plugin "

@@ -3,6 +3,12 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.4] - 2026-10-04
+
+### Changed
+
+- **C4 now checks the truncation length Claude Code documents.** The Claude Code MCP page now says each tool description and each server's `instructions` field is cut at 2,048 characters by default, so C4 counts characters against that length instead of applying the skill's own 2KB byte budget. The client-behavior record carries the new pointer, as-of date and recheck trigger.
+
 ## [0.6.3] - 2026-10-04
 
 ### Changed

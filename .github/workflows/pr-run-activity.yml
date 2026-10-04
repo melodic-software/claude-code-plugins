@@ -85,8 +85,8 @@ jobs:
         || steps.gate.outputs.proceed != 'true' && steps.gate.outputs.reason
         || '' }}
       can-commit: ${{ steps.config.outputs.can-commit }}
-      applies: ${{ steps.config.outputs.applies }}
-      # A gate skill succeeds only on a `pass` verdict.
+      # A gate skill succeeds only on a `pass` verdict. The verdict step's
+      # ACT_OUTCOME repeats this expression: runner-policy refuses YAML aliases.
       act-outcome: >-
         ${{ steps.act-skill.outcome == 'success' && steps.config.outputs.gating == 'gate'
         && (steps.skill-verdict.outcome == 'success' && 'success' || 'failure')

@@ -235,17 +235,14 @@ test("a verdict whose gates all proceed while env has a gate reason is a mismatc
   assert.equal(report.conclusion, "failure");
 });
 
-test("an env gate reason no-pr with an empty env head SHA posts no check", () => {
+// The gate clears head-sha on every stop, so a no-pr stop on pull_request
+// reaches the report with only the event's head SHA as the fallback.
+test("a no-pr gate stop with no env head SHA posts neutral untrusted-trigger on the fallback head", () => {
   const { verdict: v, inputs: i } = stoppedAt("no-pr", { headSha: "" });
-  assert.equal(decide(v, i).kind, "none");
-});
-
-test("an env no-pr reason with an env head SHA posts neutral untrusted-trigger on it", () => {
-  const { verdict: v, inputs: i } = stoppedAt("no-pr");
   const report = posted(decide(v, i));
   assert.equal(report.conclusion, "neutral");
-  assert.equal(report.head_sha, HEAD);
-  assert.match(report.output.summary, /untrusted-trigger/);
+  assert.equal(report.head_sha, FALLBACK);
+  assert.equal(report.output.summary, "Skip reason: untrusted-trigger");
 });
 
 test("an empty env head SHA with a reason other than no-pr posts on the fallback head", () => {
