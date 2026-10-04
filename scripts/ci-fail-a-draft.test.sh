@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Runs the `Fail a draft` step body of .github/workflows/ci.yml's ci-status
+# Runs the `Fail a draft` step body of .github/workflows/pr-require-checks.yml's ci-status
 # under the shell Actions gives a step with no `shell:` (bash -e), against a
 # stub `gh`.
 #
 # The case that matters is the re-run: a contract-only run drawn while the pull
 # request was a draft keeps that payload when the full run re-runs it after the
 # flip to ready, and must then pass. Every other combination stays red.
-# test-scope: .github/workflows/ci.yml
+# test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WORKFLOW="$ROOT/.github/workflows/ci.yml"
+WORKFLOW="$ROOT/.github/workflows/pr-require-checks.yml"
 
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
@@ -34,7 +34,7 @@ if [[ ! -s "$TMP_ROOT/body.sh" ]]; then
   exit 1
 fi
 for line in "if: github.event.pull_request.draft == true" \
-  "SCOPE: \${{ needs.scope.result }}" \
+  "SCOPE: \${{ needs.select-tests.result }}" \
   "PR: \${{ github.event.pull_request.number }}"; do
   if [[ "$step" == *"$line"* ]]; then ok "step carries '$line'"; else fail "step lost '$line'"; fi
 done

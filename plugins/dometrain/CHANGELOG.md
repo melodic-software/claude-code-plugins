@@ -3,11 +3,17 @@
 All notable changes to the `dometrain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.4] - 2026-10-04
+## [0.6.5] - 2026-10-04
 
 ### Changed
 
 - **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.6.4] - 2026-10-04
+
+### Changed
+
+- `/dometrain:grounding` treats how a course teaches a pattern as one source, checked against the principle the pattern serves, and points at the recommendation-basis grounding bar.
 
 ## [0.6.3] - 2026-10-04
 

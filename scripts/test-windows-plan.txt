@@ -1,4 +1,4 @@
-# The steps of .github/workflows/test-windows.yml and the selected suites that
+# The steps of .github/workflows/pr-test-windows.yml and the selected suites that
 # start each one, read by scripts/plan-test-lanes.sh. One line per step key:
 #
 #   <job> <key> [<pattern>...]
