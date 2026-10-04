@@ -20,8 +20,8 @@ The main development host runs Claude Code in WSL2 with NAT networking. Its `.ws
 on purpose because mirrored networking still has Docker Desktop friction.
 
 A research pass on 2026-10-04 covered tool choice, visual-defect detection, PR media, E2E practice,
-Playwright upstream drift and demo-video production. Fresh-context verifiers re-fetched every
-primary and corrected the synthesis; this record carries the corrected claims. The facts the
+Playwright upstream drift and demo-video production. Fresh-context verifiers re-fetched the cited
+primaries (except a ytyng.com benchmark left unread and an OpenAI post that returned 403) and corrected the synthesis; this record carries the corrected claims. The facts the
 decisions rest on:
 
 - **Claude in Chrome and WSL.** Anthropic's docs state Chrome integration "isn't supported in
@@ -36,9 +36,11 @@ decisions rest on:
   `DISPLAY` and `WAYLAND_DISPLAY` unset and rendered a page. Under NAT, Windows is reached at the
   gateway IP, not `127.0.0.1` (probe; [WSL networking](https://learn.microsoft.com/en-us/windows/wsl/networking)).
 - **CLI against MCP.** Four dated practitioner articles (Better Stack 2026-02-22, TestCollab
-  2026-02-12, bug0 2026-06-26, webfuse 2026-09-16) recommend the CLI for terminal coding agents and
-  MCP for long-running agents that hold browser state, with the qualifiers "most terminal-based
-  coding agent tasks" and "most teams end up with both". The size of the token advantage is
+  2026-02-12, bug0 2026-06-26, webfuse 2026-09-16) all recommend the CLI for terminal coding agents
+  ("most terminal-based coding agent tasks", Better Stack). MCP for long-running agents that hold
+  browser state rests on the Microsoft playwright-cli README, Better Stack and webfuse ("most teams
+  end up with both"); TestCollab's MCP case is a sandboxed agent without a shell, and bug0 says
+  many teams run both. The size of the token advantage is
   contested between sources.
 - **Visual checks.** An aria snapshot was identical for a broken and a correct layout in a local
   probe, while geometry assertions caught both. The best model on the DiffSpot spot-the-difference
@@ -51,7 +53,7 @@ decisions rest on:
   combined.
 - **PR media.** gh 2.99.0 added `--attach` to `gh issue/pr create/edit/comment`. A live probe on
   2026-10-04 with gh 2.102.0 under the user's OAuth login attached png and mp4 through
-  `gh issue create`, `gh pr create`, `gh pr comment` and `gh pr edit`; the rendered HTML showed
+  `gh issue create`, `gh pr create` and `gh pr comment`, and png through `gh pr edit`; the rendered HTML showed
   `<img>` with alt text and `<video controls>` in the body and comment. GitHub's changelog of
   2026-09-01 names the OAuth token from `gh auth login` or a classic PAT, and
   [attaching files with GitHub CLI](https://docs.github.com/en/github-cli/github-cli/attaching-files-with-github-cli)
@@ -72,9 +74,9 @@ decisions rest on:
   saying how; Cursor posts videos to PRs but publishes no method. playwright-recast 0.23.0 (MIT)
   was run on the same flow on 2026-10-04: capture and cursor were good, but the auto-zoom aimed at
   the wrong places, cut the camera hard, froze for about 1 s, and exposes no hook to add effects.
-  Across four rounds of our own pipeline, the producer's self-checks reported defects fixed that an
-  independent frame review then found (crossfade ghosting, a clipped headline at zoom peak, a
-  stale caption).
+  Our own pipeline has had two independent frame-QC rounds so far, both "ship after fixes"; in
+  rounds 2 and 3 the producer's self-checks reported defects fixed that the independent review then
+  found (crossfade ghosting, a headline clipped at zoom peak, a stale caption).
 
 ## Decision
 
@@ -95,7 +97,8 @@ produced video and screenshots on the PR from the user's own gh login.
    `/playwright:playwright` keeps its distilled skill and syncs to `@playwright/cli` 0.1.22 now.
 
    Basis: Claude in Chrome WSL note and Chrome 136 blog (both fetched 2026-10-04); headless and NAT
-   probes, 2026-10-04; four practitioner articles for CLI first and MCP for long sessions; user
+   probes, 2026-10-04; four practitioner articles for CLI first; the Microsoft README, Better Stack and webfuse for
+   MCP in long sessions; user
    decisions 2, 3 and 7. The real-browser row is an inference from the two primaries; the durable
    regression row is judgment.
 
@@ -114,8 +117,8 @@ produced video and screenshots on the PR from the user's own gh login.
    An aria snapshot is a role, name and text check, not a visual layer. A small in-repo eval of
    planted defects (overlap, clipping, contrast, misalignment) measures what each layer catches.
 
-   Basis: judgment for the order. DiffSpot recall for treating vision output as leads; the local
-   aria and geometry probe; Playwright's snapshot docs for environment sensitivity; Anthropic's
+   Basis: judgment for the order. DiffSpot recall for treating vision output as leads; a single
+   local aria and geometry probe (not re-run); Playwright's snapshot docs for environment sensitivity; Anthropic's
    [best practices](https://code.claude.com/docs/en/best-practices) ("show evidence rather than
    asserting success", a verification subagent that "has a fresh model try to refute the result");
    user decision 6 for the eval.
@@ -144,7 +147,8 @@ produced video and screenshots on the PR from the user's own gh login.
    anything is posted; the producer's own checks never clear a video. playwright-recast is not
    adopted. Basis: Playwright's CLI video doc (explore first, then script); the 800x800 default;
    `traceV10` fields; Devin's documented auto-zoom and idle compression; the playwright-recast run
-   and the four QC rounds above; user decision 11.
+   and the two independent QC rounds above, plus the producer self-checks that missed blend and
+   edge defects in rounds 2 and 3; user decision 11.
 
 6. **Style and narration are plugin options.** A shipped userConfig option sets the demo style:
    `produced` by default (zoom, cursor, ripple, captions, title card) or `plain` (the same replay
@@ -160,8 +164,8 @@ produced video and screenshots on the PR from the user's own gh login.
 
 - **Claude in Chrome as the default browser tool.** Rejected for WSL2: Anthropic documents it as
   unsupported there, and only the user's live test can show the reported bridge works.
-- **Playwright MCP as the default.** Rejected for short self-checks: the practitioner consensus
-  favors the CLI for terminal agents. MCP keeps the long-running row.
+- **Playwright MCP as the default.** Rejected for short self-checks: all four practitioner sources
+  favor the CLI for terminal agents. MCP keeps the long-running row.
 - **Mirrored networking, or an SSH tunnel, to drive Windows Chrome over CDP.** Rejected for now:
   NAT stays for Docker Desktop, mirrored mode has an open WSL issue reaching the Windows host over
   TCP ([microsoft/WSL#40343](https://github.com/microsoft/WSL/issues/40343)), and the tunnel is
@@ -173,7 +177,8 @@ produced video and screenshots on the PR from the user's own gh login.
 - **playwright-recast as the post-production stage.** Rejected after the run above: wrong zoom
   targets, hard camera cuts, freezes, and no extension hook.
 - **A Remotion pipeline.** Not adopted: its license requires a company license for for-profit
-  organizations above three employees, and the in-repo pipeline already meets the bar.
+  organizations above three employees. The in-repo pipeline gives full control with no license
+  term, and independent frame QC gates it before anything is posted.
 - **Narration on by default.** Rejected: on-screen chapters and captions carry the walkthrough, and
   narration stays one option away.
 
