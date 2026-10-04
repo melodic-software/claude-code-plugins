@@ -3,10 +3,16 @@ name: ci
 on:
   # A dispatch runs the full contract corpus.
   workflow_dispatch:
-  push:
-    branches: [main]
-  # THE WHOLE TREE, TWICE A DAY. A push tests only what changed since the last
-  # green push run (see the `scope` job), so this run is the net for what a
+  # NO PUSH TRIGGER. Every commit reaches main through the merge queue (the
+  # repository's merge-queue ruleset, with the org `pull_request` rule and no
+  # bypass actor), and the queue merges a commit only after this workflow
+  # passed on that same SHA in its merge-group run. A push run re-tested the
+  # SHA the queue had just passed: all 55 main pushes from 2026-10-03T22:40Z
+  # to 10-04T17:41Z did, for 591 job minutes. The check runs that merge-group
+  # run left stay on the commit.
+  #
+  # THE WHOLE TREE, TWICE A DAY. A pull request and a merge group test only
+  # what changed, so this run is the net for what a
   # diff cannot show: a suite that asserts against the live tree, and a
   # dependency the affected-suite selector does not see. It takes the same path
   # as a dispatch: the full contract corpus, the whole-repository ShellCheck and
@@ -47,7 +53,7 @@ on:
   # concurrency group falls back to `github.run_id`, so no queued run cancels
   # another; the docs-only detector does not run, the change-detection action
   # fails open and `scope` resolves no diff base, so the whole tree is
-  # tested; the base-diff gates decline as on a push; `pr-contract` finds no pull
+  # tested; the base-diff gates decline as on a schedule run; `pr-contract` finds no pull
   # request number and reports `skipped`, because the title, label and linkage
   # were already checked on the pull request before it could enter the queue;
   # and `ci-status` aggregates the lanes and records `ci-lanes` on the
@@ -71,26 +77,16 @@ permissions:
 # The full branch keeps one group per pull request, so a `synchronize` still
 # cancels everything on the old SHA; the PR number scopes cancellation to
 # exactly one pull request, where `head_ref` would collide across same-named
-# fork branches.
-#
-# PUSHES TO MAIN COALESCE. They share one group per workflow and branch, and
-# that branch alone does not cancel: the running push run finishes, and of the
-# pushes that land meanwhile only the newest waits, because GitHub cancels a
-# pending run when a newer one joins its group. A burst of merges costs two
-# runs instead of one each (a replay of 529 main pushes: 47% would be dropped
-# while pending). The surviving run diffs from the newest green push run, not
-# from its parent, so a dropped run's commits are still in its range. A
-# merge-group, schedule or dispatch run keeps the unique `github.run_id`
-# group, so it is never cancelled.
+# fork branches. A merge-group, schedule or dispatch run keeps the unique
+# `github.run_id` group, so it is never cancelled.
 concurrency:
   group: >-
     ${{ (github.event.pull_request.head.repo.full_name == github.repository &&
     (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
     (github.event.action == 'edited' && !github.event.changes.base)))
     && format('ci-contract-{0}-{1}', github.event.pull_request.number, github.run_id)
-    || github.event_name == 'push' && format('{0}-push-{1}', github.workflow, github.ref)
     || format('{0}-{1}', github.workflow, github.event.pull_request.number || github.run_id) }}
-  cancel-in-progress: ${{ github.event_name != 'push' }}
+  cancel-in-progress: true
 
 # Quality lanes run the ci-workflows composite actions (referenced by SHA,
 # bumped via Dependabot — never copied) against this repo's exact standards
@@ -129,7 +125,7 @@ concurrency:
 # of its own, its wall is the sum of the measured seconds of the steps it
 # holds, plus the setup of the job whose toolchain it copies. Job, p95 / max
 # seconds, minutes: scope 24 / 35 plus the planner (up to 21 s measured), 3;
-# lint-repo 244 / 265, 7, sized for its whole-tree load (the push runs);
+# lint-repo 244 / 265, 7, sized for its whole-tree load (the scheduled runs);
 # lint-shell 345 / 385 with a whole-repository ShellCheck, 9; check-plugins
 # 110 / 120, 3; check-skills at most 585 / 645, the wall of a measured job
 # that ran all of its steps and more, 15; test-bash per leg about 230 on the
@@ -159,8 +155,8 @@ jobs:
   # non-zero exit, or an output file it could not write — leaves
   # `steps.detect.outputs.docs_only` unset, which every expression below
   # resolves toward running, and the full suite runs. The same unset-output
-  # path covers a run with no diff base (a schedule or dispatch run, or a push
-  # that could not use one), where the detect step does not run at all. The
+  # path covers a run with no diff base (a schedule or dispatch run, or a
+  # merge group), where the detect step does not run at all. The
   # narrowing clauses read the change-detection action through fromJSON with a
   # `|| '{}'` default and compare `!= 'false'`, never `== 'true'`, for the same
   # reason: an unset filter group must run its lane, not skip it.
@@ -195,10 +191,8 @@ jobs:
     timeout-minutes: 3
     # The change-detection action lists the pull request's files through the
     # API. Nothing else in this workflow needs that read, so it is granted here
-    # and nowhere else. `statuses: write` is for the in-flight marker below,
-    # `actions: read` for the green push runs the diff base is chosen from.
+    # and nowhere else. `statuses: write` is for the in-flight marker below.
     permissions:
-      actions: read
       contents: read
       pull-requests: read
       statuses: write
@@ -264,19 +258,11 @@ jobs:
       - name: Fetch base
         uses: ./.github/actions/checkout-with-base # zizmor: ignore[self-repository]
       # THE DIFF BASE, RESOLVED ONCE. A pull request diffs against its base
-      # branch. A push diffs against the newest commit on HEAD's first-parent
-      # line with a green push run, not against its parent: a push run
-      # coalesced away while pending, or a red one, leaves its commits in the
-      # next range, so a break stays in every later range until a run passes.
-      # A push with no such commit, or whose range touches the shared test
-      # machinery (this workflow, the actions it calls, the suite runner, the
-      # selector and planner, the resolver, scripts/lib/, the toolchain pins),
-      # and every schedule or dispatch run, get no base: the whole tree.
+      # branch. Every other run gets no base: the whole tree.
       # scripts/resolve-diff-base.sh holds the rules and logs why it chose.
       - name: Resolve the diff base
         id: base
         env:
-          GH_TOKEN: ${{ github.token }}
           BASE_REF: ${{ github.base_ref }}
         run: scripts/resolve-diff-base.sh
       - name: Test the docs-only detector
@@ -508,7 +494,7 @@ jobs:
   # PR-ONLY STEPS BRANCH IN THE SHELL, NOT IN `if:`. A step cannot carry both a
   # resolver gate and an event gate: the docs-only gate reads a step condition
   # whole, so a compound condition is an unsanctioned consumer form, and an
-  # event-only condition makes the step `skipped` on push, which the
+  # event-only condition makes the step `skipped` on a merge group, which the
   # fail-closed aggregator then reds. So a diff-scoped gate runs on every event
   # and returns early from its own script when there is no base ref to diff
   # against.
@@ -766,9 +752,9 @@ jobs:
 
       # `log-opts` is unset on purpose: the composite scopes the scan by event. A
       # pull request scans only its own commits (<base>..HEAD), so a finding on
-      # another branch cannot fail it (#3599). A push to main scans main's full
-      # history (HEAD). A manual dispatch scans every ref present in the clone
-      # (--all).
+      # another branch cannot fail it (#3599). A merge group scans HEAD's full
+      # history. A schedule or manual dispatch scans every ref present in the
+      # clone (--all).
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
@@ -788,7 +774,7 @@ jobs:
       # actionlint and the dependabot and workflow schemas on `run_workflows`
       # (.github/**), the two manifest schemas and the duplicate-key detector
       # in `check-plugins` on `run_manifests`. Both rows carry the docs-only
-      # term, and on a push, schedule or dispatch every group reports true.
+      # term, and on a merge-group, schedule or dispatch run every group reports true.
       - name: Lint workflows
         id: actionlint
         if: needs.scope.outputs.run_workflows == 'true'
@@ -930,7 +916,7 @@ jobs:
       # annotations are measured before anything is allowed to block on them.
       #
       # The event branch lives in the script rather than in `if:`, because a
-      # push has no base ref to diff against and a step cannot carry both an
+      # merge group has no base ref to diff against and a step cannot carry both an
       # event gate and a resolver gate.
       - name: Report ai-slop findings on changed markdown
         id: ai_slop_report
@@ -1280,7 +1266,7 @@ jobs:
   #
   # The shared-library bump checks need base history: `checkout-with-base`
   # runs once, at the top, and every bump check below resolves
-  # `origin/$BASE_REF` from it. Each returns early on a push rather than
+  # `origin/$BASE_REF` from it. Each returns early off a pull request rather than
   # diffing against a ref that does not exist.
   #
   # The job skips only on a contract-only event or a draft (see `lint-repo`).
@@ -1565,7 +1551,7 @@ jobs:
       # CI only verifies: the copies match their canonical, and a change to a
       # canonical bumps every carrying plugin. The libraries' own suites are
       # corpus suites, reached by the selector. The bump checks need a base
-      # ref, so they return early on a push rather than diffing against a ref
+      # ref, so they return early off a pull request rather than diffing against a ref
       # that does not exist.
       - name: Verify generated shared-library copies match their canonical sources
         if: needs.scope.outputs.run_tests == 'true'
@@ -1792,33 +1778,15 @@ jobs:
       #
       # The whole corpus (every SKILL.md through the full checker, about 300 s
       # of this job) runs on a pull request only when `skill_checker` matched,
-      # on a push only when its range touched the same inputs, and on every
-      # schedule or dispatch run. Elsewhere an unchanged skill's check-25
+      # and on every other run. Elsewhere an unchanged skill's check-25
       # verdict cannot have moved, because nothing it reads changed, and a
       # changed skill is checked by the next step, which fails it on check 25
       # like any other FAIL. The one verdict a diff can no longer see is a stale
       # scripts/verb-contract-baseline.txt row left by fixing a listed skill;
       # the list has no active rows, and the scheduled run still reports one.
-      #
-      # change-detection reads only a pull request's files, so on a push every
-      # group reports true and the range is checked here instead, against the
-      # group's inputs less scripts/lib/ and this workflow, which already give
-      # a push no diff base.
       - name: Gate every skill on description/verb-contract polarity (check 25)
         if: needs.scope.outputs.run_skill_checker == 'true'
-        env:
-          DIFF_BASE: ${{ needs.scope.outputs.lane_base }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = push ] && [ -n "$DIFF_BASE" ]; then
-            touched=$(git diff --name-only "$DIFF_BASE" HEAD -- plugins/skill-quality/scripts \
-              'scripts/check-all-skills-verb-contract*.sh' scripts/verb-contract-baseline.txt) ||
-              touched="(git diff failed)"
-            if [ -z "$touched" ]; then
-              echo "::notice::No check-25 input changed since $DIFF_BASE; the scheduled run checks every skill."
-              exit 0
-            fi
-          fi
-          bash scripts/check-all-skills-verb-contract.sh
+        run: bash scripts/check-all-skills-verb-contract.sh
       - name: Gate changed skills on the static skill-quality contract
         id: changed_skills
         continue-on-error: true
@@ -1978,7 +1946,7 @@ jobs:
   # `test-bash`, its Python suites to `test-python`, and the Node packages they
   # reach to `test-node`; a Node suite with a sibling .test.sh runs through
   # that wrapper in `test-bash`, and a Pester suite in test-windows.yml. The
-  # whole tree (a schedule, a dispatch, a push with no usable base, or a change
+  # whole tree (a schedule, a dispatch, a merge group, or a change
   # to this workflow or its actions) runs every suite of every lane.
   #
   # ORDERED SKIPS. Each test lane carries the contract-only and draft gates and
