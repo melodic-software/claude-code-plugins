@@ -169,7 +169,9 @@
 # `import('...')`) are read by tools and still count. A trailing comment on a
 # shell, Python or PowerShell code line (a `#` outside quotes after a blank)
 # names nothing either: `pin="1.7" # matches .github/actionlint.yaml` reads
-# no file. A trailing comment on a Node line still counts. Nor does a shell
+# no file. A trailing comment on a Node line, or on a Python `import`/`from`
+# line, still counts: `import transcript_reader  # scripts/transcript_reader.py`
+# is how a module import names its file. Nor does a shell
 # output redirect's target (`>file`, `>>"$dir/file"`): a suite that seeds a
 # fixture under a temporary directory writes that name and reads nothing.
 #
@@ -724,7 +726,10 @@ token_hits() {
       path = substr($0, 1, i - 1)
       text = substr($0, i + 1)
       if (comment_only(path, text)) next
-      if (path ~ /\.(sh|bash|py|ps1|psm1)$/) text = code_part(text)
+      # A Python import keeps its comment: `import x  # scripts/x.py` is how a
+      # module import, which never spells the file name, names the file.
+      if (path ~ /\.(sh|bash|ps1|psm1)$/ || (path ~ /\.py$/ && text !~ /^[ \t]*(import|from)[ \t]/))
+        text = code_part(text)
       # A shell redirect target is written, not read: a suite that seeds a
       # fixture with `printf x >"$dir/docs/a.md"` does not read docs/a.md.
       if (path ~ /\.(sh|bash)$/) gsub(/>>?[ \t]*("[^"]*"|[^ \t;|&()<>]+)/, "", text)

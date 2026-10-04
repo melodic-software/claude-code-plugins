@@ -1365,8 +1365,10 @@ mk_cmt_dependent sh-trailing sh 'echo ok # runs after hub-target.sh\n'
 mk_cmt_dependent sh-quoted-hash sh 'echo "# hub-target.sh"\n'
 # shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
 mk_cmt_dependent sh-redirect sh 'printf x >"$T/hub-target.sh"\necho y >>$T/hub-target.sh\n'
-printf 'import os  # see hubmod.py\n' >"$repo3/eco/cmt/pytrail.py"
+printf 'X = 2  # see hubmod.py\n' >"$repo3/eco/cmt/pytrail.py"
 printf 'import pytrail\n' >"$repo3/eco/cmt/test_pytrail.py"
+printf 'import hubmod  # eco/cmt/hubmod.py\n' >"$repo3/eco/cmt/pyimport.py"
+printf 'import pyimport\n' >"$repo3/eco/cmt/test_pyimport.py"
 # shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
 mk_cmt_dependent sh-directive sh '# shellcheck source=hub-target.sh\n. "$HUB"\n'
 mk_cmt_dependent js-code js 'spawnSync("bash", ["hub-target.sh"]);\n'
@@ -1408,8 +1410,9 @@ fi
 
 run_sel "$repo3" eco/cmt/hubmod.py
 if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/cmt/test_hubmod.py &&
-  ! has_line "$OUT" eco/cmt/test_pyprose.py && ! has_line "$OUT" eco/cmt/test_pytrail.py; then
-  ok "a Python comment, whole-line or trailing, naming a module selects nothing"
+  ! has_line "$OUT" eco/cmt/test_pyprose.py && ! has_line "$OUT" eco/cmt/test_pytrail.py &&
+  has_line "$OUT" eco/cmt/test_pyimport.py; then
+  ok "a Python comment naming a module selects nothing, except one on its import line"
 else
   fail "python: a comment-only mention still selected (rc=$RC): $OUT"
 fi
