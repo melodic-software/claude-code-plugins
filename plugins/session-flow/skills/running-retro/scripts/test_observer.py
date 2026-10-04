@@ -830,21 +830,116 @@ class Redaction(unittest.TestCase):
 
     def test_github_token_pattern_finishes_promptly_on_adversarial_text(self):
         # Shapes that made the pattern backtrack for seconds to minutes.
-        (github,) = (
+        github = [
             p
             for p, marker in observer._REDACTIONS
             if marker == "<REDACTED: GitHub token>"
-        )
+        ]
+        self.assertEqual(len(github), 2)
         for text in (
             "ghs_1_-" * 50000,
             "ghs_1_eyJ" * 30000,
             "ghs_1_eyJa." * 30000,
             "ghs_1_eyJ-" * 30000,
+            ("ghs_1_eyJ" + "A" * 600) * 1000,
         ):
             with self.subTest(text=text[:12]):
                 start = time.monotonic()
-                github.sub("x", text)
+                for pattern in github:
+                    pattern.sub("x", text)
                 self.assertLess(time.monotonic() - start, 1.0)
+
+    def test_jwt_url_and_email_patterns_finish_promptly_on_adversarial_text(self):
+        # Shapes that made these patterns backtrack for seconds to minutes.
+        patterns = [
+            p
+            for p, marker in observer._REDACTIONS
+            if marker
+            in (
+                "<REDACTED: JWT>",
+                "<REDACTED: connection string>",
+                "<REDACTED: email>",
+            )
+        ]
+        self.assertEqual(len(patterns), 4)
+        for text in (
+            "ghs_1_-" * 50000,
+            "ghs_1_eyJa." * 30000,
+            "ghs_1_eyJ-" * 30000,
+            "-eyJ" * 75000,
+            "eyJ" + "A" * 600000,
+            ("eyJ" + "A" * 600) * 1000,
+            ("-eyJ" * 127 + " ") * 600,
+            "a." * 150000,
+            "a." * 32 + "a@" + "a." * 150000,
+        ):
+            with self.subTest(text=text[:12]):
+                start = time.monotonic()
+                for pattern in patterns:
+                    pattern.sub("x", text)
+                self.assertLess(time.monotonic() - start, 1.0)
+
+    def test_private_key_pattern_finishes_promptly_on_adversarial_text(self):
+        # A repeated header made the unbounded body scan take about 38 seconds.
+        (key,) = (
+            p
+            for p, marker in observer._REDACTIONS
+            if marker == "<REDACTED: private key>"
+        )
+        header = "-----BEGIN a PRIVATE" " KEY-----"
+        for text in (
+            header * 20000,
+            header + "-----END" * 70000,
+            "-----BEGIN" + "a" * 600000,
+        ):
+            with self.subTest(text=text[:40]):
+                start = time.monotonic()
+                key.sub("x", text)
+                self.assertLess(time.monotonic() - start, 1.0)
+
+    def test_bounded_patterns_still_redact_realistic_secrets(self):
+        r = observer._redact
+        # Header, payload and signature spell FAKE.
+        jwt = "eyJhbGciOiJIUzI1NiJ9" ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal"
+        self.assertEqual("auth <REDACTED: JWT> x", r(f"auth {jwt} x"))
+        long_header = "eyJ" + "A" * 509 + ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal"
+        self.assertEqual("<REDACTED: JWT>", r(long_header))
+        # A header past the bound, as with an embedded x5c chain, is redacted
+        # whole, payload and signature included.
+        for size in (513, 4000):
+            with self.subTest(header=size):
+                token = (
+                    "eyJ" + "A" * size + ".eyJzdWIiOiJGQUtFIn0" ".FAKEsignatureNOTreal"
+                )
+                self.assertEqual("auth <REDACTED: JWT> x", r(f"auth {token} x"))
+                ghs = "ghs" + "_1234567_" + token
+                self.assertEqual(
+                    "tok <REDACTED: GitHub token> z", r(f"tok {ghs} z")
+                )
+        long_payload = "eyJhbGciOiJIUzI1NiJ9" ".eyJ" + "B" * 2000 + ".FAKEsignature"
+        self.assertEqual("<REDACTED: JWT>", r(long_payload))
+        self.assertEqual(
+            "dsn <REDACTED: connection string>",
+            r("dsn postgresql+psycopg2://user:FAKEpass@db.example.com:5432/app"),
+        )
+        self.assertEqual("<REDACTED: connection string>", r("m" * 64 + "://u:p@h"))
+        self.assertEqual(
+            "to <REDACTED: email> x", r("to first.last+tag@mail.example.co.uk x")
+        )
+        local = "l" * 64
+        domain = ".".join(["d" * 63] * 3) + ".example"
+        self.assertEqual("<REDACTED: email>", r(f"{local}@{domain}"))
+        # A 4096-bit RSA PKCS#8 PEM is about 3.2 KB in 64-character lines
+        # (RFC 7468); this body spells FAKE.
+        body = "\n".join(["FAKE" * 16] * 52)
+        for label in ("", "RSA ", "OPENSSH "):
+            with self.subTest(label=label):
+                pem = (
+                    f"-----BEGIN {label}PRIVATE KEY-----\n{body}\n"
+                    f"-----END {label}PRIVATE KEY-----"
+                )
+                self.assertGreater(len(pem), 3200)
+                self.assertEqual("key <REDACTED: private key> x", r(f"key {pem} x"))
 
 
 class ResultParsing(unittest.TestCase):

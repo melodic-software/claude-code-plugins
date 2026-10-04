@@ -57,7 +57,7 @@ appear there. For the rest the command would fail rather than run, and Step 5 ex
 When a project root resolved, the render leads the `Divergences:` line with *this* project's
 actionable count and folds the rest of the machine into one trailing clause, e.g. `2 behind here
 → converge; 27 more elsewhere on this machine`. Per-row detail (naming exact `<old> → <new>`
-versions per repo) is reserved for genuine conflicts: an unknown/orphaned plugin id, or a CLI call
+versions per repo) is reserved for genuine conflicts: a delisted or delisted_settings_only plugin id, or a CLI call
 that failed, never for the routine bulk case. (Enable-state mismatches, a plugin `true` in one
 scope's `enabledPlugins` and `false` in another, are a known blind spot, not a reportable category:
 `fleet-state.sh` only exposes the merged effective value, never each scope's raw map, so this skill

@@ -479,15 +479,85 @@ def test_validate_flags_a_github_app_installation_token_in_jwt_form(tmp_path):
         "ghs_1_eyJ" * 30000,
         "ghs_1_eyJa." * 30000,
         "ghs_1_eyJ-" * 30000,
+        ("ghs_1_eyJ" + "A" * 600) * 1000,
+        "-eyJ" * 75000,
+        "eyJ" + "A" * 600000,
+        ("eyJ" + "A" * 600) * 1000,
+        ("-eyJ" * 127 + " ") * 600,
+        "a." * 150000,
+        "a." * 32 + "a@" + "a." * 150000,
+        "-----BEGIN a PRIVATE KEY-----" * 20000,
     ],
-    ids=["dash", "header", "dotted", "header-dash"],
+    ids=[
+        "dash",
+        "header",
+        "dotted",
+        "header-dash",
+        "header-long-repeated",
+        "jwt-header",
+        "jwt-long-header",
+        "jwt-long-header-repeated",
+        "jwt-header-near-bound",
+        "scheme",
+        "scheme-at",
+        "private-key",
+    ],
 )
 def test_secret_shape_scan_of_an_adversarial_line_finishes_promptly(line):
-    # Shapes that made the GitHub token pattern backtrack for seconds to minutes.
+    # Shapes that made the GitHub token, JWT and connection string patterns
+    # here, or the observer's private key pattern, backtrack for seconds to
+    # minutes.
     start = time.monotonic()
     for pattern, _ in _save_point_module().SECRET_SHAPES:
         pattern.search(line)
     assert time.monotonic() - start < 1.0
+
+
+@pytest.mark.parametrize(
+    ("text", "label"),
+    [
+        # Header, payload and signature spell FAKE.
+        (
+            "auth eyJhbGciOiJIUzI1NiJ9" ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal x",
+            "JWT",
+        ),
+        ("eyJ" + "A" * 509 + ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal", "JWT"),
+        ("eyJ" + "A" * 513 + ".eyJzdWIiOiJGQUtFIn0" ".FAKEsignatureNOTreal", "JWT"),
+        ("eyJ" + "A" * 4000 + ".eyJzdWIiOiJGQUtFIn0" ".FAKEsignatureNOTreal", "JWT"),
+        (
+            "ghs" + "_1_eyJ" + "A" * 513 + ".FAKEpayload" ".FAKEsignatureNOTreal",
+            "GitHub token",
+        ),
+        (
+            "ghs" + "_1_eyJ" + "A" * 4000 + ".FAKEpayload" ".FAKEsignatureNOTreal",
+            "GitHub token",
+        ),
+        ("dsn postgres://u:p@h/db", "connection string"),
+        (
+            "postgresql+psycopg2://user:FAKEpass@db.example.com:5432/app",
+            "connection string",
+        ),
+        ("m" * 64 + "://u:p@h", "connection string"),
+    ],
+    ids=[
+        "jwt",
+        "jwt-512-header",
+        "jwt-513-header",
+        "jwt-4000-header",
+        "ghs-513-header",
+        "ghs-4000-header",
+        "url",
+        "url-compound-scheme",
+        "url-64-scheme",
+    ],
+)
+def test_bounded_secret_shapes_still_flag_realistic_secrets(text, label):
+    labels = {
+        found
+        for pattern, found in _save_point_module().SECRET_SHAPES
+        if pattern.search(text)
+    }
+    assert label in labels
 
 
 @pytest.mark.parametrize("marker", ["- ", "* ", "+ ", "1. ", "2) "])

@@ -904,8 +904,13 @@ def _extract_result(stdout: str) -> str:
 # pass, matching running-retro's "redact on the ledger write too" mandate.
 _REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
     (
+        # The body stops at the next BEGIN and at 16384 characters, so each
+        # header scans a bounded run; unbounded, a repeated header is
+        # quadratic. An 8192-bit RSA key is about 6.5 KB as PEM or OpenSSH.
         re.compile(
-            r"-----BEGIN[^-]+PRIVATE KEY-----.*?-----END[^-]+PRIVATE KEY-----",
+            r"-----BEGIN[^-]{1,64}PRIVATE KEY-----"
+            r"(?:(?!-----BEGIN).){0,16384}?"
+            r"-----END[^-]{1,64}PRIVATE KEY-----",
             re.DOTALL,
         ),
         "<REDACTED: private key>",
@@ -920,10 +925,27 @@ _REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
         ),
         "<REDACTED: GitHub token>",
     ),
+    (
+        # A header past the bound: the whole run, dots included, in one match.
+        re.compile(r"\bghs_[0-9]+_eyJ[A-Za-z0-9_-]{513}[A-Za-z0-9_.-]*"),
+        "<REDACTED: GitHub token>",
+    ),
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"), "<REDACTED: Slack token>"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "<REDACTED: AWS key id>"),
     (
-        re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
+        # The JWT header, URL scheme, and email local part and domain are
+        # bounded so each start position scans a bounded run; unbounded, a
+        # long run with no `.`, `://` or `@` is quadratic to scan. RFC 5321
+        # caps the local part at 64 octets and the domain at 255.
+        re.compile(
+            r"\beyJ[A-Za-z0-9_-]{10,512}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"
+        ),
+        "<REDACTED: JWT>",
+    ),
+    (
+        # A header past the bound: the whole run, dots included, in one match.
+        # After the JWT rule, since a long payload segment also starts `eyJ`.
+        re.compile(r"\beyJ[A-Za-z0-9_-]{513}[A-Za-z0-9_.-]*"),
         "<REDACTED: JWT>",
     ),
     (
@@ -934,11 +956,11 @@ _REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
         "<REDACTED: secret>",
     ),
     (
-        re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s:@/]+:[^\s:@/]+@[^\s]+"),
+        re.compile(r"\b[a-z][a-z0-9+.-]{0,63}://[^\s:@/]+:[^\s:@/]+@[^\s]+"),
         "<REDACTED: connection string>",
     ),
     (
-        re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
+        re.compile(r"\b[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,255}\.[A-Za-z]{2,}\b"),
         "<REDACTED: email>",
     ),
 )
