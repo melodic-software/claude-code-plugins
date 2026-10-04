@@ -37,12 +37,21 @@ export -f make_link
 mkdir -p "$TMP/linkprobe/t"
 LINKS=""
 make_link t "$TMP/linkprobe/l" && LINKS=1
-# links <case> [<target> <link>]...: make each fixture link for <case>; a host
-# without native symlinks SKIPs the case, and a link that fails here fails it.
+# link_miss_fatal: whether a failed link probe fails the run. Only a Windows
+# host outside CI may lack native symlinks; anywhere else a broken probe would
+# turn every link case into a quiet SKIP.
+link_miss_fatal() { [[ -n "${CI:-}" || ! "${OSTYPE:-}" =~ ^(msys|cygwin|win32) ]]; }
+# links <case> [<target> <link>]...: make each fixture link for <case>; a
+# Windows host without native symlinks SKIPs the case, and a link that fails
+# here, or a failed probe anywhere else, fails it.
 links() {
   local c="$1"
   shift
   if [[ -z "$LINKS" ]]; then
+    if link_miss_fatal; then
+      fail "$c (the native-link probe failed on a host that must make links)"
+      return 1
+    fi
     echo "SKIP: $c (no native symlinks, no coverage here, not a pass)"
     SKIPS=$((SKIPS + 1))
     return 1
@@ -55,6 +64,16 @@ links() {
     shift 2
   done
 }
+# A failed probe fails each case in CI or off Windows and skips it only on a
+# local Windows host. fail is a stub, so nothing here counts as a real failure.
+lk="$(
+  LINKS=""
+  fail() { printf 'F '; }
+  CI=1 OSTYPE=msys links c
+  CI="" OSTYPE=linux-gnu links c
+  CI="" OSTYPE=msys links c >/dev/null && printf 'L ' || printf 'S '
+)"
+check "a failed link probe fails in CI and off Windows, and skips on local Windows" '[[ "$lk" == "F F S " ]]'
 # too_deep <dir> <levels>: the first directory more than <levels> below <dir>.
 # find follows no link and stops one level past the bound, so a tree that
 # copied into itself is reported, never walked.
