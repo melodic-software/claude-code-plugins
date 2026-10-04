@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "I can't build a loop: I tried a load script, a profiler run and replay, but nothing reproduces it without data. Please send a HAR file or recording, or allow temporary timing instrumentation in production.",
+      "why": "stops and asks"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Without logs I'd guess the main thread is blocked by large JSON parsing. Move parsing to a worker.",
+      "why": "hypothesizes and fixes"
+    }
+  ]
+}
