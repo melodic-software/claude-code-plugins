@@ -821,6 +821,27 @@ denied "a report that cannot be written" "report.md"
 capture bash -c "cd '$REPO' && '$HARNESS_PYTHON' '$FINDINGS' status-timing --data '$BLOCKED' --runs 1"
 denied "a trace folder that cannot be made" "trace2-status.txt"
 
+# --- 30b. a write that fails partway leaves the old file whole and no temp file behind ---
+# A value json cannot serialize stops the write mid-file; a reader must still see the old content.
+DW="$WORK/data/atomic"
+mkdir -p "$DW"
+printf '{"kept": true}\n' >"$DW/state.json"
+capture "$HARNESS_PYTHON" -B - "$(native "$SCRIPT_DIR")" "$(native "$DW/state.json")" <<'PY'
+import sys
+from pathlib import Path
+
+sys.path.insert(0, sys.argv[1])
+import findings
+
+try:
+    findings.write_json(Path(sys.argv[2]), {"a": 1, "b": object()})
+except TypeError:
+    print("raised")
+PY
+assert_eq "the failed write raises" "raised" "$RUN_OUT"
+assert_eq "a failed write leaves the old content whole" '{"kept": true}' "$(cat "$DW/state.json")"
+assert_eq "a failed write leaves no temp file" "state.json" "$(ls -A "$DW")"
+
 # --- 31. a run that already exists is a denied write too: exit 3, one line ---
 # Two run-starts pinned to the same second name the same runs/<stamp>/findings.json.
 DX="$(native "$WORK/data/run-twice")"

@@ -466,27 +466,31 @@ def writing(path: Path) -> Iterator[None]:
 def write_json(path: Path, data: dict, exclusive: bool = False) -> bool:
     """Write data as JSON; with exclusive, only when the file does not exist yet.
 
-    A failed mkdir is checked on its own: through a regular file it can raise FileExistsError,
-    which is not a held lock.
+    The JSON goes to a sibling temp file first and is published whole: replaced over the old file,
+    or, with exclusive, hard-linked into place so an existing file (a held lock) is never
+    overwritten. A reader never sees a half-written or empty file. A failed mkdir is checked on its
+    own: through a regular file it can raise FileExistsError, which is not a held lock.
     """
     with writing(path):
         path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     try:
-        fd = os.open(
-            path,
-            os.O_WRONLY | os.O_CREAT | (os.O_EXCL if exclusive else os.O_TRUNC),
-            0o644,
-        )
-    except FileExistsError as exc:
-        if exclusive:
+        with writing(path), tmp.open("w", encoding="utf-8", newline="\n") as handle:
+            json.dump(data, handle, indent=2)
+            handle.write("\n")
+        if not exclusive:
+            with writing(path):
+                os.replace(tmp, path)
+            return True
+        try:
+            os.link(tmp, path)
+        except FileExistsError:
             return False
-        write_denied(path, exc)
-    except OSError as exc:
-        write_denied(path, exc)
-    with writing(path), os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-        json.dump(data, handle, indent=2)
-        handle.write("\n")
-    return True
+        except OSError as exc:
+            write_denied(path, exc)
+        return True
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def cmd_lock(args: argparse.Namespace) -> int:
