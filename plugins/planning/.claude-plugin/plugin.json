@@ -34,6 +34,12 @@
       "description": "How /planning:plan orders phases: composed (default: dead-code removal, integration slice, riskiest unknown, scaffold, features), subtraction-first (removal, scaffold, features) or riskiest-first. A repository's docs/conventions/planning.yaml phase_order key overrides this value.",
       "default": "composed",
       "options": ["composed", "subtraction-first", "riskiest-first"]
+    },
+    "scaffold_stubs": {
+      "type": "boolean",
+      "title": "Stub scaffold commit",
+      "description": "When on, /planning:design hands off the stub files and signatures a change needs, and /planning:plan puts one stub phase right after dead-code removal (first when there is none). Default: off. A repository's docs/conventions/planning.yaml scaffold_stubs key overrides this value.",
+      "default": false
     }
   },
   "description": "Pre-implementation planning pipeline: chart a too-big, foggy effort as a decision map, diverge on candidate approaches, lock product intent and the engineering contract, route resolved domain language to the domain-driven-design glossary steward, explore the design space, stress-test adversarially, and produce a structured implementation plan with an approval gate, with an opt-in multi-angle plan panel workflow (/planning:plan-panel).",

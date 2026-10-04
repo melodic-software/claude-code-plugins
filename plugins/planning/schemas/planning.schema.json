@@ -16,6 +16,11 @@
       "description": "How /planning:plan orders phases. composed: remove dead code the change touches (skipped for a bug fix), then the integration slice, then the riskiest remaining unknown, then scaffold, then the remaining features. subtraction-first: dead code, scaffold, features. riskiest-first: the step whose failure would invalidate the most downstream work goes first.",
       "enum": ["composed", "subtraction-first", "riskiest-first"],
       "default": "composed"
+    },
+    "scaffold_stubs": {
+      "description": "When true, /planning:design hands off the stub files the change needs with their signatures, and /planning:plan places a stub phase right after phase_order's dead-code removal step (first when there is none). Stub bodies use the language's ordinary not-implemented form. A quoted \"true\" or \"false\" is a string, not a boolean, and is invalid.",
+      "type": "boolean",
+      "default": false
     }
   }
 }

@@ -16,8 +16,9 @@
 // validate(text) accepts a document only when it parses as the YAML subset,
 // sets each top-level key once (keys compared after trimming), writes every key
 // exactly as the schema names it, and gives each schema key one non-empty
-// scalar from its enum: no empty or empty-quoted value, no block or flow map or
-// list. Apply runs it on the existing file first and refuses that file unless
+// scalar from its list (its enum, or the bare words true and false for a
+// boolean key, so a quoted "true" is invalid): no empty or empty-quoted value,
+// no block or flow map or list. Apply runs it on the existing file first and refuses that file unless
 // every problem is an empty, null or out-of-list value on a key it writes, then
 // runs it on the result. A key given twice on the command line is refused.
 // The root may not be $HOME or an ancestor of it. checkPath() refuses a
@@ -124,6 +125,8 @@ function topLevelLines(text) {
     });
 }
 
+const values = (spec) => (spec.type === "boolean" ? ["true", "false"] : spec.enum);
+
 // Validate a whole document. Returns problems as { msg, key, fixable }; []
 // means valid. A fixable problem is an empty (`key:`), null, ~ or other
 // out-of-list value: apply clears it by writing a scalar over that key, and
@@ -163,7 +166,7 @@ function validate(text, keys) {
   for (const [k, spec] of Object.entries(keys)) {
     const lines = tops.filter((t) => t.key === k);
     if (!lines.length) continue;
-    const allowed = spec.enum.join(", ");
+    const allowed = values(spec).join(", ");
     const scalar = records.find((r) => r.path.trim() === k);
     if (records.some((r) => r.path.trim().startsWith(`${k}.`)) || lines.some((t) => /^[[{]/.test(t.value))) {
       bad(`${k} holds a map or a list; it takes one of ${allowed}`);
@@ -171,8 +174,10 @@ function validate(text, keys) {
       bad(`${k} is an empty string; it takes one of ${allowed}`);
     } else if (!scalar) {
       bad(`${k} is empty; it takes one of ${allowed}`, k);
-    } else if (!spec.enum.includes(scalar.value)) {
-      bad(`${k}=${scalar.value} is not one of ${allowed}`, k);
+    } else {
+      // A boolean is read as written: the parser unquotes "true" to true.
+      const v = spec.type === "boolean" ? lines[0].value : scalar.value;
+      if (!values(spec).includes(v)) bad(`${k}=${v} is not one of ${allowed}`, k);
     }
   }
   return [...new Map(problems.map((p) => [p.msg, p])).values()];
@@ -280,7 +285,7 @@ function main(argv) {
       throw new Refusal(`${k} is not a key of ${REL} (keys: ${Object.keys(keys).join(", ")}); nothing written`);
     }
     if (wanted.some(([seen]) => seen === k)) throw new Refusal(`${k} is given more than once; nothing written`);
-    if (!keys[k].enum.includes(v)) throw new Refusal(`${k}=${v} is not one of ${keys[k].enum.join(", ")}; nothing written`);
+    if (!values(keys[k]).includes(v)) throw new Refusal(`${k}=${v} is not one of ${values(keys[k]).join(", ")}; nothing written`);
     wanted.push([k, v]);
   }
 

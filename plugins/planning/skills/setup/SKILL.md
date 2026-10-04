@@ -42,7 +42,8 @@ planning stage. Those are the pipeline skills.
 3. **Repository settings**. Run `"${CLAUDE_SKILL_DIR}/scripts/setup-apply.mjs" --check` from the
    project root and report each line it prints with its own prefix: INFO when
    `docs/conventions/planning.yaml` is absent, PASS with each key's value when it validates, WARN
-   for each problem when it does not (a value outside the key's list, a key set twice, an empty
+   for each problem when it does not (a value outside the key's list, a quoted `"true"` on a
+   boolean key, a key set twice, an empty
    value, a map or list where one value belongs, a key outside the schema), quoting the file, key
    and value. An invalid value never stops a planning skill: the skill names it and drops that
    layer, so the row is a WARN, not a FAIL, and `apply` is the fix. A one-line refusal (an unsafe

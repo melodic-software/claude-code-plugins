@@ -352,6 +352,34 @@
         "Reports phase_order composed, not the user config value riskiest-first",
         "Continues and produces a plan rather than stopping on the invalid value"
       ]
+    },
+    {
+      "id": 28,
+      "name": "scaffold-stubs-after-removal",
+      "narration": true,
+      "prompt": "/planning:plan add fines to the library-loan service: a FineSchedule type and an OverdueFineCalculator in loans/fines/, a fines endpoint, and a fines column on the member page. The old LateFeeTable in loans/legacy/ has no callers left and sits in the files this change touches. The existing loans/loans_test.go already calls OverdueFineCalculator through a test helper written ahead of time, so it will fail once the calculator exists only as a stub. My planning plugin user config sets scaffold_stubs to true; phase_order is unset and the repository has no docs/conventions/planning.yaml.",
+      "expected_output": "The skill reports phase_order composed from the default and scaffold_stubs true from the user config. Phase 1 removes LateFeeTable. Phase 2 commits stubs for FineSchedule and OverdueFineCalculator with their signatures and not-implemented bodies, and carries a Planned breakage line of kind tests naming the loans/fines/ stub paths and the later phase that implements the calculator. The integration slice and the remaining features follow.",
+      "files": [],
+      "expectations": [
+        "Reports scaffold_stubs true and names the user config as the supplying layer",
+        "Phase 1 removes LateFeeTable, and the stub phase is Phase 2, directly after it",
+        "The stub phase lists the loans/fines/ files with their signatures and not-implemented bodies",
+        "The stub phase carries a **Planned breakage:** line of kind tests that names the stub paths and a later phase",
+        "No building phase other than the removal comes before the stub phase"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "scaffold-stubs-docs-block-wins",
+      "narration": true,
+      "prompt": "/planning:plan add fines to the library-loan service: a FineSchedule type and an OverdueFineCalculator in loans/fines/, a fines endpoint, and a fines column on the member page. Nothing in the touched files is dead. My planning plugin user config sets scaffold_stubs to false, but the repository's docs/conventions/planning.yaml contains `scaffold_stubs: true`.",
+      "expected_output": "The repository value wins: the skill reports scaffold_stubs true from docs/conventions/planning.yaml, and with no dead-code removal step the stub phase is Phase 1, before the integration slice.",
+      "files": [],
+      "expectations": [
+        "Reports scaffold_stubs true and names docs/conventions/planning.yaml as the supplying layer",
+        "States or acts on the repository file overriding the user config value false",
+        "Phase 1 is the stub phase for the loans/fines/ files, since there is no removal step"
+      ]
     }
   ]
 }

@@ -126,6 +126,34 @@
         "Any suggestion of a schema library is raised as an open design thread for the user, not decided",
         "Rows are parsed once at the endpoint and inner code takes the domain type without re-checking"
       ]
+    },
+    {
+      "id": 11,
+      "name": "scaffold-stubs-handoff-names-files",
+      "narration": true,
+      "prompt": "/planning:design module for a library-loan service in Go: a loans package with a Loan type, a RenewalPolicy interface and a DueDateCalculator. The design threads are all resolved and I want to hand off. The repository's docs/conventions/planning.yaml contains `scaffold_stubs: true`; I never set the plugin's scaffold_stubs option.",
+      "expected_output": "The skill reports scaffold_stubs true from docs/conventions/planning.yaml, writes a Stub scaffold section into design-threads.md listing each new Go file with the type and function signatures it declares, gives each stub body Go's ordinary not-implemented form (such as a panic naming the function), runs the handoff gate, and its handoff output names those files and signatures for /planning:plan.",
+      "files": [],
+      "expectations": [
+        "Reports scaffold_stubs true and names docs/conventions/planning.yaml as the supplying layer",
+        "design-threads.md gains a Stub scaffold section listing each new file path in the loans package",
+        "Each listed file carries the signatures it will declare, covering Loan, RenewalPolicy and DueDateCalculator",
+        "Stub bodies use an ordinary Go not-implemented form, not a working implementation",
+        "The handoff output names the stub files and their signatures"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "scaffold-stubs-off-default",
+      "narration": true,
+      "prompt": "/planning:design module for a library-loan service in Go: a loans package with a Loan type, a RenewalPolicy interface and a DueDateCalculator. The design threads are all resolved and I want to hand off. I never set the planning plugin's scaffold_stubs option and the repository has no docs/conventions/planning.yaml.",
+      "expected_output": "The skill reports scaffold_stubs false from the default, writes no Stub scaffold section, runs the handoff gate, and the handoff output lists no stub files.",
+      "files": [],
+      "expectations": [
+        "Reports scaffold_stubs false and names the default as the supplying layer",
+        "design-threads.md gets no Stub scaffold section",
+        "The handoff output does not list stub files or stub signatures"
+      ]
     }
   ]
 }

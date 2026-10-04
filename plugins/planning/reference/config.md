@@ -37,6 +37,7 @@ never used in its place. An invalid value never stops the run.
 |---|---|---|---|---|
 | `plan_store` | `local`, `tracker` | `local` | `/planning:plan`, final persist step: `tracker` also publishes the approved plan to the claimed work item through `/work-items:track publish-plan` | repository file over user config over default |
 | `phase_order` | `composed`, `subtraction-first`, `riskiest-first` | `composed` | `/planning:plan` Step 2, after build-technique selection: the order of the plan's phases | repository file over user config over default |
+| `scaffold_stubs` | `true`, `false` (bare YAML booleans; a quoted `"true"` is invalid) | `false` | `/planning:design` handoff: names the stub files and their signatures; `/planning:plan` Step 2: places the stub phase | repository file over user config over default |
 
 `phase_order` values, in phase order:
 
@@ -48,3 +49,9 @@ never used in its place. An invalid value never stops the run.
   rest in dependency order.
 
 Under every value a phase that needs another phase's output still follows it.
+
+`scaffold_stubs: true` adds a stub commit ahead of the work: `/planning:design` lists each stub
+file with the signatures it declares, and `/planning:plan` makes those stubs one phase, placed right
+after the dead-code removal step, or first when the plan has none. A stub body is the language's
+ordinary not-implemented form. When the stubs leave the build red, that phase carries a
+`**Planned breakage:**` line naming the stub paths. `false` adds no stub phase.

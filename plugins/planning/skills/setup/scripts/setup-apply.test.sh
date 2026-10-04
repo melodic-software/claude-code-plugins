@@ -4,7 +4,8 @@
 # Self-contained and cwd-independent; mutates only its own mktemp dir.
 # Expected values come from the key contract in reference/config.md:
 # plan_store takes local or tracker, phase_order takes composed,
-# subtraction-first or riskiest-first, and the file is
+# subtraction-first or riskiest-first, scaffold_stubs takes the YAML booleans
+# true or false (a quoted "true" is a string, so invalid), and the file is
 # docs/conventions/planning.yaml at the repository root.
 # Labels and one fixture path hold a literal $HOME or $(...) on purpose.
 # shellcheck disable=SC2016
@@ -96,7 +97,7 @@ repo="$(new_repo)"
 run "$repo" phase_order=risky-first
 if [[ "$CODE" -eq 1 && "$OUT" == *"phase_order=risky-first"* ]]; then pass 'an invalid value exits 1 and names the key and value'; else fail 'an invalid value exits 1 and names the key and value'; fi
 check 'an invalid value writes nothing' test ! -e "$repo/docs"
-run "$repo" scaffold_stubs=true
+run "$repo" verbosity=high
 check 'a key outside the schema exits 1 and writes nothing' test "$CODE" -eq 1 -a ! -e "$repo/docs"
 run "$repo" 'phase_order='
 check 'an empty value argument exits 1 and writes nothing' test "$CODE" -eq 1 -a ! -e "$repo/docs"
@@ -156,6 +157,51 @@ shape_case 'an anchor on the target line' refuse 'not part of the subset' $'phas
 shape_case 'an unclosed quote on the target line' refuse 'unclosed quote' $'phase_order: "composed\n'
 shape_case 'an unknown key with an empty value' refuse 'stray is not in the schema' $'stray:\n'
 shape_case 'an out-of-list value on a key not being written' refuse 'plan_store=bogus is not one of' $'plan_store: bogus\n'
+
+# scaffold_stubs is a boolean: true and false only, written unquoted.
+repo="$(new_repo)"
+f="$repo/docs/conventions/planning.yaml"
+run "$repo" scaffold_stubs=true
+check 'scaffold_stubs=true is written and reads back as true' \
+  test "$CODE" -eq 0 -a "$(bash "$READER" "$f" scaffold_stubs)" = true
+check 'scaffold_stubs is written as a bare YAML boolean' grep -qx 'scaffold_stubs: true' "$f"
+run "$repo" --yes scaffold_stubs=false
+check 'scaffold_stubs=false replaces true' test "$CODE" -eq 0 -a "$(bash "$READER" "$f" scaffold_stubs)" = false
+for v in yes on True 1 '"true"'; do
+  repo="$(new_repo)"
+  run "$repo" "scaffold_stubs=$v"
+  if [[ "$CODE" -eq 1 && "$OUT" == *"scaffold_stubs="* && ! -e "$repo/docs" ]]; then pass "scaffold_stubs=$v is refused and nothing written"; else fail "scaffold_stubs=$v is refused and nothing written"; fi
+done
+bool_case() { # bool_case <label> <refuse|replace> <warning text> <file content>
+  local label="$1" want="$2" warning="$3" content="$4" repo f before
+  repo="$(new_repo)"
+  f="$repo/docs/conventions/planning.yaml"
+  mkdir -p "$repo/docs/conventions"
+  printf '%s' "$content" >"$f"
+  before="$(cat "$f")"
+  run "$repo" --check
+  if [[ "$CODE" -eq 1 && "$OUT" == *"WARN"*"$warning"* && "$OUT" != *PASS* ]]; then pass "--check warns on $label"; else fail "--check warns on $label"; fi
+  run "$repo" --yes scaffold_stubs=true
+  if [[ "$want" == refuse ]]; then
+    if one_line_refusal && [[ "$(cat "$f")" == "$before" ]]; then pass "apply refuses $label in one line and leaves the file"; else fail "apply refuses $label in one line and leaves the file"; fi
+  elif [[ "$CODE" -eq 0 && "$(cat "$f")" == "scaffold_stubs: true" ]]; then
+    pass "apply replaces $label with true"
+  else
+    fail "apply replaces $label with true"
+  fi
+}
+bool_case 'a double-quoted boolean' replace 'scaffold_stubs="true" is not one of true, false' $'scaffold_stubs: "true"\n'
+bool_case 'a single-quoted boolean' replace "scaffold_stubs='false' is not one of true, false" $'scaffold_stubs: \'false\'\n'
+bool_case 'a yes value' replace 'scaffold_stubs=yes is not one of true, false' $'scaffold_stubs: yes\n'
+bool_case 'an empty boolean' replace 'scaffold_stubs is empty' $'scaffold_stubs:\n'
+bool_case 'an empty quoted boolean' refuse 'scaffold_stubs is an empty string' $'scaffold_stubs: ""\n'
+bool_case 'a boolean in a flow list' refuse 'scaffold_stubs holds a map or a list' $'scaffold_stubs: [true]\n'
+shape_case 'a quoted boolean on a key not being written' refuse 'scaffold_stubs="false" is not one of true, false' $'scaffold_stubs: "false"\n'
+repo="$(new_repo)"
+mkdir -p "$repo/docs/conventions"
+printf 'scaffold_stubs: false # team default\nphase_order: composed\n' >"$repo/docs/conventions/planning.yaml"
+run "$repo" --check
+if [[ "$CODE" -eq 0 && "$OUT" == *"PASS scaffold_stubs: false"* ]]; then pass '--check prints a valid boolean'; else fail '--check prints a valid boolean'; fi
 
 # A key given twice on the command line is refused before anything is
 # written, whether or not the file exists.
