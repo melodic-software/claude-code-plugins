@@ -410,7 +410,8 @@ same-worktree protections.
   later cycle's gate run read its queue entry: still queued (`mergeQueue.position`) is "queued,
   may still land"; merged ends it like any merge; `dequeued: true` is reported as dequeued, and the
   next cycle gates it again. A merge reported
-  `status: pending`, or a later run reporting `"action": "merge-pending"`, is still live on GitHub
+  `status: pending`, or any run reporting `"action": "merge-pending"` (`mergeQueue.unconfirmed:
+  true` included: a `gh pr merge` the queue has not shown yet), is still live on GitHub
   and may land whatever the gate now says: report it as "merge may still land", keep the PR, and
   let the next cycle read it again. `mergeUnconfirmed: true` or `stackVerification.verified` other
   than `true` goes to a human (`safety.md`, §Async Merge Path).

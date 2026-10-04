@@ -714,16 +714,23 @@ it): a `PUT` to the PR's `merge-async` endpoint, then a `GET` on the request's U
   back over GraphQL. In the queue, it reports `action: enqueue`, `enqueued: true`,
   `autoMergeEnabled: false`, `merged: false`, and `mergeQueue` with the entry's `state` and
   `position`. Not yet in the queue but armed to enter it, it stays `action: auto-merge` with
-  `mergeQueue.entersWhenReady: true`. Neither, it exits `10`. A base without a queue keeps the
-  report it had; a failed read keeps it too and names the failure in `merge.queueReadError`.
+  `mergeQueue.entersWhenReady: true`. Neither queued, armed, nor merged, the read may simply
+  trail the merge, so the gate re-reads it a few times at the async poll interval, well inside
+  that path's 60-second bound. Still unseen, it reports `action: merge-pending`, `ready: false`,
+  `mergeQueue.unconfirmed: true`, and exit `10`, and records the success under `--state-dir` as
+  an unconfirmed queue entry. A base without a queue keeps the report it had; a failed read keeps
+  it too and names the failure in `merge.queueReadError`.
 - **A queued PR is confirmed on later runs.** With `--state-dir`, an enqueue from either path is
   recorded with the vetted head, and every later run reads the entry first. Still in the queue: the
   run reports `action: merge-pending`, `enqueued: true`, and `mergeQueue`, with the queue hold first
   in `blockers`, exit `10`, and sends nothing. Merged: the head is checked as for a pending
   request, and a match reports `merged: true` from `pendingMergeRequest`, exit `0`. Out of the
   queue unmerged: the run reports `dequeued: true` with that hold first in `blockers`, exit `10`,
-  clears the record, and the next run gates it again. An unreadable queue keeps the record and
-  holds as merge pending.
+  clears the record, and the next run gates it again. Armed to enter the queue, it holds as merge
+  pending with `mergeQueue.entersWhenReady: true`. An unreadable queue keeps the record and holds
+  as merge pending. An unconfirmed entry that reads back queued, armed, or merged is confirmed and
+  reported that way; one still unseen holds as merge pending with `mergeQueue.unconfirmed: true`,
+  sending nothing, and the second later run that finds it unseen reports it `dequeued`.
 - **Stacks (`--stacked-prs`).** Only a native stack qualifies: the PR's REST `stack` object. A PR
   merely based on another PR's branch keeps the non-default-base hold. The layer is judged against
   the stack's trunk, every open layer below it runs the same gate pinned to the head the stack

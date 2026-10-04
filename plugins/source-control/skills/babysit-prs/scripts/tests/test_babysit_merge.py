@@ -1442,6 +1442,7 @@ class AutoMergeArming(unittest.TestCase):
             mock.patch.object(
                 merge, "read_merge_queue", return_value=queue or _queue_read()
             ),
+            mock.patch.object(merge, "_poll_sleep"),
             contextlib.redirect_stdout(io.StringIO()) as out,
         ):
             code = merge.main()
@@ -1450,7 +1451,8 @@ class AutoMergeArming(unittest.TestCase):
 
     def test_auto_on_a_queue_base_reports_queued_with_its_position(self) -> None:
         # The rules read missed the queue, so the arm ran `gh pr merge --auto`,
-        # which GitHub answered by queueing the PR with no auto-merge request.
+        # which GitHub answered by putting the PR in the queue with no auto-merge
+        # request.
         code, _ = self._main(
             True,
             "--merge",
@@ -1506,9 +1508,12 @@ class AutoMergeArming(unittest.TestCase):
             "--auto",
             queue=_queue_read(required=True),
         )
-        self.assertEqual(code, 10)
+        self.assertEqual((code, self.output["action"]), (10, "merge-pending"))
         self.assertFalse(self.output["autoMergeEnabled"])
-        self.assertIn("re-run the read-only check", self.output["merge"]["message"])
+        self.assertFalse(self.output["ready"])
+        self.assertTrue(self.output["mergeQueue"]["unconfirmed"])
+        self.assertIn("merge pending, unconfirmed", self.output["blockers"][0])
+        self.assertIn("without --state-dir", self.output["merge"]["message"])
 
     def test_an_unreadable_queue_keeps_the_arm_report(self) -> None:
         unreadable = {"readError": "could not read the merge queue: HTTP 403"}

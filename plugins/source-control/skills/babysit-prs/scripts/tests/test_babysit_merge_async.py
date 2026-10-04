@@ -538,6 +538,156 @@ class GhPrMergeOntoAQueueIsReportedQueued(AsyncMergeHarness):
         self.assertEqual((record["queued"], record["head"]), (True, HEAD))
 
 
+class AnUnseenQueueResultIsHeldUntilConfirmed(AsyncMergeHarness):
+    """A `gh pr merge` the queue base took can read back, for a moment, as
+    neither queued, armed, nor merged. That success is re-read, then recorded
+    unconfirmed, and later runs confirm it without sending another merge."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.state = tempfile.TemporaryDirectory()
+        self.addCleanup(self.state.cleanup)
+
+    def _merge(self, answers: list[dict[str, Any] | Exception]) -> int:
+        return self._run(
+            _proc(),
+            base="release",
+            queue=answers,
+            extra=("--state-dir", self.state.name),
+        )
+
+    def _unseen_merge(self) -> None:
+        unseen = [_queue()] * merge.QUEUE_READ_BACK_ATTEMPTS
+        code = self._merge(unseen)
+        self.assertEqual((code, self.output["action"]), (10, "merge-pending"))
+        self.captures.clear()
+        self.sleeps.clear()
+
+    def _later_run(self, answer: dict[str, Any] | Exception, **kwargs: Any) -> int:
+        return self._run(
+            _proc(),
+            base="release",
+            queue=[answer],
+            extra=("--state-dir", self.state.name),
+            **kwargs,
+        )
+
+    def _records(self) -> dict[str, Any]:
+        path = pathlib.Path(self.state.name) / merge.PENDING_MERGES_FILE
+        return json.loads(path.read_text(encoding="utf-8"))["requests"]
+
+    def _merge_commands(self) -> list[list[str]]:
+        return [c for c in self.captures if c[:2] == ["pr", "merge"]]
+
+    def test_an_unseen_result_is_re_read_then_held_and_recorded(self) -> None:
+        unseen = [_queue()] * merge.QUEUE_READ_BACK_ATTEMPTS
+        code = self._merge(unseen)
+        self.assertEqual((code, self.output["action"]), (10, "merge-pending"))
+        self.assertFalse(self.output["ready"])
+        self.assertFalse(self.output["merged"])
+        self.assertNotIn("enqueued", self.output)
+        self.assertTrue(self.output["mergeQueue"]["unconfirmed"])
+        self.assertIn("merge pending, unconfirmed", self.output["blockers"][0])
+        self.assertEqual(self.queue_reads, merge.QUEUE_READ_BACK_ATTEMPTS)
+        self.assertEqual(
+            self.sleeps,
+            [merge.ASYNC_MERGE_POLL_INTERVAL_SECONDS]
+            * (merge.QUEUE_READ_BACK_ATTEMPTS - 1),
+        )
+        record = self._records()["owner/repo#1"]
+        self.assertEqual(
+            (record["queued"], record["unconfirmed"], record["head"]),
+            (True, True, HEAD),
+        )
+
+    def test_a_re_read_that_finds_the_entry_reports_it_queued(self) -> None:
+        code = self._merge([_queue(), _queue(position=1)])
+        self.assertEqual((code, self.output["action"]), (0, "enqueue"))
+        self.assertTrue(self.output["enqueued"])
+        self.assertEqual(self.sleeps, [merge.ASYNC_MERGE_POLL_INTERVAL_SECONDS])
+        self.assertNotIn("unconfirmed", self._records()["owner/repo#1"])
+
+    def test_a_failed_re_read_never_turns_an_unseen_result_into_a_merge(
+        self,
+    ) -> None:
+        failures = [RuntimeError("gh: (HTTP 502)")] * (
+            merge.QUEUE_READ_BACK_ATTEMPTS - 1
+        )
+        code = self._merge([_queue(), *failures])
+        self.assertEqual((code, self.output["action"]), (10, "merge-pending"))
+        self.assertFalse(self.output["merged"])
+        self.assertTrue(self._records()["owner/repo#1"]["unconfirmed"])
+
+    def test_the_next_run_holds_without_sending_another_merge(self) -> None:
+        self._unseen_merge()
+        code = self._later_run(_queue())
+        self.assertEqual((code, self.output["action"]), (10, "merge-pending"))
+        self.assertFalse(self.output["ready"])
+        self.assertTrue(self.output["mergeQueue"]["unconfirmed"])
+        self.assertIn("merge pending, unconfirmed", self.output["blockers"][0])
+        self.assertEqual(self._merge_commands(), [])
+        self.assertEqual(self._records()["owner/repo#1"]["unseenReads"], 1)
+
+    def test_an_entry_that_appears_later_is_reported_queued_and_confirmed(
+        self,
+    ) -> None:
+        self._unseen_merge()
+        code = self._later_run(_queue(position=2, state="AWAITING_CHECKS"))
+        self.assertEqual((code, self.output["action"]), (10, "merge-pending"))
+        self.assertTrue(self.output["enqueued"])
+        self.assertEqual(
+            self.output["mergeQueue"], {"state": "AWAITING_CHECKS", "position": 2}
+        )
+        self.assertEqual(self._merge_commands(), [])
+        record = self._records()["owner/repo#1"]
+        self.assertNotIn("unconfirmed", record)
+        # Confirmed, it follows the queued-entry rule: leaving the queue unmerged
+        # is a dequeue on the very next read.
+        code = self._later_run(_queue())
+        self.assertEqual(code, 10)
+        self.assertTrue(self.output["dequeued"])
+        self.assertEqual(self._records(), {})
+
+    def test_an_arm_that_appears_later_holds_without_sending_another_merge(
+        self,
+    ) -> None:
+        self._unseen_merge()
+        code = self._later_run(_queue(armed=True))
+        self.assertEqual((code, self.output["action"]), (10, "merge-pending"))
+        self.assertFalse(self.output["enqueued"])
+        self.assertTrue(self.output["mergeQueue"]["entersWhenReady"])
+        self.assertIn("armed", self.output["blockers"][0])
+        self.assertEqual(self._merge_commands(), [])
+        self.assertNotIn("unconfirmed", self._records()["owner/repo#1"])
+
+    def test_a_merge_that_appears_later_reports_merged(self) -> None:
+        self._unseen_merge()
+        code = self._later_run(
+            _queue(merged=True), ready=False, blockers=["state=MERGED (not OPEN)"]
+        )
+        self.assertEqual(code, 0)
+        self.assertTrue(self.output["merged"])
+        self.assertEqual(self.output["pendingMergeRequest"]["status"], "merged")
+        self.assertEqual(self._merge_commands(), [])
+        self.assertEqual(self._records(), {})
+
+    def test_a_result_never_seen_is_dequeued_and_gated_again(self) -> None:
+        self._unseen_merge()
+        for _ in range(merge.QUEUE_UNCONFIRMED_LATER_READS - 1):
+            code = self._later_run(_queue())
+            self.assertEqual((code, self.output["action"]), (10, "merge-pending"))
+        code = self._later_run(_queue())
+        self.assertEqual(code, 10)
+        self.assertTrue(self.output["dequeued"])
+        self.assertNotEqual(self.output["action"], "merge-pending")
+        self.assertIn("dequeued", self.output["blockers"][0])
+        self.assertEqual(self._merge_commands(), [])
+        self.assertEqual(self._records(), {})
+        self._later_run(_queue(position=1))
+        self.assertEqual(len(self._merge_commands()), 1)
+        self.assertEqual(self.output["action"], "enqueue")
+
+
 class QueuedPullRequestIsConfirmedLater(AsyncMergeHarness):
     """An enqueue is not a merge: a later run reads the queue entry back and
     reports it still queued, merged at the vetted head, or dequeued."""
