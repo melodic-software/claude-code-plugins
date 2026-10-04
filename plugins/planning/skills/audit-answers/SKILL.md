@@ -37,7 +37,7 @@ The value is a producer≠critic pass over decisions the producing session is st
 
 **This is validation, never derivation.** It does NOT spawn subagents to *invent* answers. The interview contract already resolves every fact from the environment, so anything that reaches a round is a genuine decision, the never-auto class. A subagent asked to derive it only reinjects the orchestrator's framing and converges to accept-all at quadratic frontier cost with a false patina of verification. Fresh-context independence is real only for *checking* an answer, not for producing one. So the answers are accepted first, then checked.
 
-That fact-resolution contract is the shared self-answer step, [`${CLAUDE_PLUGIN_ROOT}/context/self-answer.md`](../../context/self-answer.md); an answered row one of its sources settles as a fact is a reclassification.
+That fact-resolution contract is the shared self-answer step, [`${CLAUDE_PLUGIN_ROOT}/context/self-answer.md`](../../context/self-answer.md); flag an answered row one of its sources would have settled as a fact.
 
 ## Preconditions
 

@@ -59,7 +59,8 @@ Fields:
 - **id:** `S<N>`, contiguous within the sweep.
 - **category:** `undecided`, `hidden-default`, `contradiction`, `inherited`, or `hedged`.
 - **class:** `decision` (the user's call), `fact` (the environment answers it), `tenant` (a
-  setting of the environment the work targets, confirmed by whoever owns it), or `person` (only a
+  setting of the environment the work targets, confirmed by whoever owns it or read from a
+  connected system that holds it), or `person` (only a
   named person other than the user can answer it).
 - **source:** where the item was found: a row id, a recommendation, an artifact path and section.
 - **dependencies:** the `Q<N>` and `C<N>` ids the item rests on.

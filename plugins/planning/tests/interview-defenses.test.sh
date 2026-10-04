@@ -495,7 +495,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "2e30ebb48aab249847767b9106c8ff11e0a311fb2f25cfbbbcd1699307c66870"
+  "5a0e3a05147c466d8a49bc10822e6a506ba34ddaef915313ce4bf136bc0e1b15"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -521,7 +521,7 @@ pin_section "loop.md open-question register section is unchanged (it binds gaps 
   "$LOOP" \
   "## The open-question register" \
   "## Step 3. Recognize the stop condition" \
-  "c0b5fd911d385f2a6661e0d48575fb73fb17c45bb1f653fe1b44f0cab8a398df"
+  "895d860e306dc3b6a572fd85a099cc87b608d0e409aed7139f5662fb74ff4591"
 # loop.md carries TWINS of two SKILL.md lines that are byte-pinned there: the
 # confirmation-gate exemption ("`lock` is exempt … its STOP-on-gap rule still applies") in
 # Step 3, and the `USER-RESERVED` arbiter guidance in Step 4. A twin with no pin is a
@@ -574,7 +574,7 @@ pin_section "loop.md Unattended path section is unchanged (the ladder lives here
   "$LOOP" \
   "### Unattended path" \
   "### Gate before locking" \
-  "eb0cfd3327f76313a4c9327be630acaf53dbbd0f82ab503f46228f48d983171e"
+  "ddbd75a97ad5e2bb4a97215dd7d52b18bb9775d9c26964d7e5a22cdd17287cbb"
 
 pin_case_digest "eval case A is unchanged (no criterion added that contradicts the halt)" \
   "$CASE_A_NAME" \
@@ -629,7 +629,7 @@ pin_section "loop.md Step 2 section is unchanged (constraint ledger rows, proces
   "$LOOP" \
   "## Step 2. Drive the decision tree" \
   "## Relentless \`me\` mode mechanics" \
-  "a4f75e319b64f1bb8bddc48f5f58fec33e8b4e0b7ba1d06ddfb0a8a930182fdb"
+  "4c4601c4af7aef2fba869c0db0429c0763a6daa9ece32f0edcdcd7a4f4c23ecf"
 # The answer-path line now also mirrors a decision the session records in the ledger. It does
 # not change which rows relentless mode may close.
 # Paths in this section name the memory slice and the artifact protocol; they set where files land and change no rule.
@@ -641,7 +641,7 @@ pin_section "loop.md relentless mechanics section is unchanged (late commitment 
   "a39585b1e8142bec6752aca82d47e4e2b5e24a43dca278e8e7115c016de07483"
 pin_file "context/assumption-sweep.md is unchanged (the sweep's scope, item shape, and disposition)" \
   "$SWEEP" \
-  "329157464eb40166d602ac6c549912e735e8b45d18eb40591363dab76ac9b37b"
+  "9fd949249c01cdd3217765208d694a960453762c2d7067d6a224ea49aead9c7d"
 # audit-answers holds a `hedged:` row on the never-auto floor (Step 1) and routes it to the
 # human whatever the verdict (Step 4). Both sections are digested so a qualifier cannot be
 # appended beside either line.
@@ -670,7 +670,7 @@ pin_case_digest "eval case B is unchanged (no criterion added that licenses the 
 # `USER-RESERVED` row that is returned and never assumed, so it agrees with cases 15 and 16.
 # Case 27 (a resumed recommendation re-grounded against a later constraint) grades a re-check before a round is shown; it resolves no row, so it agrees with cases 15 and 16.
 pin_case_set "the eval-case roster is unchanged (no sibling case added that contradicts 15 or 16)" \
-  "53b25a698a2dab18f7393e5ebf5b2e830ff323d2be6a637a0f3eaedc5c47498d"
+  "2497fa0d34c9ea62a25b788c6bfd35970e9974b5b2aa23ca6c2a32073476054e"
 
 # The roster pin catches a case ADDED. It cannot see an existing sibling REWRITTEN in
 # place: case 3 kept its name `lock-mode-does-not-fudge-gap` while its body was rewritten
