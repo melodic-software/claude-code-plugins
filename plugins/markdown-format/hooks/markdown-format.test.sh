@@ -24,6 +24,9 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PLUGIN_DATA
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HOOK_DIR/markdown-format.sh"
+# Claude Code sets the plugin root for every hook; the missing-tool notice reads
+# prerequisites.json from it.
+export CLAUDE_PLUGIN_ROOT="${HOOK_DIR%/*}"
 
 PASS=0
 FAIL=0
@@ -95,7 +98,7 @@ if [[ -s "$file" && "$(tail -c 1 "$file" | od -An -tx1 | tr -d ' \n')" != "0a" ]
 fi
 
 # MD024 residual: report the second occurrence of a duplicate ATX heading in
-# markdownlint-cli2's default violation-line shape.
+# markdownlint-cli2's default violation-line shape, its [Context: "..."] included.
 duplicate_line="$({
   awk '
     {
@@ -107,14 +110,14 @@ duplicate_line="$({
       if ($0 ~ /^##?#?#?#?#?[[:space:]]+/) {
         heading = $0
         sub(/^##?#?#?#?#?[[:space:]]+/, "", heading)
-        if (seen[heading]++) { print NR; exit }
+        if (seen[heading]++) { print NR "\t" heading; exit }
       }
     }
   ' "$file"
 } || true)"
 if [[ -n "$duplicate_line" ]]; then
-  printf '%s:%s:1 error MD024/no-duplicate-heading Multiple headings with the same content\n' \
-    "$file" "$duplicate_line"
+  printf '%s:%s:1 error MD024/no-duplicate-heading Multiple headings with the same content [Context: "%s"]\n' \
+    "$file" "${duplicate_line%%$'\t'*}" "${duplicate_line#*$'\t'}"
   exit 1
 fi
 
@@ -239,12 +242,14 @@ fi
 CTX_B=""
 if [[ -n "$OUT_B" ]] && printf '%s' "$OUT_B" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null 2>&1; then
   CTX_B="$(printf '%s' "$OUT_B" | jq -r '.hookSpecificOutput.additionalContext')"
+  # A Windows jq writes text-mode stdout, so `jq -r` ends each line with CRLF.
+  CTX_B="${CTX_B//$'\r'/}"
   ok "fixtureB emitted hookSpecificOutput.additionalContext"
 else
   fail "fixtureB no additionalContext JSON: $OUT_B"
 fi
-if printf '%s' "$CTX_B" | grep -q 'fixtureB.md:7'; then
-  ok "fixtureB ctx has finding line :7"
+if [[ "$CTX_B" == "markdown-format: fixtureB.md has 1 finding(s) (MD024 x1):"$'\n'"  7:1 error MD024/"* ]]; then
+  ok "fixtureB ctx has the line-7 finding, its path in the heading only"
 else
   fail "fixtureB ctx missing :7: $CTX_B"
 fi
@@ -258,6 +263,17 @@ if printf '%s' "$CTX_B" | grep -qi 'commit/CI will block'; then
   fail "fixtureB ctx still has repo-specific policy tail"
 else
   ok "fixtureB ctx dropped repo-specific policy tail"
+fi
+
+# A [Context: "..."] quoting a finding-shaped string does not move the path cut.
+FQ="$REPO/fixtureQ.md"
+printf '# Doc Q\n\n## see x.md:1:2 MD001/heading-increment\n\ntext\n\n## see x.md:1:2 MD001/heading-increment\n' >"$FQ"
+CTX_Q="$(run_hook "$FQ" | jq -r '.hookSpecificOutput.additionalContext // empty')"
+CTX_Q="${CTX_Q//$'\r'/}"
+if grep -qE '^  7(:[0-9]+)? (error )?MD024/' <<<"$CTX_Q"; then
+  ok "fixtureQ finding keeps its own line number when the context quotes a finding"
+else
+  fail "fixtureQ finding line cut at the quoted context: $CTX_Q"
 fi
 
 # --- Fire gate: non-.md extension skips -------------------------------------
@@ -995,36 +1011,31 @@ fi
 # With neither PATH nor a contained local binary available, the hook must not
 # invoke the package runner (which could fetch from the network).
 PD_NO_MDLINT="$(mktemp -d "$WORK/pd.XXXXXX")"
+ERR_NO_MDLINT="$WORK/no-mdlint.err"
 OUT_NO_MDLINT="$(run_hook_env "$FA" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_NO_MDLINT" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
+  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true 2>"$ERR_NO_MDLINT")"
 RC_NO_MDLINT=$?
 if [[ $RC_NO_MDLINT -eq 0 ]]; then ok "missing markdownlint exits 0 (advisory)"; else fail "missing markdownlint exit $RC_NO_MDLINT"; fi
-if printf '%s' "$OUT_NO_MDLINT" | jq -e '.hookSpecificOutput.additionalContext | contains("was not found on this hook'"'"'s PATH or as a contained repository-local")' >/dev/null 2>&1; then
+# The model's copy names where the hook looked, the manifest's degrade text and
+# the check skill; the install route is the user's.
+if printf '%s' "$OUT_NO_MDLINT" | jq -e '.hookSpecificOutput.additionalContext == "markdown-format: markdownlint-cli2 not on the hook PATH or as a contained repository-local node_modules/.bin executable. Without markdownlint-cli2, the hook cannot format edited Markdown files. No further notice this session; /markdown-format:check diagnoses."' >/dev/null 2>&1; then
   ok "missing markdownlint emits visible additionalContext"
 else
   fail "missing markdownlint warning absent: $OUT_NO_MDLINT"
 fi
-# #2740: notice must not claim a session-long skip latch, and must carry the
-# probed PATH so a PATH-layer miss (nvm prefix, cloud harness env) is diagnosable.
+# #2740: notice must not claim a session-long skip; it says the NOTICE will not
+# repeat. The probed PATH, which makes a PATH-layer miss (nvm prefix, cloud
+# harness env) diagnosable, goes to stderr, which Claude Code keeps in the
+# debug log, and to neither channel.
 if printf '%s' "$OUT_NO_MDLINT" | jq -e '
-  (.hookSpecificOutput.additionalContext | contains("there is no skip latch")) and
-  (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
-  (.systemMessage | contains("PATH probed:")) and
+  (.hookSpecificOutput.additionalContext | contains("No further notice this session")) and
+  ((.hookSpecificOutput.additionalContext | contains("PATH probed:")) | not) and
+  ((.systemMessage | contains("PATH probed:")) | not) and
   ((.hookSpecificOutput.additionalContext | contains("skipped for this session")) | not)
-' >/dev/null 2>&1; then
-  ok "missing markdownlint notice: notice-only latch + PATH diagnostic"
+' >/dev/null 2>&1 && grep -q '^PATH probed: ' "$ERR_NO_MDLINT"; then
+  ok "missing markdownlint notice: notice-only latch, PATH diagnostic on stderr only"
 else
-  fail "missing markdownlint latch/PATH diagnostic wrong: $OUT_NO_MDLINT"
-fi
-# The notice is shown on the first skip and renewed every eighth (prerequisite
-# class, session-keyed); the renewal keeps the install route.
-if printf '%s' "$OUT_NO_MDLINT" | jq -e '
-  (.hookSpecificOutput.additionalContext | contains("renewed every eighth")) and
-  ((.hookSpecificOutput.additionalContext | contains("latches once per session")) | not)
-' >/dev/null 2>&1; then
-  ok "missing markdownlint notice states the renewal cadence"
-else
-  fail "missing markdownlint notice cadence wording wrong: $OUT_NO_MDLINT"
+  fail "missing markdownlint latch/PATH diagnostic wrong: $OUT_NO_MDLINT stderr: $(cat "$ERR_NO_MDLINT")"
 fi
 PD_RENEW="$(mktemp -d "$WORK/pd.XXXXXX")"
 RENEW_PAYLOAD="{\"session_id\":\"renew-seq\",\"tool_input\":{\"file_path\":\"$FA\"}}"
@@ -1034,76 +1045,22 @@ for n in 1 2 3 4 5 6 7 8; do
   renew_out[n]="$(cd "$UNRELATED" && env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_RENEW" \
     CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK" <<<"$RENEW_PAYLOAD")"
 done
-[[ "${renew_out[1]}" == *"was not found on this hook"* && "${renew_out[1]}" == *"PATH probed:"* ]] || renew_ok=0
-for n in 2 3 4 5 6 7; do
+[[ "${renew_out[1]}" == *"not on the hook PATH"* && "${renew_out[1]}" == *"/markdown-format:check"* &&
+  "${renew_out[1]}" == *"npm i -D markdownlint-cli2"* ]] || renew_ok=0
+for n in 2 3 4 5 6 7 8; do
   [[ -z "${renew_out[n]}" ]] || renew_ok=0
 done
-[[ "${renew_out[8]}" == *"[8 skips this session]"* && "${renew_out[8]}" == *"/markdown-format:check"* &&
-  "${renew_out[8]}" == *"This hook does not invoke npx"* ]] || renew_ok=0
 if ((renew_ok)); then
-  ok "missing markdownlint: fire 1 full, fires 2-7 silent, fire 8 renews with the install route"
+  ok "missing markdownlint: fire 1 carries the install route, fires 2-8 are silent (no renewal)"
 else
   fail "missing markdownlint 8-fire sequence wrong: 1=[${renew_out[1]}] 2=[${renew_out[2]}] 7=[${renew_out[7]}] 8=[${renew_out[8]}]"
 fi
-# #3134: plugin-bin directories collapse to a count; plausible dirs stay.
-PLUGIN_BIN_HOME="$WORK/fake-plugin-home"
-mkdir -p "$PLUGIN_BIN_HOME/.local/bin"
-plugin_bins=""
-i=0
-while ((i < 20)); do
-  d="$PLUGIN_BIN_HOME/.claude/plugins/cache/mp/plugin-${i}/bin"
-  mkdir -p "$d"
-  plugin_bins="${plugin_bins}:${d}"
-  i=$((i + 1))
-done
-# jq may live outside /usr/bin (mise, Homebrew); without it the hook skips first.
-JQ_DIR="$(dirname "$(type -P jq)")"
-PD_TRIM="$(mktemp -d "$WORK/pd.XXXXXX")"
-OUT_TRIM="$(run_hook_env "$FA" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_TRIM" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true \
-  PATH="/usr/bin:${PLUGIN_BIN_HOME}/.local/bin:${JQ_DIR}${plugin_bins}:/bin")"
-# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
-if host_cygpath_rewrites_posix_path; then
-  skip "PATH probed trims plugin-bin directories to a count" \
-    "cygpath rewrites the POSIX fixture spelling these cases pin"
-else
-  if printf '%s' "$OUT_TRIM" | jq -e --arg local "$PLUGIN_BIN_HOME/.local/bin" '
-    (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
-    (.hookSpecificOutput.additionalContext | contains("/usr/bin")) and
-    (.hookSpecificOutput.additionalContext | contains($local)) and
-    (.hookSpecificOutput.additionalContext | contains("+20 plugin-bin directories omitted")) and
-    ((.hookSpecificOutput.additionalContext | contains(".claude/plugins/cache/mp/plugin-0/bin")) | not)
-  ' >/dev/null 2>&1; then
-    ok "PATH probed trims plugin-bin directories to a count"
-  else
-    fail "PATH probed trim wrong: $OUT_TRIM"
-  fi
-fi
-# Empty PATH components are cwd. Word-split with IFS=: would drop them.
-PD_EMPTY="$(mktemp -d "$WORK/pd.XXXXXX")"
-OUT_EMPTY="$(run_hook_env "$FA" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_PLUGIN_DATA="$PD_EMPTY" \
-  CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true \
-  PATH="/usr/bin::${PLUGIN_BIN_HOME}/.local/bin:${JQ_DIR}${plugin_bins}:/bin:")"
-# silent-skip-ok: routed to skip(), a visible SKIP line counted apart from PASS
-if host_cygpath_rewrites_posix_path; then
-  skip "PATH probed preserves empty components as cwd" \
-    "cygpath rewrites the POSIX fixture spelling these cases pin"
-else
-  if printf '%s' "$OUT_EMPTY" | jq -e --arg local "$PLUGIN_BIN_HOME/.local/bin" '
-    (.hookSpecificOutput.additionalContext | contains("PATH probed: /usr/bin:.:")) and
-    (.hookSpecificOutput.additionalContext | contains($local)) and
-    (.hookSpecificOutput.additionalContext | contains(":/bin:.")) and
-    (.hookSpecificOutput.additionalContext | contains("+20 plugin-bin directories omitted"))
-  ' >/dev/null 2>&1; then
-    ok "PATH probed preserves empty components as cwd"
-  else
-    fail "PATH probed empty-component trim wrong: $OUT_EMPTY"
-  fi
-fi
-# In-repo missing-tool: repo-local `npm i -D` is still the reliable route (#2868).
+# In-repo missing-tool: repo-local `npm i -D` is still the reliable route
+# (#2868), on the user's copy only.
 if printf '%s' "$OUT_NO_MDLINT" | jq -e '
-  (.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) and
-  (.hookSpecificOutput.additionalContext | contains("is the reliable route"))
+  (.systemMessage | contains("npm i -D markdownlint-cli2")) and
+  (.systemMessage | contains("is the reliable route")) and
+  ((.hookSpecificOutput.additionalContext | contains("npm i -D")) | not)
 ' >/dev/null 2>&1; then
   ok "in-repo missing markdownlint names repo-local npm i -D"
 else
@@ -1141,13 +1098,13 @@ if host_cygpath_rewrites_posix_path; then
     "cygpath rewrites the POSIX HOME/PATH spelling the notice pins"
 else
   if printf '%s' "$OUT_OUTREPO" | jq -e --arg bun "$FAKE_HOME/.bun/bin" --arg fnm "$FAKE_HOME/AppData/Local/fnm_multishells/5796_x/bin" '
-    (.hookSpecificOutput.additionalContext | contains("outside a repository")) and
-    (.hookSpecificOutput.additionalContext | contains("would accept one at " + $bun)) and
-    (.hookSpecificOutput.additionalContext | contains("bun install --global markdownlint-cli2")) and
-    (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
-    ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not) and
-    ((.hookSpecificOutput.additionalContext | contains("is the reliable route")) | not) and
-    ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $fnm)) | not)
+    (.systemMessage | contains("outside a repository")) and
+    (.systemMessage | contains("would accept one at " + $bun)) and
+    (.systemMessage | contains("bun install --global markdownlint-cli2")) and
+    ((.hookSpecificOutput.additionalContext | contains("PATH probed:")) | not) and
+    ((.systemMessage | contains("npm i -D markdownlint-cli2")) | not) and
+    ((.systemMessage | contains("is the reliable route")) | not) and
+    ((.systemMessage | contains("would accept one at " + $fnm)) | not)
   ' >/dev/null 2>&1; then
     ok "out-of-repo missing markdownlint names ~/.bun/bin, not npm i -D or fnm"
   else
@@ -1167,10 +1124,10 @@ if host_cygpath_rewrites_posix_path; then
     "cygpath rewrites the POSIX HOME/PATH spelling the notice pins"
 else
   if printf '%s' "$OUT_LOCALBIN" | jq -e --arg local "$FAKE_HOME/.local/bin" --arg homebin "$FAKE_HOME/bin" '
-    (.hookSpecificOutput.additionalContext | contains("would accept one at " + $local)) and
-    ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $homebin)) | not) and
-    ((.hookSpecificOutput.additionalContext | contains("bun install --global")) | not) and
-    ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not)
+    (.systemMessage | contains("would accept one at " + $local)) and
+    ((.systemMessage | contains("would accept one at " + $homebin)) | not) and
+    ((.systemMessage | contains("bun install --global")) | not) and
+    ((.systemMessage | contains("npm i -D markdownlint-cli2")) | not)
   ' >/dev/null 2>&1; then
     ok "out-of-repo notice prefers ~/.local/bin over ~/bin"
   else
@@ -1187,11 +1144,11 @@ OUT_GENERIC="$(run_hook_env "$OUTREPO/note.md" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_
   PATH="$FAKE_HOME/share/mise/installs/node/22/bin:$FAKE_HOME/foo/.bun/bin:$PATH" \
   CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
 if printf '%s' "$OUT_GENERIC" | jq -e --arg mise "$FAKE_HOME/share/mise/installs/node/22/bin" --arg nested "$FAKE_HOME/foo/.bun/bin" '
-  (.hookSpecificOutput.additionalContext | contains("outside a repository")) and
-  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $mise)) | not) and
-  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $nested)) | not) and
-  ((.hookSpecificOutput.additionalContext | contains("bun install --global")) | not) and
-  ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not)
+  (.systemMessage | contains("outside a repository")) and
+  ((.systemMessage | contains("would accept one at " + $mise)) | not) and
+  ((.systemMessage | contains("would accept one at " + $nested)) | not) and
+  ((.systemMessage | contains("bun install --global")) | not) and
+  ((.systemMessage | contains("npm i -D markdownlint-cli2")) | not)
 ' >/dev/null 2>&1; then
   ok "out-of-repo notice does not name a generic or nested \$HOME PATH entry"
 else
@@ -1206,9 +1163,9 @@ OUT_PKGJSON="$(run_hook_env "$OUTREPO/note.md" BASH_ENV="$NO_MDLINT_ENV" CLAUDE_
   PATH="$FAKE_HOME/.bun/bin:$PATH" \
   CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
 if printf '%s' "$OUT_PKGJSON" | jq -e '
-  (.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) and
-  (.hookSpecificOutput.additionalContext | contains("is the reliable route")) and
-  ((.hookSpecificOutput.additionalContext | contains("outside a repository")) | not)
+  (.systemMessage | contains("npm i -D markdownlint-cli2")) and
+  (.systemMessage | contains("is the reliable route")) and
+  ((.systemMessage | contains("outside a repository")) | not)
 ' >/dev/null 2>&1; then
   ok "non-git project with package.json still names repo-local npm i -D"
 else
@@ -1223,12 +1180,12 @@ OUT_NOTARGET="$(run_hook_env "$OUTREPO/note.md" BASH_ENV="$NO_MDLINT_ENV" CLAUDE
   PATH="$FAKE_HOME/AppData/Local/fnm_multishells/5796_x/bin:$PATH" \
   CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
 if printf '%s' "$OUT_NOTARGET" | jq -e --arg bun "$FAKE_HOME/.bun/bin" --arg fnm "$FAKE_HOME/AppData/Local/fnm_multishells/5796_x/bin" '
-  (.hookSpecificOutput.additionalContext | contains("outside a repository")) and
-  (.hookSpecificOutput.additionalContext | contains("durable user-scope directory already on this hook")) and
-  ((.hookSpecificOutput.additionalContext | contains("npm i -D markdownlint-cli2")) | not) and
-  ((.hookSpecificOutput.additionalContext | contains("would accept one at")) | not) and
-  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $bun)) | not) and
-  ((.hookSpecificOutput.additionalContext | contains("would accept one at " + $fnm)) | not)
+  (.systemMessage | contains("outside a repository")) and
+  (.systemMessage | contains("durable user-scope directory already on this hook")) and
+  ((.systemMessage | contains("npm i -D markdownlint-cli2")) | not) and
+  ((.systemMessage | contains("would accept one at")) | not) and
+  ((.systemMessage | contains("would accept one at " + $bun)) | not) and
+  ((.systemMessage | contains("would accept one at " + $fnm)) | not)
 ' >/dev/null 2>&1; then
   ok "out-of-repo notice without a user-scope PATH target invents none"
 else
@@ -1285,7 +1242,7 @@ OUT_NO_JQ="$(run_hook_env "$FA" BASH_ENV="$NO_JQ_ENV" CLAUDE_PLUGIN_DATA="$PD_NO
   CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
 RC_NO_JQ=$?
 if [[ $RC_NO_JQ -eq 0 ]]; then ok "missing jq exits 0 (advisory)"; else fail "missing jq exit $RC_NO_JQ"; fi
-if printf '%s' "$OUT_NO_JQ" | jq -e '(.hookSpecificOutput.additionalContext | contains("jq not found on PATH")) and (.systemMessage | contains("jq not found on PATH"))' >/dev/null 2>&1; then
+if printf '%s' "$OUT_NO_JQ" | jq -e '(.hookSpecificOutput.additionalContext | contains("jq not on the hook PATH")) and (.systemMessage | contains("jq not on the hook PATH"))' >/dev/null 2>&1; then
   ok "missing jq emits visible notice on both channels"
 else
   fail "missing jq warning absent: $OUT_NO_JQ"
@@ -1338,7 +1295,7 @@ OUT_NO_JQ_NOGIT="$(run_hook_env "$NOJQ_NESTED" BASH_ENV="$NO_JQ_NO_GIT_ENV" CLAU
   CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
 RC_NO_JQ_NOGIT=$?
 if [[ $RC_NO_JQ_NOGIT -eq 0 ]] &&
-  printf '%s' "$OUT_NO_JQ_NOGIT" | grep -q 'jq not found on PATH'; then
+  printf '%s' "$OUT_NO_JQ_NOGIT" | grep -q 'jq not on the hook PATH'; then
   ok "missing jq + missing git, nested .md -> the opt-in pre-check still finds the root config and the notice is emitted"
 else
   fail "missing jq + missing git, nested .md -> notice swallowed, the pre-check read an opted-in repo as opted-out (rc=$RC_NO_JQ_NOGIT out=$OUT_NO_JQ_NOGIT)"
@@ -1390,6 +1347,13 @@ if printf '%s' "$OUT_TRUST_1" | jq -e '(.hookSpecificOutput.additionalContext | 
   ok "executable .cjs config emits visible trust-gate notice on both channels"
 else
   fail "executable .cjs trust-gate notice absent: $OUT_TRUST_1"
+fi
+# The approval is the user's call: the model's copy states the verdict and never
+# carries the command that grants it.
+if printf '%s' "$OUT_TRUST_1" | jq -e '(.hookSpecificOutput.additionalContext | contains("is not approved. Approval is the user'"'"'s.") and (contains("mkdir -p") | not)) and (.systemMessage | contains("mkdir -p"))' >/dev/null 2>&1; then
+  ok "trust gate: the mkdir approval command reaches the user only"
+else
+  fail "trust gate: mkdir approval command on the model channel or missing for the user: $OUT_TRUST_1"
 fi
 if ! has_final_newline "$TRUST_FILE"; then
   ok "unapproved executable config blocks markdownlint --fix"
@@ -1467,7 +1431,7 @@ fi
 # has no marker store).
 OUT_TRUST_NOSTATE="$(run_hook_env "$TRUST_FILE" -u CLAUDE_PLUGIN_DATA \
   CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true)"
-if printf '%s' "$OUT_TRUST_NOSTATE" | jq -e '.systemMessage | contains("trust gate")' >/dev/null 2>&1 &&
+if printf '%s' "$OUT_TRUST_NOSTATE" | jq -e '(.systemMessage | contains("trust gate")) and (.hookSpecificOutput.additionalContext | contains("so it cannot be approved; lint stays off.") and (contains("mkdir -p") | not))' >/dev/null 2>&1 &&
   ! has_final_newline "$TRUST_FILE"; then
   ok "risky config without a plugin-data store fails closed"
 else
@@ -1487,7 +1451,7 @@ cat >"$ORIGINAL_CONFIG" <<'JSONC'
 JSONC
 printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
 OUT_TRUST_ESCAPE="$(run_hook_trust "$TRUST_FILE")"
-if printf '%s' "$OUT_TRUST_ESCAPE" | jq -e '(.systemMessage | contains("trust gate") and contains("defeat textual verification")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+if printf '%s' "$OUT_TRUST_ESCAPE" | jq -e '(.systemMessage | contains("trust gate") and contains("defeat textual verification")) and (.systemMessage | contains("mkdir -p") | not) and (.hookSpecificOutput.additionalContext | contains("defeats textual verification, so it cannot be approved as written; lint stays off.") and (contains("mkdir -p") | not))' >/dev/null 2>&1 &&
   ! has_final_newline "$TRUST_FILE"; then
   ok "escape-obfuscated module key gates and refuses approval"
 else
@@ -1575,7 +1539,7 @@ CJS
 
 Clean text.' >"$TRUST_FILE"
   OUT_JSKEY="$(run_hook_trust_session "jskey-$shape" "$TRUST_FILE")"
-  if printf '%s' "$OUT_JSKEY" | jq -e '(.systemMessage | contains("trust gate") and contains("cannot pin")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+  if printf '%s' "$OUT_JSKEY" | jq -e '(.systemMessage | contains("trust gate") and contains("cannot pin")) and (.systemMessage | contains("mkdir -p") | not) and (.hookSpecificOutput.additionalContext | contains("no approval can pin, so it cannot be approved as written; lint stays off.") and (contains("mkdir -p") | not))' >/dev/null 2>&1 &&
     ! has_final_newline "$TRUST_FILE"; then
     ok "module-loading key in an executable config ($shape) refuses approval"
   else
@@ -1942,11 +1906,20 @@ fi
 # shellcheck disable=SC2016 # the ${CLAUDE_PLUGIN_ROOT} placeholders are literal manifest text
 PROBE_ARGS_WANT='[["${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs","probe","${CLAUDE_PLUGIN_ROOT}","--run-if-unset-or-true","MARKDOWN_FORMAT_ENABLED"]]'
 if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" ]]; then
-  PROBE_ARGS_GOT="$(jq -c '[.hooks.SessionStart[]?.hooks[]? | select(.args) | .args]' "$HOOKS_JSON")"
+  PROBE_ARGS_GOT="$(jq -c '[.hooks.SessionStart[]? | select(.matcher != "compact|clear") | .hooks[]? | select(.args) | .args]' "$HOOKS_JSON")"
   if [[ "$PROBE_ARGS_GOT" == "$PROBE_ARGS_WANT" ]]; then
     ok "hooks.json: SessionStart probe is gated by --run-if-unset-or-true MARKDOWN_FORMAT_ENABLED"
   else
     fail "hooks.json SessionStart args: got $PROBE_ARGS_GOT, want $PROBE_ARGS_WANT"
+  fi
+  # The SessionStart compact|clear row that resets the findings delta gate.
+  RESET_ARGS_GOT="$(jq -c '[.hooks.SessionStart[]? | select(.matcher // "" | test("compact")) | {matcher, args: [.hooks[]? | .args]}]' "$HOOKS_JSON")"
+  # shellcheck disable=SC2016 # the ${CLAUDE_PLUGIN_ROOT} placeholders are literal manifest text
+  RESET_ARGS_WANT='[{"matcher":"compact|clear","args":[["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs","${CLAUDE_PLUGIN_ROOT}/hooks/markdown-format.sh","--reset-digests"]]}]'
+  if [[ "$RESET_ARGS_GOT" == "$RESET_ARGS_WANT" ]]; then
+    ok "hooks.json: one SessionStart compact|clear row runs the script with --reset-digests"
+  else
+    fail "hooks.json SessionStart reset row: got $RESET_ARGS_GOT, want $RESET_ARGS_WANT"
   fi
 else
   fail "hooks.json SessionStart assertions need jq and $HOOKS_JSON"
@@ -1981,7 +1954,8 @@ if command -v node >/dev/null 2>&1; then
   fi
   OUT_PROBE_ON="$(run_probe_launcher)"
   RC_PROBE_ON=$?
-  CTX_PROBE_ON="$(ctx_of "$OUT_PROBE_ON")"
+  # The SessionStart probe tells the user only; the model hears at the first skip.
+  CTX_PROBE_ON="$(printf '%s' "$OUT_PROBE_ON" | jq -r '.systemMessage // empty' 2>/dev/null)"
   if [[ $RC_PROBE_ON -eq 0 &&
     "$CTX_PROBE_ON" == *markdownlint-cli2* &&
     "$CTX_PROBE_ON" == */markdown-format:check* &&
@@ -2433,7 +2407,7 @@ if [[ "$DETAIL_N" -eq 20 ]]; then
 else
   fail "bounded/cap: expected 20 detail lines, got $DETAIL_N"
 fi
-if printf '%s' "$CTX_N" | grep -q '50 markdownlint finding'; then
+if printf '%s' "$CTX_N" | grep -qF 'noisy.md has 50 finding(s)'; then
   ok "bounded/cap: the full finding count is still reported"
 else
   fail "bounded/cap: total count missing: $CTX_N"
@@ -2448,7 +2422,7 @@ if printf '%s' "$CTX_N" | grep -q 'more rule(s)'; then
 else
   ok "bounded/cap: no omitted-rule suffix when every rule fits in the histogram"
 fi
-if printf '%s' "$CTX_N" | grep -q 'and 30 more finding'; then
+if printf '%s' "$CTX_N" | grep -qF '... and 30 more (cap: markdown_format_max_findings)'; then
   ok "bounded/cap: the omitted remainder is reported as a count"
 else
   fail "bounded/cap: remainder not reported: $CTX_N"
@@ -2509,7 +2483,7 @@ fi
 rm -f "$TELS"
 OUT_SCALE=$(run_noisy "$FS" STUB_FINDINGS=601)
 CTX_SCALE=$(ctx_of "$OUT_SCALE")
-if printf '%s' "$CTX_SCALE" | grep -q '601 markdownlint finding'; then
+if printf '%s' "$CTX_SCALE" | grep -qF 'has 601 finding(s)'; then
   ok "bounded/scale: the report still states the true count at 601 findings"
 else
   fail "bounded/scale: count wrong or missing at 601 findings: $CTX_SCALE"
@@ -2620,30 +2594,24 @@ else
   fail "bounded/config: garbage value not rejected: $CTX_G"
 fi
 
-# --- Delta gate: repeats drop the detail, never the message -----------------
-# Suppressing the whole message on a repeat would recreate the invisible-hook
-# defect on this plugin, so the summary must survive every run.
+# --- Delta gate: an unchanged repeat sends nothing ---------------------------
+# The model already holds the first report, so an unchanged set on a re-edit
+# sends nothing. A changed set, a clean run in between, a SessionStart compact
+# or clear, and another agent each get the report again.
 FD="$REPO/delta.md"
 printf '# Delta\n\nbody\n' >"$FD"
 OUT_D1=$(run_noisy "$FD" STUB_FINDINGS=30)
 CTX_D1=$(ctx_of "$OUT_D1")
 OUT_D2=$(run_noisy "$FD" STUB_FINDINGS=30)
-CTX_D2=$(ctx_of "$OUT_D2")
 if [[ "$(printf '%s' "$CTX_D1" | grep -c 'error MD')" -eq 20 ]]; then
   ok "bounded/delta: first run carries the (capped) detail"
 else
   fail "bounded/delta: first run detail missing: $CTX_D1"
 fi
-if [[ "$(printf '%s' "$CTX_D2" | grep -c 'error MD')" -eq 0 ]]; then
-  ok "bounded/delta: unchanged repeat drops the per-finding detail"
+if [[ -z "$OUT_D2" ]]; then
+  ok "bounded/delta: an unchanged repeat sends nothing"
 else
-  fail "bounded/delta: repeat still dumped detail: $CTX_D2"
-fi
-if printf '%s' "$CTX_D2" | grep -q '30 markdownlint finding' &&
-  printf '%s' "$CTX_D2" | grep -q 'Unchanged from the previous run'; then
-  ok "bounded/delta: the repeat still reports the count and says why it is short"
-else
-  fail "bounded/delta: repeat went silent — that is the defect, not the fix: $CTX_D2"
+  fail "bounded/delta: unchanged repeat was sent again: $OUT_D2"
 fi
 OUT_D3=$(run_noisy "$FD" STUB_FINDINGS=31)
 CTX_D3=$(ctx_of "$OUT_D3")
@@ -2652,6 +2620,31 @@ if [[ "$(printf '%s' "$CTX_D3" | grep -c 'error MD')" -eq 20 ]]; then
 else
   fail "bounded/delta: changed set stayed suppressed: $CTX_D3"
 fi
+printf '{"session_id":"noisy-1","source":"compact"}' |
+  env CLAUDE_PLUGIN_DATA="$NOISY_DATA" bash "$HOOK" --reset-digests
+CTX_D4=$(ctx_of "$(run_noisy "$FD" STUB_FINDINGS=31)")
+if [[ "$CTX_D4" == *"has 31 finding(s)"* ]]; then
+  ok "bounded/delta: a SessionStart compact resets the record, so the set is sent again"
+else
+  fail "bounded/delta: after compact reset: $CTX_D4"
+fi
+run_noisy "$FD" STUB_FINDINGS=0 >/dev/null
+CTX_D5=$(ctx_of "$(run_noisy "$FD" STUB_FINDINGS=31)")
+if [[ "$CTX_D5" == *"has 31 finding(s)"* ]]; then
+  ok "bounded/delta: findings that return after a clean run are sent again"
+else
+  fail "bounded/delta: after a clean run: $CTX_D5"
+fi
+# The record is keyed per agent, not per session: a subagent that never saw the
+# report gets it in full.
+CTX_D6=$(ctx_of "$(cd "$UNRELATED" && printf '{"session_id":"noisy-1","agent_id":"sub-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$FD" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true \
+    CLAUDE_PLUGIN_DATA="$NOISY_DATA" PATH="$NOISY_BIN:$PATH" STUB_FINDINGS=31 bash "$HOOK")")
+if [[ "$(printf '%s' "$CTX_D6" | grep -c 'error MD')" -eq 20 ]]; then
+  ok "bounded/delta: a subagent is sent the detail the main agent already had"
+else
+  fail "bounded/delta: subagent got: $CTX_D6"
+fi
 
 # --- Applied fixes are disclosed on both channels ---------------------------
 FF="$REPO/fixed.md"
@@ -2659,13 +2652,15 @@ printf '# Fixed\n\nbody\n' >"$FF"
 OUT_F=$(run_noisy "$FF" STUB_FIX_COUNT=7)
 CTX_F=$(ctx_of "$OUT_F")
 SYS_F=$(printf '%s' "$OUT_F" | jq -r '.systemMessage // empty' 2>/dev/null)
-if printf '%s' "$CTX_F" | grep -q 'Attempted: 7 fixes'; then
-  ok "bounded/fixes: a clean-after-fix run no longer stays silent about the rewrite"
+# The user is told of the rewrite; Claude learns of it at its next Edit of the
+# file, as with every other formatter in this marketplace.
+if [[ -z "$CTX_F" ]]; then
+  ok "bounded/fixes: the rewrite is not restated on the agent channel"
 else
-  fail "bounded/fixes: no agent-channel disclosure of the rewrite: $CTX_F"
+  fail "bounded/fixes: agent-channel copy of the rewrite: $CTX_F"
 fi
-if printf '%s' "$SYS_F" | grep -q 'Attempted: 7 fixes'; then
-  ok "bounded/fixes: the rewrite is disclosed on the user channel too"
+if [[ "$SYS_F" == "markdown-format: reformatted fixed.md." ]]; then
+  ok "bounded/fixes: the rewrite is disclosed on the user channel"
 else
   fail "bounded/fixes: no user-channel disclosure: $SYS_F"
 fi
@@ -2967,7 +2962,7 @@ fi
 # such a path, and hook::repo_root reads an empty hint as `.`, the hook process
 # CWD, where the `dirname` it replaced answered `/`. An empty extraction fails
 # loudly so a refactor that moves the block cannot pass by testing nothing.
-FILE_DIR_LINES="$(awk 'index($0, "FILE_DIR=\"${FILE%/*}\"") { p = 1 } index($0, "REPO_ROOT=") { p = 0 } p' "$HOOK_DIR/hook-utils.sh")"
+FILE_DIR_LINES="$(awk 'index($0, "FILE_DIR=\"${FILE%") { p = 1 } index($0, "REPO_ROOT=") { p = 0 } p' "$HOOK_DIR/hook-utils.sh")"
 if [[ -z "$FILE_DIR_LINES" ]]; then
   fail "root-level: FILE_DIR block not found in hook-utils.sh"
 else

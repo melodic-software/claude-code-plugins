@@ -17,7 +17,7 @@ When the project ships its own criteria for these concerns (SSOT/restatement rev
 ## Scale guidance
 
 - **Small diffs (≤15 markdown files)**: review inline, file by file.
-- **Large diffs**: fan out per-batch read-only subagents (~40–50 files per batch, dispatched in small waves), each given the same three-lens method, then merge findings into one table.
+- **Large diffs**: fan out per-batch `review:brief-reviewer` agents (~40–50 files per batch, dispatched in small waves), each given the same three-lens method, then merge findings into one table. Never use a general-purpose subagent here, so a batch reviewer cannot fan out.
 
 ## Artifact
 

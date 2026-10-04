@@ -1,0 +1,119 @@
+name: Resolve pipeline config
+description: >
+  Read the repository's pr-pipeline.yaml from the base-SHA checkout only,
+  validate it against the convention schema, apply the lane rules and the
+  vocabulary, and resolve one lane (and optionally one activity) with every
+  default applied. Writes ResolvedConfig to output-path and the selected
+  activity's outputs. Any rejection fails the step and writes no file.
+
+inputs:
+  lane:
+    description: The lane to resolve, the lane workflow's file stem.
+    required: true
+  activity:
+    description: The activity to select from the lane's slots; empty selects none.
+    required: false
+    default: ""
+  base-path:
+    description: The base-SHA checkout every read is under; never the workspace root.
+    required: false
+    default: .base
+  config-path:
+    description: >
+      The config, relative to base-path. For test callers only: it must be
+      relative with no `..`, have the basename pr-pipeline.yaml, and sit
+      outside .github/actions/.
+    required: false
+    default: docs/conventions/pr-pipeline.yaml
+  output-path:
+    description: Where to write the ResolvedConfig JSON file, normally under $RUNNER_TEMP.
+    required: true
+  event-name:
+    description: The triggering event name.
+    required: false
+    default: ${{ github.event_name }}
+  event-path:
+    description: Path to the event payload file.
+    required: false
+    default: ${{ github.event_path }}
+  pr-number:
+    description: The PR, normally check-trusted-trigger's `pr-number` output.
+    required: false
+    default: ""
+  github-token:
+    description: >
+      Read-only token, used only when an applies-when predicate needs the
+      PR's labels or changed files.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  enabled:
+    description: "`true` unless the lane sets `enabled: false`."
+    value: ${{ steps.resolve.outputs.enabled }}
+  slots:
+    description: The lane's slot activity names, a JSON list in slot order.
+    value: ${{ steps.resolve.outputs.slots }}
+  kind:
+    description: "`skill` or `script`; set only with `activity`."
+    value: ${{ steps.resolve.outputs.kind }}
+  effect:
+    description: The activity's effect.
+    value: ${{ steps.resolve.outputs.effect }}
+  gating:
+    description: "`gate` or `advisory`: whether the activity's verdict feeds ci-status."
+    value: ${{ steps.resolve.outputs.gating }}
+  skill:
+    description: "`<plugin>:<skill>`, empty for a script."
+    value: ${{ steps.resolve.outputs.skill }}
+  script:
+    description: The script path, empty for a skill.
+    value: ${{ steps.resolve.outputs.script }}
+  model:
+    description: The activity's model; empty means the runner's default.
+    value: ${{ steps.resolve.outputs.model }}
+  max-turns:
+    description: The activity's turn budget; empty means the runner's default.
+    value: ${{ steps.resolve.outputs.max-turns }}
+  reads-untrusted:
+    description: "`true` when the activity reads untrusted text."
+    value: ${{ steps.resolve.outputs.reads-untrusted }}
+  applies:
+    description: "`true` when the activity runs on this event; `false` comes with a skip-reason."
+    value: ${{ steps.resolve.outputs.applies }}
+  skip-reason:
+    description: "`disabled-by-config`, `not-applicable-paths`, `not-applicable`, or empty."
+    value: ${{ steps.resolve.outputs.skip-reason }}
+  contents:
+    description: The App grant's `contents` permission for the activity's effect.
+    value: ${{ steps.resolve.outputs.contents }}
+  pull-requests:
+    description: The App grant's `pull-requests` permission for the activity's effect.
+    value: ${{ steps.resolve.outputs.pull-requests }}
+  issues:
+    description: The App grant's `issues` permission for the activity's effect.
+    value: ${{ steps.resolve.outputs.issues }}
+  can-commit:
+    description: "`false` only when the grant's `contents` is `read`."
+    value: ${{ steps.resolve.outputs.can-commit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve the config
+      id: resolve
+      shell: bash
+      env:
+        LANE: ${{ inputs.lane }}
+        ACTIVITY: ${{ inputs.activity }}
+        BASE_PATH: ${{ inputs.base-path }}
+        CONFIG_PATH: ${{ inputs.config-path }}
+        OUTPUT_PATH: ${{ inputs.output-path }}
+        EVENT_NAME: ${{ inputs.event-name }}
+        EVENT_PATH: ${{ inputs.event-path }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        REPOSITORY: ${{ github.repository }}
+      run: |
+        npm ci --ignore-scripts --omit=dev --prefix "$GITHUB_ACTION_PATH"
+        node "$GITHUB_ACTION_PATH/resolve-config.mjs"

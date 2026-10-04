@@ -118,7 +118,7 @@ if grep -q 'import "fmt"' "$REPO/src/fix.go"; then
 else
   fail "missing import -> not added: $(cat "$REPO/src/fix.go")"
 fi
-if printf '%s' "$OUT" | grep -q 'go-format: reformatted'; then
+if printf '%s' "$OUT" | jq -e '.systemMessage == "go-format: reformatted fix.go."' >/dev/null 2>&1; then
   ok "missing import -> user-channel mutation disclosure"
 else
   fail "missing import -> missing systemMessage disclosure: $OUT"
@@ -285,8 +285,56 @@ if printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null
   else
     fail "syntax error ctx wrong shape: $CTX"
   fi
+  # The heading names the file; the lines carry no absolute path.
+  if [[ "$CTX" == "go-format: syntax.go has a syntax error:"$'\n'"  "[0-9]* && "$CTX" != *"$REPO"* ]]; then
+    ok "syntax error -> lines drop goimports' absolute path prefix"
+  else
+    fail "syntax error -> report shape: $CTX"
+  fi
 else
   fail "syntax error -> no additionalContext JSON: $OUT"
+fi
+
+# --- Case 7a: an unchanged syntax error is sent once --------------------------
+# With a data directory the error is sent on the first edit and not on the next;
+# telemetry still records it. A SessionStart compact resets the record, and a
+# clean run clears it, so the error is sent again when it returns.
+DELTA_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
+run_delta() {
+  run_hook_env "$1" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true PATH="$GOIMPORTS_PATH" CLAUDE_PLUGIN_DATA="$DELTA_DATA" "${@:2}"
+}
+delta_ctx() { jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$1" 2>/dev/null; }
+D1=$(run_delta "$REPO/syntax.go")
+TELD="$(mktemp "$WORK/teld.XXXXXX")"
+SINKD="$(make_sink "cat >\"$TELD\"")"
+D2=$(run_delta "$REPO/syntax.go" HOOK_TELEMETRY_SINK="$SINKD")
+wait_for_sink "$TELD"
+if [[ "$(delta_ctx "$D1")" == *'syntax error'* && -z "$D2" ]]; then
+  ok "delta: an unchanged syntax error is sent once, then nothing"
+else
+  fail "delta: first='$D1' second='$D2'"
+fi
+if [[ -s "$TELD" ]] && jq -e '.data.findings | length > 0' "$TELD" >/dev/null 2>&1; then
+  ok "delta: telemetry still records the finding the context left out"
+else
+  fail "delta: telemetry findings: $(cat "$TELD" 2>/dev/null)"
+fi
+printf '{"source":"clear"}' | env CLAUDE_PLUGIN_DATA="$DELTA_DATA" bash "$HOOK" --reset-digests
+D3=$(run_delta "$REPO/syntax.go")
+if [[ "$(delta_ctx "$D3")" == *'syntax error'* ]]; then
+  ok "delta: SessionStart clear resets the record, so the error is sent again"
+else
+  fail "delta: after clear reset: '$D3'"
+fi
+SYNTAX_SRC="$(cat "$REPO/syntax.go")"
+printf 'package main\n\nfunc main() {}\n' >"$REPO/syntax.go"
+run_delta "$REPO/syntax.go" >/dev/null
+printf '%s\n' "$SYNTAX_SRC" >"$REPO/syntax.go"
+D4=$(run_delta "$REPO/syntax.go")
+if [[ "$(delta_ctx "$D4")" == *'syntax error'* ]]; then
+  ok "delta: an error that returns after a clean run is sent again"
+else
+  fail "delta: after clean run: '$D4'"
 fi
 
 # --- Case 7b: snapshot hygiene (#3405) ---------------------------------------
@@ -439,14 +487,17 @@ run_ng() {
     cd "$UNRELATED" || return 1
     printf '{"session_id":"test-nogoimports-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_NG/app.go" |
       env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$NG_DATA" \
-        CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true bash "$HOOK"
+        CLAUDE_PLUGIN_ROOT="${HOOK_DIR%/*}" CLAUDE_PLUGIN_OPTION_GO_FORMAT_ENABLED=true bash "$HOOK"
   )
 }
 OUT_NG=$(run_ng)
 RC_NG=$?
 if [[ $RC_NG -eq 0 ]]; then ok "goimports-absent -> exit 0"; else fail "goimports-absent exit $RC_NG"; fi
-if jq -e '(.systemMessage | contains("goimports")) and (.hookSpecificOutput.additionalContext | contains("goimports"))' <<<"$OUT_NG" >/dev/null 2>&1; then
-  ok "goimports-absent -> visible notice on both channels"
+# The manifest's degrade and check reach the model; the install route reaches
+# the user only.
+if jq -e '(.hookSpecificOutput.additionalContext | startswith("go-format: goimports not on the hook PATH. Without goimports,") and contains("/go-format:check") and (contains("go install") | not))
+    and (.systemMessage | contains("go install golang.org/x/tools/cmd/goimports"))' <<<"$OUT_NG" >/dev/null 2>&1; then
+  ok "goimports-absent -> manifest notice, install route on the user channel only"
 else
   fail "goimports-absent: notice missing or malformed: $OUT_NG"
 fi
@@ -538,6 +589,15 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
   else
     fail "hooks.json: expected one exec-form SessionStart prerequisites probe row gated on GO_FORMAT_ENABLED, found $PROBE_COUNT"
   fi
+  # The SessionStart compact|clear row that resets the findings delta gate.
+  # shellcheck disable=SC2016 # the CLAUDE_PLUGIN_ROOT placeholders are literal manifest text
+  RESET_SEL='.event == "SessionStart" and .matcher == "compact|clear" and .command == "node" and .args == ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/go-format.sh", "--reset-digests"]'
+  if [[ "$(jq "[.[] | select($RESET_SEL)] | length" <<<"$HANDLERS")" == "1" ]]; then
+    ok "hooks.json: one SessionStart compact|clear row runs the script with --reset-digests"
+  else
+    fail "hooks.json: expected one SessionStart compact|clear --reset-digests row"
+  fi
+  HANDLERS="$(jq -c "[.[] | select(($RESET_SEL) | not)]" <<<"$HANDLERS")"
   HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
   HANDLER_GROUPS="$(jq -r '[.[] | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
   GROUPS_OFF="$(jq -r '[.[] | select(.event != "PostToolUse" or ((.matcher | split("|") | sort | unique) != ["Edit", "Write"])) | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
@@ -590,7 +650,7 @@ else
       else
         fail "probe-gate/false: want rc 0 and empty stdout (rc=$PROBE_RC out=$PROBE_OUT)"
       fi
-    elif [[ $PROBE_RC -eq 0 && "$PROBE_OUT" == *"goimports was not found"* ]]; then
+    elif [[ $PROBE_RC -eq 0 && "$PROBE_OUT" == *"goimports not on the hook PATH"* ]]; then
       ok "probe-gate/$probe_case: go_format_enabled $probe_case still reports the missing goimports"
     else
       fail "probe-gate/$probe_case: want rc 0 and the missing-goimports notice (rc=$PROBE_RC out=$PROBE_OUT)"

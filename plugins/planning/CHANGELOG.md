@@ -3,7 +3,7 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.68.0] - 2026-10-04
+## [0.69.1] - 2026-10-04
 
 ### Changed
 
@@ -12,6 +12,32 @@ All notable changes to the `planning` plugin are documented here. Format follows
 ### Fixed
 
 - **`/planning:design` no longer says the ideal test-seam count is one.** The test-seam posture thread still drives toward the fewest seams that cover the surface.
+
+## [0.69.0] - 2026-10-04
+
+### Added
+
+- **PLAN.md carries a `## Design` section, written by `/planning:design-handoff` ([#6278](https://github.com/melodic-software/claude-code-plugins/issues/6278)).** On a passed gate the handoff writes module layout, contracts, variation verdicts, and the conventions followed into PLAN.md, so design decisions reach the plan, the implementer's brief, and decomposed tickets instead of staying in the unpublished design directory. `/planning:plan` keeps the section, audits every phase against it in Step 2, and its `## Next` now names implement, implement-dispatch, and decompose.
+
+### Fixed
+
+- **`/planning:interview` Step 5 routes design-significant work to `/planning:design`.** The "contract IS the plan" shortcut to implementation no longer skips design for small design-significant work, and Step 5 now matches the skill's `## Next`.
+- **`/planning:design` no longer calls decompose's design-label reading unimplemented.** The `## Next` and relationship rows name the PLAN.md `## Design` path, and the wayfind order matches the workflow ladder's design, PRD, and decompose stages.
+- **A Tier C early exit from `/planning:design` goes through `/planning:design-handoff`.** It used to invoke `/planning:plan` directly, so PLAN.md never got the one-line `## Design` record of the early exit and its reason. `/planning:plan` writes that record too when it documents an early exit itself, and its anatomy line now lists the Design section.
+- **A Tier B early exit keeps its type sketch, and `design-resolution.md` is its only gate artifact.** `/planning:plan` no longer accepts a `type-inventory.md` alone for Tier B, so a plan that passed Step 1 no longer bounces off `/planning:design-handoff`. The handoff fails a `tier: B` artifact with no type sketch, and writes a `### Contracts` subsection quoting the sketch under the one-line early-exit record in PLAN.md `## Design`.
+- **The skill cheat sheet lists `/planning:prd`, `/planning:design`, and `/planning:design-handoff` under the ladder's PRD and Design stages.** Their `workflow-stage` metadata moves from `contract` and `plan` to `prd` and `design`.
+
+## [0.68.0] - 2026-10-04
+
+### Added
+
+- **`/planning:interview` tries to answer each question itself before asking, and offers to connect a system it cannot reach ([#6204](https://github.com/melodic-software/claude-code-plugins/issues/6204)).** A new shared step, `context/self-answer.md`, checks each candidate question against the codebase (ADRs, docs, and question-specific git history included), then connected tools such as MCP servers, then research for external facts. A fact it finds is stated with its `Basis:` and an `answered-from-<source>` tag, recorded in the ledger's new `## Self-answered facts` section, and gets no register row. A fact held by a named system that is not connected gets one offer to connect it, naming the system, the questions it would settle, and how to connect; once connected, the agent looks the answers up. Unattended runs record the missing access as a named blocker and never wait. Decisions still go to the user, and the auto-guard is unchanged. The interview's frontier gate and assumption sweep use the step, and `/planning:design`, `/planning:prd`, `/planning:questionnaire`, and `/planning:audit-answers` cite it.
+
+## [0.67.8] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
 
 ## [0.67.7] - 2026-10-04
 

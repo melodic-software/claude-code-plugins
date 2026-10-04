@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: no-findings-deep-tax-package
+context:
+  scaffold_script: scaffold.sh

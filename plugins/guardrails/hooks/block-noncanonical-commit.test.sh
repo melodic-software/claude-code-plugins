@@ -85,7 +85,7 @@ run "git commit --file - (allowed)" "git commit --file - " 0
 run "git commit --file=- (allowed)" "git commit --file=-" 0
 run "git commit -F- (attached, allowed)" "git commit -F-" 0
 
-# The trailer_policy `none` case: /commit's own output when the repo convention
+# The trailer_policy `none` case: /source-control:commit's own output when the repo convention
 # forbids a co-author trailer. Requiring --trailer here would deadlock the skill.
 run "git commit -F - without --trailer (allowed — trailer_policy none)" \
   "git commit -F - --cleanup=verbatim" 0
@@ -799,7 +799,7 @@ fi
 # --- the block message names the fix -----------------------------------------
 out=$(bash "$HOOK" <<<"$(command_json "git commit -m 'feat: x${NL}body'")" 2>&1)
 assert_contains "block message names -F -" "$out" '-F -'
-assert_contains "block message names the skill" "$out" '/commit'
+assert_contains "block message names the skill" "$out" '/source-control:commit'
 assert_contains "block message names the multi-line hazard" "$out" 'multi-line'
 
 # --- persisted `!` hops across NESTED repositories ----------------------------

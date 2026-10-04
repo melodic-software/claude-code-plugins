@@ -3,6 +3,31 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.11] - 2026-10-04
+
+### Changed
+
+- **Index-drift notice goes to the model (#6225).** The agent that edited the rule is the one that can regenerate the index, so the notice is now context for the model with the full `render-index.sh write` command, naming the edited file and its repository with `--file` and `--root` so it does not render against the session's working directory, in place of a user message naming a bare script.
+
+## [0.21.10] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
+
+## [0.21.9] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
+
+## [0.21.8] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing node goes to the user only, in one shorter line.
+
 ## [0.21.7] - 2026-10-04
 
 ### Changed
