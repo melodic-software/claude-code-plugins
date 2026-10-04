@@ -17,10 +17,13 @@ Public interface:
   plus `unique_messages`. Non-integer counts read as 0.
 - `user_text(record)` is a user record's text, stripped, with text blocks joined by newlines; None
   for a tool result or a content shape that carries no text. Injected text is returned as is.
-- `is_typed_turn(record)` is true only for a user record the human typed: not a tool result, not
-  meta, compact-summary or transcript-only, `origin.kind` absent or `human`, `promptSource` absent
-  or in `TYPED_PROMPT_SOURCES`, not an interrupt, and not starting with an `INJECTED_PREFIXES`
-  entry. Injected records outnumber typed turns.
+- `typed_text(record)` is the text of a user record the human typed, else None: not a tool
+  result, not meta, compact-summary or transcript-only, `origin.kind` absent or `human`,
+  `promptSource` absent or in `TYPED_PROMPT_SOURCES` unless `origin.kind` is `human`, not an
+  interrupt, and not starting with an `INJECTED_PREFIXES` entry. For an `origin.kind: human` record,
+  one leading `<system-reminder>` block is dropped first: Claude Desktop writes the person's prompts
+  that way, with `promptSource: sdk`. Injected records outnumber typed turns.
+- `is_typed_turn(record)` is `typed_text(record) is not None`.
 - `iter_subagents(main_path)` yields a `Subagent(path, meta)` for each
   `<session>/subagents/agent-*.jsonl` beside `<session>.jsonl`, in name order; `meta` is the
   parsed `agent-*.meta.json` object, or None when it is missing, unreadable or not an object.
@@ -69,6 +72,7 @@ INJECTED_PREFIXES = (
     "<user-prompt-submit-hook>",
 )
 INTERRUPT_RE = re.compile(r"^\[Request interrupted by user( for tool use)?\]")
+LEADING_REMINDER_RE = re.compile(r"<system-reminder>.*?</system-reminder>\s*", re.S)
 TYPED_PROMPT_SOURCES = {"typed", "queued"}
 RECORD_TYPES = frozenset(
     {
@@ -179,18 +183,24 @@ def user_text(record: dict) -> str | None:
     return content.strip() if isinstance(content, str) else None
 
 
-def is_typed_turn(record: dict) -> bool:
+def typed_text(record: dict) -> str | None:
     if record.get("type") != "user":
-        return False
+        return None
     if record.get("isMeta") or record.get("isCompactSummary") or record.get("isVisibleInTranscriptOnly"):
-        return False
+        return None
     kind = _obj(record.get("origin")).get("kind")
     if kind and kind != "human":
-        return False
+        return None
     source = record.get("promptSource")
-    if source and not (isinstance(source, str) and source in TYPED_PROMPT_SOURCES):
-        return False
+    if kind != "human" and source and not (isinstance(source, str) and source in TYPED_PROMPT_SOURCES):
+        return None
     text = user_text(record)
-    if not text or INTERRUPT_RE.match(text):
-        return False
-    return not text.startswith(INJECTED_PREFIXES)
+    if text and kind == "human" and (reminder := LEADING_REMINDER_RE.match(text)):
+        text = text[reminder.end() :]
+    if not text or INTERRUPT_RE.match(text) or text.startswith(INJECTED_PREFIXES):
+        return None
+    return text
+
+
+def is_typed_turn(record: dict) -> bool:
+    return typed_text(record) is not None
