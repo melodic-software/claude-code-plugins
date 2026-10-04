@@ -33,7 +33,12 @@ author check, one GraphQL `nodes(ids:)` query per 100 node ids reads `lastEdited
 `editor`'s `databaseId` (the `Comment` interface). An item never edited, or last edited by a listed
 id, is kept. Any other edit, including one whose editor is null, drops the item (the PR keeps an
 empty title and a null body) and counts it under `edited-by-untrusted`. REST `updated_at` is not
-used. The query covers body edits only; a PR title edit is not visible to it.
+used.
+
+That query covers bodies only, so the PR title has its own rule: the PR's `timelineItems` of type
+`RENAMED_TITLE_EVENT` are read page by page (the same 50-page cap). When any rename's `actor` is
+null or not listed, the title is withheld (empty) and counted once under `edited-by-untrusted`;
+the body still follows the edit rule above.
 
 ## Output
 

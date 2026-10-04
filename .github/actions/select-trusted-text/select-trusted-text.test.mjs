@@ -23,6 +23,18 @@ function routesFrom(api) {
     [`GET /repos/${REPOSITORY}/pulls/42/comments?${page1}`]: api.reviewComments,
     "POST /graphql closing": api.closingIssues,
     "POST /graphql edits": api.edits,
+    "POST /graphql renames": {
+      data: {
+        repository: {
+          pullRequest: {
+            timelineItems: {
+              nodes: api.renames,
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    },
     [`GET /repos/${REPOSITORY}/issues/7`]: api.issue7,
     [`GET /repos/${REPOSITORY}/issues/7/comments?${page1}`]: api.issue7Comments,
     "GET /repos/melodic-software/standards/issues/8": api.issue8,
@@ -56,7 +68,9 @@ function fakeGitHub(routes) {
       if (body.query.includes("nodes(ids")) {
         return editNodes(routes["POST /graphql edits"], body.variables.ids);
       }
-      key = "POST /graphql closing";
+      key = body.query.includes("RENAMED_TITLE_EVENT")
+        ? "POST /graphql renames"
+        : "POST /graphql closing";
     }
     if (!(key in routes)) {
       throw new GitHubError(404, key);
@@ -358,6 +372,36 @@ test("a PR body edited by an unlisted user is withheld", async () => {
   const { context } = await filter(api);
   assert.equal(context.pr.title, "");
   assert.equal(context.pr.body, null);
+  assert.equal(context.dropped["edited-by-untrusted"], 1);
+});
+
+// Title renames: Comment.lastEditedAt covers the body only.
+
+const rename = (actor) => ({ __typename: "RenamedTitleEvent", actor });
+
+test("a title renamed by an unlisted user is withheld; the body stays", async () => {
+  const api = load();
+  api.renames = [rename({ __typename: "User", databaseId: 9999001 })];
+  const { context, written } = await filter(api);
+  assert.equal(context.pr.title, "");
+  assert.equal(context.pr.body, "Closes #7");
+  assert.equal(context.dropped["edited-by-untrusted"], 1);
+  assert.doesNotMatch(written, /probe the lane foundations/);
+});
+
+test("a title renamed by a listed user is kept", async () => {
+  const api = load();
+  api.renames = [rename({ __typename: "User", databaseId: 153232337 })];
+  const { context } = await filter(api);
+  assert.equal(context.pr.title, "feat: probe the lane foundations");
+  assert.equal(context.dropped["edited-by-untrusted"], 0);
+});
+
+test("a title rename with no resolvable actor is withheld", async () => {
+  const api = load();
+  api.renames = [rename({ __typename: "User", databaseId: 153232337 }), rename(null)];
+  const { context } = await filter(api);
+  assert.equal(context.pr.title, "");
   assert.equal(context.dropped["edited-by-untrusted"], 1);
 });
 

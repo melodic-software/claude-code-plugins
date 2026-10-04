@@ -185,6 +185,7 @@
   },
   "issue8Comments": [],
   "edits": {},
+  "renames": [],
   "users": {
     "claude[bot]": { "login": "claude[bot]", "id": 209825114, "type": "Bot" },
     "unlisted-app[bot]": { "login": "unlisted-app[bot]", "id": 5550001, "type": "Bot" },

@@ -27,26 +27,41 @@ const CLOSING_ISSUES = `query($owner: String!, $name: String!, $number: Int!, $a
     }
   }
 }`;
-const MAX_REFERENCE_PAGES = 50;
+const TITLE_RENAMES = `query($owner: String!, $name: String!, $number: Int!, $after: String) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      timelineItems(itemTypes: [RENAMED_TITLE_EVENT], first: 100, after: $after) {
+        nodes {
+          ... on RenamedTitleEvent {
+            actor { __typename ... on User { databaseId } ... on Bot { databaseId } }
+          }
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+}`;
+const MAX_GRAPHQL_PAGES = 50;
 
-// Every closing issue reference, page by page; more than the cap throws.
-async function closingReferences(github, repository, prNumber) {
+// Every node of one PR connection (`closingIssuesReferences` or
+// `timelineItems`), page by page; more than the cap throws.
+async function prConnection(github, query, field, repository, prNumber) {
   const [owner, name] = repository.split("/");
-  const references = [];
+  const nodes = [];
   let after = null;
-  for (let page = 1; page <= MAX_REFERENCE_PAGES; page += 1) {
+  for (let page = 1; page <= MAX_GRAPHQL_PAGES; page += 1) {
     const answer = await github("POST", "/graphql", {
-      query: CLOSING_ISSUES,
+      query,
       variables: { owner, name, number: Number(prNumber), after },
     });
-    const connection = answer?.data?.repository?.pullRequest?.closingIssuesReferences;
-    references.push(...(connection?.nodes ?? []));
+    const connection = answer?.data?.repository?.pullRequest?.[field];
+    nodes.push(...(connection?.nodes ?? []));
     if (connection?.pageInfo?.hasNextPage !== true) {
-      return references;
+      return nodes;
     }
     after = connection.pageInfo.endCursor;
   }
-  throw new Error(`closing issue references exceed ${MAX_REFERENCE_PAGES} pages`);
+  throw new Error(`${field} exceeds ${MAX_GRAPHQL_PAGES} pages`);
 }
 
 // PullRequest, Issue, IssueComment, PullRequestReview and
@@ -131,7 +146,13 @@ export async function buildTrustedContext({ github, repository, prNumber, ids })
   await keep("review", await paginate(github, `${base}/pulls/${prNumber}/reviews`));
   await keep("review-comment", await paginate(github, `${base}/pulls/${prNumber}/comments`));
 
-  const references = await closingReferences(github, repository, prNumber);
+  const references = await prConnection(
+    github,
+    CLOSING_ISSUES,
+    "closingIssuesReferences",
+    repository,
+    prNumber,
+  );
   for (const reference of references) {
     // Only issues in the PR's own repository: an issue elsewhere sits under
     // another repository's permissions and authors.
@@ -157,6 +178,22 @@ export async function buildTrustedContext({ github, repository, prNumber, ids })
   if (prTrusted && !prKept) {
     dropped["edited-by-untrusted"] += 1;
   }
+  // The edit check above covers the body only; a title counts as written by
+  // everyone who renamed it.
+  let titleKept = prKept;
+  if (prKept) {
+    const renames = await prConnection(
+      github,
+      TITLE_RENAMES,
+      "timelineItems",
+      repository,
+      prNumber,
+    );
+    titleKept = renames.every((event) => isListed(ids, { id: event?.actor?.databaseId }));
+    if (!titleKept) {
+      dropped["edited-by-untrusted"] += 1;
+    }
+  }
   const kept = [];
   for (const { nodeId, ...item } of items) {
     if (editedByListed(nodeId)) {
@@ -172,7 +209,7 @@ export async function buildTrustedContext({ github, repository, prNumber, ids })
       head_sha: pull.head.sha,
       base_sha: pull.base.sha,
       author_id: pull.user?.id ?? 0,
-      title: prKept ? pull.title : "",
+      title: titleKept ? pull.title : "",
       body: prKept ? pull.body : null,
     },
     items: kept,
