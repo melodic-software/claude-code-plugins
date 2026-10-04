@@ -8,26 +8,29 @@
 # their sections. It never decides which section is relevant: the caller
 # names the sections it wants.
 #
-# Store layout under the cache directory (every name derived from a URL is a
-# hex digest, so paths stay short on Windows):
+# Store layout under the cache directory. A name is the first 16 hex digits of
+# the key and of the sha256, so paths stay under Windows' 260-character limit;
+# the full values are in the pointer and meta.json, and a reader checks both,
+# so two keys sharing a prefix read as a miss, never as each other's bytes. A
+# write whose longest path would pass the limit is refused with that reason.
 #   store_version          the layout version; a reader that meets another
 #                          version treats the store as empty and a writer
 #                          refuses to write
-#   entries/<key>-<sha256> one immutable entry: body (the raw bytes), meta.json
+#   entries/<key16>-<sha16> one immutable entry: body (the raw bytes), meta.json
 #                          and map.tsv. It is built in a .tmp-* directory beside
-#                          it and renamed into place complete, and never
-#                          modified after.
-#   keys/<key>             the key's pointer: one line, tab-separated: the current
-#                          entry's name, the validated epoch, the validated UTC
+#                          it and renamed into place complete (never into an
+#                          existing directory), and never modified after.
+#   keys/<key16>           the key's pointer: one line, tab-separated: the current
+#                          entry as <key>-<sha256>, the validated epoch, the validated UTC
 #                          ISO time and, when the fetch that last confirmed the
 #                          entry was told how to revalidate, a validators record:
 #                          accept, request URL, ETag and Last-Modified joined by
 #                          \x1f. It is switched by writing a temp file and
 #                          renaming it over the old one; a reader reads it once
 #                          and then only the entry it named.
-#   keys/<key>.access      last access epoch, written best-effort on every
+#   keys/<key16>.access    last access epoch, written best-effort on every
 #                          read and write
-#   keys/<key>.quarantine  written when an entry replaces one whose title
+#   keys/<key16>.quarantine written when an entry replaces one whose title
 #                          differs: JSON with at, from_entry, from_title,
 #                          to_entry and to_title. Nothing here removes it; a
 #                          reader withholds what it derived from the key.
@@ -57,8 +60,10 @@
 #   DOCS_CACHE_DIR  cache directory when --cache-dir is absent (default:
 #                   ${XDG_CACHE_HOME:-$HOME/.cache}/claude-docs-cache)
 #   DOCS_CACHE_NOW  epoch seconds to use as the current time (the test seam)
+#   DOCS_CACHE_PATH_MAX  the path-length limit for writes (default 259 on
+#                   Windows, none elsewhere)
 
-DC_STORE_VERSION=1
+DC_STORE_VERSION=2
 
 # dc_set_dir [dir]: set DC_DIR from the argument, else DOCS_CACHE_DIR, else the default.
 dc_set_dir() {
@@ -120,9 +125,9 @@ dc_entry_ok() {
 # dc_write_pointer <key> <entry name> [validators]: point the key at the entry,
 # validated now (DC_NOW must be set). Sets DC_VALIDATED_EPOCH and DC_VALIDATED.
 dc_write_pointer() {
-  local ptmp="$DC_DIR/keys/.tmp-$1-$$-$RANDOM" line="$2"$'\t'"$DC_NOW"$'\t'"$DC_NOW_ISO"
+  local ptmp="$DC_DIR/keys/.tmp-${1:0:16}-$$-$RANDOM" line="$2"$'\t'"$DC_NOW"$'\t'"$DC_NOW_ISO"
   [[ -z "${3:-}" ]] || line+=$'\t'"$3"
-  if ! { printf '%s\n' "$line" >"$ptmp" && mv -f "$ptmp" "$DC_DIR/keys/$1"; }; then
+  if ! { printf '%s\n' "$line" >"$ptmp" && mv -f "$ptmp" "$DC_DIR/keys/${1:0:16}"; }; then
     rm -f "$ptmp"
     return 1
   fi
@@ -142,7 +147,7 @@ dc_validators() {
 
 # dc_touch <key>: record the access time; a failed write is ignored.
 dc_touch() {
-  printf '%s\n' "$DC_NOW" 2>/dev/null >"$DC_DIR/keys/$1.access" || true
+  printf '%s\n' "$DC_NOW" 2>/dev/null >"$DC_DIR/keys/${1:0:16}.access" || true
 }
 
 # dc_lookup <key | key-sha256>: resolve a key's pointer once, or name an entry
@@ -163,7 +168,7 @@ dc_lookup() {
     return 1
   fi
   # The pointer is read once; validated belongs to the entry it names.
-  [[ -f "$DC_DIR/keys/$key" ]] && IFS=$'\t' read -r name epoch iso rest <"$DC_DIR/keys/$key"
+  [[ -f "$DC_DIR/keys/${key:0:16}" ]] && IFS=$'\t' read -r name epoch iso rest <"$DC_DIR/keys/${key:0:16}"
   [[ "$epoch" =~ ^[0-9]+$ && -n "$iso" && "$name" == "$key-"* ]] || name="" epoch="" iso="" rest=""
   if [[ -z "${sha:-}" ]]; then
     [[ -n "$name" ]] || return 1
@@ -172,7 +177,8 @@ dc_lookup() {
     epoch="" iso="" rest=""
   fi
   [[ "$sha" =~ ^[0-9a-f]{64}$ ]] || return 1
-  DC_KEY="$key" DC_ENTRY="$DC_DIR/entries/$key-$sha"
+  # shellcheck disable=SC2034 # DC_REF is read by fetch-docs.sh, which sources this file
+  DC_KEY="$key" DC_ENTRY="$DC_DIR/entries/${key:0:16}-${sha:0:16}" DC_REF="$key-$sha"
   dc_entry_ok "$DC_ENTRY" "$key" "$sha" || return 1
   DC_VALIDATED_EPOCH="$epoch" DC_VALIDATED="$iso"
   # shellcheck disable=SC2034 # read by fetch-docs.sh, which sources this file
@@ -180,7 +186,7 @@ dc_lookup() {
   # shellcheck disable=SC2034 # read by fetch-docs.sh, which sources this file
   DC_QUARANTINED=0
   # shellcheck disable=SC2034
-  [[ ! -f "$DC_DIR/keys/$key.quarantine" ]] || DC_QUARANTINED=1
+  [[ ! -f "$DC_DIR/keys/${key:0:16}.quarantine" ]] || DC_QUARANTINED=1
   dc_touch "$key"
 }
 
@@ -203,13 +209,27 @@ dc_map_file() {
   LC_ALL=C awk -v d="$sdir" -v nonl="$nonl" '
     {
       cum[NR] = cum[NR - 1] + length($0) + 1
-      if (match($0, /^[ \t]*(```|~~~)/)) {
-        m = substr($0, RSTART + RLENGTH - 3, 3)
-        if (fence == "") fence = m; else if (m == fence) fence = ""
-      } else if (fence == "" && match($0, /^#+[ \t]/) && RLENGTH <= 7) {
-        lvl = RLENGTH - 1
-        h = substr($0, RLENGTH + 1)
-        gsub(/\t/, " ", h); sub(/\r$/, "", h); sub(/[ ]+#+[ ]*$/, "", h); sub(/^[ ]+/, "", h); sub(/[ ]+$/, "", h)
+      # CommonMark: fences and ATX headings may be indented 0-3 spaces. A fence
+      # is 3+ backticks (whose info string holds no backtick) or tildes; only a
+      # bare run of the same character, at least as long, closes it.
+      line = $0; sub(/\r$/, "", line)
+      match(line, /^ */)
+      ind = RLENGTH
+      rest = substr(line, ind + 1)
+      ch = substr(rest, 1, 1)
+      run = 0
+      if (ind <= 3 && (ch == "`" || ch == "~")) { match(rest, ch == "`" ? "^`+" : "^~+"); run = RLENGTH }
+      if (fence != "") {
+        if (run >= flen && ch == fence && substr(rest, run + 1) ~ /^[ \t]*$/) fence = ""
+        if (n) print > (d "/" n)
+        next
+      }
+      if (run >= 3 && !(ch == "`" && index(substr(rest, run + 1), "`"))) {
+        fence = ch; flen = run
+      } else if (ind <= 3 && match(rest, /^#+/) && RLENGTH <= 6 && (length(rest) == RLENGTH || substr(rest, RLENGTH + 1, 1) ~ /[ \t]/)) {
+        lvl = RLENGTH
+        h = substr(rest, RLENGTH + 1)
+        gsub(/\t/, " ", h); sub(/[ ]+#+[ ]*$/, "", h); sub(/^[ ]+/, "", h); sub(/[ ]+$/, "", h)
         for (i = n; i >= 1; i--) if (lv[i] >= lvl && !en[i]) en[i] = NR - 1
         if (n) close(d "/" n)
         n++; lv[n] = lvl; st[n] = NR
@@ -244,19 +264,59 @@ dc_map_file() {
   return "$rc"
 }
 
+# dc_rename_dir <src> <dest>: rename a directory to a name that does not exist
+# yet; never move it inside an existing directory. GNU mv -T refuses an
+# existing destination; without it the rename is checked and undone.
+dc_rename_dir() {
+  if [[ -z "${DC_MV_T:-}" ]]; then
+    DC_MV_T=0
+    mv --version 2>/dev/null | grep -q GNU && DC_MV_T=1
+  fi
+  if [[ $DC_MV_T -eq 1 ]]; then
+    mv -T "$1" "$2" 2>/dev/null
+    return
+  fi
+  [[ ! -e "$2" ]] || return 1
+  mv "$1" "$2" 2>/dev/null || return 1
+  if [[ -e "$2/${1##*/}" ]]; then
+    rm -rf "${2:?}/${1##*/}"
+    return 1
+  fi
+}
+
+# dc_path_fits: the longest path the store writes fits the path limit
+# (DOCS_CACHE_PATH_MAX, else 259 where cygpath shows a Windows host, else
+# none). Sets DC_ERR when it does not.
+dc_path_fits() {
+  local max="${DOCS_CACHE_PATH_MAX:-}" native="$DC_DIR" len
+  if [[ -z "$max" ]] && command -v cygpath >/dev/null 2>&1; then max=259; fi
+  [[ "$max" =~ ^[0-9]+$ ]] || return 0
+  if command -v cygpath >/dev/null 2>&1; then
+    native="$(cygpath -am "$DC_DIR")"
+  elif [[ "$native" != /* ]]; then
+    native="$PWD/$native"
+  fi
+  # /entries/<16 hex>-<16 hex>/meta.json is the longest name below the store.
+  local below="/entries/0000000000000000-0000000000000000/meta.json"
+  len=$((${#native} + ${#below}))
+  [[ $len -gt $max ]] || return 0
+  DC_ERR="path too long: entry paths under $native reach $len characters, over the limit of $max"
+  return 1
+}
+
 # dc_quarantine <key> <new entry name> <new title>: when the key's current
 # entry is another one with a different title, record the quarantine.
 dc_quarantine() {
   local old="" old_title="" qtmp
-  [[ -f "$DC_DIR/keys/$1" ]] && IFS=$'\t' read -r old _ <"$DC_DIR/keys/$1"
+  [[ -f "$DC_DIR/keys/${1:0:16}" ]] && IFS=$'\t' read -r old _ <"$DC_DIR/keys/${1:0:16}"
   [[ "$old" =~ ^[0-9a-f]{64}-[0-9a-f]{64}$ && "$old" != "$2" && -n "$3" ]] || return 0
-  old_title="$(jq -r '.title // ""' "$DC_DIR/entries/$old/meta.json" 2>/dev/null)"
+  old_title="$(jq -r '.title // ""' "$DC_DIR/entries/${old:0:16}-${old:65:16}/meta.json" 2>/dev/null)"
   old_title="${old_title%$'\r'}"
   [[ -n "$old_title" && "$old_title" != "$3" ]] || return 0
-  qtmp="$DC_DIR/keys/.tmp-$1-q-$$-$RANDOM"
+  qtmp="$DC_DIR/keys/.tmp-${1:0:16}-q-$$-$RANDOM"
   if jq -n --arg at "$DC_NOW_ISO" --arg fe "$old" --arg ft "$old_title" --arg te "$2" --arg tt "$3" \
     '{at: $at, from_entry: $fe, from_title: $ft, to_entry: $te, to_title: $tt}' >"$qtmp"; then
-    mv -f "$qtmp" "$DC_DIR/keys/$1.quarantine"
+    mv -f "$qtmp" "$DC_DIR/keys/${1:0:16}.quarantine"
   fi
   rm -f "$qtmp"
 }
@@ -268,9 +328,14 @@ dc_quarantine() {
 # replaces one with another title quarantines the key. Sets the dc_lookup
 # fields; returns 1 when nothing was stored.
 dc_put() {
-  local url="$1" fmt="$2" src="$3" ctype="${4:-}" title key tmp sha final
+  local url="$1" fmt="$2" src="$3" ctype="${4:-}" title key tmp sha final placed=0
+  DC_ERR=""
   [[ -f "$src" ]] || return 1
-  dc_writable || return 1
+  dc_path_fits || return 1
+  if ! dc_writable; then
+    DC_ERR="unwritable, or another store_version"
+    return 1
+  fi
   dc_now
   key="$(dc_key "$url" "$fmt")"
   tmp="$DC_DIR/entries/.tmp-$$-$RANDOM$RANDOM"
@@ -279,7 +344,7 @@ dc_put() {
     rm -rf "$tmp"
     return 1
   fi
-  final="$DC_DIR/entries/$key-$sha"
+  final="$DC_DIR/entries/${key:0:16}-${sha:0:16}"
   if ! dc_entry_ok "$final" "$key" "$sha"; then
     title="$(awk -F'\t' 'NR == 1 { print $7; exit }' "$tmp/map.tsv")"
     [[ -n "$title" ]] || title="${5:-}"
@@ -291,13 +356,16 @@ dc_put() {
       rm -rf "$tmp"
       return 1
     fi
-    # A writer that lost the race finds the entry in place: mv then moves its
-    # temp directory inside the winner's, and the next line removes it.
-    mv "$tmp" "$final" 2>/dev/null
-    rm -rf "${final:?}/${tmp##*/}"
+    # A writer that lost the race finds the entry in place and its rename fails.
+    dc_rename_dir "$tmp" "$final" && placed=1
   fi
   rm -rf "$tmp"
-  dc_entry_ok "$final" "$key" "$sha" || return 1
+  if ! dc_entry_ok "$final" "$key" "$sha"; then
+    # An entry this writer placed and cannot read back is removed, not orphaned.
+    [[ $placed -eq 0 ]] || rm -rf "${final:?}"
+    DC_ERR="the entry could not be read back from $final"
+    return 1
+  fi
   dc_quarantine "$key" "$key-$sha" "$DC_TITLE"
   dc_write_pointer "$key" "$key-$sha" "${6:-}" || return 1
   dc_lookup "$key-$sha"
@@ -375,7 +443,7 @@ dc_main() {
       return 2
     }
     dc_put "$@" || {
-      echo "ERROR: nothing stored in $DC_DIR (unwritable, or another store_version)" >&2
+      echo "ERROR: nothing stored in $DC_DIR (${DC_ERR:-the bytes could not be copied or mapped})" >&2
       return 2
     }
     printf '%s\n' "$DC_KEY"
@@ -387,7 +455,7 @@ dc_main() {
     }
     dc_lookup "$1" || return 1
     local q=null
-    [[ ! -f "$DC_DIR/keys/$DC_KEY.quarantine" ]] || q="$(cat "$DC_DIR/keys/$DC_KEY.quarantine")"
+    [[ ! -f "$DC_DIR/keys/${DC_KEY:0:16}.quarantine" ]] || q="$(cat "$DC_DIR/keys/${DC_KEY:0:16}.quarantine")"
     jq -c --arg e "$DC_ENTRY" --arg v "$DC_VALIDATED" --arg ve "$DC_VALIDATED_EPOCH" --argjson now "$DC_NOW" \
       --arg et "$DC_ETAG" --arg lm "$DC_LM" --argjson q "$q" \
       'def n: if . == "" then null else . end;

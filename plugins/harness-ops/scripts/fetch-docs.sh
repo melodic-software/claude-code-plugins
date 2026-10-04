@@ -303,7 +303,7 @@ cache_candidate() {
     dc_lookup "$(dc_key "$url" "$f")" || continue
     [[ -n "$DC_VALIDATED_EPOCH" ]] || continue
     [[ -z "$C_REF" || $DC_VALIDATED_EPOCH -gt $C_EPOCH ]] || continue
-    C_REF="${DC_ENTRY##*/}" C_EPOCH="$DC_VALIDATED_EPOCH" C_CTYPE="$DC_CTYPE" C_FORMAT="$f"
+    C_REF="$DC_REF" C_EPOCH="$DC_VALIDATED_EPOCH" C_CTYPE="$DC_CTYPE" C_FORMAT="$f"
     C_ACCEPT="$DC_ACCEPT" C_REQ_URL="$DC_REQ_URL" C_ETAG="$DC_ETAG" C_LM="$DC_LM"
   done
 }

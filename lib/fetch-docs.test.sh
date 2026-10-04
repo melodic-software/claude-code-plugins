@@ -10,6 +10,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/fetch-docs.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
+# A caller's cache settings must never receive this suite's fixture bytes.
+unset DOCS_CACHE_DIR DOCS_CACHE_NOW
 
 FAILED=0
 CASE_NUM=0
@@ -436,7 +438,7 @@ assert_eq "case 22: --max-age defaults above 0, so the next read is a hit" cache
 rc=0
 bash "$SCRIPT" --out "$TEST_TMPDIR/out22i" --cache --max-age soon skills >/dev/null 2>&1 || rc=$?
 assert_eq "case 22: a non-numeric --max-age is fatal" 2 "$rc"
-printf '2\n' >"$TEST_TMPDIR/cache22/store_version"
+printf '3\n' >"$TEST_TMPDIR/cache22/store_version"
 DOCS_CACHE_DIR="$TEST_TMPDIR/cache22" fixture_run "$fx" "$TEST_TMPDIR/out22j" --cache skills 2>/dev/null
 assert_eq "case 22: a store at another version is never read or written; the page is still read" "read fixture null" \
   "$(page "$TEST_TMPDIR/out22j/manifest.json" skills '"\(.state) \(.source) \(.cache_key)"')"

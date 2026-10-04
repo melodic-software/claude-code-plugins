@@ -29,6 +29,19 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   `<title>`) and **quarantines a key** when a new entry's title differs from the one it replaces;
   `info` reports `title`, `etag`, `last_modified` and `quarantine`.
 
+### Fixed
+
+- **The docs cache works under a long cache directory on Windows.** Entry and pointer names are now
+  the first 16 hex digits of the key and sha256 (store layout version 2; a version-1 store reads as
+  empty and is not written), so a meta.json path stays under the 260-character limit. A write whose
+  paths would still pass the limit is refused with a `path too long` reason, and an entry a write
+  placed but cannot read back is removed instead of left behind.
+- **A writer that loses a race no longer renames its temp directory into the winner's entry.**
+- **Section maps follow CommonMark fences and headings:** only a bare fence of the same character
+  and at least the opener's length closes a fence, so a fence line with an info string or a shorter
+  run stays inside it, and a heading may be indented up to three spaces.
+- `fetch-docs.test.sh` no longer writes fixture pages into a caller's `DOCS_CACHE_DIR`.
+
 ## [1.10.0] - 2026-10-04
 
 ### Added
