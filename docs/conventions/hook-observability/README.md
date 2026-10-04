@@ -89,12 +89,12 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
 
 **Not required** for two situations that are already visible or already correctly agent-scoped:
 
-- **Exit-2 blocking paths.** We treat a `PreToolUse` block via exit code 2 as already visible to
-  both the user and Claude, with its stderr as the reason, so repeating the block reason on
-  `systemMessage` would be redundant, not more observable. Pointer: for the blocking message, see
-  <https://code.claude.com/docs/en/hooks#exit-code-2>. As of: 2026-10-01. Recheck trigger: that
-  section changes what a `PreToolUse` block shows or which text becomes its reason. The field is not discarded on a block (see above), so a blocking hook may still carry
-  one, but only for content that meets the carve-out below, never for the reason itself.
+- **Exit-2 blocking paths.** A block already delivers its reason, so repeating it on
+  `systemMessage` is redundant, not more observable. Pointer: for where the blocking message goes,
+  see <https://code.claude.com/docs/en/hooks#exit-code-2>. As of: 2026-10-04. Recheck trigger:
+  that section changes what a `PreToolUse` block shows or which text becomes its reason. A
+  blocking hook may still carry a `systemMessage` (see above), but only for content that meets the
+  carve-out below, never for the reason itself.
 - **Legitimate advisory findings *the model can act on*.** A hook that surfaces a finding to Claude
   for it to act on (e.g. a lint result, a suggested fix) belongs on `additionalContext` only. That
   is the correct channel for agent-actionable content, not a gap. This is the case the
@@ -141,16 +141,16 @@ count, or the disclosure becomes the noise problem it was meant to prevent.
 `Write|Edit`, every `Bash` call) must not repeat on every invocation. Use `hook::require jq`
 (wraps `hook::notice_once` + `hook::emit_skip_notice`) for a missing-`jq` gate, or pair
 `hook::notice_once` with `hook::emit_skip_notice` directly for a non-`jq` prerequisite. A raw,
-unguarded `hook::emit_skip_notice` call on a broad-matcher hook is a conformance defect. The latch
-keys on session **and** agent: each subagent gets its own full first notice, because it does not
-share the parent's context and would otherwise never see why the hook skipped. After that the
-latch renews with a one-line notice every `HOOK_NOTICE_RENEW_EVERY` skips (default 8). A plugin
-README states this as "once per session and agent, renewed every eighth skip", never "once per session". The exception is a missing external binary: `hook::notice_once <key> <input> prerequisite` latches on the session alone and each renewal keeps the full notice with its install route, so the README states "once per session, renewed with the install route every eighth skip".
+unguarded `hook::emit_skip_notice` call on a broad-matcher hook is a conformance defect. The user
+notice fires once per session; the model notice fires once per agent, because a subagent does not
+share the parent's context and would otherwise never see why the hook skipped. Neither renews. The
+text says the notice will not repeat this session, never that the skip lasts the session: the hook
+probes again on every call. A plugin README states the cadence as "once per session". A missing
+external binary keeps the same cadence, with the install route in its user notice.
 
-**Important exit-code caveat:** on exit 0, **we treat stderr as visible to neither the user nor
-the agent**; only stdout JSON carries a notice. A bare `echo "..." >&2; exit 0` skip is **not
-visible**, regardless of intent. Pointer: for where exit-0 stderr goes, see
-<https://code.claude.com/docs/en/hooks#exit-code-0>. As of: 2026-08-10. Recheck trigger: that
+**Important exit-code caveat:** a bare `echo "..." >&2; exit 0` skip is **not a notice**; only
+stdout JSON carries one. Pointer: for where exit-0 stderr goes, see
+<https://code.claude.com/docs/en/hooks#exit-code-0>. As of: 2026-10-04. Recheck trigger: that
 section starts showing exit-0 stderr in the transcript or to the model. `scripts/check-silent-skips.sh` **still treats a bare
 stderr write as a sanctioned visibility signal as of this doc's introduction.** That is incorrect
 for the exit-0 skip shapes the gate inspects, and the gate does not yet enforce the rule this doc
@@ -177,15 +177,18 @@ candidate; give it a helper call.
 
 Three cap decisions, each with the section that owns the figure.
 
-1. **This convention sizes every user- or agent-channel string under 10,000 characters.** A
-   disclosure the content-mutation rule above requires must reach the reader inline and whole, so
-   a hook that must stay inline caps itself under the figure with a truncation that keeps its
-   counts and says it truncated, leaving headroom for JSON escaping. What happens to a value over
-   the cap is the pointer's to state. The adopting reference is `plugins/typos-format/hooks/typos-format.sh` (4,000 for
-   `systemMessage`, 8,000 for `additionalContext`).
-   - **Pointer**: for the output cap, see <https://code.claude.com/docs/en/hooks#json-output>.
-   - **As of**: 2026-09-05
-   - **Recheck trigger**: that section changes the 10,000 figure or what happens over it.
+1. **This convention sizes every user- or agent-channel string under the output cap.** The cap
+   is a ceiling, not a target: the Length rule in
+   [Text a hook adds for the model](#text-a-hook-adds-for-the-model-frequency-and-phrasing) sets
+   the size. A disclosure the content-mutation rule above requires must reach the reader inline
+   and whole, so a hook that must stay inline caps itself under the figure with a truncation that
+   keeps its counts and says it truncated, leaving headroom for JSON escaping. The adopting
+   reference is `plugins/typos-format/hooks/typos-format.sh` (4,000 for `systemMessage`, 8,000 for
+   `additionalContext`).
+   - **Pointer**: for the output cap and what happens over it, see
+     <https://code.claude.com/docs/en/hooks#json-output>.
+   - **As of**: 2026-10-04
+   - **Recheck trigger**: that section changes the cap figure or what happens over it.
 
 2. **Each `additionalContext` value is sized on its own.** We size the value against the cap above
    and never against what other hooks on the same event emit.
@@ -238,34 +241,65 @@ promotion is tracked at melodic-software/claude-code-plugins#3758.
 
 ## Text a hook adds for the model: frequency and phrasing
 
-A hook's `additionalContext` on a tool event lands beside the tool result, where untrusted tool
-output also arrives. We treat agent-channel text that repeats often or tells the model what to do
-as a prompt-injection risk, both for the hook's own text and for a genuine user message that
-arrives in the same place. Two rules follow.
+These rules cover every line a hook or mod sends either reader: the model channels
+(`additionalContext`, a deny, block or Stop reason, a mod's context and results) and the user
+channels (`systemMessage`, a mod's `$.ui.*` lines). We treat model-channel text that repeats often,
+or context-channel text that reads as an order, as a prompt-injection risk, both for the hook's own
+text and for a genuine user message that arrives beside it.
 
-- **Frequency.** Emit agent-channel text only when it changes what the model does next: a finding,
-  a state transition, or a missing prerequisite under the repeat-notice latch above. A check that
-  ran clean says nothing on the agent channel; its outcome goes to the telemetry envelope. A fleet
-  hook adds no per-call status line, no reminder repeated on every tool call, and no countdown or
-  budget line after tool results.
-- **Phrasing.** Write facts with their source, never orders. Name the hook, what it observed, and
-  where (`typos-format: 2 misspellings in docs/a.md:12`), and state a remedy as a fact about the
-  project (`markdownlint: README.md:40 is 131 characters; this repo wraps markdown at 100`). Hook
-  text claims no authority it lacks
-  (system, administrator, user) and never presents itself as a message from the user.
+- **Frequency.** Speak only when the reader acts on the text: a finding, a state transition, or a
+  missing prerequisite under the repeat-notice latch above. A check that ran clean sends nothing on
+  either channel; its outcome goes to the telemetry envelope. A fleet hook sends no per-call status
+  line, no reminder repeated on every call, and no countdown or budget line after tool results.
+- **Phrasing.** Context channels (`additionalContext`, a mod's context) state facts with their
+  source, never orders: name the hook, what it observed, and where
+  (`typos-format: 2 misspellings in docs/a.md:12`), and state a remedy as a fact about the project
+  (`markdownlint: README.md:40 is 131 characters; this repo wraps markdown at 100`). Decision
+  channels (a deny, block or Stop reason) may direct the next step. Hook text claims no authority
+  it lacks (system, administrator, user) and never presents itself as a message from the user.
+- **Length.** Send only what the reader acts on, in the fewest tokens that keep the intent:
+  - a verdict, not the raw figures behind it;
+  - nothing the reader can look up on demand: a `PATH` dump, an absolute path where a relative one
+    serves, an allowlist the owning skill documents, rationale, provenance asides, disclaimers;
+  - no boilerplate repeated per finding;
+  - one channel when only one reader acts on the text; the same text on both only when both
+    readers act on it, as with a missing-prerequisite notice;
+  - one helper owns a message pattern several hooks send; each hook calls it instead of a copy.
 
-This section is documentation only: it measures no hook's emission rate and moves no hook to a
-different event. The guard mods' context and rate-limit lines are a
+This section moves no hook to a different event. The guard mods' context and rate-limit lines are a
 [recorded exception](#recorded-exception-the-guard-mods-lines-and-telemetry-owner-approved-2026-10-03)
 to the Frequency rule.
 
-- **Pointer**: for where `additionalContext` lands and how to phrase it, see
-  <https://code.claude.com/docs/en/hooks#add-context-for-claude>; for the model behavior behind
-  the risk, see
+- **Pointer**: for each channel's reader and phrasing, see
+  <https://code.claude.com/docs/en/hooks#add-context-for-claude>,
+  <https://code.claude.com/docs/en/hooks#json-output>, and the decision control sections
+  <https://code.claude.com/docs/en/hooks#pretooluse-decision-control>,
+  <https://code.claude.com/docs/en/hooks#posttooluse-decision-control>,
+  <https://code.claude.com/docs/en/hooks#userpromptsubmit-decision-control> and
+  <https://code.claude.com/docs/en/hooks#stop-decision-control>; for a mod's channels, see
+  <https://code.claude.com/docs/en/plugins/mods/reference#prompts-and-what-claude-reads> and
+  <https://code.claude.com/docs/en/plugins/mods/api#show-something-without-starting-a-turn>; for
+  the model behavior behind the risk, see
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-sonnet-5-5#mid-turn-user-messages-and-task-budgets>.
-- **As of**: 2026-10-01
-- **Recheck trigger**: either section changes where hook text lands or how the model treats text
-  that arrives beside tool results.
+- **As of**: 2026-10-04
+- **Recheck trigger**: one of those sections changes who reads a channel, how injected context
+  should be phrased, or how the model treats text that arrives beside tool results.
+
+### See what a hook or mod sent
+
+For a settings hook's full output, follow
+<https://code.claude.com/docs/en/hooks-guide#debug-techniques> and
+<https://code.claude.com/docs/en/hooks#debug-hooks>; for the hook telemetry event, see
+<https://code.claude.com/docs/en/monitoring-usage#hook-execution-complete-event>.
+
+A mod writes every line it sends Claude to the debug log with `$.ui.log(text, { to: 'debug' })`,
+carrying the exact text sent, so the debug log holds what the model read.
+
+- **Pointer**: for the debug log and the call, see the links above and
+  <https://code.claude.com/docs/en/plugins/mods/troubleshoot#read-the-debug-log>.
+- **As of**: 2026-10-04
+- **Recheck trigger**: one of those sections moves, or the mods API gains its own record of what a
+  mod sent Claude.
 
 ## What this convention is not
 
@@ -333,19 +367,20 @@ Fleet audits check, per wired producer hook:
 
 - Every `command`-type handler in its `hooks.json` declares a `statusMessage`.
 - Every missing-prerequisite skip path emits a `systemMessage` (via `hook::require jq` or
-  `hook::notice_once` + `hook::emit_skip_notice`), gated so it fires once per session and agent (renewed every eighth skip) on a broad
-  matcher.
+  `hook::notice_once` + `hook::emit_skip_notice`), gated on a broad matcher so the user notice
+  fires once per session and the model notice once per agent, with no renewal.
 - Any `systemMessage` that is neither a prerequisite-skip notice nor a content-mutation notice
   satisfies all three carve-out conditions, or is the one owner-approved exception named below,
   and its model-channel counterpart asserts no operator presence. Not mechanically gated, but reviewed per hook. No settings hook in the fleet meets all three
   today: `context-guard`'s operator menu, the site that did, now comes from its mod as a transcript
-  line (`$.ui.log`) and a band notice, neither of which reaches Claude, so it is no `systemMessage`.
+  line (`$.ui.log`) and a toast (`$.ui.toast`), with a notice row only on surfaces other than the
+  terminal, none of which reaches Claude, so it is no `systemMessage`.
   One site is admitted by owner-approved
   exception (#4679): `guardrails`' `block-hook-bypass.sh` operator-lever notice. That notice lists
   switches only the operator may flip (condition 1); stderr separately carries the verdict and the
   agent's remedy, names an operator option only as the operator's to set, and never says the
-  operator has seen anything (condition 2 and the delivery rule). It fires once per session and
-  agent, with the latch's renewal declined, which limits repetition but is not a state transition,
+  operator has seen anything (condition 2 and the delivery rule). It fires once per session,
+  which limits repetition but is not a state transition,
   so it does not satisfy condition 3 and is admitted by the exception. Every other call site is
   a prerequisite skip or a content-mutation notice, so a second one is a signal to re-read the three
   conditions rather than to follow the precedent.
@@ -357,44 +392,43 @@ Fleet audits check, per wired producer hook:
   (wrong tool type, excluded path, empty content, outside the project) that fires before any
   check logic runs carries no diagnostic information and does not need one. This matches how
   every current telemetry-emitting hook in the fleet is already shaped.
-- Agent-channel text follows the frequency and phrasing rules in
+- Text a hook or mod sends either reader follows the frequency, phrasing and length rules in
   [Text a hook adds for the model](#text-a-hook-adds-for-the-model-frequency-and-phrasing). Not
   mechanically gated, but reviewed per hook. One exception is recorded below.
+- A mod writes every line it sends Claude to the debug log, per
+  [See what a hook or mod sent](#see-what-a-hook-or-mod-sent). The guard mods conform once
+  melodic-software/claude-code-plugins#6312 lands.
 
 `scripts/check-silent-skips.sh` mechanically enforces the second point for the `command -v`-gated
 shapes it recognizes, **once its pending gate correction lands** (see the systemMessage section
-above). A bare stderr write does not actually satisfy the doctrine (exit-0 stderr is invisible
-per the exit-code caveat above), even though the gate does not yet reject it. After that correction, a
+above). A bare stderr write does not actually satisfy the doctrine (see the exit-code caveat
+above), even though the gate does not yet reject it. After that correction, a
 quiet skip needs a sanctioned helper call or an explicit `# silent-skip-ok:` annotation.
 
 ### Recorded exception: the guard mods' lines and telemetry (owner-approved, 2026-10-03)
 
 `context-guard`'s and `rate-limit-guard`'s mods add lines to tool results and prompts about the
 session's context and rate-limit windows, which the Frequency rule's "no countdown or budget line
-after tool results" would otherwise bar. They are admitted on this shape, and only on it:
+after tool results" would otherwise bar. They are admitted on this shape, and only on it (the owner
+amended the What bullet on 2026-10-04, dropping the standing-rule sentence):
 
 - **When.** One line per boundary crossing, one per approach margin (a set number of points before
   a boundary), and one restatement after a compaction, a resume, a `/branch`, a reload of the mod
-  mid-session, or a `/clear` that leaves a verdict past the quiet one. Nothing on a call where no
-  boundary moved.
-- **What.** Each line is a verdict worded as a fact, naming its source (the plugin and the reading
-  it came from). It claims no authority and gives no order. By default it carries no raw count; the
-  operator can add figures through the plugin's line-data option.
+  mid-session, or a `/clear`, only when the verdict is past the quiet one. Nothing on a call where
+  no boundary moved.
+- **What.** Each line names its plugin and a verdict worded as a fact. The verdict names no action,
+  claims no authority and gives no order. `context-guard`'s boundary lines add that continuing is
+  the user's call, and may be followed by the dumb-zone save note or an operator-configured
+  `zones.json` action; `rate-limit-guard`'s lines carry the verdict only. By default a line carries
+  no raw count; the operator can add figures through the plugin's line-data option. The reading
+  behind the verdict stays on the plugin's status tools.
 - **Telemetry.** The guard mods emit an envelope only on a fire that acts: lines sent, an operator
   suggestion shown, a tool call denied. A fire that reached a decision and changed nothing emits
   none, which narrows the meaningful-outcome bullet above for these two producers.
 
-Why the platform's own guidance supports the shape:
-
-- The context-awareness docs say the API tells some models their remaining context after each tool
-  call, and that Claude Opus 4.7 and later Opus models, Claude Sonnet 5.5 and Claude Fable 5 and 5.1
-  receive no such tag. On those models a boundary line is the session's only statement of where its
-  context stands.
-- The prompting guide says a token countdown after every tool result can make the model read a
-  genuine user message as an injection, and that an occasional one-turn reminder arrives far less
-  often. The guards' lines are the occasional kind: at most one per boundary per cycle.
-
-Both rest on Anthropic's pages alone.
+The shape rests on two Anthropic pages: which models are told their remaining context, and how
+often harness text after tool results may arrive. The guards send at most one line per boundary
+per cycle.
 
 - **Pointer**: for context awareness, see
   <https://platform.claude.com/docs/en/build-with-claude/context-windows#context-awareness>; for the

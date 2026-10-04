@@ -3,11 +3,29 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.79.11] - 2026-10-04
+## [0.79.14] - 2026-10-04
 
 ### Changed
 
 - **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
+
+## [0.79.13] - 2026-10-04
+
+### Changed
+
+- **The inlined loop-lane rate-limit floor pauses at 95%, not 90%.** The babysit loop and the pull-request watch handoff now pause when either window reports `used_percentage >= 95` and re-check an account switch against 95, matching rate-limit-guard 0.14.0's reader contract.
+
+## [0.79.12] - 2026-10-04
+
+### Changed
+
+- The shipped recommendation-basis contract (`context/recommendation-basis.md`) follows the convention's 2.0.0 grounding bar: a design pattern is grounded in the canonical source that defines it, not in how popular it is; recency never discounts a canonical pattern definition; and a pattern found in a template, sample, or popular repository is checked against the principle it claims to serve.
+
+## [0.79.11] - 2026-10-04
+
+### Fixed
+
+- **The babysit merge gate counts the renamed security review check.** The security lane now accepts `pr-review-security / security-review` beside the previous `security-review / security-review`, so the `--auto` wait and the gate do not hold a PR whose repo moved to the renamed caller. A failing renamed check holds, and a `security-review` job under any other caller still does not count.
 
 ## [0.79.10] - 2026-10-04
 

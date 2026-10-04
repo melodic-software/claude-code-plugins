@@ -65,7 +65,7 @@ Objective: cross-reference findings against trusted thought leaders OR upstream 
 
 1. **Official maintainer**, the vendor's own social / GitHub / blog
 2. **Upstream repo changelog or releases**. `gh api repos/<owner>/<repo>/releases` OR a raw `CHANGELOG.md` fetch this turn
-3. **One recognized industry authority**, a top-voted community post or named-author practitioner blog
+3. **One recognized industry authority**, a named practitioner recognized in the domain for their own work, per the discipline file's "Tool-ecosystem Phase 3 fallback"; votes, stars and search rank make a post popular, not authoritative
 
 Tool-ecosystem Phase 3 fallback playbook: the discipline file's "Tool-ecosystem Phase 3 fallback".
 

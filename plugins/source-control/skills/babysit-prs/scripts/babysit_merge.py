@@ -176,15 +176,19 @@ READY_MERGE_STATES = {"CLEAN", "HAS_HOOKS"}
 # before both pass on the live head could merge ahead of their review. Each
 # lane maps to the job segments its check may carry (`review /
 # claude-review-status`). A name holding ` / ` must match the whole check
-# name: the security lane is one job named `security-review`, a name generic
-# enough that another workflow's job could carry it, so it counts only as
-# `security-review / security-review`. A pin that predates that fold reports
-# `claude-security-review-status` beside it. Every matching check must succeed.
+# name: the security job is named `security-review`, generic enough that
+# another workflow's job could carry it, so it counts only under its own
+# caller prefix. `pr-review-security / security-review` is the current caller,
+# `security-review / security-review` the previous one, and
+# `claude-security-review-status` the job of a pin that predates the fold. Old
+# and new callers run side by side while repos migrate. Every matching check
+# must succeed.
 AI_REVIEW_CHECKS = {
     "claude-review-status": ("claude-review-status",),
     "claude-security-review-status": (
         "claude-security-review-status",
         "security-review / security-review",
+        "pr-review-security / security-review",
     ),
 }
 
