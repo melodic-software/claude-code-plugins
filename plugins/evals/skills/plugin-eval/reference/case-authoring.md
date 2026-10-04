@@ -73,6 +73,10 @@ unless the case routes it in explicitly.
       `arm: with-only`) is excluded from scoring in both arms and reported as an indicator. Use
       `arm: both` when the check must score in both arms, which a must-not-invoke check
       (`min: 0` **and** `max: 0`) requires.
+- [ ] A prompt that starts with the skill's slash command loads the skill without a `Skill` tool
+      call, so a `tool_used: Skill` grader fails and the validity gate marks the run INVALID. Drop
+      that grader on slash-invoked cases, or phrase the prompt in natural language. Seen at Claude
+      Code 2.1.289 on all 24 with-arm runs of two suites, 2026-10-04.
 - [ ] Drop any assertion that passes in both arms and measures nothing. A case at 1.00 on both sides
       is a passing case and a null measurement. Keep one only as a regression guard: tag it
       `regression-guard`, say so in its `description`, and pair it with a case a person judged
