@@ -233,32 +233,70 @@ bash "<skill-dir>/scripts/push-branch.sh" || exit 1
 
 Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered `source-control.md` config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by the resolved section scaffold and a config-gated attribution line.
 
-**Resolve the required section scaffold first.** Run `bash "<plugin-root>/lib/config-root.sh" classify` before reading any layer: for `home` or `non-repo`, team and overlay are not applicable and only the user-global layer is read ([../../../reference/config-resolution.md](../../../reference/config-resolution.md), "The three layers"). Read `pr_body_required_sections` across the applicable `source-control.md` layers per [../../../reference/config-resolution.md](../../../reference/config-resolution.md) (per-key override: a winning layer's list is taken whole, never merged with an earlier layer's). Absent everywhere → the bundled portable default, `Summary` and `Test plan` only, with no `Related` (see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md) for why the portable default excludes it). The literal keyword `none` resolves to **zero required sections**: the winning layer's `none` overrides a lower layer's list the same way a list would (a resolved value, never an absence; parallel to `trailer_policy`/`pr_body_attribution`), the template below emits no scaffold blocks, and the §2.4.2.2 gate has nothing to require. Track which file/layer supplied the effective list, because the §2.4.2 gate cites it verbatim on failure.
+**Resolve the required section scaffold first.** Run `bash "<plugin-root>/lib/config-root.sh" classify` before reading any layer: for `home` or `non-repo`, team and overlay are not applicable and only the user-global layer is read ([../../../reference/config-resolution.md](../../../reference/config-resolution.md), "The three layers"). Read `pr_body_required_sections` across the applicable `source-control.md` layers per [../../../reference/config-resolution.md](../../../reference/config-resolution.md) (per-key override: a winning layer's value is taken whole, never merged with an earlier layer's). The value is a heading list or one of three keywords, each a resolved value that overrides a lower layer the same way a list would (never an absence; parallel to `trailer_policy`/`pr_body_attribution`):
+
+- **Absent everywhere, or `briefing`**: the short-briefing preset below. No `Related` is required (see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md) for why the default excludes it).
+- **`summary-test-plan`**: `Summary` and `Test plan`, both required.
+- **`none`**: **zero required sections**. The template below emits no scaffold blocks, and the §2.4.2.2 gate has nothing to require.
+
+Track which file/layer supplied the effective value, because the §2.4.2 gate cites it verbatim on failure.
+
+**The briefing preset.** The whole body should take under a minute to read. Each section sits under its own `##` heading, in this order:
+
+```markdown
+## Why
+
+## What changed
+
+## Scope
+
+## Tradeoffs
+
+## Risk
+
+## Verification
+```
+
+- `Why` (required): up to three sentences: what was wrong or missing, and how this PR addresses it.
+- `What changed` (required): up to three bullets describing the difference a user or caller will notice.
+- `Scope` (required): up to three items: what is in this PR, and what is deliberately left out of it.
+- `Tradeoffs` (only when a real alternative was weighed): the option not taken and why.
+- `Risk` (only when it has content): a sentence or two naming the callers, data or environments the change reaches, and whether that reach is safe.
+- `Verification` (required): up to three bullets, one per command or check you ran, with what it printed or returned.
+
+Keep each section to plain statements. Leave out commit hashes and file-by-file listings; the diff already shows them.
 
 ```bash
-# REQUIRED_SECTIONS: resolved at the model level from the three source-control.md layers'
-# `## pr_body_required_sections` bullet lists (one heading per `- ` line), per-key whole-list
-# override. Shown here with the portable default; a resolved config layer replaces both the
-# array and the source string wholesale.
-REQUIRED_SECTIONS=("Summary" "Test plan")
-REQUIRED_SECTIONS_SOURCE="plugin default (no source-control.md layer sets pr_body_required_sections)"
-# When a layer resolves the key, e.g.:
-#   REQUIRED_SECTIONS=("Summary" "Test plan" "Related")
+# SECTION_ORDER: every heading the draft may emit, in order. REQUIRED_SECTIONS: the subset the
+# §2.4.2.2 gate checks. Both are resolved at the model level from the three source-control.md
+# layers' `## pr_body_required_sections` value (a `- ` bullet list or one keyword), per-key
+# whole-value override. Shown here with the briefing default; a resolved layer replaces both
+# arrays and the source string wholesale.
+SECTION_ORDER=("Why" "What changed" "Scope" "Tradeoffs" "Risk" "Verification")
+REQUIRED_SECTIONS=("Why" "What changed" "Scope" "Verification")
+REQUIRED_SECTIONS_SOURCE="plugin default, briefing (no source-control.md layer sets pr_body_required_sections)"
+# When the winning layer declares `summary-test-plan`:
+#   SECTION_ORDER=("Summary" "Test plan"); REQUIRED_SECTIONS=("${SECTION_ORDER[@]}")
+#   REQUIRED_SECTIONS_SOURCE="<repo-root>/.claude/source-control.md, ## pr_body_required_sections (team layer, summary-test-plan)"
+# When a layer resolves a heading list, every listed heading is required, e.g.:
+#   SECTION_ORDER=("Summary" "Test plan" "Related"); REQUIRED_SECTIONS=("${SECTION_ORDER[@]}")
 #   REQUIRED_SECTIONS_SOURCE="<repo-root>/.claude/source-control.md, ## pr_body_required_sections (team layer)"
-# When the winning layer declares the literal keyword `none` (no required sections):
-#   REQUIRED_SECTIONS=()
+# When the winning layer declares `none` (no required sections):
+#   SECTION_ORDER=(); REQUIRED_SECTIONS=()
 #   REQUIRED_SECTIONS_SOURCE="<repo-root>/.claude/source-control.md, ## pr_body_required_sections (team layer, none)"
 ```
 
-Build one `## <heading>` block per entry in `${REQUIRED_SECTIONS[@]}`, real content in each, never
-literal placeholder text. `Related` uses `${REFS_LINES}` (collected in §2.4.0) when non-empty, else the
+Build one `## <heading>` block per entry in `${SECTION_ORDER[@]}`, real content in each, never
+literal placeholder text. A heading in `${SECTION_ORDER[@]}` but not in `${REQUIRED_SECTIONS[@]}`
+(`Tradeoffs` and `Risk` under `briefing`) is emitted only when it has real content; otherwise it is
+left out, never filled with `N/A` or `None`. `Related` uses `${REFS_LINES}` (collected in §2.4.0) when non-empty, else the
 established default `N/A`. This resolution is the SAME regardless of whether `Related` reached the
 scaffold via `${REQUIRED_SECTIONS[@]}` (configured) or the ad hoc append below (not configured, but
 genuine refs exist): there is exactly one place `Related`'s content is decided, never two. `Test plan`
-gets its established default (verification steps actually taken) when nothing more specific applies;
+and `Verification` get the verification steps actually taken when nothing more specific applies;
 any other heading (including a repo-declared custom one) gets content matching what that heading names,
 the same way `Summary` already does. If `${REFS_LINES}` is non-empty and `Related` is **not** in
-`${REQUIRED_SECTIONS[@]}`, still append a `## Related` section carrying those lines, since real
+`${SECTION_ORDER[@]}`, still append a `## Related` section carrying those lines, since real
 user-supplied content is never dropped, but do **not** add it to `${REQUIRED_SECTIONS[@]}`: an ad hoc
 `Related` section is present only because it has real content, and the §2.4.2 gate must never come to
 require a section the resolved config does not list. Under a resolved `none` the loop below builds an
@@ -268,7 +306,7 @@ user-supplied content), and the §2.4.3 attribution line.
 
 The content inside those headings is prose a reviewer reads: plain language, bottom line first, no filler, by invoking `/writing:be-concise` via the Skill tool when the `writing` plugin is installed; otherwise apply that discipline inline. It rewords section content only, so the closing-keyword line, the resolved `${REQUIRED_SECTIONS[@]}` headings, and `${REFS_LINES}` are untouched and the §2.4.2 gate sees the same shape either way.
 
-**Visual evidence.** When the diff changes rendered visual or audio output, the section that records verification (`Verification`, or `Test plan` under the portable default) carries before/after media captured while verifying, for example by `/testing:run-e2e` or the Chrome screenshot and GIF tools. `gh pr create` has no option that uploads a file, so the section lists each capture's local path and asks the person to drag the files into the PR description on GitHub; when no media could be captured, it says no visual evidence was attached. A project turns this step off in its own CLAUDE.md or AGENTS.md.
+**Visual evidence.** When the diff changes rendered visual or audio output, the section that records verification (`Verification`, or `Test plan` under `summary-test-plan`) carries before/after media captured while verifying, for example by `/testing:run-e2e` or the Chrome screenshot and GIF tools. `gh pr create` has no option that uploads a file, so the section lists each capture's local path and asks the person to drag the files into the PR description on GitHub; when no media could be captured, it says no visual evidence was attached. A project turns this step off in its own CLAUDE.md or AGENTS.md.
 
 - **Pointer**: when the person asks how to add the captures, fetch GitHub's [Attaching files](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/attaching-files) live for the upload routes and size limits.
 - **As of**: 2026-10-02
@@ -280,17 +318,23 @@ The content inside those headings is prose a reviewer reads: plain language, bot
 content_for_section() {
   case "$1" in
     Related) [[ -n "$REFS_LINES" ]] && printf '%s' "$REFS_LINES" || printf 'N/A' ;;
-    *) printf '<real content for %s>' "$1" ;;  # model fills real content before executing
+    *) printf '<real content for %s>' "$1" ;;  # model fills real content before executing;
+                                               # an optional heading with nothing to say prints nothing
   esac
 }
 
 # Quoted heredoc segments — inert; nothing inside expands. Safe even if a heading's
 # real content contains $vars or $(cmds).
 TEMPLATE=""
-for section in "${REQUIRED_SECTIONS[@]}"; do
-  TEMPLATE+="## ${section}"$'\n\n'"$(content_for_section "$section")"$'\n\n'
+for section in "${SECTION_ORDER[@]}"; do
+  content=$(content_for_section "$section")
+  # An optional heading (in SECTION_ORDER, not in REQUIRED_SECTIONS) with no content is skipped.
+  if [[ -z "$content" ]] && ! printf '%s\n' "${REQUIRED_SECTIONS[@]}" | grep -qxF -- "$section"; then
+    continue
+  fi
+  TEMPLATE+="## ${section}"$'\n\n'"${content}"$'\n\n'
 done
-if [[ -n "$REFS_LINES" ]] && ! printf '%s\n' "${REQUIRED_SECTIONS[@]}" | grep -qx "Related"; then
+if [[ -n "$REFS_LINES" ]] && ! printf '%s\n' "${SECTION_ORDER[@]}" | grep -qx "Related"; then
   TEMPLATE+="## Related"$'\n\n'"$(content_for_section "Related")"$'\n\n'
 fi
 
@@ -341,7 +385,7 @@ BODY+="$TEMPLATE"
 **Linkage scaffolds: always emitted, independent of the section scaffold.** The closing-keyword line and the section scaffold are two separate mechanisms that happen to compose on the same body:
 
 - **Closing-keyword line** (`${CLOSES_LINE}` at top): always populated by §2.4.0 (branch-derived `Closes #N`, the multi-issue prompt, or the orphan-PR opt-out) and asserted by the §2.4.2 gate before create. It is a required, always-present scaffold, not a conditional decoration, and entirely independent of `pr_body_required_sections`.
-- **`## Related` section**: present when `Related` is in the resolved `${REQUIRED_SECTIONS[@]}` (defaults to the literal `N/A`, replaced by `${REFS_LINES}` when genuinely related-but-not-closed references exist: sibling PRs, ADRs, decision-log entries), or ad hoc when `${REFS_LINES}` is non-empty even though `Related` is not required. Absent in the portable default (no config) with no genuine refs to carry. The issue this PR *closes* belongs on the closing-keyword line, not here, in every case.
+- **`## Related` section**: present when `Related` is in the resolved `${REQUIRED_SECTIONS[@]}` (defaults to the literal `N/A`, replaced by `${REFS_LINES}` when genuinely related-but-not-closed references exist: sibling PRs, ADRs, decision-log entries), or ad hoc when `${REFS_LINES}` is non-empty even though `Related` is not required. Absent under the `briefing` default (no config) with no genuine refs to carry. The issue this PR *closes* belongs on the closing-keyword line, not here, in every case.
 
 A PR that references an issue without closing it carries `Refs: #N` (or `Relates to: #N`) alone on its own line. That non-closing marker satisfies the §2.4.2 pre-create gate, the `pr-body-linkage-gate` hook, and the repository's own `pr-contract` check; the accepted forms are in the header of [`hooks/pr-linkage-validator.sh`](../../../hooks/pr-linkage-validator.sh). A `Refs #N` without the colon, and the `Refs #Y — <why>` bullets that `${REFS_LINES}` carries into `## Related`, are not linkage. A closing keyword under a negation (`does not close #N`) still registers as a closing reference on GitHub, so the hook and CI block it; use the `Refs:` line instead. When the branch resolves a real `Closes #N` (the common path) linkage is met; a PR that closes nothing needs a `Refs: #N` line or a `No related issue:` line.
 
@@ -388,7 +432,7 @@ When user explicitly selected `No related issue: <reason>` in §2.4.0, the gate 
 
 #### 2.4.2.2 Verify required sections (config-driven)
 
-For every heading in `${REQUIRED_SECTIONS[@]}` (resolved in §2.4.1 from `pr_body_required_sections`, or the portable default), confirm a `## <heading>` section exists in `$BODY` **and** its body is non-empty. This is a generic mechanism. It verifies whatever the resolved config lists, never a section name baked into this skill. A resolved `none` (§2.4.1) leaves `${REQUIRED_SECTIONS[@]}` empty, so this check passes with nothing to verify. The §2.4.2.1 closing-keyword check is independent and still runs. The gate checks presence and non-empty content only; placeholder-text detection (`TBD`/`TODO`/a restated heading) and per-section minimum-content rules are out of scope here (see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)).
+For every heading in `${REQUIRED_SECTIONS[@]}` (resolved in §2.4.1 from `pr_body_required_sections`, or the `briefing` default), confirm a `## <heading>` section exists in `$BODY` **and** its body is non-empty. This is a generic mechanism. It verifies whatever the resolved config lists, never a section name baked into this skill. A resolved `none` (§2.4.1) leaves `${REQUIRED_SECTIONS[@]}` empty, so this check passes with nothing to verify. The §2.4.2.1 closing-keyword check is independent and still runs. The gate checks presence and non-empty content only; placeholder-text detection (`TBD`/`TODO`/a restated heading) and per-section minimum-content rules are out of scope here (see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)).
 
 ```bash
 MISSING_SECTIONS=()

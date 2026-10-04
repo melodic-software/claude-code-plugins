@@ -14,6 +14,16 @@ All notable changes to the `source-control` plugin are documented here. Format f
   the value, and a value other than `draft` or `ready` opens a draft. `.claude/source-control.md`
   does not carry the key.
 
+### Changed
+
+- **`/source-control:pull-request create` drafts a short-briefing PR body by default.** When no
+  layer sets `pr_body_required_sections`, the body now has `Why`, `What changed`, `Scope` and
+  `Verification` (all required), plus `Tradeoffs` and `Risk` when they have content, in place of
+  `Summary` and `Test plan`. The key accepts two new keywords beside `none`: `briefing` (this
+  default, stated explicitly) and `summary-test-plan` (the previous default). A repository that wants
+  the old body sets `summary-test-plan`; a repository that already sets a heading list sees no
+  change. `/source-control:setup` reports and recommends the new default.
+
 ## [0.79.10] - 2026-10-04
 
 ### Changed

@@ -130,12 +130,12 @@
       "id": 11,
       "name": "pr-body-attribution-opt-out-suppressed",
       "prompt": "/pull-request create from branch feat/512-add-widget. Assemble and create the PR.",
-      "expected_output": "With .claude/source-control.md declaring `pr_body_attribution: none`, the skill resolves that key across the three source-control.md layers (per reference/config-resolution.md, the same seam /commit's trailer_policy uses) and omits the `🤖 Generated with [Claude Code]…` attribution line from the assembled PR body entirely — the ATTRIBUTION value resolves to empty and the trailing concat is skipped. The `## Summary` / `## Test plan` section scaffold (the portable default, since this fixture sets no pr_body_required_sections) and the `${CLOSES_LINE}` closing keyword are unaffected. trailer_policy is a separate key: this opt-out governs only the PR body, not the commit trailer.",
+      "expected_output": "With .claude/source-control.md declaring `pr_body_attribution: none`, the skill resolves that key across the three source-control.md layers (per reference/config-resolution.md, the same seam /commit's trailer_policy uses) and omits the `🤖 Generated with [Claude Code]…` attribution line from the assembled PR body entirely — the ATTRIBUTION value resolves to empty and the trailing concat is skipped. The section scaffold (the `briefing` default, since this fixture sets no pr_body_required_sections) and the `${CLOSES_LINE}` closing keyword are unaffected. trailer_policy is a separate key: this opt-out governs only the PR body, not the commit trailer.",
       "files": [".claude/source-control.md"],
       "expectations": [
         "pr_body_attribution: none from .claude/source-control.md is honored: the PR body carries no `🤖 Generated with [Claude Code]…` attribution line",
         "The suppression is driven by resolving pr_body_attribution across the source-control.md layers, not by editing the plugin",
-        "The rest of the PR body (the Summary/Test plan section scaffold and the closing-keyword line) is assembled unchanged",
+        "The rest of the PR body (the section scaffold and the closing-keyword line) is assembled unchanged",
         "Suppressing the PR-body attribution is treated as independent of trailer_policy — the opt-out targets only the PR body"
       ]
     },
@@ -143,13 +143,14 @@
       "id": 12,
       "name": "pr-body-required-sections-portable-default",
       "prompt": "/pull-request create from branch feat/512-add-widget — no source-control.md config file exists in this repo. Assemble and create the PR.",
-      "expected_output": "With no source-control.md layer setting pr_body_required_sections, the skill resolves the bundled portable default: exactly `Summary` and `Test plan` are required. The assembled body carries `## Summary` and `## Test plan` with real content and no `## Related` section (the portable default excludes it — see docs/conventions/pr-body-convention/README.md), unless the branch/prompt flow produced genuine Refs references, in which case an ad hoc `## Related` section carries them without being treated as required. The §2.4.2.2 gate passes because both required sections are present and non-empty; it does not fail merely because `## Related` is absent.",
+      "expected_output": "With no source-control.md layer setting pr_body_required_sections, the skill resolves the `briefing` default. The assembled body carries `## Why`, `## What changed`, `## Scope` and `## Verification` in that order, each with real content, and no `## Related` section (the default excludes it, see docs/conventions/pr-body-convention/README.md) unless the branch/prompt flow produced genuine Refs references, in which case an ad hoc `## Related` section carries them without being treated as required. The §2.4.2.2 gate requires those four sections and passes; it does not fail because `## Related`, `## Tradeoffs` or `## Risk` is absent. The report names the source as the plugin default (briefing).",
       "files": [],
       "expectations": [
-        "No source-control.md layer sets pr_body_required_sections, so the plugin's portable default (Summary, Test plan) governs",
+        "No source-control.md layer sets pr_body_required_sections, so the `briefing` preset governs and the reported source is the plugin default",
+        "The body carries `## Why`, `## What changed`, `## Scope` and `## Verification`, in that order, with no `## Summary` or `## Test plan`",
         "The assembled body does not include a `## Related` section unless genuine Refs references exist to carry",
-        "The §2.4.2.2 required-section gate passes without requiring `## Related` under the portable default",
-        "Summary and Test plan sections contain real content, not literal placeholder text"
+        "The §2.4.2.2 required-section gate passes without requiring `## Related`, `## Tradeoffs` or `## Risk`",
+        "Each section contains real content, not literal placeholder text"
       ]
     },
     {
@@ -168,11 +169,11 @@
     {
       "id": 14,
       "name": "pr-body-required-sections-gate-not-fooled-by-attribution-footer",
-      "prompt": "/pull-request create from branch feat/512-add-widget — no source-control.md config exists (portable default: Summary, Test plan required; pr_body_attribution unset, so the default attribution line applies). The drafted body has real content under `## Summary` but leaves `## Test plan` (the last required section) empty.",
-      "expected_output": "The §2.4.2.2 gate still blocks PR creation for the empty `## Test plan` section even though the default attribution line follows it in the final PR body. The gate evaluates the required-section scan against the body BEFORE the attribution line is appended (§2.4.1/§2.4.3), so an empty last section is never masked by non-whitespace footer text that has no `## ` heading of its own. If the gate ran against the attribution-inclusive body instead, the empty Test plan section would incorrectly read as non-empty and the gate would wrongly pass.",
+      "prompt": "/pull-request create from branch feat/512-add-widget — no source-control.md config exists (the briefing default: Why, What changed, Scope and Verification required; pr_body_attribution unset, so the default attribution line applies). The drafted body has real content under `## Why`, `## What changed` and `## Scope` but leaves `## Verification` (the last required section) empty.",
+      "expected_output": "The §2.4.2.2 gate still blocks PR creation for the empty `## Verification` section even though the default attribution line follows it in the final PR body. The gate evaluates the required-section scan against the body BEFORE the attribution line is appended (§2.4.1/§2.4.3), so an empty last section is never masked by non-whitespace footer text that has no `## ` heading of its own. If the gate ran against the attribution-inclusive body instead, the empty Verification section would incorrectly read as non-empty and the gate would wrongly pass.",
       "files": [],
       "expectations": [
-        "The gate blocks PR creation because `## Test plan` (the last required section) is empty, regardless of the attribution line that will follow it",
+        "The gate blocks PR creation because `## Verification` (the last required section) is empty, regardless of the attribution line that will follow it",
         "The required-section scan runs against a body that does not yet include `${ATTRIBUTION}` — the attribution is appended only after both §2.4.2 gates pass, in §2.4.3",
         "An empty last required section is not masked by the attribution footer's non-whitespace text"
       ]
@@ -232,11 +233,11 @@
       "id": 19,
       "name": "pr-body-required-sections-none-resolves-empty",
       "prompt": "/pull-request create from branch feat/512-add-widget. The team's source-control.md config is captured in evals/fixtures/source-control-required-none.md relative to the skill directory (declares pr_body_required_sections: none). No other layer sets the key. Assemble and create the PR.",
-      "expected_output": "The skill resolves pr_body_required_sections to the literal keyword `none` from the team layer: zero required sections. The assembled body carries the `${CLOSES_LINE}` closing-keyword line and the attribution line but NO `## Summary` / `## Test plan` scaffold — `none` is a resolved value, not an absence, so the portable default does not apply. The §2.4.2.2 required-section gate passes with nothing to verify; the §2.4.2.1 closing-keyword check is independent and still runs and must still pass.",
+      "expected_output": "The skill resolves pr_body_required_sections to the literal keyword `none` from the team layer: zero required sections. The assembled body carries the `${CLOSES_LINE}` closing-keyword line and the attribution line but NO section scaffold (no `## Why`, `## Verification`, `## Summary` or `## Test plan`) — `none` is a resolved value, not an absence, so the `briefing` default does not apply. The §2.4.2.2 required-section gate passes with nothing to verify; the §2.4.2.1 closing-keyword check is independent and still runs and must still pass.",
       "files": ["evals/fixtures/source-control-required-none.md"],
       "expectations": [
-        "pr_body_required_sections resolving to the literal keyword `none` yields zero required sections — the assembled body carries no `## Summary` / `## Test plan` scaffold",
-        "`none` is treated as a resolved value, not as an unset key — the portable default (Summary, Test plan) is NOT applied",
+        "pr_body_required_sections resolving to the literal keyword `none` yields zero required sections — the assembled body carries no section scaffold",
+        "`none` is treated as a resolved value, not as an unset key — the `briefing` default is NOT applied",
         "The §2.4.2.2 required-section gate passes vacuously with an empty required-section list",
         "The §2.4.2.1 closing-keyword check still runs and is still enforced — `none` does not disable the closing-keyword / no-issue-marker mechanism"
       ]
@@ -346,6 +347,48 @@
         "The PR is opened with --draft (or draft=true on the REST form)",
         "The skill does NOT fall through to the userConfig value ready after rejecting the repository value",
         "The reported level is the default, with the invalid repository value named"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "pr-body-required-sections-summary-test-plan-keyword",
+      "prompt": "/pull-request create from branch feat/733-retry-uploads. The team's source-control.md config is captured in evals/fixtures/source-control-required-summary-test-plan.md relative to the skill directory. No other layer sets pr_body_required_sections. Assemble and create the PR.",
+      "expected_output": "The team layer's keyword summary-test-plan resolves to two required sections, Summary and Test plan. The assembled body carries `## Summary` and `## Test plan` with real content and none of the briefing headings (Why, What changed, Scope, Tradeoffs, Risk, Verification). The §2.4.2.2 gate requires exactly those two sections, and the source it reports is the team-layer file with the summary-test-plan keyword.",
+      "files": [
+        "evals/fixtures/source-control-required-summary-test-plan.md"
+      ],
+      "expectations": [
+        "summary-test-plan is read as a keyword, not as a one-heading list named 'summary-test-plan'",
+        "The body carries `## Summary` and `## Test plan` and no `## Why`, `## Scope` or `## Verification` heading",
+        "The §2.4.2.2 gate requires exactly Summary and Test plan",
+        "The reported source names the team layer and the summary-test-plan keyword"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "pr-body-briefing-optional-sections-only-with-content",
+      "prompt": "/pull-request create from branch fix/481-clock-skew. No source-control.md layer sets pr_body_required_sections. The change swaps a hand-rolled time parser for the standard library's; no other approach was considered. It changes how three scheduled jobs read timestamps from the jobs table. Assemble and create the PR.",
+      "expected_output": "The briefing default applies. The body carries `## Why`, `## What changed`, `## Scope`, `## Risk` and `## Verification`, in that order. `## Risk` is present because the change reaches the three scheduled jobs and the timestamps they read, and says whether that reach is safe. `## Tradeoffs` is left out entirely, not filled with N/A or None, because no alternative was weighed. The §2.4.2.2 gate requires Why, What changed, Scope and Verification and passes; it neither requires nor blocks on Tradeoffs or Risk.",
+      "files": [],
+      "expectations": [
+        "The body has no `## Tradeoffs` heading, and no section reads N/A or None in its place",
+        "The body has a `## Risk` section naming the scheduled jobs or the timestamps they read",
+        "The headings appear in the order Why, What changed, Scope, Risk, Verification",
+        "Each Verification bullet names a command or check that was actually run and its outcome",
+        "The §2.4.2.2 gate requires only Why, What changed, Scope and Verification"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "pr-body-briefing-keyword-overrides-lower-list",
+      "prompt": "/pull-request create from branch feat/733-retry-uploads. The repo's team-tracked .claude/source-control.md declares pr_body_required_sections as the bullet list Summary, Test plan. The gitignored local overlay .claude/source-control.local.md declares pr_body_required_sections as the keyword briefing. Resolve the effective section scaffold.",
+      "expected_output": "The local overlay wins the per-key override, and its keyword briefing replaces the team layer's list whole. The effective required sections are Why, What changed, Scope and Verification; Summary and Test plan are not required and are not merged in. The reported source is the local overlay with the briefing keyword.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "The local overlay's briefing keyword replaces the team layer's Summary, Test plan list, with no union of the two",
+        "The required sections are Why, What changed, Scope and Verification",
+        "The reported source names the local overlay and the briefing keyword, not the plugin default"
       ]
     }
   ]

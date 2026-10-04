@@ -54,9 +54,16 @@ repository-policy keys (`babysit_merge_method`, `babysit_merge_block_labels`,
 - `pr_body_required_sections`: the PR-body section scaffold, a flat Markdown bullet list (`- <H2
   heading>` per line, one heading per bullet) naming every `## <heading>` section
   `/source-control:pull-request create` must both draft and pre-check for before `gh pr create`, or
-  the literal keyword `none`, meaning no required sections: the draft emits no section scaffold and the
-  pre-create gate requires nothing. Absent everywhere → the bundled portable default, `Summary` and
-  `Test plan` only. See
+  one literal keyword on its own line:
+  - `briefing`: the short-briefing preset. `create` drafts `Why`, `What changed`, `Scope`,
+    `Tradeoffs`, `Risk` and `Verification` in that order, and requires `Why`, `What changed`,
+    `Scope` and `Verification`. `Tradeoffs` and `Risk` appear only when they have something to say,
+    and the gate never requires them.
+  - `summary-test-plan`: requires `Summary` and `Test plan`, the default before `briefing` replaced it.
+  - `none`: no required sections. The draft emits no section scaffold and the pre-create gate
+    requires nothing.
+
+  Absent everywhere → `briefing`. A keyword is matched exactly, in lower case. See
   [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)
   for the default's rationale and the convention's full contract. Like `type_list`, and unlike the single
   scalar `subject_pattern`, this key is a **closed list**: a winning layer's list is taken whole,
@@ -66,7 +73,8 @@ repository-policy keys (`babysit_merge_method`, `babysit_merge_block_labels`,
   value, not an absence**, exactly like its sibling keys `trailer_policy` and `pr_body_attribution`:
   a layer declaring `none` replaces a lower layer's list (a team file requiring `Summary`/`Test plan`
   is overridden to zero sections by a local overlay's `none`), while a key absent from every layer
-  still falls through to the portable default.
+  still falls through to `briefing`. `briefing` and `summary-test-plan` are resolved
+  values in the same way: a layer declaring one replaces a lower layer's list or keyword whole.
 - `branch_issue_pattern`: a drafting key, the POSIX ERE `/source-control:pull-request create` uses
   to parse the numeric GitHub issue number from the branch name; its LAST capture group holds the
   number, e.g. `^[^/]+/([0-9]+)-` for `alice/1234-slug`. The value is the section's first

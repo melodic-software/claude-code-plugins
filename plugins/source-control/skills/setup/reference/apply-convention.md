@@ -218,12 +218,13 @@ With no argument in an interactive session, run the interview:
      `/source-control:pull-request create` drafts and pre-checks before opening a PR (one bullet per heading; see
      [config-resolution.md](../../../reference/config-resolution.md) and
      [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)).
-     **RECOMMENDED: keep the plugin's own portable default** (`Summary`, `Test plan`). This interview
+     **RECOMMENDED: keep the plugin's own portable default**, the `briefing` preset. This interview
      must not suggest a `Related`/linked-issue section, or any other specific organization's list, as
      if it were a universal default; a linked-issue section presumes an issue-tracker convention this
      plugin cannot assume for every repo. Ask what the repo's actual convention requires (a PR
      template, a CI gate like `pr-contract`, team practice) rather than proposing one, and write
-     only what the repo genuinely needs. A repo whose convention is **no** PR-body sections states
+     only what the repo genuinely needs. A repo that wants only the `Summary` and `Test plan`
+     pair states the keyword `summary-test-plan`. A repo whose convention is **no** PR-body sections states
      that as the literal keyword `none` (a resolved value overriding any lower layer's list, parallel
      to `trailer_policy`/`pr_body_attribution`). Omitting the section would inherit or fall through
      to the portable default instead.
@@ -234,8 +235,8 @@ With no argument in an interactive session, run the interview:
      everywhere), since writing the explicit default there would just add redundant noise. When the intent
      is genuinely to reset back to the portable default *over* a lower layer that sets something else
      (a team config requiring `Related`, and this write is a personal overlay or a team rewrite meant
-     to drop it), the portable default must be written out explicitly as the bullet list (`- Summary`,
-     `- Test plan`). An omitted section would silently keep inheriting the lower layer's list instead.
+     to drop it), the portable default must be written out explicitly as the keyword `briefing`. An
+     omitted section would silently keep inheriting the lower layer's list instead.
      State the one-line reason when this applies ("written explicitly to override the team layer's
      list, not merely to restate the default").
 5. **Write the config.** Materialize the target layer's path with these sections:
@@ -279,11 +280,12 @@ With no argument in an interactive session, run the interview:
    ## pr_body_required_sections
 
    <only present if the repo's required-section scaffold differs from the plugin's portable default
-   (Summary, Test plan): a flat bullet list, one `- <H2 heading>` per line, e.g.:
+   (the `briefing` preset): a flat bullet list, one `- <H2 heading>` per line, e.g.:
    - Summary
    - Test plan
    - Related
-   or the literal keyword `none` for a repo whose convention requires no PR-body sections>
+   or one literal keyword: `summary-test-plan` (Summary and Test plan only), `none` for a repo whose
+   convention requires no PR-body sections, or `briefing` to restate the default over a lower layer>
 
    ## branch_issue_pattern
 
