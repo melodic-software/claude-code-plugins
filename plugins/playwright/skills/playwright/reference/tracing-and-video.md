@@ -39,31 +39,53 @@ find .playwright-cli/traces -mtime +7 -delete
 
 ```bash
 PLAYWRIGHT_MCP_VIEWPORT_SIZE=1440x900 playwright-cli -s=demo open
-playwright-cli -s=demo video-start demo.webm --size "1440x900"
+playwright-cli -s=demo video-start demo.webm --size "1440x900" --fps=60 --cursor
 playwright-cli -s=demo goto https://example.com
 playwright-cli -s=demo click e1
 playwright-cli -s=demo video-stop
 ```
 
-Both size arguments are deliberate. See [Frame size](#frame-size-two-levers-not-one) below. Pick
+Always pass `--size`, matched to the viewport set on `open`: without it the recording is scaled to
+fit 800×800, whatever the viewport. See [Frame size](#frame-size-two-levers-not-one) below. Pick
 whatever resolution your evidence needs; `1440x900` here is only an illustration.
 
-Add chapter markers for section transitions:
+For a demo a reviewer will watch, the `video-start` options that matter:
+
+- `--size "<W>x<H>"`: the output frame size. Required for anything but an 800-box recording.
+- `--fps=60`: smooth motion; the default frame rate is lower.
+- `--cursor`: draws an animated mouse cursor that travels to each action point and paces actions so
+  it has time to arrive. Without it the viewer sees elements change with no visible cause.
+
+Add a chapter card (blurred page plus a title dialog) at section transitions:
 
 ```bash
 playwright-cli -s=demo video-chapter "Login" --description="Entering credentials" --duration=2000
 ```
 
-Auto-annotate subsequent actions (click, type, ...) with a callout naming the action and highlighting the target. For simple demos this is cheaper than hand-building overlays via `run-code`:
+Annotate subsequent actions (click, type, ...) with a callout naming each action. For simple demos
+this is cheaper than hand-building overlays via `run-code`:
 
 ```bash
-playwright-cli -s=demo video-show-actions --duration=600 --position=top-right --cursor=pointer
+playwright-cli -s=demo video-show-actions --duration=800 --position=top-right \
+  --highlight-style="outline: 2px solid #333" \
+  --point-style="width: 20px; height: 20px; border-radius: 50%; background: rgba(255,0,0,.7)"
 playwright-cli -s=demo click e1
 playwright-cli -s=demo fill e2 "test"
 playwright-cli -s=demo video-hide-actions
 ```
 
-`--position` accepts `top-left|top|top-right|bottom-left|bottom|bottom-right` (default `top-right`); `--cursor=pointer` (default) animates a mouse pointer between action points, `--cursor=none` disables it.
+The callout naming the action is the only decoration `video-show-actions` draws by default. The
+target highlight box and the click-point marker are opt-in: each appears only when you pass its
+CSS (`--highlight-style`, `--point-style`); `--title-style` restyles the callout. For a polished
+look, pass `--highlight-style` at least. `--position` places the callout and `--cursor=none` hides
+the pointer.
+
+Claim: the `video-start`, `video-chapter` and `video-show-actions` options and defaults described in
+this section. Basis: `playwright-cli <command> --help` on `@playwright/cli` 0.1.22, and the
+[v0.1.21 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.21), which
+added `--fps`, `--cursor` and the style options and made the highlight and point opt-in. As of
+2026-10-04. Recheck when the frontmatter `upstream-version` moves; the per-command `--help` is the
+live source for exact flags and default values.
 
 ## Frame size (two levers, not one)
 
@@ -90,7 +112,8 @@ line before the `open`, then clear it afterwards if later sessions should use th
 
 Measured outcomes. Claim: the sizes below are what each combination actually produces.
 Basis: ffprobe on the resulting `.webm` for each row. As of 2026-07-26, on
-`@playwright/cli` 0.1.14. Recheck when the frontmatter `upstream-version` moves, or when a
+`@playwright/cli` 0.1.14; not re-measured on 0.1.22, whose `video-start --help` still states the
+800×800 fit default. Recheck when the frontmatter `upstream-version` moves, or when a
 recording comes back at a size this table does not predict.
 
 | What you do | What you get |
@@ -116,6 +139,8 @@ For polished recordings (demos, PR evidence), build a single `run-code` script w
 
 - `page.screencast.showChapter(title, { description, duration })`: full-screen chapter card with blurred backdrop
 - `page.screencast.showOverlay(html, { duration })`: custom HTML callouts/labels/highlights
+- `page.screencast.start({ path, size, fps })` and `page.screencast.showActions({ cursor, duration, position, style })`:
+  the in-script equivalents of `video-start --size --fps` and `video-show-actions`, with the same opt-in styles
 - `pressSequentially(text, { delay: 60 })`: realistic typing
 - Bounding-box-driven overlays for element highlighting
 
@@ -128,6 +153,14 @@ Two mechanics the flow does not make obvious. Set `PLAYWRIGHT_MCP_VIEWPORT_SIZE`
 the browser context is created; see [Frame size](#frame-size-two-levers-not-one). Then give
 the output a descriptive name with `--filename=` or `mv`, so evidence does not sit in
 `.playwright-cli/` as `page-<timestamp>.png`.
+
+GitHub accepts the `.webm` as is: `gh pr comment <n> --attach ./demo.webm` (also on `gh pr create`
+and `gh issue comment`) uploads it. Claim: `--attach` needs `gh` 2.99 or later and GitHub caps the
+video size per plan. Basis: the [`gh` v2.99.0 release notes](https://github.com/cli/cli/releases/tag/v2.99.0)
+and the upstream skill's PR-attachments guide added in
+[v0.1.20](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.20). As of 2026-10-04.
+Recheck when `gh pr comment --help` stops listing `--attach` or an upload is rejected for size;
+keep the script focused so the file stays small.
 
 ## Known costs
 

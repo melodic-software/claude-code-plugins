@@ -16,6 +16,8 @@ playwright-cli run-code --filename=script.js
 
 Return values from the function are printed as command result.
 
+The code runs in an isolated context, not full Node.js: `require`, `process` and Node modules are unavailable, while timers, `fetch`, `URL`, `Buffer` and `crypto` work. Claim: that split. Basis: [v0.1.22 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.22). As of 2026-10-04. Recheck when the frontmatter `upstream-version` moves.
+
 ## Common recipes
 
 ### Geolocation
