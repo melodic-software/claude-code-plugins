@@ -68,6 +68,8 @@ gitea_seed "/issues/12" 200 "$(gitea_issue_json 12 open 'blocked one')"
 rc="$(gitea_run "$S" "gitea:acme/webapp#12")"
 assert_eq "blocked issue → exit 0" "0" "$rc"
 assert_eq "blocked_by_count counts only open blockers" "2" "$(jq -r '.blocked_by_count' <<<"$(gitea_out)")"
+# No close reason to read: the closed blocker is resolved, never won't-do.
+assert_eq "blocked_by_wont_do_count is 0 (unsupported)" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$(gitea_out)")"
 
 # A repo with the dependencies unit disabled answers 404 on that endpoint while the
 # issue itself exists. That must read as "no visible edges", never as a missing ITEM.

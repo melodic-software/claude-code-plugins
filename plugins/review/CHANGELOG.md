@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.1] - 2026-10-04
+
+### Added
+
+- **`review` ships a `claude plugin eval` suite with three cases for `/review:quality-gate` (tag `row37`).** Each case scaffolds a git branch whose commit removes a guard as a "simplification": an empty-list early return, a null-user check, and a length check that returned short titles unchanged. A case passes when the review names the input the removed guard handled and the behavior that now breaks for it. Each case has a regex grader for the input and a judge rubric for the regression, all with pass and fail samples. The cases need `--scaffold` and `--allow-tools Bash,Write`. No skill text changes.
+
 ## [0.42.0] - 2026-10-04
 
 ### Added

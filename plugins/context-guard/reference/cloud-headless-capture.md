@@ -221,8 +221,9 @@ list, deferred tool names included.
    "mods off", and do not offer a remediation the session cannot apply.
 2. **The tool is present and, after a tool call, no fresh snapshot exists** → a real defect,
    usually a missing `node` (each write runs `node lib/write-snapshot.mjs`) or an unwritable
-   `~/.claude/context-guard/context/`. Invoke `/context-guard:setup` via the Skill tool with
-   `check` for the full diagnosis.
+   `~/.claude/context-guard/context/`. Run `/context-guard:check` for what the session can check
+   itself (`node`, `jq`, whether the mod loads), and ask the operator to run
+   `/context-guard:setup check`, which is user-only, for the full diagnosis.
 
 A configured `statusLine` no longer decides either branch: the module needs none, and a
 `statusLine` that still names the retired tee is a leftover that `/context-guard:setup check`

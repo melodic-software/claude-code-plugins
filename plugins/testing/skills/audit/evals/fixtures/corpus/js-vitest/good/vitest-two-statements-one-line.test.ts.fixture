@@ -1,0 +1,17 @@
+// good-for: rule-inert-assertion
+// Two statements on one line, each able to fail, and semicolons that end no
+// statement: a for header, a string and a regex literal.
+import { expect, it } from 'vitest';
+import { split, sum } from './text';
+
+it('sums the lines', () => {
+  const total = sum([1, 2]); expect(total).toBe(3);
+});
+
+it('splits on semicolons', () => {
+  const parts = split('a;b'); expect(parts).toEqual(['a', 'b']); expect('a;b').toMatch(/;/);
+});
+
+it('reads each part', () => {
+  for (let i = 0; i < 2; i++) { expect(split('a;b')[i]).toHaveLength(1); }
+});

@@ -108,7 +108,7 @@ Three rules the parser encodes, each of which a naive reader gets wrong:
 ## What the job needs
 
 - A Claude Code install at or above the version floor, and credentials in the environment.
-- A sandbox backend on the runner if any case grants `Bash`, `Write`, or `Edit`: Linux needs
+- A sandbox backend on the runner if any case grants `Bash`, `PowerShell`, `Write`, or `Edit`: Linux needs
   `bubblewrap` and `socat`. Without one, each granting run is refused rather than run unconfined.
 - Budget awareness: the command has no free mode, so an every-commit lane should use deterministic
   graders only, and the expensive judge lane should run on a schedule or on demand.

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "error: config file not found: ~/.app/config.toml",
+      "why": "names it"
+    },
+    {
+      "answer": "Configuration file missing at the expected path.",
+      "why": "configuration file"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I could not find any design tool.",
+      "why": "no design given"
+    },
+    {
+      "answer": "Use red for errors.",
+      "why": "no message"
+    }
+  ]
+}
