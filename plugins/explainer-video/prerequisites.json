@@ -24,6 +24,16 @@
       "check": "/explainer-video:check"
     },
     {
+      "id": "py-launcher",
+      "kind": "cli",
+      "need": "optional",
+      "for": ["hook:install-python-deps.sh", "skill:check"],
+      "detect": { "any": ["py"] },
+      "degrade": "Without the py launcher, a Python 3.12 or 3.13 that is installed but not on PATH (the python.org default on Windows) is not found.",
+      "install": { "docs": "https://docs.python.org/3/using/windows.html#listing-runtimes" },
+      "check": "/explainer-video:check"
+    },
+    {
       "id": "ffmpeg",
       "kind": "cli",
       "need": "required",

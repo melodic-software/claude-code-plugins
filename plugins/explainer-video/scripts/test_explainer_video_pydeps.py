@@ -7,6 +7,7 @@ sha256, for the hook suite (../hooks/install-python-deps.test.sh). Each run pins
 running the test, so the suite runs under any Python with pip.
 """
 import base64
+import builtins
 import hashlib
 import importlib.util
 import os
@@ -15,7 +16,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
+import unittest.mock
 import zipfile
 from pathlib import Path
 
@@ -161,6 +164,15 @@ class Unsupported(unittest.TestCase):
         self.assertEqual(r.returncode, 1)
         self.assertIn('explainer-video: Python 2.0 is required and none is on PATH', r.stderr)
 
+    def test_a_free_threaded_build_of_a_supported_version_is_refused(self):
+        code = ('import sys, pydeps; pydeps.PYTHONS = (tuple(sys.version_info[:2]),); pydeps.interpreter = lambda: None; '
+                'pydeps.free_threaded = lambda: True; sys.exit(pydeps.main(["install", "--data-dir", "/nowhere"]))')
+        r = subprocess.run([sys.executable, '-c', code], cwd=HERE, capture_output=True, text=True,
+                           env={k: v for k, v in os.environ.items() if k != pydeps.HANDED_OVER})
+        self.assertEqual(r.returncode, 1)
+        self.assertIn(f'is required and none is on PATH (this is {sys.version_info[0]}.{sys.version_info[1]}t, ',
+                      r.stderr)
+
 
 class BuildFromSource(unittest.TestCase):
     def test_only_the_named_packages_may_build_from_source(self):
@@ -250,6 +262,105 @@ class Launcher(unittest.TestCase):
                 '-c home=[] path=[] uv=[] over=[]',
                 f'{SCRIPT} home=[] path=[] uv=[] over=[{fake / "python3.12"}]',
             ])
+
+
+class PyLauncher(unittest.TestCase):
+    """Windows cannot run here, so shutil.which, subprocess.run and sys.platform are stubbed: a python.org install
+    registers with the py launcher and puts no python3.13.exe on PATH."""
+    PY = r'C:\Windows\py.exe'
+    PY313 = r'C:\Program Files\Python313\python.exe'
+    PY314 = r'C:\Users\<user>\AppData\Roaming\uv\python\cpython-3.14-windows-x86_64-none\python.exe'
+
+    def discover(self, on_path, listing, supported, platform='win32', listing_rc=0):
+        """supported: the paths whose probe passes, or {path: (version_info, Py_GIL_DISABLED)} to run the probe's
+        own code against that interpreter's sys and sysconfig."""
+        calls = []
+
+        def which(name):
+            return on_path.get(name)
+
+        def probe(cmd):
+            if not isinstance(supported, dict):
+                return 0 if cmd[0] in supported else 1
+            version, gil_disabled = supported[cmd[0]]
+            fakes = {'sys': types.SimpleNamespace(version_info=version),
+                     'sysconfig': types.SimpleNamespace(
+                         get_config_var=lambda name: gil_disabled if name == 'Py_GIL_DISABLED' else None)}
+            try:
+                exec(cmd[2], {'__builtins__': {**vars(builtins), '__import__': lambda name, *_: fakes[name]}})
+            except SystemExit as e:
+                return 1 if e.code else 0
+            return 0
+
+        def run(cmd, env=None, **_):
+            calls.append((cmd, env))
+            if cmd[1:] == ['-0p']:
+                return subprocess.CompletedProcess(cmd, listing_rc, listing, '')
+            return subprocess.CompletedProcess(cmd, probe(cmd), b'', b'')
+
+        real = (sys.platform, pydeps.shutil.which, pydeps.subprocess.run, dict(os.environ))
+        sys.platform, pydeps.shutil.which, pydeps.subprocess.run = platform, which, run
+        os.environ.update(PYTHONHOME=r'C:\uv\python\cpython-3.14', UV_INTERNAL__PYTHONHOME=r'C:\uv\python\cpython-3.14')
+        try:
+            return pydeps.interpreter(), calls
+        finally:
+            sys.platform, pydeps.shutil.which, pydeps.subprocess.run = real[:3]
+            os.environ.clear()
+            os.environ.update(real[3])
+
+    def test_a_python_org_313_behind_a_314_on_path_resolves_through_the_launcher(self):
+        listing = f' -V:3.14 *        {self.PY314}\n -V:3.13          {self.PY313}\n'
+        found, calls = self.discover({'python3': self.PY314, 'python': self.PY314, 'py': self.PY}, listing,
+                                     {self.PY313})
+        self.assertEqual(found, self.PY313)
+        self.assertEqual([c[0] for c in calls], [
+            [self.PY314, '-c', unittest.mock.ANY], [self.PY314, '-c', unittest.mock.ANY],
+            [self.PY, '-0p'], [self.PY314, '-c', unittest.mock.ANY], [self.PY313, '-c', unittest.mock.ANY]])
+        for _, env in calls:
+            self.assertFalse({'PYTHONHOME', 'UV_INTERNAL__PYTHONHOME'} & set(env), env)
+
+    def test_it_reads_the_older_launcher_listing_and_never_launches_a_version_through_py(self):
+        py312 = r'C:\Python312\python.exe'
+        listing = f'Installed Pythons found by C:\\Windows\\py.exe Launcher for Windows\n -3.12-64 *     {py312}\n'
+        found, calls = self.discover({'py': self.PY}, listing, {py312})
+        self.assertEqual(found, py312)
+        self.assertEqual([c[0][1:] for c in calls if c[0][0] == self.PY], [['-0p']])
+
+    def test_a_supported_python_on_path_still_wins_and_the_launcher_is_not_asked(self):
+        found, calls = self.discover({'python3.12': '/x/python3.12', 'py': self.PY}, '', {'/x/python3.12'})
+        self.assertEqual(found, '/x/python3.12')
+        self.assertNotIn(self.PY, [c[0][0] for c in calls])
+
+    def test_only_windows_asks_the_launcher(self):
+        found, calls = self.discover({'py': '/usr/bin/py'}, f' -V:3.13  {self.PY313}\n', {self.PY313}, platform='linux')
+        self.assertIsNone(found)
+        self.assertEqual(calls, [])
+
+    def test_a_free_threaded_313_is_skipped_for_a_later_regular_one(self):
+        py313t = r'C:\Program Files\Python313\python3.13t.exe'
+        listing = f' -V:3.14 *        {self.PY314}\n -V:3.13t         {py313t}\n -V:3.13          {self.PY313}\n'
+        runtimes = {self.PY314: ((3, 14, 0), 0), py313t: ((3, 13, 5), 1), self.PY313: ((3, 13, 5), 0)}
+        found, calls = self.discover({'python': self.PY314, 'py': self.PY}, listing, runtimes)
+        self.assertEqual(found, self.PY313)
+        self.assertIn([py313t, '-c', unittest.mock.ANY], [c[0] for c in calls])
+
+    def test_a_free_threaded_313_on_path_is_skipped(self):
+        runtimes = {'/x/python3.13t': ((3, 13, 5), 1), '/x/python3.12': ((3, 12, 9), 0)}
+        found, _ = self.discover({'python3.13': '/x/python3.13t', 'python3.12': '/x/python3.12'}, '', runtimes,
+                                 platform='linux')
+        self.assertEqual(found, '/x/python3.12')
+
+    def test_a_failed_listing_finds_nothing(self):
+        found, _ = self.discover({'py': self.PY}, f' -V:3.13  {self.PY313}\n', {self.PY313}, listing_rc=1)
+        self.assertIsNone(found)
+
+    def test_on_windows_the_message_names_the_launcher(self):
+        code = ('import sys, pydeps; pydeps.PYTHONS = ((2, 0),); pydeps.interpreter = lambda: None; '
+                'sys.platform = "win32"; sys.exit(pydeps.main(["install", "--data-dir", "/nowhere"]))')
+        r = subprocess.run([sys.executable, '-c', code], cwd=HERE, capture_output=True, text=True,
+                           env={k: v for k, v in os.environ.items() if k != pydeps.HANDED_OVER})
+        self.assertEqual(r.returncode, 1)
+        self.assertIn('Python 2.0 is required and none is on PATH or listed by the py launcher (py -0p)', r.stderr)
 
 
 class ForeignEnv(unittest.TestCase):
