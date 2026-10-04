@@ -106,6 +106,7 @@ All settings are optional, with defaults that preserve zero-config behavior:
 
 | Setting | Type | Default | What it does |
 | --- | --- | --- | --- |
+| `explain_starting_rung` | string | `plain` | Where `explain` starts: `plain` (an everyday analogy, higher rungs on request) or `peer` (a precise definition and full detail, with the plain version offered). A repository can set it for everyone in `docs/conventions/education.yaml`, which wins; keys and layers: [`reference/config.md`](reference/config.md). |
 | `quiz_policy` | string | `on-request` | When `quiz-me` offers a quiz: `off` (never), `on-request` (only when asked), `always` (after each completed change), `above-threshold` (when the change is large). Offer cadence only, a report is never generated without your confirmation. Unknown values act as `on-request`. |
 | `report_library_dir` | directory | *(unset)* | Where `quiz-me` stores reports. Unset uses the plugin's own `${CLAUDE_PLUGIN_DATA}`; set it to a corpus checkout to redirect the library root there. Reports never land in the repo you are working in. |
 | `workspace_root` | directory | *(unset)* | Where `teach` roots learning workspaces. Unset resolves a ladder: a project declaration, this setting, a one-time ask, the OS Documents `Claude Learning/` home (topic mode only), then `${CLAUDE_PLUGIN_DATA}`. Codebase-mode workspaces stay under plugin data unless explicitly rooted elsewhere. Values inside the repo you are working in are refused. |
@@ -116,7 +117,8 @@ non-home `report_library_dir` may be rejected by the hardcoded-path guardrails u
 the #798 path-indirection work lands.
 
 Run `/education:setup` to validate the effective `quiz_policy`, report-library root,
-and teach workspace root without reading settings files.
+teach workspace root and `explain_starting_rung` without reading settings files;
+`/education:setup apply` writes the repository's `docs/conventions/education.yaml`.
 
 ### Option details
 
@@ -139,6 +141,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
+| `explain_starting_rung` | string | `"plain"` | `CLAUDE_PLUGIN_OPTION_EXPLAIN_STARTING_RUNG` | Where /education:explain starts on its ladder. plain (default): an everyday analogy with no jargon, then higher rungs on request. peer: a precise one-sentence definition and full detail, with the plain version offered. docs/conventions/education.yaml overrides this. |
 | `quiz_policy` | string | `"on-request"` | `CLAUDE_PLUGIN_OPTION_QUIZ_POLICY` | When quiz-me offers a post-work comprehension quiz. off never offers; on-request (default) offers only when asked; always offers after each completed change; above-threshold offers when the change is large. Governs offer cadence only: a report is never generated without your confirmation. |
 | `report_library_dir` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_REPORT_LIBRARY_DIR` | Where quiz-me stores generated reports and quizzes. Unset uses the plugin's own persistent data directory; set it to a corpus checkout to redirect the library root there. Artifacts never land in the consuming repo's tree. |
 | `workspace_root` | directory | *(none)* | `CLAUDE_PLUGIN_OPTION_WORKSPACE_ROOT` | Where /education:teach stores learning workspaces. Unset resolves a ladder: project declaration, this setting, a one-time ask, the Documents folder's Claude Learning home (topic mode only), then plugin data. A value inside the consuming repo is refused. |
@@ -153,7 +156,7 @@ Three supported routes, in the order most people want them:
    `<marketplace>` with the marketplace you installed this plugin from:
 
    ```shell
-   claude plugin install education@<marketplace> -s <scope> --config quiz_policy=<value>
+   claude plugin install education@<marketplace> -s <scope> --config explain_starting_rung=<value>
    ```
 
    The same command reconfigures a plugin that is **already installed**: it prints
@@ -177,7 +180,7 @@ Three supported routes, in the order most people want them:
      "pluginConfigs": {
        "education@<marketplace>": {
          "options": {
-           "quiz_policy": <value>
+           "explain_starting_rung": <value>
          }
        }
      }

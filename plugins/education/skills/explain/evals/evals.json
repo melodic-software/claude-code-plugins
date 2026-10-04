@@ -97,6 +97,115 @@
         "Treats the user's next prompt as the success test: the close equips them to name what they mean (reusing the term correctly) rather than re-gesturing at the confusion",
         "Still lands at rung 1 first with a concrete analogy and inline definitions"
       ]
+    },
+    {
+      "id": 9,
+      "name": "starting-rung-default-plain",
+      "narration": true,
+      "prompt": "/education:explain what a database transaction is [The repository has no docs/conventions/education.yaml. The education userConfig option explain_starting_rung is not set, so SKILL.md's userConfig line substitutes to its declared default, plain.]",
+      "expected_output": "explain_starting_rung resolves to plain at the default level, so the explanation opens at rung 1: one everyday analogy (for example a bank transfer that either moves the money or leaves both accounts as they were), no jargon, and the one-line offer of the next rung up. The reply ends with one line naming the value and the default level.",
+      "files": [],
+      "expectations": [
+        "Opens at rung 1 with an everyday analogy and no undefined term of art",
+        "The rung offer names the high-school version, not the plain version",
+        "One line names explain_starting_rung as plain and the supplying level as the default"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "starting-rung-userconfig-peer",
+      "narration": true,
+      "prompt": "/education:explain what a database transaction is [No docs/conventions/education.yaml. The education userConfig option explain_starting_rung is set to peer, so SKILL.md's userConfig line substitutes to peer.]",
+      "expected_output": "The per-user level sets peer, so the explanation starts at rung 3: it opens with one precise sentence defining a transaction the way an engineer in the field would (a unit of work that commits all of its changes or none of them), then gives isolation, durability and the tradeoffs at full precision. It offers the plain version instead of a higher rung, and the last line names peer and the userConfig level.",
+      "files": [],
+      "expectations": [
+        "The first sentence is a precise one-sentence definition using terms of art, not an everyday analogy",
+        "The body stays at peer level: real terms, edge cases or tradeoffs, no rung-1 analogy first",
+        "The one-line offer is for the plain version, not for a higher rung",
+        "One line names explain_starting_rung as peer from the userConfig level"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "starting-rung-repo-file-wins-over-userconfig",
+      "prompt": "/education:explain what a mutex is [The repository's docs/conventions/education.yaml is captured in evals/fixtures/education-rung-plain.yaml relative to the skill directory. The education userConfig option explain_starting_rung is set to peer.]",
+      "expected_output": "Both levels set the key and the repository file wins: the value is plain from docs/conventions/education.yaml even though userConfig says peer. The explanation opens at rung 1 with an everyday analogy (one key to a single shared room), and the last line names plain and the repository file as the level.",
+      "files": [
+        "evals/fixtures/education-rung-plain.yaml"
+      ],
+      "expectations": [
+        "The value resolves to plain from docs/conventions/education.yaml, not peer from userConfig",
+        "The explanation opens at rung 1 with an everyday analogy, not a precise peer-level definition",
+        "The reported level is the repository file"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "starting-rung-invalid-repo-value-falls-back-to-default",
+      "prompt": "/education:explain what a mutex is [The repository's docs/conventions/education.yaml is captured in evals/fixtures/education-rung-invalid.yaml relative to the skill directory. The education userConfig option explain_starting_rung is set to peer.]",
+      "expected_output": "The repository file holds expert, which is not plain or peer. The run does not stop: it names docs/conventions/education.yaml, the key explain_starting_rung and the value expert, and drops that layer. No valid layer sits above it, so the key falls back to the default, plain; the lower userConfig value peer is not used in its place. The explanation then opens at rung 1.",
+      "files": [
+        "evals/fixtures/education-rung-invalid.yaml"
+      ],
+      "expectations": [
+        "Names the file docs/conventions/education.yaml, the key explain_starting_rung and the value expert as invalid",
+        "Still delivers an explanation; the invalid value does not stop the run",
+        "Resolves to plain at the default level, and does not fall through to the userConfig value peer",
+        "The explanation opens at rung 1 with an everyday analogy"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "peer-start-offers-plain-version-not-higher-rung",
+      "prompt": "/education:explain what backpressure means in a message queue [The repository's docs/conventions/education.yaml is captured in evals/fixtures/education-rung-peer.yaml relative to the skill directory. The explain_starting_rung userConfig option substitutes to its default, plain.]",
+      "expected_output": "The repository file sets peer, which wins over the default. The reply opens with one precise sentence defining backpressure (a consumer signalling a producer to slow down when its buffer fills), ties it to the queue case at full precision, and closes the explanation with a single line offering the plain version. It does not offer a rung above peer, because rung 3 is the top of the ladder.",
+      "files": [
+        "evals/fixtures/education-rung-peer.yaml"
+      ],
+      "expectations": [
+        "The opening is one precise sentence of definition, not an analogy",
+        "Exactly one line offers the plain version; no offer of a higher rung appears",
+        "The reported level is the repository file, with value peer"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "codebase-subsystem-composes-explore-and-trace-intent",
+      "narration": true,
+      "prompt": "/education:explain how our invoice retry scheduler works and why it waits so long between tries [This is a code repository. /discovery:explore and /discovery:trace-intent are among the available skills.]",
+      "expected_output": "The object is a codebase subsystem and the discovery skills are available, so the skill invokes /discovery:explore with --output explain for how the scheduler works and /discovery:trace-intent for why it waits, then explains from what they returned at the resolved starting rung. Where trace-intent marked a reason as inferred, the explanation keeps that hedge (appears to, likely) instead of stating it as fact.",
+      "files": [],
+      "expectations": [
+        "Invokes /discovery:explore with --output explain for the how part",
+        "Invokes /discovery:trace-intent for the why part",
+        "A reason trace-intent graded Inferred or Unknown keeps its hedge or its not-found wording in the explanation; it is not restated as a confident fact"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "codebase-subsystem-without-discovery-reads-files",
+      "narration": true,
+      "prompt": "/education:explain how our invoice retry scheduler works [This is a code repository. Neither /discovery:explore nor /discovery:trace-intent is among the available skills.]",
+      "expected_output": "With the discovery skills unavailable, the skill does not try to invoke them. It grounds the explanation by reading the scheduler's files itself and cites the files it read. It does not claim why the scheduler was built that way unless a file it read states the reason.",
+      "files": [],
+      "expectations": [
+        "Does not invoke or name /discovery:explore or /discovery:trace-intent as if they ran",
+        "Reads the scheduler's source files this turn and cites at least one file it read",
+        "Makes no claim about why a design choice was made unless a file it read states the reason"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "no-framing-labels-or-pacing-narration",
+      "prompt": "/education:explain what a race condition is",
+      "expected_output": "A plain explanation with no framing labels and no pacing narration: no 'Key insight:' or 'The big idea:' headings, no 'Let's pause here' or 'Take a moment to think', no 'Step 1 of 3' progress lines, no say-it-back request and no quiz. The one-line offer of the next rung and the /education:teach handoff line are kept.",
+      "files": [],
+      "expectations": [
+        "Contains no framing label such as 'Key insight', 'The big idea' or 'Bottom line' introducing a sentence",
+        "Contains no pacing narration such as 'let's pause', 'take a moment' or step-of-total progress lines",
+        "Asks no comprehension question and requests no say-it-back",
+        "Keeps exactly one rung-offer line and the /education:teach handoff line"
+      ]
     }
   ]
 }

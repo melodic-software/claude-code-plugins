@@ -23,6 +23,13 @@
     "skill"
   ],
   "userConfig": {
+    "explain_starting_rung": {
+      "type": "string",
+      "title": "Explain starting rung",
+      "description": "Where /education:explain starts on its ladder. plain (default): an everyday analogy with no jargon, then higher rungs on request. peer: a precise one-sentence definition and full detail, with the plain version offered. docs/conventions/education.yaml overrides this.",
+      "default": "plain",
+      "options": ["plain", "peer"]
+    },
     "quiz_policy": {
       "type": "string",
       "title": "Quiz offer policy",

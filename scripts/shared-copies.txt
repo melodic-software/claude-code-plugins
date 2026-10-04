@@ -43,12 +43,14 @@ lib/parse-concern-value.sh plugins/session-flow/skills/retro/scripts/parse-conce
 lib/parse-concern-value.sh plugins/docs-hygiene/skills/audit-noise/scripts/lib/parse-concern-value.sh
 lib/parse-concern-value.sh plugins/work-items/skills/triage/scripts/parse-concern-value.sh
 lib/parse-concern-value.sh plugins/harness-ops/skills/lanes/scripts/lib/parse-concern-value.sh
+lib/parse-concern-value.sh plugins/education/skills/explain/scripts/parse-concern-value.sh
 lib/yaml-subset.awk plugins/harness-memory/skills/audit/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/session-flow/skills/retro/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/docs-hygiene/skills/audit-noise/scripts/lib/yaml-subset.awk
 lib/yaml-subset.awk plugins/multi-agent/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/work-items/skills/triage/scripts/yaml-subset.awk
 lib/yaml-subset.awk plugins/harness-ops/skills/lanes/scripts/lib/yaml-subset.awk
+lib/yaml-subset.awk plugins/education/skills/explain/scripts/yaml-subset.awk
 lib/config-root.sh plugins/source-control/lib/config-root.sh
 lib/config-root.sh plugins/ai-slop/lib/config-root.sh
 lib/config-root.sh plugins/attribution/lib/config-root.sh
