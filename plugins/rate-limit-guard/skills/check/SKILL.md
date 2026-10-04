@@ -23,7 +23,7 @@ Then report a row for the module, which needs Claude Code 2.1.287 or later: run 
 
 /rate-limit-guard:setup check
 
-Only when the user asks to verify the snapshot file's freshness, the options in effect, or whether a retired statusline tee still runs.
+Only when the user asks to verify the snapshot file's freshness, or the options in effect.
 
 ## Gotchas
 
