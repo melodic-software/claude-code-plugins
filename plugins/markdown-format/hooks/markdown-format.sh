@@ -39,6 +39,13 @@ HOOK_DIR="${BASH_SOURCE[0]%/*}"
 # shellcheck source=hook-utils.sh
 source "$HOOK_DIR/hook-utils.sh"
 
+# The SessionStart compact|clear row: the model lost the reports with its
+# context, so the findings sent this session are sent again.
+if [[ "${1:-}" == --reset-digests ]]; then
+  hook::buffer_stdin_to INPUT && hook::findings_digest_reset "$INPUT"
+  exit 0
+fi
+
 # MD_CHANGED is set on the path that ran the fix pass ("true" when
 # markdownlint-cli2 reported fixes written, "false" otherwise) and stays empty
 # on every skip arm, where the key is omitted rather than guessed.
@@ -583,17 +590,17 @@ select_user_scope_path_target() {
   printf '%s' "$best"
 }
 
-# Remediation sentence(s) for the missing-markdownlint notice. When a
-# repo-local install can land (git tree or package.json), that is the
-# reliable route. Otherwise name a durable user-scope directory already
-# on the probed PATH instead of `npm i -D` (#2868).
+# The install route for the user's copy of the missing-markdownlint notice.
+# When a repo-local install can land (git tree or package.json), that is the
+# reliable route. Otherwise name a durable user-scope directory already on the
+# probed PATH instead of `npm i -D` (#2868).
 markdownlint_skip_remediation() {
   local target norm_target norm_home bun_bin
   if edit_has_repo_local_install_target; then
-    printf '%s' "Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install (nvm/rbenv) the Bash tool can see may be invisible here; a repo-local install (npm i -D markdownlint-cli2) is the reliable route. This hook does not invoke npx or download tools."
+    printf '%s' "A repo-local install (npm i -D markdownlint-cli2) is the reliable route."
     return 0
   fi
-  printf '%s' "Hook processes inherit Claude Code's own environment, not the interactive shell's profile, so a version-manager install (nvm/rbenv) the Bash tool can see may be invisible here. This edit is outside a repository, so a repo-local install has no repository to install into"
+  printf '%s' "This edit is outside a repository, so a repo-local install has no repository to install into"
   if target="$(select_user_scope_path_target)"; then
     norm_target="$(normalize_path_entry "$target")"
     norm_home="$(normalize_path_entry "${HOME:-}")"
@@ -610,58 +617,7 @@ markdownlint_skip_remediation() {
   else
     printf '%s' "; install markdownlint-cli2 onto a durable user-scope directory already on this hook's PATH"
   fi
-  printf '%s' ". This hook does not invoke npx or download tools."
-}
-
-# Format the PATH-probe diagnostic (#3134). Keep directories that could
-# plausibly hold a user- or repo-installed markdownlint-cli2, and collapse
-# Claude Code plugin-bin entries (dozens per session) to a count. Dumping the
-# raw PATH was 4,570 bytes/channel and made a later re-notice unaffordable.
-format_probed_path() {
-  if [[ -z "${PATH+x}" ]]; then
-    printf '%s' '<unset>'
-    return 0
-  fi
-  if [[ -z "$PATH" ]]; then
-    printf '%s' '<empty>'
-    return 0
-  fi
-  # Split on ':' while preserving empty fields. `IFS=:; for p in $PATH`
-  # drops them, and an empty component is cwd (`PATH=/usr/bin:`).
-  local keep="" omitted=0 p rest="$PATH" last=0
-  while ((last == 0)); do
-    if [[ "$rest" == *:* ]]; then
-      p="${rest%%:*}"
-      rest="${rest#*:}"
-    else
-      p="$rest"
-      last=1
-    fi
-    if [[ -z "$p" ]]; then
-      p="."
-    fi
-    case "$p" in
-    */.claude/plugins/* | */plugins/cache/*)
-      omitted=$((omitted + 1))
-      ;;
-    *)
-      if [[ -n "$keep" ]]; then
-        keep="${keep}:${p}"
-      else
-        keep="$p"
-      fi
-      ;;
-    esac
-  done
-  if ((omitted > 0)); then
-    if [[ -n "$keep" ]]; then
-      printf '%s (+%d plugin-bin directories omitted)' "$keep" "$omitted"
-    else
-      printf '%s' "<plugin-bin directories only: ${omitted} omitted>"
-    fi
-  else
-    printf '%s' "$keep"
-  fi
+  printf '%s' "."
 }
 
 if command -v markdownlint-cli2 >/dev/null 2>&1; then
@@ -670,28 +626,17 @@ elif REPO_MDLINT="$(resolve_repo_markdownlint)"; then
   MDLINT=("$REPO_MDLINT")
 else
   # Never invoke a package runner here: hooks must not download or execute an
-  # unpinned package as a side effect of editing a file. Degrade visibly on
-  # both channels: the notice is shown on the first skip in the session and
-  # renewed every HOOK_NOTICE_RENEW_EVERY skips (the prerequisite class keys
-  # on the session alone).
-  #
-  # Wording is load-bearing (#2740): only the NOTICE is throttled (skip-notices/
-  # marker via hook::notice_once). The binary probe re-runs on every Markdown
-  # edit and recovers silently mid-session when the tool becomes resolvable —
-  # there is no skip latch. Saying "skipped for this session" made operators
-  # and agents stop retrying. The trailing PATH line is the probe diagnostic
-  # (plausible directories this hook process actually searched; plugin-bin
-  # entries collapse to a count — #3134); do not widen the probe to
-  # nvm/rbenv layout guesses — that is a separate environment/bootstrap fix.
-  #
-  # Remediation is scoped (#2868): `npm i -D` is the reliable route only
-  # inside a repository. Outside one, name a durable user-scope directory
-  # already on the probed PATH rather than a repo-local install that cannot
-  # be followed.
-  if hook::notice_once "markdown-format-markdownlint-cli2" "$INPUT" prerequisite; then
-    hook::emit_skip_notice PostToolUse \
-      "markdown-format: markdownlint-cli2 was not found on this hook's PATH or as a contained repository-local node_modules/.bin executable — Markdown lint skipped for this edit (probe re-runs on every Markdown edit; this notice is shown on the first skip and renewed every eighth skip, there is no skip latch). $(markdownlint_skip_remediation) Run /markdown-format:check. It does not install.
-PATH probed: $(format_probed_path)"
+  # unpinned package as a side effect of editing a file. Degrade visibly, once
+  # per channel; the PATH that was probed goes to the debug log. The binary
+  # probe re-runs on every Markdown edit, so the notice never says the skip
+  # lasts the session (#2740). The install route is the user's, and scoped
+  # (#2868): `npm i -D` only inside a repository, otherwise a durable
+  # user-scope directory already on the probed PATH.
+  MD_MODEL="" MD_USER=""
+  if hook::prereq_notice_to MD_MODEL MD_USER markdownlint-cli2 "$INPUT" \
+    --where "not on the hook PATH or as a contained repository-local node_modules/.bin executable" \
+    --install "$(markdownlint_skip_remediation)"; then
+    hook::emit_skip_notice PostToolUse "$MD_MODEL" "$MD_USER"
   fi
   emit_skipped
 fi
@@ -1093,8 +1038,9 @@ collect_risky_configs
 # under such configuration executes repository-supplied code. That must never
 # happen on the strength of a markdown edit alone: the lint run is skipped
 # until the user, having reviewed the configuration, records an explicit
-# approval of this exact configuration state. The skip is reported on both
-# channels once per session and agent, renewed every eighth skip; the notice key carries the state signature so a
+# approval of this exact configuration state. The skip is reported once per
+# channel, and the approval command goes to the user only: the approval is the
+# user's security decision. The notice key carries the state signature so a
 # configuration change re-notices within the same session.
 if ((${#RISK_CONFIGS[@]} > 0)); then
   resolve_trust_dir || TRUST_DIR=""
@@ -1104,14 +1050,19 @@ if ((${#RISK_CONFIGS[@]} > 0)); then
       config="${config#"$CONFIG_ROOT"/}"
       RISK_LIST+="${RISK_LIST:+, }$config"
     done
+    TRUST_LEAD="markdown-format trust gate: lint skipped; the markdownlint configuration ($RISK_LIST) can run repository code"
     if [[ -n "$TRUST_DIR" ]]; then
       APPROVE_HINT="Review these files and their installed dependencies; to approve this exact configuration state and enable linting, run: mkdir -p '$TRUST_DIR' (any change to the configuration or a referenced repository module revokes the approval)."
+      TRUST_MODEL="$TRUST_LEAD and is not approved. Approval is the user's."
     elif ((RISK_UNVERIFIABLE == 1)); then
       APPROVE_HINT="The configuration contains constructs (string escapes or tags) that defeat textual verification, so it cannot be reviewed as written and linting stays disabled for this repository."
+      TRUST_MODEL="$TRUST_LEAD and defeats textual verification, so it cannot be approved as written; lint stays off."
     elif ((RISK_UNPINNABLE == 1)); then
       APPROVE_HINT="The configuration or a module it references names code through an expression this hook cannot pin to a file (a built path, a template, a concatenation, or a loader argument it cannot read), so the code that would execute cannot be bound to an approval and linting stays disabled for this repository."
+      TRUST_MODEL="$TRUST_LEAD through an expression no approval can pin, so it cannot be approved as written; lint stays off."
     else
       APPROVE_HINT="Approval state is unavailable (CLAUDE_PLUGIN_DATA unset or unusable, or the configuration's referenced modules could not be tracked), so linting stays disabled for this repository."
+      TRUST_MODEL="$TRUST_LEAD and there is no approval store, so it cannot be approved; lint stays off."
     fi
     # Approvable states key the notice by signature; states with no approval
     # route (unverifiable / untrackable / no store) have no signature, so key
@@ -1131,7 +1082,7 @@ if ((${#RISK_CONFIGS[@]} > 0)); then
       )"
     fi
     if hook::notice_once "$TRUST_NOTICE_KEY" "$INPUT"; then
-      hook::emit_skip_notice PostToolUse \
+      hook::emit_skip_notice PostToolUse "$TRUST_MODEL" \
         "markdown-format trust gate: Markdown lint/format skipped — this repository's markdownlint configuration can execute repository-supplied code ($RISK_LIST). $APPROVE_HINT"
     fi
     emit_skipped
@@ -1192,11 +1143,6 @@ BASE="${FILE##*/}"
 # reading it, and the next person should not have to work that out to reason
 # about this code. The single normalization also replaces four downstream strips
 # that would each have to be remembered when a fifth consumer is added.
-#
-# Side effect worth naming: `digest_now` below is hashed over `findings_raw`, so
-# this changes that hash. Every digest recorded before this version invalidates
-# once, producing one extra full-detail report per file. Self-correcting, and
-# not a regression.
 FIX_OUTPUT="${FIX_OUTPUT//$'\r'/}"
 
 # markdownlint-cli2 reports the fixes it WROTE as a bare count line and nothing
@@ -1239,11 +1185,13 @@ MD_CHANGED="false"
 CTX=""
 SYSMSG=""
 
-if [[ -n "$FIXES_LINE" ]]; then
-  CTX+="markdown-format rewrote $BASE after your edit — markdownlint-cli2 reports \"$FIXES_LINE\" (structural fixes only; it reports no per-fix detail)."$'\n'
-  SYSMSG="markdown-format rewrote $BASE: $FIXES_LINE."
-fi
+# The rewrite goes to the user only. Claude learns of it at its next Edit of the
+# file, which reports that the file changed on disk
+# (https://code.claude.com/docs/en/tools-reference).
+[[ -n "$FIXES_LINE" ]] && SYSMSG="markdown-format: reformatted $BASE."
 
+RULE_SUMMARY=""
+findings_shown=""
 if ((FINDING_COUNT > 0)); then
   # Rule histogram, highest count first, so a report truncated to N lines still
   # says WHICH rules dominate — the single most useful thing about a 300-finding
@@ -1253,75 +1201,41 @@ if ((FINDING_COUNT > 0)); then
   # file that also has twelve other rules firing.
   RULE_SUMMARY=$(printf '%s' "$RULE_TALLY" | sort | uniq -c | sort -rn |
     awk 'NR<=5 {printf "%s%s x%s", (NR>1 ? ", " : ""), $2, $1} NR>5 {extra++} END {if (extra) printf ", +%s more rule(s)", extra; print ""}' 2>/dev/null) || RULE_SUMMARY=""
-
-  # Delta gate. A file edited eight times in a session produced eight
-  # byte-identical whole-file dumps; re-sending an unchanged finding set is pure
-  # cost. The SUMMARY still goes out every time — suppressing the message
-  # entirely would recreate, on this plugin, exactly the invisible-hook problem
-  # the disclosure above exists to fix.
-  SAME_AS_LAST=0
-  DIGEST_FILE=""
-  if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]] && command -v git >/dev/null 2>&1; then
-    session_key=$(printf '%s' "$INPUT" | jq -r '.session_id // "no-session"' 2>/dev/null) || session_key="no-session"
-    session_key="${session_key//[^A-Za-z0-9_-]/-}"
-    file_key=$(printf '%s' "$FILE" | git hash-object --stdin 2>/dev/null) || file_key=""
-    # The cap is part of the digest input: the truncation hint tells the user to
-    # raise markdown_format_max_findings to see the rest, and a digest over the
-    # finding set alone would then answer that with "unchanged, detail omitted"
-    # — making the advice this hook gives impossible to act on.
-    digest_now=$(printf '%s\n%s' "$MAX_FINDINGS" "$findings_raw" | git hash-object --stdin 2>/dev/null) || digest_now=""
-    if [[ -n "$file_key" && -n "$digest_now" ]]; then
-      digest_dir="${CLAUDE_PLUGIN_DATA%/}/finding-digests"
-      if mkdir -p "$digest_dir" 2>/dev/null; then
-        DIGEST_FILE="$digest_dir/${session_key}.${file_key}"
-        if [[ -f "$DIGEST_FILE" ]]; then
-          [[ "$(cat "$DIGEST_FILE" 2>/dev/null)" == "$digest_now" ]] && SAME_AS_LAST=1
-        else
-          # Prune only when a new digest is created — the steady state for a
-          # file edited repeatedly in one session is a digest that already
-          # exists, and sweeping the whole directory on every Markdown edit
-          # would cost a directory walk for nothing. -maxdepth 1 keeps the
-          # sweep to this hook's own flat store: CLAUDE_PLUGIN_DATA is shared
-          # with the trust-approvals tree and anything a future version of this
-          # plugin puts there, and a recursive age-based delete has no business
-          # reaching into a sibling's state.
-          find "$digest_dir" -maxdepth 1 -type f -mtime +7 -delete 2>/dev/null
-        fi
-        printf '%s' "$digest_now" >"$DIGEST_FILE" 2>/dev/null || DIGEST_FILE=""
-      fi
+  # The heading names the file once, so each line drops markdownlint-cli2's
+  # path prefix: everything before `<line>[:<col>] [<severity> ]MD<n>/`. The
+  # match runs on the text before the FIRST ` MD<n>`, so a `[Context: "..."]`
+  # quoting a finding-shaped string cannot move the cut. The line-and-column
+  # form is tried first, because the greedy path would otherwise swallow the
+  # line number.
+  while IFS= read -r line; do
+    head="${line%% MD[0-9]*}"
+    if [[ "$head" =~ ^.+:([0-9]+:[0-9]+(\ [a-z]+)?)$ ]] ||
+      [[ "$head" =~ ^.+:([0-9]+(\ [a-z]+)?)$ ]]; then
+      line="${BASH_REMATCH[1]}${line:${#head}}"
     fi
-  fi
+    findings_shown+="$line"$'\n'
+  done <<<"$findings_raw"
+fi
 
-  CTX+="markdown-format: $BASE has $FINDING_COUNT markdownlint finding(s)${RULE_SUMMARY:+ — $RULE_SUMMARY}."$'\n'
-  if ((SAME_AS_LAST == 1)); then
-    CTX+="  Unchanged from the previous run on this file; per-finding detail omitted."$'\n'
-  else
-    shown=0
-    while IFS= read -r line; do
-      [[ -n "$line" ]] || continue
-      if ((MAX_FINDINGS > 0 && shown >= MAX_FINDINGS)); then break; fi
-      CTX+="  $line"$'\n'
-      shown=$((shown + 1))
-    done <<<"$findings_raw"
-    if ((FINDING_COUNT > shown)); then
-      CTX+="  ... and $((FINDING_COUNT - shown)) more finding(s) (cap: markdown_format_max_findings)."$'\n'
-    fi
-  fi
-elif ((LINT_RC != 0)) && [[ -n "$FIX_OUTPUT" ]]; then
+# Delta gate: an unchanged finding set on a re-edit sends nothing; a clean run
+# clears the record, so findings that come back are sent again. The cap is part
+# of the record, so raising markdown_format_max_findings, as the truncation
+# hint says to, sends the set again.
+if ((FINDING_COUNT > 0)) || ((LINT_RC == 0)) || [[ -z "$FIX_OUTPUT" ]]; then
+  REPORT=""
+  hook::findings_to REPORT \
+    "markdown-format: $BASE has $FINDING_COUNT finding(s)${RULE_SUMMARY:+ ($RULE_SUMMARY)}:" \
+    "$findings_shown" --max "$MAX_FINDINGS" --more "cap: markdown_format_max_findings" \
+    --delta "$INPUT" "$FILE"
+  CTX+="$REPORT"
+else
   # Non-zero exit with no parseable violation line: markdownlint itself broke
   # (bad config, unreadable file). That diagnostic must never be swallowed by
   # the banner filter above, so the raw output goes through, still bounded.
-  CTX+="markdown-format: markdownlint-cli2 failed for $BASE (tool break, not a finding):"$'\n'
-  shown=0
-  while IFS= read -r line; do
-    [[ -n "$line" ]] || continue
-    if ((MAX_FINDINGS > 0 && shown >= MAX_FINDINGS)); then
-      CTX+="  ... output truncated."$'\n'
-      break
-    fi
-    CTX+="  $line"$'\n'
-    shown=$((shown + 1))
-  done <<<"$FIX_OUTPUT"
+  REPORT=""
+  hook::findings_to REPORT "markdown-format: markdownlint-cli2 failed on $BASE:" \
+    "$FIX_OUTPUT" --max 10 --delta "$INPUT" "$FILE"
+  CTX+="$REPORT"
 fi
 
 # Compose ONE stdout document: Claude Code parses a hook's entire stdout as a

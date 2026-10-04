@@ -746,13 +746,9 @@ class GuardLaunchMonitorTests(unittest.TestCase):
         ]
         expected = (
             "disk-hygiene: destructive_guard.py failed to run or exited non-zero "
-            "2 times this session and its failure(s) were not visible as a denial. "
-            "Most recent failure: exitCode: 2, durationMs: 200, stderr: second "
-            "failure This means destructive-action review may not have been "
-            "enforced for the guarded command(s) in question. This detector covers "
-            "only destructive_guard.py's own command string in this session's "
-            "transcript; it does not cover repo-hygiene's guard and does not "
-            "retroactively scan past sessions."
+            "2 times this session, so those calls may have run unchecked. "
+            "Latest: exitCode: 2, durationMs: 200, stderr: second failure "
+            "/disk-hygiene:check diagnoses."
         )
         self.write_transcript([_filler_line(300)] + failures)
         self.assertEqual(expected, self.run_monitor(session_id="cold"))

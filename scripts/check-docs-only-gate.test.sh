@@ -19,7 +19,7 @@
 # no scratch git repo is needed. That is deliberate — a fixture repo would need
 # `git -C <dir> config user.*`, and the un-scoped form of that command writes the
 # test identity into the CALLER's repo config (claude-code-plugins#2839).
-# test-scope: .github/workflows/ci.yml
+# test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -77,7 +77,7 @@ permissions:
 
 jobs:
   # A leading comment block, the way the real file carries them.
-  scope:
+  select-tests:
     runs-on: ubuntu-24.04
     outputs:
       run_full: ${{ steps.detect.outputs.docs_only != 'true' }}
@@ -117,12 +117,12 @@ jobs:
 
   # A consumer, gated at the step level so the job itself never skips.
   alpha:
-    needs: [scope]
+    needs: [select-tests]
     runs-on: ubuntu-24.04
     steps:
       - name: Do the work
         id: work
-        if: needs.scope.outputs.run_full == 'true'
+        if: needs.select-tests.outputs.run_full == 'true'
         run: echo work
       - name: A block scalar whose body looks like workflow structure
         run: |
@@ -131,41 +131,41 @@ jobs:
           echo "        if: always()"
       - name: Run a narrowed lane
         id: node-work
-        if: needs.scope.outputs.run_node == 'true'
+        if: needs.select-tests.outputs.run_node == 'true'
         run: echo node
       - name: Report not applicable to a docs-only diff
-        if: needs.scope.outputs.run_full == 'false'
+        if: needs.select-tests.outputs.run_full == 'false'
         run: echo not-applicable
       - name: Diff against the resolved base
         env:
-          DIFF_BASE: ${{ needs.scope.outputs.lane_base }}
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
         run: echo "${DIFF_BASE:-whole tree}"
       - name: Aggregate
         if: always()
         env:
           CHECK_RESULTS: |
-            alpha-check=${{ needs.scope.outputs.run_full == 'false' && 'success' || steps.work.outcome }}
-            alpha-node=${{ needs.scope.outputs.run_node == 'false' && 'success' || steps.node-work.outcome }}
+            alpha-check=${{ needs.select-tests.outputs.run_full == 'false' && 'success' || steps.work.outcome }}
+            alpha-node=${{ needs.select-tests.outputs.run_node == 'false' && 'success' || steps.node-work.outcome }}
         run: echo aggregate
 
   # A second consumer using the block-sequence needs form, with a trailing
   # comment on its job key.
   beta: # a consumer
     needs:
-      - scope # the resolver
+      - select-tests # the resolver
     runs-on: ubuntu-24.04
     steps:
       - name: Do the work
-        if: needs.scope.outputs.run_tests == 'true'
+        if: needs.select-tests.outputs.run_tests == 'true'
         run: echo work
 
   # A third consumer using a quoted flow sequence.
   gamma:
-    needs: ['scope']
+    needs: ['select-tests']
     runs-on: ubuntu-24.04
     steps:
       - name: Do the work
-        if: needs.scope.outputs.run_full == 'true'
+        if: needs.select-tests.outputs.run_full == 'true'
         run: echo work
 
   # A reusable-workflow job that does NOT read the output.
@@ -177,8 +177,8 @@ jobs:
   # lane-coverage-ok: non-required platform lane, excluded from the aggregate
   epsilon:
     needs:
-      - scope
-    if: needs.scope.outputs.run_python == 'true'
+      - select-tests
+    if: needs.select-tests.outputs.run_python == 'true'
     runs-on: windows-2025
     steps:
       - name: Do the work
@@ -186,7 +186,7 @@ jobs:
 
   ci-status:
     needs:
-      - scope
+      - select-tests
       - alpha
       - beta
       - gamma
@@ -206,7 +206,7 @@ expect "known-good fixture satisfies the contract" 0 "scope resolved once" --che
 # needs and one consumer here. Two properties are pinned. First, the
 # `strategy:` block's 6- and 8-space lines must fall THROUGH this structural
 # parser: it exits 2 on any shape it does not model, and an inconclusive gate on
-# the real ci.yml blocks every pull request. Second, a leg's own index may not
+# the real pr-require-checks.yml blocks every pull request. Second, a leg's own index may not
 # leak into a gate: the only sanctioned step condition is a bare equality
 # against one table output, so a compound `if:` mixing the output with
 # `strategy.job-index` must still be named as unsanctioned.
@@ -217,20 +217,20 @@ cat >>"$sharded" <<'YAML'
 
   # A required consumer whose work is partitioned across four runners.
   zeta:
-    needs: [scope]
+    needs: [select-tests]
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix: ${{ github.event_name == 'pull_request' && fromJSON('{"leg":[0,1,2,3]}') || fromJSON('{"leg":[0]}') }}
     steps:
       - name: Run this leg of the affected suite set
-        if: needs.scope.outputs.run_tests == 'true'
+        if: needs.select-tests.outputs.run_tests == 'true'
         env:
           LEG: ${{ strategy.job-index }}
           LEGS: ${{ strategy.job-total }}
         run: scripts/affected-tests.sh --run --shard "$LEG/$LEGS"
       - name: Run a Node build only when Node sources changed
-        if: needs.scope.outputs.run_node == 'true'
+        if: needs.select-tests.outputs.run_node == 'true'
         run: npm test
 YAML
 expect "a sharded lane gating its steps satisfies the contract" 0 "scope resolved once" \
@@ -238,8 +238,8 @@ expect "a sharded lane gating its steps satisfies the contract" 0 "scope resolve
 
 f="$scratch/leg-in-gate.yml"
 xform_replace_line "$sharded" \
-  "if: needs.scope.outputs.run_node == 'true'" \
-  "        if: needs.scope.outputs.run_node == 'true' && strategy.job-index == 0" "$f"
+  "if: needs.select-tests.outputs.run_node == 'true'" \
+  "        if: needs.select-tests.outputs.run_node == 'true' && strategy.job-index == 0" "$f"
 expect "a leg index folded into a step gate is unsanctioned" 1 "unsanctioned condition" --check "$f"
 
 # --- 1. SINGLE RESOLUTION ---------------------------------------------------
@@ -349,17 +349,17 @@ expect "a self-test that cannot turn the job red is rejected" 1 "carries continu
 # next consumer has no polarity decision to make and no comment to keep true.
 
 f="$scratch/negated-form.yml"
-xform_replace_line "$base" "if: needs.scope.outputs.run_full == 'false'" "        if: needs.scope.outputs.run_full != 'true'" "$f"
+xform_replace_line "$base" "if: needs.select-tests.outputs.run_full == 'false'" "        if: needs.select-tests.outputs.run_full != 'true'" "$f"
 expect "the inverse-polarity consumer form is rejected" 1 "unsanctioned condition" --check "$f"
 
 f="$scratch/truthy-form.yml"
-xform_replace_line "$base" "if: needs.scope.outputs.run_full == 'false'" "        if: needs.scope.outputs.run_full" "$f"
+xform_replace_line "$base" "if: needs.select-tests.outputs.run_full == 'false'" "        if: needs.select-tests.outputs.run_full" "$f"
 expect "a bare truthiness consumer form is rejected" 1 "unsanctioned condition" --check "$f"
 
 # An outer negation whose inner half IS the sanctioned string. A substring
 # search would strip the sanctioned half and see nothing left to complain about.
 f="$scratch/wrapped-negation.yml"
-xform_replace_line "$base" "if: needs.scope.outputs.run_full == 'false'" "        if: \${{ !(needs.scope.outputs.run_full == 'false') }}" "$f"
+xform_replace_line "$base" "if: needs.select-tests.outputs.run_full == 'false'" "        if: \${{ !(needs.select-tests.outputs.run_full == 'false') }}" "$f"
 expect "a negation wrapped around the sanctioned form is rejected" 1 "unsanctioned condition" --check "$f"
 
 # Index syntax is legal Actions and reads identically at runtime; it is still an
@@ -368,39 +368,39 @@ expect "a negation wrapped around the sanctioned form is rejected" 1 "unsanction
 # because a matcher that models only the spelling it expects does not REJECT the
 # others — it cannot see them at all, which is the opposite of rejecting them.
 f="$scratch/index-syntax-output.yml"
-xform_replace_line "$base" "if: needs.scope.outputs.run_full == 'false'" "        if: needs.scope.outputs['run_full'] != 'true'" "$f"
+xform_replace_line "$base" "if: needs.select-tests.outputs.run_full == 'false'" "        if: needs.select-tests.outputs['run_full'] != 'true'" "$f"
 expect "an index-syntax output name is rejected rather than ignored" 1 "unsanctioned condition" --check "$f"
 
 f="$scratch/index-syntax-whole.yml"
-xform_replace_line "$base" "if: needs.scope.outputs.run_full == 'false'" "        if: needs['scope']['outputs']['run_full'] == 'false'" "$f"
+xform_replace_line "$base" "if: needs.select-tests.outputs.run_full == 'false'" "        if: needs['select-tests']['outputs']['run_full'] == 'false'" "$f"
 expect "a fully bracketed accessor is rejected rather than ignored" 1 "unsanctioned condition" --check "$f"
 
 # Actions context accessors are case-insensitive, so this resolves at runtime.
 f="$scratch/case-variant.yml"
-xform_replace_line "$base" "if: needs.scope.outputs.run_full == 'false'" "        if: needs.SCOPE.outputs.run_full == 'false'" "$f"
+xform_replace_line "$base" "if: needs.select-tests.outputs.run_full == 'false'" "        if: needs.SELECT-TESTS.outputs.run_full == 'false'" "$f"
 expect "a case-variant accessor is rejected rather than ignored" 1 "unsanctioned condition" --check "$f"
 
 # Gating the JOB skips the lane, which leaves a required check Pending.
 f="$scratch/job-level-gate.yml"
-xform_insert_after "$base" "  gamma:" "    if: needs.scope.outputs.run_full == 'true'" "$f"
+xform_insert_after "$base" "  gamma:" "    if: needs.select-tests.outputs.run_full == 'true'" "$f"
 expect "a job-level condition on the output is rejected" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
 
 # A reusable-workflow job cannot gate at step level, so its polarity decision
 # would live in a file this gate never opens.
 f="$scratch/reusable-consumer.yml"
-xform_insert_after "$base" "    uses: some-org/some-repo/.github/workflows/lint.yml@v1" "    if: needs.scope.outputs.run_full == 'true'" "$f"
+xform_insert_after "$base" "    uses: some-org/some-repo/.github/workflows/lint.yml@v1" "    if: needs.select-tests.outputs.run_full == 'true'" "$f"
 expect "a reusable-workflow job reading the output is rejected" 1 "delegates to a reusable workflow" --check "$f"
 
 # A block-scalar body is a script, never a gate. A condition-shaped line inside
 # one must not be credited as a step condition — the whole point of skipping
 # scalar structure while still reading scalar content.
 f="$scratch/gate-inside-scalar.yml"
-xform_replace_line "$base" 'echo "        if: always()"' '          echo "        if: needs.scope.outputs.run_full == '"'"'true'"'"'"' "$f"
+xform_replace_line "$base" 'echo "        if: always()"' '          echo "        if: needs.select-tests.outputs.run_full == '"'"'true'"'"'"' "$f"
 expect "a condition-shaped line inside a block scalar is not a step condition" 1 "outside a step condition" --check "$f"
 
 # The aggregator feed has its own exact template; a mutated one is not it.
 f="$scratch/mutated-feed.yml"
-xform_replace_line "$base" "alpha-check=" "            alpha-check=\${{ needs.scope.outputs.run_full == 'true' && 'success' || steps.work.outcome }}" "$f"
+xform_replace_line "$base" "alpha-check=" "            alpha-check=\${{ needs.select-tests.outputs.run_full == 'true' && 'success' || steps.work.outcome }}" "$f"
 expect "a mutated aggregator feed entry is rejected" 1 "outside the aggregator feed template" --check "$f"
 
 # --- 5b. THE FEED MIRRORS A REAL GATE ---------------------------------------
@@ -410,7 +410,7 @@ expect "a mutated aggregator feed entry is rejected" 1 "outside the aggregator f
 # docs-only diff that step's real outcome is replaced by `success`. Only the
 # second direction needs a gate, and this is it.
 f="$scratch/feed-without-gate.yml"
-xform_replace_line "$base" "alpha-check=" "            alpha-check=\${{ needs.scope.outputs.run_full == 'false' && 'success' || steps.ungated.outcome }}" "$f"
+xform_replace_line "$base" "alpha-check=" "            alpha-check=\${{ needs.select-tests.outputs.run_full == 'false' && 'success' || steps.ungated.outcome }}" "$f"
 expect "a feed override for an ungated step is rejected" 1 "THE FEED MIRRORS A REAL GATE" --check "$f"
 
 # --- 5c. NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER -------------------------------
@@ -496,7 +496,7 @@ expect "the aggregate's own job-level condition is untouched" 0 "scope resolved 
 #
 # A test lane may skip as a job on its own row, and only when the aggregate
 # reads its results through the step that checks every skip against that row.
-skip_form="${draft_gate% \}\}} && needs.scope.outputs.run_python == 'true' }}"
+skip_form="${draft_gate% \}\}} && needs.select-tests.outputs.run_python == 'true' }}"
 ordered="$scratch/ordered-skip.yml"
 xform_insert_after "$skip_as_fail" "      - gamma" "      - test-python" "$scratch/o1.yml"
 xform_replace_line "$scratch/o1.yml" "      - name: Aggregate lane results" \
@@ -504,7 +504,7 @@ xform_replace_line "$scratch/o1.yml" "      - name: Aggregate lane results" \
 xform_insert_after "$scratch/o2.yml" "          treat-skipped-as: fail" "          results: \${{ steps.lanes.outputs.results }}" "$scratch/o3.yml"
 xform_append "$scratch/o3.yml" "
   test-python:
-    needs: [scope]
+    needs: [select-tests]
     if: $skip_form
     runs-on: ubuntu-24.04
     steps:
@@ -537,7 +537,7 @@ expect "an ordered skip with no checking step is rejected" 1 "has no step 'id: l
 # --- 6. EDGE DECLARED -------------------------------------------------------
 
 f="$scratch/missing-edge.yml"
-xform_delete "$base" "needs: [scope]" "$f"
+xform_delete "$base" "needs: [select-tests]" "$f"
 expect "a consumer reading the output without the needs edge is rejected" 1 "EDGE DECLARED" --check "$f"
 
 # --- 7. CONTRACT IS LIVE ----------------------------------------------------
@@ -545,7 +545,7 @@ expect "a consumer reading the output without the needs edge is rejected" 1 "EDG
 # Zero references must never read as "every reference is well formed".
 
 f="$scratch/no-consumers.yml"
-xform_delete "$base" "needs.scope.outputs." "$f"
+xform_delete "$base" "needs.select-tests.outputs." "$f"
 expect "a resolver nobody reads is rejected" 1 "CONTRACT IS LIVE" --check "$f"
 
 # --- 5d. THE REQUIRED-LANE CLOSURE ------------------------------------------
@@ -573,7 +573,7 @@ expect "and the lane opt-out inside the closure is rejected with it" 1 "LANE OPT
 # fixture spelled that way: beta and epsilon use the block form and gamma
 # quotes its entry.
 f="$scratch/epsilon-transitive.yml"
-xform_replace_line "$base" "    needs: [scope]" "    needs: [scope, epsilon]" "$f"
+xform_replace_line "$base" "    needs: [select-tests]" "    needs: [select-tests, epsilon]" "$f"
 expect "a lane reached transitively is inside the closure too" 1 "LANE OPT-OUT ON A REQUIRED LANE" --check "$f"
 expect "and its job-level condition is a defect for the same reason" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
 
@@ -582,7 +582,7 @@ expect "and its job-level condition is a defect for the same reason" 1 "NO JOB-L
 # branch protection and skipping it whole is the cheaper shape.
 f="$scratch/gamma-not-required.yml"
 xform_delete "$base" "      - gamma" "$f"
-xform_insert_after "$f" "  gamma:" "    if: needs.scope.outputs.run_python == 'true'" "$scratch/gamma-not-required-2.yml"
+xform_insert_after "$f" "  gamma:" "    if: needs.select-tests.outputs.run_python == 'true'" "$scratch/gamma-not-required-2.yml"
 expect "a job-level condition outside the closure is allowed" 0 "scope resolved once" --check "$scratch/gamma-not-required-2.yml"
 
 # A workflow with no aggregate at all is INCONCLUSIVE, not one defect among
@@ -616,35 +616,35 @@ xform_replace_line "$base" "      lane_base:" "      lane_base: \${{ steps.base.
 expect "a data output with a defaulting expression is rejected" 1 "DATA IS NOT A GATE" --check "$f"
 
 f="$scratch/data-in-step-if.yml"
-xform_replace_line "$base" "if: needs.scope.outputs.run_node == 'true'" "        if: needs.scope.outputs.lane_base == 'true'" "$f"
+xform_replace_line "$base" "if: needs.select-tests.outputs.run_node == 'true'" "        if: needs.select-tests.outputs.lane_base == 'true'" "$f"
 expect "a data output in a step condition is rejected" 1 "which the resolver's output table does not name" --check "$f"
 
 f="$scratch/data-in-longer-expr.yml"
-xform_replace_line "$base" "DIFF_BASE: \${{" "          DIFF_BASE: \${{ needs.scope.outputs.lane_base || 'origin/main' }}" "$f"
+xform_replace_line "$base" "DIFF_BASE: \${{" "          DIFF_BASE: \${{ needs.select-tests.outputs.lane_base || 'origin/main' }}" "$f"
 expect "a data output inside a longer expression is rejected" 1 "outside the aggregator feed template" --check "$f"
 
 f="$scratch/data-lowercase-key.yml"
-xform_replace_line "$base" "DIFF_BASE: \${{" "          diff_ref: \${{ needs.scope.outputs.lane_base }}" "$f"
+xform_replace_line "$base" "DIFF_BASE: \${{" "          diff_ref: \${{ needs.select-tests.outputs.lane_base }}" "$f"
 expect "a data output read under a non-env key is rejected" 1 "outside the aggregator feed template" --check "$f"
 
 f="$scratch/data-matrix.yml"
-xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        leg: \${{ fromJSON(needs.scope.outputs.bash_legs || '[0]') }}" "$f"
+xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        leg: \${{ fromJSON(needs.select-tests.outputs.bash_legs || '[0]') }}" "$f"
 expect "the matrix sized from bash_legs with its one-leg default is allowed" 0 "scope resolved once" --check "$f"
 
 f="$scratch/data-matrix-python.yml"
-xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        leg: \${{ fromJSON(needs.scope.outputs.python_legs || '[0]') }}" "$f"
+xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        leg: \${{ fromJSON(needs.select-tests.outputs.python_legs || '[0]') }}" "$f"
 expect "the matrix sized from python_legs with its one-leg default is allowed" 0 "scope resolved once" --check "$f"
 
 f="$scratch/data-matrix-no-default.yml"
-xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        leg: \${{ fromJSON(needs.scope.outputs.bash_legs) }}" "$f"
+xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        leg: \${{ fromJSON(needs.select-tests.outputs.bash_legs) }}" "$f"
 expect "the matrix read without its default is rejected" 1 "outside the aggregator feed template" --check "$f"
 
 f="$scratch/data-in-job-if.yml"
-xform_replace_line "$base" "    if: needs.scope.outputs.run_python == 'true'" "    if: needs.scope.outputs.lane_base != ''" "$f"
+xform_replace_line "$base" "    if: needs.select-tests.outputs.run_python == 'true'" "    if: needs.select-tests.outputs.lane_base != ''" "$f"
 expect "a data output in a job condition is rejected" 1 "DATA IS NOT A GATE" --check "$f"
 
 f="$scratch/unknown-output-consumer.yml"
-xform_replace_line "$base" "if: needs.scope.outputs.run_node == 'true'" "        if: needs.scope.outputs.run_invented == 'true'" "$f"
+xform_replace_line "$base" "if: needs.select-tests.outputs.run_node == 'true'" "        if: needs.select-tests.outputs.run_invented == 'true'" "$f"
 expect "a step gated on an output outside the table is rejected" 1 "which the resolver's output table does not name" --check "$f"
 
 # A narrowing row must keep its exact derivation. Comparing a filter group
@@ -664,7 +664,7 @@ expect "a run_skill_checker row without its draft term is rejected" 1 "FAIL-CLOS
 # on different outputs maps a skip that never happened: the two outputs can
 # disagree, and the step can have really run and really failed.
 f="$scratch/feed-output-mismatch.yml"
-xform_replace_line "$base" "alpha-node=" "            alpha-node=\${{ needs.scope.outputs.run_full == 'false' && 'success' || steps.node-work.outcome }}" "$f"
+xform_replace_line "$base" "alpha-node=" "            alpha-node=\${{ needs.select-tests.outputs.run_full == 'false' && 'success' || steps.node-work.outcome }}" "$f"
 expect "a feed override paired with a different output is rejected" 1 "THE FEED MIRRORS A REAL GATE" --check "$f"
 
 # --- fail closed on shape and usage -----------------------------------------
@@ -674,13 +674,13 @@ xform_insert_after "$base" "jobs:" "  not a job key" "$f"
 expect "an unparsed workflow shape is inconclusive, never a pass" 2 "unrecognized workflow shape" --check "$f"
 
 f="$scratch/bad-needs-entry.yml"
-xform_replace_line "$base" "      - scope # the resolver" "      - [scope]" "$f"
+xform_replace_line "$base" "      - select-tests # the resolver" "      - [select-tests]" "$f"
 expect "an unmodelled needs entry is inconclusive, never a bogus defect" 2 "unsupported needs entry" --check "$f"
 
 # A sequence item at the key's own indent is valid YAML and must not read as a
 # missing edge — a gate that cries wolf on a legal shape gets switched off.
 f="$scratch/shallow-needs-item.yml"
-xform_replace_line "$base" "      - scope # the resolver" "    - scope" "$f"
+xform_replace_line "$base" "      - select-tests # the resolver" "    - select-tests" "$f"
 expect "a same-indent needs item is a declared edge, not a defect" 0 "scope resolved once" --check "$f"
 
 # `continue-on-error` decides whether a failure is absorbed. An expression-valued
@@ -695,7 +695,7 @@ xform_delete "$base" "jobs:" "$f"
 expect "a file with no jobs mapping is inconclusive" 2 "no jobs: mapping found" --check "$f"
 
 f="$scratch/no-resolver.yml"
-xform_replace_line "$base" "  scope:" "  renamed-scope:" "$f"
+xform_replace_line "$base" "  select-tests:" "  renamed-select-tests:" "$f"
 expect "a missing resolving job is inconclusive, never a pass" 2 "is not defined" --check "$f"
 
 expect "a missing workflow file is inconclusive" 2 "workflow not found" --check "$scratch/absent.yml"
@@ -709,7 +709,7 @@ expect "an excess argument prints usage" 2 "usage:" --check "$base" ci-status
 # prove the gate can detect. This is what makes the fixture cases load-bearing
 # rather than a private exercise.
 
-expect "the shipped ci.yml satisfies the contract" 0 "scope resolved once" --check ".github/workflows/ci.yml"
+expect "the shipped pr-require-checks.yml satisfies the contract" 0 "scope resolved once" --check ".github/workflows/pr-require-checks.yml"
 
 # --- the half of the fail-closed proof that lives in the detector ------------
 #
@@ -759,16 +759,16 @@ fi
 #
 # Exclusions, by shape: a step with an `id:` is a gate the aggregator feed reads
 # (check-summary-reader-parity.test.sh is a gate, not a self-test), and the
-# resolver's own detector self-test stays in `scope` (property 4 above).
+# resolver's own detector self-test stays in `select-tests` (property 4 above).
 # scripts/hook-census.test.sh calibrates the strace counter the ratchet step
 # reads in the same step, so it stays there.
-live_workflow="$ROOT/.github/workflows/ci.yml"
+live_workflow="$ROOT/.github/workflows/pr-require-checks.yml"
 suite_steps="$(
   awk '
     /^  [A-Za-z_][A-Za-z0-9_-]*:[[:blank:]]*(#.*)?$/ {
       job = $0; sub(/:.*$/, "", job); sub(/^  /, "", job)
     }
-    job == "" || job == "scope" { next }
+    job == "" || job == "select-tests" { next }
     /^      - / { ident = 0 }
     /^        id:/ { ident = 1 }
     /^[[:blank:]]+(run: )?bash (scripts|lib)\/[^ ]*\.test\.sh[[:blank:]]*$/ {

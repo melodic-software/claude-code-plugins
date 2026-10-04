@@ -89,7 +89,7 @@ revision of Canon TDD or a successor post that changes step 4.
 | `rule-zero-assertion` | a test body with no assertion | assert the behavior |
 | `rule-recomputed-expectation` | both sides the same expression: `expect(LIMIT).toBe(LIMIT)` | take the expected side from §1 |
 | `rule-inert-assertion` | an assertion that never runs: unawaited `toBeVisible()`, `assert (x == 1, "msg")`, `m.called_once_with(...)`, bare `.Should();`, `Assert.True(true)`, `Assert.NotNull(typeof(T))` | await it, fix the tuple, use `assert_called_once_with`, assert a value the code computes |
-| `rule-conditional-assertion` | every assertion inside an `if`, a `catch` or a loop over the result | assert unconditionally; check the length first |
+| `rule-conditional-assertion` | every assertion inside an `if`, a `catch` or a loop over the result; a C# `return;` before every assertion | assert unconditionally; check the length first; skip the test instead of returning |
 | `rule-flaky-passes-suite`, `rule-only-not-forbidden` | Playwright retries without `failOnFlakyTests`; no `forbidOnly` | set both in the config |
 
 **Checks little** (can fail, but misses most wrong answers):
@@ -99,6 +99,7 @@ revision of Canon TDD or a successor post that changes step 4.
 | `rule-mock-only-oracle` | every assertion is a mock interaction | assert a result or state, unless §2 applies |
 | `rule-recomputed-derived` | expected rebuilt the way the code computes it: `expect(add(a, b)).toBe(a + b)`, `items.reduce(...)`; passes when test and code share a mistake, and proves no specified value | a hand-computed literal (§1) |
 | `rule-weak-oracle` | `toBeDefined`, `is not None`, `toThrow()` alone | assert the value or the exception type |
+| `rule-throw-only-oracle` | `var w = new Widget(); Assert.NotNull(w);`: only a throwing constructor fails it | assert what the constructor sets; `cant-fail-ok: <why>` for a smoke test kept to prove wiring |
 | `rule-snapshot-only` | a snapshot is the only oracle | review it as code; it is fine once reviewed |
 
 **Change detectors** (fail on any edit, prove no behavior):

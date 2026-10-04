@@ -177,13 +177,13 @@ write_snapshot_tok() {
 
 HT="$WORK/h-token"
 # Token shape stands alone when used_percentage is null but tokens are valid.
-write_snapshot_tok "$HT" t1 null 150000 10000 1000000 && expect "tokens alone: occ=160k on 1M" smart "$HT" t1
-write_snapshot_tok "$HT" t2 null 280000 20000 1000000 && expect "tokens alone: occ=300k on 1M" acceptable "$HT" t2
-write_snapshot_tok "$HT" t3 null 390000 10001 1000000 && expect "tokens alone: occ=400001 on 1M" dumb "$HT" t3
+write_snapshot_tok "$HT" t1 null 110000 10000 1000000 && expect "tokens alone: occ=120k on 1M" smart "$HT" t1
+write_snapshot_tok "$HT" t2 null 180000 20000 1000000 && expect "tokens alone: occ=200k on 1M" acceptable "$HT" t2
+write_snapshot_tok "$HT" t3 null 240000 10001 1000000 && expect "tokens alone: occ=250001 on 1M" dumb "$HT" t3
 # Shipped 200k-class edges, uppers inclusive.
 write_snapshot_tok "$HT" t4 null 90000 10000 200000 && expect "200k class: occ=100000 (smart edge)" smart "$HT" t4
-write_snapshot_tok "$HT" t5 null 150000 10000 200000 && expect "200k class: occ=160000 (acceptable edge)" acceptable "$HT" t5
-write_snapshot_tok "$HT" t6 null 150001 10000 200000 && expect "200k class: occ=160001" dumb "$HT" t6
+write_snapshot_tok "$HT" t5 null 140000 10000 200000 && expect "200k class: occ=150000 (acceptable edge)" acceptable "$HT" t5
+write_snapshot_tok "$HT" t6 null 140001 10000 200000 && expect "200k class: occ=150001" dumb "$HT" t6
 # Combination rule: the worse of the two computable shapes wins.
 write_snapshot_tok "$HT" c1 40 150000 20000 200000 && expect "pct smart + tokens dumb → dumb" dumb "$HT" c1
 write_snapshot_tok "$HT" c2 80 40000 10000 200000 && expect "pct dumb + tokens smart → dumb" dumb "$HT" c2

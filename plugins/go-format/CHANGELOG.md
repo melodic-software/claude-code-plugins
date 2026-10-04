@@ -3,6 +3,31 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.8] - 2026-10-04
+
+### Changed
+
+- **Hook text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** A syntax error reads `go-format: <file> has a syntax error:` and each line drops goimports' absolute path prefix. An unchanged report on a re-edit sends nothing; it is sent again after a clean run, or after compaction or `/clear`, which a new `SessionStart` `compact|clear` row handles. A goimports break reads `go-format: goimports failed on <file>:`. The rewrite notice reads `go-format: reformatted <file>.`. The missing-goimports notice is composed from `prerequisites.json`, with the install route on the user's copy only, and its `degrade` text drops "edits still go through".
+
+## [0.5.7] - 2026-10-04
+
+### Changed
+
+- The SessionStart node-notice and formatter probe rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
+- The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
+
+## [0.5.6] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5924](https://github.com/melodic-software/claude-code-plugins/issues/5924)); no change to this plugin's hooks.**
+
+## [0.5.5] - 2026-10-04
+
+### Changed
+
+- **Shared hook notice text ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)).** Skip notices from the shared hook helpers are never renewed: each tells the model once per agent and the user once per session, and says the notice will not repeat. A missing-tool notice no longer carries the hook's PATH; that goes to the debug log. The SessionStart notice for a missing hook tool goes to the user only, and names where the hook looks for it; the model hears of it at the hook's first skip. The SessionStart notice for a missing node goes to the user only, in one shorter line. The jq `degrade` text in `prerequisites.json` no longer says the skip lasts the session or that the hook says so once.
+
 ## [0.5.4] - 2026-10-04
 
 ### Changed

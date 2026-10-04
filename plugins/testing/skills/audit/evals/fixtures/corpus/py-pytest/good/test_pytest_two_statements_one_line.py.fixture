@@ -1,0 +1,13 @@
+# good-for: rule-inert-assertion
+# Two statements on one line, each able to fail, and a semicolon inside a
+# string that ends no statement.
+from billing import total
+from text import split
+
+
+def test_total_adds_lines():
+    result = total([1, 2]); assert result == 3
+
+
+def test_split_reads_both_parts():
+    parts = split("a;b"); assert parts == ["a", "b"]; assert len(parts) == 2

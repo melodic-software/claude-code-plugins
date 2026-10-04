@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | IMPORTANT | Correctness | The refactor removed the `if not reviews: return 0.0` branch. A product with an empty reviews list (Cable tray in products.json) now hits `/ len(reviews)` with 0 and raises ZeroDivisionError, so product_page.py fails. | ratings.py:2 | Restore the empty-list return or handle it in the expression |",
+      "why": "names the input, the failure, and asks for action"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No self-review issues found in changed files. The one-expression version is easier to read.",
+      "why": "approves"
+    },
+    {
+      "answer": "| 1 | SUGGESTION | Style | The early return was removed; consider a docstring. | ratings.py:1 | Add docstring |",
+      "why": "mentions the removal as style, no input, no failure"
+    }
+  ]
+}

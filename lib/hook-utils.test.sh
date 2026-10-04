@@ -1348,105 +1348,168 @@ else
 fi
 rm -rf "$DATA16"
 
-# --- Test 16c: hook::notice_once — agent isolation, skip count, renew (#3128)
+# --- Test 16c: hook::notice_once — one notice per channel, never renewed ------
+# The model latch keys on (session, agent): a subagent was not told what the
+# main agent was. The user latch keys on the session: the user reads one
+# transcript.
 DATA16C="$(mktemp -d)"
 INPUT_AGENT_A='{"session_id":"sess-1","agent_id":"agent-A","hook_event_name":"PostToolUse"}'
 INPUT_AGENT_B='{"session_id":"sess-1","agent_id":"agent-B","hook_event_name":"PostToolUse"}'
-if (CLAUDE_PLUGIN_DATA="$DATA16C" hook::notice_once "k1" "$INPUT_AGENT_A"); then
-  ok "notice_once: first call for agent A emits"
+latch16() {
+  local rc=0
+  CLAUDE_PLUGIN_DATA="$1" hook::notice_once "$2" "$3" ${4:+"$4"} || rc=$?
+  printf '%s %s %s %s' "$rc" "$HOOK_NOTICE_TO_MODEL" "$HOOK_NOTICE_TO_USER" "$HOOK_NOTICE_KIND"
+}
+got16="$(latch16 "$DATA16C" k1 "$INPUT_AGENT_A")"
+if [[ "$got16" == "0 1 1 full" ]]; then
+  ok "notice_once: first call for agent A is due on both channels"
 else
-  fail "notice_once: first call for agent A suppressed"
+  fail "notice_once: first call for agent A" "got '$got16'"
 fi
-if (CLAUDE_PLUGIN_DATA="$DATA16C" hook::notice_once "k1" "$INPUT_AGENT_B"); then
-  ok "notice_once: same session, other agent emits"
+got16="$(latch16 "$DATA16C" k1 "$INPUT_AGENT_B")"
+if [[ "$got16" == "0 1 0 model" ]]; then
+  ok "notice_once: same session, other agent is due on the model channel only"
 else
-  fail "notice_once: same session, other agent inherited the latch"
+  fail "notice_once: other agent in the same session" "got '$got16'"
 fi
-if (CLAUDE_PLUGIN_DATA="$DATA16C" hook::notice_once "k1" "$INPUT_AGENT_A"); then
-  fail "notice_once: agent A second call emitted before renew"
-else
+got16="$(latch16 "$DATA16C" k1 "$INPUT_AGENT_A")"
+if [[ "${got16%% *}" == 1 ]]; then
   ok "notice_once: agent A second call suppressed"
-fi
-agent_marker="$DATA16C/skip-notices/k1.sess-1.agent-A"
-if [[ -f "$agent_marker" ]] && [[ "$(tr -d '[:space:]' <"$agent_marker")" == "2" ]]; then
-  ok "notice_once: skip count stored in marker"
 else
-  fail "notice_once: skip count missing" "marker=$(cat "$agent_marker" 2>/dev/null)"
+  fail "notice_once: agent A second call" "got '$got16'"
 fi
-DATA16C2="$(mktemp -d)"
-kind_out="$(
-  CLAUDE_PLUGIN_DATA="$DATA16C2"
-  for _i in 1 2 3 4 5 6 7; do hook::notice_once "k-renew" "$INPUT_AGENT_A" >/dev/null || true; done
-  hook::notice_once "k-renew" "$INPUT_AGENT_A"
-  printf '%s %s' "$HOOK_NOTICE_KIND" "$HOOK_NOTICE_COUNT"
+# Stay quiet: the latch used to renew on every eighth skip. No later skip in the
+# same (session, agent) is due, on either channel.
+DATA16Q="$(mktemp -d)"
+quiet16="$(
+  CLAUDE_PLUGIN_DATA="$DATA16Q"
+  due=0
+  for _i in $(seq 1 30); do
+    hook::notice_once "k-quiet" "$INPUT_AGENT_A" && due=$((due + 1))
+  done
+  printf '%s' "$due"
 )"
-if [[ "$kind_out" == "renew 8" ]]; then
-  ok "notice_once: 8th skip is a short renew"
+if [[ "$quiet16" == 1 ]]; then
+  ok "notice_once: 30 skips in one agent are due once, never renewed"
 else
-  fail "notice_once: 8th skip renew" "got '$kind_out'"
+  fail "notice_once: 30 skips in one agent were due $quiet16 times, want 1"
 fi
-DATA16P="$(mktemp -d)"
-if (CLAUDE_PLUGIN_DATA="$DATA16P" hook::notice_once "k-pre" "$INPUT_AGENT_A" prerequisite); then
-  ok "notice_once: prerequisite first call emits"
+quiet16p="$(
+  CLAUDE_PLUGIN_DATA="$DATA16Q"
+  due=0
+  for _i in $(seq 1 30); do
+    hook::notice_once "k-quiet-pre" "$INPUT_AGENT_A" prerequisite && due=$((due + 1))
+  done
+  printf '%s' "$due"
+)"
+if [[ "$quiet16p" == 1 ]]; then
+  ok "notice_once: a third argument is accepted and changes nothing"
 else
-  fail "notice_once: prerequisite first call suppressed"
+  fail "notice_once: 30 prerequisite skips were due $quiet16p times, want 1"
 fi
-if (CLAUDE_PLUGIN_DATA="$DATA16P" hook::notice_once "k-pre" "$INPUT_AGENT_B" prerequisite); then
-  fail "notice_once: prerequisite other agent emitted again"
+# The SessionStart probe writes the user marker; the hook's first skip then
+# tells only the model.
+mkdir -p "$DATA16Q/skip-notices"
+: >"$DATA16Q/skip-notices/demo-tool.sess-1.user"
+got16="$(latch16 "$DATA16Q" demo-tool "$INPUT_AGENT_A")"
+if [[ "$got16" == "0 1 0 model" ]]; then
+  ok "notice_once: a user marker written at SessionStart leaves only the model due"
 else
-  ok "notice_once: prerequisite latch is the session, not the agent"
+  fail "notice_once: probe-written user marker" "got '$got16'"
 fi
-pre_marker="$DATA16P/skip-notices/k-pre.sess-1.session"
-if [[ -f "$pre_marker" ]]; then
-  ok "notice_once: prerequisite marker ignores agent id"
+rm -rf "$DATA16C" "$DATA16Q"
+
+# --- Test 16d: hook::emit_skip_notice — one text per channel ------------------
+split16="$(hook::emit_skip_notice PostToolUse 'model: x' 'user: y')"
+if jq -e '.hookSpecificOutput.additionalContext == "model: x" and .systemMessage == "user: y"' \
+  <<<"$split16" >/dev/null 2>&1; then
+  ok "emit_skip_notice: two texts go one to each channel"
 else
-  fail "notice_once: prerequisite marker ignores agent id" "missing $pre_marker"
+  fail "emit_skip_notice: split channels" "got '$split16'"
 fi
+useronly16="$(hook::emit_skip_notice PostToolUse '' 'user: y')"
+if jq -e '.systemMessage == "user: y" and (has("hookSpecificOutput") | not)' <<<"$useronly16" >/dev/null 2>&1; then
+  ok "emit_skip_notice: an empty model text sends the user channel only"
+else
+  fail "emit_skip_notice: user only" "got '$useronly16'"
+fi
+gated16="$(HOOK_NOTICE_TO_MODEL=1 HOOK_NOTICE_TO_USER=0 hook::emit_skip_notice PostToolUse 'same text')"
+if jq -e '.hookSpecificOutput.additionalContext == "same text" and (has("systemMessage") | not)' \
+  <<<"$gated16" >/dev/null 2>&1; then
+  ok "emit_skip_notice: a channel notice_once did not clear gets the one-argument text alone"
+else
+  fail "emit_skip_notice: latch-gated channel" "got '$gated16'"
+fi
+path16_err="$WORK/path16.err"
+path16="$(hook::emit_skip_notice PostToolUse $'plugin: tool missing\nPATH probed: /usr/bin:/tmp/x' 2>"$path16_err")"
+if jq -e '.hookSpecificOutput.additionalContext == "plugin: tool missing" and .systemMessage == "plugin: tool missing"' \
+  <<<"$path16" >/dev/null 2>&1 && [[ "$(<"$path16_err")" == 'PATH probed: /usr/bin:/tmp/x' ]]; then
+  ok "emit_skip_notice: a PATH probed line goes to stderr, not to either channel"
+else
+  fail "emit_skip_notice: PATH line" "got '$path16' stderr '$(cat "$path16_err")'"
+fi
+
+# --- Test 16e: hook::stdin_cut_short_notice — user channel only ---------------
+cut16_err="$WORK/cut16.err"
+cut16="$(hook::stdin_cut_short_notice PreToolUse "guardrails demo" 2>"$cut16_err")"
+cut16_want="guardrails demo: hook stdin was cut short, so this tool call ran unchecked. If it recurs, the host is starved; see the stdin_read_timeout option."
+if jq -e --arg w "$cut16_want" '.systemMessage == $w and (has("hookSpecificOutput") | not)' <<<"$cut16" >/dev/null 2>&1 &&
+  [[ "$(cat "$cut16_err")" == "$cut16_want" ]]; then
+  ok "stdin_cut_short_notice: one line to the user and stderr, nothing to the model"
+else
+  fail "stdin_cut_short_notice" "got '$cut16' stderr '$(cat "$cut16_err")'"
+fi
+
+# --- Test 16e2: hook::notice_once user latch under a race --------------------
+# Agents of one session that hit the same key at once: exactly one of them owns
+# the user notice, and each still owns its own model notice.
 DATA16R="$(mktemp -d)"
-pre_kind="$(
-  CLAUDE_PLUGIN_DATA="$DATA16R"
-  hook::notice_once "k-pre" "$INPUT_AGENT_A" prerequisite >/dev/null || true
-  for _i in 1 2 3 4 5 6; do hook::notice_once "k-pre" "$INPUT_AGENT_A" prerequisite >/dev/null || true; done
-  hook::notice_once "k-pre" "$INPUT_AGENT_A" prerequisite
-  printf '%s %s %s' "$HOOK_NOTICE_KIND" "$HOOK_NOTICE_KEEP_BODY" "$HOOK_NOTICE_COUNT"
-)"
-if [[ "$pre_kind" == "renew 1 8" ]]; then
-  ok "notice_once: prerequisite renewal keeps the body"
+race16_probe() {
+  CLAUDE_PLUGIN_DATA="$DATA16R" hook::notice_once race "{\"session_id\":\"sess-r\",\"agent_id\":\"agent-$1\"}"
+  [[ "$HOOK_NOTICE_TO_USER" == 1 ]] && : >"$DATA16R/user.$1"
+  [[ "$HOOK_NOTICE_TO_MODEL" == 1 ]] && : >"$DATA16R/model.$1"
+  return 0
+}
+for i in $(seq 1 12); do race16_probe "$i" & done
+wait
+shopt -s nullglob
+race16_users=("$DATA16R"/user.*)
+race16_models=("$DATA16R"/model.*)
+shopt -u nullglob
+race16_user=${#race16_users[@]}
+race16_model=${#race16_models[@]}
+if [[ "$race16_user" == 1 && "$race16_model" == 12 ]]; then
+  ok "notice_once: racing agents send the user notice once and each its model notice"
 else
-  fail "notice_once: prerequisite renewal keeps the body" "got '$pre_kind'"
+  fail "notice_once race: want 1 user, 12 model" "got $race16_user user, $race16_model model"
 fi
-HOOK_NOTICE_KIND=renew
-HOOK_NOTICE_KEEP_BODY=1
-HOOK_NOTICE_COUNT=8
-skip_notice="$(hook::emit_skip_notice SessionStart $'plugin: tool missing. Install: npm i -D tool\nPATH probed: /usr/bin')"
-HOOK_NOTICE_KIND=full
-HOOK_NOTICE_KEEP_BODY=0
-HOOK_NOTICE_COUNT=0
-if [[ "$skip_notice" == *'Install: npm i -D tool'* && "$skip_notice" == *'8 skips this session'* ]]; then
-  ok "emit_skip_notice: prerequisite renewal keeps the install route"
-else
-  fail "emit_skip_notice: prerequisite renewal keeps the install route" "got '$skip_notice'"
-fi
-rm -rf "$DATA16C" "$DATA16C2" "$DATA16P" "$DATA16R"
+rm -rf "$DATA16R"
 
-probed="$(CLAUDE_PLUGIN_ROOT=/tmp/my-plugin hook::format_path_probed \
-  "/usr/bin:/tmp/other/plugins/foo/bin:/tmp/my-plugin/bin:/opt/homebrew/bin")"
-if [[ "$probed" == *'/usr/bin'* && "$probed" == *'/tmp/my-plugin/bin'* &&
-  "$probed" != *'/tmp/other/plugins/foo/bin'* && "$probed" == *'omitted'* ]]; then
-  ok "format_path_probed: drops other plugin bins"
+# --- Test 16f: hook::once_per_file -------------------------------------------
+DATA16F="$(mktemp -d)"
+once_file16() { CLAUDE_PLUGIN_DATA="$DATA16F" hook::once_per_file "$@" && printf 0 || printf 1; }
+once_file16_got="$(once_file16 hint "$INPUT_AGENT_A" /r/a.md)$(once_file16 hint "$INPUT_AGENT_A" /r/a.md)$(once_file16 hint "$INPUT_AGENT_A" /r/b.md)"
+once_file16_got+="$(once_file16 hint "$INPUT_AGENT_B" /r/a.md)$(once_file16 hint "$INPUT_S1" /r/a.md)$(once_file16 other "$INPUT_AGENT_A" /r/a.md)"
+if [[ "$once_file16_got" == "010000" ]]; then
+  ok "once_per_file: once per (key, session, agent, file)"
 else
-  fail "format_path_probed: trim" "got '$probed'"
+  fail "once_per_file: want 010000 (first, repeat, other file, other agent, other session, other key)" "got $once_file16_got"
 fi
-
-HOOK_NOTICE_KIND=renew
-HOOK_NOTICE_COUNT=8
-renew_msg="$(hook::emit_skip_notice PostToolUse $'plugin: tool missing\nPATH probed: /usr/bin:/tmp/x')"
-HOOK_NOTICE_KIND=full
-HOOK_NOTICE_COUNT=0
-if [[ "$renew_msg" != *$'\n'* && "$renew_msg" == *'8 skips'* && "$renew_msg" != *'PATH probed:'* ]]; then
-  ok "emit_skip_notice: renew is one line without PATH dump"
+# Two paths that fold to the same marker name are still two files.
+once_file16_got="$(once_file16 fold "$INPUT_AGENT_A" '/r/x y.md')$(once_file16 fold "$INPUT_AGENT_A" /r/x_y.md)"
+if [[ "$once_file16_got" == "00" ]]; then
+  ok "once_per_file: paths that fold to one marker name stay distinct"
 else
-  fail "emit_skip_notice: renew shape" "got '$renew_msg'"
+  fail "once_per_file: folded paths" "got $once_file16_got"
+fi
+rm -rf "$DATA16F"
+if (
+  unset CLAUDE_PLUGIN_DATA
+  hook::once_per_file hint "$INPUT_AGENT_A" /r/a.md && hook::once_per_file hint "$INPUT_AGENT_A" /r/a.md
+); then
+  ok "once_per_file: no data dir → fail-open, always due"
+else
+  fail "once_per_file: no data dir suppressed a hint"
 fi
 
 # --- Test 16b: hook::raw_file_path — jq-free extraction -----------------------
@@ -1553,35 +1616,146 @@ cat >"$ROOT17/prerequisites.json" <<'JSON'
 }
 JSON
 require17() {
-  local root="$1" id="${2:-jq}"
-  CLAUDE_PLUGIN_ROOT="$root" CLAUDE_PLUGIN_DATA="$(mktemp -d "$WORK/data17r.XXXXXX")" "$BASH" -c '
+  local root="$1" id="${2:-jq}" data="${3:-}"
+  [[ -n "$data" ]] || data="$(mktemp -d "$WORK/data17r.XXXXXX")"
+  CLAUDE_PLUGIN_ROOT="$root" CLAUDE_PLUGIN_DATA="$data" "$BASH" -c '
     PATH="'"$FAKEBIN17"'"
     source "'"$HOOK_DIR"'/hook-utils.sh"
-    hook::require '"$id"' PostToolUse tp "{\"session_id\":\"dddd-4444\"}"
+    hook::require '"$id"' PostToolUse tp "{\"session_id\":\"dddd-4444\",\"agent_id\":\"'"${4:-main}"'\"}"
   ' 2>/dev/null
 }
+# The expected texts are the notice template written out by hand for this
+# fixture: the model line states what is missing, what it costs, that the
+# notice does not repeat, and which skill diagnoses; the user line adds the
+# install route and why /<plugin>:check can pass while the hook cannot see the
+# tool.
+model17='tp: jq not on the hook PATH. Without jq, the "demo" hook is skipped. No further notice this session; /demo-plug:check diagnoses.'
+user17='tp: jq not on the hook PATH. Without jq, the "demo" hook is skipped. Install (docs: https://example.invalid/jq; brew: jq). Hooks read Claude Code'"'"'s PATH, not your shell profile. No further notice this session; /demo-plug:check diagnoses.'
 declared17=$(require17 "$ROOT17")
-if [[ "$declared17" == *'Without jq, the \"demo\" hook is skipped.'* && "$declared17" == *'Install: https://example.invalid/jq.'* &&
-  "$declared17" == *'Run /demo-plug:check to verify. It does not install.'* && "$declared17" != *'/demo-plug:check-node'* ]]; then
-  ok "require: notice carries the declared degrade text, first install doc link and check command"
+if jq -e --arg m "$model17" --arg u "$user17" \
+  '.hookSpecificOutput.additionalContext == $m and .systemMessage == $u' <<<"$declared17" >/dev/null 2>&1; then
+  ok "require: model and user lines from the declared degrade, install map and check command"
 else
-  fail "require: declared entry notice: $declared17"
+  fail "require: declared entry notice" "got $declared17"
+fi
+# Under a guard dispatcher a later guard can exit 2, and exit-2 stderr reaches
+# the model, so the gate writes nothing to stderr.
+req17_err="$(CLAUDE_PLUGIN_ROOT="$ROOT17" CLAUDE_PLUGIN_DATA="" "$BASH" -c '
+  PATH="'"$FAKEBIN17"'"
+  source "'"$HOOK_DIR"'/hook-utils.sh"
+  hook::require jq PreToolUse tp "{\"session_id\":\"eeee-5555\"}"
+' 2>&1 >/dev/null)"
+if [[ -z "$req17_err" ]]; then
+  ok "require: nothing on stderr (no PATH line)"
+else
+  fail "require: stderr" "got '$req17_err'"
+fi
+DATA17S="$(mktemp -d "$WORK/data17s.XXXXXX")"
+require17 "$ROOT17" jq "$DATA17S" main >/dev/null
+sub17=$(require17 "$ROOT17" jq "$DATA17S" sub-1)
+if jq -e --arg m "$model17" '.hookSpecificOutput.additionalContext == $m and (has("systemMessage") | not)' \
+  <<<"$sub17" >/dev/null 2>&1; then
+  ok "require: a subagent's first skip tells the model only; the user was told"
+else
+  fail "require: subagent first skip" "got $sub17"
+fi
+again17=$(require17 "$ROOT17" jq "$DATA17S" main)
+if [[ -z "$again17" ]]; then
+  ok "require: a later skip in the same agent is silent"
+else
+  fail "require: later skip" "got $again17"
 fi
 rm "$ROOT17/prerequisites.json"
 generic17=$(require17 "$ROOT17")
-if [[ "$generic17" == *'tp: jq not found on PATH'* && "$generic17" == *'Run /demo-plug:check to verify.'* && "$generic17" != *harness-ops* ]]; then
+if [[ "$generic17" == *'tp: jq not on the hook PATH. The hook skips its work.'* &&
+  "$generic17" == *'/demo-plug:check diagnoses.'* && "$generic17" != *harness-ops* ]]; then
   ok "require: no declared entry → generic text and /<plugin>:check from the plugin root"
 else
   fail "require: generic notice: $generic17"
 fi
 mkdir -p "$ROOT17/skills/check-prerequisites"
 colliding17=$(require17 "$ROOT17")
-if [[ "$colliding17" == *'Run /demo-plug:check-prerequisites to verify.'* ]]; then
+if [[ "$colliding17" == *'/demo-plug:check-prerequisites diagnoses.'* ]]; then
   ok "require: a plugin shipping check-prerequisites names that skill"
 else
   fail "require: check-prerequisites notice: $colliding17"
 fi
-rm -rf "$ROOT17" "$FAKEBIN17"
+rm -rf "$ROOT17" "$FAKEBIN17" "$DATA17S"
+
+# --- Test 17a: hook::prereq_notice_to ----------------------------------------
+ROOT17A="$(mktemp -d)/demo-fmt"
+mkdir -p "$ROOT17A"
+cat >"$ROOT17A/prerequisites.json" <<'JSON'
+{
+  "requires": [
+    {
+      "id": "biome",
+      "kind": "cli",
+      "need": "required",
+      "for": ["hook:demo.sh"],
+      "detect": { "any": ["biome"], "local_bin": ["node_modules/.bin/biome"] },
+      "degrade": "Without biome, edits are not formatted.",
+      "install": { "npm": "npm i -D @biomejs/biome" },
+      "check": "/demo-fmt:check"
+    }
+  ]
+}
+JSON
+prereq17() {
+  local data="$1"
+  shift
+  (
+    CLAUDE_PLUGIN_ROOT="$ROOT17A"
+    CLAUDE_PLUGIN_DATA="$data"
+    m="" u="" rc=0
+    hook::prereq_notice_to m u biome '{"session_id":"s17a","agent_id":"a1"}' "$@" 2>/dev/null || rc=$?
+    printf '%s\n%s\n%s' "$rc" "$m" "$u"
+  )
+}
+DATA17A="$(mktemp -d)"
+prereq17_got="$(prereq17 "$DATA17A")"
+prereq17_want=$'0\ndemo-fmt: biome not on the hook PATH or at node_modules/.bin/biome. Without biome, edits are not formatted. No further notice this session; /demo-fmt:check diagnoses.\n'
+prereq17_want+="demo-fmt: biome not on the hook PATH or at node_modules/.bin/biome. Without biome, edits are not formatted. Install (npm: npm i -D @biomejs/biome). Hooks read Claude Code's PATH, not your shell profile. No further notice this session; /demo-fmt:check diagnoses."
+if [[ "$prereq17_got" == "$prereq17_want" ]]; then
+  ok "prereq_notice_to: the local_bin path joins the where-phrase; the latch key is <plugin>-<id>"
+else
+  fail "prereq_notice_to: default texts" "got '$prereq17_got'"
+fi
+if [[ -f "$DATA17A/skip-notices/demo-fmt-biome.s17a.user" && -f "$DATA17A/skip-notices/demo-fmt-biome.s17a.a1" ]]; then
+  ok "prereq_notice_to: latches on the key prerequisites.mjs probe writes"
+else
+  fail "prereq_notice_to: latch key" "$(ls "$DATA17A/skip-notices" 2>&1)"
+fi
+prereq17_got="$(prereq17 "$DATA17A")"
+# (the command substitution drops the two empty text lines' newlines)
+if [[ "$prereq17_got" == 1 ]]; then
+  ok "prereq_notice_to: not due again in the same agent → 1 and empty texts"
+else
+  fail "prereq_notice_to: second call" "got '$prereq17_got'"
+fi
+rm -rf "$DATA17A"
+DATA17A="$(mktemp -d)"
+prereq17_got="$(prereq17 "$DATA17A" --label demo-hook --where 'not found by the probe' --install 'Install it in the repository: npm i -D x.')"
+if [[ "$prereq17_got" == $'0\ndemo-hook: biome not found by the probe. '* &&
+  "$prereq17_got" == *$'\ndemo-hook: biome not found by the probe. Without biome, edits are not formatted. Install it in the repository: npm i -D x. Hooks read'* &&
+  -f "$DATA17A/skip-notices/demo-hook-biome.s17a.user" ]]; then
+  ok "prereq_notice_to: --label, --where and --install override the defaults"
+else
+  fail "prereq_notice_to: overrides" "got '$prereq17_got'"
+fi
+prereq17_err() { # the stderr of one due call
+  local m u
+  {
+    CLAUDE_PLUGIN_ROOT="$ROOT17A" CLAUDE_PLUGIN_DATA="" PATH="/x/bin:$PATH" \
+      hook::prereq_notice_to m u biome '{"session_id":"s17e"}' "$@" >/dev/null
+  } 2>&1
+}
+if [[ "$(prereq17_err)" == "PATH probed: /x/bin:"* && -z "$(prereq17_err --no-path)" ]]; then
+  ok "prereq_notice_to: the PATH goes to stderr, and --no-path keeps it off"
+else
+  fail "prereq_notice_to: PATH line" "default='$(prereq17_err)' no-path='$(prereq17_err --no-path)'"
+fi
+rm -rf "$DATA17A" "${ROOT17A%/*}"
 
 # --- Test 17b: hook::require_jq_blocking — fail-closed gate (#2146) -----------
 out17b=$( (
@@ -1603,21 +1777,137 @@ run17b() {
     echo "unreachable"
   ' 2>&1
 }
+# The deny reason reaches the model: one line naming jq and its install page,
+# and never the guard's own kill switch, which is the user's lever.
+want17b='BLOCKED: jq is not on PATH, so test-hook cannot read the command and denies every Bash and PowerShell call. Ask the user to install jq (https://jqlang.org/download/).'
 with_opt17b=$(run17b 'test-hook block_test_enabled')
 rc_with_opt17b=$?
-if [[ $rc_with_opt17b -eq 2 && "$with_opt17b" == *'block_test_enabled'* && "$with_opt17b" != *unreachable* ]]; then
-  ok "require_jq_blocking: jq absent with option → exit 2 names the option"
+if [[ $rc_with_opt17b -eq 2 && "$with_opt17b" == "$want17b" ]]; then
+  ok "require_jq_blocking: jq absent → exit 2 with one line and no kill-switch name"
 else
   fail "require_jq_blocking: with option rc=$rc_with_opt17b out=$with_opt17b"
 fi
-no_opt17b=$(run17b 'test-hook-only')
+no_opt17b=$(run17b 'test-hook')
 rc_no_opt17b=$?
-if [[ $rc_no_opt17b -eq 2 && "$no_opt17b" == *'Install jq'* && "$no_opt17b" != *'/plugin configure'* && "$no_opt17b" != *unreachable* ]]; then
-  ok "require_jq_blocking: jq absent without option → exit 2 names install only"
+if [[ $rc_no_opt17b -eq 2 && "$no_opt17b" == "$want17b" ]]; then
+  ok "require_jq_blocking: jq absent without option → the same line"
 else
   fail "require_jq_blocking: without option rc=$rc_no_opt17b out=$no_opt17b"
 fi
 rm -rf "$FAKEBIN17"
+
+# --- Test 17c: hook::findings_to — cap and delta gate --------------------------
+ft17=""
+hook::findings_to ft17 "demo: a.py has findings:" $'1:1 E1 one\n\n2:2 E2 two'
+if [[ "$ft17" == $'demo: a.py has findings:\n  1:1 E1 one\n  2:2 E2 two' ]]; then
+  ok "findings_to: heading plus one indented line per non-empty line"
+else
+  fail "findings_to: plain report" "got '$ft17'"
+fi
+FIVE17=$'L1\nL2\nL3\nL4\nL5'
+hook::findings_to ft17 "h:" "$FIVE17" --max 2 --more "raise demo_max_findings"
+if [[ "$ft17" == $'h:\n  L1\n  L2\n  ... and 3 more (raise demo_max_findings)' ]]; then
+  ok "findings_to --max: keeps the first N lines and counts the rest"
+else
+  fail "findings_to --max" "got '$ft17'"
+fi
+hook::findings_to ft17 "h:" "$FIVE17" --max 5
+if [[ "$ft17" == $'h:\n  L1\n  L2\n  L3\n  L4\n  L5' ]]; then
+  ok "findings_to --max: a set at the cap has no more-line"
+else
+  fail "findings_to --max at the cap" "got '$ft17'"
+fi
+# data.findings carries every finding, whatever the report shows.
+ft17_fd=""
+HOOK_TELEMETRY_SINK="$WORK/sink17c" hook::findings_to ft17 "h:" "$FIVE17" ft17_fd --max 2
+if jq -e '. == ["L1","L2","L3","L4","L5"]' <<<"$ft17_fd" >/dev/null 2>&1; then
+  ok "findings_to --max: data.findings keeps all five findings"
+else
+  fail "findings_to --max: data.findings" "got '$ft17_fd'"
+fi
+
+DATA17C="$(mktemp -d)"
+IN17C_A='{"session_id":"s17c","agent_id":"a1","hook_event_name":"PostToolUse"}'
+IN17C_B='{"session_id":"s17c","agent_id":"a2","hook_event_name":"PostToolUse"}'
+delta17() { # delta17 <input> <file> <output> [opts...] → the report, or "<none>"
+  local in="$1" file="$2" out="$3" r=""
+  shift 3
+  CLAUDE_PLUGIN_DATA="$DATA17C" hook::findings_to r "demo: $file:" "$out" "$@" --delta "$in" "$file"
+  printf '%s' "${r:-<none>}"
+}
+SET1=$'3:8 F401 os unused\n10:5 E741 name l'
+SET2=$'3:8 F401 os unused'
+d17="$(delta17 "$IN17C_A" /r/a.py "$SET1")"
+if [[ "$d17" == $'demo: /r/a.py:\n  3:8 F401 os unused\n  10:5 E741 name l' ]]; then
+  ok "findings_to --delta: the first report is sent"
+else
+  fail "findings_to --delta: first report" "got '$d17'"
+fi
+# Stay quiet: the same set on the same file, re-sent on every edit before.
+d17="$(delta17 "$IN17C_A" /r/a.py "$SET1")$(delta17 "$IN17C_A" /r/a.py "$SET1")"
+if [[ "$d17" == "<none><none>" ]]; then
+  ok "findings_to --delta: an unchanged set sends nothing"
+else
+  fail "findings_to --delta: unchanged set" "got '$d17'"
+fi
+d17="$(delta17 "$IN17C_B" /r/a.py "$SET1")"
+if [[ "$d17" == "demo: /r/a.py:"* ]]; then
+  ok "findings_to --delta: another agent is sent the set"
+else
+  fail "findings_to --delta: other agent" "got '$d17'"
+fi
+d17="$(delta17 "$IN17C_A" /r/b.py "$SET1")"
+if [[ "$d17" == "demo: /r/b.py:"* ]]; then
+  ok "findings_to --delta: another file is sent its set"
+else
+  fail "findings_to --delta: other file" "got '$d17'"
+fi
+d17="$(delta17 "$IN17C_A" /r/a.py "$SET2")"
+if [[ "$d17" == $'demo: /r/a.py:\n  3:8 F401 os unused' ]]; then
+  ok "findings_to --delta: a changed set is sent"
+else
+  fail "findings_to --delta: changed set" "got '$d17'"
+fi
+d17="$(delta17 "$IN17C_A" /r/a.py "$SET2" --max 1)"
+if [[ "$d17" == "demo: /r/a.py:"* ]]; then
+  ok "findings_to --delta: the same set under another --max is sent"
+else
+  fail "findings_to --delta: --max is part of the record" "got '$d17'"
+fi
+# Findings, then a clean run, then the same findings: the model was last told
+# nothing is wrong, so the set goes out again.
+d17="$(delta17 "$IN17C_A" /r/a.py "")"
+d17+="|$(delta17 "$IN17C_A" /r/a.py "$SET2" --max 1)"
+if [[ "$d17" == $'<none>|demo: /r/a.py:\n  3:8 F401 os unused' ]]; then
+  ok "findings_to --delta: a clean run sends nothing and clears the record"
+else
+  fail "findings_to --delta: clean then same set" "got '$d17'"
+fi
+ft17_fd=""
+CLAUDE_PLUGIN_DATA="$DATA17C" HOOK_TELEMETRY_SINK="$WORK/sink17c" \
+  hook::findings_to ft17 "h:" "$SET2" ft17_fd --max 1 --delta "$IN17C_A" /r/a.py
+if [[ -z "$ft17" ]] && jq -e '. == ["3:8 F401 os unused"]' <<<"$ft17_fd" >/dev/null 2>&1; then
+  ok "findings_to --delta: data.findings is written when the report is suppressed"
+else
+  fail "findings_to --delta: suppressed data.findings" "ctx='$ft17' fd='$ft17_fd'"
+fi
+CLAUDE_PLUGIN_DATA="$DATA17C" hook::findings_digest_reset '{"session_id":"s17c","source":"startup"}'
+d17="$(delta17 "$IN17C_A" /r/a.py "$SET2" --max 1)"
+if [[ "$d17" == "<none>" ]]; then
+  ok "findings_digest_reset: a startup SessionStart keeps the records"
+else
+  fail "findings_digest_reset: startup" "got '$d17'"
+fi
+for src17 in compact clear; do
+  CLAUDE_PLUGIN_DATA="$DATA17C" hook::findings_digest_reset '{"session_id":"s17c","source":"'"$src17"'"}'
+  d17="$(delta17 "$IN17C_A" /r/a.py "$SET2" --max 1)$(delta17 "$IN17C_B" /r/a.py "$SET1")"
+  if [[ "$d17" == "demo: /r/a.py:"*"demo: /r/a.py:"* ]]; then
+    ok "findings_digest_reset: a $src17 SessionStart clears every agent's records"
+  else
+    fail "findings_digest_reset: $src17" "got '$d17'"
+  fi
+done
+rm -rf "$DATA17C"
 
 # --- git config value kinds + effective resolution ---------------------------
 # The option walk must tag each collected -c/--config/--config-env value with its
@@ -4389,6 +4679,8 @@ source "$BG_LIB"
 if [[ -n "${BG_STUB_FILE:-}" ]]; then
   hook::read_file_path_to() { printf -v "$1" '%s' "$BG_STUB_FILE"; }
 fi
+# A host override, so one host checks the path splits of both platforms.
+[[ -z "${BG_OSTYPE:-}" ]] || OSTYPE="$BG_OSTYPE"
 # A repo-root resolver whose answer is NOT an ancestor of the file, which is
 # what makes hook::repo_relative_path_to degrade to the basename.
 bg_fake_root() { printf -v "$1" '%s' "${BG_ROOT_VALUE:-}"; }
@@ -4488,10 +4780,17 @@ else
 fi
 
 # The post-read half, table-driven over path shapes no fixture can create.
-# Columns: label | file_path | want FILE_DIR | want FILE_BASE.
-while IFS='|' read -r bg_label bg_path bg_want_dir bg_want_base; do
+# Columns: label | file_path | want FILE_DIR | want FILE_BASE | host. A backslash
+# separates directories only on Windows, so a `win` row runs as an msys host and
+# a `posix` row as a Linux one, whatever host runs the suite.
+while IFS='|' read -r bg_label bg_path bg_want_dir bg_want_base bg_row_host; do
   [[ -n "$bg_label" ]] || continue
   bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO" BG_STUB_FILE="$bg_path")
+  case "$bg_row_host" in
+  win) bg_env+=(BG_OSTYPE=msys) ;;
+  posix) bg_env+=(BG_OSTYPE=linux-gnu) ;;
+  *) ;;
+  esac
   bg_row=$(bg_run "$(bg_payload "$BG_REPO/sub/a.sh")" sample PostToolUse)
   bg_row_rc=$?
   bg_got_dir="$(bg_field "$bg_row" DIR)"
@@ -4502,12 +4801,17 @@ while IFS='|' read -r bg_label bg_path bg_want_dir bg_want_base; do
     fail "begin: $bg_label → FILE_DIR '$bg_got_dir' (want '$bg_want_dir'), FILE_BASE '$bg_got_base' (want '$bg_want_base'), rc=$bg_row_rc, output: [$bg_row]"
   fi
 done <<'BGTABLE'
-a file under the filesystem root|/README.md|/|README.md
-a bare relative name|README.md|.|README.md
-a nested path|/a/b.md|/a|b.md
-a deeper nested path|/a/b/c.md|/a/b|c.md
-a Windows backslash path|C:\repo\x.md|.|x.md
-a mixed-form path|/a/b\c.md|/a|c.md
+a file under the filesystem root|/README.md|/|README.md|any
+a bare relative name|README.md|.|README.md|any
+a nested path|/a/b.md|/a|b.md|any
+a deeper nested path|/a/b/c.md|/a/b|c.md|any
+a file under a forward-slash drive root|C:/x.cs|C:/|x.cs|any
+a forward-slash drive path|C:/a/b/x.cs|C:/a/b|x.cs|any
+a Windows backslash path|C:\repo\x.md|C:\repo|x.md|win
+a mixed-form path|/a/b\c.md|/a/b|c.md|win
+a file under a backslash drive root|C:\x.cs|C:\|x.cs|win
+a mixed path under a drive|C:/p\q\x.cs|C:/p\q|x.cs|win
+a POSIX name holding a backslash|/a/b\c.md|/a|c.md|posix
 BGTABLE
 bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO")
 
@@ -4553,6 +4857,35 @@ if ((bg_rc == 0)) && [[ "$(bg_field "$bg_out" REACHED)" == "1" ]]; then
   ok "begin: an escaped Windows separator matches a glob naming an interior directory"
 else
   fail "begin escaped separator (rc=$bg_rc): $bg_out"
+fi
+
+# REPO_ROOT is anchored at the file, not the hook's CWD, for the backslash-only
+# spelling Claude Code sends on Windows. The CWD sits in one repository and the
+# file in another, so a FILE_DIR that falls back to `.` resolves the wrong one.
+# A backslash path names a real directory only on Windows, hence the gate.
+if command -v cygpath >/dev/null 2>&1; then
+  bg_cwd_repo="$BG_WORK/cwd-repo"
+  bg_file_repo="$BG_WORK/file-repo"
+  mkdir -p "$bg_cwd_repo" "$bg_file_repo/tests/unit"
+  git -C "$bg_cwd_repo" init -q . >/dev/null 2>&1
+  git -C "$bg_file_repo" init -q . >/dev/null 2>&1
+  : >"$bg_file_repo/tests/unit/x.cs"
+  bg_want_root=$(git -C "$bg_file_repo" rev-parse --show-toplevel)
+  bg_cwd_root=$(git -C "$bg_cwd_repo" rev-parse --show-toplevel)
+  bg_bs_file=$(cygpath -w -- "$bg_file_repo/tests/unit/x.cs")
+  bg_env=(CLAUDE_PROJECT_DIR="$bg_file_repo" BG_STUB_FILE="$bg_bs_file")
+  bg_out=$(cd "$bg_cwd_repo" && bg_run "$(bg_payload "${bg_bs_file//\\/\\\\}")" --no-membership sample PostToolUse '*.cs')
+  bg_rc=$?
+  bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO")
+  bg_got_root="$(bg_field "$bg_out" ROOT)"
+  if ((bg_rc == 0)) && [[ -n "$bg_want_root" && "$bg_want_root" != "$bg_cwd_root" &&
+    "$bg_got_root" == "$bg_want_root" ]]; then
+    ok "begin: a backslash path resolves REPO_ROOT to the file's repository, not the CWD's"
+  else
+    fail "begin backslash REPO_ROOT (rc=$bg_rc): got '$bg_got_root', want '$bg_want_root', CWD repo '$bg_cwd_root', output: [$bg_out]"
+  fi
+else
+  ok "begin: backslash REPO_ROOT SKIPPED (no cygpath — a backslash path names a directory only on Windows)"
 fi
 
 # A well-formed JSON PREFIX and then a closed pipe is hook::buffer_stdin_to's

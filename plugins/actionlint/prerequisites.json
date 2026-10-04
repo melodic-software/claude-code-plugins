@@ -12,7 +12,7 @@
           "actionlint"
         ]
       },
-      "degrade": "Without actionlint, the hook cannot lint edited GitHub Actions workflows; edits still go through.",
+      "degrade": "Without actionlint, the hook cannot lint edited GitHub Actions workflows.",
       "install": {
         "docs": "https://github.com/rhysd/actionlint/blob/main/docs/install.md"
       },
@@ -30,7 +30,7 @@
           "jq"
         ]
       },
-      "degrade": "Without jq, the actionlint hooks skip their work for the session and say so once.",
+      "degrade": "Without jq, the actionlint hooks skip their work.",
       "install": {
         "docs": "https://jqlang.org/download/"
       },

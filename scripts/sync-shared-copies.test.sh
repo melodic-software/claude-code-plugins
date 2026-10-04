@@ -124,6 +124,25 @@ expect "--check-bump fails when only a copy changed" 1 $? "$out"
 LAST_OUTPUT="$out"
 assert_output_contains "--check-bump names the changed copy" "its copy plugins/alpha/lib/esc.mjs changed"
 
+# A fragment carries a carrier's bump only when that carrier is in fragment mode.
+mkdir -p "$root/.changes/alpha" "$root/.changes/beta"
+for name in alpha beta; do
+  printf -- '---\nbump: patch\n---\n\n### Fixed\n\n- Shared esc.mjs synced.\n' >"$root/.changes/$name/sync-esc-0123abcd.md"
+done
+git -C "$root" add -A
+printf 'alpha\n' >"$root/scripts/fragment-plugins.txt"
+printf 'export const esc = (s) => String(s ?? "");\n' >"$root/lib/esc.mjs"
+run >/dev/null
+out="$(run --check-bump "$base")"
+expect "--check-bump still fails for a legacy carrier that has only a fragment" 1 $? "$out"
+LAST_OUTPUT="$out"
+assert_output_contains "--check-bump names the legacy carrier" "its copy plugins/beta/lib/esc.mjs changed"
+if [[ "$out" != *"plugins/alpha/lib/esc.mjs changed"* ]]; then
+  pass "--check-bump accepts a fragment-mode carrier's patch fragment as its bump"
+else
+  bad "--check-bump accepts a fragment-mode carrier's patch fragment as its bump" "$out"
+fi
+
 # --- the executable bit follows the canonical, on regen and in --check ----------
 fixture
 printf '#!/usr/bin/env bash\necho hi\n' >"$root/lib/tool.sh"

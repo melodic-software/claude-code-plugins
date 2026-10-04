@@ -10,12 +10,26 @@ that shows it, at the consumer's binary, and stamped with that binary's version.
 | Rung | Mode | Precision | Requires | Recorded caveats |
 |---|---|---|---|---|
 | 1 | `sdk` | `exact` (integer tokens) | `@anthropic-ai/claude-agent-sdk` resolvable from `--sdk-dir` or the working directory | none |
-| 2 | `cli-parse` | `display-rounded` (table cells like `11.4k`) | `<binary> -p "/context"` producing the category table | rounded values; headless `/context` is undocumented as a `-p`-capable command, so this rung depends on unsanctioned behavior. When the token-counting API is unavailable, `/context` uses a local estimate instead of extra small-model requests (Claude Code 2.1.261). The commands page `/context` row, fetched 2026-09-28, does not yet say that; the changelog is the behavior source until the row does |
+| 2 | `cli-parse` | `display-rounded` (table cells like `11.4k`) | `<binary> -p "/context"` producing the category table with at least one of the two system-tool rows. The engine spawns the binary directly; a hand check from Git Bash must run `MSYS_NO_PATHCONV=1 claude -p "/context"`, because path conversion otherwise rewrites `/context` and the session answers in prose | rounded values; a system-tool row the table lacks is named in a caveat and left unmeasured; headless `/context` is undocumented as a `-p`-capable command, so this rung depends on unsanctioned behavior. When the token-counting API is unavailable, `/context` uses a local estimate instead of extra small-model requests (Claude Code 2.1.261). The commands page `/context` row, fetched 2026-09-28, does not yet say that; the changelog is the behavior source until the row does |
 | 3 | n/a | n/a | n/a | exit 3 with a `context-budget.error/1` record naming the remediation; **never a wrong number** |
 
 The `/context` output format carries no stability guarantee in either direction and has materially
-changed several times; the parser therefore refuses loudly (rung 3) when the expected sections are
-absent rather than guessing. Known parse traps handled: an unredirected-stdin warning line
+changed several times; the parser therefore refuses loudly (rung 3) when the category table is
+absent, or when it carries neither `System tools` nor `System tools (deferred)`, rather than
+guessing. A table with only one of the two parses: the missing bucket stays out of `categories`
+(unmeasured, never zero-filled, because a cli-parse absence cannot tell format drift from an
+emptied bucket) and a caveat names it with the binary version.
+
+- **Observation:** headless `/context` on Claude Code 2.1.289 printed a `System tools (deferred)`
+  row and no `System tools` row. Whether every built-in tool is deferred in headless sessions or
+  the format changed is not documented.
+- **Pointer:** the `/context` row of [commands](https://code.claude.com/docs/en/commands), which
+  does not list `/context` as available with `-p`.
+- **As of:** 2026-10-04.
+- **Recheck trigger:** a release note names headless `/context`, tool deferral in `-p` sessions,
+  or the `/context` category table.
+
+Known parse traps handled: an unredirected-stdin warning line
 prepended to output; skill token cells formatted `~<int>` or `< <int>` unlike every other table;
 `--output-format json` returning the same markdown as a string (the engine parses plain output
 instead).
@@ -90,8 +104,8 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
   (`--verify-additivity`: one combined-deny run checked against the sum of parts, with its own
   `comparable`/`reasons`, plus `perBucket` carrying `{sumOfParts, combinedSaved, additive,
   reasons}` for each attributed bucket, read off the `prefixDelta`/`deferredDelta` the saver rows
-  already carry rather than from any extra run; a bucket absent from both runs is outside the
-  binary's category vocabulary and gets no verdict row). Per-bucket measurability is independent:
+  already carry rather than from any extra run; a bucket absent from both runs gets no verdict
+  row: a deferred bucket because it is a non-event, the prefix bucket because it is unmeasured). Per-bucket measurability is independent:
   skill-listing and Skills-token checks gate only the prefix column, while the shared mode/binary
   checks gate both, so a combined-run listing mismatch leaves a measurable deferred verdict in
   place. Every `additive` field, top level and per bucket, is tri-state: `true` and `false` are
@@ -120,12 +134,20 @@ All records are JSON on stdout (and `--out <file>`), schema-tagged:
   consumer can tell a reported 0 from a filled-in omission. The attribution record's `caveats`
   are the baseline's caveats merged with every deny run and, when it ran, the combined
   additivity run, in that order, with duplicates dropped. A deny run's disclosure is not
-  discarded. A bucket absent from *both* runs is
-  outside that binary's category vocabulary and simply contributes nothing.
+  discarded. A `System tools (deferred)` bucket absent from *both* runs is a non-event (no
+  deferred pool at that binary) and simply contributes nothing. A prefix `System tools` bucket
+  absent from both runs whose row a cli-parse caveat disclosed as absent is unmeasured instead:
+  the row reports `savedTokens: null` with `comparable: false` and the reason. Remaining risk:
+  cli-parse cannot tell a deferred row lost to format drift from a binary with no deferred pool,
+  so drift on that row reads as "no deferred bucket" and the prefix delta alone is published as
+  the saving. The parser's caveat naming the absent row is the only signal.
 - `context-budget.ledger/1` is one before/after: `lever`, `emittedConfig`, `before`/`after`
   summaries, `delta` per category, `totalDelta`, `comparability` (`ok`, `systemToolsComparable`
   for the prefix bucket, `modeBinaryComparable` for the shared mode/binary checks, `reasons`).
-  A category present in only one run gets `null`, never an invented number.
+  A category present in only one run gets `null`, never an invented number, and an `unmeasured`
+  entry (`{category: reason}`) saying why. A category absent from both runs gets no `delta` key; the prefix `System tools`
+  bucket absent from both still gets an `unmeasured` entry when either run's caveats disclose its
+  row as absent.
 - `context-budget.catalogue-verify/1` is the `verify-catalogue` record: a docs-independent
   existence check. Reads the stamped binary and reports `present`/`absent` (with hit counts) for
   every settings key and env name the catalogue row names. The binary is the authority on *existence
