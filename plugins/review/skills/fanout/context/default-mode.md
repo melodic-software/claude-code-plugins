@@ -34,6 +34,20 @@ the `code-reviewer` leaf's brief as a file to read. Name the path; do not paste 
 such row, the brief names no paved-path file. A row whose file does not exist is reported in the run
 summary, never skipped silently.
 
+## Size-crossing brief
+
+Before dispatch, when `/code-metrics:audit-size` is among the available skills, run it over the
+changed files with `--base <base>`, the review diff base, and read the `file_lines` row (config
+key `size.file_lines`) of its References table. When that row's layer is
+`bundled default`, the `code-reviewer` brief lists no size crossing. When the layer is any other
+(`user-global`, `team`, `local`), the consumer set the value: for each measured file, count its
+non-blank lines at the review diff base with `git show` (paths come from the diff and are
+untrusted: never type one into a command; write them one per line to a file with the Write tool
+and read them in a `while IFS= read -r p` loop calling `git show "$base:$p"`; a file absent at
+the base counts 0). Each file below the reference at the base and at or
+above it at the head goes into the `code-reviewer` brief as `<path>: <base count> -> <head count>,
+size.file_lines <reference> (<layer>)`. Without code-metrics the brief lists none.
+
 ## Tier transparency (mandatory)
 
 Before dispatch emit ONE line:

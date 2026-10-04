@@ -231,6 +231,34 @@
         "Passes the path rather than pasting the paved-path file's content into the brief",
         "A second way for a listed concern is reported as an advisory finding that cites the paved-path entry"
       ]
+    },
+    {
+      "id": 19,
+      "name": "code-mode-flags-a-file-crossing-the-consumer-size-reference",
+      "prompt": "/review:quality-gate code\n\nThe code-metrics plugin is enabled and our tracked .claude/code-metrics.yaml sets size.file_lines to 500. My branch grows src/billing/invoice_builder.py from 470 non-blank lines at the merge-base to 540, and grows src/billing/tax.py from 120 to 160. pr-review-toolkit is not installed.",
+      "expected_output": "Runs /code-metrics:audit-size over the changed files, reads that the size.file_lines reference of 500 came from the team layer, counts each changed file's non-blank lines at the base with git show <base>:<path>, and finds that only invoice_builder.py went from below 500 to at or above it. The code-reviewer brief lists that one crossing, and the report flags invoice_builder.py with the reference 500 and the team layer. tax.py gets no size finding.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Runs /code-metrics:audit-size over the changed files before dispatching the reviewer",
+        "Reads the base count of non-blank lines with git show at the merge-base",
+        "The code-reviewer brief lists src/billing/invoice_builder.py as a size crossing and does not list src/billing/tax.py",
+        "The report flags src/billing/invoice_builder.py with the reference 500 and names the team layer as its source",
+        "No size finding is raised for src/billing/tax.py"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "code-mode-raises-no-size-flag-on-the-bundled-default",
+      "prompt": "/review:quality-gate code\n\nThe code-metrics plugin is enabled but no code-metrics.yaml layer exists anywhere, so size.file_lines is the bundled default. My branch grows scripts/sync_ledger.py from 980 non-blank lines at the merge-base to 1030. pr-review-toolkit is not installed.",
+      "expected_output": "Runs /code-metrics:audit-size, sees that the size.file_lines reference came from the bundled default, and passes no size crossing into the code-reviewer brief. The review raises no finding about the length of scripts/sync_ledger.py, even though it crossed 1000.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Recognizes that the size.file_lines reference came from the bundled default rather than a consumer layer",
+        "The code-reviewer brief lists no size crossing",
+        "The report contains no finding about the length of scripts/sync_ledger.py"
+      ]
     }
   ]
 }
