@@ -69,6 +69,12 @@ switch; with one disabled, the next guard carrying the ceiling blocks.
 The [hook budget accounting](#hook-budget-accounting) carries the measurement.
 `workflow-resilience-check` is not always-on and is registered on its own.
 
+An installed mod can stop this plugin's `PreToolUse` hooks from running: they run after the last
+mod calls `next`, so a mod that answers a `tool.call` without calling it skips them
+([where settings hooks run in the order](https://code.claude.com/docs/en/plugins/mods/events#where-settings-hooks-run-in-the-order)).
+A mod can also approve a call they blocked, because its `tool.check` hook runs after them
+([approve or refuse a tool call before the user is asked](https://code.claude.com/docs/en/plugins/mods/events#approve-or-refuse-a-tool-call-before-the-user-is-asked)).
+
 | Guard | Event / matcher | Behavior | What it catches |
 |-------|-----------------|----------|-----------------|
 | **secret-pattern-detection** | PreToolUse · Write \| Edit \| NotebookEdit **and** `mcp__github__push_files` \| `mcp__github__create_or_update_file` (also `mcp__plugin_<plugin>_github__<tool>`, see Scope notes) | **Blocks** (exit 2) | High-confidence secret/credential patterns (AWS/GitHub/GitLab/Slack/Stripe/OpenAI keys, PEM private keys) in new file content. Since **0.32.0** also in content bound for a GitHub repository through an MCP write, where there is no local file to fix afterwards and no pre-commit hook on the path. |

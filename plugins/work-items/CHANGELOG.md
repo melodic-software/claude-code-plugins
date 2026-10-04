@@ -3,11 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.48.3] - 2026-10-04
+## [0.48.4] - 2026-10-04
 
 ### Changed
 
 - **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+
+## [0.48.3] - 2026-10-04
+
+### Changed
+
+- **`/work-items:work-loop`'s paused wait reflects the mod writer.** rate-limit-guard's mod writes
+  the snapshot in headless sessions too, so the Monitor armed on it wakes on the mod's writes under
+  its machine-wide write floor; the scheduled wake still bounds how late an account switch is seen.
 
 ## [0.48.2] - 2026-10-04
 

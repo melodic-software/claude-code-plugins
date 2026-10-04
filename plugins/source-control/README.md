@@ -152,6 +152,12 @@ user decision to abandon the integration.
 
 ## Hooks
 
+An installed mod can stop this plugin's `PreToolUse` hooks from running: they run after the last
+mod calls `next`, so a mod that answers a `tool.call` without calling it skips them
+([where settings hooks run in the order](https://code.claude.com/docs/en/plugins/mods/events#where-settings-hooks-run-in-the-order)).
+A mod can also approve a call they blocked, because its `tool.check` hook runs after them
+([approve or refuse a tool call before the user is asked](https://code.claude.com/docs/en/plugins/mods/events#approve-or-refuse-a-tool-call-before-the-user-is-asked)).
+
 ### `pr-body-linkage-gate`
 
 A `PreToolUse` hook on the Bash tool. When a `gh pr create` / `gh pr edit`

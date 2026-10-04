@@ -3,11 +3,20 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.7.5] - 2026-10-04
+## [3.7.6] - 2026-10-04
 
 ### Changed
 
 - **Upstream plugin doc links repointed to the split `plugins/` pages ([#5962](https://github.com/melodic-software/claude-code-plugins/issues/5962)).** The README options block now links `plugins/cli-reference#plugin-install` for the `--config` flag, since the old `plugins-reference` page no longer carries that section, and `plugins/manifest-reference#user-configuration` for the `userConfig` schema.
+
+## [3.7.5] - 2026-10-04
+
+### Fixed
+
+- `inventory` no longer says Claude Code publishes no roster of built-in plugins. Its upstream-facts
+  row now points at the mods overview's built-in roster as a cross-check and keeps the binary read
+  as the source, because the binary registers built-ins the roster omits; the row's recheck trigger
+  and as-of date moved to 2.1.288.
 
 ## [3.7.4] - 2026-10-04
 

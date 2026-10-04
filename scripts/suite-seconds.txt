@@ -137,13 +137,8 @@ plugins/context-budget/hooks/settings-write-ask.test.sh 1
 plugins/context-budget/skills/audit/scripts/levers.test.sh 1
 plugins/context-budget/skills/audit/scripts/measure.test.sh 6
 plugins/context-guard/hooks/post-compact-mark.test.sh 1
-plugins/context-guard/hooks/zone-crossing-inject.test.sh 9
-plugins/context-guard/hooks/zone-gate.test.sh 1
-plugins/context-guard/scripts/compose-statusline-wiring.test.sh 1
 plugins/context-guard/scripts/context-zone.test.sh 1
 plugins/context-guard/scripts/prompt-cache-cause.test.sh 1
-plugins/context-guard/scripts/statusline-shim.test.sh 1
-plugins/context-guard/scripts/statusline-tee.test.sh 6
 plugins/coupling/skills/reduce/scripts/value-sites.test.sh 8
 plugins/debugging/scripts/build-view.test.sh 6
 plugins/desktop-notification/hooks/desktop-notification.test.sh 1
@@ -443,11 +438,7 @@ plugins/prototype/scripts/allowed-tools-pairing.test.sh 1
 plugins/prototype/scripts/detect-ecosystems.test.sh 1
 plugins/prototype/skills/explore-directions/scripts/detect-ecosystems.test.sh 1
 plugins/prototype/skills/pressure-test/scripts/detect-ecosystems.test.sh 1
-plugins/rate-limit-guard/bench/bench.test.sh 1
 plugins/rate-limit-guard/hooks/record-rate-limit-stop.test.sh 1
-plugins/rate-limit-guard/scripts/compose-statusline-wiring.test.sh 1
-plugins/rate-limit-guard/scripts/statusline-shim.test.sh 1
-plugins/rate-limit-guard/scripts/statusline-tee.test.sh 12
 plugins/repo-fleet-hygiene/scripts/allowed-tools-pairing.test.sh 1
 plugins/repo-fleet-hygiene/scripts/scope-resolve.test.sh 1
 plugins/repo-fleet-hygiene/skills/apply/scripts/apply-plan.test.sh 6

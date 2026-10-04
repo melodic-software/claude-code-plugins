@@ -2,22 +2,22 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/zone-gate.schema.json",
   "title": "zone-gate telemetry data",
-  "description": "Per-hook `data` payload for context-guard's blocking-mode PreToolUse gate. Discovered from the envelope `hook` value \"zone-gate\". Emitted only when the gate denies (envelope status \"blocked\"); every allowed or fail-open path emits nothing. Evolves additive-only.",
+  "description": "Per-hook `data` payload for context-guard's blocking gate, which runs in its mod's tool.call hook (hooks/register.tsx); envelope `hook_event` \"tool.call\" (\"PreToolUse\" on records from the settings hook this replaced). Discovered from the envelope `hook` value \"zone-gate\". Emitted only when the gate denies (envelope status \"blocked\"); every allowed or fail-open path emits nothing. Evolves additive-only.",
   "type": "object",
   "required": ["zone", "grace", "calls_seen"],
   "additionalProperties": true,
   "properties": {
     "zone": {
       "type": "string",
-      "description": "Always \"dumb\" — the only zone the gate can deny in."
+      "description": "The zone the gate blocked in: any zone a block rule names (the dumb zone in blocking mode, or a zones.json action or threshold set to block). Records from the retired settings hook always carry \"dumb\"."
     },
     "grace": {
       "type": "integer",
-      "description": "The grace budget in effect (zone_gate_grace_calls, in-script default 20)."
+      "description": "The grace budget in effect: the zone_gate_grace_calls module option, default 20."
     },
     "calls_seen": {
       "type": "integer",
-      "description": "Matched tool calls observed for this session since it entered the dumb zone, including the denied one."
+      "description": "Matched tool calls observed for this session since it reached the blocked zone, including the denied one. Resets when the session leaves that zone, when its zone is unknown, and on compaction."
     }
   }
 }

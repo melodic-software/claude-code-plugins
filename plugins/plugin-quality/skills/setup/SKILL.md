@@ -37,12 +37,15 @@ against that contract rather than restating it.
    - `smart` / `acceptable` / `dumb` → **zone-informed dispatch** (report the zone too).
    - `unknown`, or the `${CLAUDE_SESSION_ID}` substitution surviving unexpanded → **conservative
      dispatch** (the audit's unknown row + visible notice). `unknown` carries no direction: it is
-     a working state, not a defect and not evidence about the window either way. The
-     structural-versus-broken discriminator is on the writer side, so read `statusLine` from every
-     settings scope that can carry it (user, project, local, managed) per the context-guard reader
-     contract: no `statusLine` in any scope means this environment runs no statusline, and
-     statusline wiring is then the wrong remediation. Recommend the `context-guard` plugin's setup
-     only as an optional upgrade.
+     a working state, not a defect and not evidence about the window either way. Tell
+     structural absence from breakage per the context-guard reader contract, "Sessions with no
+     writer (`unknown` is structural)": the discriminator is whether `mcp__context-guard__status`
+     is in this session's tool list. Tool absent (mods off, the plugin not enabled, a WSL session
+     of the Desktop app, or a policy refused the tool): structural, report "no instrument in this
+     environment". Tool present but no fresh snapshot after a tool call: a real defect, usually a
+     missing `node` or an unwritable `~/.claude/context-guard/context/`; point at
+     `/context-guard:setup check`. Statusline wiring is never the remediation. Recommend the
+     `context-guard` plugin's setup only as an optional upgrade.
 3. **Convention home + effective config**. Run
    `bash "${CLAUDE_PLUGIN_ROOT}/lib/resolve-convention-home.sh" --root "${CLAUDE_PROJECT_DIR}"`
    and report by exit code; the four outcomes are distinct and never collapsed:
@@ -115,6 +118,6 @@ overlay channel).
 ## What this skill does NOT do
 
 - Run an audit (that is `/plugin-quality:audit`).
-- Install `gh` or `jq`, or wire the context-guard statusline (that plugin's own setup owns it).
+- Install `gh` or `jq`, or set up context-guard (that plugin's own setup owns it).
 - Write anything except the pointer-line region and the topic doc in `apply` (plus the gated
   retirement cleanup above).
