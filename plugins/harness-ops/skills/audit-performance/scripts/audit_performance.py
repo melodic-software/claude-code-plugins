@@ -1027,6 +1027,8 @@ def attribute_orphans(
     and stays so after the creator exits. POSIX reparents an orphan to init or
     the nearest child subreaper, so its ppid names a live adopter the table
     cannot tell from a real parent: there the census is None, not [].
+    The verdict reads the same table and is left as is, so off Windows
+    `orphans_note` says it cannot see a reparented orphan; on Windows it is None.
     """
     creator_ppids = (platform or sys.platform) == "win32"
     by_pid = {r["pid"]: r for r in records}
@@ -1136,6 +1138,19 @@ def attribute_orphans(
             "adopter from a real parent. The census needs a Windows process table, which "
             "keeps the creator's pid. This engine reports and never kills."
         )
+    orphans_note = (
+        None
+        if creator_ppids
+        else (
+            "Cannot see a reparented orphan on this platform. POSIX reparents an orphan "
+            "to init or the nearest child subreaper, so this verdict finds a live adopter "
+            "and files the orphan under live_parent, not orphans. An orphan_count of 0 "
+            "here is not a cleared suspect, and a live_parent row whose parent is init, "
+            "launchd, or a subreaper is unresolved: it may be working software or adopted "
+            "debris, and is not a kill candidate either way. This engine reports and "
+            "never kills."
+        )
+    )
     return {
         "min_age_hours": min_age_hours,
         "candidate_names": sorted(candidate_names),
@@ -1145,6 +1160,7 @@ def attribute_orphans(
         ),
         "orphans": orphans[:20],
         "orphan_count": len(orphans),
+        "orphans_note": orphans_note,
         "live_parent_count": len(live_parent),
         "live_parent_sample": live_parent[:10],
         "unknown_count": len(unknown),

@@ -1232,10 +1232,47 @@ class TestDeadParentCensusNeedsCreatorParentPids(unittest.TestCase):
                 self.assertEqual(result["unknown_count"], 0)
                 self.assertEqual(result["orphan_count"], 0)
 
+    def test_off_windows_the_verdict_says_it_cannot_see_an_adopted_orphan(self):
+        def with_adopted_shell(init_name: str) -> list[dict]:
+            return self.adopted_table(init_name) + [
+                {
+                    "pid": 505,
+                    "ppid": 1,
+                    "name": "bash",
+                    "started_epoch": self.NOW - 2 * 86400,
+                }
+            ]
+
+        for platform, init_name in (
+            ("linux", "systemd"),
+            ("darwin", "launchd"),
+        ):
+            with self.subTest(platform=platform):
+                records = with_adopted_shell(init_name)
+                result = engine.attribute_orphans(records, self.NOW, platform=platform)
+                self.assertEqual(result["orphan_count"], 0)
+                self.assertEqual(result["orphans"], [])
+                adopted = {row["pid"]: row for row in result["live_parent_sample"]}
+                self.assertIn(505, adopted)
+                self.assertIs(adopted[505]["parent_alive"], True)
+                self.assertEqual(adopted[505]["parent_name"], init_name)
+                self.assertIn("subreaper", result["orphans_note"])
+                self.assertIn("not a kill candidate", result["orphans_note"])
+                windows = engine.attribute_orphans(records, self.NOW, platform="win32")
+                for key in (
+                    "orphans",
+                    "orphan_count",
+                    "live_parent_count",
+                    "live_parent_sample",
+                ):
+                    self.assertEqual(windows[key], result[key], key)
+                self.assertIsNone(windows["orphans_note"])
+
     def test_the_live_census_reads_the_host_platform(self):
         with mock.patch.object(engine.sys, "platform", "linux"):
             census = engine.process_census(self.adopted_table("systemd"))
         self.assertIsNone(census["orphan_attribution"]["dead_parent_any_age"])
+        self.assertIn("subreaper", census["orphan_attribution"]["orphans_note"])
         with mock.patch.object(engine.sys, "platform", "win32"):
             census = engine.process_census(
                 [
@@ -1250,6 +1287,7 @@ class TestDeadParentCensusNeedsCreatorParentPids(unittest.TestCase):
         self.assertEqual(
             census["orphan_attribution"]["dead_parent_any_age"][0]["name"], "tail.exe"
         )
+        self.assertIsNone(census["orphan_attribution"]["orphans_note"])
 
 
 class TestPopulationTrend(unittest.TestCase):
