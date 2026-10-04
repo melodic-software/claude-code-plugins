@@ -121,6 +121,10 @@ assert_eq "an I15 conflict met as (A, B) and (B, A) has one id" "$(field "$FWD" 
 assert_eq "an I15 conflict carries two sites" "5" "$(printf '%s\n' "$FWD" | awk -F'\t' '{print NF}')"
 REC="$(printf '%s\n' 'skills/demo/SKILL.md:10|skills/demo/SKILL.md:14|I15' | ids --records)"
 assert_contains "the I15 record declares its claim pairwise" "$REC" '"pairwise":true'
+I39A="$(printf '%s\n' 'skills/demo/SKILL.md:10|skills/demo/SKILL.md:14|I39' | ids)"
+I39B="$(printf '%s\n' 'skills/demo/SKILL.md:14|skills/demo/SKILL.md:10|I39' | ids)"
+assert_eq "an I39 conflict met as (A, B) and (B, A) has one id" "$(field "$I39A" 2)" "$(field "$I39B" 2)"
+assert_eq "an I39 conflict carries two sites" "5" "$(printf '%s\n' "$I39A" | awk -F'\t' '{print NF}')"
 if command -v python3 >/dev/null 2>&1; then
   assert_eq "the I15 record passes audit-pass's emitter guard" "ok" \
     "$(bash "$FI" validate-record --record "$REC" 2>&1)"
@@ -162,6 +166,7 @@ REFUSED="$(printf '%s\n' \
   'skills/demo/SKILL.md:10:I99' \
   'skills/demo/SKILL.md:10|skills/demo/SKILL.md:14|I6' \
   'skills/demo/SKILL.md:10:I15' \
+  'skills/demo/SKILL.md:10:I39' \
   'skills/demo/SKILL.md:9:I6' \
   'not a row' | ids)"
 assert_contains "a line past EOF is refused" "$REFUSED" $'skills/demo/SKILL.md:999:I6\tline-past-eof'
@@ -169,9 +174,10 @@ assert_contains "an id with no claim template is refused" "$REFUSED" $'I99\tno-c
 assert_contains "a pairwise row for a single-site claim is refused" "$REFUSED" \
   $'I6\tpairwise-row-for-a-single-site-claim'
 assert_contains "a single-site I15 row is refused" "$REFUSED" $'I15\tI15-requires-two-sites'
+assert_contains "a single-site I39 row is refused" "$REFUSED" $'I39\tI39-requires-two-sites'
 assert_contains "a blank line is refused" "$REFUSED" $'skills/demo/SKILL.md:9:I6\tblank-line'
 assert_contains "a non-row is refused as unparsable" "$REFUSED" $'not a row\tunparsable-row'
-assert_eq "every refused row prints exactly one line" "6" "$(printf '%s\n' "$REFUSED" | grep -c '^#REFUSED')"
+assert_eq "every refused row prints exactly one line" "7" "$(printf '%s\n' "$REFUSED" | grep -c '^#REFUSED')"
 
 OUTSIDE="$TEST_TMPDIR/outside.md"
 printf 'Never do this.\n' >"$OUTSIDE"
