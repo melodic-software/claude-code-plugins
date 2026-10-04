@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Candidate 1 (Strong): order intake. OrderHandler, OrderValidator and OrderRepo each have one method that forwards to the next, and the coupon, subtotal and discount rules are split across them, so the tests mock every hop. Deleting the middle class would concentrate the rules rather than move them. Which candidate would you like to explore?",
+      "why": "names the chain as shallow and stops at the report"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No deepening candidates. The orders package is small and each class has a clear job.",
+      "why": "misses a real shallow chain"
+    }
+  ]
+}

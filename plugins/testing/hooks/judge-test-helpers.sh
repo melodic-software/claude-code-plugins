@@ -84,6 +84,9 @@ export CLAUDE_PLUGIN_DATA="$TMP/data" CLAUDE_PROJECT_DIR="$REPO" HOME="$TMP/home
 export TEST_SCAN_SKIP_ROOT="$TMP/judge-skip-root"
 export CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true CLAUDE_PLUGIN_OPTION_TEST_JUDGE_ENABLED=true
 export TEST_JUDGE_DEBOUNCE=0 TEST_JUDGE_CMD="$TMP/judge-stub.sh" STUB_DIR="$TMP/stub"
+# Every js_file test has the same body, so verdict reuse would answer most
+# judge runs these suites count; the reuse cases turn it back on.
+export TEST_JUDGE_REUSE=0
 DATA="$TMP/data"
 TDIR="$TMP/transcripts/-repo"
 mkdir -p "$TDIR"
@@ -97,7 +100,8 @@ PKEY="$(printf '%s\n%s' "$REPO" "$TDIR" | sha256 | cut -c1-16)"
 # else PASS. STUB_SLEEP delays the answer. STUB_MODE=denied answers UNKNOWN,
 # "the Read permission was denied", for a name holding "deny" and lists a
 # Read in the result's permission_denials; deniedtext gives the same answer
-# with no denial listed.
+# with no denial listed. For a FLAG, commentdiff proposes a diff that only adds
+# a // comment line, and realdiff one that changes the expected value.
 cat >"$TMP/judge-stub.sh" <<'EOF'
 #!/usr/bin/env bash
 n="$(date +%s)-$$-$RANDOM"
@@ -132,6 +136,16 @@ while read -r _ ord range name; do
   badquote) first="this line is not in the file" ;;
   implquote) second="  ${STUB_IMPL_QUOTE:-}  " ;;
   otherfile) diff="$(printf 'other\n' | diff -u --label a/other.txt --label b/other.txt - <(printf 'changed\n'))" ;;
+  commentdiff | realdiff)
+    if [[ "$verdict" == FLAG ]]; then
+      if [[ "$STUB_MODE" == commentdiff ]]; then
+        awk -v n="$start" '{ print } NR == n { print "  // the expected value is 3" }' "$file" >"$STUB_DIR/mod"
+      else
+        awk -v n="$((start + 1))" 'NR == n { sub(/toBe\(3\)/, "toBe(1 + 2)") } { print }' "$file" >"$STUB_DIR/mod"
+      fi
+      diff="$(diff -u --label "a/$rel" --label "b/$rel" "$file" "$STUB_DIR/mod")"
+    fi
+    ;;
   denied | deniedtext)
     if [[ "$name" == *deny* ]]; then
       verdict=UNKNOWN first=""

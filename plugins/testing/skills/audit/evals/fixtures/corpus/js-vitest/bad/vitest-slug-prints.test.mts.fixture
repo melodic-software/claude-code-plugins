@@ -1,0 +1,9 @@
+// expect: rule-zero-assertion
+// A TypeScript ES module test file: it is scanned like *.test.ts, and this
+// test only prints, so it passes whatever slugify returns.
+import { it } from 'vitest';
+import { slugify } from './slug.mts';
+
+it('slugifies a title', () => {
+  console.log(slugify('Hello World'));
+});

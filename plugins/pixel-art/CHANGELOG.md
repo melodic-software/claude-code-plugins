@@ -3,6 +3,12 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.6] - 2026-10-04
+
+### Fixed
+
+- **`capture.py` waits up to 60 s for each browser step on a slow host, and a timeout names the step ([#6219](https://github.com/melodic-software/claude-code-plugins/issues/6219)).** Opening the page had 10 s, the debugger connection 20 s, the scene's readiness 15 s, and the capture its recording length plus 20 s (30 s at least); a contended CI runner ran past them with the browser still alive, and the run failed with a bare `timed out`. Each now has 60 s, the capture its recording length plus 60 s, and the error reads, for example, `opening the scene page: timed out`. The campfire test puts capture.py's error ahead of the browser log in its failure message; the log's headless D-Bus lines were read as the cause.
+
 ## [0.6.5] - 2026-10-04
 
 ### Changed
