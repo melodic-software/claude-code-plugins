@@ -524,7 +524,7 @@ judge::harvest() {
          else null end end) as $r
     | if $r == null then empty else
       [$m.keys[] as $k
-       | (if $r.reason then {verdict: "UNKNOWN", reason: $r.reason, reason_kind: $r.kind}
+       | (if $r.reason then {verdict: "UNKNOWN", reason: $r.reason}
           else [$r.verdicts[] | select(.name == $k.name and ((.ordinal // $k.ordinal) | tostring) == ($k.ordinal | tostring))][0] end)
        | select(. != null) | {k: $k, v: .}] as $kv
       | if $r.denied == true and all($kv[]; .v.verdict | IN("FLAG", "PASS") | not) then "! muted" else
@@ -537,7 +537,7 @@ judge::harvest() {
           reason: (if $ok then ($v.reason // "" | tostring) else "the judge returned no valid verdict" end),
           model: $m.model, effort: $m.effort, blob: ($m.blob // ""), reuse_key: ($k.rk // ""), judged_at: (now | todate)}
         + (if $verdict != "UNKNOWN" then {}
-           elif ($v.reason_kind // "") != "" then {reason_kind: $v.reason_kind, origin: ""}
+           elif $r.reason then {reason_kind: $r.kind, origin: ""}
            elif $ok then {reason_kind: "judge", origin: "UNKNOWN"}
            else {reason_kind: "invalid", origin: ""} end) | tojson)"
       end end' 2>/dev/null)" || return 1
