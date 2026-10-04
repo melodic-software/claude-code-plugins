@@ -2190,9 +2190,10 @@ jobs:
           tr '\n' '\0' <"$RUNNER_TEMP/leg-suites.txt" |
             xargs -0 -r -t -n1 python -m pytest -q -o tmp_path_retention_policy=none --
 
-  # THE NODE PACKAGES THE CHANGE REACHES: the four sub-projects with their own
+  # THE NODE PACKAGES THE CHANGE REACHES: the five sub-projects with their own
   # install, typecheck, lint and test chains (the miro MCP server, the
-  # ai-briefing build, the video-digest and course-digest extraction pipelines)
+  # ai-briefing build, the video-digest and course-digest extraction pipelines,
+  # the resolve-config action)
   # and the packages of scripts/outside-node-packages.txt. A package runs when
   # a file under it, its test facade or a `file:` dependency changed, when a
   # selected Node suite sits under it, on a Node pin, and on the whole tree
@@ -2225,6 +2226,7 @@ jobs:
             plugins/ai-briefing/skills/generate/output/build/package-lock.json
             plugins/knowledge/skills/video-digest/extraction/package-lock.json
             plugins/knowledge/skills/course-digest/extraction/package-lock.json
+            .github/actions/resolve-config/package-lock.json
 
       # The miro plugin ships a Node MCP server as TypeScript source. Claude Code
       # starts src/launch.ts, which installs the runtime dependencies from the
@@ -2322,6 +2324,14 @@ jobs:
         run: |
           [[ " $PACKAGES " == *" plugins/knowledge/skills/course-digest/extraction "* ]] || exit 0
           bash plugins/knowledge/skills/course-digest/scripts/run-tests.sh test
+
+      # resolve-config has pinned dependencies (yaml, ajv) that
+      # run-outside-node-suites.sh never installs, so it installs and tests here.
+      - name: Test resolve-config
+        run: |
+          [[ " $PACKAGES " == *" .github/actions/resolve-config "* ]] || exit 0
+          npm ci --ignore-scripts --prefix .github/actions/resolve-config
+          npm test --prefix .github/actions/resolve-config
 
       # The packages of scripts/outside-node-packages.txt, each through its own
       # `npm test` (#3703); the runner takes a package directory as a path

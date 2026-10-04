@@ -31,7 +31,7 @@
           "jq"
         ]
       },
-      "degrade": "Without jq, the guards that block irreversible operations deny the call, and the other guards skip their work for the session.",
+      "degrade": "Without jq, the guards that block irreversible operations deny the call, and the other guards skip their work.",
       "install": {
         "docs": "https://jqlang.org/download/"
       },

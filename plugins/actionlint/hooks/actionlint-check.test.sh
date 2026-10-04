@@ -346,17 +346,17 @@ else
 fi
 rm -f "$ABSENT_TEL"
 
-# The missing-binary notice is the session-only prerequisite class: a subagent
-# is one more edit in the same session, so it shares the session's latch instead
-# of earning a second first notice. The first notice names the check skill and
-# the install route.
+# The missing-binary notice latches per channel: the user is told once per
+# session, and each agent's model once, since a subagent does not see what the
+# main agent was told. The first notice names the check skill and the install
+# route.
 run_absent_as() {
   local data="$1" session="$2" agent="$3" payload
   printf -v payload '{"session_id":"%s","agent_id":"%s","tool_input":{"file_path":"%s"},"tool_name":"Write"}' \
     "$session" "$agent" "$REPO/.github/workflows/clean.yml"
   (
     cd "$UNRELATED" || return 1
-    env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$data" HOOK_NOTICE_RENEW_EVERY=8 \
+    env -u CLAUDE_PROJECT_DIR PATH="$FAKEBIN" CLAUDE_PLUGIN_DATA="$data" \
       CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true bash "$HOOK" <<<"$payload"
   )
 }
@@ -368,34 +368,26 @@ else
   fail "actionlint-absent first notice lacks the check skill or install route: $OUT_ABS"
 fi
 OUT_ABS3=$(run_absent_as "$ABSENT_DATA" test-absent-1 subagent-other)
-if [[ -z "$OUT_ABS3" ]]; then
-  ok "actionlint-absent -> a different agent in the same session is silent (session-only key)"
+if jq -e '(.hookSpecificOutput.additionalContext | contains("actionlint")) and (has("systemMessage") | not)' \
+  <<<"$OUT_ABS3" >/dev/null 2>&1; then
+  ok "actionlint-absent -> a different agent in the same session tells its model only"
 else
-  fail "actionlint-absent: different agent_id re-emitted the notice: $OUT_ABS3"
+  fail "actionlint-absent: different agent_id: want the model notice alone: $OUT_ABS3"
 fi
 
-# Eight skips, one per agent in rotation, in a fresh session: the count is the
-# session's, so skips 2-7 are silent and the eighth is the renewal, which keeps
-# the install route and reports the count.
+# Sixteen skips, one per agent in rotation, in a fresh session: each of the
+# three agents' first skip tells its model; every later skip is silent, since
+# the notice is never renewed.
 RENEW_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
 RENEW_QUIET=1
-RENEW_OUT=""
-for i in 1 2 3 4 5 6 7 8; do
+for i in $(seq 1 16); do
   RENEW_OUT=$(run_absent_as "$RENEW_DATA" test-renew-1 "agent-$((i % 3))")
-  if [[ $i -ge 2 && $i -le 7 && -n "$RENEW_OUT" ]]; then RENEW_QUIET=0; fi
+  if [[ $i -ge 4 && -n "$RENEW_OUT" ]]; then RENEW_QUIET=0; fi
 done
 if [[ $RENEW_QUIET -eq 1 ]]; then
-  ok "actionlint-absent -> skips 2-7 across three agents are silent"
+  ok "actionlint-absent -> skips 4-16 across three agents are silent (no renewal)"
 else
-  fail "actionlint-absent: a skip between the first notice and the renewal was not silent"
-fi
-if jq -e --arg check "$MF_CHECK" --arg install "$MF_INSTALL" '
-  (.systemMessage | contains($install) and contains($check) and contains("8 skips this session")) and
-  (.hookSpecificOutput.additionalContext | contains($install) and contains("8 skips this session"))
-' <<<"$RENEW_OUT" >/dev/null 2>&1; then
-  ok "actionlint-absent -> the eighth skip renews the notice and keeps the install route"
-else
-  fail "actionlint-absent: renewal notice wrong: $RENEW_OUT"
+  fail "actionlint-absent: a skip after each agent's first notice was not silent"
 fi
 
 # --- jq-absent -> exit 0, VISIBLE notice once per session and agent --------------------
@@ -454,13 +446,14 @@ OUT_MIN=$(
 )
 RC_MIN=$?
 if [[ $RC_MIN -eq 0 ]]; then ok "actionlint-absent (minimal PATH) -> exit 0"; else fail "actionlint-absent exit $RC_MIN"; fi
+# The probed PATH goes to stderr (the debug log), never to a channel.
 if printf '%s' "$OUT_MIN" | jq -e '
-  (.hookSpecificOutput.additionalContext | contains("PATH probed:")) and
-  (.hookSpecificOutput.additionalContext | contains("there is no skip latch")) and
-  (.systemMessage | contains("PATH probed:")) and
+  ((.hookSpecificOutput.additionalContext | contains("PATH probed:")) | not) and
+  (.hookSpecificOutput.additionalContext | contains("this notice does not repeat this session")) and
+  ((.systemMessage | contains("PATH probed:")) | not) and
   ((.hookSpecificOutput.additionalContext | contains("skipped for this session")) | not)
 ' >/dev/null 2>&1; then
-  ok "actionlint-absent -> notice-only latch + PATH diagnostic (#2732)"
+  ok "actionlint-absent -> notice-only latch, no PATH on either channel (#2732)"
 else
   fail "actionlint-absent latch/PATH diagnostic wrong: $OUT_MIN"
 fi
@@ -690,8 +683,8 @@ else
     fi
   done
 
-  # The probe and the PostToolUse notice share one latch key, so once the probe has
-  # printed its notice the same session's first missing-binary edit is silent. MINBIN
+  # The probe tells the user and writes the user latch the PostToolUse notice reads,
+  # so the same session's first missing-binary edit tells the model only. MINBIN
   # holds jq and no actionlint, the PATH under which the hook emits its first notice.
   PG_DATA="$(mktemp -d "$PG_WORK/data.XXXXXX")"
   run_probe true "$PG_DATA" >/dev/null
@@ -702,10 +695,11 @@ else
       env -u CLAUDE_PROJECT_DIR PATH="$MINBIN" CLAUDE_PLUGIN_DATA="$PG_DATA" \
         CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true bash "$HOOK"
   )
-  if [[ -z "$OUT_PG" ]]; then
-    ok "probe-gate: the probe's notice latches the PostToolUse notice (one key)"
+  if jq -e '(.hookSpecificOutput.additionalContext | contains("actionlint")) and (has("systemMessage") | not)' \
+    <<<"$OUT_PG" >/dev/null 2>&1; then
+    ok "probe-gate: after the probe's notice, the first skip tells the model only (one user latch)"
   else
-    fail "probe-gate: the PostToolUse notice fired after the probe's notice in the same session: $OUT_PG"
+    fail "probe-gate: the first skip after the probe's notice: want the model notice alone: $OUT_PG"
   fi
   rm -rf "${PG_WORK:?}"
 fi

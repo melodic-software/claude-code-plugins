@@ -3,7 +3,7 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.5] - 2026-10-04
+## [0.6.6] - 2026-10-04
 
 ### Changed
 
@@ -12,6 +12,12 @@ All notable changes to the `miro` plugin are documented here. Format follows
 ### Fixed
 
 - **`miro_update_board` returns the board's sharing policy.** It read a top-level field the Miro SDK never sets, so the policy was always missing from the result; it now reads `policy.sharingPolicy`.
+
+## [0.6.5] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
 
 ## [0.6.4] - 2026-10-04
 
