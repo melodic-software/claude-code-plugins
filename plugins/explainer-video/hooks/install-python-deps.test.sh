@@ -169,6 +169,29 @@ else
   fail "no python: rc=$rc output=[$out]"
 fi
 
+# Only the py launcher (a python.org install without "Add python.exe to PATH"): under Git Bash or Cygwin it
+# starts pydeps.py, which then picks a listed interpreter; elsewhere a `py` is not taken for Python.
+launcher="$WORK/launcher"
+mkdir -p "$launcher"
+printf '#!/bin/sh\nprintf "%%s\\n" "$@" >"%s/py.log"\n' "$WORK" >"$launcher/py"
+chmod +x "$launcher/py"
+root="$(new_plugin launcher "$digest")"
+out="$(env PATH="$tools:$launcher" OSTYPE=msys CLAUDE_PLUGIN_DATA="$(native "$WORK/data-launcher")" "$tools/bash" "$root/hooks/install-python-deps.sh" <<<'{}')"
+rc=$?
+if [[ "$rc" -eq 0 && -z "$out" && "$(tr '\n' ' ' <"$WORK/py.log" 2>/dev/null)" == "$root/scripts/pydeps.py install --data-dir "* ]]; then
+  ok "under Git Bash, only the py launcher on PATH starts pydeps.py install"
+else
+  fail "py launcher: rc=$rc log=[$(cat "$WORK/py.log" 2>/dev/null)] output=[$out]"
+fi
+rm -f "$WORK/py.log"
+out="$(env PATH="$tools:$launcher" OSTYPE=linux-gnu CLAUDE_PLUGIN_DATA="$(native "$WORK/data-launcher")" "$tools/bash" "$root/hooks/install-python-deps.sh" <<<'{}')"
+rc=$?
+if [[ "$rc" -eq 0 && "$out" == *'Python 3.12 or 3.13 was not found'* && ! -e "$WORK/py.log" ]]; then
+  ok "outside Git Bash and Cygwin a py on PATH is not used"
+else
+  fail "py outside Windows: rc=$rc output=[$out]"
+fi
+
 echo "---"
 echo "passed: $PASS, failed: $FAIL"
 [[ "$FAIL" -eq 0 ]]

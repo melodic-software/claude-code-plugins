@@ -13,7 +13,7 @@ exit codes: install 0 ready or installed, 1 broken (reason and repair line on st
 
 Both take --requirements FILE and --probe MODULE ... (defaults: ../requirements.txt, manim), which the tests use
 to aim at a fixture lock. Whatever Python starts this script, it hands over to the first supported interpreter
-on PATH, so the hook and every skill run resolve the same install directory.
+on PATH, or on Windows listed by the py launcher, so the hook and every skill run resolve the same install directory.
 """
 import argparse
 import hashlib
@@ -196,17 +196,40 @@ def check(data, requirements=REQUIREMENTS, probe=PROBE):
     return 1 if any(r[0] == 'FAIL' for r in rows) else 0
 
 
+def _runs_supported(path):
+    probe = f'import sys; raise SystemExit(sys.version_info[:2] not in {PYTHONS})'
+    try:
+        return subprocess.run([path, '-c', probe], env=_foreign_env(), capture_output=True).returncode == 0
+    except OSError:
+        return False
+
+
+def _launcher_listed():
+    """On Windows, the python.exe paths the py launcher lists with `py -0p` (--list-paths), in its order. A
+    python.org install registers there and puts no python3.13.exe on PATH. Listing, unlike `py -3.13`, launches
+    nothing: the Python install manager installs a requested version when no runtime is installed yet."""
+    launcher = shutil.which('py') if sys.platform == 'win32' else None
+    if not launcher:
+        return []
+    try:
+        r = subprocess.run([launcher, '-0p'], env=_foreign_env(), capture_output=True, text=True, errors='replace')
+    except OSError:
+        return []
+    if r.returncode:
+        return []
+    return re.findall(r'(?im)^\s*-\S+\s+(?:\*\s+)?([a-z]:\\.*?\.exe)\b', r.stdout)
+
+
 def interpreter():
-    """The first supported interpreter on PATH, in CANDIDATES order. The hook and every run hand over to it, so
-    both resolve the same <interpreter tag> directory."""
+    """The first supported interpreter: CANDIDATES on PATH in order, then on Windows each one the py launcher lists.
+    The hook and every run hand over to it, so both resolve the same <interpreter tag> directory."""
     for name in CANDIDATES:
         found = shutil.which(name)
-        if not found or (Path(found).stat().st_size == 0 and 'windowsapps' in found.lower()):
+        if not found or ('windowsapps' in found.lower() and Path(found).stat().st_size == 0):
             continue
-        probe = f'import sys; raise SystemExit(sys.version_info[:2] not in {PYTHONS})'
-        if subprocess.run([found, '-c', probe], env=_foreign_env(), capture_output=True).returncode == 0:
+        if _runs_supported(found):
             return found
-    return None
+    return next((path for path in _launcher_listed() if _runs_supported(path)), None)
 
 
 def main(argv=None):
@@ -227,7 +250,8 @@ def main(argv=None):
         ap.error('run needs a script after --')
     failed = 2 if a.action == 'run' else 1
     if not supported(sys.version_info):
-        sys.stderr.write(f'{PLUGIN}: Python {wanted()} is required and none is on PATH (this is '
+        where = 'on PATH or listed by the py launcher (py -0p)' if sys.platform == 'win32' else 'on PATH'
+        sys.stderr.write(f'{PLUGIN}: Python {wanted()} is required and none is {where} (this is '
                          f'{sys.version_info[0]}.{sys.version_info[1]}, {sys.executable}). Install one from '
                          'https://www.python.org/downloads/ and start a new session.\n')
         return failed

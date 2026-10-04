@@ -53,10 +53,14 @@ then holds only its `hold` seconds.
 `/explainer-video:check` reports each of these. `prerequisites.json` declares them.
 
 - Python 3.12 or 3.13 with pip. Python 3.14 is not supported: moderngl and glcontext publish no
-  3.14 wheel. ManimCE is not vendored and never fetched while a skill runs: a SessionStart hook
-  installs the hash-locked set in `requirements.txt` into the plugin data directory
-  (`pip install --require-hashes`) and does nothing once it loads. A failed install is reported as
-  a notice with the repair line. The first install takes a few minutes.
+  3.14 wheel. `pydeps.py` uses the first of `python3.13`, `python3.12`, `python3` and `python` on
+  PATH that is one of them. On Windows it then tries each interpreter that
+  [`py -0p`](https://docs.python.org/3/using/windows.html#listing-runtimes) lists, so a python.org
+  install is found even when another Python comes first on PATH. ManimCE is not vendored and
+  never fetched while a skill runs: a SessionStart hook installs the hash-locked set in
+  `requirements.txt` into the plugin data directory (`pip install --require-hashes`) and does
+  nothing once it loads. A failed install is reported as a notice with the repair line. The first
+  install takes a few minutes.
 - Three packages build from their hash-pinned source archives, because no wheel exists for the
   platform: `srt` everywhere, `pycairo` on Linux and macOS, `manimpango` on Linux. Every other
   package installs from wheels only. The build needs a C compiler, `pkg-config`, and the cairo

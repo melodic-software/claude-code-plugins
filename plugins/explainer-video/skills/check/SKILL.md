@@ -18,7 +18,7 @@ python3 ${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py check --data-dir "${CLAUDE_PLUGI
 It prints one `PASS` or `FAIL` row each for Python, ManimCE, ffmpeg and ffprobe, and exits 1 when a
 row fails. A failed ManimCE row carries the repair line, which installs the locked set in the
 foreground. When the script says no Python 3.12 or 3.13 is on PATH, report that as the one failure.
-When `python3` itself is not found, run the same line with `python`.
+When `python3` itself is not found, run the same line with `python`, and on Windows then with `py`.
 
 Report the rows as printed and stop. Run the repair line only when the user asks for the install.
 

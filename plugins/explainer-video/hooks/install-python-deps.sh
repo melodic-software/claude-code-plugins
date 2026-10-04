@@ -19,18 +19,25 @@ notice() {
   hook::emit_skip_notice SessionStart "$1"
 }
 
-# Any Python starts pydeps.py, which hands over to the first Python 3.12 or 3.13 on PATH and says so
-# when there is none. A zero-length WindowsApps alias opens the Store instead of running: skip it.
+# Any Python starts pydeps.py, which hands over to the first Python 3.12 or 3.13 on PATH or, on
+# Windows, listed by the py launcher, and says so when there is none. A zero-length WindowsApps
+# python alias opens the Store instead of running: skip it. The Python install manager's py is
+# such an alias too, and it runs.
+candidates=(python3.13 python3.12 python3 python)
+case "${OSTYPE:-}" in
+msys* | cygwin*) candidates+=(py) ;;
+*) ;;
+esac
 py=""
-for candidate in python3.13 python3.12 python3 python; do
+for candidate in "${candidates[@]}"; do
   resolved="$(command -v "$candidate" 2>/dev/null)" || continue
-  [[ "$resolved" == *[Ww]indows[Aa]pps* && ! -s "$resolved" ]] && continue
+  [[ "$candidate" != py && "$resolved" == *[Ww]indows[Aa]pps* && ! -s "$resolved" ]] && continue
   py="$candidate"
   break
 done
 
 if [[ -z "$py" ]]; then
-  notice "explainer-video: Python 3.12 or 3.13 was not found on PATH, so ManimCE is not installed and /explainer-video:produce will stop. Install Python 3.13 (https://www.python.org/downloads/) and start a new session."
+  notice "explainer-video: Python 3.12 or 3.13 was not found on PATH${candidates[4]:+ or as the py launcher}, so ManimCE is not installed and /explainer-video:produce will stop. Install Python 3.13 (https://www.python.org/downloads/) and start a new session."
   exit 0
 fi
 
