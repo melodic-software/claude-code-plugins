@@ -95,6 +95,12 @@ command -v git >/dev/null 2>&1 || not_checked no-data "git is not on PATH; this 
 REPO="$(git rev-parse --show-toplevel 2>/dev/null)" ||
   not_checked no-data "not inside a git working tree; run /performance:go-faster from inside the repository's working tree"
 
+# Physical paths: git reports C:/ paths where bash uses /c/, and either may be a symlink.
+ROOT_PHYS="$(cd "$ROOT" && pwd -P)"
+REPO_PHYS="$(cd "$REPO" && pwd -P)"
+[[ "$ROOT_PHYS/" != "$REPO_PHYS/"* ]] ||
+  not_checked no-data "scratch root '$ROOT' is inside the repository '$REPO'; this check applies only when its scratch root is outside the repository"
+
 REPO_VOLUME="$(volume_of "$REPO")"
 SCRATCH_VOLUME="$(volume_of "$ROOT")"
 printf 'volume=%s\nscratch_volume=%s\n' "${REPO_VOLUME:-unknown}" "${SCRATCH_VOLUME:-unknown}"

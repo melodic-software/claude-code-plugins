@@ -157,4 +157,16 @@ assert_contains "the reason says what failed" "could not create a scratch dir un
 assert_contains "the reason names git's own test as a separate tool" "git update-index --test-untracked-cache" "$(line reason)"
 assert_eq "git never ran when the scratch dir could not be created" "0" "$(grep -c '^detail=' <<<"$RUN_OUT")"
 
+# --- 10. a scratch root inside the repository is refused before anything is created ---
+mkdir -p "$REPO/sub"
+status_before="$(git -C "$REPO" status --porcelain --untracked-files=all)"
+index_before="$(index_hash "$REPO")"
+probe "$REPO" --scratch-root "$REPO/sub"
+assert_eq "a scratch root inside the repository is not checked" "2|no-data" "$RUN_RC|$(line reason_code)"
+assert_contains "the reason says the root is inside the repository" "is inside the repository" "$(line reason)"
+assert_eq "nothing is created inside the repository" "0" "$(left_in "$REPO/sub")"
+assert_eq "git never ran inside the repository" "0" "$(grep -c '^detail=' <<<"$RUN_OUT")"
+assert_eq "the repository's status is unchanged by an inside root" "$status_before" "$(git -C "$REPO" status --porcelain --untracked-files=all)"
+assert_eq "the repository's index is unchanged by an inside root" "$index_before" "$(index_hash "$REPO")"
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1
