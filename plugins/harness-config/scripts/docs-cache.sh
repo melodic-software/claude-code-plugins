@@ -17,19 +17,28 @@
 #                          and map.tsv. It is built in a .tmp-* directory beside
 #                          it and renamed into place complete, and never
 #                          modified after.
-#   keys/<key>             the key's pointer: one line, the current entry's name,
-#                          the validated epoch and the validated UTC ISO time.
-#                          It is switched by writing a temp file and renaming it
-#                          over the old one; a reader reads it once and then
-#                          only the entry it named.
+#   keys/<key>             the key's pointer: one line, tab-separated: the current
+#                          entry's name, the validated epoch, the validated UTC
+#                          ISO time and, when the fetch that last confirmed the
+#                          entry was told how to revalidate, a validators record:
+#                          accept, request URL, ETag and Last-Modified joined by
+#                          \x1f. It is switched by writing a temp file and
+#                          renaming it over the old one; a reader reads it once
+#                          and then only the entry it named.
 #   keys/<key>.access      last access epoch, written best-effort on every
 #                          read and write
+#   keys/<key>.quarantine  written when an entry replaces one whose title
+#                          differs: JSON with at, from_entry, from_title,
+#                          to_entry and to_title. Nothing here removes it; a
+#                          reader withholds what it derived from the key.
 #
 # key is sha256 of the normalized URL (scheme and host lower-cased, fragment
 # dropped), a newline and the format. meta.json holds store_version, key, url,
-# format, sha256 (of body), bytes, content_type and retrieved (when these bytes
-# were first stored). validated (when they were last confirmed current) lives
-# in the pointer, so confirming unchanged bytes rewrites only the pointer.
+# format, sha256 (of body), bytes, content_type, title (the body's first
+# heading, else the title the writer passed, else null) and retrieved (when
+# these bytes were first stored). validated (when they were last confirmed
+# current) and the validators live in the pointer, so confirming unchanged
+# bytes rewrites only the pointer.
 #
 # A section starts at a heading outside fenced code and runs to the next
 # heading of the same or a higher level. map.tsv has one row per section:
@@ -93,16 +102,42 @@ dc_writable() {
 }
 
 # dc_entry_ok <entry dir> <key> <sha256>: the entry is complete and at this
-# layout version. Sets DC_RETRIEVED and DC_CTYPE (empty when none was stored).
+# layout version. Sets DC_RETRIEVED, DC_CTYPE, DC_FORMAT and DC_TITLE (empty
+# when none was stored).
 dc_entry_ok() {
   local rec
   [[ -f "$1/body" && -f "$1/map.tsv" && -f "$1/meta.json" ]] || return 1
   rec="$(jq -r --argjson v "$DC_STORE_VERSION" --arg k "$2" --arg s "$3" \
     'select(.store_version == $v and .key == $k and .sha256 == $s)
-     | [.retrieved, (.content_type // "")] | join("\u001f")' "$1/meta.json" 2>/dev/null)"
+     | [.retrieved, (.content_type // ""), .format, (.title // "" | gsub("[\u001f\r\n]"; " "))]
+     | join("\u001f")' "$1/meta.json" 2>/dev/null)"
+  rec="${rec%$'\r'}"
   [[ -n "$rec" ]] || return 1
   # shellcheck disable=SC2034 # read by fetch-docs.sh, which sources this file
-  IFS=$'\x1f' read -r DC_RETRIEVED DC_CTYPE <<<"$rec"
+  IFS=$'\x1f' read -r DC_RETRIEVED DC_CTYPE DC_FORMAT DC_TITLE <<<"$rec"
+}
+
+# dc_write_pointer <key> <entry name> [validators]: point the key at the entry,
+# validated now (DC_NOW must be set). Sets DC_VALIDATED_EPOCH and DC_VALIDATED.
+dc_write_pointer() {
+  local ptmp="$DC_DIR/keys/.tmp-$1-$$-$RANDOM" line="$2"$'\t'"$DC_NOW"$'\t'"$DC_NOW_ISO"
+  [[ -z "${3:-}" ]] || line+=$'\t'"$3"
+  if ! { printf '%s\n' "$line" >"$ptmp" && mv -f "$ptmp" "$DC_DIR/keys/$1"; }; then
+    rm -f "$ptmp"
+    return 1
+  fi
+  # shellcheck disable=SC2034 # read by fetch-docs.sh, which sources this file
+  DC_VALIDATED_EPOCH="$DC_NOW" DC_VALIDATED="$DC_NOW_ISO"
+}
+
+# dc_validators <accept> <request url> <etag> <last-modified>: print the
+# pointer's validators record, or nothing when there is no validator or a value
+# holds a separator.
+dc_validators() {
+  local v
+  [[ -n "$3$4" ]] || return 0
+  for v in "$@"; do [[ "$v" != *[$'\t\n\r\x1f']* ]] || return 0; done
+  printf '%s\x1f%s\x1f%s\x1f%s' "$@"
 }
 
 # dc_touch <key>: record the access time; a failed write is ignored.
@@ -112,9 +147,12 @@ dc_touch() {
 
 # dc_lookup <key | key-sha256>: resolve a key's pointer once, or name an entry
 # directly. On a usable entry set DC_KEY DC_ENTRY DC_VALIDATED_EPOCH
-# DC_VALIDATED and the dc_entry_ok fields; otherwise return 1.
+# DC_VALIDATED, DC_QUARANTINED (1 or 0), the validators the pointer holds for
+# this entry (DC_ACCEPT DC_REQ_URL DC_ETAG DC_LM, empty when none) and the
+# dc_entry_ok fields; otherwise return 1.
 dc_lookup() {
-  local name="" epoch="" iso="" key sha
+  local name="" epoch="" iso="" rest="" key sha
+  DC_ACCEPT="" DC_REQ_URL="" DC_ETAG="" DC_LM=""
   dc_readable || return 1
   dc_now
   if [[ "$1" =~ ^([0-9a-f]{64})-([0-9a-f]{64})$ ]]; then
@@ -125,19 +163,35 @@ dc_lookup() {
     return 1
   fi
   # The pointer is read once; validated belongs to the entry it names.
-  [[ -f "$DC_DIR/keys/$key" ]] && IFS=$'\t' read -r name epoch iso <"$DC_DIR/keys/$key"
-  [[ "$epoch" =~ ^[0-9]+$ && -n "$iso" && "$name" == "$key-"* ]] || name="" epoch="" iso=""
+  [[ -f "$DC_DIR/keys/$key" ]] && IFS=$'\t' read -r name epoch iso rest <"$DC_DIR/keys/$key"
+  [[ "$epoch" =~ ^[0-9]+$ && -n "$iso" && "$name" == "$key-"* ]] || name="" epoch="" iso="" rest=""
   if [[ -z "${sha:-}" ]]; then
     [[ -n "$name" ]] || return 1
     sha="${name#"$key"-}"
   elif [[ "$name" != "$key-$sha" ]]; then
-    epoch="" iso=""
+    epoch="" iso="" rest=""
   fi
   [[ "$sha" =~ ^[0-9a-f]{64}$ ]] || return 1
   DC_KEY="$key" DC_ENTRY="$DC_DIR/entries/$key-$sha"
   dc_entry_ok "$DC_ENTRY" "$key" "$sha" || return 1
   DC_VALIDATED_EPOCH="$epoch" DC_VALIDATED="$iso"
+  # shellcheck disable=SC2034 # read by fetch-docs.sh, which sources this file
+  [[ -z "$rest" ]] || IFS=$'\x1f' read -r DC_ACCEPT DC_REQ_URL DC_ETAG DC_LM <<<"$rest"
+  # shellcheck disable=SC2034 # read by fetch-docs.sh, which sources this file
+  DC_QUARANTINED=0
+  # shellcheck disable=SC2034
+  [[ ! -f "$DC_DIR/keys/$key.quarantine" ]] || DC_QUARANTINED=1
   dc_touch "$key"
+}
+
+# dc_confirm <key>-<sha256> [validators]: the fetch confirmed the entry
+# current without new bytes (a 304): point the key at it, validated now.
+# retrieved and the entry directory are unchanged. Sets the dc_lookup fields.
+dc_confirm() {
+  [[ "$1" =~ ^[0-9a-f]{64}-[0-9a-f]{64}$ ]] || return 1
+  dc_writable && dc_lookup "$1" || return 1
+  dc_write_pointer "${1%-*}" "$1" "${2:-}" || return 1
+  dc_lookup "$1"
 }
 
 # dc_map_file <file>: print the section map of a markdown file.
@@ -190,12 +244,31 @@ dc_map_file() {
   return "$rc"
 }
 
-# dc_put <url> <format> <file> [content-type]: store the file's bytes as the
-# key's current entry, validated now. Bytes already stored keep their entry and
-# its retrieved time. Sets DC_KEY DC_ENTRY DC_RETRIEVED DC_VALIDATED
-# DC_VALIDATED_EPOCH; returns 1 when nothing was stored.
+# dc_quarantine <key> <new entry name> <new title>: when the key's current
+# entry is another one with a different title, record the quarantine.
+dc_quarantine() {
+  local old="" old_title="" qtmp
+  [[ -f "$DC_DIR/keys/$1" ]] && IFS=$'\t' read -r old _ <"$DC_DIR/keys/$1"
+  [[ "$old" =~ ^[0-9a-f]{64}-[0-9a-f]{64}$ && "$old" != "$2" && -n "$3" ]] || return 0
+  old_title="$(jq -r '.title // ""' "$DC_DIR/entries/$old/meta.json" 2>/dev/null)"
+  old_title="${old_title%$'\r'}"
+  [[ -n "$old_title" && "$old_title" != "$3" ]] || return 0
+  qtmp="$DC_DIR/keys/.tmp-$1-q-$$-$RANDOM"
+  if jq -n --arg at "$DC_NOW_ISO" --arg fe "$old" --arg ft "$old_title" --arg te "$2" --arg tt "$3" \
+    '{at: $at, from_entry: $fe, from_title: $ft, to_entry: $te, to_title: $tt}' >"$qtmp"; then
+    mv -f "$qtmp" "$DC_DIR/keys/$1.quarantine"
+  fi
+  rm -f "$qtmp"
+}
+
+# dc_put <url> <format> <file> [content-type] [title] [validators]: store the
+# file's bytes as the key's current entry, validated now. title is recorded
+# only when the body has no heading; validators is a dc_validators record.
+# Bytes already stored keep their entry and its retrieved time. An entry that
+# replaces one with another title quarantines the key. Sets the dc_lookup
+# fields; returns 1 when nothing was stored.
 dc_put() {
-  local url="$1" fmt="$2" src="$3" ctype="${4:-}" key tmp sha final ptmp
+  local url="$1" fmt="$2" src="$3" ctype="${4:-}" title key tmp sha final
   [[ -f "$src" ]] || return 1
   dc_writable || return 1
   dc_now
@@ -208,10 +281,13 @@ dc_put() {
   fi
   final="$DC_DIR/entries/$key-$sha"
   if ! dc_entry_ok "$final" "$key" "$sha"; then
+    title="$(awk -F'\t' 'NR == 1 { print $7; exit }' "$tmp/map.tsv")"
+    [[ -n "$title" ]] || title="${5:-}"
     if ! jq -n --argjson v "$DC_STORE_VERSION" --arg k "$key" --arg u "$url" --arg f "$fmt" --arg s "$sha" \
-      --argjson b "$(wc -c <"$tmp/body" | tr -d ' ')" --arg c "$ctype" --arg r "$DC_NOW_ISO" \
-      '{store_version: $v, key: $k, url: $u, format: $f, sha256: $s, bytes: $b,
-        content_type: (if $c == "" then null else $c end), retrieved: $r}' >"$tmp/meta.json"; then
+      --argjson b "$(wc -c <"$tmp/body" | tr -d ' ')" --arg c "$ctype" --arg t "$title" --arg r "$DC_NOW_ISO" \
+      'def n: if . == "" then null else . end;
+       {store_version: $v, key: $k, url: $u, format: $f, sha256: $s, bytes: $b,
+        content_type: ($c | n), title: ($t | n), retrieved: $r}' >"$tmp/meta.json"; then
       rm -rf "$tmp"
       return 1
     fi
@@ -222,13 +298,9 @@ dc_put() {
   fi
   rm -rf "$tmp"
   dc_entry_ok "$final" "$key" "$sha" || return 1
-  ptmp="$DC_DIR/keys/.tmp-$key-$$-$RANDOM"
-  if ! { printf '%s\t%s\t%s\n' "$key-$sha" "$DC_NOW" "$DC_NOW_ISO" >"$ptmp" && mv -f "$ptmp" "$DC_DIR/keys/$key"; }; then
-    rm -f "$ptmp"
-    return 1
-  fi
-  DC_KEY="$key" DC_ENTRY="$final" DC_VALIDATED_EPOCH="$DC_NOW" DC_VALIDATED="$DC_NOW_ISO"
-  dc_touch "$key"
+  dc_quarantine "$key" "$key-$sha" "$DC_TITLE"
+  dc_write_pointer "$key" "$key-$sha" "${6:-}" || return 1
+  dc_lookup "$key-$sha"
 }
 
 # dc_slice_rows <map file> <body file> <id>...: print each section, in the order asked.
@@ -314,9 +386,13 @@ dc_main() {
       return 2
     }
     dc_lookup "$1" || return 1
+    local q=null
+    [[ ! -f "$DC_DIR/keys/$DC_KEY.quarantine" ]] || q="$(cat "$DC_DIR/keys/$DC_KEY.quarantine")"
     jq -c --arg e "$DC_ENTRY" --arg v "$DC_VALIDATED" --arg ve "$DC_VALIDATED_EPOCH" --argjson now "$DC_NOW" \
-      '. + {validated: (if $v == "" then null else $v end),
-            age_seconds: (if $ve == "" then null else $now - ($ve | tonumber) end), entry: $e}' "$DC_ENTRY/meta.json"
+      --arg et "$DC_ETAG" --arg lm "$DC_LM" --argjson q "$q" \
+      'def n: if . == "" then null else . end;
+       . + {validated: ($v | n), age_seconds: (if $ve == "" then null else $now - ($ve | tonumber) end),
+            etag: ($et | n), last_modified: ($lm | n), quarantine: $q, entry: $e}' "$DC_ENTRY/meta.json"
     ;;
   map | slice)
     if [[ "${1:-}" == --file ]]; then

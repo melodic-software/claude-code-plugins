@@ -34,22 +34,35 @@ CLAUDE_STUB="$TEST_TMPDIR/claude"
 printf '#!/usr/bin/env bash\necho "9.8.7 (Claude Code)"\n' >"$CLAUDE_STUB"
 chmod +x "$CLAUDE_STUB"
 
-# The curl stand-in serves $CURL_SHIM_SRC/<last URL segment>. A sidecar
-# <name>.status, <name>.ctype or <name>.effective overrides the HTTP status,
-# the content type or the final URL for that file. A file that is not served
-# exits 22 with no output, and a <name>.partial file is written and then fails
-# with curl's short-transfer code, like a body cut off mid-download.
+# The curl stand-in serves $CURL_SHIM_SRC/<last URL segment> and logs every
+# request with its headers. A sidecar <name>.status, <name>.ctype or
+# <name>.effective overrides the HTTP status, the content type or the final URL
+# for that file. <name>.etag and <name>.lastmod are sent as ETag and
+# Last-Modified (Date is <name>.date, else a fixed time), and a request whose
+# If-None-Match or If-Modified-Since matches them gets an empty 304. A request
+# with Accept: text/markdown gets <name>.accept-md, when present, as
+# text/markdown. A file that is not served exits 22 with no output, and a
+# <name>.partial file is written and then fails with curl's short-transfer
+# code, like a body cut off mid-download.
 SHIM="$TEST_TMPDIR/shim"
 mkdir -p "$SHIM"
 cat >"$SHIM/curl" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$CURL_SHIM_LOG"
-out="" url="" wfmt=""
+out="" url="" wfmt="" hdr="" accept="" inm="" ims=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  -o | -w | --connect-timeout | --max-time | --proto | --proto-redir | --max-redirs)
+  -o | -w | -D | -H | --connect-timeout | --max-time | --proto | --proto-redir | --max-redirs)
     [[ "$1" == "-o" ]] && out="$2"
     [[ "$1" == "-w" ]] && wfmt="$2"
+    [[ "$1" == "-D" ]] && hdr="$2"
+    if [[ "$1" == "-H" ]]; then
+      case "$2" in
+      "Accept: "*) accept="${2#Accept: }" ;;
+      "If-None-Match: "*) inm="${2#If-None-Match: }" ;;
+      "If-Modified-Since: "*) ims="${2#If-Modified-Since: }" ;;
+      esac
+    fi
     shift 2
     ;;
   -*) shift ;;
@@ -66,12 +79,34 @@ if [[ -f "$src.partial" ]]; then
   exit 18
 fi
 [[ -f "$src" ]] || exit 22
-cp "$src" "$out"
 status=200
-[[ -f "$src.status" ]] && status="$(cat "$src.status")"
 ctype="text/markdown; charset=utf-8"
 [[ "$name" == llms.txt ]] && ctype="text/plain; charset=utf-8"
 [[ -f "$src.ctype" ]] && ctype="$(cat "$src.ctype")"
+body="$src"
+if [[ "$accept" == text/markdown && -f "$src.accept-md" ]]; then
+  body="$src.accept-md"
+  ctype="text/markdown; charset=utf-8"
+fi
+[[ -f "$src.status" ]] && status="$(cat "$src.status")"
+etag="" lastmod="" date="Mon, 01 Jan 2001 00:00:00 GMT"
+[[ -f "$src.etag" ]] && etag="$(cat "$src.etag")"
+[[ -f "$src.lastmod" ]] && lastmod="$(cat "$src.lastmod")"
+[[ -f "$src.date" ]] && date="$(cat "$src.date")"
+if [[ (-n "$etag" && "$inm" == "$etag") || (-n "$lastmod" && "$ims" == "$lastmod") ]]; then
+  status=304
+  body=""
+fi
+if [[ -n "$body" ]]; then cp "$body" "$out"; fi
+if [[ -n "$hdr" ]]; then
+  {
+    printf 'HTTP/1.1 %s X\r\nDate: %s\r\n' "$status" "$date"
+    [[ -z "$etag" ]] || printf 'ETag: %s\r\n' "$etag"
+    [[ -z "$lastmod" ]] || printf 'Last-Modified: %s\r\n' "$lastmod"
+    printf '\r\n'
+  } >"$hdr"
+fi
+[[ "$status" != 304 ]] || ctype=""
 effective="$url"
 [[ -f "$src.effective" ]] && effective="$(cat "$src.effective")"
 wfmt="${wfmt//%\{http_code\}/$status}"
@@ -421,7 +456,7 @@ assert_eq "profile: anthropic index and page resolve" "read read https://code.cl
 rc=0
 err="$(FETCH_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --profile nope --out "$TEST_TMPDIR/outp-bad" skills 2>&1 >/dev/null)" || rc=$?
 assert_eq "profile: an unknown profile is fatal" 2 "$rc"
-assert_eq "profile: the error names the profile" "ERROR: unknown profile: nope (known: anthropic)" "$err"
+assert_eq "profile: the error names the profile" "ERROR: unknown profile: nope (known: anthropic, platform, generic)" "$err"
 assert_no_file "profile: an unknown profile writes no manifest" "$TEST_TMPDIR/outp-bad/manifest.json"
 rc=0
 FETCH_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --profile --out "$TEST_TMPDIR/outp-bad" skills >/dev/null 2>&1 || rc=$?
@@ -436,6 +471,224 @@ PATH="$TEST_TMPDIR/tbin:$PATH" FETCH_DOCS_FIXTURE_DIR="$TEST_TMPDIR/nowhere" FET
   bash "$SCRIPT" --index-url "$INDEX" --out "$TEST_TMPDIR/out-to" skills || true
 assert_eq "timeout: probe bounded to 30 s" 30 "$(cat "$TEST_TMPDIR/timeout.log" 2>/dev/null)"
 assert_eq "timeout: version still read" 9.8.7 "$(jq -r .claude_version "$TEST_TMPDIR/out-to/manifest.json")"
+
+# --- platform profile -------------------------------------------------------------
+fx="$TEST_TMPDIR/fxplat"
+mkdir -p "$fx/build-with-claude"
+printf '%s\n' '# Docs' '- [Overview](https://platform.claude.com/docs/en/build-with-claude/overview.md): o' >"$fx/llms.txt"
+printf '%s\n' '# Overview' >"$fx/build-with-claude/overview.md"
+FETCH_DOCS_FIXTURE_DIR="$fx" bash "$SCRIPT" --profile platform --out "$TEST_TMPDIR/outplat" build-with-claude/overview >/dev/null
+assert_eq "platform: index at the platform root, pages under /docs/" \
+  "https://platform.claude.com/llms.txt read https://platform.claude.com/docs/en/build-with-claude/overview.md markdown" \
+  "$(jq -r '"\(.index.url) \(.pages[0].state) \(.pages[0].url) \(.pages[0].format)"' "$TEST_TMPDIR/outplat/manifest.json")"
+
+# --- generic profile: negotiation, validators, identity, conversion --------------
+G1=1000000000
+G1_ISO='2001-09-09T01:46:40Z'
+G2=1000000100
+G2_ISO='2001-09-09T01:48:20Z'
+PAGE_URL='https://docs.test/guide/page'
+PY_LOG="$TEST_TMPDIR/py.log"
+export PY_LOG
+CONV="$TEST_TMPDIR/conv.sh"
+cat >"$CONV" <<'EOF'
+#!/usr/bin/env bash
+printf 'PYTHONUTF8=%s\n' "${PYTHONUTF8:-}" >>"$PY_LOG"
+sed -e 's|<h1>\(.*\)</h1>|# \1|' -e 's/<[^>]*>//g' "$1" | grep -v '^[[:space:]]*$'
+EOF
+# mk_py <dir> <name> <probe output>: a python stand-in whose probe prints the
+# given output and which runs the converter with bash otherwise.
+mk_py() {
+  mkdir -p "$1"
+  cat >"$1/$2" <<EOF
+#!/usr/bin/env bash
+if [[ "\$1" == -c ]]; then printf '$2 probed\n' >>"\$PY_LOG"; printf '%s' '$3'; exit 0; fi
+printf '$2 ran\n' >>"\$PY_LOG"
+exec bash "\$@"
+EOF
+  chmod +x "$1/$2"
+}
+PYOK="$TEST_TMPDIR/pyok"
+mk_py "$PYOK" python3 $'3\r\n'
+mk_py "$PYOK" python 3
+PYSKIP="$TEST_TMPDIR/pyskip"
+mk_py "$PYSKIP" python3 ''
+mk_py "$PYSKIP" python 3
+PYNONE="$TEST_TMPDIR/pynone"
+mk_py "$PYNONE" python3 ''
+mk_py "$PYNONE" python 2
+
+# gen_run <served dir> <out> <python dir> <now> <args...>: the generic profile
+# through the curl stand-in, with the stand-in converter and cache.
+gen_run() {
+  local src="$1" out="$2" py="$3" now="$4"
+  shift 4
+  env -u FETCH_DOCS_FIXTURE_DIR PATH="$py:$SHIM:$PATH" CURL_SHIM_LOG="$src.log" CURL_SHIM_SRC="$src" \
+    FETCH_DOCS_CLAUDE_BIN="$CLAUDE_STUB" FETCH_DOCS_HTML2MD="${GEN_CONV:-$CONV}" DOCS_CACHE_NOW="$now" \
+    bash "$SCRIPT" --profile generic --out "$TEST_TMPDIR/$out" "$@"
+}
+gpage() { jq -r ".pages[0] | $2" "$TEST_TMPDIR/$1/manifest.json"; }
+key_of() { printf '%s\n%s' "$1" "$2" | sha256sum | cut -d' ' -f1; }
+entry_dirs() { find "$1/entries" -mindepth 1 -maxdepth 1 -type d ! -name '.tmp-*' | wc -l | tr -d ' '; }
+html_page() { printf '<html><head><title>%s</title></head><body>\n<h1>%s</h1>\n<p>%s</p>\n</body></html>\n' "$2" "$2" "$3" >"$1"; }
+
+# Markdown by Accept, with an ETag: the revalidation is a 304.
+src="$TEST_TMPDIR/gs-etag"
+mkdir -p "$src"
+printf '%s\n' '# Page' 'body' >"$src/page"
+printf '%s' '"v1"' >"$src/page.etag"
+C="$TEST_TMPDIR/gc-etag"
+gen_run "$src" go-e1 "$PYOK" $G1 --cache --cache-dir "$C" "$PAGE_URL"
+assert_eq "generic: Accept: text/markdown is the first channel; slug is host/path" \
+  "read markdown docs-test/guide/page 200" "$(gpage go-e1 '"\(.state) \(.format) \(.slug) \(.status)"')"
+assert_eq "generic: the first request asks for markdown" 1 "$(grep -c -- '-H Accept: text/markdown' "$src.log")"
+assert_eq "generic: the index record is null" null "$(jq -c .index "$TEST_TMPDIR/go-e1/manifest.json")"
+gen_run "$src" go-e2 "$PYOK" $G2 --cache --cache-dir "$C" --max-age 0 "$PAGE_URL"
+assert_eq "validators: the revalidation carries If-None-Match" 1 "$(grep -c -- '-H If-None-Match: "v1"' "$src.log")"
+assert_eq "validators: an ETag 304 serves the entry, moves validated, keeps retrieved" \
+  "read cache 304 $G1_ISO $G2_ISO 0 markdown" \
+  "$(gpage go-e2 '"\(.state) \(.source) \(.status) \(.retrieved) \(.validated) \(.age_seconds) \(.format)"')"
+assert_eq "validators: a 304 writes the page file from the entry" "" "$(cmp "$src/page" "$TEST_TMPDIR/go-e2/docs-test/guide/page.md" 2>&1)"
+assert_eq "validators: a 304 adds no entry" 1 "$(entry_dirs "$C")"
+
+# Last-Modified then 304; Last-Modified equal to Date is absent.
+src="$TEST_TMPDIR/gs-lm"
+mkdir -p "$src"
+printf '%s\n' '# Page' 'body' >"$src/page"
+printf '%s' 'Sat, 08 Sep 2001 00:00:00 GMT' >"$src/page.lastmod"
+C="$TEST_TMPDIR/gc-lm"
+gen_run "$src" go-l1 "$PYOK" $G1 --cache --cache-dir "$C" "$PAGE_URL"
+gen_run "$src" go-l2 "$PYOK" $G2 --cache --cache-dir "$C" --max-age 0 "$PAGE_URL"
+assert_eq "validators: the revalidation carries If-Modified-Since" 1 "$(grep -c -- '-H If-Modified-Since: Sat, 08 Sep 2001 00:00:00 GMT' "$src.log")"
+assert_eq "validators: a Last-Modified 304 moves validated and keeps retrieved" "cache 304 $G1_ISO $G2_ISO" \
+  "$(gpage go-l2 '"\(.source) \(.status) \(.retrieved) \(.validated)"')"
+src="$TEST_TMPDIR/gs-lmdate"
+mkdir -p "$src"
+printf '%s\n' '# Page' 'body' >"$src/page"
+printf '%s' 'Mon, 01 Jan 2001 00:00:00 GMT' >"$src/page.lastmod"
+C="$TEST_TMPDIR/gc-lmdate"
+gen_run "$src" go-d1 "$PYOK" $G1 --cache --cache-dir "$C" "$PAGE_URL"
+gen_run "$src" go-d2 "$PYOK" $G2 --cache --cache-dir "$C" --max-age 0 "$PAGE_URL"
+assert_eq "edge: Last-Modified equal to Date is not a validator" 0 "$(grep -c -- 'If-Modified-Since' "$src.log")"
+assert_eq "edge: so the revalidation is a refetch, same sha, validated moved" "fetch 200 $G1_ISO $G2_ISO" \
+  "$(gpage go-d2 '"\(.source) \(.status) \(.retrieved) \(.validated)"')"
+
+# No validator: same bytes move validated only; changed bytes are a new entry.
+src="$TEST_TMPDIR/gs-none"
+mkdir -p "$src"
+printf '%s\n' '# Page' 'one' >"$src/page"
+C="$TEST_TMPDIR/gc-none"
+gen_run "$src" go-n1 "$PYOK" $G1 --cache --cache-dir "$C" "$PAGE_URL"
+gen_run "$src" go-n2 "$PYOK" $G2 --cache --cache-dir "$C" --max-age 0 "$PAGE_URL"
+assert_eq "validators: none and the same bytes: no conditional header, validated moves, retrieved stays" \
+  "0 fetch $G1_ISO $G2_ISO 1" \
+  "$(grep -c -- 'If-' "$src.log") $(gpage go-n2 '"\(.source) \(.retrieved) \(.validated)"') $(entry_dirs "$C")"
+printf '%s\n' '# Page' 'two' >"$src/page"
+gen_run "$src" go-n3 "$PYOK" $G2 --cache --cache-dir "$C" --max-age 0 "$PAGE_URL"
+assert_eq "validators: none and changed bytes: a new entry with a new retrieved" "$G2_ISO $G2_ISO 2 false" \
+  "$(gpage go-n3 '"\(.retrieved) \(.validated)"') $(entry_dirs "$C") $(gpage go-n3 .quarantined)"
+
+# One URL negotiating to markdown, then to HTML: two keys.
+src="$TEST_TMPDIR/gs-neg"
+mkdir -p "$src"
+html_page "$src/page" Page 'html body'
+printf '%s' 'text/html; charset=utf-8' >"$src/page.ctype"
+printf '%s\n' '# Page' 'md body' >"$src/page.accept-md"
+C="$TEST_TMPDIR/gc-neg"
+gen_run "$src" go-g1 "$PYOK" $G1 --cache --cache-dir "$C" "$PAGE_URL"
+rm -f "$src/page.accept-md"
+: >"$PY_LOG"
+gen_run "$src" go-g2 "$PYOK" $G2 --cache --cache-dir "$C" --max-age 0 "$PAGE_URL"
+assert_eq "edge: same URL negotiated to markdown then HTML is two cache keys" \
+  "markdown $(key_of "$PAGE_URL" markdown) html-converted $(key_of "$PAGE_URL" html-converted)" \
+  "$(gpage go-g1 '"\(.format) \(.cache_key)"') $(gpage go-g2 '"\(.format) \(.cache_key)"')"
+assert_eq "html: the converted page is the converter's output" "$(printf '%s\n' 'Page' '# Page' 'html body')" \
+  "$(cat "$TEST_TMPDIR/go-g2/docs-test/guide/page.md")"
+assert_eq "html: the converter runs under PYTHONUTF8=1 with the first passing python" "$(printf '%s\n' 'python3 probed' 'python3 ran' 'PYTHONUTF8=1')" "$(cat "$PY_LOG")"
+assert_eq "html: the title is recorded and the HTML content type kept" "Page text/html; charset=utf-8" \
+  "$(gpage go-g2 '"\(.title) \(.content_type)"')"
+assert_eq "html: the .md suffix and llms.txt were tried before converting" "1 1" \
+  "$(grep -cF 'https://docs.test/guide/page.md' "$src.log") $(grep -cF 'https://docs.test/llms.txt' "$src.log")"
+
+# .md suffix and the llms.txt bundle as markdown channels.
+src="$TEST_TMPDIR/gs-sfx"
+mkdir -p "$src"
+html_page "$src/page" Page body
+printf '%s' 'text/html' >"$src/page.ctype"
+printf '%s\n' '# Page' 'from suffix' >"$src/page.md"
+gen_run "$src" go-s1 "$PYNONE" $G1 "$PAGE_URL"
+assert_eq "generic: an HTML answer falls through to the .md suffix" "read markdown from suffix" \
+  "$(gpage go-s1 '"\(.state) \(.format)"') $(sed -n 2p "$TEST_TMPDIR/go-s1/docs-test/guide/page.md")"
+src="$TEST_TMPDIR/gs-bundle"
+mkdir -p "$src"
+html_page "$src/page" Page body
+printf '%s' 'text/html' >"$src/page.ctype"
+printf '%s\n' '# Site' '- [Page](/guide/page.txt): the page' '- [Other](https://elsewhere.test/guide/page.txt): no' >"$src/llms.txt"
+printf '%s\n' '# Page' 'from bundle' >"$src/page.txt"
+printf '%s' 'text/plain' >"$src/page.txt.ctype"
+gen_run "$src" go-b1 "$PYNONE" $G1 "$PAGE_URL"
+assert_eq "generic: a same-origin llms.txt link for the path is the third channel" "read markdown from bundle" \
+  "$(gpage go-b1 '"\(.state) \(.format)"') $(sed -n 2p "$TEST_TMPDIR/go-b1/docs-test/guide/page.md")"
+
+# A retitled page quarantines its key.
+src="$TEST_TMPDIR/gs-title"
+mkdir -p "$src"
+printf '%s\n' '# Alpha' 'body' >"$src/page"
+C="$TEST_TMPDIR/gc-title"
+gen_run "$src" go-t1 "$PYOK" $G1 --cache --cache-dir "$C" "$PAGE_URL"
+printf '%s\n' '# Beta' 'body' >"$src/page"
+gen_run "$src" go-t2 "$PYOK" $G2 --cache --cache-dir "$C" --max-age 0 "$PAGE_URL"
+assert_eq "identity: a first read is not quarantined" "Alpha false" "$(gpage go-t1 '"\(.title) \(.quarantined)"')"
+assert_eq "identity: a title change between fetches quarantines the key" "Beta true" "$(gpage go-t2 '"\(.title) \(.quarantined)"')"
+assert_eq "identity: the cache records both titles" "Alpha Beta" \
+  "$(bash "$SCRIPT_DIR/docs-cache.sh" --cache-dir "$C" info "$(key_of "$PAGE_URL" markdown)" | jq -r '.quarantine | "\(.from_title) \(.to_title)"')"
+
+# A redirect off the requested path is unread, and no other channel is tried.
+src="$TEST_TMPDIR/gs-redir"
+mkdir -p "$src"
+printf '%s\n' '# Other' >"$src/page"
+printf '%s' 'https://docs.test/guide/other-page' >"$src/page.effective"
+printf '%s\n' '# Page' >"$src/page.md"
+gen_run "$src" go-r1 "$PYOK" $G1 "$PAGE_URL"
+assert_eq "edge: a redirect off the requested path is unread" "unread redirected-off-path" "$(gpage go-r1 '"\(.state) \(.reason)"')"
+assert_no_file "edge: a redirect off path leaves no page file" "$TEST_TMPDIR/go-r1/docs-test/guide/page.md"
+assert_eq "edge: a redirect off path tries no other channel" 1 "$(wc -l <"$src.log" | tr -d ' ')"
+printf '%s' 'https://elsewhere.test/guide/page' >"$src/page.effective"
+gen_run "$src" go-r2 "$PYOK" $G1 "$PAGE_URL"
+assert_eq "generic: a redirect off origin is unread" "unread redirected-off-origin" "$(gpage go-r2 '"\(.state) \(.reason)"')"
+
+# Python resolution.
+src="$TEST_TMPDIR/gs-py"
+mkdir -p "$src"
+html_page "$src/page" Page body
+printf '%s' 'text/html' >"$src/page.ctype"
+gen_run "$src" go-p1 "$PYNONE" $G1 "$PAGE_URL"
+assert_eq "html: no python that passes the probe is unread no-python" "unread no-python" "$(gpage go-p1 '"\(.state) \(.reason)"')"
+assert_no_file "html: no-python leaves no page file" "$TEST_TMPDIR/go-p1/docs-test/guide/page.md"
+: >"$PY_LOG"
+gen_run "$src" go-p2 "$PYSKIP" $G1 "$PAGE_URL"
+assert_eq "html: a python3 that fails the probe is skipped for python" "read html-converted" "$(gpage go-p2 '"\(.state) \(.format)"')"
+assert_eq "html: python3 was probed and never ran; python ran" "$(printf '%s\n' 'python3 probed' 'python probed' 'python ran' 'PYTHONUTF8=1')" "$(cat "$PY_LOG")"
+GEN_CONV="$TEST_TMPDIR/absent.py" gen_run "$src" go-p3 "$PYOK" $G1 "$PAGE_URL" 2>/dev/null
+assert_eq "html: a missing converter is unread converter-missing" "unread converter-missing" "$(gpage go-p3 '"\(.state) \(.reason)"')"
+
+# Targets the generic profile refuses.
+gen_run "$src" go-x "$PYOK" $G1 skills 'http://docs.test/a' >/dev/null
+assert_eq "generic: a slug or a non-https URL is unread invalid-url" "invalid-url invalid-url" \
+  "$(jq -r '[.pages[].reason] | join(" ")' "$TEST_TMPDIR/go-x/manifest.json")"
+rc=0
+gen_run "$src" go-y "$PYOK" $G1 --discover >/dev/null 2>&1 || rc=$?
+assert_eq "generic: --discover is fatal" 2 "$rc"
+
+# An indexed profile revalidates with its stored ETag too.
+src="$(new_served served-idx-etag)"
+printf '%s' '"s1"' >"$src/skills.md.etag"
+C="$TEST_TMPDIR/gc-idx"
+DOCS_CACHE_NOW=$G1 shim_run "$src" "$TEST_TMPDIR/out-ie1" --cache --cache-dir "$C" skills
+DOCS_CACHE_NOW=$G2 shim_run "$src" "$TEST_TMPDIR/out-ie2" --cache --cache-dir "$C" --max-age 0 skills
+assert_eq "validators: an indexed page revalidates with If-None-Match and a 304" "cache 304 $G1_ISO $G2_ISO" \
+  "$(page "$TEST_TMPDIR/out-ie2/manifest.json" skills '"\(.source) \(.status) \(.retrieved) \(.validated)"')"
+assert_eq "validators: the conditional request named the stored ETag" 1 "$(grep -c -- 'If-None-Match: "s1"' "$src.log")"
 
 echo
 if [[ $FAILED -eq 0 ]]; then

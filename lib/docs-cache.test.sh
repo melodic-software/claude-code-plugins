@@ -259,6 +259,65 @@ DOCS_CACHE_DIR="$TEST_TMPDIR/env-lost" bash "$SCRIPT" --cache-dir "$TEST_TMPDIR/
 assert_eq "dir: --cache-dir wins over DOCS_CACHE_DIR" "1 0" \
   "$([[ -f "$TEST_TMPDIR/flag/store_version" ]] && echo 1 || echo 0) $([[ -e "$TEST_TMPDIR/env-lost" ]] && echo 1 || echo 0)"
 
+# --- title, quarantine and validators ------------------------------------------------
+# lib_run <store> <now> <shell code>: run code with this file's functions sourced.
+lib_run() {
+  DOCS_CACHE_NOW="$2" bash -c '. "$1"; dc_set_dir "$2"; eval "$3"' _ "$SCRIPT" "$1" "$3"
+}
+S="$TEST_TMPDIR/s-title"
+KEY="$(DOCS_CACHE_NOW=$T1 dc "$S" put "$URL" markdown "$PAGE")"
+assert_eq "title: the body's first heading is recorded" Top "$(info "$S" $T1 "$KEY" | jq -r .title)"
+printf '%s\n' 'no heading here' >"$TEST_TMPDIR/plain.md"
+lib_run "$S" $T1 'dc_put https://docs.test/plain markdown "'"$TEST_TMPDIR/plain.md"'" text/markdown "From Title"' >/dev/null
+assert_eq "title: a body with no heading records the title the writer passed" "From Title" \
+  "$(info "$S" $T1 "$(dc "$S" key https://docs.test/plain markdown)" | jq -r .title)"
+assert_eq "title: an entry with a heading ignores the passed title" Top \
+  "$(lib_run "$S" $T1 'dc_put "'"$URL"'" markdown "'"$PAGE"'" "" Other >/dev/null; printf %s "$DC_TITLE"')"
+
+S="$TEST_TMPDIR/s-quarantine"
+printf '%s\n' '# Alpha' 'body one' >"$TEST_TMPDIR/alpha.md"
+printf '%s\n' '# Alpha' 'body two' >"$TEST_TMPDIR/alpha2.md"
+printf '%s\n' '# Beta' 'body two' >"$TEST_TMPDIR/beta.md"
+KEY="$(DOCS_CACHE_NOW=$T1 dc "$S" put "$URL" markdown "$TEST_TMPDIR/alpha.md")"
+DOCS_CACHE_NOW=$T2 dc "$S" put "$URL" markdown "$TEST_TMPDIR/alpha2.md" >/dev/null
+assert_eq "quarantine: new bytes under the same title do not quarantine" null "$(info "$S" $T2 "$KEY" | jq -c .quarantine)"
+DOCS_CACHE_NOW=$T3 dc "$S" put "$URL" markdown "$TEST_TMPDIR/beta.md" >/dev/null
+assert_eq "quarantine: a retitled page quarantines the key, naming both titles and entries" \
+  "Alpha Beta $KEY-$(sha <"$TEST_TMPDIR/alpha2.md") $KEY-$(sha <"$TEST_TMPDIR/beta.md") $T3_ISO" \
+  "$(info "$S" $T3 "$KEY" | jq -r '.quarantine | "\(.from_title) \(.to_title) \(.from_entry) \(.to_entry) \(.at)"')"
+assert_eq "quarantine: the sourced API reports it" 1 "$(lib_run "$S" $T3 'dc_lookup '"$KEY"'; printf %s "$DC_QUARANTINED"')"
+DOCS_CACHE_NOW=$T3 dc "$S" put "$URL" markdown "$TEST_TMPDIR/alpha.md" >/dev/null
+assert_eq "quarantine: retitling back keeps the key quarantined, recording the latest change" "Beta Alpha" \
+  "$(info "$S" $T3 "$KEY" | jq -r '.quarantine | "\(.from_title) \(.to_title)"')"
+
+S="$TEST_TMPDIR/s-formats"
+k_md="$(DOCS_CACHE_NOW=$T1 dc "$S" put "$URL" markdown "$TEST_TMPDIR/alpha.md")"
+k_html="$(DOCS_CACHE_NOW=$T1 dc "$S" put "$URL" html-converted "$TEST_TMPDIR/beta.md")"
+assert_eq "edge: one URL in two formats is two keys, each with its own entry" "1 1 1" \
+  "$([[ "$k_md" != "$k_html" ]] && echo 1 || echo 0) $(entries_for "$S" "$k_md") $(entries_for "$S" "$k_html")"
+assert_eq "edge: the second format neither replaces nor quarantines the first" "Alpha null Beta null" \
+  "$(info "$S" $T1 "$k_md" | jq -r '"\(.title) \(.quarantine)"') $(info "$S" $T1 "$k_html" | jq -r '"\(.title) \(.quarantine)"')"
+
+S="$TEST_TMPDIR/s-validators"
+KEY="$(lib_run "$S" $T1 'dc_put "'"$URL"'" markdown "'"$PAGE"'" text/markdown "" "$(printf "%s\x1f%s\x1f%s\x1f%s" text/markdown "'"$URL"'" "\"v1\"" "Sat, 08 Sep 2001 00:00:00 GMT")" >/dev/null; printf %s "$DC_KEY"')"
+assert_eq "validators: the pointer holds them and info reports them" '"v1" Sat, 08 Sep 2001 00:00:00 GMT' \
+  "$(info "$S" $T1 "$KEY" | jq -r '"\(.etag) \(.last_modified)"')"
+assert_eq "validators: the sourced API reads them back" "text/markdown $URL" \
+  "$(lib_run "$S" $T1 'dc_lookup '"$KEY"'; printf "%s %s" "$DC_ACCEPT" "$DC_REQ_URL"')"
+entry="$(info "$S" $T1 "$KEY" | jq -r .entry)"
+lib_run "$S" $T3 'dc_confirm '"$KEY-$(sha <"$PAGE")" >/dev/null
+rec="$(info "$S" $T3 "$KEY")"
+assert_eq "edge: a confirm (a 304) moves validated and leaves retrieved and the entry" "$T1_ISO $T3_ISO 0 $entry 1" \
+  "$(jq -r '"\(.retrieved) \(.validated) \(.age_seconds) \(.entry)"' <<<"$rec") $(entries_for "$S" "$KEY")"
+assert_eq "validators: a confirm with none passed drops them" "null null" "$(jq -r '"\(.etag) \(.last_modified)"' <<<"$rec")"
+assert_eq "validators: a value holding a separator is not stored" "" \
+  "$(lib_run "$S" $T1 'dc_validators a "b	c" "\"v\"" ""')"
+assert_eq "validators: no ETag and no Last-Modified is no record" "" \
+  "$(lib_run "$S" $T1 'dc_validators text/markdown '"$URL"' "" ""')"
+rc=0
+lib_run "$S" $T1 'dc_confirm '"$KEY"'-'"$(printf '%064d' 0)" >/dev/null 2>&1 || rc=$?
+assert_eq "validators: confirming an entry that is not stored fails" 1 "$rc"
+
 # --- usage --------------------------------------------------------------------------
 rc=0
 bash "$SCRIPT" --cache-dir "$TEST_TMPDIR/u" nope >/dev/null 2>&1 || rc=$?

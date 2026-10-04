@@ -5,6 +5,30 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.11.0] - 2026-10-04
+
+### Added
+
+- **`scripts/fetch-docs.sh --profile generic` reads any https docs page** with no index. It prefers
+  markdown: the URL with `Accept: text/markdown`, then the URL with a `.md` suffix, then a
+  same-origin link for the page in the origin's `llms.txt`. With none, the page's HTML is converted
+  by `html2md.py` beside the script, run by the first of `python3` and `python` whose probe prints
+  `3`; with no such interpreter the page is unread with reason `no-python`. A request that lands off
+  the requested origin or path is unread (`redirected-off-origin`, `redirected-off-path`). The slug
+  is `host/path`, and the manifest's `index` is null
+  ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).
+- **`--profile platform`** reads platform.claude.com pages through its `llms.txt`.
+- **Revalidation with HTTP validators.** With `--cache`, an entry stored with an `ETag` or
+  `Last-Modified` is revalidated with `If-None-Match` or `If-Modified-Since`; a 304 serves the entry
+  with `status: 304` and moves only `validated`. A `Last-Modified` equal to the response's `Date`
+  is ignored. A host with neither is re-downloaded: the same sha256 moves `validated`, new bytes are
+  a new entry with a new `retrieved`.
+- **Manifest records gain `format` (`markdown` or `html-converted`), `title` and `quarantined`.**
+  The cache key includes the format, so one URL that negotiates to markdown and to HTML is two keys.
+- **`scripts/docs-cache.sh` records each entry's title** (its first heading, else the HTML
+  `<title>`) and **quarantines a key** when a new entry's title differs from the one it replaces;
+  `info` reports `title`, `etag`, `last_modified` and `quarantine`.
+
 ## [1.10.0] - 2026-10-04
 
 ### Added
