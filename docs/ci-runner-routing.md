@@ -132,9 +132,13 @@ legs of about 120 suite-seconds each and `test-python` one to four of about
 `scripts/suite-seconds.txt`, and each leg installs only the optional toolchains
 (the animation wheels, the inventory's parser packages, the DuckDB CLI) its
 suites need. `test-node` runs the Node packages the change reaches. An
-UNMAPPED file adds the whole corpus of its language. A Python pin runs every
+UNMAPPED code file adds the whole corpus of its language; unmapped data adds
+nothing, since no suite reads it, and is still counted. A Python pin runs every
 Python suite, a Node pin every Node package, and a change to `ci.yml` or
-`.github/actions/` every suite of every lane.
+`.github/actions/checkout-with-base/` every suite of every lane. `lint-shell`
+skips when the change touches none of its inputs (the `lint_shell` filter
+group: shell and Python source, hook and bin directories, skill and agent
+markdown, its gates and their baselines).
 
 A suite that scans a directory never names the file that changed, so it
 declares what it reads in a `# test-scope:` header, and the selector's rule R8

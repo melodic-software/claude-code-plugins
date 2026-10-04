@@ -94,7 +94,8 @@
 #                           draft's included: a draft runs no lane, and a green
 #                           draft ci-status is the newest one on the SHA from
 #                           the flip to ready until the lanes finish.
-#  12. A SKIP IS CHECKED  — a test lane `test-<x>` may skip as a job on its own
+#  12. A SKIP IS CHECKED  — a test lane `test-<x>`, or `lint-shell` on
+#                           `run_shell`, may skip as a job on its own
 #                           `run_<x>` row (the ordered-skip form, the draft gate
 #                           followed by `&& needs.<resolver>.outputs.run_<x> ==
 #                           'true'`), and only when the aggregate reads its
@@ -165,6 +166,7 @@ run_tests${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && githu
 run_bash${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.bash != 'false' }}
 run_python${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.python != 'false' }}
 run_node${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.node != 'false' }}
+run_shell${TAB}\${{ github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['lint_shell'] != 'false' }}
 run_workflows${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
 run_skill_checker${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
 run_manifests${TAB}\${{ steps.${DETECT_STEP_ID}.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}"
@@ -1008,7 +1010,8 @@ is_required() { [[ "$required_closure" == *$'\n'"$1"$'\n'* ]]; }
 # aggregate fails.
 
 #
-# AND A TEST LANE'S ORDERED SKIP, `job_gate_skip <x>` on job `test-<x>` only,
+# AND A TEST LANE'S ORDERED SKIP, `job_gate_skip <x>` on job `test-<x>` (or
+# `lint-shell`, row `run_shell`) only,
 # whose `run_<x>` row the table names: the draft form followed by
 # `&& needs.<resolver>.outputs.run_<x> == 'true'`. Still no status-check
 # function, so the needs edge governs; what it subtracts is a change that gives
@@ -1022,12 +1025,14 @@ while IFS= read -r refjob; do
   while IFS="$TAB" read -r cjob ctext; do
     [[ "$cjob" == "$refjob" ]] || continue
     [[ "$ctext" == "$JOB_GATE" || "$ctext" == "$JOB_GATE_DRAFT" ]] && continue
-    if [[ "$refjob" == test-* ]] && table_has "run_${refjob#test-}" &&
-      [[ "$ctext" == "$(job_gate_skip "${refjob#test-}")" ]]; then
+    lane="${refjob#test-}"
+    [[ "$refjob" == lint-shell ]] && lane=shell
+    if [[ "$refjob" == test-* || "$refjob" == lint-shell ]] && table_has "run_$lane" &&
+      [[ "$ctext" == "$(job_gate_skip "$lane")" ]]; then
       skip_lanes+="$refjob"$'\n'
       continue
     fi
-    report "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER: job '$refjob' reads $OUTPUT_NAME, is reachable from ${AGGREGATE_JOB}.needs, and carries a job-level condition that is not the contract-only gate: if: $ctext. If that condition ever lets the job run when '$RESOLVER_JOB' did not succeed, $OUTPUT_NAME is the empty string, both sanctioned forms are false, and the lane reports success having run nothing. Gate the steps and let the needs edge decide whether the job runs at all. The only sanctioned job-level conditions here are exactly: $JOB_GATE, or $JOB_GATE_DRAFT, or on a job test-<x> whose run_<x> row the table names: $(job_gate_skip '<x>')"
+    report "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER: job '$refjob' reads $OUTPUT_NAME, is reachable from ${AGGREGATE_JOB}.needs, and carries a job-level condition that is not the contract-only gate: if: $ctext. If that condition ever lets the job run when '$RESOLVER_JOB' did not succeed, $OUTPUT_NAME is the empty string, both sanctioned forms are false, and the lane reports success having run nothing. Gate the steps and let the needs edge decide whether the job runs at all. The only sanctioned job-level conditions here are exactly: $JOB_GATE, or $JOB_GATE_DRAFT, or on a job test-<x> (or lint-shell, row shell) whose run_<x> row the table names: $(job_gate_skip '<x>')"
   done <<<"$REC_JOBIF"
 done <<<"$refjobs"
 

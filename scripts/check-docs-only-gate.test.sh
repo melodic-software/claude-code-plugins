@@ -85,6 +85,7 @@ jobs:
       run_bash: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.bash != 'false' }}
       run_python: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.python != 'false' }}
       run_node: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.node != 'false' }}
+      run_shell: ${{ github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['lint_shell'] != 'false' }}
       run_workflows: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
       run_skill_checker: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
       run_manifests: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}
@@ -511,6 +512,17 @@ xform_append "$scratch/o3.yml" "
       - name: Run the selected Python suites
         run: echo python" "$ordered"
 expect "a test lane skipping on its own row, checked by the aggregate, is allowed" 0 "scope resolved once" --check "$ordered"
+
+f="$scratch/ordered-skip-lint-shell.yml"
+xform_replace_line "$ordered" "  test-python:" "  lint-shell:" "$scratch/ls1.yml"
+xform_replace_line "$scratch/ls1.yml" "      - test-python" "      - lint-shell" "$scratch/ls2.yml"
+xform_replace_line "$scratch/ls2.yml" "    if: $skip_form" "    if: ${skip_form/run_python/run_shell}" "$f"
+expect "lint-shell skipping on its run_shell row, checked by the aggregate, is allowed" 0 "scope resolved once" --check "$f"
+
+f="$scratch/ordered-skip-lint-repo.yml"
+xform_replace_line "$scratch/ordered-skip-lint-shell.yml" "  lint-shell:" "  lint-repo:" "$scratch/lr1.yml"
+xform_replace_line "$scratch/lr1.yml" "      - lint-shell" "      - lint-repo" "$f"
+expect "another lint lane may not borrow run_shell" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
 
 f="$scratch/ordered-skip-other-row.yml"
 xform_replace_line "$ordered" "    if: $skip_form" "    if: ${skip_form/run_python/run_bash}" "$f"

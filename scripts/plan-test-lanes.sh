@@ -34,10 +34,11 @@
 #
 # WIDER THAN THE SELECTION, NEVER NARROWER:
 #   - the whole tree (no base and no paths: a schedule, a dispatch, a push with no
-#     usable base), or a change to ci.yml or .github/actions/: every suite of
-#     every ci.yml lane. test-windows.yml, .github/actions/ and .python-version
-#     (every Windows job sets up its Python from it) do the same for the Windows
-#     plan.
+#     usable base), or a change to ci.yml or .github/actions/checkout-with-base/,
+#     the one local action every lane runs: every suite of every ci.yml lane.
+#     test-windows.yml, that action and .python-version (every Windows job sets
+#     up its Python from it) do the same for the Windows plan. The other local
+#     actions are Node packages the selector maps like any other code.
 #   - a Python pin (.python-version, pyproject.toml, uv.lock, requirements*.txt,
 #     .github/requirements-ci*.txt): every Python suite.
 #   - a Node pin (.node-version, the root package.json or package-lock.json):
@@ -136,7 +137,7 @@ for f in ${changed[@]+"${changed[@]}"}; do
   case "$f" in
   .github/workflows/ci.yml) whole=1 ;;
   .github/workflows/test-windows.yml) whole_windows=1 ;;
-  .github/actions/*)
+  .github/actions/checkout-with-base/*)
     whole=1
     whole_windows=1
     ;;
