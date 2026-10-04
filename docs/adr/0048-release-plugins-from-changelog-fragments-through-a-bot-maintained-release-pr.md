@@ -106,7 +106,7 @@ version bumps and CHANGELOG entries.
     leaves it alone, so its CI can finish. A fragment for a plugin the release does not bump waits
     for the next release; that plugin's version does not move, so its newer code ships under no
     wrong version.
-  - A rebuild is the same reset and `createCommitOnBranch` write described below, so it restarts
+  - A rebuild is the same `createCommitOnBranch` write and ref update described below, so it restarts
     the release pull request's CI. Rebuilds happen only as often as fragments for the plugins in
     the open release land, not on every main commit.
 - **Release check:** a `check-changelog-fragments.sh --check-release <base>` step, run only on the
@@ -145,9 +145,11 @@ version bumps and CHANGELOG entries.
 - **Token and signed commits:** a GitHub App installation token, not `GITHUB_TOKEN`. Pull request
   events that `GITHUB_TOKEN` causes start no workflow runs or start them waiting for approval
   (`dependabot-plugin-release.yml:15-20`), and the release pull request needs `ci-status` to run.
-  The bot resets `release/plugins` to main's tip with a ref update, then writes its one commit
-  through `createCommitOnBranch` with `expectedHeadOid`, the pattern at
-  `dependabot-plugin-release.yml:85-111`. GitHub signs that commit, which satisfies main's
+  The bot writes its one commit through `createCommitOnBranch` with `expectedHeadOid` (the
+  pattern at `dependabot-plugin-release.yml:85-111`) on a staging branch,
+  `release/plugins-next`, cut from main's tip, then moves `release/plugins` to that commit in one
+  ref update. A run cut short therefore never leaves the open release pull request with an empty
+  head. GitHub signs that commit, which satisfies main's
   `required_signatures` rule.
 - **Title and merge:** `chore(release): release <n> plugins`, which passes the Conventional Commits
   title check. Its body lists each plugin's old and new version and the fragments consumed. Until

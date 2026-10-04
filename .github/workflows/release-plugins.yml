@@ -216,9 +216,10 @@ jobs:
           if [ "$released" = 0 ]; then
             echo "::notice::No fragment on main asks for a release; nothing to write. A bump: none fragment waits for the next release."
           fi
-      # Reset release/plugins to main's tip with a ref update, then write the
-      # release as one signed commit on it. expectedHeadOid makes the write fail
-      # if anything moved the branch after the reset.
+      # Write the release as one signed commit on a staging branch cut from
+      # main's tip, then move release/plugins to that exact commit in one ref
+      # update: a run cut short never leaves the open release PR with an empty
+      # head. expectedHeadOid makes the write fail if the staging branch moved.
       - name: Write the release commit
         if: steps.decide.outputs.build == 'true' && steps.release.outputs.released != '0'
         env:
@@ -227,11 +228,9 @@ jobs:
           RELEASED: ${{ steps.release.outputs.released }}
         run: |
           refs="repos/$GITHUB_REPOSITORY/git/refs"
-          if gh api "$refs/heads/release/plugins" --silent 2>/dev/null; then
-            gh api -X PATCH "$refs/heads/release/plugins" -f sha="$MAIN_SHA" -F force=true --silent
-          else
-            gh api -X POST "$refs" -f ref=refs/heads/release/plugins -f sha="$MAIN_SHA" --silent
-          fi
+          stage=release/plugins-next
+          gh api -X DELETE "$refs/heads/$stage" --silent 2>/dev/null || true
+          gh api -X POST "$refs" -f ref="refs/heads/$stage" -f sha="$MAIN_SHA" --silent
           git add -A -- plugins .changes
           # File contents go through stdin and files, never argv, so a large file fits.
           adds="$RUNNER_TEMP/additions.jsonl"
@@ -246,19 +245,27 @@ jobs:
           jq -n \
             --arg repo "$GITHUB_REPOSITORY" \
             --arg oid "$MAIN_SHA" \
+            --arg stage "$stage" \
             --arg headline "chore(release): release $RELEASED plugins" \
             --slurpfile additions "$adds" \
             --slurpfile deletions "$dels" \
             '{
               query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
               variables: {input: {
-                branch: {repositoryNameWithOwner: $repo, branchName: "release/plugins"},
+                branch: {repositoryNameWithOwner: $repo, branchName: $stage},
                 expectedHeadOid: $oid,
                 message: {headline: $headline},
                 fileChanges: {additions: $additions, deletions: $deletions[0]}
               }}
             }' >"$payload"
-          gh api graphql --input - <"$payload" | jq -e '.data.createCommitOnBranch.commit.oid'
+          oid="$(gh api graphql --input - <"$payload" | jq -er '.data.createCommitOnBranch.commit.oid')"
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/release/plugins" --silent 2>/dev/null; then
+            gh api -X PATCH "$refs/heads/release/plugins" -f sha="$oid" -F force=true --silent
+          else
+            gh api -X POST "$refs" -f ref=refs/heads/release/plugins -f sha="$oid" --silent
+          fi
+          gh api -X DELETE "$refs/heads/$stage" --silent
+          echo "Wrote release commit $oid."
       - name: Open or update the release pull request
         if: steps.decide.outputs.build == 'true' && steps.release.outputs.released != '0'
         env:
