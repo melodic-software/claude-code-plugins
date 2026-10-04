@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.79.11] - 2026-10-04
+
+### Fixed
+
+- **The babysit merge gate counts the renamed security review check.** The security lane now accepts `pr-review-security / security-review` beside the previous `security-review / security-review`, so the `--auto` wait and the gate do not hold a PR whose repo moved to the renamed caller. A failing renamed check holds, and a `security-review` job under any other caller still does not count.
+
 ## [0.79.10] - 2026-10-04
 
 ### Changed
