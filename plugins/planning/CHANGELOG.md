@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.67.7] - 2026-10-04
+
+### Added
+
+- **Four `claude plugin eval` cases for whether `/planning:interview` asks the quality bar in round 1.** Two vague build requests with no stated bar check, by regex, that round 1 asks whether the work is a prototype, an internal tool or production. Two controls state the bar (a throwaway prototype, a production service) and check that round 1 does not ask it again, with a model judge for whether the round's depth fits the stated bar. The cases carry the `row38` tag so they run alone. The skill body is unchanged: the cases record what the current skill does before any instruction is added.
+
 ## [0.67.6] - 2026-10-04
 
 ### Changed
