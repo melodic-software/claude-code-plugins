@@ -4,6 +4,7 @@
     {
       "id": 1,
       "name": "no-args-asks-target-and-focus",
+      "narration": true,
       "prompt": "We've been editing src/orders/OrderService.cs for a while and the pricing loop is getting hard to read. /improvement:improve",
       "expected_output": "Infers from the conversation that the target is the pricing loop in src/orders/OrderService.cs and that the focus is readability, then asks the user in one message to confirm or correct the target, the focus, and a one-sentence statement of what done looks like, offering the inferred values as recommended answers. Makes no edit, branch, or PR before the user answers.",
       "files": [],
@@ -16,6 +17,7 @@
     {
       "id": 2,
       "name": "explicit-target-ships-one-small-pr",
+      "narration": true,
       "prompt": "/improvement:improve plugins/example/scripts/report.sh --focus standards",
       "expected_output": "Resolves the repo's written standards through the standards contract's resolution ladder plus the path-scoped rules governing the script, lists candidate gaps each with a Basis citing the standard's file and line, picks the single smallest complete improvement within the PR scope budget, verifies it with the project's checks, commits it, and opens one draft PR whose body names the gap, the standard, and the verification. Other gaps found are listed as candidates in the PR body, not fixed.",
       "files": [],
