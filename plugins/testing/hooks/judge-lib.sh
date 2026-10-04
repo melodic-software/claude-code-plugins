@@ -7,6 +7,7 @@
 # State under $DATA, all pruned after 7 days by test-scan.sh:
 #   sessions/<pkey>/<sid>/<tool_use_id>.json  test-scan's record of each write
 #   verdicts/<pkey>/<sid>/<key-hash>.json     the ledger, written by rename
+#   verdicts/<pkey>/<sid>/blob-<blob id>      a test file as a judge run read it
 #   relayed/<pkey>/<sid>/<key-hash>           shown to the user (mirrors the ledger)
 #   locks/<key-hash>, slots/<n>               "pid host start", noclobber
 #   pending/<pkey>/<sid>/<id>                 a background job: "pid host start", then the file
@@ -19,7 +20,8 @@
 # valid when lines shift and goes stale when the text changes.
 #
 # Test seams: TEST_JUDGE_CMD replaces `claude`, TEST_JUDGE_RUN_TIMEOUT (seconds,
-# default 150) the per-run hang guard, TEST_SCAN_SCANNER the scanner.
+# default 150) the per-run hang guard, TEST_SCAN_SCANNER the scanner,
+# TEST_JUDGE_REUSE=0 turns verdict reuse off (judge::reuse).
 # shellcheck disable=SC2034,SC2154 # globals shared with the sourcing hook
 
 # judge::num <var> <value> <default>: set var to the value when it is a plain
@@ -525,7 +527,7 @@ judge::harvest() {
           verdict: $verdict,
           evidence: [$v.evidence[]? | strings], source: ($v.source // "" | tostring), diff: ($v.diff // "" | tostring),
           reason: (if $ok then ($v.reason // "" | tostring) else "the judge returned no valid verdict" end),
-          model: $m.model, effort: $m.effort, blob: ($m.blob // ""), judged_at: (now | todate)}
+          model: $m.model, effort: $m.effort, blob: ($m.blob // ""), reuse_key: ($k.rk // ""), judged_at: (now | todate)}
         + (if $verdict != "UNKNOWN" then {}
            elif ($v.reason_kind // "") != "" then {reason_kind: $v.reason_kind, origin: ""}
            elif $ok then {reason_kind: "judge", origin: "UNKNOWN"}
@@ -550,6 +552,63 @@ judge::harvest_orphans() {
       [[ -s "$r" ]] && judge::harvest "$r" && rm -f "$r" "$r.keys" "$r.err"
     done
   done
+}
+
+# judge::reuse <file> <repo> <ledger dir> <keys>: give each key whose block
+# body is identical to one the session set already judged PASS that verdict,
+# and set KEYS_LEFT to the keys still to judge. The reuse key is the sha256 of
+# the body with the test's name taken out of its declaration line and every
+# whitespace character dropped, the judge model and effort, the judge prompt
+# file's hash and the repository: the same body under the same judge. A FLAG
+# is never reused (its diff edits its own file), and a whole-file key has no
+# reuse key. RKEYS gets "<key-hash> <reuse key>" per key, for the ledger. A
+# reused verdict records reused_from, the block it was judged for.
+# TEST_JUDGE_REUSE=0 (a test seam) turns the lookup off; the keys are still
+# recorded.
+judge::reuse() {
+  local file="$1" repo="$2" dir="$3" kh o r s e name line body psha rk src d f files=() text=() named
+  local -A have=()
+  RKEYS="" KEYS_LEFT=""
+  psha="$(judge::sha "$HOOK_DIR/test-judge-prompt.md" 2>/dev/null)" && psha="${psha#\\}" && psha="${psha%% *}"
+  mapfile -t text <"$file" 2>/dev/null
+  if [[ "${TEST_JUDGE_REUSE:-1}" != 0 ]]; then
+    for d in "${SESSIONS[@]}"; do
+      for f in "$DATA/verdicts/$PKEY/$d"/*.json; do [[ -f "$f" ]] && files+=("$f"); done
+    done
+    if ((${#files[@]})); then
+      while IFS=$'\t' read -r rk f; do
+        [[ -n "$rk" && -z "${have[$rk]+x}" ]] && have[$rk]="$f"
+      done < <(jq -Rr 'fromjson? | objects | select(.verdict == "PASS" and (.reuse_key // "") != "")
+        | "\(.reuse_key)\t\(input_filename)"' "${files[@]}" 2>/dev/null)
+    fi
+  fi
+  while read -r kh o r name; do
+    [[ -n "$kh" ]] || continue
+    rk=""
+    if [[ "$o" =~ ^[1-9][0-9]*$ && "$r" =~ ^([0-9]+)-([0-9]+)$ ]]; then
+      s="${BASH_REMATCH[1]}" e="${BASH_REMATCH[2]}" body="" named=0
+      for line in "${text[@]:s-1:e-s+1}"; do
+        if ((named == 0)) && [[ "$line" == *"$name"* ]]; then
+          line="${line/"$name"/}"
+          named=1
+        fi
+        body+="$line"
+      done
+      rk="$(printf '%s\n%s\n%s\n%s\n%s' "${body//[[:space:]]/}" "$MODEL" "$EFFORT" "$psha" "$repo" | judge::sha -)"
+      rk="${rk#\\}" && rk="${rk:0:32}"
+    fi
+    RKEYS+="$kh $rk"$'\n'
+    src="${rk:+${have[$rk]:-}}"
+    if [[ -n "$src" ]] && jq -c --arg f "$file" --arg r "$repo" --arg n "$name" --argjson o "$o" --argjson s "$s" --argjson e "$e" \
+      --arg k "${src##*/}" '. + {file: $f, repo: $r, name: $n, ordinal: $o, start: $s, end: $e, blob: "",
+        reused_from: {file: .file, name: .name, ordinal: .ordinal, key: ($k | rtrimstr(".json"))}, reused_at: (now | todate)}' \
+      "$src" >"$dir/.$kh.tmp" 2>/dev/null && mv -f -- "$dir/.$kh.tmp" "$dir/$kh.json"; then
+      judge::log "reused: $file: $name: the PASS verdict of ${src##*/}"
+      continue
+    fi
+    rm -f -- "$dir/.$kh.tmp"
+    KEYS_LEFT+="$kh $o $r $name"$'\n'
+  done <<<"$4"
 }
 
 judge::section1() {
@@ -583,12 +642,21 @@ judge::run() {
     judge::release_run "$res"
     return 0
   fi
-  n=0
-  while read -r kh _; do [[ -z "$kh" ]] || n=$((n + 1)); done <<<"$keys"
-  budget="$((((n + 9) / 10) * 90))" && budget="$((budget / 100)).$(printf '%02d' $((budget % 100)))"
   mkdir -p "$dir"
   raw="$dir/.run-$BASHPID-$RANDOM"
   judge::pick "$writers"
+  RKEYS=""
+  if [[ -n "$MODEL" && -n "$repo" ]]; then
+    judge::reuse "$file" "$repo" "$dir" "$keys"
+    keys="$KEYS_LEFT"
+    if [[ -z "$keys" ]]; then
+      judge::release_run "$res"
+      return 0
+    fi
+  fi
+  n=0
+  while read -r kh _; do [[ -z "$kh" ]] || n=$((n + 1)); done <<<"$keys"
+  budget="$((((n + 9) / 10) * 90))" && budget="$((budget / 100)).$(printf '%02d' $((budget % 100)))"
   # The file as the judge reads it, kept under its blob id, so a quote can be
   # told stale (the file changed since) from made up.
   blob=""
@@ -601,10 +669,12 @@ judge::run() {
       cp -- "$file" "$dir/.blob-$blob.$BASHPID" 2>/dev/null && mv -f -- "$dir/.blob-$blob.$BASHPID" "$dir/blob-$blob" || blob=""
     fi
   fi
-  jq -Rn --arg file "$file" --arg repo "$repo" --arg model "$MODEL" --arg effort "$EFFORT" --arg budget "$budget" --arg blob "$blob" '
-    {file: $file, repo: $repo, model: $model, effort: $effort, budget: $budget, blob: $blob,
+  jq -Rn --arg file "$file" --arg repo "$repo" --arg model "$MODEL" --arg effort "$EFFORT" --arg budget "$budget" --arg blob "$blob" \
+    --arg rks "$RKEYS" '
+    ($rks | split("\n") | map(select(. != "") | split(" ") | {key: .[0], value: (.[1] // "")}) | from_entries) as $rk
+    | {file: $file, repo: $repo, model: $model, effort: $effort, budget: $budget, blob: $blob,
      keys: [inputs | select(. != "") | capture("^(?<kh>[^ ]+) (?<ordinal>[0-9]+) (?<start>[0-9]+)-(?<end>[0-9]+) (?<name>.*)$")
-       | .ordinal |= tonumber | .start |= tonumber | .end |= tonumber]}' <<<"$keys" >"$raw.keys"
+       | .ordinal |= tonumber | .start |= tonumber | .end |= tonumber | .rk = ($rk[.kh] // "")]}' <<<"$keys" >"$raw.keys"
   rc="" kind=""
   [[ -n "$MODEL" ]] || rc="no judge class differs from the writers" kind=no-judge-class
   [[ -n "$repo" ]] || rc="no repository: the judge reads only inside a git repository, and this test file is in none" kind=no-repository
@@ -693,6 +763,40 @@ judge::relay_reset() {
 }
 judge::relay_reset
 
+# judge::comment_only <file> <diff>: true when every line the diff adds or
+# removes is blank or a comment in the file's language, by the comment syntax
+# of the scanner adapters' languages: // and /* */ for JS and TS, C# and Go;
+# # (and <# #> for PowerShell) for bash, Python and PowerShell. A file of any
+# other language is never comment-only. Lines before a hunk's @@ are headers.
+judge::comment_only() {
+  local style line body hunk=0
+  case "${1,,}" in
+  *.js | *.jsx | *.ts | *.tsx | *.mjs | *.cjs | *.mts | *.cts | *.cs | *.go) style=slash ;;
+  *.sh | *.bash | *.bats | *.py | *.ps1 | *.psm1) style=pound ;;
+  *) return 1 ;;
+  esac
+  while IFS= read -r line; do
+    case "$line" in
+    'diff --git '*) hunk=0 ;;
+    '@@'*) hunk=1 ;;
+    [+-]*)
+      ((hunk)) || continue
+      body="${line:1}" && body="${body//$'\r'/}"
+      body="${body#"${body%%[![:space:]]*}"}"
+      [[ -z "$body" ]] && continue
+      if [[ "$style" == slash ]]; then
+        [[ "$body" == //* || "$body" == /\** || "$body" == \** ]] && continue
+      else
+        [[ "$body" == \#* || "$body" == '<#'* ]] && continue
+      fi
+      return 1
+      ;;
+    *) ;;
+    esac
+  done <<<"$2"
+  return 0
+}
+
 # judge::grounded <repo> <snapshot> <quote>...: set GROUND to "" when every
 # quote is in a file of the repository, else to "stale" when each one that is
 # not was in the snapshot of the test file the judge read (the file changed
@@ -770,6 +874,8 @@ judge::validate() {
       judge::same_path "$repo/$p" "$file" || why="the proposed diff touches another file" kind=diff-other-file
     done < <(git -C "$repo" apply --check --numstat -z 2>/dev/null <<<"$diff" && printf 'ok\0')
     ((n)) || why="the proposed diff does not apply" kind=diff-not-apply
+    [[ -z "$why" ]] && judge::comment_only "$file" "$diff" &&
+      why="the proposed diff changes only comments or blank lines" kind=comment-only
   fi
   if [[ -n "$why" ]]; then
     verdict=UNKNOWN

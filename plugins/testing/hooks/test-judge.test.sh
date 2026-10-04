@@ -359,6 +359,62 @@ f="$(field .systemMessage | sed -n 's/.*Findings: //p')"
 assert_contains "its reason says the file changed, not that the quote was made up" "$(cat "$f")" \
   "the test file changed after the judge read it: a quoted line is no longer in it"
 
+# A FLAG whose proposed diff only adds a comment repairs nothing: it is
+# UNKNOWN with that reason. A diff that changes the expected value stays a
+# FLAG.
+for mode in commentdiff realdiff; do
+  transcript "c$mode" claude-sonnet-5
+  CD="$REPO/src/$mode.test.ts"
+  js_file "$CD" "$mode flag"
+  record "c$mode" w1 "$CD" null
+  STUB_MODE=$mode stop "c$mode"
+  f="$(field .systemMessage | sed -n 's/.*Findings: //p')"
+  if [[ "$mode" == commentdiff ]]; then
+    check "a comment-only repair is UNKNOWN" '[[ "$(field .systemMessage)" == *"(0 FLAG, 0 PASS, 1 UNKNOWN)"* ]]'
+    assert_contains "with the comment-only reason" "$(cat "$f")" "the proposed diff changes only comments or blank lines"
+  else
+    check "a repair that changes the expected value stays a FLAG" '[[ "$(field .decision)" == block && "$(field .systemMessage)" == *"(1 FLAG, 0 PASS, 0 UNKNOWN)"* ]]'
+    assert_contains "and its diff is in the findings" "$(cat "$f")" "+  expect(add(1, 2)).toBe(1 + 2);"
+  fi
+done
+
+# Verdict reuse, within the session set: a block whose body (its name taken
+# out, whitespace dropped) matches one judged PASS under the same judge is
+# given that verdict without a run, recording where it came from; a body
+# judged FLAG is judged again, since a diff edits one file.
+transcript ru claude-sonnet-5
+R1="$REPO/src/reuse-one.test.ts"
+R2="$REPO/src/reuse-two.test.ts"
+js_file "$R1" reuseone
+printf '%s\n' "import { test, expect } from 'vitest';" "import { add } from './add';" "test('reusetwo',  () => {" \
+  "    expect(add(1, 2)).toBe(3);" "});" >"$R2"
+record ru w1 "$R1" null
+record ru w2 "$R2" null
+TEST_JUDGE_REUSE=1 bg ru w1 "$R1"
+stub_reset
+TEST_JUDGE_REUSE=1 bg ru w2 "$R2"
+check "an identical body judged PASS is reused: no judge run" '[[ "$(stub_calls)" == 0 ]]'
+check "the reused verdict is a PASS that records reused_from" \
+  '[[ "$(verdict_of ru reusetwo | jq -c "[.verdict, .reused_from.name, .start, .file == \"$R2\"]")" == "[\"PASS\",\"reuseone\",3,true]" ]]'
+TEST_JUDGE_REUSE=1 stop ru
+check "both are relayed as PASS" '[[ "$(field .decision)" != block && "$(field .systemMessage)" == *"reviewed 2 tests (0 FLAG, 2 PASS, 0 UNKNOWN)"* ]]'
+transcript ruf claude-sonnet-5
+RF1="$REPO/src/reuseflag-one.test.ts"
+RF2="$REPO/src/reuseflag-two.test.ts"
+js_file "$RF1" "reuse flag"
+js_file "$RF2" "reuse flag too"
+record ruf w1 "$RF1" null
+record ruf w2 "$RF2" null
+TEST_JUDGE_REUSE=1 bg ruf w1 "$RF1"
+stub_reset
+TEST_JUDGE_REUSE=1 bg ruf w2 "$RF2"
+check "an identical body judged FLAG is judged again" '[[ "$(stub_calls)" == 1 && "$(verdict_of ruf "reuse flag too" | jq -r ".reused_from // empty")" == "" ]]'
+transcript rux claude-sonnet-5
+record rux w1 "$REPO/src/reuse-two.test.ts" null
+stub_reset
+TEST_JUDGE_REUSE=1 bg rux w1 "$R2"
+check "reuse is session-scoped: another session judges the same body itself" '[[ "$(stub_calls)" == 1 ]]'
+
 # A test file in a linked worktree whose quote is a line only that worktree's
 # branch holds is grounded in the worktree, though its record names the main
 # checkout.
@@ -742,6 +798,17 @@ lib() { # lib <OSTYPE> <bash>: run bash with the judge library sourced
   TESTING_OSTYPE="$1" HOOK_DIR="$HOOK_DIR" DATA="$DATA" PKEY=x SID=x TPATH=x bash -c \
     'source "$HOOK_DIR/scanner-run.sh"; source "$HOOK_DIR/judge-lib.sh"; '"$2"
 }
+# The comment syntax follows the file's language: # for Python and bash, //
+# and /* */ for the brace languages; a removed comment counts too, and a
+# changed code line never does.
+PYD=$'--- a/t.py\n+++ b/t.py\n@@ -1,2 +1,3 @@\n def test_x():\n+    # the value is 3\n-    #old note\n     assert f() == 3'
+CSD=$'--- a/T.cs\n+++ b/T.cs\n@@ -1,1 +1,3 @@\n+    /* the value\n+     * is 3 */\n+\n     Assert.Equal(3, F());'
+CODE=$'--- a/t.py\n+++ b/t.py\n@@ -1,1 +1,1 @@\n-    assert f() == 3  # spec\n+    assert f() == 1 + 2  # spec'
+export PYD CSD CODE
+check "a Python diff that adds and removes only # comments is comment-only" 'lib linux-gnu "judge::comment_only t_test.py \"\$PYD\""'
+check "a C# diff that adds a /* */ comment and a blank line is comment-only" 'lib linux-gnu "judge::comment_only TTests.cs \"\$CSD\""'
+check "a changed code line with a trailing comment is not" '! lib linux-gnu "judge::comment_only t_test.py \"\$CODE\""'
+check "# in a brace language is not a comment" '! lib linux-gnu "judge::comment_only a.test.ts \"\$PYD\""'
 WA='C:\w\repo\src\a.test.ts' # portability-ok: a literal Windows path, not a regex escape
 WB='C:\W\Repo\a.ts'          # portability-ok: a literal Windows path, not a regex escape
 WL='/r/a\b.ts'               # portability-ok: a literal path holding a backslash, not a regex escape

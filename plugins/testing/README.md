@@ -109,8 +109,12 @@ effort levels.
 Before a verdict is shown, each quote must appear verbatim, whitespace trimmed, in the test file or
 in another file of the repository (tracked, or untracked and not ignored), since the line of code
 an expected value restates is often the best evidence; a quote found nowhere, or a FLAG whose
-diff does not apply or touches another file, is shown as UNKNOWN with only that reason, never its
-evidence, source or diff. The judge's copy of the test file is kept under its blob id, so a quote
+diff does not apply, touches another file or changes only comments and blank lines (by the comment
+syntax of the file's language), is shown as UNKNOWN with only that reason, never its
+evidence, source or diff. Within the session, a test whose body matches one already judged PASS
+(its name taken out and whitespace ignored), under the same judge model, effort and prompt in the
+same repository, gets that verdict without a new run, recorded as `reused_from`; a body judged
+FLAG is judged again, since its diff edits one file. The judge's copy of the test file is kept under its blob id, so a quote
 the file held when the judge read it but an edit has since removed is reported as stale, not as
 made up. The repository is the git toplevel of the test file's own directory,
 whatever the hook's working directory, and the judge resolves it again from the file before it
