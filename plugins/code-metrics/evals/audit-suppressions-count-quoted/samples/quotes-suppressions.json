@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "```text\nsuppressions=3\nunjustified=1\n```",
+      "why": "the lines as printed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The repository holds three suppressions, one of them without a reason.",
+      "why": "prose only"
+    },
+    {
+      "answer": "suppressions=33\nunjustified=1",
+      "why": "a different number"
+    }
+  ]
+}

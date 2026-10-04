@@ -364,3 +364,5 @@ lib/write-snapshot.mjs plugins/rate-limit-guard/lib/write-snapshot.mjs
 lib/write-snapshot.mjs plugins/context-guard/lib/write-snapshot.mjs
 lib/publish-gate.mjs plugins/review/lib/publish-gate.mjs
 lib/publish-gate.mjs plugins/visualization/lib/publish-gate.mjs
+lib/suppression-scan.py plugins/code-metrics/skills/audit-suppressions/scripts/suppression-scan.py
+lib/suppression-scan.py plugins/review/skills/ratchet/scripts/suppression-scan.py

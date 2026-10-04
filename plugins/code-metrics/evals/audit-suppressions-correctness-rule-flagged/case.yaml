@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: audit-suppressions-correctness-rule-flagged
+description: a suppression of a rule the team file lists as correctness is marked; a style rule is not
+tags: [audit-suppressions, config, invented]
+expected_outcome: The report reads no-floating-promises from docs/conventions/code-metrics.yaml (team layer) and marks export.ts line 2, which suppresses it, as a correctness suppression; line 4 (no-console) is not marked. Both are justified. The count of correctness suppressions is 1.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-metrics:audit-suppressions --all
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: ran-the-entry-script
+    type: tool_used
+    tool: Bash
+    input_match: audit-suppressions\.sh
+  - name: names-the-rule
+    type: regex
+    pattern: no-floating-promises
+  - name: correctness-marked
+    type: llm
+    criteria: PASS when the final reply marks the no-floating-promises suppression on export.ts line 2 as suppressing a listed correctness rule (and gives one such suppression in total) while the no-console suppression is not marked. FAIL when no suppression is marked, when no-console is marked, or when the reply calls either suppression unjustified.

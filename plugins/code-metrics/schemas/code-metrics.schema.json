@@ -126,6 +126,17 @@
       "additionalProperties": false,
       "properties": { "reference": { "$ref": "#/$defs/reference" } }
     },
+    "suppressions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "correctness_rules": {
+          "type": ["array", "null"],
+          "items": { "type": "string" },
+          "description": "Rule ids whose suppression /code-metrics:audit-suppressions marks as a correctness suppression; replaces the bundled empty list whole."
+        }
+      }
+    },
     "lanes": {
       "type": "object",
       "propertyNames": {

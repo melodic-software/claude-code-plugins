@@ -83,6 +83,15 @@ CI has no plugin installed, so the repository carries its own copy of the script
 unless the repository already carries one. A vendored copy older than the `--runs` flag exits 2 on
 it: refresh the copy before using that flag.
 
+**A suppression counter** needs the scanner in CI too. Vendor
+`${CLAUDE_SKILL_DIR}/scripts/suppression-scan.py` beside the vendored `ratchet.py`, also without its
+first two lines, and make the counter command run that copy with `--count`, for example
+`python3 <dir>/suppression-scan.py --count`. It prints `suppressions=<n>` and `unjustified=<n>`;
+ratchet `unjustified` to stop new suppressions without a reason, or `suppressions` to stop any new
+one. With no path it reads every file git does not ignore, so a fresh checkout counts exactly what
+was committed. The vendored scanner needs Python 3.11 or later and exits 2 with a one-line message
+below it, so the CI job must provide that version.
+
 ## 4. Record the ceiling
 
 ```bash

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "\"/plugins/code-metrics/skills/audit-suppressions/scripts/audit-suppressions.sh\" --all"}}],
+      "why": "the entry script"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cat docs/conventions/code-metrics.yaml"}}],
+      "why": "read the config but never ran the audit"
+    }
+  ]
+}

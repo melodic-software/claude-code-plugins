@@ -622,8 +622,11 @@ case "$err" in
 *"file(s) in scope"*"finished in"*) pass "CODE_METRICS_PROGRESS=1 reports the scope and each collector on stderr" ;;
 *) fail "CODE_METRICS_PROGRESS=1 reports the scope and each collector on stderr" "scope and finished lines" "$err" ;;
 esac
-err="$(PATH="$EMPTY_PATH" bash "$SCRIPT" audit-size --measures file_lines --all "$SOURCES" 2>&1 >/dev/null)"
+quiet="$(mktemp -d)"
+printf 'x = 1\n' >"$quiet/a.py"
+err="$(cd "$quiet" && PATH="$EMPTY_PATH" CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." bash "$SCRIPT" audit-size --measures file_lines --all 2>&1 >/dev/null)"
 assert_eq "a small run prints no progress by default" "" "$err"
+rm -rf "$quiet"
 
 # 24. An adapter whose collect exits 4 (the tool resolved but cannot run
 # here: ESLint with no configuration for the files) gets an unavailable row

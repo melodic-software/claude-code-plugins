@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "| export.ts | 2 | eslint | no-floating-promises | yes | yes | the queue retries a failed export itself |",
+      "why": "the marked row"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "2 suppressions, 0 without a reason. Correctness rules: none listed.",
+      "why": "the listed rule never appears"
+    }
+  ]
+}

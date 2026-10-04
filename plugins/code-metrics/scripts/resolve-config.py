@@ -94,6 +94,9 @@ yaml_subset = _module("yaml_subset")
 pathglob = _module("pathglob")
 
 CONTROL = re.compile(r"[\n\r\t]")
+# Lists whose items the schema types as strings; a number or a nested value
+# in one is a wrong shape, not a rule id.
+STRING_LISTS = {"suppressions.correctness_rules"}
 
 
 def _reserved(key: str) -> bool:
@@ -151,6 +154,9 @@ def _invalid(
         value is None or isinstance(value, list)
     ):
         return "must be a list or null"
+    if key in STRING_LISTS and isinstance(value, list):
+        if not all(isinstance(item, str) for item in value):
+            return "every item must be a string"
     if key == "scope.exclude" and isinstance(value, list):
         for glob in value:
             try:

@@ -1,0 +1,20 @@
+schema_version: "1.1"
+name: audit-suppressions-ts-expect-error-reasoned
+description: a TypeScript directive with a reason is justified with no rule id; a bare one is not
+tags: [audit-suppressions, invented]
+expected_outcome: The report lists two typescript suppressions in invoice.ts. Line 3, the @ts-expect-error with a reason about the export feed, is justified even though it names no rule id; line 5, the bare @ts-ignore, is not justified.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-metrics:audit-suppressions invoice.ts
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: ran-the-entry-script
+    type: tool_used
+    tool: Bash
+    input_match: audit-suppressions\.sh
+  - name: expect-error-justified
+    type: llm
+    criteria: PASS when the final reply reports the @ts-expect-error on line 3 of invoice.ts as justified (it carries a reason) and the @ts-ignore on line 5 as not justified. FAIL when the @ts-expect-error is called unjustified for lacking a rule id, when the two get the same status, or when either line is missing.

@@ -1,0 +1,55 @@
+{
+  "skill_name": "audit-suppressions",
+  "evals": [
+    {
+      "id": 1,
+      "name": "the-change-lists-added-suppressions-with-no-verdict",
+      "prompt": "/code-metrics:audit-suppressions",
+      "expected_output": "Runs the bundled audit-suppressions.sh on the change (lines the commits since the merge-base add), presents the markdown report with its counts and one row per suppression giving the tool, rule ids, whether it is justified and its reason, and renders no pass/fail verdict.",
+      "files": [],
+      "expectations": [
+        "Invokes the skill's scripts/audit-suppressions.sh rather than grepping for markers by hand",
+        "Reports the count of suppressions and the count without a reason",
+        "Gives each row's rule ids and reason as the report prints them",
+        "Does not call any suppression a failure or remove one"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "a-reasoned-ts-expect-error-is-justified",
+      "narration": true,
+      "prompt": "/code-metrics:audit-suppressions src/parser.ts -- is the @ts-expect-error on line 40 counted as unjustified because it has no rule id?",
+      "expected_output": "Runs the audit on src/parser.ts and explains that a TypeScript directive cannot name an error, so a reason on its line alone makes it justified; a bare @ts-ignore with no text is not justified.",
+      "files": [],
+      "expectations": [
+        "Runs audit-suppressions.sh on the named file",
+        "States that TypeScript directives cannot name a rule, so a reason alone justifies them",
+        "Does not ask the user to add a rule id to a TypeScript directive"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "correctness-rules-come-from-the-team-file",
+      "narration": true,
+      "prompt": "/code-metrics:audit-suppressions --all -- we want suppressions of no-floating-promises and SC2086 called out separately",
+      "expected_output": "Explains that suppressions.correctness_rules in docs/conventions/code-metrics.yaml lists the rules to mark, shows the YAML that sets the two ids, and runs the audit; rows naming a listed rule are marked and counted. It writes no file unless asked.",
+      "files": [],
+      "expectations": [
+        "Names suppressions.correctness_rules in docs/conventions/code-metrics.yaml as the place the list lives",
+        "Shows both rule ids in the list",
+        "Does not edit the team file without the user asking"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "a-counter-for-the-ratchet-is-the-scanner-count",
+      "prompt": "/code-metrics:audit-suppressions give me a command that prints the suppression count so I can hold it in CI",
+      "expected_output": "Runs the bundled suppression-scan.py with --count, quotes its suppressions=<n> and unjustified=<n> lines, and names /review:ratchet as the skill that holds such a count in CI when it is available; it sets up no CI step itself.",
+      "files": [],
+      "expectations": [
+        "Runs suppression-scan.py --count and quotes both lines it prints",
+        "Names /review:ratchet for holding the count, without wiring CI itself"
+      ]
+    }
+  ]
+}

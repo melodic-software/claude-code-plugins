@@ -44,6 +44,9 @@ coverage:
 type_debt:
   reference: null          # no standard or CWE anchors the measure
 
+suppressions:
+  correctness_rules: []    # rule ids audit-suppressions marks when a line suppresses one
+
 lanes:
   typescript:
     enabled: true

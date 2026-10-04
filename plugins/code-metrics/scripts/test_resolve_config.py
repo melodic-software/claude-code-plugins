@@ -250,6 +250,40 @@ class PositionalLayerTests(unittest.TestCase):
             self.assertIn("scope.registries", refused.stderr)
             self.assertIn("must be a list", refused.stderr)
 
+    def test_correctness_rules_take_strings_and_an_invalid_layer_never_falls_lower(
+        self,
+    ) -> None:
+        # The schema types each rule id as a string. A team list holding a
+        # number is dropped by file, key and value; the valid local list wins,
+        # and without it the key is the bundled `[]`, never the user layer's.
+        with tempfile.TemporaryDirectory() as tmp:
+            user = Path(tmp) / "user.yaml"
+            user.write_text(
+                "suppressions:\n  correctness_rules: [no-console]\n", encoding="utf-8"
+            )
+            team = Path(tmp) / "team.yaml"
+            team.write_text(
+                "suppressions:\n  correctness_rules: [SC2086, 2086]\n",
+                encoding="utf-8",
+            )
+            local = Path(tmp) / "local.yaml"
+            local.write_text(
+                "suppressions:\n  correctness_rules: [CA2000]\n", encoding="utf-8"
+            )
+            result = run(str(user), str(team))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            doc = json.loads(result.stdout)
+            self.assertEqual(doc["suppressions"]["correctness_rules"], [])
+            self.assertIn(str(team), result.stderr)
+            self.assertIn("suppressions.correctness_rules", result.stderr)
+            self.assertIn("2086", result.stderr)
+            result = run(str(user), str(team), str(local))
+            doc = json.loads(result.stdout)
+            self.assertEqual(doc["suppressions"]["correctness_rules"], ["CA2000"])
+            self.assertEqual(
+                doc["_layers"]["suppressions.correctness_rules"], "local"
+            )
+
     def test_an_unusable_exclude_glob_is_dropped_by_name(self) -> None:
         # `[z-a]` compiles to no regex, so the matcher cannot apply it; the
         # layer's list is dropped whole and the bundled list applies.

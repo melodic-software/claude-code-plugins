@@ -17,6 +17,7 @@ value to count against, not a bar.
 | `/code-metrics:audit-duplication` | Clone classes (the detector's pairs merged; duplicated lines and tokens, every instance's range) from `jscpd`, `dupl`, or PMD CPD, rolled up per lane and per directory, minus the replication the repository declares in a sanctioned-replication registry (a path-within-plugin, or a `canonical -> copies` cluster line), which is an exclusion, not a suppression. A file over the size cap is reported as skipped, never silently dropped. |
 | `/code-metrics:audit-coverage` | Line coverage per file and per function read from the artifacts a build already produced (lcov 1.x and 2.2, Cobertura, coverage.py JSON, Go cover profile), plus CRAP per function from the complexity rows; it never runs a test, a missing artifact is a visible warning, and a function with no executable lines reports `null`, never zero. |
 | `/code-metrics:audit-type-debt` | The typed-code percentage per file and per lane: `type-coverage` for TypeScript, mypy's `--any-exprs-report` for Python; no standard or CWE anchors the measure, so the reference is `null` by design. C# is reported as not applicable. |
+| `/code-metrics:audit-suppressions` | Every lint and type-checker suppression (ESLint, TypeScript, `noqa`, mypy, pylint, Pyright, Ruff, ShellCheck, C# pragmas and attributes, `nolint`, PowerShell attributes, markdownlint, RuboCop, Java `@SuppressWarnings`) in the change's added lines, a path, or the tree, each with its rule ids and reason and whether it is justified (a reason, plus a rule id where the tool can name one); rule ids listed in `suppressions.correctness_rules` are marked. The bundled scanner's `--count` prints the counts for a CI ceiling. |
 | `/code-metrics:principles` | Metric literacy: what each measure can and cannot tell you, where every reference value came from, CRAP's corrected provenance, the cross-metric caveats (carried once, here), and gated pointers to the plugins that own mutation score, tautological tests, dead code, coupling, and lint. |
 | `/code-metrics:setup` | `check` probes the interpreter and every configuration layer, and runs one measure per collector on a bundled fixture; `apply` writes the tracked team configuration per key, idempotently, and never installs a tool. |
 
@@ -38,7 +39,8 @@ paths narrow either. Nothing depends on a framework, a build system, or the publ
   change scope. macOS ships bash 3.2, so install a current bash (`brew install bash`); Windows
   needs Git Bash. Every entry point checks the bash version and stops with that remediation.
   Python is required for correctness: every entry point stops with a remediation message when it
-  is absent.
+  is absent. `/code-metrics:audit-suppressions` needs Python 3.11 or later and exits 2 with a
+  one-line message below it.
 - **Collectors, all optional.** A lane whose collector is absent reports `unavailable` with the
   install hint and the run continues; nothing is installed on your behalf.
 

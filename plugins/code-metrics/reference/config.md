@@ -28,7 +28,8 @@ and read as absent. A value of the wrong shape is named with its file, key and v
 layer's value is dropped: the key resolves from a valid higher layer, else the bundled default,
 never from a lower layer. The wrong shapes the resolver drops: a scalar or `null` where a mapping
 belongs, a scalar where a list belongs, a reference that is not a number or `null`, a key or value
-holding a newline, carriage return or tab, and a `scope.exclude` glob the matcher cannot compile.
+holding a newline, carriage return or tab, a `scope.exclude` glob the matcher cannot compile, and a
+`suppressions.correctness_rules` item that is not a string.
 
 **Merge form: per-key override**, declared here because every value is a scalar or a closed list.
 A later layer replaces an earlier layer's value key by key; a key absent from a later layer keeps
@@ -92,6 +93,7 @@ The third column is written by hand and is not derived from anything. A row whos
 | `coverage.reference` | `null` | No default bar; ISO/IEC 25023 files coverage under Reliability and sets no value |
 | `coverage.crap.reference` | `null` | Savoia and Evans 2007; not a validated change-risk predictor |
 | `type_debt.reference` | `null` | No standard or CWE anchors the measure |
+| `suppressions.correctness_rules` | `[]` | Rule ids that guard correctness rather than style (for example `no-floating-promises`, `SC2086`, `CA2000`). `/code-metrics:audit-suppressions` marks every suppression that names one, compared case-insensitively, and counts them. A closed list, replaced whole. The plugin ships none: which rules guard correctness is the repository's call |
 | `lanes.<lane>.enabled` | `true` | Opts a lane out even under `--all`; lanes are `typescript`, `python`, `bash`, `go`, `dotnet`, and `other`, the catch-all for every text file no language lane claims, which the ladder serves with `file_lines` alone |
 | `lanes.<lane>.collectors.<measure>` | absent | Replaces the bundled ordered collector list for that lane and measure; names are validated against `scripts/collector-ladder.tsv` and an unknown name is dropped with a warning. An empty list is a closed value like any other: no collector runs for that lane and measure, and the run row says so |
 

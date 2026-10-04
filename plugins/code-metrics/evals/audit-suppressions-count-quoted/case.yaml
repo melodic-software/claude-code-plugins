@@ -1,0 +1,26 @@
+schema_version: "1.1"
+name: audit-suppressions-count-quoted
+description: asked for a counter to ratchet, the run quotes the scanner's --count lines verbatim
+tags: [audit-suppressions, count, invented]
+expected_outcome: The reply quotes the two counter lines suppressions=3 and unjustified=1 from the scanner's --count output (publish.sh has a reasoned and a bare shellcheck disable; rates.py has a reasoned type ignore), and names the command that printed them.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-metrics:audit-suppressions How many suppressions does this repository hold? I want the exact counter output I can ratchet in CI.
+  allowed_tools: [Read, Glob, Grep, Skill, Bash]
+  max_turns: 20
+  timeout_seconds: 600
+graders:
+  - name: ran-count
+    type: tool_used
+    tool: Bash
+    input_match: suppression-scan\.py.*--count|--count.*suppression-scan\.py
+  - name: quotes-suppressions
+    type: regex
+    pattern: 'suppressions=3\b'
+  - name: quotes-unjustified
+    type: regex
+    pattern: 'unjustified=1\b'
+  - name: names-the-command
+    type: llm
+    criteria: PASS when the final reply quotes suppressions=3 and unjustified=1 as the scanner printed them and names the command that printed them (the bundled suppression-scan.py with --count), so it can be used as a counter. FAIL when the numbers are paraphrased into prose only, are different, or when the reply sets up a CI ceiling or edits a file without being asked.

@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "\"/plugins/code-metrics/skills/audit-suppressions/scripts/audit-suppressions.sh\" --all"}}],
+      "why": "the entry script, as the skill body runs it"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "grep -rn 'eslint-disable\\|noqa' ."}}],
+      "why": "a hand-rolled grep instead of the script"
+    },
+    {
+      "answer": [],
+      "why": "no shell call at all"
+    }
+  ]
+}
