@@ -495,5 +495,5 @@ nothing has ever cleaned them up.
 
 - Skills-repo SSOT: [`mattpocock-skills.md`](mattpocock-skills.md) (attribution table; tracked
   strands). The invocation-reach tracked strand's audit lands via lane X (#2940).
-- Full v1.2 map: [`mattpocock-skills-v12-map.md`](mattpocock-skills-v12-map.md). Staleness
+- Full skills map: [`mattpocock-skills.md#map`](mattpocock-skills.md#map). Staleness
   fixes and absorbed-under-different-name traceability landed via #2947.

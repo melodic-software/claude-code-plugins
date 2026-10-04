@@ -53,7 +53,7 @@ read it before applying that stamp in step 5.
 
 Three rules bound what enters this flow:
 
-- **A PR is an item with attached code.** An unsolicited or external PR enters the same intake as an issue: same states, same machine. Its diff is an **attachment to evaluate**, check it out, run the relevant tests, never an obligation to merge. Read the state names against the code: briefed means a brief exists for what to do with the diff; human-gated means a human should decide the merge.
+- **A PR is an item with attached code.** An unsolicited or external PR enters the same intake as an issue: same states, same machine. Its diff is an **attachment to evaluate**: fetch it and run the relevant tests; it never creates an obligation to merge. Read the state names against the code: briefed means a brief exists for what to do with the diff; human-gated means a human should decide the merge.
 - **Never re-triage already-triaged output.** Items born triaged. Published by `/work-items:decompose`, or created by a `/work-items:track add` that leaves no raw marker. Already carry a routing decision. They never re-enter this flow, and the attention view excludes them by construction (being neither unlabeled nor marked with the raw marker, they fall in none of its buckets). This exclusion keys on **absence of the raw marker**, not authorship and not the mere presence of classification labels: the raw marker (bare `needs-triage`) or being unlabeled puts an item in scope even alongside default labels, so a team-authored dogfood issue filed with a default `priority:` label *and* the raw marker is in scope (the marker wins), while a `track add` item that carries classification labels but no raw marker is out of scope for the same reason decompose output is. If someone names an already-triaged item explicitly, say it is already triaged and stop.
 - **Lane infrastructure is never intake.** The loop-lane convention's per-lane telemetry tracking issues, the surfaces holding that convention's sentinel-marked status comment, are lane infrastructure, not backlog: an open one is a lane operating. **Identify one the way the lane resolves its own telemetry home**, never by title alone: the issue the lane's launch config pins (`lanes[].telemetry.issue` in the `harness-ops` lane config, read from `<repo>/.work/lanes/lanes.json`, or from `<repo>/.work/lanes.json` when only that file exists), else the default `Lane telemetry: <lane>` title (`/work-items:work-loop`, "Telemetry and durable loop state"); and, independent of both, **any issue carrying the convention's sentinel status comment** (`<!-- harness-ops:lane-telemetry marker=… -->`). The two signals cover each other: a config pinned to an operator-titled issue defeats the title test, and an issue pinned but not yet written to carries no sentinel, a title-only test admits exactly the first case and then relabels or closes the surface holding durable lane state. **Also exclude `work-map` container items**. Ordinary open issues carrying the tracker seam's container label (`WIT_CONTAINER_LABEL`, default `work-map`): they are never claimable frontier work (`list-frontier` drops them unconditionally per the seam contract) and their openness means the map exists, not that backlog is waiting. The exclusion never keys on labels either for telemetry (since the raw marker rides in as a creation-time filing default and a lane can re-add it at any cycle, so it holds **whatever labels they carry, the raw marker included**). A telemetry issue never enters the attention view, and one named explicitly is reported as lane infrastructure and stopped on, never state-machined, relabeled, or closed, since the lane reads that surface to operate. Container items are filtered from the attention view the same way. The lanes' own snapshots exclude the same populations by pointing here; it is defined here because this skill defines the intake population every lane composes.
 
@@ -92,11 +92,11 @@ Claiming stays coordination state, not a label. Assignee + lease via the seam (`
 
 Show three buckets (oldest first, one-line summaries):
 
-1. **Unlabeled**, never triaged
+1. **No labels**: nobody has looked at it yet
 2. **Raw marker**. bare `needs-triage`. Explicitly tagged for evaluation
-3. **`status:needs-info` with reporter activity**. Reporter replied since last triage note; ready for re-evaluation
+3. **`status:needs-info`, answered**: the reporter has replied after the last triage note, so it can be evaluated again
 
-List open items and filter into buckets programmatically (adapter: "List items", bare read). Apply the lane-infrastructure exclusion ("Scope: raw intake only") to that listing **before** bucketing, so a telemetry issue carrying the raw marker is filtered out rather than bucketed under it. **Defensive skip:** drop any item that already carries a native `blocked-by` edge *and* a prior triage comment (machine disclaimer or structured needs-info template), a stray re-label from another lane must not cost a full re-investigation. When the repo treats external PRs as a request surface, include them and tag each line `[PR]` or `[issue]`, but surface only *external* PRs (a collaborator's in-flight PR is not triage work; this filter is discovery-only, and an explicitly named PR is always triaged regardless of author). Present as a compact table.
+List open items and filter into buckets programmatically (adapter: "List items", bare read). Apply the lane-infrastructure exclusion ("Scope: raw intake only") to that listing **before** bucketing, so a telemetry issue carrying the raw marker is filtered out rather than bucketed under it. **Defensive skip:** drop any item that already carries a native `blocked-by` edge *and* a prior triage comment (machine disclaimer or structured needs-info template), a stray re-label from another lane must not cost a full re-investigation. When the repo accepts requests in the form of outside PRs, list them in the same buckets with a `[PR]` or `[issue]` prefix on every line. Only PRs from outside contributors appear: a PR a collaborator is still working on is their work, not intake. That limit applies to this listing only; a PR named explicitly gets triaged whoever opened it. Present as a compact table.
 
 ### Board page
 
@@ -114,10 +114,10 @@ which is `${CLAUDE_PLUGIN_ROOT}`; put that path in place of the placeholder befo
 
 ### 1. Gather context
 
-Read the item body, comments, and any linked PRs; for a PR, the diff too (adapter: "View item", bare read). Parse prior triage notes so resolved questions are not re-asked. Then run two checks:
+Read the item body, comments, and any linked PRs, plus the diff when the item is a PR (adapter: "View item", bare read). Read earlier triage notes and do not ask again what they already answered. Then run two checks:
 
-- **Redundancy**. Search the codebase for an existing implementation of the requested behavior by domain concept (not the request's wording), and report where you looked. Found → it's an already-implemented close (step 5).
-- **Rejected-concept ledger**, when the consuming repo keeps one (`docs/out-of-scope/`, one file per concept), match the request against the concept files by **concept similarity, not keyword**. On a match, answer from the ledger instead of re-litigating: "Rejected before. `docs/out-of-scope/<concept>.md`: <reason>. Still stand?" Confirmed → append this request to the file's "Prior requests" log (re-read the file from disk first; append a line, never rewrite) and close (step 5). Reconsidered → the ledger file gets updated or removed and triage proceeds. No `docs/out-of-scope/` directory → skip the check entirely.
+- **Redundancy**. Look for code that already delivers what the item asks for, searching by the domain idea behind the request rather than its exact words, and name the places searched. A hit closes the item as already implemented (step 5).
+- **Rejected-concept ledger**, when the consuming repo keeps one (`docs/out-of-scope/`, one file per concept), compare the request with each concept file by **what it asks for, not the words it uses**. On a match, answer from the ledger instead of re-litigating: "Rejected before. `docs/out-of-scope/<concept>.md`: <reason>. Still stand?" Confirmed → append this request to the file's "Prior requests" log (re-read the file from disk first; append a line, never rewrite) and close (step 5). Reconsidered → the ledger file gets updated or removed and triage proceeds. No `docs/out-of-scope/` directory → skip the check entirely.
 - **Cluster detection**. Cross-reference other open intake: when this item shares **one underlying decision** with other open items, do not human-gate each member individually. Designate one representative as the **decision carrier** (human-gated, with the member numbers listed in its body) and link every other member to it via the native `blocked-by` edge with a `blocked by #<carrier> decision` comment (applied in step 5). One human touch on the carrier resolves the decision for the whole cluster.
 
 ### 2. Recommend category + state
@@ -139,10 +139,10 @@ The autonomous branch is the mode the AI disclaimer already anticipates: a sessi
 
 Never interview anyone about the fix for a claim nobody has confirmed. Verification precedes questioning:
 
-- **Bug**, reproduce it from the reporter's steps; confirm the failure mode matches the report
-- **PR**, confirm the diff does what it claims: check it out, run the relevant tests or commands
+- **Bug**: follow the steps in the report until the failure appears, and check that it is the failure described
+- **PR**: fetch the branch locally and run the relevant tests or commands, to show it behaves as the description says
 
-Report the result: confirmed (with the observed behavior / code path, the item is now **verified**, which makes a far stronger brief), failed, or insufficient detail → `status:needs-info` with a structured comment (see "Needs-info template" in [context/apply-outcome.md](context/apply-outcome.md)).
+Report the result: confirmed (with the observed behavior / code path, the item is now **verified**, so the brief can rest on observed behavior), failed, or insufficient detail → `status:needs-info` with a structured comment (see "Needs-info template" in [context/apply-outcome.md](context/apply-outcome.md)).
 
 ### 4. Interview (if needed)
 

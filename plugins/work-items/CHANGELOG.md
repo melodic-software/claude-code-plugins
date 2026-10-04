@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Changed
+
+- **`/work-items:triage` and `/work-items:decompose` reword passages that followed the skills they were adapted from.** A word-overlap check found long shared runs in triage's discovery filter, context checks, verification steps and needs-info template, and in decompose's vertical-slice rules, expand-migrate-contract wording and slice body template. Behavior is unchanged, and output strings (the needs-info comment headings, the empty Blocked-by text) keep their exact wording.
+
 ## [0.48.4] - 2026-10-04
 
 ### Changed

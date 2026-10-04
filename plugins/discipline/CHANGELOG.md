@@ -11,6 +11,10 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
 - `/discipline:reuse-or-replace` reads the project's paved-path file on demand: when the standards index has a `paved-path` row and the work touches a concern it lists, the listed entry is the established way, and replacing it includes updating the entry.
 
+### Changed
+
+- **`/discipline:wait-what` states its description and opening instruction in this repository's own words.** A word-overlap check against the skill it was adapted from found both still followed the original's sentences. Behavior is unchanged: re-explain from the missing premise, in ASD-STE100 Simplified Technical English, with the project's domain terms.
+
 ## [0.16.4] - 2026-10-04
 
 ### Changed

@@ -1,200 +1,262 @@
-# Upstream source — mattpocock/skills
+# Upstream source: mattpocock/skills
 
-Single source of truth for everything in this marketplace derived from
-[mattpocock/skills](https://github.com/mattpocock/skills) (Matt Pocock, "AI Skills for Real
-Engineers", MIT). Provenance lives HERE and in plugin CHANGELOGs — never in skill bodies, where
-it is agent-facing noise. Content citations an agent actually uses (e.g. the Fowler smell
-baseline in `review`) are not provenance records and stay in place.
+This page records what this marketplace took from, or decided against, in
+[mattpocock/skills](https://github.com/mattpocock/skills) by Matt Pocock (MIT license). Credit for
+that work lives here and in plugin CHANGELOGs, never in skill bodies. A citation an agent uses
+while working, such as the Fowler smell baseline in `review`, is content rather than credit and
+stays where it is.
 
-**Last audited upstream state:** v1.2.3, `main@84fdeff` (this repo's audit: the
-`pocock-skills-v12-sync` topic). Git history of this file records *when*; this line records only
-*what was audited*.
+The companion page for the other upstream skill collection we adapt is
+[`cursor-pstack.md`](cursor-pstack.md) (cursor/plugins, pstack); it records where a pstack unit
+conflicts with a skill derived from this repository. Rows below link upstream at the pinned commit
+and hold our decisions only, in our words; read upstream at the link for what it says.
 
-**Recheck trigger:** a mattpocock/skills release whose changeset names any skill in the
-attribution table below. Re-audit every affected row. Release notes name skills explicitly
-(`gh release view <tag> -R mattpocock/skills`).
+**Last audited upstream state:** `mattpocock/skills@84fdeffd12f2ee307994d1eb6feb48173b6e0502` under `skills/` (v1.2.3)
+
+**Recheck trigger:** a change, between the pinned commit and upstream HEAD, to a path a row we took
+or rejected something from links, a unit removed or added under the scope: re-audit the affected
+rows. `scripts/check-upstream-drift.sh` detects these, and the monthly drift issue for this
+upstream lists them ([upstream-drift convention, "Pinned git upstreams"](../conventions/upstream-drift/README.md#pinned-git-upstreams)).
+Re-auditing moves the pin and records the outcome per row.
 
 ## Attribution table
 
-| Upstream skill / source | Ours | Relation | What was taken / rejected |
+| Upstream (links at the pin) | Ours | Relation | Decision |
 |---|---|---|---|
-| `to-questionnaire` (Productivity; graduated from in-progress in v1.2.0 #593) | `planning:questionnaire` | Derived | Interview-the-send invariant kept; output relocated cwd → memory slice (PII); grill→interview vocabulary; tracker-item option added. Re-audited against v1.2.3: no delta — his graduation commit is a 100%-similarity rename, his one body change (template XML-ification) is already reflected in our template, and ours is otherwise a superset (route-away, overwrite guard, role-slug multi-recipient) |
-| `wayfinder` | `planning:wayfind` | Partial | Fog-of-war framing + ticket-vs-fog (sharpness) distinction; REJECTED file-based map (native tracker primitives instead) and upstream tracker seam. v1.2 re-audit: ADOPTED parallel research burn-down (work-mode exception + chart-mode offer) and the in-chart no-fog bail-out; "decision ticket" term present as our "decision item" (parity under work-items vocabulary); REJECTED `research/<name>` branch (two-lane branch-naming prohibition; resolution comments + memory tier already home the findings); map-clears handoff already present-stronger (named graduation targets). Course lane W (#2939): **C18 ADOPTED** (human-facing narration names items by title, number as link or suffix; `wayfind` only, not generalized to work-items); **C19 ADOPTED** (Out-of-scope is for scope not sharpness, fog never graduates there, a wrongly scoped item is closed + one linking line); **C20 ALREADY-PRESENT** (map-as-index — a decision lives in its own item; the map gists and links, never restates) |
-| `batch-grill-me` / `grilling` rounds | `planning:interview` (propagated to `prd`/`design`/`plan`) | Derived (behavior) | Frontier-rounds model, facts-vs-decisions split, confirmation gate; no-grill vocabulary constraint; background fact sub-agents. v1.2 re-audit: ADOPTED ❓/➡️ emoji anchors as opt-in `userConfig` (`use_emoji_question_markers`, default off; decoration of the single verdict marker); answer-by-number dictation and any-order answering confirmed already present; REJECTED one-question-at-a-time opt-out line (his seam is the consumer's own global CLAUDE.md — platform-native, nothing for the plugin to ship) |
-| grilling-family rework (upstream PR #532) | `planning:interview`, `architecture:improve` | Partial | decision-tree rename, domain-routing, primitive-vs-variant boundary; ADR 3-gate + glossary purity previously recorded as house additions — **annotated 2026-08-18 (lane 5 audit-answers pass, two independent validators):** current upstream main's `domain-modeling` carries both near-identically; direction/timing unverifiable at annotation time (upstream git history behind a blocked API) — treat as convergent-or-derived, not house-original |
-| `git-guardrails-claude-code` (misc) | `guardrails` `block-dangerous-git` hook | Derived (capability only) | Capability adopted; substring-matching implementation REJECTED wholesale (false-blocks) — house argv-grammar parser instead |
-| upstream PR #464 (review checklist) | `review` code-reviewer Fowler baseline | Pointer | Surfaced the idea; content re-derived from Fowler, *Refactoring* 2nd ed. ch. 3 — no upstream phrasing |
-| `code-review` (course flow skill; distinct from PR #464 above) | `review` — `quality-gate` lenses, `fanout`, code-reviewer agent | Partial | Course lane D (#2937): **C12 ADOPTED-corrected** (spec axis as a 9th `quality-gate` lens, `context/spec.md` owning the missing / scope-creep / wrong enum; branch-scoped — the container-scoped consumer was filled later by the close-out lens, not this one); **C13 ALREADY-PRESENT + one edit** (two-axis intent already implemented as `fanout`'s two-axis presentation; the proposed never-merge/never-rerank rule WITHDRAWN — it negates the normalization pipeline `fanout` exists to run; `axis` vs `lens` vocabulary recorded once in `review/context/severity.md`); **C14 ADOPTED-corrected** (spec-source discovery ladder, with bare-`#N` validation-and-promotion, provider-mechanic read, and a topic-slug rung); **C15 PARTIAL** (fail-fast preflight ported, mode-scoped with `allowed-tools` widened; `fanout`'s untracked-only stop deliberately NOT copied); **C16 ALREADY-PRESENT** (both suppression halves already in `code-reviewer.md`). Map row 2 |
-| upstream issues #186/#306/#617/#482 (handoff failures) | `session-flow` handoff claim-provenance + constraint re-scan rules | Derived (failure corpus) | Two rules adopted from incident threads; rest rejected (verdicts on issue #1477) |
-| `triage` + its `.out-of-scope/` KB (`OUT-OF-SCOPE.md`) | `work-items:triage` | Derived (structured port) | "A PR is an item with attached code" ≈ upstream's "a PR is an issue with attached code"; state-machine framing convergent. Corrected in lane 5 — this row previously claimed "no structured port", which is provably false: the rejected-concept ledger (work-items 0.6.0; triage's ledger check + won't-fix/already-implemented outcomes) is a structured port of upstream's `.out-of-scope/` KB — one-file-per-concept, concept-similarity-not-keyword matching, never-ledger-built-features, and the near-verbatim "so the same request doesn't return as fresh code" (upstream `OUT-OF-SCOPE.md:86`) map one-to-one; ours is a superset. The v1.2 `.out-of-scope/` adoption candidate (M15) is therefore REJECTED as already-adopted; provenance row corrected only — no `work-items` behavior change (the topic plan's out-of-scope bars it) |
-| `to-spec` | `planning:plan` / `planning:prd` Brief + `work-items:decompose` container lifecycle | Partial | Course lane A (#2934): **C1 ALREADY-PRESENT** (no-interview pure-synthesis mode — `planning:interview` synthesizes directly when intent is clear; `plan`'s empty-argument default finalizes without re-interviewing); **C2 PARTIAL, routed to lane C** (#2936 — seam-sketch-before-spec lands beside C9; the "ideal number of seams is one" absolutism REJECTED, folklore-figure posture); **C3 PARTIAL** (optional `## Testing decisions` section with prior-art test pointers adopted; the "LONG, numbered, extremely extensive" directive stays excluded); **C4 ADOPTED (gate-added variant)** (spec publishes to the tracker as a `work-map` container with slices as native sub-items; upstream's gate-free publish excluded). Course-only "archive-your-specs" ADOPTED as archival-by-closure. Map row 14 |
-| `to-tickets` | `work-items:decompose` | Partial | Vertical-slice / tracer-bullet vocabulary overlaps upstream and the seam plumbing is house-built — but "influence (vocabulary)" understated it, and disagreed with map row 15, which already graded this PARTIAL. Lane B (#2935) adopted four **mechanics**, not just phrasing: prefactor-as-blocker (C5, `decompose/SKILL.md:67`), the one-fresh-context-window sizing bar (C6, `:69`), the integration-branch fallback (C7, `:102`), and the PR-variant agent brief (C17, `agent-brief.md:82`). Only C8 — "work the frontier" (`:106`) — is vocabulary. Lane B verdicts: **C5, C6, C7, C8, C17 all ADOPTED** |
-| `tdd` / `tests.md` / `mocking.md` | `planning:plan` Test strategy, `tdd:principles`, `testing:write`, `review` code-reviewer | Partial | Course lane C (#2936): **C9 PARTIAL, relocated** (pre-agreed-boundary discipline lands in `plan`'s existing Test strategy element — deliberately NOT phrased as "seam" (fleet-registered vocabulary) and NOT hosted by `implementation:phase-verifier`; upstream's hard consent gate softened to a `DEVIATIONS.md` record an unattended run can satisfy); **C10 ALREADY-PRESENT (prose)** (tautological-test anti-pattern at `anti-patterns-khorikov.md` + `testing/write`; the prose-only coverage was an overstatement corrected in-lane, and the executable half landed as a `code-reviewer.md` criterion, `review` 0.24.0, ceding the textually-identical core to `cant-fail-scan.sh` when that scan's output is in context); **C11 ALREADY-PRESENT + one clause** (`test-doubles.md` has carried SDK-style-interfaces-over-generic-fetchers since `85aa8066`; added only the missing subordination clause — the shape rule never widens *what* gets mocked). Zero-assembly chain doc REJECTED with reasons (the drafted chain was factually wrong). Map row 13 |
-| `improve-codebase-architecture` YAGNI scoping filter (v1.2 #533) | `architecture:improve` deepening Phase 1 | Partial | ADOPTED scope-before-scanning: user-named direction scopes the scan, else recent-commit hot spots pull attention first (precomputed context widened to 20 commits). REJECTED his `CONTEXT.md` reference (our glossary-discovery ladder) and HTML-report machinery (previously rejected) |
-| `diagnosing-bugs` (v1.2.3 Redact + tagged logs) | `debugging:debug`, `testing:diagnose` | Partial | ADOPTED the redaction guard in both skills (secrets `<REDACTED>` before any shown command/output/artifact; env-var credentials; signal-lines-only quoting) and the `[DEBUG-a4f2]` tagged-log convention in `testing:diagnose` (already present in `debugging:debug`). TRACKED, not adopted: feedback-loop-first doctrine (10 ranked loop types, 3–5 ranked hypotheses) — our phase structures work; re-evaluate on a release whose changeset names `diagnosing-bugs`. Annotation (lane 6, 2026-08-18, from the 2026-08-17 pre-lane recheck at unreleased main `068b6e0`): upstream dropped its Phase 6 post-mortem step ("Cleanup + post-mortem" → "Cleanup"; the what-would-have-prevented-this handoff removed) — when the release trigger fires, the re-evaluation grades the post-drop shape |
-| `wait-what` (Productivity, NEW in v1.2 #751) | `discipline:wait-what` | Derived | Ported near-verbatim (one-sentence re-pitch body: back up, add missing context, ASD-STE100 register + inline gloss, ubiquitous language) as a declared non-corrector species in `discipline` beside `tighten-your-output`/`mind-your-maxims` — home chosen on the blame axis (the drift is the model's output, not the user's comprehension). Name KEPT with an explicit PLUGIN-PHILOSOPHY naming-exception entry (utterance-is-mechanism + upstream muscle-memory parity; a 5-generator/3-judge naming tournament's grammar-clean winner `re-pitch` was declined by the user). REJECTED his fixed `CONTEXT.md` filename (our format-externalized glossary discovery: nearest glossary per consumer convention, silent degradation). Shape evidence: his X thread (status 2084753070437609606 → 2084941367659168064 → 2085681281795232026) — the same instruction failed as passive global CLAUDE.md AND as an output style; only the on-demand skill works, so the register text lives in the body, invoked at the moment of loss |
-| `wizard` (Engineering; graduated from in-progress in v1.2) | `wizard:generate` | Derived | PORTED (lane 4) as a new single-capability plugin `wizard` 0.1.0, hardened. Kept: the 4-step scope/map/author/verify process, the fixed never-hand-edited library above the `STAGES` marker, model-invoked posture with the explicit non-trigger fence, gh-absence graceful degradation, ephemeral-by-default doctrine, agent-authors-never-runs doctrine. Hardened beyond upstream (deltas enumerated in `plugins/wizard/CHANGELOG.md` 0.1.0): mandatory human read-and-approve of the full STAGES block before `chmod +x`; https-only `open_url` (also closes a Windows UNC/NTLM leak via explorer.exe); `/dev/tty` fail-closed prompts (retires a verified multi-line-paste confirm bypass and `pause`'s fail-open at EOF); quoted `0600` `.env` writes + gitignore assert + trap-cleaned atomic temp; repo-resolved/confirmed `--repo`-explicit gh writes with stderr surfaced and empty values refused; key-name validation; readline on non-secret asks (fixes upstream #741 where safe); names-only live-`.env` scoping with the secrets-and-context property stated honestly. REJECTED: Codex `agents/openai.yaml` sidecar (no Codex target — standing precedent) |
-| `prototype` `LOGIC.md` shareable-HTML demo (Engineering, v1.2) | `prototype:pressure-test` | Partial | ADOPTED (lane 5) the audience-routed HTML demo shell: TUI stays default; when the driver is a non-developer (designer, PM, domain expert) or no terminal fits, the disposable shell over the same portable pure logic module is one self-contained `file://` page — domain-language labels, labeled state panel re-rendered per click, free-play buttons, guided-walkthrough scenarios resetting to a known initial state — under explore-directions' existing HTML-substrate constraint set reused verbatim-in-spirit (restrictive CSP meta tag, ephemeral `mktemp -d` / `%LOCALAPPDATA%\Temp` placement, synthetic data only, discard after the markdown capture). prototype 0.5.0. REJECTED the other half of upstream's step 5: the throwaway-branch "primary source" capture that keeps the prototype re-runnable on a branch — a two-lane branch-naming posture violation that also contradicts the plugin's delete-when-done discipline (`plugins/prototype/context/discipline.md`, "Delete or absorb when done") |
-| ask-matt `PHASE-BOUNDARIES.md` (v1.2) | `session-flow:workflow` continuation router + `context-guard` zones | Convergent / rejected | Re-read at `84fdeff`. At parity: the ordered first-yes-wins router and compaction last with a focus; ours adds clean-stop, user-gated background, instrumented zones, worker relay. ADOPTED one zone-gated criterion: prefer continue when the next stage consumes this stage's reasoning verbatim. REJECTED the boundary-only trigger (`/session-flow:workflow` routes by task, mid-stage included), the "handoff only for what travels" narrowing (`/session-flow:workflow` hands off in more cases than his travel list), and the ~150k smart-zone figure (self-declared-debated folklore; no official numeric threshold exists; our baseline is instrumented zone readings plus context-guard's declared judgment-default bands with named provenance (corrected 2026-08-18 per audit amendment A1: the bands are declared defaults, not measurements; only zone readings are measured), his dictionary entry noted as one more folklore anchor). Docs topic: [when your context fills up](https://code.claude.com/docs/en/context-window#when-your-context-fills-up). As-of 2026-10-02 |
-| `teach` (Productivity) | `education:teach` | Derived | Corrected by the `teach-skill-comparison` topic audit (PR #2958) — this row previously sat under "Not adopted", which is provably false: the original port took his workspace vocabulary (MISSION / GLOSSARY / RESOURCES / NOTES + learning records as "teaching ADRs"), near-verbatim FORMAT-spec content, and the K-S-W / ZPD / community-delegation pedagogy with learning-record doctrine. REJECTED: cwd-as-workspace (dedicated per-project workspace roots instead), Codex `agents/openai.yaml` sidecar (standing precedent), HTML references (the durable trio — reference, records, glossary — stays markdown). ADDED house-built: codebase mode, primer action, assess, staleness doctrine, evals, slug-collision guards, workspace-root resolution ladder. RE-ADOPTED in the same audit (education 0.7.0): storage-strength pedagogy (fluency-vs-storage, desirable-difficulty triad, knowledge/skills asymmetry, equal-length quiz answers) and HTML-first interactive lessons with a shared `assets/` library (answer-shuffling quiz component — fixes his #335 class of always-option-C bug); his acknowledged no-review-scheduling gap is out-executed via spaced review surfaced at resume/status from learning-record age × domain velocity |
+| [`to-questionnaire`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/productivity/to-questionnaire) (graduated in v1.2.0, [#593](https://github.com/mattpocock/skills/pull/593)) | `planning:questionnaire` | Derived | Kept: the interview covers only how the questionnaire is sent, never its subject. Changed: output goes to the memory slice instead of the working directory (it can hold personal data), interview vocabulary replaces grilling, and a tracker-item option exists. Re-audited at v1.2.3 with nothing to take: upstream's one template change there is already in ours, and ours adds route-away, an overwrite guard and multi-recipient role slugs |
+| [`wayfinder`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/wayfinder) | `planning:wayfind` | Partial | Taken: the fog-of-war framing and the test that tells a sharp ticket from fog. Rejected: a file-based map (we use native tracker items) and upstream's tracker seam. v1.2 re-audit: adopted the parallel research burn-down (a work-mode exception plus a chart-mode offer) and the bail-out when a chart finds no fog; the decision-ticket idea already existed as our decision item; rejected the `research/<name>` branch, which the two-lane branch-naming rule forbids (resolution comments and the memory tier hold findings); the hand-off when the map clears was already present with named graduation targets. Course lane W (#2939): C18 adopted (narration names an item by title, with the number as link or suffix; `wayfind` only); C19 adopted (Out-of-scope holds scope decisions, never fog; a wrongly scoped item is closed with one linking line); C20 already present (each decision lives in its own item; the map summarizes and links) |
+| `batch-grill-me` rounds, now [`grill-me`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/productivity/grill-me) and [`grilling`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/productivity/grilling) | `planning:interview`, carried into `prd`, `design` and `plan` | Derived (behavior) | Taken: questions asked in rounds, facts kept apart from decisions, and a confirmation gate. Ours adds a vocabulary rule (no "grill") and subagents that gather facts in the background. v1.2 re-audit: adopted the question and answer emoji markers as an opt-in `userConfig` key (`use_emoji_question_markers`, default off); answering by number and in any order was already present; rejected the one-question-at-a-time opt-out line, because it belongs in the consumer's own CLAUDE.md and the plugin has nothing to ship for it |
+| Grilling-family rework ([upstream PR #532](https://github.com/mattpocock/skills/pull/532)), now in [`domain-modeling`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/domain-modeling) and [`grill-with-docs`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/grill-with-docs) | `planning:interview`, `architecture:improve` | Partial | Taken: the decision-tree rename, routing by domain, and the line between a primitive and a variant. The ADR three-gate test and the glossary purity rule were once recorded as our own additions. A 2026-08-18 audit (two independent validators) found both in upstream `domain-modeling`; which came first could not be checked then, so treat them as convergent or derived, not as ours alone |
+| [`git-guardrails-claude-code`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/misc/git-guardrails-claude-code) | `guardrails` `block-dangerous-git` hook | Derived (capability only) | Taken: the capability, a hook that stops destructive git commands. Rejected: the substring-matching implementation, which blocks safe commands; ours parses the argv grammar instead |
+| [Upstream PR #464](https://github.com/mattpocock/skills/pull/464) (review checklist) | `review` code-reviewer Fowler baseline | Pointer | The PR suggested the idea; the content was rebuilt from Fowler, *Refactoring*, 2nd ed., ch. 3, with no upstream wording |
+| [`code-review`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/code-review) (course flow skill, separate from PR #464) | `review`: `quality-gate` lenses, `fanout`, code-reviewer agent | Partial | Course lane D (#2937): C12 adopted with corrections (spec conformance became a ninth `quality-gate` lens, with `context/spec.md` owning the missing, scope-creep and wrong outcomes; branch-scoped, and the container-scoped case was later filled by the close-out lens); C13 already present plus one edit (`fanout` already shows two axes separately; the proposed never-merge, never-rerank rule was withdrawn because it negates the normalization `fanout` exists to run; `axis` versus `lens` vocabulary recorded once in `review/context/severity.md`); C14 adopted with corrections (a spec-source discovery ladder with bare `#N` validation and promotion, a provider-mechanic read, and a topic-slug rung); C15 partial (a fail-fast preflight, scoped by mode with `allowed-tools` widened; `fanout`'s untracked-only stop deliberately not copied); C16 already present (both suppression halves are in `code-reviewer.md`) |
+| Handoff failure reports ([#186](https://github.com/mattpocock/skills/issues/186), [#306](https://github.com/mattpocock/skills/issues/306), [#617](https://github.com/mattpocock/skills/issues/617), [#482](https://github.com/mattpocock/skills/issues/482)) against [`handoff`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/productivity/handoff) | `session-flow` handoff claim-provenance and constraint re-scan rules | Derived (failure corpus) | Two rules adopted from the incident threads; the rest rejected (verdicts on issue #1477) |
+| [`triage`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/triage), including its out-of-scope ledger ([`OUT-OF-SCOPE.md`](https://github.com/mattpocock/skills/blob/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/triage/OUT-OF-SCOPE.md)) | `work-items:triage` | Derived (structured port) | Our rejected-concept ledger (work-items 0.6.0: the ledger check plus the won't-fix and already-implemented outcomes) is a structured port of upstream's out-of-scope ledger: one file per concept, matching by meaning rather than keyword, and no ledger entries for built features. Ours is a superset. Our rule that a PR enters triage like an issue, and the state-machine framing, converge with upstream. The v1.2 adoption candidate for the ledger (M15) was rejected as already adopted; record corrected in lane 5, with no behavior change. Copy check 2026-10-04 (`/attribution:audit`): wording was rewritten, but a panel still finds the needs-info template matching upstream's (kept for output compatibility) and splits on the attention buckets; open, pending a rewrite decision |
+| [`to-spec`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/to-spec) | `planning:plan` and `planning:prd` Brief, `work-items:decompose` container lifecycle | Partial | Course lane A (#2934): C1 already present (`planning:interview` synthesizes directly when intent is clear; `plan` with no argument finalizes without a new interview); C2 partial, routed to lane C (#2936: a sketch of the test boundary before the spec, beside C9; the claim that one seam is ideal rejected as folklore); C3 partial (an optional `## Testing decisions` section with pointers to existing tests; the demand for very long numbered lists stays excluded); C4 adopted with a gate added (the spec publishes to the tracker as a `work-map` container with slices as native sub-items; upstream's publish without a gate excluded). Archiving specs adopted as archival by closing the container |
+| [`to-tickets`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/to-tickets) | `work-items:decompose` | Partial | The vertical-slice and tracer-bullet vocabulary overlaps upstream and the seam plumbing is ours. Lane B (#2935) adopted four mechanics: a prefactor slice as a blocker (C5), sizing to one fresh context window (C6), the integration-branch fallback (C7) and the PR-variant agent brief (C17); C8, working the frontier, is vocabulary only. Lane B verdicts: C5, C6, C7, C8 and C17 adopted. Copy check 2026-10-04 (`/attribution:audit`): wording was rewritten; the panel splits on the slice rules, the expand-migrate-contract passage and the slice body template, so the question is open for a person |
+| [`tdd`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/tdd) (with its `tests.md` and `mocking.md`) | `planning:plan` Test strategy, `tdd:principles`, `testing:write`, `review` code-reviewer | Partial | Course lane C (#2936): C9 partial, relocated (agreeing test boundaries before writing tests lands in `plan`'s Test strategy element, deliberately not called "seam" and not hosted by `implementation:phase-verifier`; upstream's hard consent gate softened to a `DEVIATIONS.md` record an unattended run can satisfy); C10 already present (the tautological-test anti-pattern in `anti-patterns-khorikov.md` and `testing/write`; the executable half landed as a `code-reviewer.md` criterion, `review` 0.24.0, which defers to `cant-fail-scan.sh` when that scan's output is in context); C11 already present plus one clause (`test-doubles.md` has preferred typed client interfaces to a generic fetch wrapper since `85aa8066`; added only that the shape rule never widens what gets mocked). A zero-assembly chain document rejected, with reasons: the draft chain was wrong |
+| [`improve-codebase-architecture`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/improve-codebase-architecture) scoping filter (v1.2, [#533](https://github.com/mattpocock/skills/pull/533)) | `architecture:improve` deepening Phase 1 | Partial | Adopted scoping before scanning: a direction the user names limits the scan; with none, recent-commit hot spots come first (precomputed context widened to 20 commits). Rejected upstream's fixed context file (we use our glossary-discovery ladder) and the HTML report (rejected earlier) |
+| [`diagnosing-bugs`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/diagnosing-bugs) (v1.2.3 redaction and tagged logs) | `debugging:debug`, `testing:diagnose` | Partial | Adopted the redaction guard in both skills (secrets replaced with `<REDACTED>` in any shown command, output or artifact; credentials in environment variables covered; only signal lines quoted) and the `[DEBUG-a4f2]` tagged-log convention in `testing:diagnose` (already in `debugging:debug`). Not adopted: the feedback-loop-first doctrine with its ranked loop types and ranked hypotheses; our phase structure works. Upstream later dropped its post-mortem step (seen 2026-08-17 at `068b6e0`); a re-evaluation grades the shape after that change |
+| [`wait-what`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/productivity/wait-what) (new in v1.2, [#751](https://github.com/mattpocock/skills/pull/751)) | `discipline:wait-what` | Derived | Ported as a declared non-corrector in `discipline`, beside `tighten-your-output` and `mind-your-maxims`; the home follows who is at fault (the model's output drifted, not the reader's comprehension). The name is kept under a PLUGIN-PHILOSOPHY naming exception (the utterance is the mechanism, and users know the upstream name); a naming tournament's winner, `re-pitch`, was declined by the user. Rejected upstream's fixed context file name: we find the nearest glossary by the consumer's convention and degrade silently without one. Kept user-invoked, on the evidence of the author's X thread (statuses 2084753070437609606, 2084941367659168064 and 2085681281795232026), which compares a standing instruction, an output style and an on-demand skill for this job. Copy check 2026-10-04 (`/attribution:audit`): the description and opening instruction were rewritten; the panel splits on whether the three-part instruction still follows upstream, so the question is open for a person |
+| [`wizard`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/wizard) (graduated in v1.2) | `wizard:generate` | Derived | Ported in lane 4 as the single-capability plugin `wizard` 0.1.0, hardened. Kept: the four-step process, a fixed, never hand-edited library section ahead of the `STAGES` marker, model invocation with an explicit non-trigger fence, degrading when `gh` is absent, ephemeral output by default, and the agent writing but never running the script. Hardened (deltas in `plugins/wizard/CHANGELOG.md` 0.1.0): a human reads and approves the whole STAGES block before `chmod +x`; `open_url` accepts https only (also closing a Windows UNC/NTLM leak through explorer.exe); prompts read `/dev/tty` and fail closed; `.env` writes are quoted, mode `0600`, gitignore-asserted and atomic; `gh` writes name a confirmed `--repo` and refuse empty values; key names are validated; readline on non-secret prompts (upstream [#741](https://github.com/mattpocock/skills/issues/741) where safe); live `.env` scoping reads names only. Rejected: the Codex `agents/openai.yaml` sidecar (no Codex target) |
+| [`prototype`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/prototype) HTML demo shell (v1.2) | `prototype:pressure-test` | Partial | Adopted in lane 5 (prototype 0.5.0): the terminal app stays the default; when the person driving it is not a developer, or no terminal fits, the throwaway shell over the same pure logic module is one self-contained `file://` page with domain labels, a state panel redrawn on each click, free-play buttons and guided scenarios that reset to a known start, under explore-directions' HTML constraints (restrictive CSP meta tag, a `mktemp -d` or `%LOCALAPPDATA%\Temp` location, synthetic data only, deleted after the markdown capture). Rejected: keeping the prototype runnable on a throwaway branch as the primary record, which breaks the two-lane branch-naming rule and the plugin's delete-when-done rule (`plugins/prototype/context/discipline.md`, "Delete or absorb when done") |
+| `ask-matt` [`PHASE-BOUNDARIES.md`](https://github.com/mattpocock/skills/blob/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/ask-matt/PHASE-BOUNDARIES.md) (v1.2) | `session-flow:workflow` continuation router, `context-guard` zones | Convergent / rejected | At parity on an ordered, first-match router with compaction last; ours adds clean-stop, user-gated background runs, instrumented zones and worker relay. Adopted one zone-gated criterion: prefer continuing when the next stage reuses this stage's reasoning as is. Rejected: triggering only at stage boundaries (`/session-flow:workflow` routes by task, mid-stage included); narrowing handoff to fewer cases (ours hands off in more); and the context-size figure, a folklore number with no official threshold behind it (our baseline is instrumented zone readings plus context-guard's declared default bands, which are defaults, not measurements, per audit amendment A1 of 2026-08-18). **Pointer**: when choosing between continuing, clearing and compacting, fetch [when your context fills up](https://code.claude.com/docs/en/context-window#when-your-context-fills-up) live. **As of**: 2026-10-02. **Recheck trigger**: that docs section starts naming a context-size threshold, or the linked `PHASE-BOUNDARIES.md` changes |
+| [`teach`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/productivity/teach) | `education:teach` | Derived | The `teach-skill-comparison` audit (PR #2958) moved this row from Not adopted: the original port took the workspace file names (MISSION, GLOSSARY, RESOURCES, NOTES, and learning records kept like ADRs), the file formats, and the K-S-W, ZPD and community-delegation pedagogy with the learning-record doctrine. Rejected: the working directory as workspace (we use dedicated per-project workspace roots), the Codex sidecar, and HTML references (reference, records and glossary stay markdown). Ours adds codebase mode, the primer action, assess, the staleness doctrine, evals, slug-collision guards and a workspace-root resolution ladder. Re-adopted in that audit (education 0.7.0): storage-strength pedagogy and HTML-first interactive lessons with a shared `assets/` library, whose answer-shuffling quiz component avoids upstream's always-option-C bug ([#335](https://github.com/mattpocock/skills/issues/335)); spaced review, surfaced at resume and status from learning-record age and domain velocity, covers a scheduling gap upstream acknowledges. Copy check 2026-10-04 (`/attribution:audit`): the format files were reworded, but a unanimous panel still finds the mission, glossary, resources and learning-record formats following upstream's templates and rule lists; open, pending a rewrite decision |
 
-## Not adopted (decided, with reasons)
+## Not adopted
 
-`ask-matt` router (marketplace shape differs), `setup-matt-pocock-skills` (we configure via
-`userConfig` + consumer docs), `migrate-to-shoehorn` /
-`scaffold-exercises` / `setup-pre-commit` (personal/low-value), writing-beats/-fragments/-shape
-(out of scope), Codex `agents/openai.yaml` sidecars (no Codex target). (`teach` moved to the
-attribution table — the `teach-skill-comparison` topic audit established it as Derived.)
+Each of these has a line in the [Map](#map) with its reason: the `ask-matt` router, the
+`setup-matt-pocock-skills` interview, `migrate-to-shoehorn`, `scaffold-exercises`,
+`setup-pre-commit`, and the three writing skills (`writing-beats`, `writing-fragments`,
+`writing-shape`). Codex `agents/openai.yaml` sidecars are rejected throughout: this marketplace has
+no Codex target.
 
-Lane-5 infra rejections (v1.2):
+Infrastructure rejected in lane 5 (v1.2):
 
-- **Version-sync script** (his `scripts/` changeset-version sync): serves upstream's
-  changesets/npm release pipeline, which this marketplace does not have; our CI-wired
-  `scripts/check-changelog-parity.sh` (`.github/workflows/ci.yml` changelog-parity job) is the
-  stronger gate; the version one-home doctrine holds — `marketplace.json` carries no version
-  keys to drift.
-- **"It's working if" sections** (per-skill success blurbs): they decorate a per-skill docs site
-  this marketplace doesn't build (docs-site build is out of scope per the topic plan). Reopen
-  condition: a docs-site build landing in this repo — recorded here, deliberately not a TRACK
-  row.
-- **`writing-for-agents` / `SKILL-MECHANICS.md` bulk**: originally rejected at parity or
-  stronger (v1.2 lane 5). **Superseded 2026-08-17** by the steering-section re-evaluation:
-  parity holds only for the pruning/audit half; the authoring half carries three gaps, tracked
-  as course lanes 7–8
+- **The changeset version-sync script**
+  ([`scripts/sync-plugin-version.mjs`](https://github.com/mattpocock/skills/blob/84fdeffd12f2ee307994d1eb6feb48173b6e0502/scripts/sync-plugin-version.mjs)):
+  it serves a changesets and npm release pipeline this marketplace does not have. Our CI-wired
+  `scripts/check-changelog-parity.sh` is the stronger gate, and `marketplace.json` carries no
+  version keys that could drift.
+- **Per-skill "It's working if" sections**: they belong to a per-skill docs site this marketplace
+  does not build. Reopen if a docs-site build lands in this repository.
+- **`writing-for-agents` and its mechanics file in bulk**: first rejected as at parity or better.
+  Superseded 2026-08-17: parity holds only for the pruning and audit half, and the authoring half
+  had three gaps, tracked as course lanes 7 and 8
   ([#2909](https://github.com/melodic-software/claude-code-plugins/issues/2909),
-  [#2910](https://github.com/melodic-software/claude-code-plugins/issues/2910)).
-  Section-by-section verdicts: the decomposition table below.
+  [#2910](https://github.com/melodic-software/claude-code-plugins/issues/2910)). Section verdicts
+  are in the decomposition table below.
 
-The v1.2 behavior deltas (owned-skill lane), the `wait-what` port, the `wizard` port, and the
-infra subset (lane 5: shareable-HTML logic shell adopted — prototype row above; version-sync
-script and "It's working if" rejected above; `.out-of-scope/` KB rejected as already-adopted —
-triage row above; two writing-for-agents strands tracked below) are all closed — no evaluations
-from the v1.2 audit remain open.
+No evaluation from the v1.2 audit remains open: the behavior deltas, the `wait-what` and `wizard`
+ports, and the lane 5 infrastructure subset are all closed.
 
 ## writing-for-agents decomposition (re-evaluated 2026-08-17)
 
-Steering-section session of the AI Hero course effort (course lanes 7–9:
-[#2909](https://github.com/melodic-software/claude-code-plugins/issues/2909) /
-[#2910](https://github.com/melodic-software/claude-code-plugins/issues/2910) /
-[#2911](https://github.com/melodic-software/claude-code-plugins/issues/2911)). Upstream
-re-verified current at v1.2.3 — no release past `84fdeff`; unreleased main drift (upstream
-PRs 878/880) is recorded in the pocock-course-lanes pre-lane recheck. Verdict per upstream
-section — where each concern lives here, or the recorded gap. The structural finding behind
-the supersession: upstream fires at the *authoring* moment ("creating or editing skills, or
-modifying AGENTS.md or CLAUDE.md") while our coverage is *audit*-shaped; only skills have an
-authoring-moment home (`playbooks:skill-authoring`).
+Upstream files read:
+[`writing-for-agents/SKILL.md`](https://github.com/mattpocock/skills/blob/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/productivity/writing-for-agents/SKILL.md)
+and
+[`SKILL-MECHANICS.md`](https://github.com/mattpocock/skills/blob/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/productivity/writing-for-agents/SKILL-MECHANICS.md).
+This came from the steering-section session of the AI Hero course effort (course lanes 7 to 9:
+[#2909](https://github.com/melodic-software/claude-code-plugins/issues/2909),
+[#2910](https://github.com/melodic-software/claude-code-plugins/issues/2910),
+[#2911](https://github.com/melodic-software/claude-code-plugins/issues/2911)). The structural
+finding: upstream's skill applies when an agent document is being written, while our coverage was
+shaped as audits; only skills had a home at writing time (`playbooks:skill-authoring`).
 
-**Lane 7 closed 2026-08-17**: gaps 1–2 and the two-loads/leading-words strands are
-design-locked as `docs-hygiene:write-for-agents`
-(build:
-[#2962](https://github.com/melodic-software/claude-code-plugins/issues/2962) +
-[#2963](https://github.com/melodic-software/claude-code-plugins/issues/2963), the audit-side
-completion-criteria criterion). **#2962 built (docs-hygiene 0.17.0)**: the gap-1/2 verdict
-cells below are ADOPTED; #2963's audit-side criterion remains the one open follow-on.
+**Lane 7 closed 2026-08-17.** Gaps 1 and 2, and the two-loads and leading-words strands, were
+designed as `docs-hygiene:write-for-agents` and built in docs-hygiene 0.17.0
+([#2962](https://github.com/melodic-software/claude-code-plugins/issues/2962)); the audit-side
+completion-criteria check
+([#2963](https://github.com/melodic-software/claude-code-plugins/issues/2963)) is the one open
+follow-on.
 
-**Lane 8 closed 2026-08-17**: gap 3 (invocation) is decided — invocation-mode rubric homed at
-`docs/conventions/invocation-mode/README.md` (model-invoked default + three exception classes); enforcement filed as
-[#2968](https://github.com/melodic-software/claude-code-plugins/issues/2968), the one re-grade
-flip as [#2969](https://github.com/melodic-software/claude-code-plugins/issues/2969).
+**Lane 8 closed 2026-08-17.** Gap 3, invocation, is decided: the invocation-mode rubric lives at
+`docs/conventions/invocation-mode/README.md` (model invocation by default plus three exception
+classes). Enforcement is [#2968](https://github.com/melodic-software/claude-code-plugins/issues/2968);
+the one re-grade is [#2969](https://github.com/melodic-software/claude-code-plugins/issues/2969).
 
-| Upstream section | Our surface | Verdict |
+| Upstream topic | Our surface | Verdict |
 |---|---|---|
-| Context pointers (wording-as-trigger, branches, front-loaded leading word) | `docs-hygiene:write-for-agents` (authoring-time, branch-covering front-loaded pointer doctrine) + `audit-progressive-disclosure` (audit-time criteria) + `playbooks:skill-authoring` (skills) | ADOPTED (adapted; #2962, docs-hygiene 0.17.0) |
-| The two loads (context load / cognitive load) | `write-for-agents` "Budget both loads" + PLUGIN-PHILOSOPHY Instruction-economy cross-reference | ADOPTED (adapted; #2962) |
-| Information hierarchy (steps vs reference, ladder, co-location, sprawl) | `write-for-agents` steps-vs-reference + co-location doctrine; three-tier load-cost model carries the ladder | ADOPTED (adapted; #2962) |
-| Steps and completion criteria (clarity, demand, premature completion, post-completion steps, legwork) | `write-for-agents` "Give every step a completion criterion" (write-side); audit-side criterion rides #2963 | ADOPTED (adapted; #2962 — audit-side pending #2963) |
-| When to split (by sequence / by invocation) | `write-for-agents` split-by-sequence; invocation axis owned by the rubric (`docs/conventions/invocation-mode/`), pointed at, never restated | ADOPTED (both halves; #2962 + lane 8) |
-| Leading words + negation | `write-for-agents` "Prompt the positive" | ADOPTED (adapted; #2962 — tracked strand retired below) |
-| Pruning: single source of truth | `docs-hygiene:extract-ssot` | PARITY+ |
-| Pruning: environment-as-truth ("cache") | `docs-hygiene:audit-derivability` (keep-as-derivation-cache verdict + drift control) | PARITY+ (stronger — cache without drift control is not a cache) |
-| Pruning: relevance / sediment | `harness-config:audit-instructions`, `session-flow:reanchor`, `docs-hygiene:rename-references`, `review` doc-drift-detector | PARITY |
-| Pruning: no-ops (model-relative, run-the-document test) | `harness-config:unhobble` (empirical — operationalizes his remove-and-observe test) + `audit-instructions` (judgment) | PARITY+ |
-| MECHANICS: invocation choice | rubric at `docs/conventions/invocation-mode/` (model-invoked default + exception classes; the setup convention was already documented in PLUGIN-PHILOSOPHY, contra this row's earlier "undocumented" reading); `skill-quality:check listing-budget` instrument | ADOPTED (adapted — inverted default; lane 8, 2026-08-17; enforcement → #2968) |
-| MECHANICS: splitting by invocation | rubric § Splitting by invocation; #2962's when-to-split doctrine points there | ADOPTED (routed; lane 8, 2026-08-17) |
-| MECHANICS: router skills | rubric § Router-skill verdict; human-side answer = `docs/skill-cheat-sheet.md` + `harness-ops:inventory`; composition-router carve-out (`discipline:sweep-all`) | REJECTED with reason (lane 8, 2026-08-17 — the always-present listing is the router under a model-invoked default) |
-| Invocation-reach invariant | tracked strand (below) | CONFIRMED (docs-verified 2026-08-17; lane 8 disposition below) |
+| Context pointers | `docs-hygiene:write-for-agents` (pointer doctrine at writing time), `audit-progressive-disclosure` (audit time), `playbooks:skill-authoring` (skills) | ADOPTED (adapted; #2962, docs-hygiene 0.17.0) |
+| The two loads | `write-for-agents` "Budget both loads", cross-referenced from PLUGIN-PHILOSOPHY instruction economy | ADOPTED (adapted; #2962) |
+| Information hierarchy | `write-for-agents` steps-versus-reference and co-location doctrine; the three-tier load-cost model covers the ladder | ADOPTED (adapted; #2962) |
+| Steps and completion criteria | `write-for-agents` "Give every step a completion criterion" (writing side); the audit side rides #2963 | ADOPTED (adapted; #2962; audit side pending #2963) |
+| When to split | `write-for-agents` split by sequence; the invocation axis is owned by the rubric in `docs/conventions/invocation-mode/`, linked, not restated | ADOPTED (both halves; #2962 and lane 8) |
+| Leading words and negation | `write-for-agents` "Prompt the positive" | ADOPTED (adapted; #2962; tracked strand retired below) |
+| Pruning: one source per fact | `docs-hygiene:extract-ssot` | PARITY+ |
+| Pruning: the environment as the source of truth | `docs-hygiene:audit-derivability` (keep-as-derivation-cache verdict with drift control) | PARITY+ (ours adds drift control) |
+| Pruning: relevance and sediment | `harness-config:audit-instructions`, `session-flow:reanchor`, `docs-hygiene:rename-references`, `review` doc-drift-detector | PARITY |
+| Pruning: no-ops | `harness-config:unhobble` (remove the text and observe) and `audit-instructions` (judgment) | PARITY+ |
+| Mechanics: choosing the invocation mode | the rubric in `docs/conventions/invocation-mode/` (model invocation by default plus exception classes; the setup convention was already in PLUGIN-PHILOSOPHY); `skill-quality:check listing-budget` | ADOPTED (adapted, with the default inverted; lane 8, 2026-08-17; enforcement in #2968) |
+| Mechanics: splitting by invocation | rubric section "Splitting by invocation"; #2962's when-to-split doctrine points there | ADOPTED (routed; lane 8, 2026-08-17) |
+| Mechanics: router skills | rubric section "Router-skill verdict"; for people, `docs/skill-cheat-sheet.md` and `harness-ops:inventory`; `discipline:sweep-all` as the composition-router exception | REJECTED with reason (lane 8, 2026-08-17: under model invocation by default, the always-loaded skill listing already routes) |
+| Invocation-reach invariant | tracked strand below | CONFIRMED (against the docs, 2026-08-17; lane 8 disposition below) |
 
 ## Tracked (event-triggered re-evaluation)
 
-Two `writing-for-agents` strands from v1.2 (lane 5) — tracked on events, never dates. Since
-2026-08-17 each also has a disposition path through the steering course lanes; the event
-triggers stand until the owning lane records the disposition:
+Two `writing-for-agents` strands from lane 5, tracked on events, never on dates.
 
-- **Leading-words + negation doctrine** (upstream `writing-for-agents/SKILL.md:61-74`:
-  pretrained "leading words" as compact behavior anchors; prompt the positive — prohibition
-  drags the banned behavior into context). Not double-tracked: this is the same territory as
-  the deliberate deferral already recorded in PR #1400 (the skill-quality
-  negation/negative-space port deferred from that session's gap scan) — this record
-  cross-links that deferral rather than opening a second ledger entry. Trigger: a
-  mattpocock/skills release whose changeset names `writing-for-agents`.
-  **RETIRED (2026-08-18): adopted as `write-for-agents` "Prompt the positive"
-  (docs-hygiene 0.17.0, #2962). The release-named recheck trigger now applies only as an
-  ordinary attribution-table row concern, not an open strand.**
-- **Invocation-reach invariant** (upstream `SKILL-MECHANICS.md:10`: a user-invoked skill —
-  `disable-model-invocation: true` — can be invoked by no other skill).
-  **Disposition (lane 8, 2026-08-17): CONFIRMED against current official docs**
-  (code.claude.com/docs/en/skills, fetched 2026-08-17): `disable-model-invocation: true` →
-  "Description not in context, full skill loads when you invoke"; "By default, Claude can invoke
-  any skill that doesn't have `disable-model-invocation: true` set"; the flag "removes the skill
-  from Claude's context entirely" — and it also blocks subagent preload and (v2.1.196+)
-  scheduled-task prompts. The upstream-release trigger is retired (the invariant no longer
-  depends on upstream's wording — it is docs-confirmed and owned by
-  `docs/conventions/invocation-mode/README.md` § The invocation-reach invariant).
-  **C22 ADOPTED — fired-and-resolved
-  (#2940 / Lane X):** fleet audit enumerated **57** skills with
-  `disable-model-invocation: true` and searched `SKILL.md`, evals, and reference docs for
-  Skill-tool invocation of those names (patterns such as "invoke `/plugin:skill` via the Skill
-  tool", "Call the Skill tool" + target, "Skill tool" + `:setup`). The explicit "via the Skill
-  tool" form is still **zero**. A follow-up pass also reworded operative slash-command
-  instructions against user-invoked-only targets in `repo-fleet-hygiene:audit` and
-  `harness-ops` `inventory` / `audit-performance` / `audit-install-state` (agent-operative
-  "execute/route/hand to /X" → "tell the user to run /X"; ownership and Question|Owner
-  boundary tables left intact). Human-relay phrasing ("tell the user to run /X",
-  "offering to run `/plugin:setup`") and Skill-tool hits on model-invocable skills
+- **Leading words and negation**: retired 2026-08-18, adopted as `write-for-agents` "Prompt the
+  positive" (docs-hygiene 0.17.0, #2962). It shared territory with the negation port deferred in
+  PR #1400 and was never tracked twice. A change to the linked upstream file is now an ordinary
+  attribution concern, not an open strand.
+- **Invocation-reach invariant** (upstream
+  [`SKILL-MECHANICS.md`](https://github.com/mattpocock/skills/blob/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/productivity/writing-for-agents/SKILL-MECHANICS.md)):
+  no skill can invoke a skill marked `disable-model-invocation: true`. Confirmed against the Claude
+  Code docs in lane 8; `docs/conventions/invocation-mode/README.md`, "The invocation-reach
+  invariant", owns the rule, so it no longer depends on upstream and the upstream-release trigger
+  is retired.
+  - **Pointer**: when a skill must reach another skill, fetch
+    [the skills page](https://code.claude.com/docs/en/skills) live and read what
+    `disable-model-invocation` removes.
+  - **As of**: 2026-08-17
+  - **Recheck trigger**: a repository review or audit finds a new Skill-tool or operative
+    slash-command invocation of a `disable-model-invocation: true` target.
+
+  C22 adopted, fired and resolved (#2940, lane X): a fleet audit found 57 skills marked
+  `disable-model-invocation: true` and searched `SKILL.md`, evals and reference docs for Skill-tool
+  invocations of them. Explicit "via the Skill tool" invocations: zero. A follow-up pass reworded
+  operative slash-command instructions that targeted user-invoked skills in
+  `repo-fleet-hygiene:audit` and harness-ops `inventory`, `audit-performance` and
+  `audit-install-state` to "tell the user to run /X", leaving ownership and boundary tables as they
+  were. Telling the user to run a command, and Skill-tool calls on model-invocable skills
   (`/toolchain:check`, `/implementation:implement-dispatch`, `/tdd:principles`,
-  `/session-flow:handoff`, `/testing:run-e2e`) are non-violations. Standing
-  `skill-quality:check` automation deferred (cross-plugin target resolution is not cheap under
-  the single skills-root model); doctrine lines live in `playbooks:skill-authoring` and
-  `skill-quality:check`. Canonical rewording if a future hit appears: "tell the user to run /X".
-  Same Lane X pass: C23 curate-language trigger comparison vs upstream artifact-anchored
-  `domain-modeling` rewording is **ALREADY-PRESENT** (ours already name glossary / domain term /
-  vocabulary) — one-shot, not a re-evaluation trigger. Same lane's **C21 ADOPTED**:
-  one-skill-per-call phrasing (a step needing two skills is two calls, not one call naming
-  two) landed at `plugins/playbooks/skills/skill-authoring/SKILL.md:180` and
-  `plugins/skill-quality/skills/check/SKILL.md:161`. **Granularity caveat resolved
-  (2026-08-21):** the course SSOT — which owns lane verdicts — now carries a `## Lane X (#2940)`
-  section with a bullet per candidate, and its verdict-table row X was corrected from a flat
-  ADOPTED to `PARTIAL (C21+C22 adopted; C23 already-present)`, matching how every other lane
-  holding an already-present candidate is graded. The two records agree: the course SSOT owns
-  the verdicts, this strand owns the audit detail behind C22 and the re-trigger below.
-  Re-trigger (audit-side only; the upstream-release trigger is retired per the lane 8
-  disposition above): a repo review/audit surfacing a new Skill-tool or operative
-  slash-command invocation of a `disable-model-invocation: true` target re-opens this strand.
+  `/session-flow:handoff`, `/testing:run-e2e`), are not violations. A standing `skill-quality:check`
+  rule was deferred (cross-plugin target resolution is costly under the single skills-root model);
+  the doctrine lives in `playbooks:skill-authoring` and `skill-quality:check`. The fix for any future
+  hit is the wording "tell the user to run /X". Same pass: C23 already present (our
+  `curate-language` triggers already name glossary, domain term and vocabulary; one-shot, not a
+  trigger) and C21 adopted (a step needing two skills makes two calls, at
+  `plugins/playbooks/skills/skill-authoring/SKILL.md` and `plugins/skill-quality/skills/check/SKILL.md`).
+  Since 2026-08-21 the course record's `## Lane X (#2940)` section holds a bullet per candidate and
+  grades row X `PARTIAL (C21+C22 adopted; C23 already-present)`; it owns the verdicts, and this
+  strand owns the C22 audit detail and the trigger above.
 
-## Harness findings learned from this upstream (recheck-worthy)
+## Harness findings learned from this upstream
 
-- **Upstream issue [#693](https://github.com/mattpocock/skills/issues/693):** Claude's desktop
-  and web surfaces drop user-invoked skills from the skill listing. Affects OUR user-invoked
-  skills on those surfaces too. Recheck when that issue changes state.
-- **Codex dual-harness gotcha (upstream v1.2.2, PR #766):** `policy.allow_implicit_invocation:
-  false` in an `agents/openai.yaml` sidecar hides a *model-invoked* skill from Codex entirely —
-  the policy line belongs only on user-invoked skills. Relevant only if we ever target Codex.
+- **Desktop and web skill listing.** Our user-invoked skills are affected the same way as
+  upstream's in the Claude desktop and web apps.
+  - **Pointer**: when a user-invoked skill is missing from the listing on desktop or web, read
+    upstream issue [#693](https://github.com/mattpocock/skills/issues/693) live.
+  - **As of**: 2026-10-04 (issue open)
+  - **Recheck trigger**: the issue changes state. The drift script reads trees, not issues, so this
+    trigger is watched by hand.
+- **Codex sidecar policy** (the `allow_implicit_invocation: false` line). Relevant only if this marketplace ever targets Codex.
+  - **Pointer**: when adding a Codex sidecar to a model-invoked skill, read upstream PR
+    [#766](https://github.com/mattpocock/skills/pull/766) (v1.2.2) live.
+  - **As of**: 2026-08-08
+  - **Recheck trigger**: this marketplace adds a Codex target.
+
+## Cross-cutting infrastructure (v1.2, not per skill)
+
+| Item | Ours | Decision |
+|---|---|---|
+| Codex `agents/openai.yaml` sidecars | none: a Claude-only marketplace in a public repository (an earlier "private" reading was corrected 2026-08-18) | No action unless we target Codex; see Harness findings |
+| Claude Code plugin and official marketplace listing (`claude plugins install mattpocock-skills`) | this repository is a public marketplace | Parity |
+| Per-skill docs site | `docs/` and per-plugin READMEs, no per-skill site | Not adopted; see Not adopted |
+| `CLAUDE.md` provided by symlinking `AGENTS.md` | `CLAUDE.md` imports `@AGENTS.md` | No action: an import works on Windows checkouts, where a symlink can arrive as a plain file |
+| Changesets with a version-sync drift gate | per-plugin semver in each CHANGELOG, `scripts/check-changelog-parity.sh` | Rejected; see Not adopted. A drift gate over versions was noted as an idea for marketplace lint |
+| Skill buckets (promoted, in progress, misc, deprecated) | plugins as units, no beta channel | Not adopted; our CHANGELOG discipline already names what replaces a retired unit |
+| User-invoked reachability rule | stated in `docs/conventions/invocation-mode/README.md`, "The invocation-reach invariant", and in `playbooks:skill-authoring` | Already landed; no action |
+| Context-size figure in `ask-matt` | `context-guard` bands | Compared and rejected in the `ask-matt` row |
+| Upstream issue #693 | our user-invoked skills are affected too | Pointer record in Harness findings |
+
+## Drift/fix findings (this repository)
+
+1. **Discharged 2026-08-21.** `plugins/planning/skills/questionnaire/SKILL.md` once called
+   upstream `to-questionnaire` in progress after it had graduated; the line was removed on
+   2026-08-09 in `03a827f9` (#2082).
+2. **Discharged with finding 1.** The same removed lines promised a re-audit with no observable
+   event, failing the upstream-drift observability bar, and the guardrails attribution named no
+   trigger. This page's recheck trigger now covers every row.
+3. **Open.** `work-items:triage` and `work-items:decompose` carried phrasing close to
+   upstream. The provenance was recorded here in #2947; the 2026-10-04 rewrite and copy check left
+   the questions noted in the `triage` and `to-tickets` rows.
+4. **Baseline.** Audits target the pinned commit (v1.2.3), not v1.2.0.
+5. **Overstated parity, resolved 2026-08-17.** The lane 5 rejection of `writing-for-agents` as at
+   parity covered only the pruning and audit half; the decomposition table above corrects it, and
+   the gaps rode #2909 and #2910.
 
 ## Map
 
-Full verified 35-skill upstream↔ours map (relations, v1.2 deltas, drift findings):
-[`docs/upstream/mattpocock-skills-v12-map.md`](mattpocock-skills-v12-map.md).
+One line per upstream unit at the pin: relation, our owner, and what we took. A link here names a
+unit; it counts as drift only when upstream removes the unit. Units we took from also have a row
+above, whose links are the drift inputs.
 
-Shipping-course SSOT (distinct source from this skills-repo record; course pages
-are account-gated; recheck trigger lives there):
-[`aihero-shipping-course.md`](aihero-shipping-course.md).
-That file owns the candidate index (C1–C23) and the lane verdicts. Where a candidate touches a
-skills-repo artifact, its disposition is attached to the owning attribution row above — `to-spec`
-C1–C4, `to-tickets` C5–C8 + C17, `tdd`/`tests.md`/`mocking.md` C9–C11, `code-review` C12–C16,
-`wayfinder` C18–C20, `.agents/invocation.md` C21–C23 in the tracked strand — never re-indexed
-here as a second table.
+### Engineering (18)
 
-Crash-course + Steering-section provenance record (the course's original six lessons and nine
-steering lessons, vetted as lanes with per-lesson coverage index and term-adoption decisions;
-its own divergence-at-re-fetch trigger discipline lives there):
-[`aihero-course.md`](aihero-course.md).
+- [`ask-matt`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/ask-matt): none. No router skill here; the nearest are `session-flow:workflow` and the plugin listings. The router is not adopted because this marketplace has many plugins and no single main flow. Its phase-boundaries file, `PHASE-BOUNDARIES.md`, has its own row.
+- [`code-review`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/code-review): partial; `review`. Rows `code-review` and PR #464. The two-worker standards-versus-spec structure is already in `quality-gate/context/self.md`, under the name `lens`.
+- [`codebase-design`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/codebase-design): convergent; `architecture:improve` and `naming` territory. Nothing taken; its module-design vocabulary is an open candidate for those skills. Absorbed upstream by v1.2: `design-an-interface`, now its `DESIGN-IT-TWICE.md` (an Ousterhout technique).
+- [`diagnosing-bugs`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/diagnosing-bugs): partial (corrected 2026-08-21); `debugging:debug`, `testing:diagnose`. Row `diagnosing-bugs`.
+- [`domain-modeling`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/domain-modeling): partial; `domain-driven-design:curate-language`, with the ADR three-gate test and glossary purity rule in `planning:interview`. Omitted its fixed context and context-map file names; our glossary discovery follows the consumer's convention. Row "Grilling-family rework". Absorbed upstream by v1.2: `ubiquitous-language`.
+- [`grill-with-docs`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/grill-with-docs): partial; `planning:interview` engineering mode. Took the primitive-versus-variant boundary; rounds were already ours.
+- [`implement`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/implement): convergent; `implementation:implement`. Nothing taken.
+- [`improve-codebase-architecture`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/improve-codebase-architecture): partial; `architecture:improve`. Took the grilling integration and the scoping filter (row); omitted the HTML report.
+- [`prototype`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/prototype): partial (corrected 2026-08-21); `prototype:explore-directions`, `prototype:pressure-test`, which predate or parallel upstream apart from the HTML demo shell from its `LOGIC.md` (row). The `prototype/<name>` branch capture was rejected (row).
+- [`research`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/research): convergent; `discovery:research`. Nothing taken.
+- [`resolving-merge-conflicts`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/resolving-merge-conflicts): convergent; `source-control:resolve-conflicts`. Nothing taken; an evals variant on the stranded local branch `absorb/pocock-mechanisms` was deliberately left out (#1400).
+- [`setup-matt-pocock-skills`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/setup-matt-pocock-skills): none. Not adopted: our plugins are configured through `userConfig` and consumer docs, not a setup interview. Its v1.2 revision ([#502](https://github.com/mattpocock/skills/pull/502)) added the local layout `.scratch/<feature>/issues/<NN>-<slug>.md` and `spec.md`; nothing taken.
+- [`tdd`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/tdd): partial, relocated (lane C, C9); `tdd:principles`, `testing:write`, `planning:plan` Test strategy. Row `tdd`.
+- [`to-spec`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/to-spec): partial (corrected 2026-08-21); `planning:prd`, `planning:plan`, the interview Brief and the decompose container lifecycle. C3 and C4 landed (row). Not taken: extensive user stories, and keeping file paths out of specs. Renamed upstream from `/to-prd` (A9); its spec file is `spec.md`.
+- [`to-tickets`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/to-tickets): partial; `work-items:decompose` (tickets are work items here). The expand-migrate-contract exception was already in decompose. Row `to-tickets`. Its one-file-per-ticket local layout was not taken.
+- [`triage`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/triage): derived; `work-items:triage`. The rejected-concept ledger is a structured port of its `.out-of-scope/` ledger (row).
+- [`wayfinder`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/wayfinder): partial (corrected 2026-08-21 from derived; only the name `wayfind` is derived); `planning:wayfind`. Row `wayfinder`, which records the `research/<name>` branch rejection.
+- [`wizard`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/engineering/wizard): derived (lane 4); `wizard:generate` in plugin `wizard` 0.1.0, built around its `template.sh` library. Row `wizard`.
+
+### Productivity (7)
+
+- [`grill-me`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/productivity/grill-me): derived (behavior); `planning:interview` rounds. Row `batch-grill-me`. Upstream moved the rounds into `grilling` by v1.2.
+- [`grilling`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/productivity/grilling): partial; `planning:interview` core loop. Its domain generalization was already mirrored by our domain routing.
+- [`handoff`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/productivity/handoff): partial; `session-flow:handoff`, which is larger (save-point files, find-handoff, reconcile). Row "Handoff failure reports"; the narrower handoff framing was rejected in the `ask-matt` row.
+- [`teach`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/productivity/teach): derived (corrected from convergent); `education:teach`, with siblings `education:explain` and `education:quiz-me`. Row `teach`.
+- [`to-questionnaire`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/productivity/to-questionnaire): derived; `planning:questionnaire` (#311). Row `to-questionnaire`.
+- [`wait-what`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/productivity/wait-what): derived (lane 3); `discipline:wait-what`. Its nearest neighbors are `education:explain` (altitude) and `adhd:clarify` (structure); this one re-explains at full precision; `tighten-your-output` and `caveman` shape output instead; `curate-language` owns glossary writes. Row `wait-what`.
+- [`writing-for-agents`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/productivity/writing-for-agents): partial (corrected 2026-08-21); `docs-hygiene:write-for-agents`, `playbooks:skill-authoring`, the other `docs-hygiene` audits, `skill-quality:check`. Decomposition table above. Renamed upstream from `writing-great-skills` in v1.2, with its glossary merged in and `SKILL-MECHANICS.md` split out.
+
+### Misc (4)
+
+- [`git-guardrails-claude-code`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/misc/git-guardrails-claude-code): derived (capability); `guardrails` block-dangerous-git hook (#298), an argv-grammar parser with 190 tests at introduction and 278 at the v1.2 map's audit. Row `git-guardrails-claude-code`.
+- [`migrate-to-shoehorn`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/misc/migrate-to-shoehorn): none. Not adopted: TypeScript tooling for the author's own projects.
+- [`scaffold-exercises`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/misc/scaffold-exercises): none. Not adopted: specific to the author's course material.
+- [`setup-pre-commit`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/misc/setup-pre-commit): none. Not adopted: toolchain and repo-hygiene territory, low value here.
+
+### In progress (6, beta upstream)
+
+- [`claude-handoff`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/in-progress/claude-handoff): partial; `session-flow:continue-in-background` and handoff `--bg` (#76). Same direction: hand the work to a background agent (`claude --bg --name`).
+- [`loop-me`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/in-progress/loop-me): convergent; `/loop`, `work-items`, `claude-code-setup:claude-automation-recommender`. Nothing taken.
+- [`setup-ts-deep-modules`](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/in-progress/setup-ts-deep-modules): none; `review:architecture-guardian` checks dependency direction at review time. Nothing taken; TypeScript-specific.
+- `writing-beats` / `writing-fragments` / `writing-shape` ([1](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/in-progress/writing-beats), [2](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/in-progress/writing-fragments), [3](https://github.com/mattpocock/skills/tree/84fdeffd12f2ee307994d1eb6feb48173b6e0502/skills/in-progress/writing-shape)): none. Not adopted: a workflow for human writing, outside this marketplace's scope.
+
+## Related records
+
+- [`cursor-pstack.md`](cursor-pstack.md): the pstack record, the other upstream skill collection.
+- [`aihero-shipping-course.md`](aihero-shipping-course.md): the shipping course, a separate source
+  from this repository (its pages are account-gated, and its recheck trigger lives there). It owns
+  the candidate index (C1 to C23) and the lane verdicts. Where a candidate touches an artifact from
+  this repository, its disposition sits in the owning attribution row above (`to-spec` C1 to C4,
+  `to-tickets` C5 to C8 and C17, `tdd` C9 to C11, `code-review` C12 to C16, `wayfinder` C18 to C20,
+  and C21 to C23 in the tracked strand) and is never re-indexed here.
+- [`aihero-course.md`](aihero-course.md): the crash-course and steering-section record (its six
+  original lessons and nine steering lessons, vetted as lanes with a per-lesson coverage index and
+  term-adoption decisions); it keeps its own re-fetch trigger.

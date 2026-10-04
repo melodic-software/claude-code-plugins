@@ -21,30 +21,33 @@ When assessing via quiz, hold the equal-length answer rule: multiple-choice opti
 Records live per [SKILL.md](../SKILL.md) "Workspace layout" (`learning-records/` under the active topic workspace). Scan that directory for the highest existing `NNNN` and increment. Cross-link related records, the mission, and terms with wikilinks (`[[MISSION.md]]`, `[[GLOSSARY.md]]`, `[[0002-<slug>]]`).
 
 ```markdown
-# {Short title of what was learned or established}
+# {The fact now settled about the learner, as a short title}
 
-{1-3 sentences: what was learned (or what prior knowledge was established), and why it matters for future sessions.}
+{One to three sentences: what the user now knows or already knew, and how that changes the next lessons.}
 ```
 
-Most records are this short. Value is recording THAT this is known and WHY it changes what to teach next.
+A record is usually just this paragraph. Its job is to change a later teaching choice; filling in
+sections does not add to that.
 
 ### Optional Sections
 
-Only when they add genuine value:
+Add one only when a later session would need it:
 
-- **Status** frontmatter (`active | superseded by LR-NNNN`): for when earlier understanding turns out wrong
-- **Evidence**: how the user demonstrated understanding (question answered, exercise completed, prior experience cited)
-- **Implications**: what this unlocks or rules out for future sessions
+- **Status** frontmatter (`active | superseded by LR-NNNN`): set once a later record replaces this one
+- **Evidence**: what showed the understanding (an answer the user gave, an exercise they finished, experience they described)
+- **Implications**: later lessons this record opens up or rules out
 
 ## What Does NOT Qualify as a Learning Record
 
-- Material merely covered (coverage is not learning, so wait for evidence)
-- Anything already captured in `GLOSSARY.md` as a term definition
-- Session-by-session activity logs (records are decision-grade insights, not journals)
+- Session logs: a record is an insight that steers later teaching, not an account of what happened in a session
+- A term definition: that goes in `GLOSSARY.md`, and a record does not repeat it
+- A topic that was taught but not yet shown to be understood: record it once the user demonstrates it
 
 ## Supersession
 
-When a later record contradicts an earlier one (understanding deepened or corrected), mark the old record `Status: superseded by LR-NNNN`. Don't delete. The history of how understanding evolved is itself useful signal.
+A record that a later one contradicts stays on disk with `Status: superseded by LR-NNNN` in its
+frontmatter. Keeping both shows the path the learner's understanding took, which helps choose what
+to revisit.
 
 ## Zone of Proximal Development Calculation
 

@@ -1,6 +1,8 @@
 # Resources Format
 
-`RESOURCES.md` is the curated set of trusted sources for a learning workspace. Knowledge for explainers is drawn from here, not from parametric guesses. Wisdom comes from communities listed here.
+`RESOURCES.md` lists the sources a learning workspace trusts. Lesson content comes from these
+sources rather than from model recall, and practical judgment comes from the communities the file
+names.
 
 ## Template
 
@@ -10,7 +12,7 @@
 ## Knowledge
 
 - [{Type}: _{Title}_, {Author}]({URL})
-  {One line: what it covers and when to reach for it.}
+  {One line: its subject, and the question that should send the learner to it.}
 
 ## Wisdom (Communities)
 
@@ -19,17 +21,19 @@
 
 ## Gaps
 
-- {Area the mission needs but no good resource exists for yet}
+- {A part of the mission no trusted source covers yet}
 ```
 
 ## Rules
 
-- **High-trust only.** Prefer primary sources, recognized experts, peer-reviewed work, communities with strong moderation. If a resource is marketing dressed as education, leave it out
-- **Annotate every entry.** A bare link is useless in three months. Add one line: what it covers and when to reach for it
-- **Group by Knowledge / Wisdom.** Mirrors the K-S-W framework
-- **Surface gaps explicitly.** If no good resource exists for an area the mission needs, write a `## Gaps` section. This drives future search
-- **Prune ruthlessly.** A resource that turned out to be wrong, shallow, or off-mission should be removed. Better five sharp sources than thirty mediocre ones
-- **Record community preferences.** If the user opted out of joining communities, note it
+| Concern | Rule |
+|---|---|
+| Trust | Favor primary sources, recognized experts, peer-reviewed research and tightly moderated communities. Leave out promotional material that poses as teaching |
+| Notes | Give each link a one-line note naming its subject and the situation that sends a learner to it; a link with no note is hard to use later |
+| Grouping | Sort entries into Knowledge and Wisdom, following the K-S-W framework |
+| Gaps | When the mission needs an area no good source covers, list it under `## Gaps`; later searches start from that list |
+| Upkeep | A source later found wrong, shallow or off the mission is deleted, not moved down the list. Quality of the list matters more than its length |
+| Communities | When the user opts out of joining communities, write that down so later sessions stop proposing them |
 
 ## Verification
 

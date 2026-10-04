@@ -3,6 +3,12 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Changed
+
+- **`/education:teach` workspace formats are written in this repository's own words.** A word-overlap check against the skill they were adapted from found long runs of its text in `context/mission.md`, `glossary.md`, `resources.md` and `assessment.md`, and in the lesson definitions in `pedagogy.md` and `lessons.md`. Each file now states the same rules with its own wording, order and examples; `pedagogy.md` drops a quoted phrase. File names, template headings and the rules themselves are unchanged.
+
 ## [0.14.1] - 2026-10-04
 
 ### Changed

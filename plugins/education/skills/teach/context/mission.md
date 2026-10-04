@@ -1,6 +1,8 @@
 # Mission Format
 
-`MISSION.md` lives at the workspace root per [SKILL.md](../SKILL.md) "Workspace layout". Captures WHY the user is learning this topic. Every teaching decision traces back to this document: what to teach next, which resources to surface, which exercises to design.
+`MISSION.md` sits at the workspace root ([SKILL.md](../SKILL.md) "Workspace layout"). It records the
+goal behind the learning. Choosing the next lesson, a resource to recommend or an exercise to set
+starts from this file.
 
 ## Template
 
@@ -9,31 +11,32 @@
 
 ## Why
 
-{1-3 sentences. Concrete real-world goal. What changes in their life or work when they have this skill? Avoid abstract framings like "to understand X". Push for the underlying outcome.}
+{One to three sentences naming the real result the user wants, such as a task at work they can do
+afterwards. "Know more about X" is not a result; ask what knowing it lets them do.}
 
 ## Success Looks Like
 
-- {Specific, observable thing the user will be able to do}
-- {Another specific thing}
+- {An outcome someone could watch the user do}
+- {A second outcome}
 - {…}
 
 ## Constraints
 
-- {Time, budget, prior commitments, learning preferences, anything that bounds the approach}
+- {Limits on the approach: hours per week, money, deadlines, how the user prefers to learn}
 
 ## Out of Scope
 
-- {Adjacent topics the user explicitly does not want to chase right now, which protects the zone of proximal development}
+- {Nearby topics the user has said to leave for later, so lessons stay within reach}
 ```
 
 ## Rules
 
 - **The `# Mission: {Topic}` title is identity, not prose.** `{Topic}` is the recorded raw subject name the slug-collision guard compares (SKILL.md "Path resolution rules"). Keep it the exact raw subject; descriptive flourish belongs in Why
-- **One mission per workspace.** Two unrelated topics = two workspaces
-- **Concrete over abstract.** "Ship a Rust CLI to my team" beats "learn Rust." "Write songs with family rhyme" beats "understand songwriting"
-- **Push back on vagueness.** If the user cannot articulate WHY, interview them via the one-question-at-a-time teaching dialog (SKILL.md "Teaching Dialog") before writing anything. A bad mission is worse than no mission
-- **Revise when reality shifts.** Missions change. When the goal moves, update it. Don't leave a stale mission steering sessions
-- **Keep it short.** If MISSION.md runs past a screen, it stopped being a compass and started being a plan
+- **A workspace holds one mission.** A second, unrelated subject gets its own workspace
+- **Name an outcome, not a subject.** "Review my team's Terraform pull requests without help" is a mission; "get better at Terraform" is not. "Plan a week of meals on a budget" beats "learn nutrition"
+- **Ask before writing when the goal is vague.** If the user cannot say what the learning is for, run the one-question-at-a-time teaching dialog (SKILL.md "Teaching Dialog") first. A vague mission misdirects every later session, which is worse than having none
+- **Update it when the goal changes.** A mission the user has moved past still steers lesson choice, so edit the file as soon as the goal shifts
+- **Length limit: one screen.** The file states direction; once it needs scrolling, it is holding step-by-step detail and should be cut back
 
 ## Codebase Mode Additions
 

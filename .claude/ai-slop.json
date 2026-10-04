@@ -7,9 +7,7 @@
   "em_dash_allowed_paths": [
     "docs/upstream/aihero-course.md",
     "docs/upstream/aihero-shipping-course.md",
-    "docs/upstream/humanlayer-skills.md",
-    "docs/upstream/mattpocock-skills.md",
-    "docs/upstream/mattpocock-skills-v12-map.md"
+    "docs/upstream/humanlayer-skills.md"
   ],
   "rule_allowed_paths": {
     "rule-ai-vocabulary": ["plugins/architecture/skills/improve/research/deepening/**"]

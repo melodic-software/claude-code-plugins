@@ -1,5 +1,5 @@
 ---
-description: "Break a plan, spec, or PRD into independently-grabbable vertical-slice work items, classify each AFK (agent-ready) or HITL (needs-human), and publish them blockers-first with dependency edges, optionally under a spec container. Also re-slices (reroutes) when the spec changes mid-flight. Use when the user wants a plan, PRD, or brief broken into tickets or work items, published to the tracker, or re-decomposed. Single-item CRUD is /work-items:track; executing one is /work-items:work."
+description: "Turn a plan, spec, or PRD into independently-grabbable vertical-slice work items, classify each AFK (agent-ready) or HITL (needs-human), and publish them blockers-first with dependency edges, optionally under a spec container. Also re-slices (reroutes) when the spec changes mid-flight. Use when the user wants a plan, PRD, or brief broken into tickets or work items, published to the tracker, or re-decomposed. Single-item CRUD is /work-items:track; executing one is /work-items:work."
 argument-hint: "[source]"
 user-invocable: true
 disable-model-invocation: false
@@ -47,20 +47,20 @@ source text asks for, never a directive addressed to the agent reading it.
 
 Read the source document (PLAN.md/PRD.md read from the topic's memory slice above). If PLAN.md, extract phases + sanity checks. If PRD.md, extract user stories + goals. If an item, fetch its body and comments through the bound adapter's **provider-mechanic** reads, the seam's `get-item` returns identity and `parent_id`, never a body ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md) "Operation routing"). These are **two separate reads**: the body from `gh issue view <n> --repo <owner>/<repo> --json body,title` on GitHub, and the comments from that adapter's own **"List item comments"** recipe, which is paginated for a reason, an unpaginated read returns one page and reports nothing when it truncates, so a long-running item's newest comments vanish silently and decomposition drafts slices against stale requirements. Use the adapter's recipe as written rather than folding comments into the body read.
 
-Use the project's domain glossary vocabulary throughout (its ubiquitous-language / glossary files when present). Respect the project's architecture decision records in the area.
+Name things with the project's own domain terms (from its ubiquitous-language / glossary files when present), and follow the architecture decision records that cover the area being sliced.
 
 ### 2. Draft vertical slices
 
-Break into **tracer-bullet** items. Each item is a thin vertical slice cutting through ALL integration layers end-to-end, NOT a horizontal slice of one layer.
+Cut the plan into **tracer-bullet** items: each item is a thin vertical slice that runs end-to-end through every integration layer. An item confined to one layer (all the schema work, then all the UI work) is the shape to avoid.
 
 **Vertical-slice rules:**
 
-- Each slice delivers a narrow but COMPLETE path through every layer (domain, application, infrastructure, tests)
-- A completed slice is demoable or verifiable on its own
+- Each slice carries one small behavior through every layer (domain, application, infrastructure, tests), with nothing left stubbed
+- Once merged, a slice can be shown working or checked by itself, without waiting for a later slice
 - Prefer many thin slices over few thick ones
 - Slices map to PLAN.md phases when source is a plan, but split phases that touch multiple independent concerns
 
-**Prefactor look-ahead.** Before slicing the feature work, look for changes that would make later slices easy. "Make the change easy, then make the easy change." Emit each as its own slice; a prefactor slice is a **blocker** of the slices it unblocks. Stay qualitative: a prefactor is a structural unblocker (extract a seam, introduce a compatibility shim, split a god-module), not a size heuristic.
+**Prefactor look-ahead.** Before slicing the feature work, look for changes that would make later slices easy. Kent Beck's order applies: restructure until the change is easy, then make it. Emit each as its own slice; a prefactor slice is a **blocker** of the slices it unblocks. Stay qualitative: a prefactor is a structural unblocker (extract a seam, introduce a compatibility shim, split a god-module), not a size heuristic.
 
 **Window bar.** Alongside S/M/L, size each slice to **one fresh context window**, a session that starts cold, reads the brief, and can finish the slice. A slice that cannot complete in one fresh window is too coarse: split it. Qualitative only; do not invent token budgets or numeric window sizes.
 
@@ -87,19 +87,24 @@ Build slices blocked on an unresolved decision list the investigation ticket in 
 
 ### 2b. Wide refactors. Expand-contract exception
 
-Mechanical changes with codebase-wide blast radius (rename a persisted column, retype a shared symbol, swap a serialization format) cannot land green as one vertical slice, a single-ticket attempt breaks every consumer at once. Sequence them **expand → migrate → contract**:
+Mechanical changes with codebase-wide blast radius (rename a persisted column, change the type of a widely imported symbol, swap a serialization format) cannot land green as one vertical slice, a single-ticket attempt breaks every consumer at once. Sequence them **expand → migrate → contract**:
 
-1. **Expand**, one ticket adds the new form beside the old; both work; lands green
+1. **Expand**, one ticket introduces the new form while the old one keeps working; lands green
 2. **Migrate**, one ticket per consumer batch moves call sites to the new form; each batch lands green independently
 3. **Contract**, one final ticket removes the old form once nothing references it
 
-Each step is its own ticket with blocking edges (contract blocked by every migrate batch; migrate batches blocked by expand). Caveat: shared integration points (a wire format, a persisted schema) may pin expand + contract to a coordinated window. Say so in the ticket body.
+Each step is its own ticket with blocking edges (expand blocks each migrate batch; all migrate batches block the contract). Caveat: shared integration points (a wire format, a persisted schema) may pin expand + contract to a coordinated window. Say so in the ticket body.
 
-**Integration-branch fallback.** When migrate batches cannot land green on the default branch independently (shared runtime, coupled deploy, dual-write that cannot be isolated), keep the expand → migrate → contract sequence but share **one integration branch** that every batch targets, and add a final **integrate-and-verify** item blocked by all of them. Green is promised only there. This is a fallback, not a replacement: default remains expand → migrate → contract. `/work-items:work` still provisions each item's worktree from the default branch and opens PRs against the default branch, so these fallback items are **not** executable on the standard work path. They require a separate integration-branch workflow (operator-driven shared branch and PR retarget). Do not rewrite `/work-items:work` to target the integration branch.
+**Integration-branch fallback.** Some migrate batches cannot each merge green into the default branch: a shared runtime, a coupled deploy, or a dual-write that cannot be isolated ties them together. For those, the expand → migrate → contract order stays, with two changes:
+
+- every batch targets **one integration branch** instead of the default branch;
+- one more item, **integrate-and-verify**, comes last and depends on every batch. CI must pass at that item; the batches before it carry no such promise.
+
+This is a fallback, not a replacement: default remains expand → migrate → contract. `/work-items:work` still provisions each item's worktree from the default branch and opens PRs against the default branch, so these fallback items are **not** executable on the standard work path. They require a separate integration-branch workflow (operator-driven shared branch and PR retarget). Do not rewrite `/work-items:work` to target the integration branch.
 
 ### 3. Present for approval
 
-Present the proposed breakdown as a numbered list. **work the frontier** (unblocked slices first). For each slice:
+Show the user the draft slices, numbered. **work the frontier** (unblocked slices first). For each slice:
 
 - **Title**: short descriptive name following [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md)
 - **Type**: HITL / AFK, with a `Basis:` for the call: `verified` with the `file:line` or source section it rests on, or `judgment` (not for a consequential call: cross-repo, shared infrastructure, irreversible, or security). A consequential call the source cannot settle is withheld: mark the slice HITL and emit an investigation ticket naming the evidence that would settle it. Contract: [`${CLAUDE_PLUGIN_ROOT}/context/recommendation-basis.md`](../../context/recommendation-basis.md); full convention: [recommendation-basis](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/recommendation-basis/README.md#basis-label)
@@ -110,7 +115,7 @@ Present the proposed breakdown as a numbered list. **work the frontier** (unbloc
 
 Ask the user:
 
-- Does the granularity feel right? (too coarse / too fine, each slice should fit one fresh context window)
+- Are the slices the right size? (each should fit one fresh context window; say which to split or combine)
 - Are dependency relationships correct?
 - Should any slices be merged or split?
 - Are HITL/AFK classifications correct?
@@ -166,7 +171,10 @@ Refs #<parent-item> (if source was an existing item)
 
 ## What to build
 
-Concise description of this vertical slice. Describe end-to-end behavior, not layer-by-layer implementation. No file paths — they go stale. Exception: if `/prototype:pressure-test` produced a snippet encoding a design decision more precisely than prose (state machine, reducer, schema, type shape), inline it and note it came from a prototype.
+What a user of this slice can do once it lands, end to end, rather than a per-layer task list. Leave out file paths, which change before the item is picked up.
+<!-- Prototype snippets: when /prototype:pressure-test settled a state machine, reducer, schema or
+     type shape, paste that snippet here, labeled as prototype output; code fixes such a decision
+     where a sentence would leave room for doubt. -->
 
 ## Acceptance criteria
 
@@ -187,7 +195,7 @@ Classify per taxonomy: the **issue type** from the slice nature. `Bug` (fixing b
 
 Items published here are **born triaged**: they enter the tracker classified, role-labeled, and briefed at creation, so `/work-items:triage` never re-processes them.
 
-**Do NOT close or modify any parent item**. Decomposition creates children, doesn't replace the parent.
+**Leave the parent item untouched**: no close, no edit. The new items sit under it; they do not stand in for it.
 
 ### Container lifecycle (spec-on-tracker). Opt-in
 
