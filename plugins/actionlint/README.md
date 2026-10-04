@@ -13,8 +13,10 @@ your `PATH`.
 - **Lint on edit.** actionlint runs on every edit of a workflow file. It is
   non-mutating; it only reports.
 - **Advisory, never blocking.** The hook always exits `0`. Findings are reported
-  via `additionalContext`; they never reject the edit. Make a commit hook or CI
-  your hard gate.
+  via `additionalContext`, one line each (`-oneline`); they never reject the
+  edit. Make a commit hook or CI your hard gate. A finding set is reported once
+  per file: an unchanged set on a re-edit sends nothing, and it is sent again
+  after a clean run or after the context is compacted or cleared.
 - **Scoped to workflows.** Only files matching `.github/workflows/*.yml` and
   `.github/workflows/*.yaml` are linted. Other YAML is left alone. The registration
   carries the matching `if` filters (`Edit(**/.github/workflows/*.yml)` and the
@@ -30,9 +32,8 @@ your `PATH`.
   Native workflow diagnostics are unaffected; run the full integrations in CI.
 - **Graceful degrade.** When `actionlint` (or `jq`) is not on `PATH` the hook
   skips and says so, to both Claude (`additionalContext`) and you (`systemMessage`),
-  never a silent no-op. A missing `actionlint` notice fires once per session, and every
-  agent in the session shares it. A missing `jq` notice fires once per session and agent.
-  Both renew every eighth skip; the `actionlint` renewal keeps the install route.
+  never a silent no-op. Each notice fires once per session and does not renew; the
+  install route is on your copy only.
   A missing `node` is the exception: the hook does not launch, so it cannot say anything
   itself. The transcript shows a hook error notice, and lint does not run.
 
@@ -45,15 +46,13 @@ your `PATH`.
   finds Bash and runs the script. Absent: the hook does not launch and lint does not run.
   `/actionlint:setup check` reports it. [Install Node.js](https://nodejs.org/en/download).
 - **jq** on `PATH`. Parses the hook payload. Absent: the hook skips with a
-  visible notice, once per session and agent, renewed every eighth skip. [Install jq](https://jqlang.org/download/).
+  visible notice, once per session. [Install jq](https://jqlang.org/download/).
 - **actionlint** on `PATH`. The linter itself. Absent: workflow lint skips
-  with a visible notice, once per session (all agents share it), renewed every eighth skip
-  with the install route kept. See the
+  with a visible notice, once per session. See the
   [actionlint install guide](https://github.com/rhysd/actionlint/blob/main/docs/install.md).
   A SessionStart probe reports a missing `actionlint` once per session, from
   `prerequisites.json`, and the PostToolUse notice names the same install route. The two share
-  one latch, so the probe's notice counts as the first and the first PostToolUse notice stays
-  silent until the renewal. `/actionlint:check` reports whether the binary resolves and installs nothing.
+  one latch: the probe's notice is yours, and Claude hears at the hook's first skip. `/actionlint:check` reports whether the binary resolves and installs nothing.
 
 ### Hook budget accounting
 
