@@ -12,6 +12,7 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 ### Fixed
 
 - **A subagent no longer gets "detail omitted" for findings it never saw.** The old digest was keyed per session; the shared gate keys per session, agent and file.
+- **A finding keeps its own line number when its `[Context: "..."]` quotes finding-shaped text.** The path is cut before the first rule code, not the last.
 - **Findings that return after a clean run are reported again.** The old digest was never cleared on a clean run, so a set that disappeared and came back matched the stale digest.
 
 ## [0.12.7] - 2026-10-04

@@ -70,7 +70,7 @@ config has chosen no Markdown style, so the hook does not run there at all
   [telemetry sink](../../docs/conventions/hook-telemetry/README.md) through
   `HOOK_TELEMETRY_SINK`: each run's envelope carries `status` `ok` for a lint
   that ran and `skipped` for every skip arm.
-- **Bounded reporting.** Every run reports the total finding count and the rules
+- **Bounded reporting.** Each report states the total finding count and the rules
   that dominate it. Individual violation lines are capped (20 by default,
   `markdown_format_max_findings`). An unchanged finding set on a re-edited file
   sends nothing; it is sent again after a clean run, after a cap change, or

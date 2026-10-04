@@ -98,7 +98,7 @@ if [[ -s "$file" && "$(tail -c 1 "$file" | od -An -tx1 | tr -d ' \n')" != "0a" ]
 fi
 
 # MD024 residual: report the second occurrence of a duplicate ATX heading in
-# markdownlint-cli2's default violation-line shape.
+# markdownlint-cli2's default violation-line shape, its [Context: "..."] included.
 duplicate_line="$({
   awk '
     {
@@ -110,14 +110,14 @@ duplicate_line="$({
       if ($0 ~ /^##?#?#?#?#?[[:space:]]+/) {
         heading = $0
         sub(/^##?#?#?#?#?[[:space:]]+/, "", heading)
-        if (seen[heading]++) { print NR; exit }
+        if (seen[heading]++) { print NR "\t" heading; exit }
       }
     }
   ' "$file"
 } || true)"
 if [[ -n "$duplicate_line" ]]; then
-  printf '%s:%s:1 error MD024/no-duplicate-heading Multiple headings with the same content\n' \
-    "$file" "$duplicate_line"
+  printf '%s:%s:1 error MD024/no-duplicate-heading Multiple headings with the same content [Context: "%s"]\n' \
+    "$file" "${duplicate_line%%$'\t'*}" "${duplicate_line#*$'\t'}"
   exit 1
 fi
 
@@ -263,6 +263,17 @@ if printf '%s' "$CTX_B" | grep -qi 'commit/CI will block'; then
   fail "fixtureB ctx still has repo-specific policy tail"
 else
   ok "fixtureB ctx dropped repo-specific policy tail"
+fi
+
+# A [Context: "..."] quoting a finding-shaped string does not move the path cut.
+FQ="$REPO/fixtureQ.md"
+printf '# Doc Q\n\n## see x.md:1:2 MD001/heading-increment\n\ntext\n\n## see x.md:1:2 MD001/heading-increment\n' >"$FQ"
+CTX_Q="$(run_hook "$FQ" | jq -r '.hookSpecificOutput.additionalContext // empty')"
+CTX_Q="${CTX_Q//$'\r'/}"
+if grep -qE '^  7(:[0-9]+)? (error )?MD024/' <<<"$CTX_Q"; then
+  ok "fixtureQ finding keeps its own line number when the context quotes a finding"
+else
+  fail "fixtureQ finding line cut at the quoted context: $CTX_Q"
 fi
 
 # --- Fire gate: non-.md extension skips -------------------------------------

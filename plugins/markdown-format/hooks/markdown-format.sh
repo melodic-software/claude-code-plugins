@@ -1203,12 +1203,15 @@ if ((FINDING_COUNT > 0)); then
     awk 'NR<=5 {printf "%s%s x%s", (NR>1 ? ", " : ""), $2, $1} NR>5 {extra++} END {if (extra) printf ", +%s more rule(s)", extra; print ""}' 2>/dev/null) || RULE_SUMMARY=""
   # The heading names the file once, so each line drops markdownlint-cli2's
   # path prefix: everything before `<line>[:<col>] [<severity> ]MD<n>/`. The
-  # line-and-column form is tried first, because the greedy path would
-  # otherwise swallow the line number.
+  # match runs on the text before the FIRST ` MD<n>`, so a `[Context: "..."]`
+  # quoting a finding-shaped string cannot move the cut. The line-and-column
+  # form is tried first, because the greedy path would otherwise swallow the
+  # line number.
   while IFS= read -r line; do
-    if [[ "$line" =~ ^.+:([0-9]+:[0-9]+\ ([a-z]+\ )?MD[0-9]+/.*)$ ]] ||
-      [[ "$line" =~ ^.+:([0-9]+\ ([a-z]+\ )?MD[0-9]+/.*)$ ]]; then
-      line="${BASH_REMATCH[1]}"
+    head="${line%% MD[0-9]*}"
+    if [[ "$head" =~ ^.+:([0-9]+:[0-9]+(\ [a-z]+)?)$ ]] ||
+      [[ "$head" =~ ^.+:([0-9]+(\ [a-z]+)?)$ ]]; then
+      line="${BASH_REMATCH[1]}${line:${#head}}"
     fi
     findings_shown+="$line"$'\n'
   done <<<"$findings_raw"
