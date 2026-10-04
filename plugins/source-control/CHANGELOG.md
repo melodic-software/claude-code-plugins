@@ -3,12 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.79.14] - 2026-10-04
+## [0.79.15] - 2026-10-04
 
 ### Changed
 
 - The SessionStart node-notice rows now match `startup|resume|clear|fork`, so a compaction no longer starts them; the session and its notice latches survive a compaction, so a re-fire printed nothing (#6251).
 - The shared `exec-bash.mjs` launcher copy gains the `--skip-if-all-false` and `--skip-unless-stdin-contains` flags; no row in this plugin uses them (#6252, #6253).
+
+## [0.79.14] - 2026-10-04
+
+### Fixed
+
+- **`/source-control:pull-request create` judges required sections the way CI does.** Its pre-create check now runs the `pr-body-linkage-gate.sh` hook's checker through `scripts/check-body-sections.sh`. A section holding only a code block, indented code, an inline code span, or an `# h1` is now caught as empty, and a lowercase `## summary` heading, or one with trailing spaces, is now accepted. A configured heading such as `What changed?` is matched as text, not as a regular expression.
 
 ## [0.79.13] - 2026-10-04
 
