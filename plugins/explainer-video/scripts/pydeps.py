@@ -48,8 +48,12 @@ def supported(version):
     return tuple(version[:2]) in PYTHONS
 
 
+# Read at import: sysconfig loads its data lazily, keyed by sys.platform.
+_FREE_THREADED = bool(sysconfig.get_config_var('Py_GIL_DISABLED'))
+
+
 def free_threaded():
-    return bool(sysconfig.get_config_var('Py_GIL_DISABLED'))
+    return _FREE_THREADED
 
 
 def wanted():
