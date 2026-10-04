@@ -21,6 +21,7 @@ read, so its shape is stable within the `v2` schema string.
 | `summary` | object | `files`, `functions`, `over_reference` (measure name to count); when clone-group rows are present, `duplicated_lines` (sum of each group's `values.lines`, one group counted once, after registry exclusions), `clone_groups`, `by_lane`, and `by_directory` (see below) |
 | `excluded` | array | Duplication only: clone groups dropped by a sanctioned-replication registry (intentional clones the repository declares about itself), each naming the registry path and line |
 | `unavailable` | array | `lane/measure` strings for every `run` row whose status is `unavailable` |
+| `trend` | object | Duplication only, and only when an earlier document qualifies: see "Clone trend" |
 
 A reader ignores keys it does not know: fields are added within the current version (the rollups
 and the run row's `hint` were), never renamed or removed. A change to what an existing field means
@@ -28,11 +29,14 @@ mints a new schema identifier. `v2` is that case: in `v1` a measured path was re
 working directory the audit ran from, and in `v2` it is relative to `root.path`. A `v1` document
 and a `v2` document are not comparable path-for-path.
 
-The identifier changed with no dual-emission window because the plugin has no consumer of persisted
-reports.
+The identifier changed with no dual-emission window because, at the time, nothing read persisted
+reports. Today the one reader is `audit-duplication`'s own clone trend ("Clone trend"), which
+compares only reports carrying the current `schema`, so a later identifier change resets the trend
+rather than mixing versions. No reader outside this plugin opens a saved report.
 
-- Claim: no consumer of persisted `code-metrics` reports exists, so a new identifier needs no
-  compatibility window.
+- Claim: a new identifier needs no compatibility window, because the only reader of persisted
+  `code-metrics` reports is this plugin's clone trend, which skips any report with another
+  `schema`.
 - Basis: the repository owner's decision on melodic-software/claude-code-plugins#3842.
   [ADR 0013](../../../docs/adr/0013-keep-storage-format-identifiers-stable-across-renames.md)
   covers only that a storage-format identifier changes through a migration with a compatibility
@@ -89,6 +93,49 @@ The markdown rendering joins the rows the same way the count does: one line per 
 every collector's values, a row with no start line joining the one function of its name in the
 file, and never two rows whose values disagree. The JSON keeps one row per collector, because each
 row names the tool that produced it.
+
+## Clone trend
+
+`audit-duplication` compares this run with the newest earlier document in the persisted-report
+directory (one directory per project) that qualifies. It reads that directory before keeping its
+own document. A markdown run keeps its document; a `--json` run keeps it only with `--keep`.
+
+An earlier file is treated as untrusted input and passed over, for the next older one, unless all
+of these hold:
+
+- it is a regular file (not a link, FIFO or device) of at most 5 MB holding one JSON object;
+- `generated_at` is a one-line `YYYY-MM-DDTHH:MM:SSZ` string;
+- `schema` equals this run's (`code-metrics/v2`);
+- `scope` is an object whose `mode` matches this run's;
+- it measured something: `status` is not `empty` and `summary` is an object carrying
+  `duplicated_lines`;
+- `summary.clone_groups` and every `instances[].start_line` are integers from 0 to 10^9, and every
+  `instances[].file` is a one-line string.
+
+When one qualifies, the document gains `trend`:
+
+| Field | Meaning |
+|---|---|
+| `clone_groups` | This run's class count |
+| `previous_clone_groups` | The earlier document's class count |
+| `delta` | This run minus the earlier |
+| `previous_generated_at` | The earlier document's timestamp |
+| `previous_document` | The earlier file's path, for a person; a consumer reads the two lists below instead of opening it |
+| `new_classes` | Each class of this run with no counterpart in the earlier document |
+| `grown_classes` | Each class of this run whose counterpart had fewer copies |
+
+A class's counterpart is any earlier class sharing one of its instances (same `file` and
+`start_line`); with several, the one with the most copies counts. Each list entry is `file` and
+`start_line` (the class's first instance by path), `copies` (its instance count), `lines`
+(`values.lines`, or `null`), and, in `grown_classes`, `previous_copies`. A class with as many
+copies as its counterpart, or fewer, is in neither list. The markdown ends with one line:
+`Clone trend: <n> clone class(es) now, <m> in the previous run (<timestamp>), delta <signed
+difference>; <a> class(es) new since then, <b> with more copies.` With no qualifying document, or
+when this run measured nothing, neither appears.
+
+The copy count of one class is `len(measures[].instances)`. Two runs compare only when they used
+one detector version and a comparable scope; a `paths` run over different paths still matches on
+mode, so read its delta with the scope line beside it.
 
 ## Sanctioned replication
 

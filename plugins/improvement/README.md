@@ -16,8 +16,14 @@ a function of evidence strength. When the target has no measurement at all, the 
 candidate becomes "instrument this so future runs can rank on data," handed to the pipeline like
 any other improvement. Evidence gaps are recorded, never papered over.
 
-The finder is read-only: it discovers and deliberates, and execution requests route through the
-normal interview → discovery → planning → implementation → verification pipeline. It delegates to
+The finder never edits the target's tracked files: it discovers and deliberates, and execution
+requests route through the normal interview → discovery → planning → implementation → verification
+pipeline. Unattended, it keeps its report under its own plugin data directory and files work
+items. When code-metrics is enabled, in either mode, its duplication input keeps a report in
+code-metrics' data directory (`reports/<state-key>/audit-duplication-<UTC stamp>.json`, the next
+run's trend baseline), and a growing clone class gets one review-findings file at
+`<memory_dir>/improvement/<branch-slug>/<UTC stamp>-clone-growth.md` in the git-ignored memory tier,
+plus a `.gitignore` containing `*` in `<memory_dir>` when that file is absent. It delegates to
 installed specialized lanes where they add value and never re-implements what an owned lane
 already does.
 

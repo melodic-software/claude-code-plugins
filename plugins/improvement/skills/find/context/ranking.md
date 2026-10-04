@@ -32,6 +32,17 @@ Rules that keep the ranking honest:
   components drive the placement.
 - Ties break toward the stronger evidence rung.
 
+## Spread: copy count ranks duplication
+
+A duplication candidate from `/code-metrics:audit-duplication` ranks by spread, its copy count (the
+class's number of instances), before its length: every copy is one more place a fix has to land
+and one more example an author imitates, so risk reduction grows with the count. Between classes
+with the same copy count, the longer class (`values.lines`) ranks higher. A class that is growing
+(unattended.md "Growing clone classes") gains urgency, because each run it waits adds copies.
+The document is mechanical and reproducible, so the citation is rung 2, for example
+`audit-duplication: 6 copies, 34 lines, clone classes 41 -> 44 (rung 2)`. A sanctioned class
+(in the document's `excluded[]`) is never a candidate.
+
 ## Evidence strength → confidence (aligned to SKILL.md's ladder rungs)
 
 Confidence is a function of the evidence rung, stated plainly in the row. It tempers the

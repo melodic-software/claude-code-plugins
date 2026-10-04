@@ -1,6 +1,6 @@
 ---
 description: "Measure duplicated code as clone classes over a change, a path, or the tree, with every instance's file and line range, subtracting replication the repo declares sanctioned. Reports, never gates. Use when: 'is this duplicated', 'find copy-paste code', 'clone detection', 'duplication report', 'how much of this change is copied', 'DRY check', 'redundant code', 'duplicated lines in the diff'. Lines per file: /code-metrics:audit-size."
-argument-hint: "[--json] [--all] [--base <ref>] [--registry <file>] [<path>...]"
+argument-hint: "[--json] [--keep] [--all] [--base <ref>] [--registry <file>] [<path>...]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/audit-duplication.sh:*)", "Bash(git branch --show-current:*)"]
@@ -41,6 +41,7 @@ continues. This plugin never installs, downloads, or `npx`-fetches a detector.
 "${CLAUDE_SKILL_DIR}/scripts/audit-duplication.sh" --all                # every tracked or untracked-but-not-ignored file
 "${CLAUDE_SKILL_DIR}/scripts/audit-duplication.sh" --registry scripts/cross-plugin-source-registry.txt --all
 "${CLAUDE_SKILL_DIR}/scripts/audit-duplication.sh" --json --all src/    # the code-metrics/v2 document instead of markdown
+"${CLAUDE_SKILL_DIR}/scripts/audit-duplication.sh" --json --keep --all   # the document, also kept as the next run's trend baseline
 ```
 
 Present the markdown report as printed. It opens with the scope and a "Coverage of this run"
@@ -48,7 +49,10 @@ table (lane, collector, status, reason), then one row per clone group, largest f
 every instance as `file:start-end`, then a rollup per lane and per directory, then the summary
 lines: files with clones, the duplicated-line total, how many groups a registry excluded, and
 which lanes were partial. Files with clones leaves out any file holding nothing but excluded
-groups; the scope's count keeps it. When the report opens with `No clone detector ran in any
+groups; the scope's count keeps it. When an earlier report of this project with the same scope
+mode was kept, the last line is the clone trend: this run's class count, the previous run's, and
+the signed delta, then how many classes are new since that run and how many gained copies
+(`trend` in the JSON); the first run in a project prints none. When the report opens with `No clone detector ran in any
 lane`, offer the user the install command that headline carries (`npm install -g jscpd`, or a
 devDependency) and run it only when they confirm; never install silently and never `npx`-fetch it.
 Keep the `--json` document when the numbers feed a comparison:
@@ -84,6 +88,14 @@ your notes and compare by hand.
   number, and the line's text. A group is excluded only when one registry line accounts for every
   instance and each instance sits under a different carrying directory; two copies inside one
   directory are ordinary duplication and stay.
+- A class's copy count is its number of instances. The clone trend compares `summary.clone_groups`
+  with the newest earlier kept document of the same project and scope mode that measured
+  something, and lists the classes new since then (`trend.new_classes`) and the classes that
+  gained copies (`trend.grown_classes`), so no reader has to open the earlier document. It is a
+  count with no bar. A markdown run keeps its document as the next run's baseline; a `--json` run
+  keeps it only with `--keep`. An earlier file that is not a regular file under 5 MB, or whose
+  fields are malformed, is passed over for the next older one. Field details:
+  `${CLAUDE_PLUGIN_ROOT}/reference/report-schema.md` ("Clone trend").
 - A value the detector did not produce is `null`, never `0`: `dupl` reports no token count, so
   its rows carry `tokens: null`.
 - `status` is `complete` when every lane in scope was measured, `partial` when one was not or

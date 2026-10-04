@@ -132,6 +132,14 @@ method:
 
 - `architecture:improve` (deepening lens). Depth for the code/architecture dimension.
 - `harness-config:audit-automation-gaps`. Depth for the Claude Code operational-setup dimension.
+- `/code-metrics:audit-duplication`, when it is among the available skills. Copy count and clone
+  trend for the code dimension: run it with `--json --keep --all` and read the document it prints
+  (`--keep` keeps that document as the next run's trend baseline). Each clone class's copy count is
+  its number of instances; code-metrics computes `trend`, including the lists of new and grown
+  classes, and this skill reads only that, never an earlier report. Copy count ranks spread (context/ranking.md). A growing class becomes a
+  candidate whose next step is a lint proposal, written through the findings hand-off under
+  `<memory_dir>/improvement/<branch-slug>/` (context/unattended.md "Growing clone classes"). When
+  code-metrics is not available, or no detector ran, record a `gap:` line for duplication.
 - Other installed finders that announce an improvement-shaped scan may be consulted the same way.
 
 Delegated findings keep their lane attribution in the evidence citation, and they compete in the
@@ -196,8 +204,9 @@ declared-by-the-caller convention. In unattended mode:
     `work-items:work-loop`'s adaptive-cap precedent), overridable by the invocation prompt.
 
   Consultation order and its rationale: context/ranking.md.
-- **Nothing else mutates, and nothing self-disposes.** The run is read-only apart from the report
-  and the filed items; it never picks a candidate, never prioritizes the queue, never starts
+- **Nothing else mutates, and nothing self-disposes.** The run is read-only apart from the report,
+  the filed items, and, when code-metrics is enabled, the kept duplication report and the
+  clone-growth findings file (with its memory-root `.gitignore`) that the verb contract below names; it never picks a candidate, never prioritizes the queue, never starts
   implementation. Prioritization of filed items is human-gated always, the autonomy catalog's
   `tech-debt-sweep` C1 contract.
 
@@ -222,10 +231,26 @@ aside for. It re-implements none of them.
 | Reviewing a diff before merge | `review:fanout` | Diff-scoped and reactive; this skill scans existing state proactively |
 | Sweeping TODO/FIXME markers into items | `work-items:scan-todos` | Marker sweep is one narrow signal; here TODO density is evidence, not the deliverable |
 
-**Verb contract.** `find` reads as read-only, and it is: bare invocation reports and stops. The
-caller's unattended declaration IS the explicit mutation override that authorizes work-item filing, the same shape as the `audit` verb's autofix override, and it authorizes exactly that: report
-persistence and presence-gated filing. No other mutation exists in any mode; there is no flag,
-prompt, or mode that makes this skill edit the target.
+**Verb contract.** `find` never edits the target's tracked files. What it writes depends on the
+mode:
+
+- **Interactive** (bare invocation): it reports and stops, apart from the code-metrics writes
+  below.
+- **Unattended**: the caller's declaration IS the explicit mutation override, the same shape as
+  the `audit` verb's autofix override, and it authorizes exactly two more things: the report
+  persisted under `${CLAUDE_PLUGIN_DATA}/find/<state-key>/` (with the dismissed-candidate memory
+  beside it) and presence-gated work-item filing.
+- **Either mode, only when code-metrics is enabled**:
+  - `/code-metrics:audit-duplication --json --keep`, which this skill runs, keeps its report in
+    code-metrics' own data directory, `reports/<state-key>/audit-duplication-<UTC stamp>.json`
+    (code-metrics keeps the newest 20 per project), the baseline of the next run's trend;
+  - for a growing clone class, this skill writes one review-findings file,
+    `<memory_dir>/improvement/<branch-slug>/<UTC stamp>-clone-growth.md`, and, on its first
+    memory-tier write, a `.gitignore` containing `*` in `<memory_dir>` when that file is absent
+    (context/unattended.md "Growing clone classes").
+
+No other mutation exists in any mode; there is no flag, prompt, or mode that makes this skill edit
+the target's tracked files.
 
 ## Spoke paths
 

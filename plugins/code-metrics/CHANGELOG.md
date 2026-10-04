@@ -3,6 +3,12 @@
 All notable changes to the `code-metrics` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Added
+
+- **Clone trend in `audit-duplication`.** A run compares its clone-class count with the newest earlier kept report of the same project and scope mode that measured something. The document gains `trend` (`clone_groups`, `previous_clone_groups`, `delta`, `previous_generated_at`, `previous_document`, plus `new_classes` and `grown_classes`, each class named by its first instance with its copy count) and the markdown ends with a `Clone trend:` line; the first run in a project prints neither. Earlier reports are read as untrusted input: only a regular file of at most 5 MB with the same `schema`, a one-line timestamp and integer counts from 0 to 10^9 qualifies, and anything else is passed over for the next older report. A class's copy count stays its number of instances. New `--keep` flag: a `--json` run also keeps its document as the next run's baseline.
+
 ## [0.5.5] - 2026-10-03
 
 ### Changed

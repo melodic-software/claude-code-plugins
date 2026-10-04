@@ -39,7 +39,7 @@
         "Persists the ranked report under ${CLAUDE_PLUGIN_DATA} with the per-project state key — never into the target repository",
         "Files via work-items:track presence-gated, deduping against open items before spending a cap slot",
         "Honors the invocation prompt's cap of 2 over the adaptive filing default",
-        "Performs no code edits, no queue prioritization, and no self-disposal — report persistence and filing are the only mutations"
+        "Performs no code edits, no queue prioritization, and no self-disposal — its only writes are the persisted report, the filed items and, when code-metrics is enabled, the duplication report that /code-metrics:audit-duplication --json --keep keeps plus a clone-growth findings file (and the memory root's .gitignore when absent) for a growing clone class"
       ]
     },
     {
@@ -62,6 +62,21 @@
         "Names the dark flag: `adminBulkExport` is `false` in `config/flags.json` and gates the `POST /admin/orders/export` route",
         "Names the unread table: `export_audit` is inserted into by the export route and never queried",
         "The disconnected export capability appears as a ranked candidate with evidence citations, ahead of any greenfield build proposal, rather than being skipped"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "growing-clone-class-hands-off-a-lint-proposal",
+      "narration": true,
+      "prompt": "/improvement:find code dimension only. code-metrics is enabled; its duplication audit (--json --keep --all) on this repo printed a document whose trend reads {\"clone_groups\": 12, \"previous_clone_groups\": 9, \"delta\": 3, \"previous_generated_at\": \"2026-09-27T09:10:00Z\", \"previous_document\": \"/tmp/cm/audit-duplication-20260927T091000Z.json\", \"new_classes\": [{\"file\": \"src/billing/retry.ts\", \"start_line\": 14, \"copies\": 6, \"lines\": 22}], \"grown_classes\": []}. Its measures list that retry-helper class with 6 instances (src/billing/retry.ts:14, src/shipping/retry.ts:9, src/search/retry.ts:30, and three more) and a 60-line date formatter class with 2 instances, which appears in neither trend list. We are on branch feature/Payments-Cleanup. Should we add a CI check that fails when the total clone count goes up?",
+      "expected_output": "Ranks the 6-copy retry helper above the 2-copy date formatter because copy count ranks spread before length, citing the duplication audit at rung 2. Treats the retry helper as a growing class because trend.new_classes lists it, and the date formatter as not growing because neither trend list names it; it does not open the previous_document file. The growing class's next step is a lint proposal: it announces and writes a review-findings file under <memory_dir>/improvement/feature-payments-cleanup/ (never under the reviews location), names that file in the candidate row, and offers /review:audit-enforceability on it when available rather than running it. Declines the total-count CI ceiling: the trend is a ranking input, not a gate, and a proposal targets one growing class.",
+      "files": [],
+      "expectations": [
+        "Ranks the 6-copy retry helper class above the 2-copy date formatter class, giving copy count (spread) as the reason rather than line length",
+        "Calls the retry helper class growing and the date formatter class not growing, from trend.new_classes and trend.grown_classes, without opening previous_document",
+        "Writes or proposes the hand-off file under an improvement/feature-payments-cleanup/ directory in the memory root, not under reviews/, and names it in the candidate row",
+        "Offers /review:audit-enforceability on that file and does not run it unasked",
+        "Recommends against a CI ceiling on the total clone count and says why"
       ]
     }
   ]
