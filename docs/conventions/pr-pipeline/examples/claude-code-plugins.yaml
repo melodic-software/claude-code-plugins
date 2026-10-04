@@ -9,7 +9,8 @@ activities:
     reads-untrusted: false
     inputs: [base-sha, head-sha, changed-paths]
   fix-docs:
-    skill: ai-slop:audit#fix
+    skill: ai-slop:audit
+    args: fix
     effect: mutate-branch
     gating: advisory
     reads-untrusted: false
@@ -17,7 +18,8 @@ activities:
     applies-when:
       paths: ["**/*.md"]
   format:
-    skill: toolchain:lint#fix
+    skill: toolchain:lint
+    args: --fix
     effect: mutate-branch
     gating: advisory
     reads-untrusted: false
@@ -53,7 +55,7 @@ activities:
     reads-untrusted: true
     inputs: [pr, issue, head-sha]
   explain:
-    skill: review:pr-explainer
+    skill: review:explain-change
     effect: publish-artifact
     gating: advisory
     reads-untrusted: true
@@ -65,13 +67,15 @@ activities:
     reads-untrusted: false
     inputs: [pr, head-sha]
   address-feedback:
-    skill: source-control:pull-request#comments
+    skill: source-control:pull-request
+    args: comments
     effect: mutate-branch
     gating: advisory
     reads-untrusted: true
     inputs: [pr, findings]
   fix-ci:
-    skill: source-control:pull-request#monitor
+    skill: source-control:pull-request
+    args: monitor
     effect: mutate-branch
     gating: advisory
     reads-untrusted: true

@@ -30,8 +30,10 @@ repository names, and acts only when all of these hold:
 
 1. The run's PR comes from the same repository, never a fork. A run with no associated PR is
    ignored.
-2. The PR's author, the actor that started the failed run and every author of a commit on the PR
-   are on the central trusted-actor list.
+2. The PR's author and the actor that started the failed run are on the central trusted-actor
+   list, and every commit on the PR carries a signature GitHub verified for a trusted actor or the
+   lanes App. Git author and committer fields are never checked, because whoever commits sets
+   them, and GitHub links a commit to an account by those fields' email.
 3. The PR is not a draft and carries no hold.
 4. The lane checks out the PR head by the SHA recorded on the failed run, and stops if the PR head
    has moved since.

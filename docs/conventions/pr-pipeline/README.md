@@ -120,7 +120,8 @@ itself never changes.
 
 Each activity declares:
 
-- `skill` (`<plugin>:<skill>[#mode]`) or `script` (a repository path).
+- `skill` (`<plugin>:<skill>`, with optional `args` passed verbatim in that skill's own syntax) or
+  `script` (a repository path).
 - `effect`: one of `read`, `mutate-branch`, `mutate-tracker`, `publish-artifact`, `merge`. The
   runner derives ordering and the token grant from it, and fails a `read` activity that leaves the
   working tree dirty.
