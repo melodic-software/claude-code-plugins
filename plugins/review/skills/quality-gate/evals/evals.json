@@ -217,6 +217,20 @@
         "If still partial, the verdict and findings artifact state the gate is partial and name what was missed",
         "Does not present the gate as clean or report no findings on the strength of the empty return"
       ]
+    },
+    {
+      "id": 18,
+      "name": "code-mode-passes-the-paved-path-file-in-the-reviewer-brief",
+      "prompt": "/review:quality-gate code\n\nMy branch adds a new report-generation endpoint. The repo's docs/standards/README.md index (standards-contract 1.1.0) has a row `| paved-path | adding an endpoint, a migration, or a queue consumer | paved-paths.md |`, and pr-review-toolkit is not installed.",
+      "expected_output": "Resolves the standards index, finds the paved-path row, and dispatches the code-reviewer agent with a brief that names docs/standards/paved-paths.md as a file to read, without pasting its content. The reviewer reads it and reports any second way the change adds for a listed concern as an advisory finding citing the entry. The gate does not invent paved paths when the index has no such row.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Resolves the standards index before dispatching the reviewer",
+        "The code-reviewer brief names docs/standards/paved-paths.md as a file to read",
+        "Passes the path rather than pasting the paved-path file's content into the brief",
+        "A second way for a listed concern is reported as an advisory finding that cites the paved-path entry"
+      ]
     }
   ]
 }

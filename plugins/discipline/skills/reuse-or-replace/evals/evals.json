@@ -60,6 +60,20 @@
         "Flags the missing recorded rationale as the finding — an unrecorded second architectural way",
         "Requires recording at the ADR level and, if superseding, migrating and retiring the old way rather than coexisting"
       ]
+    },
+    {
+      "id": 6,
+      "name": "reads-the-paved-path-file-on-demand",
+      "prompt": "reuse or replace: I am adding a nightly export job. Our docs/standards/README.md index has a paved-path row pointing at docs/standards/paved-paths.md, which lists scheduled jobs as \"use the jobs/ registry with the shared retry wrapper; enforced by tests/jobs-registry.test.ts\". I was going to start it with a plain cron entry in the deploy config instead.",
+      "expected_output": "Reads docs/standards/paved-paths.md because the work touches a concern the index routes there, and takes its scheduled-jobs entry as the established way. Names the plain cron entry as a second way beside the listed one with no stated reason. Corrects forward by building the job through the jobs/ registry and the shared retry wrapper, or, if the cron approach is better, replacing the paved path openly: migrating the existing jobs, recording why, and updating the paved-path entry and its check. Does not leave both ways standing.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Reads the paved-path file the index row names before judging the new job",
+        "Treats the listed scheduled-jobs entry as the established way and the cron entry as an unexplained second way",
+        "Offers reuse through the registry, or an open replacement that migrates existing jobs and updates the paved-path entry",
+        "Does not accept the cron entry as a parallel way left beside the registry"
+      ]
     }
   ]
 }

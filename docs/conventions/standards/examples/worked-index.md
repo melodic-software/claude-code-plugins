@@ -9,7 +9,7 @@ needed).
 
 ```markdown
 ---
-standards-contract: 1.0.2
+standards-contract: 1.1.0
 ---
 
 # Standards index
@@ -23,11 +23,16 @@ content lives in the files, never here.
 | testing | test strategy, writing or reviewing tests | testing.md |
 | commits | commit messages, PR titles | commits.md |
 | engineering-philosophy | any non-trivial design decision | docs/engineering-philosophy.md |
+| paved-path | adding a service endpoint, a schema migration, or a queue consumer | paved-paths.md |
 ```
 
-- The first three rows are **in-root**: paths relative to
-  `docs/standards/`.
-- The last row is **external**: a repo-relative path (forward slashes,
+- The first three rows and the `paved-path` row are **in-root**: paths
+  relative to `docs/standards/`.
+- The `paved-path` row routes to the team's paved paths: one entry per
+  concern with the chosen way and the check that enforces it. Review
+  passes that file to its code reviewer; a change that adds a second way
+  for a listed concern draws an advisory finding.
+- The `engineering-philosophy` row is **external**: a repo-relative path (forward slashes,
   from the git top-level) to content adopted where it already lives. No
   reorg required. Setup validates the path on every run; a skill that
   finds it broken surfaces the break and offers the fix.
@@ -41,6 +46,7 @@ docs/standards/
   csharp.md                   # pure prose, one concern per file
   testing.md
   commits.md
+  paved-paths.md              # concern | chosen way | enforced by
   testing.local.md            # personal overlay — gitignored, never indexed
 docs/engineering-philosophy.md  # external row target, tracked as-is
 ```

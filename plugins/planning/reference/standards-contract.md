@@ -1,5 +1,5 @@
 ---
-standards-contract: 1.0.2
+standards-contract: 1.1.0
 ---
 
 <!-- GENERATED from docs/conventions/standards/README.md by scripts/sync-shared-copies.sh. Do not edit this copy:
@@ -53,7 +53,7 @@ in the index itself. A short scope preamble is allowed.
 
 ```markdown
 ---
-standards-contract: 1.0.2
+standards-contract: 1.1.0
 ---
 
 # Standards index
@@ -79,7 +79,7 @@ explicit confirmation before any conversion (see Setup and migration).
 
 | Column | Form | Notes |
 |---|---|---|
-| Surface | free-form kebab-case id | Recommended kinds (not mandatory): ecosystem surfaces (`csharp`, `python`, `markdown`, …); cross-cutting concerns (`security`, `testing`, `naming`, `commits`, `architecture`, …). No stage axis: one SSOT serves plan-time and review-time |
+| Surface | free-form kebab-case id | Recommended kinds (not mandatory): ecosystem surfaces (`csharp`, `python`, `markdown`, …); cross-cutting concerns (`security`, `testing`, `naming`, `commits`, `architecture`, …); `paved-path`, the one file of paved paths (see Paved paths). No stage axis: one SSOT serves plan-time and review-time |
 | Applies when | free-form context clues | File globs and/or task keywords; the model matches task context against them |
 | File | forward-slash path | In-root rows: path relative to `<standards_dir>` (bare filename, or a subdirectory path). External rows: repo-relative path from the resolution root, allowed (adoption without reorg) and subject to the validation duty below. Always forward slashes, on every platform |
 
@@ -107,6 +107,32 @@ explicit confirmation before any conversion (see Setup and migration).
   outgrows it, split by concern and add rows. Grounding reads matched files
   selectively (the sections relevant to the task at hand, not necessarily
   the whole file), so tight, well-headed files route best.
+
+## Paved paths
+
+A paved path is the way a repository has chosen for a task it does again
+and again (adding a scheduled job, exposing a new API route, changing a
+table's columns). Writing it down lets a planner or reviewer cite it instead
+of working the way out from the code each time.
+
+- **Row:** a consumer that names paved paths routes them through one index
+  row whose Surface is `paved-path`, for example
+  `| paved-path | adding a job, a route, or a column change | paved-paths.md |`.
+  At most one such row; its file follows the usual lookup and validation
+  rules.
+- **File:** one entry per concern, each naming three things: the concern,
+  the chosen way (a pointer to the code, template or doc that shows it), and
+  the check that enforces it (a lint rule, a test, a CI step), or `none`
+  when nothing enforces it yet. A table with those three columns is enough.
+- **Readers:** the review plugin's `quality-gate` and `fanout` skills put the
+  file's path into the `code-reviewer` agent's brief; the agent reads it and
+  reports a change that adds a second way for a listed concern as an
+  advisory finding. The discipline plugin's `reuse-or-replace` skill reads
+  the file on demand as the record of the established way. Planning resolves
+  the row like any other.
+- **No default content:** no plugin ships paved paths. An index with no
+  `paved-path` row gives the readers nothing to apply, and they report
+  nothing about it.
 
 ## Personal overlays (in-root only)
 
