@@ -499,7 +499,8 @@ wit_linear_gql() {
 #   • `inverseRelations` are the relations where THIS issue is the target, so a
 #     `blocks` relation there means the other issue blocks this one — which is exactly
 #     blocked_by. `relations` is the opposite direction and would invert every edge.
-#   • A blocker stops blocking only in the `completed` state type. One in another done
+#   • A blocker stops blocking only in the `completed` state type, and only while
+#     done_state_types lists it. One in another done
 #     type (canceled, duplicate) will never be built, so it still blocks and is counted
 #     again in blocked_by_wont_do_count (CONTRACT.md "JSON output contract").
 #   • Linear has no issue-TYPE axis in the contract's sense (its "type" here is the
@@ -518,7 +519,8 @@ readonly WIT_LINEAR_NORMALIZE_PROGRAM='
     type: null,
     blocked_by_count: ([ (.inverseRelations.nodes // [])[]
       | select(.type == "blocks")
-      | select((.issue.state.type // "") != "completed") ] | length),
+      | (.issue.state.type // "") as $t
+      | select((is_done($t) and $t == "completed") | not) ] | length),
     blocked_by_wont_do_count: ([ (.inverseRelations.nodes // [])[]
       | select(.type == "blocks")
       | (.issue.state.type // "") as $t

@@ -17,7 +17,8 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   also counts blockers closed as not planned or duplicate, so an unattended loop no longer
   picks work whose prerequisite was abandoned. The GitHub adapter reads each closed blocker's
   `stateReason` through `gh api graphql` (a `null` reason still resolves; a failed query keeps
-  the blocker blocking); Linear unblocks only on the `completed` state type; local-markdown
+  the blocker blocking); Linear unblocks only on the `completed` state type, and only while
+  `done_state_types` lists it; local-markdown
   reads an optional `state_reason` frontmatter field. Jira and Gitea record no readable close
   reason, so they keep counting a closed blocker as resolved.
 - **A fork's closing PR no longer parks an item as in flight.** The GitHub "Open linked PRs"

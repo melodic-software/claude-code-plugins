@@ -331,7 +331,7 @@ Normalized item object:
   | Adapter | Resolved | Won't-do (blocks, counted) |
   |---|---|---|
   | GitHub | `stateReason` `COMPLETED` or `null` | `NOT_PLANNED`, `DUPLICATE` |
-  | Linear | state type `completed` | other done types (`canceled`, `duplicate`) |
+  | Linear | state type `completed`, while `done_state_types` lists it | other done types (`canceled`, `duplicate`) |
   | local-markdown | `closed`, no `state_reason` or `completed` | any other `state_reason` (`not_planned`, `duplicate`, ...) |
   | Jira, Gitea | any closed blocker (won't-do detection unsupported) | none |
 

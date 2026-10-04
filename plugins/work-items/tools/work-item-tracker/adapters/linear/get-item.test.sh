@@ -111,6 +111,20 @@ lin_run "$S" "linear:acme/ENG#12" >/dev/null
 assert_eq "canceled and duplicate blockers still block" "2" "$(jq -r '.blocked_by_count' <<<"$(lin_out)")"
 assert_eq "canceled and duplicate blockers count as won't-do" "2" "$(jq -r '.blocked_by_wont_do_count' <<<"$(lin_out)")"
 
+# A done_state_types override that leaves out `completed` makes a completed issue open,
+# so a completed blocker keeps blocking, the same as any other open blocker.
+lin_write_binding '{"done_state_types":["canceled"]}'
+lin_reset
+lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 12 started)" \
+  '{issues: {nodes: [($i | .inverseRelations.nodes = [
+      {type: "blocks", issue: {state: {type: "completed"}}},
+      {type: "blocks", issue: {state: {type: "canceled"}}}
+    ])]}}')"
+lin_run "$S" "linear:acme/ENG#12" >/dev/null
+assert_eq "completed blocker not configured done still blocks" "2" "$(jq -r '.blocked_by_count' <<<"$(lin_out)")"
+assert_eq "only the configured-done canceled blocker is won't-do" "1" "$(jq -r '.blocked_by_wont_do_count' <<<"$(lin_out)")"
+lin_write_binding
+
 # --- parent_id is fully qualified ---
 lin_reset
 lin_data 'issues(filter:' "$(jq -cn --argjson i "$(lin_issue_json 12 started)" \
