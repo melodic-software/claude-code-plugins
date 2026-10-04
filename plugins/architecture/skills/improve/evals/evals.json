@@ -102,6 +102,37 @@
         "The candidate artifact carries a phase-1.5 line with downgraded, dropped, and corrected counts, even when all are zero",
         "Does not leave empty agreed-shape or graft-record fields on entries that have not reached Phase 3"
       ]
+    },
+    {
+      "id": 8,
+      "name": "boundaries-recorded-rule-crossing-handed-on",
+      "prompt": "/architecture:improve boundaries. We are on branch feature/billing-split. ARCHITECTURE.md line 14 says \"Billing.Reports must not reference Billing.Ledger directly.\" The architecture topic doc declares architecture_dir: docs/architecture, and docs/architecture/dependency-graph.json is current and has a resolved project edge from src/Billing.Reports/Billing.Reports.csproj to src/Billing.Ledger/Billing.Ledger.csproj. When you show me the crossing I will confirm the rule for enforcement.",
+      "expected_output": "Reads the 'Where boundary rules live' list from the enforcement-ladder copy, records the ARCHITECTURE.md rule with its source line, reads the existing dependency graph, and reports the Reports-to-Ledger edge as a crossing citing both the rule's source line and the edge's manifest evidence. After the user confirms, it writes one review-findings file under .work/improve/feature-billing-split/ (after checking that the memory root carries a .gitignore with *), with the rule as a row under an architecture dimension heading, names that file in the report, and offers /review:audit-enforceability on it without running it.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Takes the rule sources from the 'Where boundary rules live' list in the enforcement-ladder copy rather than a list of its own",
+        "Reports the src/Billing.Reports to src/Billing.Ledger edge as crossing the rule, citing ARCHITECTURE.md:14 and the manifest declaration the edge's evidence names",
+        "Writes the findings file under .work/improve/feature-billing-split/ and not under .work/reviews/",
+        "The findings file has type: review-findings frontmatter and places the confirmed rule's row under a '### architecture' heading",
+        "Names the findings file in the report and offers /review:audit-enforceability <file> without invoking it",
+        "Writes no architecture test and edits no source file"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "boundaries-no-rules-asks-instead-of-inferring",
+      "prompt": "/architecture:improve boundaries. This repository has no REVIEW.md, no ARCHITECTURE.md, no ADRs, no docs/architecture folder, no unscoped rules files and no architecture-test configuration. It has three projects: src/Web, src/Orders and src/Shared, and Web references Orders, which references Shared.",
+      "expected_output": "Says that no boundary rule is recorded and names the sources it checked. Collects the edges through the plugin's dependency map, presents the three internal edges, and asks the user which reference directions must never occur. It proposes no rule from the folder names or the existing references, and writes no findings file because no rule has been confirmed.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "States that no boundary rule is recorded and names the sources from the 'Where boundary rules live' list that it checked",
+        "Generates the dependency graph with --out under .work/improve/<branch-slug>/, after checking that the memory root carries a .gitignore with *, and writes no file into a tracked directory",
+        "Presents the Web to Orders and Orders to Shared edges and asks which directions are forbidden",
+        "Does not propose a boundary rule from the folder names or from the references that exist today",
+        "Writes no findings file, because no rule has been confirmed"
+      ]
     }
   ]
 }

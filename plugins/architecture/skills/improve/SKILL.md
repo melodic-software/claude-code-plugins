@@ -1,14 +1,14 @@
 ---
-description: "Scan a codebase for module-level friction (shallow modules, seam leaks, locality gaps), report candidates as HTML, and interview the chosen one with a Design-It-Twice branch. Use when: 'improve architecture', 'find deepening opportunities', 'shallow modules', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'codebase friction', 'module seams', 'locality'. Skip when: a cross-dimension ask ('what should we improve') routes to /improvement:find."
-argument-hint: "[deepening]"
+description: "Scan a codebase for module-level friction (shallow modules, seam leaks, locality gaps), report candidates as HTML, and interview the chosen one with a Design-It-Twice branch. Use when: 'improve architecture', 'find deepening opportunities', 'shallow modules', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'codebase friction', 'module seams', 'locality', 'check our layer boundaries', 'which references cross a boundary'. Skip when: a cross-dimension ask ('what should we improve') routes to /improvement:find."
+argument-hint: "[deepening|boundaries]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: plan
-  summary: Scan the codebase for shallow modules and friction, then design the chosen fix several ways
+  summary: Scan the codebase for shallow modules or boundary crossings, then design or hand on the chosen fix
 ---
 
-**Arguments.** `[deepening]`. e.g., deepening
+**Arguments.** `[deepening|boundaries]`. e.g., boundaries
 
 ## Repository context. Gather first
 
@@ -38,7 +38,7 @@ Arguments: `$ARGUMENTS`
 
 Improvement is distinct from review and planning. Review evaluates a DIFF against criteria (reactive). Planning designs NEW work (forward-looking). This skill scans EXISTING code for friction and proposes candidates for improvement (proactive).
 
-The scan-present-pick process generalizes across improvement **lenses**. Each lens (action) brings its own analysis method and vocabulary via an `actions/<lens>.md` playbook plus a `research/<lens>/` reference set, loaded only when that lens runs. The first lens, `deepening`, implements Ousterhout's deep-module concept: finding shallow modules (interface nearly as complex as implementation) and proposing how to deepen them. The aim is **testability and AI/agent-navigability (AX)**: a deep module's small interface lets a reader, human or agent, grasp its purpose without traversing the whole import graph.
+The scan-present-pick process generalizes across improvement **lenses**. Each lens (action) brings its own analysis method and vocabulary via an `actions/<lens>.md` playbook plus a `research/<lens>/` reference set, loaded only when that lens runs. The first lens, `deepening`, implements Ousterhout's deep-module concept: finding shallow modules (interface nearly as complex as implementation) and proposing how to deepen them. The aim is **testability and AI/agent-navigability (AX)**: a deep module's small interface lets a reader, human or agent, grasp its purpose without traversing the whole import graph. The `boundaries` lens checks the module boundaries a repository has recorded against the references its build manifests declare, and hands each rule the user confirms to the enforcement audit as an architecture-test proposal.
 
 This finds existing friction. It does not plan new work, apply mechanical code-level tidyings, enforce rules on a diff, or review changes before a PR. Those are separate concerns handled by planning, tidying, rule-enforcement, and review tools respectively (see "Composition").
 
@@ -48,6 +48,7 @@ This finds existing friction. It does not plan new work, apply mechanical code-l
 |----------|--------|-------------|
 | *(empty)* | Defaults to `deepening` | Runs the deepening lens |
 | `deepening` | **Deepening (Ousterhout)** | Shallow→deep module scan → HTML report → interview loop on each selected candidate (with a Design-It-Twice branch for parallel interface exploration) → hand off the agreed candidates for planning, never implementing them. Full process: `actions/deepening.md` |
+| `boundaries` | **Boundaries** | Recorded boundary rules (from the enforcement ladder's "Where boundary rules live" list) → edges from `/architecture:map-dependencies` → each edge that crosses a rule, presented for the user to pick → each confirmed rule written to a findings file for `/review:audit-enforceability`. With no rule recorded, asks which directions are forbidden. Full process: `actions/boundaries.md` |
 
 One lens per invocation. Lenses don't chain implicitly. Read the action's playbook for its full process.
 
@@ -68,11 +69,12 @@ A new improvement lens (e.g. `coupling`, `testability`, dependency-direction rev
 | [research/deepening/dependencies.md](research/deepening/dependencies.md) | Classifying a candidate's dependencies, where the category chooses the testing strategy |
 | [research/deepening/html-report.md](research/deepening/html-report.md) | Writing the HTML report: scaffold, diagram patterns, and the report's two additions to the rendered-views security baseline (which strings are repository-derived, no script inside SVG) |
 | [research/deepening/interface-design.md](research/deepening/interface-design.md) | Entering the Design-It-Twice branch, or a single proposed shape is not converging in the interview loop |
+| [research/boundaries/README.md](research/boundaries/README.md) | Running the boundaries lens: what counts as a boundary rule, mapping a rule's module names to graph nodes, what manifest edges cannot show, and the findings-row template |
 
 ## What this skill does NOT do
 
 - **Does not plan implementation.** Produces candidates + agreed shape; a planning step plans the work
-- **Does not enforce rules.** A rule-enforcement reviewer does that reactively on a diff
+- **Does not enforce rules.** A rule-enforcement reviewer does that reactively on a diff. The boundaries lens proposes enforcement through a findings file and writes no test
 - **Does not apply mechanical tidyings.** Code-level tidyings (rename, extract, inline) are a separate, smaller-grained concern
 - **Does not review a diff.** Pre-merge review tools do that
 - **Does not write code.** Discovery and design skill only
@@ -89,6 +91,12 @@ Graceful degradation: where a named step below is not available in the consuming
 | A candidate shape is agreed | Hand off to a planning skill if the project has one; else summarize the agreed shape for planning | Consumes the `agreed-shape` entry from the candidate artifact (see `actions/deepening.md`) |
 | During the interview loop | Maintain resolved project vocabulary | Invoke `/domain-driven-design:curate-language` via the Skill tool when available in the current session; otherwise update an existing consumer-declared glossary in its own shape |
 | Post-improvement | Review the implemented changes with the project's review tool | Standard diff review |
+| The boundaries lens wrote a findings file | Offer `/review:audit-enforceability <file>` when that skill is among the available skills; never run it unasked | Without it, the report states each confirmed rule and the architecture test it calls for (`actions/boundaries.md`, Phase 4) |
+
+## Next
+
+- A deepening candidate's shape is agreed, when available: /planning:plan
+- The boundaries lens wrote a findings file, when available: /review:audit-enforceability
 
 ## Gotchas
 

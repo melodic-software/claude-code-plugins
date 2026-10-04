@@ -8,6 +8,7 @@ All notable changes to the `architecture` plugin are documented here. Format fol
 ### Added
 
 - **The enforcement ladder ships with `/architecture:improve`.** A generated copy of the enforcement-ladder convention sits at `skills/improve/research/enforcement-ladder.md`, carrying the rung list and the "Where boundary rules live" list that boundary reviews read.
+- **`/architecture:improve boundaries`.** A second lens reads the boundary rules a repository records, from the places the enforcement ladder's "Where boundary rules live" list names, and the project edges `/architecture:map-dependencies` cites, then reports each edge that crosses a rule. With no rule recorded it asks which directions are forbidden instead of inferring one. Each rule the user confirms goes to a review-findings file under `<memory_dir>/improve/<branch-slug>/` under the `architecture` dimension, and the report offers `/review:audit-enforceability` on it.
 
 ## [0.22.1] - 2026-10-04
 

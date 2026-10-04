@@ -34,6 +34,15 @@ module's purpose without traversing the whole import graph.
    on depth, locality, and seam placement, and closes with an opinionated
    recommendation.
 
+A second lens, `boundaries`, checks the module boundaries your repository has
+already written down (in `REVIEW.md`, `ARCHITECTURE.md`, ADRs, rules files or an
+existing architecture test) against the project references
+`/architecture:map-dependencies` reads from your build manifests. It lists each
+reference that crosses a recorded rule, and each rule you confirm goes to a
+findings file that `/review:audit-enforceability` turns into an architecture-test
+proposal. With no rule recorded, it shows the references and asks which
+directions are forbidden; it never infers a rule from folder names.
+
 ## Across repositories
 
 A second lens works one altitude up, over a *set* of repositories rather than
@@ -152,6 +161,7 @@ your records.
 ```shell
 /architecture:improve            # defaults to the deepening lens
 /architecture:improve deepening  # explicit
+/architecture:improve boundaries # recorded boundary rules against manifest edges
 /architecture:record-decision    # record one decision into the repo's convention
 
 /architecture:map-landscape --repos /path/to/a,/path/to/b
