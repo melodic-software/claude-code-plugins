@@ -3,6 +3,12 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.8.3] - 2026-10-04
+
+### Changed
+
+- **Shorter hook text (#6225).** The hook-failure warning drops the status line about `hook_failure_audit_enabled` and the ambiguity rationale, and keeps the restart remedy for launch and ambiguous failures. The skill-usage logging notices go to the user only, and the invalid-destination notice names the actual fault: a `skill_usage_dir` that is not a contained relative path, or a `data-dir` scope without `CLAUDE_PLUGIN_DATA`. The Stop hook's missing-jq notice goes to the user only.
+
 ## [3.8.2] - 2026-10-04
 
 ### Changed

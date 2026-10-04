@@ -62,6 +62,16 @@ assert_contains "systemMessage emitted" "$OUT" "systemMessage"
 assert_contains "explains fail-open" "$OUT" "fail-open"
 assert_contains "stale-session guidance" "$OUT" "restart"
 
+# --- No jq: the user is told, the model is not (Stop context continues the turn)
+NOJQ_BIN="$TEST_TMPDIR/nojq-bin"
+mkdir -p "$NOJQ_BIN" "$TEST_TMPDIR/data-nojq/skip-notices"
+for t in bash cat env mkdir find tr grep sed uname date; do
+  real_t="$(command -v "$t" 2>/dev/null)" && ln -s "$real_t" "$NOJQ_BIN/$t"
+done
+OUT_NOJQ=$(PATH="$NOJQ_BIN" run_hook "$T1" "$TEST_TMPDIR/data-nojq")
+assert_contains "no jq -> user notice" "$OUT_NOJQ" "systemMessage"
+assert_absent "no jq -> nothing for the model on Stop" "$OUT_NOJQ" "additionalContext"
+
 # --- Structural matching: neither false-positive shape fires ----------------
 assert_absent "hook_success quoting an error does not fire" "$OUT" "PostToolUse:Edit"
 assert_absent "string-quoted record does not fire" "$OUT" "PreToolUse:QuotedOnly"

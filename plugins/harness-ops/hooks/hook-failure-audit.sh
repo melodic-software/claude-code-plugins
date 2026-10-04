@@ -103,8 +103,17 @@ START=${EPOCHREALTIME:-}
 # and the cardinality check behind it is what makes the array read safe.
 hook::buffer_stdin_to INPUT '.transcript_path' '.session_id' || exit 0
 
-# Advisory finding -> fail open, with the standard once per session and agent notice.
-hook::require jq Stop harness-ops "$INPUT"
+# Advisory finding -> fail open with a once-per-session notice. User only: Stop
+# additionalContext continues the conversation, which would spend a model turn
+# on a notice.
+if ! command -v jq >/dev/null 2>&1; then
+  # shellcheck disable=SC2034 # the model text is filled and dropped: user only on Stop
+  JQ_MODEL="" JQ_USER=""
+  if hook::prereq_notice_to JQ_MODEL JQ_USER jq "$INPUT" --label harness-ops --no-path; then
+    hook::emit_skip_notice Stop "" "$JQ_USER"
+  fi
+  exit 0
+fi
 
 # An absent field arrives as the empty string rather than as a non-zero return,
 # so each guard below is spelled out instead of riding on `||`.
@@ -498,19 +507,18 @@ HAS_COMPLETED="${HAS_COMPLETED%$'\r'}"
 # ran to completion, nor about a record that cannot settle the question. The
 # completed branch stays event-agnostic: 2593's record is a Stop hook, where
 # there is no guarded tool call to proceed.
-MSG="harness-ops: ${TOTAL} hook failure record(s) in this session's transcript were never surfaced: ${DETAIL}."
+MSG="harness-ops: ${TOTAL} hook failure(s) Claude Code did not show: ${DETAIL}."
 if [[ "$HAS_LAUNCH" == "true" ]]; then
-  MSG="${MSG} A hook that fails to launch enforces nothing — the tool calls it guards proceed as if approved (fail-open)."
+  MSG="${MSG} A hook that fails to launch enforces nothing; the calls it guards ran unchecked (fail-open)."
 fi
 if [[ "$HAS_AMBIGUOUS" == "true" ]]; then
-  MSG="${MSG} Exit 126 or 127 with no exec-failure signature in stderr is ambiguous — a shell reports those codes both for a registered command it could not execute at all and for a hook that ran and could not execute a command of its own, and the record cannot tell them apart. Both are possible: check that the registered command exists, is executable, and resolves on this platform, AND read the hook's own logic for a command it could not run."
+  MSG="${MSG} Exit 126/127 without an exec-failure signature can be the registered command or a command the hook ran. Both are possible: check the registered command, and read the hook's own logic."
 fi
 if [[ "$HAS_COMPLETED" == "true" ]]; then
-  MSG="${MSG} A hook that exited non-zero with no exec-failure evidence enforced nothing either, and Claude Code told nobody — but nothing here points at the launch path, so its own exit status and stderr above are where the failure is."
+  MSG="${MSG} A hook that exited non-zero with no exec-failure evidence enforced nothing; its exit status and stderr above say why."
 fi
-MSG="${MSG} Confirm hook_failure_audit_enabled stays true via /plugin configure harness-ops@<marketplace> (default true)."
 if [[ "$HAS_LAUNCH" == "true" || "$HAS_AMBIGUOUS" == "true" ]]; then
-  MSG="${MSG} If a plugin update changed hook config on disk mid-session, this session still runs the config it loaded at startup — restart the session to load the fix."
+  MSG="${MSG} Hook config changed mid-session loads only after a restart."
 fi
 
 hook::emit_system_message "$MSG"
