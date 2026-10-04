@@ -375,10 +375,9 @@ state: only the `--data-root` the guard validated may place it.
 
 **Handing the values over up front.** A plugin `UserPromptExpansion` hook matching
 `disk-hygiene:clean$` runs `engine_context.py` through the same launcher, with the same
-`--plugin-root` argument, when the command expands. It prints the guard's `_display_python()` and
-`resolve_authorized_data_root_channel()` results as `additionalContext`, so the skill needs no denied call to
-learn them. The note names the channel that supplied the data root (`--authorized-data-root
-argument`, `plugin-cache layout`, or `local-directory marketplace install`). It grants nothing: the guard still judges every call, and a hook that fails prints
+`--plugin-root` argument, when the command expands. It prints the guard's interpreter, engine
+path and `resolve_authorized_data_root()` result as `additionalContext`, so the skill needs no
+denied call to learn them, and the guard's denials need not repeat them. It grants nothing: the guard still judges every call, and a hook that fails prints
 nothing and leaves the skill on the kill-switch probe, whose `hook_python` and `data_root` fields
 come from the guard's `launch_disclosure` for the probe's install root. The note and the skill
 belt now share the same three channels, so a `--plugin-dir` session with no marketplace proof
@@ -468,7 +467,7 @@ from that install and derives the marketplace's canonical data root. `CLAUDE_CON
 reopen the env-injection hole, so a relocated config derives nothing from its relocated files (see the
 account-home note above). Both fail closed (every engine invocation denied) while the
 destructive-action guard itself stays fully active. This is a deliberate safe-over-convenient
-tradeoff, not a security gap. The belt's denial names one recovery: run this plugin from a
+tradeoff, not a security gap. The guard-values note and an engine-call denial name one recovery: run this plugin from a
 marketplace install, or register the checkout as a local-directory marketplace
 (`claude plugin marketplace add <checkout>`) so a `--plugin-dir` session inside it derives that
 marketplace's data root. Setting `CLAUDE_PLUGIN_DATA` in the launch shell is not a recovery: a
@@ -670,7 +669,7 @@ guard on the call itself (#3861), mirroring the watchdog's "could not decide" ru
 every call (exit 2), the engine gate denies any payload naming `hygiene.py` or carrying nothing, and
 the `/disk-hygiene:clean` expansion is blocked so the belt never loads. The engine gate's
 marker-free commands differ from the watchdog: they proceed unchecked with a once-per-session
-`systemMessage` and `additionalContext` notice rather than an `ask`. The Stop detector is kept as the end-of-turn
+`systemMessage` notice to the user rather than an `ask`. The Stop detector is kept as the end-of-turn
 backstop. Verified 2026-09-28 against Claude Code 2.1.280 at
 <https://code.claude.com/docs/en/hooks> (exit 2 blocks a PreToolUse call whatever stdout carries;
 exit 0 with no `permissionDecision` proceeds through the normal permission flow; a hook `ask` forces

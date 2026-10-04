@@ -2,8 +2,9 @@
 # SessionStart hook: install the hash-locked Python packages (requirements.txt) into
 # ${CLAUDE_PLUGIN_DATA} on demand, so the produce skill runs against them and nothing fetches a
 # package while a skill runs (docs/conventions/on-demand-dependencies, Python). A no-op once the
-# set loads. A failed install is a notice on both channels with the repair line, never a silent
-# skip. Always exits 0: a failed install must not block the session.
+# set loads. A failed install is a user notice with the repair line, never a silent skip; the
+# model hears nothing here, since pydeps.py run prints the same repair line when the skill runs.
+# Always exits 0: a failed install must not block the session.
 set -uo pipefail
 
 data="${CLAUDE_PLUGIN_DATA:-}"
@@ -16,7 +17,7 @@ ROOT="${SCRIPT_DIR%/*}"
 notice() {
   # shellcheck source=hook-utils.sh
   source "$SCRIPT_DIR/hook-utils.sh"
-  hook::emit_skip_notice SessionStart "$1"
+  hook::emit_skip_notice SessionStart "" "$1"
 }
 
 # launcher_listed -> a python.exe that `py -0p` lists, as a POSIX path: the first tagged 3.12 or 3.13,
@@ -58,7 +59,7 @@ for candidate in "${candidates[@]}"; do
 done
 
 if [[ -z "$py" ]]; then
-  notice "explainer-video: Python 3.12 or 3.13 was not found on PATH${candidates[4]:+ or listed by the py launcher (py -0p)}, so ManimCE is not installed and /explainer-video:produce will stop. Install Python 3.13 (https://www.python.org/downloads/) and start a new session."
+  notice "explainer-video: Python 3.12 or 3.13 was not found on the hook PATH${candidates[4]:+ or listed by py -0p}; /explainer-video:produce will fail. Install Python 3.13 (https://www.python.org/downloads/) and start a new session."
   exit 0
 fi
 
@@ -83,13 +84,36 @@ repair_line() {
   esac
 }
 
-if ! out="$("$py" "$ROOT/scripts/pydeps.py" install --data-dir "$data" </dev/null 2>&1)"; then
+# to_native <path> -> the path as a native Windows Python reads it. Under Git Bash or Cygwin a POSIX
+# path (/c/...) goes through cygpath -m: a session with MSYS path conversion switched off hands it
+# over as is, and Python resolves it against the current drive (C:\c\...). Fails rather than
+# return the unconverted path.
+to_native() {
+  case "${OSTYPE:-}" in
+  msys* | cygwin*)
+    [[ "$1" == /* ]] || {
+      printf '%s' "$1"
+      return 0
+    }
+    local converted
+    converted="$(cygpath -m "$1" 2>/dev/null)" && [[ -n "$converted" ]] && printf '%s' "$converted"
+    ;;
+  *) printf '%s' "$1" ;;
+  esac
+}
+
+if ! script="$(to_native "$ROOT/scripts/pydeps.py")" || ! data_dir="$(to_native "$data")"; then
+  notice "explainer-video: cygpath could not convert its pydeps.py or data directory path to Windows form, so ManimCE is not installed and /explainer-video:produce will stop. Check that cygpath runs in Git Bash and start a new session."
+  exit 0
+fi
+
+if ! out="$("$py" "$script" install --data-dir "$data_dir" </dev/null 2>&1)"; then
   if [[ "$out" == *Traceback* ]]; then
     last="${out//$'\r'/}"
     last="${last##*$'\n'}"
     notice "explainer-video: the Python handover failed: $last; repair with: $(repair_line)"
   else
-    notice "explainer-video: its Python packages (ManimCE) could not be installed, so /explainer-video:produce will stop until they are. $out"
+    notice "explainer-video: Python packages (ManimCE) not installed; /explainer-video:produce will fail. ${out#explainer-video: }"
   fi
 fi
 exit 0

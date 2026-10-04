@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | IMPORTANT | Correctness | Slicing is safe, but the removed `len(title) <= limit` branch returned short titles unchanged. Now every title gets the ellipsis: listing.py prints 'Desk lamp…' and 'Cable tray…', and a title of exactly 40 characters is cut to 39 plus the ellipsis. | titles.py:2 | Restore the early return |",
+      "why": "names the input class and the changed output"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No self-review issues found in changed files. Python slicing already handles short strings.",
+      "why": "agrees with the commit"
+    },
+    {
+      "answer": "| 1 | SUGGESTION | Style | The length check was removed; add a type hint for limit. | titles.py:1 | Add hint |",
+      "why": "names the removal as style only"
+    }
+  ]
+}

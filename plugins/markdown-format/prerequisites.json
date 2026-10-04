@@ -15,7 +15,7 @@
           "node_modules/.bin/markdownlint-cli2"
         ]
       },
-      "degrade": "Without markdownlint-cli2, the hook cannot format edited Markdown files; edits still go through.",
+      "degrade": "Without markdownlint-cli2, the hook cannot format edited Markdown files.",
       "install": {
         "npm": "npm i -D markdownlint-cli2"
       },
@@ -33,7 +33,7 @@
           "jq"
         ]
       },
-      "degrade": "Without jq, the markdown-format hooks skip their work for the session and say so once.",
+      "degrade": "Without jq, the markdown-format hooks skip their work.",
       "install": {
         "docs": "https://jqlang.org/download/"
       },

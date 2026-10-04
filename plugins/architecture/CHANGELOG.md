@@ -3,6 +3,33 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.5] - 2026-10-04
+
+### Added
+
+- **A `claude plugin eval` suite for `improve` on codebases with nothing to deepen.** Four cases under
+  `evals/`, tagged `row19`: the `deep-module-not-over-flagged` case converted from `evals.json`, two
+  scaffolded repositories whose modules are already deep (the reply must say there is no candidate
+  and show no Strong or Worth exploring card), and a control repository with a shallow pass-through
+  chain that the reply must name. No skill text changed. The cases carry no `tool_used: Skill`
+  grader: every prompt starts with `/architecture:improve`, which loads the skill without a Skill
+  tool call, so that grader failed every with-plugin run; the slash command guarantees the load,
+  and the cases measure the verdict, not triggering. The `says-already-deep` regex also matches
+  the with-plugin wording a paid run produced ("already the deep module", "would push complexity
+  outward").
+
+## [0.22.4] - 2026-10-04
+
+### Changed
+
+- **Design-significant map views and `/architecture:improve` hand off to `/planning:design` ([#6278](https://github.com/melodic-software/claude-code-plugins/issues/6278)).** The components, containers, context, data, deployment, events, and flow maps name `/planning:design` with the matching scope in `## Next`, and an agreed deepening shape hands off to `/planning:design` instead of an unnamed planning skill.
+
+## [0.22.3] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
 ## [0.22.2] - 2026-10-04
 
 ### Changed

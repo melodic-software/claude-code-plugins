@@ -1,6 +1,6 @@
 {
   "name": "gaming",
-  "version": "0.10.3",
+  "version": "0.10.4",
   "description": "Apply, track, tune, and remove the community DLSS 5 Neural Rendering mod (OptiScaler forks) in Windows PC games from Steam, Epic, EA app, Battle.net, GOG, Ubisoft Connect, and Xbox (gaming:dlss5). Anti-cheat checks refuse unless you type an at-your-own-risk acknowledgement. Snapshots allow byte-exact removal; a ledger and upstream watch track fork and driver releases. Ships no NVIDIA binary: the DLL comes from a path, an installed DLSS 5 title, or a configured source.",
   "author": {
     "name": "Melodic Software",

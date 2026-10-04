@@ -3,6 +3,43 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.1] - 2026-10-04
+
+### Added
+
+- **`review` ships a `claude plugin eval` suite with three cases for `/review:quality-gate` (tag `row37`).** Each case scaffolds a git branch whose commit removes a guard as a "simplification": an empty-list early return, a null-user check, and a length check that returned short titles unchanged. A case passes when the review names the input the removed guard handled and the behavior that now breaks for it. Each case has a regex grader for the input and a judge rubric for the regression, all with pass and fail samples. The cases need `--scaffold` and `--allow-tools Bash,Write`. No skill text changes.
+
+## [0.42.0] - 2026-10-04
+
+### Added
+
+- `brief-reviewer` agent: a read-only reviewer that runs the brief it is dispatched with. Its tools are Read, Grep, Glob and Bash, so it cannot spawn agents or invoke skills. `maxTurns` is 60 because a restatement batch hands it 40 to 50 files.
+- `stage-normalizer` agent: runs fanout's Stage 0 extraction and Stage 3 dedup with Read only. It inherits the model and pins no effort, so role routing still sets both.
+- `lane-verifier` agent: the hunter and verifier subagent for the CI lanes. Read, Grep, Glob and Bash only; it inherits the model and pins no effort so the lane's model holds within its step timeout.
+
+### Changed
+
+- `/review:quality-gate` slice, downstream, spec, close-out and restatement (large-diff batch) modes, `/review:fanout` criteria slices, the `/review:fanout-sweep` workflow's slice agents, and the `/review:explain-change` risk-map check dispatch `brief-reviewer` instead of a general-purpose or `Explore` subagent; self mode drops its general-purpose fallback for `code-reviewer`; fanout's Stage 0 and Stage 3 and the workflow's extractor dispatch `stage-normalizer`; the `/review:code-review` and `/review:security-review` CI lanes dispatch their hunters and verifiers as `lane-verifier`. No path in these skills dispatches a general-purpose or `Explore` subagent now, so a reviewer cannot rediscover a review skill and fan out; the README records the basis with an upstream pointer. The three agents carry the untrusted-content spine with a tail that keeps review criteria refining the lens.
+- `/review:fanout-sweep` slices keep `brief-reviewer`'s pinned model and effort instead of the routed `roles.verifier.fanout` variant, and the workflow reads only `roles.retrieval.single` and returns only `extract` in `roles`.
+
+## [0.41.1] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
+
+## [0.41.0] - 2026-10-04
+
+### Added
+
+- **`/review:explain-change` names the bundled `artifact-pr-review` skill in a Boundary section ([#6282](https://github.com/melodic-software/claude-code-plugins/issues/6282)).**
+  Use that skill for a verdict on a pull request and this one to understand the change; the native-surfaces record now rules the pair `complementary`.
+
+### Removed
+
+- **The `/review:pr-explainer` rename stub ([#6282](https://github.com/melodic-software/claude-code-plugins/issues/6282)).**
+  It pointed at `/review:explain-change` for one release; run `/review:explain-change` directly.
+
 ## [0.40.4] - 2026-10-04
 
 ### Changed

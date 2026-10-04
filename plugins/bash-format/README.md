@@ -39,7 +39,7 @@ and `.editorconfig` for formatting. It ships no rules of its own.
   and after, including the blanks inside the brackets, since `${m[ key ]}` is a
   different key from the `${m[key]}` shfmt prints. If any differs, the hook
   restores the file byte for byte and names each changed subscript and its line in
-  one notice. Quote the key (`${m["a-b"]}`) if the array is associative; if it is
+  one notice to Claude. Quote the key (`${m["a-b"]}`) if the array is associative; if it is
   indexed, write it as shfmt prints it, which depends on the release: v3.13.0
   printed `${a[i+1]}` where the releases around it print `${a[i + 1]}` (reverted in
   v3.13.1, per the [mvdan/sh changelog](https://github.com/mvdan/sh/blob/master/CHANGELOG.md)).
@@ -52,7 +52,9 @@ and `.editorconfig` for formatting. It ships no rules of its own.
   no tree and costs no extra process.
 - **Advisory, never blocking.** The hook always exits `0`. Findings are reported
   via `additionalContext`; they never reject the edit. Make a commit hook or CI
-  your hard gate.
+  your hard gate. A finding set is reported once per file: an unchanged set on a
+  re-edit sends nothing, and it is sent again after a clean run or after the
+  context is compacted or cleared.
 - **Config from the consumer.** ShellCheck discovers `.shellcheckrc` by walking
   up from the file's directory; shfmt reads `.editorconfig` the same way. No
   working-directory assumptions. The tools are anchored to the edited file.
@@ -80,9 +82,8 @@ and `.editorconfig` for formatting. It ships no rules of its own.
 
 ## Requirements
 
-The `jq` notice appears once per session and agent, renewed every eighth skip. The `shellcheck`
-and `shfmt` notices appear once per session, shared by all agents, renewed every eighth skip
-with the install route kept.
+Each missing-tool notice appears once per session and agent; the `shellcheck` and `shfmt` notices carry
+the install route on your copy only.
 
 - **Bash.** The hook is a Bash script. On native Windows, install
   [Git for Windows](https://code.claude.com/docs/en/setup#set-up-on-windows) so
@@ -105,8 +106,8 @@ with the install route kept.
 
 A SessionStart probe reports a missing `shfmt` or `shellcheck` once per session, from
 `prerequisites.json`, and the PostToolUse notices name the same install route. The probe and the
-PostToolUse notice for a tool share one latch, so the probe's notice counts as the first and the
-first PostToolUse notice stays silent until the renewal. Run `/bash-format:check` to see which
+PostToolUse notice for a tool share one latch: the probe's notice is yours, and Claude hears at the
+hook's first skip. Run `/bash-format:check` to see which
 binaries resolve; it is read-only and installs nothing.
 
 Each pass is independent: when a tool is absent its pass is skipped (visibly)

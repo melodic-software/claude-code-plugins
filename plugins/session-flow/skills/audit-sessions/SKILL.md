@@ -67,11 +67,21 @@ the scripts' own defaults differ (collect keeps records forever).
   --retention-days "$RETENTION" --excerpt-chars "$EXCERPT_CHARS" --excerpt-words "$EXCERPT_WORDS"
 ```
 
-Collect is incremental: it skips sessions whose transcript is unchanged, re-ingests them when the
-excerpt options or plugin version changed, and drops records older than the retention window. The first run on a machine reads every transcript (about 70 s for 2.6 GB
-of transcripts, measured 2026-10-02 on Claude Code 2.1.287; recheck when a first run on a machine
-of similar size exceeds 300 s), so give that call a Bash timeout of 600000 ms or run it in the
-background. Later runs take under a second when nothing changed.
+Collect is incremental: it skips sessions whose transcript is unchanged and drops records older
+than the retention window. A plugin version change alone re-reads nothing. It re-reads every
+transcript (a full re-read) on:
+
+- the first run on a machine;
+- the first run after the collector's code or redaction rules change (the files hashed into
+  `collector_digest`, listed in `reference/store-layout.md`);
+- a changed excerpt option;
+- redaction starting or stopping failing closed;
+- `--force`.
+
+A full re-read takes about 70 s for 2.6 GB of transcripts (measured 2026-10-02 on Claude Code
+2.1.287; recheck when a first run on a machine of similar size exceeds 300 s), so give any run that
+may be one a Bash timeout of 600000 ms or run it in the background. Other runs take under a second
+when nothing changed.
 
 Exit 2 means the data directory or the projects root is unusable: report the summary and stop.
 Exit 1 is a partial ingest or degraded redaction: report it and continue.

@@ -3,7 +3,7 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.3] - 2026-10-04
+## [0.6.4] - 2026-10-04
 
 ### Fixed
 
@@ -20,6 +20,12 @@ All notable changes to the `wizard` plugin are documented here. Format follows
 - `ask`, `ask_secret` and `write_env` now set a key named like one of their own locals (`key`,
   `value`, `input`, `tmp` and the rest) in the caller instead of in the helper. Their locals carry a
   `__wiz_` prefix.
+
+## [0.6.3] - 2026-10-04
+
+### Changed
+
+- **Shared `prerequisites` checker copies synced ([#6225](https://github.com/melodic-software/claude-code-plugins/issues/6225)); no change to this plugin's behavior.**
 
 ## [0.6.2] - 2026-10-03
 
