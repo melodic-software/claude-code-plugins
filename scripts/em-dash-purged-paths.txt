@@ -108,6 +108,7 @@ docs/upstream/claude-code-mods/research-2026-09-19/*.md
 docs/upstream/tlaplus-agentskills.md
 docs/upstream/cursor-pstack.md
 docs/upstream/mattpocock-skills.md
+docs/upstream/trailofbits-skills.md
 
 # Plugin instruction surfaces, purged in the campaign's per-plugin shards. The
 # skills glob is intentionally open: a NEW skill added to one of these plugins
