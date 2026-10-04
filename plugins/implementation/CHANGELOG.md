@@ -3,6 +3,13 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.2] - 2026-10-03
+
+### Changed
+
+- **`/implementation:implement-dispatch` names a context-guard line, not a hook, as a heavy-window
+  signal.** context-guard now reports the zone through its mod's lines.
+
 ## [0.21.1] - 2026-10-02
 
 ### Changed

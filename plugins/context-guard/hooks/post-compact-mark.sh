@@ -21,8 +21,7 @@
 # (verified 2026-08-10 against code.claude.com/docs/en/hooks), so this
 # hook's one job is the marker. jq-FREE by design, mirroring the
 # rate-limit-guard StopFailure recorder: the fields are regex-extracted so a
-# degraded environment still records. It also resets the blocking gate's
-# grace counter — compaction opens a fresh window.
+# degraded environment still records.
 #
 # Kill switch: context_guard_hooks_enabled userConfig boolean, read via the
 # CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED hook-process mirror.
@@ -34,7 +33,7 @@ set -uo pipefail
 # answer for a bare, slash-free invocation.
 CG_DIR=${BASH_SOURCE[0]%/*}
 [[ "$CG_DIR" == "${BASH_SOURCE[0]}" ]] && CG_DIR=.
-# Kill switch FIRST, above every source, as in zone-gate.sh: a disabled hook
+# Kill switch FIRST, above every source: a disabled hook
 # must not pay to parse hook-utils.sh before finding out it is off.
 [[ "${CLAUDE_PLUGIN_OPTION_CONTEXT_GUARD_HOOKS_ENABLED:-true}" == "true" ]] || exit 0
 # shellcheck source=hook-utils.sh
@@ -114,19 +113,11 @@ if printf '%s\n' "$marker" >"$tmp" 2>/dev/null; then
   fi
 fi
 
-# Prune stale sibling markers with the same 14-day cutoff the tee applies to
-# snapshots — the shared contract dir must not grow unboundedly, and the
-# tee's own sweep matches *.json only.
+# Prune stale sibling markers with the same 14-day cutoff the snapshot writer
+# applies to snapshots — the shared contract dir must not grow unboundedly, and
+# the writer's own prune matches *.json, .last and .lock files after 14 days
+# and .*.json.tmp.* temps after 60 s, never *.compacted.
 find "$CTX_DIR" -maxdepth 1 -name '*.compacted' -mmin +20160 -exec rm -f {} + 2>/dev/null || true
-
-# Compaction opens a fresh window: re-arm the blocking gate's grace budget.
-STATE_DIR="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/context-guard}/state"
-# The counter only exists in blocking mode, so on the default advisory posture
-# an unguarded `rm` would be a process spawned to delete nothing. `rm -f` on an
-# absent path succeeds anyway, so the guard changes no outcome.
-if [[ -e "$STATE_DIR/$SESSION.gate-count" ]]; then
-  rm -f "$STATE_DIR/$SESSION.gate-count" 2>/dev/null || true
-fi
 
 # SIDE-EFFECT-ONLY contract still holds: PostCompact has no decision control,
 # so this always exits 0 regardless of marker_ok — only the telemetry status

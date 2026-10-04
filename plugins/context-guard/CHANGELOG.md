@@ -5,6 +5,37 @@ All notable changes to the `context-guard` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-10-03
+
+### Upgrading
+
+- **Run `/context-guard:setup check` after updating, and follow the unwire steps it prints.** The statusline tee is gone, and one left wired is a second writer of the snapshot files. The check finds a tee still writing, cached versions that still carry one, and each route that reaches one (the `statusLine` command, a wrapper script, the installed shim copy). It prints the `statusLine` value with every guard shim removed and your own renderer kept byte for byte, the files to delete and the restart; it edits nothing itself. Restart sessions and lanes started before the update: they keep running what they loaded.
+
+### Added
+
+- **A mod (`hooks/register.tsx`) tells Claude its context zone directly**, in interactive, `-p`, `--bg` and `/loop` sessions alike, from the live session's figures. A line carries the zone word at each crossing into a worse zone, once per cycle; once at each approach margin (5 points before a boundary by default); at each `zones.json` threshold; and again after a compaction, a resume, a `/branch` or a reload. Nothing after `/clear`, and nothing to subagents. The operator gets the continuation menu as a transcript line Claude does not read and a band notice. It needs Claude Code 2.1.287 or later.
+- **Where a token band decides a crossing, an approach line comes before it too**, when used tokens reach the edge minus `approach_margin` points of the window (50,000 tokens on a 1,000,000 window at the default 5). Before, approach lines came only in the percentage shape, so a large window got no warning before either crossing.
+- **Options**: `zone_lines_enabled`, `zone_report_mode` (`operator` offers the line as a prompt suggestion in typed turns), `zone_line_data` (which figures a line carries), `zone_block_unattended` and `context_guard_band`. `zones.json` may set per-zone actions and text, an approach margin and extra thresholds. Control characters, newlines and Unicode line separators in that text collapse to one space, so it stays inside the one line it is carried in.
+- **A band row above the prompt**, `[<model>] ctx <n>% (<zone>)`, with `/context-guard:band` to show or hide it for the session.
+- **An `mcp__context-guard__status` tool** returns the session's figures, zone, compaction state, bands and gate state as JSON. A refused registration is logged once and everything else carries on.
+- **The module writes the snapshot** through the shared `lib/write-snapshot.mjs`: owner-only file and directory, a lock, retried rename, the hourly 14-day prune. It checks for a write after every tool call, after each response, every 15 seconds during a turn and at session end; a changed reading is written at once, and an unchanged one at most once per 60 seconds. A reading with null figures never replaces a populated file, and the last real reading stays on disk when a session ends.
+- **Hook telemetry from the module**, only on fires that act: `zone-crossing-inject` when lines are sent or a suggestion is shown (data adds `armed` and `suggested`, and has no `path`), `zone-gate` on each denial.
+
+### Changed
+
+- **The blocking gate moved into the module** as a tool-call deny. A turn a person typed gets the configured block; headless, loop, schedule and notification turns only the post-compaction one unless `zone_block_unattended` is `same-as-typed`. A `block` action in `zones.json` can arm it at any zone or threshold.
+- **An out-of-range option no longer turns the module off.** A grace budget that is not a whole number from 0 to 999999999, or a `zone_line_data` item it does not know, reads as the default with one log line. A value of the wrong type is still refused by Claude Code.
+- **A `zones.json` with only the module's keys and no band edges is no longer called malformed.** Both resolvers read it as the default bands, silently; the shared fixture holds them to the same answer.
+- **`/context-guard:setup check`** reports whether the mod runs in the session, every option's effective value (all eight), the retired-tee detector's findings with the unwire steps, and snapshot freshness against the module as the writer. `apply` now writes only `zones.json`.
+- **`jq` is needed only by the setup skill** (its zone report and `zones.json` merge); `node` by the PostCompact marker and the module's snapshot writes. The check skill and `prerequisites.json` say so.
+- The reader contract and the capture-channel record name the module as the writer, with a structural `unknown` only where it does not run (a Desktop WSL session, mods off, the plugin not enabled), and name the writer's file modes, lock and temp files.
+
+### Removed
+
+- **The statusline tee, the statusline shim and the wiring compose script**, with their tests, and `setup apply`'s shim install and the printed `statusLine` edit.
+- **The `zone-crossing-inject` and `zone-gate` shell hooks**, with their tests. The module sends the lines and holds the gate.
+- The PostCompact marker hook no longer deletes the shell gate's `state/<session>.gate-count` file: the module keeps its grace counter in memory, so any such file an earlier version left is safe to delete.
+
 ## [0.10.4] - 2026-10-03
 
 ### Fixed

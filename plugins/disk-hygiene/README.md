@@ -159,6 +159,12 @@ skill the guard's absolute Python and authorized `--data-root`, resolved by the 
 a run does not open with a deliberately denied call to learn them (#4215). It grants nothing; the
 guard still judges every call.
 
+An installed mod can stop this plugin's `PreToolUse` hooks from running: they run after the last
+mod calls `next`, so a mod that answers a `tool.call` without calling it skips them
+([where settings hooks run in the order](https://code.claude.com/docs/en/plugins/mods/events#where-settings-hooks-run-in-the-order)).
+A mod can also approve a call they blocked, because its `tool.check` hook runs after them
+([approve or refuse a tool call before the user is asked](https://code.claude.com/docs/en/plugins/mods/events#approve-or-refuse-a-tool-call-before-the-user-is-asked)).
+
 **Windows `python3` gotcha, and what the guard does when no Python resolves.** Every hook resolves
 Python through `hooks/run-python-hook.sh` (rejecting the zero-length `WindowsApps\python3.exe` App
 Execution Alias stub and falling through to `python`, then `py -3`) before exec'ing the guard, the

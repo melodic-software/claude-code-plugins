@@ -86,7 +86,7 @@
     {
       "id": 8,
       "name": "continue-degraded-zone-rejects-in-session",
-      "prompt": "/workflow continue — context-guard reports the zone word as smart, but this session hit an evidence-degraded `.compacted` marker earlier, and since then the answers have started missing details I gave before. What is left is designing the retry and idempotency semantics across three services.",
+      "prompt": "/workflow continue — context-guard's `mcp__context-guard__status` reports the zone word as smart, but this session hit an evidence-degraded `.compacted` marker earlier, and since then the answers have started missing details I gave before. What is left is designing the retry and idempotency semantics across three services.",
       "expected_output": "The router treats the context as degraded regardless of the smart zone word, because the compaction marker exists for this session. Question 3 therefore fails for judgment-heavy work — only mechanical, low-judgment steps qualify as 'simple enough' in a degraded context — and the run has already been compacted, so question 5 routes to session-flow:handoff rather than a second compaction.",
       "files": [],
       "narration": true,
@@ -186,7 +186,7 @@
     {
       "id": 16,
       "name": "same-task-degraded-zone-compacts-with-focus",
-      "prompt": "/workflow continue — context-guard reports the zone word as dumb and the window is getting heavy. The plan in PLAN.md is half implemented; the next step is phase 3 of the same plan, editing the same files. This session has not been compacted.",
+      "prompt": "/workflow continue — context-guard's `mcp__context-guard__status` reports the zone word as dumb and the window is getting heavy. The plan in PLAN.md is half implemented; the next step is phase 3 of the same plan, editing the same files. This session has not been compacted.",
       "expected_output": "The next work is the related next task: it uses this stage's artifact and files and serves the same goal. It is not unrelated (question 4), it does not leave the session and is not a finished plan moving into execution (question 5), so the router falls through to question 6 and recommends `/compact <focus>`, typed by the user, with a focus naming what the summary must keep (the plan path, the current phase, the files in play).",
       "files": [],
       "expectations": [
