@@ -1,0 +1,28 @@
+// TypeScript's non-null assertion before a division: `total! / count` divides,
+// and the expect after it on the same line, or inside the same call, is code,
+// not a regex literal. So does `total ! / count`; `return !/re/` is a regex.
+import { expect, it } from 'vitest';
+import { totals } from './totals';
+
+it('averages the totals', () => {
+  const { total, count } = totals([2, 4]);
+  const average = total! / count; expect(average).toBe(3);
+});
+
+it('halves the total', () => {
+  const { total } = totals([2, 4]);
+  expect(total! / 2).toBe(3);
+});
+
+it('averages with a spaced non-null assertion', () => {
+  const { total, count } = totals([2, 4]);
+  const average = total ! / count; expect(average).toBe(3);
+});
+
+it('rejects a doubled brace', () => {
+  const ok = (s: string) => { return !/a{2}/.test(s); }; expect(ok('aa')).toBe(false);
+});
+
+it('counts the totals', () => {
+  expect(totals([2, 4]).count).toBe(2);
+});

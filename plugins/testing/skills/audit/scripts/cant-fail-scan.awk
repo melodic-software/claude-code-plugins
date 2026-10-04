@@ -41,8 +41,8 @@
 #
 # Rule slugs: zero-assertion | recomputed-expectation | mock-only-oracle |
 # inert-assertion | constant-restatement | conditional-assertion |
-# recomputed-derived | snapshot-only | weak-oracle (source-text-read comes
-# from S).
+# recomputed-derived | snapshot-only | weak-oracle | throw-only-oracle
+# (source-text-read comes from S).
 # The driver owns the qualified rule-id form and the thresholds' prose.
 #
 # Design bias, load-bearing: every heuristic errs toward NOT firing. Assertion
@@ -116,6 +116,7 @@ function load_adapter(    line, f, key, n, i, w, nw, wi) {
   R_ASYNC = V["assertion.async"] == "" ? "" : "^(" V["assertion.async"] ")"
   R_INERT = V["assertion.inert"] == "" ? "" : "^(" V["assertion.inert"] ")"
   R_WEAK = V["assertion.weak"]
+  R_EXISTS = V["assertion.exists"]
   R_SNAP = V["snapshot"]
   R_COUNT = V["assertion.count"]
   R_FAILC = V["assertion.fail"]
@@ -375,6 +376,14 @@ function indent_of(s,    i, n, c, w) {
 }
 
 function norm(s) { gsub(/[[:space:]]+/, "", s); return s }
+
+# s after the last character re matches: the identifier that ends it, for re
+# a negated class. A loop, because gawk 5.4.0 fails to match ^.* followed by
+# a negated bracket expression, as in sub(/^.*[^A-Za-z0-9_]/, "", s).
+function after_last(s, re) {
+  while (match(s, re)) s = substr(s, RSTART + 1)
+  return s
+}
 
 function clean_detail(s) { gsub(/\t/, " ", s); return s }
 
@@ -767,8 +776,7 @@ function sh_assign(m,    s, name) {
     name = substr(s, RSTART, RLENGTH)
     s = substr(s, RSTART + RLENGTH)
     sub(/\+?=$/, "", name)
-    sub(/^.*[^A-Za-z0-9_]/, "", name)
-    SH_SET[name] = 1
+    SH_SET[after_last(name, "[^A-Za-z0-9_]")] = 1
   }
   if (match(m, /(^|[[:space:];&|])(read|for)[[:space:]]+(-[A-Za-z]+[[:space:]]+)*[A-Za-z_][A-Za-z0-9_[:space:]]*/)) {
     s = substr(m, RSTART, RLENGTH)
@@ -828,8 +836,8 @@ function sh_file_facts(    name, rhs, v) {
   if (masked ~ /(^|[[:space:];&|])(cd|pushd)[[:space:]]/) SH_CD = 1
   if (match(raw, /^[[:space:]]*((local|export|readonly|declare)[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*=/)) {
     name = substr(raw, RSTART, RLENGTH - 1)
-    sub(/^.*[^A-Za-z0-9_]/, "", name)
     rhs = substr(raw, RSTART + RLENGTH)
+    name = after_last(name, "[^A-Za-z0-9_]")
     if (rhs ~ /mktemp|TMP|TEMP|[Tt]mp|[Tt]emp/) SH_TMP[name] = 1
     else if (match(rhs, /\$\{?[A-Za-z_][A-Za-z0-9_]*/)) {
       v = substr(rhs, RSTART, RLENGTH)
@@ -967,7 +975,8 @@ function inert_scan(m, r,    s, d) {
     if (s !~ /^\|/) emit(PS_KIND, "inert-assertion", PS_PEND, PS_DET)
     PS_PEND = 0
   }
-  if (s == "" || !(CS_HEAD || stmt_start())) return
+  # A statement after a ";" on the same line starts there (split_stmts).
+  if (s == "" || !(SEG_I > 1 || CS_HEAD || stmt_start())) return
   # A Pester script block nested in the test (a ParameterFilter, a
   # Where-Object) returns its bare comparison; only the It body discards it.
   if (LEXER == "pwsh" && depth != 1) return
@@ -1153,11 +1162,14 @@ function src_scan(m, r,    p, args, low, w) {
 }
 
 # ---------------------------------------------------------------------------
-# Oracle strength: every assertion line of a block is strong, weak (only an
-# assertion.weak call) or a snapshot (only a snapshot call). rule-weak-oracle
-# and rule-snapshot-only fire when a block holds nothing but that kind. The
-# adapter entries match whole calls over the line with strings standing as
-# `_`, so a matcher argument (toThrow('boom')) is never read as absent.
+# Oracle strength: every assertion statement of a block is strong, weak (only
+# an assertion.weak call), a snapshot (only a snapshot call) or an existence
+# check (only an assertion.exists call). rule-weak-oracle and
+# rule-snapshot-only fire when a block holds nothing but that kind, and
+# rule-throw-only-oracle when every oracle is an existence check of a value the
+# test constructed with new, which only a throwing constructor fails. The
+# adapter entries match whole calls over the statement with strings standing
+# as `_`, so a matcher argument (toThrow('boom')) is never read as absent.
 # ---------------------------------------------------------------------------
 
 function fill(m, r,    i, n, out, c) {
@@ -1185,15 +1197,53 @@ function oracle_line(m, r,    s) {
   # C#: a statement inert_scan reports as inert is no oracle, weak or strong,
   # so Assert.NotNull(typeof(T)) is not also a weak oracle. Same precondition
   # as inert_scan, or a statement could be dropped here and not reported there.
-  if (LEXER == "cs" && (CS_HEAD || stmt_start())) {
+  if (LEXER == "cs" && (SEG_I > 1 || CS_HEAD || stmt_start())) {
     s = m
     sub(/^[[:space:]]+/, "", s); sub(/[[:space:]]+$/, "", s)
     if (has(s, R_INERT)) return
   }
+  # An existence check waits for the block's close, when every binding of the
+  # name it checks is known (exists_resolve).
+  if (only_calls(m, r, R_EXISTS)) { exists_add(m, r); return }
   # go: the nil check is an if statement, judged whole in go_inert.
   if (LEXER != "go" && only_calls(m, r, R_WEAK)) { if (!OR_W++) { OR_WLINE = FNR; OR_WSNIP = snippet(r) }; return }
   if (only_calls(m, r, R_SNAP) && snap_ok(m)) { if (!OR_P++) OR_PLINE = FNR; return }
   OR_S++
+}
+
+# One existence check: the name it checks (the first identifier inside its
+# parentheses), the type a <T> names, and whether it is also a weak call.
+function exists_add(m, r,    t) {
+  match(m, R_EXISTS)
+  t = substr(m, RSTART, RLENGTH)
+  EX_N++
+  EX_TYPE[EX_N] = match(t, /<[^<>()]*>/) ? norm(substr(t, RSTART + 1, RLENGTH - 2)) : ""
+  t = substr(t, index(t, "(") + 1)
+  match(t, /[A-Za-z_][A-Za-z0-9_]*/)
+  EX_NAME[EX_N] = substr(t, RSTART, RLENGTH)
+  EX_WEAK[EX_N] = has(m, R_WEAK)
+  EX_LINE[EX_N] = FNR; EX_SNIP[EX_N] = snippet(r)
+}
+
+# At the block's close: a check of a name the test bound once, in one
+# statement, to new T(...) and nothing after it (and of that T, when the check
+# names a type), counts toward rule-throw-only-oracle; any other is the weak or
+# strong oracle it reads as. A chain or an as cast after the constructor can
+# yield null without a throw.
+function exists_resolve(    i, rhs, built, ty) {
+  for (i = 1; i <= EX_N; i++) {
+    rhs = DV_N[BID, EX_NAME[i]] == 1 && DV_END[BID, EX_NAME[i]] ? DV_RHS[BID, EX_NAME[i]] : ""
+    sub(/;.*$/, "", rhs)  # the bind statement alone, when others share its line
+    built = rhs ~ /^new([[:space:]]+[A-Za-z_][A-Za-z0-9_.<>,?[:space:]]*)?[[:space:]]*(\([^()]*(\([^()]*\)[^()]*)*\))?[[:space:]]*(\{[^{}]*\})?[[:space:]]*$/ && rhs ~ /[)}][[:space:]]*$/
+    if (built && EX_TYPE[i] != "") {
+      ty = rhs
+      sub(/^new[[:space:]]*/, "", ty); sub(/[[:space:]]*[({].*$/, "", ty)
+      built = norm(ty) == EX_TYPE[i]
+    }
+    if (built) { if (!OR_T++) { OR_TLINE = EX_LINE[i]; OR_TSNIP = EX_SNIP[i] } }
+    else if (EX_WEAK[i]) { if (!OR_W++) { OR_WLINE = EX_LINE[i]; OR_WSNIP = EX_SNIP[i] } }
+    else OR_S++
+  }
 }
 
 # A snapshot call needs its library in reach: in C#, Verify's (CS_VERIFY); in
@@ -1228,7 +1278,7 @@ function assign_of(s, rl,    re, p) {
     p = substr(s, 1, RLENGTH)
     AS_RHS = trim(substr(rl, RLENGTH + 1))
     sub(/;[[:space:]]*$/, "", AS_RHS)
-    if (LEXER == "cs") { sub(/[[:space:]]*=$/, "", p); sub(/^.*[^A-Za-z0-9_]/, "", p) }
+    if (LEXER == "cs") { sub(/[[:space:]]*=$/, "", p); p = after_last(p, "[^A-Za-z0-9_]") }
     else { sub(/^(const|let|var)[[:space:]]+/, "", p); sub(/^\$/, "", p); match(p, /^[A-Za-z_$][A-Za-z0-9_$]*/); p = substr(p, 1, RLENGTH) }
   } else if (match(s, /^\$?[A-Za-z_][A-Za-z0-9_]*[[:space:]]*[-+*\/%]?=/) && substr(s, RLENGTH + 1, 1) !~ /[=>]/) {
     p = substr(s, 1, RLENGTH); gsub(/[^A-Za-z0-9_]/, "", p)
@@ -1257,6 +1307,7 @@ function bind_scan(m, r,    s, rl) {
   if (!assign_of(s, rl)) return
   DV_N[BID, AS_NAME]++
   DV_RHS[BID, AS_NAME] = AS_RHS
+  DV_END[BID, AS_NAME] = s ~ /;[[:space:]]*$/
   if (AS_RHS != "") RES[BID, AS_NAME] = literal_rhs(AS_RHS) || mapped_literal(AS_RHS) ? "l" : "r"
   if (LEXER == "js" && AS_RHS ~ /Promise[[:space:]]*\.[[:space:]]*all(Settled)?[[:space:]]*\($/) PM_NAME = AS_NAME
 }
@@ -1494,8 +1545,7 @@ function def_name(m,    s) {
   # Where the matched header ends, past the defined name: every pattern is
   # anchored at the line start, and sub leaves RSTART and RLENGTH alone.
   DEF_END = s == "" ? 0 : RSTART + RLENGTH
-  sub(/^.*[^A-Za-z0-9_$]/, "", s)
-  return s
+  return after_last(s, "[^A-Za-z0-9_$]")
 }
 
 # A line outside every test: it opens, continues or closes a function. A
@@ -1536,7 +1586,7 @@ function cls_scan(m,    ind, re) {
   if (LEXER == "cs") re = "^[[:space:]]*([a-z]+[[:space:]]+)*(class|record|struct)[[:space:]]+[A-Za-z_][A-Za-z0-9_]*"
   else if (LEXER == "python" || LEXER == "js") re = "^[[:space:]]*(export[[:space:]]+(default[[:space:]]+)?)?(abstract[[:space:]]+)?class[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*"
   else return
-  if (match(m, re)) { CLS_K++; CLS_I[CLS_K] = ind; CLS_NAME[CLS_K] = substr(m, RSTART, RLENGTH); sub(/^.*[^A-Za-z0-9_$]/, "", CLS_NAME[CLS_K]) }
+  if (match(m, re)) { CLS_K++; CLS_I[CLS_K] = ind; CLS_NAME[CLS_K] = after_last(substr(m, RSTART, RLENGTH), "[^A-Za-z0-9_$]") }
 }
 
 # The names blk calls bare or on self, this or cls, space-separated, a call
@@ -1659,14 +1709,19 @@ function eval_block(    blk, stripped, mocka_n, kind, calls) {
     }
     return
   }
+  exists_resolve()
   if (OR_W && !OR_S && !OR_P)
     emit(kind, "weak-oracle", OR_WLINE, "test '" block_name "': the only oracle passes for almost any value: " OR_WSNIP)
   if (OR_P && !OR_S && !OR_W)
     emit(kind, "snapshot-only", OR_PLINE, "test '" block_name "': snapshot is the only oracle: review it as code")
+  if (OR_T && !OR_S && !OR_W && !OR_P)
+    emit(kind, "throw-only-oracle", OR_TLINE, "test '" block_name "': the only oracle checks a value the test constructed, so it fails only if the constructor throws: " OR_TSNIP)
   # An else gives the other path its own assertions; a length check makes an
   # empty result fail. Either way some assertion runs.
   if (CA_IN && !CA_OUT && blk !~ /(^|[^A-Za-z0-9_$])else([^A-Za-z0-9_$]|$)/ && !has(blk, R_COUNT))
     emit(kind, "conditional-assertion", CA_LINE, "test '" block_name "': every assertion sits inside an if, a catch or a loop over a result, so a path runs none: " CA_SNIP)
+  else if (ER_LINE)
+    emit(kind, "conditional-assertion", ER_LINE, "test '" block_name "': a return before every assertion ends the test as passed on that path, with nothing asserted: " ER_SNIP)
   if ((has(blk, R_MOCKC) || file_mock) && has(blk, R_MOCKA)) {
     stripped = blk
     if (R_STRIP != "") gsub(R_STRIP, "", stripped)
@@ -1688,12 +1743,97 @@ function open_block(line, name) {
   prev_code = G8_CAND = G8_BOUND = ""
   RUN_PEND = BANG_PEND = GO_IF = 0
   BID++
-  OR_S = OR_W = OR_P = OR_WLINE = OR_PLINE = 0
+  OR_S = OR_W = OR_P = OR_WLINE = OR_PLINE = OR_T = OR_TLINE = EX_N = 0
+  ER_LINE = ER_DONE = ER_D = CW_OPEN = CW_IN = CW_ARM = 0
   CD = CR_N = CR_LOOPS = CR_BR = CA_IN = CA_OUT = CA_LINE = 0
   COND_NEXT = SRC_PEND = SIG = PM_NAME = CS_SIG = ""
   CS_RET = CS_WRAP = CS_HEAD = 0
-  SIG_OPEN = LEXER == "python"
+  SIG_OPEN = PY_HEAD = LEXER == "python"
+  PY_D = SP_D = SP_K = 0
   SH_ACT = SH_FN = PS_PEND = 0
+}
+
+# The statements of a body line, for the oracle and inert rules: SEG_M[i] and
+# SEG_R[i], i = 1..SEG_N, each the line with every other statement blanked, so
+# masked and raw columns stay paired. A line with one statement is one segment,
+# the line itself. A statement ends at a ";" outside parentheses and brackets,
+# so a for (;;) header stays whole; a "{" opens a block whose statements split
+# again, a lambda's body inside a call included. The depths carry from line to
+# line. C#, JS and TS keep the ";" that ends a statement, which their inert
+# forms anchor on; Python and bash separate statements with it, so it is
+# blanked, and bash's case terminators (;; ;& ;;&) never split. Strings,
+# comments and char literals are already masked. Go and PowerShell lines stay
+# whole. Each segment is a full-width copy, so a line of more than 16
+# statements (minified or generated code) is judged whole, keeping the cost of
+# a line linear in its length.
+function split_stmts(m, r,    n, i, c, from, k) {
+  SEG_N = 0
+  n = length(m)
+  if (LEXER != "cs" && LEXER != "js" && LEXER != "python" && LEXER != "bash") { seg_add(m, r, 1, n); return }
+  from = 1; k = 0
+  for (i = 1; i <= n; i++) {
+    c = substr(m, i, 1)
+    if (c == "(" || c == "[") SP_D++
+    else if (c == ")" || c == "]") { if (SP_D > 0) SP_D-- }
+    else if (c == "{") { SP_S[++SP_K] = SP_D; SP_D = 0 }
+    else if (c == "}") SP_D = SP_K > 0 ? SP_S[SP_K--] : 0
+    else if (c == ";" && SP_D == 0) {
+      if (LEXER == "bash" && substr(m, i + 1, 1) ~ /[;&]/) { i++; continue }
+      SP_A[++k] = from; SP_B[k] = LEXER == "cs" || LEXER == "js" ? i : i - 1
+      from = i + 1
+    }
+  }
+  SP_A[++k] = from; SP_B[k] = n
+  if (k <= 16) for (i = 1; i <= k; i++) seg_add(m, r, SP_A[i], SP_B[i])
+  if (!SEG_N) seg_add(m, r, 1, n)
+}
+
+# C#: a bare return; before every assertion of the test ends it as passed on
+# that path with nothing asserted (rule-conditional-assertion, judged at the
+# close). A return in the body of a catch with a when filter is the guard for
+# an environment the test cannot run in, such as a trial license, and is left
+# alone, and so is a return in the body of a local function or a lambda, which
+# exits only that callable. ER_D is the brace depth in the body; CW_OPEN the
+# depth inside such a catch or callable, CW_IN set while the scan is in it.
+# A header whose "{" is not on its line arms CW_ARM; the next non-blank line
+# must open with that "{", else the header had no block (a multi-line
+# expression lambda) and the scope is dropped.
+function er_scan(m, r,    d0, p, a, cw, post) {
+  if (LEXER != "cs" || ER_DONE) return
+  d0 = ER_D
+  ER_D += brace_delta(m)
+  if (CW_ARM && m !~ /^[[:space:]]*$/) { if (m !~ /^[[:space:]]*\{/) CW_OPEN = 0; CW_ARM = 0 }
+  if (CW_OPEN) { if (d0 >= CW_OPEN) CW_IN = 1; else if (CW_IN) CW_OPEN = CW_IN = 0 }
+  p = match(m, /(^|[^A-Za-z0-9_.])return[[:space:]]*;/) ? RSTART + RLENGTH : 0
+  a = 0
+  if (match(m, R_ANY)) a = RSTART
+  if (R_MOCKA != "" && match(m, R_MOCKA) && (!a || RSTART < a)) a = RSTART
+  cw = 0
+  # A filtered catch, a lambda whose block opens here, or a local function
+  # declaration (a type, a name and "(" that no keyword starts, not ending in ;).
+  if (match(m, /(^|[^A-Za-z0-9_])catch([[:space:](].*)?[[:space:])]when[[:space:]]*\(/) ||
+    match(m, /=>[[:space:]]*(\{|$)/) ||
+    (m !~ /^[[:space:]]*(return|await|throw|yield|new|else|case|goto)([^A-Za-z0-9_]|$)/ && m !~ /;[[:space:]]*$/ &&
+      match(m, /^[[:space:]]*((static|async|unsafe)[[:space:]]+)*[A-Za-z_][A-Za-z0-9_<>,.?]*(\[\])*[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]*(<[^<>()]*>)?[[:space:]]*\(/))) {
+    cw = RSTART
+    post = substr(m, cw)
+    if (!index(post, "{") || brace_delta(post) > 0) {
+      CW_OPEN = d0 + brace_delta(substr(m, 1, cw - 1)) + 1
+      CW_IN = brace_delta(post) > 0
+      CW_ARM = !index(post, "{")
+    }
+  }
+  if (p && (!a || p < a) && !CW_IN && !(cw && cw < p)) { ER_LINE = FNR; ER_SNIP = snippet(r); ER_DONE = 1 }
+  if (a) ER_DONE = 1
+}
+
+function seg_add(m, r, a, b,    n) {
+  n = length(m)
+  if (a == 1 && b >= n) { SEG_N++; SEG_M[SEG_N] = m; SEG_R[SEG_N] = r; return }
+  if (b < a || substr(m, a, b - a + 1) ~ /^[[:space:]]*$/) return
+  SEG_N++
+  SEG_M[SEG_N] = blanks(a - 1) substr(m, a, b - a + 1) blanks(n - b)
+  SEG_R[SEG_N] = blanks(a - 1) substr(r, a, b - a + 1) blanks(n - b)
 }
 
 # block_raw: an idiom or a delegation matched the raw text of this line and
@@ -1709,6 +1849,12 @@ function append_block(m, r,    bm, br) {
   # parameters are code, and a test named Check_x or a parameter named
   # expected would read as an assertion. Only the body after it is judged.
   if (LEXER == "cs" && !body_open && !expr_body) { cs_cut(m, r); bm = CUT_M; br = CUT_R }
+  # The same for a Python def and a Go func: the start line, and a Python
+  # signature split over lines, are judged from the body on.
+  else if (PY_HEAD || (LEXER == "go" && FNR == block_line)) {
+    decl_cut(m, r); bm = CUT_M; br = CUT_R
+    if (has(bm, R_MOCKC)) file_mock = 1
+  }
   block_masked = block_masked bm "\n"
   block_last = FNR
   LINE_IN_TEST = 1
@@ -1716,16 +1862,22 @@ function append_block(m, r,    bm, br) {
   if (SIG_OPEN) { SIG = SIG " " m; if (index(SIG, "(") && delta(SIG, "(", ")") <= 0) SIG_OPEN = 0 }
   if (r ~ R_EXEMPT) block_exempt = 1
   if (R_RAW != "" && !block_raw) {
-    if ((BW2 " " BW1 " " r) ~ R_RAW) block_raw = 1
-    BW2 = BW1; BW1 = r
+    if ((BW2 " " BW1 " " br) ~ R_RAW) block_raw = 1
+    BW2 = BW1; BW1 = br
   }
-  # The start line names the test; in python and go that name is code, and a
-  # test named check_x would read as an assertion. cs has cut its signature.
+  # cs, python and go have cut the start line's signature to its body. The
+  # oracle and inert rules judge each statement of the line on its own.
   OR_S0 = OR_S
-  if (FNR != block_line || LEXER == "js" || LEXER == "pwsh" || LEXER == "cs") oracle_line(bm, br)
+  split_stmts(bm, br)
+  if (FNR != block_line || LEXER != "bash")
+    for (SEG_I = 1; SEG_I <= SEG_N; SEG_I++) oracle_line(SEG_M[SEG_I], SEG_R[SEG_I])
+  SEG_I = 0
   if (LEXER != "bash") { cond_scan(m); bind_scan(m, r) }
   else sh_act_scan(m)
-  if (FNR != block_line || LEXER == "cs") inert_scan(bm, br)
+  if (FNR != block_line || LEXER == "cs" || LEXER == "python" || LEXER == "go")
+    for (SEG_I = 1; SEG_I <= SEG_N; SEG_I++) inert_scan(SEG_M[SEG_I], SEG_R[SEG_I])
+  SEG_I = 0
+  er_scan(bm, br)
   src_scan(m, r)
   if (LEXER == "js" || LEXER == "python") g8_bind(m, r)
   if (m !~ /^[[:space:]]*$/) { prev_code = code_tail(m, r); block_code_last = FNR }
@@ -1789,6 +1941,30 @@ function cs_cut(m, r,    i, j, k, n) {
   if (brace_delta(m) > 0) return
   for (k = length(CUT_M); k > n; k--) if (substr(CUT_M, k, 1) == "}") break
   if (k > n) { CUT_M = substr(CUT_M, 1, k - 1) " " substr(CUT_M, k + 1); CUT_R = substr(CUT_R, 1, k - 1) " " substr(CUT_R, k + 1) }
+}
+
+# A Python def or Go func start line cut to its body, in CUT_M and CUT_R: the
+# signature blanked through the ":" (Python, outside brackets, so a split
+# signature stays blank until its ") -> None:") or the "{" (Go) that opens the
+# body, as cs_cut blanks a C# signature. A Go body that closes on this line
+# loses its "}" too, so a one-line if reads whole.
+function decl_cut(m, r,    i, n, c, k, d) {
+  n = length(m); k = n; d = 0
+  for (i = 1; i <= n; i++) {
+    c = substr(m, i, 1)
+    if (LEXER == "python") {
+      if (c == "(" || c == "[" || c == "{") PY_D++
+      else if (c == ")" || c == "]" || c == "}") PY_D--
+      else if (c == ":" && PY_D <= 0) { k = i; PY_HEAD = 0; break }
+    } else if (c == "(") d++
+    else if (c == ")") d--
+    else if (c == "{" && d == 0) { k = i; break }
+  }
+  CUT_M = blanks(k) substr(m, k + 1)
+  CUT_R = blanks(k) substr(r, k + 1)
+  if (LEXER != "go" || brace_delta(m) > 0) return
+  for (i = n; i > k; i--) if (substr(CUT_M, i, 1) == "}") break
+  if (i > k) { CUT_M = substr(CUT_M, 1, i - 1) " " substr(CUT_M, i + 1); CUT_R = substr(CUT_R, 1, i - 1) " " substr(CUT_R, i + 1) }
 }
 
 function cs_method_name(s,    t) {
@@ -1940,7 +2116,9 @@ function brace_decl() {
   else if (LEXER == "go") masked = mask_go(raw)
   else masked = mask_cs(raw)
 
-  if (has(masked, R_MOCKC)) file_mock = 1
+  # A Python or Go test's name is no mock: append_block reads its start line
+  # from the body on.
+  if (has(masked, R_MOCKC) && !((LEXER == "python" || LEXER == "go") && has(masked, R_START))) file_mock = 1
   if (INVENTORY) inv_line()
   LINE_IN_TEST = 0
   if (SHELL_LEX) sh_assign(masked)
