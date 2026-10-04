@@ -149,36 +149,46 @@ testing::under_copy_root() {
 # testing::record_skip <path>: true when this test file is a working copy the
 # task-end judge must not record. A file under the system temp directory, or
 # in a Claude session scratchpad (.../claude/<project>/<session>/scratchpad/),
-# was copied to be run, not authored. TEST_SCAN_SKIP_ROOT replaces the temp
-# root (TMPDIR, else TMP, else TEMP), so a harness whose fixtures live under
-# the real temp dir can point it elsewhere. On Windows the root's 8.3 short
-# form (cygpath -s -m) is matched too: scratchpad paths arrive in that spelling.
+# was copied to be run, not authored. The temp roots are TMPDIR, TMP, TEMP
+# and the POSIX defaults /tmp and /var/tmp, which hold when none is set.
+# TEST_SCAN_SKIP_ROOT replaces them all, so a harness whose fixtures live
+# under the real temp dir can point it elsewhere. On Windows each existing
+# root's long and 8.3 short drive forms (cygpath -l -m, -s -m) are matched
+# too: Git Bash reports TMP and TEMP as /tmp, its mount of the Windows temp
+# folder, and a payload names the file by either drive spelling. Only
+# directories go to cygpath: -s exits on a path that does not exist, which
+# would lose the whole batch.
 testing::record_skip() {
-  local p raw root short os
-  local -a raws=()
+  local p raw root out form seen="|"
+  local -a raws=() dirs=() lines=()
   testing::norm_copy_path p "$1"
   [[ -n "$p" ]] || return 1
   [[ "$p" =~ (^|/)claude/[^/]+/[^/]+/scratchpad/ ]] && return 0
-  os="${TESTING_OSTYPE:-${OSTYPE:-}}"
   if [[ -n "${TEST_SCAN_SKIP_ROOT+x}" ]]; then
     raws=("$TEST_SCAN_SKIP_ROOT")
   else
-    raws=("${TMPDIR:-}" "${TMP:-}" "${TEMP:-}")
+    raws=("${TMPDIR:-}" "${TMP:-}" "${TEMP:-}" /tmp /var/tmp)
   fi
   for raw in "${raws[@]}"; do
-    [[ -n "$raw" ]] || continue
+    [[ -n "$raw" && "$seen" != *"|$raw|"* ]] || continue
+    seen+="$raw|"
     testing::norm_copy_path root "$raw"
     testing::under_copy_root "$p" "$root" && return 0
-    case "$os" in
-    msys* | cygwin* | win32)
-      command -v cygpath >/dev/null 2>&1 || continue
-      short="$(cygpath -s -m -- "$raw" 2>/dev/null)" || continue
-      testing::norm_copy_path short "$short"
-      [[ "$short" == "$root" ]] && continue
-      testing::under_copy_root "$p" "$short" && return 0
-      ;;
-    *) ;;
-    esac
+    [[ -d "$raw" && "$raw" != *$'\n'* ]] && dirs+=("$raw")
+  done
+  case "${TESTING_OSTYPE:-${OSTYPE:-}}" in
+  msys* | cygwin* | win32) ;;
+  *) return 1 ;;
+  esac
+  ((${#dirs[@]})) && command -v cygpath >/dev/null 2>&1 || return 1
+  for form in -l -s; do
+    out="$(cygpath "$form" -m -- "${dirs[@]}" 2>/dev/null)" || continue
+    mapfile -t lines <<<"$out"
+    ((${#lines[@]} == ${#dirs[@]})) || continue
+    for root in "${lines[@]}"; do
+      testing::norm_copy_path root "$root"
+      testing::under_copy_root "$p" "$root" && return 0
+    done
   done
   return 1
 }

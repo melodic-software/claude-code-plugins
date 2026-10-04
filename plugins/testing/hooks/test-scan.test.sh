@@ -44,6 +44,7 @@ trap 'rm -rf "$TMP"' EXIT
 # real temp dir, so point that root at a directory that holds none of them.
 # A case below aims it at its own copy (#6037).
 export TEST_SCAN_SKIP_ROOT="$TMP/scan-skip-root"
+mkdir -p "$TEST_SCAN_SKIP_ROOT"
 REPO="$TMP/repo"
 mkdir -p "$REPO/src" "$REPO/scratch"
 git -C "$REPO" init -q
@@ -522,6 +523,60 @@ assert_empty "Bash temp copy: no judge record" "$(rec sb sk-bash-1)"
 out="$(bash_payload sk-pad "$(diff_of created "$REPO/claude/proj/sess/scratchpad/pad.test.ts" "$ADD_ALL")" |
   bash "$BASH_HOOK" 2>/dev/null)"
 assert_empty "Bash scratchpad copy: no judge record" "$(rec sb sk-pad-1)"
+
+# With TMPDIR, TMP and TEMP all unset, the POSIX defaults /tmp and /var/tmp
+# are still the temp root. The fixtures are made there by name, not through
+# mktemp's TMPDIR. The control shows the same copy records once the root is
+# elsewhere, so the quiet cases are not quiet for another reason.
+DEF_TMP="$(mktemp -d /tmp/test-scan-default.XXXXXX)"
+VAR_TMP="$(mktemp -d /var/tmp/test-scan-default.XXXXXX 2>/dev/null)" || VAR_TMP=""
+trap 'rm -rf "$TMP" "$DEF_TMP" ${VAR_TMP:+"$VAR_TMP"}' EXIT
+cp "$REPO/src/sum.test.ts" "$DEF_TMP/def.test.ts"
+run Write "$DEF_TMP/def.test.ts" stskip "" sk-def-control
+assert_contains "control: a /tmp copy records when the root is elsewhere" "$(rec stskip sk-def-control)" sk-def-control
+out="$(payload Write "$DEF_TMP/def.test.ts" stskip "" sk-def "$CREATE" |
+  env -u TEST_SCAN_SKIP_ROOT -u TMPDIR -u TMP -u TEMP bash "$HOOK" 2>/dev/null)"
+assert_empty "temp vars unset: a /tmp copy leaves no judge record" "$(rec stskip sk-def)"
+out="$(bash_payload sk-def-bash "$(diff_of created "$DEF_TMP/def.test.ts" "$ADD_ALL")" |
+  env -u TEST_SCAN_SKIP_ROOT -u TMPDIR -u TMP -u TEMP bash "$BASH_HOOK" 2>/dev/null)"
+assert_empty "temp vars unset: a Bash /tmp copy leaves no judge record" "$(rec sb sk-def-bash-1)"
+if [[ -n "$VAR_TMP" ]]; then
+  cp "$REPO/src/sum.test.ts" "$VAR_TMP/var.test.ts"
+  out="$(payload Write "$VAR_TMP/var.test.ts" stskip "" sk-var "$CREATE" |
+    env -u TEST_SCAN_SKIP_ROOT -u TMPDIR -u TMP -u TEMP bash "$HOOK" 2>/dev/null)"
+  assert_empty "temp vars unset: a /var/tmp copy leaves no judge record" "$(rec stskip sk-var)"
+fi
+
+# Git Bash reports TMP and TEMP as /tmp, its usertemp mount of the Windows
+# temp folder, while the payload names the file by its long drive path. The
+# stub answers cygpath -l with the long spelling and -s with the short one.
+mkdir -p "$REPO/posixtmp" "$REPO/Long Temp" "$REPO/LONGTE~1"
+cp "$REPO/src/sum.test.ts" "$REPO/Long Temp/long.test.ts"
+cp "$REPO/src/sum.test.ts" "$REPO/LONGTE~1/short.test.ts"
+mkdir -p "$TMP/formbin"
+cat >"$TMP/formbin/cygpath" <<EOF
+#!/usr/bin/env bash
+form="\$1"
+shift 2
+[[ "\${1:-}" == -- ]] && shift
+for _ in "\$@"; do
+  case "\$form" in
+  -l) printf '%s\n' '$REPO/Long Temp' ;;
+  -s) printf '%s\n' '$REPO/LONGTE~1' ;;
+  *) printf '%s\n' "\$_" ;;
+  esac
+done
+EOF
+chmod +x "$TMP/formbin/cygpath"
+out="$(payload Write "$REPO/Long Temp/long.test.ts" stskip "" sk-long "$CREATE" |
+  TEST_SCAN_SKIP_ROOT="$REPO/posixtmp" TESTING_OSTYPE=msys PATH="$TMP/formbin:$PATH" bash "$HOOK" 2>/dev/null)"
+assert_empty "POSIX-spelled temp var, long payload path: no judge record" "$(rec stskip sk-long)"
+out="$(payload Write "$REPO/LONGTE~1/short.test.ts" stskip "" sk-long-short "$CREATE" |
+  TEST_SCAN_SKIP_ROOT="$REPO/posixtmp" TESTING_OSTYPE=msys PATH="$TMP/formbin:$PATH" bash "$HOOK" 2>/dev/null)"
+assert_empty "POSIX-spelled temp var, short payload path: no judge record" "$(rec stskip sk-long-short)"
+out="$(bash_payload sk-long-bash "$(diff_of created "$REPO/Long Temp/long.test.ts" "$ADD_ALL")" |
+  TEST_SCAN_SKIP_ROOT="$REPO/posixtmp" TESTING_OSTYPE=msys PATH="$TMP/formbin:$PATH" bash "$BASH_HOOK" 2>/dev/null)"
+assert_empty "POSIX-spelled temp var, Bash long path: no judge record" "$(rec sb sk-long-bash-1)"
 
 echo
 echo "$PASS passed, $FAIL failed"
