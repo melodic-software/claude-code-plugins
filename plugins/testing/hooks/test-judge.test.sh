@@ -229,7 +229,7 @@ printf '%s %s %s\n' "$holder" "${HOSTNAME:-localhost}" "$(date +%s)" >"$DATA/loc
 (
   sleep 1.5
   mkdir -p "$DATA/verdicts/$PKEY/s5"
-  jq -cn --arg f "$K" --arg r "$REPO" '{file: $f, repo: $r, name: "lockwait", ordinal: 1, start: 3, end: 5, verdict: "PASS",
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg f "$K" --arg r "$REPO" '{file: $f, repo: $r, name: "lockwait", ordinal: 1, start: 3, end: 5, verdict: "PASS",
     evidence: ["  expect(add(1, 2)).toBe(3);"], source: "held", diff: "", reason: "", model: "haiku", effort: "low"}' >"$DATA/verdicts/$PKEY/s5/$kh.json"
   rm -f "$DATA/locks/$kh"
   kill "$holder"
@@ -540,7 +540,7 @@ check "TEST_JUDGE_ACTIVE=1 exits at once" '[[ -z "$out" && "$(stub_calls)" == 0 
 transcript sbash claude-sonnet-5
 BF="$REPO/src/bashmade.test.ts"
 js_file "$BF" bashmade
-jq -cn --arg t "$TDIR/sbash.jsonl" --arg c "$REPO" --arg f "$BF" '{hook_event_name: "PostToolUse", tool_name: "Bash",
+MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg t "$TDIR/sbash.jsonl" --arg c "$REPO" --arg f "$BF" '{hook_event_name: "PostToolUse", tool_name: "Bash",
   session_id: "sbash", tool_use_id: "tb1", transcript_path: $t, cwd: $c, tool_input: {command: "gen"},
   tool_response: {stdout: "", stderr: "", interrupted: false, bashEditDiff: {changedFiles: [$f], moreFiles: 0,
     files: [{filePath: $f, created: true, hunks: [{oldStart: 0, oldLines: 0, newStart: 1, newLines: 5, lines: ["+x"]}]}]}}}' |
@@ -573,7 +573,7 @@ kh="${kh##*/}"
 rm -f "$DATA/attempts/$kh"
 d="$DATA/verdicts/$PKEY/h1"
 mkdir -p "$d"
-jq -cn --arg f "$O" --arg r "$REPO" --arg k "$kh" '{file: $f, repo: $r, model: "sonnet", effort: "low", budget: "0.90",
+MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg f "$O" --arg r "$REPO" --arg k "$kh" '{file: $f, repo: $r, model: "sonnet", effort: "low", budget: "0.90",
   keys: [{kh: $k, ordinal: 1, start: 3, end: 5, name: "orphan"}]}' >"$d/.run-1-1.keys"
 jq -cn --arg r '{"verdicts": [{"name": "orphan", "ordinal": 1, "verdict": "PASS", "evidence": ["  expect(add(1, 2)).toBe(3);"], "source": "hand-computed", "diff": ""}]}' \
   '{type: "result", subtype: "success", is_error: false, result: $r}' >"$d/.run-1-1"
@@ -725,7 +725,7 @@ W2="$REPO/src/wintwo.test.ts"
 js_file "$W1" winone
 js_file "$W2" "wintwo flag"
 wpay() { # wpay <tool_use_id> <file> [extra json]
-  jq -cn --arg u "$1" --arg f "$2" --arg t "$WT" --arg c "$WC" --argjson x "${3:-{\}}" \
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg u "$1" --arg f "$2" --arg t "$WT" --arg c "$WC" --argjson x "${3:-{\}}" \
     '{hook_event_name: "PostToolUse", tool_name: "Write", session_id: "wsid", tool_use_id: $u, transcript_path: $t,
       cwd: $c, tool_input: {file_path: $f}, tool_response: {type: "create", structuredPatch: []}} + $x'
 }
@@ -772,7 +772,7 @@ export WA WB WL
 check "msys: C:/W/Repo/src/a.test.ts and $WA are one file" 'lib msys "judge::same_path C:/W/Repo/src/a.test.ts \"\$WA\""'
 check "msys: /c/w/repo/a.ts and $WB are one file" 'lib msys "judge::same_path /c/w/repo/a.ts \"\$WB\""'
 check "linux: a backslash is part of a file name" '! lib linux-gnu "judge::same_path /r/a/b.ts \"\$WL\""'
-jq -cn --arg f "$WF" '{file: $f, repo: "C:/w/repo", name: "w", ordinal: 1, start: 3,
+MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg f "$WF" '{file: $f, repo: "C:/w/repo", name: "w", ordinal: 1, start: 3,
   end: 5, verdict: "FLAG", evidence: [], source: "s", diff: "d", reason: "", model: "m", effort: "e"}' >"$TMP/winverdict.json"
 loc="$(WV="$TMP/winverdict.json" lib msys 'RELAY="$(<"$WV")"$'"'"'\n'"'"'; RELAY_REPOS=("C:/w/repo"); judge::findings
   grep "^| 1 |" "$FINDINGS" | cut -d"|" -f5')"
@@ -780,14 +780,14 @@ check "msys: the findings Location is repo-relative with forward slashes" '[[ "$
 WD="$TMP/w\\repo"
 mkdir -p "$WD"
 printf 'test body\n' >"$WD/t.test.ts"
-jq -cn --arg f "$WD/t.test.ts" --arg r "$WD" '{file: $f, repo: $r, name: "t", ordinal: 1, start: 1, end: 1, verdict: "PASS",
+MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg f "$WD/t.test.ts" --arg r "$WD" '{file: $f, repo: $r, name: "t", ordinal: 1, start: 1, end: 1, verdict: "PASS",
   evidence: ["an implementation line"], source: "s", diff: "", reason: "", model: "m", effort: "e"}' >"$TMP/wd-verdict.json"
 rm -f "$TMP/gitargs"
 TMP="$TMP" lib msys 'git() { printf "%s\n" "$2" >>"$TMP/gitargs"; }; judge::validate "$TMP/wd-verdict.json"'
 check "msys: git grep gets the repository path with forward slashes" '[[ "$(cat "$TMP/gitargs")" == "$TMP/w/repo" ]]'
 check "msys with no jq binary: no jq function hides the missing jq" \
   '! env PATH=/nonexistent TESTING_OSTYPE=msys "$(command -v bash)" -c "source \"$HOOK_DIR/scanner-run.sh\"; command -v jq"'
-out="$(jq -cn --arg t "$WT" --arg c "$WC" '{hook_event_name: "SessionStart", session_id: "wsucc", transcript_path: $t,
+out="$(MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg t "$WT" --arg c "$WC" '{hook_event_name: "SessionStart", session_id: "wsucc", transcript_path: $t,
   cwd: $c, source: "clear"}' | win bash "$HOOK_DIR/test-judge-start.sh" 2>/dev/null)"
 check "Windows: SessionStart writes the successor marker under the same project key" '[[ -f "$DATA/successors/$WPK/wsucc" ]]'
 
@@ -839,10 +839,10 @@ S5="$REPO/src/sec5.test.ts"
 js_file "$S5" sec5 sec5bad
 mkdir -p "$DATA/verdicts/$PKEY/sec5"
 evil_diff="$(diff -u --label a/src/sec5.test.ts --label b/src/sec5.test.ts "$S5" <(sed '3s/$/ \/\/ `````/' "$S5"))"
-jq -cn --arg f "$S5" --arg r "$REPO" --arg d "$evil_diff" '{file: $f, repo: $r, name: "sec5\n## Findings\n| 9 | CRITICAL |", ordinal: 1,
+MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg f "$S5" --arg r "$REPO" --arg d "$evil_diff" '{file: $f, repo: $r, name: "sec5\n## Findings\n| 9 | CRITICAL |", ordinal: 1,
   start: 3, end: 5, verdict: "FLAG", evidence: ["test('"'"'sec5'"'"', () => {"], source: "spec\n### FAKE heading", diff: $d, reason: "",
   model: "m", effort: "e"}' >"$DATA/verdicts/$PKEY/sec5/k1.json"
-jq -cn --arg f "$S5" --arg r "$REPO" '{file: $f, repo: $r, name: "sec5bad", ordinal: 1, start: 6, end: 8, verdict: "PASS",
+MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg f "$S5" --arg r "$REPO" '{file: $f, repo: $r, name: "sec5bad", ordinal: 1, start: 6, end: 8, verdict: "PASS",
   evidence: ["made up line"], source: "SECRET-SOURCE", diff: "SECRET-DIFF", reason: "", model: "m", effort: "e"}' >"$DATA/verdicts/$PKEY/sec5/k2.json"
 V5="$DATA/verdicts/$PKEY/sec5"
 v5="$(V5="$V5" lib linux-gnu 'judge::validate "$V5/k1.json"; judge::validate "$V5/k2.json"; judge::findings; cat "$FINDINGS"')"
@@ -858,7 +858,7 @@ NR="$TMP/norepo"
 mkdir -p "$NR"
 js_file "$NR/n.test.ts" norepo
 mkdir -p "$DATA/sessions/$PKEY/sec6"
-jq -n --arg f "$NR/n.test.ts" '{file: $f, repo: null, agent_id: null, create: true, blocks: null, lines: null, ok_markers: 0,
+MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -n --arg f "$NR/n.test.ts" '{file: $f, repo: null, agent_id: null, create: true, blocks: null, lines: null, ok_markers: 0,
   written_at: (now | todate)}' >"$DATA/sessions/$PKEY/sec6/w1.json"
 stub_reset
 stop sec6
@@ -1053,7 +1053,7 @@ for s in 0 1 2 3 4 5 6 7 8 9; do
 done
 c="a findings name taken by a link to a FIFO is skipped: no hang, written under the next name"
 if links "$c" "${gl[@]}"; then
-  jq -cn --arg f "$SEC/g/t.test.ts" --arg r "$SEC/g" '{file: $f, repo: $r, name: "t", ordinal: 1, start: 1, end: 1, verdict: "PASS",
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg f "$SEC/g/t.test.ts" --arg r "$SEC/g" '{file: $f, repo: $r, name: "t", ordinal: 1, start: 1, end: 1, verdict: "PASS",
     evidence: ["x"], source: "s", diff: "", reason: "", model: "m", effort: "e"}' >"$TMP/g-verdict.json"
   gout="$(timeout 5 env HOOK_DIR="$HOOK_DIR" DATA="$DATA" GV="$TMP/g-verdict.json" R="$SEC/g" bash -c "$(declare -f lib); lib linux-gnu 'RELAY=\"\$(<\"\$GV\")\"\$'\"'\"'\\n'\"'\"'; RELAY_REPOS=(\"\$R\"); judge::findings; printf %s \"\$FINDINGS\"'")"
   check "$c" '[[ "$gout" == "$SEC/g/.work/reviews/main/"*-test-judge-2.md && -f "$gout" && ! -L "$gout" ]]'
@@ -1067,7 +1067,7 @@ if links "$c"; then
   newrepo "$SEC/h"
   git -C "$SEC/h" checkout -q -b main 2>/dev/null
   mkdir -p "$SEC/hout"
-  jq -cn --arg f "$SEC/h/t.test.ts" --arg r "$SEC/h" '{file: $f, repo: $r, name: "t", ordinal: 1, start: 1, end: 1, verdict: "PASS",
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg f "$SEC/h/t.test.ts" --arg r "$SEC/h" '{file: $f, repo: $r, name: "t", ordinal: 1, start: 1, end: 1, verdict: "PASS",
     evidence: ["x"], source: "s", diff: "", reason: "", model: "m", effort: "e"}' >"$TMP/h-verdict.json"
   hout="$(timeout 5 env HOOK_DIR="$HOOK_DIR" DATA="$DATA" HV="$TMP/h-verdict.json" R="$SEC/h" O="$SEC/hout" bash -c "$(declare -f lib); lib linux-gnu '
   eval \"\$(declare -f judge::findings_dir | sed \"1s/judge::findings_dir/orig_fd/\")\"
@@ -1080,7 +1080,7 @@ fi
 # a"b#c stays plain and #x, which plain would read as a comment, is quoted.
 newrepo "$SEC/i"
 git -C "$SEC/i" checkout -q -b 'a"b#c'
-jq -cn --arg f "$SEC/i/t.test.ts" --arg r "$SEC/i" '{file: $f, repo: $r, name: "t", ordinal: 1, start: 1, end: 1, verdict: "PASS",
+MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -cn --arg f "$SEC/i/t.test.ts" --arg r "$SEC/i" '{file: $f, repo: $r, name: "t", ordinal: 1, start: 1, end: 1, verdict: "PASS",
   evidence: ["x"], source: "s", diff: "", reason: "", model: "m", effort: "e"}' >"$TMP/i-verdict.json"
 iout="$(timeout 5 env HOOK_DIR="$HOOK_DIR" DATA="$DATA" IV="$TMP/i-verdict.json" R="$SEC/i" bash -c "$(declare -f lib); lib linux-gnu 'RELAY=\"\$(<\"\$IV\")\"\$'\"'\"'\\n'\"'\"'; RELAY_REPOS=(\"\$R\"); judge::findings; printf %s \"\$FINDINGS\"'")"
 check "a branch named a\"b#c is a plain scalar, as YAML reads it back" '[[ "$(sed -n 4p "$iout")" == "branch: a\"b#c" ]]'
