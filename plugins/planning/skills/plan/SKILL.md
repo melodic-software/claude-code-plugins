@@ -370,7 +370,7 @@ Write the plan even for small changes. A cleared session or a fresh agent has on
 
 **Close-out (PR time).** `/planning:plan` owns describing the close-out. Read [context/close-out.md](context/close-out.md) when invoked with `close-out`. It holds the three-step procedure, the ADR admission test, and the spec-container ship ritual.
 
-**Mid-flight pivots:** when scope changes after approval, append a dated scope-change note to the affected PLAN.md section capturing the rationale, and strikethrough+link the obsolete content. Carry the pivot rationale in the commit message as well. The contract is branch-tracked, so git log is the history. Do not silently rewrite history.
+**Mid-flight pivots:** when scope changes after approval, append a dated scope-change note to the affected PLAN.md section capturing the rationale, and strikethrough+link the obsolete content. PLAN.md is never committed, so these notes are its only history; refresh the pull request body or linked issue paste so the published copy carries them. Do not silently rewrite history.
 
 **After writing, recommend:** clear context and begin implementation. The implementing session reads PLAN.md for the execution roadmap.
 

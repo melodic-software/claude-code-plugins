@@ -14,6 +14,8 @@ Acquisition applies yt-dlp `--retries`, `--sleep-requests`, `--sleep-subtitles` 
 
 Bulk frames and contact sheets stay in OS `tempSession` dirs, not the repo. When those dirs have been reaped, `run-state/watch.json` `tempSession` paths are stale, so **re-run `run-watch.js`** before vision (resume detects this and stops for the same reason).
 
+A successful `close` removes those recorded dirs on purpose, after it marks the slice complete. When one is locked (on Windows, a scanner or player holding a file open), `close` warns on stderr with the path and still succeeds; delete that dir by hand once the lock is gone.
+
 ## Cloud agent without media toolchain
 
 `watch` needs ffmpeg + ImageMagick for frame extraction and contact sheets. A cloud agent lacking the media toolchain must **fail closed and not run watch**; route to the prerequisites fix path instead of producing a frameless run.
