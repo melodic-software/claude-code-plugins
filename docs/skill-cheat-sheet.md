@@ -10,31 +10,19 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 
 <!-- cheatsheet:start -->
 
-- [0. Contract](#0-contract)
 - [1. Explore](#1-explore)
 - [2. Research](#2-research)
-- [3. Plan](#3-plan)
-- [4. Implement](#4-implement)
-- [5. Test](#5-test)
-- [6. Review](#6-review)
-- [7. Verify outcome](#7-verify-outcome)
-- [8. Retrospective](#8-retrospective)
-- [PR lifecycle (after step 7)](#pr-lifecycle-after-step-7)
+- [4. Contract](#4-contract)
+- [6. Plan](#6-plan)
+- [8. Implement](#8-implement)
+- [9. Test](#9-test)
+- [10. Review](#10-review)
+- [11. Verify outcome](#11-verify-outcome)
+- [12. Retrospective](#12-retrospective)
+- [Ship: PR lifecycle (after stage 11)](#ship-pr-lifecycle-after-stage-11)
 - [Anytime / cross-cutting](#anytime--cross-cutting)
 - [Session lifecycle](#session-lifecycle)
 - [Operator cadence](#operator-cadence)
-
-## 0. Contract
-
-| Skill | Plugin | What it does |
-| --- | --- | --- |
-| [`/bugs:write`](../plugins/bugs/skills/write/SKILL.md) | `bugs` | Turn an informal bug description into a structured 5-field report, read-only |
-| [`/planning:audit-answers`](../plugins/planning/skills/audit-answers/SKILL.md) | `planning` | Adversarially validate interview answers with fresh-context agents |
-| [`/planning:brainstorm`](../plugins/planning/skills/brainstorm/SKILL.md) | `planning` | Diverge into codebase-grounded candidate approaches before scoping |
-| [`/planning:interview`](../plugins/planning/skills/interview/SKILL.md) | `planning` | Interview in frontier rounds until the task contract is locked |
-| [`/planning:prd`](../plugins/planning/skills/prd/SKILL.md) | `planning` | Lock product intent. Problem, users, success metrics. Before planning |
-| [`/planning:questionnaire`](../plugins/planning/skills/questionnaire/SKILL.md) | `planning` | Turn a decision someone else must answer into an async questionnaire |
-| [`/planning:wayfind`](../plugins/planning/skills/wayfind/SKILL.md) | `planning` | Chart a too-big, foggy effort as a decision map worked one decision at a time |
 
 ## 1. Explore
 
@@ -65,7 +53,19 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/dometrain:grounding`](../plugins/dometrain/skills/grounding/SKILL.md) | `dometrain` | Ground an approach in how a Dometrain course teaches it, with lesson links |
 | [`/firecrawl:firecrawl`](../plugins/firecrawl/skills/firecrawl/SKILL.md) | `firecrawl` | Scrape, search, crawl, or parse web pages when WebFetch is blocked |
 
-## 3. Plan
+## 4. Contract
+
+| Skill | Plugin | What it does |
+| --- | --- | --- |
+| [`/bugs:write`](../plugins/bugs/skills/write/SKILL.md) | `bugs` | Turn an informal bug description into a structured 5-field report, read-only |
+| [`/planning:audit-answers`](../plugins/planning/skills/audit-answers/SKILL.md) | `planning` | Adversarially validate interview answers with fresh-context agents |
+| [`/planning:brainstorm`](../plugins/planning/skills/brainstorm/SKILL.md) | `planning` | Diverge into codebase-grounded candidate approaches before scoping |
+| [`/planning:interview`](../plugins/planning/skills/interview/SKILL.md) | `planning` | Interview in frontier rounds until the task contract is locked |
+| [`/planning:prd`](../plugins/planning/skills/prd/SKILL.md) | `planning` | Lock product intent. Problem, users, success metrics. Before planning |
+| [`/planning:questionnaire`](../plugins/planning/skills/questionnaire/SKILL.md) | `planning` | Turn a decision someone else must answer into an async questionnaire |
+| [`/planning:wayfind`](../plugins/planning/skills/wayfind/SKILL.md) | `planning` | Chart a too-big, foggy effort as a decision map worked one decision at a time |
+
+## 6. Plan
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
@@ -84,7 +84,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/prototype:pressure-test`](../plugins/prototype/skills/pressure-test/SKILL.md) | `prototype` | Throwaway terminal app or shareable HTML demo pressure-testing logic or a data model |
 | [`/work-items:decompose`](../plugins/work-items/skills/decompose/SKILL.md) | `work-items` | Break a plan into vertical-slice work items with dependencies |
 
-## 4. Implement
+## 8. Implement
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
@@ -109,7 +109,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/source-control:commit`](../plugins/source-control/skills/commit/SKILL.md) | `source-control` | Commit with the resolved convention and surgical staging |
 | [`/speech:narrate`](../plugins/speech/skills/narrate/SKILL.md) | `speech` | Script in, narration.wav and words.json out (kokoro local; elevenlabs optional, third-party) |
 
-## 5. Test
+## 9. Test
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
@@ -129,7 +129,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/testing:test-value`](../plugins/testing/skills/test-value/SKILL.md) | `testing` | Where expected values come from and which tests earn their keep |
 | [`/testing:write`](../plugins/testing/skills/write/SKILL.md) | `testing` | Write and place tests with TDD cadence across ecosystems |
 
-## 6. Review
+## 10. Review
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
@@ -148,7 +148,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/review:security-review`](../plugins/review/skills/security-review/SKILL.md) | `review` | Org CI security-review lane command for a GitHub pull request |
 | [`/skill-quality:check`](../plugins/skill-quality/skills/check/SKILL.md) | `skill-quality` | Static QA gate for skill frontmatter, caps, and evals |
 
-## 7. Verify outcome
+## 11. Verify outcome
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
@@ -160,7 +160,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/verification:confirm`](../plugins/verification/skills/confirm/SKILL.md) | `verification` | Prove the change achieved its intended outcome with evidence |
 | [`/verification:measure`](../plugins/verification/skills/measure/SKILL.md) | `verification` | Verify an improvement claim against a pre-change baseline |
 
-## 8. Retrospective
+## 12. Retrospective
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
@@ -168,7 +168,7 @@ owned by [docs/catalog-taxonomy.md](catalog-taxonomy.md).
 | [`/session-flow:retro`](../plugins/session-flow/skills/retro/SKILL.md) | `session-flow` | Structured session retrospective with codified learnings |
 | [`/session-flow:running-retro`](../plugins/session-flow/skills/running-retro/SKILL.md) | `session-flow` | In-flight retro checkpoint appended to a running ledger |
 
-## PR lifecycle (after step 7)
+## Ship: PR lifecycle (after stage 11)
 
 | Skill | Plugin | What it does |
 | --- | --- | --- |
