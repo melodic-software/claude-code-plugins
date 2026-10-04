@@ -21,7 +21,9 @@
 # a body that arrived is no proof the page exists. A page is read only when the
 # whole body arrived over HTTPS from the profile's origin with the profile's
 # content type and a 2xx status. Anything else is unread and leaves no file, so a
-# partial or foreign body is never counted as read.
+# partial or foreign body is never counted as read. A body over max_page_bytes
+# (--max-page-bytes, else docs-cache.sh's configuration) is unread too-large:
+# nothing of it is converted or stored.
 #
 # The generic profile takes any https URL and needs no index. It prefers
 # markdown, in this order: the URL with Accept: text/markdown; the URL with a
@@ -100,7 +102,7 @@ fetch-docs.sh — fetch a publisher's docs pages verbatim and write a manifest.
 
 Usage:
   fetch-docs.sh --out <dir> [--manifest <file>] [--profile <name>] [--index-url <url>] [--follow <depth>]
-                [--cache [--max-age <seconds>] [--cache-dir <dir>]]
+                [--max-page-bytes <n>] [--cache [--max-age <seconds>] [--cache-dir <dir>]]
                 (--discover | [--mode full|search] <slug|url>...)
 
   --out <dir>        directory for the page files (<slug>.md) and the index (llms.txt)
@@ -110,11 +112,13 @@ Usage:
   --discover         request every page the index links under the profile's path prefix
   --mode <m>         how the caller will use the pages that follow: full (default) or search
   --follow <depth>   reserved for link-following; accepted, default 0, acted on by no caller
+  --max-page-bytes <n>  a body over <n> bytes is unread too-large (default: the docs cache's
+                     max_page_bytes, 10485760 unless configured)
   --cache            read through the docs cache and store what is fetched
   --max-age <s>      serve a cached entry validated at most <s> seconds ago (default: the
                      docs cache's ttl_seconds, 86400 unless configured); 0 always asks the server
   --cache-dir <dir>  cache directory (default: the docs cache's cache_dir)
-                     Both defaults, and cache_enabled, resolve from DOCS_CACHE_* and the machine
+                     These defaults, and cache_enabled, resolve from DOCS_CACHE_* and the machine
                      file; docs-cache.sh config prints them with their layer.
   <slug|url>         a page slug (settings-reference) or an origin URL the index lists;
                      for --profile generic, any https URL (its slug is host/path)
@@ -136,6 +140,7 @@ DISCOVER=0
 MODE=full
 CACHE=0
 MAX_AGE=""
+MAX_PAGE=""
 CACHE_DIR=""
 TARGETS=()
 TARGET_MODES=()
@@ -145,7 +150,7 @@ while [[ $# -gt 0 ]]; do
     usage
     exit 0
     ;;
-  --out | --manifest | --profile | --index-url | --follow | --mode | --max-age | --cache-dir)
+  --out | --manifest | --profile | --index-url | --follow | --mode | --max-age | --max-page-bytes | --cache-dir)
     [[ $# -ge 2 ]] || die "$1 needs a value"
     case "$1" in
     --out) OUT="$2" ;;
@@ -160,6 +165,10 @@ while [[ $# -gt 0 ]]; do
     --max-age)
       [[ "$2" =~ ^[0-9]+$ ]] || die "--max-age needs a non-negative integer"
       MAX_AGE="$2"
+      ;;
+    --max-page-bytes)
+      [[ "$2" =~ ^[0-9]{1,18}$ ]] || die "--max-page-bytes needs a non-negative integer"
+      MAX_PAGE="$2"
       ;;
     --cache-dir)
       [[ -n "$2" ]] || die "--cache-dir needs a value"
@@ -226,13 +235,15 @@ FIXTURE="${FETCH_DOCS_FIXTURE_DIR:-}"
 CURL_MISSING=0
 if [[ $FIXTURE_SET -eq 0 ]] && ! command -v curl >/dev/null 2>&1; then CURL_MISSING=1; fi
 CACHE_DISABLED=""
+# The docs cache's configuration holds max_page_bytes, so it resolves with or without --cache.
+DOCS_CACHE="$(dirname "${BASH_SOURCE[0]}")/docs-cache.sh"
+[[ -f "$DOCS_CACHE" ]] || die "docs-cache.sh not found beside fetch-docs.sh"
+# shellcheck source=docs-cache.sh
+. "$DOCS_CACHE"
+dc_config cache_dir="$CACHE_DIR" ttl_seconds="$MAX_AGE" max_page_bytes="$MAX_PAGE"
+dc_config_warn
+MAX_PAGE="$DC_CFG_max_page_bytes"
 if [[ $CACHE -eq 1 ]]; then
-  DOCS_CACHE="$(dirname "${BASH_SOURCE[0]}")/docs-cache.sh"
-  [[ -f "$DOCS_CACHE" ]] || die "docs-cache.sh not found beside fetch-docs.sh"
-  # shellcheck source=docs-cache.sh
-  . "$DOCS_CACHE"
-  dc_config cache_dir="$CACHE_DIR" ttl_seconds="$MAX_AGE"
-  dc_config_warn
   if [[ "$DC_CFG_cache_enabled" == false ]]; then
     CACHE=0 CACHE_DISABLED="$DC_LAYER_cache_enabled"
   else
@@ -273,7 +284,9 @@ reset_g() {
 # http_get <url> <dest> <accept> <if-none-match> <if-modified-since>: one GET
 # with the body at <dest>. Sets H_RC H_STATUS H_EFF H_CTYPE and the final
 # response's H_DATE, H_ETAG and H_LM (empty when absent, or Last-Modified equal
-# to Date).
+# to Date). A body over max_page_bytes is deleted and H_RC is 63, curl's own
+# code for it: curl stops at a declared Content-Length over the limit, and the
+# size check catches a body sent without one, which an older curl lets through.
 http_get() {
   local hdr="$2.hdr" meta args=() line low date=""
   [[ -z "$3" ]] || args+=(-H "Accept: $3")
@@ -282,8 +295,11 @@ http_get() {
   rm -f "$2" "$hdr"
   # No -f: an HTTP error still prints its status and content type through -w.
   meta="$(curl -sSL --proto =https --proto-redir =https --max-redirs 5 --connect-timeout 15 --max-time 120 \
-    ${args[@]+"${args[@]}"} -D "$hdr" -w '%{http_code} %{url_effective} %{content_type}' -o "$2" "$1" 2>/dev/null)"
+    --max-filesize "$MAX_PAGE" ${args[@]+"${args[@]}"} -D "$hdr" -w '%{http_code} %{url_effective} %{content_type}' \
+    -o "$2" "$1" 2>/dev/null)"
   H_RC=$?
+  if [[ -f "$2" && $(wc -c <"$2") -gt $MAX_PAGE ]]; then H_RC=63; fi
+  [[ $H_RC -ne 63 ]] || rm -f "$2"
   H_STATUS="" H_EFF="" H_CTYPE="" H_ETAG="" H_LM=""
   read -r H_STATUS H_EFF H_CTYPE <<<"$meta"
   [[ "$H_STATUS" =~ ^[0-9]+$ ]] || H_STATUS=""
@@ -439,7 +455,9 @@ get_doc() {
     G_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     request "" "$url" "$dest.part" "$dest" && return 0
     G_STATUS="$H_STATUS" G_CTYPE="$H_CTYPE"
-    if [[ $H_RC -ne 0 ]]; then
+    if [[ $H_RC -eq 63 ]]; then
+      G_REASON="too-large"
+    elif [[ $H_RC -ne 0 ]]; then
       G_REASON="fetch-failed"
     elif [[ "$H_EFF" != "$ORIGIN$P_DOCS_PATH"* && ("$url" != "$INDEX_URL" || "$H_EFF" != "$INDEX_URL") ]]; then
       # A page lands under the docs path; the index, at its own URL.
@@ -627,7 +645,9 @@ get_generic() {
   # The page's own request decides identity: a failure or a landing elsewhere ends the read.
   request text/markdown "$url" "$dest.part" "$dest" && return 0
   G_STATUS="$H_STATUS" G_CTYPE="$H_CTYPE"
-  if [[ $H_RC -ne 0 ]]; then
+  if [[ $H_RC -eq 63 ]]; then
+    G_REASON="too-large"
+  elif [[ $H_RC -ne 0 ]]; then
     G_REASON="fetch-failed"
   else
     case "$(landed "$url" "$H_EFF")" in
@@ -665,6 +685,7 @@ get_generic() {
   fi
   if [[ "$G_STATE" != read && -z "$html_status" ]]; then
     request "" "$url" "$html" "$dest" && return 0
+    [[ $H_RC -ne 63 ]] || G_REASON="too-large"
     if [[ $H_RC -eq 0 && "$(landed "$url" "$H_EFF")" == same && "$H_STATUS" =~ ^2[0-9][0-9]$ &&
     "${H_CTYPE,,}" =~ $HTML_CTYPE && -s "$html" ]]; then
       html_status="$H_STATUS" html_ctype="$H_CTYPE" html_val="$(dc_validators_or_none "" "$url")" html_date="$H_DATE"

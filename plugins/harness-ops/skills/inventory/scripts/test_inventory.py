@@ -2289,6 +2289,30 @@ class TestDocsCrosscheck(unittest.TestCase):
         self.assertEqual(block["status"], "unavailable")
         self.assertIn("no-bash", block["problems"][0])
 
+    def test_bash_and_git_planted_in_the_cwd_are_never_selected(self) -> None:
+        exe = ".exe" if os.name == "nt" else ""
+        with tempfile.TemporaryDirectory() as d:
+            checkout = pathlib.Path(d) / "checkout"
+            trusted = pathlib.Path(d) / "trusted"
+            for path in (
+                checkout / f"bash{exe}",
+                checkout / f"git{exe}",
+                checkout / "bin" / f"bash{exe}",
+                trusted / f"bash{exe}",
+            ):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("#!/bin/sh\n", encoding="utf-8")
+                path.chmod(0o755)
+            path_env = os.pathsep.join(["", ".", "bin", str(trusted)])
+            cwd = os.getcwd()
+            os.chdir(checkout)
+            try:
+                with mock.patch.dict(os.environ, {"PATH": path_env}):
+                    found = self.dc._bash()
+            finally:
+                os.chdir(cwd)
+        self.assertEqual(found, str(trusted / f"bash{exe}"))
+
     def test_docs_file_without_the_table_is_broken(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             path = pathlib.Path(d) / "commands.md"

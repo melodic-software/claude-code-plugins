@@ -13,7 +13,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -81,17 +80,34 @@ _FETCHER = Path(__file__).resolve().parents[3] / "scripts" / "fetch-docs.sh"
 _FETCH_TIMEOUT = 300
 
 
+def _which(name: str) -> str | None:
+    """`name` on PATH, from absolute entries only. On Windows `shutil.which`
+    searches the current directory first, so a git or bash planted in an
+    untrusted checkout would run."""
+    exts = [""]
+    if sys.platform == "win32":
+        exts = os.environ.get("PATHEXT", ".EXE").lower().split(os.pathsep)
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        if not entry or not os.path.isabs(entry):
+            continue
+        for ext in exts:
+            candidate = Path(entry) / f"{name}{ext}"
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                return str(candidate)
+    return None
+
+
 def _bash() -> str | None:
     """The bash that runs the shared fetcher. On Windows `which bash` can be the
     System32 WSL launcher, so a Git Bash beside git wins."""
     if sys.platform == "win32":
-        git = shutil.which("git")
+        git = _which("git")
         if git:
             for parent in Path(git).resolve().parents:
                 candidate = parent / "bin" / "bash.exe"
                 if candidate.is_file():
                     return str(candidate)
-    return shutil.which("bash")
+    return _which("bash")
 
 
 def fetch_text(profile: str, url: str) -> tuple[str | None, str | None, dict[str, Any]]:

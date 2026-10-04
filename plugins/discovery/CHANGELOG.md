@@ -20,6 +20,10 @@
   (optional: without it a page served only as HTML is recorded unread).
 - `/discovery:research` names `/discovery:read-docs` in its `## Next` for a claim one docs page
   settles.
+- The shared scripts hold back hostile pages and notes: `fetch-docs.sh` leaves a body over
+  `max_page_bytes` (default 10 MiB) unread `too-large`, and `docs-cache.sh` refuses a summary or
+  note holding `UNTRUSTED DATA`, says in the block's opening line that only the END line with its
+  nonce closes it, and prints a note's writer and session as `(self-reported)`.
 
 ## [0.28.8] - 2026-10-04
 

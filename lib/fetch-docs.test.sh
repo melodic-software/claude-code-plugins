@@ -47,19 +47,23 @@ chmod +x "$CLAUDE_STUB"
 # with Accept: text/markdown gets <name>.accept-md, when present, as
 # text/markdown. A file that is not served exits 22 with no output, and a
 # <name>.partial file is written and then fails with curl's short-transfer
-# code, like a body cut off mid-download.
+# code, like a body cut off mid-download. A body over --max-filesize exits 63
+# with no output, as curl does for a declared Content-Length, unless a
+# <name>.nocap sidecar makes it ignore the limit, as an older curl does for a
+# body sent without one.
 SHIM="$TEST_TMPDIR/shim"
 mkdir -p "$SHIM"
 cat >"$SHIM/curl" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$CURL_SHIM_LOG"
-out="" url="" wfmt="" hdr="" accept="" inm="" ims=""
+out="" url="" wfmt="" hdr="" accept="" inm="" ims="" maxfs=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  -o | -w | -D | -H | --connect-timeout | --max-time | --proto | --proto-redir | --max-redirs)
+  -o | -w | -D | -H | --connect-timeout | --max-time | --proto | --proto-redir | --max-redirs | --max-filesize)
     [[ "$1" == "-o" ]] && out="$2"
     [[ "$1" == "-w" ]] && wfmt="$2"
     [[ "$1" == "-D" ]] && hdr="$2"
+    [[ "$1" == "--max-filesize" ]] && maxfs="$2"
     if [[ "$1" == "-H" ]]; then
       case "$2" in
       "Accept: "*) accept="${2#Accept: }" ;;
@@ -101,6 +105,7 @@ if [[ (-n "$etag" && "$inm" == "$etag") || (-n "$lastmod" && "$ims" == "$lastmod
   status=304
   body=""
 fi
+if [[ -n "$body" && -n "$maxfs" && ! -f "$src.nocap" && $(wc -c <"$body") -gt $maxfs ]]; then exit 63; fi
 if [[ -n "$body" ]]; then cp "$body" "$out"; fi
 if [[ -n "$hdr" ]]; then
   {
@@ -872,6 +877,39 @@ DOCS_CACHE_NOW=$G2 shim_run "$src" "$TEST_TMPDIR/out-ie2" --cache --cache-dir "$
 assert_eq "validators: an indexed page revalidates with If-None-Match and a 304" "cache 304 $G1_ISO $G2_ISO" \
   "$(page "$TEST_TMPDIR/out-ie2/manifest.json" skills '"\(.source) \(.status) \(.retrieved) \(.validated)"')"
 assert_eq "validators: the conditional request named the stored ETag" 1 "$(grep -c -- 'If-None-Match: "s1"' "$src.log")"
+
+# --- Case 25: a body over max_page_bytes is unread too-large, never stored ----
+src="$(new_served served25)"
+head -c 2000 /dev/zero | tr '\0' x >>"$src/skills.md"
+C="$TEST_TMPDIR/cache25"
+DOCS_CACHE_MAX_PAGE_BYTES=1000 shim_run "$src" "$TEST_TMPDIR/out25a" --cache --cache-dir "$C" skills settings-reference
+m="$TEST_TMPDIR/out25a/manifest.json"
+assert_eq "case 25: a body over the cap is unread too-large with no cache key" "unread too-large null" \
+  "$(page "$m" skills '"\(.state) \(.reason) \(.cache_key)"')"
+assert_no_file "case 25: too-large leaves no page file" "$TEST_TMPDIR/out25a/skills.md"
+rc=0
+DC info "$(key_of https://docs.test/docs/en/skills.md markdown)" >/dev/null 2>&1 || rc=$?
+assert_eq "case 25: too-large stores nothing" 1 "$rc"
+assert_eq "case 25: a body under the cap is read" read "$(page "$m" settings-reference .state)"
+assert_eq "case 25: every request asks curl to stop at the cap" "$(wc -l <"$src.log" | tr -d ' ')" "$(grep -c -- '--max-filesize 1000' "$src.log")"
+touch "$src/skills.md.nocap"
+DOCS_CACHE_MAX_PAGE_BYTES=1000 shim_run "$src" "$TEST_TMPDIR/out25b" skills
+assert_eq "case 25: a curl that ignores the cap is caught by the size check, without --cache too" "unread too-large" \
+  "$(page "$TEST_TMPDIR/out25b/manifest.json" skills '"\(.state) \(.reason)"')"
+assert_no_file "case 25: the size check leaves no page file" "$TEST_TMPDIR/out25b/skills.md"
+DOCS_CACHE_MAX_PAGE_BYTES=1000 shim_run "$src" "$TEST_TMPDIR/out25c" --max-page-bytes 100000 skills
+assert_eq "case 25: --max-page-bytes wins over DOCS_CACHE_MAX_PAGE_BYTES" read "$(page "$TEST_TMPDIR/out25c/manifest.json" skills .state)"
+rc=0
+err="$(shim_run "$src" "$TEST_TMPDIR/out25d" --max-page-bytes big skills 2>&1)" || rc=$?
+assert_eq "case 25: --max-page-bytes needs a non-negative integer" "2 ERROR: --max-page-bytes needs a non-negative integer" "$rc $err"
+src="$TEST_TMPDIR/gs-big"
+mkdir -p "$src"
+html_page "$src/page" Page "$(head -c 2000 /dev/zero | tr '\0' x)"
+printf '%s' 'text/html' >"$src/page.ctype"
+: >"$PY_LOG"
+DOCS_CACHE_MAX_PAGE_BYTES=1000 gen_run "$src" go-big "$PYOK" $G1 "$PAGE_URL"
+assert_eq "case 25: a generic HTML page over the cap is unread too-large and never converted" "unread too-large 0" \
+  "$(gpage go-big '"\(.state) \(.reason)"') $(grep -c ran "$PY_LOG")"
 
 echo
 if [[ $FAILED -eq 0 ]]; then

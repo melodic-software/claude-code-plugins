@@ -18,9 +18,9 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   is `host/path`, and the manifest's `index` is null
   ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)).
 - **`--profile platform`** reads platform.claude.com pages through its `llms.txt`.
-- **The docs cache is configurable without flags.** `scripts/docs-cache.sh` resolves eight keys
+- **The docs cache is configurable without flags.** `scripts/docs-cache.sh` resolves nine keys
   (`cache_dir`, `ttl_seconds`, `whole_page_bytes`, `escalate_section_percent`, `escalate_bytes`,
-  `size_cap_bytes`, `prune_grace_seconds`, `cache_enabled`) key by key from a flag, then its
+  `size_cap_bytes`, `prune_grace_seconds`, `max_page_bytes`, `cache_enabled`) key by key from a flag, then its
   `DOCS_CACHE_*` variable, then the machine file
   `${XDG_CONFIG_HOME:-$HOME/.config}/claude-docs-cache/config.json`, then the bundled default.
   `docs-cache.sh config` prints each value with the layer that supplied it. A malformed file or a
@@ -66,6 +66,12 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 
 ### Fixed
 
+- **A hostile host can no longer fill the disk or forge the untrusted-data framing.**
+  `scripts/fetch-docs.sh` leaves a body over `max_page_bytes` (`--max-page-bytes`,
+  `DOCS_CACHE_MAX_PAGE_BYTES`, default 10 MiB) unread with reason `too-large`, converting and
+  storing nothing; `docs-cache.sh` refuses a summary or note holding `UNTRUSTED DATA`, its block's
+  opening line says only the END line with this block's nonce closes it, and a note's writer and
+  session print as `(self-reported)`.
 - **A malformed summary file no longer hides the other summaries.** `scripts/docs-cache.sh` parses
   each summary file on its own and skips one that is not JSON with a warning on stderr, as it
   already did for notes.
