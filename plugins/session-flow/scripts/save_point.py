@@ -238,7 +238,11 @@ SECRET_SHAPES: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"), "Slack token"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "AWS key id"),
     (
-        re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
+        # The bounded JWT header and URL scheme keep each start position's
+        # scan short; unbounded, a long run with no `.` or `://` is quadratic.
+        re.compile(
+            r"\beyJ[A-Za-z0-9_-]{10,512}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"
+        ),
         "JWT",
     ),
     (
@@ -249,7 +253,7 @@ SECRET_SHAPES: tuple[tuple[re.Pattern[str], str], ...] = (
         "secret",
     ),
     (
-        re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s:@/]+:[^\s:@/]+@[^\s]+"),
+        re.compile(r"\b[a-z][a-z0-9+.-]{0,63}://[^\s:@/]+:[^\s:@/]+@[^\s]+"),
         "connection string",
     ),
 )

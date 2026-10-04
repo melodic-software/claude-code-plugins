@@ -923,7 +923,13 @@ _REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"), "<REDACTED: Slack token>"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "<REDACTED: AWS key id>"),
     (
-        re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
+        # The JWT header, URL scheme, and email local part and domain are
+        # bounded so each start position scans a bounded run; unbounded, a
+        # long run with no `.`, `://` or `@` is quadratic to scan. RFC 5321
+        # caps the local part at 64 octets and the domain at 255.
+        re.compile(
+            r"\beyJ[A-Za-z0-9_-]{10,512}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"
+        ),
         "<REDACTED: JWT>",
     ),
     (
@@ -934,11 +940,11 @@ _REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
         "<REDACTED: secret>",
     ),
     (
-        re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s:@/]+:[^\s:@/]+@[^\s]+"),
+        re.compile(r"\b[a-z][a-z0-9+.-]{0,63}://[^\s:@/]+:[^\s:@/]+@[^\s]+"),
         "<REDACTED: connection string>",
     ),
     (
-        re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
+        re.compile(r"\b[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,255}\.[A-Za-z]{2,}\b"),
         "<REDACTED: email>",
     ),
 )

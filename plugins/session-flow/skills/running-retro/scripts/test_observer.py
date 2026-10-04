@@ -846,6 +846,52 @@ class Redaction(unittest.TestCase):
                 github.sub("x", text)
                 self.assertLess(time.monotonic() - start, 1.0)
 
+    def test_jwt_url_and_email_patterns_finish_promptly_on_adversarial_text(self):
+        # Shapes that made these patterns backtrack for seconds to minutes.
+        patterns = [
+            p
+            for p, marker in observer._REDACTIONS
+            if marker
+            in (
+                "<REDACTED: JWT>",
+                "<REDACTED: connection string>",
+                "<REDACTED: email>",
+            )
+        ]
+        self.assertEqual(len(patterns), 3)
+        for text in (
+            "ghs_1_-" * 50000,
+            "ghs_1_eyJa." * 30000,
+            "ghs_1_eyJ-" * 30000,
+            "-eyJ" * 75000,
+            "a." * 150000,
+            "a." * 32 + "a@" + "a." * 150000,
+        ):
+            with self.subTest(text=text[:12]):
+                start = time.monotonic()
+                for pattern in patterns:
+                    pattern.sub("x", text)
+                self.assertLess(time.monotonic() - start, 1.0)
+
+    def test_bounded_patterns_still_redact_realistic_secrets(self):
+        r = observer._redact
+        # Header, payload and signature spell FAKE.
+        jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal"
+        self.assertEqual("auth <REDACTED: JWT> x", r(f"auth {jwt} x"))
+        long_header = "eyJ" + "A" * 509 + ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal"
+        self.assertEqual("<REDACTED: JWT>", r(long_header))
+        self.assertEqual(
+            "dsn <REDACTED: connection string>",
+            r("dsn postgresql+psycopg2://user:FAKEpass@db.example.com:5432/app"),
+        )
+        self.assertEqual("<REDACTED: connection string>", r("m" * 64 + "://u:p@h"))
+        self.assertEqual(
+            "to <REDACTED: email> x", r("to first.last+tag@mail.example.co.uk x")
+        )
+        local = "l" * 64
+        domain = ".".join(["d" * 63] * 3) + ".example"
+        self.assertEqual("<REDACTED: email>", r(f"{local}@{domain}"))
+
 
 class ResultParsing(unittest.TestCase):
     def test_extract(self):

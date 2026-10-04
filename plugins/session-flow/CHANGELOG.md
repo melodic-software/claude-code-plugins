@@ -1,5 +1,13 @@
 # Changelog: session-flow plugin
 
+## [0.48.5] - 2026-10-04
+
+### Fixed
+
+- **The JWT, connection-string and email redaction patterns no longer take seconds to minutes on adversarial text ([#5951](https://github.com/melodic-software/claude-code-plugins/issues/5951)).**
+  The running-retro observer's ledger redaction and the `save_point.py` secret-shape scan re-scanned an unbounded run from every start position, so a long line with no `.`, `://` or `@` was quadratic. The JWT header is now capped at 512 characters, the URL scheme at 64, and the email local part and domain at the RFC 5321 limits of 64 and 255.
+  Every realistic token, connection string and address is still redacted.
+
 ## [0.48.4] - 2026-10-03
 
 ### Fixed
