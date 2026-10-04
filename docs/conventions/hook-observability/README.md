@@ -268,7 +268,7 @@ text and for a genuine user message that arrives beside it.
 
 This section moves no hook to a different event. The guard mods' context and rate-limit lines are a
 [recorded exception](#recorded-exception-the-guard-mods-lines-and-telemetry-owner-approved-2026-10-03)
-to the Frequency rule.
+to the Frequency rule, and `rate-limit-guard`'s threshold line to the Phrasing rule.
 
 - **Pointer**: for each channel's reader and phrasing, see
   <https://code.claude.com/docs/en/hooks#add-context-for-claude>,
@@ -410,7 +410,8 @@ quiet skip needs a sanctioned helper call or an explicit `# silent-skip-ok:` ann
 `context-guard`'s and `rate-limit-guard`'s mods add lines to tool results and prompts about the
 session's context and rate-limit windows, which the Frequency rule's "no countdown or budget line
 after tool results" would otherwise bar. They are admitted on this shape, and only on it (the owner
-amended the What bullet on 2026-10-04, dropping the standing-rule sentence):
+amended the What bullet twice on 2026-10-04: dropping the standing-rule sentence, then admitting
+`rate-limit-guard`'s one directive):
 
 - **When.** One line per boundary crossing, one per approach margin (a set number of points before
   a boundary), and one restatement after a compaction, a resume, a `/branch`, a reload of the mod
@@ -419,7 +420,12 @@ amended the What bullet on 2026-10-04, dropping the standing-rule sentence):
 - **What.** Each line names its plugin and a verdict worded as a fact. The verdict names no action,
   claims no authority and gives no order. `context-guard`'s boundary lines add that continuing is
   the user's call, and may be followed by the dumb-zone save note or an operator-configured
-  `zones.json` action; `rate-limit-guard`'s lines carry the verdict only. By default a line carries
+  `zones.json` action. `rate-limit-guard`'s lines carry the verdict only, except that the line at
+  the threshold ends with one directive, `Keep working.`, the only order this exception admits on a
+  context channel. The owner decided this on 2026-10-04: they rotate accounts by hand on the alerts,
+  and an interactive session waits out a usage limit on its own
+  (<https://code.claude.com/docs/en/interactive-mode#wait-for-a-usage-limit-to-reset>), so a line
+  read as a cue to stop would end work the session can finish. By default a line carries
   no raw count; the operator can add figures through the plugin's line-data option. The reading
   behind the verdict stays on the plugin's status tools.
 - **Telemetry.** The guard mods emit an envelope only on a fire that acts: lines sent, an operator

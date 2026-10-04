@@ -472,6 +472,7 @@ async function statusJson($: EngineInterface, st: State, cfg: Config) {
     verdict: levels.length === 0 ? 'unknown' : levels.includes('edge') ? 'edge' : levels.includes('approach') ? 'approach' : 'quiet',
     line_threshold: cfg.threshold,
     approach_pct: cfg.approach,
+    lanes_pause_edge: PAUSE_EDGE,
     ...(st.spend ? { spend_limit: { used_percentage: st.spend.percentUsed, resets_at: st.spend.resetsAt ?? null } } : {}),
   })
 }

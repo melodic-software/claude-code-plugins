@@ -804,6 +804,7 @@ test('pull tool: latest figures, verdicts and the spend limit, with no line atta
     verdict: 'edge',
     line_threshold: 95,
     approach_pct: 90,
+    lanes_pause_edge: 95,
     spend_limit: { used_percentage: 104.5, resets_at: null },
   })
 })
