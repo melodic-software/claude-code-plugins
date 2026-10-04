@@ -320,18 +320,27 @@ Normalized item object:
   the `local-markdown` adapter has no native-type registry, so `--type` is stored and
   echoed verbatim (an offline-parity scalar). Additive field: items predating it read
   as `null`.
-- `blocked_by_count` counts every blocker except one **closed as completed**. A blocker
-  closed for any other reason (won't do, duplicate) or for a reason the adapter cannot
-  read still blocks: the work it stood for was not done, so its dependent must not
-  graduate onto the frontier. `blocked_by_wont_do_count` counts those closed,
-  not-completed blockers again; a non-zero value means the dependent waits on nothing
-  that will finish and needs re-triage. Close-reason support per adapter: GitHub
-  (`stateReason`), Linear (state type `completed` versus `canceled`/`duplicate`) and
-  local-markdown (`state_reason`) read it; Jira and Gitea are **unsupported** (their
-  sections below say why) and count every closed blocker in both fields. (GitHub:
-  `blockedBy.totalCount` keeps counting closed blockers, and the `gh --json blockedBy`
-  projection has no `stateReason`, so the adapter reads each closed blocker's
-  `stateReason` through `gh api graphql` and unblocks only on `COMPLETED`.)
+- `blocked_by_count` counts **open** blockers plus blockers **closed as won't-do**
+  (not planned, or a duplicate): the work a won't-do blocker stood for will not be done,
+  so its dependent must not graduate onto the frontier. Any other closed blocker is
+  resolved. `blocked_by_wont_do_count` counts the won't-do blockers again; a non-zero
+  value means the dependent waits on nothing that will finish and needs re-triage.
+  Reading a close reason is optional per adapter, and an adapter that cannot read one
+  keeps the closed-means-resolved count and reports `blocked_by_wont_do_count: 0`:
+
+  | Adapter | Resolved | Won't-do (blocks, counted) |
+  |---|---|---|
+  | GitHub | `stateReason` `COMPLETED` or `null` | `NOT_PLANNED`, `DUPLICATE` |
+  | Linear | state type `completed` | other done types (`canceled`, `duplicate`) |
+  | local-markdown | `closed`, no `state_reason` or `completed` | `state_reason` `not_planned`, `duplicate` |
+  | Jira, Gitea | any closed blocker (won't-do detection unsupported) | none |
+
+  GitHub: `blockedBy.totalCount` keeps counting closed blockers and the `gh --json
+  blockedBy` projection has no `stateReason`, so the adapter reads each closed blocker's
+  `stateReason` through `gh api graphql`. When that query fails, or returns no node for a
+  blocker, the closed blocker keeps blocking (fail closed) without counting as won't-do,
+  and a warning goes to stderr. A `null` reason is an issue closed before GitHub recorded
+  reasons.
 - `parent_id` is a fully-qualified ID or `null`. Bulk `list-items` rows MAY carry
   `parent_id: null` when the provider's list surface omits parent data (GitHub's does);
   `get-item` is authoritative for parent linkage.
@@ -717,11 +726,11 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
   `statusCategory` key is in `done_category_keys`, else `open`; `assignees` is the single `assignee`'s
   `accountId` as a one-element array (empty when unassigned); `labels` is Jira `labels[]`
   verbatim (canonical role labels ride as ordinary labels; `list-frontier --autonomous` filters
-  them core-side); `type` is the issue-type name; `blocked_by_count` counts **every** inward
-  `blocked_by_link_type` link and `blocked_by_wont_do_count` the done-category ones among
-  them: `issuelinks` inlines the linked issue's status but not its resolution, so a done
-  blocker's close reason is unknown and keeps blocking (close reason unsupported, see
-  "JSON output contract"); `parent_id` comes from
+  them core-side); `type` is the issue-type name; `blocked_by_count` counts **open** inward
+  `blocked_by_link_type` links only (the linked issue's status is inlined in `issuelinks`, so
+  no second round-trip); won't-do detection is unsupported, because `issuelinks` carries no
+  resolution, so `blocked_by_wont_do_count` is `0` (a follow-up could fetch done blockers'
+  resolutions under a binding key naming the completed ones); `parent_id` comes from
   `fields.parent` (subtask→parent universally, story→epic where the instance uses the unified
   parent field rather than the legacy Epic-Link custom field, a documented best-effort
   limitation deferred with the sub-item link-type question); `url` is `https://<site>/browse/<KEY>`.
@@ -793,8 +802,8 @@ from GitHub's API, and all documented in `adapters/gitea/README.md`:
   unknown one rather than dropping it.
 - `blocked_by_count` costs one extra request per item: the issue carries no dependency data and
   there is no bulk endpoint.
-- A closed issue records no close reason, so a closed blocker keeps blocking and counts in
-  `blocked_by_wont_do_count` (close reason unsupported).
+- A closed issue records no close reason, so a closed blocker is resolved and won't-do
+  detection is unsupported (`blocked_by_wont_do_count` is `0`).
 - `POST /issues/{index}/dependencies` makes the **URL** issue depend on the **body** issue; the
   sibling `/blocks` endpoint is the same edge inverted.
 - `limits.dependencies_per_type` is `null`: Gitea rejects only duplicate and circular edges and

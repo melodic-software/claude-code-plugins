@@ -22,9 +22,8 @@ trap 'rm -rf "$JIRA_FIX"' EXIT
 jira_write_binding '["SW2"]'
 
 # A Jira issue with one OPEN blocker (SW2-9, new) and one CLOSED blocker (SW2-8, done)
-# under the standard "Blocks" link type, plus a parent — exercises blocked_by_count,
-# parent qualification, and state mapping. An issue link carries no resolution, so a
-# done blocker's close reason is unknown and it keeps blocking (won't-do counts it).
+# under the standard "Blocks" link type, plus a parent — exercises the OPEN-only
+# blocked_by_count and done-exclusion, parent qualification, and state mapping.
 cat >"$JIRA_FIX/1.body" <<'JSON'
 {"key":"SW2-12345","fields":{"summary":"Do the thing","status":{"statusCategory":{"key":"indeterminate"}},"assignee":{"accountId":"acc-1"},"labels":["backend","urgent"],"issuetype":{"name":"Task"},"parent":{"key":"SW2-100"},"issuelinks":[{"type":{"name":"Blocks"},"inwardIssue":{"key":"SW2-9","fields":{"status":{"statusCategory":{"key":"new"}}}}},{"type":{"name":"Blocks"},"inwardIssue":{"key":"SW2-8","fields":{"status":{"statusCategory":{"key":"done"}}}}}]}}
 JSON
@@ -39,8 +38,8 @@ assert_eq "state open (indeterminate)" "open" "$(jq -r '.state' <<<"$OUT")"
 assert_eq "assignee accountId" "acc-1" "$(jq -r '.assignees[0]' <<<"$OUT")"
 assert_eq "labels verbatim" "backend,urgent" "$(jq -r '.labels | join(",")' <<<"$OUT")"
 assert_eq "type name" "Task" "$(jq -r '.type' <<<"$OUT")"
-assert_eq "blocked_by_count: open and done-with-unknown-reason both block" "2" "$(jq -r '.blocked_by_count' <<<"$OUT")"
-assert_eq "blocked_by_wont_do_count: the done blocker" "1" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
+assert_eq "blocked_by_count OPEN-only" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+assert_eq "blocked_by_wont_do_count is 0 (resolution unreadable)" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
 assert_eq "parent_id qualified" "jira:test.atlassian.net/SW2#100" "$(jq -r '.parent_id' <<<"$OUT")"
 assert_eq "url is browse link" "https://test.atlassian.net/browse/SW2-12345" "$(jq -r '.url' <<<"$OUT")"
 case "$OUT" in *$'\r'*) fail "stdout CR-free" "no CR" "CR present" ;; *) pass "stdout CR-free" ;; esac

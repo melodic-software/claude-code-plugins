@@ -7,18 +7,19 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Added
 
-- **`blocked_by_wont_do_count` on every normalized item.** It counts blockers closed without
-  being completed (won't do, duplicate, or a close reason the adapter cannot read). A non-zero
-  value means the item waits on work that will never finish and needs re-triage.
+- **`blocked_by_wont_do_count` on every normalized item.** It counts blockers closed as
+  not planned or as a duplicate. A non-zero value means the item waits on work that will never
+  finish and needs re-triage. Generated adapters emit it too.
 
 ### Fixed
 
 - **A blocker closed as won't-do no longer unblocks its dependents.** `blocked_by_count` now
-  counts every blocker except one closed as completed, so an unattended loop no longer picks
-  work whose prerequisite was abandoned. The GitHub adapter reads each closed blocker's
-  `stateReason` through `gh api graphql`; Linear unblocks only on the `completed` state type;
-  local-markdown reads an optional `state_reason` frontmatter field. Jira and Gitea cannot read
-  a close reason, so a closed blocker keeps blocking there.
+  also counts blockers closed as not planned or duplicate, so an unattended loop no longer
+  picks work whose prerequisite was abandoned. The GitHub adapter reads each closed blocker's
+  `stateReason` through `gh api graphql` (a `null` reason still resolves; a failed query keeps
+  the blocker blocking); Linear unblocks only on the `completed` state type; local-markdown
+  reads an optional `state_reason` frontmatter field. Jira and Gitea record no readable close
+  reason, so they keep counting a closed blocker as resolved.
 - **A fork's closing PR no longer parks an item as in flight.** The GitHub "Open linked PRs"
   reductions count only open PRs whose head branch lives in the item's own repository, so an
   outsider's `Closes #N` PR does not hold the item off the frontier for the stale window.

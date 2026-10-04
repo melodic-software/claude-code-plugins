@@ -337,11 +337,10 @@ export WIT_JIRA_FIELDS
 # wit_jira_normalize_program — a jq program that maps one raw Jira IssueBean into the
 # seam's normalized item object (CONTRACT.md "JSON output contract"). Expects jq args
 # $sv (schema version), $site (Cloud host), $dk (JSON array of done statusCategory
-# keys), $blk (blocker link-type name). blocked_by_count counts EVERY inward blocker:
-# an issue link carries the blocker's status but not its resolution, so a done
-# blocker's close reason is unknown and, per the contract, unknown keeps blocking.
-# blocked_by_wont_do_count counts those done blockers so the dependent is re-triaged
-# (CONTRACT.md "JSON output contract": close reason unsupported).
+# keys), $blk (blocker link-type name). blocked_by_count counts only OPEN inward
+# blockers. An issue link carries the blocker's status but not its resolution, so a
+# done blocker counts as resolved and won't-do detection is unsupported:
+# blocked_by_wont_do_count is always 0.
 # WIT_JIRA_NORMALIZE_PROGRAM is consumed by the sourcing verb scripts (get-item,
 # list-items), not within this file — SC2034 is a false positive on a sourced-only
 # lib. It is a jq program string, so it is not exported (an exported quoted program
@@ -361,11 +360,10 @@ readonly WIT_JIRA_NORMALIZE_PROGRAM='
     labels: (.fields.labels // []),
     type: (.fields.issuetype.name // null),
     blocked_by_count: ([ (.fields.issuelinks // [])[]
-      | select(.type.name == $blk and (.inwardIssue != null)) ] | length),
-    blocked_by_wont_do_count: ([ (.fields.issuelinks // [])[]
       | select(.type.name == $blk and (.inwardIssue != null))
       | (.inwardIssue.fields.status.statusCategory.key) as $bk
-      | select($dk | index($bk)) ] | length),
+      | select( ($dk | index($bk)) | not ) ] | length),
+    blocked_by_wont_do_count: 0,
     parent_id: (if (.fields.parent.key // null) == null then null else (.fields.parent.key | qualify) end),
     url: ("https://" + $site + "/browse/" + .key)
   }'

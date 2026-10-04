@@ -118,7 +118,7 @@ while :; do
   fi
 done
 
-# Blocker counts are one request per item: Gitea's Issue carries no dependency
+# Open-blocker counts are one request per item: Gitea's Issue carries no dependency
 # data and there is no bulk dependency endpoint. Returning 0 instead would be worse
 # than slow — list-frontier filters on blocked_by_count == 0, so every blocked item
 # would surface as available work.
@@ -140,7 +140,7 @@ while IFS= read -r NUMBER; do
   # subshell — propagate its code rather than continuing with "" and reporting a 401 or
   # a 503 as this adapter's own internal error.
   BBC="$(wit_gitea_blocked_by_count "$WIT_GITEA_OWNER" "$WIT_GITEA_REPO" "$NUMBER")" || exit "$?"
-  printf '{"number":%s,"counts":%s}\n' "$NUMBER" "$BBC" >>"$COUNTS"
+  printf '{"number":%s,"blocked_by_count":%s}\n' "$NUMBER" "$BBC" >>"$COUNTS"
 done < <(jq -r '.number' "$ROWS")
 
 # One pass builds the envelope: slurp the rows, join each to its blocker count, normalize.
@@ -149,7 +149,7 @@ done < <(jq -r '.number' "$ROWS")
 # or partial envelope with a success status.
 jq -c -s --slurpfile counts "$COUNTS" --arg sv "$WIT_SCHEMA_VERSION" \
   --arg full "$WIT_GITEA_OWNER/$WIT_GITEA_REPO" '
-  ($counts | map({key: (.number | tostring), value: .counts}) | from_entries) as $bbc_by_number
+  ($counts | map({key: (.number | tostring), value: .blocked_by_count}) | from_entries) as $bbc_by_number
   | {schema_version: $sv,
      items: [ .[]
        | (.repository.full_name //= $full)

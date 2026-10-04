@@ -150,6 +150,7 @@ node() {
   2) printf '{"id":"I2","number":102,"state":"CLOSED"}' ;;
   3) printf '{"id":"I3","number":103,"state":"CLOSED"}' ;;
   4) printf '{"id":"I4","number":104,"state":"CLOSED"}' ;;
+  5) printf '{"id":"I5","number":105,"state":"CLOSED"}' ;;
   esac
 }
 issue() {
@@ -167,6 +168,7 @@ elif [[ "$1 $2" == "api graphql" ]]; then
     "ids[]=I2") out+='{"id":"I2","stateReason":"COMPLETED"},' ;;
     "ids[]=I3") out+='{"id":"I3","stateReason":"NOT_PLANNED"},' ;;
     "ids[]=I4") out+='{"id":"I4","stateReason":"DUPLICATE"},' ;;
+    "ids[]=I5") out+='{"id":"I5","stateReason":null},' ;;
     esac
   done
   printf '{"data":{"nodes":[%s]}}' "${out%,}"
@@ -195,9 +197,14 @@ EOF
   assert_eq "CLOSED+DUPLICATE blocker still blocks" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
   assert_eq "CLOSED+DUPLICATE blocker counts as won't-do" "1" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
 
+  # Issues closed before GitHub recorded reasons read back with a null stateReason.
+  OUT="$(emit 5)"
+  assert_eq "CLOSED with null stateReason unblocks" "0" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+  assert_eq "CLOSED with null stateReason is not won't-do" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
+
   OUT="$(GH_STUB_GRAPHQL_FAIL=1 emit 2)"
-  assert_eq "unknown close reason (query failed) still blocks" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
-  assert_eq "unknown close reason counts as won't-do" "1" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
+  assert_eq "failed close-reason query keeps the closed blocker blocking" "1" "$(jq -r '.blocked_by_count' <<<"$OUT")"
+  assert_eq "failed close-reason query is not won't-do" "0" "$(jq -r '.blocked_by_wont_do_count' <<<"$OUT")"
 
   : >"$REASON_STUB/calls.log"
   OUT="$(GH_STUB_DIR="$REASON_STUB" PATH="$REASON_STUB:$PATH" bash "$SCRIPT_DIR/list-items.sh" --repo o/r 2>/dev/null)"

@@ -250,8 +250,10 @@ readonly WIT_ITEM_JQ='{
   assignees: [(.assignees // [])[] | .login],
   labels: [(.labels // [])[] | .name],
   type: (.issueType.name // null),
-  blocked_by_count: ([(.blockedBy.nodes // [])[] | select(.state != "CLOSED" or .stateReason != "COMPLETED")] | length),
-  blocked_by_wont_do_count: ([(.blockedBy.nodes // [])[] | select(.state == "CLOSED" and .stateReason != "COMPLETED")] | length),
+  blocked_by_count: ([(.blockedBy.nodes // [])[] | select(.state != "CLOSED" or .reasonRead == false
+    or .stateReason == "NOT_PLANNED" or .stateReason == "DUPLICATE")] | length),
+  blocked_by_wont_do_count: ([(.blockedBy.nodes // [])[] | select(.state == "CLOSED"
+    and (.stateReason == "NOT_PLANNED" or .stateReason == "DUPLICATE"))] | length),
   parent_id: (
     if (.parent // null) != null and (.parent.url // null) != null
     then (.parent.url
@@ -266,8 +268,10 @@ readonly WIT_ITEM_JQ='{
 # `gh --json ...,blockedBy` returns it; stdout: the same JSON with `stateReason` set
 # on every CLOSED blocker node. That projection carries no stateReason, so the
 # reasons come from `gh api graphql` nodes(ids:), one query per 100 closed blockers
-# and none when there is no closed blocker. A failed query is not fatal: the reason
-# stays null, which WIT_ITEM_JQ counts as not completed, so the blocker keeps blocking.
+# and none when there is no closed blocker. Each CLOSED node also gets `reasonRead`:
+# false when its query failed or GitHub returned no node for it. A failed query is not
+# fatal, but WIT_ITEM_JQ keeps an unread blocker blocking (fail closed). A node read
+# with a null stateReason (issues closed before GitHub recorded reasons) is resolved.
 wit_gh_annotate_blocker_reasons() {
   local json ids n i reasons='[]' out args id
   json="$(cat)"
@@ -290,14 +294,15 @@ wit_gh_annotate_blocker_reasons() {
   printf '%s' "$json" | jq -c --argjson r "$reasons" '
     (reduce $r[] as $x ({}; .[$x.id] = $x.stateReason)) as $by_id
     | def ann: if (.blockedBy.nodes // null) == null then .
-        else .blockedBy.nodes |= map(if .state == "CLOSED" then .stateReason = $by_id[.id] else . end) end;
+        else .blockedBy.nodes |= map(if .state == "CLOSED"
+          then .id as $i | .stateReason = $by_id[$i] | .reasonRead = ($by_id | has($i)) else . end) end;
     if type == "array" then map(ann) else ann end'
 }
 
 # wit_emit_item <owner> <repo> <number> — fetch the issue and emit the normalized
-# item object (CONTRACT.md "JSON output contract"). blocked_by_count counts every
-# blocker except one closed as COMPLETED; blocked_by_wont_do_count counts the closed
-# rest (NOT_PLANNED, DUPLICATE, or a reason that could not be read).
+# item object (CONTRACT.md "JSON output contract"). blocked_by_count counts OPEN
+# blockers, blockers closed NOT_PLANNED or DUPLICATE, and closed blockers whose reason
+# could not be read; blocked_by_wont_do_count counts the NOT_PLANNED and DUPLICATE ones.
 # gh >= 2.94 reads through `gh issue view --json` (issueType/blockedBy/parent).
 # Older gh reads REST, which sandboxed sessions serve where GraphQL 403s, and maps
 # the REST shape onto the same fields; type comes from .type, and parent and
