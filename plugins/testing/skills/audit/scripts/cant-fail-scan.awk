@@ -1744,7 +1744,7 @@ function open_block(line, name) {
   RUN_PEND = BANG_PEND = GO_IF = 0
   BID++
   OR_S = OR_W = OR_P = OR_WLINE = OR_PLINE = OR_T = OR_TLINE = EX_N = 0
-  ER_LINE = ER_DONE = ER_D = CW_OPEN = CW_IN = 0
+  ER_LINE = ER_DONE = ER_D = CW_OPEN = CW_IN = CW_ARM = 0
   CD = CR_N = CR_LOOPS = CR_BR = CA_IN = CA_OUT = CA_LINE = 0
   COND_NEXT = SRC_PEND = SIG = PM_NAME = CS_SIG = ""
   CS_RET = CS_WRAP = CS_HEAD = 0
@@ -1795,10 +1795,14 @@ function split_stmts(m, r,    n, i, c, from, k) {
 # alone, and so is a return in the body of a local function or a lambda, which
 # exits only that callable. ER_D is the brace depth in the body; CW_OPEN the
 # depth inside such a catch or callable, CW_IN set while the scan is in it.
+# A header whose "{" is not on its line arms CW_ARM; the next non-blank line
+# must open with that "{", else the header had no block (a multi-line
+# expression lambda) and the scope is dropped.
 function er_scan(m, r,    d0, p, a, cw, post) {
   if (LEXER != "cs" || ER_DONE) return
   d0 = ER_D
   ER_D += brace_delta(m)
+  if (CW_ARM && m !~ /^[[:space:]]*$/) { if (m !~ /^[[:space:]]*\{/) CW_OPEN = 0; CW_ARM = 0 }
   if (CW_OPEN) { if (d0 >= CW_OPEN) CW_IN = 1; else if (CW_IN) CW_OPEN = CW_IN = 0 }
   p = match(m, /(^|[^A-Za-z0-9_.])return[[:space:]]*;/) ? RSTART + RLENGTH : 0
   a = 0
@@ -1816,6 +1820,7 @@ function er_scan(m, r,    d0, p, a, cw, post) {
     if (!index(post, "{") || brace_delta(post) > 0) {
       CW_OPEN = d0 + brace_delta(substr(m, 1, cw - 1)) + 1
       CW_IN = brace_delta(post) > 0
+      CW_ARM = !index(post, "{")
     }
   }
   if (p && (!a || p < a) && !CW_IN && !(cw && cw < p)) { ER_LINE = FNR; ER_SNIP = snippet(r); ER_DONE = 1 }

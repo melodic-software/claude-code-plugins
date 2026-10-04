@@ -23,4 +23,16 @@ public class ConfigEarlyReturnTests
         }
         Assert.Equal(8, IntPtr.Size);
     }
+
+    [Fact]
+    public void Keys_HaveValues()
+    {
+        var keys = Config.Load("app.json").Keys.Where(k =>
+            k.Length > 0);
+        if (!keys.Any())
+        {
+            return;
+        }
+        Assert.All(keys, k => Assert.NotNull(Config.Get(k)));
+    }
 }

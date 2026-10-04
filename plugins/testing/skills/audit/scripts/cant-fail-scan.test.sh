@@ -1704,7 +1704,7 @@ a="$(remedy "$C/cs-xunit/bad/ConfigEarlyReturnTests.cs" rule-conditional-asserti
 assert_contains "conditional remedy (cs) offers xUnit v3's Assert.Skip" "$a" "Assert.Skip on xUnit v3"
 assert_contains "conditional remedy (cs) offers a skip package on xUnit v2" "$a" "a skip package such as Xunit.SkippableFact on xUnit v2"
 run_file --file "$C/cs-xunit/bad/ConfigEarlyReturnTests.cs"
-if [[ "$(count_lines "$out" 'a return before every assertion')" == 2 ]]; then
+if [[ "$(count_lines "$out" 'a return before every assertion')" == 3 ]]; then
   pass "an early return before each test's only assertion is one finding per test"
 else
   fail "an early return before each test's only assertion is one finding per test" "$out"
