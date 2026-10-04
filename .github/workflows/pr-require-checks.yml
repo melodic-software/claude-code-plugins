@@ -681,7 +681,7 @@ jobs:
         run: |
           globs='**/*.md'
           if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only --diff-filter=d "$DIFF_BASE...HEAD") &&
-            ! grep -qE '(^|/)\.markdownlint[^/]*$|^\.github/workflows/ci\.yml$' <<<"$changed"; then
+            ! grep -qE '(^|/)\.markdownlint[^/]*$|^\.github/workflows/pr-require-checks\.yml$' <<<"$changed"; then
             md=$(grep -E '\.md$' <<<"$changed" || true)
             if [ -z "$md" ]; then
               globs=README.md
@@ -1168,7 +1168,7 @@ jobs:
           files=''
           if [ -n "$DIFF_BASE" ]; then
             files=$(git diff --name-only "$DIFF_BASE...HEAD")
-            whole='^\.shellcheckrc$|^\.github/workflows/ci\.yml$|^"| '
+            whole='^\.shellcheckrc$|^\.github/workflows/pr-require-checks\.yml$|^"| '
             sourced='(^|/)lib/.*\.(sh|bash)$|-(harness|helpers)\.sh$'
             extra=''
             while IFS= read -r path; do
@@ -1549,7 +1549,7 @@ jobs:
           DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
         run: |
           if [ -n "$DIFF_BASE" ] && changed=$(git diff --name-only "$DIFF_BASE...HEAD") &&
-            ! grep -qE '^(\.github/workflows/ci\.yml|scripts/validate-plugins\.sh|scripts/plugin-validate-report\.mjs|package(-lock)?\.json)$' <<<"$changed"; then
+            ! grep -qE '^(\.github/workflows/pr-require-checks\.yml|scripts/validate-plugins\.sh|scripts/plugin-validate-report\.mjs|package(-lock)?\.json)$' <<<"$changed"; then
             touched=''
             while IFS= read -r plugin; do
               [ -d "plugins/$plugin" ] && touched+="$plugin "

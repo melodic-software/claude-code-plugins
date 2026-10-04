@@ -1,0 +1,26 @@
+// good-for: rule-inert-assertion
+// good-for: rule-weak-oracle
+// Two statements on one line, each able to fail, and semicolons that end no
+// statement: a for header, a string, a char literal and a comment.
+using Xunit;
+
+public class WidgetTwoStatementsOneLineTests
+{
+    [Fact]
+    public void Create_NamesTheWidget()
+    {
+        var widget = WidgetFactory.Create(); Assert.Equal("w", widget.Name); // not Assert.True(true); a name
+    }
+
+    [Fact]
+    public void Split_ReadsBothParts()
+    {
+        var parts = Widget.Split("a;b"); Assert.Equal(2, parts.Length); Assert.Equal("b", parts[1]);
+    }
+
+    [Fact]
+    public void Separator_IsASemicolon()
+    {
+        for (var i = 0; i < 2; i++) { Assert.Equal(';', Widget.Separator(i)); }
+    }
+}
