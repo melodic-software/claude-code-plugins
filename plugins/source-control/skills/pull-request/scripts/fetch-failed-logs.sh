@@ -244,11 +244,16 @@ fi
 #
 # Cached ZIPs and extracted logs are transient. Precedence: explicit
 # FETCH_LOGS_SCRATCH override > the plugin's persistent data directory
-# (CLAUDE_PLUGIN_DATA, set when running as an installed plugin) > mktemp.
+# (CLAUDE_PLUGIN_DATA, only when its last path segment names source-control:
+# another plugin's SessionStart hook can export its own data dir under that
+# name into every Bash call) > mktemp.
 
 SCRATCH="${FETCH_LOGS_SCRATCH:-}"
 if [[ -z "$SCRATCH" ]]; then
-  if [[ -n "${CLAUDE_PLUGIN_DATA:-}" ]]; then
+  data_seg="${CLAUDE_PLUGIN_DATA:-}"
+  data_seg="${data_seg%[/\\]}"
+  data_seg="${data_seg##*[/\\]}"
+  if [[ "$data_seg" == source-control || "$data_seg" == source-control-* ]]; then
     SCRATCH="$CLAUDE_PLUGIN_DATA/scratch"
   else
     SCRATCH=$(mktemp -d)

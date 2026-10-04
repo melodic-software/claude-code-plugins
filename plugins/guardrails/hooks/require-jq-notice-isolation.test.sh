@@ -12,6 +12,7 @@
 # catches this: each isolates its own CLAUDE_PLUGIN_DATA/session, so two
 # different guardrails hooks sharing one session (the real-world condition)
 # is never exercised. This test simulates exactly that.
+# test-scope: plugins/guardrails/hooks/*.sh
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

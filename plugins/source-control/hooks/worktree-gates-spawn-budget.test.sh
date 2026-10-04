@@ -30,7 +30,7 @@
 #
 # The counts include hook-utils.sh's own share (the buffer_stdin substitution
 # and hook::json_complete's `printf | jq -e .`), which these hooks cannot reach:
-# the library is synced across 17 plugin copies by scripts/sync-hook-utils.sh
+# the library is generated into 21 plugin copies by scripts/sync-shared-copies.sh
 # and is out of scope for an in-file perf change.
 set -uo pipefail
 

@@ -246,6 +246,34 @@ const tampered = {
 for (const [name, bad] of Object.entries(tampered)) {
   check(`validator rejects a page with ${name}`, !validateInteractivePage(bad, runtime).ok);
 }
+// ------------------------------------------- Claude-interactive (rule 9)
+const policyOf = (html) => /<meta http-equiv="Content-Security-Policy" content="[^"]*">/.exec(html)[0];
+const bridged = buildView({ profile: "interactive", template, data: sample, connect: "http://127.0.0.1:8765" });
+check("a page built with connect validates", validateView(bridged).ok, validateView(bridged).failures);
+check(
+  "connect adds one connect-src naming the bridge origin, last",
+  bridged.includes("form-action &#x27;none&#x27;; connect-src http://127.0.0.1:8765\">"),
+);
+check("a page built without connect carries no connect-src", !policyOf(page).includes("connect-src"));
+for (const bad of ["http://localhost:8765", "https://127.0.0.1:8765", "http://127.0.0.1:99999", "http://127.0.0.1:0", "http://127.0.0.1:8765 https://evil.example", "http://127.0.0.1"]) {
+  check(`rejects connect ${bad}`, (failuresOf(() => buildView({ profile: "interactive", template, data: sample, connect: bad })) ?? []).includes("connect"));
+}
+check("rejects connect on a report", failuresOf(() => buildView({ profile: "report", template: "<p>x</p>", data: {}, connect: "http://127.0.0.1:8765" })) !== null);
+const connectTampered = {
+  "a connect-src moved to another origin": bridged.replace("connect-src http://127.0.0.1:8765", "connect-src https://evil.example"),
+  "a connect-src widened to any origin": bridged.replace("connect-src http://127.0.0.1:8765", "connect-src *"),
+  "a second origin in connect-src": bridged.replace("connect-src http://127.0.0.1:8765", "connect-src http://127.0.0.1:8765 https://evil.example"),
+  "a connect-src added to a plain page": page.replace("form-action &#x27;none&#x27;\">", "form-action &#x27;none&#x27;; connect-src https://evil.example\">"),
+  "a connect-src to an out-of-range port": bridged.replace("connect-src http://127.0.0.1:8765", "connect-src http://127.0.0.1:99999"),
+};
+for (const [name, bad] of Object.entries(connectTampered)) {
+  check(`validator rejects a page with ${name}`, !validateInteractivePage(bad, runtime).ok);
+}
+check(
+  "data naming a bridge origin never reaches the policy the runtime reads",
+  policyOf(buildView({ profile: "interactive", template, data: { ...sample, title: "x; connect-src http://127.0.0.1:1" } })) === policyOf(page),
+);
+
 const unmarked = page.replace(/<!-- rv-gen:view-builder-interactive sha256:[0-9a-f]{64} -->/, "");
 check("a page without the interactive marker falls back to the report profile and fails", !validateView(unmarked).ok);
 
@@ -288,7 +316,7 @@ const forbidden = {
   "setAttribute": /setAttribute|setAttributeNS/, "style": /\.style\b|cssText/, // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   "src": /\.src\b/, "srcdoc": /srcdoc/, "on* property": /\.on[a-z]+\s*=/, // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   "storage": /localStorage|sessionStorage|indexedDB|document\.cookie/,
-  "network": /fetch\s*\(|XMLHttpRequest|WebSocket|sendBeacon|EventSource|import\s*\(/, // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+  "network beyond fetch and EventSource": /XMLHttpRequest|WebSocket|sendBeacon|import\s*\(/, // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   "window globals": /\bwindow\./, // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   // Selectors are string literals, or scoped()'s parameter, whose callers pass literals.
   "selector from data": /(?:querySelector(?:All)?|matches|closest)(?:\?\.)?\((?!"|selector\))|\bscoped\([a-z]+, (?!")/, // portability-ok: embedded node JavaScript regex, not a shell tool pattern
@@ -297,8 +325,16 @@ const forbidden = {
 for (const [name, re] of Object.entries(forbidden)) {
   check(`runtime uses no ${name}`, !re.test(code), (code.match(re) ?? [])[0]);
 }
+check(
+  "every network call goes to the session-bridge origin read from the page's policy",
+  (code.match(/fetch\s*\(|EventSource\s*\(/g) ?? []).length === 3 && // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+    (code.match(/(?:fetch|new EventSource)\(`\$\{(?:session\.)?origin\}\/(?:api\/token|api\/action|events)`/g) ?? []).length === 3, // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+);
+check(
+  "the runtime parses only the data block and the bridge's state frames",
+  (code.match(/JSON\.parse\(/g) ?? []).length === 2 && /JSON\.parse\(block\.textContent\)/.test(code) && /JSON\.parse\(event\.data\)/.test(code), // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+);
 check("the only href the runtime sets is the blob: object URL", (code.match(/\.href\s*=/g) ?? []).length === 1 && /anchor\.href = url;/.test(code) && /const url = URL\.createObjectURL\(/.test(code)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
-check("the runtime reads the data block only with JSON.parse", (code.match(/JSON\.parse\(/g) ?? []).length === 1 && /JSON\.parse\(block\.textContent\)/.test(code));
 check("the runtime writes data only through textContent", !/\.(innerText|value)\s*=\s*text/.test(code)); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 
 // ---------------------------------------------------- generated plugin copy
@@ -327,6 +363,16 @@ if (!chrome) {
   check("browser: the hostile page renders", bad.includes('class="rv-ready"'));
   check("browser: no hostile script or handler ran", !/<html[^>]*pwned|<title>pwned/.test(bad));
   check("browser: hostile markup stays text", !/<img|<svg onload|<a href="javascript/i.test(bad) && bad.includes("&lt;img src=x"));
+  check(
+    "browser: a page with no session says it is not connected",
+    good.includes("No session is connected. Copy your reply and paste it into the session."),
+  );
+  const offline = dump(bridged, "bridged-offline");
+  check(
+    "browser: a bridged page with no server stays usable and says it is not connected",
+    offline.includes('class="rv-ready"') && offline.includes("No session is connected."),
+    offline.slice(0, 200),
+  );
   const blocked = dump(page.replace("use strict", "use  strict"), "blocked");
   check("browser: a runtime that does not match its hash is blocked", !blocked.includes('class="rv-ready"') && blocked.includes("<main"));
 }

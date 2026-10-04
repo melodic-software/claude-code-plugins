@@ -19,7 +19,7 @@
         "winget": "OpenJS.NodeJS.LTS",
         "apt": "nodejs"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/animation:check-prerequisites"
     },
     {
       "id": "python3",
@@ -48,7 +48,7 @@
         "winget": "Python.Python.3.12",
         "apt": "python3"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/animation:check-prerequisites"
     },
     {
       "id": "jq",
@@ -69,7 +69,7 @@
         "winget": "jqlang.jq",
         "apt": "jq"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/animation:check-prerequisites"
     },
     {
       "id": "ffmpeg",
@@ -92,7 +92,7 @@
         "winget": "Gyan.FFmpeg",
         "apt": "ffmpeg"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/animation:check-prerequisites"
     },
     {
       "id": "ffprobe",
@@ -115,7 +115,7 @@
         "winget": "Gyan.FFmpeg",
         "apt": "ffmpeg"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/animation:check-prerequisites"
     },
     {
       "id": "libx264",
@@ -143,7 +143,7 @@
         "winget": "Gyan.FFmpeg",
         "apt": "ffmpeg"
       },
-      "check": "/harness-ops:prerequisites"
+      "check": "/animation:check-prerequisites"
     }
   ]
 }

@@ -73,8 +73,15 @@ Resolve that value in the skill before launching tools. Explicitly pass the resu
 build subprocess; do not assume plugin configuration is inherited by an arbitrary shell:
 
 ```bash
-AI_BRIEFING_PROFILE="$PROFILE" node "${CLAUDE_PLUGIN_DATA}/runtime/build/run.js"
+CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}" AI_BRIEFING_PROFILE="$PROFILE" node "${CLAUDE_PLUGIN_DATA}/runtime/build/run.js"
 ```
+
+Set `CLAUDE_PLUGIN_DATA` on the launch the same way. The Bash tool's environment does not carry
+this plugin's value, and another plugin's SessionStart hook can export its own data directory
+under that name, so the build uses an inherited value only when it names ai-briefing. Basis: the
+plugins reference, <https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>,
+verified 2026-10-03; recheck when that table lists the Bash tool among the processes that receive
+the variables.
 
 Keep the selection per-invocation: set it on each launched process as above, never as a global
 export the consumer adds to their shell profile. A global export pins one profile for every
@@ -117,7 +124,8 @@ cascade overlay:
    and do not emit duplicate items.
 8. For `--format html` or `--format slides`, require the optional build tree installed by
    `/ai-briefing:setup apply install-build-deps`. Run the staged build pipeline against the emitted
-   markdown with `AI_BRIEFING_PROFILE="$PROFILE"` set on the launched process. Playwright may
+   markdown with `CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}"` and `AI_BRIEFING_PROFILE="$PROFILE"`
+   set on the launched process, as in the launch line above. Playwright may
    open only generated local HTML for PDF rendering and layout validation. Surface missing
    prerequisites with the exact setup command; do not silently fall back to another browser
    provider.

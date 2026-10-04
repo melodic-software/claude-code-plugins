@@ -1,14 +1,15 @@
 # explainer-video
 
-A Claude Code plugin for short silent explainer videos made with
-[ManimCE](https://docs.manim.community/). Claude writes one scene script, renders it, and checks the
-file it rendered before calling the video done.
+A Claude Code plugin for short explainer videos made with
+[ManimCE](https://docs.manim.community/), narrated when the `speech` plugin is installed and silent
+otherwise. Claude writes one scene script, renders it, and checks the file it rendered before
+calling the video done.
 
 ## Skills
 
 | Skill | What it does |
 |---|---|
-| `/explainer-video:produce <topic> [output dir]` | Plans three to six beats, writes `scene.py` (`Text` for words, `MathTypst` for math), renders it at low quality with `scripts/render.py`, fixes and re-renders until every check passes, reads the extracted frames back, then renders the delivery quality. |
+| `/explainer-video:produce <topic> [output dir]` | Plans three to six beats, writes a narration script (one paragraph per beat) and narrates it with `/speech:narrate` when that plugin is installed, writes `scene.py` (`Text` for words, `MathTypst` for math, `beat()` cues timed to the narration), renders it at low quality with `scripts/render.py`, fixes and re-renders until every check passes, reads the extracted frames back, then renders the delivery quality. |
 | `/explainer-video:check` | Read-only: one PASS/FAIL row each for Python 3.12 or 3.13, the installed ManimCE packages, ffmpeg and ffprobe. Installs nothing. |
 
 ## What every render checks
@@ -31,7 +32,21 @@ Videos are views: they are written to the directory the user names or to
 `${CLAUDE_PLUGIN_DATA}/videos/<slug>/`, never inside a
 [record bundle](../../docs/conventions/record-bundle/README.md).
 
-Narration, captions and the final mux are not part of this plugin yet.
+## Narration
+
+With `--narration <folder>` (the folder holding `script.txt`, `narration.wav` and `words.json`
+from `/speech:narrate`), the timing is audio first: `scripts/narration.py` turns the script's
+paragraphs into beat start times from the word timings, and the scene's `beat(self, k)` calls hold
+until each one. `render.py` then muxes the silent render with the narration (AAC) and a caption
+track built from `words.json` (`mov_text`, also written as `captions.srt`), and adds these checks:
+
+- every beat is cued once, in order, within one frame of its paragraph's first word, and the last
+  within one frame of the narration's end;
+- the MP4 has one video, one audio and one subtitle stream, and the video and audio streams are
+  within a frame per animation, plus one, of each other.
+
+Without the `speech` plugin the skill renders silent and says narration is unavailable; `beat`
+then holds only its `hold` seconds.
 
 ## Requirements
 
@@ -67,8 +82,9 @@ The lock carries a hash for every wheel and source archive; `scripts/pydeps.py` 
 
 ## Tests
 
-`scripts/explainer-video.test.sh` runs the installer and check-function suites with the standard
-library. The two real renders in `test_explainer_video_render.py` need ManimCE, ffmpeg and ffprobe, and skip
+`scripts/explainer-video.test.sh` runs the installer, check-function and narration suites with the
+standard library; the mux test needs ffmpeg and ffprobe. The four real renders (two silent, two
+narrated) in `test_explainer_video_render.py` need ManimCE, ffmpeg and ffprobe, and skip
 without them; run them through the launcher with `EXPLAINER_VIDEO_REQUIRE_DEPS=1` so a missing
 dependency fails instead. `hooks/install-python-deps.test.sh` covers the install hook against a
 local fixture wheel.

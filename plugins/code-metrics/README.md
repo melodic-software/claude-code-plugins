@@ -94,7 +94,8 @@ measured nothing can never read as green. The markdown table shows each function
 collector's values on that line, rows over a reference first, and stops at 200 rows; every
 markdown run also writes the whole document to
 `<CLAUDE_PLUGIN_DATA>/reports/<state-key>/<skill>-<stamp>.json` (`CLAUDE_PLUGIN_DATA` falls back to
-`~/.claude/plugins/data/code-metrics`) and names the path, so the rows past the cap need no second
+`~/.claude/plugins/data/code-metrics`, and an inherited value that names another plugin is ignored)
+and names the path, so the rows past the cap need no second
 run. The state key names the project, so one project's runs share a directory and its newest 20
 documents per skill are kept; when the key cannot be derived no document is kept and the cap line
 says to re-run with `--json`. `CODE_METRICS_REPORT_DIR` overrides the directory. These documents

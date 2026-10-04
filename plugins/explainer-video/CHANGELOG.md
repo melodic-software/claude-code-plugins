@@ -3,6 +3,43 @@
 All notable changes to the `explainer-video` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.2] - 2026-10-03
+
+### Fixed
+
+- **The `SessionStart` node-notice row no longer runs `powershell` on Linux.** It stopped at `${BASH_VERSION:+exit}`, which only bash sets; Claude Code runs hooks with `/bin/sh`, which is dash on Debian and Ubuntu (WSL included), so every session printed `powershell: not found`. The row now stops at `${PPID:+exit}`, which every POSIX shell sets.
+
+## [0.2.1] - 2026-10-03
+
+### Changed
+
+- **Shared `prerequisites.mjs` synced ([#6084](https://github.com/melodic-software/claude-code-plugins/issues/6084)); no change to this plugin's lib.**
+  The prerequisite check now counts a Windows App Execution Alias (a Store or winget install on PATH) as found,
+  except App Installer's Python install stub. A `cli` or `runtime` entry can set `reject_store_alias` to skip aliases instead; no entry in this plugin does.
+
+## [0.2.0] - 2026-10-03
+
+### Added
+
+- **Narrated videos, audio first** ([#5862](https://github.com/melodic-software/claude-code-plugins/issues/5862)).
+  `produce` writes a narration script (one paragraph per beat) and narrates it with `/speech:narrate`;
+  `scripts/narration.py` turns the script's paragraphs and `words.json` into beat start times, and a
+  scene's `beat(self, k)` calls hold until each one. `render.py --narration <folder>` muxes the silent
+  render with the narration (AAC) and a caption track built from `words.json` (`mov_text`, also
+  written as `captions.srt`), and fails the run when a beat misses its narration start by more than
+  one frame, when the file does not hold one video, one audio and one subtitle stream, or when the
+  video and audio streams differ by more than a frame per animation plus one.
+- Without the `speech` plugin, `produce` renders silent and says narration is unavailable; `beat`
+  then holds only its `hold` seconds, so one scene serves both.
+
+## [0.1.3] - 2026-10-03
+
+### Changed
+
+- **Shared `hook-utils.sh` synced ([#5838](https://github.com/melodic-software/claude-code-plugins/issues/5838)); no change to this plugin's hooks.**
+  It is now generated from the repository's canonical source by `scripts/sync-shared-copies.sh` and opens with a header saying so; edit
+  the canonical, not the copy.
+
 ## [0.1.2] - 2026-10-03
 
 ### Changed

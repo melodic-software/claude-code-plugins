@@ -4,6 +4,7 @@
 # Self-contained: no shared assertion lib; resolves the script under test
 # relative to this file. Asserts the always-exit-0 contract, both output
 # labels, and graceful degradation to "unknown" when claude/jq are absent.
+# test-scope: .claude/settings.json
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

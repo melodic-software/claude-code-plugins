@@ -54,12 +54,34 @@
           "curl"
         ]
       },
-      "degrade": "Without curl, the Linear, Jira and Gitea or Forgejo providers cannot reach their APIs; the github and local-markdown providers are unaffected.",
+      "degrade": "Without curl, the Linear, Jira and Gitea or Forgejo providers cannot reach their APIs, and the triage board's session watcher does not start, so the board closes the loop with a copied reply; the github and local-markdown providers are unaffected.",
       "install": {
         "docs": "https://curl.se/download.html",
         "brew": "curl",
         "winget": "cURL.cURL",
         "apt": "curl"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "python3",
+      "kind": "runtime",
+      "need": "optional",
+      "for": [
+        "skill:triage"
+      ],
+      "detect": {
+        "any": [
+          "python3",
+          "python"
+        ]
+      },
+      "degrade": "Without Python 3, the triage board cannot reach the session and closes the loop with a copied reply; the attention view and its table are unaffected.",
+      "install": {
+        "docs": "https://www.python.org/downloads/",
+        "brew": "python",
+        "winget": "Python.Python.3.13",
+        "apt": "python3"
       },
       "check": "/harness-ops:prerequisites"
     },

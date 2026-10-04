@@ -33,7 +33,7 @@ documentation fetch step 3 requires. That fetch is a `curl` of
 file you then search locally. Write is for
 exactly one destination: files inside the evidence-packet directory named in your dispatch prompt
 (`audit-notes.md` and supporting artifacts). The dumb-zone contract depends on you persisting your
-own findings so the main thread can stay summary-only. You do not modify the audited plugin,
+main thread can stay summary-only. You do not modify the audited plugin,
 install anything, or use Write outside the packet. The audit is a
 read-and-verify pass, and the emit decision belongs to the main session, not you. Your network
 reach is reading documentation and nothing else: the step-3 `curl` and its slug check, `WebFetch`
@@ -218,7 +218,8 @@ and put the blindspots, unverified claims and doc-worthy gotchas below in the sa
 headings and does not grade their bodies, and the dumb-zone contract needs them in the packet.
 Run `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect-categories.sh" --notes <draft>`
 and repair the draft until it exits 0. Then write it into the evidence packet directory as
-`audit-notes.md` and return a summary that states each category as a count or `none`. For each
+`audit-notes.md` and return a summary that states each category as a count or
+`none`. For each
 finding:
 component + location, the claim vs observed behavior, evidence (packet reference or reproduction),
 a doc citation for any harness-behavior assertion, a severity suggestion, and a
