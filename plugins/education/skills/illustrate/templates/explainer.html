@@ -51,12 +51,16 @@ p { margin: 0; max-width: 65ch; }
 code { font-family: var(--mono); font-size: 0.85em; overflow-wrap: anywhere; }
 .pictures { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; }
 .picture { display: grid; gap: 0.75rem; padding: 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
-.flow, .stack { list-style: none; margin: 0; padding: 0; display: flex; gap: 0.5rem; }
-.flow { flex-wrap: wrap; align-items: center; }
+.flow, .flowcol, .stack { list-style: none; margin: 0; padding: 0; display: flex; gap: 0.5rem; }
+.flow { flex-wrap: nowrap; align-items: center; overflow-x: auto; }
+.flowcol { flex-direction: column; align-items: flex-start; }
 .stack { flex-direction: column; align-items: stretch; }
-.flow:empty, .stack:empty { display: none; }
+.flow:empty, .flowcol:empty, .stack:empty { display: none; }
 .step { display: flex; align-items: center; gap: 0.5rem; }
-.flow .step:first-child .arrow, .stack .arrow { display: none; }
+.flowcol, .flowcol .step { gap: 0.25rem; }
+.flowcol .step { flex-direction: column; align-items: flex-start; }
+.flowcol .arrow { padding-left: 1rem; }
+.flow .step:last-child .arrow, .flowcol .step:last-child .arrow, .stack .arrow { display: none; }
 .arrow { color: var(--accent); font-weight: 700; }
 .box { padding: 0.5rem 0.75rem; border: 1px solid var(--accent); border-radius: 6px; background: var(--box); }
 .stack .box { flex: 1 1 auto; }
@@ -94,7 +98,8 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus
 </header>
 <ol class="pictures" data-rv-each="diagrams"><li class="picture">
 <h2 data-rv-text="heading"></h2>
-<ol class="flow" data-rv-each="flow"><li class="step"><span class="arrow">→</span><span class="box" data-rv-text="step"></span></li></ol>
+<ol class="flow" data-rv-each="flow"><li class="step"><span class="box" data-rv-text="step"></span><span class="arrow">→</span></li></ol>
+<ol class="flowcol" data-rv-each="flowcol"><li class="step"><span class="box" data-rv-text="step"></span><span class="arrow">↓</span></li></ol>
 <ol class="stack" data-rv-each="stack"><li class="step"><span class="arrow">↓</span><span class="box" data-rv-text="step"></span></li></ol>
 <p class="caption" data-rv-text="caption"></p>
 <ul class="text" data-rv-each="text"><li data-rv-text="line"></li></ul>

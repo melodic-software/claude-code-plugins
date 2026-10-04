@@ -78,6 +78,38 @@ check("a flow diagram's steps bind to the flow list", data.diagrams?.[0]?.flow?.
 check("a stack diagram's steps bind to the stack list", data.diagrams?.[1]?.stack?.length === 2 && data.diagrams[1].flow.length === 0);
 check("an unknown diagram kind falls back to a flow", data.diagrams?.[2]?.flow?.length === 1);
 check("a term with no word is dropped", data.terms?.length === 1);
+
+const seven = ["one", "two", "three", "four", "five", "six", "seven"];
+const longFlow = JSON.parse(
+  /<script type="application\/json" id="rv-data">([\s\S]*?)<\/script>/.exec( // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+    buildExplainerPage({ diagrams: [{ kind: "flow", steps: seven }, { kind: "flow", steps: seven.slice(0, 4) }] }),
+  )[1],
+);
+check("a flow of 7 steps lands in the vertical list", longFlow.diagrams[0].flowcol?.length === 7 && longFlow.diagrams[0].flow.length === 0);
+check("a flow of 4 steps stays on the horizontal list", longFlow.diagrams[1].flow.length === 4 && longFlow.diagrams[1].flowcol?.length === 0);
+const css = /<style>([\s\S]*?)<\/style>/.exec(page)?.[1] ?? ""; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+const rule = (selector) => new RegExp(`(^|\\n)${selector.replace(".", "\\.")} \\{([^}]*)\\}`).exec(css)?.[2] ?? "";
+const flowWraps = [...css.matchAll(/(^|\n)([^{\n]*)\{([^}]*)\}/g)].filter((m) => /\.flow\b/.test(m[2]) && /flex-wrap: wrap/.test(m[3])); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+check("the horizontal flow never wraps a line", /flex-wrap: nowrap/.test(rule(".flow")) && flowWraps.length === 0, rule(".flow"));
+check("the horizontal flow scrolls inside its card", /overflow-x: auto/.test(rule(".flow")));
+check("the vertical flow is one step per line", /flex-direction: column/.test(rule(".flowcol")));
+const flowRow = /<ol class="flow"[^>]*><li class="step">(.*?)<\/li><\/ol>/.exec(page)?.[1] ?? ""; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+const colRow = /<ol class="flowcol"[^>]*><li class="step">(.*?)<\/li><\/ol>/.exec(page)?.[1] ?? ""; // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+check("a flow step's arrow follows its box", flowRow.indexOf("box") >= 0 && flowRow.indexOf("box") < flowRow.indexOf("arrow"), flowRow);
+check("a vertical flow step's arrow follows its box", colRow.indexOf("box") >= 0 && colRow.indexOf("box") < colRow.indexOf("arrow"), colRow);
+check("the last step of a flow shows no arrow", /\.flow \.step:last-child \.arrow/.test(css) && /\.flowcol \.step:last-child \.arrow/.test(css));
+check("an empty vertical flow is hidden", /\.flowcol:empty/.test(css));
+
+const wordy = "Gamma Ray (1996): first band name, dropped after a cease-and-desist";
+const capModel = { diagrams: [{ heading: "Albums", steps: ["short", wordy] }, { kind: "stack", steps: [wordy, "x".repeat(60)] }] };
+const capData = JSON.parse(/<script type="application\/json" id="rv-data">([\s\S]*?)<\/script>/.exec(buildExplainerPage(capModel))[1]); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
+const cut = capData.diagrams[0].flow[1];
+check("a long step label is cut to the cap", [...cut].length <= 40 && cut.endsWith("…"), cut);
+check("a long step label is cut at a word boundary", wordy.startsWith(cut.slice(0, -1)) && wordy[[...cut].length - 1] === " ", cut);
+check("a label with no space is cut hard", capData.diagrams[1].stack[1] === `${"x".repeat(39)}…`, capData.diagrams[1].stack[1]);
+check("a short step label is unchanged", capData.diagrams[0].flow[0] === "short");
+const capRecord = buildExplainerRecord(capModel);
+check("the record carries the cut label", capRecord.includes(cut) && !capRecord.includes(wordy), capRecord);
 check("an empty model still validates", validateView(buildExplainerPage({})).ok);
 
 const record = buildExplainerRecord(model);
@@ -93,6 +125,16 @@ const both = run(["--record", `${work}/out/r.md`, "--page", `${work}/views/p.htm
 check("the CLI writes the record and the page", both.status === 0, both.stderr);
 check("the CLI record matches the function", both.status === 0 && readFileSync(`${work}/out/r.md`, "utf8") === record);
 check("the CLI page matches the function", both.status === 0 && readFileSync(`${work}/views/p.html`, "utf8") === page);
+check("a model with short labels warns nothing", both.stderr === "", both.stderr);
+const capped = run(["--record", `${work}/cap/r.md`, "--page", `${work}/capview/p.html`], JSON.stringify(capModel));
+const warnings = capped.stderr.split("\n").filter(Boolean);
+check("a cut label still exits 0", capped.status === 0, capped.stderr);
+check("the CLI warns once per cut label", warnings.length === 3, capped.stderr);
+check(
+  "each warning names the diagram and the step",
+  ["diagram 1 step 2:", "diagram 2 step 1:", "diagram 2 step 2:"].every((name, n) => (warnings[n] ?? "").includes(name)),
+  capped.stderr,
+);
 const recordOnly = run(["--record", `${work}/only/r.md`], json);
 check("--record alone writes only the record", recordOnly.status === 0 && !recordOnly.stdout.includes(".html"));
 check("a missing --record exits 2", run(["--page", `${work}/x.html`], json).status === 2);
@@ -120,6 +162,7 @@ check(
   "the skill routes the page through the builder",
   skill.includes("build-explainer.mjs") && skill.includes("Do not hand-write the HTML"),
 );
+check("the skill states the short-label rule", skill.includes("Step labels are capped at 40 characters."));
 
 if (failed > 0) process.exit(1);
 NODE
