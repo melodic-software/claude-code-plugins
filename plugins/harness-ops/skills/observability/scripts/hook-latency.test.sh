@@ -128,7 +128,11 @@ fi
 
 run "$TMP/missing"
 assert_eq "missing store exits 2" 2 "$rc"
-assert_contains "missing store says why" "$out" "no logs store at"
+if command -v duckdb >/dev/null 2>&1; then
+  assert_contains "missing store says why" "$out" "no logs store at"
+else
+  skip_case "duckdb not found — the duckdb check exits before the store check"
+fi
 assert_routes "missing store"
 
 # duckdb missing: PATH without every directory that holds a duckdb.
