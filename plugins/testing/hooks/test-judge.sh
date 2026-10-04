@@ -146,6 +146,39 @@ state() {
 }
 for i in "${!KH[@]}"; do state "$i"; done
 
+# kr <key index>: set KO, KRANGE and KNAME from the key's "<ordinal>
+# <start>-<end> <name>".
+kr() {
+  local r="${KR[$1]}"
+  KO="${r%% *}" r="${r#* }"
+  KRANGE="${r%% *}" KNAME="${r#* }"
+}
+
+# Free keys with one reuse key (judge::reuse: the same normalized body under
+# the same judge, prompt and repository) are judged once in this Stop: the
+# first is judged, each other one is a dup that takes its verdict after the
+# runs. Background jobs judge one file each, so this grouping is the Stop's.
+declare -A DUPOF=() firstof=()
+if [[ "${TEST_JUDGE_REUSE:-1}" != 0 ]]; then
+  for fx in "${!INFOS[@]}"; do
+    testing::fields "${INFOS[$fx]}" '.writers | tojson' || continue
+    judge::pick "${FIELDS[0]}" || continue
+    judge::file_repo "${IFILES[$fx]}"
+    [[ -n "$FREPO" ]] || continue
+    for i in "${!KH[@]}"; do
+      [[ "${KF[$i]}" == "$fx" && "${ST[$i]}" == free ]] || continue
+      kr "$i"
+      judge::rkey "${KFILE[$i]}" "$KO" "$KRANGE" "$KNAME" "$FREPO"
+      [[ -n "$RK" ]] || continue
+      if [[ -n "${firstof[$RK]+x}" ]]; then
+        ST[i]=dup DUPOF[$i]="${firstof[$RK]}"
+      else
+        firstof[$RK]="$i"
+      fi
+    done
+  done
+fi
+
 # judge_now <file index> <run reservation> <key index>...: one run over the file's keys that
 # this process can lock, under a machine slot; in a subshell. The slot wait
 # ends at the deadline and the run's bound is what is left after it, so the
@@ -235,6 +268,25 @@ while [[ -n "$(jobs -rp)" ]]; do
   judge::now
   ((NOW <= deadline + 1)) || break
   sleep 0.2
+done
+
+# Each dup takes the verdict its first was given, PASS, FLAG or UNKNOWN alike,
+# recorded with reused_from; a FLAG's diff edits the first's file, so the dup
+# carries none (judge::copy_verdict). A dup whose first got no verdict goes to
+# a background job, or shares the first's run limit.
+for i in "${!DUPOF[@]}"; do
+  rep="${DUPOF[$i]}"
+  judge::verdict "${KH[$i]}" && continue
+  if judge::verdict "${KH[$rep]}" && testing::fields "${INFOS[${KF[$i]}]}" .owner; then
+    dir="$DATA/verdicts/$PKEY/${FIELDS[0]:-$SID}"
+    kr "$i"
+    judge::file_repo "${KFILE[$i]}"
+    if mkdir -p "$dir" && judge::copy_verdict "$VERDICT" "$dir" "${KH[$i]}" "${KFILE[$i]}" "$FREPO" "$KO" "$KRANGE" "$KNAME"; then
+      judge::log "reused in this run: ${KFILE[$i]}: $KNAME: the verdict of ${KH[$rep]}"
+      continue
+    fi
+  fi
+  if [[ "${ST[$rep]}" == limit ]]; then ST[i]=limit; else ST[i]=over; fi
 done
 
 # Lateness is decided here, from the deadline: a key this Stop's own run has

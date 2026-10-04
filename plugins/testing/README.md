@@ -118,7 +118,9 @@ syntax of the file's language), is shown as UNKNOWN with only that reason, never
 evidence, source or diff. Within the session, a test whose body matches one already judged PASS
 (its name taken out and whitespace ignored), under the same judge model, effort and prompt in the
 same repository, gets that verdict without a new run, recorded as `reused_from`; a body judged
-FLAG is judged again, since its diff edits one file. The judge's copy of the test file is kept under its blob id, so a quote
+FLAG in an earlier run is judged again, since its diff edits one file. Within one task end,
+identical bodies are judged once and share the verdict, a FLAG included; a shared FLAG carries no
+diff of its own, and its findings entry points at the diff proposed for the test that was judged. The judge's copy of the test file is kept under its blob id, so a quote
 the file held when the judge read it but an edit has since removed is reported as stale, not as
 made up. The repository is the git toplevel of the test file's own directory,
 whatever the hook's working directory, and the judge resolves it again from the file before it

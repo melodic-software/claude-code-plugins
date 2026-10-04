@@ -414,6 +414,32 @@ record rux w1 "$REPO/src/reuse-two.test.ts" null
 stub_reset
 TEST_JUDGE_REUSE=1 bg rux w1 "$R2"
 check "reuse is session-scoped: another session judges the same body itself" '[[ "$(stub_calls)" == 1 ]]'
+# In one Stop, identical bodies in two files are judged once: the first file's
+# block is judged and the second takes its verdict, recorded with
+# reused_from, PASS and FLAG alike. A FLAG's diff edits the first file, so the
+# second carries none and its findings entry points at the first's.
+for kind in pass flag; do
+  transcript "dd$kind" claude-sonnet-5
+  DA="$REPO/src/dedupe-$kind-a.test.ts"
+  DB="$REPO/src/dedupe-$kind-b.test.ts"
+  na="dedupe$kind one" nb="dedupe$kind two"
+  [[ "$kind" == flag ]] && na="dedupe flag one" nb="dedupe flag two"
+  js_file "$DA" "$na"
+  js_file "$DB" "$nb"
+  record "dd$kind" w1 "$DA" null
+  record "dd$kind" w2 "$DB" null
+  stub_reset
+  TEST_JUDGE_REUSE=1 stop "dd$kind"
+  check "one Stop, identical bodies in two files ($kind): one judge call, for the first file" \
+    '[[ "$(stub_calls)" == 1 && "$(stub_args 1)" == *"block 1 3-5 $na"* && "$(stub_args 1)" != *"$nb"* ]]'
+  check "the second takes the same verdict, with reused_from naming the first ($kind)" \
+    '[[ "$(verdict_of "dd$kind" "$nb" | jq -c "[.verdict, .reused_from.name, .file == \"$DB\"]")" == "[$(verdict_of "dd$kind" "$na" | jq -c .verdict),\"$na\",true]" ]]'
+done
+check "a FLAG given in the run: both relayed as FLAG, the Stop blocked" \
+  '[[ "$(field .decision)" == block && "$(field .reason)" == *"reviewed 2 tests (2 FLAG, 0 PASS, 0 UNKNOWN)"* ]]'
+f="$(field .reason | sed -n 's/.*Findings: \(.*\)\. Show the user.*/\1/p')"
+assert_contains "the second FLAG points at the first's diff" "$(cat "$f")" \
+  "This test has the same body as src/dedupe-flag-a.test.ts dedupe flag one, judged in the same run"
 
 # A test file in a linked worktree whose quote is a line only that worktree's
 # branch holds is grounded in the worktree, though its record names the main

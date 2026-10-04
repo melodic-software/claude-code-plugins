@@ -571,14 +571,12 @@ judge::harvest_orphans() {
 # is never reused (its diff edits its own file), and a whole-file key has no
 # reuse key. RKEYS gets "<key-hash> <reuse key>" per key, for the ledger. A
 # reused verdict records reused_from, the block it was judged for.
-# TEST_JUDGE_REUSE=0 (a test seam) turns the lookup off; the keys are still
-# recorded.
+# TEST_JUDGE_REUSE=0 (a test seam) turns the lookup off, and with it the Stop
+# hook's in-run grouping; the keys are still recorded.
 judge::reuse() {
-  local file="$1" repo="$2" dir="$3" kh o r s e name line body psha rk src d f files=() text=() named
+  local file="$1" repo="$2" dir="$3" kh o r s e name rk src d f files=()
   local -A have=()
   RKEYS="" KEYS_LEFT=""
-  psha="$(judge::sha "$HOOK_DIR/test-judge-prompt.md" 2>/dev/null)" && psha="${psha#\\}" && psha="${psha%% *}"
-  mapfile -t text <"$file" 2>/dev/null
   if [[ "${TEST_JUDGE_REUSE:-1}" != 0 ]]; then
     for d in "${SESSIONS[@]}"; do
       for f in "$DATA/verdicts/$PKEY/$d"/*.json; do [[ -f "$f" ]] && files+=("$f"); done
@@ -592,31 +590,57 @@ judge::reuse() {
   fi
   while read -r kh o r name; do
     [[ -n "$kh" ]] || continue
-    rk=""
-    if [[ "$o" =~ ^[1-9][0-9]*$ && "$r" =~ ^([0-9]+)-([0-9]+)$ ]]; then
-      s="${BASH_REMATCH[1]}" e="${BASH_REMATCH[2]}" body="" named=0
-      for line in "${text[@]:s-1:e-s+1}"; do
-        if ((named == 0)) && [[ "$line" == *"$name"* ]]; then
-          line="${line/"$name"/}"
-          named=1
-        fi
-        body+="$line"
-      done
-      rk="$(printf '%s\n%s\n%s\n%s\n%s' "${body//[[:space:]]/}" "$MODEL" "$EFFORT" "$psha" "$repo" | judge::sha -)"
-      rk="${rk#\\}" && rk="${rk:0:32}"
-    fi
+    judge::rkey "$file" "$o" "$r" "$name" "$repo"
+    rk="$RK"
     RKEYS+="$kh $rk"$'\n'
     src="${rk:+${have[$rk]:-}}"
-    if [[ -n "$src" ]] && jq -c --arg f "$file" --arg r "$repo" --arg n "$name" --argjson o "$o" --argjson s "$s" --argjson e "$e" \
-      --arg k "${src##*/}" '. + {file: $f, repo: $r, name: $n, ordinal: $o, start: $s, end: $e, blob: "",
-        reused_from: {file: .file, name: .name, ordinal: .ordinal, key: ($k | rtrimstr(".json"))}, reused_at: (now | todate)}' \
-      "$src" >"$dir/.$kh.tmp" 2>/dev/null && mv -f -- "$dir/.$kh.tmp" "$dir/$kh.json"; then
+    if [[ -n "$src" ]] && judge::copy_verdict "$src" "$dir" "$kh" "$file" "$repo" "$o" "$r" "$name"; then
       judge::log "reused: $file: $name: the PASS verdict of ${src##*/}"
       continue
     fi
-    rm -f -- "$dir/.$kh.tmp"
     KEYS_LEFT+="$kh $o $r $name"$'\n'
   done <<<"$4"
+}
+
+# judge::rkey <file> <ordinal> <start-end> <name> <repo>: set RK to the
+# block's reuse key (judge::reuse) under MODEL and EFFORT, or "" for a
+# whole-file key or a block the file no longer holds.
+judge::rkey() {
+  local file="$1" o="$2" r="$3" name="$4" repo="$5" s e line body="" named=0 text=()
+  RK=""
+  [[ "$o" =~ ^[1-9][0-9]*$ && "$r" =~ ^([0-9]+)-([0-9]+)$ && -f "$file" ]] || return 0
+  s="${BASH_REMATCH[1]}" e="${BASH_REMATCH[2]}"
+  ((s >= 1 && e >= s)) || return 0
+  if [[ -z "${JUDGE_PSHA:-}" ]]; then
+    JUDGE_PSHA="$(judge::sha "$HOOK_DIR/test-judge-prompt.md" 2>/dev/null)" && JUDGE_PSHA="${JUDGE_PSHA#\\}" && JUDGE_PSHA="${JUDGE_PSHA%% *}"
+  fi
+  mapfile -t text <"$file" 2>/dev/null
+  for line in "${text[@]:s-1:e-s+1}"; do
+    if ((named == 0)) && [[ "$line" == *"$name"* ]]; then
+      line="${line/"$name"/}"
+      named=1
+    fi
+    body+="$line"
+  done
+  RK="$(printf '%s\n%s\n%s\n%s\n%s' "${body//[[:space:]]/}" "$MODEL" "$EFFORT" "${JUDGE_PSHA:-}" "$repo" | judge::sha -)"
+  RK="${RK#\\}" && RK="${RK:0:32}"
+}
+
+# judge::copy_verdict <source verdict> <ledger dir> <key-hash> <file> <repo>
+# <ordinal> <start-end> <name>: write the source verdict as the key's, for that
+# block, with reused_from naming the block it was judged for. A FLAG's diff
+# edits the source's file, so the copy carries none; validation keeps a
+# reused FLAG without a diff a FLAG, and the findings file points at the
+# source's diff.
+judge::copy_verdict() {
+  local src="$1" dir="$2" kh="$3" s="${7%-*}" e="${7#*-}"
+  jq -c --arg f "$4" --arg r "$5" --arg n "$8" --argjson o "$6" --argjson s "$s" --argjson e "$e" \
+    --arg k "${src##*/}" '. + {file: $f, repo: $r, name: $n, ordinal: $o, start: $s, end: $e, blob: "",
+      reused_from: {file: .file, name: .name, ordinal: .ordinal, start: .start, key: ($k | rtrimstr(".json"))},
+      reused_at: (now | todate)} | if .verdict == "FLAG" then .diff = "" else . end' \
+    "$src" >"$dir/.$kh.tmp" 2>/dev/null && mv -f -- "$dir/.$kh.tmp" "$dir/$kh.json" && return 0
+  rm -f -- "$dir/.$kh.tmp"
+  return 1
 }
 
 judge::section1() {
@@ -835,7 +859,7 @@ judge::grounded() {
 # not made up. One jq reads the fields and runs the quote check; git runs
 # only for a FLAG, and jq again only to rewrite a verdict that failed.
 judge::validate() {
-  local v="$1" file="${2:-}" json="" repo verdict ev diff why="" kind="" origin blob snap="" p n=0 known=0 text=(--arg text "")
+  local v="$1" file="${2:-}" json="" repo verdict ev diff why="" kind="" origin blob reused snap="" p n=0 known=0 text=(--arg text "")
   IFS= read -r -d '' json <"$v"
   json="${json%%$'\n'*}"
   if [[ -z "$file" ]]; then
@@ -853,14 +877,16 @@ judge::validate() {
     | (.repo // "" | tostring), "\u0000", (.verdict // "" | tostring), "\u0000",
       (if ($e | length) == 0 then "none" else "some" end), "\u0000", (.diff // "" | tostring), "\u0000",
       (.origin // .verdict // "" | tostring), "\u0000", (.blob // "" | tostring), "\u0000",
+      (if (.reused_from | type) == "object" then "reused" else "" end), "\u0000",
       ($e[] | select(. as $q | $text | contains($q) | not) | (., "\u0000"))' <<<"$json" 2>/dev/null)
-  ((${#FIELDS[@]} >= 6)) || return 0
+  ((${#FIELDS[@]} >= 7)) || return 0
   repo="${FIELDS[0]}" verdict="${FIELDS[1]}" ev="${FIELDS[2]}" diff="${FIELDS[3]}" origin="${FIELDS[4]}" blob="${FIELDS[5]}"
+  reused="${FIELDS[6]}"
   [[ -n "$repo" && -d "$repo" ]] || repo=""
   ((JUDGE_WIN)) && repo="${repo//\\//}"
   [[ "$blob" =~ ^[0-9a-f]{40,64}$ ]] && snap="${v%/*}/blob-$blob"
   GROUND=""
-  [[ -f "$file" ]] && ((${#FIELDS[@]} > 6)) && judge::grounded "$repo" "$snap" "${FIELDS[@]:6}"
+  [[ -f "$file" ]] && ((${#FIELDS[@]} > 7)) && judge::grounded "$repo" "$snap" "${FIELDS[@]:7}"
   if [[ ! -f "$file" ]]; then
     why="the test file no longer exists" kind=file-gone
   elif [[ "$verdict" != UNKNOWN && "$ev" == none ]]; then
@@ -869,6 +895,8 @@ judge::validate() {
     why="a quoted line is in no file of the repository" kind=ungrounded
   elif [[ "$GROUND" == stale ]]; then
     why="the test file changed after the judge read it: a quoted line is no longer in it" kind=stale
+  elif [[ "$verdict" == FLAG && -z "$diff" && "$reused" == reused ]]; then
+    : # a FLAG given an identical body's verdict: the diff is that body's
   elif [[ "$verdict" == FLAG && -z "$diff" ]]; then
     why="the FLAG proposes no diff" kind=no-diff
   elif [[ "$verdict" == FLAG && -z "$repo" ]]; then
@@ -1038,7 +1066,10 @@ judge::findings() {
         + (if .verdict == "FLAG" and (.diff // "") != "" then
             (.diff | cap(20000) | rtrimstr("\n")) as $d
             | ("`" * ([4, ([$d | scan("`+") | length] | max // 0) + 1] | max)) as $fence
-            | "\nProposed diff, not applied:\n\n\($fence)diff\n\($d)\n\($fence)\n" else "" end)] | join(""))
+            | "\nProposed diff, not applied:\n\n\($fence)diff\n\($d)\n\($fence)\n" else "" end)
+        + (if .verdict == "FLAG" and (.diff // "") == "" and (.reused_from | type) == "object" then
+            "\nThis test has the same body as \(.reused_from | rel | esc) \(.reused_from | tname | esc), judged in the same run; the proposed diff is under that test'"'"'s verdict and edits that file only.\n"
+          else "" end)] | join(""))
       ' <<<"$all" 2>/dev/null)" || continue
     # The content goes to a new temp file in the checked directory, which is
     # checked again, and then takes the first free name with mv -n: a name
