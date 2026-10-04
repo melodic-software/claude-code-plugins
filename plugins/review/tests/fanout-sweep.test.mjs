@@ -108,10 +108,16 @@ test('a malformed role variant falls back and is logged', async () => {
   assert.ok(logs.some(l => l.includes('roles.verifier.fanout')))
 })
 
-test('every generic agent passes effort explicitly; named agents pass neither model nor effort', async () => {
+test('every slice runs as review:brief-reviewer, which holds no Agent or Skill tool', async () => {
+  const { calls } = await run({ diffBase: 'origin/main', slices: ['a.md', 'b.md'] })
+  assert.equal(slices(calls).length, 2)
+  for (const s of slices(calls)) assert.equal(s.opts.agentType, 'review:brief-reviewer')
+})
+
+test('every generic or slice agent passes effort explicitly; reviewer agents pass neither model nor effort', async () => {
   const { calls } = await run({ diffBase: 'origin/main', slices: ['a.md'] })
   for (const c of calls) {
-    if (c.opts.agentType) {
+    if (c.opts.agentType && !c.opts.label.startsWith('slice:')) {
       assert.ok(!('model' in c.opts) && !('effort' in c.opts), `${c.opts.label} keeps its pins`)
     } else {
       assert.ok(typeof c.opts.effort === 'string', `${c.opts.label} passes effort`)

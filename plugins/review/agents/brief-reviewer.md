@@ -1,6 +1,6 @@
 ---
 name: brief-reviewer
-description: "Read-only reviewer that runs exactly the review brief it is dispatched with: a per-concern criteria slice or a downstream blast-radius search. Dispatched by /review:quality-gate (slice and downstream modes) and /review:fanout (criteria slices); not intended for direct ad-hoc use."
+description: "Read-only reviewer that runs exactly the review brief it is dispatched with: a per-concern criteria slice, a downstream blast-radius search, or a restatement batch. Dispatched by /review:quality-gate (slice, downstream and restatement modes), /review:fanout and the /review:fanout-sweep workflow (criteria slices); not intended for direct ad-hoc use."
 tools: "Read, Grep, Glob, Bash"
 model: opus
 effort: high

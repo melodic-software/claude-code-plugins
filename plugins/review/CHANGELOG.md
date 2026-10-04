@@ -11,7 +11,7 @@ All notable changes to the `review` plugin are documented here. Format follows
 
 ### Changed
 
-- `/review:quality-gate` slice and downstream modes, and `/review:fanout` criteria slices, dispatch `brief-reviewer` instead of a general-purpose subagent, and self mode drops its general-purpose fallback for `code-reviewer`. A general-purpose subagent can spawn agents and invoke skills, so a reviewer could rediscover a review skill and fan out; no review path in these modes dispatches one now.
+- `/review:quality-gate` slice, downstream and restatement (large-diff batch) modes, `/review:fanout` criteria slices, and the `/review:fanout-sweep` workflow's slice agents dispatch `brief-reviewer` instead of a general-purpose subagent, and self mode drops its general-purpose fallback for `code-reviewer`. A general-purpose subagent can spawn agents and invoke skills, so a reviewer could rediscover a review skill and fan out; no review path in these modes dispatches one now.
 
 ## [0.40.3] - 2026-10-04
 

@@ -97,6 +97,9 @@ const TIER1 = [
 ]
 const TIER2_AGENTS = [{ label: 'doc-drift-detector', agentType: 'review:doc-drift-detector' }]
 const TIER2_SLICES = SLICES.map(s => ({ label: 'slice:' + s, slice: s }))
+// Slices run as brief-reviewer, whose tools exclude Agent and Skill, so a slice cannot fan out.
+// They still take the routed fan-out model and effort, which override its pins.
+const SLICE_AGENT = 'review:brief-reviewer'
 
 // SKILL.md "Dispatch contract": every finding-producing leaf prompt carries this clause verbatim.
 const COVERAGE_CLAUSE =
@@ -128,7 +131,7 @@ const named = leaf => () => agentRetry(AGENT_PROMPT, { agentType: leaf.agentType
 const t1 = await inWaves(TIER1.map(named), MAX_CONCURRENT)
 const t2a = await inWaves(TIER2_AGENTS.map(named), MAX_CONCURRENT)
 const t2s = await inWaves(TIER2_SLICES.map(leaf => () =>
-  agentRetry(slicePrompt(leaf.slice), { label: leaf.label, phase: 'Review', ...opts(R.verifier.fanout) })
+  agentRetry(slicePrompt(leaf.slice), { agentType: SLICE_AGENT, label: leaf.label, phase: 'Review', ...opts(R.verifier.fanout) })
 ), MAX_CONCURRENT)
 
 const roster = [...TIER1, ...TIER2_AGENTS, ...TIER2_SLICES]
