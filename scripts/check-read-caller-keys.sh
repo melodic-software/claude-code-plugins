@@ -70,7 +70,7 @@ if [[ -d "$WORKFLOWS" ]]; then
   for file in "$WORKFLOWS"/*.yml "$WORKFLOWS"/*.yaml; do
     [[ -f "$file" && "$file" != "$READ_WORKFLOW" ]] || continue
     # shellcheck disable=SC2310  # local_callees cannot fail; it ends in || true
-    if local_callees "$file" | grep -qxF "$READ_WORKFLOW"; then
+    if grep -qxF "$READ_WORKFLOW" < <(local_callees "$file"); then
       callers+=("$file")
     fi
   done
