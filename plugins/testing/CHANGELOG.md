@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.16] - 2026-10-04
+
+### Fixed
+
+- The test-judge suites pass every fixture path to jq with Git Bash path conversion off for that call (`record`, the stub judge, and each inline payload and verdict builder), so on Windows the fixtures write the same path form the expected project key hashes and the hooks under test read ([#6266](https://github.com/melodic-software/claude-code-plugins/issues/6266)). Linux runs are unchanged.
+
 ## [0.22.15] - 2026-10-04
 
 ### Fixed
