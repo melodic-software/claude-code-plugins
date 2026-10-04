@@ -55,9 +55,12 @@ verified
 
 - No unsigned-writer sweep, medley change or github-iac deploy is needed for signing.
 - Accepted residual: unsigned commits can exist on PR and other non-default branches. A PR carrying
-  one stays blocked until the commit is replaced. `check-signed-commits` checks only the commits
-  added after an activity's gated head SHA, so an unsigned commit already on the branch does not
-  fail a later activity's check; the default-branch rule is what stops it.
+  one stays blocked until the commit is replaced. While an activity's gated head SHA is still an
+  ancestor of the current head, `check-signed-commits` checks only the commits added after it, so
+  an unsigned commit already on the branch does not fail a later activity's check; the
+  default-branch rule is what stops it. When there is no gated SHA, or it is no longer an ancestor
+  (a force-push or rebase rewrote the head), the check falls back to every PR commit, and an
+  unsigned commit already on the branch fails it too.
 - Accepted residual: a repository without the `requires-signing` property has no signature rule on
   any branch. This record does not change which repositories carry it.
 - Accepted residual: the evidence is one probe in one sandbox repository whose ruleset matches the
