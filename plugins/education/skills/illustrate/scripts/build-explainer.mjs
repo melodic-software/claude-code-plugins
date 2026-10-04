@@ -7,8 +7,9 @@
 //
 // The page comes only from the checked-in template plus the model as JSON data,
 // through the shared view builder's interactive profile, so no model text is
-// ever written into markup. Exit 0 ok, 1 the page fails its profile, 2 usage.
-// A step label cut to the cap prints one warning line on stderr and still exits 0.
+// ever written into markup. Exit 0 ok, 1 the page fails its profile, 2 usage
+// or a model the page cannot draw (an unknown kind, a compare of the wrong width).
+// A label cut to the cap prints one warning line on stderr and still exits 0.
 
 import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
@@ -22,6 +23,9 @@ const TEMPLATE = new URL("../templates/explainer.html", import.meta.url);
 // A longer flow goes one step per line: a wrapped row of arrows would start a line with one.
 const FLOW_ROW_MAX = 4;
 const LABEL_MAX = 40;
+const KINDS = ["flow", "stack", "hub", "timeline", "compare", "before-after"];
+const COMPARE_MIN = 2;
+const COMPARE_MAX = 4;
 
 // A label over the cap, cut at the last space that fits, else hard, ending in an ellipsis.
 function capLabel(label) {
@@ -33,36 +37,77 @@ function capLabel(label) {
   return `${kept.join("").trimEnd()}…`;
 }
 
+// Every diagram carries every kind's lists, empty but for its own kind's, so only one renders.
+const EMPTY = { flow: [], flowcol: [], stack: [], center: "", branches: [], points: [], columns: [], before: [], after: [] };
+
+/**
+ * @param {Record<string, unknown>} diagram
+ * @param {number} d the diagram's position, from 0
+ * @param {string[]} warnings
+ */
+function shape(diagram, d, warnings) {
+  const name = `diagram ${d + 1}`;
+  const kind = diagram.kind === undefined || diagram.kind === null || diagram.kind === "" ? "flow" : diagram.kind;
+  if (!KINDS.includes(kind)) {
+    throw new Error(`${name}: unknown kind ${JSON.stringify(kind)}; use one of ${KINDS.join(", ")}`);
+  }
+  const cut = (text, where) => {
+    const label = capLabel(text);
+    if (label !== text) {
+      warnings.push(
+        `${name} ${where}: label of ${[...text].length} characters cut to ${LABEL_MAX}; put the detail in the diagram's text lines`,
+      );
+    }
+    return label;
+  };
+  const labels = (value, where) => textList(value).map((text, n) => cut(text, `${where} ${n + 1}`));
+  if (kind === "flow" || kind === "stack") {
+    const steps = labels(diagram.steps, "step");
+    if (kind === "stack") return { ...EMPTY, stack: steps };
+    return steps.length > FLOW_ROW_MAX ? { ...EMPTY, flowcol: steps } : { ...EMPTY, flow: steps };
+  }
+  if (kind === "hub") {
+    const center = asText(diagram.center);
+    return { ...EMPTY, center: cut(center, "center"), branches: labels(diagram.branches, "branch") };
+  }
+  if (kind === "timeline") {
+    const points = rows(diagram.points)
+      .map((point) => ({ when: asText(point.when), label: asText(point.label) }))
+      .filter((point) => point.when !== "" || point.label !== "")
+      .map((point, n) => ({ when: point.when, label: cut(point.label, `point ${n + 1}`) }));
+    return { ...EMPTY, points };
+  }
+  if (kind === "compare") {
+    const columns = rows(diagram.columns)
+      .map((column) => ({ heading: asText(column.heading), items: textList(column.items) }))
+      .filter((column) => column.heading !== "" || column.items.length > 0)
+      .map((column, c) => ({
+        heading: column.heading,
+        items: column.items.map((item, n) => cut(item, `column ${c + 1} item ${n + 1}`)),
+      }));
+    if (columns.length < COMPARE_MIN || columns.length > COMPARE_MAX) {
+      throw new Error(`${name}: compare needs ${COMPARE_MIN} to ${COMPARE_MAX} columns, got ${columns.length}`);
+    }
+    return { ...EMPTY, columns };
+  }
+  return { ...EMPTY, before: labels(diagram.before, "before"), after: labels(diagram.after, "after") };
+}
+
 /**
  * @param {Record<string, unknown>} model
- * @param {string[]} [warnings] receives one line per step label cut to the cap
+ * @param {string[]} [warnings] receives one line per label cut to the cap
  */
 function normalize(model, warnings = []) {
   const source = model && typeof model === "object" ? model : {};
   return {
     title: asText(source.title) || "Explainer",
     summary: textList(source.summary),
-    diagrams: rows(source.diagrams).map((diagram, d) => {
-      const steps = textList(diagram.steps).map((step, s) => {
-        const label = capLabel(step);
-        if (label !== step) {
-          warnings.push(
-            `diagram ${d + 1} step ${s + 1}: label of ${[...step].length} characters cut to ${LABEL_MAX}; put the detail in the diagram's text lines`,
-          );
-        }
-        return label;
-      });
-      const stack = asText(diagram.kind) === "stack";
-      const column = !stack && steps.length > FLOW_ROW_MAX;
-      return {
-        heading: asText(diagram.heading),
-        flow: stack || column ? [] : steps,
-        flowcol: column ? steps : [],
-        stack: stack ? steps : [],
-        caption: asText(diagram.caption),
-        text: textList(diagram.text),
-      };
-    }),
+    diagrams: rows(source.diagrams).map((diagram, d) => ({
+      heading: asText(diagram.heading),
+      ...shape(diagram, d, warnings),
+      caption: asText(diagram.caption),
+      text: textList(diagram.text),
+    })),
     terms: rows(source.terms)
       .filter((row) => asText(row.term) !== "")
       .map((row) => ({ term: asText(row.term), plain: asText(row.plain) })),
@@ -95,6 +140,19 @@ const md = (value) =>
     .replaceAll("[", "\\[")
     .replaceAll("]", "\\]");
 
+const cell = (value) => md(value).replaceAll("|", "\\|");
+
+/** @param {{heading: string, items: string[]}[]} columns */
+function table(columns) {
+  const depth = Math.max(0, ...columns.map((column) => column.items.length));
+  const line = (cells) => `| ${cells.join(" | ")} |`;
+  return [
+    line(columns.map((column) => cell(column.heading))),
+    line(columns.map(() => "---")),
+    ...Array.from({ length: depth }, (_, n) => line(columns.map((column) => cell(column.items[n] ?? "")))),
+  ];
+}
+
 /**
  * @param {Record<string, unknown>} model
  * @returns {string} the markdown record
@@ -104,10 +162,18 @@ export function buildExplainerRecord(model) {
   const out = [`# ${md(view.title)}`, ""];
   for (const line of view.summary) out.push(md(line), "");
   for (const diagram of view.diagrams) {
-    out.push(`## ${md(diagram.heading) || "Picture"}`, "");
+    out.push(`## ${md(diagram.heading) || "Diagram"}`, "");
     const flow = [...diagram.flow, ...diagram.flowcol];
     if (flow.length) out.push(flow.map(md).join(" → "), "");
     if (diagram.stack.length) out.push(...diagram.stack.map((step) => `- ${md(step)}`), "");
+    if (diagram.center) out.push(md(diagram.center), "");
+    if (diagram.branches.length) out.push(...diagram.branches.map((branch) => `- ${md(branch)}`), "");
+    if (diagram.points.length) {
+      out.push(...diagram.points.map((point) => `- ${[point.when, point.label].filter(Boolean).map(md).join(": ")}`), "");
+    }
+    if (diagram.columns.length) out.push(...table(diagram.columns), "");
+    if (diagram.before.length) out.push("Before:", "", ...diagram.before.map((item) => `- ${md(item)}`), "");
+    if (diagram.after.length) out.push("After:", "", ...diagram.after.map((item) => `- ${md(item)}`), "");
     if (diagram.caption) out.push(`**${md(diagram.caption)}**`, "");
     for (const line of diagram.text) out.push(md(line), "");
   }
