@@ -972,7 +972,7 @@ function inert_scan(m, r,    s, d) {
   # Where-Object) returns its bare comparison; only the It body discards it.
   if (LEXER == "pwsh" && depth != 1) return
   d = ""
-  if (has(s, R_ASYNC)) d = "an async assertion nothing awaits never runs before the test ends"
+  if (has(s, R_ASYNC) && !CS_RET) d = "an async assertion nothing awaits never runs before the test ends"
   else if (has(s, R_INERT)) d = "the statement looks like an assertion and asserts nothing"
   else if (LEXER == "python" && s ~ /^assert[[:space:](]/) d = py_assert_inert(r)
   if (d == "") return
@@ -1682,7 +1682,7 @@ function open_block(line, name) {
   BID++
   OR_S = OR_W = OR_P = OR_WLINE = OR_PLINE = 0
   CD = CR_N = CR_LOOPS = CR_BR = CA_IN = CA_OUT = CA_LINE = 0
-  COND_NEXT = SRC_PEND = SIG = PM_NAME = ""
+  COND_NEXT = SRC_PEND = SIG = PM_NAME = CS_SIG = ""
   SIG_OPEN = LEXER == "python"
   SH_ACT = SH_FN = PS_PEND = 0
 }
@@ -1690,8 +1690,13 @@ function open_block(line, name) {
 # block_raw: an idiom or a delegation matched the raw text of this line and
 # the two before it, which counts as an assertion. The per-line rules that
 # need to know they are inside a test run from here.
-function append_block(m, r) {
-  block_masked = block_masked m "\n"
+function append_block(m, r,    bm, br) {
+  bm = m; br = r; CS_RET = 0
+  # A C# line before the body opens is signature: the test's name and its
+  # parameters are code, and a test named Check_x or a parameter named
+  # expected would read as an assertion. Only the body after it is judged.
+  if (LEXER == "cs" && !body_open && !expr_body) { cs_cut(m, r); bm = CUT_M; br = CUT_R }
+  block_masked = block_masked bm "\n"
   block_last = FNR
   LINE_IN_TEST = 1
   # The def's signature, up to the parenthesis that closes its parameters.
@@ -1701,13 +1706,13 @@ function append_block(m, r) {
     if ((BW2 " " BW1 " " r) ~ R_RAW) block_raw = 1
     BW2 = BW1; BW1 = r
   }
-  # The start line names the test; in cs, python and go that name is code, and
-  # a test named check_x would read as an assertion.
+  # The start line names the test; in python and go that name is code, and a
+  # test named check_x would read as an assertion. cs has cut its signature.
   OR_S0 = OR_S
-  if (FNR != block_line || LEXER == "js" || LEXER == "pwsh") oracle_line(m, r)
+  if (FNR != block_line || LEXER == "js" || LEXER == "pwsh" || LEXER == "cs") oracle_line(bm, br)
   if (LEXER != "bash") { cond_scan(m); bind_scan(m, r) }
   else sh_act_scan(m)
-  if (FNR != block_line) inert_scan(m, r)
+  if (FNR != block_line || LEXER == "cs") inert_scan(bm, br)
   src_scan(m, r)
   if (LEXER == "js" || LEXER == "python") g8_bind(m, r)
   if (m !~ /^[[:space:]]*$/) { prev_code = code_tail(m, r); block_code_last = FNR }
@@ -1746,6 +1751,25 @@ function cs_body_start(m) {
     expr_body = 1
     if (m ~ /;[[:space:]]*$/) { expr_body = 0; close_block() }
   }
+}
+
+# A C# signature line cut to its body, in CUT_M and CUT_R: the signature and
+# the body's opener ("{" or "=>") blanked, and a "}" that closes the body on
+# this line too. Blanking keeps the columns fill() pairs masked and raw text by.
+# CS_RET: the body is an expression a Task-returning test returns, so an async
+# assertion there is awaited by the runner.
+function cs_cut(m, r,    i, j, k, n) {
+  i = index(m, "{"); j = index(m, "=>")
+  k = (j && (!i || j < i)) ? j : i
+  if (!k) { CS_SIG = CS_SIG " " m; CUT_M = blanks(length(m)); CUT_R = blanks(length(r)); return }
+  CS_SIG = CS_SIG " " substr(m, 1, k - 1)
+  n = k == j ? k + 1 : k
+  CUT_M = blanks(n) substr(m, n + 1)
+  CUT_R = blanks(n) substr(r, n + 1)
+  if (k == j) { CS_RET = CS_SIG ~ /(^|[^A-Za-z0-9_.])(Task|ValueTask)([^A-Za-z0-9_]|$)/; return }
+  if (brace_delta(m) > 0) return
+  for (k = length(CUT_M); k > n; k--) if (substr(CUT_M, k, 1) == "}") break
+  if (k > n) { CUT_M = substr(CUT_M, 1, k - 1) " " substr(CUT_M, k + 1); CUT_R = substr(CUT_R, 1, k - 1) " " substr(CUT_R, k + 1) }
 }
 
 function cs_method_name(s,    t) {
@@ -1866,8 +1890,8 @@ function brace_decl() {
     if (pending_skip) pending_skip = 0
     else {
       open_block(FNR, cs_method_name(masked))
-      append_block(masked, raw)
       body_open = 0; expr_body = 0; depth = 0
+      append_block(masked, raw)
       cs_body_start(masked)
     }
   } else {

@@ -1126,8 +1126,13 @@ corpus_files=(
   cs-nunit/good/CartRepaired4bTests.cs.fixture
   cs-nunit/good/CartRepairedOraclesTests.cs.fixture
   cs-nunit/good/CartSyncIgnoredFixtureTests.cs.fixture
+  cs-xunit/bad/DiagnosticsCheckPrintsOnlyTests.cs.fixture
+  cs-xunit/bad/InvoiceExpressionNotNullTests.cs.fixture
+  cs-xunit/bad/InvoiceExpressionVerifyTests.cs.fixture
   cs-xunit/bad/InvoiceLinesLoopTests.cs.fixture
   cs-xunit/bad/InvoiceNotNullTests.cs.fixture
+  cs-xunit/bad/InvoiceOneLineNotNullTests.cs.fixture
+  cs-xunit/bad/InvoiceOneLineShouldTests.cs.fixture
   cs-xunit/bad/InvoiceOverloadedHelperTests.cs.fixture
   cs-xunit/bad/InvoiceRecursiveOverloadTests.cs.fixture
   cs-xunit/bad/InvoiceRenderSnapshotTests.cs.fixture
@@ -1136,11 +1141,14 @@ corpus_files=(
   cs-xunit/bad/InvoiceTotalSumTests.cs.fixture
   cs-xunit/bad/InvoiceTotalTests.cs.fixture
   cs-xunit/bad/PageSourceTextTests.cs.fixture
+  cs-xunit/bad/QuoteExpectedParameterTests.cs.fixture
   cs-xunit/bad/SlugifyTests.cs.fixture
   cs-xunit/bad/WorkerRunAsyncTests.cs.fixture
   cs-xunit/good/AnalyzerHarnessRunAsyncTests.cs.fixture
+  cs-xunit/good/DiagnosticsCheckAssertsTests.cs.fixture
   cs-xunit/good/HttpStatusFieldTests.cs.fixture
   cs-xunit/good/InvoiceMailerTests.cs.fixture
+  cs-xunit/good/InvoiceOneLineOraclesTests.cs.fixture
   cs-xunit/good/InvoiceOverloadDelegatesTests.cs.fixture
   cs-xunit/good/InvoicePendingTests.cs.fixture
   cs-xunit/good/InvoiceRepaired4bTests.cs.fixture

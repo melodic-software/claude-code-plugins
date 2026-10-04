@@ -1,0 +1,25 @@
+// good-for: rule-weak-oracle
+// good-for: rule-inert-assertion
+// good-for: rule-snapshot-only
+// One-line and expression bodies with real oracles. A returned
+// Assert.ThrowsAsync is awaited by the runner, so it is not inert. Without a
+// Verify package in reach, Verify( is an ordinary assertion call.
+using System;
+using System.Threading.Tasks;
+using FluentAssertions;
+using Xunit;
+
+public class InvoiceOneLineOraclesTests
+{
+    [Fact]
+    public void Total_AddsLines() { Assert.Equal(15m, new Invoice(new[] { 10m, 5m }).Total); }
+
+    [Fact]
+    public void Total_AddsLinesFluent() => new Invoice(new[] { 10m, 5m }).Total.Should().Be(15m);
+
+    [Fact]
+    public Task Parse_Empty_Throws() => Assert.ThrowsAsync<ArgumentException>(() => InvoiceParser.ParseAsync(""));
+
+    [Fact]
+    public Task Render_MatchesApproved() => Verify(InvoiceRenderer.Render(new Invoice(taxRate: 0.1m)));
+}

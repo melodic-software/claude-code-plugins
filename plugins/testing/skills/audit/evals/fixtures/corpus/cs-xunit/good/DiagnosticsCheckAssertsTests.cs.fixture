@@ -1,0 +1,23 @@
+// good-for: rule-zero-assertion
+// "Check" in a test's name no longer counts as an assertion, so these must
+// stay silent on their bodies alone: the first asserts with Assert.Equal, the
+// second calls a production CheckAll, which the generous check token still
+// counts as an assertion call.
+using Xunit;
+
+public class DiagnosticsCheckAssertsTests
+{
+    [Fact]
+    public void Diagnostics_CheckConnectionStrings()
+    {
+        var settings = AppSettings.Load("appsettings.json");
+        Assert.Equal(2, settings.ConnectionStrings.Count);
+    }
+
+    [Fact]
+    public void ConnectionStrings_AreWellFormed()
+    {
+        var settings = AppSettings.Load("appsettings.json");
+        ConnectionStringRules.CheckAll(settings);
+    }
+}
