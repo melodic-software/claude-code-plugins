@@ -3,6 +3,23 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [Unreleased]
+
+### Added
+
+- **`verify_mechanical_phases` sends every phase to the fresh-context verifier.** Off (the
+  default), `/implementation:implement-dispatch` keeps the mechanical carve-out: the orchestrator
+  verifies a mechanical, behavior-preserving phase from the diff plus the build/test signal, and
+  that phase's fresh-context verdict is the PR's verify stage. On, `implementation:phase-verifier`
+  runs for every phase, mechanical ones included. `/implementation:implement` reads the same key
+  at Step 4 and, when it is on, has a fresh-context verifier check mechanical phases too. An
+  invalid value is named and falls back to `false`. It is set per user in the new
+  `verify_mechanical_phases` user config option and per repository in
+  `docs/conventions/implementation.yaml` (schema `schemas/implementation.schema.json`); `true` in
+  either layer wins, and the skill reports the layer that supplied the value. The new settings
+  page `reference/config.md` holds the resolution and root rules, and a plugin-level eval case
+  under `evals/` checks that a repository `true` dispatches the verifier for a rename phase.
+
 ## [0.21.3] - 2026-10-04
 
 ### Changed

@@ -21,6 +21,12 @@
       "title": "Dispatch wave cap (rows)",
       "description": "Maximum worker rows /implementation:implement-dispatch runs at once within one plan phase. Leave unset to keep the internal 3-5 wave default. A fractional value is floored. A --wave-cap argument from a chaining caller takes precedence for that invocation.",
       "min": 1
+    },
+    "verify_mechanical_phases": {
+      "type": "boolean",
+      "title": "Fresh verifier on mechanical phases",
+      "description": "When on, /implementation:implement and /implementation:implement-dispatch send every phase, mechanical ones included, to a fresh-context verifier. Off (default) keeps the mechanical carve-out. True here or in a repository's docs/conventions/implementation.yaml wins.",
+      "default": false
     }
   }
 }

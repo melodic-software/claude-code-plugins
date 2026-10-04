@@ -314,6 +314,7 @@ plugins/guardrails/*.md
 plugins/guardrails/skills/*/SKILL.md
 plugins/guardrails/skills/*/context/*.md
 plugins/implementation/README.md
+plugins/implementation/reference/config.md
 plugins/implementation/skills/*/SKILL.md
 plugins/improvement/README.md
 plugins/improvement/CHANGELOG.md

@@ -114,6 +114,19 @@
         "It writes the phase-boundary handoff entry and ends the turn",
         "It names the pending model switch as the reason"
       ]
+    },
+    {
+      "id": 10,
+      "name": "inline-mechanical-phase-gets-verifier-when-setting-true",
+      "narration": true,
+      "prompt": "/implementation:implement: interactive inline run inside a git repository. The repository's docs/conventions/implementation.yaml holds `verify_mechanical_phases: true`; the user's option is unset. Phase 1 renames the parse_sku helper to parse_stock_code with no behavior change, and build, tests and lint pass. Mark the phase DONE.",
+      "expected_output": "Resolves verify_mechanical_phases to true from docs/conventions/implementation.yaml and reports that layer in one line. Because the setting is true, the passing build/test/lint run is not enough for this mechanical phase: a fresh-context verifier that did not produce the rename checks the acceptance criteria against the diff before the phase is marked [DONE].",
+      "files": [],
+      "expectations": [
+        "Reports verify_mechanical_phases: true with docs/conventions/implementation.yaml as the supplying layer",
+        "Has a fresh-context verifier, not the producing context, check the mechanical rename phase before marking it [DONE]",
+        "Does NOT mark the phase [DONE] on the build/test/lint pass alone"
+      ]
     }
   ]
 }

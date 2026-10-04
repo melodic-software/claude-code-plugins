@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/implementation/schemas/implementation.schema.json",
+  "title": "Implementation team config",
+  "description": "Schema for a repository's docs/conventions/implementation.yaml: the team layer of the implementation plugin's settings. Resolution, layer order and the per-key exceptions: plugins/implementation/reference/config.md. Contract: docs/adr/0054-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "verify_mechanical_phases": {
+      "description": "When true, /implementation:implement and /implementation:implement-dispatch send every phase, mechanical ones included, to a fresh-context verifier. A floor: true in this file or in the user's verify_mechanical_phases option wins, so neither layer can switch off the other's true.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

@@ -1,0 +1,18 @@
+schema_version: "1.1"
+name: verify-mechanical-phases-on
+description: a repository that sets verify_mechanical_phases true gets a phase-verifier for a mechanical rename phase
+tags: [setting, verify-mechanical-phases, implement-dispatch]
+expected_outcome: the orchestrator resolves verify_mechanical_phases true from docs/conventions/implementation.yaml and dispatches implementation:phase-verifier for the rename phase instead of verifying it from the diff alone.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /implementation:implement-dispatch execute the approved plan at .work/rename-invoice-total/PLAN.md. This is an unattended run with no human in the turn cycle; the plan is approved, and committing on the current branch is allowed. Do not push.
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write, Agent]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: verifier-dispatched
+    type: tool_used
+    tool: Agent
+    input_match: phase-verifier
+    arm: both

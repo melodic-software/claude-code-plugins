@@ -186,6 +186,99 @@
         "It does NOT clear by default just because the heavy-window signal fired",
         "It does NOT state its own rule for when to compact, clear or hand off"
       ]
+    },
+    {
+      "id": 15,
+      "name": "verify-mechanical-phases-user-config-only",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run. The user's verify_mechanical_phases option is true; the repository has no docs/conventions/implementation.yaml. Phase 2 renames the invoice_total helper to compute_invoice_total across eight call sites with no behavior change; its worker returned and the build and tests are green. Mark the phase DONE.",
+      "expected_output": "Resolves verify_mechanical_phases to true from the user's option, reports that layer in one line, and dispatches implementation:phase-verifier for the rename phase before marking it [DONE], instead of verifying it from the diff plus the build signal alone.",
+      "files": [],
+      "expectations": [
+        "Reports one line resolving verify_mechanical_phases to true and naming the user's option as the supplying layer",
+        "Dispatches implementation:phase-verifier for the mechanical rename phase before marking it [DONE]",
+        "Does NOT mark the rename phase [DONE] on the diff plus the build/test signal alone"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "verify-mechanical-phases-repo-file-only",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run inside a git repository (not the home directory). The user's verify_mechanical_phases option is unset. The repository's docs/conventions/implementation.yaml holds `verify_mechanical_phases: true`. Phase 1 moves the shipping-rate tables from rates.py into rates/tables.py with no behavior change; its worker returned green.",
+      "expected_output": "Resolves verify_mechanical_phases to true from docs/conventions/implementation.yaml, reports that file as the supplying layer, and dispatches implementation:phase-verifier for the move phase before marking it [DONE].",
+      "files": [],
+      "expectations": [
+        "Reports verify_mechanical_phases: true with docs/conventions/implementation.yaml as the supplying layer",
+        "Dispatches implementation:phase-verifier for the mechanical move phase before marking it [DONE]"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "verify-mechanical-phases-repo-true-over-user-false",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run inside a git repository. The user's verify_mechanical_phases option is false; the repository's docs/conventions/implementation.yaml holds `verify_mechanical_phases: true`. Phase 3 reformats the CSV export module with the project formatter and changes no behavior; build and tests are green.",
+      "expected_output": "Resolves verify_mechanical_phases to true because the repository file sets true and the key is a floor; the user's false does not switch it off. Reports docs/conventions/implementation.yaml as the supplying layer and dispatches implementation:phase-verifier for the formatting phase.",
+      "files": [],
+      "expectations": [
+        "Resolves verify_mechanical_phases to true despite the user's false",
+        "Names docs/conventions/implementation.yaml as the layer that supplied true",
+        "Dispatches implementation:phase-verifier for the mechanical formatting phase before marking it [DONE]"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "verify-mechanical-phases-user-true-over-repo-false",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run inside a git repository. The user's verify_mechanical_phases option is true; the repository's docs/conventions/implementation.yaml holds `verify_mechanical_phases: false`. Phase 2 renames the parse_sku function to parse_stock_code with no behavior change; its worker returned green.",
+      "expected_output": "Resolves verify_mechanical_phases to true: the key is a floor, so the repository's false does not override the user's true even though the repository layer is the later one. Reports the user's option as the supplying layer and dispatches implementation:phase-verifier for the rename phase.",
+      "files": [],
+      "expectations": [
+        "Resolves verify_mechanical_phases to true even though the later repository layer says false",
+        "Names the user's option as the layer that supplied true",
+        "Dispatches implementation:phase-verifier for the mechanical rename phase before marking it [DONE]",
+        "Does NOT apply the usual later-layer-wins rule to this key"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "verify-mechanical-phases-neither-layer-default",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run. The user's verify_mechanical_phases option renders as the literal unexpanded placeholder; the repository has no docs/conventions/implementation.yaml. Phase 4 renames the test fixture directory from fixtures_old to fixtures with no behavior change; build and tests are green. Mark the phase DONE.",
+      "expected_output": "Treats the unexpanded placeholder as unset, resolves verify_mechanical_phases to the default false, and reports the default as the supplying layer. Keeps the carve-out: the orchestrator verifies the mechanical phase from the diff plus the build/test signal with no phase-verifier spawn, and names the PR's verify stage as the fresh-context verdict for that phase.",
+      "files": [],
+      "expectations": [
+        "Treats the literal placeholder as unset, not as an invalid value, and does not stop the run",
+        "Reports verify_mechanical_phases: false with the default as the supplying layer",
+        "Verifies the mechanical phase from the diff plus the build/test signal and does NOT dispatch implementation:phase-verifier for it",
+        "Names the PR's verify stage as the fresh-context verdict for the carved-out phase"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "verify-mechanical-phases-invalid-value-falls-back",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run inside a git repository. The user's verify_mechanical_phases option is unset; the repository's docs/conventions/implementation.yaml holds `verify_mechanical_phases: sometimes`. The plan's phase 1 is a mechanical rename; its worker returned and build and tests are green.",
+      "expected_output": "Names docs/conventions/implementation.yaml, the key verify_mechanical_phases and the value sometimes as invalid, treats that layer as unset, and falls back to the default false. The run continues: the rename phase keeps the carve-out, verified from the diff plus the build/test signal, with the PR's verify stage as its fresh-context verdict.",
+      "files": [],
+      "expectations": [
+        "Names docs/conventions/implementation.yaml, verify_mechanical_phases and the value sometimes as invalid",
+        "Resolves verify_mechanical_phases to the default false and reports the default as the supplying layer",
+        "Continues the run and verifies the rename phase from the diff plus the build/test signal, without dispatching implementation:phase-verifier for it",
+        "Does NOT stop the run over the invalid value, and does NOT read sometimes as true"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "verify-mechanical-phases-home-root-skips-repo-file",
+      "narration": true,
+      "prompt": "/implementation:implement-dispatch: autonomous run whose repository root resolves to the user's home directory. The user's verify_mechanical_phases option is unset, and a docs/conventions/implementation.yaml under the home directory holds `verify_mechanical_phases: true`. Phase 1 is a mechanical rename; build and tests are green.",
+      "expected_output": "Skips the repository layer because the root is the home directory, says so in the report line, resolves verify_mechanical_phases to the default false, and keeps the carve-out for the rename phase.",
+      "files": [],
+      "expectations": [
+        "Does NOT read the docs/conventions/implementation.yaml under the home directory as the repository layer",
+        "States that the repository layer was skipped because the root is the home directory",
+        "Resolves verify_mechanical_phases to false and verifies the rename phase from the diff plus the build/test signal"
+      ]
     }
   ]
 }
