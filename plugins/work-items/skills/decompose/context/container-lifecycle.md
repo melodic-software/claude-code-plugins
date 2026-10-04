@@ -45,8 +45,9 @@ coordination provider instead of publishing a spec that cannot travel.
   one-to-one with one container, so the artifact that session produced is inlined here rather
   than referenced. Existence of the artifact is the whole trigger: no flag, no lever, no
   convention key. A container whose design produced none is unchanged in shape from one
-  published before this rule. Slice bodies gain nothing here either; Step 4's slice template and
-  its pressure-test carve-out are untouched.
+  published before this rule. This inline is container-only: each slice carries its own design
+  excerpt in the `## Key interfaces` section of Step 4's slice template, quoted from PLAN.md's
+  `## Design`, and the template's pressure-test carve-out is untouched.
 
   - **Where to look.** The `design/` subdirectory of the same topic slice the source document was
     read from: `<memory_dir>/<slug>/design/`. A `#<item-number>` or conversation source has no topic

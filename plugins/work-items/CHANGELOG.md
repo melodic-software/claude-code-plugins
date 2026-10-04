@@ -3,6 +3,12 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.0] - 2026-10-04
+
+### Added
+
+- **Decomposed slices carry their design excerpt, and a `design` investigation type exists ([#6278](https://github.com/melodic-software/claude-code-plugins/issues/6278)).** `/work-items:decompose` reads PLAN.md's `## Design` and quotes each slice's part of it in a `## Key interfaces` section. The slice body is now the agent-brief template laid out as sections, so the two slice shapes no longer differ. Design unknowns get `design` investigation tickets routed to `/planning:design`.
+
 ## [0.48.4] - 2026-10-04
 
 ### Changed

@@ -73,7 +73,11 @@ Apply this template when:
 - Issue is intended for AFK agent execution (`/schedule`, `/loop`, Codex)
 - Issue body is vague and needs structuring for autonomous execution
 
-The brief can be the issue body itself or posted as a comment (prefixed with `## Agent Brief` heading so agents can locate it).
+The brief can be the issue body itself or posted as a comment (prefixed with `## Agent Brief` heading so agents can locate it). A slice `/work-items:decompose` publishes already carries these fields as body sections (What to build, Key interfaces, Acceptance criteria, Out of scope) and needs no separate `## Agent Brief` block.
+
+### Key interfaces from a design
+
+When the item comes from a plan whose PLAN.md has a `## Design` section, **Key interfaces** quotes the part of that section the item touches (contracts, type shapes, module boundaries, variation verdicts) rather than paraphrasing it, with each file path replaced by the type or module it names. The quote is the design guardrail the executing agent works within; the design directory it came from is never published.
 
 ### PR-variant briefs
 
