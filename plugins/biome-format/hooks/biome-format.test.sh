@@ -60,13 +60,16 @@ mkdir -p "$NB_DATA"
 run_nb() {
   printf '{"session_id":"test-nobiome-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$NB_REPO/app.js" |
     env -u CLAUDE_PROJECT_DIR PATH="$NB_FAKEBIN" CLAUDE_PLUGIN_DATA="$NB_DATA" \
-      CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=true bash "$HOOK"
+      CLAUDE_PLUGIN_ROOT="${HOOK_DIR%/*}" CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=true bash "$HOOK"
 }
 OUT_NB=$(run_nb)
 RC_NB=$?
 if [[ $RC_NB -eq 0 ]]; then ok "biome-absent -> exit 0"; else fail "biome-absent exit $RC_NB"; fi
-if jq -e '(.systemMessage | contains("biome")) and (.hookSpecificOutput.additionalContext | contains("Biome config"))' <<<"$OUT_NB" >/dev/null 2>&1; then
-  ok "biome-absent with governing config -> visible notice on both channels"
+# The manifest's where, degrade and check reach the model; its install route
+# reaches the user only.
+if jq -e '(.hookSpecificOutput.additionalContext | startswith("biome-format: biome not on the hook PATH or at node_modules/.bin/biome. Without biome,") and contains("/biome-format:check") and (contains("npm") | not))
+    and (.systemMessage | contains("@biomejs/biome"))' <<<"$OUT_NB" >/dev/null 2>&1; then
+  ok "biome-absent with governing config -> manifest notice, install route on the user channel only"
 else
   fail "biome-absent: notice missing or malformed: $OUT_NB"
 fi
@@ -78,11 +81,10 @@ else
 fi
 rm -rf "$NB_WORK"
 
-# --- Notice text is bound to prerequisites.json --------------------------------
-# The hook does not read the manifest at run time (parse cost on the per-edit hot
-# path), so this case is the binding: the manifest lists biome and jq,
-# and the hook's missing-binary notice call and local-bin walk state that tool's
-# name, check, install and local_bin, verbatim.
+# --- The local-bin walk is bound to prerequisites.json --------------------------
+# The missing-binary notice is composed from the manifest at run time; the
+# local-bin walk is not, so this case is the binding: the manifest lists biome,
+# jq and node, and the walk states biome's local_bin verbatim.
 MANIFEST="${HOOK_DIR%/*}/prerequisites.json"
 if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
   if jq -e '(.requires | map(.id)) == ["biome", "jq", "node"] and .requires[0].detect.local_bin == ["node_modules/.bin/biome"]' "$MANIFEST" >/dev/null 2>&1; then
@@ -90,8 +92,7 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
   else
     fail "manifest: expected tools biome, jq and node with local_bin node_modules/.bin/biome: $(cat "$MANIFEST")"
   fi
-  IFS=$'\t' read -r MF_NAME MF_LOCAL MF_CHECK MF_INSTALL < <(jq -r '.requires[0] | [.id, .detect.local_bin[0], .check, (.install | to_entries[0].value)] | @tsv' "$MANIFEST")
-  NOTICE_CALL="$(sed -n '/hook::tool_missing_notice_to BIOME_NOTICE/,/[^\\]$/p' "$HOOK")"
+  MF_LOCAL="$(jq -r '.requires[0].detect.local_bin[0]' "$MANIFEST")"
   WALK_FN="$(sed -n '/^biome_local_bin_here()/,/^}/p' "$HOOK")"
   # assert_hook_states <field> <needle> <haystack>
   assert_hook_states() {
@@ -101,9 +102,6 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$MANIFEST" ]]; then
       fail "manifest binding: hook does not state the manifest's $1 (needle='$2')"
     fi
   }
-  assert_hook_states name "'$MF_NAME'" "$NOTICE_CALL"
-  assert_hook_states check "$MF_CHECK" "$NOTICE_CALL"
-  assert_hook_states install "$MF_INSTALL" "$NOTICE_CALL"
   assert_hook_states local_bin "$MF_LOCAL" "$WALK_FN"
 else
   fail "manifest binding needs jq and $MANIFEST"
@@ -278,7 +276,7 @@ if grep -q 'export { a };' "$REPO/src/fmt.ts"; then
 else
   fail "gate ON -> file not formatted: $(cat "$REPO/src/fmt.ts")"
 fi
-if printf '%s' "$OUT" | grep -q 'biome-format: auto-fixed and/or reformatted'; then
+if printf '%s' "$OUT" | jq -e '.systemMessage == "biome-format: reformatted fmt.ts."' >/dev/null 2>&1; then
   ok "format case -> user-channel mutation disclosure"
 else
   fail "format case -> missing systemMessage disclosure: $OUT"
@@ -314,6 +312,53 @@ if printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null
 else
   fail "lint finding -> no additionalContext JSON: $OUT"
 fi
+# One line per finding: no reporter mark, no path, no summary footer.
+if [[ "$CTX" == "biome-format: lib/lint.ts has findings:"$'\n'"  1:7: lint/correctness/noUnusedVariables"* && "$(wc -l <<<"$CTX")" -eq 2 ]]; then
+  ok "lint finding -> lines drop the mark, path and footer"
+else
+  fail "lint finding -> report shape: $CTX"
+fi
+
+# --- Case 4c: an unchanged finding set is sent once --------------------------
+# With a data directory the set is sent on the first edit and not on the next;
+# telemetry still records it. A SessionStart compact resets the record, and a
+# clean run clears it, so the set is sent again when it returns.
+DELTA_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
+run_delta() {
+  run_hook_env "$1" CLAUDE_PLUGIN_OPTION_BIOME_FORMAT_ENABLED=true CLAUDE_PLUGIN_DATA="$DELTA_DATA" "${@:2}"
+}
+delta_ctx() { jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$1" 2>/dev/null; }
+D1=$(run_delta "$REPO/lib/lint.ts")
+TELD="$(mktemp "$WORK/teld.XXXXXX")"
+SINKD="$(make_sink "cat >\"$TELD\"")"
+D2=$(run_delta "$REPO/lib/lint.ts" HOOK_TELEMETRY_SINK="$SINKD")
+wait_for_sink "$TELD"
+if [[ "$(delta_ctx "$D1")" == *noUnusedVariables* && -z "$D2" ]]; then
+  ok "delta: an unchanged finding set is sent once, then nothing"
+else
+  fail "delta: first='$D1' second='$D2'"
+fi
+if [[ -s "$TELD" ]] && jq -e '.data.findings | map(test("noUnusedVariables")) | any' "$TELD" >/dev/null 2>&1; then
+  ok "delta: telemetry still records the finding the context left out"
+else
+  fail "delta: telemetry findings: $(cat "$TELD" 2>/dev/null)"
+fi
+printf '{"source":"compact"}' | env CLAUDE_PLUGIN_DATA="$DELTA_DATA" bash "$HOOK" --reset-digests
+D3=$(run_delta "$REPO/lib/lint.ts")
+if [[ "$(delta_ctx "$D3")" == *noUnusedVariables* ]]; then
+  ok "delta: SessionStart compact resets the record, so the set is sent again"
+else
+  fail "delta: after compact reset: '$D3'"
+fi
+printf 'export const usedVar = 1;\n' >"$REPO/lib/lint.ts"
+run_delta "$REPO/lib/lint.ts" >/dev/null
+printf 'const unusedVar = 1;\n' >"$REPO/lib/lint.ts"
+D4=$(run_delta "$REPO/lib/lint.ts")
+if [[ "$(delta_ctx "$D4")" == *noUnusedVariables* ]]; then
+  ok "delta: a finding that returns after a clean run is sent again"
+else
+  fail "delta: after clean run: '$D4'"
+fi
 
 # --- Case 4a: rewrite AND findings -> ONE JSON document, both channels -------
 # The #3406 regression: --write reformats the badly-spaced file AND the unused
@@ -345,16 +390,16 @@ else
 fi
 
 # --- Case 4b: mid-edit syntax error -> surfaced as a finding, not a break ----
-# The dominant on-edit trigger: the file does not parse yet. Biome's github
-# reporter emits ::error title=parse lines, so it must land in the findings
-# branch (advisory, exit 0), not be mislabeled as a tool break.
+# The dominant on-edit trigger: the file does not parse yet. Biome reports parse
+# diagnostics like lint ones, so they must land in the findings branch
+# (advisory, exit 0), not be mislabeled as a tool break.
 printf 'const = ;\n' >"$REPO/syntax.ts"
 OUT=$(run_hook "$REPO/syntax.ts")
 RC=$?
 if [[ $RC -eq 0 ]]; then ok "syntax error -> exit 0 (advisory)"; else fail "syntax error exit $RC"; fi
 if printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext' >/dev/null 2>&1; then
   CTX=$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext')
-  if printf '%s' "$CTX" | grep -qi 'has Biome findings' && printf '%s' "$CTX" | grep -qi 'parse\|expected'; then
+  if printf '%s' "$CTX" | grep -qi 'has findings' && printf '%s' "$CTX" | grep -qi 'parse\|expected'; then
     ok "syntax error -> surfaced as a finding (not a tool break)"
   else
     fail "syntax error -> not in findings branch: $CTX"
@@ -550,6 +595,14 @@ if command -v jq >/dev/null 2>&1 && [[ -f "$HOOKS_JSON" && -n "$BEGIN_LINE" && "
   else
     fail "hooks.json: expected one exec-form SessionStart prerequisites probe row behind --run-if-unset-or-true BIOME_FORMAT_ENABLED, found $PROBE_COUNT"
   fi
+  # The SessionStart compact|clear row that resets the findings delta gate.
+  RESET_SEL='.event == "SessionStart" and .matcher == "compact|clear" and .command == "node" and .args == ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "${CLAUDE_PLUGIN_ROOT}/hooks/biome-format.sh", "--reset-digests"]'
+  if [[ "$(jq "[.[] | select($RESET_SEL)] | length" <<<"$HANDLERS")" == "1" ]]; then
+    ok "hooks.json: one SessionStart compact|clear row runs the script with --reset-digests"
+  else
+    fail "hooks.json: expected one SessionStart compact|clear --reset-digests row"
+  fi
+  HANDLERS="$(jq -c "[.[] | select(($RESET_SEL) | not)]" <<<"$HANDLERS")"
   HANDLER_COUNT="$(jq 'length' <<<"$HANDLERS")"
   HANDLER_GROUPS="$(jq -r '[.[] | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"
   GROUPS_OFF="$(jq -r '[.[] | select(.event != "PostToolUse" or ((.matcher | split("|") | sort | unique) != ["Edit", "Write"])) | "\(.event):\(.matcher)"] | unique | join(",")' <<<"$HANDLERS")"

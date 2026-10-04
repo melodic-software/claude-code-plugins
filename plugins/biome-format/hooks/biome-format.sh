@@ -35,6 +35,13 @@ source "$HOOK_DIR/hook-utils.sh"
 # shellcheck source=rewrite-guard.sh
 source "$HOOK_DIR/rewrite-guard.sh"
 
+# The SessionStart compact|clear row: the model lost the reports with its
+# context, so the findings sent this session are sent again.
+if [[ "${1:-}" == --reset-digests ]]; then
+  hook::buffer_stdin_to INPUT && hook::findings_digest_reset "$INPUT"
+  exit 0
+fi
+
 # The whole prologue: the start stamp, the buffered payload, the jq-free
 # applicability filter, the jq gate, the parsed path with its basename and
 # directory, the file-anchored repo root (which bounds the biome-config opt-in
@@ -121,19 +128,15 @@ fi
 # The repo opted in via a Biome config but no binary is available → visible
 # once-per-session skip notice, not a silent gap (dim-9 doctrine).
 if [[ -z "$BIOME_BIN" ]]; then
-  if hook::notice_once "biome-format-biome" "$INPUT" prerequisite; then
-    BIOME_NOTICE=""
-    hook::tool_missing_notice_to BIOME_NOTICE \
-      "biome-format: a Biome config governs this repo but no 'biome' binary was found (node_modules/.bin or this hook's PATH) — format/lint skipped for this edit" \
-      matching "; a repo-local install (npm i -D @biomejs/biome) is the reliable route. Run /biome-format:check. It does not install."
-    hook::emit_skip_notice PostToolUse "$BIOME_NOTICE"
+  if hook::prereq_notice_to BIOME_MODEL BIOME_USER biome "$INPUT"; then
+    hook::emit_skip_notice PostToolUse "$BIOME_MODEL" "$BIOME_USER"
   fi
   emit_skipped
 fi
 
 # Pass the file as a path relative to CONFIG_DIR (the CWD Biome runs in) so the
-# github reporter echoes a clean repo-relative path (e.g. src/app.ts) instead of
-# an absolute, URL-encoded one. CONFIG_DIR and FILE_DIR_POSIX both come from
+# reporter echoes the path as given (e.g. src/app.ts), which the findings parse
+# below strips. CONFIG_DIR and FILE_DIR_POSIX both come from
 # `pwd`, so the prefix strip compares the same form; CONFIG_DIR is an ancestor of
 # the file, so it always matches. Falls back to the absolute path if it does not.
 BIOME_ARG="$FILE"
@@ -146,10 +149,9 @@ fi
 # Run Biome from the governing config's directory (CWD-anchored discovery).
 # `check` = format + lint + import sorting; --write applies safe fixes;
 # --error-on-warnings makes residual warnings (not just errors) exit non-zero so
-# they surface as advisory context. --reporter=github emits one compact
-# workflow-command line per diagnostic (::warning/::error/::notice with rule,
-# file, line, and message) instead of the verbose default boxes — the analog of
-# ShellCheck's gcc format: actionable findings without the decorative noise.
+# they surface as advisory context. --reporter=concise prints one line per
+# diagnostic (path, line, column, rule and message) instead of the verbose
+# default boxes.
 #
 # BIOME_CONFIG_PATH is unset for this command: Biome reads it as a config-path
 # override, so a stray user- or project-level export would make Biome format the
@@ -163,26 +165,34 @@ fi
 # composition live in the shared rewrite-guard lib (#3406, #3409): the
 # disclosure is TAKEN once after the check runs and composed into the exiting
 # arm's one JSON document, never emitted mid-run as a second document.
-BIOME_REWRITE_MESSAGE="biome-format: auto-fixed and/or reformatted $FILE_BASE via Biome."
+BIOME_REWRITE_MESSAGE="biome-format: reformatted $FILE_BASE."
 hook::rewrite_guard_begin "$FILE"
 
-if OUTPUT=$(cd "$CONFIG_DIR" && env -u BIOME_CONFIG_PATH "$BIOME_BIN" check --write --error-on-warnings --reporter=github "$BIOME_ARG" 2>&1); then
-  # Clean: the disclosure is the whole document, or there is none.
+BIOME_CTX=""
+FINDINGS_JSON='[]'
+if OUTPUT=$(cd "$CONFIG_DIR" && env -u BIOME_CONFIG_PATH "$BIOME_BIN" check --write --error-on-warnings --reporter=concise "$BIOME_ARG" 2>&1); then
+  # Clean: the disclosure is the whole document, or there is none. The empty
+  # set clears the delta record, so findings that come back are sent again.
+  hook::findings_to BIOME_CTX "" "" --delta "$INPUT" "$FILE"
   hook::finish --disclose "$BIOME_REWRITE_MESSAGE" ok findings array '[]'
 fi
 
-# Non-zero exit. The github reporter emits one `::warning`/`::error`/`::notice`
-# line per diagnostic; their presence is the unambiguous signal that Biome made a
-# lint/format judgment with residual findings. Surface just those lines (not the
-# decorative footer). Status "ok" — the linter RAN and produced a judgment
+# Non-zero exit. The concise reporter prints one `<mark> <path>:<line>:<col>:
+# <rule>: <message>` line per diagnostic; their presence is the unambiguous
+# signal that Biome made a lint/format judgment with residual findings. Surface
+# just those lines, without the mark and the path the heading names, and not the
+# summary footer. Status "ok" — the linter RAN and produced a judgment
 # (findings live in data.findings), mirroring the bash-format model where status
 # reflects whether the tool ran, not whether it was clean.
-FINDINGS=$(grep -E '^::(warning|error|notice)' <<<"$OUTPUT" || true)
+FINDINGS=""
+while IFS= read -r _line; do
+  [[ "$_line" =~ ^[^[:space:]]+\ (.*)$ && "${BASH_REMATCH[1]}" == "$BIOME_ARG:"* ]] || continue
+  FINDINGS+="${BASH_REMATCH[1]#"$BIOME_ARG:"}"$'\n'
+done <<<"$OUTPUT"
 if [[ -n "$FINDINGS" ]]; then
-  BIOME_CTX=""
-  FINDINGS_JSON='[]'
-  hook::findings_to BIOME_CTX "biome-format: $FILE_BASE has Biome findings (advisory):" \
-    "$FINDINGS" FINDINGS_JSON
+  # --delta sends a finding set once per (session, agent, file).
+  hook::findings_to BIOME_CTX "biome-format: $BIOME_ARG has findings:" \
+    "$FINDINGS" FINDINGS_JSON --max 20 --delta "$INPUT" "$FILE"
   # Findings AND a rewrite disclosure compose into one document (#3406).
   hook::finish --context "$BIOME_CTX" --disclose "$BIOME_REWRITE_MESSAGE" \
     ok findings array "$FINDINGS_JSON"
@@ -205,10 +215,9 @@ fi
 # an advisory hook's exit-0 stderr can trip a false "Hook Error" label). Record
 # as "skipped" (the linter never ran), the same status as the no-config /
 # no-binary paths.
-BIOME_CTX=""
-hook::findings_to BIOME_CTX \
-  "biome-format: biome failed for $FILE_BASE (no diagnostics; tool break, not a finding):" \
-  "$OUTPUT"
+[[ -n "$OUTPUT" ]] || OUTPUT="biome exited non-zero with no output"
+hook::findings_to BIOME_CTX "biome-format: biome failed on $FILE_BASE:" \
+  "$OUTPUT" --max 10 --delta "$INPUT" "$FILE"
 # The --write pass may already have rewritten the file before Biome broke, so
 # the disclosure composes with the tool-break context as one document.
 hook::finish --context "$BIOME_CTX" --disclose "$BIOME_REWRITE_MESSAGE" \

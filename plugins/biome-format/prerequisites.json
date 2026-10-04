@@ -15,7 +15,7 @@
           "node_modules/.bin/biome"
         ]
       },
-      "degrade": "Without biome, the hook cannot format or lint edited JavaScript, TypeScript, JSON and CSS files; edits still go through.",
+      "degrade": "Without biome, the hook cannot format or lint edited JavaScript, TypeScript, JSON and CSS files.",
       "install": {
         "npm": "npm i -D @biomejs/biome"
       },
