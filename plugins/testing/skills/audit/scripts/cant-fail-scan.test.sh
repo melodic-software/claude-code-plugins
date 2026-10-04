@@ -1094,6 +1094,7 @@ corpus_files=(
   bash-harness/good/repaired-oracles.test.sh.fixture
   bash-harness/good/sort-against-literal.test.sh.fixture
   bash-harness/good/sources-test-harness.test.sh.fixture
+  cs-mstest/bad/OrderAlwaysTrueBesideWeakTests.cs.fixture
   cs-mstest/bad/OrderAlwaysTrueTests.cs.fixture
   cs-mstest/bad/OrderDiscountIfTests.cs.fixture
   cs-mstest/bad/OrderIsNotNullTests.cs.fixture
@@ -1137,6 +1138,7 @@ corpus_files=(
   cs-xunit/bad/InvoiceRecursiveOverloadTests.cs.fixture
   cs-xunit/bad/InvoiceRenderSnapshotTests.cs.fixture
   cs-xunit/bad/InvoiceShouldAloneTests.cs.fixture
+  cs-xunit/bad/InvoiceShouldBesideWeakTests.cs.fixture
   cs-xunit/bad/InvoiceTaskNamedHelperTests.cs.fixture
   cs-xunit/bad/InvoiceTotalSumTests.cs.fixture
   cs-xunit/bad/InvoiceTotalTests.cs.fixture

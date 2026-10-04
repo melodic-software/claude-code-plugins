@@ -1,0 +1,18 @@
+// expect: rule-inert-assertion
+// expect: rule-weak-oracle
+// Assert.IsTrue(true) never fails, so the IsNotNull beside it is the only
+// oracle left: any order id passes it, the wrong one included.
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class OrderAlwaysTrueBesideWeakTests
+{
+    [TestMethod]
+    public void PlaceOrder_AssignsAnId()
+    {
+        var order = new Order();
+        order.Place();
+        Assert.IsTrue(true);
+        Assert.IsNotNull(order.Id);
+    }
+}
