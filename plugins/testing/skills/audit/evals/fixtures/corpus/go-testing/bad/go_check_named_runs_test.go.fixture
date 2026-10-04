@@ -1,0 +1,13 @@
+// expect: rule-zero-assertion
+// Names that read like checks are not assertions: both tests only log, one
+// of them on the func's own line.
+package widget
+
+import "testing"
+
+func TestCheckWidgetBuilds(t *testing.T) {
+	w := Build()
+	t.Logf("widget: %v", w)
+}
+
+func TestVerifyBuild(t *testing.T) { t.Logf("widget: %v", Build()) }

@@ -1,0 +1,15 @@
+// expect: rule-throw-only-oracle
+// A cart built with new is never null, so the test fails only if the
+// constructor throws.
+using NUnit.Framework;
+
+[TestFixture]
+public class CartConstructedNotNullTests
+{
+    [Test]
+    public void Constructor_BuildsACart()
+    {
+        var cart = new Cart("eur");
+        Assert.That(cart, Is.Not.Null);
+    }
+}

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Scanned tax/, invoice.py and tests/. No deepening candidates: `tax` exposes one function, compute_tax, over the rate tables, exemptions and rounding, and the tests drive only that function. invoice.py is a thin caller. Deleting tax would spread its rules into every caller, so it is earning its keep. Nothing to report as a card.",
+      "why": "explicit no-findings verdict, modules described accurately"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Three candidates. 1 (Strong): _rates.py and _rounding.py are shallow helpers; fold them into a TaxPolicy module. 2 (Worth exploring): invoice.py should own formatting through a Presenter seam. 3 (Speculative): compute_tax takes a dict; give it an Order type. Which of these would you like to explore?",
+      "why": "invents candidates on an already-deep module"
+    }
+  ]
+}

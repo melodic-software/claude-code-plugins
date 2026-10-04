@@ -72,4 +72,28 @@ wit_fm_set "$WIT_STORAGE_DIR/1.md" assignees '["me"]'
 assert_eq "fm_set replaces in place" '["me"]' "$(wit_fm_field "$WIT_STORAGE_DIR/1.md" assignees)"
 assert_eq "fm_set left title untouched" '"hello, world: edge"' "$(wit_fm_field "$WIT_STORAGE_DIR/1.md" title)"
 
+# A closed blocker unblocks only when it was completed. `state_reason` is this
+# format's close reason; a closed item without one was completed.
+# blocker_item <number> <state> [<state_reason>] / dependent_of <number> <blocker>.
+blocker_item() {
+  printf -- '---\nid: "local-markdown:local/markdown#%s"\nnumber: %s\ntitle: "b"\nstate: "%s"\n%bassignees: []\nlabels: []\nparent: null\nurl: "file:///x"\n---\n' \
+    "$1" "$1" "$2" "${3:+state_reason: \"$3\"\n}" >"$WIT_STORAGE_DIR/$1.md"
+}
+dependent_of() {
+  blocker_item "$1" open
+  printf '\nBlocked by: local-markdown:local/markdown#%s\n' "$2" >>"$WIT_STORAGE_DIR/$1.md"
+}
+blocker_item 41 open
+blocker_item 42 closed
+blocker_item 43 closed completed
+blocker_item 44 closed not_planned
+blocker_item 45 closed duplicate
+for n in 41 42 43 44 45; do dependent_of "$((n + 10))" "$n"; done
+counts() { wit_emit_local_item "$1" | jq -r '"\(.blocked_by_count) \(.blocked_by_wont_do_count)"'; }
+assert_eq "OPEN blocker blocks, not won't-do" "1 0" "$(counts 51)"
+assert_eq "closed blocker without a reason was completed: unblocks" "0 0" "$(counts 52)"
+assert_eq "closed completed blocker unblocks" "0 0" "$(counts 53)"
+assert_eq "closed not_planned blocker blocks and counts as won't-do" "1 1" "$(counts 54)"
+assert_eq "closed duplicate blocker blocks and counts as won't-do" "1 1" "$(counts 55)"
+
 [[ $FAILED -eq 0 ]] || exit 1
