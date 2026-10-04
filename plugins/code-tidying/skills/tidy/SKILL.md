@@ -195,12 +195,12 @@ Self-review by the producing context is enough here, a fresh-context verifier is
 
 **`in-place`:** open no PR and post no comment. `in-place` leaves the tidyings staged;
 `in-place=commit` makes one commit of them, titled per the format below (via
-`/source-control:commit` when installed). Print to the user the title, Summary, Test plan, and
+`/source-control:commit` when installed). Print to the user the title, the body content `/source-control:pull-request create` would write, and
 the audit-trail sections below that would have gone to the PR, then stop.
 
 Otherwise, never call `git commit` or `gh pr create` directly. Phase E already committed the tidyings, so what's left is PR creation, and that has a canonical gate (issue-linkage resolution, injection-safe body assembly, a pre-create check for a valid closing keyword or explicit opt-out) that a bare `gh pr create` skips entirely.
 
-If the `source-control` plugin is installed, invoke `/source-control:pull-request create` via the Skill tool. Its stage-and-commit step is a no-op here (tree is already clean from Phase E), so it goes straight to rebase-check, issue-linkage resolution, and gated PR creation. Supply it this PR's title and body content, the canonical flow's body template is fixed to Summary + Test plan, so give it only those two sections; tidy's own audit-trail content goes in a follow-up comment (below), not the PR body:
+If the `source-control` plugin is installed, invoke `/source-control:pull-request create` via the Skill tool. Its stage-and-commit step is a no-op here (tree is already clean from Phase E), so it goes straight to rebase-check, issue-linkage resolution, and gated PR creation. Supply it this PR's title and the facts the body needs (lane, tidyings, anchor commit, verification commands run and their results); it writes the body from the repo's configured sections. Tidy's own audit-trail content goes in a follow-up comment (below), not the PR body:
 
 Title:
 
@@ -214,12 +214,12 @@ Examples:
 - `docs(skills): repair stale cross-references`
 - `chore(tools): apply shellcheck/shfmt drift across tools/*.sh`
 
-Body sections:
+Body facts to supply:
 
-- **Summary**. 1-3 bullets: which lane, which tidyings, anchor commit.
-- **Test plan**. Verification commands run + results.
+- Which lane, which tidyings, and the anchor commit.
+- Verification commands run and their results.
 
-`/source-control:pull-request create` reports the created `<pr_number>` back on completion. Immediately post one follow-up comment on that PR with `tidy`'s own audit trail. Content the canonical body template has no slot for:
+`/source-control:pull-request create` reports the created `<pr_number>` back on completion. Immediately post one follow-up comment on that PR with `tidy`'s own audit trail. Content the configured PR body sections have no slot for:
 
 ```bash
 gh pr comment <pr_number> --body-file - <<'EOF'

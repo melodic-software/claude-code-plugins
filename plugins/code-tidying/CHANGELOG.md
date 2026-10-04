@@ -5,6 +5,10 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
 
 ## [Unreleased]
 
+### Fixed
+
+- `tidy` no longer describes the PR body as fixed to `Summary` and `Test plan`; it hands `/source-control:pull-request create` the facts and that skill writes the body from the repo's configured sections.
+
 ### Added
 
 - `audit-comment-residue` reports a new Tier 2 shape, `unjustified-workaround`: a comment that names a workaround and gives neither a link (a URL, an issue or PR number, an RFC) nor a removal condition (`until`, `remove when`, `once ... ships`). A link or condition on any line of the same comment run justifies the run, and a workaround comment's own issue reference is no longer reported as `ticket-pr-residue`.
