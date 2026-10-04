@@ -31,13 +31,25 @@ inputs:
       to fetch it.
     required: false
     default: ${{ github.token }}
+  denied-actor-ids:
+    description: >
+      Comma- or space-separated user ids that stop the lane with bot-actor
+      when any checked actor, or the triggering actor, has one, even if listed.
+    required: false
+    default: ""
+  triggering-actor:
+    description: >
+      The login that started this run attempt, which differs from the event
+      actor on a re-run. Must be on the list; empty skips the check.
+    required: false
+    default: ${{ github.triggering_actor }}
 
 outputs:
   proceed:
     description: "`true` when the lane may proceed, otherwise `false`."
     value: ${{ steps.check.outputs.proceed }}
   reason:
-    description: "`ok`, `fork`, `no-pr`, `untrusted-actor`, `untrusted-author` or `list-unreadable`."
+    description: "`ok`, `fork`, `no-pr`, `bot-actor`, `untrusted-actor`, `untrusted-author` or `list-unreadable`."
     value: ${{ steps.check.outputs.reason }}
   pr-number:
     description: The resolved PR number; empty unless proceed is `true`.
@@ -64,5 +76,7 @@ runs:
         TRUSTED_ACTORS_PATH: ${{ inputs.trusted-actors-path }}
         PR_NUMBER: ${{ inputs.pr-number }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
+        DENIED_ACTOR_IDS: ${{ inputs.denied-actor-ids }}
+        TRIGGERING_ACTOR: ${{ inputs.triggering-actor }}
         REPOSITORY: ${{ github.repository }}
       run: node "$GITHUB_ACTION_PATH/check-trusted-trigger.mjs"

@@ -1,6 +1,8 @@
 // Trigger gate for CI lanes: proceed only for a same-repository PR whose event
 // actor and PR author are both on the trusted-actor list, matched by numeric
-// id. Every failure ends in proceed=false with a reason; main never throws.
+// id, and whose re-runner, when given, is listed by login. A denied id stops
+// the lane even when it is listed. Every failure ends in proceed=false with a
+// reason; main never throws.
 import { readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -68,8 +70,9 @@ function isPlainObject(value) {
 }
 
 // Validates the trusted-actors shape (version 1, no extra keys) and returns
-// the set of listed ids. Throws on any read, parse or shape failure.
-export function loadTrustedActors(listPath) {
+// the listed ids and each lowercased login's id. Throws on any read, parse or
+// shape failure.
+export function loadTrustedList(listPath) {
   const list = JSON.parse(readFileSync(listPath, "utf8"));
   if (
     !isPlainObject(list) ||
@@ -80,6 +83,7 @@ export function loadTrustedActors(listPath) {
     throw new Error("trusted-actor list does not match its schema");
   }
   const ids = new Set();
+  const logins = new Map();
   for (const actor of list.actors) {
     if (
       !isPlainObject(actor) ||
@@ -92,8 +96,21 @@ export function loadTrustedActors(listPath) {
       throw new Error("trusted-actor entry does not match its schema");
     }
     ids.add(actor.id);
+    logins.set(actor.login.toLowerCase(), actor.id);
   }
-  return ids;
+  return { ids, logins };
+}
+
+export const loadTrustedActors = (listPath) => loadTrustedList(listPath).ids;
+
+// Parses a comma- or space-separated list of positive integer ids. Anything
+// else throws, so a malformed denial never reads as an empty one.
+export function parseDeniedIds(value = "") {
+  const tokens = value.split(/[\s,]+/).filter(Boolean);
+  if (!tokens.every((token) => /^[1-9][0-9]{0,15}$/.test(token))) {
+    throw new Error("denied actor ids must be positive integers");
+  }
+  return new Set(tokens.map(Number));
 }
 
 export const isListed = (ids, user) => Number.isInteger(user?.id) && ids.has(user.id);
@@ -137,7 +154,17 @@ async function resolveRunPull(github, repository, run) {
   return matches[0];
 }
 
-export async function evaluateTrigger({ eventName, event, repository, ids, prNumber, github }) {
+export async function evaluateTrigger({
+  eventName,
+  event,
+  repository,
+  list,
+  deniedIds = new Set(),
+  triggeringActor = "",
+  prNumber,
+  github,
+}) {
+  const { ids, logins } = list;
   if (typeof repository !== "string" || !repository.includes("/")) {
     throw new Stop("no-pr");
   }
@@ -173,7 +200,18 @@ export async function evaluateTrigger({ eventName, event, repository, ids, prNum
   ) {
     throw new Stop("no-pr");
   }
+  // The context gives the re-runner's login only, so it is matched by login.
+  const rerunnerId = triggeringActor === "" ? undefined : logins.get(triggeringActor.toLowerCase());
+  if (
+    actors.some((actor) => Number.isInteger(actor?.id) && deniedIds.has(actor.id)) ||
+    (rerunnerId !== undefined && deniedIds.has(rerunnerId))
+  ) {
+    throw new Stop("bot-actor");
+  }
   if (!actors.every((actor) => isListed(ids, actor))) {
+    throw new Stop("untrusted-actor");
+  }
+  if (triggeringActor !== "" && rerunnerId === undefined) {
     throw new Stop("untrusted-actor");
   }
   if (!isListed(ids, pull.user)) {
@@ -203,9 +241,11 @@ function stopped(reason) {
 export async function main({ env = process.env, github } = {}) {
   let result;
   try {
-    let ids;
+    let list;
+    let deniedIds;
     try {
-      ids = loadTrustedActors(env.TRUSTED_ACTORS_PATH);
+      list = loadTrustedList(env.TRUSTED_ACTORS_PATH);
+      deniedIds = parseDeniedIds(env.DENIED_ACTOR_IDS);
     } catch {
       throw new Stop("list-unreadable");
     }
@@ -219,7 +259,9 @@ export async function main({ env = process.env, github } = {}) {
       eventName: env.EVENT_NAME,
       event,
       repository: env.REPOSITORY,
-      ids,
+      list,
+      deniedIds,
+      triggeringActor: env.TRIGGERING_ACTOR ?? "",
       prNumber: env.PR_NUMBER,
       github: github ?? createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL }),
     });

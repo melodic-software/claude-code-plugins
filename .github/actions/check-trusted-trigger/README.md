@@ -16,12 +16,15 @@ condition 1 and the actor and author parts of condition 2).
 | `trusted-actors-path` | `.base/.github/standards/trusted-actors/trusted-actors.json` | The list, from the base-SHA checkout |
 | `pr-number` | empty | The PR on `workflow_dispatch`; ignored otherwise |
 | `github-token` | `${{ github.token }}` | Reads the PR on `workflow_dispatch` and `workflow_run` |
+| `denied-actor-ids` | empty | Comma- or space-separated user ids that stop the lane with `bot-actor` |
+| `triggering-actor` | `${{ github.triggering_actor }}` | The login that started this run attempt; empty skips the check |
 
 ## Rules
 
 - **List.** The file must hold `version: 1` and an `actors` array whose entries have exactly an
   integer `id` of at least 1, a string `login` and a `kind` of `human` or `bot`. Matching is on
-  `id` only: a login can be renamed and later registered by someone else.
+  `id`, because a login can be renamed and later registered by someone else; the re-runner below
+  is the one exception.
 - **`pull_request`.** Same repository when `pull_request.head.repo.full_name` equals the
   repository; a null head repo is a fork. Actor is `sender`.
 - **`workflow_dispatch`.** Fetches the PR named by `pr-number`; a null head repo is a fork.
@@ -32,6 +35,15 @@ condition 1 and the actor and author parts of condition 2).
   Actors are `sender`, `workflow_run.actor` and `workflow_run.triggering_actor`: all three must
   be listed, because ADR 0051 requires the actor that started the failed run to be trusted.
 - **Author.** The PR's `user.id` must be listed.
+- **Re-runner.** A re-run keeps the original event and its actors, so `triggering-actor` is
+  checked as well: it must be a listed `login`, compared without case. The context gives the
+  login only, so this one check matches on login, not id.
+- **Denied ids.** When `sender`, a `workflow_run` actor, or the `triggering-actor` login's listed
+  id is in `denied-actor-ids`, the lane stops with `bot-actor`, even though that actor is listed.
+  `pr-run-activity-write.yml` denies the lanes App bot, so the bot's own pushes and dispatches
+  never chain a write activity; `pr-run-activity-read.yml` denies nothing, so bot-chained read
+  activities still run. A value that is not a list of positive integers stops with
+  `list-unreadable`.
 - **Head ref.** The PR's head branch must match `^[A-Za-z0-9._/-]+$`; any other branch name, such
   as one carrying `$(`, stops with `no-pr`.
 - **`no-pr` for everything unhandled.** Any other event (including `pull_request_target`), a
@@ -50,10 +62,11 @@ with `no-pr`.
 | Output | Values |
 |---|---|
 | `proceed` | `true` or `false` |
-| `reason` | `ok`, `fork`, `no-pr`, `untrusted-actor`, `untrusted-author`, `list-unreadable` |
+| `reason` | `ok`, `fork`, `no-pr`, `bot-actor`, `untrusted-actor`, `untrusted-author`, `list-unreadable` |
 | `pr-number`, `head-ref`, `head-sha`, `base-sha` | The resolved PR; empty unless `proceed` is `true` |
 
-Reasons are checked in the order list, event and PR, fork, actor, author. Every failure, including
+Reasons are checked in the order list and denied ids, event and PR, fork, denied actor, actor and
+re-runner, author. Every failure, including
 an unreadable payload or a failed API call, ends in `proceed=false`, and the step always exits 0.
 Set `CLAUDE_BRANCH` for the model step from `head-ref`, and record `head-sha` before the model runs
 for [`check-signed-commits`](../check-signed-commits/README.md).
