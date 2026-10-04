@@ -86,8 +86,10 @@ against a run that produced none):
    so it cannot take the `curl` route the discipline file gives a researcher for a page WebFetch
    truncates. When its `problems:` names a `truncated primary: <url>`, save that page with the
    recipe under "A size failure is the same trigger" in [`discipline.md`](discipline.md), with
-   `<scratch>` set to a `scratch-snapshots` directory inside the slice. Prefer the `.md` form of a
-   code.claude.com page. Then dispatch a fresh verifier with one more prompt line per page:
+   `<scratch>` set to a `scratch-snapshots` directory inside the slice. Create that directory before running
+   the recipe: its `mktemp -d` makes only the final path component. Fetch through rung 1
+   of the [upstream-drift read ladder](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/upstream-drift/README.md#the-rungs),
+   which owns the raw-markdown channel. Then dispatch a fresh verifier with one more prompt line per page:
 
    ```text
    Snapshots: <url> -> <absolute path of the saved copy>
