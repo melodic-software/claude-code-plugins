@@ -445,9 +445,11 @@ assert_contains "a Machine reason code outside the R5 list fails" "machine-1: re
 area_row() { # <area cell>
   printf '| x | %s | c | m | r | g | steps-for-you | HIGH | no | https://a.example | 2026-09-01 | t |\n' "$1"
 }
+# The slug on the next line is a deliberate unknown-slug fixture, not a misspelling.
 printf '%s\n%s\n' "$HDR" "$(area_row 'git, gti')" >"$CAT/bad.md" # spellchecker:disable-line
 run lint-catalog "$CAT/bad.md"
 assert_eq "a row with an unknown area slug fails" "1" "$RUN_RC"
+# The slug asserted on the next line is the deliberate unknown slug the fixture wrote.
 assert_contains "the error names the unknown slug" "gti" "$RUN_OUT" # spellchecker:disable-line
 printf '%s\n%s\n' "$HDR" "$(area_row 'ci-cd, gates')" >"$CAT/bad.md"
 run lint-catalog "$CAT/bad.md"

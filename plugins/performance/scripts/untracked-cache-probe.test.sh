@@ -169,4 +169,14 @@ assert_eq "git never ran inside the repository" "0" "$(grep -c '^detail=' <<<"$R
 assert_eq "the repository's status is unchanged by an inside root" "$status_before" "$(git -C "$REPO" status --porcelain --untracked-files=all)"
 assert_eq "the repository's index is unchanged by an inside root" "$index_before" "$(index_hash "$REPO")"
 
+# --- 11. a scratch root that is the repository itself is refused the same way ---
+status_before="$(git -C "$REPO" status --porcelain --untracked-files=all)"
+index_before="$(index_hash "$REPO")"
+probe "$REPO" --scratch-root "$REPO"
+assert_eq "a scratch root that is the repository is not checked" "2|no-data" "$RUN_RC|$(line reason_code)"
+assert_contains "the reason says the root is inside the repository" "is inside the repository" "$(line reason)"
+assert_eq "git never ran for a root that is the repository" "0" "$(grep -c '^detail=' <<<"$RUN_OUT")"
+assert_eq "the repository's status is unchanged by a root that is the repository" "$status_before" "$(git -C "$REPO" status --porcelain --untracked-files=all)"
+assert_eq "the repository's index is unchanged by a root that is the repository" "$index_before" "$(index_hash "$REPO")"
+
 [[ "${FAILED:-0}" -eq 0 ]] || exit 1

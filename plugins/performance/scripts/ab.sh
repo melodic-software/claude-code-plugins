@@ -7,6 +7,7 @@
 # change. Alternating the arms within a single run, in a random ORDER each
 # iteration, puts both arms under the same instantaneous load, so the paired
 # ratio survives drift the absolute numbers do not. The order used is printed
+# (The two-letter arm-order labels on the next line are not misspellings.)
 # as one `arm_order=` line, one AB or BA per iteration. # spellchecker:disable-line
 #
 # Grounded, Tier 1, benchstat's own documentation: "The best way to do this is
@@ -255,6 +256,7 @@ done
 if [[ "$CONC" == "1" ]]; then
   # Pick the ORDER of each iteration at random (randomized multiple interleaved
   # trials) so neither arm systematically lands in the warmer or colder half of
+  # (The two-letter arm-order labels on the next line are not misspellings.)
   # a drift cycle. A fixed AB, BA alternation is not enough: periodic # spellchecker:disable-line
   # interference can line up with it. One byte per iteration from the order
   # source: even runs A first, odd runs B first. Read once, before the first
@@ -275,6 +277,7 @@ if [[ "$CONC" == "1" ]]; then
     else
       one "$CMD_B" "$OUT/b"
       one "$CMD_A" "$OUT/a"
+      # The label on the next line is an arm-order label, not a misspelling.
       order+=(BA) # spellchecker:disable-line
     fi
   done
