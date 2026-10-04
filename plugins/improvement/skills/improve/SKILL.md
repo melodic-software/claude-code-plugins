@@ -143,7 +143,9 @@ Otherwise, and after a lane that does not ship, fix it here:
 5. **Commit** through `/source-control:commit` via the Skill tool, one commit for the
    improvement. Where that skill is absent, `git commit` with a Conventional Commits subject.
 6. **Open the PR** through `/source-control:pull-request create` via the Skill tool, which opens
-   it as a draft. Where that skill is absent, push the branch and run `gh pr create --draft`.
+   it as a draft. Where that skill is absent, push the branch and run
+   `gh pr create --draft --title "<subject>" --body-file <file>`; without a title and body,
+   `gh` prompts for them and fails where no one can answer.
    The PR body names the gap, the standard and its basis, and how the change was verified, and
    it states the issue linkage up front: `Closes #N` when the improvement settles a known issue,
    otherwise `No related issue: improve-one-thing against <standard>`. An unattended run passes
@@ -172,7 +174,8 @@ Routine, a scheduled workflow, a loop lane). Never inferred from the environment
   At 3 or more, stop and report; the caller's prompt may set another limit. Basis: the
   `/code-tidying:tidy` backlog throttle uses the same limit.
 - **Overflow is filed**, not planned: one work item via `/work-items:track` invoked via the Skill
-  tool, or `gh issue create` where that skill is absent, searched for duplicates first, and
+  tool, or `gh issue create --title "<what>" --body-file <file>` where that skill is absent,
+  searched for duplicates first, and
   linked from the PR body.
 - **A clean, isolated checkout is required.** A dirty tree is a stop, never a stash.
 
