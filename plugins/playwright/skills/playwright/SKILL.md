@@ -8,9 +8,9 @@ allowed-tools: Bash(playwright-cli:*)
 metadata:
   source: https://github.com/microsoft/playwright-cli
   upstream-package: "@playwright/cli"
-  upstream-version: 0.1.19
-  upstream-sha: 8de691a19c25f49a19525e9676bafe8f21e0e604
-  synced: 2026-09-02
+  upstream-version: 0.1.22
+  upstream-sha: 8f4bb69e84084f1fabcb4ba08f491f7e16894a06
+  synced: 2026-10-04
   workflow-stage: test
   summary: Live E2E browser automation with disk-written artifacts
 ---
