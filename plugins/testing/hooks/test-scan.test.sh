@@ -518,7 +518,8 @@ bash_run hd-3 "$(diff_of created "$HR/src/fresh.test.ts" "$ADD_ALL")"
 assert_contains "Bash HEAD: an untracked new test file is recorded" "$(rec sb hd-3-1)" "/sb/hd-3-1.json"
 # The repository is the file's own, found at either separator: a
 # backslash-only path (a Windows path) to a file identical to HEAD stays quiet.
-if command -v cygpath >/dev/null; then BS="$(cygpath -w "$HR/src/also.test.ts")"; else BS="${HR//\//\\}\\src\\also.test.ts"; fi
+b=$'\\'
+if command -v cygpath >/dev/null; then BS="$(cygpath -w "$HR/src/also.test.ts")"; else BS="${HR//\//$b}${b}src${b}also.test.ts"; fi
 out="$(bash_payload hd-4 "$(diff_of edit "$BS" "$ADD_ALL")" | bash "$BASH_HOOK" 2>&1)"
 assert_empty "Bash HEAD: a backslash path to a file identical to HEAD is not scanned" "$out"
 assert_empty "Bash HEAD: a backslash path to a file identical to HEAD leaves no record" "$(rec sb hd-4-1)"
