@@ -315,7 +315,7 @@ hook::require_jq_blocking "guardrails-block-root-delete-target" "block_root_dele
 jq_rc=0
 hook::jq_fields "$INPUT" '.tool_input.command' '.tool_name' || jq_rc=$?
 if ((jq_rc == 2)); then
-  echo "BLOCKED: the hook payload could not be parsed." >&2
+  guard::refuse_unparsable
   exit 2
 fi
 ((jq_rc != 0)) && exit 0
@@ -324,9 +324,7 @@ fi
 # what a guard can read is then not dependably what would run, and a NUL in
 # the command could hide an `rm` from the prefilter below.
 if ((HOOK_JQ_FIELDS_NUL)); then
-  echo "BLOCKED: the payload carries a NUL byte, which a command cannot reliably carry." >&2
-  echo "What a guard can read is not dependably what would run, so this is refused rather than matched." >&2
-  echo "Fix: reissue the tool call without the embedded NUL." >&2
+  guard::refuse_nul
   exit 2
 fi
 
@@ -418,7 +416,6 @@ rdt_block() {
   no-preserve-root)
     printf '%s\n' \
       'BLOCKED: this is a recursive delete carrying --no-preserve-root.' \
-      'That flag exists only to switch off the one protection coreutils ships against deleting the filesystem root, so a command that sets it is refused whatever target it names.' \
       'Fix: drop --no-preserve-root and name the directory to remove explicitly, under the working tree.' >&2
     ;;
   too-long)
@@ -429,49 +426,41 @@ rdt_block() {
   nesting-too-deep)
     printf '%s\n' \
       "BLOCKED: substitution nesting deeper than $MAX_SUBST_DEPTH." \
-      'Past that depth the scanner stops descending, so a recursive delete inside it cannot be ruled out, and an allow here would be an allow on exactly the input built to exhaust it.' \
       'Fix: flatten the command substitutions, or assign the inner results to variables in separate commands.' >&2
     ;;
   eval-too-long)
     printf '%s\n' \
       'BLOCKED: eval and substitution text exceeds MAX_COMMAND_LEN in total.' \
-      'Each eval re-tokenizes the text it runs, so nested evals multiply the work, and a hook the harness cancels on its timeout is cancelled WITHOUT a block.' \
       'Fix: drop the nested evals, or run the inner command on its own.' >&2
     ;;
   too-many-readings)
     printf '%s\n' \
       'BLOCKED: too many launcher readings to judge every one; flatten the command.' \
-      "Each segment a launcher, child shell or eval can run is judged, and past $MAX_SEGMENTS of them a recursive delete on a later reading cannot be ruled out inside the hook timeout." \
       'Fix: drop the repeated launchers, or run the inner command on its own.' >&2
     ;;
   nesting-too-deep-launcher)
     printf '%s\n' \
       "BLOCKED: launcher or eval nesting deeper than $MAX_SEGMENT_DEPTH; flatten the command." \
-      'Each launcher, child shell and eval is judged by re-entering the parser, and past the limit a recursive delete inside it cannot be ruled out.' \
       'Fix: drop the repeated launchers, or run the inner command on its own.' >&2
     ;;
   too-many-abbreviations)
     printf '%s\n' \
       'BLOCKED: too many command segments with abbreviated launcher options to judge every reading; spell the options in full.' \
-      'Each abbreviated long option (such as flock --wa) is judged both with and without taking the next word, and past the limit a recursive delete behind them cannot be ruled out.' \
       'Fix: spell the launcher options in full (flock --wait 5), or split the command into shorter ones.' >&2
     ;;
   bodies-too-long)
     printf '%s\n' \
       'BLOCKED: substitution bodies exceed MAX_COMMAND_LEN in total.' \
-      'Nesting multiplies the text to tokenize, and a hook the harness cancels on its timeout is cancelled WITHOUT a block, so running past the budget would fail open on exactly the input built to reach it.' \
       'Fix: flatten the command substitutions, or assign the inner results to variables in separate commands.' >&2
     ;;
   empty-operand)
     printf '%s\n' \
       'BLOCKED: this recursive delete has an empty operand ("").' \
-      'An empty word here is almost always a path that failed to build, and the same command with the path filled in deletes something nobody named.' \
       'Fix: name the directory to remove explicitly, or drop the empty word.' >&2
     ;;
   pipeline-target)
     printf '%s\n' \
       'BLOCKED: this recursive delete takes its target from the pipeline or a grouping, which this guard cannot name.' \
-      'Get-ChildItem x | Remove-Item -Recurse, or Remove-Item -Recurse (Get-Item C:\\), deletes whatever the left-hand side produces, including a filesystem root.' \
       'Fix: name the directory to remove as a -Path or -LiteralPath operand, written out literally.' >&2
     ;;
   bare-variable)
@@ -479,69 +468,56 @@ rdt_block() {
     # shellcheck disable=SC2016
     printf '%s\n' \
       "BLOCKED: this recursive delete targets a bare variable ('$target'), whose value is not known until it runs." \
-      'Unset or empty, it reaches the working directory or a filesystem root; holding an unexpected path, it deletes that.' \
       'Fix: write the path out literally, or use "${NAME:?}/sub" so an unset or empty value aborts the command before rm runs.' >&2
     ;;
   outside-tree)
     printf '%s\n' \
-      "BLOCKED: this recursive delete targets $target, which is outside the working tree, the temp directories, the session scratchpad and any user-listed allowed root." \
-      'The working tree is the git toplevel of the directory the delete runs from. A recursive delete outside it is not recoverable from git, and a temp root, the scratchpad or an allowed root itself is refused as a whole.' \
-      'Fix: delete only under the working tree, strictly under a temp directory, or strictly under the session scratchpad. If the target really is meant to go, do it outside the agent session.' \
-      'The user, not the agent, can list directories in the guardrails userConfig key block_root_delete_target_allowed_roots to let deletes strictly under them through; the agent cannot set it.' >&2
+      "BLOCKED: recursive delete of $target, outside the working tree, the temp directories and the session scratchpad." \
+      'Fix: delete only strictly under one of those. Otherwise the user runs it, or lists its root in block_root_delete_target_allowed_roots (only the user can).' >&2
     ;;
   too-many-origins)
     printf '%s\n' \
       "BLOCKED: too many directory changes to judge every place this delete may run from (more than $MAX_ORIGINS)." \
-      'Each literal cd adds a directory a relative target is judged from, and past the limit a target outside the tree cannot be ruled out.' \
       'Fix: cd once to an absolute directory, or run the delete as its own command.' >&2
     ;;
   too-many-targets)
     printf '%s\n' \
       "BLOCKED: too many recursive delete targets to judge (more than $MAX_TARGETS directory-and-target pairs)." \
-      'Each target is resolved against every directory the command may run it from, and past the limit the work outruns the hook timeout.' \
       'Fix: delete a parent directory, or split the delete into shorter commands.' >&2
     ;;
   too-many-glob-entries)
     printf '%s\n' \
       "BLOCKED: a glob in this recursive delete reads more than $MAX_GLOB directory entries, files included." \
-      'Each entry a glob matches must be judged, and past the limit the work outruns the hook timeout.' \
       'Fix: narrow the glob to the names you mean, or delete the parent directory whole.' >&2
     ;;
   operand-too-long)
     printf '%s\n' \
       "BLOCKED: this recursive delete names $target." \
-      "No filesystem accepts a path over $MAX_OPERAND_LEN bytes or with more than $MAX_OPERAND_DEPTH separators, so no real target is this long, and judging it would outrun the hook timeout." \
       'Fix: check how the command was built; name the directory to remove directly.' >&2
     ;;
   too-slow)
     printf '%s\n' \
       "BLOCKED: judging where this recursive delete lands ran out of time (a bound of $RDT_DEADLINE seconds for the judgment, $RDT_DEADLINE_ABS for the whole hook)." \
-      'A hook the harness cancels on its timeout is cancelled WITHOUT a block, so the guard refuses rather than run on.' \
       'Fix: delete fewer targets per command, or cd once to an absolute directory first.' >&2
     ;;
   unplaceable)
-    # shellcheck disable=SC2016  # the backticks are literal text in the message
     printf '%s\n' \
-      "BLOCKED: this recursive delete names $target, which cannot be judged faithfully." \
-      'A `~name` prefix is another user'"'"'s home, a newline inside a path cannot be resolved the way rm would read it, a `..` after a glob climbs out of whatever the glob matched, and a relative path after a cd that CDPATH may redirect lands wherever CDPATH sends it.' \
+      "BLOCKED: recursive delete of $target, which cannot be judged (another user's home, a newline, \`..\` after a glob, or a cd CDPATH may redirect)." \
       'Fix: write the target as an absolute or working-tree-relative path.' >&2
     ;;
   brace)
     printf '%s\n' \
       "BLOCKED: this recursive delete has a brace expansion ($target) that cannot be judged alternative by alternative." \
-      "A sequence such as {1..3}, more than $MAX_BRACE alternatives, or a brace partly inside quotes is refused rather than guessed." \
       'Fix: write each target out as its own operand.' >&2
     ;;
   nul-field)
     printf '%s\n' \
       "BLOCKED: this recursive delete cannot be judged, because the hook payload's $target carries a NUL byte." \
-      'The directory the delete would be judged against is then not dependably the one the harness means, so the delete is refused; a command with no recursive delete to judge is not affected.' \
       'Fix: reissue the tool call; if it repeats, report the malformed payload.' >&2
     ;;
   judge-error)
     printf '%s\n' \
       'BLOCKED: judging where this recursive delete lands failed unexpectedly.' \
-      'An error here could otherwise let the delete through, so it is refused.' \
       'Fix: simplify the command, or run the delete on its own.' >&2
     ;;
   *)
@@ -549,9 +525,8 @@ rdt_block() {
     # agent rather than expanding it in the hook process.
     # shellcheck disable=SC2016
     printf '%s\n' \
-      "BLOCKED: this is a recursive delete whose target is a filesystem root (it normalizes to '$target')." \
-      'A recursive delete of a root is not recoverable and, past the Bash timeout, not reliably stoppable either. On Windows a bare backslash reaches the delete as the root of the current drive, which is how a whole volume is lost to a command that looks like it names one directory.' \
-      'Fix: name the directory to remove explicitly and relative to the working tree. If the target really is meant to be a root, do it outside the agent session. Note that $HOME and ~ are matched as written, not expanded.' >&2
+      "BLOCKED: recursive delete of a filesystem root (normalizes to '$target')." \
+      'Fix: name the directory to remove, relative to the working tree. $HOME and ~ are matched as written, not expanded.' >&2
     ;;
   esac
   rdt_emit_tel "blocked" "$form"
