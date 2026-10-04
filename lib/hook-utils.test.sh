@@ -4559,6 +4559,35 @@ else
   fail "begin escaped separator (rc=$bg_rc): $bg_out"
 fi
 
+# REPO_ROOT is anchored at the file, not the hook's CWD, for the backslash-only
+# spelling Claude Code sends on Windows. The CWD sits in one repository and the
+# file in another, so a FILE_DIR that falls back to `.` resolves the wrong one.
+# A backslash path names a real directory only on Windows, hence the gate.
+if command -v cygpath >/dev/null 2>&1; then
+  bg_cwd_repo="$BG_WORK/cwd-repo"
+  bg_file_repo="$BG_WORK/file-repo"
+  mkdir -p "$bg_cwd_repo" "$bg_file_repo/tests/unit"
+  git -C "$bg_cwd_repo" init -q . >/dev/null 2>&1
+  git -C "$bg_file_repo" init -q . >/dev/null 2>&1
+  : >"$bg_file_repo/tests/unit/x.cs"
+  bg_want_root=$(git -C "$bg_file_repo" rev-parse --show-toplevel)
+  bg_cwd_root=$(git -C "$bg_cwd_repo" rev-parse --show-toplevel)
+  bg_bs_file=$(cygpath -w -- "$bg_file_repo/tests/unit/x.cs")
+  bg_env=(CLAUDE_PROJECT_DIR="$bg_file_repo" BG_STUB_FILE="$bg_bs_file")
+  bg_out=$(cd "$bg_cwd_repo" && bg_run "$(bg_payload "${bg_bs_file//\\/\\\\}")" --no-membership sample PostToolUse '*.cs')
+  bg_rc=$?
+  bg_env=(CLAUDE_PROJECT_DIR="$BG_REPO")
+  bg_got_root="$(bg_field "$bg_out" ROOT)"
+  if ((bg_rc == 0)) && [[ -n "$bg_want_root" && "$bg_want_root" != "$bg_cwd_root" &&
+  "$bg_got_root" == "$bg_want_root" ]]; then
+    ok "begin: a backslash path resolves REPO_ROOT to the file's repository, not the CWD's"
+  else
+    fail "begin backslash REPO_ROOT (rc=$bg_rc): got '$bg_got_root', want '$bg_want_root', CWD repo '$bg_cwd_root', output: [$bg_out]"
+  fi
+else
+  ok "begin: backslash REPO_ROOT SKIPPED (no cygpath — a backslash path names a directory only on Windows)"
+fi
+
 # A well-formed JSON PREFIX and then a closed pipe is hook::buffer_stdin_to's
 # rc 3, the transport fault. An advisory hook allows it through: exit 0, no
 # work, and buffer_stdin's own diagnostic on stderr.
