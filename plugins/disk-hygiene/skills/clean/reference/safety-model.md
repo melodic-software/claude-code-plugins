@@ -360,7 +360,7 @@ the host platform's path case rules; POSIX path identity is never case-folded. A
 is accepted only when it matches the plugin data directory the guard derives from
 `${CLAUDE_PLUGIN_ROOT}`, the only substitution a skill-frontmatter hook receives, passed to the
 guard as `--plugin-root` and mapped to `<plugins>/data/<id>` per the documented
-[persistent-data-directory](https://code.claude.com/docs/en/plugins-reference#persistent-data-directory)
+[persistent-data-directory](https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data)
 layout, either from the root's `<plugins>/cache` layout or, for a plugin loaded in place from a
 local-directory marketplace, through `known_marketplaces.json` (see below). A host that can
 substitute `${CLAUDE_PLUGIN_DATA}` itself may instead pass it directly as
@@ -489,14 +489,14 @@ Verification records for the directory channel:
 
 - **Claim:** a plugin loaded in place from a local-directory marketplace hands its hook processes a
   `CLAUDE_PLUGIN_ROOT` pointing at the source directory. **Basis:** plugins reference,
-  [plugin caching and file resolution](https://code.claude.com/docs/en/plugins-reference#plugin-caching-and-file-resolution):
+  [plugin caching and file resolution](https://code.claude.com/docs/en/plugins/loading#in-place-and-copied-plugins):
   "For a plugin loaded in place from a local-directory marketplace, ... The plugin's hook processes
   and MCP and LSP servers receive a `CLAUDE_PLUGIN_ROOT` that points at the source directory."
   **As of:** 2026-09-24, Claude Code 2.1.282. **Recheck:** when that page stops carrying the sentence,
   or a release note changes in-place loading.
 - **Claim:** the data directory is `~/.claude/plugins/data/{id}/`, `{id}` being the plugin identifier
   with characters outside `[A-Za-z0-9_-]` replaced by `-`. **Basis:** plugins reference,
-  [persistent data directory](https://code.claude.com/docs/en/plugins-reference#persistent-data-directory):
+  [persistent data directory](https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data):
   "`{id}` is the plugin identifier with characters outside `a-z`, `A-Z`, `0-9`, `_`, and `-` replaced
   by `-`". **As of:** 2026-09-24, Claude Code 2.1.282. **Recheck:** when that section's id rule
   changes, or a release note names the plugin data directory.

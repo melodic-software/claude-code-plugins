@@ -23,7 +23,7 @@ never from an in-flow question.
 Official contracts:
 
 - <https://code.claude.com/docs/en/plugins-reference#user-configuration>
-- <https://code.claude.com/docs/en/plugins-reference#default-enablement>
+- <https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled>
 
 ## Task
 
@@ -87,7 +87,7 @@ to resolve it from.
 
 **The enable step is not optional.** This plugin ships `defaultEnabled: false`, so it installs
 DISABLED. The install seeds the token but leaves the MCP server, and therefore every `miro` tool,
-unavailable until it is enabled ([Default enablement](https://code.claude.com/docs/en/plugins-reference#default-enablement),
+unavailable until it is enabled ([Default enablement](https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled),
 which also notes `claude plugin enable` auto-detects the scope when `-s` is omitted; passing it
 explicitly keeps the sequence deterministic in CI). A bootstrap that stops after `install` looks
 successful and delivers no tools.
