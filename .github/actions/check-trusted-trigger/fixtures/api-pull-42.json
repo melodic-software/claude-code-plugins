@@ -1,0 +1,15 @@
+{
+  "number": 42,
+  "state": "open",
+  "user": { "login": "kyle-sexton", "id": 153232337, "type": "User" },
+  "head": {
+    "ref": "feat/lane-probe",
+    "sha": "1111111111111111111111111111111111111111",
+    "repo": { "id": 1, "full_name": "melodic-software/claude-code-plugins", "fork": false }
+  },
+  "base": {
+    "ref": "main",
+    "sha": "2222222222222222222222222222222222222222",
+    "repo": { "id": 1, "full_name": "melodic-software/claude-code-plugins", "fork": false }
+  }
+}

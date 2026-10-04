@@ -1,0 +1,54 @@
+name: Check signed commits
+description: >
+  After a lane's model step, check that every commit added to the PR since
+  the recorded head is GitHub-verified. On any unverified commit, add the
+  escalation label if the repository already has it and post one fixed
+  comment listing the SHAs. Never rewrites history. Fails when it cannot run.
+
+inputs:
+  pr-number:
+    description: The PR number.
+    required: true
+  since-sha:
+    description: >
+      The PR head SHA recorded before the model step ran. When it is not an
+      ancestor of the current head, every PR commit is checked.
+    required: true
+  repository:
+    description: The repository that holds the PR, as owner/name.
+    required: false
+    default: ${{ github.repository }}
+  github-token:
+    description: >
+      Token that can read the PR and its commits, add a label and comment
+      (the lane's App token).
+    required: true
+  escalation-label:
+    description: Label added on an unverified commit, only if it already exists.
+    required: false
+    default: needs-human
+
+outputs:
+  all-verified:
+    description: "`true` when every new commit is verified, otherwise `false`."
+    value: ${{ steps.check.outputs.all-verified }}
+  unverified:
+    description: Space-separated SHAs of the unverified commits.
+    value: ${{ steps.check.outputs.unverified }}
+  since-is-ancestor:
+    description: "`false` when the recorded head is not an ancestor of the current head."
+    value: ${{ steps.check.outputs.since-is-ancestor }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check the commit signatures
+      id: check
+      shell: bash
+      env:
+        PR_NUMBER: ${{ inputs.pr-number }}
+        SINCE_SHA: ${{ inputs.since-sha }}
+        REPOSITORY: ${{ inputs.repository }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        ESCALATION_LABEL: ${{ inputs.escalation-label }}
+      run: node "$GITHUB_ACTION_PATH/check-signed-commits.mjs"

@@ -1,0 +1,7 @@
+{
+  "name": "filter-trusted-text",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  }
+}

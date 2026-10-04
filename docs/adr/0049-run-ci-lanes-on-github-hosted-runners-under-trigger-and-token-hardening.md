@@ -66,3 +66,13 @@ lane or any other surface keeps `L2`.
   trusted-actor gate covers text from GitHub, but not web pages or CI logs, which reach a lane
   whoever triggered it. The exposure is bounded by what a job-scoped token can reach before it is
   revoked, and by `ci-status` and workflow files staying out of every lane's reach.
+- The model holds `gh` and can fetch an untrusted comment itself, which the trusted-text filter
+  never sees. This is accepted in the same class as web pages and CI logs: lane instructions frame
+  any text the model fetches as data
+  ([`untrusted-content`](../conventions/untrusted-content/README.md)).
+- claude-code-action passes the job's `GITHUB_TOKEN` into the model's environment
+  (`DEFAULT_WORKFLOW_TOKEN`, `action.yml:308` at `ed670b4`), so every job that runs the model
+  grants that token only `contents: read`, and every write goes through the App token.
+- A listed bot (a review bot, dependabot) can relay text someone else wrote, such as a quote from
+  a PR thread or upstream release notes, and the filter keeps it because it judges the item's
+  author. This is accepted in the same class as web pages.

@@ -1,0 +1,68 @@
+name: Check trusted trigger
+description: >
+  Gate a CI lane on its trigger: the PR must come from this repository, and
+  both the event actor and the PR author must be on the trusted-actor list,
+  matched by numeric user id. Handles pull_request, workflow_dispatch (with a
+  PR number) and workflow_run. Always exits 0 with proceed and reason; any
+  read, parse or API failure emits proceed=false.
+
+inputs:
+  event-name:
+    description: The triggering event name.
+    required: false
+    default: ${{ github.event_name }}
+  event-path:
+    description: Path to the event payload file.
+    required: false
+    default: ${{ github.event_path }}
+  trusted-actors-path:
+    description: >
+      Path to the trusted-actor list, read from the base-SHA checkout so a PR
+      cannot change the list it is judged by.
+    required: false
+    default: .base/.github/standards/trusted-actors/trusted-actors.json
+  pr-number:
+    description: The PR number on workflow_dispatch; ignored for other events.
+    required: false
+    default: ""
+  github-token:
+    description: >
+      Token that can read the PR, used on workflow_dispatch and workflow_run
+      to fetch it.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  proceed:
+    description: "`true` when the lane may proceed, otherwise `false`."
+    value: ${{ steps.check.outputs.proceed }}
+  reason:
+    description: "`ok`, `fork`, `no-pr`, `untrusted-actor`, `untrusted-author` or `list-unreadable`."
+    value: ${{ steps.check.outputs.reason }}
+  pr-number:
+    description: The resolved PR number; empty unless proceed is `true`.
+    value: ${{ steps.check.outputs.pr-number }}
+  head-ref:
+    description: The PR head branch; empty unless proceed is `true`.
+    value: ${{ steps.check.outputs.head-ref }}
+  head-sha:
+    description: The PR head SHA; empty unless proceed is `true`.
+    value: ${{ steps.check.outputs.head-sha }}
+  base-sha:
+    description: The PR base SHA; empty unless proceed is `true`.
+    value: ${{ steps.check.outputs.base-sha }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check the trigger
+      id: check
+      shell: bash
+      env:
+        EVENT_NAME: ${{ inputs.event-name }}
+        EVENT_PATH: ${{ inputs.event-path }}
+        TRUSTED_ACTORS_PATH: ${{ inputs.trusted-actors-path }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        REPOSITORY: ${{ github.repository }}
+      run: node "$GITHUB_ACTION_PATH/check-trusted-trigger.mjs"

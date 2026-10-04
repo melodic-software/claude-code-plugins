@@ -1,0 +1,58 @@
+{
+  "pull": {
+    "number": 42,
+    "head": { "ref": "feat/lane-probe", "sha": "dddddddddddddddddddddddddddddddddddddddd" },
+    "base": { "ref": "main", "sha": "2222222222222222222222222222222222222222" }
+  },
+  "commits": [
+    {
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "commit": {
+        "message": "human commit before the lane ran",
+        "verification": { "verified": true, "reason": "valid" }
+      }
+    },
+    {
+      "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "commit": {
+        "message": "recorded head",
+        "verification": { "verified": true, "reason": "valid" }
+      }
+    },
+    {
+      "sha": "cccccccccccccccccccccccccccccccccccccccc",
+      "commit": {
+        "message": "lane commit through the API",
+        "verification": { "verified": true, "reason": "valid" }
+      }
+    },
+    {
+      "sha": "dddddddddddddddddddddddddddddddddddddddd",
+      "commit": {
+        "message": "lane commit pushed with git",
+        "verification": { "verified": false, "reason": "unsigned" }
+      }
+    }
+  ],
+  "compare": {
+    "status": "ahead",
+    "ahead_by": 3,
+    "behind_by": 0,
+    "total_commits": 3,
+    "commits": [
+      {
+        "sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "commit": { "verification": { "verified": false, "reason": "unsigned" } }
+      },
+      {
+        "sha": "cccccccccccccccccccccccccccccccccccccccc",
+        "commit": { "verification": { "verified": true, "reason": "valid" } }
+      },
+      {
+        "sha": "dddddddddddddddddddddddddddddddddddddddd",
+        "commit": { "verification": { "verified": false, "reason": "unsigned" } }
+      }
+    ]
+  },
+  "labels": [{ "id": 1, "name": "needs-human" }, { "id": 2, "name": "do-not-merge" }]
+}
