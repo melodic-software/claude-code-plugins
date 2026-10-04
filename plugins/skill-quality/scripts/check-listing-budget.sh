@@ -38,12 +38,26 @@
 # The aggregate budget is inherently a MACHINE-DEPENDENT estimate: it scales
 # with the live model's context window and the resolved
 # skillListingBudgetFraction, which a consumer's settings.json can override.
-# This script therefore never asserts a live value it cannot observe — it
-# reports against a documented, overridable default and always exits 0
-# (advisory only, never blocking CI or a pre-commit hook). `/doctor` is the
-# live, authoritative source for the resolved value and biggest contributors
-# on a given machine and model; this script is the static, reproducible
-# proxy that runs without a live session.
+# Two modes, and the script always exits 0 on a report (advisory only, never
+# blocking CI or a pre-commit hook):
+#   - Default-consumer mode (no flag): reads no settings and no
+#     SLASH_COMMAND_TOOL_CHAR_BUDGET, and reports against the documented
+#     default, so the same tree gives the same report on any machine. This is
+#     what CI measures.
+#   - Configured-machine mode (--from-settings): reports the budget THIS
+#     machine resolves. SLASH_COMMAND_TOOL_CHAR_BUDGET, when set in the
+#     environment, is the budget. Otherwise skillListingBudgetFraction is read
+#     from the first settings file that sets it, in precedence order: project
+#     .claude/settings.local.json, project .claude/settings.json (project =
+#     CLAUDE_PROJECT_DIR, else the git root), then
+#     ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json. Managed policy and a
+#     settings `env` block are NOT read; the report says so.
+# The context window is per model and not on disk, so unless
+# CHECK_SKILL_LISTING_CONTEXT_TOKENS pins one, a resolved fraction is reported
+# as a band: the budget at a 200000-token and a 1000000-token window, with a
+# verdict per row. `/doctor` is the live, authoritative source for the
+# resolved value and biggest contributors on a given machine and model; this
+# script is the static, reproducible proxy that runs without a live session.
 #
 # The default budget (8000 chars) is the harness's own documented fallback —
 # SLASH_COMMAND_TOOL_CHAR_BUDGET's schema description: "The budget scales
@@ -64,8 +78,23 @@
 # re-derives the matching constant here and in check-skill.sh; each fleet
 # audit re-runs this record.
 #
+# Record for the --from-settings inputs. Claim: the settings file scopes and
+# their order (managed, command line, project local, shared project, user),
+# skillListingBudgetFraction being settable in any file, CLAUDE_CONFIG_DIR
+# relocating ~/.claude, and SLASH_COMMAND_TOOL_CHAR_BUDGET setting a fixed
+# character count. That the env var outranks the fraction is inferred from
+# the docs calling it an override; no page states the order. The 200000 and
+# 1000000 band windows and 4 chars/token are this script's assumptions, not
+# documented values. Basis: https://code.claude.com/docs/en/settings
+# (settings precedence), https://code.claude.com/docs/en/settings-reference
+# (skillListingBudgetFraction), https://code.claude.com/docs/en/env-vars
+# (CLAUDE_CONFIG_DIR, SLASH_COMMAND_TOOL_CHAR_BUDGET),
+# https://code.claude.com/docs/en/skills (skill descriptions are cut short).
+# As of 2026-10-04. Recheck trigger: any of those pages changing a scope, its
+# order, the env var's meaning, or the budget's basis.
+#
 # Usage:
-#   check-listing-budget.sh [<skills-root> ...]
+#   check-listing-budget.sh [--from-settings] [<skills-root> ...]
 #   check-listing-budget.sh --help
 #
 # No args: resolves ONE root via the same convention ladder as check-skill.sh
@@ -99,7 +128,10 @@
 #                                          for a 1M-context model)
 #   CHECK_SKILL_LISTING_BUDGET_FRACTION - default 0.01 (skillListingBudgetFraction's
 #                                          documented default) — set to match
-#                                          a machine's configured value
+#                                          a machine's configured value; it
+#                                          outranks settings files, and set
+#                                          without a window it reports the
+#                                          200000/1000000-token band
 #   CHECK_SKILL_LISTING_CHARS_PER_TOKEN - default 4 — set only if a more
 #                                          precise ratio is known
 #   CHECK_SKILL_LISTING_MAX_DESC_CHARS  - per-entry truncation cap applied
@@ -131,10 +163,21 @@ usage() {
   awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
 }
 
-if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-  usage
-  exit 0
-fi
+FROM_SETTINGS=0
+while [[ "${1:-}" == -* ]]; do
+  case "$1" in
+  --help | -h)
+    usage
+    exit 0
+    ;;
+  --from-settings) FROM_SETTINGS=1 ;;
+  *)
+    printf 'Error: unknown option: %s (run with --help)\n' "$1" >&2
+    exit 2
+    ;;
+  esac
+  shift
+done
 
 # Git is optional. Explicit skill-root args (and CHECK_SKILL_SKILLS_ROOT /
 # CLAUDE_PROJECT_DIR) work against plain directory trees such as marketplace
@@ -182,46 +225,106 @@ require_positive_number CHECK_SKILL_LISTING_MAX_DESC_CHARS "$MAX_DESC_CHARS" int
 MAX_DESC_CHARS="$(to_decimal "$MAX_DESC_CHARS")"
 JOINER_CHARS=3 # the literal " - " the harness inserts between description and when_to_use
 
-# Precedence matches the documented contract above: a fixed aggregate budget
-# SKIPS the token/fraction reconstruction. Checking it first is what makes that
-# sentence true.
+# Every budget the report compares against, one row each: a single row, or a
+# band of two when a fraction is known but the window is not. BUDGET_IS_DEFAULT
+# keeps the word "configured" out of the summary when nothing was configured.
+BUDGETS=()
+SOURCES=()
+BUDGET_IS_DEFAULT=0
+FRACTION=""
+FRACTION_SOURCE=""
+
+# Append TOKENS x CHARS_PER_TOKEN x FRACTION as one budget row.
+add_reconstructed_row() {
+  local tokens="$1" chars
+  if ! chars="$(awk -v t="$tokens" -v c="$CHARS_PER_TOKEN" -v f="$FRACTION" \
+    'BEGIN { printf "%d", t * c * f }' 2>/dev/null)" || [[ -z "$chars" ]] || ((chars <= 0)); then
+    printf 'Error: could not compute a budget from %s tokens x %s chars/token x %s\n' \
+      "$tokens" "$CHARS_PER_TOKEN" "$FRACTION" >&2
+    exit 2
+  fi
+  BUDGETS+=("$chars")
+  SOURCES+=("reconstructed: $tokens tokens x $CHARS_PER_TOKEN chars/token x $FRACTION")
+}
+
+# The first settings file, in precedence order, that sets the fraction to a
+# number. One jq process over every existing file, not one per file.
+read_settings_fraction() {
+  local project_dir="${CLAUDE_PROJECT_DIR:-}" config_dir="${CLAUDE_CONFIG_DIR:-}" f hit
+  local candidates=() existing=()
+  [[ -z "$project_dir" && "$HAVE_GIT" == 1 ]] && project_dir="$REPO_ROOT"
+  [[ -n "$project_dir" ]] && candidates+=("$project_dir/.claude/settings.local.json" "$project_dir/.claude/settings.json")
+  [[ -z "$config_dir" && -n "${HOME:-}" ]] && config_dir="$HOME/.claude"
+  [[ -n "$config_dir" ]] && candidates+=("$config_dir/settings.json")
+  for f in "${candidates[@]}"; do
+    [[ -f "$f" ]] && existing+=("$f")
+  done
+  FRACTION="0.01"
+  FRACTION_SOURCE="documented default (no settings file read sets skillListingBudgetFraction)"
+  ((${#existing[@]} > 0)) || return 0
+  if ! command -v jq >/dev/null 2>&1; then
+    printf 'Error: --from-settings needs jq to read %s\n' "${existing[*]}" >&2
+    exit 2
+  fi
+  if ! hit="$(jq -r 'objects | select((.skillListingBudgetFraction | type) == "number")
+      | "\(input_filename)\t\(.skillListingBudgetFraction)"' "${existing[@]}" | tr -d '\r')"; then
+    printf 'Error: could not parse settings JSON among: %s\n' "${existing[*]}" >&2
+    exit 2
+  fi
+  hit="${hit%%$'\n'*}"
+  [[ -n "$hit" ]] || return 0
+  FRACTION="${hit##*$'\t'}"
+  FRACTION_SOURCE="settings:${hit%$'\t'*}"
+  require_positive_number "skillListingBudgetFraction in ${hit%$'\t'*}" "$FRACTION" num
+}
+
+# Precedence: a fixed aggregate budget SKIPS the token/fraction reconstruction,
+# so it is checked first. In --from-settings mode SLASH_COMMAND_TOOL_CHAR_BUDGET
+# is the next fixed budget. Otherwise the fraction (override, then settings in
+# --from-settings mode) is reconstructed at the pinned window, or as a band.
 if [[ -n "${CHECK_SKILL_LISTING_BUDGET_CHARS:-}" ]]; then
-  BUDGET_CHARS="$CHECK_SKILL_LISTING_BUDGET_CHARS"
-  require_positive_number CHECK_SKILL_LISTING_BUDGET_CHARS "$BUDGET_CHARS" int
-  BUDGET_CHARS="$(to_decimal "$BUDGET_CHARS")"
-  BUDGET_SOURCE="override (CHECK_SKILL_LISTING_BUDGET_CHARS)"
+  require_positive_number CHECK_SKILL_LISTING_BUDGET_CHARS "$CHECK_SKILL_LISTING_BUDGET_CHARS" int
+  BUDGETS+=("$(to_decimal "$CHECK_SKILL_LISTING_BUDGET_CHARS")")
+  SOURCES+=("override (CHECK_SKILL_LISTING_BUDGET_CHARS)")
   if [[ -n "${CHECK_SKILL_LISTING_CONTEXT_TOKENS:-}" ]]; then
     printf 'Note: CHECK_SKILL_LISTING_BUDGET_CHARS takes precedence; ignoring CHECK_SKILL_LISTING_CONTEXT_TOKENS=%s\n' \
       "$CHECK_SKILL_LISTING_CONTEXT_TOKENS" >&2
   fi
-elif [[ -n "${CHECK_SKILL_LISTING_CONTEXT_TOKENS:-}" ]]; then
-  CONTEXT_TOKENS="$CHECK_SKILL_LISTING_CONTEXT_TOKENS"
-  CHARS_PER_TOKEN="${CHECK_SKILL_LISTING_CHARS_PER_TOKEN:-4}"
-  FRACTION="${CHECK_SKILL_LISTING_BUDGET_FRACTION:-0.01}"
-  require_positive_number CHECK_SKILL_LISTING_CONTEXT_TOKENS "$CONTEXT_TOKENS" int
-  CONTEXT_TOKENS="$(to_decimal "$CONTEXT_TOKENS")"
-  require_positive_number CHECK_SKILL_LISTING_CHARS_PER_TOKEN "$CHARS_PER_TOKEN" num
-  require_positive_number CHECK_SKILL_LISTING_BUDGET_FRACTION "$FRACTION" num
-  if ! BUDGET_CHARS="$(awk -v t="$CONTEXT_TOKENS" -v c="$CHARS_PER_TOKEN" -v f="$FRACTION" \
-    'BEGIN { printf "%d", t * c * f }' 2>/dev/null)" || [[ -z "$BUDGET_CHARS" ]] || ((BUDGET_CHARS <= 0)); then
-    printf 'Error: could not compute a budget from CHECK_SKILL_LISTING_CONTEXT_TOKENS=%s CHECK_SKILL_LISTING_CHARS_PER_TOKEN=%s CHECK_SKILL_LISTING_BUDGET_FRACTION=%s\n' \
-      "$CONTEXT_TOKENS" "$CHARS_PER_TOKEN" "$FRACTION" >&2
-    exit 2
-  fi
-  BUDGET_SOURCE="reconstructed: $CONTEXT_TOKENS tokens x $CHARS_PER_TOKEN chars/token x $FRACTION"
+elif ((FROM_SETTINGS)) && [[ -n "${SLASH_COMMAND_TOOL_CHAR_BUDGET:-}" ]]; then
+  require_positive_number SLASH_COMMAND_TOOL_CHAR_BUDGET "$SLASH_COMMAND_TOOL_CHAR_BUDGET" int
+  BUDGETS+=("$(to_decimal "$SLASH_COMMAND_TOOL_CHAR_BUDGET")")
+  SOURCES+=("env:SLASH_COMMAND_TOOL_CHAR_BUDGET")
 else
-  BUDGET_CHARS=8000
-  BUDGET_SOURCE="documented default (SLASH_COMMAND_TOOL_CHAR_BUDGET fallback)"
+  CHARS_PER_TOKEN="${CHECK_SKILL_LISTING_CHARS_PER_TOKEN:-4}"
+  if [[ -n "${CHECK_SKILL_LISTING_BUDGET_FRACTION:-}" ]]; then
+    FRACTION="$CHECK_SKILL_LISTING_BUDGET_FRACTION"
+    FRACTION_SOURCE="override (CHECK_SKILL_LISTING_BUDGET_FRACTION)"
+    require_positive_number CHECK_SKILL_LISTING_BUDGET_FRACTION "$FRACTION" num
+  elif ((FROM_SETTINGS)); then
+    read_settings_fraction
+    [[ "$FRACTION_SOURCE" == documented* ]] && BUDGET_IS_DEFAULT=1
+  fi
+  if [[ -n "${CHECK_SKILL_LISTING_CONTEXT_TOKENS:-}" ]]; then
+    require_positive_number CHECK_SKILL_LISTING_CONTEXT_TOKENS "$CHECK_SKILL_LISTING_CONTEXT_TOKENS" int
+    require_positive_number CHECK_SKILL_LISTING_CHARS_PER_TOKEN "$CHARS_PER_TOKEN" num
+    [[ -n "$FRACTION" ]] || FRACTION="0.01"
+    BUDGET_IS_DEFAULT=0
+    add_reconstructed_row "$(to_decimal "$CHECK_SKILL_LISTING_CONTEXT_TOKENS")"
+  elif [[ -n "$FRACTION" ]]; then
+    require_positive_number CHECK_SKILL_LISTING_CHARS_PER_TOKEN "$CHARS_PER_TOKEN" num
+    add_reconstructed_row 200000
+    add_reconstructed_row 1000000
+  else
+    BUDGETS+=(8000)
+    SOURCES+=("documented default (SLASH_COMMAND_TOOL_CHAR_BUDGET fallback)")
+    BUDGET_IS_DEFAULT=1
+  fi
 fi
 
 # --- Resolve the roots to scan ----------------------------------------------
 
 ROOTS=()
 EXPLICIT_ROOTS=0
-if [[ "${1:-}" == -* ]]; then
-  printf 'Error: unknown option: %s (run with --help)\n' "$1" >&2
-  exit 2
-fi
 if (($# > 0)); then
   ROOTS=("$@")
   EXPLICIT_ROOTS=1
@@ -475,22 +578,55 @@ fi
 
 printf 'Shared listing-budget estimate over %d listing-eligible skill(s) across %d root(s):\n' "$ENTRY_COUNT" "$FOUND_ROOTS"
 printf '  aggregate: %d chars\n' "$TOTAL"
-printf '  budget:    %d chars (%s)\n' "$BUDGET_CHARS" "$BUDGET_SOURCE"
+BAND=0
+((${#BUDGETS[@]} > 1)) && BAND=1
+if ((BAND || FROM_SETTINGS)) && [[ -n "$FRACTION_SOURCE" ]]; then
+  printf '  fraction:  %s (%s)\n' "$FRACTION" "$FRACTION_SOURCE"
+fi
+if ((FROM_SETTINGS)); then
+  printf '  note:      managed policy and settings env blocks are not read; /doctor shows the resolved budget\n'
+fi
+# Rows are ascending, so the first is the smallest budget.
+BUDGET_CHARS="${BUDGETS[0]}"
+OVER_ROWS=0
+for i in "${!BUDGETS[@]}"; do
+  if ((BAND)); then
+    verdict="OK"
+    if ((TOTAL > BUDGETS[i])); then
+      verdict="WARN, over by $((TOTAL - BUDGETS[i])) chars"
+    fi
+    printf '  budget:    %d chars (%s): %s\n' "${BUDGETS[i]}" "${SOURCES[i]}" "$verdict"
+  else
+    printf '  budget:    %d chars (%s)\n' "${BUDGETS[i]}" "${SOURCES[i]}"
+  fi
+  ((TOTAL > BUDGETS[i])) && OVER_ROWS=$((OVER_ROWS + 1))
+done
+BASIS="configured"
+((BUDGET_IS_DEFAULT)) && BASIS="documented default"
+BUDGET_NOUN="the budget"
+((BAND)) && BUDGET_NOUN="the smallest budget"
 
 if ((TOTAL > BUDGET_CHARS)); then
   OVERFLOW=$((TOTAL - BUDGET_CHARS))
   MULT="$(awk -v t="$TOTAL" -v b="$BUDGET_CHARS" 'BEGIN { printf "%.1f", t / b }' 2>/dev/null || echo '?')"
-  printf 'WARN: aggregate exceeds the budget by %d chars (~%sx over) — Claude Code drops the\n' "$OVERFLOW" "$MULT"
+  printf 'WARN: aggregate exceeds %s by %d chars (~%sx over) — Claude Code drops the\n' "$BUDGET_NOUN" "$OVERFLOW" "$MULT"
   printf '      least-invoked skills'"'"' descriptions to name-only when this happens live.\n'
   printf '      Biggest contributors (entry chars, skill, root):\n'
   sort -t $'\t' -k1,1nr "$CONTRIB_FILE" | head -10 | while IFS=$'\t' read -r len name root; do
     printf '        %6d  %s  (%s)\n' "$len" "$name" "$root"
   done
-  printf '\nCHECK-LISTING-BUDGET: WARN — aggregate %d/%d chars over budget by %s at the configured budget.\n' \
-    "$TOTAL" "$BUDGET_CHARS" "$OVERFLOW"
+  if ((BAND)); then
+    printf '\nCHECK-LISTING-BUDGET: WARN — aggregate %d chars over %d of %d budgets at the %s fraction %s (smallest %d chars, over by %d).\n' \
+      "$TOTAL" "$OVER_ROWS" "${#BUDGETS[@]}" "$BASIS" "$FRACTION" "$BUDGET_CHARS" "$OVERFLOW"
+  else
+    printf '\nCHECK-LISTING-BUDGET: WARN — aggregate %d/%d chars over budget by %s at the %s budget.\n' \
+      "$TOTAL" "$BUDGET_CHARS" "$OVERFLOW" "$BASIS"
+  fi
   printf 'This is an estimate against a configurable default, not a live measurement — run\n'
   # shellcheck disable=SC2016  # single quotes deliberate: the backticks are literal, not shell expansion
   printf '`/doctor` in a live session for the authoritative resolved cost and contributors.\n'
+elif ((BAND)); then
+  printf 'CHECK-LISTING-BUDGET: OK — aggregate %d chars within every budget (smallest %d chars).\n' "$TOTAL" "$BUDGET_CHARS"
 else
   printf 'CHECK-LISTING-BUDGET: OK — aggregate %d/%d chars within budget.\n' "$TOTAL" "$BUDGET_CHARS"
 fi

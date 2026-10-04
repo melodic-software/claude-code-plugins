@@ -153,8 +153,13 @@ DEAD_PARENT_CENSUS_EXTRA_NAMES = frozenset(
         "grep.exe",
         "sleep.exe",
         "cat.exe",
+        "rm.exe",
+        "du.exe",
     }
 )
+#: How many rows the dead-parent CPU ranking keeps. It needs no name list: any process whose
+#: parent is gone is ranked, so a detached-by-design process surfaces only when it burns CPU.
+DEAD_PARENT_BY_CPU_SIZE = 10
 
 #: Executable names a `claude` on PATH can carry. Windows resolves `.exe` and `.cmd` through
 #: PATHEXT, so a PATH scan that looks only for the bare name under-reports there.
@@ -885,10 +890,11 @@ def _windows_process_table() -> list[dict]:
     query_limited_information = 0x1000
     epoch_offset_seconds = 11644473600  # 1601-01-01 to 1970-01-01
 
-    def creation_epoch(pid: int) -> float | None:
+    def process_times(pid: int) -> tuple[float | None, float | None]:
+        """Return (creation epoch, kernel plus user CPU seconds); None where unreadable."""
         handle = kernel32.OpenProcess(query_limited_information, False, pid)
         if not handle:
-            return None
+            return None, None
         try:
             created, exited, kernel, user = (
                 FILETIME(),
@@ -904,11 +910,16 @@ def _windows_process_table() -> list[dict]:
                 ctypes.byref(user),
             )
             if not ok:
-                return None
-            ticks = (created.dwHighDateTime << 32) | created.dwLowDateTime
-            if ticks == 0:
-                return None
-            return ticks / 1e7 - epoch_offset_seconds
+                return None, None
+
+            def ticks(filetime: FILETIME) -> int:
+                return (filetime.dwHighDateTime << 32) | filetime.dwLowDateTime
+
+            cpu_seconds = (ticks(kernel) + ticks(user)) / 1e7
+            created_ticks = ticks(created)
+            if created_ticks == 0:
+                return None, cpu_seconds
+            return created_ticks / 1e7 - epoch_offset_seconds, cpu_seconds
         finally:
             kernel32.CloseHandle(handle)
 
@@ -922,12 +933,14 @@ def _windows_process_table() -> list[dict]:
         more = kernel32.Process32FirstW(snapshot, ctypes.byref(entry))
         while more:
             pid = int(entry.th32ProcessID)
+            started, cpu_seconds = process_times(pid)
             rows.append(
                 {
                     "pid": pid,
                     "ppid": int(entry.th32ParentProcessID),
                     "name": entry.szExeFile,
-                    "started_epoch": creation_epoch(pid),
+                    "started_epoch": started,
+                    "cpu_seconds": cpu_seconds,
                 }
             )
             more = kernel32.Process32NextW(snapshot, ctypes.byref(entry))
@@ -983,7 +996,10 @@ def parse_etime(etime: str) -> float:
 
 
 def process_table() -> tuple[list[dict], str | None]:
-    """Return (records, error). Each record carries pid, ppid, name, started_epoch."""
+    """Return (records, error). Each record carries pid, ppid, name, started_epoch.
+
+    A Windows record also carries cpu_seconds (kernel plus user time), None when unreadable.
+    """
     try:
         rows = (
             _windows_process_table()
@@ -998,6 +1014,64 @@ def process_table() -> tuple[list[dict], str | None]:
 def is_claude_process(name: str) -> bool:
     lowered = name.lower()
     return "claude" in lowered or lowered in ("node.exe", "node", "bun.exe", "bun")
+
+
+def _parent_state(record: dict, by_pid: dict[int, dict], started: float) -> str:
+    """Classify a record's parent as dead, recycled, unknown, or live."""
+    parent = by_pid.get(record["ppid"])
+    if parent is None:
+        return "dead"
+    parent_started = parent.get("started_epoch")
+    if parent_started is None:
+        return "unknown"
+    if parent_started > started:
+        # The PID was recycled: this "parent" started after its supposed child.
+        return "recycled"
+    return "live"
+
+
+def rank_dead_parent_by_cpu(
+    records: list[dict],
+    now_epoch: float,
+    by_pid: dict[int, dict],
+    size: int = DEAD_PARENT_BY_CPU_SIZE,
+) -> list[dict]:
+    """Rank every dead-parent process, any name, by CPU seconds. A ranking, not a kill list.
+
+    Same parent rules as the census: a recorded parent pid, a readable start time, an age
+    above the teardown guard, and a parent that is gone or whose pid was recycled. A process
+    whose CPU time is unreadable ranks after every known figure rather than as zero.
+    """
+    ranked: list[dict] = []
+    for record in records:
+        if record.get("ppid", 0) <= 0:
+            continue
+        started = record.get("started_epoch")
+        if started is None:
+            continue
+        age_seconds = now_epoch - started
+        if age_seconds <= DEAD_PARENT_CENSUS_MIN_AGE_SECONDS:
+            continue
+        if _parent_state(record, by_pid, started) not in {"dead", "recycled"}:
+            continue
+        cpu = record.get("cpu_seconds")
+        ranked.append(
+            {
+                "name": record["name"],
+                "pid": record["pid"],
+                "age_h": round(age_seconds / 3600.0, 1),
+                "cpu_seconds": None if cpu is None else round(cpu, 1),
+                "cpu_share": None if cpu is None else round(cpu / age_seconds, 3),
+            }
+        )
+    ranked.sort(
+        key=lambda row: (
+            row["cpu_seconds"] is None,
+            -(row["cpu_seconds"] or 0.0),
+            row["pid"],
+        )
+    )
+    return ranked[:size]
 
 
 def attribute_orphans(
@@ -1026,10 +1100,14 @@ def attribute_orphans(
     verdict candidates. The orphan verdict, its age floor, and its candidate set
     are unchanged.
 
-    The census runs only on a Windows table, whose parent pid is the creator's
+    `dead_parent_by_cpu` drops the name list: every dead-parent process under the
+    census parent and age rules, ranked by CPU seconds. A detached-by-design process
+    stays out of the census and surfaces there only when it burns CPU.
+
+    The census and the ranking run only on a Windows table, whose parent pid is the creator's
     and stays so after the creator exits. POSIX reparents an orphan to init or
     the nearest child subreaper, so its ppid names a live adopter the table
-    cannot tell from a real parent: there the census is None, not [].
+    cannot tell from a real parent: there both are None, not [].
     The verdict reads the same table and is left as is, so off Windows
     `orphans_note` says it cannot see a reparented orphan; on Windows it is None.
     """
@@ -1038,7 +1116,7 @@ def attribute_orphans(
     orphans: list[dict] = []
     live_parent: list[dict] = []
     unknown: list[dict] = []
-    # name -> [count, youngest_hours, oldest_hours]. Counted in full before the
+    # name -> [count, youngest_hours, oldest_hours, cpu_seconds]. Counted in full before the
     # orphan sample cap below; this table is not a kill list.
     census_by_name: dict[str, list] = {}
     census_unknown = 0
@@ -1065,17 +1143,7 @@ def attribute_orphans(
         if not verdict_aged and not census_aged:
             continue
         parent = by_pid.get(record["ppid"])
-        if parent is None:
-            parent_state = "dead"
-        else:
-            parent_started = parent.get("started_epoch")
-            if parent_started is None:
-                parent_state = "unknown"
-            elif parent_started > started:
-                # The PID was recycled: this "parent" started after its supposed child.
-                parent_state = "recycled"
-            else:
-                parent_state = "live"
+        parent_state = _parent_state(record, by_pid, started)
         summary = {
             "name": record["name"],
             "pid": record["pid"],
@@ -1101,15 +1169,18 @@ def attribute_orphans(
                 summary["parent_name"] = parent["name"]
                 live_parent.append(summary)
         if census_aged and parent_state in {"dead", "recycled"}:
+            cpu = record.get("cpu_seconds")
             row = census_by_name.get(lowered)
             if row is None:
-                census_by_name[lowered] = [1, age_hours, age_hours]
+                census_by_name[lowered] = [1, age_hours, age_hours, cpu]
             else:
                 row[0] += 1
                 if age_hours < row[1]:
                     row[1] = age_hours
                 if age_hours > row[2]:
                     row[2] = age_hours
+                # One unreadable member makes the sum unknown, never an undercount.
+                row[3] = None if row[3] is None or cpu is None else row[3] + cpu
         elif census_aged and parent_state == "unknown":
             census_unknown += 1
     dead_parent_any_age = [
@@ -1118,15 +1189,17 @@ def attribute_orphans(
             "count": count,
             "youngest_h": round(youngest, 1),
             "oldest_h": round(oldest, 1),
+            "cpu_seconds": None if cpu is None else round(cpu, 1),
         }
-        for name, (count, youngest, oldest) in sorted(census_by_name.items())
+        for name, (count, youngest, oldest, cpu) in sorted(census_by_name.items())
     ]
     if creator_ppids:
         census_note = (
             "Census, not a kill list. Per-name counts of processes whose parent is gone "
             "or whose parent pid was recycled, at any age above 5 seconds of teardown. "
             "The name set is the orphan candidate set plus tail.exe, grep.exe, sleep.exe, "
-            "and cat.exe. A process whose parent start time is unreadable is not a row "
+            "cat.exe, rm.exe, and du.exe. cpu_seconds sums kernel plus user time across the "
+            "name and is null when any member's time is unreadable. A process whose parent start time is unreadable is not a row "
             "here; dead_parent_any_age_unknown_count counts every such census process, "
             "while the orphan verdict's unknown_count holds only its own 24-hour "
             "candidates. "
@@ -1171,6 +1244,22 @@ def attribute_orphans(
         "dead_parent_any_age": dead_parent_any_age if creator_ppids else None,
         "dead_parent_any_age_unknown_count": census_unknown if creator_ppids else None,
         "dead_parent_any_age_note": census_note,
+        "dead_parent_by_cpu": (
+            rank_dead_parent_by_cpu(records, now_epoch, by_pid)
+            if creator_ppids
+            else None
+        ),
+        "dead_parent_by_cpu_note": (
+            "Ranking, not a kill list. Every process of any name whose parent is gone or "
+            "whose parent pid was recycled, older than 5 seconds, ranked by cpu_seconds "
+            "(kernel plus user time), top 10. cpu_share is cpu_seconds over age; it can "
+            "exceed 1.0 for a process using more than one core. A high cpu_share on a "
+            "dead-parent process is the first thing to report. This engine reports and "
+            "never kills."
+            if creator_ppids
+            else "Ranking not measured on this platform, for the reparenting reason "
+            "dead_parent_any_age_note gives. This engine reports and never kills."
+        ),
         "note": (
             "Only a dead-parent process is an orphan. Live-parent processes of the same age "
             "are working software; killing them breaks whatever owns them. Scoped to the shells, "
