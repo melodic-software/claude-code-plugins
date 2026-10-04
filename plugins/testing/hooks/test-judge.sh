@@ -79,7 +79,6 @@ relay_needs_decision() {
     <<<"$RELAY" >/dev/null
 }
 
-
 judge::now
 deadline=$((NOW + JUDGE_TIMEOUT))
 judge::harvest_orphans
