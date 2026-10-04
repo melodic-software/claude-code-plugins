@@ -73,15 +73,16 @@ does another lane's job.
 | `pr-explain` | verify | dispatch from `pr-refine`, alongside verify | Gates |
 | `pr-require-checks` | verify | each verify result | Runs work; it only produces `ci-status` |
 | `pr-address-feedback` | respond | dispatch from the last verify step | Resolves human threads |
-| `pr-fix-ci` | respond | a failed check, via `workflow_run`, once its decision record merges | Edits anything unrelated to the failure |
+| `pr-fix-ci` | respond | a failed check, via `workflow_run` | Edits anything unrelated to the failure |
 | `pr-update` | respond | push to the default branch, the hourly sweep, a merge-queue dequeue | Force-pushes |
 | `pr-merge` | merge | final check green, or a hold removed | Merges above the rung or past a hold |
 | `post-merge-verify` | post-merge | push to the default branch | Edits PRs |
 | `post-merge-sweep-comments` | post-merge | push to the default branch | Reopens merged PRs |
 
-`workflow_run` runs the default-branch copy of a workflow with secrets, so `pr-fix-ci` waits on a
-human-merged decision record. The privileged-trigger tripwire in the two existing ci-workflows
-review lanes binds only those lanes.
+`workflow_run` runs the default-branch copy of a workflow with secrets; the conditions `pr-fix-ci`
+holds to are in [ADR 0051](../../adr/0051-start-pr-fix-ci-from-workflow-run-for-same-repository-trusted-prs.md).
+Lanes run on GitHub-hosted runners without default-deny egress under the conditions in
+[ADR 0049](../../adr/0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md).
 
 Every lane:
 
@@ -177,8 +178,9 @@ in [`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-class
   `merge.diff-check`: the diff touches no denied path and stays under the size cap.
 - The work class comes from the linked issue's label and is re-checked against the diff. No class,
   or a class the diff contradicts, means no lane merge.
-- C4 and C5 need a human, as loop-lane and the autonomy matrix state. Making C4 promotable needs a
-  merged decision record and autonomy-plugin change first; until then the schema has no C4 rung.
+- C5 always needs a human. C4 becomes promotable under
+  [ADR 0050](../../adr/0050-let-merge-authority-reach-c4-by-evidence-and-drop-the-vendor-hosted-cap.md),
+  but the schema adds no C4 rung until the autonomy plugin and loop-lane carry the matching change.
 - A rung rises only through a merged change to the config file. It falls automatically: when the
   default branch fails after a lane merge, that lane's merge rights turn off through a repository
   variable that can only lower the rung, and a `needs-human` issue is filed.
