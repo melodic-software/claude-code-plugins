@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Write plugin.json patch bumps and Keep a Changelog entries for Dependabot PRs
 # that touch plugins/**. Does not exempt Dependabot from check-changelog-parity
-# --check-bump; it supplies the bump the bot cannot author.
+# --check-bump; it supplies the bump the bot cannot author. A plugin in
+# changelog-fragment mode (scripts/fragment-plugins.txt, ADR 0048) gets a patch
+# fragment from scripts/new-changelog-fragment.sh instead, with the same entry
+# under `### Changed`; the release pull request bumps its version.
 #
 # Usage:
 #   scripts/dependabot-plugin-bump.sh <base-ref> [--pr <n>] [--title <text>]
@@ -31,6 +34,15 @@ if [[ -f "$SELF_DIR/lib/changed-files.sh" ]]; then
 fi
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPTS_DIR/lib/changed-files.sh"
+# The workflow runs the base branch's copy of this script against the PR
+# branch's scripts/; a branch older than the fragment library has no plugin in
+# fragment mode.
+if [[ -f "$SCRIPTS_DIR/lib/changelog-fragments.sh" ]]; then
+  # shellcheck source=lib/changelog-fragments.sh
+  . "$SCRIPTS_DIR/lib/changelog-fragments.sh"
+else
+  changelog_fragments::in_mode() { return 1; }
+fi
 
 usage() {
   echo "usage: $(basename "$0") <base-ref> [--pr <n>] [--title <text>]" >&2
@@ -169,6 +181,7 @@ ${body}
 }
 
 edited=0
+fragments_written=""
 bumped_names=()
 
 # ${!assoc[@]+...} is NOT safe: bash treats ! as indirection on the values.
@@ -189,32 +202,51 @@ if ((${#shipped_changed[@]} > 0)); then
     head_ver="$(version_of "$manifest")"
     [[ -n "$base_ver" && -n "$head_ver" ]] || continue
 
-    # Idempotent: head already above base tip and heading present for head version.
-    # shellcheck disable=SC2310  # has_heading's non-zero return IS the "no heading" answer
-    if [[ "$head_ver" != "$base_ver" ]] && has_heading "$changelog" "$head_ver"; then
-      continue
+    # A plugin in fragment mode (ADR 0048) gets a patch fragment instead; the
+    # release pull request bumps its version. Idempotent: a fragment this branch
+    # already added is the bump. The version compared is the fork point's, so a
+    # release that landed on the base since then is not this branch's bump.
+    mode_rc=0
+    # shellcheck disable=SC2310  # the non-zero return IS the answer; rc 2 exits
+    changelog_fragments::in_mode "$name" || mode_rc=$?
+    ((mode_rc < 2)) || exit 2
+    if ((mode_rc == 0)); then
+      fork_ver="$(git show "$merge_base:$manifest" 2>/dev/null | jq -r '.version // empty' || true)"
+      delivered_rc=0
+      # shellcheck disable=SC2310  # the non-zero return IS the answer; rc 2 exits
+      changelog_fragments::bump_delivered "$merge_base" "$name" "${fork_ver:-$head_ver}" "$head_ver" || delivered_rc=$?
+      ((delivered_rc < 2)) || exit 2
+      ((delivered_rc == 1)) || continue
     fi
 
-    # If head equals base but we touched shipped files, we need a new patch.
-    # If head already moved without a heading, keep that number when present.
-    if [[ "$head_ver" == "$base_ver" ]]; then
-      # shellcheck disable=SC2310  # bump_patch's only failure is its explicit non-SemVer return
-      new_ver="$(bump_patch "$base_ver")" || exit 1
-    else
-      new_ver=$head_ver
+    if ((mode_rc == 1)); then
+      # Idempotent: head already above base tip and heading present for head version.
       # shellcheck disable=SC2310  # has_heading's non-zero return IS the "no heading" answer
-      if has_heading "$changelog" "$new_ver"; then
+      if [[ "$head_ver" != "$base_ver" ]] && has_heading "$changelog" "$head_ver"; then
         continue
       fi
-    fi
 
-    if [[ "$new_ver" == "$base_ver" ]]; then
-      # shellcheck disable=SC2310  # bump_patch's only failure is its explicit non-SemVer return
-      new_ver="$(bump_patch "$base_ver")" || exit 1
-    fi
+      # If head equals base but we touched shipped files, we need a new patch.
+      # If head already moved without a heading, keep that number when present.
+      if [[ "$head_ver" == "$base_ver" ]]; then
+        # shellcheck disable=SC2310  # bump_patch's only failure is its explicit non-SemVer return
+        new_ver="$(bump_patch "$base_ver")" || exit 1
+      else
+        new_ver=$head_ver
+        # shellcheck disable=SC2310  # has_heading's non-zero return IS the "no heading" answer
+        if has_heading "$changelog" "$new_ver"; then
+          continue
+        fi
+      fi
 
-    jq --arg v "$new_ver" '.version = $v' "$manifest" >"${manifest}.tmp"
-    mv "${manifest}.tmp" "$manifest"
+      if [[ "$new_ver" == "$base_ver" ]]; then
+        # shellcheck disable=SC2310  # bump_patch's only failure is its explicit non-SemVer return
+        new_ver="$(bump_patch "$base_ver")" || exit 1
+      fi
+
+      jq --arg v "$new_ver" '.version = $v' "$manifest" >"${manifest}.tmp"
+      mv "${manifest}.tmp" "$manifest"
+    fi
 
     dep_body=""
     while IFS=$'\t' read -r pkg from to; do
@@ -244,10 +276,17 @@ if ((${#shipped_changed[@]} > 0)); then
       body_block+=$'\n'"  Committed bundle or dist artifact changed with this update."
     fi
 
-    insert_changelog_entry "$changelog" "$new_ver" "$body_block"
+    if ((mode_rc == 0)); then
+      fragment="$(bash "$SCRIPTS_DIR/new-changelog-fragment.sh" "$name" patch)" || exit 2
+      printf '### Changed\n\n%s\n' "$body_block" >>"$fragment"
+      fragments_written=1
+      echo "dependabot-plugin-bump: $name ${base_ver}: patch fragment $fragment"
+    else
+      insert_changelog_entry "$changelog" "$new_ver" "$body_block"
+      echo "dependabot-plugin-bump: $name ${base_ver} -> ${new_ver}"
+    fi
     edited=1
     bumped_names+=("$name")
-    echo "dependabot-plugin-bump: $name ${base_ver} -> ${new_ver}"
   done
 fi
 
@@ -272,6 +311,12 @@ if ! bash "$parity" --check-preserved "$base"; then
 fi
 if ! bash "$parity" --check-order; then
   echo "dependabot-plugin-bump: --check-order failed after edits" >&2
+  exit 1
+fi
+# The fragment is not committed yet, so --check-required, which reads the
+# committed change set, cannot see it; --check validates it on disk.
+if [[ -n "$fragments_written" ]] && ! bash "$SCRIPTS_DIR/check-changelog-fragments.sh" --check; then
+  echo "dependabot-plugin-bump: check-changelog-fragments.sh --check failed after edits" >&2
   exit 1
 fi
 

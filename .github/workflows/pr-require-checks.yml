@@ -699,6 +699,31 @@ jobs:
         continue-on-error: true
         run: scripts/check-lane-coverage.sh --check
 
+      # The whole-tree test plan of the live tree: the bash plan is the bash
+      # runner's corpus, each suite once; the Python plan is every test module
+      # but the eval fixtures; no leg is empty; and every Node suite runs
+      # through a wrapper or a Node package. Each reads the whole tree, so no
+      # test selection can say when it must run, and it runs here on every pull
+      # request rather than as a case of scripts/plan-test-lanes.test.sh.
+      - name: Check the whole-tree test plan covers the live corpus
+        id: test_plan_corpus
+        continue-on-error: true
+        run: |
+          rc=0
+          plan="$(bash scripts/plan-test-lanes.sh 2>/dev/null)" || { echo "::error::the whole-tree plan failed"; exit 1; }
+          legs() { sed -n "s/^$1_plan=//p" <<<"$plan"; }
+          diff <(legs bash | jq -r '.[][]' | LC_ALL=C sort) <(bash scripts/run-plugin-tests.sh --list | LC_ALL=C sort) ||
+            { echo "::error::the whole-tree bash plan is not the bash runner's corpus, each suite once"; rc=1; }
+          diff <(legs python | jq -r '.[][]' | LC_ALL=C sort) <(git ls-files --cached --others --exclude-standard |
+            awk '{ b = $0; sub(/.*\//, "", b) } b ~ /^test_.*\.py$/ && !/\/evals\/fixtures\//' | LC_ALL=C sort) ||
+            { echo "::error::the whole-tree Python plan is not every test module but the eval fixtures"; rc=1; }
+          [[ "$(legs bash | jq '[.[] | length > 0] | all')" == true && "$(legs python | jq '[.[] | length > 0] | all')" == true ]] ||
+            { echo "::error::a leg of the whole-tree plan is empty"; rc=1; }
+          mapfile -t node_suites < <(git ls-files | grep -E '\.test\.(js|mjs|cjs)$')
+          bash scripts/plan-test-lanes.sh -- "${node_suites[@]}" >/dev/null ||
+            { echo "::error::a Node suite runs through neither a wrapper nor a Node package"; rc=1; }
+          exit "$rc"
+
       # A DIFF LINTS THE MARKDOWN IT CHANGED. markdownlint's rules read one file
       # at a time, so an unchanged file's verdict is the one its last green run
       # gave. The whole tree when there is no diff base (a schedule or dispatch
@@ -807,6 +832,7 @@ jobs:
             .github/workflows/pr-bump-plugin-version.yml
             .github/workflows/post-merge-detect-silent-revert.yml
             .github/workflows/pr-test-windows.yml
+            .github/workflows/release-plugins.yml
 
       - name: Verify shebang files are executable
         id: exec_bit
@@ -953,6 +979,14 @@ jobs:
           CI_REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
         run: node .github/standards/runner-policy/runner-policy.mjs --root .
 
+      # Parses workflows with the yaml package the runner-policy install
+      # above provides, so it gates on the same workflows filter group.
+      - name: Check no run reaching the read workflow references the App key
+        id: read_caller_keys
+        if: needs.select-tests.outputs.run_workflows == 'true'
+        continue-on-error: true
+        run: scripts/check-read-caller-keys.sh --check
+
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
 
@@ -979,6 +1013,7 @@ jobs:
             conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
             adr-numbers=${{ steps.adr_numbers.outcome }}
+            read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
             config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
             code-metrics-skill-prose=${{ steps.code_metrics_skill_prose.outcome }}
@@ -986,6 +1021,7 @@ jobs:
             stale-base-overlap=${{ steps.stale_base.outcome }}
             docs-only-contract=${{ steps.docs_only_contract.outcome }}
             lane-coverage=${{ steps.lane_coverage.outcome }}
+            test-plan-corpus=${{ steps.test_plan_corpus.outcome }}
             markdown=${{ steps.markdown.outcome }}
             typos=${{ steps.typos.outcome }}
             gitleaks=${{ steps.gitleaks.outcome }}
@@ -1420,6 +1456,10 @@ jobs:
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
+          # The head branch of a pull request from this repository, never a
+          # fork's: scripts/lib/changelog-fragments.sh reads `release/plugins`
+          # here as the release pull request.
+          CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
@@ -1449,6 +1489,45 @@ jobs:
         id: changelog_parity_order
         continue-on-error: true
         run: scripts/check-changelog-parity.sh --check-order
+
+      # Changelog fragments (ADR 0048). A plugin in scripts/fragment-plugins.txt
+      # takes a fragment under .changes/<plugin>/ in each pull request, and the
+      # release pull request (branch release/plugins) bumps it. --check
+      # validates every fragment in the tree; --check-required asks a change to
+      # such a plugin for one. --check-release keeps a release from merging past
+      # a fragment it never consumed: on the release pull request against the
+      # base, and in the merge queue against HEAD^1, the tree the queued squash
+      # commit lands on (main plus every entry ahead of it).
+      - name: Verify every changelog fragment is well formed
+        id: changelog_fragments_check
+        continue-on-error: true
+        run: scripts/check-changelog-fragments.sh --check
+      - name: Verify a change to a fragment-mode plugin adds a fragment
+        id: changelog_fragments_required
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            exit 0
+          fi
+          scripts/check-changelog-fragments.sh --check-required "origin/$BASE_REF"
+      - name: Verify a release consumes every pending fragment for the plugins it bumps
+        id: changelog_fragments_release
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            scripts/check-changelog-fragments.sh --check-release 'HEAD^1'
+          elif [ "$GITHUB_EVENT_NAME" = pull_request ] && [ "$CHANGELOG_HEAD_REF" = release/plugins ]; then
+            scripts/check-changelog-fragments.sh --check-release "origin/$BASE_REF"
+          else
+            echo "::notice::Declined: only the release pull request and the merge queue release plugins."
+          fi
 
       # Vendor version bump: ADR 0019's intra-plugin sharing keeps ONE
       # committed copy at the plugin root (vendor/), so no sync-*.sh byte-drift
@@ -1634,6 +1713,9 @@ jobs:
             changelog-parity-bump=${{ steps.changelog_parity_bump.outcome }}
             changelog-parity-preserved=${{ steps.changelog_parity_preserved.outcome }}
             changelog-parity-order=${{ steps.changelog_parity_order.outcome }}
+            changelog-fragments=${{ steps.changelog_fragments_check.outcome }}
+            changelog-fragments-required=${{ steps.changelog_fragments_required.outcome }}
+            changelog-fragments-release=${{ steps.changelog_fragments_release.outcome }}
             vendor-version-bump=${{ steps.vendor_version_bump.outcome }}
             marketplace-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.marketplace_schema.outcome }}
             plugin-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.plugin_schema.outcome }}
@@ -2010,6 +2092,7 @@ jobs:
           cache: npm
           cache-dependency-path: |
             package-lock.json
+            .github/standards/runner-policy/package-lock.json
             plugins/harness-ops/skills/inventory/scripts/js/package-lock.json
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -2073,6 +2156,8 @@ jobs:
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           echo "This leg installs: ${leg_needs:-the base toolchains only}"
           npm ci
+          # The yaml package scripts/check-read-caller-keys.test.sh parses with.
+          npm ci --prefix .github/standards/runner-policy
           requirements=(--requirement .github/requirements-ci.txt)
           if [[ "$leg_needs" == *animation* ]]; then
             requirements+=(--requirement .github/requirements-ci-animation.txt)

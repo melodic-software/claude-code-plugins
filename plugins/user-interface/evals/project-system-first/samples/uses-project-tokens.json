@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Pad the card with space.gutter (18px) and use radius.card.",
+      "why": "token names"
+    },
+    {
+      "answer": "Primary button in brand pine #0B6E4F.",
+      "why": "token value"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Use a soft blue #3B82F6 with a 12px radius.",
+      "why": "invented values"
+    },
+    {
+      "answer": "Follow Material defaults.",
+      "why": "no project values"
+    }
+  ]
+}

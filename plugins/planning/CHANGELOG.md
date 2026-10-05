@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.69.4] - 2026-10-04
+
+### Fixed
+
+- **The SDK out-of-scope regex in three `/planning:wayfind` eval cases now needs the SDK and the exclusion in the same clause.** It used to accept any SDK mention within 240 characters of any exclusion phrase, so "The partner SDK work remains open; separately, the batch job is out of scope" passed though the SDK was never excluded. The text between them may no longer cross a sentence end, a semicolon, a line break, a contrastive join such as ", but", or an "and" that opens a new clause, with or without a comma and in either order ("the batch job is out of scope and the SDKs stay in scope"); an SDK listed under an "Out of scope" label or after "Out of scope:" still passes. New fail samples cover the cross-clause pairing, and `/evals:validate` grades every sample correctly.
+
+## [0.69.3] - 2026-10-04
+
+### Added
+
+- **`planning` adds three `claude plugin eval` cases for `/planning:wayfind` work mode (tag `pocock-33`).** Each case scaffolds an exported decision map for a partner shipment feed and asks for the brief or handoff wayfind would pass on for one item. A case passes when that brief or handoff carries the map's destination, a decision already made, and the out-of-scope line excluding partner client SDKs, not the item alone. Regex graders check each of the three; the out-of-scope and design-handoff cases add a judge rubric with pass and fail samples. The research-brief case has no judge: its calibration missed the bar, and the regex graders already reject both of its failing samples. No skill text changes.
+
 ## [0.69.2] - 2026-10-04
 
 ### Added

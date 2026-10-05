@@ -3,6 +3,18 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.49.4] - 2026-10-04
+
+### Changed
+
+- **work-loop and attend-queue inline rate-limit-guard's updated operable floor.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says the file names an account only as of a session's last API response and a paused lane's Monitor ticks never write it. The rule is unchanged.
+
+## [0.49.3] - 2026-10-04
+
+### Changed
+
+- **`work-loop` and `attend-queue` call `rate-limits.json` the snapshot file, not the tee file**, matching rate-limit-guard's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
+
 ## [0.49.2] - 2026-10-04
 
 ### Added

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Welcome back. Before picking anything new, here is where you stand against your mission's success criteria:\n\n| Success criterion | Evidence | Met? |\n|---|---|---|\n| Write an INNER JOIN of orders and customers unaided | 0002: written from a blank editor | Yes |\n| Explain LEFT JOIN unmatched rows and predict the NULLs | 0003: predicted three rows' NULL columns | Yes |\n| Spot and fix a fan-out duplicate | 0004: fixed in an exercise and in a real work report | Yes |\n\nAll three are met. Do you want to close this mission, or revise it with a new goal?",
+      "why": "all three criteria checked against records, met"
+    },
+    {
+      "answer": "Reading MISSION.md against your learning records: you set out to write the orders-customers INNER JOIN on your own (done, record 0002), to explain why a LEFT JOIN keeps unmatched customers and which columns go NULL (done, 0003), and to catch the doubled-total fan-out bug (done twice, 0004). That is every success criterion. Shall we mark the mission complete, or rewrite it around something new such as the window functions you left out of scope?",
+      "why": "paraphrases all three in prose and states each met"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Welcome back! Your records show you are comfortable with INNER JOIN, LEFT JOIN and fan-out. Let's keep the momentum going: today we look at FULL OUTER JOIN. What do you think happens to an order whose customer was deleted?",
+      "why": "near miss: lists learned concepts but never compares them with the mission's success criteria"
+    },
+    {
+      "answer": "Welcome back. Your mission is to write your own report queries. Your INNER JOIN record looks solid, so let's do a quick retrieval check: write the orders-customers join from memory.",
+      "why": "mentions the mission only in passing and checks one criterion"
+    }
+  ]
+}
