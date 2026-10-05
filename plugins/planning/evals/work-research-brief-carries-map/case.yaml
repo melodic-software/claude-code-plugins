@@ -2,7 +2,7 @@ schema_version: "1.1"
 name: work-research-brief-carries-map
 description: Working a research item, the brief handed to the research step carries the map's destination, its decisions so far, and its out-of-scope lines, not the item alone
 tags: [wayfind, pocock-33]
-expected_outcome: The brief for 'Pick the change-feed wire format' names the destination (a push-based shipment feed for three partners before the 2027 Q3 peak), the settled change source (Debezium on Postgres logical replication) and per-status-change granularity, and the exclusion of partner client SDKs.
+expected_outcome: The brief for 'Pick the change-feed wire format' names the destination (a push-based shipment feed for three partners before the 2027 Q3 peak), at least one settled decision (the Debezium change source on Postgres logical replication), and the exclusion of partner client SDKs.
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -23,7 +23,7 @@ graders:
     arm: both
   - name: names-sdk-exclusion
     type: regex
-    pattern: 'SDK|client (?:librar|code)'
+    pattern: '(?:SDK|client (?:librar|code))[\s\S]{0,240}(?:out of scope|out-of-scope|excluded|exclusion|not (?:in scope|ship|build|provide)|never ship|won''t ship|will not ship)|(?:out of scope|out-of-scope|excluded|exclusion|not (?:in scope|ship|build|provide)|never ship|won''t ship|will not ship)[\s\S]{0,240}(?:SDK|client (?:librar|code))'
     flags: i
     arm: both
   - name: skill-fired

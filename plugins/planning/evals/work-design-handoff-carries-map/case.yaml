@@ -23,7 +23,7 @@ graders:
     arm: both
   - name: names-sdk-exclusion
     type: regex
-    pattern: 'SDK|client (?:librar|code)'
+    pattern: '(?:SDK|client (?:librar|code))[\s\S]{0,240}(?:out of scope|out-of-scope|excluded|exclusion|not (?:in scope|ship|build|provide)|never ship|won''t ship|will not ship)|(?:out of scope|out-of-scope|excluded|exclusion|not (?:in scope|ship|build|provide)|never ship|won''t ship|will not ship)[\s\S]{0,240}(?:SDK|client (?:librar|code))'
     flags: i
     arm: both
   - name: handoff-carries-map-context
