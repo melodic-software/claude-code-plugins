@@ -339,6 +339,39 @@ assert_contains "... with a diagnosable message" "$out" "reserved key name: 'ENV
 assert_contains "... leaving ENV_FILE alone" "$out" "env_file=[.env]"
 assert_contains "... and writing nothing" "$out" "files:ABSENT"
 
+# printf -v keeps a variable's export flag, so a key the shell already exports
+# (GH_TOKEN, BROWSER, GIT_SSH_COMMAND) would hand the wizard's value to every
+# command it starts. Such a key is refused; the same name unexported is fine.
+out="$(
+  case_run "$TTY_EOF" <<'BODY'
+export WIZ_EXPORTED=original
+(write_env WIZ_EXPORTED injected; printf 'child=[%s]\n' "$(bash -c 'printf %s "$WIZ_EXPORTED"')")
+printf 'rc=%s\n' "$?"
+if [[ -e .env ]]; then echo "env:CREATED"; else echo "env:ABSENT"; fi
+export -n WIZ_EXPORTED
+(write_env WIZ_EXPORTED plain >/dev/null)
+printf 'unexported_rc=%s\n' "$?"
+printf 'file=[%s]\n' "$(cat .env 2>/dev/null)"
+BODY
+)"
+assert_contains "write_env refuses a key the shell already exports" "$out" "exported key name: 'WIZ_EXPORTED'"
+assert_not_contains "... before a child process can see the new value" "$out" "child=[injected]"
+assert_contains "... exiting nonzero" "$out" "rc=1"
+assert_contains "... and writing nothing" "$out" "env:ABSENT"
+assert_contains "write_env accepts the same key once it is not exported" "$out" "unexported_rc=0"
+assert_contains "... and writes it" "$out" "file=[WIZ_EXPORTED='plain']"
+
+out="$(
+  case_run "$TTY_VALUE" <<'BODY'
+export WIZ_EXPORTED=original
+(ask WIZ_EXPORTED "Type it:")
+printf 'rc=%s\n' "$?"
+BODY
+)"
+assert_contains "ask refuses an exported key too" "$out" "exported key name: 'WIZ_EXPORTED'"
+assert_not_contains "... before prompting" "$out" "Type it:"
+assert_contains "... exiting nonzero" "$out" "rc=1"
+
 # --- 4. write_env and _existing --------------------------------------------
 
 # The fixture starts from a world-readable hand-written env file, which is the
