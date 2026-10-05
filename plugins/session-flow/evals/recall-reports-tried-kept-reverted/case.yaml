@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: recall-reports-tried-kept-reverted
+description: Recall on a topic with a reverted attempt in git history reports what was tried, what stayed and what was reverted, citing commits, and names any source it could not use
+tags: [recall, git-history]
+expected_outcome: The git history holds a token-bucket rate limiter that was reverted because it dropped requests during bursts, then a sliding-window rate limiter that is still in place. The answer searches git for the topic and its reverts, tries closed unmerged pull requests through gh, and reports Tried (both attempts), Kept (sliding window), and Dropped or reverted (token bucket, with the burst reason), each cited by commit SHA. It names any source it could not use, such as gh or the tracker.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/session-flow:recall rate limiter. Have we tried replacing the in-memory one before, and how did it go?"
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Agent]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: git-searched
+    type: tool_used
+    tool: Bash
+    input_match: 'git\s+log'
+    arm: with-only
+  - name: names-both-attempts
+    type: regex
+    pattern: '(?=[\s\S]*token[- ]bucket)(?=[\s\S]*sliding[- ]window)'
+    flags: i
+    arm: both
+  - name: tried-kept-reverted
+    type: llm
+    arm: both
+    criteria: "PASS only if the reply says the token-bucket rate limiter was tried and reverted, gives the reason that it dropped requests during bursts, says the sliding-window rate limiter is the one still in place, and cites at least one commit SHA. FAIL if it calls the token bucket current, omits the revert, or gives no citation."
+  - name: unavailable-source-named
+    type: llm
+    arm: with-only
+    criteria: "PASS only if the reply names every source it could not search (for example gh pull requests or the work-item tracker) or states that each source it tried returned a result. FAIL if a source was skipped without a word."
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:session-flow:)?recall"'
+    arm: with-only

@@ -19,6 +19,7 @@ sessions lose time and tokens over weeks, and how to arm it for delegation-heavy
 | `/session-flow:audit-sessions` | Across every session on this machine, which ones lost the most time, tokens or corrections, and what would fix it? |
 | `/session-flow:running-retro` | Mid-flight: how is this session going, what is drifting, and what should change before it costs more? |
 | `/session-flow:orient` | Where do we stand, what are we doing, and why, from the durable + off-thread state, not just the conversation? |
+| `/session-flow:recall` | What have past sessions already tried on this topic, and what was kept or reverted? |
 | `/session-flow:orchestrate` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
 | `/session-flow:reanchor` | Are this session's assumptions still true, or has reality moved under them? |
 | `/session-flow:reconcile` | Is anything still running that should be retired, and does the task ledger match reality? |
@@ -41,6 +42,7 @@ sessions lose time and tokens over weeks, and how to arm it for delegation-heavy
   - [audit-sessions](#audit-sessions)
   - [running-retro](#running-retro)
   - [orient](#orient)
+  - [recall](#recall)
   - [orchestrate](#orchestrate)
   - [reanchor](#reanchor)
   - [reconcile](#reconcile)
@@ -284,6 +286,21 @@ strictly read-only: it writes nothing and routes rather than acts. Freshness ver
 /session-flow:orient              # read-only briefing: goal/why → where-we-stand → decisions → direction
 ```
 
+### recall
+
+Topic history: what past sessions tried on one topic, and how each attempt ended. It lists the
+transcript directories `transcript_scope` allows through `scripts/transcript_dirs.sh` (this
+worktree first, then the repository's other worktrees, asking before any other project), scans
+them with `skills/recall/scripts/recall_scan.py`, which matches literal terms and redacts every
+snippet before printing it, and has subagents condense each matching session from those redacted
+lines. It adds reverted commits from git, closed unmerged pull requests through `gh`, and open
+tracker items when `/work-items:track` is available, then reports Tried, Kept, Dropped or
+reverted, and Still open in chat, opening with the scope it searched. It writes nothing.
+
+```shell
+/session-flow:recall webhook retry budget   # scope line, then tried / kept / reverted / open
+```
+
 ### orchestrate
 
 Arms the current session for an orchestration-heavy task by loading seven proactive-orchestration
@@ -425,6 +442,8 @@ The skills adapt to the consuming repo rather than imposing structure:
 - `/session-flow:find-handoff` uses Python 3.10+ when present to tell which transcript directories
   belong to this repository; without it, it lists only directories whose name matches a worktree
   exactly and says so.
+- `/session-flow:recall` needs Python 3.10+ for its transcript scan; it uses `git` and `gh` when
+  present for reverted commits and closed pull requests, and names any source it could not use.
 
 ## Configuration
 
@@ -458,7 +477,10 @@ verify when that authenticated egress is unavailable. `clean-stop` pushes unpush
 or updates PRs and issues over the network via `git push` and `gh`, routing through whatever
 pull-request / work-item capabilities are installed and falling back to direct `git`/`gh`. `orient`
 optionally runs `gh pr list` (read-only) and, when a work-item tracker capability is installed, reads
-its open items, degrading to local git state alone when `gh` or the tracker is absent. The observer's
+its open items, degrading to local git state alone when `gh` or the tracker is absent. `recall`
+scans local transcripts and git history, and optionally runs `gh pr list` (read-only) for closed
+unmerged pull requests and searches the tracker when one is installed, naming any source it could
+not reach. The observer's
 autonomous analysis leg reaches the network only when armed with `observer_analysis_enabled` on: it
 runs a headless `claude -p` (ordinary model API egress); collect-only mode and the in-session
 checkpoint are network-free. Every skill not named above is network-free
@@ -507,7 +529,7 @@ starts never commits. Default `false`. It resolves like `worker_continuation`, f
 `docs/conventions/session-flow.yaml`, where only an unquoted `true` or `false` is valid, and
 `/session-flow:setup apply wip_commit=true` writes it.
 
-**`transcript_scope`.** Read by `/session-flow:find-handoff` for its transcript scan. `worktree`
+**`transcript_scope`.** Read by `/session-flow:find-handoff` and `/session-flow:recall` for their transcript scans. `worktree`
 (default) scans this worktree's sessions, then the repository's other worktrees, and asks before
 reading any other project's transcripts; `repo` starts with every worktree; `all` reaches every
 project without asking. Unlike the other keys, the narrower of the option and

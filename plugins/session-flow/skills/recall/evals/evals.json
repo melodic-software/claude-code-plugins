@@ -1,0 +1,54 @@
+{
+  "skill_name": "recall",
+  "evals": [
+    {
+      "id": 1,
+      "name": "states-the-scope-searched",
+      "prompt": "What did we try for the webhook retry budget? I think someone attempted it a few weeks back.",
+      "expected_output": "The skill turns the topic into literal search terms, resolves transcript_scope and reports the layer that supplied it, lists directories with transcript_dirs.sh, runs recall_scan.py with each directory and term as one quoted argument and the current session skipped, and opens its chat report with the scope actually searched: the scope level reached, how many directories and transcripts were read, the terms, and any capped note. It writes nothing.",
+      "files": [],
+      "expectations": [
+        "Resolves transcript_scope and names the layer that supplied the value",
+        "Lists directories with transcript_dirs.sh and scans them with recall_scan.py, passing each directory and term as one quoted argument",
+        "Opens the report with the scope searched: scope level, directory and transcript counts, terms",
+        "Writes no file and makes no commit"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "asks-before-other-projects",
+      "prompt": "Recall our past attempts at the pagination cursor bug. transcript_scope is unset.",
+      "expected_output": "With the scope at its default, the skill scans this worktree's transcript directories, widens to the repository's other worktrees when nothing matched, and then asks before reading any other project's transcripts instead of running transcript_dirs.sh --scope all on its own.",
+      "files": [],
+      "expectations": [
+        "Starts with --scope worktree and widens to --scope repo only after no match",
+        "Asks the user before running --scope all, saying it would read other projects' transcripts",
+        "Does not read another project's transcripts before the user agrees"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "reports-tried-kept-reverted",
+      "prompt": "Have we attempted to replace the in-memory rate limiter before? Tell me how it went.",
+      "expected_output": "The skill combines the transcript scan with git reverts, closed unmerged pull requests through gh, and a /work-items:track search when that skill is available, and reports four sections, Tried, Kept, Dropped or reverted, and Still open, each item dated and cited by session id, commit SHA, pull request number or item id. It names any source it could not use.",
+      "files": [],
+      "expectations": [
+        "Searches git history for reverts and gh for closed unmerged pull requests",
+        "Reports Tried, Kept, Dropped or reverted, and Still open sections",
+        "Cites each item by session id, commit SHA, pull request number or item id",
+        "Names any source that was unavailable instead of omitting it silently"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "current-state-routes-to-orient",
+      "prompt": "Where do we stand on the current branch right now?",
+      "expected_output": "This asks for the current state, not the history of attempts on a topic, so recall does not run its transcript scan; the request belongs to /session-flow:orient.",
+      "files": [],
+      "expectations": [
+        "Does not run recall_scan.py for a current-state question",
+        "Points to /session-flow:orient for where the work stands now"
+      ]
+    }
+  ]
+}

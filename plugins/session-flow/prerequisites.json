@@ -42,14 +42,15 @@
       "kind": "cli",
       "need": "optional",
       "for": [
-        "skill:retro"
+        "skill:retro",
+        "skill:recall"
       ],
       "detect": {
         "any": [
           "gh"
         ]
       },
-      "degrade": "Without gh, /session-flow:retro codify reviews cannot read pull request review comments; every other retro mode and codify input still works.",
+      "degrade": "Without gh, /session-flow:retro codify reviews cannot read pull request review comments; every other retro mode and codify input still works. /session-flow:recall skips closed unmerged pull requests and says so.",
       "install": {
         "docs": "https://cli.github.com/",
         "brew": "gh",
@@ -63,7 +64,8 @@
       "kind": "runtime",
       "need": "optional",
       "for": [
-        "skill:find-handoff"
+        "skill:find-handoff",
+        "skill:recall"
       ],
       "detect": {
         "any": [
@@ -71,12 +73,33 @@
           "python"
         ]
       },
-      "degrade": "Without Python 3.10+, /session-flow:find-handoff lists only transcript directories whose name matches a worktree exactly, so sessions started in a subdirectory or stored under a hashed long name are not scanned, and it says so.",
+      "degrade": "Without Python 3.10+, /session-flow:find-handoff lists only transcript directories whose name matches a worktree exactly, so sessions started in a subdirectory or stored under a hashed long name are not scanned, and it says so. /session-flow:recall cannot scan transcripts and reports from git, pull requests and the tracker alone.",
       "install": {
         "docs": "https://www.python.org/downloads/",
         "brew": "python",
         "winget": "Python.Python.3.13",
         "apt": "python3"
+      },
+      "check": "/harness-ops:prerequisites"
+    },
+    {
+      "id": "git",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:recall"
+      ],
+      "detect": {
+        "any": [
+          "git"
+        ]
+      },
+      "degrade": "Without git, /session-flow:recall cannot search commit history for reverted attempts and says so; its transcript, pull request and tracker sources still work.",
+      "install": {
+        "docs": "https://git-scm.com/downloads",
+        "brew": "git",
+        "winget": "Git.Git",
+        "apt": "git"
       },
       "check": "/harness-ops:prerequisites"
     }

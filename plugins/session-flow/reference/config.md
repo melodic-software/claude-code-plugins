@@ -14,11 +14,11 @@ file after validating it against the schema; `/session-flow:setup check` validat
 | `encode_policy` | `promote-when-must-hold`, `strongest-first` | `promote-when-must-hold` | `/session-flow:retro codify` (Strength step) | repository file over user option over default |
 | `review_mining_prs` | an unquoted integer from 2 to 200 | `20` | `/session-flow:retro codify reviews` | repository file over user option over default |
 | `wip_commit` | an unquoted `true` or `false` | `false` | `/session-flow:handoff` ("WIP commit on an explicit pause") | repository file over user option over default |
-| `transcript_scope` | `worktree`, `repo`, `all` | `worktree` | `/session-flow:find-handoff` (step 2, the transcript scan) | narrowest wins (`worktree` < `repo` < `all`); an unset user option counts as `worktree` |
+| `transcript_scope` | `worktree`, `repo`, `all` | `worktree` | `/session-flow:find-handoff` (step 2, the transcript scan); `/session-flow:recall` (Steps 2 and 3) | narrowest wins (`worktree` < `repo` < `all`); an unset user option counts as `worktree` |
 
-`transcript_scope` bounds which project directories `/session-flow:find-handoff` reads
-transcripts from, through `scripts/transcript_dirs.sh`. `worktree` scans this worktree's
-directories, widens on a miss to the repository's other worktrees, and asks before reading any
+`transcript_scope` bounds which project directories `/session-flow:find-handoff` and
+`/session-flow:recall` read transcripts from, through `scripts/transcript_dirs.sh`. `worktree`
+scans this worktree's directories, widens on a miss to the repository's other worktrees, and asks before reading any
 other project's transcripts; unattended, it reports the miss instead of asking. `repo` starts with
 every worktree of the repository and asks the same way. `all` widens to every project without
 asking. This key does not follow the later-layer rule below: the narrower of the two layers wins,
