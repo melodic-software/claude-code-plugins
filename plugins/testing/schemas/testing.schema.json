@@ -46,6 +46,12 @@
       "enum": ["auto", true, false, "true", "false"],
       "default": "auto",
       "description": "Whether /testing:run-e2e drives an app that already answers. auto and true reuse it, labelling unattended evidence; false stops with the gap report when an app already answers."
+    },
+    "feature_map_dir": {
+      "type": "string",
+      "default": ".claude/skills/feature-map",
+      "pattern": "^(?!/)(?!.*\\.\\.)(?!\\.$)(?!(.*/)?[Rr][Uu][Nn]-)(?!(.*/)?[^/]*[Vv][Ee][Rr][Ii][Ff][Yy](/|$))[A-Za-z0-9._/-]+$",
+      "description": "The directory /testing:map-features writes the feature map to and /testing:run-e2e reads it from, relative to the repository root. Refused: an absolute path, a value containing .., the root itself, or a segment starting with run- or ending in verify. Set here or in .claude/testing.local.yaml only; it has no userConfig option."
     }
   }
 }

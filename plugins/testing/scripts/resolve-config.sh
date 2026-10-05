@@ -57,6 +57,13 @@
 # its scan. Each value goes through parse-concern-value.sh, so the scan keys'
 # grammar never applies, and a scan config that does not resolve, a missing
 # repository or a symlinked layer (skipped with a warning) never stops it.
+# The same mode resolves feature_map_dir, the directory /testing:map-features
+# writes (default .claude/skills/feature-map). It is a repository path, so only
+# the overlay and testing.yaml set it: no --user value, and the user-global
+# file is skipped with a warning. A value that is absolute, contains `..`, is
+# the repository root, holds a character outside A-Z a-z 0-9 . _ - /, or has a
+# segment starting with run- or ending in verify is refused the same way an
+# unknown value is.
 #
 # Usage:
 #   resolve-config.sh [--root <dir>] [--home <dir>] [--quick]
@@ -209,9 +216,35 @@ in_list() {
   return 1
 }
 
+# map_dir_refusal <value>: print why <value> cannot be the feature map's own
+# directory and return 0, or print nothing and return 1.
+map_dir_refusal() {
+  local v="$1" seg segs
+  case "$v" in
+  /* | \\* | '~'* | [A-Za-z]:*) printf 'an absolute path' ;;
+  *..*) printf "it contains '..'" ;;
+  . | '') printf 'the repository root' ;;
+  *[!A-Za-z0-9._/-]*) printf 'a character outside A-Z a-z 0-9 . _ - /' ;;
+  *)
+    IFS=/ read -r -a segs <<<"${v//\\//}"
+    for seg in "${segs[@]}"; do
+      seg="${seg,,}"
+      if [[ "$seg" == run-* ]]; then
+        printf "a run-<name> launch recipe's directory"
+        return 0
+      elif [[ "$seg" == *verify ]]; then
+        printf 'a verify skill directory'
+        return 0
+      fi
+    done
+    return 1
+    ;;
+  esac
+}
+
 # e2e: print each run-e2e key's value and source (header, E2E). Exit 0.
 e2e() {
-  local key val src def f u raw lines allowed files=() user_driver="" user_reuse=""
+  local key val src def f u raw lines allowed why files=() user_driver="" user_reuse=""
   for u in ${users[@]+"${users[@]}"}; do
     val="${u#*=}"
     # shellcheck disable=SC2016 # the literal an unrendered option leaves
@@ -232,18 +265,22 @@ e2e() {
       files+=("$f")
     fi
   done
-  for key in e2e_driver reuse_running_instance; do
-    if [[ "$key" == e2e_driver ]]; then
-      allowed="auto harness run playwright chrome" u="$user_driver"
-    else
-      allowed="auto true false" u="$user_reuse"
-    fi
-    def="${allowed%% *}" val="" src="" raw=""
+  for key in e2e_driver reuse_running_instance feature_map_dir; do
+    case "$key" in
+    e2e_driver) allowed="auto harness run playwright chrome" u="$user_driver" def=auto ;;
+    reuse_running_instance) allowed="auto true false" u="$user_reuse" def=auto ;;
+    *) allowed="" u="" def=.claude/skills/feature-map ;;
+    esac
+    val="" src="" raw=""
     for f in ${files[@]+"${files[@]}"}; do
       # The first layer with the key's top-level line sets it; only that line
       # reaches the parser, so a nested, non-scalar or unparsable value reads
       # as empty and is reported below.
       lines="$(LC_ALL=C sed -e $'1s/^\xef\xbb\xbf//' -e 's/\r$//' "$f" | grep -E "^${key}[[:space:]]*:")" || continue
+      if [[ "$key" == feature_map_dir && "$f" == "$USER_HOME_DIR/.claude/testing.yaml" ]]; then
+        warn "$f: feature_map_dir is a repository path; the user-global layer is not read for it"
+        continue
+      fi
       src="$f"
       val="$(bash "$PCV" - "$key" 2>/dev/null <<<"$lines")"
       raw="${lines%%$'\n'*}" raw="${raw#*:}"
@@ -251,8 +288,14 @@ e2e() {
       break
     done
     [[ -n "$src" || -z "$u" ]] || val="$u" src=userConfig
+    [[ "$key" != feature_map_dir ]] || val="${val#./}"
     # shellcheck disable=SC2086 # allowed is a fixed word list
-    if [[ -n "$src" ]] && ! in_list "$val" $allowed; then
+    if [[ -n "$src" && "$key" == feature_map_dir && -n "$val" ]]; then
+      if why="$(map_dir_refusal "$val")"; then
+        warn "$src: $key: refused value '$val' ($why); using the default, $def"
+        src=""
+      fi
+    elif [[ -n "$src" ]] && ! in_list "$val" $allowed; then
       if [[ -n "$val$raw" ]]; then
         warn "$src: $key: unknown value '${val:-$raw}'; using the default, $def"
       else

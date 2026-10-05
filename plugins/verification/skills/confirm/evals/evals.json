@@ -226,6 +226,18 @@
         "Continues the run without stopping or prompting",
         "Resolves path (the default), not the user's live"
       ]
+    },
+    {
+      "id": "feature-map-01",
+      "name": "missing-entry-point-holds-verdict",
+      "prompt": "/verification:confirm outcome. The change edits the timer start handler. /testing:run-e2e ran against the repository's feature map, whose Start a timer feature lists three entry points; its per-entry-point report has passing lines for the dashboard button and the keyboard shortcut, and no line for the API entry point. Build, tests and lint pass.",
+      "expected_output": "The API entry point the map lists is missing from run-e2e's per-entry-point report, so the verdict stays below CONFIRMED (NEEDS WORK or NOT VERIFIED), and the report names the missing entry point.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Does not render CONFIRMED",
+        "Names the API entry point as missing from run-e2e's report"
+      ]
     }
   ]
 }

@@ -10,6 +10,7 @@ skills, one concern: proving behavior with tests.
 | `/testing:plan` | Coverage-gap analysis. Classify changed files by required test type, identify gaps, prioritize by regression risk. |
 | `/testing:write` | Test authoring discipline. Vertical-slice TDD, test-type selection, naming, placement, fixture patterns, four-pillars assessment. |
 | `/testing:run-e2e` | Live app verification. Start the app via the project's orchestrator, drive UI/API flows with token-efficient browser automation, capture evidence; includes a non-UI smoke-test playbook (MCP stdio handshake, shell/PowerShell surfaces). |
+| `/testing:map-features` | User-invoked. Writes a feature map for one app: a project skill (default `.claude/skills/feature-map/`) whose index names the launch recipe, the recorded driver and a doctor command, with a file for each feature listing its parts, entry points, drive steps and traps. Refuses a location inside a `run-<name>` or `verify` skill. Reports done only after one mapped feature passes through `/testing:run-e2e`. Format: `reference/feature-map.md`. |
 | `/testing:diagnose` | Failing-test diagnosis. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
 | `/testing:audit` | Can't-fail test detection: a deterministic script runs twelve rules across JS/TS, Python, C#, Bash, PowerShell and Go, from assertion-free bodies and self-identical (recomputed-expectation) assertions to unawaited assertions, conditional assertions and Playwright retry or `test.only` configs. `--check` fails on the first two (Bash-harness findings only with `--strict`); `--strict` adds mock-only oracles and the two Playwright config rules; the other seven only report. It reports with a coverage denominator and opt-in persists findings for a review fix pass. |
 | `/testing:cleanup` | Clean up low-value tests in one folder. Reads `/testing:audit` findings, test-judge FLAG verdicts and the tests you name as flaky; a fresh-context classifier picks quarantine, rewrite, delete, merge or keep per test. It rewrites by default and deletes or merges only with a stated no-contract reason and your yes on each item. `/mutation-testing:audit --record-mutants` records the mutants the tests kill before any edit, and `--replay-mutants` blocks the batch when a kill is lost. Nothing is committed until you approve the batch. Needs the `mutation-testing` plugin set up with a `test-command`. |
@@ -165,7 +166,10 @@ judges those tests at the task end, again with no background job ahead of it.
 (`auto | true | false`), both default `auto`, live in `docs/conventions/testing.yaml`, its personal
 layers, or the `userConfig` options below; `scripts/resolve-config.sh e2e` resolves them and names
 an invalid value instead of stopping. Under `auto` a run now drives through the repository's own
-harness when a spec covers the changed flow, and otherwise through the path it used before. Keys,
+harness when a spec covers the changed flow, and otherwise through the path it used before. A fifth
+key, `feature_map_dir` (default `.claude/skills/feature-map`), says where `/testing:map-features`
+writes the feature map and where run-e2e reads it; it is a repository path, set only in
+`docs/conventions/testing.yaml` or `.claude/testing.local.yaml`, with no `userConfig` option. Keys,
 defaults and precedence are in the skill's bundled `run-e2e/context/e2e-config.md`.
 
 **Upgrade note.** A testing release older than these keys never reads

@@ -13,6 +13,10 @@ two surfaces:
   [`schemas/testing.schema.json`](../../../schemas/testing.schema.json)), user-global
   `~/.claude/testing.yaml`, and local overlay `.claude/testing.local.yaml`; per user, the plugin
   `userConfig` options of the same names. `scripts/resolve-config.sh e2e` resolves them.
+- `feature_map_dir` is a top-level key of the same YAML config, set only in team
+  `docs/conventions/testing.yaml` or the local overlay `.claude/testing.local.yaml`. It is a path
+  inside one repository, so the user-global file is not read for it and it has no `userConfig`
+  option. `scripts/resolve-config.sh e2e` resolves it with the other two.
 
 This file owns the keys: their meaning, allowed values, defaults, and precedence. How the layers
 merge is owned by the layering contract; see the
@@ -27,6 +31,7 @@ The two compose: this doc declares the keys and points there for layer mechanics
 | `browser_mode` | `headed` \| `headless` | `headless` | per-key override |
 | `e2e_driver` | `auto` \| `harness` \| `run` \| `playwright` \| `chrome` | `auto` | per-key override |
 | `reuse_running_instance` | `auto` \| `true` \| `false` | `auto` | per-key override |
+| `feature_map_dir` | a relative directory path | `.claude/skills/feature-map` | per-key override |
 
 Both surfaces merge by **per-key override**: a later layer replaces an earlier layer's value key by
 key, and a key absent from a later layer keeps the earlier value. The values are closed scalars, so
@@ -75,6 +80,20 @@ Selects what a run does when the app already answers at the URL or port it would
 - `false`: stop with the gap report naming the collision. Starting a second instance beside the
   running one needs an isolated workspace, which this skill does not provide yet.
 
+### `feature_map_dir`
+
+The directory, relative to the repository root, that `/testing:map-features` writes the feature map
+to and that a run reads it from. The format is the plugin's `reference/feature-map.md`. The default,
+`.claude/skills/feature-map`, makes the map a project skill agents in the repository find without a
+pointer.
+
+The map must be its own directory, so these values are refused: an absolute path (`/`, `\`, `~` or
+a drive letter first), any value containing `..`, the repository root (`.`), a character outside
+`A-Z a-z 0-9 . _ - /`, and any path segment that starts with `run-` (a launch recipe's directory) or
+ends in `verify` (a recorded `verify` skill). A refused value is handled like an unknown one: the
+warning names the file, the key and the value, that layer is dropped, and with no valid higher
+layer the key takes the default.
+
 ## Precedence
 
 Above the file layers, `run-e2e` treats every key as a **default only**: an explicit instruction in
@@ -98,6 +117,18 @@ any file layer, and "drive it with playwright" overrides `e2e_driver`.
 5. The plugin `userConfig` option of the same name
 6. Bundled default (`auto` for both)
 
+`feature_map_dir`, highest authority first:
+
+1. Explicit session prompt
+2. Local overlay (`.claude/testing.local.yaml`)
+3. Team (`docs/conventions/testing.yaml`)
+4. Bundled default (`.claude/skills/feature-map`)
+
+When a feature map exists, the driver it records sits between the session prompt and every
+`e2e_driver` layer: a session instruction wins, then the map's recorded driver for that app, then
+the resolved `e2e_driver`. The map keeps the driver it was written with; changing `e2e_driver`
+later does not change it, so re-run `/testing:map-features` or edit the map's index.
+
 The highest layer that sets a key decides it. A value outside the key's list is named with its file
 and key, and the key takes its default: a lower layer's value is never used in its place, and the
 run never stops on it. An unrendered `${user_config.<key>}` reads as unset.
@@ -109,4 +140,5 @@ and it refuses an unknown key in the files it does read, which stops its test sc
 are never read from the `docs/conventions/testing.md` config block or `.claude/testing.yaml`, the
 team files an older teammate's release reads. Set them in `docs/conventions/testing.yaml`; set them
 in `~/.claude/testing.yaml` or `.claude/testing.local.yaml` only on a machine that runs this release
-or later.
+or later. `feature_map_dir` follows the same rule: a release older than it refuses it as an unknown
+key, so set it only once every member runs a release that knows it.

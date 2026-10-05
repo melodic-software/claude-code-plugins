@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The feature `Billing / Export!` is written to `.claude/skills/feature-map/billing-export.md`.",
+      "why": "the slug rule's result"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The feature file will be `billing-/-export!.md`.",
+      "why": "punctuation kept, not slugged"
+    },
+    {
+      "answer": "It becomes Billing_Export.md.",
+      "why": "case kept and an underscore used"
+    }
+  ]
+}

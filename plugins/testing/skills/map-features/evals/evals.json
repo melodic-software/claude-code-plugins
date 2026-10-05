@@ -1,0 +1,109 @@
+{
+  "skill_name": "map-features",
+  "evals": [
+    {
+      "id": 1,
+      "name": "run-recipe-named-not-written-into",
+      "prompt": "/testing:map-features. The repository has a project skill at .claude/skills/run-clockwork/SKILL.md that starts the Clockwork web app, and no feature_map_dir is set anywhere.",
+      "expected_output": "The map goes to the default .claude/skills/feature-map/. Its index names run-clockwork as the launch recipe by name and does not copy the recipe's steps. No file is created or edited under .claude/skills/run-clockwork/.",
+      "files": [],
+      "expectations": [
+        "Writes the map under .claude/skills/feature-map/",
+        "The index names run-clockwork as the launch recipe",
+        "Creates or edits no file under .claude/skills/run-clockwork/"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "recorded-verify-skill-named",
+      "prompt": "/testing:map-features. The repository has no run-* skill, but /verify recorded .claude/skills/verify/SKILL.md at the repository root last week.",
+      "expected_output": "The index names .claude/skills/verify/SKILL.md as the launch recipe. The map is written to its own directory, never inside .claude/skills/verify/, and that file is left unchanged.",
+      "files": [],
+      "expectations": [
+        "The index names .claude/skills/verify/SKILL.md as the launch recipe",
+        "Writes nothing inside .claude/skills/verify/"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "no-recipe-offers-generator",
+      "prompt": "/testing:map-features. The repository has no .claude/skills/run-* skill and no .claude/skills/verify/SKILL.md. The README says the app starts with `npm run dev` on port 5173.",
+      "expected_output": "With no launch recipe, the person is offered /run-skill-generator to record one, as a command they type. Meanwhile the index records the start path /testing:run-e2e uses, here the documented `npm run dev` command.",
+      "files": [],
+      "expectations": [
+        "Offers /run-skill-generator to the person rather than running it unasked",
+        "The index records `npm run dev` (the start path run-e2e uses) as the launch"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "feature-file-slug",
+      "prompt": "/testing:map-features. Map only the feature the settings page calls `Billing / Export!`.",
+      "expected_output": "The feature file is billing-export.md: lower-cased, each run of characters outside a-z0-9 replaced by one hyphen, leading and trailing hyphens dropped. It has an H1, one sentence, and the four sections Parts, Entry points, Drive and Traps in that order.",
+      "files": [],
+      "expectations": [
+        "Names the feature file billing-export.md",
+        "The file has exactly the four H2 sections Parts, Entry points, Drive and Traps, in that order"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "unsafe-location-refused",
+      "prompt": "/testing:map-features. docs/conventions/testing.yaml sets `feature_map_dir: .claude/skills/run-shop/features`, and no overlay exists.",
+      "expected_output": "The location has a segment starting with run-, so it is refused: the report names docs/conventions/testing.yaml, feature_map_dir and the value. The run does not stop; the layer is dropped and the map goes to the default .claude/skills/feature-map/. Nothing is written under .claude/skills/run-shop/.",
+      "files": [],
+      "expectations": [
+        "Names docs/conventions/testing.yaml, feature_map_dir and .claude/skills/run-shop/features as refused",
+        "Continues and writes the map to .claude/skills/feature-map/",
+        "Writes nothing under .claude/skills/run-shop/"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "absolute-dotdot-verify-refused",
+      "prompt": "/testing:map-features --dir ../shared/map. The overlay .claude/testing.local.yaml sets `feature_map_dir: /srv/maps/shop` and docs/conventions/testing.yaml sets `feature_map_dir: tools/smoke-verify`.",
+      "expected_output": "Each source is refused in turn and named with its value and reason: --dir contains .., the overlay value is absolute, the team value ends in verify. None stops the run and none is written to; with no valid source the map goes to the default .claude/skills/feature-map/.",
+      "files": [],
+      "expectations": [
+        "Refuses ../shared/map because it contains ..",
+        "Refuses /srv/maps/shop as an absolute path, naming .claude/testing.local.yaml",
+        "Refuses tools/smoke-verify because a segment ends in verify, naming docs/conventions/testing.yaml",
+        "Writes the map to .claude/skills/feature-map/"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "done-only-after-one-feature-passes",
+      "prompt": "/testing:map-features. The app builds and starts; you have written the index and three feature files.",
+      "expected_output": "Before reporting done, the skill invokes /testing:run-e2e on one mapped feature, which runs the doctor and drives every entry point that feature lists. Done is reported only when that run passes; a failure caused by the map is fixed and re-run, and a failure against a healthy app leaves the map reported as written but unproven.",
+      "files": [],
+      "expectations": [
+        "Invokes /testing:run-e2e on one mapped feature before reporting done",
+        "Does not report done while that run has not passed",
+        "Includes run-e2e's per-entry-point lines in the report"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "chrome-map-attended-only",
+      "prompt": "/testing:map-features drive it with Claude in Chrome. The app needs the person's own single sign-on session.",
+      "expected_output": "The session instruction wins, so the recorded driver is chrome with the session as its source. The index marks the map attended-only (`Attended runs only.`), and says an unattended run stops with the gap report instead of switching drivers.",
+      "files": [],
+      "expectations": [
+        "Records chrome as the driver, supplied by the session instruction",
+        "The index marks the map attended-only"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "broken-checkout-gap-report",
+      "prompt": "/testing:map-features. `npm run build` fails on this checkout with a missing module error.",
+      "expected_output": "The checkout does not build, so the skill stops before writing any map file and emits a gap report naming the command, the tail of its output and what the person must fix.",
+      "files": [],
+      "expectations": [
+        "Stops with a gap report naming the failing build command",
+        "Writes no map file"
+      ]
+    }
+  ]
+}

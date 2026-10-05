@@ -1828,6 +1828,15 @@ printf 'e2e_driver: run\npaths:\n  exclude: [src/sum_test.go]\n' >"$CFG/docs/con
 cfg_scan
 assert_exit "a docs/conventions/testing.yaml with a run-e2e key scans" 0 "$rc"
 assert_finding_count "and its scan keys apply" 2
+printf 'feature_map_dir: docs/features\npaths:\n  exclude: [src/sum_test.go]\n' >"$CFG/docs/conventions/testing.yaml"
+cfg_scan
+assert_exit "a testing.yaml with feature_map_dir scans" 0 "$rc"
+assert_finding_count "and its scan keys apply" 2
+# The scan refuses a double-quoted value it parses; this one is skipped unread.
+printf 'feature_map_dir: "docs/features\npaths:\n  exclude: [src/sum_test.go]\n' >"$CFG/docs/conventions/testing.yaml"
+cfg_scan
+assert_exit "the scan neither parses nor checks the feature_map_dir value" 0 "$rc"
+assert_finding_count "and its scan keys still apply" 2
 rm -rf "$CFG/docs"
 
 # --- the whole suite again under mawk -----------------------------------------

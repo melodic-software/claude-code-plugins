@@ -396,19 +396,20 @@ erun() {
 }
 reset
 erun
-assert_eq "e2e with no layer: both keys at their defaults" \
+assert_eq "e2e with no layer: every key at its default" \
   "0:e2e_driver	auto	default
-reuse_running_instance	auto	default" "$rc:$out"
+reuse_running_instance	auto	default
+feature_map_dir	.claude/skills/feature-map	default" "$rc:$out"
 erun --user 'e2e_driver=${user_config.e2e_driver}' --user 'reuse_running_instance='
 assert_eq "an unrendered or empty userConfig value reads as unset" \
   "e2e_driver	auto	default
-reuse_running_instance	auto	default" "$out"
+reuse_running_instance	auto	default" "$(head -2 <<<"$out")"
 erun --user e2e_driver=auto
 assert_eq "a userConfig value equal to the default reports the default" "e2e_driver	auto	default" "$(head -1 <<<"$out")"
 erun --user e2e_driver=playwright --user reuse_running_instance=false
 assert_eq "userConfig supplies a value when no file sets the key" \
   "e2e_driver	playwright	userConfig
-reuse_running_instance	false	userConfig" "$out"
+reuse_running_instance	false	userConfig" "$(head -2 <<<"$out")"
 printf 'e2e_driver: run\n' >"$HOME/.claude/testing.yaml"
 erun --user e2e_driver=playwright
 assert_eq "the user-global file wins over userConfig" "e2e_driver	run	$HOME/.claude/testing.yaml" "$(head -1 <<<"$out")"
@@ -434,7 +435,7 @@ assert_eq "a valid higher layer still wins over an invalid one" "e2e_driver	run	
 assert_eq "and the lower layer is never read" "" "$err"
 rm -f "$REPO/.claude/testing.local.yaml"
 erun --user 'reuse_running_instance=maybe'
-assert_eq "an unknown userConfig value resolves the default" "reuse_running_instance	auto	default" "$(tail -1 <<<"$out")"
+assert_eq "an unknown userConfig value resolves the default" "reuse_running_instance	auto	default" "$(sed -n 2p <<<"$out")"
 assert_contains "naming userConfig" "$err" "userConfig: reuse_running_instance: unknown value 'maybe'"
 printf 'e2e_driver: "$(touch %s/pwned)"\n' "$T" >"$TY"
 erun
@@ -478,6 +479,44 @@ erun
 assert_eq "a symlinked overlay is skipped, not followed" "0:e2e_driver	playwright	$TY" "$rc:$(head -1 <<<"$out")"
 assert_contains "with a warning naming it" "$err" "skipping a layer that is a symlink or under a symlinked directory: $REPO/.claude/testing.local.yaml"
 rm -f "$REPO/.claude/testing.local.yaml"
+
+# feature_map_dir: a repository path, so only the overlay and testing.yaml set
+# it, and a location that is not the map's own directory is refused.
+fmd() { grep '^feature_map_dir	' <<<"$out"; }
+printf 'feature_map_dir: docs/feature-map/\n' >"$TY"
+erun
+assert_eq "testing.yaml sets feature_map_dir, trailing slash dropped" "0:feature_map_dir	docs/feature-map	$TY" "$rc:$(fmd)"
+printf 'feature_map_dir: .claude/skills/my-map\n' >"$REPO/.claude/testing.local.yaml"
+erun
+assert_eq "the overlay wins over testing.yaml" "feature_map_dir	.claude/skills/my-map	$REPO/.claude/testing.local.yaml" "$(fmd)"
+rm -f "$REPO/.claude/testing.local.yaml" "$TY"
+printf 'feature_map_dir: docs/map\n' >"$HOME/.claude/testing.yaml"
+erun
+assert_eq "the user-global file is not read for it" "0:feature_map_dir	.claude/skills/feature-map	default" "$rc:$(fmd)"
+assert_contains "and says so" "$err" "$HOME/.claude/testing.yaml: feature_map_dir is a repository path; the user-global layer is not read for it"
+rm -f "$HOME/.claude/testing.yaml"
+erun --user feature_map_dir=docs/map
+assert_eq "feature_map_dir has no userConfig level" 2 "$rc"
+# shellcheck disable=SC2088 # '~/map' is the literal value under test
+for bad in '.claude/skills/verify' 'tools/smoke-verify/' '.claude/skills/run-shop/features' 'run-shop' \
+  '/srv/map' '~/map' 'C:/map' '../map' 'docs/../../map' '.' 'docs/$(touch pwned)' 'docs/my map'; do
+  printf "feature_map_dir: '%s'\n" "$bad" >"$TY"
+  erun
+  assert_eq "feature_map_dir '$bad' is refused and takes the default" "0:feature_map_dir	.claude/skills/feature-map	default" "$rc:$(fmd)"
+  assert_contains "naming the file, key and value for '$bad'" "$err" "$TY: feature_map_dir: refused value '${bad%/}'"
+done
+assert_eq "and the other keys still resolve" "e2e_driver	auto	default" "$(head -1 <<<"$out")"
+printf 'feature_map_dir: .claude/skills/run-shop\n' >"$TY"
+printf 'feature_map_dir: docs/map\n' >"$REPO/.claude/testing.local.yaml"
+erun
+assert_eq "a valid overlay still wins over a refused testing.yaml" "feature_map_dir	docs/map	$REPO/.claude/testing.local.yaml" "$(fmd)"
+assert_eq "and the refused lower layer is never read" "" "$err"
+printf 'feature_map_dir: ../outside\n' >"$REPO/.claude/testing.local.yaml"
+printf 'feature_map_dir: docs/map\n' >"$TY"
+erun
+assert_eq "a refused overlay takes the default, not testing.yaml's value" "feature_map_dir	.claude/skills/feature-map	default" "$(fmd)"
+rm -f "$REPO/.claude/testing.local.yaml" "$TY"
+
 erun --user nonsense
 assert_eq "--user without <key>=<value> is a usage error" 2 "$rc"
 erun --user other_key=x

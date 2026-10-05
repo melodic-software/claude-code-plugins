@@ -1,0 +1,29 @@
+schema_version: "1.1"
+name: feature-map-writer-refuses-unsafe-location
+description: The feature-map writer refuses a location inside a run-<name> recipe directory, falls back to the default map directory without stopping, and names a feature file by the slug rule
+tags: [map-features, location, slug, invented]
+expected_outcome: The reply refuses .claude/skills/run-storefront/features because a segment starts with run-, names --dir and the value, does not stop, and says the map goes to .claude/skills/feature-map/. It names the feature file for `Billing / Export!` billing-export.md. Nothing is written.
+execution:
+  prompt: "/testing:map-features --dir .claude/skills/run-storefront/features. Do not read the repository or write any file yet. First tell me the directory the map will be written to and why, and the file name the feature `Billing / Export!` will get, then stop."
+  allowed_tools: [Read, Glob, Grep]
+  max_turns: 6
+  timeout_seconds: 300
+graders:
+  - name: slug-file-name
+    type: regex
+    pattern: 'billing-export\.md'
+    arm: both
+  - name: default-directory
+    type: regex
+    pattern: '\.claude/skills/feature-map'
+    arm: both
+  - name: no-write-into-recipe
+    type: tool_used
+    tool: Write
+    input_match: 'run-storefront'
+    min: 0
+    max: 0
+    arm: both
+  - name: refuses-recipe-directory
+    type: llm
+    criteria: "PASS only if the reply refuses .claude/skills/run-storefront/features as the map location because it sits in a run-<name> launch recipe's directory (a segment starting with run-), names the --dir value it refused, continues rather than stopping, and says the map will go to the default .claude/skills/feature-map/ instead. FAIL if it accepts the run-storefront location, stops the run over it, or picks a directory other than the default."

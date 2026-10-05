@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "--dir .claude/skills/run-storefront/features is refused (a segment starts with run-); the map goes to the default .claude/skills/feature-map/ instead.",
+      "why": "falls back to the default"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The map will be written to .claude/skills/run-storefront/features/ as you asked.",
+      "why": "accepted the recipe directory"
+    }
+  ]
+}

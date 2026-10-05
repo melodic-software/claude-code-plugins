@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": [{"tool": "Glob", "input": {"pattern": ".claude/skills/run-*/SKILL.md"}}],
+      "why": "looked, wrote nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [{"tool": "Write", "input": {"file_path": ".claude/skills/run-storefront/features/SKILL.md", "content": "# map"}}],
+      "why": "wrote into the recipe directory"
+    }
+  ]
+}
