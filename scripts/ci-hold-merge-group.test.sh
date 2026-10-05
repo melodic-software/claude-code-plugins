@@ -79,7 +79,7 @@ expect() {
   elif [[ "$calls" -ne "$want_calls" ]]; then
     fail "$label: expected $want_calls gh call(s) got $calls"
   elif [[ "$want_pr" != - ]] &&
-    [[ "$(sort -u "$TMP_ROOT/log")" != "api repos/o/r/issues/$want_pr/labels?per_page=100 --jq .[].name" ]]; then
+    [[ "$(sort -u "$TMP_ROOT/log")" != "api repos/o/r/issues/$want_pr/labels?per_page=100 --paginate --jq .[].name" ]]; then
     fail "$label: unexpected gh call '$(sort -u "$TMP_ROOT/log")'"
   elif [[ -n "${8:-}" && "$out" != *"$8"* ]]; then
     fail "$label: output lacks '$8': '$out'"

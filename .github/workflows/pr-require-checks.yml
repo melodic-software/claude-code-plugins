@@ -2588,7 +2588,7 @@ jobs:
             exit 1
           fi
           for attempt in 1 2 3; do
-            if labels=$(gh api "repos/$GITHUB_REPOSITORY/issues/$pr/labels?per_page=100" --jq '.[].name'); then
+            if labels=$(gh api "repos/$GITHUB_REPOSITORY/issues/$pr/labels?per_page=100" --paginate --jq '.[].name'); then
               break
             fi
             [ "$attempt" -lt 3 ] || { echo "::error::could not read the labels of #$pr; re-run this run."; exit 1; }
