@@ -13,6 +13,12 @@
 # the two files is three-way merged; when that merge conflicts, or the pair does
 # not have that shape, the plugin is left untouched for manual resolution.
 #
+# A plugin that the default branch's scripts/fragment-plugins.txt lists is in
+# changelog-fragment mode, where only the release pull request bumps it: the
+# resolution is main's plugin.json and CHANGELOG.md, with the PR's entry moved
+# into a changelog fragment (scripts/convert-bump-to-fragment.sh in this plugin,
+# once available). This script leaves such a plugin untouched and names it.
+#
 # Both files are recomputed from the three commits, never from the worktree,
 # then written and staged. Other conflicted paths are left alone.
 #
@@ -105,8 +111,16 @@ resolve() {
   echo "resolved $dir: $b -> PR $p, main $m -> $new"
 }
 
+# Plugin names the default branch lists as in fragment mode, `#` comments dropped.
+fragment_mode=" $(git show "$main:scripts/fragment-plugins.txt" 2>/dev/null | sed 's/#.*//' | tr -s ' \t\r\n' ' ') "
+
 while IFS= read -r dir; do
   [[ -n $dir && -f $dir/.claude-plugin/plugin.json && -f $dir/CHANGELOG.md ]] || continue
+  if [[ $fragment_mode == *" ${dir##*/} "* ]]; then
+    echo "left for manual resolution: $dir is in fragment mode; take main's plugin.json and CHANGELOG.md and move the PR's entry into a changelog fragment" >&2
+    status=1
+    continue
+  fi
   resolve "$dir"
   rc=$?
   ((rc == 0)) && continue

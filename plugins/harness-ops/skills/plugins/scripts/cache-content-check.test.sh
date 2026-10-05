@@ -218,6 +218,13 @@ assert_contains "stale: that leftover file is named" "$(jq -r '.installs[0].path
 # An untouched file must NOT be swept into the finding — the report is read as
 # a list of files to look at, so a false name in it costs the operator a read.
 assert_eq "stale: an unchanged file is not reported" "" "$(jq -r '[.installs[].paths[] | select(test("util.sh"))] | join(",")' <<<"$out" 2>/dev/null)"
+assert_eq "stale: no .changes/alpha/ in the clone, so no unreleased changes" "false" "$(jq -r '.installs[0].unreleased_changes' <<<"$out" 2>/dev/null)"
+# The same stale cache in a marketplace that releases from changelog fragments:
+# a pending fragment for the plugin marks the finding as an unreleased change.
+write "$case_dir/market/.changes/alpha/feat-x-0123abcd.md" $'---\nbump: patch\n---\n\n### Fixed\n\n- x\n'
+out=$(run_check "$case_dir" --marketplace market1)
+assert_eq "stale with fragments: still stale-content" "stale-content" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+assert_eq "stale with fragments: marked unreleased_changes" "true" "$(jq -r '.installs[0].unreleased_changes' <<<"$out" 2>/dev/null)"
 
 # ============================================================================
 # Case: --ids emits only the stale-content ids, and emits them CR-free. Same

@@ -91,7 +91,8 @@
 #   with the full `[{path,count}]` in `list_file` (null under --audit);
 #   `cache_content.scope` is `user`, the only
 #   records Step 5b compares, and `cache_content.stale[]` is
-#   `{id, version, files_differ}` per stale install. `source_checkout` is null
+#   `{id, version, files_differ, unreleased_changes}` per stale install, the last
+#   true when the clone holds `.changes/<plugin>/`. `source_checkout` is null
 #   unless the source is `directory`; then it is `{path, state, branch, upstream,
 #   ahead, behind, dirty}` with `state` one of tracking, no_upstream, detached,
 #   not_a_repo, and the counts as of the checkout's last fetch (never fetched here).
@@ -1259,6 +1260,8 @@ cache_content_block() {
   # names, and one file count. All three directions are summed, because the row
   # says the cache DISAGREES with the recorded sha and a file only in the tree or
   # only in the cache disagrees exactly as much as one whose bytes changed.
+  # `unreleased_changes` marks a plugin whose clone holds changelog fragments:
+  # its files changed with no version bump yet, which the next release fixes.
   # `stale_ids` stays alongside it for readers that only need the ids. `scope`
   # names which records the counts cover: project and local records are not
   # compared.
@@ -1267,7 +1270,8 @@ cache_content_block() {
       stale_ids: [.installs[]? | select(.verdict == "stale-content") | .id],
       stale: [.installs[]? | select(.verdict == "stale-content")
               | {id, version, files_differ: ((.differing // 0) + (.missing_from_cache // 0)
-                                             + (.extra_in_cache // 0))}],
+                                             + (.extra_in_cache // 0)),
+                 unreleased_changes: (.unreleased_changes // false)}],
       source: "json"}' "$report"
     return 0
   fi
@@ -1286,7 +1290,7 @@ cache_content_block() {
   jq_to CACHE_JSON -c -n --argjson ids "$ids" \
     '{scope: "user", checked: null, match: null, stale_content: ($ids | length), unverifiable: null,
       stale_ids: $ids,
-      stale: ($ids | map({id: ., version: null, files_differ: null})),
+      stale: ($ids | map({id: ., version: null, files_differ: null, unreleased_changes: null})),
       source: "ids-fallback"}'
 }
 
