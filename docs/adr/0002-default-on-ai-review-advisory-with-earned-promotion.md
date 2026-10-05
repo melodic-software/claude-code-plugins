@@ -13,7 +13,10 @@
 - [Addendum (2026-09-24): skip-actors list file and evidence guards removed](#addendum-2026-09-24-skip-actors-list-file-and-evidence-guards-removed)
 - [Revisit triggers](#revisit-triggers)
 
-- Status: accepted
+- Status: accepted. The required-check addenda (2026-07-21 onward) are superseded as of
+  2026-10-04: melodic-software/github-iac#614 retired the `security-review-gate` org ruleset and
+  the `requires-security-review` custom property, so `ci-status` is the only required check. The
+  advisory-before-blocking posture and earned promotion still apply.
 - Date: 2026-07-20
 - Superseded in part for this repository by ADR 0038 (2026-09-24): the once-per-PR trigger set
   below no longer applies here; both lanes run on every push. The lane wiring and the skip-actor
