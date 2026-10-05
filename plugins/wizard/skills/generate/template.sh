@@ -53,7 +53,7 @@ TOTAL_STAGES=0
 
 _STAGE_INDEX=0
 ENV_FILE="${ENV_FILE:-.env}"
-# Where a symlinked ENV_FILE may point without asking (_check_env_target).
+# Where ENV_FILE may resolve to without asking (_check_env_target).
 _WIZARD_PROJECT_DIR="$(pwd -P)"
 WRITTEN_ENV=()    # KEYs written to ENV_FILE this run
 WRITTEN_SECRET=() # secret names set this run
@@ -223,34 +223,54 @@ _resolve_link() {
   printf '%s/%s' "$dir" "$(basename -- "$path")"
 }
 
-# _check_env_target — a symlinked ENV_FILE whose target lies outside the
-# project (a hostile repo can ship `.env -> ~/.bashrc`) is written to only
-# after the human sees the real destination and says yes; like open_url, the
-# destination is printed before anything is dispatched. Runs before any value
-# is prompted for. The link is re-resolved on every call and the yes is
-# remembered for that resolved target only, so a link repointed mid-run asks
-# again. A decline or an unanswerable gate aborts with nothing written.
+# _check_env_target — an ENV_FILE that resolves outside the project, through a
+# symlinked file or a symlinked parent directory (a hostile repo can ship
+# `.env -> ~/.bashrc` or `sub -> ~`), is written to only after the human sees
+# the real destination and says yes; like open_url, the destination is printed
+# before anything is dispatched. Runs before any value is prompted for. The
+# path is re-resolved on every call and the yes is remembered for that
+# resolved target only, so a link repointed mid-run asks again. A decline or an
+# unanswerable gate aborts with nothing written.
 _ENV_TARGET_CONFIRMED=""
 # shellcheck disable=SC2310  # every || branch is fatal, which exits the script directly
 _check_env_target() {
-  [[ -L "$ENV_FILE" ]] || return 0
   local target
-  target=$(_resolve_link "$ENV_FILE") || fatal "couldn't resolve where the symlink $ENV_FILE points — nothing written"
+  if ! target=$(_resolve_link "$ENV_FILE"); then
+    [[ ! -L "$ENV_FILE" ]] || fatal "couldn't resolve where the symlink $ENV_FILE points — nothing written"
+    return 0 # its directory does not exist, so nothing can be written there
+  fi
   if [[ "$target" == "$_WIZARD_PROJECT_DIR"/* || "$target" == "$_ENV_TARGET_CONFIRMED" ]]; then return 0; fi
-  warn "$ENV_FILE is a symlink to a file outside this project: $target"
+  warn "$ENV_FILE resolves to a file outside this project: $target"
   confirm "Write values to $target?" || fatal "declined writing through $ENV_FILE to $target — nothing written"
   _ENV_TARGET_CONFIRMED="$target"
 }
 
 # _assignable_key KEY — ask, ask_secret and write_env assign $KEY in the
 # library's own shell, so KEY must not name the library's state (ENV_FILE,
-# SKIPPED, ...) or a helper local (__wiz_*). Gate it with _valid_key first.
+# SKIPPED, ...), a helper local (__wiz_*), or a variable the shell itself sets
+# or reads (PATH, IFS, PS4, BASH_ENV, ...: the "Shell Variables" list in the
+# bash manual), whose new value would change how the rest of the wizard runs.
+# LD_* and DYLD_* are refused too: when already exported, the dynamic loader
+# reads them in every command the wizard starts (gh, git, mktemp).
+# Gate KEY with _valid_key first.
 _assignable_key() {
   case "$1" in
   __wiz_* | _WIZARD_* | _ENV_* | _STAGE_INDEX | ENV_FILE | TOTAL_STAGES | \
     WRITTEN_ENV | WRITTEN_SECRET | WRITTEN_VAR | SKIPPED | GH_REPO | \
     GH_REPO_DECLINED | BOLD | DIM | RESET | BLUE | GREEN | YELLOW | RED)
     fatal "reserved key name: '$1' (the wizard library uses it; pick another name)"
+    ;;
+  BASH | BASHOPTS | BASHPID | BASH_* | COMP_* | COMPREPLY | COPROC | DIRSTACK | \
+    EPOCHREALTIME | EPOCHSECONDS | EUID | FUNCNAME | GROUPS | HISTCMD | HOSTNAME | \
+    HOSTTYPE | LINENO | MACHTYPE | MAPFILE | OLDPWD | OPTARG | OPTIND | OSTYPE | \
+    PIPESTATUS | PPID | PWD | RANDOM | READLINE_* | REPLY | SECONDS | SHELLOPTS | \
+    SHLVL | SRANDOM | UID | CDPATH | CHILD_MAX | COLUMNS | EMACS | ENV | EXECIGNORE | \
+    FCEDIT | FIGNORE | FUNCNEST | GLOBIGNORE | GLOBSORT | HISTCONTROL | HISTFILE | \
+    HISTFILESIZE | HISTIGNORE | HISTSIZE | HISTTIMEFORMAT | HOME | HOSTFILE | IFS | \
+    IGNOREEOF | INPUTRC | INSIDE_EMACS | LANG | LC_* | LINES | MAIL | MAILCHECK | \
+    MAILPATH | OPTERR | PATH | POSIXLY_CORRECT | PROMPT_COMMAND | PROMPT_DIRTRIM | \
+    PS0 | PS1 | PS2 | PS3 | PS4 | SHELL | TIMEFORMAT | TMOUT | TMPDIR | LD_* | DYLD_*)
+    fatal "reserved key name: '$1' (the shell itself uses it; pick another name)"
     ;;
   *) ;;
   esac

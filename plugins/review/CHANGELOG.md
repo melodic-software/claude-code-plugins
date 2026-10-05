@@ -3,6 +3,16 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.2] - 2026-10-04
+
+### Added
+
+- `/review:fanout` gains two `claude plugin eval` cases under the plugin's `evals/`: after correctness fixes, the fix pass's re-review covers only the fixed hunks, and it stops after one round, reporting any new finding. Both grant `Read`, `Glob`, `Grep` and `Skill`, and the stop case names `/review:fanout` so the with-arm invokes the skill. The stop case also lists `Bash` and needs `--allow-tools Bash`: the skill's pre-computed context runs `gh pr list`, and a Bash denial fails the whole skill load.
+
+### Changed
+
+- `/review:fanout` fix pass: the required post-fix re-review covers only the hunks the pass changed and runs once; a finding it raises is reported to the operator, not fixed in another automatic round.
+
 ## [0.42.1] - 2026-10-04
 
 ### Added

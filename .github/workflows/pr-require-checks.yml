@@ -699,6 +699,31 @@ jobs:
         continue-on-error: true
         run: scripts/check-lane-coverage.sh --check
 
+      # The whole-tree test plan of the live tree: the bash plan is the bash
+      # runner's corpus, each suite once; the Python plan is every test module
+      # but the eval fixtures; no leg is empty; and every Node suite runs
+      # through a wrapper or a Node package. Each reads the whole tree, so no
+      # test selection can say when it must run, and it runs here on every pull
+      # request rather than as a case of scripts/plan-test-lanes.test.sh.
+      - name: Check the whole-tree test plan covers the live corpus
+        id: test_plan_corpus
+        continue-on-error: true
+        run: |
+          rc=0
+          plan="$(bash scripts/plan-test-lanes.sh 2>/dev/null)" || { echo "::error::the whole-tree plan failed"; exit 1; }
+          legs() { sed -n "s/^$1_plan=//p" <<<"$plan"; }
+          diff <(legs bash | jq -r '.[][]' | LC_ALL=C sort) <(bash scripts/run-plugin-tests.sh --list | LC_ALL=C sort) ||
+            { echo "::error::the whole-tree bash plan is not the bash runner's corpus, each suite once"; rc=1; }
+          diff <(legs python | jq -r '.[][]' | LC_ALL=C sort) <(git ls-files --cached --others --exclude-standard |
+            awk '{ b = $0; sub(/.*\//, "", b) } b ~ /^test_.*\.py$/ && !/\/evals\/fixtures\//' | LC_ALL=C sort) ||
+            { echo "::error::the whole-tree Python plan is not every test module but the eval fixtures"; rc=1; }
+          [[ "$(legs bash | jq '[.[] | length > 0] | all')" == true && "$(legs python | jq '[.[] | length > 0] | all')" == true ]] ||
+            { echo "::error::a leg of the whole-tree plan is empty"; rc=1; }
+          mapfile -t node_suites < <(git ls-files | grep -E '\.test\.(js|mjs|cjs)$')
+          bash scripts/plan-test-lanes.sh -- "${node_suites[@]}" >/dev/null ||
+            { echo "::error::a Node suite runs through neither a wrapper nor a Node package"; rc=1; }
+          exit "$rc"
+
       # A DIFF LINTS THE MARKDOWN IT CHANGED. markdownlint's rules read one file
       # at a time, so an unchanged file's verdict is the one its last green run
       # gave. The whole tree when there is no diff base (a schedule or dispatch
@@ -996,6 +1021,7 @@ jobs:
             stale-base-overlap=${{ steps.stale_base.outcome }}
             docs-only-contract=${{ steps.docs_only_contract.outcome }}
             lane-coverage=${{ steps.lane_coverage.outcome }}
+            test-plan-corpus=${{ steps.test_plan_corpus.outcome }}
             markdown=${{ steps.markdown.outcome }}
             typos=${{ steps.typos.outcome }}
             gitleaks=${{ steps.gitleaks.outcome }}

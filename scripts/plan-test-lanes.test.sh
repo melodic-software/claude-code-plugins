@@ -4,8 +4,7 @@
 # goes wider than the selection only where the planner's header says, and a
 # selected suite no lane runs fails the plan. The fixture cases run a copy of
 # the planner and the selector in a throwaway repo; the LIVE cases hold the
-# real tree: the whole-tree plan covers the whole corpus, every Node suite has
-# a home, and scripts/test-windows-plan.txt names exactly the steps
+# real tree: scripts/test-windows-plan.txt names exactly the steps
 # pr-test-windows.yml gates.
 # test-scope: .github/workflows/pr-test-windows.yml
 set -uo pipefail
@@ -229,22 +228,9 @@ is "$RC" 2
 check "--base with no ref is a usage error" $?
 
 # --- LIVE: the real tree -------------------------------------------------------
-
-live="$(cd "$REPO_ROOT" && bash scripts/plan-test-lanes.sh 2>/dev/null)" || fail "the whole-tree plan of the live repo failed"
-OUT="$live"
-is "$(suites bash)" "$(cd "$REPO_ROOT" && bash scripts/run-plugin-tests.sh --list | LC_ALL=C sort)" &&
-  is "$(key bash_plan | jq -r '[.[][]] | length' | tr -d '\r')" "$(suites bash | wc -l | tr -d ' ')"
-check "live: the whole-tree bash plan is the runner's corpus, each suite once" $?
-is "$(suites python)" "$(cd "$REPO_ROOT" && git ls-files --cached --others --exclude-standard |
-  awk '{ b = $0; sub(/.*\//, "", b) } b ~ /^test_.*\.py$/ && !/\/evals\/fixtures\//' | LC_ALL=C sort)"
-check "live: the whole-tree Python plan is every test module but the eval fixtures" $?
-is "$(key bash_plan | jq '[.[] | length > 0] | all' | tr -d '\r')" true &&
-  is "$(key python_plan | jq '[.[] | length > 0] | all' | tr -d '\r')" true
-check "live: no leg of the whole-tree plan is empty" $?
-
-mapfile -t node_suites < <(cd "$REPO_ROOT" && git ls-files | grep -E '\.test\.(js|mjs|cjs)$')
-(cd "$REPO_ROOT" && bash scripts/plan-test-lanes.sh -- "${node_suites[@]}" >/dev/null 2>"$ERR")
-check "live: every Node suite in the tree runs through a wrapper or a Node package" $?
+# The whole-tree plan of the live tree reads every file, so it is the
+# `test-plan-corpus` gate step of pr-require-checks.yml's lint-repo job, which
+# runs on every pull request, not a case here.
 
 # The (job, key) pairs pr-test-windows.yml gates on, against the plan's lines.
 yml_pairs="$(awk '

@@ -26,10 +26,12 @@
 #                 identity git_init_test_repo writes.
 #     --plugins   create <root>/plugins/.
 #     --lib       copy scripts/lib/ (minus its own *.test.sh) into
-#                 <root>/scripts/lib/. On by default once any --sut is copied,
-#                 because a copied gate that sources a sibling lib dies without
-#                 it; --no-lib is for a suite whose SUT walks the fixture's own
-#                 scripts/ tree and would count the copies.
+#                 <root>/scripts/lib/. Once any --sut is copied, the default
+#                 copies only the libs the scripts under test name, and the
+#                 libs those name, because a copied gate that sources a sibling
+#                 lib dies without it; --lib copies them all; --no-lib is for a
+#                 suite whose SUT walks the fixture's own scripts/ tree and
+#                 would count the copies.
 #     --label     mktemp prefix, for a readable path while debugging.
 #
 # WHY THIS IS NOT IN scripts/lib/test-harness.sh. That file owns the assertion
@@ -120,6 +122,34 @@ fixture_tree::_install_trap() {
 # would shadow that caller's variable and hand back an empty root. The same
 # reason is recorded at length in scripts/lib/changed-files.sh.
 #
+# fixture_tree::_lib_closure <lib-name>... -- <script>... -> the names of the
+# scripts/lib files that stand as a whole token in a script, or in a lib
+# already taken, one per line. Over-taking a lib a comment names costs a copy;
+# missing one a script sources fails the suite loud, never green.
+fixture_tree::_lib_closure() {
+  local _ft_cl_names=""
+  while (($# > 0)) && [[ "$1" != -- ]]; do
+    _ft_cl_names+="$1 "
+    shift
+  done
+  shift
+  awk -v dir="$FIXTURE_TREE_REPO_ROOT/scripts/lib/" -v names="$_ft_cl_names" '
+    BEGIN {
+      n = split(names, nm, " ")
+      for (i = 1; i <= n; i++) lib[nm[i]] = 1
+      for (i = 1; i < ARGC; i++) q[++nq] = ARGV[i]
+      ARGC = 1
+      for (h = 1; h <= nq; h++) {
+        while ((getline line < q[h]) > 0) {
+          m = split(line, tok, /[^A-Za-z0-9_.-]+/)
+          for (j = 1; j <= m; j++)
+            if ((tok[j] in lib) && !(tok[j] in seen)) { seen[tok[j]] = 1; print tok[j]; q[++nq] = dir tok[j] }
+        }
+        close(q[h])
+      }
+    }' "$@"
+}
+
 # fixture_tree::build <out-var> [--sut <script>]... [--git] [--plugins]
 #                     [--lib | --no-lib] [--label <name>]
 fixture_tree::build() {
@@ -131,7 +161,7 @@ fixture_tree::build() {
   shift
 
   local -a _ft_suts=()
-  local _ft_git=0 _ft_plugins=0 _ft_lib=auto _ft_label=fixture
+  local _ft_git=0 _ft_plugins=0 _ft_lib=auto _ft_lib_explicit=0 _ft_label=fixture
   while (($# > 0)); do
     case "$1" in
     --sut)
@@ -159,7 +189,7 @@ fixture_tree::build() {
       shift
       ;;
     --lib)
-      _ft_lib=1
+      _ft_lib=1 _ft_lib_explicit=1
       shift
       ;;
     --no-lib)
@@ -210,6 +240,7 @@ fixture_tree::build() {
   fi
 
   local _ft_sut _ft_src
+  local -a _ft_srcs=()
   for _ft_sut in ${_ft_suts[@]+"${_ft_suts[@]}"}; do
     if [[ "$_ft_sut" == */* ]]; then
       _ft_src="$_ft_sut"
@@ -226,6 +257,7 @@ fixture_tree::build() {
       return 1
     }
     chmod +x "$_ft_root/scripts/${_ft_src##*/}"
+    _ft_srcs+=("$_ft_src")
   done
 
   if [[ "$_ft_lib" == auto ]]; then
@@ -240,17 +272,22 @@ fixture_tree::build() {
       rm -rf "$_ft_root"
       return 1
     }
+    # A lib's own suite is not part of the world a copied gate runs in, and
+    # copying it would put a second *.test.sh under the fixture where a
+    # suite-counting gate would find it.
+    local -a _ft_libnames=()
     local _ft_libfile
     for _ft_libfile in "$FIXTURE_TREE_REPO_ROOT"/scripts/lib/*; do
-      [[ -f "$_ft_libfile" ]] || continue
-      # A lib's own suite is not part of the world a copied gate runs in, and
-      # copying it would put a second *.test.sh under the fixture where a
-      # suite-counting gate would find it.
-      case "$_ft_libfile" in
-      *.test.sh) continue ;;
-      *) ;;
-      esac
-      cp "$_ft_libfile" "$_ft_root/scripts/lib/" || {
+      [[ -f "$_ft_libfile" && "$_ft_libfile" != *.test.sh ]] && _ft_libnames+=("${_ft_libfile##*/}")
+    done
+    # Behind a --sut, only the libs the scripts under test name, and the libs
+    # those name in turn: a copied lib is a file the suite reads, and one no
+    # copied script uses is a read the test selection cannot see.
+    if ((_ft_lib_explicit == 0)); then
+      mapfile -t _ft_libnames < <(fixture_tree::_lib_closure "${_ft_libnames[@]}" -- "${_ft_srcs[@]}")
+    fi
+    for _ft_libfile in ${_ft_libnames[@]+"${_ft_libnames[@]}"}; do
+      cp "$FIXTURE_TREE_REPO_ROOT/scripts/lib/$_ft_libfile" "$_ft_root/scripts/lib/" || {
         rm -rf "$_ft_root"
         return 1
       }

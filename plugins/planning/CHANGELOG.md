@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.69.3] - 2026-10-04
+
+### Added
+
+- **`planning` adds three `claude plugin eval` cases for `/planning:wayfind` work mode (tag `pocock-33`).** Each case scaffolds an exported decision map for a partner shipment feed and asks for the brief or handoff wayfind would pass on for one item. A case passes when that brief or handoff carries the map's destination, a decision already made, and the out-of-scope line excluding partner client SDKs, not the item alone. Regex graders check each of the three; the out-of-scope and design-handoff cases add a judge rubric with pass and fail samples. The research-brief case has no judge: its calibration missed the bar, and the regex graders already reject both of its failing samples. No skill text changes.
+
 ## [0.69.2] - 2026-10-04
 
 ### Added

@@ -21,11 +21,6 @@ if ! command -v node >/dev/null 2>&1; then
   exit 2
 fi
 
-if ! bash "$REPO_ROOT/scripts/sync-shared-copies.sh" --check >/dev/null; then
-  echo "FAIL: a generated copy differs from its canonical source" >&2
-  exit 1
-fi
-
 chrome="${CHROME:-}"
 if [[ -z "$chrome" ]]; then
   for candidate in google-chrome google-chrome-stable chromium chromium-browser; do

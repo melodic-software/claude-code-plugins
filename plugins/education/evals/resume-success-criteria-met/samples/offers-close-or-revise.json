@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "All three success criteria in MISSION.md are met by records 0002 to 0004. Two ways forward, your call: close this mission as done, or revise it with a new goal and new success criteria (for example the window functions you put out of scope). Which would you like?",
+      "why": "offers both options and leaves the choice to the learner"
+    },
+    {
+      "answer": "You have hit every item under Success Looks Like. Before I teach anything else: should we mark this mission complete and stop here, or update MISSION.md with a harder goal to keep going?",
+      "why": "close and revise phrased differently, still a question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "All three success criteria are met, so I have marked the mission complete. Next time, start a new topic with /education:teach topic.",
+      "why": "near miss: closes the mission without asking"
+    },
+    {
+      "answer": "Great progress on all three goals. Let's push further: today's concept is FULL OUTER JOIN. What do you expect it returns for an order with no customer?",
+      "why": "goes straight to teaching, no close or revise offer"
+    }
+  ]
+}
