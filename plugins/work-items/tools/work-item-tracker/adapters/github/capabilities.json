@@ -12,6 +12,7 @@
     "add-sub-item": true,
     "list-items": true,
     "list-sub-items": true,
+    "label-provenance": true,
     "capabilities": true
   },
   "features": {

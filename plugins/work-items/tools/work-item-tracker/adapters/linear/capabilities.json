@@ -21,6 +21,7 @@
     "get-item": true,
     "link-blocks": true,
     "list-items": true,
+    "label-provenance": false,
     "list-sub-items": true,
     "reclaim": true,
     "release": false,

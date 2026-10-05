@@ -20,6 +20,19 @@ Discover live members through the bound adapter's label listing (GitHub:
 `work-class:` label; the merge partition and admission gate read the label only, never a
 `Work-class: C<n>` body trailer.
 
+## Who applied the label
+
+The label counts toward admission only when its latest application came from an actor with
+`write`, `maintain` or `admin` on the repository. GitHub's triage role can apply labels while
+holding only `read` (pointer:
+[Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user),
+as of 2026-10-04, recheck trigger: the endpoint's role mapping changes), so before admitting an item the work-loop drain runs the adapter's
+`label-provenance` operation over the item's `work-class:` label and its autonomous-eligible role
+label, and refuses the item for that cycle on a triage or read labeler, a missing `labeled` event,
+or a failed read ([`../skills/work-loop/SKILL.md`](../skills/work-loop/SKILL.md) "Admission gate",
+labeler precondition). A provider adapter without that operation refuses every labelled item, so
+triage on such a tracker leaves the drain idle rather than trusting labels it cannot attribute.
+
 ## Human-floor classes exclude the autonomous-eligible role label
 
 `work-class: structural` (C4) and `work-class: untrusted-provenance` (C5) are human-gated

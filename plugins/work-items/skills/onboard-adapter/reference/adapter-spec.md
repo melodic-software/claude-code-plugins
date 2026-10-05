@@ -28,7 +28,8 @@ A self-hosted, forge-shaped provider with no lease support:
   "verbs": {
     "create-item": true, "get-item": true, "claim": false, "renew-lease": false,
     "release": false, "reclaim": false, "link-blocks": true, "add-sub-item": false,
-    "list-items": true, "list-sub-items": false, "capabilities": true
+    "list-items": true, "list-sub-items": false, "label-provenance": false,
+    "capabilities": true
   },
   "features": {
     "cross_repo_edges": false, "sub_items": false, "leases": false, "labels": true
@@ -73,7 +74,17 @@ rather than defaulted, because an unlisted verb means the spec was written again
 different contract revision, and guessing produces a manifest that lies.
 
 `create-item`, `get-item`, `claim`, `renew-lease`, `release`, `reclaim`, `link-blocks`,
-`add-sub-item`, `list-items`, `list-sub-items`, `capabilities`.
+`add-sub-item`, `list-items`, `list-sub-items`, `label-provenance`, `capabilities`.
+
+`label-provenance` reports, for each label passed with `--label`, who applied it most
+recently, that person's permission on the repository, and whether the label is trusted
+(permission `admin` or `write`). It returns `id`, `admitted` (`true` only when every named
+label is trusted) and one `labels` row per label (`CONTRACT.md` "JSON output contract").
+The work-loop admission gate admits a labelled item only on exit `0` with `admitted: true`.
+An adapter that cannot read who applied a label, or that person's permission, must fail
+closed: declare the verb `false`, so the gate gets exit `6` and admits nothing, or return an
+untrusted row with a `reason`. It must never report a label as trusted without having read
+both facts.
 
 `release` is optional even for a lease-capable adapter: `true` requires `features.leases`,
 but `features.leases` does not require it (`CONTRACT.md` "Release"). Declare it `false` when

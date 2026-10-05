@@ -368,6 +368,31 @@ A failed check has no age and stays excluded. The escalation is not progress: it
 the no-progress streak. `/work-items:work`'s dispatch-time staleness pre-check does not cover
 this: it runs only for dispatched items, never a queued or escalated one.
 
+**Labeler precondition (after the in-flight check, before classification).** A label is admission
+evidence only when someone allowed to grant admission applied it. On GitHub the triage role can
+apply labels but holds only `read`, so the labels alone do not show that. For each remaining
+candidate, run the bound adapter's `label-provenance` operation over the autonomous-eligible role
+label and the item's `work-class:` label, whichever of the two it carries:
+`work-item-tracker.sh label-provenance "<id>" --label "<role label>" --label "<work-class label>"`.
+Pass the id and each label name as separate quoted arguments, read the result with `jq --arg`, and
+never splice a label name, actor login or issue title into a command or a jq program. Admit the
+candidate only when the operation exits `0` with `admitted: true`, meaning the latest application
+of every named label came from an actor with `write`, `maintain` or `admin`. Anything else fails
+closed for this cycle: a triage or read labeler, a label with no `labeled` event, a failed or empty
+timeline or permission read, an adapter without the operation (exit `6`), and a harness-denied
+call. A refused candidate is neither dispatched nor ratify-queued, the cycle changes none of its
+labels, and the run continues with the other candidates. The cycle report lists each refused row as
+`labeler refused: #<item> "<label>" applied by <actor> (<role or permission>)`, or, with no actor
+to name, `labeler check failed: #<item> (<reason>)`. A refusal is not progress and does not reset
+the no-progress streak. The contract for the operation is in
+[`tools/work-item-tracker/CONTRACT.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md)
+"Verbs (core public surface)".
+
+Pointer: for the permission each GitHub role maps to (`admin`, `write`, `read`, `none`; maintain
+maps to `write`, triage to `read`), see
+[Get repository permissions for a user](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user).
+As of: 2026-10-04. Recheck trigger: the endpoint's role mapping changes.
+
 Hard gates that override any classification:
 
 - **Path/topic hard gate.** An item touching dependency SHA pins, checksum or pin recomputation,

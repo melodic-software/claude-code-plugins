@@ -7,6 +7,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Fixed
 
+- **The work-loop drain admits a labelled item only when the labeler holds write access.** A new tracker operation, `label-provenance <id> --label <name>...`, reads the latest `labeled` timeline event for each named label and that actor's repository permission; the admission gate runs it over the autonomous-eligible role label and the `work-class:` label and admits only when every labeler has `write`, `maintain` or `admin`. A triage or read labeler, a missing event, a failed or empty read, or an adapter without the operation (only GitHub has it) refuses the item for that cycle with a report line, and the run moves on. Before this, a triage-role user could label an item `agent-ready` plus a C1 or C2 work class and the scheduled drain dispatched it.
 - `/work-items:work` no longer names `Summary` and `Test plan` as the PR body sections; its body-edit warning points at the sections `/source-control:pull-request create` wrote.
 
 ### Added

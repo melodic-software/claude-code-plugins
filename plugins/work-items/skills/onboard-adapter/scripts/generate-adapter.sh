@@ -53,7 +53,7 @@ SHEBANG='#!/usr/bin/env bash'
 # minus list-frontier (core-derived), plus list-items.
 readonly ADAPTER_VERBS=(
   create-item get-item claim renew-lease release reclaim link-blocks
-  add-sub-item list-items list-sub-items capabilities
+  add-sub-item list-items list-sub-items label-provenance capabilities
 )
 readonly FEATURE_KEYS=(cross_repo_edges sub_items leases labels)
 readonly LIMIT_KEYS=(sub_items_per_parent sub_item_depth dependencies_per_type list_items_max)

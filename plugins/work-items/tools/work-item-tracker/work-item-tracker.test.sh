@@ -155,6 +155,13 @@ RC_CAPTURE=$?
 assert_eq "undeclared release verb → exit 6" "6" "$RC_CAPTURE"
 assert_contains "exit-6 stderr names the release verb" "$ERR" "release"
 
+# An adapter that cannot read label provenance declares no label-provenance key, and the
+# work-loop admission gate reads any non-zero exit as "not admitted".
+ERR="$(run_dispatcher label-provenance "fake:o/r#1" --label agent-ready 2>&1 >/dev/null)"
+RC_CAPTURE=$?
+assert_eq "undeclared label-provenance verb → exit 6" "6" "$RC_CAPTURE"
+assert_contains "exit-6 stderr names the label-provenance verb" "$ERR" "label-provenance"
+
 # --- capabilities passthrough ---
 
 OUT="$(run_dispatcher capabilities)"

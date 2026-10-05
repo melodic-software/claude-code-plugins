@@ -52,6 +52,7 @@ Verbs:
   add-sub-item <id> --parent <id>
   list-sub-items <parent-id> [--state open|closed|all]
   list-frontier [--autonomous] [--parent <container-id>] [--repo <owner>/<repo>]
+  label-provenance <id> --label <name> [--label <name> ...]
   capabilities
 Contract: tools/work-item-tracker/CONTRACT.md
 EOF
@@ -120,7 +121,7 @@ main() {
 
   local adapter_verb="$verb"
   case "$verb" in
-  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | capabilities) ;;
+  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | label-provenance | capabilities) ;;
   list-frontier)
     # Chosen BEFORE the capability gate, so an adapter without list-sub-items
     # degrades with exit 6 on --parent instead of failing the scoped call.

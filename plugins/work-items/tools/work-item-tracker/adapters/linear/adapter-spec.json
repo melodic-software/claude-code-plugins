@@ -22,6 +22,7 @@
     "link-blocks": true,
     "add-sub-item": true,
     "list-items": true,
+    "label-provenance": false,
     "list-sub-items": true,
     "capabilities": true
   },
