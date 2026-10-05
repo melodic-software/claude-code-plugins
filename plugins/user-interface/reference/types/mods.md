@@ -43,3 +43,5 @@ can.
 - A log line states the event and the action taken, past tense: `guard: blocked rm -rf on /`.
 - A toast says what happened and what to do, in one line: `context at 80%: /compact or /clear`.
 - Commands a user can run appear exactly as typed, so they can be copied.
+- What a hook notice must contain is the developer-experience guidance's call; this file and
+  `terminal.md` own its wording and look.

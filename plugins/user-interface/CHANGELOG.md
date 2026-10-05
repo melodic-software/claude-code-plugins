@@ -3,6 +3,13 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.2] - 2026-10-04
+
+### Changed
+
+- The terminal and mods references now say the developer-experience guidance decides what a hook
+  notice must contain, while this plugin owns its wording and look.
+
 ## [0.1.1] - 2026-10-04
 
 ### Fixed
