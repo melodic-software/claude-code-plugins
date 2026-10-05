@@ -123,7 +123,7 @@ class Ink:
         lo = np.clip(np.arange(W) - word_gap, 0, W)
         hi = np.clip(np.arange(W) + word_gap + 1, 0, W)
         self.mask = (c[:, hi] - c[:, lo]) > 0
-        self.I = np.pad(self.mask.astype(np.float64).cumsum(0).cumsum(1), ((1, 0), (1, 0)))
+        self.integ = np.pad(self.mask.astype(np.float64).cumsum(0).cumsum(1), ((1, 0), (1, 0)))
         self.W, self.H = W, H
 
     def count(self, x0, y0, x1, y1):
@@ -131,8 +131,8 @@ class Ink:
         x1, y1 = min(int(math.ceil(x1)), self.W), min(int(math.ceil(y1)), self.H)
         if x1 <= x0 or y1 <= y0:
             return 0.0
-        I = self.I
-        return float(I[y1, x1] - I[y0, x1] - I[y1, x0] + I[y0, x0])
+        integ = self.integ
+        return float(integ[y1, x1] - integ[y0, x1] - integ[y1, x0] + integ[y0, x0])
 
     def centroid(self):
         ys, xs = np.nonzero(self.mask)

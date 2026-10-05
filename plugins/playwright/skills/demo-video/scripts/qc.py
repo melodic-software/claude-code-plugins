@@ -45,16 +45,16 @@ def decode(video, w, h):
     return np.frombuffer(raw, np.uint8).reshape(-1, h, w).astype(np.float32)
 
 
-def ncc_valid(I, T):
-    """Normalised cross-correlation of template T over every position where it fits inside I."""
+def ncc_valid(img, T):
+    """Normalised cross-correlation of template T over every position where it fits inside img."""
     th, tw = T.shape
-    ih, iw = I.shape
+    ih, iw = img.shape
     T0 = T - T.mean()
     tn = math.sqrt(float((T0 ** 2).sum())) or 1.0
     shape = (ih, iw)
-    corr = np.fft.irfft2(np.fft.rfft2(I) * np.fft.rfft2(T0[::-1, ::-1], s=shape), s=shape)[th - 1:ih, tw - 1:iw]
-    S1 = np.pad(I.cumsum(0).cumsum(1), ((1, 0), (1, 0)))
-    S2 = np.pad((I * I).cumsum(0).cumsum(1), ((1, 0), (1, 0)))
+    corr = np.fft.irfft2(np.fft.rfft2(img) * np.fft.rfft2(T0[::-1, ::-1], s=shape), s=shape)[th - 1:ih, tw - 1:iw]
+    S1 = np.pad(img.cumsum(0).cumsum(1), ((1, 0), (1, 0)))
+    S2 = np.pad((img * img).cumsum(0).cumsum(1), ((1, 0), (1, 0)))
 
     def box(S):
         return S[th:, tw:] - S[:-th, tw:] - S[th:, :-tw] + S[:-th, :-tw]
@@ -78,10 +78,10 @@ class Registrar:
         return np.asarray(self.full(path).resize((round(AW * z), round(AH * z)), Image.BOX), np.float32)
 
     def score(self, frame, path, z):
-        I = self.scaled(path, int(round(z * 1000)))
-        if I.shape[0] < AH or I.shape[1] < AW:
+        img = self.scaled(path, int(round(z * 1000)))
+        if img.shape[0] < AH or img.shape[1] < AW:
             return -1.0, (0, 0)
-        r = ncc_valid(I[:I.shape[0] - (AH - self.rows)], frame[:self.rows])
+        r = ncc_valid(img[:img.shape[0] - (AH - self.rows)], frame[:self.rows])
         k = np.unravel_index(int(r.argmax()), r.shape)
         return float(r[k]), (int(k[1]), int(k[0]))
 

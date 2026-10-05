@@ -38,6 +38,27 @@ prerequisites report lists `playwright-cli` as missing. It never installs.
 - **Vendored upstream baseline**. The skill directory Microsoft ships inside
   the npm package is bundled verbatim for drift detection.
 
+## Demo videos for pull requests
+
+`/playwright:demo-video` turns a web flow into a short produced MP4 for a PR:
+it replays a written script with 4K capture, zooms in on each action, draws
+the cursor and click ripples, captions each step, cuts out page loads, and
+posts the result with `gh pr comment --attach` (or a CI artifact link).
+`qc.py` checks the rendered frames (zoom share, text cut at the frame edge,
+stillness, camera motion, cuts, crossfades, blank frames) and an independent
+reviewer looks at the frames before anything is posted.
+
+It needs Python 3.12+, `ffmpeg` and `ffprobe`, and `playwright-cli` for
+recording. Its numpy and Pillow are hash-locked in
+`skills/demo-video/requirements.txt`; the first run prints the one install
+command when they are missing.
+
+| Option | Default | Effect |
+|---|---|---|
+| `demo_style` | `produced` | `plain` keeps the replay and cursor and drops zoom, captions and the title |
+| `demo_title`, `demo_camera`, `demo_cursor`, `demo_ripple`, `demo_captions` | `true` | Switch one layer off |
+| `demo_narration` | `false` | Voice-over through `/speech:narrate` when the speech plugin is installed |
+
 ## Works in any repo
 
 - **Self-contained.** All reference material ships inside the plugin and is

@@ -30,36 +30,59 @@ from pathlib import Path
 
 import numpy as np
 
-from demo_common import Ink, anchor_box, clip_duration, edge_ink, load_config, move_duration, pill_width, smooth
+from demo_common import (SMOOTH_PEAK_A, SMOOTH_PEAK_V, Ink, anchor_box, clip_duration, edge_ink, load_config, move_duration,
+                         pill_width, smooth)
 
 LAYERS = ('title', 'camera', 'cursor', 'ripple', 'captions', 'narration')
 STYLE_OFF = {'produced': set(), 'plain': {'title', 'camera', 'captions'}}
 
 
-def parse_layers(style, spec):
+def parse_layers(style, spec, audio_dir=None):
+    """The style decides which layers exist (plain has no title, camera or captions); a toggle set to
+    off or false removes its layer in either style, and on or true keeps the style's choice.
+    Narration exists when there is an audio directory to play."""
     layers = {k: k not in STYLE_OFF[style] for k in LAYERS}
+    layers['narration'] = bool(audio_dir)
     for item in filter(None, (spec or '').split(',')):
         name, _, value = item.partition('=')
         if name not in LAYERS or value not in ('on', 'off', 'true', 'false'):
             raise SystemExit(f'--layers: expected NAME=on|off with NAME in {LAYERS}, got {item!r}')
-        layers[name] = value in ('on', 'true')
+        if value in ('off', 'false'):
+            layers[name] = False
     return layers
 
 
-def counts(I, x0, y0, x1, y1, W, H):
+def counts(integ, x0, y0, x1, y1, W, H):
     """Vectorised area counts on an integral image; x*/y* broadcast to one shape."""
     x0 = np.clip(np.floor(x0), 0, W).astype(int)
     x1 = np.clip(np.ceil(x1), 0, W).astype(int)
     y0 = np.clip(np.floor(y0), 0, H).astype(int)
     y1 = np.clip(np.ceil(y1), 0, H).astype(int)
-    return I[y1, x1] - I[y0, x1] - I[y1, x0] + I[y0, x0]
+    return integ[y1, x1] - integ[y0, x1] - integ[y1, x0] + integ[y0, x0]
 
 
-def focus_rect(ink, block, target, W, H, cfg, pill_w, zrange, prefer=None):
+def move_seconds(origin, z, X, Y, W, H, motion):
+    """move_duration from `origin` to every candidate rect (zoom z, top-left X, Y), vectorised."""
+    z0 = W / origin[2]
+    dz = abs(math.log(z / z0))
+    c0x, c0y = origin[0] + origin[2] / 2, origin[1] + origin[3] / 2
+    dp = np.hypot(X + W / z / 2 - c0x, Y + H / z / 2 - c0y) * max(z0, z) / W
+    zr, pr, za, pa = motion['max_zoom_rate'], motion['max_pan_speed'], motion['max_zoom_accel'], motion['max_pan_accel']
+    V, A = SMOOTH_PEAK_V, SMOOTH_PEAK_A
+    t = np.maximum.reduce([np.full_like(dp, motion['min_move_duration']), np.full_like(dp, V * dz / zr), V * dp / pr,
+                           np.full_like(dp, math.sqrt(A * dz / za)), np.sqrt(A * dp / pa)])
+    f = motion['combined_fraction']
+    both = (V * dz / t > f * zr) & (V * dp / t > f * pr)
+    t = np.where(both, np.maximum(t, V * np.minimum(dz / (f * zr), dp / (f * pr))), t)
+    return t * 1.02
+
+
+def focus_rect(ink, block, target, W, H, cfg, pill_w, zrange, prefer=None, origin=None, budget=None, exit_budget=None):
     """The shot for a block: highest zoom in zrange (aspect W:H) that holds the block with safe-margin
-    headroom on every edge that is not the page boundary, puts every other edge in a gutter, and
-    leaves a caption anchor (primary first, else the fallback) on empty page. Among those, the one
-    nearest the preferred centre (block centre pulled halfway toward the target, or `prefer`).
+    headroom on every edge that is not the page boundary, puts every other edge in a gutter, leaves a
+    caption anchor (primary first, else the fallback) on empty page, and, with `budget`, is reachable
+    from `origin` in that many seconds inside the motion limits. Among those, the one nearest the
+    preferred centre (block centre pulled halfway toward the target, or `prefer`).
     Returns (rect, zoom, anchor) or (None, 1.0, None)."""
     cam, cap = cfg['camera'], cfg['captions']
     zmin, zmax = zrange
@@ -73,7 +96,7 @@ def focus_rect(ink, block, target, W, H, cfg, pill_w, zrange, prefer=None):
         cx, cy = prefer if prefer else (W / 2, H / 2)
     band, limit, step = cam['gutter_band'], cam['edge_ink'], cam['search_step']
     clear = cap['clear'] + 8
-    I = ink.I
+    integ = ink.integ
     best_by_zoom = []
     for z in np.arange(zmax, zmin - 1e-6, -0.05):
         z = float(z)
@@ -89,17 +112,21 @@ def focus_rect(ink, block, target, W, H, cfg, pill_w, zrange, prefer=None):
             lo_y = (Y < 0.5) & (by >= 0) | (by - Y >= m)
             hi_y = (Y + h > H - 0.5) & (by + bh <= H) | (Y + h - (by + bh) >= m)
             ok &= lo_x & hi_x & lo_y & hi_y
-        left = np.where(X > 0.5, counts(I, X - band, Y, X + band, Y + h, W, H), 0)
-        right = np.where(X + w < W - 0.5, counts(I, X + w - band, Y, X + w + band, Y + h, W, H), 0)
-        top = np.where(Y > 0.5, counts(I, X, Y - band, X + w, Y + band, W, H), 0)
-        bottom = np.where(Y + h < H - 0.5, counts(I, X, Y + h - band, X + w, Y + h + band, W, H), 0)
+        left = np.where(X > 0.5, counts(integ, X - band, Y, X + band, Y + h, W, H), 0)
+        right = np.where(X + w < W - 0.5, counts(integ, X + w - band, Y, X + w + band, Y + h, W, H), 0)
+        top = np.where(Y > 0.5, counts(integ, X, Y - band, X + w, Y + band, W, H), 0)
+        bottom = np.where(Y + h < H - 0.5, counts(integ, X, Y + h - band, X + w, Y + h + band, W, H), 0)
         ok &= (left <= limit) & (right <= limit) & (top <= limit) & (bottom <= limit)
+        if budget is not None and origin is not None:
+            ok &= move_seconds(origin, z, X, Y, W, H, cfg['motion']) <= budget
+        if exit_budget is not None:   # a navigating click's shot eases back to 1.0x before the cut
+            ok &= move_seconds([0.0, 0.0, W, H], z, X, Y, W, H, cfg['motion']) <= exit_budget
         if not ok.any():
             continue
         dist = np.abs(X + w / 2 - cx) + np.abs(Y + h / 2 - cy)
         for anchor in cap['anchors']:
             ax, ay, aw, ah = anchor_box(anchor, pill_w, W, H, cfg)
-            area = counts(I, X + (ax - clear) / z, Y + (ay - clear) / z, X + (ax + aw + clear) / z, Y + (ay + ah + clear) / z, W, H)
+            area = counts(integ, X + (ax - clear) / z, Y + (ay - clear) / z, X + (ax + aw + clear) / z, Y + (ay + ah + clear) / z, W, H)
             good = ok & (area <= limit)
             if good.any():
                 k = np.unravel_index(np.where(good, dist, np.inf).argmin(), dist.shape)
@@ -156,7 +183,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
     cfg = load_config(a.config)
     P, CAM, MOT, CAP, NAR = cfg['pacing'], cfg['camera'], cfg['motion'], cfg['captions'], cfg['narration']
-    layers = parse_layers(a.style, a.layers)
+    layers = parse_layers(a.style, a.layers, a.audio_dir)
     cap = Path(a.capture).resolve()
     tl = json.loads((cap / 'timeline.json').read_text())
     script = json.loads(Path(a.script).read_text())
@@ -201,44 +228,53 @@ def main(argv=None):
                       'target_box': ck['box'], 'block': ck.get('block')})
 
     # ---- shots (source-time decisions: what each action's shot frames) ------------------------
+    # Each shot must be reachable from where the camera is in the time the edit gives it: a click shot by
+    # the click (cursor travel), a typing shot within open_modal plus a beat, a landing shot within one
+    # second; so no move runs long and the motion limits pick a smaller zoom instead of a slow drag.
     zr_shot = (CAM['zmin_shot'], CAM['zmax'])
+    zr_land = (CAM['zmin_shot'], CAM['landing_zoom'] + 0.1)
+
+    def pad_block(box):
+        return [box[0] - 120, box[1] - 80, box[2] + 240, box[3] + 160]
+    cur = full
     for k, stp in enumerate(steps):
         ck, st, typ = stp['ck'], stp['st'], stp['typ']
         pw = max(pill_width(stp['caption'], cfg, a.font), pill_width(stp['outcome'] or '', cfg, a.font))
         tb = ck['box']
         edge = CAM['edge_min']
         at_edge = tb[0] < edge or tb[1] < edge or tb[0] + tb[2] > W - edge or tb[1] + tb[3] > H - edge
-        block = stp['block'] or [tb[0] - 120, tb[1] - 80, tb[2] + 240, tb[3] + 160]
-        ink = Ink(capture_at(ck['t']), W, H, CAM['word_gap'])
-        stp['click_rect'] = None if at_edge else focus_rect(ink, block, tb, W, H, cfg, pw, zr_shot)[0]
-        if typ:
-            panel = typ.get('modal') or st.get('modal') or st.get('box') or typ['box']
-            res_box = st.get('modal') or st.get('box') or panel
+        held = layers['camera'] and cur != full and contains(cur, tb, CAM['safe_margin'] * cur[2] / W)
+        budget = P['move'] + P['pre_click'] + (P['lead_in'] if k == 0 else 0.0)
+        if held:   # the target is already in shot with headroom: keep the shot
+            shot = cur
+        elif at_edge or not layers['camera']:
+            shot = None
+        else:
+            ink = Ink(capture_at(ck['t']), W, H, CAM['word_gap'])
+            shot = focus_rect(ink, stp['block'] or pad_block(tb), tb, W, H, cfg, pw, zr_shot, origin=cur, budget=budget,
+                              exit_budget=1.0 if stp['navigates'] else None)[0]
+        stp['click_held'], stp['click_shot'] = held, shot
+        cur = shot or full
+        stp['type_rect'] = stp['land_rect'] = None
+        if typ and layers['camera']:
+            res_box = st.get('modal') or st.get('box') or typ.get('modal') or typ['box']
             ink_r = Ink(capture_at(st['t']), W, H, CAM['word_gap'], st.get('modal'))
-            r = focus_rect(ink_r, res_box, typ['box'], W, H, cfg, pw, zr_shot)[0]
+            r = focus_rect(ink_r, res_box, typ['box'], W, H, cfg, pw, zr_shot, origin=cur, budget=P['open_modal'] + 0.35)[0]
             stp['type_rect'] = r
+            cur = r or cur
         if stp['navigates']:
+            cur = full   # eases out to 1.0x before the cut
             nxt = steps[k + 1] if k + 1 < len(steps) else None
-            ink_l = Ink(capture_at(st['t']), W, H, CAM['word_gap'])
-            lpw = max(pw, pill_width(nxt['caption'], cfg, a.font)) if nxt else pw
-            if nxt:
-                nb = nxt['ck'].get('block') or [nxt['ck']['box'][0] - 120, nxt['ck']['box'][1] - 80,
-                                               nxt['ck']['box'][2] + 240, nxt['ck']['box'][3] + 160]
-                r = focus_rect(ink_l, nb, nxt['ck']['box'], W, H, cfg, lpw, (CAM['zmin_shot'], CAM['landing_zoom'] + 0.1))[0]
-            else:
-                r = focus_rect(ink_l, None, None, W, H, cfg, lpw, (CAM['zmin_shot'], CAM['landing_zoom'] + 0.1), prefer=ink_l.centroid())[0]
-            stp['land_rect'] = r
-    if not layers['camera']:
-        for stp in steps:
-            stp['click_rect'] = stp['type_rect'] = stp['land_rect'] = None
-    # a target already in the current shot with headroom keeps that shot (no move for the click)
-    prev_shot = None
-    for stp in steps:
-        tb = stp['target_box']
-        held = prev_shot is not None and contains(prev_shot, tb, CAM['safe_margin'] * prev_shot[2] / W)
-        stp['click_held'] = held
-        stp['click_shot'] = prev_shot if held else stp['click_rect']
-        prev_shot = stp.get('land_rect') if stp['navigates'] else (stp.get('type_rect') or stp['click_shot'])
+            if layers['camera']:
+                ink_l = Ink(capture_at(st['t']), W, H, CAM['word_gap'])
+                lpw = max(pw, pill_width(nxt['caption'], cfg, a.font)) if nxt else pw
+                if nxt:
+                    nb = nxt['ck'].get('block') or pad_block(nxt['ck']['box'])
+                    r = focus_rect(ink_l, nb, nxt['ck']['box'], W, H, cfg, lpw, zr_land, origin=full, budget=1.0)[0]
+                else:
+                    r = focus_rect(ink_l, None, None, W, H, cfg, lpw, zr_land, prefer=ink_l.centroid(), origin=full, budget=1.0)[0]
+                stp['land_rect'] = r
+                cur = r or full
 
     # ---- segments (source spans with output durations) -----------------------------------------
     segments, forbidden = [], []
@@ -436,8 +472,8 @@ def main(argv=None):
             g0 = segments[0]['out0']
         bounds = [g0] + [c for c in cuts if g0 < c < g1] + [g1]
         for a0, a1 in zip(bounds, bounds[1:]):
-            if a1 - a0 <= still_max - 0.1 or not layers['camera']:
-                continue
+            if a1 - a0 <= still_max - 0.1 or not layers['camera'] or any(abs(a1 - c) < 1e-3 for c in nav_cuts):
+                continue   # short enough, no camera, or it ends at a navigation cut, which is taken at 1.0x
             ink = Ink(capture_at(src_of((a0 + a1) / 2)), W, H, CAM['word_gap'])
             z = W / r[2]
             centre = (r[0] + r[2] / 2, r[1] + r[3] / 2)
@@ -456,10 +492,13 @@ def main(argv=None):
             t_s, t_e = a0 + still, a1 - still
             if t_e - t_s < MOT['min_move_duration'] or t_e - t_s < move_duration(r, tgt, 0.0, W, MOT):
                 continue
+            # the next move now starts from the drifted rect: it must still fit its time inside the limits
+            nxt = next(((m0, m1, r1) for m0, m1, r1 in moves_t if m0 >= a1 - 1e-6), None)
+            if nxt and move_duration(tgt, nxt[2], 0.0, W, MOT) > nxt[1] - nxt[0] + 1e-3:
+                continue
             cam += [{'t': round(t_s, 4), 'rect': r}, {'t': round(t_e, 4), 'rect': tgt}]
-            # the next move starts from the drifted rect
-            for c in cam:
-                if c['t'] > t_e + 1e-6 and c['rect'] == r:
+            for c in cam:   # the hold until the next move starts is at the drifted rect
+                if t_e + 1e-6 < c['t'] <= (nxt[0] if nxt else total) + 1e-6 and c['rect'] == r:
                     c['rect'] = tgt
     cam.sort(key=lambda c: c['t'])
 
@@ -540,7 +579,7 @@ def main(argv=None):
         if layers['camera'] and abs(W / r[2] - 1.0) > 1e-3:
             errs.append(f'navigation cut at {c:.2f}s taken at {W / r[2]:.2f}x, not 1.0x')
     for stp in steps:
-        for key in ('click_rect', 'type_rect', 'land_rect'):
+        for key in ('click_shot', 'type_rect', 'land_rect'):
             r = stp.get(key)
             if r:
                 ink = Ink(capture_at(stp['st']['t'] if key == 'land_rect' else stp['ck']['t']), W, H, CAM['word_gap'],
@@ -549,13 +588,10 @@ def main(argv=None):
                 if bad:
                     errs.append(f"{stp['id']} {key} cuts content at {bad}")
     for stp in steps:
-        print(f"  step {stp['id']}: click {stp['click_rect']} type {stp.get('type_rect')} land {stp.get('land_rect')} "
+        print(f"  step {stp['id']}: click {stp['click_shot']}{' (held)' if stp['click_held'] else ''} type {stp.get('type_rect')} land {stp.get('land_rect')} "
               f"navigates={stp['navigates']}")
     for c in captions:
         print(f"  caption {c['kind']} {c['step']} {c['span']}: {c['slot']} {c['anchor_occupancy']}")
-    if errs:
-        print('EDL breaks rules:\n  ' + '\n  '.join(errs))
-        return 1
 
     edl = {
         'version': 1,
@@ -589,6 +625,11 @@ def main(argv=None):
                    'target_box': s['target_box'], 'click_t': s['ck']['t'], 'click_out': round(out_of(s['ck']['t']), 4)}
                   for s in steps],
     }
+    if errs:   # kept beside the output for diagnosis, under a name produce.py is never pointed at
+        rejected = Path(a.out).with_suffix('.rejected.json')
+        rejected.write_text(json.dumps(edl, indent=1))
+        print('EDL breaks rules (plan kept at ' + str(rejected) + '):\n  ' + '\n  '.join(errs))
+        return 1
     Path(a.out).write_text(json.dumps(edl, indent=1))
     print(f'edl: {len(steps)} steps, {len(segments)} segments, {len(cam)} camera keys, {total:.2f}s -> {a.out}')
     return 0

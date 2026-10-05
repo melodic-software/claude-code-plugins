@@ -79,20 +79,21 @@ let n = 0;
 let capturing = false;
 let grabber = null;
 
-function startCapture(cdp) {
+// page.screenshot at scale 'device' renders at device pixels and, unlike a CDP session held across the
+// run, keeps working when a navigation swaps the renderer process (file:// pages, cross-site links).
+function startCapture() {
   capturing = true;
   grabber = (async () => {
     while (capturing) {
       const t0 = now();
-      let r;
+      let buf;
       try {
-        r = await cdp.send('Page.captureScreenshot', { format: 'png', optimizeForSpeed: true, clip: { x: 0, y: 0, width: W, height: H, scale: DSF } });
+        buf = await page.screenshot({ type: 'png', scale: 'device', animations: 'allow', caret: 'initial', timeout: 3000 });
       } catch {
         await new Promise((res) => setTimeout(res, 10));
         continue;
       }
       const file = `frames/${String(n++).padStart(5, '0')}.png`;
-      const buf = Buffer.from(r.data, 'base64');
       fs.writeFileSync(path.join(out, file), buf);
       frames.push({ file, t: (t0 + now()) / 2, t0, digest: crypto.createHash('md5').update(buf).digest('hex') });
     }
@@ -124,7 +125,8 @@ async function settle(step, extra = {}) {
     if (tail.length === STILL && tail.every((f) => f.digest === tail[0].digest)) {
       let j = frames.lastIndexOf(tail[0]);
       while (j > 0 && frames[j - 1].digest === tail[0].digest && frames[j - 1].t0 >= tStart) j--;
-      events.push({ name: 'settled', step, t: frames[j].t0, url: page.url(), ...extra });
+      // the frame's own time: build_edl.py looks captures up by it, so it must select this frame
+      events.push({ name: 'settled', step, t: frames[j].t, url: page.url(), ...extra });
       return;
     }
     if (now() - tStart > 20) throw new Error(`step ${step}: page never went still`);
@@ -138,7 +140,7 @@ const demo = {
     await page.goto(url, { waitUntil: 'networkidle', ...opts });
     await page.mouse.move(mouse.x, mouse.y);
     if (!capturing) {
-      startCapture(await context.newCDPSession(page));
+      startCapture();
       await page.waitForTimeout(600);
       mark('start');
       await page.waitForTimeout(1200);

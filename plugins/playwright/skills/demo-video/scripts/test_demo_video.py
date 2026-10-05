@@ -200,6 +200,41 @@ class DemoPipelineSmoke(unittest.TestCase):
         share = next(c for c in report['checks'] if c['check'] == 'zoom-share')
         self.assertEqual(share['status'], 'PASS')
 
+    def test_narration_trims_leading_silence_and_fits_the_edit(self):
+        # One /speech:narrate-shaped clip: 0.35 s of leading silence (the Kokoro padding), then 1.0 s of tone;
+        # words.json puts the first word at 0.35 s and the last word's end at 1.30 s.
+        audio = self.tmp / 'audio'
+        clip = audio / 'get-started'
+        clip.mkdir(parents=True)
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'anullsrc=r=24000:cl=mono:d=0.35', '-f', 'lavfi',
+                        '-i', 'sine=frequency=440:sample_rate=24000:duration=1.0', '-filter_complex', '[0:a][1:a]concat=n=2:v=0:a=1',
+                        str(clip / 'narration.wav')], check=True)
+        (clip / 'words.json').write_text(json.dumps({'duration': 1.35, 'words': [
+            {'word': 'Open', 'start': 0.35, 'end': 0.8}, {'word': 'it', 'start': 0.85, 'end': 1.3}]}))
+        edl_path = self.tmp / 'edl-narrated.json'
+        r = run('build_edl.py', self.tmp / 'capture', self.tmp / 'script.json', edl_path, '--audio-dir', audio)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        edl = json.loads(edl_path.read_text())
+        self.assertTrue(edl['layers']['narration'])
+        (entry,) = edl['audio']
+        self.assertAlmostEqual(entry['trim'], 0.30, places=3)       # first word 0.35 s minus the 0.05 s lead
+        self.assertAlmostEqual(entry['duration'], 1.05, places=3)   # last word end 1.30 + 0.15 tail, capped at 1.35, minus trim
+        nav_cut = edl['nav_cuts'][0]
+        self.assertLessEqual(entry['end'], nav_cut - 0.3 + 1e-3)    # the step's line ends a pad before its page changes
+        out = self.tmp / 'narrated.mp4'
+        r = run('produce.py', edl_path, out, '--preset', 'veryfast')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        streams = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_type', '-of', 'csv=p=0', str(out)],
+                                 capture_output=True, text=True, check=True).stdout.split()
+        self.assertEqual(sorted(streams), ['audio', 'video'])
+
+    def test_plain_style_drops_camera_title_and_captions(self):
+        edl_path = self.tmp / 'edl-plain.json'
+        r = run('build_edl.py', self.tmp / 'capture', self.tmp / 'script.json', edl_path, '--style', 'plain')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        layers = json.loads(edl_path.read_text())['layers']
+        self.assertEqual({k for k, v in layers.items() if v}, {'cursor', 'ripple'})
+
     def test_edl_plan_keeps_navigation_cuts_at_one_x(self):
         edl = json.loads(self.edl.read_text())
         self.assertEqual(len(edl['nav_cuts']), 2)   # two navigating steps in the fixture flow

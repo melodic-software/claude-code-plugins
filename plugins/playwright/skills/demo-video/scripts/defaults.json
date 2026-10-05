@@ -58,7 +58,7 @@
     "edge_band": 2,
     "settled_frames": 6,
     "match_min": 0.6,
-    "nav_change_min": 0.02,
+    "nav_change_min": 0.005,
     "nav_zoom_max": 1.02,
     "crossfade_gain": 0.5,
     "white_luma": 245,
