@@ -15,14 +15,17 @@ name: pr-bump-plugin-version
 # ruleset accepts. A local commit pushed with GITHUB_TOKEN is unsigned.
 # Per the GitHub docs page "Triggering a workflow", a pull_request event from a
 # pull request that GITHUB_TOKEN updated creates runs in an approval-required
-# state; a GitHub App installation token does not. So the commit uses a token
+# state; the page names a GitHub App installation token as the way to start
+# them without approval. So the commit uses a token
 # from the dedicated bump App when its Dependabot secrets
 # DEPENDABOT_BUMP_APP_CLIENT_ID and DEPENDABOT_BUMP_APP_PRIVATE_KEY exist (a
 # Dependabot-triggered run sees only Dependabot secrets: "Troubleshooting
 # Dependabot on GitHub Actions"), and GITHUB_TOKEN otherwise, under which every
 # run on the bump commit waits in action_required (#5786). The App holds
 # contents: write on this repository only and bypasses no ruleset; the release
-# App's key stays in the plugin-release environment.
+# App's key stays in the plugin-release environment. Trade-off: runs on an
+# App-made bump commit are not Dependabot-triggered, so they get the
+# repository's Actions secrets with no approval step, as approved runs do now.
 # Recheck: once the secrets exist, a bump commit's runs start without approval.
 on:
   pull_request:
