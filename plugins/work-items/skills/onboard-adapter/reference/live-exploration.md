@@ -53,8 +53,12 @@ Fetch one item that is **blocked by another**, then close the blocker and fetch 
 - **Does the blocker's own state come back inline?** If it does, `blocked_by_count` needs
   no second round-trip. If it does not, the count needs a follow-up fetch per blocker,
   which is a real cost worth knowing before writing the mapping.
-- `blocked_by_count` counts **open** blockers only. Confirm against the closed-blocker
-  fetch that your derivation actually drops it.
+- `blocked_by_count` counts **open** blockers, plus blockers closed as won't-do when the
+  provider records a close reason. Confirm against the closed-blocker fetch that your
+  derivation drops a completed blocker.
+- **Does a closed issue record why it closed** (completed versus not planned or duplicate)?
+  If it does, map those reasons so a won't-do blocker keeps blocking and counts in
+  `blocked_by_wont_do_count`. If it does not, closed means resolved and that field is `0`.
 
 ### Parent linkage: when `list-sub-items` or `add-sub-item` is declared
 
