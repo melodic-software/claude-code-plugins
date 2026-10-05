@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "Settled: Debezium on Postgres logical replication. Out of scope: partner client SDKs or libraries; we only publish the feed contract.", "why": "exclusion governs the SDK in one clause"}
+  ],
+  "fail": [
+    {"answer": "Decision: webhook push or pulled cursor (#307). Partner SDKs remain open; separately, the nightly CSV retirement plan is out of scope.", "why": "exclusion is about something else, in another clause"},
+    {"answer": "Decision: webhook push or pulled cursor (#307). Explore which client SDKs partners would want.", "why": "no exclusion"}
+  ]
+}

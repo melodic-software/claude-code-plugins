@@ -1,0 +1,13 @@
+{
+  "pass": [
+    {"answer": "Out of scope: partner client SDKs or libraries; we publish a feed contract only.", "why": "exclusion governs the SDK in one clause"},
+    {"answer": "## Out-of-scope\n\n- Partner client SDKs or libraries: we publish a feed contract only and never ship client code", "why": "the map's own out-of-scope line"},
+    {"answer": "Out of scope:\n- Replay windows\n- Partner client SDKs or libraries", "why": "SDK listed under an out-of-scope label"}
+  ],
+  "fail": [
+    {"answer": "For Q3, given Debezium, recommend which partner SDKs we should build and ship.", "why": "tasks SDK work, no exclusion"},
+    {"answer": "The partner SDK work remains open; separately, shipping the nightly batch job is explicitly out of scope and will not ship this quarter.", "why": "exclusion is about the batch job, in another clause"},
+    {"answer": "Partner SDKs stay in scope. The nightly batch job is out of scope.", "why": "exclusion is in a different sentence"},
+    {"answer": "We will build the partner SDKs, but the batch export is out of scope.", "why": "contrastive clause excludes something else"}
+  ]
+}

@@ -13,7 +13,7 @@ execution:
 graders:
   - name: sdk-fenced-out
     type: regex
-    pattern: '(?:SDK|client (?:librar|code))[\s\S]{0,240}(?:out of scope|out-of-scope|excluded|exclusion|not (?:in scope|ship|build|provide)|never ship|won''t ship|will not ship)|(?:out of scope|out-of-scope|excluded|exclusion|not (?:in scope|ship|build|provide)|never ship|won''t ship|will not ship)[\s\S]{0,240}(?:SDK|client (?:librar|code))'
+    pattern: '(?:SDK|client (?:librar|code))(?:(?!,\s*(?:but|while|whereas|although|though|however|separately|yet)\b)[^.!?;\n]){0,200}(?:out of scope|out-of-scope|excluded|exclusion|not (?:in scope|ship|build|provide)|never ship|won''t ship|will not ship)|(?:out of scope|out-of-scope|excluded|exclusion|not (?:in scope|ship|build|provide)|never ship|won''t ship|will not ship)(?:(?!,\s*(?:but|while|whereas|although|though|however|separately|yet)\b)[^.!?;\n]){0,200}(?:SDK|client (?:librar|code))|(?:^|\n)[ \t]*(?:#+[ \t]*|\*\*)?(?:out of scope|out-of-scope|exclusions?)[*_:]*[ \t]*\n\s*(?:(?:[-*+]|\d+\.)[^\n]*\n\s*){0,5}(?:[-*+]|\d+\.)[^\n]*?(?:SDK|client (?:librar|code))'
     flags: i
     arm: both
   - name: brief-respects-out-of-scope

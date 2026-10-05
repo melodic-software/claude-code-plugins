@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.69.4] - 2026-10-04
+
+### Fixed
+
+- **The SDK out-of-scope regex in three `/planning:wayfind` eval cases now needs the SDK and the exclusion in the same clause.** It used to accept any SDK mention within 240 characters of any exclusion phrase, so "The partner SDK work remains open; separately, the batch job is out of scope" passed though the SDK was never excluded. The text between them may no longer cross a sentence end, a semicolon, a line break, or a contrastive join such as ", but"; an SDK listed under an "Out of scope" label still passes. New fail samples cover the cross-clause pairing, and `/evals:validate` grades every sample correctly.
+
 ## [0.69.3] - 2026-10-04
 
 ### Added
