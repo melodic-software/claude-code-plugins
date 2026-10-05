@@ -108,7 +108,7 @@ reads it from.
 | `demo_style` | string | `"produced"` | `CLAUDE_PLUGIN_OPTION_DEMO_STYLE` | Style of /playwright:demo-video output: produced (zoom on each action, captions, title card) or plain (the same replay and drawn cursor, no zoom, captions or title). |
 | `demo_title` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DEMO_TITLE` | Open the demo video with a title card. The plain style has none whatever this says. |
 | `demo_camera` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DEMO_CAMERA` | Zoom and pan onto each action. The plain style has none whatever this says. |
-| `demo_cursor` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DEMO_CURSOR` | Draw the pointer travelling to and clicking each target. |
+| `demo_cursor` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DEMO_CURSOR` | Draw the pointer traveling to and clicking each target. |
 | `demo_ripple` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DEMO_RIPPLE` | Draw a ring around each clicked element. |
 | `demo_captions` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_DEMO_CAPTIONS` | Caption each step and its outcome. The plain style has none whatever this says. |
 | `demo_narration` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_DEMO_NARRATION` | Add a voice-over through /speech:narrate when the speech plugin is installed. Off by default. |

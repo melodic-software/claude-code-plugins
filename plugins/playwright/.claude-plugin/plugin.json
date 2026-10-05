@@ -30,7 +30,7 @@
     "demo_cursor": {
       "type": "boolean",
       "title": "Demo video: drawn cursor",
-      "description": "Draw the pointer travelling to and clicking each target.",
+      "description": "Draw the pointer traveling to and clicking each target.",
       "default": true
     },
     "demo_ripple": {
