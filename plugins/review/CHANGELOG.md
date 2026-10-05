@@ -7,7 +7,7 @@ All notable changes to the `review` plugin are documented here. Format follows
 
 ### Added
 
-- **`/review:explain-change` publishes to a shared page host on `medium: hosted`.** The new `scripts/publish-hosted.mjs` gates the built page itself (with its data block's strings decoded), whichever layer chose `hosted`: a credential-shaped line refuses the upload, and a repository that is not `PUBLIC` or a machine path or hostname sends the page to the private host. It then runs the operator's `pages-publish`, keeps the page id in `${CLAUDE_PLUGIN_DATA}/hosted/<owner>__<repo>__<pr>.json` so a rebuild replaces the same page, and deletes the old copy when the page moves between hosts. A tracked team layer cannot select `hosted`. The contract is in the rendered-views convention, "The `hosted` medium".
+- **`/review:explain-change` publishes to a shared page host on `medium: hosted`.** The new `scripts/publish-hosted.mjs` gates the built page itself (with its data block's strings decoded), whichever layer chose `hosted`: a credential-shaped line refuses the upload, and a repository that is not `PUBLIC` or a machine path or hostname sends the page to the private host. It then runs the operator's `pages-publish`, keeps the page id in `${CLAUDE_PLUGIN_DATA}/hosted/<owner>__<repo>__<pr>.json` so a rebuild replaces the same page, and deletes the old copy when the page moves between hosts. A page the gate sent private that `pages-publish` reports on the public host exits 1 and names the URL to take down. A tracked team layer cannot select `hosted`. The contract is in the rendered-views convention, "The `hosted` medium".
 
 ### Changed
 

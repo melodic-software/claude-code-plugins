@@ -521,6 +521,14 @@ process.exitCode = Number(process.env.FAKE_EXIT || 0);
       ["--delete", idA, "--visibility", "public"],
     ]);
   });
+  test("a private page pages-publish puts on the public host exits 1 and names the URL; the sidecar keeps it for cleanup", () => {
+    const at = setup();
+    const out = publish(at, { visibility: "PRIVATE", out: answer(idB, "public") });
+    assert.equal(out.status, 1);
+    assert.deepEqual(calls(), [[at.page, "--visibility", "private"]]);
+    assert.match(JSON.parse(out.stdout).reason, new RegExp(`public host; take down https://public\\.pages\\.example/${idB}/$`));
+    assert.equal(JSON.parse(readFileSync(at.sidecarPath, "utf8")).visibility, "public");
+  });
   test("a credential in the page refuses before any upload and keeps the sidecar", () => {
     const at = setup({ ...sample, why: `t = ${"ghp_"}${"a".repeat(36)}` }, answer(idA, "public"));
     const out = publish(at, { out: answer(idB, "public") });

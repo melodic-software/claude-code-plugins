@@ -92,6 +92,10 @@ export function publishHosted({ page, repo, pr, repoVisibility, dataDir }) {
     const removed = pagesPublish(["--delete", old.id, "--visibility", old.visibility]);
     result.old_copy = removed.status === 0 ? `deleted from the ${old.visibility} host` : `delete on the ${old.visibility} host failed; ${old.url ?? old.id} is still up`;
   }
+  // pages-publish may lower public to private, never raise it; the sidecar keeps the id so a rerun deletes it.
+  if (gate.destination === "private" && landed === "public") {
+    return { exit: 1, result: { ...result, reason: `the gate chose the private host (${gate.reason}) but pages-publish put the page on the public host; take down ${url}` } };
+  }
   return { exit: 0, result };
 }
 
