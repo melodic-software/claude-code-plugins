@@ -154,8 +154,18 @@ convert() {
   }
   cat "$tmp/body" >>"$path" || return 2
   set_version "$b" <"$manifest" >"$tmp/pj" || return 2
-  cp "$tmp/pj" "$manifest" && cp "$tmp/cl.rest" "$changelog" &&
-    git add -- "$manifest" "$changelog" "$path" || return 2
+  # All three files change together or not at all: on any failure, put the
+  # manifest and changelog back and drop the fragment, so a re-run sees the bump.
+  cp "$manifest" "$tmp/pj.orig" && cp "$changelog" "$tmp/cl.orig" || return 2
+  if ! { cp "$tmp/pj" "$manifest" && cp "$tmp/cl.rest" "$changelog" &&
+    git add -- "$manifest" "$changelog" "$path"; }; then
+    cp "$tmp/pj.orig" "$manifest"
+    cp "$tmp/cl.orig" "$changelog"
+    git rm -q --cached --ignore-unmatch -- "$path" >/dev/null 2>&1
+    rm -f -- "$path"
+    echo "Staging the conversion of plugins/$name failed; restored its files." >&2
+    return 2
+  fi
   echo "converted plugins/$name: $b -> $w becomes $path (bump: $level)"
   changelog_fragments::validate "$path" || left "$name" "edit $path until scripts/check-changelog-fragments.sh --check passes"
 }

@@ -338,4 +338,19 @@ f=$(fragment "$r" demo)
 assert_contains "entry not cut at the fence" "$(cat "$r/$f")" "- After the fence."
 assert_eq "CHANGELOG back to base" "$(git -C "$r" show "main:$P/CHANGELOG.md")" "$(cat "$r/$P/CHANGELOG.md")"
 
+# 18. Staging fails (the index is locked): the bump and its entry are put back
+#     and no fragment is left, so a re-run converts it.
+r=$(mkfixture)
+bump "$r" demo 1.3.0 desc '- Locked change.'
+: >"$(git -C "$r" rev-parse --absolute-git-dir)/index.lock"
+out=$(run "$r" "$CONVERT" main)
+assert_exit "staging failure: exit 2" 2 "$?"
+assert_eq "bump restored" 1.3.0 "$(jq -r .version "$r/$P/.claude-plugin/plugin.json")"
+assert_contains "entry restored" "$(cat "$r/$P/CHANGELOG.md")" "- Locked change."
+assert_eq "no fragment left" "" "$(find "$r/.changes" -type f -name '*.md' 2>/dev/null)"
+rm -f "$(git -C "$r" rev-parse --absolute-git-dir)/index.lock"
+out=$(run "$r" "$CONVERT" main)
+assert_exit "re-run converts" 0 "$?"
+assert_eq "re-run restores the version" 1.2.0 "$(jq -r .version "$r/$P/.claude-plugin/plugin.json")"
+
 [[ $FAILED -eq 0 ]] || exit 1
