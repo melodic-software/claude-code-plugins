@@ -54,9 +54,10 @@ on:
   # another; the docs-only detector does not run, the detect-changes action
   # fails open and `select-tests` resolves no diff base, so the whole tree is
   # tested; the base-diff gates decline as on a schedule run; `check-contract` finds no pull
-  # request number and reports `skipped`, because the title, label and linkage
-  # were already checked on the pull request before it could enter the queue;
-  # and `ci-status` aggregates the lanes and records `ci-lanes` on the
+  # request number and reports `skipped`, because the title and linkage were
+  # already checked on the pull request before it could enter the queue, while
+  # `ci-status` re-reads the queued pull request's `do-not-merge` label from the
+  # API (a label can land after enqueue); and `ci-status` aggregates the lanes and records `ci-lanes` on the
   # merge-group commit (`github.sha`), a SHA no contract-only run ever reads.
   merge_group:
     types: [checks_requested]
@@ -2561,6 +2562,41 @@ jobs:
           fi
           echo "::error::draft: lanes not run. Mark the pull request ready to lint and test this SHA."
           exit 1
+      # A QUEUED PULL REQUEST IS HELD BY ITS LABEL TOO. A merge-group payload
+      # carries no pull request, so `check-contract` above reports `skipped`,
+      # and a `do-not-merge` label applied after enqueue would merge (#5952).
+      # This step reads the live labels of the pull request the group was built
+      # for, named in the merge-group ref (`gh-readonly-queue/<base>/pr-<N>-<sha>`),
+      # and fails if it carries the label; the queue then removes that pull
+      # request. It reads only that one: a failed group removes the pull request
+      # it was built for, never one ahead of it, so failing on an earlier
+      # entry's label would eject an unlabeled pull request while the labeled
+      # one still merged. A label that lands after this step passed does not stop the merge;
+      # dequeue the pull request as well. An unparseable ref or an unreadable
+      # label list fails closed. Pinned by scripts/ci-hold-merge-group.test.sh,
+      # which runs this body.
+      - name: Fail a queued pull request labeled do-not-merge
+        if: github.event_name == 'merge_group'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr=$(sed -nE 's#^(refs/heads/)?gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$#\2#p' <<<"$GITHUB_REF")
+          if [ -z "$pr" ]; then
+            echo "::error::cannot read a pull request number from the merge-group ref '$GITHUB_REF'."
+            exit 1
+          fi
+          for attempt in 1 2 3; do
+            if labels=$(gh api "repos/$GITHUB_REPOSITORY/issues/$pr/labels?per_page=100" --jq '.[].name'); then
+              break
+            fi
+            [ "$attempt" -lt 3 ] || { echo "::error::could not read the labels of #$pr; re-run this run."; exit 1; }
+            sleep $((attempt * 5))
+          done
+          if grep -qxF do-not-merge <<<"$labels"; then
+            echo "::error::#$pr carries the 'do-not-merge' label; the merge queue removes it. Remove the label and re-queue to merge."
+            exit 1
+          fi
+          echo "#$pr carries no 'do-not-merge' label."
       # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>`, or `lint-shell`
       # on its `run_shell` row, skips as a job when `select-tests`'s `run_<x>`
       # row says the change gives it no work. Its

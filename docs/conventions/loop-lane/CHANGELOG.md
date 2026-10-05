@@ -5,6 +5,15 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [10.2.0] - 2026-10-04
+
+Minor. Guidance only; no topology, escalation-contract, capability-tier or §4 invariant changed.
+
+- **The hold reaches the merge queue (Cross-lane PR hold, §7).** A merge-group run's `ci-status`
+  now fails on a `do-not-merge` label on the queued PR, so the queue removes it. A label applied
+  after that run's `ci-status` passed does not stop the merge, so **Hold a PR** adds a
+  `dequeuePullRequest` command for a queued PR, run right after the label.
+
 ## [10.1.1] - 2026-10-04
 
 Patch. Wording only; no value, topology or invariant changed.
