@@ -78,7 +78,7 @@ else
   printf '%s\n' '#!/usr/bin/env bash' 'cat data/unmapped.txt' >"$t/suites/zz-outside.test.sh"
   # An eval fixture is data no lane runs, so the corpus leaves it untraced.
   mkdir -p "$t/plugins/x/evals/fixtures"
-  printf '%s\n' '#!/usr/bin/env bash' 'cat data/hidden.txt' >"$t/plugins/x/evals/fixtures/fake.test.sh"
+  printf '%s\n' 'open("data/hidden.txt").read()' >"$t/plugins/x/evals/fixtures/test_fake.py"
   ci_fallback "$t" suites/reader.test.sh suites/quiet.test.sh
   git -C "$t" add -A && git -C "$t" commit -qm base
   echo untracked >"$t/data/untracked.txt"

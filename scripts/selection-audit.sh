@@ -8,7 +8,7 @@
 #       change to that file selects the suite. Every (suite, file) pair the
 #       selector would not take is a GAP: a change to that file could break the
 #       suite on main while the pull request's affected run never started it.
-#       Default corpus: every tracked *.test.sh and test_*.py outside
+#       Default corpus: every tracked *.test.sh, and every test_*.py outside
 #       /evals/fixtures/, which holds data no lane runs; --shard keeps
 #       suites I, I+N, I+2N, ... of the sorted list.
 #
@@ -181,8 +181,9 @@ cmd_trace() {
   git ls-files >"$out/tracked"
   fallback_corpus >"$out/fallback" || die "cannot derive the suites pr-require-checks.yml's UNMAPPED fallback runs"
   if ((${#suites[@]} == 0)); then
-    # Eval fixtures are data that no lane runs (scripts/plan-test-lanes.sh).
-    mapfile -t suites < <(grep -E '(\.test\.sh|(^|/)test_[^/]*\.py)$' "$out/tracked" | grep -v '/evals/fixtures/' |
+    # A Python eval fixture is data no lane runs (scripts/plan-test-lanes.sh);
+    # a *.test.sh there would still run in the bash lane, so it stays traced.
+    mapfile -t suites < <(grep -E '(\.test\.sh|(^|/)test_[^/]*\.py)$' "$out/tracked" | grep -vE '/evals/fixtures/(.*/)?test_[^/]*\.py$' |
       awk -v i="$i" -v n="$n" '(NR - 1) % n == i')
   fi
   ((${#suites[@]})) || die "no suites to trace"
