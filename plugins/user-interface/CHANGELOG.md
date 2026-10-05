@@ -8,7 +8,8 @@ All notable changes to the `user-interface` plugin are documented here. Format f
 ### Changed
 
 - The terminal and mods references now say the developer-experience guidance decides what a hook
-  notice must contain, while this plugin owns its wording and look.
+  notice must contain and the hook-observability convention governs how each channel phrases it,
+  while this plugin owns its look.
 
 ## [0.1.1] - 2026-10-04
 

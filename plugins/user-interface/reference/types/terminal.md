@@ -56,7 +56,7 @@ Check these in order at run time; the first that applies decides.
 
 The project's developer-experience guidance decides what an error, a hook notice or `--help` must
 contain (cause, fix, exit code, machine-readable form, which flags `--help` documents). This file
-owns the wording and the look:
+owns the wording and the look, except that a hook notice's phrasing follows `mods.md` "Wording":
 
 - Lead with what happened, in the user's words, then what to do. One line when one line will do.
 - Name the input that failed and the value received.
