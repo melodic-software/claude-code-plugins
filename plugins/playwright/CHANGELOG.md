@@ -3,6 +3,22 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.10] - 2026-10-04
+
+### Changed
+
+- **Synced `@playwright/cli` vendor baseline to 0.1.22.** `reference/tracing-and-video.md` now
+  documents `video-start --size/--fps/--cursor`, `video-chapter`, and `video-show-actions` with its
+  opt-in `--highlight-style`/`--point-style`/`--title-style` (the target highlight no longer shows
+  unless styled), and says to always pass `--size` because the default fits 800×800. Also added the
+  emulation (`set-color-scheme` and siblings), WebMCP, and `find --filename` commands, the headless
+  idle shutdown, and the `run-code` sandbox limits. Upstream:
+  [playwright-cli v0.1.20 to v0.1.22](https://github.com/microsoft/playwright-cli/releases).
+- **Declared `gh` as an optional prerequisite.** The vendored skill now shows attaching
+  screenshots and videos to a pull request with `gh pr comment --attach`.
+- **Upstream records in the new reference text state our decision plus a live pointer.** The
+  `run-code` login example passes the password from the shell instead of `process.env`.
+
 ## [0.8.9] - 2026-10-04
 
 ### Changed
