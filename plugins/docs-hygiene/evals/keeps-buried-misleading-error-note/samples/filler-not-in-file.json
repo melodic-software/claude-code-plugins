@@ -21,6 +21,10 @@
     {
       "answer": "```markdown\n# AGENTS.md\n\n- Routers: one per resource under `tidepool/routes/`; fixtures in `tests/conftest.py`.\n- PermissionError on `/tmp/tidepool-test.lock`: stale lock from a killed run. Delete it and rerun.\n```\n\n- Layout: visible from the tree.",
       "why": "router and conftest notes remain, reworded"
+    },
+    {
+      "answer": "```markdown\n# AGENTS.md\n\n- Prefer type annotations and short routines.\n- PermissionError on `/tmp/tidepool-test.lock`: a killed run left a stale lock, not a permissions issue. Delete the file and rerun.\n```\n\n- Layout, router and model locations: visible from the tree.",
+      "why": "generic notes remain, paraphrased"
     }
   ]
 }
