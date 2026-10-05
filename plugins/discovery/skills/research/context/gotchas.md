@@ -54,7 +54,7 @@ outcome gate's artifact-grounded criteria, or not at all.
   scenario checks ask whether the source covers the claim's product line and situation. A
   `historical` source is labeled and never counted.
 - **Counting a repost as the second source.** A blog post or synthesis answer that restates a
-  publisher's own page is that page again. Counting it lets a single-publisher claim pass criterion 4 as
+  publisher's own page is that page again. Counting it lets a first-party content claim pass criterion 4 as
   corroborated, and the `single source` flag that should travel with the claim disappears. Record
   the repost under the page's pool and flag the claim. The opposite slip costs as much: flagging a
   behavior claim because its docs page is the only one found, when a probe or an issue could
