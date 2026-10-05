@@ -19,6 +19,39 @@
       "check": "/playwright:check"
     },
     {
+      "id": "python",
+      "kind": "runtime",
+      "need": "required",
+      "for": ["hook:install-python-deps.sh", "skill:demo-video"],
+      "detect": {
+        "any": ["python3", "python"],
+        "version": { "args": ["--version"], "pattern": "Python ([0-9.]+)", "min": "3.12" }
+      },
+      "degrade": "Without Python 3.12 or later the SessionStart hook cannot install numpy and Pillow, and /playwright:demo-video cannot build, render or QC a video.",
+      "install": { "docs": "https://www.python.org/downloads/", "brew": "python@3.13", "winget": "Python.Python.3.13", "apt": "python3" },
+      "check": "/playwright:check"
+    },
+    {
+      "id": "ffmpeg",
+      "kind": "cli",
+      "need": "required",
+      "for": ["skill:demo-video"],
+      "detect": { "any": ["ffmpeg"] },
+      "degrade": "Without ffmpeg /playwright:demo-video cannot encode the video or decode it for QC.",
+      "install": { "docs": "https://ffmpeg.org/download.html", "apt": "ffmpeg", "brew": "ffmpeg", "winget": "Gyan.FFmpeg" },
+      "check": "/playwright:check"
+    },
+    {
+      "id": "ffprobe",
+      "kind": "cli",
+      "need": "required",
+      "for": ["skill:demo-video"],
+      "detect": { "any": ["ffprobe"] },
+      "degrade": "Without ffprobe /playwright:demo-video cannot read narration clip durations or probe the rendered video.",
+      "install": { "docs": "https://ffmpeg.org/download.html", "apt": "ffmpeg", "brew": "ffmpeg", "winget": "Gyan.FFmpeg" },
+      "check": "/playwright:check"
+    },
+    {
       "id": "node",
       "kind": "runtime",
       "need": "required",
