@@ -780,9 +780,11 @@ to the template re-renders here too.
 >   only on explicit user request.
 > - **Account switch:** while paused, a consumer **MUST** read
 >   `.oauthAccount.emailAddress` directly from
->   `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot file: a
->   machine running only headless sessions never refreshes the snapshot file, so a
->   switch would go unseen. At pause entry, record the **latched
+>   `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot
+>   file: it names an account only as of a session's last API response,
+>   and a paused lane's Monitor ticks never write it, so after a switch
+>   it names the old account or none until a session gets a response
+>   under the new one. At pause entry, record the **latched
 >   account** as the `account.email` of the snapshot that tripped, not
 >   the account `.claude.json` names now: that snapshot can be up to 10
 >   minutes old and may describe an account the operator has since left.

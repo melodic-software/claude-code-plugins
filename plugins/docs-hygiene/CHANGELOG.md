@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.26.9] - 2026-10-04
+
+### Changed
+
+- **extract-ssot's orchestrated mode inlines rate-limit-guard's updated operable floor and drops a stale snapshot claim.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says the file names an account only as of a session's last API response and a paused lane's Monitor ticks never write it. The reactive-only note no longer says the snapshot carries no account identifier: it carries one when the writer could attribute the reading.
+
 ## [0.26.8] - 2026-10-04
 
 ### Added
