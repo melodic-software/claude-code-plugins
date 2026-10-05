@@ -111,11 +111,13 @@ if ((stdin)); then
   fi
 fi
 
+# Until every fragment is written and valid, any exit, an interrupt included,
+# removes the ones already written: a partial set would record a shared change
+# for only some of its carriers.
 written=()
-discard() {
-  rm -f "${written[@]}"
-  exit 2
-}
+trap 'rm -f "${written[@]}"' EXIT
+trap 'exit 2' INT TERM HUP
+discard() { exit 2; }
 for plugin in "${plugins[@]}"; do
   if ! suffix="$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')" || [[ ! "$suffix" =~ ^[0-9a-f]{8}$ ]]; then
     echo "$self: could not read 4 random bytes from /dev/urandom." >&2
@@ -144,4 +146,5 @@ if ((stdin)); then
     discard
   fi
 fi
+trap - EXIT INT TERM HUP
 printf '%s\n' "${written[@]}"
