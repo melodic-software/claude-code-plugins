@@ -1,5 +1,15 @@
 # Changelog: docs-hygiene plugin
 
+## [0.26.8] - 2026-10-04
+
+### Added
+
+- **`write-for-agents` gains three `claude plugin eval` cases (tag `pocock-34`) under the plugin's `evals/`.** Two check that trimming an AGENTS.md keeps a row mapping a misleading error to its real cause while cutting derivable filler; a control checks that a row whose error already names its own fix is cut.
+
+### Changed
+
+- **`write-for-agents` description names trimming an existing CLAUDE.md or AGENTS.md as a trigger ([#6381](https://github.com/melodic-software/claude-code-plugins/issues/6381)).** It adds 'trim this AGENTS.md', 'cut it down to what earns its place' and 'prune what an agent could derive'; every earlier trigger phrase stays. The skill fired in 0 of 9 runs of the cases above, whose prompts all ask for a trim.
+
 ## [0.26.7] - 2026-10-04
 
 ### Changed

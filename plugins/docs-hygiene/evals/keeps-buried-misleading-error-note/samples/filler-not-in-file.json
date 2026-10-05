@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "```markdown\n# AGENTS.md\n\nTidepool: Python 3.12 FastAPI API; uv. `uv sync`, `uv run pytest`, `uv run ruff check .`.\n\n- `uv run pytest` fails with `PermissionError: [Errno 13] Permission denied: '/tmp/tidepool-test.lock'`: not a permissions problem. A killed earlier run left its lock file. Delete `/tmp/tidepool-test.lock` and rerun.\n```\n\n- Layout: visible from the tree.\n- Router, model, conftest locations: visible from the tree.\n- Type hints, small functions: generic.",
+      "why": "filler named only in the cut list, after the fence"
+    },
+    {
+      "answer": "```markdown\n# AGENTS.md\n\n- Stale test lock: a `PermissionError` on `/tmp/tidepool-test.lock` means a killed run left the lock behind, not a real permissions issue. Remove the file and rerun pytest.\n```\n\n- Overview, layout, commands: in pyproject.toml and the tree.\n- Other notes: derivable or generic.",
+      "why": "all filler cut"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```markdown\n# AGENTS.md\n\n- `tidepool/`: application package\n- `tests/`: pytest suite\n- `pyproject.toml`: project metadata, dependencies, and tool config\n- PermissionError on `/tmp/tidepool-test.lock`: stale lock from a killed run. Delete it and rerun.\n```\n\n- Overview, commands: in pyproject.toml.\n- Other notes: generic.",
+      "why": "Layout list remains"
+    },
+    {
+      "answer": "```markdown\n# AGENTS.md\n\n- Type hints are encouraged.\n- Keep functions small.\n- PermissionError on `/tmp/tidepool-test.lock`: a killed run left a stale lock, not a permissions issue. Delete the file and rerun.\n```\n\n- Layout, router and model locations: visible from the tree.",
+      "why": "generic notes remain (the sample the judge passed)"
+    },
+    {
+      "answer": "```markdown\n# AGENTS.md\n\n- Routers: one per resource under `tidepool/routes/`; fixtures in `tests/conftest.py`.\n- PermissionError on `/tmp/tidepool-test.lock`: stale lock from a killed run. Delete it and rerun.\n```\n\n- Layout: visible from the tree.",
+      "why": "router and conftest notes remain, reworded"
+    },
+    {
+      "answer": "```markdown\n# AGENTS.md\n\n- Prefer type annotations and short routines.\n- PermissionError on `/tmp/tidepool-test.lock`: a killed run left a stale lock, not a permissions issue. Delete the file and rerun.\n```\n\n- Layout, router and model locations: visible from the tree.",
+      "why": "generic notes remain, paraphrased"
+    }
+  ]
+}
