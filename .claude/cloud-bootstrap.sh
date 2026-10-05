@@ -271,15 +271,16 @@ if ((plugin_stage)); then
       "$source_repo/.claude-plugin/marketplace.json" 2>/dev/null | tr -d '\r'
   )
 
-  # A directory-source install cache is keyed by the semver in plugin.json, not
-  # by commit, so a later commit under the same version never replaces the
-  # snapshot and `plugin update` false-greens on the version compare — see
-  # "Same-version commit drift" in docs/migration-playbook.md and #2061. On a
-  # resume after the checkout advanced, a presence check alone would therefore
-  # keep serving the skills and hooks of whatever commit installed first, which
-  # defeats the reason this repo uses a directory source at all. Compare the SHA
-  # recorded at install time against HEAD and refresh only the plugins whose own
-  # directory actually changed between them, so the common resume stays cheap.
+  # Current Claude Code loads a relative-path plugin from a marketplace added by
+  # local path in place, so a later commit under the same version is live at the
+  # next session start without a reinstall (see "Same-version commit drift" in
+  # docs/migration-playbook.md; measured on 2.1.289: `plugin list --json`
+  # reports the clone as readFromFolder). A CLI that instead served the version-keyed cache
+  # copy would keep the skills and hooks of whatever commit installed first, and
+  # `plugin update` would false-green on the version compare (#2061). This
+  # refresh guards that case: compare the SHA recorded at install time against
+  # HEAD and reinstall only the plugins whose own directory changed between
+  # them. On an in-place CLI the reinstall only re-records the SHA.
   #
   # Uncommitted edits to a plugin are out of scope here and stay that way: the
   # playbook's answer for that loop is `claude --plugin-dir ./plugins/<name>`,

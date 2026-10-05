@@ -147,8 +147,38 @@ check_copy() {
   fi
 }
 
+# fragment_hint <n> <stale plugin>... -- <changed canonical>...: print the one
+# command that writes a patch fragment for every stale fragment-mode carrier.
+# <n> counts the fragment-mode carriers of the changed canonicals. When all <n>
+# are stale, --carriers-of names them; otherwise the stale plugins are listed,
+# so a carrier that already has its fragment does not get a second one.
+fragment_hint() {
+  local all="$1" targets="" src names="" plugins=()
+  shift
+  while [[ "$1" != -- ]]; do
+    plugins+=("$1")
+    shift
+  done
+  shift
+  if ((all == ${#plugins[@]})); then
+    for src in "$@"; do
+      targets+=" --carriers-of $src"
+    done
+  else
+    targets=" ${plugins[*]}"
+  fi
+  for src in "$@"; do
+    names+="${names:+, }\`$(basename "$src")\`"
+  done
+  echo "Add a patch fragment for every carrying plugin in fragment mode; the release pull request bumps its version (ADR 0048). One command covers them all:" >&2
+  echo "  scripts/new-changelog-fragment.sh --stdin$targets patch <<'EOF'" >&2
+  printf '### Changed\n\n- Shared %s synced (<link to the change>); no other change to this plugin.\nEOF\n' "$names" >&2
+}
+
 check_bump() {
-  local base="$1" src copy rest plugin manifest base_version head_version stale=0 stale_fragment=0 changed=0 src_changed rc
+  local base="$1" src copy rest plugin manifest base_version head_version stale=0 changed=0 src_changed rc
+  local -a stale_plugins=() stale_srcs=()
+  local -A stale_seen=() src_seen=() fragment_carriers=()
   gate_entry::require_base "$base" "error: base ref $base does not resolve to a commit."
   for src in "${srcs[@]}"; do
     src_changed=0
@@ -164,18 +194,21 @@ check_bump() {
       base_version=$(git show "$base:$manifest" 2>/dev/null | jq -r '.version // empty' || true)
       [[ -n "$base_version" ]] || continue
       head_version=$(jq -r '.version // empty' "$manifest")
+      plugin="${rest%%/*}"
+      # shellcheck disable=SC2310  # the non-zero return IS the answer
+      changelog_fragments::in_mode "$plugin" && fragment_carriers["$plugin"]=1
       rc=0
       # shellcheck disable=SC2310  # the non-zero return IS the answer; rc 2 exits below
-      changelog_fragments::bump_delivered "$base" "${rest%%/*}" "$base_version" "$head_version" || rc=$?
+      changelog_fragments::bump_delivered "$base" "$plugin" "$base_version" "$head_version" || rc=$?
       ((rc < 2)) || exit 2
       if ((rc == 1)); then
-        plugin="${rest%%/*}"
         rest="${rest#*/}"
-        # shellcheck disable=SC2310  # the non-zero return IS the answer; bump_delivered already read the list
-        if changelog_fragments::in_mode "$plugin"; then
+        if [[ -n "${fragment_carriers[$plugin]:-}" ]]; then
           echo "STALE VERSION: $src or its copy $copy changed vs $base but $plugin, in fragment mode, has no fragment for it" >&2
-          echo "  Run scripts/new-changelog-fragment.sh $plugin patch; a fragment that only carries the change says under ### Changed: Shared \`$(basename "$src")\` synced (<link to the change>); no change to this plugin's ${rest%%/*}." >&2
-          stale_fragment=1
+          [[ -n "${stale_seen[$plugin]:-}" ]] || stale_plugins+=("$plugin")
+          [[ -n "${src_seen[$src]:-}" ]] || stale_srcs+=("$src")
+          stale_seen["$plugin"]=1
+          src_seen["$src"]=1
         else
           echo "STALE VERSION: $src or its copy $copy changed vs $base but $manifest is still $head_version" >&2
           echo "  A bump that only carries the change gets the CHANGELOG entry: Shared \`$(basename "$src")\` synced (<link to the change>); no change to this plugin's ${rest%%/*}." >&2
@@ -188,10 +221,10 @@ check_bump() {
   if ((stale)); then
     echo "Bump the version of every carrying plugin so consumers receive the change." >&2
   fi
-  if ((stale_fragment)); then
-    echo "Add a patch fragment for every carrying plugin in fragment mode; the release pull request bumps its version (ADR 0048)." >&2
+  if ((${#stale_plugins[@]})); then
+    fragment_hint "${#fragment_carriers[@]}" "${stale_plugins[@]}" -- "${stale_srcs[@]}"
   fi
-  if ((stale || stale_fragment)); then
+  if ((stale || ${#stale_plugins[@]})); then
     exit 1
   fi
   if ((changed)); then

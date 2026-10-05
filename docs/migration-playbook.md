@@ -491,20 +491,27 @@ Separate **plugin-owned** logic from **consumer-owned** extension points:
 
 ## Version pinning and update delivery
 
-- **A `version` bump in `plugin.json` is the only delivery vehicle.** A consumer receives a change only
-  after the plugin's semver `version` increases. The version is the update cache key, so an unbumped
-  plugin never delivers, even when its files changed (see "Shared code across plugins" below).
-  A plugin listed in `scripts/fragment-plugins.txt` is the exception: its pull requests add a
-  changelog fragment (`scripts/new-changelog-fragment.sh <plugin> <bump>`) and leave the version
-  and `CHANGELOG.md` alone, and the release pull request bumps it
+- **A new `version` in `plugin.json` is the only delivery vehicle for copied installs.** A consumer
+  who installed from a Git-hosted marketplace receives a change only after the plugin's semver
+  `version` increases. The version is the update cache key, so an unreleased change never delivers,
+  even when its files changed (see "Shared code across plugins" below).
+- **A pull request records the release in a changelog fragment, not in the version.** For a plugin
+  listed in `scripts/fragment-plugins.txt`, a pull request adds
+  `.changes/<plugin>/<branch-slug>-<8 hex>.md` with `scripts/new-changelog-fragment.sh <plugin>
+  <bump>` and leaves `plugin.json` and `CHANGELOG.md` alone; the release pull request turns pending
+  fragments into one version bump and one `CHANGELOG.md` entry per plugin
   ([ADR 0048](adr/0048-release-plugins-from-changelog-fragments-through-a-bot-maintained-release-pr.md)).
+  One edit that reaches several plugins, such as a shared library under `lib/`, takes one command:
+  `scripts/new-changelog-fragment.sh --stdin --carriers-of lib/<file> patch` writes the same body
+  into a fragment for every carrier in fragment mode. A plugin not yet on the list still bumps its
+  `version` and adds its `CHANGELOG.md` entry in the pull request.
 - **Consumers update deliberately** with `/plugin marketplace update <marketplace>`, which refetches
   the marketplace. There is no silent auto-push of plugin changes to a consumer.
-- **Breaking-change / changelog note per plugin.** A version bump that changes behavior a consumer
-  depends on, such as a renamed option, a moved config path, or a removed action, records the change in the
-  plugin's own changelog (a `CHANGELOG.md` in the plugin), so a consumer updating deliberately sees
-  what shifted. A bump that adds a new trust surface additionally re-triggers the plugin-acceptance
-  security review below.
+- **Breaking-change / changelog note per plugin.** A change to behavior a consumer depends on, such
+  as a renamed option, a moved config path, or a removed action, is described in the fragment (or,
+  for a plugin not yet in fragment mode, the `CHANGELOG.md` entry), and the release writes it into
+  the plugin's own `CHANGELOG.md`, so a consumer updating deliberately sees what shifted. A change
+  that adds a new trust surface additionally re-triggers the plugin-acceptance security review below.
 
 **The marketplace carries no `renames` map.** A plugin rename is a clean breaking change carried
 by a version bump and a changelog note. An install that still names an old id gets
@@ -516,35 +523,42 @@ deprecation shim, alias, or pointer to the old name: no stub catalog entry, no r
 no second spelling a consumer can keep using. Consumers outside this repository (the fleet list,
 dotfiles, user-scope `enabledPlugins`) migrate from their own repositories.
 
-### Same-version commit drift (directory-source marketplaces)
+### Same-version commit drift (copied installs)
 
-For a marketplace registered with a `directory` source (a local clone or a repo-relative path in
-checked-in settings), the installed plugin cache is keyed by the **semver `version` in
-`plugin.json`**, not by the git commit SHA. Claude Code records the commit at install time in
-`installed_plugins.json`, but the cache directory name is only `<version>`, so a later commit under
-the same version does not replace the snapshot.
+How a later commit under an unchanged `version` reaches an installed plugin depends on whether
+Claude Code loads the plugin in place or from a copy
+([Plugin loading reference](https://code.claude.com/docs/en/plugins/loading#in-place-and-copied-plugins),
+fetched 2026-10-04):
 
-That bites the normal PR shape here: a branch lands several commits under one version bump (review
-fixes before merge, audit follow-ups, and the like). Whoever installed on the branch's first commit
-keeps that snapshot until the version changes. Every later commit under the same version is invisible
-to installed sessions, including corrections that would otherwise be live after merge.
+- **A marketplace added from a local path** (`claude plugin marketplace add <clone>`, or a
+  `directory` source in checked-in settings): every plugin here has a relative-path source
+  (`./plugins/<name>`), and such a plugin loads in place from the clone. Edits take effect at the
+  next session start or `/reload-plugins` with no version change. Claude Code still writes a
+  `cache/<marketplace>/<plugin>/<version>/` entry and a `gitCommitSha` in `installed_plugins.json`,
+  but `claude plugin list --json` reports the clone as `readFromFolder` (measured on Claude Code
+  2.1.289 with a throwaway local marketplace). No drift.
+- **A Git-hosted marketplace** (`melodic-software/claude-code-plugins` from GitHub, the normal
+  consumer install): Claude Code copies the plugin into `cache/<marketplace>/<plugin>/<version>/`
+  and loads the copy. The manifest `version` comes first when it computes the version, so a later
+  commit under the same version does not replace the copy, and
+  `claude plugin update <name>@<marketplace>` reports "already at the latest version" and copies
+  nothing ([How Claude Code computes the version](https://code.claude.com/docs/en/plugins/loading#how-claude-code-computes-the-version)).
+  A fragment merged to main is such a commit: it changes the plugin's files and not its version
+  until the release pull request merges.
 
-`claude plugin update <name>@<marketplace>` compares **version numbers only**. When the marketplace
-ref and the cache both read `0.7.0`, `update` reports success ("already at the latest version") and
-copies nothing: a false green that confirms the wrong state while the recorded SHA lags the source.
+For a copied install:
 
-**Workarounds (until upstream fixes this, [melodic-software/claude-code-plugins#2061](https://github.com/melodic-software/claude-code-plugins/issues/2061)):**
-
-- **Force a fresh snapshot:** `claude plugin uninstall <name>@<marketplace> --keep-data` then
+- **Ship a release** when the merged result must reach consumers: a fragment, then the release pull
+  request (or a version bump, for a plugin not yet in fragment mode). It is the only delivery
+  vehicle (see bullets above).
+- **Force a fresh copy:** `claude plugin uninstall <name>@<marketplace> --keep-data` then
   `install` again, then `enable`. `uninstall` drops enabled state, so skipping `enable` leaves
   the plugin silently absent rather than silently stale. `--keep-data` keeps
   `${CLAUDE_PLUGIN_DATA}` only; uninstall still drops the stored `pluginConfigs`
   entry, so options return to manifest defaults on reinstall. Omitting the flag
   would also destroy the data directory.
-- **Ship a version bump** when the merged result must reach consumers. It is the only delivery vehicle for
-  marketplace installs (see bullets above).
 - **Local iteration:** `claude --plugin-dir ./plugins/<name>` loads the working tree and takes
-  session precedence over the cached install (see "Local development loop" below), so no reinstall
+  session precedence over the installed copy (see "Local development loop" below), so no reinstall
   is needed for same-session edits after `/reload-plugins`.
 
 ## Retiring a published plugin
