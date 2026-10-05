@@ -19,7 +19,10 @@ required of an *assigned*-worktree brief only. Under worker-side provisioning th
 branch name and provisioning instructions in place of a path by design: materializing that worktree
 is then your mandated first step, and you discover the path there and return it. Never STOP over
 its absence. What is never optional is one of the two: a brief that names neither an assigned path
-nor provisioning instructions is the omission that STOPs.
+nor provisioning instructions is the omission that STOPs. After provisioning and before your first
+edit, fetch and confirm the branch starts from the intended base (`git -C <path> merge-base HEAD
+<remote>/<default>` equals `<remote>/<default>`, where `<remote>` is the remote provisioning based
+the branch on, not always `origin`); on a mismatch, STOP and report.
 
 **The brief is the contract.** Its scope fence (ALLOWED/FORBIDDEN files and actions), its
 divergence-escalation clause, the project invariants it names, its acceptance criteria, its

@@ -3,6 +3,12 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.1] - 2026-10-04
+
+### Fixed
+
+- **A self-provisioning worker confirms its branch base before the first edit.** Brief item 9 now tells a worker that provisions its own worktree to fetch and check that the new branch starts from the intended base, and to stop and report on a mismatch; both implementer agents carry the same duty when a brief omits it. Evidence: the `brief-confirms-worktree-base` eval case passed 2/3 with the plugin and 0/3 without, and one run where the skill fired still produced a brief with no base check (Pocock upstream sync row 9).
+
 ## [0.22.0] - 2026-10-04
 
 ### Added
