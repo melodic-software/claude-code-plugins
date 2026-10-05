@@ -3,7 +3,8 @@
     {"answer": "Out of scope: partner client SDKs or libraries; we publish a feed contract only.", "why": "exclusion governs the SDK in one clause"},
     {"answer": "## Out-of-scope\n\n- Partner client SDKs or libraries: we publish a feed contract only and never ship client code", "why": "the map's own out-of-scope line"},
     {"answer": "Out of scope:\n- Replay windows\n- Partner client SDKs or libraries", "why": "SDK listed under an out-of-scope label"},
-    {"answer": "Partner SDKs, client libraries, and plugins are out of scope.", "why": "serial-comma list ending in and stays one clause"}
+    {"answer": "Partner SDKs, client libraries, and plugins are out of scope.", "why": "serial-comma list ending in and stays one clause"},
+    {"answer": "Out of scope: batch replay and the partner SDKs.", "why": "a colon label governs every item in its list"}
   ],
   "fail": [
     {"answer": "For Q3, given Debezium, recommend which partner SDKs we should build and ship.", "why": "tasks SDK work, no exclusion"},
@@ -12,6 +13,7 @@
     {"answer": "We will build the partner SDKs, but the batch export is out of scope.", "why": "contrastive clause excludes something else"},
     {"answer": "Partner SDKs stay in scope, and the nightly batch job is out of scope.", "why": "coordinate clause excludes something else"},
     {"answer": "Partner SDKs stay in scope and the nightly batch job is out of scope.", "why": "coordinate clause without a comma excludes something else"},
-    {"answer": "The nightly batch job is out of scope, and the partner SDKs stay in scope.", "why": "exclusion first, coordinate clause keeps the SDK in scope"}
+    {"answer": "The nightly batch job is out of scope, and the partner SDKs stay in scope.", "why": "exclusion first, coordinate clause keeps the SDK in scope"},
+    {"answer": "The nightly batch job is out of scope and the partner SDKs stay in scope.", "why": "exclusion first, coordinate clause without a comma keeps the SDK in scope"}
   ]
 }
