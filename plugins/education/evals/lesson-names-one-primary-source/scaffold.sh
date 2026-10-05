@@ -3,4 +3,4 @@
 set -euo pipefail
 
 mkdir -p learning/topic
-cp -R "$(dirname "${BASH_SOURCE[0]}")/../fixtures/sql-joins" learning/topic/
+cp -R "$(dirname "${BASH_SOURCE[0]}")/../workspaces/sql-joins" learning/topic/
