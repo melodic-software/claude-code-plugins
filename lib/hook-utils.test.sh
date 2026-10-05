@@ -3620,9 +3620,7 @@ ce_probe RUN "empty value falls back to the default (treated as unset)" \
   CLAUDE_PLUGIN_OPTION_RATE_LIMIT_GUARD_ENABLED=
 
 # hook::is_enabled is the predicate form: same answer, but it RETURNS instead of
-# exiting. The statusline tee depends on this — it wraps the user's real
-# statusline, so an exit would blank the status line instead of just skipping
-# the tee's own write.
+# exiting, so a caller can skip its own side effect and keep running.
 ie_probe() {
   local want="$1" desc="$2"
   shift 2

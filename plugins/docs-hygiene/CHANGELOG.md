@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [0.26.7] - 2026-10-04
+
+### Changed
+
+- **`extract-ssot`'s orchestrated mode calls `rate-limits.json` the snapshot file, not the tee file**, matching rate-limit-guard's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
+
 ## [0.26.6] - 2026-10-04
 
 ### Changed

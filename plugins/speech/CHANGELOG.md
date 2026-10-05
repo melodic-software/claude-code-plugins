@@ -22,6 +22,13 @@ All notable changes to the `speech` plugin are documented here. Format follows
 ### Fixed
 
 - An empty audio payload is a clear error, and the word-timing mapping accepts multi-character and dictionary-shaped alignment entries and `normalized_alignment`.
+- A `vault-exec` that cannot start exits 2 with the remedy instead of a traceback.
+
+## [0.2.8] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** Two comments no longer cite the retired statusline tee.
 
 ## [0.2.7] - 2026-10-04
 

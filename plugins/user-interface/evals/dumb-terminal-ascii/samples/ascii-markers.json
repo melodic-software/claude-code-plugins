@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Print `[ok] parser` and `[FAIL] lexer` with no color.",
+      "why": "bracketed ASCII"
+    },
+    {
+      "answer": "Use [PASS] and [FAIL] in place of the glyphs.",
+      "why": "bracketed"
+    },
+    {
+      "answer": "Plain tier:\n```\nPASS  parser   12 tests\nFAIL  lexer    2 of 9 failed\n```",
+      "why": "fixed-width status word"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Print PASS or FAIL in green and red.",
+      "why": "no plain marker, color kept"
+    },
+    {
+      "answer": "Swap the Nerd Font icon for an emoji like \u2705.",
+      "why": "emoji is no fallback"
+    }
+  ]
+}
