@@ -1,6 +1,6 @@
 """Frame-level QC for a rendered demo: decodes the MP4 and measures every acceptance rule from the
 rendered frames. The camera rect of each frame is estimated by registering the frame against the
-capture it samples (normalised cross-correlation over scale and position), never read from the EDL,
+capture it samples (normalized cross-correlation over scale and position), never read from the EDL,
 so a producer's own numbers cannot pass a video the frames contradict.
 
 Checks (thresholds: defaults.json "qc" and "motion", overridable with --config):
@@ -46,7 +46,7 @@ def decode(video, w, h):
 
 
 def ncc_valid(img, T):
-    """Normalised cross-correlation of template T over every position where it fits inside img."""
+    """Normalized cross-correlation of template T over every position where it fits inside img."""
     th, tw = T.shape
     ih, iw = img.shape
     T0 = T - T.mean()
@@ -360,9 +360,9 @@ def main(argv=None):
             bad_cuts.append(f'{i / fps:.2f}s zoom {zf[j - 1]:.2f}->{zf[j]:.2f} still={still}')
     check('nav-cuts', 'FAIL' if bad_cuts else 'PASS', bad_cuts or f'{len(cuts)} page cuts, camera still, at 1.0x or with clean edges')
 
-    # ---- crossfades: a frame that is a blend of its neighbours across a page change ------------------
+    # ---- crossfades: a frame that is a blend of its neighbors across a page change ------------------
     # Checked around each page change only: slow camera motion also makes a frame resemble the average
-    # of its neighbours, and is not a crossfade.
+    # of its neighbors, and is not a crossfade.
     blends = []
     near_cut = sorted({c + d for c in cuts for d in range(-4, 5)} & rset)
     for i in near_cut:
@@ -370,7 +370,7 @@ def main(argv=None):
             continue
         A, B, F = sm[i - 1], sm[i + 1], sm[i]   # caption band masked: a caption fade is a designed blend
         d = A - B
-        if float(np.abs(d).mean()) < 0.5:   # neighbours alike: nothing to blend (typing, cursor travel)
+        if float(np.abs(d).mean()) < 0.5:   # neighbors alike: nothing to blend (typing, cursor travel)
             continue
         alpha = float(((F - B) * d).sum() / max((d * d).sum(), 1e-6))
         resid = float(np.abs(F - (alpha * A + (1 - alpha) * B)).mean())

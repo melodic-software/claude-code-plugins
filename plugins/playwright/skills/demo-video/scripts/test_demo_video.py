@@ -144,7 +144,7 @@ def run(*args):
 
 
 def rewrite(src, dst, fn):
-    """Re-encode src to dst, passing each RGB frame (with its neighbours) through fn(i, prev, cur, nxt)."""
+    """Re-encode src to dst, passing each RGB frame (with its neighbors) through fn(i, prev, cur, nxt)."""
     dec = subprocess.Popen(['ffmpeg', '-v', 'error', '-i', str(src), '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], stdout=subprocess.PIPE)
     enc = subprocess.Popen(['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{W}x{H}', '-r', '30',
                             '-i', '-', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '16', '-pix_fmt', 'yuv420p', str(dst)],

@@ -112,7 +112,7 @@ const union = (a, b) => {
   const x0 = Math.min(a[0], b[0]), y0 = Math.min(a[1], b[1]);
   return [x0, y0, Math.max(a[0] + a[2], b[0] + b[2]) - x0, Math.max(a[1] + a[3], b[1] + b[3]) - y0];
 };
-const ease = (u) => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
+const ease = (u) => (u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2);
 let mouse = { x: W * 0.62, y: H * 0.55 };
 
 // A step is settled when the pixels stop changing (networkidle fires before late paint).

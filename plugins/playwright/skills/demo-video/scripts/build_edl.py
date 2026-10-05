@@ -53,7 +53,7 @@ def parse_layers(style, spec, audio_dir=None):
 
 
 def counts(integ, x0, y0, x1, y1, W, H):
-    """Vectorised area counts on an integral image; x*/y* broadcast to one shape."""
+    """Vectorized area counts on an integral image; x*/y* broadcast to one shape."""
     x0 = np.clip(np.floor(x0), 0, W).astype(int)
     x1 = np.clip(np.ceil(x1), 0, W).astype(int)
     y0 = np.clip(np.floor(y0), 0, H).astype(int)
@@ -62,7 +62,7 @@ def counts(integ, x0, y0, x1, y1, W, H):
 
 
 def move_seconds(origin, z, X, Y, W, H, motion):
-    """move_duration from `origin` to every candidate rect (zoom z, top-left X, Y), vectorised."""
+    """move_duration from `origin` to every candidate rect (zoom z, top-left X, Y), vectorized."""
     z0 = W / origin[2]
     dz = abs(math.log(z / z0))
     c0x, c0y = origin[0] + origin[2] / 2, origin[1] + origin[3] / 2
@@ -82,7 +82,7 @@ def focus_rect(ink, block, target, W, H, cfg, pill_w, zrange, prefer=None, origi
     headroom on every edge that is not the page boundary, puts every other edge in a gutter, leaves a
     caption anchor (primary first, else the fallback) on empty page, and, with `budget`, is reachable
     from `origin` in that many seconds inside the motion limits. Among those, the one nearest the
-    preferred centre (block centre pulled halfway toward the target, or `prefer`).
+    preferred center (block center pulled halfway toward the target, or `prefer`).
     Returns (rect, zoom, anchor) or (None, 1.0, None)."""
     cam, cap = cfg['camera'], cfg['captions']
     zmin, zmax = zrange
@@ -137,8 +137,8 @@ def focus_rect(ink, block, target, W, H, cfg, pill_w, zrange, prefer=None, origi
     if not best_by_zoom:
         return None, 1.0, None
     top = best_by_zoom[0][0]
-    centred = [b for b in best_by_zoom if b[1] <= 0.08 and b[0] >= top - 0.15 - 1e-6]
-    z, _, rect, anchor = centred[0] if centred else best_by_zoom[0]
+    centered = [b for b in best_by_zoom if b[1] <= 0.08 and b[0] >= top - 0.15 - 1e-6]
+    z, _, rect, anchor = centered[0] if centered else best_by_zoom[0]
     return rect, z, anchor
 
 
@@ -427,9 +427,9 @@ def main(argv=None):
                 return sg['out0'] + (sg['out1'] - sg['out0']) * (t - sg['src0']) / max(sg['src1'] - sg['src0'], 1e-9)
         raise ValueError(t)
 
-    def src_of(ot):
-        sg = next((s for s in segments if ot < s['out1']), segments[-1])
-        u = min(max((ot - sg['out0']) / max(sg['out1'] - sg['out0'], 1e-9), 0.0), 1.0)
+    def src_of(t_out):
+        sg = next((s for s in segments if t_out < s['out1']), segments[-1])
+        u = min(max((t_out - sg['out0']) / max(sg['out1'] - sg['out0'], 1e-9), 0.0), 1.0)
         return sg['src0'] + (sg['src1'] - sg['src0']) * u
 
     cuts = [sg['out0'] for sg in segments[1:] if sg['transition_in'] and sg['transition_in']['type'] == 'cut']
@@ -476,14 +476,14 @@ def main(argv=None):
                 continue   # short enough, no camera, or it ends at a navigation cut, which is taken at 1.0x
             ink = Ink(capture_at(src_of((a0 + a1) / 2)), W, H, CAM['word_gap'])
             z = W / r[2]
-            centre = (r[0] + r[2] / 2, r[1] + r[3] / 2)
+            center = (r[0] + r[2] / 2, r[1] + r[3] / 2)
             pw = max([pill_width(c['text'], cfg, a.font) for c in captions if c['span'][0] < a1 and c['span'][1] > a0] or [0])
             tgt = None
             for zz in (z * CAM['drift'], z / CAM['drift']):
                 zz = min(max(zz, 1.0), CAM['zmax'])
                 if abs(zz - z) < 0.02:
                     continue
-                cand, _, _ = focus_rect(ink, None, None, W, H, cfg, pw, (zz - 0.02, zz + 0.02), prefer=centre)
+                cand, _, _ = focus_rect(ink, None, None, W, H, cfg, pw, (zz - 0.02, zz + 0.02), prefer=center)
                 if cand and abs(W / cand[2] - z) >= 0.02:
                     tgt = cand
                     break

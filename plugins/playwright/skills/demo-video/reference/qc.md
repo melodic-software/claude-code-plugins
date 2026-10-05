@@ -1,7 +1,7 @@
 # Frame QC
 
 `qc.py` decodes the rendered MP4 and decides every check from the frames. The camera rect of each
-frame is measured by registering the frame against the capture it samples (normalised
+frame is measured by registering the frame against the capture it samples (normalized
 cross-correlation over zoom and position, caption band left out), never read from the EDL; the
 render log only names which capture a frame samples, and a frame that does not match it fails
 `capture-match`. This is the answer to producer metrics that disagreed with the frames.
@@ -20,7 +20,7 @@ independent review of the prototype video, which set the acceptance rules this Q
 | `stillness` | No still stretch (caption band masked) longer than the limit | `qc.still_max` 1.5 s |
 | `motion` | Each move's peak zoom and pan speed and acceleration, from its measured 10-90% duration and total change | `motion.max_zoom_rate` 0.8/s, `max_zoom_accel` 4.0/s², `max_pan_speed` 0.5 frame widths/s, `max_pan_accel` 2.5/s², tolerance `qc.motion_tolerance`; the plan also keeps moves at or above `motion.min_move_duration` 0.55 s |
 | `nav-cuts` | Each page cut has the camera still across it and is taken at 1.0x, or with clean edges | `qc.nav_zoom_max`, `qc.nav_change_min` |
-| `crossfade` | No frame near a page change is a blend of its neighbours | `qc.crossfade_gain` |
+| `crossfade` | No frame near a page change is a blend of its neighbors | `qc.crossfade_gain` |
 | `blank` | No flat, white or black frame after the title | `qc.blank_std`, `qc.white_luma` |
 | `capture-match` | Every page frame matches its capture | `qc.match_min` |
 

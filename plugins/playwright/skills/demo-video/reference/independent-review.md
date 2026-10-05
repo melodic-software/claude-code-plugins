@@ -26,6 +26,6 @@ cut and zoom peak) and look at them. Report, with timestamps and frame files:
 Verdict: SHIP, SHIP AFTER FIXES (list them, severity first) or NOT READY.
 ```
 
-Read the verdict, spot-check at least one of its findings yourself on the named frame, fix through
-the replay, the script or the edit plan, and repeat render, QC and review until the verdict is
-SHIP.
+The verdict is the fresh-context reviewer's, not the producer's. Open one named frame to confirm a
+finding is located correctly, fix through the replay, the script or the edit plan, and repeat
+render, QC and a new fresh-context review until its verdict is SHIP.

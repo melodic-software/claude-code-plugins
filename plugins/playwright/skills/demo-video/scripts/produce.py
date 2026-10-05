@@ -66,42 +66,42 @@ class Renderer:
                 return s['out0'] + (s['out1'] - s['out0']) * (st - s['src0']) / (s['src1'] - s['src0'])
         return None
 
-    def seg_index(self, ot):
+    def seg_index(self, t_out):
         for k, s in enumerate(self.segs):
-            if ot < s['out1']:
+            if t_out < s['out1']:
                 return k
         return len(self.segs) - 1
 
-    def src_in(self, k, ot):
+    def src_in(self, k, t_out):
         s = self.segs[k]
-        u = min(max((ot - s['out0']) / max(s['out1'] - s['out0'], 1e-9), 0.0), 1.0)
+        u = min(max((t_out - s['out0']) / max(s['out1'] - s['out0'], 1e-9), 0.0), 1.0)
         return s['src0'] + (s['src1'] - s['src0']) * u
 
-    def sources(self, ot):
-        """[(source, weight)]: 'title', 'ink' (flat colour) or a source time. Cuts between page
+    def sources(self, t_out):
+        """[(source, weight)]: 'title', 'ink' (flat color) or a source time. Cuts between page
         states are hard; the only blends are the title dipping to ink and ink fading up."""
         B = self.segs[0]['out0']
         tr = self.segs[0]['transition_in'] or {}
         d = tr.get('duration', 0.0) if tr.get('from') == 'title' else 0.0
-        if d and ot < B - d:
+        if d and t_out < B - d:
             return [('title', 1.0)]
-        if d and ot < B - d / 2:
-            w = smooth((ot - (B - d)) / (d / 2))
+        if d and t_out < B - d / 2:
+            w = smooth((t_out - (B - d)) / (d / 2))
             return [('title', 1 - w), ('ink', w)]
-        if d and ot < B:
-            w = smooth((ot - (B - d / 2)) / (d / 2))
+        if d and t_out < B:
+            w = smooth((t_out - (B - d / 2)) / (d / 2))
             return [('ink', 1 - w), (self.src_in(0, B), w)]
-        if ot < B:
+        if t_out < B:
             return [('title', 1.0)]
-        return [(self.src_in(self.seg_index(ot), ot), 1.0)]
+        return [(self.src_in(self.seg_index(t_out), t_out), 1.0)]
 
-    def rect_at(self, ot):
+    def rect_at(self, t_out):
         if not self.layers.get('camera'):
             return (0.0, 0.0, float(self.W), float(self.H))
         cam = self.cam
         for p, q in zip(cam, cam[1:]):
-            if p['t'] <= ot <= q['t']:
-                u = 0.0 if q['t'] == p['t'] else smooth((ot - p['t']) / (q['t'] - p['t']))
+            if p['t'] <= t_out <= q['t']:
+                u = 0.0 if q['t'] == p['t'] else smooth((t_out - p['t']) / (q['t'] - p['t']))
                 return tuple(p['rect'][j] + (q['rect'][j] - p['rect'][j]) * u for j in range(4))
         return tuple(cam[-1]['rect'])
 
@@ -212,20 +212,20 @@ class Renderer:
         self.cap_layers[ci] = layer
         return layer
 
-    def caption_alpha(self, ot, c):
+    def caption_alpha(self, t_out, c):
         """Fade in, and fade out to exactly 0 one frame before the span end, so nothing lingers."""
         a, b = c['span']
         f = self.e['caption_style']['fade']
-        k = smooth((ot - a) / f) if ot >= a else 0.0
+        k = smooth((t_out - a) / f) if t_out >= a else 0.0
         if not c.get('hold_through_end'):
-            k = min(k, smooth((b - 1 / self.fps - ot) / f))
+            k = min(k, smooth((b - 1 / self.fps - t_out) / f))
         return 0.0 if k < 0.02 else k
 
     def frame(self, fi):
-        ot = fi / self.fps
-        rect = self.rect_at(ot)
+        t_out = fi / self.fps
+        rect = self.rect_at(t_out)
         rect_key = tuple(round(v, 2) for v in rect)
-        srcs = self.sources(ot) if self.layers.get('title') else [(self.src_in(0, ot) if s in ('title', 'ink') else s, w) for s, w in self.sources(ot)]
+        srcs = self.sources(t_out) if self.layers.get('title') else [(self.src_in(0, t_out) if s in ('title', 'ink') else s, w) for s, w in self.sources(t_out)]
         img, used = None, []
         for s, w in srcs:
             if s == 'title':
@@ -237,7 +237,7 @@ class Renderer:
                 part = self.view(self.frames[i][1], rect_key).copy()
                 used.append(round(self.frames[i][0], 4))
             img = part if img is None else Image.blend(img, part, w)
-        log = {'ot': round(ot, 4), 'src': [s if isinstance(s, str) else round(s, 4) for s, _ in srcs],
+        log = {'t_out': round(t_out, 4), 'src': [s if isinstance(s, str) else round(s, 4) for s, _ in srcs],
                'w': [round(w, 3) for _, w in srcs], 'rect': [round(v, 2) for v in rect], 'captures': used}
         page_srcs = [s for s, _ in srcs if not isinstance(s, str)]
         title_w = sum(w for s, w in srcs if isinstance(s, str))
@@ -246,26 +246,26 @@ class Renderer:
             st = page_srcs[-1]
             if self.layers.get('ripple'):
                 for c, oc in zip(self.cur['clicks'], self.click_out):
-                    if oc is None or not (0 <= ot - oc <= RIPPLE):
+                    if oc is None or not (0 <= t_out - oc <= RIPPLE):
                         continue
                     if used and self.digests[self.capture_index(c['t'])] != self.digests[self.capture_index(st)]:
                         continue   # the ripple belongs to the clicked page state
                     b = c['box']
-                    drawn = self.ripple(img, ((b[0] - rect[0]) * z, (b[1] - rect[1]) * z, b[2] * z, b[3] * z), ot - oc, z)
+                    drawn = self.ripple(img, ((b[0] - rect[0]) * z, (b[1] - rect[1]) * z, b[2] * z, b[3] * z), t_out - oc, z)
                     if drawn:
                         log['ripple'] = drawn
-            hidden = self.cur.get('hidden_from') is not None and ot >= self.cur['hidden_from']
+            hidden = self.cur.get('hidden_from') is not None and t_out >= self.cur['hidden_from']
             if self.layers.get('cursor') and not hidden:
                 cx, cy = self.cursor_at(st)
                 px, py = (cx - rect[0]) * z, (cy - rect[1]) * z
-                press = any(oc is not None and 0 <= ot - oc <= 0.1 for oc in self.click_out)
+                press = any(oc is not None and 0 <= t_out - oc <= 0.1 for oc in self.click_out)
                 spr, off = self.cursor_sprite(int(round(20 * 1.3 * z * (0.85 if press else 1.0))))
                 img.paste(spr, (int(round(px - off)), int(round(py - off))), spr)
                 log['cursor'] = [round(px, 1), round(py, 1)]
         if self.layers.get('captions'):
             for ci, c in enumerate(self.e['captions']):
-                if c['span'][0] <= ot <= c['span'][1]:
-                    k = self.caption_alpha(ot, c)
+                if c['span'][0] <= t_out <= c['span'][1]:
+                    k = self.caption_alpha(t_out, c)
                     if k <= 0:
                         continue
                     layer = self.caption_layer(ci)
@@ -330,8 +330,8 @@ def main(argv=None):
             parts.append(f"[{i + 1}:a]atrim=start={x.get('trim', 0)}:duration={x['duration']},asetpts=PTS-STARTPTS,"
                          f'aresample=48000,adelay={ms}:all=1[a{i}]')
         fc = ';'.join(parts) + ';' + ''.join(f'[a{i}]' for i in range(len(clips))) + \
-            f'amix=inputs={len(clips)}:normalize=0:dropout_transition=0,apad[aout]'
-        cmd += ['-filter_complex', fc, '-map', '0:v', '-map', '[aout]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k',
+            f'amix=inputs={len(clips)}:normalize=0:dropout_transition=0,apad[mixed]'
+        cmd += ['-filter_complex', fc, '-map', '0:v', '-map', '[mixed]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k',
                 '-t', f'{nframes / fps:.3f}', '-movflags', '+faststart', str(out)]
         subprocess.run(cmd, check=True)
         video_only.unlink()
