@@ -436,7 +436,7 @@ Producers on a type: `/visualization:present` (Slides).
   every lane that does not call the gate included, treats `hosted` as `artifact`, so one personal
   value serves every lane.
 - **Only layers a checked-out branch cannot write select it**: the argument, the plugin's option,
-  `~/.claude/rendered-views.md`, or the overlay. A team `.claude/rendered-views.md` that says
+  `~/.claude/rendered-views.md`, or an untracked, gitignored overlay. A team `.claude/rendered-views.md` that says
   `hosted` is reported and ignored.
 - **The destination never depends on the preference.** Which host a page reaches is the gate's
   decision alone, whichever layer chose `hosted`; no layer can skip a check or force the public
@@ -460,7 +460,8 @@ Producers on a type: `/visualization:present` (Slides).
 - **The page id lives in the plugin's data directory**, in
   `hosted/<owner>__<repo>__<pr>.json` holding `pages-publish`'s JSON line, so a rebuild of the same
   pull request's page replaces it. When the returned visibility differs from the sidecar's, the
-  lane writes the new sidecar, then deletes the old id from the old host.
+  lane writes the new sidecar with the old id listed under `stale`, then deletes it from the old
+  host; an id whose delete fails stays under `stale` and is retried on the next publish.
 - **The save button stays on a top-level https page**, because the host's policy allows downloads.
   A framed page, such as an Artifact, still loses it (Security baseline, rule 7).
 

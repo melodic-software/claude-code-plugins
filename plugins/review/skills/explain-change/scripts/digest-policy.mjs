@@ -248,6 +248,8 @@ export function resolveMedium(warnings, baseOid) {
     if (match[1] === "hosted" && label === "team") {
       // A pull request's base can carry a team file, so it never sends pages off to a shared host.
       warnings.push(`${label} ${path}: medium hosted is honored only from the user-global layer or the overlay; layer ignored`);
+    } else if (match[1] === "hosted" && label === "overlay" && !overlayApplies(paths.root, path, [], { requireIgnored: true })) {
+      warnings.push(`${label} ${path}: medium hosted is honored from the overlay only once it is gitignored; layer ignored`);
     } else if (MEDIUMS.includes(match[1])) {
       medium = { value: match[1], source: `${label} ${path}` };
     } else {

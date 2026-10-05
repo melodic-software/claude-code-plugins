@@ -442,6 +442,17 @@ describe("medium: hosted resolves only from a layer the pull request cannot writ
     assert.equal(result.medium.value, "hosted");
     assert.match(result.medium.source, /^user-global /);
   });
+  test("an overlay selects hosted only once it is gitignored", () => {
+    writeFileSync(join(home, ".claude/rendered-views.md"), "medium: file\n");
+    writeFileSync(join(repo, ".claude/rendered-views.local.md"), "medium: hosted\n");
+    const unignored = run(facts);
+    assert.equal(unignored.medium.value, "file");
+    assert.match(unignored.warnings.join("\n"), /overlay .*medium hosted is honored from the overlay only once it is gitignored; layer ignored/);
+    writeFileSync(join(repo, ".git/info/exclude"), "*.local.*\n");
+    const ignored = run(facts);
+    assert.equal(ignored.medium.value, "hosted");
+    assert.match(ignored.medium.source, /^overlay /);
+  });
 });
 
 describe("hosted publish: gate the built page, then pages-publish and the sidecar", () => {
@@ -456,7 +467,7 @@ describe("hosted publish: gate the built page, then pages-publish and the sideca
 const { appendFileSync } = require("node:fs");
 appendFileSync(process.env.FAKE_LOG, JSON.stringify(process.argv.slice(2)) + "\\n");
 if (process.argv[2] !== "--delete") process.stdout.write((process.env.FAKE_OUT || "") + "\\n");
-process.exitCode = Number(process.env.FAKE_EXIT || 0);
+process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DELETE_EXIT : process.env.FAKE_EXIT) || 0);
 `,
   );
   chmodSync(join(bin, "pages-publish"), 0o755);
@@ -479,10 +490,17 @@ process.exitCode = Number(process.env.FAKE_EXIT || 0);
     rmSync(log, { force: true });
     return { page, data, sidecarPath: join(data, "hosted/acme__app__7.json") };
   };
-  const publish = ({ page, data }, { visibility = "PUBLIC", out = "", exit = 0 } = {}) =>
+  const publish = ({ page, data }, { visibility = "PUBLIC", out = "", exit = 0, deleteExit = 0 } = {}) =>
     spawnSync(process.execPath, [PUBLISH, page, "--repo", "acme/app", "--pr", "7", "--repo-visibility", visibility, "--data-dir", data], {
       encoding: "utf8",
-      env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, FAKE_LOG: log, FAKE_OUT: out, FAKE_EXIT: String(exit) },
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+        FAKE_LOG: log,
+        FAKE_OUT: out,
+        FAKE_EXIT: String(exit),
+        FAKE_DELETE_EXIT: String(deleteExit),
+      },
     });
   const calls = () => (existsSync(log) ? readFileSync(log, "utf8").trim().split("\n").map((l) => JSON.parse(l)) : []);
 
@@ -520,6 +538,23 @@ process.exitCode = Number(process.env.FAKE_EXIT || 0);
       [at.page, "--visibility", "private"],
       ["--delete", idA, "--visibility", "public"],
     ]);
+  });
+  test("a failed delete keeps the old id in the sidecar as stale, and the next publish retries it", () => {
+    const at = setup(sample, answer(idA, "public"));
+    const first = publish(at, { visibility: "PRIVATE", out: answer(idB, "private"), deleteExit: 6 });
+    assert.equal(first.status, 0, first.stderr);
+    assert.match(JSON.parse(first.stdout).old_copy, /delete failed; https:\/\/public\.pages\.example\/A+\/ still up/);
+    const kept = JSON.parse(readFileSync(at.sidecarPath, "utf8"));
+    assert.equal(kept.id, idB);
+    assert.deepEqual(kept.stale, [JSON.parse(answer(idA, "public"))]);
+    rmSync(log, { force: true });
+    const second = publish(at, { visibility: "PRIVATE", out: answer(idB, "private") });
+    assert.equal(second.status, 0, second.stderr);
+    assert.deepEqual(calls(), [
+      [at.page, "--visibility", "private", "--id", idB],
+      ["--delete", idA, "--visibility", "public"],
+    ]);
+    assert.deepEqual(JSON.parse(readFileSync(at.sidecarPath, "utf8")), JSON.parse(answer(idB, "private")));
   });
   test("a private page pages-publish puts on the public host exits 1 and names the URL; the sidecar keeps it for cleanup", () => {
     const at = setup();

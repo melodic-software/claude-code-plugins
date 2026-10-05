@@ -13,7 +13,7 @@
 // 2 usage or not a builder page, 4 refused: credential-shaped content.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -40,14 +40,27 @@ function dataStrings(html) {
   return out;
 }
 
+const valid = (e) => ID.test(e?.id) && VISIBILITIES.includes(e?.visibility);
+const entry = ({ id, visibility, url }) => ({ id, visibility, url });
+
+/** The current page, plus `stale`: copies on another host whose delete has not yet succeeded. */
 const readSidecar = (path) => {
   try {
     const old = JSON.parse(readFileSync(path, "utf8"));
-    return ID.test(old?.id) && VISIBILITIES.includes(old?.visibility) ? old : null;
+    if (!valid(old)) return null;
+    return { ...entry(old), stale: (Array.isArray(old.stale) ? old.stale : []).filter(valid).map(entry) };
   } catch {
     return null;
   }
 };
+
+/** Written through a rename, so a stop mid-write never leaves the sidecar half-written. */
+function writeSidecar(path, current, stale) {
+  mkdirSync(join(path, ".."), { recursive: true, mode: 0o700 });
+  const temp = `${path}.tmp`;
+  writeFileSync(temp, `${JSON.stringify(stale.length ? { ...current, stale } : current)}\n`, { mode: 0o600 });
+  renameSync(temp, path);
+}
 
 const pagesPublish = (args) => spawnSync("pages-publish", args, { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] });
 
@@ -84,13 +97,19 @@ export function publishHosted({ page, repo, pr, repoVisibility, dataDir }) {
   if (!ID.test(id ?? "") || !VISIBILITIES.includes(landed) || !/^https:\/\/\S+$/.test(url ?? "")) {
     return failed("pages-publish printed an unexpected result");
   }
-  mkdirSync(join(dataDir, "hosted"), { recursive: true, mode: 0o700 });
-  writeFileSync(sidecar, `${JSON.stringify({ id, visibility: landed, url })}\n`, { mode: 0o600 });
+  // The old copy is recorded as stale before its delete runs, so a failed or interrupted delete is retried next time.
+  const current = { id, visibility: landed, url };
+  const stale = (old?.stale ?? []).filter((e) => e.id !== id);
+  if (old && old.visibility !== landed) stale.push(entry(old));
+  writeSidecar(sidecar, current, stale);
 
   const result = { medium: "hosted", visibility: landed, url, reason: gate.reason };
-  if (old && old.visibility !== landed) {
-    const removed = pagesPublish(["--delete", old.id, "--visibility", old.visibility]);
-    result.old_copy = removed.status === 0 ? `deleted from the ${old.visibility} host` : `delete on the ${old.visibility} host failed; ${old.url ?? old.id} is still up`;
+  if (stale.length) {
+    const left = stale.filter((e) => pagesPublish(["--delete", e.id, "--visibility", e.visibility]).status !== 0);
+    if (left.length < stale.length) writeSidecar(sidecar, current, left);
+    result.old_copy = left.length
+      ? `delete failed; ${left.map((e) => e.url ?? e.id).join(", ")} still up, retried on the next publish`
+      : `deleted from the ${[...new Set(stale.map((e) => e.visibility))].join(" and ")} host`;
   }
   // pages-publish may lower public to private, never raise it; the sidecar keeps the id so a rerun deletes it.
   if (gate.destination === "private" && landed === "public") {
