@@ -12,9 +12,17 @@ name: release-plugins
 # the release pull request needs `ci-status`. The commit goes through the GraphQL
 # createCommitOnBranch mutation, which GitHub signs, so main's
 # required_signatures rule accepts it (the pattern of pr-bump-plugin-version.yml).
+#
+# A scheduled run, and a push of a fragment to main, run `merge`: it queues a
+# release pull request that is current and green, rebuilds one that is stale or
+# conflicted, and builds one when none is open (ADR 0048, Rollout 3 and Resolved
+# decisions 1 and 2). workflow_dispatch runs either action by hand.
 on:
-  # The phase 2 pilot runs by hand only. A person starts `merge` until the pilot
-  # proves it (ADR 0048, Resolved decisions 1).
+  schedule:
+    - cron: '41 */3 * * *'
+  push:
+    branches: [main]
+    paths: ['.changes/**']
   workflow_dispatch:
     inputs:
       action:
@@ -26,14 +34,6 @@ on:
         type: choice
         options: [build, merge]
         default: build
-  # Phase 3 (ADR 0048, Rollout 3) adds the schedule, every 3 hours (Resolved
-  # decisions 2), and the push of a fragment to main:
-  #
-  #   schedule:
-  #     - cron: '41 */3 * * *'
-  #   push:
-  #     branches: [main]
-  #     paths: ['.changes/**']
 
 permissions: {}
 
@@ -45,7 +45,7 @@ concurrency:
 
 jobs:
   merge:
-    if: github.ref == 'refs/heads/main' && inputs.action == 'merge'
+    if: github.ref == 'refs/heads/main' && (inputs.action || 'merge') == 'merge'
     # The App's private key is an environment secret; the environment admits
     # only main (github-iac RepositoryEnvironments.cs).
     environment: plugin-release
@@ -77,12 +77,15 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json id,number,headRefOid,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0] // empty')"
+          pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json id,number,headRefOid,mergeable,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0] // empty')"
           if [ -z "$pr" ]; then
-            echo "::error::No release pull request is open; run this workflow with action build first."
-            exit 1
+            echo "No release pull request is open; building one."
+            echo "found=false" >>"$GITHUB_OUTPUT"
+            exit 0
           fi
           {
+            echo "found=true"
+            echo "mergeable=$(jq -r .mergeable <<<"$pr")"
             echo "id=$(jq -r .id <<<"$pr")"
             echo "number=$(jq -r .number <<<"$pr")"
             echo "head=$(jq -r .headRefOid <<<"$pr")"
@@ -93,8 +96,14 @@ jobs:
       - name: Check the release against main's live tip
         id: check
         env:
+          FOUND: ${{ steps.pr.outputs.found }}
+          MERGEABLE: ${{ steps.pr.outputs.mergeable }}
           HEAD_SHA: ${{ steps.pr.outputs.head }}
         run: |
+          if [ "$FOUND" != true ] || [ "$MERGEABLE" = CONFLICTING ]; then
+            echo "rebuild=true" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
           git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main' "$HEAD_SHA"
           main_sha="$(git rev-parse HEAD)"
           git checkout -q --detach "$HEAD_SHA"
@@ -112,7 +121,8 @@ jobs:
           esac
       # expectedHeadOid pins the queued head to the one checked above: a push to
       # release/plugins in between makes the call fail rather than queue an
-      # unchecked head. The call fails too while `ci-status` is not green on it.
+      # unchecked head. A head already queued, or whose latest `ci-status` has
+      # not passed, is left for a later run.
       - name: Queue the checked head
         if: steps.check.outputs.rebuild == 'false'
         env:
@@ -123,6 +133,23 @@ jobs:
         run: |
           owner="${GITHUB_REPOSITORY%/*}"
           name="${GITHUB_REPOSITORY#*/}"
+          # shellcheck disable=SC2016  # the $ names are GraphQL variables, not shell
+          queued="$(gh api graphql -f id="$PR_ID" \
+            -f query='query($id: ID!) { node(id: $id) { ... on PullRequest { isInMergeQueue } } }' \
+            --jq '.data.node.isInMergeQueue')"
+          if [ "$queued" = true ]; then
+            echo "Release pull request #$PR_NUMBER is already in the merge queue."
+            exit 0
+          fi
+          ci="$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=ci-status" \
+            --jq '.check_runs | sort_by(.started_at) | last | .conclusion // "pending"')"
+          if [ "$ci" = pending ]; then
+            echo "::notice::ci-status on release pull request #$PR_NUMBER is pending; a later run queues it."
+            exit 0
+          elif [ "$ci" != success ]; then
+            echo "::warning::ci-status on release pull request #$PR_NUMBER is $ci; re-run or fix it, then a later run queues it."
+            exit 0
+          fi
           # shellcheck disable=SC2016  # the $ names are GraphQL variables, not shell
           queue="$(gh api graphql -f owner="$owner" -f name="$name" \
             -f query='query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { mergeQueue(branch: "main") { id } } }' \
@@ -142,7 +169,7 @@ jobs:
 
   build:
     needs: [merge]
-    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && (inputs.action != 'merge' || needs.merge.outputs.rebuild == 'true') }}
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && ((inputs.action || 'merge') != 'merge' || needs.merge.outputs.rebuild == 'true') }}
     environment: plugin-release
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -212,12 +239,26 @@ jobs:
         id: release
         if: steps.decide.outputs.build == 'true'
         run: |
+          set -o pipefail
           report="$RUNNER_TEMP/release-report.txt"
-          scripts/release-plugins.sh | tee "$report"
+          errors="$RUNNER_TEMP/release-errors.txt"
+          rc=0
+          scripts/release-plugins.sh 2>"$errors" | tee "$report" || rc=$?
+          cat "$errors" >&2
+          [ "$rc" = 0 ] || exit "$rc"
+          # release-plugins.sh skips a plugin whose fragments fail validation; surface each one.
+          skipped="$(sed -n 's/^release-plugins\.sh: skipped \([^:]*\):.*/\1/p' "$errors" | paste -sd ' ' -)"
+          read -ra names <<<"$skipped"
+          for name in "${names[@]}"; do
+            echo "::warning::Skipped $name: a fragment under .changes/$name failed validation, so it is not in this release. Fix the fragment on main."
+          done
           released="$(grep -c ' -> ' "$report" || true)"
-          echo "released=$released" >>"$GITHUB_OUTPUT"
-          echo "report=$report" >>"$GITHUB_OUTPUT"
-          if [ "$released" = 0 ]; then
+          {
+            echo "released=$released"
+            echo "report=$report"
+            echo "skipped=$skipped"
+          } >>"$GITHUB_OUTPUT"
+          if [ "$released" = 0 ] && [ -z "$skipped" ]; then
             echo "::notice::No fragment on main asks for a release; nothing to write. A bump: none fragment waits for the next release."
           fi
       # Write the release as one signed commit on a staging branch cut from
@@ -278,13 +319,14 @@ jobs:
           MAIN_SHA: ${{ steps.decide.outputs.main }}
           RELEASED: ${{ steps.release.outputs.released }}
           REPORT: ${{ steps.release.outputs.report }}
+          SKIPPED: ${{ steps.release.outputs.skipped }}
         run: |
           # release-plugins.sh prints one line per plugin:
           #   <name>: <old> -> <new> (<bump>) from <n> fragment(s): <path>...
           #   <name>: no release; deleted <n> bump: none fragment(s): <path>...
           released_re='^([^:]+): ([^ ]+) -> ([^ ]+) \(([a-z]+)\) from [0-9]+ fragment\(s\): (.*)$'
           none_re='^([^:]+): no release; deleted [0-9]+ bump: none fragment\(s\): (.*)$'
-          code_list() { local p out=""; for p in $1; do out+="${out:+<br>}\`$p\`"; done; printf '%s' "$out"; }
+          code_list() { local p out="" ps; read -ra ps <<<"$1"; for p in "${ps[@]}"; do out+="${out:+<br>}\`$p\`"; done; printf '%s' "$out"; }
           body="$RUNNER_TEMP/body.md"
           # shellcheck disable=SC2016  # backticks in single quotes are Markdown, not command substitution
           {
@@ -303,7 +345,10 @@ jobs:
               fi
             done <"$REPORT"
             echo
-            echo "Merge it only by running the \`release-plugins\` workflow with action \`merge\`, never the merge button: that run checks it against main's live tip first."
+            if [ -n "$SKIPPED" ]; then
+              printf '**Not released:** %s. A fragment for each failed validation; it stays on `main` until fixed, and the next release picks it up.\n\n' "$(code_list "$SKIPPED")"
+            fi
+            echo "The \`release-plugins\` workflow queues this pull request itself once \`ci-status\` is green (every 3 hours, on a fragment push, or by hand with action \`merge\`). Never use the merge button: the workflow checks it against main's live tip first."
           } >"$body"
           title="chore(release): release $RELEASED plugins"
           number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')"
@@ -312,4 +357,26 @@ jobs:
             echo "Updated release pull request #$number."
           else
             gh pr create --repo "$GITHUB_REPOSITORY" --base main --head release/plugins --title "$title" --body-file "$body"
+          fi
+      # With nothing released there is no new body to write, so name the skipped
+      # plugins on the open release pull request, once per set.
+      - name: Name the skipped plugins on the open release pull request
+        if: steps.decide.outputs.build == 'true' && steps.release.outputs.released == '0' && steps.release.outputs.skipped != ''
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          SKIPPED: ${{ steps.release.outputs.skipped }}
+        run: |
+          number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')"
+          if [ -z "$number" ]; then
+            echo "No release pull request is open; the warnings above name the skipped plugins."
+            exit 0
+          fi
+          read -ra names <<<"$SKIPPED"
+          # shellcheck disable=SC2016  # backticks in single quotes are Markdown, not command substitution
+          line="**Not released, a fragment failed validation:** $(printf '`%s` ' "${names[@]}")(each stays on \`main\` until fixed)."
+          body="$RUNNER_TEMP/body.md"
+          gh pr view "$number" --repo "$GITHUB_REPOSITORY" --json body --jq .body >"$body"
+          if ! grep -qxF -- "$line" "$body"; then
+            printf '\n%s\n' "$line" >>"$body"
+            gh pr edit "$number" --repo "$GITHUB_REPOSITORY" --body-file "$body"
           fi
