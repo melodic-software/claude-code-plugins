@@ -366,9 +366,9 @@ provenance only, since an installed plugin cannot read a sibling plugin's files 
 - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
   pause end, and report; a hard stop happens only on explicit user request.
 - **Account switch:** while paused, a consumer **MUST** read `.oauthAccount.emailAddress` directly
-  from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the tee: a machine running only
-  headless sessions never refreshes the tee, so a switch would go unseen. At pause entry, record the
-  **latched account** as the `account.email` of the snapshot that tripped, not the account
+  from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the tee: only a session's own turns write
+  it, never a paused lane's Monitor ticks, so after a switch while no session works it still names the
+  old account. At pause entry, record the **latched account** as the `account.email` of the snapshot that tripped, not the account
   `.claude.json` names now: that snapshot can be up to 10 minutes old and may describe an account
   the operator has since left. A snapshot with no `account.email` leaves the entry **unattributed**:
   with no latched account there is no switch to detect. Read `.claude.json` at pause entry and on

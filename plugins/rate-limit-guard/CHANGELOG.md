@@ -3,6 +3,12 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.4] - 2026-10-04
+
+### Changed
+
+- **The operable floor's Account switch bullet gives the current reason to read `.claude.json`.** The old reason, that a machine running only headless sessions never refreshes the snapshot, stopped holding when the mod began writing in headless sessions. The reason now: the file is written only from a session's own turns, never from a paused lane's Monitor ticks, so after a switch made while no session is working it still names the old account. The rule itself is unchanged.
+
 ## [0.15.3] - 2026-10-04
 
 ### Changed

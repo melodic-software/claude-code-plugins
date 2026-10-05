@@ -1,6 +1,6 @@
 {
   "name": "rate-limit-guard",
-  "version": "0.15.3",
+  "version": "0.15.4",
   "description": "Shared rate-limit guard for loop lanes and Claude: a hooks module writes the subscription rate-limit windows to a fixed machine-scope file and tells Claude where they stand at boundaries, a StopFailure hook records rate-limit stops reactively, and a reader contract fixes how consuming sessions pause and resume.",
   "author": {
     "name": "Melodic Software",

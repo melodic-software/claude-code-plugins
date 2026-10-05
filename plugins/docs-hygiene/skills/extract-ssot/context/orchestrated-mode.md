@@ -92,9 +92,9 @@ installed plugin cannot read a sibling plugin's files at runtime.
 - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
   pause end, and report; a hard stop happens only on explicit user request.
 - **Account switch:** while paused, a consumer **MUST** read `.oauthAccount.emailAddress` directly
-  from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the tee: a machine running only
-  headless sessions never refreshes the tee, so a switch would go unseen. At pause entry, record the
-  **latched account** as the `account.email` of the snapshot that tripped, not the account
+  from `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the tee: only a session's own turns write
+  it, never a paused lane's Monitor ticks, so after a switch while no session works it still names the
+  old account. At pause entry, record the **latched account** as the `account.email` of the snapshot that tripped, not the account
   `.claude.json` names now: that snapshot can be up to 10 minutes old and may describe an account
   the operator has since left. A snapshot with no `account.email` leaves the entry **unattributed**:
   with no latched account there is no switch to detect. Read `.claude.json` at pause entry and on
@@ -128,7 +128,8 @@ start, and later newer than the last resume baseline, are live signal) and (b) r
 this session itself sees. Resume timing comes from that error text where available, otherwise
 backoff-and-retry. A later fresh snapshot with plausible windows upgrades the run back to
 proactive checks. Dynamic *scaling* (raising the cap when windows are healthy) is deliberately out
-of scope: with no account identifier in the snapshot and other sessions' burn invisible between
+of scope: with the snapshot last-writer-wins across every session on the machine, its account
+attributed only when the writer could tell, and other sessions' burn invisible between
 refreshes, headroom is a weaker signal than a trip, and the cost of over-shooting a shared window
 lands on every session on the machine.
 
