@@ -293,10 +293,14 @@ file references no App key at all, so every activity it calls runs through the r
 after the trust-root ruleset ([README](README.md#trust-root-paths)) is in force. A lane that mixes
 read and write activities waits for the broker.
 [`scripts/check-read-caller-keys.sh`](../../../scripts/check-read-caller-keys.sh) enforces it in
-`lint-repo`: it walks up from `pr-run-activity-read.yml` to every workflow whose run can reach it
-and down through every reusable workflow those runs call, and fails when any file of such a run
-names `AUTOMATION_LANES_APP_PRIVATE_KEY`, `app-private-key` or `private-key:`, passes
-`secrets: inherit`, or reads secrets by a computed name, and when the read file names `id-token`.
+`lint-repo`: it parses every workflow, walks up from `pr-run-activity-read.yml` to every workflow
+whose run can reach it (a job-level `uses:` in `./` or `melodic-software/claude-code-plugins/...@ref`
+form, any case) and down through every reusable workflow those runs call. It fails when a file of
+such a run names `AUTOMATION_LANES_APP_PRIVATE_KEY` or `app-private-key` in a key or value, has a
+`private-key` key, passes `secrets: inherit`, or has a `${{ }}` expression, in a key, a value or a `#` line of
+a `run:` block, whose `secrets` reference is not `secrets.<name>` with `<name>` on the allowlist
+`claude_code_oauth_token`, `github_token` (case-insensitive, `-` read as `_`); `toJSON(secrets)`,
+`secrets[...]` and bare `secrets` fail. It also fails when the read file names `id-token`.
 
 The read file stays after the broker lands: its guarantee, no key and no OIDC token in a run that
 runs head code, is structural, while the write file's comes from the broker.

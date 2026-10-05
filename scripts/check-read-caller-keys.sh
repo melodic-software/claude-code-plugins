@@ -6,16 +6,24 @@
 #   scripts/check-read-caller-keys.sh --check  same, explicit form matching the
 #                                              sibling gates (exit 1 on any offender)
 #
-# The rule: parse every workflow under .github/workflows/ and build the
-# repository-local call graph (`jobs.<id>.uses: ./.github/workflows/...`).
-# Walk up from ./.github/workflows/pr-run-activity-read.yml to every workflow
-# whose run can reach it, then down through every reusable workflow those runs
-# call. No file of such a run may, on a non-comment line, name
-# `AUTOMATION_LANES_APP_PRIVATE_KEY`, `app-private-key` or `private-key:`, pass
-# `secrets: inherit`, or read secrets by a computed name (`toJSON(secrets)`,
-# `secrets[...]`). The read workflow itself must also not name `id-token`. A
-# missing read workflow, or a workflow that does not parse, is an offender, so
-# neither a rename nor a syntax error turns the check into a silent pass.
+# The rule: parse every workflow under .github/workflows/ and build the call
+# graph of this repository's workflows (a job-level `uses:` in `./` or
+# `melodic-software/claude-code-plugins/...@ref` form, any case). Walk up from
+# pr-run-activity-read.yml to every workflow whose run can reach it, then down
+# through every reusable workflow those runs call. In every file of such a run,
+# each parsed mapping key and string value (`#` lines inside `run:` blocks
+# included) is checked:
+#   - no `AUTOMATION_LANES_APP_PRIVATE_KEY` or `app-private-key` in a key or
+#     value, and no `private-key` key (keys compared after parsing,
+#     case-insensitively);
+#   - no `secrets: inherit`;
+#   - every `secrets` reference in a `${{ }}` expression is `secrets.<name>`
+#     with `<name>` on the allowlist `claude_code_oauth_token`, `github_token`
+#     (lower-cased, `-` read as `_`); `toJSON(secrets)`, `secrets[...]` and
+#     bare `secrets` fail.
+# The read workflow itself must also not name `id-token`. A missing read
+# workflow, or a workflow that does not parse, is an offender, so neither a
+# rename nor a syntax error turns the check into a silent pass.
 #
 # WHY. GitHub scrubs secrets per workflow run, not per job: a caller plus every
 # reusable workflow it calls is one run, and a secret referenced anywhere in it
