@@ -13,11 +13,17 @@
 #   scripts/check-changelog-fragments.sh --check-release <base-ref>
 #       for the release pull request: <base-ref> holds no fragment this release
 #       left unconsumed for a plugin whose version it bumps, and no fragment it
-#       consumed has changed on <base-ref> since the release was cut
+#       consumed has changed on <base-ref> since the release was cut. In the
+#       merge queue <base-ref> is HEAD^1, the tree the queued commit lands on
+#       (main plus every entry ahead of it); a change set that bumps no plugin
+#       with pending fragments passes, so the step runs on every queued commit
 #
-# Shipped files are everything under plugins/<name>/ except CHANGELOG.md and a
-# plugin.json edit to `version` alone: those two are what a release writes, so
-# the release pull request needs no fragment of its own.
+# Shipped files are everything under plugins/<name>/. On the release pull
+# request (changelog_fragments::is_release_pr) the root CHANGELOG.md and a
+# plugin.json edit to `version` alone are left out: those are what a release
+# writes, so it needs no fragment of its own. Any other pull request that edits
+# them needs a fragment like any other change, and check-changelog-parity.sh
+# --check-bump fails one that bumps the version or adds a CHANGELOG heading.
 #
 # The diff modes read the change set as check-changelog-parity.sh does: fork
 # point to branch tip, with a pull_request merge commit resolved to its branch
@@ -90,6 +96,11 @@ fi
 manifest_version() { git show "$1:$2" 2>/dev/null | jq -r '.version // empty' 2>/dev/null; }
 manifest_sans_version() { git show "$1:$2" 2>/dev/null | jq -cS 'del(.version)' 2>/dev/null; }
 
+release_pr=""
+# shellcheck disable=SC2310  # the non-zero return IS the handled case
+if changelog_fragments::is_release_pr; then
+  release_pr=1
+fi
 declare -A shipped=() covered=() bumped=() consumed=()
 added_fragments=()
 while IFS= read -r -d '' status && IFS= read -r -d '' path; do
@@ -106,12 +117,12 @@ while IFS= read -r -d '' status && IFS= read -r -d '' path; do
     *) ;;
     esac
     ;;
-  plugins/*/CHANGELOG.md) ;;
   plugins/*/.claude-plugin/plugin.json)
     rest="${path#plugins/}"
     name="${rest%%/*}"
     if [[ "$(manifest_version "$merge_base" "$path")" != "$(manifest_version "$head_commit" "$path")" ]]; then
       bumped["$name"]=1
+      [[ -n "$release_pr" ]] || shipped["$name"]=1
     fi
     if [[ "$(manifest_sans_version "$merge_base" "$path")" != "$(manifest_sans_version "$head_commit" "$path")" ]]; then
       shipped["$name"]=1
@@ -119,7 +130,8 @@ while IFS= read -r -d '' status && IFS= read -r -d '' path; do
     ;;
   plugins/*/*)
     rest="${path#plugins/}"
-    shipped["${rest%%/*}"]=1
+    name="${rest%%/*}"
+    [[ -n "$release_pr" && "$rest" == "$name/CHANGELOG.md" ]] || shipped["$name"]=1
     ;;
   *) ;;
   esac

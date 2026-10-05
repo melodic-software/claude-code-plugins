@@ -225,9 +225,7 @@ list, deferred tool names included.
    itself (`node`, `jq`, whether the mod loads), and ask the operator to run
    `/context-guard:setup check`, which is user-only, for the full diagnosis.
 
-A configured `statusLine` no longer decides either branch: the module needs none, and a
-`statusLine` that still names the retired tee is a leftover that `/context-guard:setup check`
-reports with the steps to remove it.
+A configured `statusLine` no longer decides either branch: the module needs none.
 
 ## What would have to change upstream
 
