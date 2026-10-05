@@ -394,9 +394,9 @@ default_case "a default run scans shell files outside scripts/" 1 "" \
 default_case "a baselined offender is skipped" 0 "plugins/p/bad.sh" \
   "1 baselined file(s) still to fix"
 default_case "a baseline entry with nothing left to fix is stale" 1 $'plugins/p/bad.sh\nplugins/p/fixed.sh' \
-  "STALE BASELINE ENTRY: plugins/p/fixed.sh"
+  "STALE BASELINE: " "'plugins/p/fixed.sh'"
 default_case "a baseline entry whose file is gone is stale" 1 $'plugins/p/bad.sh\nplugins/p/gone.sh' \
-  "STALE BASELINE ENTRY: plugins/p/gone.sh"
+  "STALE BASELINE: " "'plugins/p/gone.sh'"
 
 # A bare name shaped like var=value must still be read as a file, not as an awk
 # variable assignment that would silently scan nothing.

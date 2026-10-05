@@ -9,7 +9,8 @@
 # The default scan skips the findings of each file listed in
 # scripts/pipefail-grep-q-baseline.txt, the known offenders. The baseline is a
 # ratchet: an entry whose file is gone or no longer offends is a finding, so
-# the list only shrinks. Never add a file to it: rewrite the pipe instead.
+# the list only shrinks. It exempts whole files, so a new pipe added to a
+# listed file is not caught. Never add a file to it: rewrite the pipe instead.
 #
 # Flags `producer | grep` (also `|&`, egrep, fgrep, `\grep`, a path to grep, a
 # `command`, `env`, `!` or `{` prefix, and a pipe split across lines) when that
@@ -63,9 +64,11 @@ if (($# == 0)); then
     echo "check-pipefail-grep-q: the default scan lists files with git, and $PWD is not a git work tree" >&2
     exit 2
   fi
-  while IFS= read -r f; do
+  while IFS= read -r -d '' f; do
+    # awk reads an operand shaped like name=value as an assignment, not a file.
+    [[ "$f" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && f="./$f"
     [[ -f "$f" ]] && files+=("$f")
-  done < <(git ls-files --cached --others --exclude-standard -- '*.sh' | LC_ALL=C sort)
+  done < <(git ls-files -z --cached --others --exclude-standard -- '*.sh' | LC_ALL=C sort -z)
   if ((${#files[@]} == 0)); then
     echo "check-pipefail-grep-q: no shell files found in the work tree" >&2
     exit 2
@@ -358,31 +361,36 @@ if ((scan_failed)); then
 fi
 
 # A baselined file's findings are known debt; an entry with none left is stale.
+# The baseline exempts whole files, so a new pipe in a listed file passes too.
+stale=0
 if ((${#baseline[@]} > 0)); then
-  # shellcheck disable=SC2016  # awk program text; the shell must not expand it
-  findings="$(LC_ALL=C awk -v B="$BASELINE" -v list="$(printf '%s\n' "${baseline[@]}")" '
-    BEGIN { n = split(list, b, "\n"); for (i = 1; i <= n; i++) base[b[i]] = 1 }
-    NF {
-      f = $0; sub(/^PIPED EARLY-EXIT GREP: /, "", f); sub(/:[0-9]+: .*$/, "", f)
-      if (f in base) { hit[f] = 1; next }
-      print
-    }
-    END {
-      for (f in base) if (!(f in hit))
-        printf "STALE BASELINE ENTRY: %s has no piped early-exit grep left, or is gone; delete its line from %s\n", f, B
-    }
-  ' <<<"$findings")" || {
-    echo "check-pipefail-grep-q: awk failed while applying the baseline" >&2
-    exit 2
-  }
+  declare -A listed=()
+  for f in "${baseline[@]}"; do listed["$f"]=1; done
+  kept=""
+  while IFS= read -r line; do
+    [[ -n "$line" ]] || continue
+    f="${line#PIPED EARLY-EXIT GREP: }"
+    f="${f%%:[0-9]*: *}"
+    f="${f#./}"
+    if [[ -n "${listed[$f]:-}" ]]; then
+      read_list::mark_used "$f"
+    else
+      kept+="$line"$'\n'
+    fi
+  done <<<"$findings"
+  findings="${kept%$'\n'}"
+  # shellcheck disable=SC2310  # the non-zero return IS the handled case
+  read_list::report_stale baseline "$BASELINE" "has no piped early-exit grep left, or is gone; delete its line" || stale=1
 fi
 
-if [[ -z "$findings" ]]; then
+if [[ -z "$findings" ]] && ((stale == 0)); then
   echo "No piped early-exit grep in ${#files[@]} shell file(s); ${#baseline[@]} baselined file(s) still to fix."
   exit 0
 fi
 
-printf '%s\n' "$findings" >&2
-count="$(grep -c '' <<<"$findings")"
-echo "$count piped early-exit grep(s) found; rewrite each as grep ... <<<\"\$v\" or grep ... < <(producer)." >&2
+if [[ -n "$findings" ]]; then
+  printf '%s\n' "$findings" >&2
+  count="$(grep -c '' <<<"$findings")"
+  echo "$count piped early-exit grep(s) found; rewrite each as grep ... <<<\"\$v\" or grep ... < <(producer)." >&2
+fi
 exit 1

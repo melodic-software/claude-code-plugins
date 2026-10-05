@@ -404,12 +404,12 @@ compare_set() {
   local line
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
-    grep -qxF "$line" <<<"$new_keys" ||
+    grep -qxF -e "$line" <<<"$new_keys" ||
       say "  removed $label: ${line//$'\t'/ }"
   done <<<"$old_keys"
   while IFS= read -r line; do
     [[ -n "$line" ]] || continue
-    grep -qxF "$line" <<<"$old_keys" ||
+    grep -qxF -e "$line" <<<"$old_keys" ||
       say "  added $label: ${line//$'\t'/ }"
   done <<<"$new_keys"
 }
