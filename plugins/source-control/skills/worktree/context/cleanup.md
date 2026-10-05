@@ -300,7 +300,7 @@ git worktree remove <current-worktree-path>    # only if the active worktree was
 
 The branch this deletes may also be checked out by another worktree; `git branch -D` refuses in that case, which is git protecting the peer rather than an error to work around.
 
-Remote branch cleanup is not needed when the repo has `delete_branch_on_merge` enabled (GitHub deletes the remote branch on merge). Check via `gh api repos/{owner}/{repo} --jq .delete_branch_on_merge`; otherwise also emit `git push origin --delete <branch-name>`.
+Remote branch cleanup is not needed when the repo has `delete_branch_on_merge` enabled (GitHub deletes the remote branch on merge). Check via `gh api repos/{owner}/{repo} --jq .delete_branch_on_merge`; otherwise also emit `git push origin --delete --end-of-options '<branch-name>'`, only for a name that matches `^[A-Za-z0-9._/-]+$`, does not start with `-` and holds no `..`; any other name is reported, never emitted.
 
 ## Step 5: Verify physical deletion, prune, and report
 

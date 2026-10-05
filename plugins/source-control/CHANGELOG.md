@@ -64,7 +64,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   remote-branch delete (`merge`) and read-only `git show` (`babysit-prs`) commands single-quote
   the PR head branch, pass it after `--end-of-options`, and use it only when it matches
   `^[A-Za-z0-9._/-]+$`, does not start with `-` and holds no `..`; any other name is reported,
-  never run.
+  never run. The pull-request checklist template's Phase 4 line shows the same quoted delete
+  command and points to that rule, and worktree cleanup's suggested remote delete applies it too.
 
 ## [0.79.10] - 2026-10-04
 

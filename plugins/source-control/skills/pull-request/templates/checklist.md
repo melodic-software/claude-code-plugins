@@ -10,7 +10,7 @@ Copy into your project's working-notes location (or track inline). Tick each box
 - [ ] Phase 2.5: Ready. Merge the base; security review over the PR diff; verify gate on the merged head; `gh pr ready`
 - [ ] Phase 3: Monitor. Push channel (when available) OR Monitor watch fallback; CI watch + comment response loop; research before any fix
 - [ ] Phase 3.5: Comments. Evaluate/respond to PR comments only (sub-phase of monitor)
-- [ ] Phase 4: Merge. `gh pr merge --squash --delete-branch` in a regular checkout, or `gh pr merge --squash` plus, once the PR is `MERGED`, `git push <push-remote> --delete <branch>` in a linked worktree; worktree cleanup; verify
+- [ ] Phase 4: Merge. `gh pr merge --squash --delete-branch` in a regular checkout, or `gh pr merge --squash` plus, once the PR is `MERGED`, `git push "$REMOTE" --delete --end-of-options '<branch>'` in a linked worktree, only for a head branch that passes the name rule in `reference/merge.md` 4.2; worktree cleanup; verify
 
 ## Skip criteria
 
