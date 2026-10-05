@@ -4,6 +4,7 @@
 # explicitly, so each is consumed by a grader (check-orphaned-fixtures.sh's
 # contract), and every script the driver loads is named as a whole token so the
 # affected-tests mapping reaches this suite from any of them.
+# test-scope: plugins/testing/skills/audit/evals/fixtures/*
 # shellcheck disable=SC2016  # single-quoted fixture text is literal shell source
 set -uo pipefail
 

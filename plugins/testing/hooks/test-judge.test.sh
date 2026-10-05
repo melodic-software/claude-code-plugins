@@ -2,6 +2,7 @@
 # Contract test for test-judge.sh, the task-end judge's Stop hook: it waits for
 # jobs still running, judges what has no verdict, and relays the verdicts
 # once from a fixed template. The judge is the stub behind TEST_JUDGE_CMD.
+# test-scope: plugins/testing/hooks/hooks.json plugins/testing/skills/audit/adapters/*.yaml
 # shellcheck disable=SC2016,SC2034  # check() evals its single-quoted condition, which reads these
 
 # shellcheck source=judge-test-helpers.sh

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# test-scope: plugins/disk-hygiene/*
 """Behavioral tests for the deterministic kill-switch probe.
 
 The probe exists so ``/disk-hygiene:setup check`` (and the clean skill when its

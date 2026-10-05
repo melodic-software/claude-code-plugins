@@ -5,7 +5,7 @@
 # ../requirements.txt hash-locks them) and skip without them, so ANIMATION_REQUIRE_DEPS=1 fails the run
 # instead: a lane that provisions the pinned requirements sets it, and missing dependencies then read as a
 # broken environment, not as passing coverage.
-# test-scope: plugins/animation/skills/*/SKILL.md plugins/animation/skills/*/scripts/* plugins/animation/hooks/*.sh
+# test-scope: plugins/animation/skills/*/SKILL.md plugins/animation/skills/*/scripts/* plugins/animation/hooks/*.sh plugins/animation/scripts/*
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1

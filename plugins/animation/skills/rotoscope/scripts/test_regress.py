@@ -1,3 +1,4 @@
+# test-scope: plugins/animation/requirements.in
 """regress.py --synthetic as a test: the render, encode and decode contracts and the regression cases.
 
 Standard library only at module level, so collection works without numpy; the test skips, naming what is missing,

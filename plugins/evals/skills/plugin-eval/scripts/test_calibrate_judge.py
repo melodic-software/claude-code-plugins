@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# test-scope: plugins/evals/evals/*
 """Fixture suite for calibrate-judge.py.
 
 fixtures/calibrate-judge/ holds:

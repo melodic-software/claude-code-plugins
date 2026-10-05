@@ -1,3 +1,4 @@
+# test-scope: plugins/speech/prerequisites.json
 """elevenlabs.py: the statement before every call, the proceed gate, the egress floor, the key never leaking, and
 the mapping from character alignment to word timings. No test reaches the network: the transport is injected, or
 urlopen is replaced."""
