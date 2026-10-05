@@ -16,6 +16,12 @@ All notable changes to the `playwright` plugin are documented here. Format follo
   refuses to wipe a non-empty capture directory that holds no earlier capture; the independent
   review now fails a video showing secrets, personal data or internal hosts.
 
+## [0.8.11] - 2026-10-04
+
+### Changed
+
+- The `update` action's finishing steps name the repo's release record (a version bump plus CHANGELOG entry, or a changelog fragment where the repo uses them) instead of a version bump.
+
 ## [0.8.10] - 2026-10-04
 
 ### Changed

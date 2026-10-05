@@ -118,7 +118,8 @@ model generation introduces a tic, it is added there first. The workflow, in ord
    measured-narrowing gate (density gate quiet on legitimate files, firing on files with genuine
    residue). Until then the closure for a repo that wants it is `phrase_add`/`vocab_add`.
 3. **Record third.** Date the addition in the section's model-era record with its sources, and
-   bump the plugin release per changelog parity. The record's recheck triggers (each release,
+   add the repo's release record for the plugin: a version bump plus CHANGELOG entry, or a
+   changelog fragment where the repo uses them (see the repo's AGENTS.md). The record's recheck triggers (each release,
    each new frontier model, a second frequency pool) are when entries are promoted, demoted to
    Historical indicators, or handed to the upstream inventory if Wikipedia absorbs them.
 

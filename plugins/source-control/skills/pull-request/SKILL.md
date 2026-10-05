@@ -26,7 +26,7 @@ shell invocation, and a worktree-isolated agent refuses a git-bearing compound c
 
 ## Purpose
 
-Orchestrate the PR lifecycle from quality review through merge and cleanup, with smart state detection and resume capability.
+Orchestrate the PR lifecycle from quality review through merge and the post-merge worktree transition, with smart state detection and resume capability.
 
 **The two non-negotiable gates:**
 
@@ -60,12 +60,12 @@ For PR lifecycle runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pul
 | `prep quick` | Phase 1 (fast) | Code errors only, skip simplify |
 | `prep review-only` | Phase 1 (partial) | Just review + verify findings |
 | `prep simplify-only` | Phase 1 (partial) | Just simplify + re-verify |
-| `create` | Phase 2 | Branch-name check + commit + push + `gh pr create --draft`. Reports the PR URL and stops |
+| `create` | Phase 2 | Branch-name check + commit + changelog fragments where the repo releases from them ([reference/create.md](reference/create.md) §2.3.3) + push + `gh pr create --draft`. Reports the PR URL and stops |
 | `create --pushed --worktree <path>` | Phase 2 (PR-only) | **PR-only entry for an orchestrated flow**, the branch is already committed and pushed (by a dispatched worker), so this skips commit / push / rebase, re-resolves branch and diff from the given target worktree (not the session cwd), and runs body assembly + gates + `gh pr create --draft --head <branch>`. Used by `/work-items:work`'s orchestrator after its pre-PR gate. See [reference/create.md](reference/create.md) §2.7 |
 | `ready` | Phase 2.5 | Merge the base into the branch (never a rewrite of its history), run the security review over the PR diff and the verify gate on the merged head, then flip the draft with `gh pr ready`. Refuses on a branch with no PR. See [reference/ready-for-review.md](reference/ready-for-review.md) |
 | `monitor` | Phase 3 | Watch CI, fix failures, evaluate comments. **Three-tier event delivery: (1) push channel** when your environment ships a GitHub-events channel (an MCP server delivering webhook events into the session), ~0 idle requests; **(2) Monitor tool** fallback (30s `gh` poll); **(3) plain `gh` polling** in cloud/headless sessions. Check the push channel FIRST per [monitor.md](reference/monitor.md) §3.0.05 before falling back |
 | `comments` | Phase 3.5 | Evaluate/respond to PR comments only |
-| `merge` | Phase 4 | Squash merge + worktree cleanup + verify |
+| `merge` | Phase 4 | Squash merge + worktree transition (reuse it, or release this session's lock) + verify. Never removes a worktree: that is `/source-control:worktree cleanup` |
 | `status` | Report only | Unified status across all phases |
 | `full` | Phase 1-4 | Run prep → create → monitor → merge end-to-end |
 | `fetch-logs <pr\|run> [--raw\|--job <job-id>]` | CI log retrieval | Pull failed-CI evidence: default = `::error`/`::warning` annotations only (cheapest); `--raw` = full ZIP dump for archive review; `--job <id>` = per-job plain text |
@@ -114,7 +114,7 @@ Parse `$ARGUMENTS` to extract the action (first token) and any sub-arguments.
    gh pr view --json state,number,isDraft 2>/dev/null
    a. exit non-zero → no PR yet → START AT PHASE 1 (prep); skip steps 3-6
       entirely (they all need a PR number that does not exist yet)
-   b. state = MERGED → skip to Phase 4.3 (cleanup only — pull default branch, delete branch, prune)
+   b. state = MERGED → skip to Phase 4.3 (worktree transition only: new branch from the default branch, delete the merged local branch)
    c. state = CLOSED → report "PR was closed without merging" and stop
    d. state = OPEN → capture pr_number, continue to step 3
 3. isDraft = true → START AT PHASE 2.5 (ready); skip steps 4-6. A draft owes its
@@ -311,6 +311,6 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 - **"No comments" does NOT mean "ready."** Comment-only actors post at unpredictable times. A 2-minute cooldown after the last check-run completion or comment arrival prevents the race condition. See readiness.md Gate 5
 - **Security scans are always blocking.** Any check run or bot comment reporting security findings (secrets, vulnerabilities) triggers mandatory triage, even if the finding is a false positive, it must be explicitly classified and documented before merge
 - **Discover actors, don't hardcode them.** Security tools and AI reviewers change over time. Monitor discovers actors from `gh pr checks` and PR comments, classifies them by category (CI, security, review), and evaluates accordingly
-- **Uncommitted changes are silently lost on branch deletion.** `git reflog` cannot recover uncommitted edits. Only commits. Before staging (Phase 2.3.1) and before post-merge cleanup (Phase 4.3), check `git status --porcelain` for unrelated uncommitted changes. Stash them (`git stash push -m "desc" -- <files>`). Stashes survive branch deletion. Never silently ignore uncommitted changes
+- **Uncommitted changes are silently lost on branch deletion.** `git reflog` cannot recover uncommitted edits. Only commits. Before staging (Phase 2.3.1) and before the post-merge worktree transition (Phase 4.3), check `git status --porcelain` for unrelated uncommitted changes. Stash them (`git stash push -m "desc" -- <files>`). Stashes survive branch deletion. Never silently ignore uncommitted changes
 - **Cloud sessions use `gh` polling, not event subscription.** Autonomous cloud sessions (`CLAUDE_CODE_REMOTE=true`) poll `gh pr checks` + `gh api` on a fixed 60-90s cadence (§3.0.0 of monitor.md)
 - **Monitor checks the push channel first, then falls back.** Three-tier hierarchy on local CLI sessions: (1) **push channel** (when your environment ships a GitHub-events MCP channel. ~0 Idle requests), (2) **Monitor tool** (session-persistent `Monitor(persistent: true, ...)` watch; 30s `gh` poll fires on real CI/comment events; cancel via `TaskStop`), (3) fixed-interval cron polling (deprecated, wasteful). Do not skip straight to the Monitor tool without checking for a channel, polling wastes ~1 request per 30s interval vs ~0 idle with push delivery

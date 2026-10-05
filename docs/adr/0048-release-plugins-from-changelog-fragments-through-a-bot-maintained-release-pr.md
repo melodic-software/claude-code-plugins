@@ -14,7 +14,7 @@ Main moves those two files faster than a pull request can merge. Measured on `or
 2026-10-03 with `git log --since='7 days ago'`:
 
 - 719 of 863 commits touched a `plugins/*/.claude-plugin/plugin.json`.
-- The most-bumped plugins were `planning` (87), `claude-ops` (78), `source-control` (74) and
+- The most-bumped plugins were `planning` (87), `claude-ops` (78, since renamed `harness-ops`), `source-control` (74) and
   `disk-hygiene` (72). At 87 a week, `planning` gets a new version about every 1.9 hours, so any
   branch on it that stays open longer than that expects a conflict.
 - Successful full CI runs on `pull_request` (the 173 of the last 200 that ran longer than three
@@ -51,7 +51,7 @@ The gates that enforce today's per-PR discipline:
 
 `.claude-plugin/marketplace.json` lists 85 plugins and none of the entries carries a `version`, so
 the manifest is the only place a version lives. Dependabot cannot write the bump, so
-`.github/workflows/dependabot-plugin-release.yml` writes it on Dependabot pull requests through the
+`.github/workflows/pr-bump-plugin-version.yml` writes it on Dependabot pull requests through the
 GraphQL `createCommitOnBranch` mutation, which GitHub signs (lines 9-14 and 85-111).
 
 ## Decision
@@ -144,9 +144,9 @@ version bumps and CHANGELOG entries.
   fragments wait and go with the next release.
 - **Token and signed commits:** a GitHub App installation token, not `GITHUB_TOKEN`. Pull request
   events that `GITHUB_TOKEN` causes start no workflow runs or start them waiting for approval
-  (`dependabot-plugin-release.yml:15-20`), and the release pull request needs `ci-status` to run.
+  (`pr-bump-plugin-version.yml:15-20`), and the release pull request needs `ci-status` to run.
   The bot writes its one commit through `createCommitOnBranch` with `expectedHeadOid` (the
-  pattern at `dependabot-plugin-release.yml:85-111`) on a staging branch,
+  pattern at `pr-bump-plugin-version.yml:85-111`) on a staging branch,
   `release/plugins-next`, cut from main's tip, then moves `release/plugins` to that commit in one
   ref update. A run cut short therefore never leaves the open release pull request with an empty
   head. GitHub signs that commit, which satisfies main's
@@ -167,7 +167,7 @@ version bumps and CHANGELOG entries.
 | New `check-changelog-fragments.sh --check-release <base>` | Runs on the release pull request only. Fails when the base holds an unconsumed fragment for a plugin the release bumps (see The release pull request) |
 | `check-vendor-version-bump.sh` and the `sync-*.sh --check-bump` steps | One shared predicate in `scripts/lib/` replaces "manifest version moved" with "manifest version moved, or a fragment for that plugin with a `bump` other than `none` was added". The version-moved branch stays so legacy plugins pass during the dual mode |
 | `check-stale-base-overlap.sh` | Unchanged. It stops firing on version files because pull requests no longer touch them |
-| `dependabot-plugin-release.yml` | Writes a `patch` fragment, named the way `new-changelog-fragment.sh` names one, through the same `createCommitOnBranch` call instead of running `dependabot-plugin-bump.sh` |
+| `pr-bump-plugin-version.yml` and `scripts/dependabot-plugin-bump.sh` | For a plugin in fragment mode, `dependabot-plugin-bump.sh` writes a `patch` fragment (`### Changed` with the dependency lines), named the way `new-changelog-fragment.sh` names one, instead of the bump; the workflow commits it through the same `createCommitOnBranch` call. Legacy plugins keep the bump |
 | `resolve-version-bump-conflict.sh` | Kept in the `source-control` plugin, which other repositories install and which may still bump per pull request. This repository stops calling it once every plugin is in fragment mode, and the four skill documents above say it applies only to repositories that bump per pull request |
 
 ### How installed users see updates
@@ -228,6 +228,11 @@ still carries its last released version.
 - Contributor instructions change: `AGENTS.md:19-21` ("shared version bump and CHANGELOG line"),
   `docs/migration-playbook.md:493-496`, ADR 0019's bump wording (lines 14-20, 101-103) and the
   four resolver references all describe the per-PR bump and need rewording for fragment mode.
+- The standards sync writes `plugins/guardrails/lib/path-detection/machine-path-patterns.sh`
+  (the standards repository's `sync-manifest.yml`). Once `guardrails` is in fragment mode, a sync
+  pull request that changes that file fails `--check-required` with MISSING FRAGMENT until a
+  maintainer adds one on the sync branch with `scripts/new-changelog-fragment.sh guardrails patch`.
+  Having the standards sync write that fragment itself is a follow-up in the standards repository.
 
 ## Rollout
 
@@ -243,13 +248,20 @@ proven.
    signed commit, a green `ci-status`, and a bumped version that `claude plugin update` picks up.
    Rollback: remove the plugin from the list and hand-write any pending fragments into its
    CHANGELOG with a normal bump.
-3. **Dual mode, high-traffic plugins.** Add the most-bumped plugins (`planning`, `claude-ops`,
-   `source-control`, `disk-hygiene`) and turn on the schedule and the `.changes/**` push
-   trigger. Legacy plugins keep the per-PR bump
-   and the resolver. Rollback: as in phase 2, per plugin.
-4. **Fleet.** Add every remaining plugin, switch `dependabot-plugin-release.yml` to fragments, and
-   update the contributor instructions listed under Consequences. Rollback: empty the list and
-   restore the Dependabot bump step; the per-PR gates still run for listed-out plugins.
+3. **Dual mode, high-traffic plugins.** Add the ten plugins whose `plugin.json` changed most in
+   the 7 days to 2026-10-04: `planning` (102), `source-control` (92), `disk-hygiene` (80),
+   `guardrails` (65), `testing` (63), `session-flow` (61), `harness-ops` (57, plus 73 as
+   `claude-ops` before its rename to `harness-ops`), `playbooks` (53), `instruction-placement` (53)
+   and `context-guard` (50). Turn on the schedule and the `.changes/**` push trigger; those runs
+   merge a current, green release pull request themselves. Switch `pr-bump-plugin-version.yml`
+   to fragments for listed plugins, because `harness-ops` takes Dependabot updates. Convert
+   open pull requests that hand-bump a newly listed plugin with
+   `plugins/source-control/scripts/convert-bump-to-fragment.sh`. Legacy plugins keep the per-PR
+   bump and the resolver. Rollback: as in phase 2, per plugin.
+4. **Fleet.** Add every remaining plugin, let `new-changelog-fragment.sh` write one fragment for
+   every plugin that carries an edited shared library, update `docs/migration-playbook.md` and
+   ADR 0019, and update the contributor instructions listed under Consequences. Rollback: empty
+   the list; Dependabot and the per-PR gates fall back to the bump for listed-out plugins.
 5. **Retire the per-PR path in this repository.** Replace the opt-in list with "all plugins", drop
    the version-moved branch of the shared predicate, and reword the resolver references. Rollback:
    revert this phase's commit, which restores phase 4.
