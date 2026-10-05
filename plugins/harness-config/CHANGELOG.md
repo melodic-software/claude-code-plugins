@@ -138,6 +138,12 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   Its output lines and exit codes are unchanged, and the hash equals the earlier one on the
   committed fixture and on the live page.
 
+## [1.9.3] - 2026-10-04
+
+### Changed
+
+- `unhobble` says changelog parity also accepts a changelog fragment for a plugin in fragment mode.
+
 ## [1.9.2] - 2026-10-04
 
 ### Fixed

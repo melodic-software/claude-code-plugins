@@ -39,6 +39,12 @@
   3.8, a browser-form URL with a query string or trailing slash resolves, prune sweeps stale temp
   leftovers on every run, and a page with no title lifts its removal quarantine when read again.
 
+## [0.28.10] - 2026-10-04
+
+### Fixed
+
+- `/discovery:research`: a flagged first-party content claim carries no `subject_pool`, and the single-publisher MEDIUM cap does not apply to it, since its subject is the artifact, not the publisher; a claim carries `single_source:` or `subject_pool:`, never both. The exception also covers a publisher's own help text. Verifiers had failed rows 4 and 7 on non-Anthropic first-party content claims whose quotes held on re-fetch.
+
 ## [0.28.9] - 2026-10-04
 
 ### Fixed

@@ -3,7 +3,7 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [3.8.10] - 2026-10-04
+## [3.8.11] - 2026-10-05
 
 ### Changed
 
@@ -17,6 +17,16 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 - **The docs cross-check never runs a `git` or `bash` planted in the working directory.** It resolves both from the absolute `PATH` entries only, where `shutil.which` on Windows searched the current directory first; the shared `fetch-docs.sh` also leaves a body over `max_page_bytes` (default 10 MiB) unread `too-large`, and `docs-cache.sh` refuses a summary or note shaped like its untrusted-data markers.
 
 - **`/harness-ops:inventory` reads its docs through the shared fetcher.** The docs cross-check fetches the commands, tools and changelog pages with `fetch-docs.sh` (identity-checked and cached, age reported) instead of its own `urllib` fetcher; a page that cannot be fetched, or a machine with no bash, is reported unread with its reason.
+
+## [3.8.10] - 2026-10-04
+
+### Fixed
+
+- **The `plugins` cache-content audit no longer tells you to delete the cache of a plugin with unreleased changes.** When the marketplace clone holds `.changes/<plugin>/`, the row reads `(unreleased changes pending)` and gets no delete-cache repair, since the plugin's next release brings a new cache directory.
+
+### Changed
+
+- `audit-native-overlap` and `inventory` name the repo's release record (a version bump plus CHANGELOG entry, or a changelog fragment where the repo uses them) instead of always a version bump.
 
 ## [3.8.9] - 2026-10-04
 
