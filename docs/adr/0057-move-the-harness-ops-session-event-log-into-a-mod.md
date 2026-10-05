@@ -1,7 +1,6 @@
 # Move the harness-ops session event log into a mod
 
-- Status: proposed; accepted once the owner accepts or rejects the two differences listed after the
-  four under Decision
+- Status: accepted
 - Date: 2026-10-04
 
 ## Context
@@ -47,7 +46,9 @@ hooks from the registry, since Claude Code reads each hooked event from a string
 module's own `claude plugin test` cases count its processes, per the hook-budget convention's rule
 for mods.
 
-The owner accepted these four differences by name on #6246:
+The owner accepted these six differences by name on #6246: the first four in the decision comment,
+and the last two, found while building the module, in a
+[later comment](https://github.com/melodic-software/claude-code-plugins/issues/6246#issuecomment-5987066808):
 
 1. **Managed machines.** On a machine with managed settings, or for a user signed in with a Team or
    Enterprise plan, the built-in guard `sec-default` holds `classic.*` events, so the log does not
@@ -58,16 +59,12 @@ The owner accepted these four differences by name on #6246:
    no direct equivalent of the script's 64 KB read cap. The module serializes the payload and the
    script still reads only its first 64 KB, so the records keep the cap.
 4. **Mods off.** Where mods are off, the log does not run.
-
-Two further differences were found while building the module and are not among the four. Each
-needs the owner's acceptance:
-
-- **No `traceparent`.** A settings hook received `TRACEPARENT` when tracing was on, and a mod
-  receives no per-hook trace context, so records written by the module carry no `traceparent` key.
-  The module clears `TRACEPARENT` rather than pass on a value the Claude Code process itself holds.
-- **CLI-only writes.** The per-build types declare `$.process` "CLI only". On a host where mods load
-  but `$.process.run` cannot start a command, the module writes nothing and logs that once to the
-  debug log, where the settings rows wrote. Which hosts those are is not probed.
+5. **No `traceparent`.** A settings hook received `TRACEPARENT` when tracing was on, and a mod
+   receives no per-hook trace context, so records written by the module carry no `traceparent` key.
+   The module clears `TRACEPARENT` rather than pass on a value the Claude Code process itself holds.
+6. **CLI-only writes.** The per-build types declare `$.process` "CLI only". On a host where mods load
+   but `$.process.run` cannot start a command, the module writes nothing and logs that once to the
+   debug log, where the settings rows wrote. Which hosts those are is not probed.
 
 ## Alternatives considered
 
@@ -92,5 +89,5 @@ needs the owner's acceptance:
 - The log needs Claude Code 2.1.287 or later with mods on.
 - Option values reach the module from the same `pluginConfigs` the settings rows read (user or
   managed scope), so `session_log_pre_prune_command` keeps its trust boundary.
-- `scripts/gen-hook-event-registry.test.sh` asserted the retired producer rows and has to assert the
-  generated module block and the absence of rows instead.
+- `scripts/gen-hook-event-registry.test.sh` asserts the generated module block and the absence of
+  event-log rows in `hooks.json`, in place of the retired producer rows.
