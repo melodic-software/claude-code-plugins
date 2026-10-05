@@ -65,8 +65,7 @@ its rows in rank order and use the first one for which all of these hold:
   they may need to sign in.
 
 Invoke a skill route by its exact id; for a plugin route, use the skill it provides for the
-concern; for a tool route, call that tool (`Artifact`: start from its Design type for mockups, its
-Design System type for a design system). A skill only its user can start (the Skill tool refuses it) is handed over instead: give
+concern; for a tool route, call that tool the way its row's `pointer` describes for the concern. A skill only its user can start (the Skill tool refuses it) is handed over instead: give
 the user its slash command. Say which route you took and why.
 
 ## Combine routes and settle conflicts
@@ -120,7 +119,12 @@ the user agrees.
 - A `null` in `reachable` means detect cannot tell, not that the tool is down. Route to the
   account-bound row as Step 4 says; if it then fails, fall back to the next row and say signing in
   may fix it.
-- A headless `claude -p` session does not load the `Artifact` tool, so the Claude Design rows
-  never qualify there; Step 4's own-listing check skips them.
+- A `kind: tool` row never gets a `reachable` entry, because detect cannot see a session's tools;
+  treat the missing entry as `null`. The Claude Design rows qualify only in a session whose own tool
+  listing has `Artifact`; a headless probe did not list it.
+  - **Pointer**: when a Claude Design row is skipped in a session that should have it, fetch
+    <https://github.com/melodic-software/claude-code-plugins/pull/6429> live for the probe.
+    **As of**: 2026-10-04, Claude Code 2.1.289. **Recheck trigger**: a Claude Code release note
+    naming the `Artifact` tool or print-mode tool loading.
 - The routing data ranks candidates; its `unconfirmed` rows have not yet been installed and tested
   here. Say so when you route to one.
