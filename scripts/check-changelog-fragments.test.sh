@@ -318,6 +318,49 @@ rm -rf "$f"
 # --- usage ------------------------------------------------------------------------
 base_fixture f alpha
 expect "no arguments exits 2" 2 "usage" "$f"
+rm -rf "$f"
+
+# --- --check-required: a Dependabot-only pull request needs no fragment ---------
+# A gh stub answers the verified-signature lookup: it prints $GH_ANSWER and exits
+# $GH_RC. dependabot_commit makes a commit with Dependabot's author and GitHub's
+# committer, which a pusher can forge; only the signature lookup tells them apart.
+dependabot_commit() (
+  export GIT_AUTHOR_NAME='dependabot[bot]' GIT_AUTHOR_EMAIL='49699333+dependabot[bot]@users.noreply.github.com'
+  export GIT_COMMITTER_NAME=GitHub GIT_COMMITTER_EMAIL=noreply@github.com
+  commit "$1" "$2"
+)
+run_dependabot() { # <label> <want-rc> <needle> <author> <answer> <gh-rc>
+  local out rc
+  out="$(cd "$f" && PATH="$f/.git/stub:$PATH" GH_ANSWER="$5" GH_RC="$6" CHANGELOG_PR_AUTHOR="$4" \
+    GITHUB_REPOSITORY=melodic-software/claude-code-plugins bash scripts/check-changelog-fragments.sh --check-required main 2>&1)"
+  rc=$?
+  if ((rc == $2)) && [[ "$out" == *"$3"* ]]; then ok "$1"; else fail "$1: want rc=$2 and '$3', got rc=$rc: $out"; fi
+}
+base_fixture f alpha
+mkdir -p "$f/.git/stub"
+# shellcheck disable=SC2016  # the stub expands these when it runs
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$GH_ANSWER"\nexit "${GH_RC:-0}"\n' >"$f/.git/stub/gh"
+chmod +x "$f/.git/stub/gh"
+git_test_config "$f" checkout -qb dependabot/npm
+printf 'v2\n' >"$f/plugins/alpha/skills/a.md"
+dependabot_commit "$f" "build(deps): bump zod"
+run_dependabot "--check-required exempts a pull request of verified Dependabot commits" 0 "Dependabot-only change to plugins/alpha/" 'dependabot[bot]' true 0
+run_dependabot "--check-required does not exempt a pull request another author opened" 1 "MISSING FRAGMENT" kyle-sexton true 0
+run_dependabot "--check-required does not exempt a commit whose signature GitHub did not verify" 1 "MISSING FRAGMENT" 'dependabot[bot]' false 0
+run_dependabot "--check-required does not exempt when the signature lookup fails" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 1
+out="$(cd "$f" && PATH="$f/.git/stub:$PATH" GH_ANSWER=true CHANGELOG_PR_AUTHOR='dependabot[bot]' \
+  bash scripts/check-changelog-fragments.sh --check-required main 2>&1)"
+if [[ $? -eq 1 && "$out" == *"MISSING FRAGMENT"* ]]; then
+  ok "--check-required does not exempt without GITHUB_REPOSITORY to look the signature up"
+else
+  fail "no GITHUB_REPOSITORY: $out"
+fi
+printf 'v3\n' >"$f/plugins/alpha/skills/a.md"
+commit "$f" "a commit pushed onto the Dependabot branch"
+run_dependabot "--check-required does not exempt a Dependabot pull request carrying another author's commit" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
+rm -rf "$f"
+
+base_fixture f alpha
 expect "--check-required without a ref exits 2" 2 "usage" "$f" --check-required
 expect "an unresolvable base ref exits 2" 2 "not a resolvable commit" "$f" --check-release no-such-ref
 rm -rf "$f"
