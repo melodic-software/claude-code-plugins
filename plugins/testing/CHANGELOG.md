@@ -3,11 +3,18 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.22.20] - 2026-10-04
+## [0.22.21] - 2026-10-04
 
 ### Changed
 
 - **Shared `exec-bash.mjs` launcher synced; no change to this plugin's hooks.** The launcher gains `--run-if-any-set`, `--run-if-settings-mention`, `--skip-unless-marker` and `--marker-root`, which the autonomy and disk-hygiene Stop rows use to skip starting bash on a turn where their script would exit at once.
+
+## [0.22.20] - 2026-10-04
+
+### Changed
+
+- `/testing:run-e2e` owns one browser-tool rubric: Playwright CLI headless by default (Linux-side Chromium on WSL2), Playwright MCP for long stateful exploration, Chrome DevTools MCP for deep performance and network debugging, a committed spec in the project's own browser-test framework (`@playwright/test` when it has none) for durable regression, and Claude in Chrome for the user's logged-in browser on native hosts (from WSL, read the upstream WSL note first; live test pending). It replaces the token table and the fit-triage table.
+- UI verification now inspects the render: an axe scan (necessary, not sufficient), geometry assertions at two or more widths, a pixel baseline when one exists, and a vision review of cropped screenshots whose findings are leads only.
 
 ## [0.22.19] - 2026-10-04
 
