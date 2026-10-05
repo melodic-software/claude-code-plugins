@@ -252,8 +252,12 @@ _check_env_target() {
 # bash manual), whose new value would change how the rest of the wizard runs.
 # LD_* and DYLD_* are refused too: when already exported, the dynamic loader
 # reads them in every command the wizard starts (gh, git, mktemp).
+# A key the shell already exports (GH_TOKEN, BROWSER, GIT_SSH_COMMAND, ...) is
+# refused: printf -v keeps the export flag, so the assigned value would reach
+# gh, git and the browser opener.
 # Gate KEY with _valid_key first.
 _assignable_key() {
+  local __wiz_decl
   case "$1" in
   __wiz_* | _WIZARD_* | _ENV_* | _STAGE_INDEX | ENV_FILE | TOTAL_STAGES | \
     WRITTEN_ENV | WRITTEN_SECRET | WRITTEN_VAR | SKIPPED | GH_REPO | \
@@ -274,6 +278,12 @@ _assignable_key() {
     ;;
   *) ;;
   esac
+  # declare -p prints the attribute flags first (declare -x, -rx, ...).
+  __wiz_decl=$(declare -p -- "$1" 2>/dev/null) || return 0
+  __wiz_decl=${__wiz_decl#declare -}
+  if [[ "${__wiz_decl%% *}" == *x* ]]; then
+    fatal "exported key name: '$1' (already exported, so a value the wizard assigns would reach gh, git and the browser opener; pick another name)"
+  fi
 }
 
 # ask, ask_secret and write_env assign $KEY with printf -v, which writes the

@@ -19,6 +19,9 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # SETTINGS_AUDIT_ENGINE_* seams it uses.
 while IFS= read -r v; do unset "$v"; done < <(compgen -e | grep -E '^SETTINGS_AUDIT_')
 unset CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_ROOT
+# Most cases read stdout and stderr together, so the progress lines stay off
+# except in the case that checks them.
+export SETTINGS_AUDIT_ENGINE_PROGRESS=0
 mkdir -p "$TEST_TMPDIR/home/.claude"
 export HOME="$TEST_TMPDIR/home"
 export CLAUDE_CONFIG_DIR="$TEST_TMPDIR/home/.claude"
@@ -1238,7 +1241,9 @@ assert_contains "case 44b: a heuristic pair stays a guess" \
 # --- Case 45: a category E row is never dropped silently -------------------------
 # The decoder and the row reader, with a stub row, fed the emit encoding directly.
 E_DEFS=""
-eval "$(sed -n "/^unb64_to() {/,/^}/p; /^E_ROW_BAD=/p; /^e_rows() {/,/^}/p; /^E_DEFS='/,/^'\$/p" "$SCRIPT")"
+# shellcheck disable=SC2034  # read by the nul_fields the eval below defines
+DOCS_TMP="$TEST_TMPDIR"
+eval "$(sed -n "/^ejq() /p; /^NUL_FIELDS=/p; /^nul_fields() {/,/^}/p; /^E_ROW_BAD=/p; /^e_rows() {/,/^}/p; /^E_DEFS='/,/^'\$/p" "$SCRIPT")"
 SEEN=()
 # shellcheck disable=SC2329  # called by the e_rows the eval above defined
 row() { SEEN+=("$(printf '%s|' "$@")"); }
@@ -1665,6 +1670,59 @@ assert_eq "case 54: a row with no fix version has no row" "" "$(ki_status 'fix-v
 make_cli "$m/claude-none" ""
 out=$(SETTINGS_AUDIT_ENGINE_KNOWN_ISSUES_FILE="$ki" CLI_BIN="$m/claude-none" run "$m" --json 2>&1) || true
 assert_eq "case 54: an unreadable version skips" "skip none" "$(ki_status 'fix-version:#8961')"
+
+# --- Case 55: process starts do not grow with the config, and progress is stderr only
+# Every process start is slow on Windows, so the engine and its hook inventory
+# must not start a jq per hook, row or plugin. Every jq is counted through a
+# PATH shim, for a config with 5
+# and with 60 settings hooks (each command registered twice in a row, so half
+# are duplicate-hook findings), deny rules and disabled plugins: the rows they
+# add are built in one jq pass, so the count must not move.
+JQ_REAL="$(command -v jq)"
+SHIMS="$TEST_TMPDIR/shims"
+mkdir -p "$SHIMS"
+printf '#!/usr/bin/env bash\nprintf "x\\n" >>"$JQ_COUNT_LOG"\nexec "%s" "$@"\n' "$JQ_REAL" >"$SHIMS/jq"
+chmod +x "$SHIMS/jq"
+# scaled_machine <n>: a machine with n of each; echoes its root.
+scaled_machine() {
+  local m
+  m="$(make_machine "scaled-$1")"
+  printf '%s\n' "$CLEAN_SETTINGS" | jq --argjson n "$1" '
+    .permissions.deny += [range(0; $n) | "Bash(scaled-tool-\(.) *)"]
+    | .hooks = {PreToolUse: [{matcher: "Bash", hooks: [range(0; $n) | {type: "command", command: "echo scaled-\(. / 2 | floor)"}]}]}' \
+    >"$m/project/.claude/settings.json"
+  jq -n --argjson n "$1" '{enabledPlugins: ([range(0; $n) | {key: "off-\(.)@mkt", value: false}] | from_entries)}' >"$m/user/settings.json"
+  printf '%s' "$m"
+}
+jq_count() {
+  local log="$TEST_TMPDIR/jq-count-$2.log"
+  : >"$log"
+  PATH="$SHIMS:$PATH" JQ_COUNT_LOG="$log" run "$1" --json --docs-dir "$DOCS" >/dev/null 2>&1
+  wc -l <"$log" | tr -d ' '
+}
+small="$(scaled_machine 5)"
+large="$(scaled_machine 60)"
+n_small="$(jq_count "$small" small)"
+n_large="$(jq_count "$large" large)"
+out="$(run "$large" --json --docs-dir "$DOCS" 2>/dev/null)"
+assert_eq "case 55: the 60 hooks reached the hook checks (30 duplicates)" "30" \
+  "$(jq '[.findings[] | select(.identity.check == "harness-config/audit/D/duplicate-hook")] | length' <<<"$out" | tr -d '\r')"
+assert_eq "case 55: the 60 disabled plugins reached the plugin rows" "60" \
+  "$(jq '[.rows[] | select(.claim | startswith("disabled-plugin:off-"))] | length' <<<"$out" | tr -d '\r')"
+if [[ "$n_small" -gt 0 && "$n_small" == "$n_large" ]]; then
+  pass "case 55: jq starts do not grow with hooks, deny rules or plugins ($n_small at 5 and at 60)"
+else
+  fail "case 55: jq starts do not grow with hooks, deny rules or plugins" "$n_small jq starts at 5 of each, $n_large at 60"
+fi
+quiet_out="$(run "$small" --json --docs-dir "$DOCS" 2>/dev/null)"
+loud_out="$(SETTINGS_AUDIT_ENGINE_PROGRESS=1 run "$small" --json --docs-dir "$DOCS" 2>"$TEST_TMPDIR/progress.err")"
+assert_eq "case 55: progress leaves stdout unchanged" "$quiet_out" "$loud_out"
+missing=""
+for c in A B C D E F G H I J; do
+  grep -qE "^audit-engine: $c " "$TEST_TMPDIR/progress.err" || missing+="$c"
+done
+assert_eq "case 55: stderr carries a progress line for every category" "" "$missing"
+assert_eq "case 55: PROGRESS=0 silences stderr" "" "$(run "$small" --json --docs-dir "$DOCS" 2>&1 >/dev/null)"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

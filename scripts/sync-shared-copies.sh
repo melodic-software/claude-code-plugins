@@ -148,7 +148,7 @@ check_copy() {
 }
 
 check_bump() {
-  local base="$1" src copy rest manifest base_version head_version stale=0 changed=0 src_changed rc
+  local base="$1" src copy rest plugin manifest base_version head_version stale=0 stale_fragment=0 changed=0 src_changed rc
   gate_entry::require_base "$base" "error: base ref $base does not resolve to a commit."
   for src in "${srcs[@]}"; do
     src_changed=0
@@ -169,16 +169,29 @@ check_bump() {
       changelog_fragments::bump_delivered "$base" "${rest%%/*}" "$base_version" "$head_version" || rc=$?
       ((rc < 2)) || exit 2
       if ((rc == 1)); then
-        echo "STALE VERSION: $src or its copy $copy changed vs $base but $manifest is still $head_version" >&2
+        plugin="${rest%%/*}"
         rest="${rest#*/}"
-        echo "  A bump that only carries the change gets the CHANGELOG entry: Shared \`$(basename "$src")\` synced (<link to the change>); no change to this plugin's ${rest%%/*}." >&2
-        stale=1
+        # shellcheck disable=SC2310  # the non-zero return IS the answer; bump_delivered already read the list
+        if changelog_fragments::in_mode "$plugin"; then
+          echo "STALE VERSION: $src or its copy $copy changed vs $base but $plugin, in fragment mode, has no fragment for it" >&2
+          echo "  Run scripts/new-changelog-fragment.sh $plugin patch; a fragment that only carries the change says under ### Changed: Shared \`$(basename "$src")\` synced (<link to the change>); no change to this plugin's ${rest%%/*}." >&2
+          stale_fragment=1
+        else
+          echo "STALE VERSION: $src or its copy $copy changed vs $base but $manifest is still $head_version" >&2
+          echo "  A bump that only carries the change gets the CHANGELOG entry: Shared \`$(basename "$src")\` synced (<link to the change>); no change to this plugin's ${rest%%/*}." >&2
+          stale=1
+        fi
       fi
     done <<<"${copies_of[$src]}"
     changed=$((changed + src_changed))
   done
   if ((stale)); then
     echo "Bump the version of every carrying plugin so consumers receive the change." >&2
+  fi
+  if ((stale_fragment)); then
+    echo "Add a patch fragment for every carrying plugin in fragment mode; the release pull request bumps its version (ADR 0048)." >&2
+  fi
+  if ((stale || stale_fragment)); then
     exit 1
   fi
   if ((changed)); then
