@@ -203,6 +203,16 @@ class VaultDelivery(unittest.TestCase):
         self.assertIn('elevenlabs-api-key', err)
         self.assertNotIn('Traceback', err)
 
+    def test_a_vault_exec_that_cannot_start_is_an_actionable_message_not_a_traceback(self):
+        def child(cmd, env, stderr, text):
+            raise PermissionError(13, 'Permission denied')
+        code, _, err = cli(None, vault='/usr/local/bin/vault-exec', run_child=child)
+        self.assertEqual(code, 2)
+        self.assertIn('could not be started', err)
+        self.assertIn('Permission denied', err)
+        self.assertIn('ELEVENLABS_API_KEY', err)
+        self.assertNotIn('Traceback', err)
+
     def test_the_childs_own_failure_passes_through_with_its_code(self):
         def child(cmd, env, stderr, text):
             return subprocess.CompletedProcess(cmd, 1, stderr='speech: ElevenLabs answered HTTP 422: bad\n')

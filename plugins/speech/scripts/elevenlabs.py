@@ -363,7 +363,12 @@ def via_vault(argv, exe):
     """Run this script again under vault-exec, which puts the key in the child's environment only. vault-exec exits 1
     when it cannot resolve the secret; the child's own failures carry a 'speech: ' line, so a bare 1 is vault-exec's."""
     cmd = [exe, '--env', f'{KEY_VAR}={VAULT_SECRET}', '--', sys.executable, str(Path(__file__).resolve()), *argv]
-    r = subprocess.run(cmd, env={**os.environ, CHILD_VAR: '1'}, stderr=subprocess.PIPE, text=True)
+    try:
+        r = subprocess.run(cmd, env={**os.environ, CHILD_VAR: '1'}, stderr=subprocess.PIPE, text=True)
+    except OSError as e:
+        sys.stderr.write(f'speech: {VAULT} could not be started ({e}). Fix or reinstall {VAULT}, or set {KEY_VAR} in '
+                         'your shell environment; the kokoro backend needs no key.\n')
+        return 2
     err = r.stderr or ''
     if r.returncode == 1 and not any(line.startswith('speech: ') for line in err.splitlines()):
         sys.stderr.write(f'speech: {VAULT} could not supply {KEY_VAR} from the vault secret "{VAULT_SECRET}" '

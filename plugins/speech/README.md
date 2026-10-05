@@ -55,7 +55,7 @@ standard library.
   [reference/elevenlabs.md](reference/elevenlabs.md) points at the live ElevenLabs docs.
 - **Organization egress floor.** Managed settings can set `SPEECH_EGRESS_FLOOR=local` in `env`.
   Managed settings outrank every other settings layer, so a user cannot unset it. The backend then
-  exits 4 with the reason, before it reads the key or prints an estimate. An unrecognized value is
+  exits 4 with the reason, before it reads the key or prints the quota statement. An unrecognized value is
   treated as `local`; `any` or unset allows the backend.
 - **Text to speech only.** No voice cloning, speech-to-text or other ElevenLabs endpoints.
 
