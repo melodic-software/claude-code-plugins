@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: completion-open-decisions
+description: a plan that leaves rounding and compounding unsaid gets a completion reply listing the choices made with reasons and the open decisions
+tags: [completion, reply, implement]
+expected_outcome: implement adds the late-interest rule with tests, and its closing message names what was built, the rounding and compounding choices it made with a reason each, and the decisions still open for the user with a recommendation each, or says none remain.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /implementation:implement execute the approved plan at .work/late-interest/PLAN.md. The plan is approved, and committing on the current branch is allowed. Do not push.
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 80
+  timeout_seconds: 1200
+graders:
+  - name: open-decisions-named
+    type: regex
+    target: last_message
+    pattern: 'open decisions?|decisions? (?:still |left )?open|left open for you|no open decisions'
+    flags: i
+    arm: both
+  - name: choices-with-reasons
+    type: llm
+    arm: both
+    criteria: "PASS only if the final message names the rounding rule it chose for the interest and whether interest compounds on earlier interest, gives a reason for each choice, and has a separate part listing decisions still open for the user with a recommendation for each, or stating that none remain. FAIL if either choice is missing, a choice has no reason, or open decisions are not addressed."

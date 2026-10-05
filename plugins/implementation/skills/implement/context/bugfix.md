@@ -10,12 +10,14 @@ Bug fixes follow a bottom-up approach: reproduce, isolate, fix, prove. Temptatio
 2. **Isolate the cause**: read the code path, add logging or breakpoints if needed. Understand *why* it fails, not just *where*. A fix that addresses the symptom instead of the cause will break again
 3. **Fix minimally**: change the smallest amount of code that fixes the root cause. Bug fixes are not refactoring opportunities. Boy Scout Rule applies to the files you touch, but keep behavioral changes focused
 4. **Verify the fix**: under the test-first fallback, the failing test from step 1 should now pass; otherwise verify per the project's declared `CLAUDE.md` / rules testing cadence. Run the full test suite for the affected project, since your fix may have side effects
-5. **Check for siblings**: is this a pattern? Could the same bug exist in similar code paths? If so, fix them all in the same commit with tests for each
+5. **Check for siblings**: is this a pattern? Could the same bug exist in similar code paths? Commit the fix for the reported case on its own first; then fix each sibling, with its own test, in a later commit on the same PR, so the focused fix can be reviewed or reverted alone
+6. **Report the evidence**: the completion report shows the failing output from before the fix and the passing run after it. When no failing run could be produced (the bug needs production data, a timing window, or hardware you lack), say so and why
 
 ## Checkpoints
 
 - Failing test committed first (proves the bug exists, and is optional but valuable for git history; applies under the test-first fallback, not a project-declared tests-after cadence)
 - Fix + green test committed together (the fix and its proof are atomic)
+- Each sibling fix and its test in its own later commit
 
 ## Common pitfalls
 

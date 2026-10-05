@@ -1,0 +1,45 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add payments/refund.py tests/test_refund.py && git commit -m \"fix: round refunds to the nearest cent\""
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git commit -m \"fix: round credit notes to the nearest cent\" payments/credit_note.py tests/test_credit_note.py"
+          }
+        }
+      ],
+      "why": "focused fix, then the sibling, as two commits"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git add payments tests && git commit -m \"fix: round refunds and credit notes\""
+          }
+        }
+      ],
+      "why": "one commit carries both fixes"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest discover tests"
+          }
+        }
+      ],
+      "why": "nothing committed"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+schema_version: "1.1"
+name: revert-non-moving-unit
+description: an uncommitted block that left the failing test failing the same way is reverted to the last green commit, not patched forward
+tags: [revert, cadence, implement]
+expected_outcome: implement sees the working-tree change to shipping/cutoff.py did not move the failing test, reverts that file to the last green commit, then states a new hypothesis and fixes the comparison.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/implementation:implement fix orders placed exactly at the 15:00 cutoff ship next day instead of same day. tests/test_cutoff.py::test_order_at_cutoff_ships_same_day fails. My last block, the uncommitted change in shipping/cutoff.py, was meant to make it pass, but the test fails exactly as before. Continue. Committing on the current branch is allowed. Do not push."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 60
+  timeout_seconds: 1200
+graders:
+  - name: block-reverted
+    type: tool_used
+    tool: Bash
+    input_match: 'git\s+(?:restore\b|checkout\s+(?:HEAD\s+)?--|reset\s+--hard|stash\b)'
+    arm: both
+  - name: revert-before-new-fix
+    type: llm
+    focus: trace
+    arm: both
+    criteria: "PASS only if the uncommitted change to shipping/cutoff.py (the timezone conversion) is discarded, by git or by restoring the committed content, before the agent writes its own fix for the cutoff comparison, and the agent says the block did not move the failing test. FAIL if the agent keeps the timezone change and adds further edits on top of it."

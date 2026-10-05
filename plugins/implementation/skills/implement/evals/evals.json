@@ -318,6 +318,76 @@
         "Reshapes the tax handling instead of adding another special case beside the existing one",
         "Keeps totals for already-correct orders unchanged"
       ]
+    },
+    {
+      "id": 25,
+      "name": "feature-fifth-branch-names-domain-structure",
+      "narration": true,
+      "prompt": "/implementation:implement feature add parcel-locker delivery to warehouse/dispatch.py. The approved plan at .work/locker/PLAN.md has one phase: support `delivery_kind == \"locker\"`. Today `route_parcel` is an if/elif chain with four branches on delivery_kind (courier, post, pickup, freight), each computing a label and a cutoff time. I'm reviewing each turn; branch feat/locker-delivery, clean tree. My integration_posture option is unset and the repository has no docs/conventions/implementation.yaml.",
+      "expected_output": "Reports integration_posture: plan governs. Before adding the locker case, the feature step picks a structure that names the delivery kinds (for example an enum with one handler per kind, or a table of label and cutoff rules), moves the four existing branches into it with their behavior unchanged, and then adds locker as one more entry, rather than appending a fifth elif to route_parcel.",
+      "files": [],
+      "expectations": [
+        "Names a domain structure for the delivery kinds before writing the locker case",
+        "Moves the four existing branches into that structure with their labels and cutoffs unchanged",
+        "Adds locker as an entry in the structure rather than a fifth elif branch",
+        "Reports integration_posture as governed by the approved plan"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "fix-sibling-occurrences-focused-commit-first",
+      "narration": true,
+      "prompt": "/implementation:implement fix refunds round half-cents down instead of to the nearest cent: payments/refund.py `refund_amount` truncates with int(). While looking I saw payments/credit_note.py `credit_amount` uses the same int() truncation. Fix the refund bug and that sibling. I'm reviewing each turn; branch fix/refund-rounding, clean tree; committing is allowed, do not push.",
+      "expected_output": "Writes a failing test for the refund rounding, then commits the refund fix with its test as a focused commit that touches only refund.py and its test. Then fixes credit_note.py with its own test in a separate, later commit on the same branch. The two fixes never share a commit.",
+      "files": [],
+      "expectations": [
+        "Writes a failing test that reproduces the refund rounding before changing refund.py",
+        "Commits the refund fix and its test without the credit_note.py change",
+        "Fixes credit_note.py with its own test in a later, separate commit on the same branch",
+        "Does not fix both sites in one commit"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "non-moving-unit-reverted-to-span-start",
+      "narration": true,
+      "prompt": "/implementation:implement execute Phase 2 of the approved plan at .work/ledger-split/PLAN.md. Phase 2 carries `**Planned breakage:** tests red until Phase 3 for tests/ledger/: the old Ledger class is removed before its replacement lands`. I'm two blocks into the span. The second block was supposed to make tests/ledger/test_balance.py collect again, but after it the same 6 tests fail the same way as before it. I'm reviewing each turn; branch refactor/ledger-split.",
+      "expected_output": "Treats the second block as a unit that did not move the check and reverts it rather than adding fixes on top. Because the phase is inside a declared planned-breakage span, the revert target is the start of that span (the state recorded at the span's first block), not merely the previous commit, and it says so. Then it states the next hypothesis before writing new code.",
+      "files": [],
+      "expectations": [
+        "Identifies that the block left the failing check unchanged",
+        "Reverts instead of patching forward on top of the block",
+        "Reverts to the start of the planned-breakage span and names that target",
+        "States the next hypothesis before new code"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "completion-reply-lists-choices-and-open-decisions",
+      "narration": true,
+      "prompt": "/implementation:implement execute the approved plan at .work/late-interest/PLAN.md: add monthly late interest of 1.5% to overdue invoices in billing/interest.py. The plan does not say how to round the interest or whether interest compounds on earlier interest. I'm reviewing each turn; branch feat/late-interest, clean tree. Assume the build and tests pass after your change.",
+      "expected_output": "Implements the interest rule with tests. The completion reply names what was built, lists each choice the plan left open that it made (the rounding rule, simple versus compound interest) with the reason for each, and lists the decisions still open for the user with a recommendation for each, or says there are none.",
+      "files": [],
+      "expectations": [
+        "Completion reply states what was built",
+        "Lists the rounding choice and the simple-versus-compound choice, each with a reason",
+        "Lists open decisions for the user with a recommendation each, or says there are none",
+        "Does not bury the choices inside a diff summary"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "contract-change-runs-propagation-sweep",
+      "narration": true,
+      "prompt": "/implementation:implement feature the approved plan at .work/tenant-id/PLAN.md renames the `account_id` parameter of `open_session()` in auth/session.py to `tenant_id` and makes it required. I'm reviewing each turn; branch feat/tenant-id, clean tree. The coupling plugin is not enabled; the docs-hygiene plugin is enabled.",
+      "expected_output": "Because the feature changes a contract, before the last commit it runs a propagation sweep: /docs-hygiene:rename-references audit (coupling is not enabled), and updates every call site, test, doc and example that still says account_id for open_session(). It reports the sweep and its hits.",
+      "files": [],
+      "expectations": [
+        "Recognizes the parameter rename as a contract change",
+        "Runs /docs-hygiene:rename-references audit because coupling is not enabled",
+        "Updates call sites, tests, docs and examples that still use the old name",
+        "Reports the sweep before the last commit"
+      ]
     }
   ]
 }

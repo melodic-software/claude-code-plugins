@@ -49,6 +49,8 @@ Track skill Steps 0–5 in-session via the task list. Durable progress lives in 
 
 In fix and config modes, hold to the scope discipline: do the simplest thing that works, edit a file surgically rather than rewriting it when the result is the same, and add no features, abstractions, or cleanup the task does not require. A feature follows `integration_posture` below, and so do fix and config when it resolves `day-one`; a refactor keeps the plan's scope. Proceed without prompting.
 
+**Data boundaries.** Check and narrow values where they enter the system (request bodies, files read, other services' responses) into the types the code works with, and past that point rely on those types instead of checking them again. Pointer: the "Overeagerness" section of Anthropic's prompting best practices ([claude-prompting-best-practices#overeagerness](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices#overeagerness); as of 2026-10-04; recheck when that section drops or moves its boundary-validation advice).
+
 Parse conversation context to determine execution mode. Mode shapes which context file to consult and how to structure the work.
 
 | Signal in conversation | Mode | Context file |
@@ -85,6 +87,7 @@ Before writing code, verify the knowledge base:
 - **Is there an approved plan?** If yes, use it as execution roadmap. If no plan exists and the task is non-trivial (3+ files, new project, cross-cutting change), suggest a planning pass first. `/planning:plan` when the planning plugin is installed, otherwise whatever plan skill the consuming setup provides (check what's actually available; never invent skill names). For trivial changes (single-file fix, small config edit), proceed without a formal plan
 - **Is the branch correct?** Check the branch gathered above. If on the default branch (`main`/`master`) and the project's workflow expects feature branches, stop and create one following the consuming project's branch-naming convention (check its `CLAUDE.md` / `AGENTS.md` / rules; `<type>/<description>` is a common default). `git checkout -b <branch>`, or `/source-control:worktree` when that plugin is installed
 - **Are there uncommitted changes?** If dirty working tree with unrelated changes, flag it, don't mix concerns in one commit
+- **Is the base current?** Before the first build or test run, fetch the base branch and bring this branch onto it the way the project integrates (merge or rebase; a brief or user instruction that forbids either wins), so a failure in that first run belongs to the real base and not to a stale copy. With no remote, or a failed fetch, say so in one line and carry on
 
 ## Step 2: Execute with Incremental Validation
 
@@ -107,6 +110,8 @@ Core execution loop. Key discipline: **validate after each logical block, not ju
 
 Either way the commit checkpoint follows the last green check.
 
+**Revert a unit that does not move the check**. When a block was meant to turn a failing check green or change how it fails, and the check reports the same result after the block as before it, revert the block to the last green commit instead of patching forward, then try the next hypothesis; inside a declared planned-breakage span (Execution cadence item 4) revert to the start of that span instead.
+
 **Integration-first within a multi-layer phase**. Build the integration slice end-to-end first and verify it runs before fanning out across layers; it is the cheapest form of the Step 3 "plans are hypotheses" experiment.
 
 ### When to break the cadence
@@ -119,6 +124,7 @@ Either way the commit checkpoint follows the last green check.
 ### Commit discipline
 
 - **Commit after tests pass**. Each commit is a green save point, except a red commit inside a declared planned-breakage span (Execution cadence item 4)
+- **Default delivery order**. A fix lands its failing test, then the fix; a change that both removes and builds lands the removal, then the construction. Under a project-declared tests-after cadence the failing-test commit is optional
 - **Separate structural from behavioral commits**. A rename/extract gets its own commit, separate from new features (Tidy First: "make the change easy, then make the easy change")
 - **Commit before running a simplify pass**. Your working code is a save point. If simplification introduces a bad change, revert cleanly
 - **Stage specific files**. `git add <file>`, never `git add -A` or `git add .`
@@ -140,6 +146,16 @@ Most important discipline in execution. Plans are hypotheses, implementation is 
 - You're writing workarounds or hacks to make the plan fit
 - Tests reveal edge cases the plan didn't account for
 
+**Design signals** (the design, not only the plan, may need to go):
+
+- Callers have to know a module's internals to use it correctly
+- Types are loosened to get code through: a cast, `any`, an optional field that is always set
+- The same workaround turns up at a second site
+- Two or more deviations from the plan share one cause
+- A race or ordering problem is being solved with a lock or a retry instead of a change to who owns the state
+
+Long code for irregular data is not one of these signals on its own: judge the structure, not the length.
+
 **When divergence is detected:**
 
 1. **Stop writing code.** Do not push through a broken approach
@@ -148,7 +164,7 @@ Most important discipline in execution. Plans are hypotheses, implementation is 
    - **Minor** (typo in plan, small API difference) → fix inline, note the deviation
    - **Moderate** (approach needs adjustment but direction is right) → adjust the plan, document what changed and why. Research alternatives before adjusting, don't settle for workarounds when a proper solution may exist
    - **Major** (fundamental assumption was wrong) → run external research first to find alternative approaches (invoke `/discovery:research` via the Skill tool when the discovery plugin is installed, otherwise a disciplined multi-source lookup), THEN route back to the planning skill (invoke `/planning:plan review` via the Skill tool when installed) to re-plan. The user approved a plan that no longer works, they need to approve the new direction, informed by fresh research
-4. **For major divergence:** switch to plan mode for safe exploration while redesigning the approach. Exit plan mode only after the revised plan is clear
+4. **For major divergence:** switch to plan mode for safe exploration while redesigning the approach. Exit plan mode only after the revised plan is clear. Start the redesign from the goal and what the failed attempt proved, not from the broken code, and keep the first revised sketch below the size of the failed attempt: name what it drops before what it adds
 
 **Non-interactive fork (autonomous runs only):** see `/implementation:implement-dispatch` "Divergence in non-interactive runs". Moderate divergence takes the conservative option + a deviations log instead of deadlocking; Major still STOPS. Interactive sessions keep the escalation ladder above unchanged.
 
@@ -238,6 +254,7 @@ When all planned work is done:
 4. **Deviation fold-back**. When a `DEVIATIONS.md` exists for this work (the non-interactive fork wrote one, or the session opted in per Step 3), read it now and emit one plan-amendment bullet per unresolved deviation or human-decision entry: what the plan should say next time, or what still needs a person. The log is the run's memory; a completion that never reads it back hands the PR reviewer deviations the author already knew about. Fold the bullets into the phase-boundary plan updates (Step 4 ritual) or the handoff summary
 5. **Rubber-duck advisor checkpoint (HIGH/CRITICAL only)**. For changes involving concurrency, security, cross-platform behavior, external API integration, or with significant divergence from the original plan, call the `advisor` tool (when available in the session) for a quick cross-model critique pass before the review gate. Skip for trivial changes
 6. **Hand off to the pre-PR sequence**. Hand off, do not re-order: that sequence owns the step order (invoke `/session-flow:workflow pre-pr` via the Skill tool when the `session-flow` plugin is installed to read it; otherwise follow the consuming setup's own pre-PR checklist). Its order puts **review before outcome verification**, because the simplify pass sits between them and outcome verification must judge the code that ships. So: suggest the project's review flow first (`/review:quality-gate` when the `review` plugin is installed; otherwise the consuming setup's review step), then `/verification:confirm` for outcome verification once the diff is final (when the `verification` plugin is installed; otherwise self-verify the outcome against the plan/intent directly), then the PR (`/source-control:pull-request` when that plugin is installed; otherwise whatever the consuming setup provides. The user controls timing). Do not commit-and-push unilaterally, final staging and PR creation belong to that flow. A run that ends without outcome verification against the Brief's outcome criteria (no `/verification:confirm`, no self-verification against intent) states in the handoff summary, or in `DEVIATIONS.md` when one exists, that it did not run and why, so the omission is never invisible. In an orchestrated run, a source commit the orchestrator itself makes after the last phase gets the `phase-verifier` verdict before it is pushed, per `/implementation:implement-dispatch` "Phase boundaries"
+7. **Completion reply**. The closing message names what was built, each choice the plan or task left open that you made, with its reason, and the decisions still open for the user, each with a recommendation, or says there are none
 
 ## Skill chaining during execution
 

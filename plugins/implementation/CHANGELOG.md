@@ -79,6 +79,14 @@ All notable changes to the `implementation` plugin are documented here. Format f
   (schema `schemas/implementation.schema.json`), which wins; an invalid value is named and that
   layer dropped, and the skill reports the supplying layer. Three eval cases cover the default
   pilot, `every` and the repository file winning.
+- **Fix mode commits the focused fix first and each sibling fix later in the same PR**, replacing
+  the rule that fixed every sibling in one commit, and its report shows the red run before and the
+  green run after. `/implementation:implement` also checks data at the system's boundaries, syncs
+  the base before the first check, reverts a block that did not move the failing check (to the
+  span's start inside a planned breakage), lists design signals, names the default delivery
+  orders, and ends with the choices made and the open decisions; feature mode deletes dead code
+  first, names a domain structure before growing a conditional, and sweeps for a changed contract.
+  Five skill eval cases and three plugin eval cases cover them.
 
 ## [0.21.3] - 2026-10-04
 
