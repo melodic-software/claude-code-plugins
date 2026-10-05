@@ -260,9 +260,11 @@ check)
     exit 1
   fi
   require_markers
-  if [[ "$(mod_ts "$REGISTRY" "$MOD_TS")" != "$(tr -d '\r' <"$MOD_TS")" ]]; then
+  generated=$(mod_ts "$REGISTRY" "$MOD_TS")
+  committed=$(tr -d '\r' <"$MOD_TS")
+  if [[ "$generated" != "$committed" ]]; then
     echo "gen-hook-event-registry: the observed-event hooks in $MOD_TS drift from the registry; re-run --fetch (or --from) to regenerate:" >&2
-    diff <(mod_ts "$REGISTRY" "$MOD_TS") <(tr -d '\r' <"$MOD_TS") >&2 || true
+    diff <(printf '%s\n' "$generated") <(printf '%s\n' "$committed") >&2 || true
     exit 1
   fi
   expected=$(strip_rows "$HOOKS_JSON" | jq -S .)
@@ -272,7 +274,7 @@ check)
     diff <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") >&2 || true
     exit 1
   fi
-  echo "gen-hook-event-registry: the event list matches the registry ($(jq length "$REGISTRY") events) and hooks.json carries no event-log row"
+  echo "gen-hook-event-registry: the observed-event hooks match the registry ($(jq length "$REGISTRY") events) and hooks.json carries no event-log row"
   ;;
 *)
   usage >&2

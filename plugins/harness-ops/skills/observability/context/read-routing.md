@@ -22,11 +22,13 @@ CC CLI ── OTLP :4318 ──▶ Collector ──┬── file ──▶ Duck
 
 Hooks ──▶ envelope ──▶ sink ──┬── data.session_id ──▶ <root>/sessions/<session_id>.jsonl  (source: envelope)
                               └── no session id  ──▶ <root>/hook-events.jsonl[.1]         (legacy shape)
-Every event ──▶ session-event-log (opt-in) ──▶ <root>/sessions/<session_id>.jsonl         (source: event-log)
+Every event ──▶ hooks module (opt-in, mods on) ──▶ session-event-log.sh ──▶ <root>/sessions/<session_id>.jsonl  (source: event-log)
 ```
 
 The root is the plugin's `session_event_log_dir` option (project-relative, self-ignoring
-`.gitignore` inside). The skill-usage store and the OTEL store stay under `.claude/observability/`.
+`.gitignore` inside). The per-session event log is written by the plugin's hooks module, so a
+session where mods are off, or where the built-in `sec-default` guard holds `classic.*` events,
+has `source: envelope` rows at most, never `event-log` rows. The skill-usage store and the OTEL store stay under `.claude/observability/`.
 
 ## Quick routing: "I need to know X"
 
