@@ -50,7 +50,8 @@ jobs:
       contents: write
       pull-requests: read
     env:
-      BUMP_APP_CLIENT_ID: ${{ secrets.DEPENDABOT_BUMP_APP_CLIENT_ID }}
+      # Both secrets or neither: a lone one would fail the mint step, not fall back.
+      BUMP_APP_READY: ${{ secrets.DEPENDABOT_BUMP_APP_CLIENT_ID != '' && secrets.DEPENDABOT_BUMP_APP_PRIVATE_KEY != '' }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -82,10 +83,10 @@ jobs:
           bash "$bump_script" "origin/$BASE_REF" --pr "$PR_NUMBER" --title "$PR_TITLE"
       - name: Mint the bump App token
         id: app-token
-        if: env.BUMP_APP_CLIENT_ID != ''
+        if: env.BUMP_APP_READY == 'true'
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
-          client-id: ${{ env.BUMP_APP_CLIENT_ID }}
+          client-id: ${{ secrets.DEPENDABOT_BUMP_APP_CLIENT_ID }}
           private-key: ${{ secrets.DEPENDABOT_BUMP_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
