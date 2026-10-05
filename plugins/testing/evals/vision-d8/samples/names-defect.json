@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "In the first card Save sits lower than Add to cart."
+    },
+    {
+      "answer": "The two buttons are misaligned."
+    },
+    {
+      "answer": "Save is offset by a few pixels."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Both widths render cleanly at load and after 1 s.\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": "The heading color changed.\nVERDICT: NEEDS WORK"
+    }
+  ]
+}

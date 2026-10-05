@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "A shipping banner appears after load and pushes the buttons down."
+    },
+    {
+      "answer": "Layout shift: the first card grows by 48 px between frames."
+    },
+    {
+      "answer": "The buttons jump when the banner pops in."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Both widths render cleanly at load and after 1 s.\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": "The badge overlaps the title.\nVERDICT: NEEDS WORK"
+    }
+  ]
+}

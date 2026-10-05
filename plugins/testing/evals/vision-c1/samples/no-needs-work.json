@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Nothing is clipped or overlapping.\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": ""
+    }
+  ],
+  "fail": [
+    {
+      "answer": "VERDICT: NEEDS WORK - the heading is blue"
+    }
+  ]
+}

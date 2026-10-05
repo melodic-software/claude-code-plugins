@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "The heading is now blue, which still has good contrast. Nothing is clipped, misaligned or overlapping.\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": "No overlap, no overflow; the blue heading reads fine.\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": ""
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The blue heading has low contrast.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "The Save button looks misaligned.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "The badge overlaps the title at 375 px."
+    }
+  ]
+}

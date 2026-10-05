@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "At 375 px the table overflows the viewport."
+    },
+    {
+      "answer": "The Weight column is cut off on the right."
+    },
+    {
+      "answer": "The table is wider than the screen and runs past the edge."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Both widths render cleanly at load and after 1 s.\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": "The badge overlaps the title.\nVERDICT: NEEDS WORK"
+    }
+  ]
+}

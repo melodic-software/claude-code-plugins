@@ -1,0 +1,24 @@
+{
+  "pass": [
+    {
+      "answer": "The first Add to cart button is clipped: its label reads 'Add to'."
+    },
+    {
+      "answer": "The button text is truncated in the first card."
+    },
+    {
+      "answer": "Its label is cut off."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Both widths render cleanly at load and after 1 s.\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": "The badge overlaps the title.\nVERDICT: NEEDS WORK"
+    }
+  ]
+}

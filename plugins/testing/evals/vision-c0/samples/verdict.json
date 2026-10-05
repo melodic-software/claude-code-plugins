@@ -1,0 +1,23 @@
+{
+  "pass": [
+    {
+      "answer": "Both widths render cleanly.\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": "**VERDICT: CONFIRMED**"
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "VERDICT: NEEDS WORK - heading",
+      "why": "false positive"
+    },
+    {
+      "answer": "Looks confirmed to me.",
+      "why": "no verdict line"
+    }
+  ]
+}

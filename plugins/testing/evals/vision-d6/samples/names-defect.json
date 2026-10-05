@@ -1,0 +1,27 @@
+{
+  "pass": [
+    {
+      "answer": "It says Showing 5 results but the list has only 4 items."
+    },
+    {
+      "answer": "Only four results are listed under 'Showing five results'."
+    },
+    {
+      "answer": "The list has 4 entries, not the 5 the count claims."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Both widths render cleanly at load and after 1 s.\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": "Body text contrast is 4.5:1 or better; the stove weighs 0.4 kg.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "The table is cut off at 375 px.\nVERDICT: NEEDS WORK"
+    }
+  ]
+}

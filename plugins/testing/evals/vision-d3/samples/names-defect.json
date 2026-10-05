@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "The grey body text has low contrast on white."
+    },
+    {
+      "answer": "Description text fails WCAG contrast."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Both widths render cleanly at load and after 1 s.\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": "The text is a bit light.\nVERDICT: NEEDS WORK"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "pass": [
+    {
+      "answer": "At 375 px the badge overlaps the product title."
+    },
+    {
+      "answer": "The New badge collides with the title text on mobile."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Both widths render cleanly at load and after 1 s.\nVERDICT: CONFIRMED"
+    },
+    {
+      "answer": "The Add to cart button is clipped.\nVERDICT: NEEDS WORK"
+    }
+  ]
+}
