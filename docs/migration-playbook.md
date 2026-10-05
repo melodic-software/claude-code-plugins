@@ -506,7 +506,9 @@ Separate **plugin-owned** logic from **consumer-owned** extension points:
   into a fragment for every carrier in fragment mode. A plugin not yet on the list still bumps its
   `version` and adds its `CHANGELOG.md` entry in the pull request.
 - **Consumers update deliberately** with `/plugin marketplace update <marketplace>`, which refetches
-  the marketplace. There is no silent auto-push of plugin changes to a consumer.
+  the marketplace. Auto-update is off by default for a third-party marketplace such as this one, so
+  a consumer gets no change they did not ask for unless they turned `autoUpdate` on
+  ([When auto-update runs](https://code.claude.com/docs/en/plugins/loading#when-auto-update-runs)).
 - **Breaking-change / changelog note per plugin.** A change to behavior a consumer depends on, such
   as a renamed option, a moved config path, or a removed action, is described in the fragment (or,
   for a plugin not yet in fragment mode, the `CHANGELOG.md` entry), and the release writes it into
