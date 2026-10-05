@@ -1,0 +1,35 @@
+{
+  "_capture": {
+    "source": "PostToolUse hook stdin, logged by a temporary command hook in a headless claude -p session",
+    "claude_code": "2.1.289",
+    "date": "2026-10-04",
+    "edits": [
+      "session_id, prompt_id, transcript_path and cwd replaced with placeholders",
+      "tool_response.result unchanged"
+    ]
+  },
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "transcript_path": "/home/user/.claude/projects/example/00000000-0000-4000-8000-000000000000.jsonl",
+  "cwd": "/home/user/example",
+  "permission_mode": "dontAsk",
+  "hook_event_name": "PostToolUse",
+  "prompt_id": "00000000-0000-4000-8000-000000000001",
+  "effort": {
+    "level": "medium"
+  },
+  "tool_name": "WebFetch",
+  "tool_input": {
+    "url": "https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md",
+    "prompt": "Return the page content verbatim, in full."
+  },
+  "tool_response": {
+    "bytes": 904319,
+    "code": 200,
+    "codeText": "OK",
+    "result": "# Claude Code Changelog Summary\n\nThis is an extensive changelog documenting updates across multiple versions of Claude Code, a development tool built on Anthropic's Claude AI.\n\n## Key Recent Additions (v2.1.289)\n\nThe latest release introduces improvements for nested shell commands, terminal performance with code blocks, and symlink handling in file operations. Notable fixes address plugin loading after upgrades and session stability issues.\n\n## Major Features Across Versions\n\n**Mods and Customization**: Version 2.1.287 introduced \"Claude Mods\" allowing deeper behavior modifications, plus a built-in \"You should know\" mod for notifications about potential issues.\n\n**Model Support**: Recent versions added Claude Sonnet 5.5 as the default, featuring \"1M context, $2/$10 per Mtok with $0.20/Mtok cache reads.\"\n\n**Integration Improvements**: Enhanced MCP (Model Context Protocol) server handling, better WebFetch functionality, and improved Remote Control sessions for distributed work.\n\n**UI/UX Enhancements**: Better permission prompts, improved list navigation, screen reader support, and vim mode refinements.\n\n## Notable Fixes\n\nThe changelog addresses numerous stability issues including session crashes, permission rule handling, file access through symlinks, and API timeout management. Terminal freezing, plugin caching problems, and session state issues received significant attention.\n\n## Platform-Specific Updates\n\nImprovements span Windows, macOS, Linux, VSCode integration, cloud sessions, and Slack integration (Claude Tag), with provider-specific fixes for Bedrock, Vertex AI, and custom endpoints.",
+    "durationMs": 5948,
+    "url": "https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md"
+  },
+  "tool_use_id": "toolu_01SuTU8LsVan3UYJqJa8mZTW",
+  "duration_ms": 5948
+}
