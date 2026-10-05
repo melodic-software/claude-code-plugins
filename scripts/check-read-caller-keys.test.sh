@@ -146,6 +146,26 @@ run_case "a quoted read workflow reference is still a caller" 1 \
   "printf 'on: push\njobs:\n  a:\n    uses: \"./$READ\"\n    secrets:\n      app-private-key: x\n' >.github/workflows/quoted.yml" \
   ".github/workflows/quoted.yml:6: references the App key"
 
+run_case "a lower-case App key secret name fails" 1 \
+  "printf '      other: \${{ secrets.automation_lanes_app_private_key }}\n' >>$CALLER" \
+  "$CALLER:11: references the App key"
+
+run_case "a secret expression on a shell comment line of a run block fails" 1 \
+  "printf '  echo:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: |\n          echo hi\n          # \${{ secrets.AUTOMATION_LANES_APP_PRIVATE_KEY }}\n' >>$CALLER" \
+  "$CALLER:16: references the App key"
+
+run_case "a full-path call to the read workflow is a caller, in any case" 1 \
+  "printf 'on: push\njobs:\n  a:\n    uses: Melodic-Software/Claude-Code-Plugins/$READ@main\n    secrets:\n      app-private-key: x\n' >.github/workflows/full.yml" \
+  ".github/workflows/full.yml:6: references the App key"
+
+run_case "a quoted or spaced private-key input key fails" 1 \
+  "printf '      \"private-key\": x\n  mint:\n    runs-on: ubuntu-24.04\n    steps:\n      - uses: actions/create-github-app-token@v3\n        with:\n          private-key : y\n' >>$CALLER" \
+  "$CALLER:11: references the App key" "$CALLER:17: references the App key"
+
+run_case "a read caller passing a secret off the allowlist fails" 1 \
+  "printf '      other: \${{ secrets.DEPLOY_TOKEN }}\n' >>$CALLER" \
+  "$CALLER:11: reads secrets.DEPLOY_TOKEN, which is not on the read-run allowlist"
+
 run_case "secrets: inherit in a read caller fails" 1 \
   "sed -i 's/^    secrets:\$/    secrets: inherit/; /claude-code-oauth-token/d' $CALLER" \
   "$CALLER:9: passes secrets: inherit"
