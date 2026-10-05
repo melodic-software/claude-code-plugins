@@ -78,6 +78,8 @@ A day-one redesign changes the code the work lands in until it reads as though t
 
 When the mode signals conflict (a "fix" that adds a capability, a config edit that changes code paths) and no argument names the mode, an interactive run asks. A non-interactive run (no human in the turn cycle) takes `minimal` for the change, whatever the resolved value, and appends a deviation entry to `DEVIATIONS.md` in this work's memory slice (`<memory_dir>/<slug>/`, default `.work/`), typed per `/implementation:implement-dispatch` "Divergence in non-interactive runs": plan said nothing (no approved plan), found the conflicting signals, chose `minimal`, revisit at PR review.
 
+**`refactor_compat`.** In refactor mode the user's option is `${user_config.refactor_compat}` (a literal, unexpanded placeholder means unset); [context/refactor.md](context/refactor.md) resolves it against the repository file and states what each value does with the old shape.
+
 **Read the relevant context file** for mode-specific guidance before proceeding.
 
 ## Step 1: Prerequisite Check

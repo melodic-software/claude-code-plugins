@@ -152,6 +152,10 @@ the other's `true`. Resolution and the root rule: [`reference/config.md`](refere
 refactor never changes behavior under any value. A repository's
 `docs/conventions/implementation.yaml` `integration_posture` key overrides this option.
 
+**`refactor_compat`.** `same-wave` never deletes a shape that external consumers (a public API, a
+published package) depend on. A repository's `docs/conventions/implementation.yaml`
+`refactor_compat` key overrides this option.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -168,6 +172,7 @@ reads it from.
 | `code_writing` | string | `"inline"` | `CLAUDE_PLUGIN_OPTION_CODE_WRITING` | Who writes the code in /implementation:implement. inline (default): this session edits, unless the run is autonomous or the plan routes phases to workers. dispatch: implement-dispatch workers write every plan phase. A repository's docs/conventions/implementation.yaml code_writing key overrides it. |
 | `per_unit_check` | string | `"pilot"` | `CLAUDE_PLUGIN_OPTION_PER_UNIT_CHECK` | How /implementation:implement checks a change applied at three or more sites. pilot (default): apply it to a few units, check them, then apply the rest with one check at the end. every: check after each unit. A repository's docs/conventions/implementation.yaml per_unit_check key overrides it. |
 | `integration_posture` | string | `"by-kind"` | `CLAUDE_PLUGIN_OPTION_INTEGRATION_POSTURE` | How far /implementation:implement reshapes surrounding code without an approved plan. by-kind (default): a feature redesigns the code it lands in as if built in from the start, a fix or config change stays minimal, a refactor keeps the plan's scope. day-one: all redesign. minimal: all stay minimal. |
+| `refactor_compat` | string | `"same-wave"` | `CLAUDE_PLUGIN_OPTION_REFACTOR_COMPAT` | What an /implementation:implement refactor does with the old shape. same-wave (default): update all call sites and remove it in that same change, unless code outside the repository relies on it. deprecate: keep an adapter with a removal condition. A repository's implementation.yaml overrides it. |
 
 ### How to set these
 

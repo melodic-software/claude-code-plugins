@@ -68,6 +68,16 @@
         "day-one",
         "minimal"
       ]
+    },
+    "refactor_compat": {
+      "type": "string",
+      "title": "Refactor compatibility",
+      "description": "What an /implementation:implement refactor does with the old shape. same-wave (default): update all call sites and remove it in that same change, unless code outside the repository relies on it. deprecate: keep an adapter with a removal condition. A repository's implementation.yaml overrides it.",
+      "default": "same-wave",
+      "options": [
+        "same-wave",
+        "deprecate"
+      ]
     }
   }
 }

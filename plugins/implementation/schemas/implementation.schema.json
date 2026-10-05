@@ -31,6 +31,11 @@
       "description": "How far a change reshapes the code around it. by-kind: a feature is a day-one redesign (the surrounding code is reshaped as if the feature had been there from the start), a fix or a config change is minimal, a refactor keeps the plan's scope with behavior unchanged. day-one: features, fixes and config changes all take the redesign. minimal: they all take the smallest change. A refactor keeps the plan's scope under every value. /planning:plan reads this key to write a day-one redesign as plan work items; /implementation:implement applies it only when no approved plan exists. Overrides the user's integration_posture option.",
       "enum": ["by-kind", "day-one", "minimal"],
       "default": "by-kind"
+    },
+    "refactor_compat": {
+      "description": "What /implementation:implement does in refactor mode with the shape it replaces. same-wave: update all call sites and remove the replaced shape in that same change, unless code outside the repository (a public API, a published package) relies on it. deprecate: keep an adapter, with a removal condition, for every consumer. Overrides the user's refactor_compat option.",
+      "enum": ["same-wave", "deprecate"],
+      "default": "same-wave"
     }
   }
 }

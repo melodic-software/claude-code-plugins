@@ -388,6 +388,48 @@
         "Updates call sites, tests, docs and examples that still use the old name",
         "Reports the sweep before the last commit"
       ]
+    },
+    {
+      "id": 30,
+      "name": "refactor-compat-same-wave",
+      "narration": true,
+      "prompt": "/implementation:implement refactor rename the internal helper `load_cfg()` in tools/settings.py to `read_settings()`. It has 23 callers, all modules in this repository; the package is not published and nothing outside the repository imports it. I'm reviewing each turn; branch refactor/read-settings, clean tree, tests green. My refactor_compat option is unset and the repository (a git checkout, not the home directory) has no docs/conventions/implementation.yaml.",
+      "expected_output": "Resolves refactor_compat to same-wave from the default and reports that layer in one line. Renames the helper, updates all 23 callers in the same change, and deletes `load_cfg()` outright: no alias, wrapper or deprecation shim for the old name remains.",
+      "files": [],
+      "expectations": [
+        "Reports refactor_compat: same-wave with the default as the supplying layer",
+        "Updates every one of the callers to read_settings() in the same change",
+        "Deletes load_cfg() rather than leaving it as an alias or forwarding wrapper",
+        "Does NOT add a deprecation warning or adapter for the old name"
+      ]
+    },
+    {
+      "id": 31,
+      "name": "refactor-compat-deprecate",
+      "narration": true,
+      "prompt": "/implementation:implement refactor split `ReportBuilder.render(fmt)` in reports/builder.py into `render_pdf()` and `render_csv()`. Nine modules in this repository call `render`. I'm reviewing each turn; branch refactor/split-render, clean tree, tests green. My refactor_compat option is deprecate; the repository (a git checkout, not the home directory) has no docs/conventions/implementation.yaml.",
+      "expected_output": "Resolves refactor_compat to deprecate from the user option and reports that layer in one line. Adds the two new methods and keeps `render(fmt)` as an adapter that forwards to them, and states for each consumer of the old method the condition under which the adapter is removed.",
+      "files": [],
+      "expectations": [
+        "Reports refactor_compat: deprecate with the user option as the supplying layer",
+        "Keeps render(fmt) as an adapter forwarding to render_pdf() and render_csv()",
+        "States a removal condition for the adapter covering every consumer",
+        "Does NOT delete render(fmt) in this change"
+      ]
+    },
+    {
+      "id": 32,
+      "name": "refactor-compat-docs-block-wins",
+      "narration": true,
+      "prompt": "/implementation:implement refactor rename the enum `JobState.QUEUED` in scheduler/states.py to `JobState.PENDING`. Fourteen modules in this repository use it; it is never serialized and no outside code imports it. I'm reviewing each turn; branch refactor/job-pending, clean tree, tests green. My refactor_compat option is deprecate; the repository (a git checkout, not the home directory) has docs/conventions/implementation.yaml holding `refactor_compat: same-wave`.",
+      "expected_output": "Resolves refactor_compat to same-wave from docs/conventions/implementation.yaml, which wins over the user's deprecate option, and reports that file as the supplying layer. Renames the member, updates all fourteen modules in the same change, and removes `QUEUED` with no alias member kept for it.",
+      "files": [],
+      "expectations": [
+        "Reports refactor_compat: same-wave with docs/conventions/implementation.yaml as the supplying layer",
+        "Updates every module that uses JobState.QUEUED in the same change",
+        "Removes QUEUED rather than keeping it as an alias of PENDING",
+        "Does NOT apply the user's deprecate value"
+      ]
     }
   ]
 }

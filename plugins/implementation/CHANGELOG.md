@@ -7,6 +7,15 @@ All notable changes to the `implementation` plugin are documented here. Format f
 
 ### Added
 
+- **`refactor_compat` sets what a refactor does with the shape it replaces.** `same-wave` (the
+  default) updates all call sites and removes the replaced shape in that same change, unless code
+  outside the repository (a public API, a published package) relies on it; `deprecate` keeps an
+  adapter with a removal condition for every consumer. `/implementation:implement` refactor mode
+  resolves it in `context/refactor.md` and reports the supplying layer. It is set per user in the new
+  `refactor_compat` user config option and per repository in `docs/conventions/implementation.yaml`
+  (schema `schemas/implementation.schema.json`), which wins; an invalid value is named and that
+  layer dropped. An older release has no option for it and ignores the repository key. Three eval
+  cases cover the default, the `deprecate` option and the repository file winning.
 - **`integration_posture` sets how far a change reshapes the code around it.** `by-kind` (the
   default) redesigns the code a feature lands in as though the feature had been there from the
   start, keeps a fix or a config change minimal, and keeps a refactor to the plan's scope with

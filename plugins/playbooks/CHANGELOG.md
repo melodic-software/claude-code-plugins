@@ -19,6 +19,13 @@ only after that version increases.
 
 ### Changed
 
+- **`fable-5` stages a shared-surface change only for consumers it cannot update.** The planning
+  chapter's census no longer stages a surface because it has more than 10 consumers: staging (new
+  shape beside the old, migrate, retire) is for external, unenumerable or persisted consumers, and a
+  high internal count alone is not a reason, matching the execution chapter's rule on compatibility
+  shims. A new eval case covers a large internal count. The implementation plugin's
+  `refactor_compat` setting governs the same choice in refactor mode; an older implementation
+  release has no option for it and ignores the repository key.
 - **`skill-authoring` states the one-skill-per-call rule in its own words.** The rule is unchanged.
 - **`skill-authoring` ends with a closing report.** The last reply of a run that creates or changes
   a skill lists the checks with their results (or not run), the choices made with their reasons,

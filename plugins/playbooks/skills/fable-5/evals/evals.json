@@ -182,6 +182,20 @@
         "States described_problem as report, not the user config value fix",
         "Edits no file and runs no state-changing command for the defect"
       ]
+    },
+    {
+      "id": 15,
+      "name": "staged-migration-internal-count",
+      "narration": true,
+      "prompt": "/playbooks:fable-5. Plan this change, do not edit yet: rename the field `Invoice.total_cents` to `Invoice.amount_minor` in our app. The census found 47 references, every one in this repository's own modules. Invoice is an in-memory dataclass: it is never serialized or stored, and no package we publish exposes it.",
+      "expected_output": "Plans an in-place rename of the field across all 47 references in one pass, reading the consumers that use the field differently before changing them. It does not plan a staged migration (both field names live at once, consumers moved over time, the old name retired later), and it says that the reference count alone is not a reason to stage because every consumer is internal and can be updated now.",
+      "files": [],
+      "expectations": [
+        "Plans to change all 47 internal references in one pass",
+        "Does NOT propose keeping total_cents alongside amount_minor or an alias property for it",
+        "States that the high internal count alone does not call for a staged migration",
+        "Edits no file"
+      ]
     }
   ]
 }
