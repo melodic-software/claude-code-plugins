@@ -101,7 +101,7 @@ commands, not remembered facts. Steps 3–5 are the ones a long session silently
 3. **Format**, run the discoverable formatter scoped to this commit's paths, re-stage its fixes.
 4. **Exec-bit**, run `exec-bit-check.sh --fix -- <this commit's paths>`, AFTER step 3.
 5. **Pre-check** the drafted subject against the resolved pattern before invoking git.
-6. **Fragments**, in a repository with `scripts/fragment-plugins.txt`, pipe the drafted message to
+6. **Fragments**, in a repository with a `fragment-plugins.txt` list under `scripts/`, pipe the drafted message to
    `write-changelog-fragments.sh` and stage the paths it prints (Task step 7).
 7. **Commit** via the Bash tool: `git commit -F -` heredoc-piped, `--trailer` per `trailer_policy`.
 8. **Report** the resulting SHA + subject to the user.
@@ -196,7 +196,7 @@ convention instead of re-inferring one every commit.
    convention (default: the Conventional Commits pattern above).
 6. Pre-check the subject against the pattern (fast-fail before invoking git).
 7. Write changelog fragments when the repository releases plugins from them, which it does when
-   `scripts/fragment-plugins.txt` exists at its root. Pipe the drafted message (subject, blank
+   a `fragment-plugins.txt` list exists in its `scripts/` directory. Pipe the drafted message (subject, blank
    line, body) to the script from the repository root and `git add` each path it prints, so the
    fragments land in this commit:
 
@@ -207,7 +207,7 @@ convention instead of re-inferring one every commit.
    ```
 
    For each listed plugin the staged change touches, it writes the fragment in place of the hand
-   version bump and CHANGELOG entry, through the repository's `scripts/new-changelog-fragment.sh`.
+   version bump and CHANGELOG entry, through the repository's own `new-changelog-fragment.sh`.
    The bump comes from the Conventional Commits type: `feat` minor; `fix` and `perf` patch;
    `build`, `chore`, `ci`, `docs`, `refactor`, `style` and `test` none; `!` or a `BREAKING CHANGE`
    footer major. The subject and body go under `### Added` (`feat`), `### Fixed` (`fix`) or

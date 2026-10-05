@@ -147,7 +147,7 @@ Stage specific files (never `git add -A`). Then invoke `/source-control:commit` 
 
 ### 2.3.3 Changelog fragments for the whole branch
 
-Only in a repository with `scripts/fragment-plugins.txt` at its root; elsewhere skip this step, and the repository's own release record (a version bump plus CHANGELOG entry) applies. `/source-control:commit` writes a fragment per commit, but a branch can carry commits made outside it. After the last commit and before the push, run the script against the default branch with the drafted PR title (§2.4.1) as the message:
+Only in a repository with a `fragment-plugins.txt` list in its `scripts/` directory; elsewhere skip this step, and the repository's own release record (a version bump plus CHANGELOG entry) applies. `/source-control:commit` writes a fragment per commit, but a branch can carry commits made outside it. After the last commit and before the push, run the script against the default branch with the drafted PR title (§2.4.1) as the message:
 
 ```bash
 printf '%s\n' "<PR title>" | bash "<plugin-root>/scripts/write-changelog-fragments.sh" --base "origin/<default-branch>"

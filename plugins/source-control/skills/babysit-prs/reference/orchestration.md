@@ -545,7 +545,7 @@ re-verify anyway.
   formatting, adjacent unrelated changes, both sides adding different items to the same list.
   A plugin version-bump collision (`.claude-plugin/plugin.json`, `CHANGELOG.md`) is mechanical:
   run `<plugin-root>/scripts/resolve-version-bump-conflict.sh` first, per
-  `/source-control:resolve-conflicts` step 3. For a plugin listed in `scripts/fragment-plugins.txt`,
+  `/source-control:resolve-conflicts` step 3. For a plugin listed in the repository's `fragment-plugins.txt` list (under `scripts/`),
   take main's `plugin.json` and `CHANGELOG.md` and move the PR's entry into a changelog fragment,
   per the same step.
 - **Conclude the merge locally, and stop at the remote boundary.** Stage the resolved paths and
