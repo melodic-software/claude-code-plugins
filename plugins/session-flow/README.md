@@ -210,7 +210,8 @@ Structured end-of-session retrospective: extracts transcript metrics via a bundl
 parser (multi-session-aware: it walks the handoff chain), assesses quality across five dimensions
 against the consuming repo's own conventions, checks Claude Code auto-memory for feedback
 regressions, and codifies user-approved learnings. Health scores persist across sessions for trend
-analysis.
+analysis. With the `retro_lenses` option at `3`, the analysis runs as three parallel review
+passes merged before scoring.
 
 ```shell
 /session-flow:retro            # full 5-phase analysis (default)
@@ -529,6 +530,14 @@ starts never commits. Default `false`. It resolves like `worker_continuation`, f
 `docs/conventions/session-flow.yaml`, where only an unquoted `true` or `false` is valid, and
 `/session-flow:setup apply wip_commit=true` writes it.
 
+**`retro_lenses`.** Read by `/session-flow:retro` session mode before its Phase 2 analysis. `1`
+(default) runs one pass. `3` runs three subagents in parallel, one on the calls the session made
+and why, one on the tools and steps it used, one on the approaches it did not try, and merges their
+findings before anything is scored; it applies to short sessions too. It resolves like
+`worker_continuation`, from the same `docs/conventions/session-flow.yaml`, where an unquoted `3`
+is valid; any other value, `2` included, is named and its layer dropped. `/session-flow:setup
+apply retro_lenses=3` writes it.
+
 **`transcript_scope`.** Read by `/session-flow:find-handoff` and `/session-flow:recall` for their transcript scans. `worktree`
 (default) scans this worktree's sessions, then the repository's other worktrees, and asks before
 reading any other project's transcripts; `repo` starts with every worktree; `all` reaches every
@@ -565,6 +574,7 @@ reads it from.
 | `review_mining_prs` | number<br>*min 2, max 200* | `20` | `CLAUDE_PLUGIN_OPTION_REVIEW_MINING_PRS` | How many recent merged pull requests /session-flow:retro codify reviews reads for review comments; default 20, from 2 to 200. A lesson is routed only when it recurs in two or more of them. A repository's review_mining_prs in docs/conventions/session-flow.yaml wins. |
 | `wip_commit` | boolean | `false` | `CLAUDE_PLUGIN_OPTION_WIP_COMMIT` | When you ask to pause, /session-flow:handoff makes one local chore(wip): commit of the tracked work. Off by default. Never pushed or run with hooks skipped; refused on the default branch, a detached HEAD, mid-merge or rebase, or a partial staging. docs/conventions/session-flow.yaml wins. |
 | `transcript_scope` | string | `"worktree"` | `CLAUDE_PLUGIN_OPTION_TRANSCRIPT_SCOPE` | How far /session-flow:find-handoff reads transcripts: worktree (default) widens to the repo's other worktrees, then asks before other projects; repo starts with every worktree; all reaches every project unasked. The narrower of this and docs/conventions/session-flow.yaml wins. |
+| `retro_lenses` | string | `"1"` | `CLAUDE_PLUGIN_OPTION_RETRO_LENSES` | How many review passes /session-flow:retro session mode runs: 1 (default) one pass; 3 three parallel subagents (the calls made and why, the tools and steps used, the approaches not tried), merged before scoring. docs/conventions/session-flow.yaml wins. |
 
 ### How to set these
 

@@ -96,6 +96,12 @@ unset): `encode_policy` = `${user_config.encode_policy}`, `review_mining_prs` =
 `${user_config.review_mining_prs}`. `context/codify.md` "Settings" resolves them against the
 repository's `docs/conventions/session-flow.yaml`, which wins.
 
+### Session settings
+
+The user option session mode reads, as rendered for this run (a literal, unexpanded placeholder
+means unset): `retro_lenses` = `${user_config.retro_lenses}`. `context/session.md` "Review lenses"
+resolves it against the repository's `docs/conventions/session-flow.yaml`, which wins.
+
 ## Step 2: Handoff
 
 After the retrospective:

@@ -14,6 +14,7 @@ file after validating it against the schema; `/session-flow:setup check` validat
 | `encode_policy` | `promote-when-must-hold`, `strongest-first` | `promote-when-must-hold` | `/session-flow:retro codify` (Strength step) | repository file over user option over default |
 | `review_mining_prs` | an unquoted integer from 2 to 200 | `20` | `/session-flow:retro codify reviews` | repository file over user option over default |
 | `wip_commit` | an unquoted `true` or `false` | `false` | `/session-flow:handoff` ("WIP commit on an explicit pause") | repository file over user option over default |
+| `retro_lenses` | `1`, `3` (an unquoted `3` is valid) | `1` | `/session-flow:retro` session mode (Phase 2, "Review lenses"; `3` runs three parallel lens subagents merged before scoring) | repository file over user option over default |
 | `transcript_scope` | `worktree`, `repo`, `all` | `worktree` | `/session-flow:find-handoff` (step 2, the transcript scan); `/session-flow:recall` (Steps 2 and 3) | narrowest wins (`worktree` < `repo` < `all`); an unset user option counts as `worktree` |
 
 `transcript_scope` bounds which project directories `/session-flow:find-handoff` and

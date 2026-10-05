@@ -322,6 +322,25 @@ run "$repo" --check
 assert_true '--check flags transcript_scope: global' code_is 1
 assert_true '--check names transcript_scope' out_has 'transcript_scope'
 
+# retro_lenses takes 1 or 3; an unquoted 3 in the file is valid, 2 is not.
+repo="$(new_repo)"
+run "$repo" retro_lenses=3
+assert_true 'retro_lenses=3 writes' code_is 0
+assert_true 'retro_lenses reads back as 3' [ "$(bash "$READER" "$repo/$REL" retro_lenses)" = 3 ]
+run "$repo" --check
+assert_true '--check accepts retro_lenses: 3' code_is 0
+for pair in retro_lenses=2 retro_lenses=0 retro_lenses=; do
+  repo="$(new_repo)"
+  run "$repo" "$pair"
+  assert_true "$pair exits 1" code_is 1
+  assert_true "$pair writes nothing" [ ! -e "$repo/docs" ]
+done
+repo="$(new_repo)"
+seed "$repo" 'retro_lenses: 2\n'
+run "$repo" --check
+assert_true '--check flags retro_lenses: 2' code_is 1
+assert_true '--check names retro_lenses' out_has 'retro_lenses'
+
 # --check: absent and valid.
 repo="$(new_repo)"
 run "$repo" --check

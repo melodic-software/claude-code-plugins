@@ -152,6 +152,13 @@
         "repo",
         "all"
       ]
+    },
+    "retro_lenses": {
+      "type": "string",
+      "title": "Retro review lenses",
+      "description": "How many review passes /session-flow:retro session mode runs: 1 (default) one pass; 3 three parallel subagents (the calls made and why, the tools and steps used, the approaches not tried), merged before scoring. docs/conventions/session-flow.yaml wins.",
+      "default": "1",
+      "options": ["1", "3"]
     }
   }
 }

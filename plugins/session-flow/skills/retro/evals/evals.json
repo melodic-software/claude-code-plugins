@@ -145,6 +145,74 @@
         "No CLAUDE.md line from that comment is proposed",
         "The comment is reported as carrying an instruction that was not followed"
       ]
+    },
+    {
+      "id": 13,
+      "name": "retro-lenses-three-runs-parallel-lenses",
+      "prompt": "/session-flow:retro. This repository's docs/conventions/session-flow.yaml has the single line `retro_lenses: 3`, and I never set the session-flow user option. The session was short: about twenty minutes renaming a config loader in a Go service.",
+      "expected_output": "The retro resolves retro_lenses to 3 from docs/conventions/session-flow.yaml after the setup check, and reports that line. Before the Phase 2 tables it spawns three subagents in the same turn, one on the calls the session made and why, one on the tools and steps it used, one on the approaches it did not try, each given the parsed transcript and Phase 1 metrics. It merges their findings into one list, then presents the Phase 2 output and the health scores from that merged list. The short session does not reduce the count.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "States one line giving retro_lenses as 3 and naming docs/conventions/session-flow.yaml as the supplying layer",
+        "Spawns three subagents in one turn for the analysis, one per lens, before presenting the Phase 2 findings",
+        "The three lenses cover the session's decisions and reasons, the tools and steps it used, and the approaches it did not try",
+        "The Phase 2 tables and the session health scores come from the merged findings of the three lenses, not from one of them alone",
+        "Does not skip the lenses or run fewer than three because the session was short"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "retro-lenses-default-keeps-one-pass",
+      "prompt": "/session-flow:retro. I have not set session-flow's retro_lenses option, and this repository has no docs/conventions/session-flow.yaml. Today we added pagination to an orders API endpoint and fixed two failing tests.",
+      "expected_output": "With neither layer set, retro_lenses resolves to its default 1 and the retro reports that line naming the default. It runs the Phase 2 analysis as one pass in the current session, with no lens subagents, and continues to recommendations and scoring as usual.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "States one line giving retro_lenses as 1 and naming the default as the supplying layer",
+        "Runs the Phase 2 analysis as a single pass and spawns no lens subagents",
+        "Still presents the Phase 2 findings tables and the session health score"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "retro-lenses-invalid-two-is-named-and-dropped",
+      "prompt": "/session-flow:retro. Our docs/conventions/session-flow.yaml says `retro_lenses: 2`. My own session-flow option retro_lenses is set to 3. We spent the session migrating a cron job to a queue worker.",
+      "expected_output": "The setup check flags retro_lenses in the repository file. The retro names docs/conventions/session-flow.yaml, the key retro_lenses and the value 2 as invalid and drops that layer. Because the repository file is the highest layer and its value is dropped, the key falls back to its default 1, not to the user's 3. The retro reports retro_lenses as 1 from the default, runs one pass with no lens subagents, and does not stop.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "Names docs/conventions/session-flow.yaml, the key retro_lenses and the value 2 as invalid",
+        "Resolves retro_lenses to 1 from the default, not 3 from the user option",
+        "Runs the Phase 2 analysis as one pass with no lens subagents",
+        "Completes the retrospective instead of stopping on the invalid value"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "retro-lenses-repository-file-wins-over-user-option",
+      "prompt": "/session-flow:retro. My session-flow option retro_lenses is 1, but the team's docs/conventions/session-flow.yaml sets `retro_lenses: 3`. This session was a long debugging run on a flaky payment webhook test.",
+      "expected_output": "The repository file wins over the user option: retro_lenses resolves to 3 from docs/conventions/session-flow.yaml and the retro reports that layer. It runs the three lens subagents in parallel, merges their findings, and scores from the merged list.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "States one line giving retro_lenses as 3 and naming docs/conventions/session-flow.yaml as the supplying layer",
+        "Does not use the user option's value 1",
+        "Spawns three lens subagents in parallel and merges their findings before scoring"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "retro-lenses-user-option-applies-without-team-file",
+      "prompt": "/session-flow:retro. I set my session-flow option retro_lenses to 3. This repository has no docs/conventions/session-flow.yaml. We spent the session adding retry backoff to an image upload client.",
+      "expected_output": "With no repository file, the user option is the highest valid layer: retro_lenses resolves to 3 from the user option, read from the value SKILL.md renders under Session settings, and the retro reports that layer. It runs the three lens subagents in parallel, merges their findings, and scores from the merged list.",
+      "files": [],
+      "narration": true,
+      "expectations": [
+        "States one line giving retro_lenses as 3 and naming the user option as the supplying layer",
+        "Does not fall back to the default 1",
+        "Spawns three lens subagents in parallel and merges their findings before scoring"
+      ]
     }
   ]
 }

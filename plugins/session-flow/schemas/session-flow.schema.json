@@ -33,6 +33,11 @@
       "enum": ["worktree", "repo", "all"],
       "default": "worktree",
       "description": "How far /session-flow:find-handoff reads transcripts before asking: worktree scans this worktree's sessions, then the repository's other worktrees, and asks before any other project; repo starts with every worktree; all reaches every project without asking. Unlike the other keys, the narrower of this value and the user's option wins (worktree < repo < all), and an unset user option counts as worktree, so this file can narrow the scan but never widen it."
+    },
+    "retro_lenses": {
+      "enum": ["1", "3"],
+      "default": "1",
+      "description": "How many review passes /session-flow:retro session mode runs to produce its Phase 2 findings. 1 runs one pass. 3 runs three subagents in parallel, one on the calls the session made and why, one on the tools and steps it used, one on the approaches it did not try, and merges their findings before scoring. No session-length threshold applies. The setup check compares the value's text, so an unquoted 3 is valid and 2 is not."
     }
   }
 }
