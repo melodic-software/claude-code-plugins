@@ -245,6 +245,20 @@
         "Runs the check beside the wave, not as a gate before dispatch",
         "Applies findings to the next wave's briefs and sends a result-changing defect to the running worker"
       ]
+    },
+    {
+      "id": 21,
+      "name": "worker-continuation-empty-repo-value-never-takes-user-option",
+      "narration": true,
+      "prompt": "/session-flow:orchestrate move the shipping-label generator onto the new carrier SDK. My session-flow user config sets worker_continuation to respawn. The repository's docs/conventions/session-flow.yaml contains the single line `worker_continuation:` with nothing after the colon.",
+      "expected_output": "The key is present with no value, which is invalid, not unset. The skill names docs/conventions/session-flow.yaml, the worker_continuation key and the empty value, drops the repository layer, and resolves the default resume, not the user's respawn, because an invalid higher layer never hands the key to a lower one. Priming continues.",
+      "files": [],
+      "expectations": [
+        "Treats the present-but-empty worker_continuation key as invalid rather than as an unset layer",
+        "Names docs/conventions/session-flow.yaml, the worker_continuation key and the empty value",
+        "Resolves worker_continuation to resume from the default, not respawn from the user config",
+        "Continues priming the session instead of stopping"
+      ]
     }
   ]
 }

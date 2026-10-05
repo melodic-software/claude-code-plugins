@@ -145,7 +145,7 @@
     "transcript_scope": {
       "type": "string",
       "title": "Transcript scope",
-      "description": "How far /session-flow:find-handoff reads transcripts: worktree (default) widens to the repo's other worktrees, then asks before other projects; repo starts with every worktree; all reaches every project unasked. The narrower of this and docs/conventions/session-flow.yaml wins.",
+      "description": "How far /session-flow:find-handoff and /session-flow:recall read transcripts: worktree widens to the repo's other worktrees, then asks before other projects; repo starts with every worktree; all reaches every project unasked. The narrower of this and docs/conventions/session-flow.yaml wins.",
       "default": "worktree",
       "options": [
         "worktree",

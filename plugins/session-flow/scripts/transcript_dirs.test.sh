@@ -5,8 +5,11 @@
 # Expected directory names come from the sessions docs rule (every character
 # that is not a letter or digit becomes `-`; a name past 200 characters keeps
 # its first 200 and gains a hash), written out by hand for each fixture path.
-# The fixture lives under /tmp so its own prefix is known: on Linux `/tmp/<x>`
-# encodes to `-tmp-<x>`, on macOS `/private/tmp/<x>` to `-private-tmp-<x>`.
+# On Linux and macOS the fixture lives under /tmp so its own prefix is known:
+# `/tmp/<x>` encodes to `-tmp-<x>`, macOS's `/private/tmp/<x>` to
+# `-private-tmp-<x>`. On Git Bash, MSYS2 and Cygwin the temp dir's Windows form
+# (`cygpath -w`) is machine-specific, so that one prefix is encoded with the
+# same rule; every suffix below stays hand-written.
 # Self-contained; mutates only its own mktemp dir.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_CODE_PROJECT_DIR_NAME
@@ -14,22 +17,41 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_CODE_PROJECT_DIR_NAME
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/transcript_dirs.sh"
 
-if command -v cygpath >/dev/null 2>&1; then
-  echo "SKIP: a native cygpath is on PATH; the fixture names assume POSIX paths"
+case "$(uname -s)" in
+MINGW* | MSYS* | CYGWIN*) WINHOST=1 ;;
+*) WINHOST=0 ;;
+esac
+if [[ "$WINHOST" -eq 1 ]] && ! command -v cygpath >/dev/null 2>&1; then
+  echo "SKIP: a Windows bash without cygpath; the script cannot form Windows paths here"
   exit 0
 fi
 
 WORKROOT="$(mktemp -d /tmp/sftdXXXXXXXX)"
 trap 'rm -rf "$WORKROOT"' EXIT
 T="$(cd "$WORKROOT" && pwd -P)"
-case "$T" in
-/tmp/*) base="-tmp-${T#/tmp/}" ;;
-/private/tmp/*) base="-private-tmp-${T#/private/tmp/}" ;;
-*)
-  echo "SKIP: the temp dir resolved outside /tmp ($T)"
-  exit 0
-  ;;
-esac
+if [[ "$WINHOST" -eq 1 ]]; then
+  wT="$(cygpath -w "$T")"
+  base="$(LC_ALL=C && printf '%s' "${wT//[^A-Za-z0-9]/-}")"
+else
+  case "$T" in
+  /tmp/*) base="-tmp-${T#/tmp/}" ;;
+  /private/tmp/*) base="-private-tmp-${T#/private/tmp/}" ;;
+  *)
+    echo "SKIP: the temp dir resolved outside /tmp ($T)"
+    exit 0
+    ;;
+  esac
+  # The POSIX-form cases need the script's cygpath call to fail, so a stub that
+  # always exits 1 shadows any cygpath on PATH. The Windows-form case prepends
+  # its own stub ahead of this one.
+  NOCYG="$T/nocyg"
+  mkdir -p "$NOCYG"
+  printf '#!/usr/bin/env bash\nexit 1\n' >"$NOCYG/cygpath"
+  chmod +x "$NOCYG/cygpath"
+  export PATH="$NOCYG:$PATH"
+fi
+# A recorded cwd is the session's own path: the Windows form on a Windows host.
+cwd_of() { if [[ "$WINHOST" -eq 1 ]]; then cygpath -w "$1"; else printf '%s' "$1"; fi; }
 
 fails=0
 assert_true() { # assert_true <description> <command...>
@@ -65,6 +87,15 @@ R1="$T/repo.main"
 R2="$T/wt-two"
 mkdir -p "$R1/sub" "$T/repo.main-v2" "$T/plain"
 git -C "$R1" init -q
+# The names below need git to report the fixture root as the shell sees it.
+# Git for Windows prints a drive form (C:/...), so on a Windows host the
+# comparison goes through `cygpath -u`.
+top="$(git -C "$R1" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+[[ "$WINHOST" -eq 1 && -n "$top" ]] && top="$(cygpath -u "$top")"
+if [[ "$top" != "$R1" ]]; then
+  echo "SKIP: git reports the fixture root as '$top', not '$R1'"
+  exit 0
+fi
 git -C "$R1" -c user.name=t -c user.email=t@example.invalid -c core.hooksPath=/dev/null commit -q --allow-empty -m init
 git -C "$R1" worktree add -q "$R2" 2>/dev/null
 
@@ -78,12 +109,12 @@ E2="$S/${base}-wt-two"
 EPLAIN="$S/${base}-plain"
 OTHER="$S/-srv-other-project"
 mkdir -p "$E1" "$E2" "$EPLAIN" "$OTHER"
-transcript "$E1SUB" a.jsonl "$R1/sub"
-transcript "$E1ODD" a.jsonl "$R1/odd"
+transcript "$E1SUB" a.jsonl "$(cwd_of "$R1/sub")"
+transcript "$E1ODD" a.jsonl "$(cwd_of "$R1/odd")"
 # The sibling: an older transcript claims the root, the newest one does not.
-transcript "$E1V2" old.jsonl "$R1"
+transcript "$E1V2" old.jsonl "$(cwd_of "$R1")"
 touch -t 202001010000 "$E1V2/old.jsonl"
-transcript "$E1V2" new.jsonl "$T/repo.main-v2"
+transcript "$E1V2" new.jsonl "$(cwd_of "$T/repo.main-v2")"
 
 export HOME="$T/home"
 export CLAUDE_CONFIG_DIR="$CFG"
@@ -131,8 +162,8 @@ git -C "$RL" init -q
 enc_long="${base}-long-${a100}-${b100}"
 ELONG="$S/${enc_long:0:200}-1q2w3e"
 EDECOY="$S/${enc_long:0:200}-9z8y7x"
-transcript "$ELONG" a.jsonl "$RL"
-transcript "$EDECOY" a.jsonl "$T/long/elsewhere"
+transcript "$ELONG" a.jsonl "$(cwd_of "$RL")"
+transcript "$EDECOY" a.jsonl "$(cwd_of "$T/long/elsewhere")"
 run_in "$RL" --scope worktree
 assert_true 'a hash-truncated name whose cwd is the root is kept, a decoy is not' out_is "$ELONG"
 rm -rf "$ELONG" "$EDECOY"
@@ -160,32 +191,49 @@ CLAUDE_CODE_PROJECT_DIR_NAME='bad/name' run_in "$R1" --scope worktree
 assert_true 'an invalid pinned name is ignored' sorted_out_is "$E1" "$E1SUB" "$E1ODD"
 rm -rf "$S/pinned"
 
-# Windows form: a stub cygpath maps /x/y to C:\x\y, and git ends its lines in CRLF.
+# Windows form, with git ending its lines in CRLF. On a Windows host the cases
+# above already ran through the native cygpath, so the names are the same ones;
+# elsewhere a stub cygpath maps /x/y to C:\x\y.
 STUB="$T/stub"
 mkdir -p "$STUB"
 REAL_GIT="$(command -v git)"
 # shellcheck disable=SC2016 # the stub body is literal
-printf '#!/usr/bin/env bash\n[ "$1" = -w ] || exit 1\np="$2"\nprintf "C:%%s\\n" "${p//\\//\\\\}"\n' >"$STUB/cygpath"
-# shellcheck disable=SC2016 # the stub body is literal
 printf '#!/usr/bin/env bash\n"%s" "$@" | sed "s/\\$/\\r/"\nexit "${PIPESTATUS[0]}"\n' "$REAL_GIT" >"$STUB/git"
-chmod +x "$STUB/cygpath" "$STUB/git"
-W1="$S/C-${base}-repo-main"
-W1SUB="$S/C-${base}-repo-main-sub"
-W2="$S/C-${base}-wt-two"
-WT="${T//\//\\}"
-mkdir -p "$W1" "$W2"
-transcript "$W1SUB" a.jsonl "c:${WT}\\repo.main\\sub\\"
-PATH="$STUB:$PATH" run_in "$R1" --scope worktree
-assert_true 'with cygpath and CRLF git output the Windows-form names print' sorted_out_is "$W1" "$W1SUB"
-PATH="$STUB:$PATH" run_in "$R1" --scope repo
-assert_true 'repo scope in Windows form reaches the second worktree' sorted_out_is "$W1" "$W1SUB" "$W2"
-rm -rf "$W1" "$W1SUB" "$W2"
+chmod +x "$STUB/git"
+if [[ "$WINHOST" -eq 1 ]]; then
+  PATH="$STUB:$PATH" run_in "$R1" --scope worktree
+  assert_true 'with the native cygpath and CRLF git output the Windows-form names print' \
+    sorted_out_is "$E1" "$E1SUB" "$E1ODD"
+  PATH="$STUB:$PATH" run_in "$R1" --scope repo
+  assert_true 'repo scope in Windows form reaches the second worktree' sorted_out_is "$E1" "$E1SUB" "$E1ODD" "$E2"
+else
+  # shellcheck disable=SC2016 # the stub body is literal
+  printf '#!/usr/bin/env bash\n[ "$1" = -w ] || exit 1\np="$2"\nprintf "C:%%s\\n" "${p//\\//\\\\}"\n' >"$STUB/cygpath"
+  chmod +x "$STUB/cygpath"
+  W1="$S/C-${base}-repo-main"
+  W1SUB="$S/C-${base}-repo-main-sub"
+  W2="$S/C-${base}-wt-two"
+  WT="${T//\//\\}"
+  mkdir -p "$W1" "$W2"
+  transcript "$W1SUB" a.jsonl "c:${WT}\\repo.main\\sub\\"
+  PATH="$STUB:$PATH" run_in "$R1" --scope worktree
+  assert_true 'with cygpath and CRLF git output the Windows-form names print' sorted_out_is "$W1" "$W1SUB"
+  PATH="$STUB:$PATH" run_in "$R1" --scope repo
+  assert_true 'repo scope in Windows form reaches the second worktree' sorted_out_is "$W1" "$W1SUB" "$W2"
+  rm -rf "$W1" "$W1SUB" "$W2"
+fi
 
 # No Python: exact names only, and one gap line on stderr.
 NOPY="$T/nopy"
 mkdir -p "$NOPY"
-for tool in git tr sed; do ln -s "$(command -v "$tool")" "$NOPY/$tool"; done
 BASH_BIN="$(command -v bash)"
+# Wrappers, not symlinks: MSYS copies a symlinked .exe away from the DLLs beside it.
+tools=(git tr sed)
+[[ "$WINHOST" -eq 1 ]] && tools+=(cygpath)
+for tool in "${tools[@]}"; do
+  printf '#!%s\nexec "%s" "$@"\n' "$BASH_BIN" "$(command -v "$tool")" >"$NOPY/$tool"
+  chmod +x "$NOPY/$tool"
+done
 OUT="$(cd "$R1" && PATH="$NOPY" "$BASH_BIN" "$SUT" --scope worktree 2>"$T/err")"
 CODE=$?
 assert_true 'without python the script exits 0' code_is 0

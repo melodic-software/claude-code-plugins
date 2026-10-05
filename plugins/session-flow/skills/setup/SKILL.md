@@ -137,7 +137,8 @@ before and after, the diff when one was shown, the written path, and whether the
 ## Next
 
 `/session-flow:orchestrate`, which reads `worker_continuation`; `/session-flow:retro codify`,
-which reads `encode_policy` and `review_mining_prs`; `/session-flow:handoff`, which reads
+which reads `encode_policy` and `review_mining_prs`; `/session-flow:retro`, whose session mode
+reads `retro_lenses`; `/session-flow:handoff`, which reads
 `wip_commit`; `/session-flow:find-handoff`, which reads `transcript_scope`.
 
 ## Gotchas
@@ -146,7 +147,8 @@ which reads `encode_policy` and `review_mining_prs`; `/session-flow:handoff`, wh
   `/session-flow:find-handoff` uses Python 3.10+ when present and lists fewer transcript
   directories without it. The other session-flow skills need no installed tool. The repository settings are `worker_continuation`,
   read by `/session-flow:orchestrate`, `encode_policy` and `review_mining_prs`, read by
-  `/session-flow:retro codify`, `wip_commit`, read by `/session-flow:handoff`, and
+  `/session-flow:retro codify`, `retro_lenses`, read by `/session-flow:retro` session mode,
+  `wip_commit`, read by `/session-flow:handoff`, and
   `transcript_scope`, read by `/session-flow:find-handoff`, where the narrower layer wins.
 - **The repository file reaches the team only once committed.** `apply` leaves it uncommitted on
   purpose, and the tracked-file pair says so.

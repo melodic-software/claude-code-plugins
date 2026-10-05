@@ -172,11 +172,15 @@ user's option `${user_config.worker_continuation}`, where a literal, unexpanded 
 unset; then the repository's `docs/conventions/session-flow.yaml`, which wins when it sets the key
 (schema: [`${CLAUDE_PLUGIN_ROOT}/schemas/session-flow.schema.json`](${CLAUDE_PLUGIN_ROOT}/schemas/session-flow.schema.json)).
 Read the repository value with
-`bash "${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse-concern-value.sh" "<git root>/docs/conventions/session-flow.yaml" worker_continuation`
-(empty output means unset), and only when the working directory's git root is neither `$HOME` nor
-an ancestor of it; otherwise skip that layer and say so. A value other than `resume` or `respawn`
-is named with its file or option, the key and the value, and that layer is dropped: a valid higher
-layer still wins, else the default `resume`; the run never stops on it. Report one line, for
+`bash "${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse-concern-value.sh" --strict "<git root>/docs/conventions/session-flow.yaml" worker_continuation`,
+and only when the working directory's git root is neither `$HOME` nor an ancestor of it; otherwise
+skip that layer and say so. Empty output means unset only when the key is absent: if
+`grep -qE '^worker_continuation[[:space:]]*:' "<file>"` matches, the key is present but empty or not
+a scalar, which is invalid. Exit 3 means the parser rejected the file: name the file and drop the
+layer. A value other than `resume` or `respawn` is named with its file or option, the key and the
+value, and that layer is dropped: the repository's valid value still wins over an invalid user
+value, and an invalid repository value or file resolves the default `resume`, never the user's
+value; the run never stops on it. Report one line, for
 example `worker_continuation: respawn (docs/conventions/session-flow.yaml)`. Under `resume`,
 imperative 4's reuse stands. Under `respawn`, each new unit goes to a fresh worker whose brief
 consolidates the scope (the original brief, every later directive, the prior worker's report and

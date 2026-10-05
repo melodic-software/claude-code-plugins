@@ -60,8 +60,8 @@ The reading skill resolves each key once, lowest layer first:
 3. The key in the repository's `docs/conventions/session-flow.yaml`, read with the plugin's copy
    of the shared reader, `skills/retro/scripts/parse-concern-value.sh`. A missing file or key
    leaves this layer unset. The reader prints nothing both for an absent key and for an empty
-   one (`key:`), so a skill that reads `encode_policy`, `review_mining_prs`, `wip_commit` or
-   `transcript_scope` first runs `node skills/setup/scripts/setup-apply.mjs --check --root <git root>` from the plugin root.
+   one (`key:`), so a skill that reads `encode_policy`, `review_mining_prs`, `wip_commit`,
+   `transcript_scope` or `retro_lenses` first runs `node skills/setup/scripts/setup-apply.mjs --check --root <git root>` from the plugin root.
    When it exits 1, a problem line naming the key marks the repository value invalid, and a
    parse-error line (`line <n>: ...`, no key named) marks every key in the file invalid; any other
    exit leaves the reader's output standing. A quoted number or boolean is a string, so

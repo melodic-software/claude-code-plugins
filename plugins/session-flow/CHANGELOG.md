@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **`/session-flow:orchestrate` no longer reads an empty `worker_continuation:` in `docs/conventions/session-flow.yaml` as unset.** It reads the key with `parse-concern-value.sh --strict` and a key-presence check, so a present-but-empty or non-scalar value, or a file the parser rejects, is named and the repository layer dropped, resolving the default `resume`, never the lower user option. A new eval covers the empty value. `scripts/transcript_dirs.test.sh` now runs its cases on Git Bash, MSYS2 and Cygwin instead of skipping: there the expected names start from the temp dir's `cygpath -w` form and the script runs through the native `cygpath`; on Linux and macOS a failing stub shadows any `cygpath` on PATH for the POSIX cases. The `transcript_scope` option description names `/session-flow:recall` beside find-handoff, and the `--check` key list in `reference/config.md` and the setup skill's key lists include `retro_lenses`.
+
 ### Changed
 
 - **Shared `parse-concern-value.sh` synced, with its parser `yaml-subset.awk` beside it in `skills/retro/scripts/`.** The reader takes dotted keys, `--list`, stdin (`-`), a validated `--ref` and `--strict`; every existing root-key read resolves as before, and a file the parser rejects now yields the fallback with one stderr line.
