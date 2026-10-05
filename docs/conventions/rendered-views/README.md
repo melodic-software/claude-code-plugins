@@ -459,7 +459,7 @@ Producers on a type: `/visualization:present` (Slides).
   from a private repository when a caller skips the gate.
 - **The page id lives in the plugin's data directory**, in
   `hosted/<owner>__<repo>__<pr>.json` holding `pages-publish`'s JSON line, so a rebuild of the same
-  pull request's page replaces it. When the returned visibility differs from the sidecar's, the
+  pull request's page replaces it. When the returned id differs from the sidecar's, the
   lane writes the new sidecar with the old id listed under `stale`, then deletes it from the old
   host; an id whose delete fails stays under `stale` and is retried on the next publish.
 - **The save button stays on a top-level https page**, because the host's policy allows downloads.

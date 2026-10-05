@@ -556,6 +556,17 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
     ]);
     assert.deepEqual(JSON.parse(readFileSync(at.sidecarPath, "utf8")), JSON.parse(answer(idB, "private")));
   });
+  test("a second wrong public landing under a new id still deletes the first", () => {
+    const idC = "C".repeat(22);
+    const at = setup(sample, answer(idA, "public"));
+    const out = publish(at, { visibility: "PRIVATE", out: answer(idC, "public") });
+    assert.equal(out.status, 1);
+    assert.deepEqual(calls(), [
+      [at.page, "--visibility", "private"],
+      ["--delete", idA, "--visibility", "public"],
+    ]);
+    assert.deepEqual(JSON.parse(readFileSync(at.sidecarPath, "utf8")), JSON.parse(answer(idC, "public")));
+  });
   test("a private page pages-publish puts on the public host exits 1 and names the URL; the sidecar keeps it for cleanup", () => {
     const at = setup();
     const out = publish(at, { visibility: "PRIVATE", out: answer(idB, "public") });

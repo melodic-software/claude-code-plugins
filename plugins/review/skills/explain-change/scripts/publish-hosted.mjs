@@ -100,7 +100,7 @@ export function publishHosted({ page, repo, pr, repoVisibility, dataDir }) {
   // The old copy is recorded as stale before its delete runs, so a failed or interrupted delete is retried next time.
   const current = { id, visibility: landed, url };
   const stale = (old?.stale ?? []).filter((e) => e.id !== id);
-  if (old && old.visibility !== landed) stale.push(entry(old));
+  if (old && old.id !== id) stale.push(entry(old));
   writeSidecar(sidecar, current, stale);
 
   const result = { medium: "hosted", visibility: landed, url, reason: gate.reason };
