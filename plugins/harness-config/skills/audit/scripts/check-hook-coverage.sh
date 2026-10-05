@@ -388,14 +388,20 @@ PLUGIN_STATUS=()
 # enabled plugin.
 
 # nul_fields <base64>: decode a base64 text of NUL-terminated fields into the
-# array NUL_FIELDS, one element per field, byte for byte. Returns 1, with
-# NUL_FIELDS empty, when the text does not decode.
+# array NUL_FIELDS, one element per field, byte for byte. `-d` is GNU, macOS
+# 13+ and BusyBox; `--decode` and `-D` cover older BSD builds. Returns 1, with
+# NUL_FIELDS empty, when no form decodes the text.
 NUL_FIELDS=()
 nul_fields() {
-  local x
+  local x opt
   NUL_FIELDS=()
-  base64 -d <<<"$1" >"$FIELDS_FILE" 2>/dev/null || base64 -D <<<"$1" >"$FIELDS_FILE" 2>/dev/null || return 1
-  while IFS= read -r -d '' x; do NUL_FIELDS+=("$x"); done <"$FIELDS_FILE"
+  for opt in -d --decode -D; do
+    if base64 "$opt" <<<"$1" >"$FIELDS_FILE" 2>/dev/null; then
+      while IFS= read -r -d '' x; do NUL_FIELDS+=("$x"); done <"$FIELDS_FILE"
+      return 0
+    fi
+  done
+  return 1
 }
 FIELDS_FILE="$(mktemp 2>/dev/null)" || {
   echo "ERROR: could not create a temp file" >&2
