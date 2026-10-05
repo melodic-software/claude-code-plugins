@@ -608,6 +608,120 @@ assert_contains "an env file under a symlinked directory inside the project is w
 assert_not_contains "... and draws no outside-the-project disclosure" "$out" "outside this project"
 assert_contains "... exiting 0" "$out" "rc=0"
 
+# A sibling directory whose name merely starts with the project's path
+# (/proj-evil next to /proj) is outside the project, not inside it.
+out="$(
+  case_run "$TTY_N" <<'BODY'
+evil="$(pwd -P)-evil"
+mkdir "$evil"
+ln -s "$evil/.env" .env
+_drain_tty() { :; }
+(write_env LEAKED 'typed-secret')
+printf 'rc=%s\n' "$?"
+printf 'evil_files=%s\n' "$(find "$evil" -type f | wc -l | tr -d ' ')"
+BODY
+)"
+assert_contains "a sibling directory sharing the project path as a prefix is outside the project" "$out" "outside this project"
+assert_contains "... and a decline writes nothing there" "$out" "evil_files=0"
+assert_contains "... exiting nonzero" "$out" "rc=1"
+
+# A link into git metadata stays inside the project but is not a dotenv file: a
+# hostile repo shipping `.env -> .git/config` would get secrets appended to a
+# world-readable file and a key name of its choosing read as git configuration.
+# It gets the same warn-and-confirm gate as an outside target, named for what
+# it is.
+GIT_LINK_SETUP='git init -q . >/dev/null 2>&1
+cp .git/config config.before
+ln -s .git/config .env
+_drain_tty() { :; }
+'
+out="$(
+  case_run "$TTY_N" <<BODY
+$GIT_LINK_SETUP
+(write_env LEAKED 'typed-secret')
+printf 'rc=%s\n' "\$?"
+if cmp -s .git/config config.before; then echo "target:UNCHANGED"; else echo "target:CHANGED"; fi
+printf 'resolved=[%s]\n' "\$(pwd -P)/.git/config"
+BODY
+)"
+resolved="$(printf '%s\n' "$out" | sed -n 's/^resolved=\[\(.*\)\]$/\1/p')"
+assert_contains "declining an env file linked into .git writes nothing" "$out" "target:UNCHANGED"
+assert_contains "... exiting nonzero" "$out" "rc=1"
+assert_contains "... after naming the resolved git metadata path" "$out" "resolves into git metadata: $resolved"
+assert_not_contains "... without calling it outside the project" "$out" "outside this project"
+
+out="$(
+  case_run "$TTY_EOF" <<BODY
+$GIT_LINK_SETUP
+(write_env LEAKED 'typed-secret')
+printf 'rc=%s\n' "\$?"
+if cmp -s .git/config config.before; then echo "target:UNCHANGED"; else echo "target:CHANGED"; fi
+BODY
+)"
+assert_contains "an env file linked into .git with no answer available writes nothing" "$out" "target:UNCHANGED"
+assert_contains "... exiting nonzero" "$out" "rc=1"
+
+out="$(
+  case_run "$TTY_N" <<BODY
+$GIT_LINK_SETUP
+(ask_secret TOKEN "Paste the secret:")
+printf 'rc=%s\n' "\$?"
+BODY
+)"
+assert_contains "ask_secret asks about an env file linked into .git first" "$out" "resolves into git metadata"
+assert_not_contains "... and a decline aborts before the secret prompt" "$out" "Paste the secret:"
+assert_contains "... nonzero" "$out" "rc=1"
+
+out="$(
+  case_run "$TTY_Y" <<BODY
+$GIT_LINK_SETUP
+write_env CONFIRMED 'yes'
+printf 'rc=%s\n' "\$?"
+printf 'target=[%s]\n' "\$(tr '\n' ' ' <.git/config)"
+BODY
+)"
+assert_contains "a confirmed env file linked into .git is written through" "$out" "CONFIRMED='yes'"
+assert_contains "... after the git metadata gate asked" "$out" "resolves into git metadata"
+assert_contains "... exiting 0" "$out" "rc=0"
+
+# A nested repository's metadata (a vendored checkout or submodule) is gated too.
+out="$(
+  case_run "$TTY_N" <<'BODY'
+mkdir -p vendor/lib/.git
+printf '[core]\n' >vendor/lib/.git/config
+cp vendor/lib/.git/config config.before
+ln -s vendor/lib/.git/config .env
+_drain_tty() { :; }
+(write_env LEAKED 'typed-secret')
+printf 'rc=%s\n' "$?"
+if cmp -s vendor/lib/.git/config config.before; then echo "target:UNCHANGED"; else echo "target:CHANGED"; fi
+BODY
+)"
+assert_contains "an env file linked into a nested repository's .git asks first" "$out" "resolves into git metadata"
+assert_contains "... and a decline writes nothing" "$out" "target:UNCHANGED"
+assert_contains "... exiting nonzero" "$out" "rc=1"
+
+# On a case-insensitive filesystem (APFS, NTFS) `.GIT/config` is the real git
+# config, so the match ignores case. The fixture builds the directory under
+# each spelling; what is tested is the classification.
+for gitdir in .GIT .Git; do
+  out="$(
+    case_run "$TTY_N" <<BODY
+mkdir $gitdir
+printf '[core]\n' >$gitdir/config
+cp $gitdir/config config.before
+ln -s $gitdir/config .env
+_drain_tty() { :; }
+(write_env LEAKED 'typed-secret')
+printf 'rc=%s\n' "\$?"
+if cmp -s $gitdir/config config.before; then echo "target:UNCHANGED"; else echo "target:CHANGED"; fi
+BODY
+  )"
+  assert_contains "an env file linked into $gitdir asks first" "$out" "resolves into git metadata"
+  assert_contains "... and a decline writes nothing" "$out" "target:UNCHANGED"
+  assert_contains "... exiting nonzero" "$out" "rc=1"
+done
+
 # The escaping contract: what write_env stores must read back byte-identical
 # through _existing AND through a plain dotenv-style shell read.
 out="$(
