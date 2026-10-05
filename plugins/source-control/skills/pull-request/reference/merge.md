@@ -128,7 +128,7 @@ git branch -D <old-branch>
 
 If a stash was created, report it and tell the user to inspect it with `git stash list` and restore it on an appropriate branch with `git stash pop`. Then report the transition and suggest `/clear` for fresh conversation context (`/clear` fires any SessionStart hooks the project registers). Use `-D` not `-d` because squash merge changes the commit SHA.
 
-Worktree reuse (new branch from latest default branch in the same directory) is faster than remove+recreate and preserves gitignored files; the alternative is `ExitWorktree` + a fresh `EnterWorktree` for a clean slate.
+Worktree reuse (new branch from latest default branch in the same directory) is faster than leave+recreate and preserves gitignored files; the alternative is `ExitWorktree` with `action: "keep"` (never `"remove"`) + a fresh `EnterWorktree` for a clean slate.
 
 The worktree's lock stays while it is reused for the next task. When the worktree is not reused (leaving it with `ExitWorktree`), release the lock after the merge succeeds, so later cleanup does not find a lock nobody holds:
 
@@ -152,7 +152,7 @@ If your environment provides a retrospective skill (e.g. `/session-flow:retro`),
 
 If the user declines or says "skip", proceed to step 4.5. In `full` mode, run automatically without pausing.
 
-**Exception:** if using `ExitWorktree` instead of worktree reuse (rare), run the retrospective BEFORE merge in Phase 4.1, because worktree removal orphans `CLAUDE_PROJECT_DIR` and breaks skill discovery.
+**Exception:** if using `ExitWorktree` (`action: "keep"`) instead of worktree reuse (rare), run the retrospective BEFORE merge in Phase 4.1, because leaving the worktree orphans `CLAUDE_PROJECT_DIR` and breaks skill discovery.
 
 ## 4.5 Verify clean state and offer next action
 
