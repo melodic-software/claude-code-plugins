@@ -22,8 +22,11 @@
 # .changes/ and refuses a shallow clone; an uncommitted fragment sorts after
 # every committed one.
 #
-# Exit: 0 released (or nothing pending), 2 usage, an invalid fragment, or a
-# manifest or changelog this script cannot update.
+# A plugin with an invalid fragment is skipped and reported on stderr, its
+# fragments left in place; the other plugins still release.
+#
+# Exit: 0 released (or nothing valid pending), 2 usage, an unreadable fragment
+# list, or a manifest or changelog this script cannot update.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -52,12 +55,34 @@ if ((${#fragments[@]} == 0)); then
   echo "No pending changelog fragments."
   exit 0
 fi
+# A plugin with an invalid fragment is skipped whole: releasing it without that
+# fragment would drop the change from its CHANGELOG. Its fragments stay for a
+# fix, and every other plugin still releases.
+declare -A skipped=()
 for path in "${fragments[@]}"; do
-  changelog_fragments::validate "$path" || {
-    echo "$self: refusing to release while a fragment is invalid." >&2
-    exit 2
-  }
+  rest="${path#.changes/}"
+  changelog_fragments::validate "$path"
+  case $? in
+  0) ;;
+  1) skipped["${rest%%/*}"]=1 ;;
+  *) exit 2 ;;
+  esac
 done
+if ((${#skipped[@]} > 0)); then
+  valid=()
+  for path in "${fragments[@]}"; do
+    rest="${path#.changes/}"
+    [[ -n "${skipped[${rest%%/*}]:-}" ]] || valid+=("$path")
+  done
+  fragments=(${valid[@]+"${valid[@]}"})
+  for name in $(printf '%s\n' "${!skipped[@]}" | LC_ALL=C sort); do
+    echo "$self: skipped $name: a fragment under .changes/$name failed validation (above); its fragments stay until fixed." >&2
+  done
+  if ((${#fragments[@]} == 0)); then
+    echo "No valid pending changelog fragments."
+    exit 0
+  fi
+fi
 
 if [[ "$(git rev-parse --is-shallow-repository 2>/dev/null)" == true ]]; then
   echo "$self: this clone is shallow, so the order the fragments were committed in is unknown; fetch the full history (fetch-depth: 0) and run again." >&2

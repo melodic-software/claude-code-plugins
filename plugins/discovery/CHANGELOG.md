@@ -1,11 +1,18 @@
 # Changelog: discovery plugin
 
-## [0.28.9] - 2026-10-04
+## [0.28.10] - 2026-10-04
 
 ### Changed
 
 - The rendered-view reference treats `medium: hosted` as `artifact`: the blindspot view is never sent to a page host.
 - Shared `view-runtime.js` synced: a page served top-level over `https:` keeps its save button.
+
+## [0.28.9] - 2026-10-04
+
+### Fixed
+
+- `check-source-applicability.py` no longer fails a run for keeping its Gap claims in the sidecar header. A claim at `MEDIUM` or `LOW` confidence is a Gap, and the artifact shape keeps Gaps in the header, but rule R7 (and R5's one-primary count) demanded a dated, `current` primary from every claim, so a Gap with a historical, undated, or missing primary turned criterion 13 red. Both rules now apply only to claims above `MEDIUM`; a Gap's sources are still graded for standing.
+- The single-source first-party content-claim exception is vendor-neutral: it covers any vendor's or maintainer's own official page, file or changelog about its own product, not only an Anthropic page.
 
 ## [0.28.8] - 2026-10-04
 
