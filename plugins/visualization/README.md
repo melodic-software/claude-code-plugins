@@ -110,7 +110,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Preferred delivery medium. auto (default) defers to the rendered-views cascade, then decides by content and available surfaces; terminal always renders inline; file renders richer forms as a local HTML file, never published; artifact prefers a published Artifact, else a file; hosted is treated as artifact (only /review:explain-change sends pages to a page host). |
+| `medium` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_MEDIUM` | Preferred delivery medium. auto (default) defers to the rendered-views cascade, then decides by content and available surfaces; terminal always renders inline; file renders richer forms as a local HTML file, never published; artifact or hosted prefers a published Artifact, else a file. |
 | `thin_context_prompt` | string | `"auto"` | `CLAUDE_PLUGIN_OPTION_THIN_CONTEXT_PROMPT` | What the skill does when code is pasted with little context and no form named. auto (default) asks one ranked question only when two or more code-shape forms fit about equally; always offers the ranked menu on any bare code paste; never renders the recommended form without asking. |
 
 ### How to set these
