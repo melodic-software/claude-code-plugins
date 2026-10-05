@@ -58,10 +58,15 @@ The owner accepted these four differences by name on #6246:
    script still reads only its first 64 KB, so the records keep the cap.
 4. **Mods off.** Where mods are off, the log does not run.
 
-One further difference was found while building the module and is not among the four: a settings
-hook received `TRACEPARENT` when tracing was on, and a mod receives no per-hook trace context, so
-records written by the module carry no `traceparent` key. The module clears `TRACEPARENT` rather
-than pass on a value the Claude Code process itself holds. It needs the owner's acceptance.
+Two further differences were found while building the module and are not among the four. Each
+needs the owner's acceptance:
+
+- **No `traceparent`.** A settings hook received `TRACEPARENT` when tracing was on, and a mod
+  receives no per-hook trace context, so records written by the module carry no `traceparent` key.
+  The module clears `TRACEPARENT` rather than pass on a value the Claude Code process itself holds.
+- **CLI-only writes.** The per-build types declare `$.process` "CLI only". On a host where mods load
+  but `$.process.run` cannot start a command, the module writes nothing and logs that once to the
+  debug log, where the settings rows wrote. Which hosts those are is not probed.
 
 ## Alternatives considered
 
@@ -83,7 +88,8 @@ than pass on a value the Claude Code process itself holds. It needs the owner's 
   subagent, and one for each less frequent event.
 - With the log on, the cost per event is what the settings rows cost: one node process that resolves
   bash and runs the script.
-- The log needs Claude Code 2.1.287 or later with mods on. Mods start host processes in the CLI only;
-  where `$.process.run` cannot run, the module writes nothing and logs that once to the debug log.
+- The log needs Claude Code 2.1.287 or later with mods on.
+- Option values reach the module from the same `pluginConfigs` the settings rows read (user or
+  managed scope), so `session_log_pre_prune_command` keeps its trust boundary.
 - `scripts/gen-hook-event-registry.test.sh` asserted the retired producer rows and has to assert the
   generated module block and the absence of rows instead.
