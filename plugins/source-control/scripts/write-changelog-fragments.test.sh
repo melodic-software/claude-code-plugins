@@ -113,7 +113,13 @@ done
 r=$(mkrepo)
 out=$(write "$r" $'fix: x\n\nBREAKING CHANGE: the flag is gone')
 assert_contains "BREAKING CHANGE footer: major" "$(frag "$r" "$out")" "bump: major"
-assert_not_contains "BREAKING CHANGE footer is a trailer, not body" "$(frag "$r" "$out")" "flag is gone"
+assert_eq "BREAKING CHANGE footer kept as a Breaking line" \
+  $'---\nbump: major\n---\n\n### Fixed\n\n- x\n\n  **Breaking:** the flag is gone' "$(frag "$r" "$out")"
+valid "BREAKING CHANGE fragment validates" "$r" "$out"
+r=$(mkrepo)
+out=$(write "$r" $'feat: y\r\n\r\nWhy.\r\n\r\nBREAKING-CHANGE: old flag removed\r\nCo-Authored-By: A <a@b.c>\r\n')
+assert_eq "CRLF, BREAKING-CHANGE among trailers: other trailers dropped" \
+  $'---\nbump: major\n---\n\n### Added\n\n- y\n\n  Why.\n\n  **Breaking:** old flag removed' "$(frag "$r" "$out")"
 
 # 4. A second commit on the branch appends to the branch's fragment and raises
 #    the bump only upward; a none commit leaves it alone.
@@ -167,7 +173,38 @@ r=$(mkrepo)
 out=$(write "$r" "feat: x" --level none)
 assert_contains "--level overrides the type" "$(frag "$r" "$out")" "bump: none"
 
-# 8. Usage errors.
+# 8. An unmappable subject that touches no listed plugin is not refused.
+r=$(mkrepo)
+git -C "$r" reset -q -- plugins/alpha >/dev/null
+out=$(write "$r" "Update beta docs")
+assert_exit "unmappable subject, no listed plugin: exit 0" 0 "$?"
+assert_eq "unmappable subject, no listed plugin: nothing written" 0 "$(nfrag "$r")"
+
+# 9. A rerun after a failed commit does not add the entry twice.
+r=$(mkrepo)
+out=$(write "$r" "fix: once")
+write "$r" "fix: once" >/dev/null
+assert_eq "rerun: the entry appears once" 1 "$(grep -c -- '- once' "$r/$out")"
+
+# 10. A fragment main already holds, from an earlier branch with the same name,
+#     is not this branch's: a new fragment is written and the old one untouched.
+r=$(mkrepo)
+out=$(write "$r" "fix: earlier change")
+{
+  git -C "$r" add -A && git -C "$r" commit -qm earlier
+  git -C "$r" checkout -q main && git -C "$r" merge -q --no-ff feat/x -m merged
+  git -C "$r" branch -q -D feat/x && git -C "$r" checkout -qb feat/x
+  echo four >>"$r/plugins/alpha/file.md" && git -C "$r" add -A
+} >/dev/null 2>&1
+old=$(cat "$r/$out")
+out2=$(write "$r" "feat: later change")
+assert_eq "same slug on main: a new fragment" 2 "$(nfrag "$r")"
+assert_eq "same slug on main: the merged fragment is untouched" "$old" "$(cat "$r/$out")"
+[[ "$out2" != "$out" ]] || fail "same slug on main: wrote to a different file" "new path" "$out2"
+out3=$(write "$r" "feat: later change" --base main)
+assert_eq "same slug on main, --base: the staged fragment counts as the branch's" "" "$out3"
+
+# 11. Usage errors.
 out=$(write "$r" "feat: x" --level huge)
 assert_exit "bad --level: exit 2" 2 "$?"
 

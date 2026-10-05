@@ -175,7 +175,8 @@ rendered, never a guessed level; the value changes nothing else about the experi
    **Product surfaces.** Record any unit under `plugins/<name>/` (a skill, agent, hook, command, or
    any shipped file) as `unstripped-product-surface` and never strip it, whatever its class. The
    reason is changelog-parity: `check-changelog-parity.sh`, in the repository scripts directory,
-   pairs a plugin's shipped files with its version and CHANGELOG, and an experiment branch carries no product change (Gotchas, two
+   pairs a plugin's shipped files with its version and CHANGELOG (or a changelog fragment for a
+   plugin in fragment mode), and an experiment branch carries no product change (Gotchas, two
    hats). Only the repo's own session surfaces are strip candidates.
 
    **Plugins, every one enabled at any scope.** Inventory user, project, and local

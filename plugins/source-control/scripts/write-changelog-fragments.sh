@@ -17,19 +17,21 @@
 #   feat                                                minor
 #   fix, perf                                           patch
 #   build, chore, ci, docs, refactor, style, test       none
-# Any other subject is refused (exit 2) until --level names the level.
+# When a listed plugin is touched, any other subject is refused (exit 2) until
+# --level names the level.
 #
 # Body: the subject description as one list item under `### Added` (feat),
 # `### Fixed` (fix) or `### Changed` (everything else), with the message body
-# indented beneath it and the trailer paragraph dropped. A `none` fragment gets
-# one line saying why no release is needed.
+# indented beneath it and the trailer paragraph dropped except a BREAKING CHANGE
+# footer, kept as a **Breaking:** line. A `none` fragment gets one line saying
+# why no release is needed.
 #
-# One fragment per plugin per branch. The branch's own fragment is the one whose
-# name starts with the branch slug that new-changelog-fragment.sh names it by.
-# Without --base, a second commit on the branch appends its entry to that
-# fragment and raises its bump to the higher level; with --base, a plugin that
-# already has a branch fragment is left alone, so a pull request only fills the
-# gaps its commits left.
+# One fragment per plugin per branch. The branch's own fragment is one this
+# branch added: since the merge base with --base or the default branch, or
+# staged or untracked. Without --base, a later releasing commit appends its
+# entry to that fragment (once; a rerun finds it there) and raises its bump to
+# the higher level; with --base, a plugin that already has a branch fragment is
+# left alone, so a pull request only fills the gaps its commits left.
 #
 # Prints each fragment path it wrote, one per line; stage them with the commit.
 # Exit: 0 done (including nothing to do); 2 usage, a refused subject, or a
@@ -72,6 +74,34 @@ if [[ ! -f "$creator" ]]; then
 fi
 
 message="$(tr -d '\r')"
+
+if [[ -n "$base" ]]; then
+  paths="$(git diff --name-only "$base...HEAD")" || {
+    echo "$self: git diff $base...HEAD failed." >&2
+    exit 2
+  }
+else
+  paths="$(git diff --cached --name-only)" || exit 2
+fi
+
+declare -A listed=()
+while IFS= read -r name; do
+  name="${name%%#*}"
+  name="${name//[[:space:]]/}"
+  [[ -z "$name" ]] || listed["$name"]=1
+done < <(tr -d '\r' <"$list")
+
+declare -A seen=()
+plugins=()
+while IFS= read -r path; do
+  [[ "$path" == plugins/*/* ]] || continue
+  name="${path#plugins/}" name="${name%%/*}"
+  [[ -n "${listed[$name]:-}" && -z "${seen[$name]:-}" && -f "plugins/$name/.claude-plugin/plugin.json" ]] || continue
+  seen["$name"]=1
+  plugins+=("$name")
+done <<<"$paths"
+((${#plugins[@]})) || exit 0
+
 subject="$(sed -n '/[^[:space:]]/{p;q;}' <<<"$message")"
 type="" desc="$subject"
 cc='^([a-z]+)(\([^)]*\))?(!)?:[[:space:]]+(.+)$'
@@ -108,7 +138,7 @@ esac
 
 # The message body after the subject, minus a final paragraph of trailers,
 # indented two spaces so it continues the list item and no line of it can read
-# as a heading.
+# as a heading. A BREAKING CHANGE footer is kept, as a **Breaking:** line.
 body="$(awk '
   !started { if ($0 ~ /[^[:space:]]/) started = 1; next }
   { line[++n] = $0 }
@@ -119,11 +149,16 @@ body="$(awk '
     trailers = (last < n)
     for (i = last + 1; i <= n; i++)
       if (line[i] !~ /^([A-Za-z][A-Za-z0-9-]*|BREAKING CHANGE): /) trailers = 0
-    if (trailers) n = last
+    if (trailers) {
+      for (i = last + 1; i <= n; i++)
+        if (sub(/^BREAKING[ -]CHANGE:[ \t]*/, "", line[i])) brk[++nb] = line[i]
+      n = last
+    }
     while (n > 0 && line[n] !~ /[^[:space:]]/) n--
     s = 1
     while (s <= n && line[s] !~ /[^[:space:]]/) s++
     for (i = s; i <= n; i++) print (line[i] ~ /[^[:space:]]/ ? "  " line[i] : "")
+    for (i = 1; i <= nb; i++) print ((n >= s || i > 1) ? "\n" : "") "  **Breaking:** " brk[i]
   }' <<<"$message")"
 
 if [[ "$level" == none ]]; then
@@ -133,43 +168,26 @@ else
   [[ -z "$body" ]] || block+=$'\n\n'"$body"
 fi
 
-if [[ -n "$base" ]]; then
-  paths="$(git diff --name-only "$base...HEAD")" || {
-    echo "$self: git diff $base...HEAD failed." >&2
-    exit 2
-  }
-else
-  paths="$(git diff --cached --name-only)" || exit 2
+# Fragments this branch added: committed since the merge base with --base, or
+# with the default branch, plus staged and untracked ones. A fragment main
+# already holds belongs to another change, even when its name carries the same
+# branch slug.
+ref="$base"
+if [[ -z "$ref" ]]; then
+  ref="$(git symbolic-ref -q --short refs/remotes/origin/HEAD)" || ref=""
+  for candidate in origin/main main; do
+    [[ -z "$ref" ]] || break
+    ! git rev-parse -q --verify "$candidate" >/dev/null || ref="$candidate"
+  done
 fi
-
-declare -A listed=()
-while IFS= read -r name; do
-  name="${name%%#*}"
-  name="${name//[[:space:]]/}"
-  [[ -z "$name" ]] || listed["$name"]=1
-done < <(tr -d '\r' <"$list")
-
-declare -A seen=()
-plugins=()
-while IFS= read -r path; do
-  [[ "$path" == plugins/*/* ]] || continue
-  name="${path#plugins/}" name="${name%%/*}"
-  [[ -n "${listed[$name]:-}" && -z "${seen[$name]:-}" && -f "plugins/$name/.claude-plugin/plugin.json" ]] || continue
-  seen["$name"]=1
-  plugins+=("$name")
-done <<<"$paths"
-((${#plugins[@]})) || exit 0
-
-# The slug new-changelog-fragment.sh puts at the start of this branch's names.
-slug=""
-if branch="$(git symbolic-ref --quiet --short HEAD)"; then
-  slug="${branch,,}"
-  slug="${slug//[^a-z0-9._-]/-}"
-  slug="${slug#"${slug%%[a-z0-9]*}"}"
-fi
+added="$(
+  [[ -z "$ref" ]] || git diff --name-only --diff-filter=A "$ref...HEAD" -- .changes/
+  git diff --cached --name-only --diff-filter=A -- .changes/
+  git ls-files --others --exclude-standard -- .changes/
+)"
 
 rank() { case "$1" in major) echo 3 ;; minor) echo 2 ;; patch) echo 1 ;; *) echo 0 ;; esac }
-bump_of() { awk '{ sub(/\r$/, "") } NR > 1 && $0 == "---" { exit } sub(/^bump:[ \t]*/, "") { print; exit }' "$1"; }
+bump_of() { awk '{ sub(/\r$/, "") } NR > 1 && $0 == "---" { exit } sub(/^bump:[ \t]*/, "") { sub(/[ \t]+$/, ""); print; exit }' "$1"; }
 # Rewrite the bump line in place; no `sed -i`, whose syntax differs between GNU
 # and BSD.
 set_bump() {
@@ -177,15 +195,8 @@ set_bump() {
 }
 
 for plugin in "${plugins[@]}"; do
-  own=""
-  if [[ -n "$slug" ]]; then
-    for f in ".changes/$plugin/$slug"-*.md; do
-      [[ -f "$f" && "${f##*/}" =~ ^"$slug"-[0-9a-f]{8}\.md$ ]] && {
-        own="$f"
-        break
-      }
-    done
-  fi
+  own="$(grep -m1 -E "^\.changes/$plugin/[^/]+\.md$" <<<"$added")"
+  [[ -z "$own" || -f "$own" ]] || own=""
   if [[ -z "$own" ]]; then
     path="$(bash "$creator" "$plugin" "$level")" || exit 2
     printf '%s\n' "$block" >>"$path" || exit 2
@@ -193,6 +204,11 @@ for plugin in "${plugins[@]}"; do
     continue
   fi
   [[ -z "$base" && "$level" != none ]] || continue
+  # A rerun after a failed or amended commit finds its entry already there.
+  [[ "$(<"$own")" != *"$block"* ]] || {
+    echo "$own"
+    continue
+  }
   old="$(bump_of "$own")"
   if [[ "$old" == none ]]; then
     printf -- '---\nbump: %s\n---\n\n%s\n' "$level" "$block" >"$own" || exit 2
