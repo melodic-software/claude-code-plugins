@@ -1,10 +1,16 @@
 # Changelog: docs-hygiene plugin
 
+## [0.26.8] - 2026-10-04
+
+### Changed
+
+- **extract-ssot's orchestrated mode inlines rate-limit-guard's updated operable floor and drops a stale snapshot claim.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says only a session's own turns write the file, never a paused lane's Monitor ticks. The reactive-only note no longer says the snapshot carries no account identifier: it carries one when the writer could attribute the reading.
+
 ## [0.26.7] - 2026-10-04
 
 ### Changed
 
-- **extract-ssot's orchestrated mode inlines rate-limit-guard's updated operable floor and drops a stale snapshot claim.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot; it says the file is written only from a session's own turns, never from a paused lane's Monitor ticks. The reactive-only note no longer says the snapshot carries no account identifier: it carries one when the writer could attribute the reading.
+- **`extract-ssot`'s orchestrated mode calls `rate-limits.json` the snapshot file, not the tee file**, matching rate-limit-guard's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
 
 ## [0.26.6] - 2026-10-04
 

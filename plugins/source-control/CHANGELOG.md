@@ -3,11 +3,18 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.79.21] - 2026-10-04
+
+### Changed
+
+- **babysit-loop and the pull-request watch handoff inline rate-limit-guard's updated operable floor.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says only a session's own turns write the file, never a paused lane's Monitor ticks. The rule is unchanged.
+
 ## [0.79.20] - 2026-10-04
 
 ### Changed
 
-- **babysit-loop and the pull-request watch handoff inline rate-limit-guard's updated operable floor.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot; it says the file is written only from a session's own turns, never from a paused lane's Monitor ticks. The rule is unchanged.
+- **`babysit-loop` and the `pull-request` watch handoff call `rate-limits.json` the snapshot file, not the tee file**, matching rate-limit-guard's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
+- **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** Two comments no longer cite the retired statusline tee.
 
 ## [0.79.19] - 2026-10-04
 
