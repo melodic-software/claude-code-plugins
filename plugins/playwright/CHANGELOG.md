@@ -11,6 +11,10 @@ All notable changes to the `playwright` plugin are documented here. Format follo
 - **SessionStart hook `hooks/install-python-deps.sh` installs the demo-video packages.** It installs the hash-locked numpy and Pillow into the plugin data directory, is a no-op once they load, and reports a failed install with the repair line. A mid-session enable still gets the launcher's install line. Dependabot watches the lock.
 - **`prerequisites.json` declares Python 3.12+, `ffmpeg` and `ffprobe`** for the demo-video skill and its hook.
 - **`/playwright:playwright` names `/playwright:demo-video` in its `## Next` section.**
+- **Demo-video safety.** `pydeps.py` runs its import probe and `pip` with `python -P`, so a
+  `numpy.py` or `pip/` in the working directory cannot run or replace the locked set; `record.mjs`
+  refuses to wipe a non-empty capture directory that holds no earlier capture; the independent
+  review now fails a video showing secrets, personal data or internal hosts.
 
 ## [0.8.10] - 2026-10-04
 

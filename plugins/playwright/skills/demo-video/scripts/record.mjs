@@ -51,6 +51,11 @@ const W = Number(process.env.DEMO_WIDTH || 1920), H = Number(process.env.DEMO_HE
 const DSF = Number(process.env.DEMO_DSF || 2);
 const SLOW = Number(process.env.DEMO_SLOW || 3);
 const out = path.resolve(outArg);
+const existing = fs.existsSync(out) ? fs.readdirSync(out) : [];
+if (existing.length && !existing.includes('timeline.json') && !existing.includes('frames')) {
+  console.error(`record.mjs: ${out} is not empty and holds no earlier capture (timeline.json or frames/); pass a new or empty CAPTURE_DIR.`);
+  process.exit(1);
+}
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(path.join(out, 'frames'), { recursive: true });
 

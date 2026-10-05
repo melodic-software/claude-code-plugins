@@ -23,6 +23,8 @@ cut and zoom peak) and look at them. Report, with timestamps and frame files:
 4. Captions: correct wording, readable, never over content or the click target.
 5. Whether each step's outcome is visible on screen long enough to read.
 6. With narration: a line that starts before the state it describes, or overlapping lines.
+7. Anything that must not be published: a token, password, API key, personal data, a real
+   customer record, or an internal host name or URL. Any such frame makes the verdict NOT READY.
 Verdict: SHIP, SHIP AFTER FIXES (list them, severity first) or NOT READY.
 ```
 

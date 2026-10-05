@@ -65,7 +65,7 @@ def _env(packages):
 
 def loads(packages, probe):
     """Readiness is a load probe: the packages must import, not merely be present."""
-    r = subprocess.run([sys.executable, '-S', '-c', 'import ' + ', '.join(probe)],
+    r = subprocess.run([sys.executable, '-P', '-S', '-c', 'import ' + ', '.join(probe)],
                        env=_env(packages), capture_output=True, text=True)
     return r.returncode == 0
 
@@ -107,7 +107,7 @@ def install(data, requirements=REQUIREMENTS, probe=PROBE):
             shutil.rmtree(target)   # present but not loading: rebuild it rather than trust it
         try:
             r = subprocess.run(
-                [sys.executable, '-m', 'pip', 'install', '--require-hashes', '--only-binary', ':all:', '--no-deps',
+                [sys.executable, '-P', '-m', 'pip', 'install', '--require-hashes', '--only-binary', ':all:', '--no-deps',
                  '--no-input', '--disable-pip-version-check', '--retries', '2', '--timeout', '30',
                  '--target', str(partial), '--requirement', str(requirements)],
                 capture_output=True, text=True, timeout=PIP_TIMEOUT_S)

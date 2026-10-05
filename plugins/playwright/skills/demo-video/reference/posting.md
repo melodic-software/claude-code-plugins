@@ -1,7 +1,9 @@
 # Posting the video
 
 The video goes to the pull request through the user's own GitHub access; no new credential is
-created for it. Post only after the QC and the independent review pass.
+created for it. Post only after the QC and the independent review pass, including its check for
+secrets, personal data and internal hosts in the frames. Record against fixture or test accounts so
+the video carries none to begin with.
 
 ## Local session: attach inline with `gh`
 
