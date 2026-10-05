@@ -54,7 +54,7 @@ alone.
 Read `${CLAUDE_PLUGIN_ROOT}/reference/routing.json`. For each concern the request touches, take
 its rows in rank order and use the first one for which all of these hold:
 
-- Its `id` is in `installed`, matched exactly. A `kind: tool` row (for example `/design`) is
+- Its `id` is in `installed`, matched exactly. A `kind: tool` row (for example `Artifact`) is
   checked against this session's own tool and skill listing instead.
 - Its `status` is not `deferred`.
 - It has no `style`, or the project is in that style (for example pixel art).
@@ -65,7 +65,8 @@ its rows in rank order and use the first one for which all of these hold:
   they may need to sign in.
 
 Invoke a skill route by its exact id; for a plugin route, use the skill it provides for the
-concern. A skill only its user can start (the Skill tool refuses it) is handed over instead: give
+concern; for a tool route, call that tool (`Artifact`: start from its Design type for mockups, its
+Design System type for a design system). A skill only its user can start (the Skill tool refuses it) is handed over instead: give
 the user its slash command. Say which route you took and why.
 
 ## Combine routes and settle conflicts
@@ -119,5 +120,7 @@ the user agrees.
 - A `null` in `reachable` means detect cannot tell, not that the tool is down. Route to the
   account-bound row as Step 4 says; if it then fails, fall back to the next row and say signing in
   may fix it.
+- A headless `claude -p` session does not load the `Artifact` tool, so the Claude Design rows
+  never qualify there; Step 4's own-listing check skips them.
 - The routing data ranks candidates; its `unconfirmed` rows have not yet been installed and tested
   here. Say so when you route to one.
