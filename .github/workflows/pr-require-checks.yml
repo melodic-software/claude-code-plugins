@@ -55,9 +55,9 @@ on:
   # fails open and `select-tests` resolves no diff base, so the whole tree is
   # tested; the base-diff gates decline as on a schedule run; `check-contract` finds no pull
   # request number and reports `skipped`, because the title and linkage were
-  # already checked on the pull request before it could enter the queue, while
-  # `ci-status` re-reads the queued pull request's `do-not-merge` label from the
-  # API (a label can land after enqueue); and `ci-status` aggregates the lanes and records `ci-lanes` on the
+  # already checked on the pull request before it could enter the queue, and a
+  # label can land after enqueue, so a step of its own re-reads `do-not-merge`
+  # from the API; and `ci-status` aggregates the lanes and records `ci-lanes` on the
   # merge-group commit (`github.sha`), a SHA no contract-only run ever reads.
   merge_group:
     types: [checks_requested]
@@ -2568,8 +2568,10 @@ jobs:
       # This step reads the live labels of the pull request the group was built
       # for, named in the merge-group ref (`gh-readonly-queue/<base>/pr-<N>-<sha>`),
       # and fails if it carries the label; the queue then removes that pull
-      # request. It reads only that one: a failed group removes the pull request
-      # it was built for, never one ahead of it, so failing on an earlier
+      # request. It reads only that one: under the ruleset's ALLGREEN grouping a
+      # pull request merges only when its own group passes, and a failed group
+      # removes the pull request it was built for, never one ahead of it
+      # (HEADGREEN would need every entry read), so failing on an earlier
       # entry's label would eject an unlabeled pull request while the labeled
       # one still merged. A label that lands after this step passed does not stop the merge;
       # dequeue the pull request as well. An unparseable ref or an unreadable
