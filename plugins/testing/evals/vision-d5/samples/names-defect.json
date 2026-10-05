@@ -1,62 +1,142 @@
 {
   "pass": [
     {
-      "answer": "FINDING: A Free shipping banner appears after load in the first card and pushes its buttons down.\nVERDICT: NEEDS WORK"
+      "answer": "Checked all four screenshots.\nFINDING [layout-shift]: A Free shipping banner appears in the first card after load and pushes its buttons down.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "FINDING: Layout shift: the first card grows by about 48 px between the load and 1 s frames.\nVERDICT: NEEDS WORK"
+      "answer": "- **FINDING [`layout-shift`]:** A Free shipping banner appears in the first card after load and pushes its buttons down.\n- FINDING [contrast]: Body text looks pale.\n\nVERDICT: NEEDS WORK\n"
     },
     {
-      "answer": "FINDING: Between frames, the buttons jump when the banner pops in.\nVERDICT: NEEDS WORK"
+      "answer": "1. FINDING [LAYOUT-SHIFT]: A Free shipping banner appears in the first card after load and pushes its buttons down.\n\n**VERDICT: NEEDS WORK**"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nFINDING [ layout-shift ]: A Free shipping banner appears in the first card after load and pushes its buttons down.\n**VERDICT:** NEEDS WORK"
     }
   ],
   "fail": [
     {
-      "answer": ""
+      "answer": "",
+      "why": "empty reply"
     },
     {
       "answer": "Both widths render cleanly at load and after 1 s.\nVERDICT: CONFIRMED",
       "why": "clean report"
     },
     {
-      "answer": "FINDING: The badge overlaps the title.\nVERDICT: NEEDS WORK",
-      "why": "reports only another defect"
+      "answer": "FINDING [overlap]: A Free shipping banner appears in the first card after load and pushes its buttons down.\nVERDICT: NEEDS WORK",
+      "why": "this defect under another case's token"
     },
     {
-      "answer": "A banner appears after load and pushes the buttons down.\nVERDICT: NEEDS WORK",
-      "why": "defect in prose, no FINDING line"
+      "answer": "FINDING [other]: A Free shipping banner appears in the first card after load and pushes its buttons down.\nVERDICT: NEEDS WORK",
+      "why": "this defect under the other token"
     },
     {
-      "answer": "FINDING: A banner appears after load and pushes the buttons down.\nVERDICT: CONFIRMED",
-      "why": "verdict is CONFIRMED"
+      "answer": "Between the load and 1 s frames the first card's buttons move down.\nVERDICT: NEEDS WORK",
+      "why": "prose-only mention, no FINDING line"
     },
     {
-      "answer": "The badge overlaps the title. Checked for layout shift; found none.\nVERDICT: NEEDS WORK",
-      "why": "brief probe: denial after the term, no FINDING line"
+      "answer": "FINDING: A Free shipping banner appears in the first card after load and pushes its buttons down.\nVERDICT: NEEDS WORK",
+      "why": "untagged FINDING line"
     },
     {
-      "answer": "FINDING: The badge overlaps the title.\nChecked for layout shift; found none.\nVERDICT: NEEDS WORK",
-      "why": "denies this defect in prose, reports another on a FINDING line"
+      "answer": "FINDING [layout-shifting]: A Free shipping banner appears in the first card after load and pushes its buttons down.\nVERDICT: NEEDS WORK",
+      "why": "unknown category"
     },
     {
-      "answer": "FINDING: no layout shift between frames\nVERDICT: NEEDS WORK",
-      "why": "FINDING line negates the defect"
+      "answer": "FINDING [layout-shift, overlap]: A Free shipping banner appears in the first card after load and pushes its buttons down.\nVERDICT: NEEDS WORK",
+      "why": "two categories in one tag"
     },
     {
-      "answer": "FINDING: Layout shift: none\nFINDING: The Save button is clipped\nVERDICT: NEEDS WORK",
-      "why": "checklist FINDING marks it absent"
+      "answer": "FINDING [layout-shift]: A Free shipping banner appears in the first card after load and pushes its buttons down.\nVERDICT: CONFIRMED",
+      "why": "wrong final verdict"
     },
     {
-      "answer": "There is no layout shift between frames, but the Save button is clipped.\nVERDICT: NEEDS WORK",
-      "why": "earlier probe: denies it, reports another"
+      "answer": "FINDING [layout-shift]: A Free shipping banner appears in the first card after load and pushes its buttons down.\nVERDICT: NEEDS WORK (draft)\nOn a second look it is fine.\nVERDICT: CONFIRMED",
+      "why": "NEEDS WORK only mid-reply"
     },
     {
-      "answer": "Nothing shifts or jumps between the load and later frames.\nVERDICT: CONFIRMED",
-      "why": "earlier probe: denies the defect"
+      "answer": "FINDING [layout-shift]: A Free shipping banner appears in the first card after load and pushes its buttons down.\nVERDICT: NEEDS WORK\nLet me know if you want a fix.",
+      "why": "verdict is not the last line"
     },
     {
-      "answer": "FINDING: The body text is pale.\nI compared the load and 1 s frames pixel by pixel and nothing moved down.\nVERDICT: NEEDS WORK",
-      "why": "new probe: denial in prose"
+      "answer": "FINDING [layout-shift]: A Free shipping banner appears in the first card after load and pushes its buttons down.\nVERDICT: NEEDS WORK (draft)",
+      "why": "final verdict line carries extra text"
+    },
+    {
+      "answer": "FINDING [layout-shift]: A Free shipping banner appears in the first card after load and pushes its buttons down.\nVERDICT:\nNEEDS WORK",
+      "why": "verdict split across lines"
+    },
+    {
+      "answer": "Category FINDING [layout-shift]: A Free shipping banner appears in the first card after load and pushes its buttons down.\nVERDICT: NEEDS WORK",
+      "why": "tag not at line start"
+    },
+    {
+      "answer": "FINDING [layout-shift]:\nVERDICT: NEEDS WORK",
+      "why": "tag with an empty body"
+    },
+    {
+      "answer": "FINDING [layout-shift] A Free shipping banner appears in the first card after load and pushes its buttons down.\nVERDICT: NEEDS WORK",
+      "why": "tag without a colon"
+    },
+    {
+      "answer": "FINDING [contrast]: The layout-shift category does not apply; Between the load and 1 s frames the first card's buttons move down.\nVERDICT: NEEDS WORK",
+      "why": "token named in another finding's prose"
+    },
+    {
+      "answer": "FINDING [clipping]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [misalignment]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [overflow]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [overlap]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nFINDING: avoids any overlap\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\noverlap - ruled out\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nBadge overlap: absent.\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nfree of truncation\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\ncontrast is far from low.\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nmisalignment is ruled out\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\navoids overflow\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\noverflow - none observed.\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
     }
   ]
 }

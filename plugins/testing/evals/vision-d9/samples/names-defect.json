@@ -1,62 +1,142 @@
 {
   "pass": [
     {
-      "answer": "FINDING: At 375 px the specs table overflows the viewport.\nVERDICT: NEEDS WORK"
+      "answer": "Checked all four screenshots.\nFINDING [overflow]: At 375 px the specs table runs past the right edge of the viewport.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "FINDING: The Weight column is cut off on the right at 375 px.\nVERDICT: NEEDS WORK"
+      "answer": "- **FINDING [`overflow`]:** At 375 px the specs table runs past the right edge of the viewport.\n- FINDING [contrast]: Body text looks pale.\n\nVERDICT: NEEDS WORK\n"
     },
     {
-      "answer": "FINDING: The table is wider than the screen and runs past the edge, forcing a horizontal scroll.\nVERDICT: NEEDS WORK"
+      "answer": "1. FINDING [OVERFLOW]: At 375 px the specs table runs past the right edge of the viewport.\n\n**VERDICT: NEEDS WORK**"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nFINDING [ overflow ]: At 375 px the specs table runs past the right edge of the viewport.\n**VERDICT:** NEEDS WORK"
     }
   ],
   "fail": [
     {
-      "answer": ""
+      "answer": "",
+      "why": "empty reply"
     },
     {
       "answer": "Both widths render cleanly at load and after 1 s.\nVERDICT: CONFIRMED",
       "why": "clean report"
     },
     {
-      "answer": "FINDING: The badge collides with the title.\nVERDICT: NEEDS WORK",
-      "why": "reports only another defect"
+      "answer": "FINDING [clipping]: At 375 px the specs table runs past the right edge of the viewport.\nVERDICT: NEEDS WORK",
+      "why": "this defect under another case's token"
     },
     {
-      "answer": "At 375 px the table overflows the viewport.\nVERDICT: NEEDS WORK",
-      "why": "defect in prose, no FINDING line"
+      "answer": "FINDING [other]: At 375 px the specs table runs past the right edge of the viewport.\nVERDICT: NEEDS WORK",
+      "why": "this defect under the other token"
     },
     {
-      "answer": "FINDING: At 375 px the table overflows the viewport.\nVERDICT: CONFIRMED",
-      "why": "verdict is CONFIRMED"
+      "answer": "The specs table is cut off at the right edge at 375 px.\nVERDICT: NEEDS WORK",
+      "why": "prose-only mention, no FINDING line"
     },
     {
-      "answer": "The badge collides with the title. Checked for horizontal overflow and found none.\nVERDICT: NEEDS WORK",
-      "why": "brief probe: denial after the term, no FINDING line"
+      "answer": "FINDING: At 375 px the specs table runs past the right edge of the viewport.\nVERDICT: NEEDS WORK",
+      "why": "untagged FINDING line"
     },
     {
-      "answer": "FINDING: The badge collides with the title.\nChecked for horizontal overflow and found none.\nVERDICT: NEEDS WORK",
-      "why": "denies this defect in prose, reports another on a FINDING line"
+      "answer": "FINDING [overflowing]: At 375 px the specs table runs past the right edge of the viewport.\nVERDICT: NEEDS WORK",
+      "why": "unknown category"
     },
     {
-      "answer": "FINDING: no overflow at either width\nVERDICT: NEEDS WORK",
-      "why": "FINDING line negates the defect"
+      "answer": "FINDING [overflow, clipping]: At 375 px the specs table runs past the right edge of the viewport.\nVERDICT: NEEDS WORK",
+      "why": "two categories in one tag"
     },
     {
-      "answer": "FINDING: Overflow: none\nFINDING: The badge collides with the title\nVERDICT: NEEDS WORK",
-      "why": "checklist FINDING marks it absent"
+      "answer": "FINDING [overflow]: At 375 px the specs table runs past the right edge of the viewport.\nVERDICT: CONFIRMED",
+      "why": "wrong final verdict"
     },
     {
-      "answer": "No content is cut off or off-screen, but the badge collides with the title.\nVERDICT: NEEDS WORK",
-      "why": "earlier probe: denies it, reports another"
+      "answer": "FINDING [overflow]: At 375 px the specs table runs past the right edge of the viewport.\nVERDICT: NEEDS WORK (draft)\nOn a second look it is fine.\nVERDICT: CONFIRMED",
+      "why": "NEEDS WORK only mid-reply"
     },
     {
-      "answer": "Nothing overflows the viewport; there is no horizontal scroll.\nVERDICT: CONFIRMED",
-      "why": "earlier probe: denies the defect"
+      "answer": "FINDING [overflow]: At 375 px the specs table runs past the right edge of the viewport.\nVERDICT: NEEDS WORK\nLet me know if you want a fix.",
+      "why": "verdict is not the last line"
     },
     {
-      "answer": "FINDING: The body text is pale.\nThe table fits: I scrolled the 375 px frame and nothing ran off screen.\nVERDICT: NEEDS WORK",
-      "why": "new probe: denial in prose"
+      "answer": "FINDING [overflow]: At 375 px the specs table runs past the right edge of the viewport.\nVERDICT: NEEDS WORK (draft)",
+      "why": "final verdict line carries extra text"
+    },
+    {
+      "answer": "FINDING [overflow]: At 375 px the specs table runs past the right edge of the viewport.\nVERDICT:\nNEEDS WORK",
+      "why": "verdict split across lines"
+    },
+    {
+      "answer": "Category FINDING [overflow]: At 375 px the specs table runs past the right edge of the viewport.\nVERDICT: NEEDS WORK",
+      "why": "tag not at line start"
+    },
+    {
+      "answer": "FINDING [overflow]:\nVERDICT: NEEDS WORK",
+      "why": "tag with an empty body"
+    },
+    {
+      "answer": "FINDING [overflow] At 375 px the specs table runs past the right edge of the viewport.\nVERDICT: NEEDS WORK",
+      "why": "tag without a colon"
+    },
+    {
+      "answer": "FINDING [contrast]: The overflow category does not apply; The specs table is cut off at the right edge at 375 px.\nVERDICT: NEEDS WORK",
+      "why": "token named in another finding's prose"
+    },
+    {
+      "answer": "FINDING [clipping]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [layout-shift]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [misalignment]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [overlap]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nFINDING: avoids any overlap\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\noverlap - ruled out\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nBadge overlap: absent.\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nfree of truncation\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\ncontrast is far from low.\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nmisalignment is ruled out\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\navoids overflow\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\noverflow - none observed.\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
     }
   ]
 }

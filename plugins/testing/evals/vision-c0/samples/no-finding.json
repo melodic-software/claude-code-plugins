@@ -1,13 +1,13 @@
 {
   "pass": [
     {
-      "answer": "Both widths render cleanly at load and after 1 s.\nVERDICT: CONFIRMED"
+      "answer": "VERDICT: CONFIRMED"
     },
     {
-      "answer": "The heading is now blue, which still has good contrast. Nothing is clipped, misaligned or overlapping.\nVERDICT: CONFIRMED"
+      "answer": "No findings. The blue heading reads fine.\nVERDICT: CONFIRMED"
     },
     {
-      "answer": "Every finding I looked for came back clean.\nVERDICT: CONFIRMED"
+      "answer": "Findings: none\nVERDICT: CONFIRMED"
     },
     {
       "answer": ""
@@ -15,16 +15,20 @@
   ],
   "fail": [
     {
-      "answer": "FINDING: The blue heading has low contrast.\nVERDICT: NEEDS WORK",
-      "why": "reports a defect"
+      "answer": "FINDING [contrast]: The heading is blue.\nVERDICT: CONFIRMED",
+      "why": "tagged FINDING line"
     },
     {
-      "answer": "FINDING: none\nVERDICT: CONFIRMED",
-      "why": "FINDING line present on a clean render"
+      "answer": "- **FINDING:** overlap - ruled out\nVERDICT: CONFIRMED",
+      "why": "untagged FINDING line"
     },
     {
-      "answer": "All good.\n- **FINDING:** the Save button looks misaligned.\nVERDICT: CONFIRMED",
-      "why": "bulleted FINDING line with a CONFIRMED verdict"
+      "answer": "finding [other]: none\nVERDICT: CONFIRMED",
+      "why": "lower-case FINDING line"
+    },
+    {
+      "answer": "Checked.\nFINDING [unknown]: nothing\nVERDICT: CONFIRMED",
+      "why": "unknown category FINDING line"
     }
   ]
 }

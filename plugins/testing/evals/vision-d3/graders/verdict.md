@@ -1,4 +1,5 @@
 ---
 type: regex
-pattern: 'VERDICT:[*_`\s]*NEEDS WORK'
+pattern: '(?:^|\n)[ \t]*(?:(?:[-*+>]|\d+[.)])[ \t]+)?[*_`]*VERDICT[*_`]*[ \t]*:[*_` \t]*NEEDS WORK[*_` \t]*\s*$'
+flags: i
 ---

@@ -1,23 +1,43 @@
 {
   "pass": [
     {
-      "answer": "Both widths render cleanly.\nVERDICT: CONFIRMED"
+      "answer": "FINDING [other]: one problem\nVERDICT: CONFIRMED"
     },
     {
-      "answer": "**VERDICT: CONFIRMED**"
+      "answer": "Summary above.\n**VERDICT:** CONFIRMED\n\n"
+    },
+    {
+      "answer": "- VERDICT: `CONFIRMED`"
     }
   ],
   "fail": [
     {
-      "answer": ""
+      "answer": "",
+      "why": "empty reply"
     },
     {
-      "answer": "FINDING: the heading is blue\nVERDICT: NEEDS WORK",
-      "why": "false positive"
+      "answer": "VERDICT: NEEDS WORK",
+      "why": "opposite verdict"
     },
     {
-      "answer": "Looks confirmed to me.",
+      "answer": "VERDICT: CONFIRMED (draft)\nOn reflection:\nVERDICT: NEEDS WORK",
+      "why": "CONFIRMED only mid-reply"
+    },
+    {
+      "answer": "VERDICT: CONFIRMED\nThanks.",
+      "why": "verdict is not the last line"
+    },
+    {
+      "answer": "VERDICT: CONFIRMED (draft)",
+      "why": "extra text on the verdict line"
+    },
+    {
+      "answer": "It is confirmed.",
       "why": "no verdict line"
+    },
+    {
+      "answer": "VERDICT: CONFIRMED or NEEDS WORK",
+      "why": "both verdicts on one line"
     }
   ]
 }

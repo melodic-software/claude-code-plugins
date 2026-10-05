@@ -1,62 +1,142 @@
 {
   "pass": [
     {
-      "answer": "FINDING: In the first card, Save sits lower than Add to cart.\nVERDICT: NEEDS WORK"
+      "answer": "Checked all four screenshots.\nFINDING [misalignment]: In the first card the Save button sits about 8 px lower than Add to cart.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "FINDING: The two buttons in card one are misaligned at both widths.\nVERDICT: NEEDS WORK"
+      "answer": "- **FINDING [`misalignment`]:** In the first card the Save button sits about 8 px lower than Add to cart.\n- FINDING [contrast]: Body text looks pale.\n\nVERDICT: NEEDS WORK\n"
     },
     {
-      "answer": "FINDING: Save is offset by a few pixels from Add to cart, so their top edges differ.\nVERDICT: NEEDS WORK"
+      "answer": "1. FINDING [MISALIGNMENT]: In the first card the Save button sits about 8 px lower than Add to cart.\n\n**VERDICT: NEEDS WORK**"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nFINDING [ misalignment ]: In the first card the Save button sits about 8 px lower than Add to cart.\n**VERDICT:** NEEDS WORK"
     }
   ],
   "fail": [
     {
-      "answer": ""
+      "answer": "",
+      "why": "empty reply"
     },
     {
       "answer": "Both widths render cleanly at load and after 1 s.\nVERDICT: CONFIRMED",
       "why": "clean report"
     },
     {
-      "answer": "FINDING: The heading color changed.\nVERDICT: NEEDS WORK",
-      "why": "reports only another defect"
+      "answer": "FINDING [layout-shift]: In the first card the Save button sits about 8 px lower than Add to cart.\nVERDICT: NEEDS WORK",
+      "why": "this defect under another case's token"
     },
     {
-      "answer": "In the first card Save sits lower than Add to cart.\nVERDICT: NEEDS WORK",
-      "why": "defect in prose, no FINDING line"
+      "answer": "FINDING [other]: In the first card the Save button sits about 8 px lower than Add to cart.\nVERDICT: NEEDS WORK",
+      "why": "this defect under the other token"
     },
     {
-      "answer": "FINDING: The two buttons are misaligned.\nVERDICT: CONFIRMED",
-      "why": "verdict is CONFIRMED"
+      "answer": "The Save button is lower than Add to cart in the first card.\nVERDICT: NEEDS WORK",
+      "why": "prose-only mention, no FINDING line"
     },
     {
-      "answer": "The table runs off screen at 375 px. I checked for misalignment and found none.\nVERDICT: NEEDS WORK",
-      "why": "brief probe: denial after the term, no FINDING line"
+      "answer": "FINDING: In the first card the Save button sits about 8 px lower than Add to cart.\nVERDICT: NEEDS WORK",
+      "why": "untagged FINDING line"
     },
     {
-      "answer": "FINDING: The table runs off screen at 375 px.\nI checked for misalignment and found none.\nVERDICT: NEEDS WORK",
-      "why": "denies this defect in prose, reports another on a FINDING line"
+      "answer": "FINDING [misalignmenting]: In the first card the Save button sits about 8 px lower than Add to cart.\nVERDICT: NEEDS WORK",
+      "why": "unknown category"
     },
     {
-      "answer": "FINDING: nothing is misaligned\nVERDICT: NEEDS WORK",
-      "why": "FINDING line negates the defect"
+      "answer": "FINDING [misalignment, layout-shift]: In the first card the Save button sits about 8 px lower than Add to cart.\nVERDICT: NEEDS WORK",
+      "why": "two categories in one tag"
     },
     {
-      "answer": "FINDING: Alignment: fine\nFINDING: Misalignment: none\nFINDING: The badge overlaps the title\nVERDICT: NEEDS WORK",
-      "why": "checklist FINDING marks it absent"
+      "answer": "FINDING [misalignment]: In the first card the Save button sits about 8 px lower than Add to cart.\nVERDICT: CONFIRMED",
+      "why": "wrong final verdict"
     },
     {
-      "answer": "Nothing is misaligned; the table runs off screen at 375 px.\nVERDICT: NEEDS WORK",
-      "why": "earlier probe: denies it, reports another"
+      "answer": "FINDING [misalignment]: In the first card the Save button sits about 8 px lower than Add to cart.\nVERDICT: NEEDS WORK (draft)\nOn a second look it is fine.\nVERDICT: CONFIRMED",
+      "why": "NEEDS WORK only mid-reply"
     },
     {
-      "answer": "All buttons are aligned on a shared top edge.\nVERDICT: CONFIRMED",
-      "why": "earlier probe: denies the defect"
+      "answer": "FINDING [misalignment]: In the first card the Save button sits about 8 px lower than Add to cart.\nVERDICT: NEEDS WORK\nLet me know if you want a fix.",
+      "why": "verdict is not the last line"
     },
     {
-      "answer": "FINDING: The heading is pale.\nThe two buttons share a top edge; neither one sits lower than the other.\nVERDICT: NEEDS WORK",
-      "why": "new probe: denial in prose"
+      "answer": "FINDING [misalignment]: In the first card the Save button sits about 8 px lower than Add to cart.\nVERDICT: NEEDS WORK (draft)",
+      "why": "final verdict line carries extra text"
+    },
+    {
+      "answer": "FINDING [misalignment]: In the first card the Save button sits about 8 px lower than Add to cart.\nVERDICT:\nNEEDS WORK",
+      "why": "verdict split across lines"
+    },
+    {
+      "answer": "Category FINDING [misalignment]: In the first card the Save button sits about 8 px lower than Add to cart.\nVERDICT: NEEDS WORK",
+      "why": "tag not at line start"
+    },
+    {
+      "answer": "FINDING [misalignment]:\nVERDICT: NEEDS WORK",
+      "why": "tag with an empty body"
+    },
+    {
+      "answer": "FINDING [misalignment] In the first card the Save button sits about 8 px lower than Add to cart.\nVERDICT: NEEDS WORK",
+      "why": "tag without a colon"
+    },
+    {
+      "answer": "FINDING [contrast]: The misalignment category does not apply; The Save button is lower than Add to cart in the first card.\nVERDICT: NEEDS WORK",
+      "why": "token named in another finding's prose"
+    },
+    {
+      "answer": "FINDING [clipping]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [layout-shift]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [overflow]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [overlap]: Something is off near the first card.\nVERDICT: NEEDS WORK",
+      "why": "tagged line for another case's token only"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nFINDING: avoids any overlap\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\noverlap - ruled out\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nBadge overlap: absent.\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nfree of truncation\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\ncontrast is far from low.\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\nmisalignment is ruled out\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\navoids overflow\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: Body text looks pale.\noverflow - none observed.\nVERDICT: NEEDS WORK",
+      "why": "brief probe in prose"
     }
   ]
 }
