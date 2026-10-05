@@ -3,6 +3,12 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.5] - 2026-10-04
+
+### Changed
+
+- `/verification:confirm`'s UI evidence contract requires the render checks `/testing:run-e2e` defines (axe scan, geometry assertions, pixel baseline when one exists, vision review as leads only) and accepts a geometry assertion as a behavior assertion. "No issues found" from a vision review is never a pass.
+
 ## [0.7.4] - 2026-10-03
 
 ### Changed
