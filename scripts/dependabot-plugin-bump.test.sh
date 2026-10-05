@@ -19,6 +19,8 @@ mk_repo() {
   fixture_tree::build "$out" \
     --sut "$SCRIPT" \
     --sut "$SELF_DIR/check-changelog-parity.sh" \
+    --sut "$SELF_DIR/check-changelog-fragments.sh" \
+    --sut "$SELF_DIR/new-changelog-fragment.sh" \
     --plugins || return 1
   : >"${!out}/scripts/changelog-parity-baseline.txt"
 }
@@ -155,6 +157,90 @@ for shape in modified untracked; do
   fi
   rm -rf "$repo"
 done
+
+# --- a plugin in fragment mode gets a patch fragment, not a bump ---
+mk_repo repo
+mk_plugin "$repo" alpha 1.0.0
+mk_plugin "$repo" beta 2.0.0
+printf 'alpha\n' >"$repo/scripts/fragment-plugins.txt"
+init_git "$repo"
+begin_pr "$repo"
+changelog_before="$(cat "$repo/plugins/alpha/CHANGELOG.md")"
+echo x >>"$repo/plugins/alpha/server/package-lock.json"
+echo y >>"$repo/plugins/beta/server/package-lock.json"
+git -C "$repo" add -A
+git -C "$repo" commit -qm "build(deps): bump the npm-minor-patch group
+
+Updates \`zod\` from 1.0.0 to 1.0.1"
+out="$(cd "$repo" && bash scripts/dependabot-plugin-bump.sh main --pr 99 --title 'build(deps): bump the npm-minor-patch group' 2>&1)"
+rc=$?
+fragments=("$repo"/.changes/alpha/*)
+va="$(jq -r .version "$repo/plugins/alpha/.claude-plugin/plugin.json")"
+vb="$(jq -r .version "$repo/plugins/beta/.claude-plugin/plugin.json")"
+# shellcheck disable=SC2016  # the backticks are Markdown in the expected fragment
+want_fragment='---
+bump: patch
+---
+
+### Changed
+
+- **bump the npm-minor-patch group** (#99).
+  - `zod` 1.0.0→1.0.1'
+if [[ $rc -eq 0 && ${#fragments[@]} -eq 1 && "${fragments[0]##*/}" =~ ^pr-[0-9a-f]{8}\.md$ ]] &&
+  [[ "$(cat "${fragments[0]}")" == "$want_fragment" ]]; then
+  ok "a fragment-mode plugin gets one patch fragment named after the branch, with the update under ### Changed"
+else
+  fail "fragment: rc=$rc files=${fragments[*]} out='$out' content='$(cat "${fragments[0]}" 2>/dev/null)'"
+fi
+if [[ "$va" == "1.0.0" && "$(cat "$repo/plugins/alpha/CHANGELOG.md")" == "$changelog_before" ]]; then
+  ok "a fragment-mode plugin keeps its version and CHANGELOG.md"
+else
+  fail "fragment-mode alpha was bumped: ver=$va changelog=$(cat "$repo/plugins/alpha/CHANGELOG.md")"
+fi
+if [[ "$vb" == "2.0.1" && ! -e "$repo/.changes/beta" ]] && grep -q '## \[2.0.1\]' "$repo/plugins/beta/CHANGELOG.md"; then
+  ok "a legacy plugin in the same pull request is still bumped, with no fragment"
+else
+  fail "legacy beta: ver=$vb out='$out'"
+fi
+# The workflow stages new files too; committed, the change set passes every gate.
+git -C "$repo" add -u -- plugins && git -C "$repo" add -A -- .changes
+git -C "$repo" commit -qm "bot bump"
+if (cd "$repo" && bash scripts/check-changelog-fragments.sh --check-required main >/dev/null 2>&1 &&
+  bash scripts/check-changelog-parity.sh --check-bump main >/dev/null 2>&1); then
+  ok "the committed fragment passes --check-required and --check-bump"
+else
+  fail "gates failed on the committed fragment: $(
+    cd "$repo" && bash scripts/check-changelog-fragments.sh --check-required main 2>&1
+    bash scripts/check-changelog-parity.sh --check-bump main 2>&1
+  )"
+fi
+out="$(cd "$repo" && bash scripts/dependabot-plugin-bump.sh main --pr 99 2>&1)"
+rc=$?
+fragments=("$repo"/.changes/alpha/*)
+if [[ $rc -eq 0 && "$out" == *"nothing to bump"* && ${#fragments[@]} -eq 1 ]]; then
+  ok "a second run after the fragment is committed is a no-op"
+else
+  fail "fragment idempotent: rc=$rc files=${fragments[*]} out='$out'"
+fi
+rm -rf "$repo"
+
+# --- the self-check runs the fragment gate on the fragment it wrote ---
+mk_repo repo
+mk_plugin "$repo" alpha 1.0.0
+printf 'alpha\n' >"$repo/scripts/fragment-plugins.txt"
+printf 'plugins/alpha/CHANGELOG.md\n' >"$repo/scripts/em-dash-purged-paths.txt"
+init_git "$repo"
+begin_pr "$repo"
+echo x >>"$repo/plugins/alpha/server/package-lock.json"
+git -C "$repo" add -A && git -C "$repo" commit -qm "deps"
+out="$(cd "$repo" && bash scripts/dependabot-plugin-bump.sh main --title $'build(deps): bump zod \xe2\x80\x94 security' 2>&1)"
+rc=$?
+if [[ $rc -eq 1 && "$out" == *"FRAGMENT EM DASH"* && "$out" == *"check-changelog-fragments.sh --check failed"* ]]; then
+  ok "the self-check fails on a fragment the release could not copy"
+else
+  fail "self-check: rc=$rc out='$out'"
+fi
+rm -rf "$repo"
 
 # --- no plugin paths: no-op ---
 mk_repo repo

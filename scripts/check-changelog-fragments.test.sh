@@ -145,6 +145,38 @@ fragment "$f" alpha feat-x-0123abcd none ""
 expect "--check rejects a none fragment without a reason" 1 "no line saying why" "$f" --check
 rm -rf "$f"
 
+# --- em dash in a fragment for a plugin whose CHANGELOG.md is em-dash purged ---
+ed=$'\xe2\x80\x94'
+base_fixture f alpha beta
+printf '%s\n' '# purged' 'plugins/alpha/CHANGELOG.md' 'docs/*.md' >"$f/scripts/em-dash-purged-paths.txt"
+fragment "$f" alpha feat-x-0123abcd patch "### Fixed
+
+- A fix ${ed} with an aside."
+expect "--check rejects an em dash for a plugin whose CHANGELOG.md is listed" 1 "FRAGMENT EM DASH: .changes/alpha/feat-x-0123abcd.md: - A fix" "$f" --check
+expect "--check names the list and the fix" 1 "is listed in scripts/em-dash-purged-paths.txt" "$f" --check
+fragment "$f" alpha feat-x-0123abcd patch "### Fixed
+
+- A fix for \`a ${ed} b\`.
+
+\`\`\`text
+x ${ed} y
+\`\`\`"
+expect "--check accepts an em dash inside inline code and a fenced block" 0 "All 1 changelog fragment(s)" "$f" --check
+rm -f "$f/.changes/alpha/feat-x-0123abcd.md"
+fragment "$f" beta feat-x-0123abcd patch "### Fixed
+
+- A fix ${ed} with an aside."
+expect "--check accepts an em dash for a plugin whose CHANGELOG.md is not listed" 0 "All 1 changelog fragment(s)" "$f" --check
+printf '%s\n' 'plugins/*/CHANGELOG.md' >"$f/scripts/em-dash-purged-paths.txt"
+expect "--check matches a glob entry in the purged list" 1 "FRAGMENT EM DASH: .changes/beta/" "$f" --check
+printf '%s\n' 'plugins/*' >"$f/scripts/em-dash-purged-paths.txt"
+expect "--check keeps a glob's * inside one path component" 0 "All 1 changelog fragment(s)" "$f" --check
+rm -f "$f/.changes/beta/feat-x-0123abcd.md"
+fragment "$f" beta feat-x-0123abcd none "Reason ${ed} never copied into the CHANGELOG."
+printf '%s\n' 'plugins/beta/CHANGELOG.md' >"$f/scripts/em-dash-purged-paths.txt"
+expect "--check accepts an em dash in a bump: none reason, which no release copies" 0 "All 1 changelog fragment(s)" "$f" --check
+rm -rf "$f"
+
 # --- --check-required -----------------------------------------------------------
 base_fixture f alpha
 git_test_config "$f" checkout -qb feat/x
