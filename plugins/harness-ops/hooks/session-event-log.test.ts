@@ -4,23 +4,24 @@ import { expect, test } from 'claude-code/testing'
 // with are what these tests read; the scripts the runs start are tested by session-event-log.test.sh.
 
 const ROOT = '/srv/project'
-// The 28 events hook-events.registry.json marks observe, written out by hand from the registry.
-const OBSERVED = [
-  'ConfigChange', 'CwdChanged', 'DirectoryAdded', 'Elicitation', 'ElicitationResult', 'InstructionsLoaded',
-  'Notification', 'PermissionDenied', 'PermissionRequest', 'PostCompact', 'PostModelSwitch', 'PostToolBatch',
-  'PostToolUseFailure', 'PreCompact', 'PreModelSwitch', 'SessionEnd', 'SessionStart', 'Setup', 'Stop',
-  'StopFailure', 'SubagentStart', 'SubagentStop', 'TaskCompleted', 'TaskCreated', 'TeammateIdle',
-  'UserPromptExpansion', 'UserPromptSubmit', 'WorktreeRemove',
-] as const
+// Events a session fires on every turn or subagent, whose node starts with the log off were the
+// cost the module removes. Which events the module hooks is checked by the generator's --check
+// against hook-events.registry.json, not here.
+const PER_TURN = ['UserPromptSubmit', 'PostToolBatch', 'Stop', 'SubagentStart', 'SubagentStop'] as const
 const ON = { options: { session_event_log_enabled: true } }
 
 type Run = { argv: readonly string[]; cwd?: string; env?: Record<string, string>; stdin?: string }
 
 // The world beneath the plugin: each observed event answers `answer` (nothing to change by default),
 // and process runs exit with `exit.code` or fail to start.
-const world = (stub: any, exit: { code: number; throws?: boolean } = { code: 0 }, answer: object = {}) => {
+const world = (
+  stub: any,
+  exit: { code: number; throws?: boolean } = { code: 0 },
+  answer: object = {},
+  events: readonly string[] = [...PER_TURN, 'SessionEnd'],
+) => {
   const w = { runs: [] as Run[], logs: [] as { text: string; to: string }[] }
-  for (const event of OBSERVED) stub(`classic.${event}`, () => answer)
+  for (const event of events) stub(`classic.${event}`, () => answer)
   stub('session.root', () => ({ value: ROOT }))
   stub('process.run', ($: unknown, e: { argv: readonly string[]; init?: Omit<Run, 'argv'> }) => {
     w.runs.push({ argv: e.argv, ...e.init })
@@ -37,28 +38,33 @@ const world = (stub: any, exit: { code: number; throws?: boolean } = { code: 0 }
 const raise = ($: any, event: string, fields: Record<string, unknown> = {}) => $.classic[event]({ session_id: 'sess-1', ...fields })
 const script = (run: Run) => run.argv[2].replace(/^.*\/hooks\//, '')
 
-test('budget: with the log off (the default) no observed event starts a process', async ($, on) => {
-  const w = world(on)
-  for (const event of OBSERVED) await raise($, event)
-  expect(w.runs.length).toBe(0)
+test('budget: with the log off (the default) no classic event starts a process', async ($, on) => {
+  const every = Object.keys($.classic)
+  expect(every).toEqual(expect.arrayContaining([...PER_TURN, 'SessionEnd', 'SessionStart', 'PostCompact']))
+  const w = world(on, { code: 0 }, {}, every)
+  for (const event of every) await raise($, event)
+  expect(w.runs).toEqual([])
 })
 
-test('budget: with the log on each observed event starts one process, SessionEnd two', ON, async ($, on) => {
+test('budget: with the log on a per-turn event starts one process, SessionEnd two', ON, async ($, on) => {
   const w = world(on)
-  for (const event of OBSERVED) await raise($, event)
-  expect(w.runs.length).toBe(29)
-  expect(w.runs.filter(run => script(run) === 'session-event-log.sh').length).toBe(28)
-  expect(w.runs.filter(run => script(run) === 'session-retention.sh').length).toBe(1)
+  for (const event of PER_TURN) {
+    await raise($, event)
+    expect(w.runs.length).toBe(1)
+    w.runs.length = 0
+  }
+  await raise($, 'SessionEnd', { reason: 'clear' })
+  expect(w.runs.map(script).sort()).toEqual(['session-event-log.sh', 'session-retention.sh'])
 })
 
 test('on: each event hands its own payload to session-event-log.sh through the bash launcher', ON, async ($, on) => {
   const w = world(on)
-  for (const event of OBSERVED) await raise($, event)
-  const logged = w.runs.filter(run => script(run) === 'session-event-log.sh')
-  expect(logged.map(run => JSON.parse(run.stdin ?? '{}').hook_event_name)).toEqual([...OBSERVED])
-  for (const run of logged) {
+  for (const event of PER_TURN) await raise($, event)
+  expect(w.runs.map(run => JSON.parse(run.stdin ?? '{}').hook_event_name)).toEqual([...PER_TURN])
+  for (const run of w.runs) {
     expect(run.argv[0]).toBe('node')
     expect(run.argv[1]).toMatch(/\/hooks\/exec-bash\.mjs$/)
+    expect(script(run)).toBe('session-event-log.sh')
     expect(run.argv.length).toBe(3)
     expect(run.cwd).toBe(ROOT)
   }

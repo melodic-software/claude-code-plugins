@@ -1,6 +1,7 @@
 # Move the harness-ops session event log into a mod
 
-- Status: accepted
+- Status: proposed; accepted once the owner accepts or rejects the two differences listed after the
+  four under Decision
 - Date: 2026-10-04
 
 ## Context

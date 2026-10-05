@@ -523,6 +523,16 @@ parity_case "PostToolBatch" PostToolBatch '"effort":{"level":"low"},"tool_calls"
 parity_case "SessionStart" SessionStart '"source":"startup","model":"claude-opus-5-5"' ""
 parity_case "SubagentStop" SubagentStop '"stop_hook_active":false,"agent_id":"agent-7","agent_type":"Explore","last_assistant_message":"done"' ""
 parity_case "UserPromptSubmit with content on" UserPromptSubmit "$PROMPT_TAIL" "" "$CONTENT_ON"
+# With tracing on, a settings row got TRACEPARENT and the module gets none: the record
+# loses its traceparent key and nothing else. The value is the W3C trace context example.
+TP=00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+run "$P" "$(payload row-traced Stop "$STOP_TAIL")" "$ON" TRACEPARENT="$TP" >/dev/null
+run "$P" "$(payload mod-traced Stop "$STOP_TAIL")" "$ON" CLAUDE_EFFORT= TRACEPARENT= >/dev/null
+assert_eq "traced settings row: the record carries the row's traceparent" "$TP" "$(jq -r .traceparent "$(PLOG row-traced)")"
+assert_eq "traced, mod env: the record has no traceparent key" "false" "$(jq 'has("traceparent")' "$(PLOG mod-traced)")"
+row=$(jq -cS 'del(.ts, .duration_ms, .session_id, .traceparent)' "$(PLOG row-traced)" 2>/dev/null)
+mod=$(jq -cS 'del(.ts, .duration_ms, .session_id)' "$(PLOG mod-traced)" 2>/dev/null)
+if [[ -n "$row" && "$row" == "$mod" ]]; then ok "traced: traceparent is the only record difference"; else bad "traced: row=$row mod=$mod"; fi
 run "$P" "$(payload mod-host Stop "$STOP_TAIL")" "$ON" CLAUDE_EFFORT= TRACEPARENT= >/dev/null
 assert_eq "mod env: no effort object records unset, whatever the host's CLAUDE_EFFORT" "unset" "$(jq -r .effort "$(PLOG mod-host)")"
 
