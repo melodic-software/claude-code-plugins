@@ -7,7 +7,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- **babysit-loop and the pull-request watch handoff inline rate-limit-guard's updated operable floor.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says only a session's own turns write the file, never a paused lane's Monitor ticks. The rule is unchanged.
+- **babysit-loop and the pull-request watch handoff inline rate-limit-guard's updated operable floor.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says the file names an account only as of a session's last API response and a paused lane's Monitor ticks never write it. The rule is unchanged.
 
 ## [0.79.20] - 2026-10-04
 

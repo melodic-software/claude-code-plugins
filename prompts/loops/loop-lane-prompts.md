@@ -1189,9 +1189,10 @@ with the operator's signature on them.
 > - **Account switch:** while paused, a consumer **MUST** read
 >   `.oauthAccount.emailAddress` directly from
 >   `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot
->   file: only a session's own turns write it, never a paused lane's
->   Monitor ticks, so after a switch while no session works it still
->   names the old account. At pause entry, record the **latched
+>   file: it names an account only as of a session's last API response,
+>   and a paused lane's Monitor ticks never write it, so after a switch
+>   it names the old account or none until a session gets a response
+>   under the new one. At pause entry, record the **latched
 >   account** as the `account.email` of the snapshot that tripped, not
 >   the account `.claude.json` names now: that snapshot can be up to 10
 >   minutes old and may describe an account the operator has since left.
