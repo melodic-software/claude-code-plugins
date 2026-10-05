@@ -23,6 +23,6 @@ jobs:
     permissions:
       contents: write # enablePullRequestAutoMerge requires it.
       pull-requests: write # Arm or disarm auto-merge on the PR.
-    uses: melodic-software/ci-workflows/.github/workflows/pr-automerge-dependabot.yml@95732fda50a95d3297320a6f2c791a1a91870a7f # v0.38.0
+    uses: melodic-software/ci-workflows/.github/workflows/pr-automerge-dependabot.yml@2531d56a21e79b7b5222643fadbee95c23a4525b # v0.38.1
     with:
       runner: ubuntu-24.04
