@@ -807,6 +807,7 @@ jobs:
             .github/workflows/pr-bump-plugin-version.yml
             .github/workflows/post-merge-detect-silent-revert.yml
             .github/workflows/pr-test-windows.yml
+            .github/workflows/release-plugins.yml
 
       - name: Verify shebang files are executable
         id: exec_bit
@@ -1420,6 +1421,10 @@ jobs:
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
+          # The head branch of a pull request from this repository, never a
+          # fork's: scripts/lib/changelog-fragments.sh reads `release/plugins`
+          # here as the release pull request.
+          CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
@@ -1449,6 +1454,45 @@ jobs:
         id: changelog_parity_order
         continue-on-error: true
         run: scripts/check-changelog-parity.sh --check-order
+
+      # Changelog fragments (ADR 0048). A plugin in scripts/fragment-plugins.txt
+      # takes a fragment under .changes/<plugin>/ in each pull request, and the
+      # release pull request (branch release/plugins) bumps it. --check
+      # validates every fragment in the tree; --check-required asks a change to
+      # such a plugin for one. --check-release keeps a release from merging past
+      # a fragment it never consumed: on the release pull request against the
+      # base, and in the merge queue against HEAD^1, the tree the queued squash
+      # commit lands on (main plus every entry ahead of it).
+      - name: Verify every changelog fragment is well formed
+        id: changelog_fragments_check
+        continue-on-error: true
+        run: scripts/check-changelog-fragments.sh --check
+      - name: Verify a change to a fragment-mode plugin adds a fragment
+        id: changelog_fragments_required
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            exit 0
+          fi
+          scripts/check-changelog-fragments.sh --check-required "origin/$BASE_REF"
+      - name: Verify a release consumes every pending fragment for the plugins it bumps
+        id: changelog_fragments_release
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            scripts/check-changelog-fragments.sh --check-release 'HEAD^1'
+          elif [ "$GITHUB_EVENT_NAME" = pull_request ] && [ "$CHANGELOG_HEAD_REF" = release/plugins ]; then
+            scripts/check-changelog-fragments.sh --check-release "origin/$BASE_REF"
+          else
+            echo "::notice::Declined: only the release pull request and the merge queue release plugins."
+          fi
 
       # Vendor version bump: ADR 0019's intra-plugin sharing keeps ONE
       # committed copy at the plugin root (vendor/), so no sync-*.sh byte-drift
@@ -1634,6 +1678,9 @@ jobs:
             changelog-parity-bump=${{ steps.changelog_parity_bump.outcome }}
             changelog-parity-preserved=${{ steps.changelog_parity_preserved.outcome }}
             changelog-parity-order=${{ steps.changelog_parity_order.outcome }}
+            changelog-fragments=${{ steps.changelog_fragments_check.outcome }}
+            changelog-fragments-required=${{ steps.changelog_fragments_required.outcome }}
+            changelog-fragments-release=${{ steps.changelog_fragments_release.outcome }}
             vendor-version-bump=${{ steps.vendor_version_bump.outcome }}
             marketplace-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.marketplace_schema.outcome }}
             plugin-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.plugin_schema.outcome }}
