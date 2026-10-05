@@ -12,10 +12,13 @@ Rules (each violation on stderr as <file>: claim <n>[: source <m>]: <reason>):
      after today) or the literal undated.
   R3 every source has a parseable applies_to.
   R4 every source has standing: current or historical.
-  R5 every source has role: primary or corroborator; each claim has exactly
-     one primary.
+  R5 every source has role: primary or corroborator; each claim not a Gap has
+     exactly one primary.
   R6 the stored standing matches the standing this script derives.
-  R7 each claim's primary is current (stored and derived) and dated.
+  R7 each claim's primary is current (stored and derived) and dated, unless
+     the claim is a Gap.
+A Gap is a claim at confidence: MEDIUM or LOW. Gaps stay in the sidecar
+header, so R5's count and R7 skip them; R1-R4 and R6 still grade them.
 
 Exit 0 = every rule holds (status=pass)
 Exit 1 = at least one violation (status=fail); includes an index evidence_use
@@ -62,6 +65,7 @@ Output (stdout, one line):
 )
 
 MODES = ("internal", "publish")
+GAP_CONFIDENCE = ("MEDIUM", "LOW")
 VERSION_INDEPENDENT = "version-independent"
 APPLIES_TO = re.compile(r"^(.+?)\s+(\d+(?:\.\d+)*)(?:\s*-\s*(\d+(?:\.\d+)*)|(\+))?$")
 DATE = re.compile(r"^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$")
@@ -325,8 +329,9 @@ def grade(slice_dir: Path, expected: str | None) -> tuple[int, str]:
                 violations.append(
                     f"{here}: applies_to missing or unparsable: {claim.get('applies_to')}"
                 )
+            is_gap = claim.get("confidence") in GAP_CONFIDENCE
             roles = [s.get("role") for s in claim["sources"]]
-            if roles.count("primary") != 1:
+            if not is_gap and roles.count("primary") != 1:
                 violations.append(
                     f"{here}: expected exactly one primary source, found {roles.count('primary')}"
                 )
@@ -370,7 +375,7 @@ def grade(slice_dir: Path, expected: str | None) -> tuple[int, str]:
                         )
                 if (derived or stored) == "historical":
                     n_historical += 1
-                if role == "primary":
+                if role == "primary" and not is_gap:
                     if date != "dated":
                         violations.append(f"{at}: primary source must be dated")
                     elif "historical" in (stored, derived):
