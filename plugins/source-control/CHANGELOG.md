@@ -3,11 +3,21 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.80.1] - 2026-10-04
+## [0.81.1] - 2026-10-04
 
 ### Fixed
 
 - **`pull-request merge` no longer reads as removing worktrees.** The routing row, the MERGED-state shortcut, the Phase 4 heading and the checklist said "worktree cleanup"; they now name what Phase 4.3 does: reuse the worktree for the next task, or release this session's lock on one it leaves. Phase 4.3 states that the merge phase never removes a worktree and that one left behind is a candidate for `/source-control:worktree cleanup`. No command changed (#6441).
+
+## [0.81.0] - 2026-10-04
+
+### Added
+
+- **`commit` and `pull-request create` write changelog fragments in place of the hand version bump** in a repository with `scripts/fragment-plugins.txt`, for each plugin that list names. The new `scripts/write-changelog-fragments.sh` maps the Conventional Commits type to the bump (`feat` minor; `fix` and `perf` patch; `build`, `chore`, `ci`, `docs`, `refactor`, `style` and `test` none; `!` or `BREAKING CHANGE` major) and files the subject and body under `Added`, `Fixed` or `Changed`. Repositories without the list, and plugins it does not name, keep the per-PR bump.
+
+### Changed
+
+- **`resolve-version-bump-conflict.sh` leaves a fragment-mode plugin untouched and names it.** For a plugin the default branch lists in `scripts/fragment-plugins.txt`, the resolution is main's `plugin.json` and `CHANGELOG.md` with the PR's entry moved into a fragment, which `resolve-conflicts` routes through `convert-bump-to-fragment.sh` on the branch before merging main again; `babysit-loop` and `babysit-prs` say so.
 
 ## [0.80.0] - 2026-10-04
 
