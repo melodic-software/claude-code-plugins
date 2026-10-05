@@ -9,6 +9,7 @@ import {
   neededFacts,
   Rejection,
   resolve,
+  resolveGrant,
 } from "./resolve.mjs";
 
 const read = (relative) =>
@@ -557,6 +558,103 @@ test("an effect with no grant row fails rather than mint an empty grant", () => 
   assertRejected(
     () =>
       run(fixture("valid.yaml"), { activity: "run-tests" }, { effectGrants }),
+    "effect-grant",
+  );
+});
+
+// resolveGrant: the token broker's entry point, which decides no predicate
+
+const grantOf = (config, options = {}, overrides = {}) =>
+  resolveGrant(files(config, overrides), {
+    lane: "pr-run-checks",
+    configPath: CONFIG_PATH,
+    ...options,
+  });
+const READ_GRANT = { contents: "read", "pull-requests": "read", issues: "read" };
+
+test("resolveGrant returns the selected slot's enabled flag, effect and grant", () => {
+  assert.deepEqual(grantOf(fixture("valid.yaml"), { activity: "run-tests" }), {
+    enabled: true,
+    effect: "read",
+    grant: READ_GRANT,
+  });
+  assert.deepEqual(
+    grantOf(fixture("valid.yaml"), { lane: "pr-refine", activity: "fix-docs" }),
+    {
+      enabled: true,
+      effect: "mutate-branch",
+      grant: { contents: "write", "pull-requests": "write", issues: "write" },
+    },
+  );
+});
+
+test("resolveGrant resolves a slot whose applies-when needs the event fact, with no facts", () => {
+  const config = edited((doc) => {
+    doc.activities["run-tests"]["applies-when"] = { events: ["ready"] };
+  });
+  assert.deepEqual(grantOf(config, { activity: "run-tests" }), {
+    enabled: true,
+    effect: "read",
+    grant: READ_GRANT,
+  });
+});
+
+test("resolveGrant reports a disabled slot or lane as not enabled", () => {
+  const slotOff = edited((doc) => {
+    doc.lanes["pr-run-checks"].slots[0].enabled = false;
+  });
+  assert.equal(grantOf(slotOff, { activity: "run-tests" }).enabled, false);
+  assert.equal(grantOf(slotOff, { activity: "measure-coverage" }).enabled, true);
+  const laneOff = edited((doc) => {
+    doc.lanes["pr-run-checks"].enabled = false;
+  });
+  assert.equal(grantOf(laneOff, { activity: "measure-coverage" }).enabled, false);
+});
+
+test("resolveGrant rejects an unknown lane", () => {
+  assertRejected(
+    () => grantOf(fixture("valid.yaml"), { lane: "pr-review", activity: "run-tests" }),
+    "undefined-lane",
+  );
+});
+
+test("resolveGrant rejects an activity outside the lane, or none", () => {
+  assertRejected(
+    () => grantOf(fixture("valid.yaml"), { activity: "fix-docs" }),
+    "undefined-activity",
+  );
+  for (const activity of [undefined, ""]) {
+    assertRejected(
+      () => grantOf(fixture("valid.yaml"), { activity }),
+      "undefined-activity",
+    );
+  }
+});
+
+test("resolveGrant rejects a lane-forbidden effect", () => {
+  assertRejected(
+    () => grantOf(fixture("forbidden-effect.yaml"), { activity: "fix-tests" }),
+    "forbidden-by-lane",
+  );
+});
+
+test("resolveGrant rejects a lane with no lane-rules.json row", () => {
+  assertRejected(
+    () =>
+      grantOf(fixture("unknown-lane.yaml"), {
+        lane: "pr-review-docs",
+        activity: "run-tests",
+      }),
+    "lane-stage",
+  );
+});
+
+test("resolveGrant rejects an effect with no grant row", () => {
+  const effectGrants = { ...EFFECT_GRANTS };
+  delete effectGrants.read;
+  assertRejected(
+    () =>
+      grantOf(fixture("valid.yaml"), { activity: "run-tests" }, { effectGrants }),
     "effect-grant",
   );
 });

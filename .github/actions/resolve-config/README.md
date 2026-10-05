@@ -67,6 +67,16 @@ Step outputs: `enabled` and `slots` (a JSON list of names); with `activity`, als
 `can-commit` (`false` only when `contents` is `read`).
 `args` is free text and stays in the file.
 
+## Token broker entry point
+
+`resolve.mjs` exports `resolveGrant(files, { lane, activity, configPath })` for the token broker,
+which pins a commit of this repository and decides a lane's App token grant through it. It runs
+the same file checks as the action (rejections 1-9 above) and the effect-grant lookup, for one
+required `activity`, and returns `{ enabled, effect, grant }`: `enabled` is false when the lane or
+slot sets `enabled: false`, and `grant` is the effect's row in `effect-grants.json`. It decides no
+`applies-when` predicate, so it takes no facts. Like `resolve()`, it throws a `Rejection` whose
+`code` names the failure.
+
 ## Job contract
 
 A job that uses this action:

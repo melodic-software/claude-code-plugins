@@ -246,18 +246,23 @@ export function neededFacts(files, { lane, activity, configPath }) {
   return [...needed];
 }
 
+function grantFor(effectGrants, effect) {
+  if (!Object.hasOwn(effectGrants, effect)) {
+    throw new Rejection(
+      "effect-grant",
+      `effect-grants.json has no row for \`${effect}\``,
+    );
+  }
+  return { ...effectGrants[effect] };
+}
+
 function resolveSlot(
   { slot, activity, predicate, enabled },
   effectGrants,
   facts,
   decided,
 ) {
-  if (!Object.hasOwn(effectGrants, activity.effect)) {
-    throw new Rejection(
-      "effect-grant",
-      `effect-grants.json has no row for \`${activity.effect}\``,
-    );
-  }
+  const grant = grantFor(effectGrants, activity.effect);
   let outcome = { applies: null, skipReason: null };
   if (!enabled) {
     outcome = { applies: false, skipReason: "disabled-by-config" };
@@ -280,9 +285,28 @@ function resolveSlot(
     enabled,
     model: activity.model ?? null,
     "max-turns": activity["max-turns"] ?? null,
-    grant: { ...effectGrants[activity.effect] },
+    grant,
     applies: outcome.applies,
     "skip-reason": outcome.skipReason,
+  };
+}
+
+// The token broker's entry point: the same file and lane checks as resolve(),
+// for one required activity, deciding no predicate, so it needs no facts.
+export function resolveGrant(files, { lane, activity, configPath }) {
+  const doc = loadConfig(files, { configPath });
+  const entries = laneSlots(doc, lane);
+  if (activity === undefined || activity === "") {
+    throw new Rejection(
+      "undefined-activity",
+      `a grant needs an activity of lane \`${lane}\``,
+    );
+  }
+  const entry = entries[selectedIndex(entries, lane, activity)];
+  return {
+    enabled: entry.enabled,
+    effect: entry.activity.effect,
+    grant: grantFor(files.effectGrants, entry.activity.effect),
   };
 }
 
