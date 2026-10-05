@@ -4,6 +4,7 @@
   ],
   "fail": [
     {"answer": "Decision: webhook push or pulled cursor (#307). Partner SDKs remain open; separately, the nightly CSV retirement plan is out of scope.", "why": "exclusion is about something else, in another clause"},
-    {"answer": "Decision: webhook push or pulled cursor (#307). Explore which client SDKs partners would want.", "why": "no exclusion"}
+    {"answer": "Decision: webhook push or pulled cursor (#307). Explore which client SDKs partners would want.", "why": "no exclusion"},
+    {"answer": "Decision: webhook push or pulled cursor (#307). Partner SDKs stay open, and the nightly CSV retirement plan is out of scope.", "why": "coordinate clause excludes something else"}
   ]
 }
