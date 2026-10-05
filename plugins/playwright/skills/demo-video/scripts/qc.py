@@ -12,7 +12,8 @@ Checks (thresholds: defaults.json "qc" and "motion", overridable with --config):
   caption-anchor  captions sit only at the primary anchor or the one fixed fallback
   stillness       no still stretch (caption band masked) longer than still_max
   motion          every camera move within the zoom/pan speed and acceleration caps
-  nav-cuts        each page cut is taken with the camera still, at 1.0x or with clean edges
+  nav-cuts        each page cut is taken with the camera still; one that changes the URL (the EDL's
+                  nav_cuts say where) at 1.0x, an in-page state cut at 1.0x or with clean edges
   crossfade       no frame is a blend of the frames around a page change
   blank           no white, black or flat frame after the title
 Camera-dependent checks report SKIP when the EDL's camera layer is off (plain style).
@@ -336,8 +337,10 @@ def main(argv=None):
                 over.append(f'{name} {runtime[s0] / fps:.2f}-{runtime[s1] / fps:.2f}s: {v:.2f}/s (cap {lim_v}), {acc:.2f}/s^2 (cap {lim_a}), T {T:.2f}s')
     check('motion', 'FAIL' if over else 'PASS', over[:6] if over else f'{len(moves)} camera moves within the caps')
 
-    # ---- page cuts: camera still, at 1.0x or with clean edges --------------------------------------
+    # ---- page cuts: camera still; a URL change at 1.0x, an in-page state cut at 1.0x or clean edges --
+    # The EDL says only where the URL changes; the zoom at each cut is the one measured from the frames.
     pos = {i: j for j, i in enumerate(runtime)}
+    url_frames = {int(round(c * fps)) for c in edl.get('nav_cuts', [])}
     caps_small = {}
 
     def cap_small(path):
@@ -348,17 +351,21 @@ def main(argv=None):
     for i in runtime[1:]:
         if (i - 1) not in rset or est[i][3] == est[i - 1][3]:
             continue
+        url = bool({i - 1, i, i + 1} & url_frames)
         changed = float((np.abs(cap_small(est[i][3]) - cap_small(est[i - 1][3])) > 24).mean())
-        if changed < Q['nav_change_min']:
+        if not url and changed < Q['nav_change_min']:
             continue
         j = pos[i]
         cuts.append(i)
+        url_frames -= {i - 1, i, i + 1}
         still = not moving[max(0, j - 2):j + 3].any()
         at_one = zf[j - 1] <= Q['nav_zoom_max'] and zf[j] <= Q['nav_zoom_max']
         clean = (i not in clipped) and ((i - 1) not in clipped)
-        if not (still and (at_one or clean)):
-            bad_cuts.append(f'{i / fps:.2f}s zoom {zf[j - 1]:.2f}->{zf[j]:.2f} still={still}')
-    check('nav-cuts', 'FAIL' if bad_cuts else 'PASS', bad_cuts or f'{len(cuts)} page cuts, camera still, at 1.0x or with clean edges')
+        if not (still and (at_one or (clean and not url))):
+            bad_cuts.append(f"{'URL' if url else 'state'} cut {i / fps:.2f}s zoom {zf[j - 1]:.2f}->{zf[j]:.2f} still={still}")
+    bad_cuts += [f'URL cut at {f / fps:.2f}s shows no page change in the frames' for f in sorted(url_frames)]
+    check('nav-cuts', 'FAIL' if bad_cuts else 'PASS',
+          bad_cuts or f'{len(cuts)} page cuts, camera still; URL changes at 1.0x, state cuts at 1.0x or with clean edges')
 
     # ---- crossfades: a frame that is a blend of its neighbors across a page change ------------------
     # Checked around each page change only: slow camera motion also makes a frame resemble the average

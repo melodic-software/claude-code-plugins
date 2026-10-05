@@ -1,8 +1,8 @@
 """Smoke test for the demo-video pipeline, network-free: a synthetic capture of a three-step flow
 (navigate, type with results, navigate) goes through build_edl.py, produce.py and qc.py, and QC must
 pass. Then defects are planted in the rendered frames (a crossfade across the page cut, a white
-frame, a frozen stretch, a 1.0x render under a zoomed EDL, a zoom rect that cuts text) and QC must
-fail each one by name. Needs numpy, Pillow, ffmpeg and ffprobe; skips without them.
+frame, a frozen stretch, a 1.0x render under a zoomed EDL, a zoom rect that cuts text, a zoomed
+URL-changing cut with clean edges) and QC must fail each one by name. Needs numpy, Pillow, ffmpeg and ffprobe; skips without them.
 """
 import hashlib
 import io
@@ -306,6 +306,33 @@ class DemoPipelineSmoke(unittest.TestCase):
         r, report = self.qc(out, edl=path, name='qc-clip')
         self.assertEqual(r.returncode, 1)
         self.assertIn('edge-clip', self.failed(report))
+
+    def test_zoomed_url_cut_fails_even_with_clean_edges(self):
+        # Hold a 1.22x rect anchored at the page corner across the first navigation cut. Its right edge
+        # (x 784) falls in the header gap between 'API' and 'Community' and its bottom edge (y 441) below
+        # all content on both pages, so the edges are clean: only the URL change makes the cut a defect.
+        edl = json.loads(self.edl.read_text())
+        cut = edl['nav_cuts'][0]
+        zoomed = [0.0, 0.0, 784.0, 441.0]
+        for k in edl['camera']:
+            if cut - 2.0 < k['t'] < cut + 1.3:
+                k['rect'] = zoomed
+        url_edl = self.tmp / 'edl-zoomed-cut.json'
+        url_edl.write_text(json.dumps(edl))
+        out = self.tmp / 'zoomed-cut.mp4'
+        r = run('produce.py', url_edl, out, '--preset', 'veryfast')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        r, report = self.qc(out, edl=url_edl, name='qc-zoomed-url-cut')
+        self.assertIn('nav-cuts', self.failed(report), r.stdout)
+        self.assertNotIn('edge-clip', self.failed(report), r.stdout)
+
+        # The same frames, with the EDL naming no URL change there: an in-page state cut, which clean
+        # edges allow while zoomed.
+        edl['nav_cuts'] = edl['nav_cuts'][1:]
+        state_edl = self.tmp / 'edl-zoomed-state-cut.json'
+        state_edl.write_text(json.dumps(edl))
+        r, report = self.qc(out, edl=state_edl, name='qc-zoomed-state-cut')
+        self.assertNotIn('nav-cuts', self.failed(report), r.stdout)
 
 
 if __name__ == '__main__':
