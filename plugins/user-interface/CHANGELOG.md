@@ -3,6 +3,24 @@
 All notable changes to the `user-interface` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.1.1] - 2026-10-04
+
+### Fixed
+
+- `design` routes to an installed account-bound tool when account-bound tools are on and detect
+  reports its reachability as unknown, telling the user they may need to sign in. Before, a `null`
+  from detect, which is all it can report for an account, made every such row unroutable.
+- The Claude Design rows named a `/design` command that does not exist; they now route to the
+  `Artifact` tool's Design and Design System types, confirmed in an interactive session with a
+  claude.ai login. Headless sessions do not load that tool, so the rows are skipped there.
+
+### Changed
+
+- `chrome-devtools-mcp` and `playwright` from the official marketplace are confirmed: installed on
+  Windows, detected, routed, then uninstalled.
+- New deferred routes: Subframe, Google Stitch's MCP server, Pencil (pen.dev), Paper and Brilliant.
+- The `account_tools_enabled` description names Claude Design as the one account-bound route tested.
+
 ## [0.1.0] - 2026-10-04
 
 ### Added
