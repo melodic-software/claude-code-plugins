@@ -34,8 +34,15 @@ if [[ -f "$SELF_DIR/lib/changed-files.sh" ]]; then
 fi
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPTS_DIR/lib/changed-files.sh"
-# shellcheck source=lib/changelog-fragments.sh
-. "$SCRIPTS_DIR/lib/changelog-fragments.sh"
+# The workflow runs the base branch's copy of this script against the PR
+# branch's scripts/; a branch older than the fragment library has no plugin in
+# fragment mode.
+if [[ -f "$SCRIPTS_DIR/lib/changelog-fragments.sh" ]]; then
+  # shellcheck source=lib/changelog-fragments.sh
+  . "$SCRIPTS_DIR/lib/changelog-fragments.sh"
+else
+  changelog_fragments::in_mode() { return 1; }
+fi
 
 usage() {
   echo "usage: $(basename "$0") <base-ref> [--pr <n>] [--title <text>]" >&2
@@ -197,15 +204,17 @@ if ((${#shipped_changed[@]} > 0)); then
 
     # A plugin in fragment mode (ADR 0048) gets a patch fragment instead; the
     # release pull request bumps its version. Idempotent: a fragment this branch
-    # already added is the bump.
+    # already added is the bump. The version compared is the fork point's, so a
+    # release that landed on the base since then is not this branch's bump.
     mode_rc=0
     # shellcheck disable=SC2310  # the non-zero return IS the answer; rc 2 exits
     changelog_fragments::in_mode "$name" || mode_rc=$?
     ((mode_rc < 2)) || exit 2
     if ((mode_rc == 0)); then
+      fork_ver="$(git show "$merge_base:$manifest" 2>/dev/null | jq -r '.version // empty' || true)"
       delivered_rc=0
       # shellcheck disable=SC2310  # the non-zero return IS the answer; rc 2 exits
-      changelog_fragments::bump_delivered "$merge_base" "$name" "$base_ver" "$head_ver" || delivered_rc=$?
+      changelog_fragments::bump_delivered "$merge_base" "$name" "${fork_ver:-$head_ver}" "$head_ver" || delivered_rc=$?
       ((delivered_rc < 2)) || exit 2
       ((delivered_rc == 1)) || continue
     fi

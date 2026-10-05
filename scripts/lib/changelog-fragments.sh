@@ -27,7 +27,7 @@
 #                                                 when there is one. A fragment for
 #                                                 a plugin whose CHANGELOG.md is in
 #                                                 $CF_EM_DASH_LIST may carry no em
-#                                                 dash outside code: the release
+#                                                 dash, code included: the release
 #                                                 copies its body into that file
 #   changelog_fragments::bump_delivered <base> <plugin> <base-version> <head-version>
 #                                                 the shared bump predicate: 0 when
@@ -91,14 +91,11 @@ changelog_fragments::em_dash_purged() {
   return 1
 }
 
-# The body lines holding an em dash (U+2014) outside fenced code and inline code
-# spans: the prose scripts/check-purged-em-dashes.sh checks.
+# The body lines holding an em dash (U+2014), code included: matching the
+# detector's prose extraction (fences, code spans, ignore markers) here would be
+# a second parser that can drift from it, and a miss fails the release PR.
 changelog_fragments::em_dash_lines() {
-  changelog_fragments::body "$1" | LC_ALL=C awk -v ed=$'\xe2\x80\x94' '
-    /^[ \t]*(```|~~~)/ { fence = !fence; next }
-    fence { next }
-    { line = $0; gsub(/`[^`]*`/, "", line); if (index(line, ed)) print }
-  '
+  changelog_fragments::body "$1" | LC_ALL=C grep -F $'\xe2\x80\x94' || true
 }
 
 changelog_fragments::is_release_pr() {
@@ -201,7 +198,7 @@ changelog_fragments::validate() {
     while IFS= read -r line; do
       echo "FRAGMENT EM DASH: $path: $line" >&2
     done <<<"$problems"
-    echo "  plugins/$plugin/CHANGELOG.md is listed in $CF_EM_DASH_LIST and the release copies this text into it; replace each em dash with a comma, colon, parentheses or a new sentence." >&2
+    echo "  plugins/$plugin/CHANGELOG.md is listed in $CF_EM_DASH_LIST and the release copies this text into it; replace each em dash, in code too, with a comma, colon, parentheses or a new sentence." >&2
     return 1
   fi
   return 0

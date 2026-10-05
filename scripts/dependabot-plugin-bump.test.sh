@@ -174,7 +174,8 @@ git -C "$repo" commit -qm "build(deps): bump the npm-minor-patch group
 Updates \`zod\` from 1.0.0 to 1.0.1"
 out="$(cd "$repo" && bash scripts/dependabot-plugin-bump.sh main --pr 99 --title 'build(deps): bump the npm-minor-patch group' 2>&1)"
 rc=$?
-fragments=("$repo"/.changes/alpha/*)
+fragments=("$repo"/.changes/alpha/*.md)
+[[ -e "${fragments[0]}" ]] || fragments=()
 va="$(jq -r .version "$repo/plugins/alpha/.claude-plugin/plugin.json")"
 vb="$(jq -r .version "$repo/plugins/beta/.claude-plugin/plugin.json")"
 # shellcheck disable=SC2016  # the backticks are Markdown in the expected fragment
@@ -216,11 +217,53 @@ else
 fi
 out="$(cd "$repo" && bash scripts/dependabot-plugin-bump.sh main --pr 99 2>&1)"
 rc=$?
-fragments=("$repo"/.changes/alpha/*)
+fragments=("$repo"/.changes/alpha/*.md)
+[[ -e "${fragments[0]}" ]] || fragments=()
 if [[ $rc -eq 0 && "$out" == *"nothing to bump"* && ${#fragments[@]} -eq 1 ]]; then
   ok "a second run after the fragment is committed is a no-op"
 else
   fail "fragment idempotent: rc=$rc files=${fragments[*]} out='$out'"
+fi
+rm -rf "$repo"
+
+# --- a release of the plugin on the base after the fork is not this branch's bump ---
+mk_repo repo
+mk_plugin "$repo" alpha 1.0.0
+printf 'alpha\n' >"$repo/scripts/fragment-plugins.txt"
+init_git "$repo"
+begin_pr "$repo"
+echo x >>"$repo/plugins/alpha/server/package-lock.json"
+git -C "$repo" add -A && git -C "$repo" commit -qm "deps"
+git -C "$repo" checkout -q main
+printf '{\n  "name": "alpha",\n  "version": "1.0.1"\n}\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+git -C "$repo" commit -qam "chore(release): release alpha"
+git -C "$repo" checkout -q pr
+out="$(cd "$repo" && bash scripts/dependabot-plugin-bump.sh main 2>&1)"
+rc=$?
+fragments=("$repo"/.changes/alpha/*.md)
+[[ -e "${fragments[0]}" ]] || fragments=()
+if [[ $rc -eq 0 && ${#fragments[@]} -eq 1 ]]; then
+  ok "a release on the base since the fork still gets this branch a fragment"
+else
+  fail "base release: rc=$rc files=${fragments[*]} out='$out'"
+fi
+rm -rf "$repo"
+
+# --- a branch older than the fragment library still bumps legacy plugins ---
+mk_repo repo
+mk_plugin "$repo" alpha 1.0.0
+init_git "$repo"
+begin_pr "$repo"
+echo x >>"$repo/plugins/alpha/server/package-lock.json"
+git -C "$repo" add -A && git -C "$repo" commit -qm "deps"
+rm "$repo/scripts/lib/changelog-fragments.sh"
+out="$(cd "$repo" && bash scripts/dependabot-plugin-bump.sh main 2>&1)"
+rc=$?
+ver="$(jq -r .version "$repo/plugins/alpha/.claude-plugin/plugin.json")"
+if [[ "$ver" == "1.0.1" && "$out" == *"alpha 1.0.0 -> 1.0.1"* ]]; then
+  ok "without scripts/lib/changelog-fragments.sh the legacy bump still runs"
+else
+  fail "missing lib: rc=$rc ver=$ver out='$out'"
 fi
 rm -rf "$repo"
 

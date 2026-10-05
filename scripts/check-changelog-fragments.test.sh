@@ -161,7 +161,7 @@ fragment "$f" alpha feat-x-0123abcd patch "### Fixed
 \`\`\`text
 x ${ed} y
 \`\`\`"
-expect "--check accepts an em dash inside inline code and a fenced block" 0 "All 1 changelog fragment(s)" "$f" --check
+expect "--check rejects an em dash inside inline code and a fenced block too" 1 "FRAGMENT EM DASH: .changes/alpha/feat-x-0123abcd.md: x " "$f" --check
 rm -f "$f/.changes/alpha/feat-x-0123abcd.md"
 fragment "$f" beta feat-x-0123abcd patch "### Fixed
 
