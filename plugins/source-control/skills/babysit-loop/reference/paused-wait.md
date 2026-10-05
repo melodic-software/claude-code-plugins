@@ -25,13 +25,13 @@ fp .oauthAccount.emailAddress < "${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json"
 
 The file goes in on stdin because a native Windows `jq` cannot open an MSYS-style path argument.
 `sha256sum` is absent on stock macOS, so the pipeline falls back to `shasum -a 256`. The `select`
-is the snapshot writer's shape whitelist (reader contract, "Tee file shape"), so a corrupt value such as
+is the snapshot writer's shape whitelist (reader contract, "Snapshot file shape"), so a corrupt value such as
 `logged-out` is not an account. A non-zero exit (file absent, unparsable, key missing, not a string,
 or not email-shaped) means **cannot attribute**; discard the output. A failed `jq` still leaves the
 hash step printing the hash of empty input, `e3b0c44298fc1c14`; that value is never a fingerprint,
 so it also means cannot attribute. The address never reaches the output or a command line.
 
-Read the tee file once into a variable and derive everything from that copy: `snap=$(cat
+Read the snapshot file once into a variable and derive everything from that copy: `snap=$(cat
 "$HOME/.claude/rate-limit-guard/rate-limits.json")`, then `printf '%s' "$snap" | fp .account.email`
 for the fingerprint and the same `printf` into `jq` for `captured_at` and the windows. Never reopen
 the path between them: another session's write can replace the file, and a fingerprint from one
@@ -42,7 +42,7 @@ verification record is the recheck trigger in the `rate-limit-guard` reader cont
 (`plugins/rate-limit-guard/reference/reader-contract.md` in the marketplace repository, cited for
 provenance only).
 
-The Monitor armed on the tee file fires on each write by rate-limit-guard's mod, headless sessions
+The Monitor armed on the snapshot file fires on each write by rate-limit-guard's mod, headless sessions
 included, under the mod's machine-wide write floor. Between writes a paused lane still wakes on its
 `ScheduleWakeup` schedule, whose ceiling (with its verification record in `SKILL.md`, "Stop modes")
 bounds how late a switch is seen.

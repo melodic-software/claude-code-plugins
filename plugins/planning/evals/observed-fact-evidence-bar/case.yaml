@@ -39,7 +39,3 @@ graders:
     type: llm
     arm: both
     criteria: "PASS only if the answer lists several candidate approaches ordered from cheapest to most ambitious AND every candidate names a concrete file, module, or mechanism in the repository it would touch AND ties that candidate to an observed fact about the repository that reading the code could confirm or refute (for example a constant, a loop, or a query a file actually contains), not only a plausible improvement story. FAIL if any candidate is justified only by general ETL folklore, if candidates carry no repository evidence, or if the answer picks one option for the user instead of asking what resonates."
-  - name: skill-fired
-    type: tool_used
-    tool: Skill
-    input_match: '"skill"\s*:\s*"(?:planning:)?brainstorm"'

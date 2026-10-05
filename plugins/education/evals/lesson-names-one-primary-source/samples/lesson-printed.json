@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "# Lesson: LEFT JOIN keeps rows that have no match\n\n`customers c LEFT JOIN orders o ON o.customer_id = c.id` keeps a customer with no orders.",
+      "why": "the lesson teaches LEFT JOIN"
+    },
+    {
+      "answer": "A left outer join returns every row of the left table: `SELECT * FROM customers LEFT OUTER JOIN orders USING (customer_id)`.",
+      "why": "the OUTER spelling"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "I could not find a workspace at learning/topic/sql-joins/. Should I create one?",
+      "why": "no lesson printed"
+    },
+    {
+      "answer": "# Lesson: INNER JOIN\n\n`orders o JOIN customers c ON c.id = o.customer_id` drops orders with no customer.",
+      "why": "near miss: a join lesson on the wrong concept"
+    }
+  ]
+}

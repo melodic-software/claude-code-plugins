@@ -6,7 +6,7 @@ workflow.
 
 | Skill | What it does |
 |---|---|
-| `/domain-driven-design:curate-language` | Actively maintains the consuming project's ubiquitous-language glossary: resolves ambiguous or overloaded terms, records canonical language and rejected synonyms, and routes entries to already-known bounded contexts. It never discovers boundaries itself. |
+| `/domain-driven-design:curate-language` | Actively maintains the consuming project's ubiquitous-language glossary: resolves ambiguous or overloaded terms, records canonical language and rejected synonyms, sharpens definitions to say what each term is, and routes entries to already-known bounded contexts. It never discovers boundaries itself. |
 
 Deferred: `context-mapping` and `aggregate-design` join this plugin when those
 practices materialize as skills.

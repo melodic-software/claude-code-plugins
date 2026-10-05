@@ -1,0 +1,139 @@
+name: Collect base activity
+description: >
+  Copy what an activity runs out of the base checkout before the PR head
+  replaces it: a script's whole directory to $RUNNER_TEMP/base-script, or for
+  a skill the base plugins/ and .claude-plugin/ to
+  $RUNNER_TEMP/base-marketplace, plus the skill's plugin, prompt and
+  claude_args. Contract: docs/conventions/pr-pipeline/pr-run-activity.md,
+  run job step 8.
+
+inputs:
+  kind:
+    description: "`script` or `skill`, from resolve-config."
+    required: true
+  script:
+    description: The script path, for a script activity.
+    required: false
+    default: ""
+  skill:
+    description: "`<plugin>:<skill>`, for a skill activity."
+    required: false
+    default: ""
+  model:
+    description: The model; empty omits --model.
+    required: false
+    default: ""
+  max-turns:
+    description: The turn budget.
+    required: false
+    default: ""
+  gating:
+    description: "`gate` or `advisory`."
+    required: false
+    default: ""
+  reads-untrusted:
+    description: "`true` when the prompt names the trusted PR context file."
+    required: false
+    default: "false"
+  resolved-path:
+    description: resolve-config's output file, which holds the activity's args.
+    required: true
+  trusted-context-path:
+    description: select-trusted-text's output file.
+    required: false
+    default: ""
+  base-path:
+    description: The base-SHA checkout.
+    required: false
+    default: .base
+
+outputs:
+  plugin:
+    description: "`<plugin>@<marketplace>`, for a skill."
+    value: ${{ steps.skill.outputs.plugin }}
+  claude-args:
+    description: The skill's claude_args after the fixed ones.
+    value: ${{ steps.skill.outputs.claude-args }}
+  prompt:
+    description: The skill's prompt.
+    value: ${{ steps.skill.outputs.prompt }}
+
+runs:
+  using: composite
+  steps:
+    - name: Copy the script's base directory
+      if: inputs.kind == 'script'
+      shell: bash
+      env:
+        SCRIPT: ${{ inputs.script }}
+        SCRIPT_DIR: ${{ runner.temp }}/base-script
+        BASE_PATH: ${{ inputs.base-path }}
+      run: |
+        case "/$SCRIPT/" in
+          //* | */../* | *//)
+            echo "::error::the script path must be repository-relative"
+            exit 1
+            ;;
+          /*/*/) ;;
+          *)
+            echo "::error::the script must sit in a subdirectory, not at the repository root"
+            exit 1
+            ;;
+        esac
+        mkdir -p "$SCRIPT_DIR"
+        cp -R "$BASE_PATH/$(dirname "$SCRIPT")/." "$SCRIPT_DIR/"
+
+    - name: Stage the base marketplace and the skill prompt
+      id: skill
+      if: inputs.kind == 'skill'
+      shell: bash
+      env:
+        MARKETPLACE: ${{ runner.temp }}/base-marketplace
+        BASE_PATH: ${{ inputs.base-path }}
+        RESOLVED: ${{ inputs.resolved-path }}
+        SKILL: ${{ inputs.skill }}
+        MODEL: ${{ inputs.model }}
+        MAX_TURNS: ${{ inputs.max-turns }}
+        GATING: ${{ inputs.gating }}
+        READS_UNTRUSTED: ${{ inputs.reads-untrusted }}
+        TRUSTED_CONTEXT_FILE: ${{ inputs.trusted-context-path }}
+      run: |
+        fail() {
+          echo "::error::$1"
+          exit 1
+        }
+        mkdir -p "$MARKETPLACE"
+        cp -R "$BASE_PATH/plugins" "$BASE_PATH/.claude-plugin" "$MARKETPLACE/"
+        marketplace=$(jq -r '.name' "$MARKETPLACE/.claude-plugin/marketplace.json")
+        name='^[a-z0-9][a-z0-9-]*$'
+        [[ $marketplace =~ $name ]] || fail "the base marketplace name is malformed"
+        [[ $SKILL =~ ^[a-z0-9-]+:[a-z0-9-]+$ ]] || fail "the skill must be <plugin>:<skill>"
+        [[ $MAX_TURNS =~ ^[1-9][0-9]*$ ]] || fail "max-turns must be a positive integer"
+        claude_args="--max-turns $MAX_TURNS --allowedTools \"Skill($SKILL)\""
+        if [ -n "$MODEL" ]; then
+          model='^[A-Za-z0-9][]A-Za-z0-9._[-]*$'
+          [[ $MODEL =~ $model ]] || fail "the model name is malformed"
+          claude_args="$claude_args --model $MODEL"
+        fi
+        # A gate skill must end with a verdict the next steps can fail on;
+        # the action fails its step when no structured output returns.
+        case "$GATING" in
+          gate)
+            schema='{"type":"object","properties":{"verdict":{"enum":["pass","fail"]},"summary":{"type":"string"}},"required":["verdict","summary"],"additionalProperties":false}'
+            claude_args="$claude_args --json-schema '$schema'"
+            ;;
+          advisory) ;;
+          *) fail "the activity's gating must be gate or advisory" ;;
+        esac
+        args=$(jq -r '.selected.args // ""' "$RESOLVED")
+        delimiter="prompt_$(openssl rand -hex 16)"
+        {
+          echo "plugin=${SKILL%%:*}@$marketplace"
+          echo "claude-args=$claude_args"
+          echo "prompt<<$delimiter"
+          printf '/%s %s\n' "$SKILL" "$args"
+          if [ "$READS_UNTRUSTED" = true ]; then
+            printf 'Trusted PR context: %s\n' "$TRUSTED_CONTEXT_FILE"
+          fi
+          echo "$delimiter"
+        } >>"$GITHUB_OUTPUT"

@@ -3,6 +3,7 @@
   "list-unreadable": "prerequisite-missing",
   "fork": "untrusted-trigger",
   "no-pr": "untrusted-trigger",
+  "bot-actor": "untrusted-trigger",
   "untrusted-actor": "untrusted-trigger",
   "untrusted-author": "untrusted-trigger"
 }

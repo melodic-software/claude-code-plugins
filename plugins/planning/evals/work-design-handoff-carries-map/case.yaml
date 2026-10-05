@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: work-design-handoff-carries-map
+description: Working a design item interactively, the handoff to the design skill carries the map's destination, its decisions so far, and its out-of-scope lines, not the item alone
+tags: [wayfind, pocock-33]
+expected_outcome: The handoff for 'Choose how partners receive the feed' names the destination (a push-based shipment feed for three partners before the 2027 Q3 peak), the settled Debezium change source or per-status-change granularity, and the exclusion of partner client SDKs.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "Use the wayfind skill in work mode on our decision map 'Map: partner shipment feed' (#300). I'm here and can answer questions. The tracker is unreachable from here, so I exported the map issue and its sub-issues to the files under tracker-export/ in the working directory; read those instead of calling the tracker, and do not try to claim anything. Take the design item 'Choose how partners receive the feed' (#307). Before the design session starts, show me the exact handoff you would pass to the design skill, then stop and wait for me."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: names-settled-decision
+    type: regex
+    pattern: 'Debezium|logical replication|(?:per|each|one event (?:per|for each)) (?:shipment )?status change'
+    flags: i
+    arm: both
+  - name: names-destination
+    type: regex
+    pattern: 'Q3|peak|Northwind|Blue Heron|Kestrel|three (?:logistics )?partners|CSV drop|nightly (?:partner )?CSV'
+    flags: i
+    arm: both
+  - name: names-sdk-exclusion
+    type: regex
+    pattern: '(?:SDK|client (?:librar|code))[\s\S]{0,240}(?:out of scope|out-of-scope|excluded|exclusion|not (?:in scope|ship|build|provide)|never ship|won''t ship|will not ship)|(?:out of scope|out-of-scope|excluded|exclusion|not (?:in scope|ship|build|provide)|never ship|won''t ship|will not ship)[\s\S]{0,240}(?:SDK|client (?:librar|code))'
+    flags: i
+    arm: both
+  - name: handoff-carries-map-context
+    type: llm
+    arm: both
+    criteria: "The answer contains a handoff for the design question of how partners receive the feed (webhook push or a partner-pulled cursor). PASS only if that handoff itself, not only surrounding commentary, carries all three of the following from the map: (1) where the effort is going: a push-based shipment-status feed replacing the nightly partner CSV, for the three logistics partners or before the 2027 Q3 peak; (2) at least one decision already made: the change source is Debezium on Postgres logical replication, or events are one per shipment status change; (3) the out-of-scope line that partner client SDKs or libraries will not be shipped. FAIL if any of the three is missing from the handoff, if the handoff contains only the item's own question, or if no handoff is shown."
+  - name: skill-fired
+    type: tool_used
+    tool: Skill
+    input_match: '"skill"\s*:\s*"(?:planning:)?wayfind"'

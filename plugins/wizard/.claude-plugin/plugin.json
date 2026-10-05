@@ -1,6 +1,6 @@
 {
   "name": "wizard",
-  "version": "0.6.3",
+  "version": "0.6.5",
   "description": "Scripts that walk a human through manual steps an agent cannot do: provisioning infrastructure or credentials, CI secrets, third-party dashboards, one-off migrations. /wizard:generate scopes stages from the repo (.env key names only), builds an interactive bash wizard on a hardened library (TTY-only prompts, hidden secret entry, 0600 .env writes), and shows the stages for approval first; the human runs it. /wizard:unattended writes a PowerShell script the human launches once.",
   "author": {
     "name": "Melodic Software",

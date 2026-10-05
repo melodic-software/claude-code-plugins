@@ -760,6 +760,13 @@
         "prose",
         "skill"
       ]
+    },
+    {
+      "name": "user-interface",
+      "source": "./plugins/user-interface",
+      "category": "presentation",
+      "defaultEnabled": false,
+      "tags": ["user-interface", "ui", "terminal", "cli", "tui", "design-system", "accessibility", "skill"]
     }
   ]
 }

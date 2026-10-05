@@ -48,7 +48,15 @@ function writeJson(name, value) {
   return file;
 }
 
-async function gate({ eventName, event, github = fakeGitHub({}), list = LIST, prNumber = "" }) {
+async function gate({
+  eventName,
+  event,
+  github = fakeGitHub({}),
+  list = LIST,
+  prNumber = "",
+  deniedActorIds = "",
+  triggeringActor = "kyle-sexton",
+}) {
   const outputPath = writeJson("output", "");
   await main({
     env: {
@@ -56,6 +64,8 @@ async function gate({ eventName, event, github = fakeGitHub({}), list = LIST, pr
       EVENT_PATH: writeJson("event.json", event),
       TRUSTED_ACTORS_PATH: list,
       PR_NUMBER: prNumber,
+      DENIED_ACTOR_IDS: deniedActorIds,
+      TRIGGERING_ACTOR: triggeringActor,
       REPOSITORY,
       GITHUB_OUTPUT: outputPath,
     },
@@ -328,7 +338,124 @@ for (const [label, list] of [
 test("loadTrustedActors returns the listed ids", () => {
   assert.deepEqual(
     [...loadTrustedActors(LIST)].sort((a, b) => a - b),
-    [49699333, 153232337, 209825114],
+    [49699333, 153232337, 209825114, 337595936],
+  );
+});
+
+// denied actor ids (bot-actor) and the re-runner (triggering-actor)
+
+const LANES_BOT = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
+const DENY_BOT = "337595936";
+
+test("bot-actor: a listed lanes bot proceeds when no id is denied", async () => {
+  const event = fixture("event-pull-request.json");
+  event.sender = LANES_BOT;
+  assert.deepEqual(await gate({ eventName: "pull_request", event }), PROCEED);
+});
+
+test("bot-actor: a denied sender stops even though it is listed", async () => {
+  const event = fixture("event-pull-request.json");
+  event.sender = LANES_BOT;
+  assert.deepEqual(
+    await gate({ eventName: "pull_request", event, deniedActorIds: DENY_BOT }),
+    STOPPED("bot-actor"),
+  );
+});
+
+test("bot-actor: a denied dispatcher on workflow_dispatch stops", async () => {
+  const event = fixture("event-workflow-dispatch.json");
+  event.sender = LANES_BOT;
+  const github = fakeGitHub({
+    [`GET /repos/${REPOSITORY}/pulls/42`]: fixture("api-pull-42.json"),
+  });
+  assert.deepEqual(
+    await gate({
+      eventName: "workflow_dispatch",
+      event,
+      github,
+      prNumber: "42",
+      deniedActorIds: DENY_BOT,
+    }),
+    STOPPED("bot-actor"),
+  );
+});
+
+for (const field of ["actor", "triggering_actor"]) {
+  test(`bot-actor: a denied workflow_run.${field} stops`, async () => {
+    const event = fixture("event-workflow-run.json");
+    event.workflow_run[field] = LANES_BOT;
+    const github = fakeGitHub({ [commitPulls]: [fixture("api-pull-42.json")] });
+    assert.deepEqual(
+      await gate({ eventName: "workflow_run", event, github, deniedActorIds: DENY_BOT }),
+      STOPPED("bot-actor"),
+    );
+  });
+}
+
+test("untrusted-rerunner: a denied re-runner, matched by its listed login, stops with no skip mapping", async () => {
+  assert.deepEqual(
+    await gate({
+      eventName: "pull_request",
+      event: fixture("event-pull-request.json"),
+      deniedActorIds: `1, ${DENY_BOT}`,
+      triggeringActor: "Melodic-Automation-Lanes[bot]",
+    }),
+    STOPPED("untrusted-rerunner"),
+  );
+});
+
+test("bot-actor: a denied id that is not among the actors does not stop", async () => {
+  assert.deepEqual(
+    await gate({
+      eventName: "pull_request",
+      event: fixture("event-pull-request.json"),
+      deniedActorIds: DENY_BOT,
+    }),
+    PROCEED,
+  );
+});
+
+test("bot-actor: a malformed denied-id list stops with list-unreadable", async () => {
+  assert.deepEqual(
+    await gate({
+      eventName: "pull_request",
+      event: fixture("event-pull-request.json"),
+      deniedActorIds: "337595936,lanes-bot",
+    }),
+    STOPPED("list-unreadable"),
+  );
+});
+
+test("triggering-actor: a listed re-runner proceeds, matched without case", async () => {
+  assert.deepEqual(
+    await gate({
+      eventName: "pull_request",
+      event: fixture("event-pull-request.json"),
+      triggeringActor: "Kyle-Sexton",
+    }),
+    PROCEED,
+  );
+});
+
+test("untrusted-rerunner: an unlisted re-runner of a trusted run stops", async () => {
+  assert.deepEqual(
+    await gate({
+      eventName: "pull_request",
+      event: fixture("event-pull-request.json"),
+      triggeringActor: "stranger",
+    }),
+    STOPPED("untrusted-rerunner"),
+  );
+});
+
+test("untrusted-rerunner: an empty re-runner login stops instead of skipping the check", async () => {
+  assert.deepEqual(
+    await gate({
+      eventName: "pull_request",
+      event: fixture("event-pull-request.json"),
+      triggeringActor: "",
+    }),
+    STOPPED("untrusted-rerunner"),
   );
 });
 

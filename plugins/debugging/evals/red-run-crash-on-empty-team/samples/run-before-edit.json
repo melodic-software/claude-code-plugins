@@ -1,0 +1,109 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 report.py data/week.json"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/ws/report.py",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "ran the repro, then edited"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/ws/report.py"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 report.py data/week.json"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/ws/report.py",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 report.py data/week.json"
+          }
+        }
+      ],
+      "why": "read, ran, edited, re-ran"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/ws/report.py",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 report.py data/week.json"
+          }
+        }
+      ],
+      "why": "edited before running"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 report.py data/week.json"
+          }
+        }
+      ],
+      "why": "never edited"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git log --oneline -10"
+          }
+        },
+        {
+          "tool": "Edit",
+          "input": {
+            "file_path": "/tmp/ws/report.py",
+            "old_string": "a",
+            "new_string": "b"
+          }
+        }
+      ],
+      "why": "only a git call before the edit"
+    }
+  ]
+}

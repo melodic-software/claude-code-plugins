@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "## Plan: structured logging in the webhook sender\n\n### Phase 1 (mechanical)\n- Add the logger import to `webhooks/sender.py`.\n- Thread the logger through `WebhookSender.send` and `_retry`.\n\n### Phase 2: log failed deliveries\nEmit a structured `webhook.delivery_failed` event with the endpoint, status code and attempt number.\n\n### Open decision (asked before the plan locks)\n**Q1. Is a failed delivery logged before the retry or after it?** The brief does not say.\n- Before each retry: one record per failed attempt, noisier but shows flapping endpoints.\n- After the final retry: one record per lost delivery.\nRECOMMENDED: log each failed attempt at WARNING before retrying and the final failure at ERROR. Basis: judgment.\n\nNo code has been changed. Answer Q1, then approve this plan to proceed to execution, or provide feedback to revise.",
+      "why": "import and threading kept as phase 1 steps"
+    },
+    {
+      "answer": "Phase 1 [mechanical]: import structlog in sender.py and thread the logger through the sender's call chain.\nPhase 2: log failed deliveries after the retry is exhausted.\n\n## Decisions made (gate-passed)\n| Decision | What it changes in the plan | Basis (evidence) | Source |\n|---|---|---|---|\n| Log after the retry, not before [EXEC-SHAPE] | Phase 2 logs once per lost delivery | sender.py already logs nothing per attempt | /planning:plan |\n\nApprove this plan to proceed to execution, or provide feedback to revise.",
+      "why": "import and threading kept in a one-line phase"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "## Plan\nPhase 1: log failed deliveries in `webhooks/sender.py` after the retry.\n\nApprove this plan to proceed to execution, or provide feedback to revise.",
+      "why": "drops the logger import and threading steps"
+    }
+  ]
+}
