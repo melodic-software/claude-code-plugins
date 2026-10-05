@@ -499,7 +499,7 @@ resolve_config() {
       | .key as $i
       | .value
       | to_entries[]
-      | select(.key == "name" or .key == "model" or .key == "effort" or .key == "prompt" or .key == "stage")
+      | select(.key == "name" or .key == "model" or .key == "effort" or .key == "prompt")
       | select(.value != null and (.value | type) != "string")
       | "lane #\($i) .\(.key) is \(.value | type)" ]
     | join(", ")' "$CONFIG")" || {
@@ -508,27 +508,25 @@ resolve_config() {
   }
   [[ -z "$mistyped" ]] || {
     err "lane config has non-string values for string fields: $mistyped"
-    err "  (name/model/effort/prompt/stage must be JSON strings): $CONFIG"
+    err "  (name/model/effort/prompt must be JSON strings): $CONFIG"
     exit 3
   }
-  # `stage` becomes part of an execution-target key, so it is held to the
-  # `<plugin>:<skill>` shape here, before any lane launches or stops.
-  local badstage
-  badstage="$(jq -r '
-    [ .lanes[]
-      | select(.stage != null)
-      | select(.stage | test("^[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*$") | not)
-      | .name // "?" ] | join(", ")' "$CONFIG")" || {
+  # `stage` becomes part of an execution-target key. One that is not a
+  # <plugin>:<skill> string is warned about and dropped: lane_stage reads the
+  # same predicate, and a lane with no stage counts as untrusted.
+  local badstage line
+  badstage="$(jq -r "$JQ_VALID_STAGE"'
+    .lanes[] | select(.stage != null and (.stage | valid_stage | not))
+    | "lane \(.name // "?" | @sh | gsub("\n"; "\\n")): stage \(.stage | tojson)"' "$CONFIG")" || {
     err "lane config validation query failed (lane stage shape): $CONFIG"
     exit 3
   }
-  [[ -z "$badstage" ]] || {
-    err "lane config has a stage that is not <plugin>:<skill> (lowercase, digits, '-'): $badstage: $CONFIG"
-    exit 3
-  }
+  while IFS= read -r line; do
+    [[ -n "$line" ]] && warn "$CONFIG: $line is not a <plugin>:<skill> string (lowercase, digits, '-'); ignoring it, so the lane has no stage" # a stage that is not <plugin>:<skill>
+  done <<<"$badstage"
   # An invalid `schedule` is warned about and dropped: _schedule_one reads the
   # same predicate and treats that lane as unscheduled.
-  local badsched line
+  local badsched
   badsched="$(jq -r "$JQ_SCHEDULE_MINUTES"'
     .lanes[] | select(.schedule != null and (.schedule | schedule_minutes) == null)
     | "lane \(.name // "?" | @sh | gsub("\n"; "\\n")): schedule \(.schedule | tojson)"' "$CONFIG")" || {
@@ -548,6 +546,10 @@ JQ_SCHEDULE_MINUTES='def schedule_minutes:
     and .every_minutes == (.every_minutes | floor)
     and .every_minutes >= 1 and .every_minutes <= 999
   then .every_minutes | floor else null end;'
+
+# jq definition: true for a stage that is a <plugin>:<skill> string.
+JQ_VALID_STAGE='def valid_stage:
+  type == "string" and test("^[a-z0-9][a-z0-9-]*:[a-z0-9][a-z0-9-]*$");'
 
 # Print <path> as it stands when it is already absolute (POSIX or a Windows
 # drive), else anchored under the base directory <base>. Both the prompt dir and
@@ -743,6 +745,10 @@ running_session_id() {
 # non-string value — resolve_config rejects those at config time, which is what
 # keeps "" here meaning exactly one thing: the field is absent.
 lane_field() { jq -r --argjson i "$1" --arg k "$2" '.lanes[$i][$k] // ""' "$CONFIG"; }
+
+# A lane's stage, or "" when it is absent or fails valid_stage (validate_config
+# has warned about that one).
+lane_stage() { jq -r --argjson i "$1" "$JQ_VALID_STAGE"'.lanes[$i].stage | if valid_stage then . else "" end' "$CONFIG"; }
 
 # Structured (non-string) lane field, emitted as compact JSON; empty ONLY when
 # the field is absent. Used for `settings`, whose value is a JSON object rather
@@ -1562,7 +1568,7 @@ for_each_lane() {
     effort="$(lane_field "$i" effort)"
     prompt_path="$(path_under "$pdir" "$(lane_field "$i" prompt)")"
     settings="$(lane_json_field "$i" settings)"
-    stage="$(lane_field "$i" stage)"
+    stage="$(lane_stage "$i")"
     # A per-lane callback failure must not abort the sweep (other lanes still
     # get their turn) but must surface in the aggregate exit status.
     "$callback" "$name" "$model" "$effort" "$prompt_path" "$settings" "$i" "$stage" || failures=1

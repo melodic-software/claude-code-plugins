@@ -1572,11 +1572,25 @@ assert_contains "the cloud prompt names the plugins the stage needs" "$(cat "$CL
 assert_contains "the cloud prompt ends with the lane prompt" "$(cat "$CLAUDE_LOG")" "You are the work lane."
 assert_contains "the launch record names the SHA" "$(cat "$ET_DATA/lanes/$ET_KEY/work-cloud-launch")" "at $ET_SHA_NOW"
 
-# A stage that is not <plugin>:<skill> is a config error before anything launches.
-et_lanes 'Work Items'
+# A stage that is not a <plugin>:<skill> string is warned about (file, lane,
+# key, value) and dropped: the lane runs as one with no stage.
+et_publish $'default: local-worktree\nskill:\n  work-items:\n    work-loop: local-background'
+for bad in '"Work Items"' 5; do
+  et_lanes "" "{\"stage\":$bad}"
+  out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
+  rc=$?
+  assert_eq "stage $bad exits 0" 0 "$rc"
+  assert_contains "stage $bad is warned about with the file, lane, key and value" "$out" \
+    "WARNING: $ET_REPO/.work/lanes/lanes.json: lane 'work': stage $bad is not"
+  assert_contains "stage $bad is dropped, so the lane resolves the default" "$out" "execution target local-worktree (default)"
+  assert_not_contains "stage $bad selects no skill key" "$out" "(skill."
+done
+# The dropped stage is gone downstream too: a cloud skip names no stage.
+et_publish 'default: cloud-session'
+et_lanes "" '{"stage":5,"telemetry":{"issue":5}}'
 out="$(et_run start --data-dir "$ET_DATA" --dry-run 2>&1)"
-rc=$?
-assert_eq "a malformed stage exits 3" 3 "$rc"
+assert_contains "a dropped stage reaches the cloud skip as unset" "$out" "stage unset may read untrusted input"
+et_publish $'default: local-worktree\nskill:\n  work-items:\n    work-loop: local-background'
 et_lanes work-items:work-loop
 
 # ============================================================================
