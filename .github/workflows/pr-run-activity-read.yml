@@ -1,0 +1,569 @@
+name: pr-run-activity-read
+
+# Runs one read activity of one PR pipeline lane and reports it as the check
+# run `<lane> / <activity>`. The run job gates, resolves the base-SHA config,
+# fails red on any effect but `read` before the PR head is checked out, and
+# runs a skill or a script with the job's read-only GITHUB_TOKEN; the report
+# job writes the check from the run job's runner-computed outputs.
+# Secrets are scrubbed per workflow run, so this file references no App key
+# and requests no OIDC token: a caller that passes neither keeps both off the
+# runner that runs PR head code. Write activities run in
+# pr-run-activity-write.yml.
+# Job contract: docs/conventions/pr-pipeline/pr-run-activity.md.
+#
+# Every action runs from the base-SHA checkout at ./.base. zizmor's
+# self-repository advice (`$/...`) is ignored on those lines: `$/` loads the
+# action from this workflow's own commit, which on pull_request is the PR's
+# merge commit, not the base.
+
+on:
+  workflow_call:
+    inputs:
+      lane:
+        description: The lane, its caller workflow's file stem.
+        required: true
+        type: string
+      activity:
+        description: The activity to run from the lane's slots.
+        required: true
+        type: string
+      config-path:
+        description: The config, relative to the base checkout. For test callers only.
+        required: false
+        type: string
+        default: docs/conventions/pr-pipeline.yaml
+      pr-number:
+        description: The PR on workflow_dispatch; ignored for other events.
+        required: false
+        type: string
+        default: ""
+      default-model:
+        description: The model when the activity sets none; empty omits --model.
+        required: false
+        type: string
+        default: ""
+      default-max-turns:
+        description: The turn budget when the activity sets none.
+        required: false
+        type: number
+        default: 75
+      timeout-minutes:
+        description: The run job's timeout in minutes.
+        required: false
+        type: number
+        default: 30
+    secrets:
+      claude-code-oauth-token:
+        description: Claude Code OAuth token for skill activities.
+        required: false
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  run:
+    # The lanes App's own pull_request events never start a lane.
+    if: >-
+      !(github.event_name == 'pull_request'
+      && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    permissions:
+      contents: read
+      pull-requests: read
+    # The report job trusts only these. Each is a step outcome or an output of a
+    # step that ran before any PR head code, except act-outcome for a gate
+    # skill: the verdict step it reads runs after the skill, so a gate skill
+    # must not execute head code.
+    outputs:
+      base-sha: ${{ steps.trusted-base.outputs.commit }}
+      head-sha: ${{ steps.gate.outputs.head-sha }}
+      pr-number: ${{ steps.gate.outputs.pr-number }}
+      gate-reason: >-
+        ${{ steps.kill.outputs.proceed != 'true' && steps.kill.outputs.reason
+        || steps.gate.outputs.proceed != 'true' && steps.gate.outputs.reason
+        || '' }}
+      can-commit: ${{ steps.config.outputs.can-commit }}
+      # A gate skill succeeds only on a `pass` verdict. The verdict step's
+      # ACT_OUTCOME repeats this expression: runner-policy refuses YAML aliases.
+      act-outcome: >-
+        ${{ steps.act-skill.outcome == 'success' && steps.config.outputs.gating == 'gate'
+        && (steps.skill-verdict.outcome == 'success' && 'success' || 'failure')
+        || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
+        || steps.act-script.outcome }}
+    steps:
+      # The job if: above cannot match an unset variable, so the guard would
+      # silently let the App's own events through. An empty default branch
+      # would make the checkout below fall back to the event's ref.
+      - name: Assert the lanes App sender id and default branch are set
+        env:
+          APP_SENDER_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if ! [[ $APP_SENDER_ID =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::the AUTOMATION_LANES_APP_SENDER_ID variable must hold the lanes App bot's numeric user id"
+            exit 1
+          fi
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "::error::the event names no default branch"
+            exit 1
+          fi
+
+      # The kill switch and the trigger gate run from the default branch tip,
+      # never from a base the PR chose. Full history lets the next check test
+      # the gated base SHA's ancestry.
+      - name: Check out the default branch tip
+        id: base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Check the kill switch
+        id: kill
+        uses: ./.base/.github/actions/check-kill-switch # zizmor: ignore[self-repository]
+        with:
+          value: ${{ vars.CLAUDE_LANES_DISABLED }}
+
+      # No actor is denied, so a workflow_run read lane still runs after a
+      # lanes App bot push (the job if: above already skips the bot's own
+      # pull_request events); a re-run must be started by a listed account.
+      - name: Check the trigger
+        id: gate
+        if: steps.kill.outputs.proceed == 'true'
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          pr-number: ${{ inputs.pr-number }}
+          triggering-actor: ${{ github.triggering_actor }}
+
+      - name: Assert the base is on the default branch
+        id: trusted-base
+        if: steps.gate.outputs.proceed == 'true'
+        uses: ./.base/.github/actions/check-trusted-base # zizmor: ignore[self-repository]
+        with:
+          base-sha: ${{ steps.gate.outputs.base-sha }}
+          pr-number: ${{ steps.gate.outputs.pr-number }}
+
+      - name: Resolve the config
+        id: config
+        if: steps.trusted-base.outcome == 'success'
+        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
+        with:
+          lane: ${{ inputs.lane }}
+          activity: ${{ inputs.activity }}
+          base-path: .base
+          config-path: ${{ inputs.config-path }}
+          output-path: ${{ runner.temp }}/resolved-config.json
+          pr-number: ${{ steps.gate.outputs.pr-number }}
+
+      # Any other effect belongs in pr-run-activity-write.yml; the caller chose
+      # the wrong file. Fails before anything reads the PR head.
+      - name: Assert the effect is read
+        if: steps.config.outcome == 'success' && steps.config.outputs.effect != 'read'
+        run: |
+          echo "::error::effect-not-read: a write activity runs in pr-run-activity-write.yml, not pr-run-activity-read.yml"
+          exit 1
+
+      # The job token has no issues grant: in a private repository a PR that
+      # closes an issue may fail this step red.
+      - name: Select the trusted PR text
+        if: steps.config.outputs.applies == 'true' && steps.config.outputs.reads-untrusted == 'true'
+        uses: ./.base/.github/actions/select-trusted-text # zizmor: ignore[self-repository]
+        with:
+          pr-number: ${{ steps.gate.outputs.pr-number }}
+          trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
+          output-path: ${{ runner.temp }}/trusted-context.json
+          github-token: ${{ github.token }}
+
+      # The head checkout below replaces .base, so what the activity runs from
+      # the base is copied out first.
+      - name: Stage the activity from the base
+        id: stage
+        if: steps.config.outputs.applies == 'true'
+        uses: ./.base/.github/actions/collect-base-activity # zizmor: ignore[self-repository]
+        with:
+          kind: ${{ steps.config.outputs.kind }}
+          script: ${{ steps.config.outputs.script }}
+          skill: ${{ steps.config.outputs.skill }}
+          model: ${{ steps.config.outputs.model || inputs.default-model }}
+          max-turns: ${{ steps.config.outputs.max-turns || inputs.default-max-turns }}
+          gating: ${{ steps.config.outputs.gating }}
+          reads-untrusted: ${{ steps.config.outputs.reads-untrusted }}
+          resolved-path: ${{ runner.temp }}/resolved-config.json
+          trusted-context-path: ${{ runner.temp }}/trusted-context.json
+
+      # Nothing after this step needs sudo or docker.
+      - name: Isolate the runner
+        if: steps.config.outputs.applies == 'true'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: ${{ steps.config.outputs.kind == 'skill' }}
+
+      - name: Check out the PR head
+        if: steps.config.outputs.applies == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.gate.outputs.head-sha }}
+          persist-credentials: false
+
+      # The activity judges exactly the commit the check is posted on.
+      - name: Assert the head is the gated SHA
+        if: steps.config.outputs.applies == 'true'
+        env:
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+        run: |
+          if [ "$(git rev-parse HEAD)" != "$HEAD_SHA" ]; then
+            echo "::error::the checked-out head is not the gated head SHA"
+            exit 1
+          fi
+
+      - name: Run the skill activity
+        id: act-skill
+        if: steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'skill'
+        uses: anthropics/claude-code-action@ed670b4cf9de2a5a570d130d2f6197b9e543cd64 # v1.0.240
+        env:
+          # Strips the OAuth token and other credentials from Bash, hook and
+          # MCP subprocesses and gives Bash its own PID namespace, so /proc
+          # shows no ancestor's env. It keeps GH_TOKEN and GITHUB_TOKEN, so a
+          # subprocess still holds this activity's GitHub token
+          # (code.claude.com/docs/en/env-vars, as of 2026-10-04).
+          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: "1"
+          CLAUDE_BRANCH: ${{ steps.gate.outputs.head-ref }}
+          TRUSTED_CONTEXT_FILE: >-
+            ${{ steps.config.outputs.reads-untrusted == 'true'
+            && format('{0}/trusted-context.json', runner.temp) || '' }}
+        with:
+          claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
+          github_token: ${{ github.token }}
+          use_commit_signing: true
+          plugin_marketplaces: ${{ runner.temp }}/base-marketplace
+          plugins: ${{ steps.stage.outputs.plugin }}
+          prompt: ${{ steps.stage.outputs.prompt }}
+          claude_args: >-
+            --setting-sources user
+            --permission-mode dontAsk
+            ${{ steps.stage.outputs.claude-args }}
+
+      # The reply is untrusted model text: it is read with jq and printed as
+      # data, never interpolated into a command. The file path falls back to
+      # the action's fixed location (base-action/src/execution-file.ts:6-13).
+      # It is also uploaded below as audit evidence, since the REST API cannot
+      # read step summaries; nothing in this workflow reads that artifact.
+      - name: Show the skill's final reply
+        if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+        env:
+          EXECUTION_FILE: >-
+            ${{ steps.act-skill.outputs.execution_file
+            || format('{0}/claude-execution-output.json', runner.temp) }}
+          REPLY_DIR: ${{ runner.temp }}/skill-reply
+        run: |
+          mkdir -p "$REPLY_DIR"
+          if [ ! -f "$EXECUTION_FILE" ]; then
+            echo "No execution file to summarize" | tee "$REPLY_DIR/reply.txt"
+            exit 0
+          fi
+          jq -r '[.[] | select(.type == "result")] | last | (.result // "")[:4000] | gsub("`"; "'"'"'")' \
+            "$EXECUTION_FILE" >"$REPLY_DIR/reply.txt"
+          {
+            echo "### Skill reply"
+            echo
+            echo '```text'
+            cat "$REPLY_DIR/reply.txt"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the skill's final reply
+        if: always() && (steps.act-skill.outcome == 'success' || steps.act-skill.outcome == 'failure')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: skill-reply-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/skill-reply/reply.txt
+          retention-days: 7
+          if-no-files-found: error
+
+      # The verdict comes from the action's structured_output, read through env
+      # and parsed by jq. Anything but exactly `pass` fails the activity; the
+      # summary is model text, printed as data.
+      - name: Check the gate skill's verdict
+        id: skill-verdict
+        if: always() && steps.act-skill.outcome == 'success' && steps.config.outputs.gating == 'gate'
+        env:
+          STRUCTURED_OUTPUT: ${{ steps.act-skill.outputs.structured_output }}
+        run: |
+          verdict=$(jq -r 'if type == "object" and (.verdict | type) == "string" then .verdict else "" end' <<<"$STRUCTURED_OUTPUT") || verdict=""
+          summary=$(jq -r 'if type == "object" then (.summary // "" | tostring)[:4000] | gsub("`"; "'"'"'") else "" end' <<<"$STRUCTURED_OUTPUT") || summary=""
+          {
+            echo "### Gate verdict"
+            echo
+            echo '```text'
+            printf 'verdict: %s\n\n%s\n' "$verdict" "$summary"
+            echo '```'
+          } >>"$GITHUB_STEP_SUMMARY"
+          if [ "$verdict" != pass ]; then
+            echo "::error::the gate skill's verdict is not pass"
+            exit 1
+          fi
+
+      # On pull_request events the action replaces these paths with the base
+      # branch's copies when the PR head is untrusted (claude-code-action
+      # src/github/operations/restore-config.ts:26-35 lists them, :269-349
+      # restores them and unstages). Put back only what that restore changed,
+      # so a file the skill created or edited under them still shows as dirty.
+      # Head file names are pathspecs here, so globbing is off.
+      - name: Undo the action's restore of base config paths
+        if: >-
+          steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'skill'
+          && github.event.pull_request.base.ref != ''
+        env:
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          GIT_LITERAL_PATHSPECS: "1"
+        run: |
+          base="refs/remotes/origin/$BASE_REF"
+          if ! git rev-parse -q --verify "$base^{commit}" >/dev/null; then
+            echo "The action fetched no base branch, so it restored nothing"
+            exit 0
+          fi
+          same_as_base() {
+            git cat-file -e "$base:$1" 2>/dev/null && [ -f "$1" ] && [ ! -L "$1" ] &&
+              [ "$(git hash-object -- "$1")" = "$(git rev-parse "$base:$1")" ]
+          }
+          for path in .claude .mcp.json .claude.json .gitmodules .ripgreprc CLAUDE.md CLAUDE.local.md .husky; do
+            while IFS= read -r -d '' file; do
+              if ! git cat-file -e "$HEAD_SHA:$file" 2>/dev/null && same_as_base "$file"; then
+                rm -f -- "$file"
+              fi
+            done < <(git ls-tree -r -z --name-only "$base" -- "$path")
+            while IFS= read -r -d '' file; do
+              if { [ ! -e "$file" ] && [ ! -L "$file" ]; } || same_as_base "$file"; then
+                git checkout "$HEAD_SHA" -- "$file"
+              fi
+            done < <(git ls-tree -r -z --name-only "$HEAD_SHA" -- "$path")
+          done
+
+      - name: Run the script activity
+        id: act-script
+        if: steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'script'
+        env:
+          SCRIPT: ${{ steps.config.outputs.script }}
+          RESOLVED: ${{ runner.temp }}/resolved-config.json
+          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
+          SKIP_REASON_FILE: ${{ runner.temp }}/skip-reason
+        run: |
+          ACTIVITY_ARGS=$(jq -r '.selected.args // ""' "$RESOLVED")
+          export ACTIVITY_ARGS
+          unset GH_TOKEN GITHUB_TOKEN RESOLVED
+          rm -f "$SKIP_REASON_FILE"
+          "$RUNNER_TEMP/base-script/$(basename "$SCRIPT")"
+          reason=""
+          if [ -s "$SKIP_REASON_FILE" ]; then
+            reason=$(head -n 1 "$SKIP_REASON_FILE" | tr -d '\r')
+            if ! [[ $reason =~ ^[a-z]+(-[a-z]+)*$ ]]; then
+              echo "::error::the skip reason file holds no skip reason"
+              exit 1
+            fi
+          fi
+          echo "skip-reason=$reason" >>"$GITHUB_OUTPUT"
+
+      - name: Check the working tree is clean
+        id: tree
+        if: steps.config.outputs.applies == 'true'
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --short
+            echo "dirty-tree=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "dirty-tree=false" >>"$GITHUB_OUTPUT"
+          fi
+
+      # Written after head code ran, so the report job only cross-checks it.
+      - name: Write the verdict
+        if: always()
+        env:
+          LANE: ${{ inputs.lane }}
+          ACTIVITY: ${{ inputs.activity }}
+          KILL_PROCEED: ${{ steps.kill.outputs.proceed }}
+          KILL_REASON: ${{ steps.kill.outputs.reason }}
+          TRIGGER_PROCEED: ${{ steps.gate.outputs.proceed }}
+          TRIGGER_REASON: ${{ steps.gate.outputs.reason }}
+          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
+          CONFIG_OUTCOME: ${{ steps.config.outcome }}
+          SKIP_REASON: ${{ steps.config.outputs.skip-reason || steps.act-script.outputs.skip-reason }}
+          ACT_OUTCOME: >-
+            ${{ steps.act-skill.outcome == 'success' && steps.config.outputs.gating == 'gate'
+            && (steps.skill-verdict.outcome == 'success' && 'success' || 'failure')
+            || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
+            || steps.act-script.outcome }}
+          DIRTY_TREE: ${{ steps.tree.outputs.dirty-tree }}
+          VERDICT_DIR: ${{ runner.temp }}/verdict
+        run: |
+          mkdir -p "$VERDICT_DIR"
+          jq -n \
+            --arg lane "$LANE" \
+            --arg activity "$ACTIVITY" \
+            --arg run_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --arg head "$HEAD_SHA" \
+            --arg kill_proceed "$KILL_PROCEED" --arg kill_reason "$KILL_REASON" \
+            --arg trigger_proceed "$TRIGGER_PROCEED" --arg trigger_reason "$TRIGGER_REASON" \
+            --arg config "$CONFIG_OUTCOME" \
+            --arg skip "$SKIP_REASON" \
+            --arg act "$ACT_OUTCOME" \
+            --arg dirty "$DIRTY_TREE" \
+            'def gate($proceed; $reason): if $proceed == "" then null else {proceed: $proceed, reason: $reason} end;
+            def nullable: if . == "" then null else . end;
+            {
+              version: 1,
+              lane: $lane,
+              activity: $activity,
+              "run-url": $run_url,
+              "head-sha": ($head | nullable),
+              gates: {"kill-switch": gate($kill_proceed; $kill_reason), trigger: gate($trigger_proceed; $trigger_reason)},
+              config: ({success: "valid", failure: "invalid"}[$config] // "not-read"),
+              "skip-reason": ($skip | nullable),
+              outcome: (if $act == "success" or $act == "failure" or $act == "skipped" then $act else "not-run" end),
+              "dirty-tree": {"true": true, "false": false}[$dirty]
+            }' >"$VERDICT_DIR/verdict.json"
+
+      - name: Upload the verdict
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/verdict/verdict.json
+          if-no-files-found: error
+
+  report:
+    needs: run
+    # Fork PRs get a read-only GITHUB_TOKEN that cannot write checks, and the
+    # lanes App's own pull_request events skip the run job.
+    if: >-
+      always()
+      && !(github.event_name == 'pull_request'
+      && github.event.pull_request.head.repo.full_name != github.repository)
+      && !(github.event_name == 'pull_request'
+      && format('{0}', github.event.sender.id) == vars.AUTOMATION_LANES_APP_SENDER_ID)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      checks: write
+      contents: read
+      pull-requests: read
+    steps:
+      # The default branch tip, then the run job's base SHA only when the
+      # default branch holds it. The event's base SHA is never checked out:
+      # a PR into another branch would choose the actions that post its check.
+      - name: Assert the default branch is set
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ -z "$DEFAULT_BRANCH" ]; then
+            echo "::error::the event names no default branch"
+            exit 1
+          fi
+
+      - name: Check out the default branch tip
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: .base
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check out the run job's base SHA when the default branch holds it
+        env:
+          BASE_SHA: ${{ needs.run.outputs.base-sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [[ $BASE_SHA =~ ^[0-9a-f]{40}$ ]] &&
+            git -C .base merge-base --is-ancestor "$BASE_SHA" "refs/remotes/origin/$DEFAULT_BRANCH"; then
+            git -C .base checkout -q --detach "$BASE_SHA"
+          else
+            echo "No base SHA on the default branch; staying on the default branch tip"
+          fi
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      # A run job that never uploaded a verdict is already a failure, or a
+      # neutral superseded-sha on a cancel, in report-check-run's decision.
+      - name: Download the verdict
+        continue-on-error: true
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: verdict-${{ inputs.lane }}-${{ inputs.activity }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/verdict
+
+      - name: Check the lane's commits are signed
+        id: signed
+        if: >-
+          always()
+          && needs.run.outputs.can-commit != 'false'
+          && needs.run.outputs.pr-number != ''
+        uses: ./.base/.github/actions/check-signed-commits # zizmor: ignore[self-repository]
+        with:
+          pr-number: ${{ needs.run.outputs.pr-number }}
+          since-sha: ${{ needs.run.outputs.head-sha }}
+          github-token: ${{ github.token }}
+
+      # A cancelled run is superseded only when the PR has a newer head.
+      - name: Read the PR's current head SHA
+        id: pr-head
+        if: always()
+        env:
+          PR_NUMBER: ${{ needs.run.outputs.pr-number || github.event.pull_request.number || inputs.pr-number }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=""
+          if [[ $PR_NUMBER =~ ^[1-9][0-9]*$ ]]; then
+            sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha) || sha=""
+          fi
+          if ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
+            echo "No PR head SHA read"
+            sha=""
+          fi
+          echo "sha=$sha" >>"$GITHUB_OUTPUT"
+
+      # Off pull_request, an empty run head SHA would fall back to github.sha,
+      # the dispatch ref, which is not the PR's commit, so nothing is posted.
+      - name: Note that no check is posted without a head SHA
+        if: >-
+          always() && github.event_name != 'pull_request'
+          && needs.run.outputs.head-sha == ''
+        run: echo "The run job gated no head SHA, so no check run is posted." >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Post the check run
+        if: >-
+          always() && !(github.event_name != 'pull_request'
+          && needs.run.outputs.head-sha == '')
+        uses: ./.base/.github/actions/report-check-run # zizmor: ignore[self-repository]
+        with:
+          lane: ${{ inputs.lane }}
+          activity: ${{ inputs.activity }}
+          run-result: ${{ needs.run.result }}
+          act-outcome: ${{ needs.run.outputs.act-outcome }}
+          gate-reason: ${{ needs.run.outputs.gate-reason }}
+          head-sha: ${{ needs.run.outputs.head-sha }}
+          pr-head-sha: ${{ steps.pr-head.outputs.sha }}
+          can-commit: ${{ needs.run.outputs.can-commit }}
+          all-verified: ${{ steps.signed.outputs.all-verified }}
+          verdict-path: ${{ runner.temp }}/verdict/verdict.json
+          base-path: .base
+          head-sha-fallback: ${{ github.event.pull_request.head.sha || github.sha }}
+          github-token: ${{ github.token }}

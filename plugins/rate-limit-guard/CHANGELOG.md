@@ -3,11 +3,17 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.16.1] - 2026-10-04
+## [0.16.2] - 2026-10-04
 
 ### Changed
 
 - **Shared `exec-bash.mjs` launcher synced; no change to this plugin's hooks.** The launcher gains `--run-if-any-set`, `--run-if-settings-mention`, `--skip-unless-marker` and `--marker-root`, which the autonomy and disk-hygiene Stop rows use to skip starting bash on a turn where their script would exit at once.
+
+## [0.16.1] - 2026-10-04
+
+### Changed
+
+- **The operable floor's Account switch bullet gives the current reason to read `.claude.json`.** The old reason, that a machine running only headless sessions never refreshes the snapshot file, stopped holding when the mod began writing in headless sessions. The reason now: the file names an account only as of a session's last API response, and a paused lane's Monitor ticks never write it, so after a switch it names the old account or none until a session gets a response under the new one. The rule itself is unchanged.
 
 ## [0.16.0] - 2026-10-04
 

@@ -1,9 +1,11 @@
-name: pr-run-activity
+name: pr-run-activity-write
 
-# Runs one activity of one PR pipeline lane and reports it as the check run
-# `<lane> / <activity>`. The run job gates, resolves the base-SHA config, mints
-# the App token the activity's effect grants, and runs a skill or a script; the
-# report job writes the check from the run job's runner-computed outputs.
+# Runs one write activity (any effect but `read`) of one PR pipeline lane and
+# reports it as the check run `<lane> / <activity>`. The run job gates,
+# resolves the base-SHA config, fails red on a `read` effect, mints the App
+# token the effect grants, and runs a skill or a script; the report job writes
+# the check from the run job's runner-computed outputs. Read activities run in
+# pr-run-activity-read.yml, which references no App key.
 # Job contract: docs/conventions/pr-pipeline/pr-run-activity.md.
 #
 # Every action runs from the base-SHA checkout at ./.base. zizmor's
@@ -134,6 +136,9 @@ jobs:
         with:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
 
+      # The lanes App bot never starts a write activity, on any event, so one
+      # write cannot chain into the next; a re-run must be started by a listed
+      # account.
       - name: Check the trigger
         id: gate
         if: steps.kill.outputs.proceed == 'true'
@@ -141,38 +146,16 @@ jobs:
         with:
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           pr-number: ${{ inputs.pr-number }}
+          denied-actor-ids: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
+          triggering-actor: ${{ github.triggering_actor }}
 
-      # Only a PR into the default branch runs, and only from a base SHA the
-      # default branch already holds: a PR into another branch could otherwise
-      # choose the actions, config and trusted-actor list it is judged by.
       - name: Assert the base is on the default branch
         id: trusted-base
         if: steps.gate.outputs.proceed == 'true'
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          BASE_SHA: ${{ steps.gate.outputs.base-sha }}
-          PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          fail() {
-            echo "::error::$1"
-            exit 1
-          }
-          if [ "$EVENT_NAME" = pull_request ]; then
-            base_ref=$EVENT_BASE_REF
-          else
-            base_ref=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .base.ref) ||
-              fail "could not read the PR's base branch"
-          fi
-          [ "$base_ref" = "$DEFAULT_BRANCH" ] ||
-            fail "the PR targets a branch other than the default branch; lanes run only on PRs into the default branch"
-          [[ $BASE_SHA =~ ^[0-9a-f]{40}$ ]] || fail "the gated base SHA is malformed"
-          git -C .base merge-base --is-ancestor "$BASE_SHA" "refs/remotes/origin/$DEFAULT_BRANCH" ||
-            fail "the gated base SHA is not on the default branch"
-          git -C .base checkout -q --detach "$BASE_SHA"
-          echo "commit=$(git -C .base rev-parse HEAD)" >>"$GITHUB_OUTPUT"
+        uses: ./.base/.github/actions/check-trusted-base # zizmor: ignore[self-repository]
+        with:
+          base-sha: ${{ steps.gate.outputs.base-sha }}
+          pr-number: ${{ steps.gate.outputs.pr-number }}
 
       - name: Resolve the config
         id: config
@@ -186,11 +169,18 @@ jobs:
           output-path: ${{ runner.temp }}/resolved-config.json
           pr-number: ${{ steps.gate.outputs.pr-number }}
 
-      # A read activity gets no App token, so the job holding head code never
-      # references the App key for it. An empty permission-* input is skipped,
-      # and a mint with all of them empty inherits every installation permission.
+      # A read activity belongs in pr-run-activity-read.yml, whose run holds no
+      # App key; the caller chose the wrong file.
+      - name: Assert the effect is not read
+        if: steps.config.outcome == 'success' && steps.config.outputs.effect == 'read'
+        run: |
+          echo "::error::effect-read: a read activity runs in pr-run-activity-read.yml, not pr-run-activity-write.yml"
+          exit 1
+
+      # An empty permission-* input is skipped, and a mint with all of them
+      # empty inherits every installation permission.
       - name: Assert the App grant
-        if: steps.config.outputs.applies == 'true' && steps.config.outputs.effect != 'read'
+        if: steps.config.outputs.applies == 'true'
         env:
           CONTENTS: ${{ steps.config.outputs.contents }}
           PULL_REQUESTS: ${{ steps.config.outputs.pull-requests }}
@@ -208,7 +198,7 @@ jobs:
 
       - name: Mint the lane App token
         id: app-token
-        if: steps.config.outputs.applies == 'true' && steps.config.outputs.effect != 'read'
+        if: steps.config.outputs.applies == 'true'
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ vars.AUTOMATION_LANES_APP_CLIENT_ID }}
@@ -226,133 +216,38 @@ jobs:
           pr-number: ${{ steps.gate.outputs.pr-number }}
           trusted-actors-path: .base/.github/standards/trusted-actors/trusted-actors.json
           output-path: ${{ runner.temp }}/trusted-context.json
-          github-token: ${{ steps.app-token.outputs.token || github.token }}
+          github-token: ${{ steps.app-token.outputs.token }}
 
       # The head checkout below replaces .base, so what the activity runs from
       # the base is copied out first.
-      - name: Copy the script's base directory
-        if: steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'script'
-        env:
-          SCRIPT: ${{ steps.config.outputs.script }}
-          SCRIPT_DIR: ${{ runner.temp }}/base-script
-        run: |
-          case "/$SCRIPT/" in
-            //* | */../* | *//)
-              echo "::error::the script path must be repository-relative"
-              exit 1
-              ;;
-            /*/*/) ;;
-            *)
-              echo "::error::the script must sit in a subdirectory, not at the repository root"
-              exit 1
-              ;;
-          esac
-          mkdir -p "$SCRIPT_DIR"
-          cp -R ".base/$(dirname "$SCRIPT")/." "$SCRIPT_DIR/"
-
-      - name: Stage the base marketplace and the skill prompt
-        id: stage-skill
-        if: steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'skill'
-        env:
-          MARKETPLACE: ${{ runner.temp }}/base-marketplace
-          RESOLVED: ${{ runner.temp }}/resolved-config.json
-          SKILL: ${{ steps.config.outputs.skill }}
-          MODEL: ${{ steps.config.outputs.model || inputs.default-model }}
-          MAX_TURNS: ${{ steps.config.outputs.max-turns || inputs.default-max-turns }}
-          GATING: ${{ steps.config.outputs.gating }}
-          READS_UNTRUSTED: ${{ steps.config.outputs.reads-untrusted }}
-          TRUSTED_CONTEXT_FILE: ${{ runner.temp }}/trusted-context.json
-        run: |
-          fail() {
-            echo "::error::$1"
-            exit 1
-          }
-          mkdir -p "$MARKETPLACE"
-          cp -R .base/plugins .base/.claude-plugin "$MARKETPLACE/"
-          marketplace=$(jq -r '.name' "$MARKETPLACE/.claude-plugin/marketplace.json")
-          name='^[a-z0-9][a-z0-9-]*$'
-          [[ $marketplace =~ $name ]] || fail "the base marketplace name is malformed"
-          [[ $SKILL =~ ^[a-z0-9-]+:[a-z0-9-]+$ ]] || fail "the skill must be <plugin>:<skill>"
-          [[ $MAX_TURNS =~ ^[1-9][0-9]*$ ]] || fail "max-turns must be a positive integer"
-          claude_args="--max-turns $MAX_TURNS --allowedTools \"Skill($SKILL)\""
-          if [ -n "$MODEL" ]; then
-            model='^[A-Za-z0-9][]A-Za-z0-9._[-]*$'
-            [[ $MODEL =~ $model ]] || fail "the model name is malformed"
-            claude_args="$claude_args --model $MODEL"
-          fi
-          # A gate skill must end with a verdict the next steps can fail on;
-          # the action fails its step when no structured output returns.
-          case "$GATING" in
-            gate)
-              schema='{"type":"object","properties":{"verdict":{"enum":["pass","fail"]},"summary":{"type":"string"}},"required":["verdict","summary"],"additionalProperties":false}'
-              claude_args="$claude_args --json-schema '$schema'"
-              ;;
-            advisory) ;;
-            *) fail "the activity's gating must be gate or advisory" ;;
-          esac
-          args=$(jq -r '.selected.args // ""' "$RESOLVED")
-          delimiter="prompt_$(openssl rand -hex 16)"
-          {
-            echo "plugin=${SKILL%%:*}@$marketplace"
-            echo "claude-args=$claude_args"
-            echo "prompt<<$delimiter"
-            printf '/%s %s\n' "$SKILL" "$args"
-            if [ "$READS_UNTRUSTED" = true ]; then
-              printf 'Trusted PR context: %s\n' "$TRUSTED_CONTEXT_FILE"
-            fi
-            echo "$delimiter"
-          } >>"$GITHUB_OUTPUT"
-
-      # claude-code-action puts the OAuth token in Claude's env; without
-      # CLAUDE_CODE_SUBPROCESS_ENV_SCRUB every Bash child inherits it. The
-      # scrub's sandbox needs bubblewrap and socat, and the action installs it
-      # only for allowed_non_write_users, so it is installed here while sudo
-      # still works. Fails closed: no bwrap, no skill run.
-      - name: Install subprocess isolation
-        if: steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'skill'
-        run: |
-          for i in 1 2 3; do
-            sudo apt-get update -qq &&
-              sudo apt-get install -y --no-install-recommends bubblewrap socat && break
-            echo "apt-get attempt $i failed, retrying..."
-            sleep 5
-          done
-          # Ubuntu 24.04 restricts unprivileged user namespaces via AppArmor.
-          if [ -f /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
-            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          fi
-          if ! command -v bwrap >/dev/null; then
-            echo "::error::bubblewrap is not installed; the skill's subprocesses cannot be isolated"
-            exit 1
-          fi
-
-      # Removes the documented route from head code to the job's secrets in
-      # runner memory (harden-runner's disable-sudo does the same): the docker
-      # socket becomes root-only, then the runner user's sudoers entry goes.
-      # Nothing after this step needs sudo or docker.
-      - name: Remove sudo and docker access
+      - name: Stage the activity from the base
+        id: stage
         if: steps.config.outputs.applies == 'true'
-        run: |
-          sock=/var/run/docker.sock
-          if [ -e "$sock" ]; then
-            sudo chmod 600 "$sock"
-          fi
-          sudo rm -f /etc/sudoers.d/runner
-          if sudo -n true 2>/dev/null; then
-            echo "::error::sudo still works for the runner user"
-            exit 1
-          fi
-          if [ -e "$sock" ] && { [ -r "$sock" ] || [ -w "$sock" ]; }; then
-            echo "::error::the docker socket is still open to the runner user"
-            exit 1
-          fi
+        uses: ./.base/.github/actions/collect-base-activity # zizmor: ignore[self-repository]
+        with:
+          kind: ${{ steps.config.outputs.kind }}
+          script: ${{ steps.config.outputs.script }}
+          skill: ${{ steps.config.outputs.skill }}
+          model: ${{ steps.config.outputs.model || inputs.default-model }}
+          max-turns: ${{ steps.config.outputs.max-turns || inputs.default-max-turns }}
+          gating: ${{ steps.config.outputs.gating }}
+          reads-untrusted: ${{ steps.config.outputs.reads-untrusted }}
+          resolved-path: ${{ runner.temp }}/resolved-config.json
+          trusted-context-path: ${{ runner.temp }}/trusted-context.json
+
+      # Nothing after this step needs sudo or docker.
+      - name: Isolate the runner
+        if: steps.config.outputs.applies == 'true'
+        uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
+        with:
+          install-subprocess-isolation: ${{ steps.config.outputs.kind == 'skill' }}
 
       - name: Check out the PR head
         if: steps.config.outputs.applies == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ steps.gate.outputs.head-sha }}
-          token: ${{ steps.app-token.outputs.token || github.token }}
+          token: ${{ steps.app-token.outputs.token }}
           persist-credentials: false
 
       # The activity judges exactly the commit the check is posted on.
@@ -383,15 +278,15 @@ jobs:
             && format('{0}/trusted-context.json', runner.temp) || '' }}
         with:
           claude_code_oauth_token: ${{ secrets.claude-code-oauth-token }}
-          github_token: ${{ steps.app-token.outputs.token || github.token }}
+          github_token: ${{ steps.app-token.outputs.token }}
           use_commit_signing: true
           plugin_marketplaces: ${{ runner.temp }}/base-marketplace
-          plugins: ${{ steps.stage-skill.outputs.plugin }}
-          prompt: ${{ steps.stage-skill.outputs.prompt }}
+          plugins: ${{ steps.stage.outputs.plugin }}
+          prompt: ${{ steps.stage.outputs.prompt }}
           claude_args: >-
             --setting-sources user
             --permission-mode dontAsk
-            ${{ steps.stage-skill.outputs.claude-args }}
+            ${{ steps.stage.outputs.claude-args }}
 
       # The reply is untrusted model text: it is read with jq and printed as
       # data, never interpolated into a command. The file path falls back to
@@ -453,50 +348,14 @@ jobs:
             exit 1
           fi
 
-      # On pull_request events the action replaces these paths with the base
-      # branch's copies when the PR head is untrusted (claude-code-action
-      # src/github/operations/restore-config.ts:26-35 lists them, :269-349
-      # restores them and unstages). Put back only what that restore changed,
-      # so a file the skill created or edited under them still shows as dirty.
-      # Head file names are pathspecs here, so globbing is off.
-      - name: Undo the action's restore of base config paths
-        if: >-
-          steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'skill'
-          && steps.config.outputs.effect == 'read' && github.event.pull_request.base.ref != ''
-        env:
-          HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
-          GIT_LITERAL_PATHSPECS: "1"
-        run: |
-          base="refs/remotes/origin/$BASE_REF"
-          if ! git rev-parse -q --verify "$base^{commit}" >/dev/null; then
-            echo "The action fetched no base branch, so it restored nothing"
-            exit 0
-          fi
-          same_as_base() {
-            git cat-file -e "$base:$1" 2>/dev/null && [ -f "$1" ] && [ ! -L "$1" ] &&
-              [ "$(git hash-object -- "$1")" = "$(git rev-parse "$base:$1")" ]
-          }
-          for path in .claude .mcp.json .claude.json .gitmodules .ripgreprc CLAUDE.md CLAUDE.local.md .husky; do
-            while IFS= read -r -d '' file; do
-              if ! git cat-file -e "$HEAD_SHA:$file" 2>/dev/null && same_as_base "$file"; then
-                rm -f -- "$file"
-              fi
-            done < <(git ls-tree -r -z --name-only "$base" -- "$path")
-            while IFS= read -r -d '' file; do
-              if { [ ! -e "$file" ] && [ ! -L "$file" ]; } || same_as_base "$file"; then
-                git checkout "$HEAD_SHA" -- "$file"
-              fi
-            done < <(git ls-tree -r -z --name-only "$HEAD_SHA" -- "$path")
-          done
-
+      # A script that gets GH_TOKEN must not execute code from the PR head.
       - name: Run the script activity
         id: act-script
         if: steps.config.outputs.applies == 'true' && steps.config.outputs.kind == 'script'
         env:
           SCRIPT: ${{ steps.config.outputs.script }}
           RESOLVED: ${{ runner.temp }}/resolved-config.json
-          LANE_TOKEN: ${{ steps.config.outputs.effect != 'read' && steps.app-token.outputs.token || '' }}
+          LANE_TOKEN: ${{ steps.app-token.outputs.token }}
           PR_NUMBER: ${{ steps.gate.outputs.pr-number }}
           HEAD_SHA: ${{ steps.gate.outputs.head-sha }}
           BASE_SHA: ${{ steps.trusted-base.outputs.commit }}
@@ -521,17 +380,6 @@ jobs:
           fi
           echo "skip-reason=$reason" >>"$GITHUB_OUTPUT"
 
-      - name: Check the working tree is clean
-        id: tree
-        if: steps.config.outputs.applies == 'true' && steps.config.outputs.effect == 'read'
-        run: |
-          if [ -n "$(git status --porcelain)" ]; then
-            git status --short
-            echo "dirty-tree=true" >>"$GITHUB_OUTPUT"
-          else
-            echo "dirty-tree=false" >>"$GITHUB_OUTPUT"
-          fi
-
       # Written after head code ran, so the report job only cross-checks it.
       - name: Write the verdict
         if: always()
@@ -550,7 +398,6 @@ jobs:
             && (steps.skill-verdict.outcome == 'success' && 'success' || 'failure')
             || steps.act-skill.outcome != 'skipped' && steps.act-skill.outcome
             || steps.act-script.outcome }}
-          DIRTY_TREE: ${{ steps.tree.outputs.dirty-tree }}
           VERDICT_DIR: ${{ runner.temp }}/verdict
         run: |
           mkdir -p "$VERDICT_DIR"
@@ -564,7 +411,6 @@ jobs:
             --arg config "$CONFIG_OUTCOME" \
             --arg skip "$SKIP_REASON" \
             --arg act "$ACT_OUTCOME" \
-            --arg dirty "$DIRTY_TREE" \
             'def gate($proceed; $reason): if $proceed == "" then null else {proceed: $proceed, reason: $reason} end;
             def nullable: if . == "" then null else . end;
             {
@@ -577,7 +423,7 @@ jobs:
               config: ({success: "valid", failure: "invalid"}[$config] // "not-read"),
               "skip-reason": ($skip | nullable),
               outcome: (if $act == "success" or $act == "failure" or $act == "skipped" then $act else "not-run" end),
-              "dirty-tree": {"true": true, "false": false}[$dirty]
+              "dirty-tree": null
             }' >"$VERDICT_DIR/verdict.json"
 
       - name: Upload the verdict
