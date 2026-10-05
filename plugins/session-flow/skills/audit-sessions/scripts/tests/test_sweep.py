@@ -285,10 +285,9 @@ def test_md_names_unknown_record_types(data_dir):
 
 def test_md_renders_metrics_and_findings_from_the_same_data(data_dir):
     write_store(data_dir, record("s1", **{"tools.interrupts": 2}))
-    env = envelope(sweep(data_dir))
     md = sweep(data_dir, "--format", "md")
     assert md.returncode == 0
-    for metric in env["data"]["metrics"]:
+    for metric in RULE:
         assert f"`{metric}`" in md.stdout
     assert "tools.interrupts" in md.stdout.split("## Findings", 1)[1]
 
