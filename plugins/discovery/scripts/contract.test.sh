@@ -1051,7 +1051,7 @@ done
 # ---------------------------------------------------------------------------
 # 19. A first-party content claim with one possible publisher passes flagged
 #
-# A claim about what a named Anthropic page, file or changelog says has no
+# A claim about what a publisher's own page, file or changelog says has no
 # second publisher to find. It passes rows 4 and 7 at `HIGH (single source)`
 # when it states why only one publisher exists; a repost is never a second
 # source, and a behavior claim still needs two corroborators. The flag travels

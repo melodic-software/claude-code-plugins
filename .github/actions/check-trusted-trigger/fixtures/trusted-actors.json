@@ -2,6 +2,7 @@
   "version": 1,
   "actors": [
     { "id": 153232337, "login": "kyle-sexton", "kind": "human" },
+    { "id": 337595936, "login": "melodic-automation-lanes[bot]", "kind": "bot" },
     { "id": 209825114, "login": "claude[bot]", "kind": "bot" },
     { "id": 49699333, "login": "dependabot[bot]", "kind": "bot" }
   ]

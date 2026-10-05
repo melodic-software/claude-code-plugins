@@ -1,10 +1,14 @@
 {
   "pass": [
     {"answer": "Scope: partner client SDKs or libraries are out of scope; we publish a feed contract only.", "why": "exclusion stated"},
-    {"answer": "Do not recommend building SDKs: the map excludes them, since we never ship client code.", "why": "exclusion stated before the term"}
+    {"answer": "Do not recommend building SDKs: the map excludes them, since we never ship client code.", "why": "exclusion stated before the term"},
+    {"answer": "Out of scope: batch replay and the partner SDKs.", "why": "a colon label governs every item in its list"}
   ],
   "fail": [
     {"answer": "Evaluate which client SDKs (Python, Java, .NET) we should build to make adoption easiest.", "why": "tasks SDK work, no exclusion"},
-    {"answer": "Find out what tooling and integration help each partner needs. Return findings per partner.", "why": "no exclusion at all"}
+    {"answer": "Find out what tooling and integration help each partner needs. Return findings per partner.", "why": "no exclusion at all"},
+    {"answer": "Survey which client SDKs partners would adopt. Separately, the nightly batch job is out of scope and will not ship.", "why": "exclusion is about the batch job, in another sentence"},
+    {"answer": "The nightly batch job is out of scope and the partner SDKs stay in scope.", "why": "exclusion first, coordinate clause without a comma keeps the SDK in scope"},
+    {"answer": "Out of scope: the batch job and the partner SDKs stay in scope.", "why": "colon label, but the trailing clause keeps the SDK in scope"}
   ]
 }

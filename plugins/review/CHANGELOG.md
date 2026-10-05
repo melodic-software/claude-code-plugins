@@ -3,6 +3,12 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.3] - 2026-10-04
+
+### Fixed
+
+- `/review:fanout` fix-pass eval cases: the scoped-to-fixed-hunks prompt names `/review:fanout`, asks what the fix action says, no longer tells the agent not to run anything, and lists `Bash` (run with `--allow-tools Bash`), so the with-arm loads the skill. Both cases drop their `Skill`-call grader, because a slash-invoked skill loads without a `Skill` tool call and the grader read false even when the skill loaded.
+
 ## [0.42.2] - 2026-10-04
 
 ### Added

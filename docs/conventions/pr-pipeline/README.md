@@ -9,6 +9,7 @@
 - [Slots and order](#slots-and-order)
 - [Outputs and skips](#outputs-and-skips)
 - [Merge authority](#merge-authority)
+- [Trust-root paths](#trust-root-paths)
 - [Loop caps](#loop-caps)
 - [Changing this config](#changing-this-config)
 - [Names](#names)
@@ -65,9 +66,11 @@ cancels every running pipeline lane for it.
 
 A lane is one workflow with one model job; scripted jobs beside it report its check runs. The lane
 name is its workflow file stem, and the lane never does another lane's job. Each activity runs
-through the shared runner,
-[`pr-run-activity.yml`](../../../.github/workflows/pr-run-activity.yml); its job contract is
-[`pr-run-activity.md`](pr-run-activity.md).
+through one of two shared runners:
+[`pr-run-activity-read.yml`](../../../.github/workflows/pr-run-activity-read.yml) for a `read`
+effect, with no App key in its run, and
+[`pr-run-activity-write.yml`](../../../.github/workflows/pr-run-activity-write.yml) for any other
+effect. Their job contract is [`pr-run-activity.md`](pr-run-activity.md).
 
 Each lane's stage, the effects and gating it may not use, and what it never does are in
 [`lane-rules.json`](../../../.github/actions/resolve-config/lane-rules.json), which the config
@@ -232,6 +235,25 @@ in [`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-class
   fingerprint.
 - `merge.stack-landing` defaults to `manual`.
 - A repository has one merge authority: either the local babysit lane (loop-lane) or `pr-merge`.
+
+## Trust-root paths
+
+A lane's token grant and the rules it is judged by come from these default-branch paths, so a
+change to any of them is a change to every lane's powers:
+
+- `docs/conventions/pr-pipeline.yaml` and `docs/conventions/pr-pipeline/**` (config and schema);
+- `.github/actions/**`, which holds `resolve-config/effect-grants.json`,
+  `resolve-config/lane-rules.json` and every action a lane job runs from its base checkout;
+- `.github/standards/**`, which holds the trusted-actor list and the vocabulary;
+- `.github/workflows/**`;
+- `.github/CODEOWNERS`.
+
+The trust-root ruleset makes a change to a trust-root path need an approving review from a human
+code owner, which the lanes App cannot give, with no App bypass; no lane goes live before it is in
+force. `pr-merge` never merges a PR that
+touches a trust-root path, whatever its rung, and leaves it for a human. That refusal is recorded
+here and in `pr-merge`'s `never` rule in `lane-rules.json`; the merge activity enforces it when
+`pr-merge` is built.
 
 ## Loop caps
 

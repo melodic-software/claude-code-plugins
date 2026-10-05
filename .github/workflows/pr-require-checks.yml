@@ -699,6 +699,31 @@ jobs:
         continue-on-error: true
         run: scripts/check-lane-coverage.sh --check
 
+      # The whole-tree test plan of the live tree: the bash plan is the bash
+      # runner's corpus, each suite once; the Python plan is every test module
+      # but the eval fixtures; no leg is empty; and every Node suite runs
+      # through a wrapper or a Node package. Each reads the whole tree, so no
+      # test selection can say when it must run, and it runs here on every pull
+      # request rather than as a case of scripts/plan-test-lanes.test.sh.
+      - name: Check the whole-tree test plan covers the live corpus
+        id: test_plan_corpus
+        continue-on-error: true
+        run: |
+          rc=0
+          plan="$(bash scripts/plan-test-lanes.sh 2>/dev/null)" || { echo "::error::the whole-tree plan failed"; exit 1; }
+          legs() { sed -n "s/^$1_plan=//p" <<<"$plan"; }
+          diff <(legs bash | jq -r '.[][]' | LC_ALL=C sort) <(bash scripts/run-plugin-tests.sh --list | LC_ALL=C sort) ||
+            { echo "::error::the whole-tree bash plan is not the bash runner's corpus, each suite once"; rc=1; }
+          diff <(legs python | jq -r '.[][]' | LC_ALL=C sort) <(git ls-files --cached --others --exclude-standard |
+            awk '{ b = $0; sub(/.*\//, "", b) } b ~ /^test_.*\.py$/ && !/\/evals\/fixtures\//' | LC_ALL=C sort) ||
+            { echo "::error::the whole-tree Python plan is not every test module but the eval fixtures"; rc=1; }
+          [[ "$(legs bash | jq '[.[] | length > 0] | all')" == true && "$(legs python | jq '[.[] | length > 0] | all')" == true ]] ||
+            { echo "::error::a leg of the whole-tree plan is empty"; rc=1; }
+          mapfile -t node_suites < <(git ls-files | grep -E '\.test\.(js|mjs|cjs)$')
+          bash scripts/plan-test-lanes.sh -- "${node_suites[@]}" >/dev/null ||
+            { echo "::error::a Node suite runs through neither a wrapper nor a Node package"; rc=1; }
+          exit "$rc"
+
       # A DIFF LINTS THE MARKDOWN IT CHANGED. markdownlint's rules read one file
       # at a time, so an unchanged file's verdict is the one its last green run
       # gave. The whole tree when there is no diff base (a schedule or dispatch
@@ -954,6 +979,14 @@ jobs:
           CI_REPOSITORY_VISIBILITY: ${{ github.event.repository.visibility }}
         run: node .github/standards/runner-policy/runner-policy.mjs --root .
 
+      # Parses workflows with the yaml package the runner-policy install
+      # above provides, so it gates on the same workflows filter group.
+      - name: Check no run reaching the read workflow references the App key
+        id: read_caller_keys
+        if: needs.select-tests.outputs.run_workflows == 'true'
+        continue-on-error: true
+        run: scripts/check-read-caller-keys.sh --check
+
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
 
@@ -980,6 +1013,7 @@ jobs:
             conformance-registry=${{ steps.conformance_registry.outcome }}
             docs-naming=${{ steps.docs_naming.outcome }}
             adr-numbers=${{ steps.adr_numbers.outcome }}
+            read-caller-keys=${{ needs.select-tests.outputs.run_workflows == 'false' && 'success' || steps.read_caller_keys.outcome }}
             config-cascade-semantics=${{ steps.config_cascade_semantics.outcome }}
             code-metrics-config-reference=${{ steps.code_metrics_config_reference.outcome }}
             code-metrics-skill-prose=${{ steps.code_metrics_skill_prose.outcome }}
@@ -987,6 +1021,7 @@ jobs:
             stale-base-overlap=${{ steps.stale_base.outcome }}
             docs-only-contract=${{ steps.docs_only_contract.outcome }}
             lane-coverage=${{ steps.lane_coverage.outcome }}
+            test-plan-corpus=${{ steps.test_plan_corpus.outcome }}
             markdown=${{ steps.markdown.outcome }}
             typos=${{ steps.typos.outcome }}
             gitleaks=${{ steps.gitleaks.outcome }}
@@ -2057,6 +2092,7 @@ jobs:
           cache: npm
           cache-dependency-path: |
             package-lock.json
+            .github/standards/runner-policy/package-lock.json
             plugins/harness-ops/skills/inventory/scripts/js/package-lock.json
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -2120,6 +2156,8 @@ jobs:
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           echo "This leg installs: ${leg_needs:-the base toolchains only}"
           npm ci
+          # The yaml package scripts/check-read-caller-keys.test.sh parses with.
+          npm ci --prefix .github/standards/runner-policy
           requirements=(--requirement .github/requirements-ci.txt)
           if [[ "$leg_needs" == *animation* ]]; then
             requirements+=(--requirement .github/requirements-ci-animation.txt)
