@@ -237,15 +237,17 @@ _resolve_link() {
 _ENV_TARGET_CONFIRMED=""
 # shellcheck disable=SC2310  # every || branch is fatal, which exits the script directly
 _check_env_target() {
-  local target
+  local target rel
   if ! target=$(_resolve_link "$ENV_FILE"); then
     [[ ! -L "$ENV_FILE" ]] || fatal "couldn't resolve where the symlink $ENV_FILE points — nothing written"
     return 0 # its directory does not exist, so nothing can be written there
   fi
   [[ "$target" != "$_ENV_TARGET_CONFIRMED" ]] || return 0
+  # Lowercased: on a case-insensitive filesystem .GIT/config is the git config.
+  rel=$(printf '/%s/' "${target#"$_WIZARD_PROJECT_DIR"/}" | LC_ALL=C tr '[:upper:]' '[:lower:]')
   if [[ "$target" != "$_WIZARD_PROJECT_DIR"/* ]]; then
     warn "$ENV_FILE resolves to a file outside this project: $target"
-  elif [[ "/${target#"$_WIZARD_PROJECT_DIR"/}/" == */.git/* ]]; then
+  elif [[ "$rel" == */.git/* ]]; then
     warn "$ENV_FILE resolves into git metadata: $target"
   else
     return 0

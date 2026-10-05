@@ -8,7 +8,7 @@ All notable changes to the `wizard` plugin are documented here. Format follows
 ### Fixed
 
 - An env file that resolves into git metadata (`.env -> .git/config`, or a nested repository's
-  `.git`) now gets the confirm-before-write prompt instead of counting as inside the project. A
+  `.git`, in any letter case) now gets the confirm-before-write prompt instead of counting as inside the project. A
   write there put the value in a world-readable file and let the repo pick a key name git reads as
   configuration. The prompt names the resolved path; a yes still writes.
 

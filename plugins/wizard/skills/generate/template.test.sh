@@ -701,6 +701,27 @@ assert_contains "an env file linked into a nested repository's .git asks first" 
 assert_contains "... and a decline writes nothing" "$out" "target:UNCHANGED"
 assert_contains "... exiting nonzero" "$out" "rc=1"
 
+# On a case-insensitive filesystem (APFS, NTFS) `.GIT/config` is the real git
+# config, so the match ignores case. The fixture builds the directory under
+# each spelling; what is tested is the classification.
+for gitdir in .GIT .Git; do
+  out="$(
+    case_run "$TTY_N" <<BODY
+mkdir $gitdir
+printf '[core]\n' >$gitdir/config
+cp $gitdir/config config.before
+ln -s $gitdir/config .env
+_drain_tty() { :; }
+(write_env LEAKED 'typed-secret')
+printf 'rc=%s\n' "\$?"
+if cmp -s $gitdir/config config.before; then echo "target:UNCHANGED"; else echo "target:CHANGED"; fi
+BODY
+  )"
+  assert_contains "an env file linked into $gitdir asks first" "$out" "resolves into git metadata"
+  assert_contains "... and a decline writes nothing" "$out" "target:UNCHANGED"
+  assert_contains "... exiting nonzero" "$out" "rc=1"
+done
+
 # The escaping contract: what write_env stores must read back byte-identical
 # through _existing AND through a plain dotenv-style shell read.
 out="$(
