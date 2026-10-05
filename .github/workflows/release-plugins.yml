@@ -257,7 +257,7 @@ jobs:
             echo "report=$report"
             echo "skipped=$skipped"
           } >>"$GITHUB_OUTPUT"
-          if [ "$released" = 0 ]; then
+          if [ "$released" = 0 ] && [ -z "$skipped" ]; then
             echo "::notice::No fragment on main asks for a release; nothing to write. A bump: none fragment waits for the next release."
           fi
       # Write the release as one signed commit on a staging branch cut from
