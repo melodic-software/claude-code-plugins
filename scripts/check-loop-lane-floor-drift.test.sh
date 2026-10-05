@@ -354,23 +354,9 @@ else
   fail "missing source should exit 2 (rc=$rc): $out"
 fi
 
-# --- 16. Every registered path exists in the live repository ---------------
-# The registry is hand-maintained, so the live tree is where a rename shows up.
-# This is the same stale-guard idiom the sibling list-backed gates use, run
-# against the real repo rather than a fixture.
-
-live="$(bash "$SUT" --list 2>&1)"
-rc=$?
-missing=()
-while read -r kind _mode path; do
-  [[ "$kind" == consumer ]] || continue
-  [[ -r "$SCRIPT_DIR/../$path" ]] || missing+=("$path")
-done <<<"$live"
-if ((rc == 0)) && ((${#missing[@]} == 0)); then
-  ok "every registered consumer exists in this checkout"
-else
-  fail "registered consumer(s) missing from the checkout: ${missing[*]-} (rc=$rc)"
-fi
+# Cases 16 and 26 checked the live registry for stale consumers and data
+# carriers. `--check` fails on both, and lint-repo runs it on every pull
+# request; run here, they read every file of the live tree.
 
 # --- 17. An unregistered file carrying the floor fails ---------------------
 # The registry alone only ever looks where it is told, so a seventh consumer
@@ -490,25 +476,6 @@ if ((rc == 1)) && grep -q 'UNREGISTERED COPY: plugins/some-new-plugin/skills/new
   ok "a self-exempting copy that has drifted still fails"
 else
   fail "drifted self-exempting copy must fail (rc=$rc): $out"
-fi
-
-# --- 26. A data-carrier listing that no longer carries the floor is stale --
-# Same stale-guard as the consumer registry: an exemption must not outlive what
-# it excuses. Asserted against the live registry, since DATA_CARRIERS lives in
-# the gate and the fixture tree cannot hold an entry for a path of its own.
-
-live="$(bash "$SUT" --list 2>&1)"
-rc=$?
-listed="$(grep -c '^carrier exempt' <<<"$live" || true)"
-stale=0
-while read -r _c _e path _rest; do
-  [[ -n "${path:-}" ]] || continue
-  [[ -r "$SCRIPT_DIR/../$path" ]] || stale=$((stale + 1))
-done <<<"$(grep '^carrier exempt' <<<"$live")"
-if ((rc == 0)) && ((listed >= 1)) && ((stale == 0)); then
-  ok "every listed data carrier still exists in this checkout"
-else
-  fail "data-carrier listing is stale or empty (rc=$rc listed=$listed stale=$stale): $live"
 fi
 
 # --- 27. The discovery self-proof is load-bearing --------------------------
