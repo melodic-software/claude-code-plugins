@@ -34,8 +34,9 @@ the same change.** The hooks module `plugins/harness-ops/hooks/register.ts`:
   process;
 - while it is on, hooks `classic.<Event>` for each event the registry marks observable, and hands
   the event's payload to the unchanged `session-event-log.sh` through `exec-bash.mjs`, with the
-  plugin's options as `CLAUDE_PLUGIN_OPTION_*` and the project root as `CLAUDE_PROJECT_DIR`, the
-  environment the settings rows had;
+  plugin's options as `CLAUDE_PLUGIN_OPTION_*` and, as `CLAUDE_PROJECT_DIR`, the project dir Claude
+  Code exports (the session root only where none is exported), the environment the settings rows
+  had, so the log stays where they wrote it after the session's root moves;
 - on `SessionEnd`, also runs the unchanged `session-retention.sh`.
 
 The record writer stays one script, so the records are the ones the settings rows wrote, and no
@@ -46,7 +47,8 @@ hooks from the registry, since Claude Code reads each hooked event from a string
 module's own `claude plugin test` cases count its processes, per the hook-budget convention's rule
 for mods.
 
-The owner accepted these six differences by name on #6246: the first four in the decision comment,
+The owner accepted these six differences by name on #6246: the first four in the
+[decision comment](https://github.com/melodic-software/claude-code-plugins/issues/6246#issuecomment-5986019498),
 and the last two, found while building the module, in a
 [later comment](https://github.com/melodic-software/claude-code-plugins/issues/6246#issuecomment-5987066808):
 

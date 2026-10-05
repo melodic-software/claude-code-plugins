@@ -1,4 +1,4 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 
 // The session event log module. Process runs, the debug log and the answer each event resolves
 // with are what these tests read; the scripts the runs start are tested by session-event-log.test.sh.
@@ -13,16 +13,18 @@ const ON = { options: { session_event_log_enabled: true } }
 type Run = { argv: readonly string[]; cwd?: string; env?: Record<string, string>; stdin?: string }
 
 // The world beneath the plugin: each observed event answers `answer` (nothing to change by default),
-// and process runs exit with `exit.code` or fail to start.
+// process runs exit with `exit.code` or fail to start, and the environment holds only `env`.
 const world = (
   stub: any,
   exit: { code: number; throws?: boolean } = { code: 0 },
   answer: object = {},
   events: readonly string[] = [...PER_TURN, 'SessionEnd'],
+  env: Record<string, string> = {},
 ) => {
   const w = { runs: [] as Run[], logs: [] as { text: string; to: string }[] }
   for (const event of events) stub(`classic.${event}`, () => answer)
   stub('session.root', () => ({ value: ROOT }))
+  mock.env(stub, env)
   stub('process.run', ($: unknown, e: { argv: readonly string[]; init?: Omit<Run, 'argv'> }) => {
     w.runs.push({ argv: e.argv, ...e.init })
     if (exit.throws) throw new Error('spawn node ENOENT')
@@ -113,6 +115,23 @@ test('on: the script gets the options a settings hook got, the project root, and
     CLAUDE_EFFORT: '',
     TRACEPARENT: '',
   }))
+})
+
+test('on: an exported CLAUDE_PROJECT_DIR wins over the session root, for the log and retention', ON, async ($, on) => {
+  const w = world(on, { code: 0 }, {}, [...PER_TURN, 'SessionEnd'], { CLAUDE_PROJECT_DIR: '/srv/main-checkout' })
+  await raise($, 'SessionEnd', { reason: 'clear' })
+  expect(w.runs).toHaveLength(2)
+  for (const run of w.runs) {
+    expect(run.cwd).toBe('/srv/main-checkout')
+    expect(run.env?.CLAUDE_PROJECT_DIR).toBe('/srv/main-checkout')
+  }
+})
+
+test('on: with no CLAUDE_PROJECT_DIR exported the session root is the project dir', ON, async ($, on) => {
+  const w = world(on)
+  await raise($, 'Stop')
+  expect(w.runs[0].cwd).toBe(ROOT)
+  expect(w.runs[0].env?.CLAUDE_PROJECT_DIR).toBe(ROOT)
 })
 
 test('on: SessionEnd also runs retention with the retention options and no stdin', {

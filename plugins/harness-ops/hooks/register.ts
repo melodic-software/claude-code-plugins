@@ -33,7 +33,9 @@ const logOnce = ($: EngineInterface, key: string, text: string) => {
 
 async function run($: EngineInterface, script: string, stdin?: string) {
   try {
-    const root = await $.session.root()
+    // A settings hook got the project dir Claude Code exports, which stays put when the session's
+    // root moves (EnterWorktree); the session root stands in only where none is exported.
+    const root = (await $.env.get('CLAUDE_PROJECT_DIR')) || (await $.session.root())
     const result = await $.process.run(['node', `${$.plugin.root}/hooks/exec-bash.mjs`, `${$.plugin.root}/hooks/${script}`], {
       cwd: root,
       env: scriptEnv(config, root),
