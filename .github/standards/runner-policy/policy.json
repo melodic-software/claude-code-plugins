@@ -121,6 +121,127 @@
         "contents": "read",
         "pull-requests": "read"
       }
+    },
+    "melodic-software/ci-workflows/.github/workflows/intake-triage.yml@95732fda50a95d3297320a6f2c791a1a91870a7f": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "allowed-labels",
+        "escalation-label",
+        "instructions",
+        "cli-version"
+      ],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "issues": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-review.yml@95732fda50a95d3297320a6f2c791a1a91870a7f": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "incremental-review"],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@95732fda50a95d3297320a6f2c791a1a91870a7f": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "incremental-review"],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/intake-label-needs-triage.yml@95732fda50a95d3297320a6f2c791a1a91870a7f": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "label", "label-prefix"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "issues": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-scan-dependencies.yml@95732fda50a95d3297320a6f2c791a1a91870a7f": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner"],
+      "allowedSecrets": {},
+      "minimumCallerPermissions": {
+        "contents": "read"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/maintenance-sync-standards.yml@95732fda50a95d3297320a6f2c791a1a91870a7f": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "manifest", "standards-ref", "dry-run", "targets"],
+      "allowedSecrets": {
+        "app-client-id": "${{ secrets.STANDARDS_SYNC_APP_CLIENT_ID }}",
+        "app-private-key": "${{ secrets.STANDARDS_SYNC_APP_PRIVATE_KEY }}"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-audit-workflows.yml@95732fda50a95d3297320a6f2c791a1a91870a7f": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "paths", "fail-on-severity"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "security-events": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-automerge-dependabot.yml@95732fda50a95d3297320a6f2c791a1a91870a7f": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "contents": "write",
+        "pull-requests": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-run-checks.yml@95732fda50a95d3297320a6f2c791a1a91870a7f": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": [
+        "runner",
+        "filters",
+        "timeout-minutes",
+        "typos",
+        "gitleaks",
+        "editorconfig",
+        "markdown",
+        "shellcheck",
+        "actionlint",
+        "exec-bit",
+        "machine-specific-paths",
+        "eol-renormalize",
+        "comment-hygiene",
+        "lychee-offline",
+        "check-jsonschema",
+        "check-jsonschema-files",
+        "check-jsonschema-builtin-schema",
+        "machine-specific-paths-exclude",
+        "comment-hygiene-exclude"
+      ],
+      "allowedSecrets": {},
+      "minimumCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "read"
+      }
     }
   },
   "approvedHostedRunnerLabels": ["ubuntu-24.04", "windows-2025"],

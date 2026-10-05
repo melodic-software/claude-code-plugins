@@ -35,6 +35,27 @@
         "docs": "https://nodejs.org/en/download"
       },
       "check": "/playwright:check"
+    },
+    {
+      "id": "gh",
+      "kind": "cli",
+      "need": "optional",
+      "for": [
+        "skill:playwright"
+      ],
+      "detect": {
+        "any": [
+          "gh"
+        ]
+      },
+      "degrade": "Without gh, /playwright:playwright cannot attach screenshots or videos to a pull request or issue; browser automation still works.",
+      "install": {
+        "docs": "https://cli.github.com/",
+        "brew": "gh",
+        "winget": "GitHub.cli",
+        "apt": "gh"
+      },
+      "check": "/playwright:check"
     }
   ]
 }

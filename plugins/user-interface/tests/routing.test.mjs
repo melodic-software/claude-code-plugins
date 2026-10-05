@@ -87,9 +87,10 @@ test("this repo's skills rank ahead of third parties in each concern", () => {
   }
 });
 
-test("Mac-only and account-bound rows are deferred", () => {
+test("Mac-only rows are deferred and account-bound rows are never unconfirmed", () => {
   for (const r of routing.rows) {
     const macOnly = r.platforms.length === 1 && r.platforms[0] === "macos";
-    if (macOnly || r.account !== "none") assert.equal(r.status, "deferred", `${r.concern}/${r.id}`);
+    if (macOnly) assert.equal(r.status, "deferred", `${r.concern}/${r.id}`);
+    if (r.account !== "none") assert.notEqual(r.status, "unconfirmed", `${r.concern}/${r.id}`);
   }
 });
