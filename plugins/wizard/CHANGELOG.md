@@ -3,6 +3,15 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.7] - 2026-10-04
+
+### Fixed
+
+- An env file that resolves into git metadata (`.env -> .git/config`, or a nested repository's
+  `.git`) now gets the confirm-before-write prompt instead of counting as inside the project. A
+  write there put the value in a world-readable file and let the repo pick a key name git reads as
+  configuration. The prompt names the resolved path; a yes still writes.
+
 ## [0.6.6] - 2026-10-04
 
 ### Fixed

@@ -227,10 +227,13 @@ _resolve_link() {
 # symlinked file or a symlinked parent directory (a hostile repo can ship
 # `.env -> ~/.bashrc` or `sub -> ~`), is written to only after the human sees
 # the real destination and says yes; like open_url, the destination is printed
-# before anything is dispatched. Runs before any value is prompted for. The
-# path is re-resolved on every call and the yes is remembered for that
-# resolved target only, so a link repointed mid-run asks again. A decline or an
-# unanswerable gate aborts with nothing written.
+# before anything is dispatched. A target inside the project under any .git
+# directory (`.env -> .git/config`, a nested repo's metadata) gets the same gate:
+# a secret appended there sits in a world-readable file, and a key name of the
+# repo's choosing is read as git configuration. Runs before any value is
+# prompted for. The path is re-resolved on every call and the yes is remembered
+# for that resolved target only, so a link repointed mid-run asks again. A
+# decline or an unanswerable gate aborts with nothing written.
 _ENV_TARGET_CONFIRMED=""
 # shellcheck disable=SC2310  # every || branch is fatal, which exits the script directly
 _check_env_target() {
@@ -239,8 +242,14 @@ _check_env_target() {
     [[ ! -L "$ENV_FILE" ]] || fatal "couldn't resolve where the symlink $ENV_FILE points — nothing written"
     return 0 # its directory does not exist, so nothing can be written there
   fi
-  if [[ "$target" == "$_WIZARD_PROJECT_DIR"/* || "$target" == "$_ENV_TARGET_CONFIRMED" ]]; then return 0; fi
-  warn "$ENV_FILE resolves to a file outside this project: $target"
+  [[ "$target" != "$_ENV_TARGET_CONFIRMED" ]] || return 0
+  if [[ "$target" != "$_WIZARD_PROJECT_DIR"/* ]]; then
+    warn "$ENV_FILE resolves to a file outside this project: $target"
+  elif [[ "/${target#"$_WIZARD_PROJECT_DIR"/}/" == */.git/* ]]; then
+    warn "$ENV_FILE resolves into git metadata: $target"
+  else
+    return 0
+  fi
   confirm "Write values to $target?" || fatal "declined writing through $ENV_FILE to $target — nothing written"
   _ENV_TARGET_CONFIRMED="$target"
 }
