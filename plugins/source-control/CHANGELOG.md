@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.80.0] - 2026-10-04
+## [0.81.0] - 2026-10-04
 
 ### Added
 
@@ -12,6 +12,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
 ### Changed
 
 - **`resolve-version-bump-conflict.sh` leaves a fragment-mode plugin untouched and names it.** For a plugin the default branch lists in `scripts/fragment-plugins.txt`, the resolution is main's `plugin.json` and `CHANGELOG.md` with the PR's entry moved into a fragment; `resolve-conflicts`, `babysit-loop` and `babysit-prs` say so.
+
+## [0.80.0] - 2026-10-04
+
+### Added
+
+- `scripts/convert-bump-to-fragment.sh [<base-ref>]` moves a branch's hand-written version bump into a changelog fragment for each plugin listed in `scripts/fragment-plugins.txt` (ADR 0048), so a pull request opened before its plugin moved to fragment mode stops failing `FRAGMENT-MODE RELEASE`. Run on the branch after merging the default branch, or during that merge: it restores the plugin's `plugin.json` version and `CHANGELOG.md` to the base (MERGE_HEAD, else the merge base with `<base-ref>`, default origin's default branch) and keeps every other edit, writes the removed entries through `scripts/new-changelog-fragment.sh` at the level of the version delta, and stages all three files. A plugin whose files are still conflicted, whose version went down, or that gained no CHANGELOG heading is named and left alone (exit 1), as is one whose CHANGELOG gained a heading with no version change; a written fragment that fails the repository's fragment validation is named too (exit 1); a repository with no fragment list has nothing to convert (exit 0); a rebase or cherry-pick in progress is refused (exit 2). `scripts/convert-bump-to-fragment.test.sh` covers these paths and checks the result against the repository's real fragment and parity gates (#6006).
 
 ## [0.79.21] - 2026-10-04
 
