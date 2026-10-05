@@ -7,6 +7,7 @@
     {"answer": "Decision: webhook push or pulled cursor (#307). Partner SDKs remain open; separately, the nightly CSV retirement plan is out of scope.", "why": "exclusion is about something else, in another clause"},
     {"answer": "Decision: webhook push or pulled cursor (#307). Explore which client SDKs partners would want.", "why": "no exclusion"},
     {"answer": "Decision: webhook push or pulled cursor (#307). Partner SDKs stay open, and the nightly CSV retirement plan is out of scope.", "why": "coordinate clause excludes something else"},
-    {"answer": "The nightly batch job is out of scope and the partner SDKs stay in scope.", "why": "exclusion first, coordinate clause without a comma keeps the SDK in scope"}
+    {"answer": "The nightly batch job is out of scope and the partner SDKs stay in scope.", "why": "exclusion first, coordinate clause without a comma keeps the SDK in scope"},
+    {"answer": "Out of scope: the batch job and the partner SDKs stay in scope.", "why": "colon label, but the trailing clause keeps the SDK in scope"}
   ]
 }

@@ -8,6 +8,7 @@
     {"answer": "Evaluate which client SDKs (Python, Java, .NET) we should build to make adoption easiest.", "why": "tasks SDK work, no exclusion"},
     {"answer": "Find out what tooling and integration help each partner needs. Return findings per partner.", "why": "no exclusion at all"},
     {"answer": "Survey which client SDKs partners would adopt. Separately, the nightly batch job is out of scope and will not ship.", "why": "exclusion is about the batch job, in another sentence"},
-    {"answer": "The nightly batch job is out of scope and the partner SDKs stay in scope.", "why": "exclusion first, coordinate clause without a comma keeps the SDK in scope"}
+    {"answer": "The nightly batch job is out of scope and the partner SDKs stay in scope.", "why": "exclusion first, coordinate clause without a comma keeps the SDK in scope"},
+    {"answer": "Out of scope: the batch job and the partner SDKs stay in scope.", "why": "colon label, but the trailing clause keeps the SDK in scope"}
   ]
 }

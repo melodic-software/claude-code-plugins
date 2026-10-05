@@ -14,6 +14,7 @@
     {"answer": "Partner SDKs stay in scope, and the nightly batch job is out of scope.", "why": "coordinate clause excludes something else"},
     {"answer": "Partner SDKs stay in scope and the nightly batch job is out of scope.", "why": "coordinate clause without a comma excludes something else"},
     {"answer": "The nightly batch job is out of scope, and the partner SDKs stay in scope.", "why": "exclusion first, coordinate clause keeps the SDK in scope"},
-    {"answer": "The nightly batch job is out of scope and the partner SDKs stay in scope.", "why": "exclusion first, coordinate clause without a comma keeps the SDK in scope"}
+    {"answer": "The nightly batch job is out of scope and the partner SDKs stay in scope.", "why": "exclusion first, coordinate clause without a comma keeps the SDK in scope"},
+    {"answer": "Out of scope: the batch job and the partner SDKs stay in scope.", "why": "colon label, but the trailing clause keeps the SDK in scope"}
   ]
 }
