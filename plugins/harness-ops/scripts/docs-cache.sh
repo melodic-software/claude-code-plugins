@@ -66,8 +66,9 @@
 # --max-bytes: entries (raw page bytes) first, then summaries, then notes, which
 # cost a full read to rebuild. It skips every item whose key was read or written
 # within --grace seconds, so a reader that resolved a pointer finishes reading
-# before its entry can go, removes a key's pointer before its entry, and renames
-# an entry away before deleting it. Every write runs it.
+# before its entry can go, renames an entry away before removing its key's
+# pointer and deleting it, and first removes temp items (.tmp-*) older than
+# --grace seconds. Every write runs it.
 #
 # key is sha256 of the normalized URL (scheme and host lower-cased, fragment
 # dropped), a newline and the format. meta.json holds store_version, key, url,
@@ -972,12 +973,12 @@ dc_note_put() {
 }
 
 # dc_prune_items: print bytes<TAB>path for each evictable item (an entry
-# directory, a summary or a note), path relative to the store.
+# directory, a summary, a note or a temp item), path relative to the store.
 dc_prune_items() {
   local d dirs=()
   for d in entries summaries notes; do [[ ! -d "$DC_DIR/$d" ]] || dirs+=("$DC_DIR/$d"); done
   [[ ${#dirs[@]} -gt 0 ]] || return 0
-  find "${dirs[@]}" -type f ! -path '*/.tmp-*' -exec wc -c {} + 2>/dev/null |
+  find "${dirs[@]}" -type f -exec wc -c {} + 2>/dev/null |
     DC_PFX="$DC_DIR/" LC_ALL=C awk '
       { n = $1; p = $0; sub(/^[ \t]*[0-9]+[ \t]+/, "", p) }
       index(p, ENVIRON["DC_PFX"]) != 1 { next }
@@ -998,10 +999,21 @@ dc_access() {
   printf '%s' "$a"
 }
 
+# dc_stale <path>: the path was last modified at least the grace window before DC_NOW.
+dc_stale() {
+  local ref="$DC_DIR/.tmp-ref-$$-$RANDOM" stamp r
+  TZ=UTC0 printf -v stamp '%(%Y%m%d%H%M.%S)T' $((DC_NOW - DC_CFG_prune_grace_seconds))
+  TZ=UTC0 touch -t "$stamp" "$ref" 2>/dev/null || return 1
+  r="$(find "$1" -prune ! -newer "$ref" 2>/dev/null)"
+  rm -f "$ref"
+  [[ -n "$r" ]]
+}
+
 # dc_prune_lock: take the prune lock. It is built aside holding its start time
 # (at) and owner, then renamed into place whole, so a lock never shows without
 # them. One whose start time is older than the grace window is taken over; one
-# with no readable start time is held, never taken over. Sets DC_LOCK_OWNER.
+# with no readable start time is taken over once the lock directory itself is
+# older than the grace window. Sets DC_LOCK_OWNER.
 dc_prune_lock() {
   local lock="$DC_DIR/prune.lock" at="" seen="" new="$DC_DIR/.tmp-lock-new-$$-$RANDOM" old="$DC_DIR/.tmp-lock-$$-$RANDOM"
   DC_LOCK_OWNER="$$-$RANDOM$RANDOM"
@@ -1013,7 +1025,8 @@ dc_prune_lock() {
   # The -e check keeps a rename from replacing an empty lock directory.
   if [[ ! -e "$lock" ]] && dc_rename_dir "$new" "$lock"; then return 0; fi
   [[ ! -f "$lock/at" ]] || read -r at <"$lock/at"
-  if [[ "$at" =~ ^[0-9]+$ && $((DC_NOW - at)) -gt $DC_CFG_prune_grace_seconds ]] && dc_rename_dir "$lock" "$old"; then
+  if { [[ "$at" =~ ^[0-9]+$ && $((DC_NOW - at)) -gt $DC_CFG_prune_grace_seconds ]] || { [[ -z "$at" ]] && dc_stale "$lock"; }; } &&
+    dc_rename_dir "$lock" "$old"; then
     # Another prune may have taken the stale lock over first: put back a lock that is not it.
     [[ ! -f "$old/at" ]] || read -r seen <"$old/at"
     if [[ "$seen" == "$at" ]]; then
@@ -1027,19 +1040,21 @@ dc_prune_lock() {
   return 1
 }
 
-# dc_prune_unlock: release the prune lock when this prune still owns it.
+# dc_prune_unlock: release the prune lock when this prune still owns it, renamed
+# away before it is deleted so a release cut short never leaves a lock without at.
 dc_prune_unlock() {
-  local o=""
+  local o="" gone="$DC_DIR/.tmp-unlock-$$-$RANDOM"
   [[ ! -f "$DC_DIR/prune.lock/owner" ]] || read -r o <"$DC_DIR/prune.lock/owner"
-  [[ -z "$o" || "$o" != "${DC_LOCK_OWNER:-}" ]] || rm -rf "$DC_DIR/prune.lock"
+  [[ -n "$o" && "$o" == "${DC_LOCK_OWNER:-}" ]] || return 0
+  if dc_rename_dir "$DC_DIR/prune.lock" "$gone"; then rm -rf "$gone"; else rm -rf "$DC_DIR/prune.lock"; fi
 }
 
 # dc_prune: evict least recently used items until the store is at most
 # DC_CFG_size_cap_bytes, skipping keys accessed within DC_CFG_prune_grace_seconds
-# seconds. Prints "evicted <entry|summary|note> <path> <bytes>" per item, then
+# seconds. Prints "evicted <temp|entry|summary|note> <path> <bytes>" per item, then
 # "total <bytes> <max>".
 dc_prune() {
-  local items total=0 n rel k16 kind tier cur ranked line name gone
+  local items total=0 n rel k16 kind tier cur ranked line gone
   dc_readable || return 0
   dc_now
   items="$(dc_prune_items)"
@@ -1058,6 +1073,7 @@ dc_prune() {
       total=$((total + n))
       cur=0
       case "$rel" in
+      */.tmp-*) tier=0 k16="" ;;
       entries/*)
         tier=1 k16="${rel:8:16}"
         dc_ptr "$k16"
@@ -1072,20 +1088,24 @@ dc_prune() {
       [[ $total -gt $DC_CFG_size_cap_bytes ]] || break
       [[ $((DC_NOW - $(dc_access "$k16"))) -ge $DC_CFG_prune_grace_seconds ]] || continue
       case "$tier" in
+      0)
+        # A live writer or prune may own a temp item younger than the grace window.
+        kind=temp
+        dc_stale "$DC_DIR/$rel" || continue
+        rm -rf "${DC_DIR:?}/$rel" 2>/dev/null && [[ ! -e "$DC_DIR/$rel" ]] || continue
+        ;;
       1)
         kind=entry
-        if [[ $cur -eq 1 ]]; then
-          dc_ptr "$k16"
-          name="${P_NAME:0:16}-${P_NAME:65:16}"
-          [[ "$name" != "${rel#entries/}" ]] || rm -f "$DC_DIR/keys/$k16"
-        fi
         gone="$DC_DIR/entries/.tmp-evict-$$-$RANDOM$RANDOM"
         dc_rename_dir "$DC_DIR/$rel" "$gone" || continue
-        # A writer may have pointed its key at this entry since it was ranked: put it back.
         dc_ptr "$k16"
         if [[ "${P_NAME:0:16}-${P_NAME:65:16}" == "${rel#entries/}" ]]; then
-          dc_rename_dir "$gone" "$DC_DIR/$rel" || rm -rf "$gone"
-          continue
+          if [[ $cur -eq 0 ]]; then
+            # A writer pointed its key at this entry since it was ranked: put it back.
+            dc_rename_dir "$gone" "$DC_DIR/$rel" || rm -rf "$gone"
+            continue
+          fi
+          rm -f "$DC_DIR/keys/$k16"
         fi
         rm -rf "$gone"
         ;;

@@ -66,6 +66,12 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
 
 ### Fixed
 
+- **Cache correctness fixes from review.** A docs URL in browser form (no `.md`, or with a
+  `#fragment`) reads the indexed page instead of quarantining it; a page found removed is fetched
+  again, never served from the cache, fresh or stale; headings keep a real trailing `#`; prune
+  counts and clears temp items older than the grace window, takes over a lock left without a start
+  time, and renames an evicted entry before dropping its pointer; and the effort-pin audit always
+  reads only its section, whatever the machine's escalation thresholds.
 - **A hostile host can no longer fill the disk or forge the untrusted-data framing.**
   `scripts/fetch-docs.sh` leaves a body over `max_page_bytes` (`--max-page-bytes`,
   `DOCS_CACHE_MAX_PAGE_BYTES`, default 10 MiB) unread with reason `too-large`, converting and

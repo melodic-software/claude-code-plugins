@@ -76,16 +76,18 @@ bash "<scripts>/docs-cache.sh" slice <ref> <id> [<id>...]
 ## 5. Store what the next reader can reuse
 
 Summaries and notes are shared by every session and plugin on the machine, so write them only from
-text you read.
+text you read. Write them only for a page over the whole-page threshold: `read` shows them back
+only there. A page `read` printed whole needs no stored summary or note.
 
-- After reading a section in full, store a one-line summary of it:
+- After reading a slice in full, store a one-line summary of each section in it:
 
   ```bash
   bash "<scripts>/docs-cache.sh" summary put <ref> <id> "<one-line summary>"
   ```
 
-- After a full read of the page (the whole page printed, or an escalation), store one note for the
-  question you answered, citing the section ids it rests on:
+- After answering from slices, or from a whole page a `slice` escalation printed, store one note
+  for the question you answered, citing the section ids it rests on. The ids are in the map `read`
+  printed; `bash "<scripts>/docs-cache.sh" map <ref>` prints it again:
 
   ```bash
   bash "<scripts>/docs-cache.sh" note put <ref> --model <your model id> --session <session> \

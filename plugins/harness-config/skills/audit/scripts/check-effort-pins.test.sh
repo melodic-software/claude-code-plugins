@@ -139,6 +139,10 @@ run "$(variant outside '/^## Synthetic section$/i\
 | `low` | A table outside the Adjust section |\
 ')" --baseline "$BASE" --root "$EMPTY"
 assert_contains "slice path: a Choose table outside the Adjust section is not read" "$OUT" "table status=same"
+# Thresholds that make every slice escalate to the whole page still leave the read scoped.
+DOCS_CACHE_WHOLE_PAGE_BYTES=0 DOCS_CACHE_ESCALATE_BYTES=0 run "$T/v-outside" --baseline "$BASE" --root "$EMPTY"
+assert_contains "slice path: escalation thresholds set to 0 do not widen the read" "$OUT" "table status=same"
+assert_not_contains "slice path: no escalation to the whole page" "$ERR" "printing the whole page"
 
 # --- unchanged table: every pin kind is listed and ok -----------------------------
 run "$FX" --baseline "$BASE" --root "$ROOT"

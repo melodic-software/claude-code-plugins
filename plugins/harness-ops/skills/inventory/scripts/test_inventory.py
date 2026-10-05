@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import os
 import pathlib
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -2148,6 +2149,40 @@ class TestDocsCrosscheck(unittest.TestCase):
             body, error, _ = self.dc.fetch_text("anthropic", self.dc.COMMANDS_URL)
         self.assertIsNone(body)
         self.assertTrue((error or "").startswith("fetch-failed"))
+
+    def _fetch_cached(self, record: dict) -> dict:
+        """fetch_text's extra fields for a fetcher whose one page record is
+        `record`, served from the cache."""
+
+        def fake_run(cmd, **_kwargs):
+            out = pathlib.Path(cmd[cmd.index("--out") + 1])
+            page = out / "commands.md"
+            page.write_text("# Commands\n", encoding="utf-8")
+            rec = {"state": "read", "source": "cache", "file": str(page), **record}
+            (out / "manifest.json").write_text(
+                json.dumps({"pages": [rec]}), encoding="utf-8"
+            )
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+
+        with (
+            mock.patch.object(self.dc, "_bash", return_value="bash"),
+            mock.patch.object(self.dc.subprocess, "run", side_effect=fake_run),
+        ):
+            body, error, extra = self.dc.fetch_text("anthropic", self.dc.COMMANDS_URL)
+        self.assertEqual((body, error), ("# Commands\n", None))
+        return extra
+
+    def test_a_stale_cache_serve_carries_stale_and_its_reason(self) -> None:
+        extra = self._fetch_cached(
+            {"age_seconds": 90000, "stale": True, "reason": "fetch-failed"}
+        )
+        self.assertEqual(
+            extra, {"age_seconds": 90000, "stale": True, "reason": "fetch-failed"}
+        )
+
+    def test_a_fresh_cache_serve_is_not_stale_and_has_no_reason(self) -> None:
+        extra = self._fetch_cached({"age_seconds": 100, "stale": False, "reason": None})
+        self.assertEqual(extra, {"age_seconds": 100, "stale": False})
 
     def test_an_oversized_row_is_skipped_not_backtracked(self) -> None:
         import time

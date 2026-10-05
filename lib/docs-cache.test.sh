@@ -760,7 +760,7 @@ assert_eq "prune: a lock older than the grace window is taken over, and released
 mk_prune_store "$TEST_TMPDIR/s-lock2"
 mkdir "$S/prune.lock"
 err="$(DOCS_CACHE_NOW=$((T3 + 400)) dc "$S" --max-bytes 0 --grace 300 prune 2>&1 >/dev/null)"
-assert_eq "prune: a lock with no start time recorded is held, never taken over" "1 1 1" \
+assert_eq "prune: a lock with no start time recorded, younger than the grace window, is held" "1 1 1" \
   "$(info "$S" $((T3 + 400)) "$KA" >/dev/null && echo 1 || echo 0) $([[ "$err" == *busy* ]] && echo 1 || echo 0) $([[ -d "$S/prune.lock" ]] && echo 1 || echo 0)"
 # Another prune takes the lock over while this one evicts: this one leaves it.
 mk_prune_store "$TEST_TMPDIR/s-lock3"
@@ -796,6 +796,39 @@ assert_eq "edge: prune racing a writer that re-points a key at the entry being e
   DOCS_CACHE_NOW=$T3 dc "$S" info "$KA" >/dev/null 2>&1 || rc=$?
   echo "$rc"
 )"
+# A lock with no start time, left by a release cut short, is taken over once its
+# directory is older than the grace window.
+mk_prune_store "$TEST_TMPDIR/s-lock4"
+mkdir "$S/prune.lock" && touch -d "@$T1" "$S/prune.lock"
+DOCS_CACHE_NOW=$((T3 + 400)) dc "$S" --max-bytes 0 --grace 300 prune >/dev/null 2>&1
+assert_eq "prune: a lock with no start time older than the grace window is taken over, and released after" "1 0" \
+  "$(dc "$S" info "$KA" >/dev/null 2>&1 && echo 0 || echo 1) $([[ -e "$S/prune.lock" ]] && echo 1 || echo 0)"
+# An entry that cannot be renamed away stays readable through its key.
+mk_prune_store "$TEST_TMPDIR/s-pinned"
+cur_b="$(sha <"$other")"
+lib_run "$S" $T3 'eval "orig_$(declare -f dc_rename_dir)"
+  dc_rename_dir() {
+    [[ "$1" != */entries/'"${KB:0:16}-${cur_b:0:16}"' ]] || return 1
+    orig_dc_rename_dir "$@"
+  }
+  DC_CFG_size_cap_bytes=0 DC_CFG_prune_grace_seconds=0
+  dc_prune >/dev/null'
+assert_eq "edge: prune failing to rename an entry away: its key still reads it" 0 "$(
+  rc=0
+  DOCS_CACHE_NOW=$T3 dc "$S" info "$KB" >/dev/null 2>&1 || rc=$?
+  echo "$rc"
+)"
+# Temp items left by a writer or an eviction cut short count toward the cap; one
+# older than the grace window goes first, a younger one is never touched.
+mk_prune_store "$TEST_TMPDIR/s-temp"
+cap="$(bytes_of "$S/entries" "$S/summaries" "$S/notes")"
+mkdir "$S/entries/.tmp-evict-1-2" && cp "$PAGE" "$S/entries/.tmp-evict-1-2/body" && touch -d "@$T1" "$S/entries/.tmp-evict-1-2"
+DOCS_CACHE_NOW=$T3 dc "$S" --max-bytes "$cap" --grace 300 prune >/dev/null
+assert_eq "prune: a temp directory older than the grace window counts toward the cap and goes first" "0 0 0" \
+  "$([[ -e "$S/entries/.tmp-evict-1-2" ]] && echo 1 || echo 0) $(info "$S" $T3 "$KA" >/dev/null && echo 0 || echo 1) $(info "$S" $T3 "$KB" >/dev/null && echo 0 || echo 1)"
+mkdir "$S/entries/.tmp-3-4" && cp "$PAGE" "$S/entries/.tmp-3-4/body"
+DOCS_CACHE_NOW=$T3 dc "$S" --max-bytes 0 --grace 300 prune >/dev/null
+assert_eq "edge: prune leaves a temp directory younger than the grace window" 1 "$([[ -f "$S/entries/.tmp-3-4/body" ]] && echo 1 || echo 0)"
 
 # Every write prunes.
 S="$TEST_TMPDIR/s-autoprune"

@@ -29,6 +29,12 @@
   block holding a ``` line converts inside a wider fence instead of leaking headings into the
   section map; and the Python 3 prerequisite no longer counts the `py` launcher, which the fetch
   does not use.
+- A docs URL in browser form (no `.md`, or with a `#fragment`) reads the indexed page instead of
+  quarantining it; a page found removed is fetched again, never served from the cache, fresh or
+  stale; summaries and notes are stored only for pages over the whole-page threshold, where `read`
+  shows them back; headings keep a real trailing `#` (`Using C#`); and prune counts and clears
+  temp items left by an interrupted write, takes over a lock left without a start time, and never
+  leaves a key without its pointer when an entry cannot be moved away.
 
 ## [0.28.8] - 2026-10-04
 

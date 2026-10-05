@@ -112,6 +112,13 @@ assert_eq "title: code comment does not suppress the title H1" "# Setup guide" "
 inner_md="$(printf '%s' '<html><head><title>Guide - Site</title></head><body><main><h1>Guide</h1><p>Text.</p></main></body></html>' | conv)"
 assert_eq "title: H1 inside <main> is the only H1" "# Guide" "$(grep '^# ' <<<"$inner_md")"
 
+# --- Case: a heading's own trailing '#' is text; permalink anchors are not ---
+head_md="$(printf '%s' '<html><body><main><h1>Doc</h1><h2>Using C#</h2><h2>Setup <a href="#setup">#</a></h2><h2>Usage <a class="headerlink" href="#usage">¶</a></h2><h3>Notes ¶</h3><p>End.</p></main></body></html>' | conv)"
+assert_contains "heading: a trailing '#' in the heading text is kept" $'\n## Using C#\n' "$head_md"
+assert_contains "heading: a '#' permalink anchor is dropped" $'\n## Setup\n' "$head_md"
+assert_contains "heading: a pilcrow permalink anchor is dropped" $'\n## Usage\n' "$head_md"
+assert_contains "heading: a standalone trailing pilcrow is dropped" $'\n### Notes\n' "$head_md"
+
 # --- Case: a ``` line inside <pre> does not close the fence early ---
 nested_file="$TEST_TMPDIR/nested.md"
 printf '%s' '<html><body><main><h1>Doc</h1><pre><code class="language-markdown">```

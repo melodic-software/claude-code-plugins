@@ -9,7 +9,7 @@
       "files": [],
       "expectations": [
         "The page is fetched with fetch-docs.sh using --cache, not with WebFetch",
-        "docs-cache.sh read is run on the cache_key from the fetch manifest before any slice",
+        "docs-cache.sh read is run on the ref built from cache_key and sha256 in the fetch manifest before any slice",
         "docs-cache.sh slice is run with the ids of the sections the answer cites, chosen by the model from the map",
         "The answer cites the section ids or heading paths its claims come from",
         "The answer closes with a currency line naming the URL, the format and the validated time or age"
@@ -38,6 +38,20 @@
         "The fetch uses --max-age 0",
         "The page is read with read --raw or slice, and no stored note or summary is used as evidence",
         "The verdict quotes or cites the raw section text it rests on"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "browser-url-resolves-to-the-page",
+      "prompt": "https://code.claude.com/docs/en/hooks - according to this page, which field in a hook's JSON output tells Claude Code to stop processing?",
+      "expected_output": "Passes the browser URL to fetch-docs.sh --cache with the anthropic profile, which resolves it to the hooks page; the manifest record for it is state: read. The page is read with docs-cache.sh read on the pinned ref, the relevant sections are sliced from the map, and the answer cites them and closes with a currency line whose URL is the hooks page.",
+      "files": [],
+      "expectations": [
+        "fetch-docs.sh is run with --cache and --profile anthropic on the given URL or the slug hooks, not WebFetch",
+        "The manifest record for the page has state: read, and the answer is not built from an unread page",
+        "docs-cache.sh read is run on the ref built from the manifest's cache_key and sha256",
+        "The answer cites the section ids or heading paths its claims come from",
+        "The currency line names the hooks page URL"
       ]
     }
   ]

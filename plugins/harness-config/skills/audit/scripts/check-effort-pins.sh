@@ -145,7 +145,9 @@ adjust_section() {
   id="$(bash "$DOCS_CACHE" map "${src[@]}")" || die "the docs cache could not map the page"
   id="$(awk -F'\t' '$2 == 3 { n = split($7, p, " > "); if (p[n] == "Adjust effort level") { print $1; exit } }' <<<"$id")"
   [[ -n "$id" ]] || return 1
-  bash "$DOCS_CACHE" slice "${src[@]}" "$id" >"$1" || die "the docs cache could not slice the page"
+  # A whole-page threshold no page passes: a configured escalation limit never widens the slice.
+  bash "$DOCS_CACHE" --whole-page-bytes 999999999999999999 slice "${src[@]}" "$id" >"$1" ||
+    die "the docs cache could not slice the page"
 }
 
 # parse_page <file>: print L<TAB>level (level set, first-seen order), A<TAB>row

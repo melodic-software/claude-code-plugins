@@ -970,6 +970,43 @@ DOCS_CACHE_MAX_PAGE_BYTES=1000 gen_run "$src" go-bignone "$PYOK" $G1 "$PAGE_URL"
 assert_eq "case 25: over-cap fallbacks with nothing read after them leave no .part file" "unread 0" \
   "$(gpage go-bignone .state) $(find "$TEST_TMPDIR/go-bignone" -name '*.part' | wc -l | tr -d ' ')"
 
+# --- Case 26: a browser-form URL resolves to the page the index lists ------------
+src="$(new_served served26)"
+C="$TEST_TMPDIR/cache26"
+skills_key="$(DC key https://docs.test/docs/en/skills.md markdown)"
+cache_run $T1 out26a --max-age 0 skills
+for form in https://docs.test/docs/en/skills 'https://docs.test/docs/en/skills#frontmatter' 'https://docs.test/docs/en/skills.md#frontmatter'; do
+  cache_run $T1 out26b --max-age 0 "$form"
+  assert_eq "case 26: $form reads the page the index lists" "read https://docs.test/docs/en/skills.md" \
+    "$(page "$TEST_TMPDIR/out26b/manifest.json" skills '"\(.state) \(.url)"')"
+done
+assert_eq "case 26: no browser form quarantines the listed page's key" null "$(DC info "$skills_key" | jq -c .quarantine)"
+
+# --- Case 27: a removal quarantine is never served fresh from the cache -----------
+src="$(new_served served27)"
+C="$TEST_TMPDIR/cache27"
+skills_key="$(DC key https://docs.test/docs/en/skills.md markdown)"
+cache_run $T1 out27a --max-age 86400 skills
+printf '404' >"$src/skills.md.status"
+cache_run $((T1 + 10)) out27b --max-age 0 skills
+cache_run $((T1 + 20)) out27c --max-age 86400 skills
+assert_eq "case 27: inside max-age a removed page asks the server and stays unread" "unread http-404 fetch" \
+  "$(page "$TEST_TMPDIR/out27c/manifest.json" skills '"\(.state) \(.reason) \(.source)"')"
+mv "$src/skills.md" "$src/skills.md.away"
+rm -f "$src/skills.md.status"
+cache_run $((T1 + 25)) out27g --max-age 86400 skills
+assert_eq "case 27: a removed page whose next fetch fails is unread, never served stale" "unread fetch-failed false" \
+  "$(page "$TEST_TMPDIR/out27g/manifest.json" skills '"\(.state) \(.reason) \(.stale)"')"
+mv "$src/skills.md.away" "$src/skills.md"
+cache_run $((T1 + 30)) out27d --max-age 86400 skills
+assert_eq "case 27: the page back lifts the quarantine through a fetch" "read fetch false null" \
+  "$(page "$TEST_TMPDIR/out27d/manifest.json" skills '"\(.state) \(.source) \(.quarantined)"') $(DC info "$skills_key" | jq -c .quarantine)"
+printf '%s\n' '# Renamed' 'body of skills' >"$src/skills.md"
+cache_run $((T1 + 40)) out27e --max-age 0 skills
+cache_run $((T1 + 50)) out27f --max-age 86400 skills
+assert_eq "case 27: a retitled key is still served fresh from the cache" "read cache true" \
+  "$(page "$TEST_TMPDIR/out27f/manifest.json" skills '"\(.state) \(.source) \(.quarantined)"')"
+
 echo
 if [[ $FAILED -eq 0 ]]; then
   printf 'All %d assertions passed.\n' "$CASE_NUM"

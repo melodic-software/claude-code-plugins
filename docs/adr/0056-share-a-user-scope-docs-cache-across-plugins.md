@@ -59,6 +59,11 @@ as of 2026-10-04.
   carries it. The size cap bounds what is left; removing it is deleting the directory.
 - The cache directory is a new value in the user-global machine config file, alongside the cache's
   other standing values.
+- Copies at different layout versions do not share one store. A copy that finds the cache directory
+  holding another version's store keeps its own store in a `v<N>/` directory inside it, with its own
+  size cap, so total disk use can reach the cap times the number of versions in use. No copy prunes
+  another version's store, so an older version's store stays on disk once no plugin at that version
+  runs.
 - This is an exception to the `${CLAUDE_PLUGIN_DATA}` row of the owner table, which points here.
   Other plugin caches keep that row.
 

@@ -50,7 +50,9 @@
 # cached bytes flagged stale: true, its reason and age_seconds since validated.
 # A 404, a 410, a landing off the origin or path, or a slug the index no longer
 # lists is unread and quarantines the URL's cache keys, so their notes are never
-# served. The server's Date is recorded as server_date, never used for age.
+# served; while that quarantine stands, the URL is fetched again whatever its
+# age, and a read under the recorded title lifts it. The server's Date is
+# recorded as server_date, never used for age.
 #
 # Manifest (JSON, written to --manifest):
 #   claude_version  installed `claude --version` number, or "" when unreadable
@@ -70,7 +72,8 @@
 # nothing for a read page, else null), state, reason. state is read or unread; unparsed is set by a caller whose parse of a
 # read page failed. mode (full|search) is the caller's declaration of how it
 # will use the page; the fetcher only records it. Fields with no value are null
-# (a page never requested, or served from the cache, has no status; a run
+# (a page never requested, or served fresh from the cache, has no status; one
+# served stale carries the failed fetch's status, if it had one; a run
 # without --cache has no title or quarantined).
 #
 # Exit codes:
@@ -118,7 +121,8 @@ Usage:
   --cache-dir <dir>  cache directory (default: the docs cache's cache_dir)
                      These defaults, and cache_enabled, resolve from DOCS_CACHE_* and the machine
                      file; docs-cache.sh config prints them with their layer.
-  <slug|url>         a page slug (settings-reference) or an origin URL the index lists;
+  <slug|url>         a page slug (settings-reference) or an origin URL the index lists
+                     (its raw suffix optional, a #fragment ignored);
                      for --profile generic, any https URL (its slug is host/path)
 
 Exit: 0 manifest written; 2 fatal (including an unknown profile).
@@ -360,8 +364,8 @@ serve_cached() {
 
 # settle_unread <url> <dest> <format>...: an unread page whose fetch failed (a
 # transport error or a 5xx) is served stale from the candidate when --max-age
-# allows staleness; one the server reports removed or redirected quarantines
-# the URL's cache keys.
+# allows staleness and its key has no removal quarantine; one the server
+# reports removed or redirected quarantines the URL's cache keys.
 settle_unread() {
   local url="$1" dest="$2" reason="$G_REASON" status="$G_STATUS" f
   shift 2
@@ -369,6 +373,7 @@ settle_unread() {
   case "$reason" in
   fetch-failed | http-5[0-9][0-9])
     [[ $MAX_AGE -gt 0 && -n "$C_REF" ]] || return 0
+    ! removal_quarantined "${C_REF%-*}" || return 0
     serve_cached "$dest" "$status" || return 0
     G_STALE=1 G_REASON="$reason"
     ;;
@@ -379,12 +384,21 @@ settle_unread() {
   esac
 }
 
+# removal_quarantined <key>: the key carries a removal quarantine (any reason
+# but retitled).
+removal_quarantined() {
+  local q="$DC_DIR/keys/${1:0:16}.quarantine"
+  [[ -f "$q" ]] && jq -e '(.reason // "retitled") != "retitled"' "$q" >/dev/null 2>&1
+}
+
 # serve_fresh <dest> <format>...: serve the candidate when it was validated
-# within --max-age. Outside fixture mode its stored content type must fit its
-# format, so a fixture read (stored with none) never reaches a real read.
+# within --max-age and its key has no removal quarantine, so a page found
+# removed is asked for again. Outside fixture mode its stored content type must
+# fit its format, so a fixture read (stored with none) never reaches a real read.
 serve_fresh() {
   local dest="$1" age re
   [[ $CACHE -eq 1 && $MAX_AGE -gt 0 && -n "$C_REF" ]] || return 1
+  ! removal_quarantined "${C_REF%-*}" || return 1
   age=$((DC_NOW - C_EPOCH))
   [[ $age -ge 0 && $age -le $MAX_AGE ]] || return 1
   re="$MD_OR_TEXT_CTYPE"
@@ -813,8 +827,10 @@ else
     want=""
     slug="${t%"$P_SUFFIX"}"
     if [[ "$t" == *://* ]]; then
-      want="$t"
-      slug="$(slug_of "$t")"
+      # A browser-form URL, with no raw-channel suffix or with a fragment, names the same page.
+      want="${t%%#*}"
+      [[ "$want" == *"$P_SUFFIX" ]] || want="$want$P_SUFFIX"
+      slug="$(slug_of "$want")"
     fi
     [[ -z "${SEEN[$slug]:-}" ]] || continue
     SEEN[$slug]=1
@@ -831,13 +847,14 @@ else
     else
       url="$(index_link "$slug")"
       if [[ -z "$url" || (-n "$want" && "$url" != "$want") ]]; then
-        url=""
         G_REASON="not-in-index"
-        if [[ $CACHE -eq 1 ]]; then
+        # Only a slug the index has no link for is quarantined, never a URL it lists.
+        if [[ $CACHE -eq 1 && -z "$url" ]]; then
           for u in "$want" "$ORIGIN${P_DOCS_PATH}en/$slug$P_SUFFIX" "$ORIGIN$P_DOCS_PATH$slug$P_SUFFIX"; do
             [[ -z "$u" ]] || dc_quarantine_reason "$(dc_key "$u" "$P_FORMAT")" not-in-index
           done
         fi
+        url=""
       elif [[ "$url" != "$ORIGIN$P_DOCS_PATH"* ]]; then
         G_REASON="off-origin"
       else

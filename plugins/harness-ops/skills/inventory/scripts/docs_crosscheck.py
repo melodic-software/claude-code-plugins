@@ -113,7 +113,8 @@ def _bash() -> str | None:
 def fetch_text(profile: str, url: str) -> tuple[str | None, str | None, dict[str, Any]]:
     """The page at `url` through the shared fetcher: (text, reason, extra source
     fields). The fetcher checks identity; a page it leaves unread has no text.
-    The default cache lifetime applies; the age of a cached page is returned.
+    The default cache lifetime applies; a cached page returns its age and
+    whether it is stale, with the failed fetch's reason when it is.
     Never raises."""
     bash = _bash()
     if bash is None:
@@ -150,6 +151,9 @@ def fetch_text(profile: str, url: str) -> tuple[str | None, str | None, dict[str
             extra: dict[str, Any] = {}
             if page.get("source") == "cache":
                 extra["age_seconds"] = page.get("age_seconds")
+                extra["stale"] = bool(page.get("stale"))
+                if extra["stale"]:
+                    extra["reason"] = page.get("reason")
             return file.read_text(encoding="utf-8", errors="replace"), None, extra
         except (OSError, ValueError, KeyError, IndexError, subprocess.SubprocessError):
             return None, f"fetch-failed: {detail}".rstrip(": "), {}

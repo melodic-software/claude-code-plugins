@@ -42,6 +42,7 @@ class Conv(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.out, self.skip, self.pre = [], 0, 0
         self.head = None  # (level, parts) while inside a heading
+        self.perma = False  # inside a heading's in-page anchor (a permalink)
         self.link = None  # (href, parts) while inside a link
         # index in out of the open fence line, until its language is known
         self.fence = None
@@ -66,7 +67,11 @@ class Conv(HTMLParser):
         if re.fullmatch(r"h[1-6]", tag):
             self.head = (int(tag[1]), [])
         elif self.head is not None:
-            return  # a heading is one line of text; its permalinks and wrappers are dropped
+            # a heading is one line of text: wrappers are dropped, and a permalink's text too
+            self.perma = self.perma or (
+                tag == "a" and (a.get("href") or "").startswith("#")
+            )
+            return
         elif tag == "pre":
             self.pre += 1
             self.emit("\n\n```")
@@ -108,13 +113,14 @@ class Conv(HTMLParser):
             return
         if re.fullmatch(r"h[1-6]", tag) and self.head is not None:
             lvl, parts = self.head
-            self.head = None
-            text = squash(parts).rstrip("¶# ").strip()
+            self.head, self.perma = None, False
+            text = squash(parts).removesuffix("¶").strip()
             if text and not self.skip:
                 if lvl == 1:
                     self.h1.append(text)
                 self.emit("\n\n" + "#" * lvl + " " + text + "\n\n")
         elif self.head is not None:
+            self.perma = self.perma and tag != "a"
             return
         elif tag == "pre":
             self.pre = max(0, self.pre - 1)
@@ -152,6 +158,8 @@ class Conv(HTMLParser):
             self.emit("\n\n")
 
     def handle_data(self, data):
+        if self.perma:
+            return
         if self.pre and self.head is None:
             self.emit(data)
         else:
