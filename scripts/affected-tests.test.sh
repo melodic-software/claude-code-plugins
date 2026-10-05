@@ -1092,6 +1092,14 @@ if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/imp/test_dotted.py && has_line "$OUT
 else
   fail "python dotted, from-import or wrapped import (rc=$RC): $OUT"
 fi
+# A wrapped import longer than the joining window would lose its later names.
+OUT="$(cd "$repo" && AFFECTED_TESTS_WRAP_LINES=2 bash scripts/affected-tests.sh eco/imp/harness/stub_h.py 2>&1)"
+RC=$?
+if [[ "$RC" -eq 2 ]] && contains "$OUT" "ran past 2 lines"; then
+  ok "R3: a wrapped import cut short by the joining window fails loud"
+else
+  fail "python wrapped import past the window (rc=$RC): $OUT"
+fi
 
 # Importing a package, or a module inside it, runs its __init__.py.
 mkdir -p "$repo/eco/imp/pkgx" "$repo/eco/imp/other"

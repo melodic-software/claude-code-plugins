@@ -519,31 +519,35 @@ build_tree_index() {
   # Every Python import line, for R3's module rule in token_hits. Exit 1 is no
   # match; anything above it is an unreadable lookup, fatal like the grep in
   # select_for.
-  local grep_rc=0 wrap_rc=0
+  local grep_rc=0 wrap_rc=0 WRAP_LINES="${AFFECTED_TESTS_WRAP_LINES:-1000}"
   git grep --untracked -E '^[[:blank:]]*(from|import)[[:blank:]]' -- '*.py' >"$WORK_DIR/py-imports" || grep_rc=$?
   # A `from m import (` or `from m import \` statement carries its names on the
   # lines after it, so each is joined into one line of the index. --null keeps
   # the path apart from a context line's text, which `-` cannot.
-  git grep --untracked --null -E -A 200 '^[[:blank:]]*from[[:blank:]].*import[[:blank:]]*([(][^)]*|.*\\[[:blank:]]*)$' \
+  git grep --untracked --null -E -A "$WRAP_LINES" '^[[:blank:]]*from[[:blank:]].*import[[:blank:]]*([(][^)]*|.*\\[[:blank:]]*)$' \
     -- '*.py' >"$WORK_DIR/py-wrapped" || wrap_rc=$?
   if [[ "$grep_rc" -gt 1 || "$wrap_rc" -gt 1 ]]; then
     echo "error: 'git grep' failed (exit $grep_rc, $wrap_rc) listing the Python import lines." >&2
     exit 2
   fi
-  if ! tr '\0' '\t' <"$WORK_DIR/py-wrapped" | awk '
+  # A statement still open when the window runs out was cut short, and its
+  # later names would be lost: that fails loud, like an unreadable grep.
+  if ! tr '\0' '\t' <"$WORK_DIR/py-wrapped" | awk -v max="$WRAP_LINES" '
+    function close_open() { if (open && n >= max) cut = 1; open = 0 }
     { i = index($0, "\t") }
-    i == 0 { open = 0; next }
+    i == 0 { close_open(); next }
     { p = substr($0, 1, i - 1); t = substr($0, i + 1); sub(/#.*/, "", t) }
     open && p == path {
-      s = s " " t
+      s = s " " t; n++
       if (paren ? index(t, ")") : t !~ /\\[[:blank:]]*$/) { print path ":" s; open = 0 }
       next
     }
-    { open = 0 }
+    { close_open() }
     t ~ /^[[:blank:]]*from[[:blank:]].*import[[:blank:]]*(\([^)]*|.*\\[[:blank:]]*)$/ {
-      path = p; s = t; open = 1; paren = index(t, "(") > 0
-    }' >>"$WORK_DIR/py-imports"; then
-    echo "error: joining the wrapped Python import statements failed." >&2
+      path = p; s = t; open = 1; n = 0; paren = index(t, "(") > 0
+    }
+    END { close_open(); exit cut }' >>"$WORK_DIR/py-imports"; then
+    echo "error: a wrapped Python import ran past $WRAP_LINES lines, or joining the wrapped imports failed." >&2
     exit 2
   fi
   while IFS= read -r b; do
