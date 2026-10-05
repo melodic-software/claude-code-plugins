@@ -14,6 +14,8 @@ All notable changes to the `playwright` plugin are documented here. Format follo
   emulation (`set-color-scheme` and siblings), WebMCP, and `find --filename` commands, the headless
   idle shutdown, and the `run-code` sandbox limits. Upstream:
   [playwright-cli v0.1.20 to v0.1.22](https://github.com/microsoft/playwright-cli/releases).
+- **Declared `gh` as an optional prerequisite.** The vendored skill now shows attaching
+  screenshots and videos to a pull request with `gh pr comment --attach`.
 
 ## [0.8.9] - 2026-10-04
 
