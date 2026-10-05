@@ -118,7 +118,8 @@ the plan reads `blocked`, and the re-audit that settles it has been named.
   left for the operator to read. A rename sweep is exactly the change that
   should be reviewed before it is recorded.
 - **Bump a version or write a changelog entry.** A renamed file inside a
-  versioned unit usually needs both; that is the consuming project's release
+  versioned unit usually needs both (or a changelog fragment, where the project
+  releases from fragments); that is the consuming project's release
   convention, done by hand, and this skill says so rather than guessing at it.
 - **Re-derive a form, a tier, or an action.** The plan's record is the
   instruction set. A judgment made here would be a second opinion the operator
