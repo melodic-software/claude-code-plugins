@@ -697,10 +697,13 @@ owner declaration.
   is the last tier of the ladder below; the digest's `artifact` default (see
   Default ladder and its reconciliation) is one such default, and any layer that sets
   `medium` overrides it.
-- **No policy-floor class**: every key is a taste dial over deliverable presentation; a
-  personal value weakens nothing another surface depends on (the `ai-slop` precedent).
-  `hosted` stays a taste dial because it chooses only the lane's route: which host a page
-  reaches, and whether it is refused, never depends on the preference.
+- **No policy-floor class, and `medium` is not a pure taste dial**: `medium` chooses whether
+  a view leaves the machine, and `artifact` and `hosted` publish it, so a personal value can
+  send content elsewhere. What keeps that safe is not the preference but the gate: a
+  publishing value counts only from a layer a checked-out branch cannot write, and for
+  `hosted` the gate alone decides the private host or a refusal, whatever the value says (see
+  The `hosted` medium). A future key that only shapes presentation is a taste dial that
+  weakens nothing another surface depends on (the `ai-slop` precedent).
   The default direction holds: the team layer refines user-global, the overlay is the
   operator's per-repo trump, and the user's global preference governs wherever no repo
   layer speaks.

@@ -16,6 +16,9 @@ versioned; this log records each change to it.
 - **New credential shapes for every lane**: an R2 key pair, an Azure client secret, Cloudflare's
   prefixed tokens, and upload tokens.
 - **Rule 7: the save button stays on a top-level `https:` page.** A framed page still loses it.
+- **`medium` is no longer called a taste dial.** It decides whether a view leaves the machine, so
+  the cascade section says the trusted layers and the gate, not the preference, keep publishing
+  safe; the `ai-slop` precedent stays for future presentation-only keys.
 
 ## Decks use the account's Slides Artifact type, 2026-10-03
 
