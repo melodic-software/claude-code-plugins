@@ -92,15 +92,16 @@ else
   fail "second session: rc=$RC installs=$(installs "$data") output=[$out]"
 fi
 
-# A failed install (wrong hash): a notice on both channels with the reason and the repair line, exit 0, nothing left.
+# A failed install (wrong hash): a user notice with the reason and the repair line, exit 0, nothing left.
+# Nothing reaches the model: pydeps.py run prints the repair line when the skill runs.
 root="$(new_plugin bad "$(printf '0%.0s' {1..64})")"
 data="$WORK/data-bad"
 run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")"
 out="$OUT"
-if [[ "$RC" -eq 0 && "$out" == *'"systemMessage"'* && "$out" == *'"additionalContext"'* &&
-  "$out" == *'could not be installed'* && "$out" == *'pip install --require-hashes failed'* &&
+if [[ "$RC" -eq 0 && "$out" == *'"systemMessage"'* && "$out" != *'"additionalContext"'* &&
+  "$out" == *'not installed; '* && "$out" == *'pip install --require-hashes failed'* &&
   "$out" == *'Repair with:'* && "$(installs "$data")" == 0 ]]; then
-  ok "a failed install surfaces a notice on both channels with the repair line and installs nothing"
+  ok "a failed install surfaces a user notice with the repair line and installs nothing"
 else
   fail "failed install: rc=$RC installs=$(installs "$data") output=[$out]"
 fi
@@ -116,7 +117,7 @@ EOF
 data="$WORK/data-crash"
 run_hook "$root" "$WHEELS" CLAUDE_PLUGIN_DATA="$(native "$data")"
 out="$OUT"
-if [[ "$RC" -eq 0 && "$out" == *'"systemMessage"'* && "$out" == *'"additionalContext"'* &&
+if [[ "$RC" -eq 0 && "$out" == *'"systemMessage"'* && "$out" != *'"additionalContext"'* &&
   "$out" == *"the Python handover failed: AttributeError: 'sys.flags' object has no attribute 'context_aware_warnings'; repair with: "*"pydeps.py"*"install"*"--data-dir"* &&
   "$out" != *Traceback* ]]; then
   ok "a crashed handover surfaces the traceback's last line and a repair line, not the traceback"
@@ -163,7 +164,7 @@ done
 root="$(new_plugin nopython "$digest")"
 out="$(env PATH="$tools" CLAUDE_PLUGIN_DATA="$(native "$WORK/data-nopython")" "$tools/bash" "$root/hooks/install-python-deps.sh" <<<'{}')"
 rc=$?
-if [[ "$rc" -eq 0 && "$out" == *'"systemMessage"'* && "$out" == *'Python 3.12 or 3.13 was not found'* ]]; then
+if [[ "$rc" -eq 0 && "$out" == *'"systemMessage"'* && "$out" != *'"additionalContext"'* && "$out" == *'Python 3.12 or 3.13 was not found'* ]]; then
   ok "no Python on PATH surfaces a notice naming the supported versions"
 else
   fail "no python: rc=$rc output=[$out]"

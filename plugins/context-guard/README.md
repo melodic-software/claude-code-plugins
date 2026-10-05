@@ -229,7 +229,7 @@ what holds their budget now:
 |---|---|---|
 | The statusline tee's suite | The snapshot body, atomic write, rename retry, prune and the processes per render | The `snapshot:` cases and the `budget:` case in `hooks/context-guard.test.ts`; the helper's own suite, [`lib/write-snapshot.test.mjs`](../../lib/write-snapshot.test.mjs), for the atomic write, rename retry, prune and temp files |
 | The statusline shim's suite | The shim finding the installed tee | Nothing: no shim ships |
-| The wiring compose script's suite | Composing a `statusLine` around the shim | Nothing is composed now; the setup skill's evals hold the rule for removing a shim with the renderer kept |
+| The wiring compose script's suite | Composing a `statusLine` around the shim | Nothing: nothing is composed now |
 | The crossing hook's and the PreToolUse gate's suites, process counts included | The crossing lines, the gate and the processes per fire | The line, gate and `budget:` cases in `hooks/context-guard.test.ts` |
 | The hook-census ceiling on the crossing hook in `.performance/ratchets.json` | Processes per crossing-hook fire | The `budget:` case: 0 processes on a call that writes nothing |
 
@@ -253,24 +253,6 @@ Install at user scope (the default), so every session on the machine writes its 
 needs wiring. `/context-guard:setup check` reports whether the mod runs and what each option is set
 to; `/context-guard:setup apply` seeds `~/.claude/context-guard/zones.json` from the shipped bands
 when you want a file to tune.
-
-### Upgrading from a version with the statusline tee
-
-Versions before 0.11.0 wrote the snapshot through a statusline tee wired into your `statusLine`,
-usually through a shim installed under `~/.claude/context-guard/bin/`. The mod replaces it,
-and a tee left running is a second writer of the same files. After updating:
-
-1. Run `/context-guard:setup check`. It looks for a tee still writing, cached plugin versions that
-   still carry one, and each route that can reach one: the `statusLine` command, a wrapper script
-   such as a dotfiles status line entrypoint, and the installed shim copy.
-2. Follow the unwire steps it prints: the `statusLine` value with every guard shim removed and your
-   own renderer kept byte for byte (or the key removed when the shim was the whole status line),
-   the wrapper-script lines to remove, and the leftover files to delete. The skill never edits your
-   settings itself.
-3. Restart every session and lane started before the update: each keeps running what it loaded.
-   Then run the check again; it passes once no tee writes.
-
-Your own status line keeps working throughout.
 
 ## Requirements
 

@@ -1,0 +1,5 @@
+Checking MCP server health…
+
+storybook: http://localhost:6006/mcp (HTTP) - ✔ Connected
+plugin:magic:magic: npx -y @21st-dev/magic - ✗ Failed to connect
+context7: npx -y @upstash/context7-mcp - ✔ Connected

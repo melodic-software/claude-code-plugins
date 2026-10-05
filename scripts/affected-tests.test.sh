@@ -878,14 +878,9 @@ rm -rf "$repo"
 # this suite name it, and R3 would select this suite the same way.
 #
 # The candidate is additionally FILTERED to one that no grepped-language file
-# names at all, rather than assuming the sole `.github/*.yaml` qualifies. That
-# assumption held until a suite acquired a real transitive claim on it:
-# .claude/cloud-bootstrap.sh's pin comment names .github/actionlint.yaml, and
-# scripts/check-plugin-catalog-enablement.sh reads cloud-bootstrap.sh, so the
-# walk now runs actionlint.yaml -> cloud-bootstrap.sh -> that gate's suite and
-# reaches exit 0 through R3 exactly the way pr-require-checks.yml does. Both edges are real and
-# neither should be severed to keep a probe convenient, so the probe moves
-# instead — the same resolution the pr-require-checks.yml sentence above records.
+# names at all, rather than assuming the sole `.github/*.yaml` qualifies: a
+# file some suite reaches through R3 reaches exit 0 the way
+# pr-require-checks.yml does, so it cannot serve as this probe either.
 #
 # The filter is an INDEPENDENT oracle (a direct git grep for the basename), not
 # a call to affected-tests.sh: picking the probe with the tool under test would
@@ -895,6 +890,9 @@ rm -rf "$repo"
 mapfile -t wf_candidates < <(cd "$REPO_ROOT" && git ls-files '.github/*.yaml' '.github/*.yml')
 wf_yaml=()
 for c in ${wf_candidates[@]+"${wf_candidates[@]}"}; do
+  # scripts/workflow-self-paths.test.sh declares `.github/workflows/*` (R8), so
+  # a workflow file selects that suite and cannot be the probe.
+  [[ "$c" == .github/workflows/* ]] && continue
   if ! (cd "$REPO_ROOT" && git grep -q -F -- "${c##*/}" \
     -- '*.sh' '*.bash' '*.js' '*.mjs' '*.cjs' '*.py' '*.ps1' '*.psm1') 2>/dev/null; then
     wf_yaml=("$c")
@@ -1067,6 +1065,102 @@ else
   fail "dual-ecosystem coverage (rc=$RC): $OUT"
 fi
 
+# --- R3: a Python import names the module's file ---------------------------
+# `import m` and `from pkg.m import x` never spell m.py, so only the import
+# rule carries a module change out to the code that imports it. A name that
+# merely contains the stem, or the stem outside an import line, names nothing.
+mkdir -p "$repo/eco/imp/harness"
+printf 'X = 1\n' >"$repo/eco/imp/lib_mod.py"
+printf 'from lib_mod import X\n' >"$repo/eco/imp/user_mod.py"
+printf 'import user_mod\n' >"$repo/eco/imp/test_user_mod.py"
+printf 'def run():\n    return 1\n' >"$repo/eco/imp/harness/stub_h.py"
+printf 'from harness.stub_h import run\n' >"$repo/eco/imp/test_dotted.py"
+printf 'import os, harness.other\nfrom harness import (stub_h as s)\n' >"$repo/eco/imp/test_named.py"
+printf 'import lib_mod_extra\nNAME = "lib_mod"\n' >"$repo/eco/imp/test_lookalike.py"
+run_sel "$repo" eco/imp/lib_mod.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/imp/test_user_mod.py && ! has_line "$OUT" eco/imp/test_lookalike.py; then
+  ok "R3: a module change reaches the suite of the code importing it, and not a lookalike name"
+else
+  fail "python import of a module (rc=$RC): $OUT"
+fi
+printf 'from harness import (\n    other_name,\n    stub_h,\n)\n' >"$repo/eco/imp/test_wrapped.py"
+printf 'from harness import other_name, \\\n    stub_h\n' >"$repo/eco/imp/test_backslash.py"
+run_sel "$repo" eco/imp/harness/stub_h.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/imp/test_dotted.py && has_line "$OUT" eco/imp/test_named.py &&
+  has_line "$OUT" eco/imp/test_wrapped.py && has_line "$OUT" eco/imp/test_backslash.py; then
+  ok "R3: a dotted component or an imported name equal to the stem names the module, on a wrapped line too"
+else
+  fail "python dotted, from-import or wrapped import (rc=$RC): $OUT"
+fi
+# A wrapped import longer than the joining window would lose its later names.
+OUT="$(cd "$repo" && AFFECTED_TESTS_WRAP_LINES=2 bash scripts/affected-tests.sh eco/imp/harness/stub_h.py 2>&1)"
+RC=$?
+if [[ "$RC" -eq 2 ]] && contains "$OUT" "ran past 2 lines"; then
+  ok "R3: a wrapped import cut short by the joining window fails loud"
+else
+  fail "python wrapped import past the window (rc=$RC): $OUT"
+fi
+
+# Importing a package, or a module inside it, runs its __init__.py.
+mkdir -p "$repo/eco/imp/pkgx" "$repo/eco/imp/other"
+printf 'VALUE = 1\n' >"$repo/eco/imp/pkgx/__init__.py"
+printf 'VALUE = 2\n' >"$repo/eco/imp/pkgx/mod.py"
+: >"$repo/eco/imp/other/__init__.py"
+printf 'from pkgx.mod import VALUE\n' >"$repo/eco/imp/test_pkg_user.py"
+printf 'import json\n' >"$repo/eco/imp/test_no_pkg.py"
+run_sel "$repo" eco/imp/pkgx/__init__.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/imp/test_pkg_user.py && ! has_line "$OUT" eco/imp/test_no_pkg.py; then
+  ok "R3: a package's __init__.py reaches a suite outside the package that imports it"
+else
+  fail "python package __init__.py (rc=$RC): $OUT"
+fi
+
+# An ambiguous module name resolves to the one module of that name in the
+# nearest directory holding any, from the importer up: its own directory, a
+# tests/ parent, a plugin lib/ beside the importer's skill. A directory above
+# two modules of that name resolves to neither.
+mkdir -p "$repo/eco/amb/a/skill/scripts" "$repo/eco/amb/b/tests"
+printf 'A = 1\n' >"$repo/eco/amb/a/util.py"
+printf 'B = 1\n' >"$repo/eco/amb/b/util.py"
+printf 'import util\n' >"$repo/eco/amb/a/test_near.py"
+printf 'import util\n' >"$repo/eco/amb/a/skill/scripts/test_lib_user.py"
+printf 'import util\n' >"$repo/eco/amb/b/tests/test_child.py"
+printf 'import util\n' >"$repo/eco/amb/test_above.py"
+run_sel "$repo" eco/amb/a/util.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/amb/a/test_near.py && has_line "$OUT" eco/amb/a/skill/scripts/test_lib_user.py &&
+  ! has_line "$OUT" eco/amb/b/tests/test_child.py && ! has_line "$OUT" eco/amb/test_above.py; then
+  ok "R3: an ambiguous module resolves from the nearest directory holding one, never from above two"
+else
+  fail "python ambiguous import, nearest module (rc=$RC): $OUT"
+fi
+run_sel "$repo" eco/amb/b/util.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/amb/b/tests/test_child.py && ! has_line "$OUT" eco/amb/a/test_near.py; then
+  ok "R3: an ambiguous module resolves from its tests/ child"
+else
+  fail "python ambiguous import, tests/ child (rc=$RC): $OUT"
+fi
+
+# --- R2: conftest.py and __init__.py reach the test modules below them -----
+mkdir -p "$repo/eco/cf/sub" "$repo/eco/pk/tests"
+printf 'import pytest\n' >"$repo/eco/cf/conftest.py"
+printf 'assert True\n' >"$repo/eco/cf/test_top.py"
+printf 'assert True\n' >"$repo/eco/cf/sub/test_deep.py"
+: >"$repo/eco/pk/__init__.py"
+printf 'assert True\n' >"$repo/eco/pk/tests/test_pk.py"
+run_sel "$repo" eco/cf/conftest.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/cf/test_top.py && has_line "$OUT" eco/cf/sub/test_deep.py &&
+  ! has_line "$OUT" eco/test_widget_mod.py; then
+  ok "R2: a conftest.py selects every test module at or below its directory, and none outside it"
+else
+  fail "conftest.py (rc=$RC): $OUT"
+fi
+run_sel "$repo" eco/pk/__init__.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/pk/tests/test_pk.py && ! has_line "$OUT" eco/cf/test_top.py; then
+  ok "R2: a package __init__.py selects the test modules of its package"
+else
+  fail "__init__.py (rc=$RC): $OUT"
+fi
+
 # --- R4: another language counts only where it runs or loads the file ------
 # A file in another language that merely contains the name (a string, a log
 # message) is not a dependent and its suite is not selected: across languages
@@ -1189,7 +1283,7 @@ printf 'export const mixed = 1;\n' >"$repo2/plugins/alpha/hooks/mixed.js"
 printf 'source "lib/mixed.sh"\nnode mixed.js\n' >"$repo2/eco/agg/zed.sh"
 # A genuine crossing OUT of zed.sh, which is exactly what a wrongly-spent budget
 # would block. Its suite is the assertion.
-printf 'import subprocess  # drives zed.sh\n' >"$repo2/eco/agg/zed_user.py"
+printf 'import subprocess\nsubprocess.run(["bash", "zed.sh"])\n' >"$repo2/eco/agg/zed_user.py"
 printf 'import zed_user\n' >"$repo2/eco/agg/test_zed_user.py"
 
 run_sel "$repo2" lib/mixed.sh
@@ -1348,9 +1442,10 @@ rm -rf "$repo3"
 # --- a comment-only mention makes no dependent and selects no suite ----------
 # Hub files cite neighboring scripts in prose, and counting those as edges
 # fanned one plugin's change out to most of the corpus; a suite citing a file
-# in prose does not run it either. Every code line still names the file, as do
-# a trailing comment on one, a shellcheck source directive and a JSDoc type
-# import.
+# in prose does not run it either. A trailing comment on a shell or Python
+# code line is prose too, and a `#` inside quotes is not a comment. Every code
+# line still names the file, as do a shellcheck source directive and a JSDoc
+# type import.
 mk_repo repo3
 mkdir -p "$repo3/eco/cmt"
 printf 'echo hub\n' >"$repo3/eco/cmt/hub-target.sh"
@@ -1366,6 +1461,13 @@ mk_cmt_dependent js-comment js '// see hub-target.sh\n/* hub-target.sh */\n/**\n
 # shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
 mk_cmt_dependent sh-code sh 'source "$(dirname "$0")/hub-target.sh"\n'
 mk_cmt_dependent sh-trailing sh 'echo ok # runs after hub-target.sh\n'
+mk_cmt_dependent sh-quoted-hash sh 'echo "# hub-target.sh"\n'
+# shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
+mk_cmt_dependent sh-redirect sh 'printf x >"$T/hub-target.sh"\necho y >>$T/hub-target.sh\n'
+printf 'X = 2  # see hubmod.py\n' >"$repo3/eco/cmt/pytrail.py"
+printf 'import pytrail\n' >"$repo3/eco/cmt/test_pytrail.py"
+printf 'import hubmod  # eco/cmt/hubmod.py\n' >"$repo3/eco/cmt/pyimport.py"
+printf 'import pyimport\n' >"$repo3/eco/cmt/test_pyimport.py"
 # shellcheck disable=SC2016 # deliberate: the emitted fixture must expand these
 mk_cmt_dependent sh-directive sh '# shellcheck source=hub-target.sh\n. "$HUB"\n'
 mk_cmt_dependent js-code js 'spawnSync("bash", ["hub-target.sh"]);\n'
@@ -1381,18 +1483,20 @@ git_test_config "$repo3" commit -qm comments >/dev/null
 run_sel "$repo3" eco/cmt/hub-target.sh
 if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/cmt/hub-target.test.sh &&
   ! has_line "$OUT" eco/cmt/sh-comment.test.sh &&
+  ! has_line "$OUT" eco/cmt/sh-trailing.test.sh &&
+  ! has_line "$OUT" eco/cmt/sh-redirect.test.sh &&
   ! has_line "$OUT" eco/cmt/js-comment.test.js; then
-  ok "a comment-only mention in a non-suite file no longer selects"
+  ok "a comment-only, trailing-comment or redirect-target mention in a non-suite file no longer selects"
 else
   fail "comment-only mention still made a dependent (rc=$RC): $OUT"
 fi
 
 if has_line "$OUT" eco/cmt/sh-code.test.sh &&
-  has_line "$OUT" eco/cmt/sh-trailing.test.sh &&
+  has_line "$OUT" eco/cmt/sh-quoted-hash.test.sh &&
   has_line "$OUT" eco/cmt/sh-directive.test.sh &&
   has_line "$OUT" eco/cmt/js-code.test.js &&
   has_line "$OUT" eco/cmt/js-typeimport.test.js; then
-  ok "a code mention, a trailing comment, a shellcheck directive and a JSDoc import still select"
+  ok "a code mention, a quoted '#', a shellcheck directive and a JSDoc import still select"
 else
   fail "a non-comment mention lost its dependent (rc=$RC): $OUT"
 fi
@@ -1405,8 +1509,9 @@ fi
 
 run_sel "$repo3" eco/cmt/hubmod.py
 if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/cmt/test_hubmod.py &&
-  ! has_line "$OUT" eco/cmt/test_pyprose.py; then
-  ok "a Python comment naming a module selects nothing"
+  ! has_line "$OUT" eco/cmt/test_pyprose.py && ! has_line "$OUT" eco/cmt/test_pytrail.py &&
+  has_line "$OUT" eco/cmt/test_pyimport.py; then
+  ok "a Python comment naming a module selects nothing, except one on its import line"
 else
   fail "python: a comment-only mention still selected (rc=$RC): $OUT"
 fi
@@ -1616,6 +1721,23 @@ if contains "$out" 'UNMAPPED: 1 changed file(s)'; then
   ok "--unmapped-corpus: the unmapped report is still printed"
 else
   fail "--unmapped-corpus: the unmapped report went missing: $out"
+fi
+# Data no rule reaches is read by no suite, so it starts no corpus; the exit
+# still reports it. An extensionless file with a `#!` line is code.
+printf 'name: orphan\n' >"$repo/plugins/alpha/zz-orphan-data.cfg"
+run_sel "$repo" --unmapped-corpus plugins/alpha/zz-orphan-data.cfg
+if [[ "$RC" -eq 4 && -z "$OUT" ]]; then
+  ok "--unmapped-corpus: unmapped data selects no corpus, at exit 4"
+else
+  fail "--unmapped-corpus: unmapped data should select nothing at exit 4 (rc=$RC): $OUT"
+fi
+printf '#!/usr/bin/env bash\necho orphan\n' >"$repo/plugins/alpha/zz-orphan-tool"
+run_sel "$repo" --unmapped-corpus plugins/alpha/zz-orphan-tool
+if [[ "$RC" -eq 4 ]] && has_line "$OUT" plugins/alpha/tests/scan.test.sh &&
+  ! has_line "$OUT" plugins/alpha/tests/test_scan.py; then
+  ok "--unmapped-corpus: an unmapped extensionless script selects the shell corpus"
+else
+  fail "--unmapped-corpus: wrong corpus for an extensionless script (rc=$RC): $OUT"
 fi
 run_sel "$repo" --unmapped-corpus --allow-unmapped plugins/alpha/zz_orphan_mod.py
 if [[ "$RC" -eq 2 ]]; then

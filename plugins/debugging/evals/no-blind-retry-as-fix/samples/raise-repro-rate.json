@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "No. An unexplained pass means the cause is still there. Loop the test 200 times in parallel under CPU stress until it fails often enough to debug, then hypothesize.",
+      "why": "rejects and raises the rate"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Sure, mark it as flaky with two retries and move on.",
+      "why": "retries as the fix"
+    }
+  ]
+}

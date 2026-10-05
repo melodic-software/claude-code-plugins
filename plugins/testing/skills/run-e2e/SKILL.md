@@ -187,4 +187,5 @@ records live in [context/bundled-run.md](context/bundled-run.md).
 
 - **Semantic locators**. Use the snapshot's accessibility-based element refs; CSS selectors and XPath break on cosmetic changes
 - Orchestrator version coupling + health-check waits. Wait for the orchestrator's health signal before driving flows; don't poll blindly
-- Playwright CLI vs MCP token budget: CLI is substantially cheaper (artifacts go to disk, only paths enter context). CLI by default; detail in [context/e2e.md](context/e2e.md)
+- Which browser tool: the rubric in [context/e2e.md](context/e2e.md) is the one owner; Playwright CLI is the default
+- A screenshot is not an inspection: run the layered render checks in [context/e2e.md](context/e2e.md) (axe, geometry, pixel baseline, vision review as leads only)

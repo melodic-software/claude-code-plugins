@@ -1,0 +1,30 @@
+{
+  "pass": [
+    {
+      "answer": "```markdown\n# AGENTS.md\n\nBrightwater: Python 3.12 job scheduler; uv. Commands are in the Makefile.\n\n- Run migrations with `make migrate-local` only. `make migrate` targets the shared staging database other teams use; never run it from an agent session.\n```\n\n- Layout: visible from the tree.\n- Commands: in the Makefile.\n- Python-version troubleshooting: the uv error already names the required version.",
+      "why": "P-canonical: version row cut, staging rule kept with command and reason; Overview mentions Python 3.12 without error framing"
+    },
+    {
+      "answer": "```markdown\n# AGENTS.md\n\n- Migrations: `make migrate-local` only. Never `make migrate`: it hits the shared staging DB.\n```\n\n- Overview, layout, commands: derivable.\n- Troubleshooting row: the error message states its own fix.",
+      "why": "P-alt: terse rule keeps command and reason; row cut"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```markdown\n# AGENTS.md\n\n- Migrations: `make migrate-local` only. `make migrate` targets the shared staging database; never run it.\n- `uv sync` fails with `error: The current Python version (3.11.9) does not satisfy Python>=3.12`: install Python 3.12+.\n```\n\n- Overview, layout, commands: derivable.",
+      "why": "F-kept: version row kept verbatim"
+    },
+    {
+      "answer": "```markdown\n# AGENTS.md\n\n- Migrations: `make migrate-local` only; `make migrate` hits shared staging.\n- If `uv sync` errors on the Python version, install Python 3.12.\n```\n\n- Overview, layout, commands: derivable.",
+      "why": "F-near: version row survives as a shortened troubleshooting entry"
+    },
+    {
+      "answer": "```markdown\n# AGENTS.md\n\nBrightwater: Python 3.12 job scheduler; uv. Commands are in the Makefile.\n```\n\n- Layout: visible from the tree.\n- Database: the Makefile shows the migrate targets.\n- Troubleshooting: the error names its own fix.",
+      "why": "F-overcut: staging rule removed"
+    },
+    {
+      "answer": "```markdown\n# AGENTS.md\n\n- Run migrations with `make migrate-local`.\n```\n\n- Everything else: derivable.\n- Troubleshooting: self-explaining error.",
+      "why": "F-partial: staging rule loses the never-run-migrate warning and reason"
+    }
+  ]
+}

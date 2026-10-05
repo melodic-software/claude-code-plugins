@@ -1,0 +1,41 @@
+{
+  "_comment": "Description demand fits the budget; demand plus the name floor does not. A 5,000-token window at 0.01 and 4 bytes per token budgets 200 characters. Four competing skills with 3-character names and 50-character descriptions demand exactly 200, which the old demand-only verdict called listing-fits. The product renders each as `- <name>: <description>` (name + 4 + 50 = 57) joined by newlines, so the listing is 4 x 57 + 3 = 231 characters and overflows by 31. The floor is 4 x (3 + 2) + 3 = 23, leaving 177 for grants of 50 + 2 each: three fit (156), the lowest-scored one (p:d) is shed.",
+  "now": "2026-08-18T00:00:00+00:00",
+  "horizons": { "native": "2025-08-18T00:00:00+00:00" },
+  "listing_config": {
+    "context_window_tokens": 5000,
+    "budget_fraction": 0.01,
+    "max_desc_chars": 1536,
+    "bytes_per_token": 4
+  },
+  "denominator": [
+    {
+      "qualified_name": "p:a",
+      "source": "plugin",
+      "plugin_enabled": true,
+      "usage_score": 4,
+      "frontmatter": { "description": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+    },
+    {
+      "qualified_name": "p:b",
+      "source": "plugin",
+      "plugin_enabled": true,
+      "usage_score": 3,
+      "frontmatter": { "description": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }
+    },
+    {
+      "qualified_name": "p:c",
+      "source": "plugin",
+      "plugin_enabled": true,
+      "usage_score": 2,
+      "frontmatter": { "description": "cccccccccccccccccccccccccccccccccccccccccccccccccc" }
+    },
+    {
+      "qualified_name": "p:d",
+      "source": "plugin",
+      "plugin_enabled": true,
+      "usage_score": 1,
+      "frontmatter": { "description": "dddddddddddddddddddddddddddddddddddddddddddddddddd" }
+    }
+  ]
+}

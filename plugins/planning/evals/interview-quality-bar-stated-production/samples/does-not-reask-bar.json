@@ -1,0 +1,38 @@
+{
+  "pass": [
+    {
+      "answer": "Q1: Should the habits persist in localStorage?\nMy recommendation: **localStorage** - enough for a weekend prototype.",
+      "why": "mentions the stated bar without asking it again"
+    },
+    {
+      "answer": "Q1: Which export format do the downstream finance systems read?\nQ2: What happens when an export partially fails?",
+      "why": "scoping questions with no bar question"
+    },
+    {
+      "answer": "Q2: What happens in production when one customer's export fails?",
+      "why": "a production-depth question, not a bar question"
+    },
+    {
+      "answer": "Q3: Should it retry in production, or alert on the first failure?",
+      "why": "production as context inside a failure-handling choice"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Q1: Will this go to production eventually?",
+      "why": "re-asks the bar"
+    },
+    {
+      "answer": "Q1: Is this just a prototype, or will customers rely on it?",
+      "why": "asks prototype or not"
+    },
+    {
+      "answer": "Q3: How polished does this need to be?",
+      "why": "asks the bar in other words"
+    },
+    {
+      "answer": "Q1: What quality bar are we targeting here?",
+      "why": "asks the quality bar by name"
+    }
+  ]
+}

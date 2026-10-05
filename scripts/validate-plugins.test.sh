@@ -27,4 +27,19 @@ expect_usage "--only with a stray second argument is a usage error" "usage: vali
 expect_usage "a name that is not a plugin is refused" "'no-such-plugin' is not a plugin" --only "guardrails no-such-plugin"
 expect_usage "a path in place of a name is refused" "is not a plugin" --only "../scripts"
 
+# A contract warning fails the run (#6215), before any later pass runs. A
+# stand-in `node` plays the contract validator: exit 0, one warning line.
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+printf '#!/usr/bin/env bash\necho "warning: plugins/x/.claude-plugin/plugin.json: probe" >&2\nexit 0\n' >"$TMP_ROOT/node"
+chmod +x "$TMP_ROOT/node"
+rc=0
+out="$(PATH="$TMP_ROOT:$PATH" bash "$SCRIPT" --only "" 2>&1)" || rc=$?
+if [[ "$rc" -eq 1 && "$out" == *"warning: plugins/x/.claude-plugin/plugin.json: probe"* &&
+  "$out" == *"printed a warning"* && "$out" != *"=== validate"* ]]; then
+  ok "a contract warning fails the run and is printed"
+else
+  fail "a contract warning should fail the run with the warning shown, got rc=$rc: $out"
+fi
+
 test_harness::report

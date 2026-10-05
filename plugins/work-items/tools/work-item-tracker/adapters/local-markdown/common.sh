@@ -262,8 +262,8 @@ wit_find_lease_file() {
 # wit_emit_local_item <number> [<unassign-expired:true|false>] — emit the
 # normalized item object (CONTRACT.md "JSON output contract") for an existing item
 # file. Returns 1 when the file is absent (caller maps to exit 5). blocked_by_count
-# counts only blockers whose file exists and is open, mirroring the GitHub adapter's
-# OPEN-only count. With unassign-expired=true the effective assignee of an item
+# counts blockers whose file exists and that are open or closed with a non-completed
+# `state_reason`. With unassign-expired=true the effective assignee of an item
 # whose lease has expired is projected empty (see the projection note below); the
 # default (false) reports the stored assignee verbatim.
 wit_emit_local_item() {
@@ -298,7 +298,10 @@ wit_emit_local_item() {
   # Capture then iterate via here-string — a `< <(cmd)` process substitution whose
   # loop body itself forks (wit_item_file, wit_fm_field) intermittently deadlocks on
   # Git Bash/MSYS (bash/conventions.md gotchas: "Process substitution partial").
-  local count=0 bid bnum bstate bfile blockers
+  # A closed blocker stops blocking only when it was completed: `state_reason` is
+  # this format's close reason, and a closed item without one was completed. Any
+  # other reason (not_planned, duplicate) keeps blocking and counts as won't-do.
+  local count=0 wont_do=0 bid bnum bstate breason bfile blockers
   blockers="$(wit_blocked_by_ids "$file")"
   while IFS= read -r bid; do
     [[ -n "$bid" ]] || continue
@@ -307,14 +310,23 @@ wit_emit_local_item() {
     bfile="$(wit_item_file "$bnum")"
     [[ -f "$bfile" ]] || continue
     bstate="$(wit_fm_field "$bfile" state)"
-    [[ "$bstate" == '"open"' ]] && count=$((count + 1))
+    if [[ "$bstate" == '"open"' ]]; then
+      count=$((count + 1))
+      continue
+    fi
+    breason="$(wit_fm_field "$bfile" state_reason)"
+    if [[ -n "$breason" && "$breason" != null && "$breason" != '"completed"' ]]; then
+      count=$((count + 1))
+      wont_do=$((wont_do + 1))
+    fi
   done <<<"$blockers"
   jq -cn --arg sv "$WIT_SCHEMA_VERSION" \
     --argjson id "$id" --argjson title "$title" --argjson state "$state" \
     --argjson assignees "$assignees" --argjson labels "$labels" \
     --argjson type "$type" \
-    --argjson parent "$parent" --argjson count "$count" --argjson url "$url" \
+    --argjson parent "$parent" --argjson count "$count" --argjson wont_do "$wont_do" \
+    --argjson url "$url" \
     '{schema_version: $sv, id: $id, title: $title, state: $state,
       assignees: $assignees, labels: $labels, type: $type, blocked_by_count: $count,
-      parent_id: $parent, url: $url}'
+      blocked_by_wont_do_count: $wont_do, parent_id: $parent, url: $url}'
 }

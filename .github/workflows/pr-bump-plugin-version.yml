@@ -4,7 +4,8 @@ name: pr-bump-plugin-version
 # bump plugins/<name>/.claude-plugin/plugin.json or write CHANGELOG.md. The
 # changelog-parity --check-bump gate correctly requires those (Claude Code
 # delivers updates only when the plugin version string changes). This workflow
-# supplies the bump on Dependabot PRs.
+# supplies the bump on Dependabot PRs, or, for a plugin in changelog-fragment
+# mode (ADR 0048), a patch fragment under .changes/ that the release PR consumes.
 #
 # Commit messages include [dependabot skip] so Dependabot may force-push over
 # the bot commit when rebasing (GitHub docs: Managing pull requests for
@@ -12,13 +13,20 @@ name: pr-bump-plugin-version
 # GraphQL createCommitOnBranch mutation, not a local git commit and push, so
 # GitHub signs the commit and marks it Verified, which a required_signatures
 # ruleset accepts. A local commit pushed with GITHUB_TOKEN is unsigned.
-# Per the GitHub docs page "Triggering a workflow", events triggered by the
-# GITHUB_TOKEN do not create new workflow runs (workflow_dispatch and
-# repository_dispatch excepted), and a pull_request opened, synchronize or
-# reopened event from a pull request the token created or updated creates runs
-# in an approval-required state. In practice CI on the release-bump commit
-# starts without approval: runs on the bump commits of #5198, #5602, #5737 and
-# #5999 started within seconds, none in action_required.
+# Per the GitHub docs page "Triggering a workflow", a pull_request event from a
+# pull request that GITHUB_TOKEN updated creates runs in an approval-required
+# state; the page names a GitHub App installation token as the way to start
+# them without approval. So the commit uses a token
+# from the dedicated bump App when its Dependabot secrets
+# DEPENDABOT_BUMP_APP_CLIENT_ID and DEPENDABOT_BUMP_APP_PRIVATE_KEY exist (a
+# Dependabot-triggered run sees only Dependabot secrets: "Troubleshooting
+# Dependabot on GitHub Actions"), and GITHUB_TOKEN otherwise, under which every
+# run on the bump commit waits in action_required (#5786). The App holds
+# contents: write on this repository only and bypasses no ruleset; the release
+# App's key stays in the plugin-release environment. Trade-off: runs on an
+# App-made bump commit are not Dependabot-triggered, so they get the
+# repository's Actions secrets with no approval step, as approved runs do now.
+# Recheck: once the secrets exist, a bump commit's runs start without approval.
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -41,6 +49,9 @@ jobs:
     permissions:
       contents: write
       pull-requests: read
+    env:
+      # Both secrets or neither: a lone one would fail the mint step, not fall back.
+      BUMP_APP_READY: ${{ secrets.DEPENDABOT_BUMP_APP_CLIENT_ID != '' && secrets.DEPENDABOT_BUMP_APP_PRIVATE_KEY != '' }}
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -54,7 +65,7 @@ jobs:
         run: |
           git fetch --no-tags origin "$HEAD_REF":"refs/remotes/origin/$HEAD_REF"
           git checkout -B "$HEAD_REF" "origin/$HEAD_REF"
-      - name: Bump plugin manifests and changelogs
+      - name: Bump plugin manifests and changelogs, or write fragments
         id: bump
         env:
           BASE_REF: ${{ github.base_ref }}
@@ -70,12 +81,25 @@ jobs:
             chmod +x "$bump_script"
           fi
           bash "$bump_script" "origin/$BASE_REF" --pr "$PR_NUMBER" --title "$PR_TITLE"
+      - name: Mint the bump App token
+        id: app-token
+        if: env.BUMP_APP_READY == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ secrets.DEPENDABOT_BUMP_APP_CLIENT_ID }}
+          private-key: ${{ secrets.DEPENDABOT_BUMP_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
       - name: Commit release metadata
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.GITHUB_TOKEN }}
           HEAD_REF: ${{ github.head_ref }}
         run: |
           git add -u -- plugins
+          # A changelog fragment (ADR 0048) is a new file, which -u skips. The guard
+          # keeps a run with no fragment off git add's unmatched-pathspec error.
+          if [ -d .changes ]; then git add -A -- .changes; fi
           if git diff --cached --quiet; then
             echo "nothing to commit"
             exit 0

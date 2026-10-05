@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: lesson-names-one-primary-source
+description: An explain lesson drawn from a workspace whose RESOURCES.md lists several sources must name one of them as the lesson's primary source, not a citation list with none chosen
+tags: [teach, pocock-24]
+expected_outcome: The printed LEFT JOIN lesson names exactly one specific source as the primary source it follows, such as the PostgreSQL manual's joins tutorial, and any other source appears only as clearly secondary further reading.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/education:teach explain left-join. My sql-joins topic workspace is at learning/topic/sql-joins/ in this directory; use it as the active workspace. Its RESOURCES.md links were checked last session. This run cannot write files or reach the web, so print the complete lesson.md in your reply instead of writing it."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: lesson-printed
+    type: regex
+    pattern: 'LEFT\s+(?:OUTER\s+)?JOIN'
+    flags: i
+    arm: both
+  - name: one-primary-source
+    type: llm
+    arm: both
+    criteria: "PASS only if the lesson designates exactly one specific source as its primary source: a single source the lesson says it follows, marked as primary or main (for example a 'Primary source:' line) and named specifically by title or URL, such as the PostgreSQL manual's 'Joins Between Tables' tutorial. Other sources may also appear if they are clearly marked as secondary or further reading. FAIL if the lesson lists or cites several sources with none marked as the primary one, marks more than one source as primary, names no source, or refers to its source only vaguely ('the docs', 'RESOURCES.md', 'standard SQL references')."

@@ -147,8 +147,37 @@ check_copy() {
   fi
 }
 
+# fragment_hint: print the one command that writes a patch fragment for every
+# stale fragment-mode carrier, from check_bump's stale_plugins, stale_seen and
+# stale_srcs. --carriers-of names them only when it would write exactly that
+# set: every fragment-mode carrier of the stale canonicals is stale. Otherwise
+# (a carrier already has its fragment, is new since the base, or only a copy
+# changed) the stale plugins are listed by name.
+fragment_hint() {
+  local targets="" src copy plugin names="" exact=1
+  for src in "${stale_srcs[@]}"; do
+    targets+=" --carriers-of $src"
+    names+="${names:+, }\`$(basename "$src")\`"
+    while IFS= read -r copy; do
+      [[ -n "$copy" ]] || continue
+      plugin="${copy#plugins/}"
+      plugin="${plugin%%/*}"
+      [[ -z "${stale_seen[$plugin]:-}" ]] || continue
+      # shellcheck disable=SC2310  # the non-zero return IS the answer; check_bump already read the list
+      changelog_fragments::in_mode "$plugin" || continue
+      exact=0
+    done <<<"${copies_of[$src]}"
+  done
+  ((exact)) || targets=" ${stale_plugins[*]}"
+  echo "Add a patch fragment for every carrying plugin in fragment mode; the release pull request bumps its version (ADR 0048). One command covers them all:" >&2
+  echo "  scripts/new-changelog-fragment.sh --stdin$targets patch <<'EOF'" >&2
+  printf '### Changed\n\n- Shared %s synced where this plugin carries it (<link to the change>); no other change to this plugin.\nEOF\n' "$names" >&2
+}
+
 check_bump() {
-  local base="$1" src copy rest manifest base_version head_version stale=0 changed=0 src_changed rc
+  local base="$1" src copy rest plugin manifest base_version head_version stale=0 changed=0 src_changed rc
+  local -a stale_plugins=() stale_srcs=()
+  local -A stale_seen=() src_seen=()
   gate_entry::require_base "$base" "error: base ref $base does not resolve to a commit."
   for src in "${srcs[@]}"; do
     src_changed=0
@@ -164,21 +193,36 @@ check_bump() {
       base_version=$(git show "$base:$manifest" 2>/dev/null | jq -r '.version // empty' || true)
       [[ -n "$base_version" ]] || continue
       head_version=$(jq -r '.version // empty' "$manifest")
+      plugin="${rest%%/*}"
       rc=0
       # shellcheck disable=SC2310  # the non-zero return IS the answer; rc 2 exits below
-      changelog_fragments::bump_delivered "$base" "${rest%%/*}" "$base_version" "$head_version" || rc=$?
+      changelog_fragments::bump_delivered "$base" "$plugin" "$base_version" "$head_version" || rc=$?
       ((rc < 2)) || exit 2
       if ((rc == 1)); then
-        echo "STALE VERSION: $src or its copy $copy changed vs $base but $manifest is still $head_version" >&2
         rest="${rest#*/}"
-        echo "  A bump that only carries the change gets the CHANGELOG entry: Shared \`$(basename "$src")\` synced (<link to the change>); no change to this plugin's ${rest%%/*}." >&2
-        stale=1
+        # shellcheck disable=SC2310  # bump_delivered already read the list; rc 2 cannot recur
+        if changelog_fragments::in_mode "$plugin"; then
+          echo "STALE VERSION: $src or its copy $copy changed vs $base but $plugin, in fragment mode, has no fragment for it" >&2
+          [[ -n "${stale_seen[$plugin]:-}" ]] || stale_plugins+=("$plugin")
+          [[ -n "${src_seen[$src]:-}" ]] || stale_srcs+=("$src")
+          stale_seen["$plugin"]=1
+          src_seen["$src"]=1
+        else
+          echo "STALE VERSION: $src or its copy $copy changed vs $base but $manifest is still $head_version" >&2
+          echo "  A bump that only carries the change gets the CHANGELOG entry: Shared \`$(basename "$src")\` synced (<link to the change>); no change to this plugin's ${rest%%/*}." >&2
+          stale=1
+        fi
       fi
     done <<<"${copies_of[$src]}"
     changed=$((changed + src_changed))
   done
   if ((stale)); then
     echo "Bump the version of every carrying plugin so consumers receive the change." >&2
+  fi
+  if ((${#stale_plugins[@]})); then
+    fragment_hint
+  fi
+  if ((stale || ${#stale_plugins[@]})); then
     exit 1
   fi
   if ((changed)); then

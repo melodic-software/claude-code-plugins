@@ -50,7 +50,7 @@ source "$HOOK_DIR/hook-utils.sh"
 source "$HOOK_DIR/worktree-path-lib.sh"
 hook::buffer_stdin_to INPUT || exit 0
 
-hook::require jq "PostToolUse" "source-control-worktree-add-claim-gate" "$INPUT"
+hook::require jq "PostToolUse" "source-control" "$INPUT"
 
 # ONE `jq` for the field and no `tr` behind it. The payload is fed through
 # `printf '%s' "$INPUT" | jq`, the form lib/hook-utils.sh prescribes for a hook
@@ -103,8 +103,9 @@ hook::bash_parse_segments "$COMMAND" collect_add
 # Nothing we could honestly attribute to an executed `git worktree add`.
 ((${#CLAIM_TARGETS[@]})) || exit 0
 
-claimed_any=0
-foreign_any=0
+# A successful claim gives the model nothing to act on, so only a foreign
+# claim is reported: the model must not write in that worktree.
+foreign=""
 
 for target in "${CLAIM_TARGETS[@]}"; do
   args=(claim "$target")
@@ -121,28 +122,12 @@ for target in "${CLAIM_TARGETS[@]}"; do
   # the group is still the HELPER's status — `claim_rc=$?` stays outside it, per
   # the reason spelled out in the create-gate sibling: read inside `if ! cmd`
   # it would be a constant 0.
-  { claim_out="$(bash "$CLAIM" "${args[@]}")"; } 2>/dev/null || claim_rc=$?
-  if [[ "$claim_out" == *"worktree-claim.sh: lane active"* && "$claim_rc" -eq 0 ]]; then
-    claimed_any=1
-  fi
-  if [[ "$claim_rc" -eq 4 ]]; then
-    foreign_any=1
-  fi
+  { bash "$CLAIM" "${args[@]}" >/dev/null; } 2>/dev/null || claim_rc=$?
+  [[ "$claim_rc" -eq 4 ]] && foreign+="${foreign:+, }$target"
 done
 
-ctx=""
-if ((claimed_any)); then
-  ctx="source-control: claimed unlocked worktree after git worktree add (session ${SESSION:-unknown}). Before writing in a worktree, run worktree-claim.sh check-enter <path> --session-id <id>. A foreign live claim is a stop."
-fi
-if ((foreign_any)); then
-  if [[ -n "$ctx" ]]; then
-    ctx="${ctx} A sibling target already carries a live claim (not rewritten)."
-  else
-    ctx="source-control: a linked worktree already carries a live claim; not rewriting it."
-  fi
-fi
-if [[ -n "$ctx" ]]; then
-  hook::emit_channels PostToolUse "$ctx" ""
+if [[ -n "$foreign" ]]; then
+  hook::emit_channels PostToolUse "source-control: $foreign already carries another session's live claim; it was not claimed for this session." ""
 fi
 
 exit 0

@@ -204,7 +204,7 @@ assert_block "a decoy keyword after an escaped-backtick idiom is not linkage" "$
   "gh pr create -t T --body-file escaped-tick.md"
 
 run "$GATED" "$(gh_body "$ISSUE_3205")"
-if [[ "$ERR" == *'Missing a "## Fix" section.'* && "$ERR" == *"## Summary"* && "$ERR" == *"## Fix"* && "$ERR" == *"## Verification"* && "$ERR" == *"## Related"* && "$ERR" == *"Closes #<issue>"* ]]; then
+if [[ "$ERR" == *'Missing a "## Fix" section.'* && "$ERR" == *"## Summary"* && "$ERR" == *"## Fix"* && "$ERR" == *"## Verification"* && "$ERR" == *"## Related"* && "$ERR" == *"Closes #N"* ]]; then
   ok "block message names the missing Fix section and lists all four in the remedy"
 else
   fail "block message lacks the missing Fix section or the four-section remedy: $ERR"
@@ -267,14 +267,14 @@ assert_allow "a negated closer inside inline code is masked" "$GATED" \
   "gh pr create -t T --body-file negated-inline.md"
 
 run "$GATED" "$(gh_body $'This does not close #5. We never fix #6.\nIt does not close #5 either.'"$SECTIONS")"
-if [[ "$ERR" == *'Negated closing reference ("close #5" (trigger "not"), "fix #6" (trigger "never")).'* &&
-  "$ERR" == *'Missing a native closing keyword (Closes/Fixes/Resolves #N). If this PR references an issue it must not close, put "Refs: #N"'* ]]; then
+if [[ "$ERR" == *'Negated closing reference ("close #5" (trigger "not"), "fix #6" (trigger "never")): GitHub still auto-closes'* &&
+  "$ERR" == *'No closing line: add Closes #N, Refs: #N (link without closing), or No linked issue.'* ]]; then
   ok "negated-closer message lists each distinct closer once with its trigger, beside the missing-linkage message"
 else
   fail "negated-closer or missing-linkage message wrong: $ERR"
 fi
 run "$GATED" "$(gh_body "$NO_KEYWORD")"
-if [[ "$ERR" == *'"Refs: #N" (or "Relates to: #N")'* && "$ERR" == *'Refs: #<issue>'* && "$ERR" != *'Negated'* ]]; then
+if [[ "$ERR" == *'Refs: #N (link without closing)'* && "$ERR" != *'Negated'* ]]; then
   ok "missing-linkage message and remedy name the Refs: marker"
 else
   fail "missing-linkage message or remedy lacks the Refs: marker: $ERR"
@@ -715,6 +715,17 @@ if ((jq_stub_ok)) && [[ -x "$BASH_ABS" ]] && ! PATH="$STUB" command -v jq >/dev/
     ok "a missing jq fails open"
   else
     fail "a missing jq did not fail open"
+  fi
+  # The plugin's hooks share one jq notice: after this gate tells the user, the
+  # MCP sibling stays quiet in the same session.
+  JQ_DATA="$WORK/jq-data"
+  mkdir -p "$JQ_DATA/skip-notices" # the stub PATH has no mkdir
+  first=$(printf '%s' "$payload" | PATH="$STUB" CLAUDE_PLUGIN_DATA="$JQ_DATA" "$BASH_ABS" "$HOOK" 2>/dev/null)
+  second=$(printf '%s' "$payload" | PATH="$STUB" CLAUDE_PLUGIN_DATA="$JQ_DATA" "$BASH_ABS" "$HOOK_DIR/pr-linkage-mcp-gate.sh" 2>/dev/null)
+  if [[ "$first" == *systemMessage* && -z "$second" ]]; then
+    ok "one jq notice per session across the plugin's hooks"
+  else
+    fail "jq notice not shared across hooks: first=$first second=$second"
   fi
 else
   echo "SKIP: could not build a jq-free PATH -- missing-jq fail-open not measured"

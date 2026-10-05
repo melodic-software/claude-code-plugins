@@ -27,9 +27,9 @@ export const STICKY_NOTE_COLORS = [
 export const STICKY_NOTE_SHAPES = ["square", "rectangle"] as const;
 
 export const POSITION_X_DESCRIPTION =
-  "X position. Board-center-relative (0 = center) by default; relative to the parent frame's top-left corner when parent_id is set";
+  "X coordinate of the note's center. Board-center-relative (0 = board center) by default; relative to the parent frame's top-left corner when the note is in a frame (parent_id)";
 export const POSITION_Y_DESCRIPTION =
-  "Y position. Board-center-relative (0 = center) by default; relative to the parent frame's top-left corner when parent_id is set";
+  "Y coordinate of the note's center. Board-center-relative (0 = board center) by default; relative to the parent frame's top-left corner when the note is in a frame (parent_id)";
 
 const BOARD_ITEM_TYPES = [
   "sticky_note",
@@ -72,7 +72,7 @@ export function registerStickyNoteTools(
 ): void {
   server.tool(
     "miro_create_sticky_note",
-    "Create a sticky note on a Miro board. Use this for individual notes — for batch creation (up to 20), use miro_bulk_create_sticky_notes instead. Returns the item ID.",
+    "Create one sticky note on a Miro board, optionally inside a frame (parent_id). Use this for a single note; to place several, use miro_bulk_create_sticky_notes (up to 20 per call). Returns the new note's { id, type } plus the content, color and position as sent. Run miro_detect_overlaps after placing many notes to find ones that cover each other.",
     {
       board_id: z.string().describe("The board ID"),
       content: z.string().describe("Text content for the sticky note"),
@@ -105,14 +105,14 @@ export function registerStickyNoteTools(
 
   server.tool(
     "miro_update_sticky_note",
-    "Update a sticky note's content, color, or position. Use this to modify existing notes without recreating them. Only specified fields are changed — omitted fields keep their current values.",
+    "Update an existing sticky note's content, color or position. Use this to change a note in place instead of deleting and recreating it. Only the fields you pass change; omitted fields keep their current values. Shape cannot be changed here: delete the note and create it again with the new shape. Returns { id, status: \"updated\" }, not the note's new state; read it back with miro_list_board_items.",
     {
       board_id: z.string().describe("The board ID"),
       item_id: z.string().describe("The sticky note item ID"),
       content: z.string().optional().describe("New text content"),
       color: z.enum(STICKY_NOTE_COLORS).optional().describe("New fill color"),
-      x: z.number().optional().describe("New X position"),
-      y: z.number().optional().describe("New Y position"),
+      x: z.number().optional().describe(POSITION_X_DESCRIPTION),
+      y: z.number().optional().describe(POSITION_Y_DESCRIPTION),
     },
     { idempotentHint: true, destructiveHint: false, openWorldHint: true },
     async ({ board_id, item_id, content, color, x, y }) => {
@@ -136,16 +136,21 @@ export function registerStickyNoteTools(
 
   server.tool(
     "miro_list_board_items",
-    "List items on a Miro board. Use this to discover what's on a board before modifying it. Can filter by type (sticky_note, shape, frame, text, connector, etc.). Connectors are retrieved via Miro's separate connectors endpoint — pass type 'connector' to list them (each result carries startItemId/endItemId, the string IDs of the connected items). Returns item IDs, types, data, and positions.",
+    "List items on a Miro board. Use this to see what is on a board, and to get item IDs, before changing or deleting items. Returns an array of { id, type, data, position }, with data and position only when Miro sends them. Stops at limit (default 20, max 1000) and gives no sign that more items exist: a result of exactly limit items may be incomplete, so raise limit if it is below 1000, or list one type at a time; at 1000 items of one type, the rest cannot be listed with this tool. Connectors are listed only when type is 'connector'; each then carries startItemId and endItemId, the IDs of the items it joins.",
     {
       board_id: z.string().describe("The board ID"),
-      type: z.enum(BOARD_ITEM_TYPES).optional().describe("Filter by item type"),
+      type: z
+        .enum(BOARD_ITEM_TYPES)
+        .optional()
+        .describe(
+          "Optional item type to list. Omit to list every type except connectors; pass 'connector' to list connectors",
+        ),
       limit: z
         .number()
         .min(1)
         .max(1000)
         .default(20)
-        .describe("Max items to return (the SDK auto-paginates beyond a single API page)"),
+        .describe("Max items to return (default 20, max 1000)"),
     },
     { readOnlyHint: true, openWorldHint: true },
     async ({ board_id, type, limit }) => {
@@ -179,7 +184,7 @@ export function registerStickyNoteTools(
 
   server.tool(
     "miro_delete_item",
-    "Delete an item from a Miro board. Use miro_list_board_items first to verify the item ID. Pass the item's type (as returned by miro_list_board_items) so connectors route to Miro's separate connector endpoint; any other type — or omitting it — deletes via the item endpoint.",
+    "Delete one item from a Miro board. Confirm the item ID with miro_list_board_items first. Pass type 'connector' to delete a connector; any other type, or none, deletes through the item endpoint, which does not reach connectors. Returns { id, status: \"deleted\" }. To delete a whole board, use miro_delete_board.",
     {
       board_id: z.string().describe("The board ID"),
       item_id: z.string().describe("The item ID to delete"),

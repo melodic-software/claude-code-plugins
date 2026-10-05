@@ -3,6 +3,29 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.1] - 2026-10-04
+
+### Changed
+
+- **The operable floor's Account switch bullet gives the current reason to read `.claude.json`.** The old reason, that a machine running only headless sessions never refreshes the snapshot file, stopped holding when the mod began writing in headless sessions. The reason now: the file names an account only as of a session's last API response, and a paused lane's Monitor ticks never write it, so after a switch it names the old account or none until a session gets a response under the new one. The rule itself is unchanged.
+
+## [0.16.0] - 2026-10-04
+
+### Removed
+
+- **`/rate-limit-guard:setup check` no longer looks for a retired statusline tee or shim.** The detector and unwire references (`skills/setup/reference/legacy-statusline-detect.md` and `unwrap-before-compose.md`), the check step that ran them, the uninstall ordering note and the evals that tested unwiring are gone, as are the README's upgrade section and the reader contract's list of files versions before 0.12.0 left behind. Installs that still wire a tee from before 0.12.0 are no longer supported: remove the shim from your `statusLine` by hand.
+
+### Changed
+
+- **The reader contract calls `rate-limits.json` the snapshot file, not the tee file.** The "Tee file shape" section is now "Snapshot file shape", and the operable floor's first bullet is `Snapshot file (fixed path)`. The path and every value are unchanged; a consumer that inlines the floor must take the new bullet label.
+- **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** Two comments no longer cite the retired statusline tee.
+
+## [0.15.3] - 2026-10-04
+
+### Changed
+
+- **The `status` tool's description says when to call it and what it returns.** It names the windows, the overall verdict and its levels, the thresholds and the spend limit, says figures come from the last API response, says to call it when the user asks about usage limits or before long or parallel work, and says not to poll it, since a line arrives when the 5-hour or 7-day window rises to approach or edge.
+
 ## [0.15.2] - 2026-10-04
 
 ### Changed

@@ -154,9 +154,10 @@ assert_block "-- ends option parsing; the next word is the target" "$REPO" \
 
 run "$REPO" "git worktree add $REPO/wt-msg"
 assert_contains "the block message names the resolved target" "$ERR" "$REPO/wt-msg"
-assert_contains "the block message names what encloses it" "$ERR" "inside:"
+assert_contains "the block message names what encloses it" "$ERR" "is inside a git working tree"
 assert_contains "the block message points at the skill alternative" "$ERR" "worktree create"
-assert_contains "the block message names its kill switch" "$ERR" "worktree_add_containment_gate_enabled"
+assert_not_contains "the block message does not offer the model its kill switch" "$ERR" \
+  "worktree_add_containment_gate_enabled"
 assert_contains "with nothing configured, the remedy is the git config key" "$ERR" \
   "git config --global worktreeroot.path"
 
