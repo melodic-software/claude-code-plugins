@@ -519,10 +519,31 @@ build_tree_index() {
   # Every Python import line, for R3's module rule in token_hits. Exit 1 is no
   # match; anything above it is an unreadable lookup, fatal like the grep in
   # select_for.
-  local grep_rc=0
+  local grep_rc=0 wrap_rc=0
   git grep --untracked -E '^[[:blank:]]*(from|import)[[:blank:]]' -- '*.py' >"$WORK_DIR/py-imports" || grep_rc=$?
-  if [[ "$grep_rc" -gt 1 ]]; then
-    echo "error: 'git grep' failed (exit $grep_rc) listing the Python import lines." >&2
+  # A `from m import (` or `from m import \` statement carries its names on the
+  # lines after it, so each is joined into one line of the index. --null keeps
+  # the path apart from a context line's text, which `-` cannot.
+  git grep --untracked --null -E -A 200 '^[[:blank:]]*from[[:blank:]].*import[[:blank:]]*([(][^)]*|.*\\[[:blank:]]*)$' \
+    -- '*.py' >"$WORK_DIR/py-wrapped" || wrap_rc=$?
+  if [[ "$grep_rc" -gt 1 || "$wrap_rc" -gt 1 ]]; then
+    echo "error: 'git grep' failed (exit $grep_rc, $wrap_rc) listing the Python import lines." >&2
+    exit 2
+  fi
+  if ! tr '\0' '\t' <"$WORK_DIR/py-wrapped" | awk '
+    { i = index($0, "\t") }
+    i == 0 { open = 0; next }
+    { p = substr($0, 1, i - 1); t = substr($0, i + 1); sub(/#.*/, "", t) }
+    open && p == path {
+      s = s " " t
+      if (paren ? index(t, ")") : t !~ /\\[[:blank:]]*$/) { print path ":" s; open = 0 }
+      next
+    }
+    { open = 0 }
+    t ~ /^[[:blank:]]*from[[:blank:]].*import[[:blank:]]*(\([^)]*|.*\\[[:blank:]]*)$/ {
+      path = p; s = t; open = 1; paren = index(t, "(") > 0
+    }' >>"$WORK_DIR/py-imports"; then
+    echo "error: joining the wrapped Python import statements failed." >&2
     exit 2
   fi
   while IFS= read -r b; do
@@ -644,6 +665,8 @@ token_hits() {
       if (b ~ /^[A-Za-z0-9_.-]+$/) want[b] = 1
       else loose[b] = 1
       if (b ~ /\.py$/) want_stem[substr(b, 1, length(b) - 3)] = 1
+      # A package initializer is reached through its package name (import_names).
+      if (b == "__init__.py") rt[b, ++nrt[b]] = $0
       next
     }
     FILENAME == resf {
@@ -687,11 +710,19 @@ token_hits() {
         kept[key] = 1
       }
       if (b in nrt) for (k = 1; k <= nrt[b]; k++)
-        if (rt[b, k] != path && nearest_module(path, rt[b, k])) {
+        if (rt[b, k] != path && nearest_module(path, rt[b, k], "")) {
+          key = path SUBSEP rt[b, k]
+          if (!(key in rhit)) { rhit[key] = 1; print "r\t" path "\t" rt[b, k] }
+        }
+      # Importing package c, or anything inside it, runs c/__init__.py.
+      b = "__init__.py"
+      if (b in nrt) for (k = 1; k <= nrt[b]; k++)
+        if (rt[b, k] != path && pkg_of(rt[b, k]) == c && nearest_module(path, rt[b, k], c)) {
           key = path SUBSEP rt[b, k]
           if (!(key in rhit)) { rhit[key] = 1; print "r\t" path "\t" rt[b, k] }
         }
     }
+    function pkg_of(p) { p = dir_of(p); sub(/\/$/, "", p); return base_of(p) }
     # uniq_suffix: the shortest path suffix, two components or more, that no
     # other file of the same basename ends in; empty when there is none.
     function uniq_suffix(t,   n, pa, k, j, suf, b, i, o, clash) {
@@ -740,12 +771,15 @@ token_hits() {
     # directory, from the importer namer up to the root, that holds any. The
     # importer reaches it through its own directory, a tests/ parent or a
     # sys.path entry for its plugin lib/, never across two candidates.
-    function nearest_module(namer, t,   a, b, i, n, hit) {
+    # With pkg set, t is a package __init__.py and only those of package pkg count.
+    function nearest_module(namer, t, pkg,   a, b, i, n, hit) {
       b = base_of(t)
       for (a = dir_of(namer); ; sub(/[^\/]*\/$/, "", a)) {
         n = 0; hit = 0
         for (i = 1; i <= nsame[b]; i++)
-          if (a == "" || index(same[b, i], a) == 1) { n++; if (same[b, i] == t) hit = 1 }
+          if ((a == "" || index(same[b, i], a) == 1) && (pkg == "" || pkg_of(same[b, i]) == pkg)) {
+            n++; if (same[b, i] == t) hit = 1
+          }
         if (n > 0) return n == 1 && hit
         if (a == "") return 0
       }

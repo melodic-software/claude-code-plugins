@@ -1083,11 +1083,28 @@ if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/imp/test_user_mod.py && ! has_line "
 else
   fail "python import of a module (rc=$RC): $OUT"
 fi
+printf 'from harness import (\n    other_name,\n    stub_h,\n)\n' >"$repo/eco/imp/test_wrapped.py"
+printf 'from harness import other_name, \\\n    stub_h\n' >"$repo/eco/imp/test_backslash.py"
 run_sel "$repo" eco/imp/harness/stub_h.py
-if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/imp/test_dotted.py && has_line "$OUT" eco/imp/test_named.py; then
-  ok "R3: a dotted component or an imported name equal to the stem names the module"
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/imp/test_dotted.py && has_line "$OUT" eco/imp/test_named.py &&
+  has_line "$OUT" eco/imp/test_wrapped.py && has_line "$OUT" eco/imp/test_backslash.py; then
+  ok "R3: a dotted component or an imported name equal to the stem names the module, on a wrapped line too"
 else
-  fail "python dotted or from-import (rc=$RC): $OUT"
+  fail "python dotted, from-import or wrapped import (rc=$RC): $OUT"
+fi
+
+# Importing a package, or a module inside it, runs its __init__.py.
+mkdir -p "$repo/eco/imp/pkgx" "$repo/eco/imp/other"
+printf 'VALUE = 1\n' >"$repo/eco/imp/pkgx/__init__.py"
+printf 'VALUE = 2\n' >"$repo/eco/imp/pkgx/mod.py"
+: >"$repo/eco/imp/other/__init__.py"
+printf 'from pkgx.mod import VALUE\n' >"$repo/eco/imp/test_pkg_user.py"
+printf 'import json\n' >"$repo/eco/imp/test_no_pkg.py"
+run_sel "$repo" eco/imp/pkgx/__init__.py
+if [[ "$RC" -eq 0 ]] && has_line "$OUT" eco/imp/test_pkg_user.py && ! has_line "$OUT" eco/imp/test_no_pkg.py; then
+  ok "R3: a package's __init__.py reaches a suite outside the package that imports it"
+else
+  fail "python package __init__.py (rc=$RC): $OUT"
 fi
 
 # An ambiguous module name resolves to the one module of that name in the
