@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "```markdown\n# AGENTS.md\n\nBrightwater: Python 3.12 job scheduler; uv. Commands are in the Makefile.\n\n- Run migrations with `make migrate-local` only. `make migrate` targets the shared staging database other teams use; never run it from an agent session.\n```\n\n- Layout: visible from the tree.\n- Commands: in the Makefile.\n- Python-version troubleshooting: the uv error already names the required version.",
+      "why": "row absent from the file; the cut list may name it without the phrase"
+    },
+    {
+      "answer": "```markdown\n# AGENTS.md\n\n- Migrations: `make migrate-local` only. Never `make migrate`: it hits the shared staging DB.\n```\n\n- Overview, layout, commands: derivable.\n- Troubleshooting row: the error message states its own fix.\n- Cut: `does not satisfy Python>=3.12` row, self-explaining.",
+      "why": "phrase only in the cut list, after the fence"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "```markdown\n# AGENTS.md\n\n- Migrations: `make migrate-local` only. `make migrate` targets the shared staging database; never run it.\n- `uv sync` fails with `error: The current Python version (3.11.9) does not satisfy Python>=3.12`: install Python 3.12+.\n```\n\n- Overview, layout, commands: derivable.",
+      "why": "phrase inside the file"
+    }
+  ]
+}

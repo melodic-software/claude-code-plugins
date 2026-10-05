@@ -3,6 +3,17 @@
 All notable changes to the `wizard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.5] - 2026-10-04
+
+### Fixed
+
+- An env file reached through a symlinked parent directory (`ENV_FILE=sub/.env` with `sub` linked
+  outside the project) now gets the same confirm-before-write prompt as a symlinked `.env`: the
+  whole path is resolved before the inside-the-project check, not just its last component.
+- `ask`, `ask_secret` and `write_env` refuse a key naming a variable the shell itself sets or reads
+  (`PATH`, `IFS`, `HOME`, `PS4`, `BASH_ENV` and the rest of the bash manual's Shell Variables list),
+  plus `LD_*` and `DYLD_*`, so a stage can no longer change how the rest of the wizard runs.
+
 ## [0.6.4] - 2026-10-04
 
 ### Fixed
