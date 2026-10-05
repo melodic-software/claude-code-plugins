@@ -3,11 +3,17 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.42.3] - 2026-10-04
+
+### Fixed
+
+- `/review:fanout` fix-pass eval cases: the scoped-to-fixed-hunks prompt names `/review:fanout`, asks what the fix action says, no longer tells the agent not to run anything, and lists `Bash` (run with `--allow-tools Bash`), so the with-arm loads the skill. Both cases drop their `Skill`-call grader, because a slash-invoked skill loads without a `Skill` tool call and the grader read false even when the skill loaded.
+
 ## [0.42.2] - 2026-10-04
 
 ### Added
 
-- `/review:fanout` gains two `claude plugin eval` cases under the plugin's `evals/`: after correctness fixes, the fix pass's re-review covers only the fixed hunks, and it stops after one round, reporting any new finding. Both prompts name `/review:fanout` so the with-arm loads the skill, and both grant `Read`, `Glob`, `Grep`, `Skill` and `Bash` and need `--allow-tools Bash`: the skill's pre-computed context runs `gh pr list`, and a Bash denial fails the whole skill load. Neither case carries a `Skill`-call grader, because a slash-invoked skill loads without a `Skill` tool call.
+- `/review:fanout` gains two `claude plugin eval` cases under the plugin's `evals/`: after correctness fixes, the fix pass's re-review covers only the fixed hunks, and it stops after one round, reporting any new finding. Both grant `Read`, `Glob`, `Grep` and `Skill`, and the stop case names `/review:fanout` so the with-arm invokes the skill. The stop case also lists `Bash` and needs `--allow-tools Bash`: the skill's pre-computed context runs `gh pr list`, and a Bash denial fails the whole skill load.
 
 ### Changed
 
