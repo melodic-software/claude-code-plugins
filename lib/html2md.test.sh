@@ -119,6 +119,13 @@ assert_contains "heading: a '#' permalink anchor is dropped" $'\n## Setup\n' "$h
 assert_contains "heading: a pilcrow permalink anchor is dropped" $'\n## Usage\n' "$head_md"
 assert_contains "heading: a standalone trailing pilcrow is dropped" $'\n### Notes\n' "$head_md"
 
+# --- Case: an in-page anchor that wraps the heading text keeps it (mdBook, VuePress) ---
+wrap_md="$(printf '%s' '<html><body><main><h1 id="b"><a class="header" href="#b">The Book</a></h1><h2 id="s"><a class="header" href="#s">Setup</a></h2><h2 id="u"><a class="header-anchor" href="#u"><span>Usage</span></a></h2><h2>See <a href="#i">Install</a> now</h2><p>End.</p></main></body></html>' | conv)"
+assert_eq "heading: an anchor wrapping the H1 text keeps it" "# The Book" "$(head -n 1 <<<"$wrap_md")"
+assert_contains "heading: an anchor wrapping the H2 text keeps it" $'\n## Setup\n' "$wrap_md"
+assert_contains "heading: an anchor wrapping a span keeps its text" $'\n## Usage\n' "$wrap_md"
+assert_contains "heading: an in-page link inside the heading keeps its text" $'\n## See Install now\n' "$wrap_md"
+
 # --- Case: a ``` line inside <pre> does not close the fence early ---
 nested_file="$TEST_TMPDIR/nested.md"
 printf '%s' '<html><body><main><h1>Doc</h1><pre><code class="language-markdown">```

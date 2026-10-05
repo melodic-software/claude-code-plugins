@@ -31,6 +31,7 @@ SKIP = {
 BLOCK = {"p", "div", "section", "li", "tr", "dt", "dd", "blockquote", "figure", "br"}
 ZW = re.compile(r"[​‌‍﻿]")
 LANG = re.compile(r"(?:language|lang)-([\w+-]+)")
+GLYPHS = re.compile("[\\s#¶§\U0001f517​-‍﻿]*")
 
 
 def squash(parts):
@@ -42,7 +43,7 @@ class Conv(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.out, self.skip, self.pre = [], 0, 0
         self.head = None  # (level, parts) while inside a heading
-        self.perma = False  # inside a heading's in-page anchor (a permalink)
+        self.perma = None  # text parts of a heading's in-page anchor, while inside one
         self.link = None  # (href, parts) while inside a link
         # index in out of the open fence line, until its language is known
         self.fence = None
@@ -67,10 +68,14 @@ class Conv(HTMLParser):
         if re.fullmatch(r"h[1-6]", tag):
             self.head = (int(tag[1]), [])
         elif self.head is not None:
-            # a heading is one line of text: wrappers are dropped, and a permalink's text too
-            self.perma = self.perma or (
-                tag == "a" and (a.get("href") or "").startswith("#")
-            )
+            # a heading is one line of text: wrappers are dropped; an in-page anchor's text is
+            # held to its end tag and dropped only when it is a permalink glyph
+            if (
+                self.perma is None
+                and tag == "a"
+                and (a.get("href") or "").startswith("#")
+            ):
+                self.perma = []
             return
         elif tag == "pre":
             self.pre += 1
@@ -113,14 +118,18 @@ class Conv(HTMLParser):
             return
         if re.fullmatch(r"h[1-6]", tag) and self.head is not None:
             lvl, parts = self.head
-            self.head, self.perma = None, False
-            text = squash(parts).removesuffix("¶").strip()
+            self.head, self.perma = None, None
+            text = squash(parts)
+            text = (text[:-1] if text.endswith("¶") else text).strip()
             if text and not self.skip:
                 if lvl == 1:
                     self.h1.append(text)
                 self.emit("\n\n" + "#" * lvl + " " + text + "\n\n")
         elif self.head is not None:
-            self.perma = self.perma and tag != "a"
+            if tag == "a" and self.perma is not None:
+                text, self.perma = "".join(self.perma), None
+                if not GLYPHS.fullmatch(text):
+                    self.head[1].append(text)
             return
         elif tag == "pre":
             self.pre = max(0, self.pre - 1)
@@ -158,7 +167,9 @@ class Conv(HTMLParser):
             self.emit("\n\n")
 
     def handle_data(self, data):
-        if self.perma:
+        if self.perma is not None:
+            if not self.skip:
+                self.perma.append(data)
             return
         if self.pre and self.head is None:
             self.emit(data)

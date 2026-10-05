@@ -827,8 +827,11 @@ else
     want=""
     slug="${t%"$P_SUFFIX"}"
     if [[ "$t" == *://* ]]; then
-      # A browser-form URL, with no raw-channel suffix or with a fragment, names the same page.
+      # A browser-form URL, with no raw-channel suffix, a fragment, a query or a trailing
+      # slash, names the same page.
       want="${t%%#*}"
+      want="${want%%\?*}"
+      want="${want%/}"
       [[ "$want" == *"$P_SUFFIX" ]] || want="$want$P_SUFFIX"
       slug="$(slug_of "$want")"
     fi

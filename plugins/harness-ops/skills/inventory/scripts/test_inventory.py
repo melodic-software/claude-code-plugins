@@ -2318,6 +2318,41 @@ class TestDocsCrosscheck(unittest.TestCase):
             block["names"]["add-dir"]["changelog"]["first_mentioned"], "9.9.9"
         )
 
+    def test_stale_pages_degrade_the_block_with_their_reasons(self) -> None:
+        def fake_fetch(_profile, url):
+            if url == self.dc.COMMANDS_URL:
+                return (
+                    DOCS,
+                    None,
+                    {"age_seconds": 90000, "stale": True, "reason": "http-503"},
+                )
+            return (
+                "## 9.9.9\n",
+                None,
+                {"age_seconds": 90000, "stale": True, "reason": "fetch-failed"},
+            )
+
+        with mock.patch.object(self.dc, "fetch_text", side_effect=fake_fetch):
+            block = self.dc.build_crosscheck(_report())
+        self.assertEqual(block["status"], "degraded")
+        self.assertEqual(
+            block["advisories"],
+            [
+                "commands page served stale (http-503)",
+                "changelog page served stale (fetch-failed)",
+            ],
+        )
+
+    def test_a_fresh_cache_serve_leaves_the_block_ok(self) -> None:
+        fresh = {"age_seconds": 100, "stale": False}
+        with mock.patch.object(
+            self.dc,
+            "fetch_text",
+            side_effect=[(DOCS, None, fresh), ("## 9.9.9\n", None, fresh)],
+        ):
+            block = self.dc.build_crosscheck(_report())
+        self.assertEqual((block["status"], block["advisories"]), ("ok", []))
+
     def test_no_bash_leaves_the_page_unread_with_its_reason(self) -> None:
         with mock.patch.object(self.dc, "_bash", return_value=None):
             block = self.dc.build_crosscheck(_report())
@@ -2486,6 +2521,17 @@ class TestToolsDocsCrosscheck(unittest.TestCase):
         report = dict(self.report)
         report["integrity"] = {"lanes": {"builtin_tools": {"status": "degraded"}}}
         self.assertEqual(self._block(TOOLS_DOCS, report)["status"], "degraded")
+
+    def test_a_stale_tools_page_degrades_the_block(self) -> None:
+        stale = {"age_seconds": 90000, "stale": True, "reason": "fetch-failed"}
+        with mock.patch.object(
+            self.dc, "fetch_text", return_value=(TOOLS_DOCS, None, stale)
+        ):
+            block = self.dc.build_tools_crosscheck(self.report)
+        self.assertEqual(block["status"], "degraded")
+        self.assertEqual(
+            block["advisories"], ["tools reference page served stale (fetch-failed)"]
+        )
 
     def test_no_tools_lane_is_unavailable_without_fetching(self) -> None:
         block = self.dc.build_tools_crosscheck({"sources": {}}, "unused")

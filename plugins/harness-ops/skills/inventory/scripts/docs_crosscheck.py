@@ -172,6 +172,13 @@ def _read_source(
     return text, err, {"url": url, **extra}
 
 
+def _stale(page: str, source: dict[str, Any]) -> list[str]:
+    """The advisory for a page served stale from the cache, or none."""
+    if not source.get("stale"):
+        return []
+    return [f"{page} page served stale ({source.get('reason') or 'unknown'})"]
+
+
 def _row_rest(pattern: re.Pattern[str], line: str) -> tuple[re.Match[str], str] | None:
     """The first-cell match and the text between it and the row's closing pipe,
     or None when `line` is not such a row."""
@@ -239,6 +246,7 @@ def build_tools_crosscheck(
             "no rows parsed from the tools table - the tools reference layout changed"
         )
         return block
+    block["advisories"] += _stale("tools reference", block["source"])
     alias_of = {
         alias: name
         for name, rec in tools.items()
@@ -268,6 +276,7 @@ def build_tools_crosscheck(
             "the builtin_tools lane is not ok - an undocumented or docs_only status "
             "may reflect extraction, not the product"
         )
+    if block["advisories"]:
         block["status"] = "degraded"
     return block
 
@@ -556,6 +565,7 @@ def build_crosscheck(
             f"no rows parsed under '{_SECTION}' - the commands page layout changed"
         )
         return block
+    block["advisories"] += _stale("commands", block["sources"]["commands"])
 
     changelog: dict[str, dict[str, Any]] | None = None
     cl_text, cl_err, block["sources"]["changelog"] = _read_source(
@@ -567,6 +577,7 @@ def build_crosscheck(
             f"changelog unavailable, no version history attached: {cl_err}"
         )
     else:
+        block["advisories"] += _stale("changelog", block["sources"]["changelog"])
         binary, _ = _binary_index(report)
         names = (
             set(binary) | set(rows) | {a for r in rows.values() for a in r["aliases"]}

@@ -12,7 +12,7 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 
 ### Fixed
 
-- **The docs cross-check reports a stale page.** A page served from the cache because its fetch failed carries `stale` and the failed fetch's `reason`; the shared scripts also read a browser-form docs URL, refetch a page found removed, and keep a trailing `#` in headings.
+- **The docs cross-check reports a stale page.** A page served from the cache because its fetch failed carries `stale` and the failed fetch's `reason`, and the block is `degraded` with an advisory naming the page; the shared scripts also read a browser-form docs URL, refetch a page found removed, and keep a trailing `#` in headings.
 
 - **The docs cross-check never runs a `git` or `bash` planted in the working directory.** It resolves both from the absolute `PATH` entries only, where `shutil.which` on Windows searched the current directory first; the shared `fetch-docs.sh` also leaves a body over `max_page_bytes` (default 10 MiB) unread `too-large`, and `docs-cache.sh` refuses a summary or note shaped like its untrusted-data markers.
 

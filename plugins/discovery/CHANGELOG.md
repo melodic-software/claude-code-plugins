@@ -35,6 +35,9 @@
   shows them back; headings keep a real trailing `#` (`Using C#`); and prune counts and clears
   temp items left by an interrupted write, takes over a lock left without a start time, and never
   leaves a key without its pointer when an entry cannot be moved away.
+- Headings wrapped in an in-page anchor (mdBook, VuePress) keep their text, html2md runs on Python
+  3.8, a browser-form URL with a query string or trailing slash resolves, prune sweeps stale temp
+  leftovers on every run, and a page with no title lifts its removal quarantine when read again.
 
 ## [0.28.9] - 2026-10-04
 

@@ -975,12 +975,16 @@ src="$(new_served served26)"
 C="$TEST_TMPDIR/cache26"
 skills_key="$(DC key https://docs.test/docs/en/skills.md markdown)"
 cache_run $T1 out26a --max-age 0 skills
-for form in https://docs.test/docs/en/skills 'https://docs.test/docs/en/skills#frontmatter' 'https://docs.test/docs/en/skills.md#frontmatter'; do
+for form in https://docs.test/docs/en/skills 'https://docs.test/docs/en/skills#frontmatter' 'https://docs.test/docs/en/skills.md#frontmatter' \
+  'https://docs.test/docs/en/skills?utm_source=x' https://docs.test/docs/en/skills/; do
   cache_run $T1 out26b --max-age 0 "$form"
   assert_eq "case 26: $form reads the page the index lists" "read https://docs.test/docs/en/skills.md" \
     "$(page "$TEST_TMPDIR/out26b/manifest.json" skills '"\(.state) \(.url)"')"
 done
 assert_eq "case 26: no browser form quarantines the listed page's key" null "$(DC info "$skills_key" | jq -c .quarantine)"
+cache_run $T1 out26c --max-age 0 https://evil.test/docs/en/skills
+assert_eq "case 26: an off-origin browser form is unread and never fetched" "unread 0" \
+  "$(page "$TEST_TMPDIR/out26c/manifest.json" https://evil.test/docs/en/skills .state) $(grep -c 'evil\.test' "$src.log")"
 
 # --- Case 27: a removal quarantine is never served fresh from the cache -----------
 src="$(new_served served27)"

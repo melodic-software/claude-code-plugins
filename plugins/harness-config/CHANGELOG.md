@@ -72,6 +72,12 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   counts and clears temp items older than the grace window, takes over a lock left without a start
   time, and renames an evicted entry before dropping its pointer; and the effort-pin audit always
   reads only its section, whatever the machine's escalation thresholds.
+- **Second review round.** html2md keeps heading text wrapped in an in-page anchor (mdBook,
+  VuePress) and drops only permalink-glyph anchors, and runs on Python 3.8 again; fetch-docs reads a
+  browser-form URL with a query string or trailing slash; every prune removes temp leftovers older
+  than the grace window, puts back a lock another prune took over, and keeps the pointer of a page
+  a writer stored again during eviction; and a page with no title lifts its removal quarantine
+  when it is stored or confirmed again.
 - **A hostile host can no longer fill the disk or forge the untrusted-data framing.**
   `scripts/fetch-docs.sh` leaves a body over `max_page_bytes` (`--max-page-bytes`,
   `DOCS_CACHE_MAX_PAGE_BYTES`, default 10 MiB) unread with reason `too-large`, converting and

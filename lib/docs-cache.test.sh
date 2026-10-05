@@ -627,6 +627,22 @@ lib_run "$S" $T3 'dc_quarantine_reason '"$KEY"' http-404'
 lib_run "$S" $T3 'dc_confirm '"$KEY-$(sha <"$TEST_TMPDIR/big-other.md")" >/dev/null
 assert_eq "quarantine cleared: a confirmation (a 304) of the entry that was current clears a removal quarantine" null \
   "$(info "$S" $T3 "$KEY" | jq -c .quarantine)"
+# A page with no title lifts its removal quarantine when read again with no title.
+S="$TEST_TMPDIR/s-removed-untitled"
+printf '%s\n' 'no heading here' >"$TEST_TMPDIR/untitled.md"
+KEY="$(DOCS_CACHE_NOW=$T1 dc "$S" put "$URL" markdown "$TEST_TMPDIR/untitled.md")"
+lib_run "$S" $T2 'dc_quarantine_reason '"$KEY"' http-404'
+DOCS_CACHE_NOW=$T3 dc "$S" put "$URL" markdown "$TEST_TMPDIR/untitled.md" >/dev/null
+assert_eq "quarantine cleared: a page with no title read again with no title clears a removal quarantine" null \
+  "$(info "$S" $T3 "$KEY" | jq -c .quarantine)"
+lib_run "$S" $T3 'dc_quarantine_reason '"$KEY"' http-404'
+lib_run "$S" $T3 'dc_confirm '"$KEY-$(sha <"$TEST_TMPDIR/untitled.md")" >/dev/null
+assert_eq "quarantine cleared: a confirmation (a 304) of a page with no title clears a removal quarantine" null \
+  "$(info "$S" $T3 "$KEY" | jq -c .quarantine)"
+lib_run "$S" $T3 'dc_quarantine_reason '"$KEY"' http-404'
+DOCS_CACHE_NOW=$T3 dc "$S" put "$URL" markdown "$TEST_TMPDIR/alpha.md" >/dev/null
+assert_eq "quarantine kept: a page with no title read again under a title stays quarantined" http-404 \
+  "$(info "$S" $T3 "$KEY" | jq -r .quarantine.reason)"
 S="$TEST_TMPDIR/s-retitle-back"
 DOCS_CACHE_NOW=$T1 dc "$S" put "$URL" markdown "$TEST_TMPDIR/alpha.md" >/dev/null
 KEY="$(DOCS_CACHE_NOW=$T2 dc "$S" put "$URL" markdown "$TEST_TMPDIR/beta.md")"
@@ -796,6 +812,40 @@ assert_eq "edge: prune racing a writer that re-points a key at the entry being e
   DOCS_CACHE_NOW=$T3 dc "$S" info "$KA" >/dev/null 2>&1 || rc=$?
   echo "$rc"
 )"
+# A writer stores the same bytes again once prune has renamed the key's current
+# entry away: it places a new entry at the same path and rewrites the pointer.
+mk_prune_store "$TEST_TMPDIR/s-restore"
+cur_b="$(sha <"$other")"
+lib_run "$S" $T3 'eval "orig_$(declare -f dc_rename_dir)"
+  dc_rename_dir() {
+    orig_dc_rename_dir "$@" || return 1
+    if [[ "$1" == */entries/'"${KB:0:16}-${cur_b:0:16}"' && "$2" == */.tmp-evict-* ]]; then
+      DOCS_CACHE_NOW=$((DC_NOW + 1)) bash "'"$SCRIPT"'" --cache-dir "$DC_DIR" put '"$URL_B"' markdown "'"$other"'" >/dev/null
+    fi
+  }
+  DC_CFG_size_cap_bytes=0 DC_CFG_prune_grace_seconds=0
+  dc_prune >/dev/null'
+assert_eq "edge: prune racing a writer that stores the evicted entry's bytes again: the key still reads them" "0 0" "$(
+  rc=0
+  DOCS_CACHE_NOW=$((T3 + 1)) dc "$S" info "$KB" >/dev/null 2>&1 || rc=$?
+  echo "$rc $(leftovers "$S")"
+)"
+# Another prune takes the lock over just as this one releases it: this one leaves it.
+mk_prune_store "$TEST_TMPDIR/s-lock5"
+lib_run "$S" $((T3 + 400)) 'eval "orig_$(declare -f dc_rename_dir)"
+  dc_rename_dir() {
+    if [[ "$1" == */prune.lock && "$2" == */.tmp-unlock-* ]]; then
+      rm -rf "$DC_DIR/prune.lock"
+      mkdir "$DC_DIR/prune.lock"
+      printf "%s\n" "$DC_NOW" >"$DC_DIR/prune.lock/at"
+      printf "other\n" >"$DC_DIR/prune.lock/owner"
+    fi
+    orig_dc_rename_dir "$@"
+  }
+  DC_CFG_size_cap_bytes=0 DC_CFG_prune_grace_seconds=0
+  dc_prune >/dev/null'
+assert_eq "prune: a lock another prune took over during the release is put back, not deleted" other \
+  "$(cat "$S/prune.lock/owner" 2>/dev/null)"
 # A lock with no start time, left by a release cut short, is taken over once its
 # directory is older than the grace window.
 mk_prune_store "$TEST_TMPDIR/s-lock4"
@@ -829,6 +879,21 @@ assert_eq "prune: a temp directory older than the grace window counts toward the
 mkdir "$S/entries/.tmp-3-4" && cp "$PAGE" "$S/entries/.tmp-3-4/body"
 DOCS_CACHE_NOW=$T3 dc "$S" --max-bytes 0 --grace 300 prune >/dev/null
 assert_eq "edge: prune leaves a temp directory younger than the grace window" 1 "$([[ -f "$S/entries/.tmp-3-4/body" ]] && echo 1 || echo 0)"
+# Every prune, under the cap too, removes temp items older than the grace window
+# from the store root, entries/, keys/ and each key's summaries/ and notes/.
+mk_prune_store "$TEST_TMPDIR/s-temp-sweep"
+stale=("$S/.tmp-ref-1-2" "$S/.tmp-version-1-2" "$S/keys/.tmp-${KA:0:16}-1-2" "$S/summaries/${KA:0:16}/.tmp-1-2" "$S/notes/${KA:0:16}/.tmp-1-2")
+young=("$S/.tmp-unlock-3-4" "$S/keys/.tmp-${KB:0:16}-3-4")
+for f in "${stale[@]}" "${young[@]}"; do printf 'x\n' >"$f"; done
+mkdir "$S/.tmp-lock-1-2" "$S/entries/.tmp-5-6"
+stale+=("$S/.tmp-lock-1-2" "$S/entries/.tmp-5-6")
+touch -d "@$T1" "${stale[@]}"
+DOCS_CACHE_NOW=$T3 dc "$S" --grace 300 prune >/dev/null
+n_stale=0 n_young=0
+for f in "${stale[@]}"; do [[ ! -e "$f" ]] || n_stale=$((n_stale + 1)); done
+for f in "${young[@]}"; do [[ ! -e "$f" ]] || n_young=$((n_young + 1)); done
+assert_eq "prune: under the cap, stale temp items go everywhere in the store and younger ones stay" "0 2 0 0" \
+  "$n_stale $n_young $(info "$S" $T3 "$KA" >/dev/null && echo 0 || echo 1) $(info "$S" $T3 "$KB" >/dev/null && echo 0 || echo 1)"
 
 # Every write prunes.
 S="$TEST_TMPDIR/s-autoprune"

@@ -39,7 +39,8 @@
 #                          entry, title). A reader withholds the summaries and
 #                          notes of a quarantined key. A removal quarantine is
 #                          removed when the page is stored or confirmed again
-#                          under the title it recorded; a retitle one never is.
+#                          under the title it recorded, or with no title when it
+#                          recorded none; a retitle one never is.
 #   summaries/<key16>/<section sha16>  a one-line summary of the section whose
 #                          own-body sha256 it names (JSON: store_version, key,
 #                          section_sha256, summary, date)
@@ -62,13 +63,16 @@
 # summary, or a note or its provenance, holding UNTRUSTED DATA in any case (the
 # block markers' shape) is refused too.
 #
-# prune evicts the least recently used items until the store is at most
-# --max-bytes: entries (raw page bytes) first, then summaries, then notes, which
-# cost a full read to rebuild. It skips every item whose key was read or written
-# within --grace seconds, so a reader that resolved a pointer finishes reading
-# before its entry can go, renames an entry away before removing its key's
-# pointer and deleting it, and first removes temp items (.tmp-*) older than
-# --grace seconds. Every write runs it.
+# prune first removes every temp item (.tmp-*) in the store root, entries/,
+# keys/ and each key's summaries/ and notes/ directory last modified at least
+# --grace seconds ago, whatever the store's size; a younger one is never
+# touched. Then it evicts the least recently used items until the store is at
+# most --max-bytes: entries (raw page bytes) first, then summaries, then notes,
+# which cost a full read to rebuild. It skips every item whose key was read or
+# written within --grace seconds, so a reader that resolved a pointer finishes
+# reading before its entry can go. It renames an entry away, then removes its
+# key's pointer only when the pointer line is the one it read when ranking, and
+# otherwise puts the entry back. Every write runs it.
 #
 # key is sha256 of the normalized URL (scheme and host lower-cased, fragment
 # dropped), a newline and the format. meta.json holds store_version, key, url,
@@ -300,12 +304,14 @@ dc_entry_ok() {
   IFS=$'\x1f' read -r DC_RETRIEVED DC_CTYPE DC_FORMAT DC_TITLE DC_URL <<<"$rec"
 }
 
-# dc_ptr <key>: read the key's pointer once. Sets P_NAME P_EPOCH P_ISO P_VAL
-# (the validators record) and P_DATE (the server Date), each empty when absent.
+# dc_ptr <key>: read the key's pointer once. Sets P_LINE (the whole line),
+# P_NAME P_EPOCH P_ISO P_VAL (the validators record) and P_DATE (the server
+# Date), each empty when absent.
 # Fields are split by hand: read with a tab IFS would merge an empty field.
 dc_ptr() {
   local line="" f=()
   [[ -f "$DC_DIR/keys/${1:0:16}" ]] && IFS= read -r line <"$DC_DIR/keys/${1:0:16}"
+  P_LINE="$line"
   while [[ "$line" == *$'\t'* ]]; do
     f+=("${line%%$'\t'*}")
     line="${line#*$'\t'}"
@@ -535,18 +541,18 @@ dc_entry_title() {
 
 # dc_quarantine_clear <key> <title>: a removal quarantine (any reason but
 # retitled) lifts when the key's page is read again under the title its entry
-# had when it was quarantined. A retitle quarantine never lifts. Notes and
-# summaries then follow their cited section hashes as before. Returns 1 when
-# nothing was lifted.
+# had when it was quarantined, or with no title when that entry had none. A
+# retitle quarantine never lifts. Notes and summaries then follow their cited
+# section hashes as before. Returns 1 when nothing was lifted.
 dc_quarantine_clear() {
   local q="$DC_DIR/keys/${1:0:16}.quarantine" rec t e
-  [[ -f "$q" && -n "$2" ]] || return 1
+  [[ -f "$q" ]] || return 1
   rec="$(jq -r 'select(.reason != "retitled") | [(.title // ""), (.entry // "")] | join("\u001f")' "$q" 2>/dev/null)"
   rec="${rec%$'\r'}"
   [[ -n "$rec" ]] || return 1
   IFS=$'\x1f' read -r t e <<<"$rec"
   [[ -n "$t" || ! "$e" =~ ^[0-9a-f]{64}-[0-9a-f]{64}$ ]] || t="$(dc_entry_title "$e")"
-  [[ -n "$t" && "$t" == "$2" ]] || return 1
+  [[ "$t" == "$2" ]] || return 1
   rm -f "$q"
 }
 
@@ -1042,71 +1048,96 @@ dc_prune_lock() {
 
 # dc_prune_unlock: release the prune lock when this prune still owns it, renamed
 # away before it is deleted so a release cut short never leaves a lock without at.
+# A lock another prune took over before the rename is put back.
 dc_prune_unlock() {
   local o="" gone="$DC_DIR/.tmp-unlock-$$-$RANDOM"
   [[ ! -f "$DC_DIR/prune.lock/owner" ]] || read -r o <"$DC_DIR/prune.lock/owner"
   [[ -n "$o" && "$o" == "${DC_LOCK_OWNER:-}" ]] || return 0
-  if dc_rename_dir "$DC_DIR/prune.lock" "$gone"; then rm -rf "$gone"; else rm -rf "$DC_DIR/prune.lock"; fi
+  if ! dc_rename_dir "$DC_DIR/prune.lock" "$gone"; then
+    rm -rf "$DC_DIR/prune.lock"
+    return 0
+  fi
+  o=""
+  [[ ! -f "$gone/owner" ]] || read -r o <"$gone/owner"
+  if [[ "$o" == "$DC_LOCK_OWNER" ]] || ! dc_rename_dir "$gone" "$DC_DIR/prune.lock"; then rm -rf "$gone"; fi
 }
 
-# dc_prune: evict least recently used items until the store is at most
-# DC_CFG_size_cap_bytes, skipping keys accessed within DC_CFG_prune_grace_seconds
-# seconds. Prints "evicted <temp|entry|summary|note> <path> <bytes>" per item, then
+# dc_prune_temps: print the path, relative to the store, of each temp item
+# (.tmp-*) in the store root, entries/, keys/ and each key's summaries/ and
+# notes/ directory last modified at least the grace window before DC_NOW.
+dc_prune_temps() {
+  local ref="$DC_DIR/.tmp-ref-$$-$RANDOM" stamp
+  TZ=UTC0 printf -v stamp '%(%Y%m%d%H%M.%S)T' $((DC_NOW - DC_CFG_prune_grace_seconds))
+  TZ=UTC0 touch -t "$stamp" "$ref" 2>/dev/null || return 0
+  find "$DC_DIR" -mindepth 1 -maxdepth 3 -name '.tmp-*' -prune ! -newer "$ref" ! -path "$ref" -print 2>/dev/null |
+    DC_PFX="$DC_DIR/" LC_ALL=C awk '
+      index($0, ENVIRON["DC_PFX"]) == 1 {
+        r = substr($0, length(ENVIRON["DC_PFX"]) + 1)
+        if (r ~ /^((entries|keys)\/|(summaries|notes)\/[^\/]+\/)?\.tmp-[^\/]*$/) print r
+      }'
+  rm -f "$ref"
+}
+
+# dc_prune: remove temp items older than DC_CFG_prune_grace_seconds seconds
+# (dc_prune_temps), then evict least recently used items until the store is at
+# most DC_CFG_size_cap_bytes, skipping keys accessed within the grace window.
+# Prints "evicted <temp|entry|summary|note> <path> <bytes>" per item, then
 # "total <bytes> <max>".
 dc_prune() {
-  local items total=0 n rel k16 kind tier cur ranked line gone
+  local items total=0 n rel k16 kind tier cur ranked snap gone
   dc_readable || return 0
   dc_now
   items="$(dc_prune_items)"
   while IFS=$'\t' read -r n rel; do [[ -z "$n" ]] || total=$((total + n)); done <<<"$items"
-  if [[ $total -gt $DC_CFG_size_cap_bytes ]]; then
+  if [[ $total -gt $DC_CFG_size_cap_bytes || -n "$(dc_prune_temps)" ]]; then
     if ! dc_prune_lock; then
       echo "docs-cache prune: busy: another prune holds $DC_DIR/prune.lock" >&2
       printf 'total\t%s\t%s\n' "$total" "$DC_CFG_size_cap_bytes"
       return 0
     fi
+    # A live writer or prune may own a temp item younger than the grace window.
+    while IFS= read -r rel; do
+      [[ -n "$rel" ]] || continue
+      n="$(find "$DC_DIR/$rel" -type f -exec cat {} + 2>/dev/null | wc -c | tr -d ' ')"
+      rm -rf "${DC_DIR:?}/$rel" 2>/dev/null && [[ ! -e "$DC_DIR/$rel" ]] || continue
+      printf 'evicted\ttemp\t%s\t%s\n' "$rel" "$n"
+    done < <(dc_prune_temps)
     items="$(dc_prune_items)"
     total=0
     ranked=""
     while IFS=$'\t' read -r n rel; do
       [[ -n "$n" ]] || continue
       total=$((total + n))
-      cur=0
+      cur=0 snap=""
       case "$rel" in
-      */.tmp-*) tier=0 k16="" ;;
+      */.tmp-*) continue ;;
       entries/*)
         tier=1 k16="${rel:8:16}"
         dc_ptr "$k16"
+        snap="$P_LINE"
         [[ "${P_NAME:0:16}-${P_NAME:65:16}" != "${rel#entries/}" ]] || cur=1
         ;;
       summaries/*) tier=2 k16="${rel:10:16}" ;;
       *) tier=3 k16="${rel:6:16}" ;;
       esac
-      ranked+="$tier"$'\t'"$(dc_access "$k16")"$'\t'"$cur"$'\t'"$n"$'\t'"$rel"$'\t'"$k16"$'\n'
+      ranked+="$tier"$'\t'"$(dc_access "$k16")"$'\t'"$cur"$'\t'"$n"$'\t'"$rel"$'\t'"$k16"$'\t'"$snap"$'\n'
     done <<<"$items"
-    while IFS=$'\t' read -r tier _ cur n rel k16; do
+    while IFS=$'\t' read -r tier _ cur n rel k16 snap; do
       [[ $total -gt $DC_CFG_size_cap_bytes ]] || break
       [[ $((DC_NOW - $(dc_access "$k16"))) -ge $DC_CFG_prune_grace_seconds ]] || continue
       case "$tier" in
-      0)
-        # A live writer or prune may own a temp item younger than the grace window.
-        kind=temp
-        dc_stale "$DC_DIR/$rel" || continue
-        rm -rf "${DC_DIR:?}/$rel" 2>/dev/null && [[ ! -e "$DC_DIR/$rel" ]] || continue
-        ;;
       1)
         kind=entry
         gone="$DC_DIR/entries/.tmp-evict-$$-$RANDOM$RANDOM"
         dc_rename_dir "$DC_DIR/$rel" "$gone" || continue
         dc_ptr "$k16"
-        if [[ "${P_NAME:0:16}-${P_NAME:65:16}" == "${rel#entries/}" ]]; then
-          if [[ $cur -eq 0 ]]; then
-            # A writer pointed its key at this entry since it was ranked: put it back.
-            dc_rename_dir "$gone" "$DC_DIR/$rel" || rm -rf "$gone"
-            continue
-          fi
-          rm -f "$DC_DIR/keys/$k16"
+        if [[ "$P_LINE" != "$snap" ]]; then
+          # A writer stored or confirmed the key since it was ranked, perhaps
+          # placing this entry anew: put it back and keep the pointer.
+          dc_rename_dir "$gone" "$DC_DIR/$rel" || rm -rf "$gone"
+          continue
         fi
+        [[ $cur -eq 0 ]] || rm -f "$DC_DIR/keys/$k16"
         rm -rf "$gone"
         ;;
       *)
