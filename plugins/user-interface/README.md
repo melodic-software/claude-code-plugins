@@ -47,7 +47,7 @@ reads it from.
 
 | Option | Type | Default | Environment variable | Description |
 | --- | --- | --- | --- | --- |
-| `account_tools_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_ACCOUNT_TOOLS_ENABLED` | Route to tools that need an account, login or API key (Claude Design, Figma, axe) when installed and reachable; false uses only account-free tools. Paid tools only when nothing free fits. Claude Design (the Artifact tool, interactive sessions with a claude.ai login) is the one tested so far; the rest stay deferred until tested. |
+| `account_tools_enabled` | boolean | `true` | `CLAUDE_PLUGIN_OPTION_ACCOUNT_TOOLS_ENABLED` | Route to tools that need an account, login or API key (Claude Design, Figma, axe) when installed and reachable; false uses only account-free tools. Paid tools only when nothing free fits. Only Claude Design (interactive sessions) is tested; the rest stay deferred. |
 
 ### How to set these
 
