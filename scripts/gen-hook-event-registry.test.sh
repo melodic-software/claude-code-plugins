@@ -158,12 +158,14 @@ fi
 # Idempotent: a second run leaves all three files byte-identical.
 mkdir -p "$f/run1"
 cp "$REG" "$H/register.ts" "$H/hooks.json" "$f/run1/"
-run_from "$TABLE" "$f" >/dev/null
+out=$(run_from "$TABLE" "$f")
+rc=$?
+((rc == 0)) || fail "the second run failed (rc=$rc): $out"
 same=0
 for file in hook-events.registry.json register.ts hooks.json; do
   if cmp -s "$f/run1/$file" "$H/$file"; then same=$((same + 1)); else fail "a second run changed $file"; fi
 done
-((same == 3)) && ok "a second run is byte-identical on the registry, register.ts and hooks.json"
+((rc == 0 && same == 3)) && ok "a second run is byte-identical on the registry, register.ts and hooks.json"
 
 # --check: clean on a generated tree; fails on a stale block, an event-log row,
 # or a lost marker, each for its own reason.
