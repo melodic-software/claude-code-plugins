@@ -18,7 +18,7 @@
 #                                                 the head branch of a pull request
 #                                                 from this repository, never a fork,
 #                                                 so only the release pull request,
-#                                                 which release-plugins.yml writes,
+#                                                 which release-publish-packages-plugins.yml writes,
 #                                                 answers 0
 #   changelog_fragments::bump_of <file>           print the fragment's bump; 1 and
 #                                                 a reason on stdout when the front
