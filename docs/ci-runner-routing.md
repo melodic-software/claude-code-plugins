@@ -145,7 +145,8 @@ are in the header of `scripts/affected-tests.sh`.
 A same-repo `edited` (without `changes.base`), `labeled`, or `unlabeled` event
 runs `ci` as contract-only: every lane job is gated off and `ci-status` reads
 the `ci-lanes` commit status on the head SHA once, with no wait
-(`carry-forward-wait-seconds: '0'`, a 3-minute job). It passes only when the
+(`yield-to-full-run: 'true'` and `carry-forward-wait-seconds: '0'` on the
+`aggregate-results` composite, a 3-minute job). It passes only when the
 newest status the Actions bot wrote is `success`.
 
 No run waits on another run:
@@ -154,21 +155,24 @@ No run waits on another run:
    A contract-only run that reads it goes red at once instead of carrying an
    older verdict forward while the lanes are in flight. Before its marker is
    written, the full run is queued or in progress on the SHA, and the
-   contract-only run goes red at once on that too: one runs listing, where a
-   sibling whose `select-tests` job was skipped (contract-only) or whose `ci-status`
-   job has started (writing its verdict) does not count.
+   contract-only run goes red at once on that too: the composite lists this
+   workflow's in-flight runs on the SHA once and fails with
+   `superseded by full run <url>`. A sibling whose only non-skipped job is
+   `ci-status` (contract-only) does not count, and neither does the attempt of
+   the full run that already wrote `ci-lanes=success`.
 2. The full run's own `ci-status` check run appears only when its lanes finish.
    It is newer than the red one, and the newest same-name check run is the one
    the merge gate reads: three merged pull requests kept an older, never
    re-run red contract-only `ci-status` beside a newer green one, and the
    `ci-gate` ruleset has no bypass actors.
 3. After recording `success`, the full run's `ci-status` re-runs the failed
-   jobs of every red contract-only run on the same SHA (`rerun-failed-jobs`,
-   `actions: write`). The re-run keeps its event, so it is contract-only again,
-   reads `success` and replaces the red check run within seconds. That
-   includes a run drawn while the pull request was a draft: its payload still
-   says draft, so `Fail a draft` reads the live draft state on a contract-only
-   run and passes once the pull request is ready
+   jobs of every red contract-only run on the same SHA
+   (`rerun-contract-only-siblings`, `actions: write`); a draft full run skips
+   its lanes and re-runs nothing. The re-run keeps its event, so it is
+   contract-only again, reads `success` and replaces the red check run within
+   seconds. That includes a run drawn while the pull request was a draft: its
+   payload still says draft, so `Fail a draft` reads the live draft state on a
+   contract-only run and passes once the pull request is ready
    (`scripts/ci-fail-a-draft.test.sh`).
 
 A red contract-only run also stays red when its contract fails (an invalid
