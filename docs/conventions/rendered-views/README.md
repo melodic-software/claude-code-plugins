@@ -546,8 +546,8 @@ helpers of the loop-closure reference and fails on a dropped case that lints cle
 ## Accessibility floor
 
 The floor (contrast pairings, focus visibility, color-scheme and reduced-motion behavior,
-keyboard reach) lives in the shared chrome reference and is provisional until the
-design-system vertical revisits it cross-genre. Accessibility is a named, sanctioned
+keyboard reach) lives in the shared chrome reference, as the web instance of the
+medium-neutral floor `/user-interface:design` applies to every interface. Accessibility is a named, sanctioned
 reason to prefer markdown over a rendered view: when a reader's tooling or needs make the
 markdown record the better deliverable, flipping back is conformant, not a deviation.
 

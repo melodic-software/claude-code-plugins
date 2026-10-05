@@ -1,0 +1,38 @@
+// expect: rule-conditional-assertion
+// Each test returns before its only assertion when a condition holds, and
+// then reports passed with nothing asserted, where a skip would report it.
+using System;
+using Xunit;
+
+public class ConfigEarlyReturnTests
+{
+    [Fact]
+    public void Load_ReadsTheConnectionString()
+    {
+        var cfg = Config.Load("app.json");
+        if (cfg is null) return;
+        Assert.Equal("Server=db", cfg.ConnectionString);
+    }
+
+    [Fact]
+    public void Pointer_IsEightBytes()
+    {
+        if (!Environment.Is64BitProcess)
+        {
+            return;
+        }
+        Assert.Equal(8, IntPtr.Size);
+    }
+
+    [Fact]
+    public void Keys_HaveValues()
+    {
+        var keys = Config.Load("app.json").Keys.Where(k =>
+            k.Length > 0);
+        if (!keys.Any())
+        {
+            return;
+        }
+        Assert.All(keys, k => Assert.NotNull(Config.Get(k)));
+    }
+}

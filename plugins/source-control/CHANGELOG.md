@@ -3,6 +3,31 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.79.21] - 2026-10-04
+
+### Changed
+
+- **babysit-loop and the pull-request watch handoff inline rate-limit-guard's updated operable floor.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says the file names an account only as of a session's last API response and a paused lane's Monitor ticks never write it. The rule is unchanged.
+
+## [0.79.20] - 2026-10-04
+
+### Changed
+
+- **`babysit-loop` and the `pull-request` watch handoff call `rate-limits.json` the snapshot file, not the tee file**, matching rate-limit-guard's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
+- **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** Two comments no longer cite the retired statusline tee.
+
+## [0.79.19] - 2026-10-04
+
+### Changed
+
+- `babysit-loop`'s `reference/paused-wait.md` no longer restates the lane pause floor as a bare `95`: the account-switch resume and re-latch steps point at the inlined floor's **Pause threshold (fixed)**, so a floor change cannot leave them stale.
+
+## [0.79.18] - 2026-10-04
+
+### Changed
+
+- **Shorter hook text (#6225).** Both PR-contract gates print one shared block message (`linkage::block_message` in `pr-linkage-validator.sh`): the problems found and one sentence naming the required shape, in place of two drifted ten-line templates. The negated-closer and missing-closing-line problems are one line each. The worktree containment block is one sentence and no longer names its kill switch. The worktree claim hook is silent after a successful claim and names the worktree when another session already holds it. The four hooks share one missing-jq notice per session.
+
 ## [0.79.17] - 2026-10-04
 
 ### Changed

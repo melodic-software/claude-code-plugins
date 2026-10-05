@@ -5,6 +5,25 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [1.9.2] - 2026-10-04
+
+### Fixed
+
+- **`/harness-config:audit`'s engine no longer runs for many minutes with no output on a large
+  configuration ([#6258](https://github.com/melodic-software/claude-code-plugins/issues/6258)).**
+  The cause was process starts, which cost 140 to 160 ms each on an idle Windows host and about
+  four times that under load: the engine started 4,247 external processes on a configuration with
+  83 plugins and 259 hooks, one or more `jq` and hashing processes for every row, and its hook
+  inventory several for every plugin and one for every hook. With the docs read from disk and the
+  drift check skipped, that run took 400 to 411 seconds repo-rooted and 344 seconds home-rooted.
+  The engine now builds every row in one `jq` pass, hashes in one process per hash, and decodes
+  the plugin rows and reads every `plugin.json` in one pass each; the inventory reads each
+  marketplace catalog and the plugin registry once and builds each output array in one `jq` call.
+  The repo-rooted run now starts 810 processes, and the two runs take 76 to 86 and 63 seconds, with
+  byte-identical output and finding ids. The engine also writes one `audit-engine:` progress line per category to stderr
+  (`SETTINGS_AUDIT_ENGINE_PROGRESS=0` turns them off), and the audit skill states the expected
+  duration.
+
 ## [1.9.1] - 2026-10-04
 
 ### Changed

@@ -229,6 +229,8 @@ if [[ $RC -eq 0 && "$OUT_NOJQ" == *'"systemMessage"'* && "$OUT_NOJQ" == *jq* ]];
 else
   fail "jq-absent (rc=$RC out=$OUT_NOJQ)"
 fi
+# Stop additionalContext would continue the conversation for a notice.
+if [[ "$OUT_NOJQ" == *additionalContext* ]]; then fail "jq-absent notice reached the model on Stop: $OUT_NOJQ"; else ok "jq-absent notice is user-only on Stop"; fi
 
 # --- Case 13: sentinel mentioned/negated inline (not alone on a line) → block
 # Regression: after the nudge reveals the token, a premature turn that merely
@@ -421,6 +423,7 @@ if [[ $RC -eq 0 && "$OUT" == *'"systemMessage"'* && "$OUT" == *"environment chan
 else
   fail "env-only enable claim not surfaced (rc=$RC out=$OUT)"
 fi
+if [[ "$OUT" == *additionalContext* ]]; then fail "env-only enable notice reached the model on Stop: $OUT"; else ok "env-only enable notice is user-only"; fi
 
 # --- Case 25: a repo env block cannot weaken the sentinel -------------------
 # On a trusted-enabled session, an env-only SENTINEL must be ignored: the
@@ -507,6 +510,7 @@ if [[ "$OUT" == *'"systemMessage"'* && "$OUT" == *"no matching arm record"* ]]; 
 else
   fail "a dangling arm id gave the wrong or no notice: $OUT"
 fi
+if [[ "$OUT" == *additionalContext* ]]; then fail "the stale-arm notice reached the model on Stop: $OUT"; else ok "the stale-arm notice is user-only"; fi
 if [[ "$OUT" == *"environment channel"* ]]; then fail "a dangling arm id wrongly blamed the env channel"; else ok "a dangling arm id does not blame the env channel"; fi
 
 # --- Case 32: a replayed arm id is refused for a different session ----------

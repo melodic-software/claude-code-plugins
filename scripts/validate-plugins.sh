@@ -52,7 +52,19 @@ if ! command -v node >/dev/null 2>&1; then
   echo "error: node not on PATH" >&2
   exit 2
 fi
-node scripts/validate-plugin-contracts.mjs || exit 1
+# A contract WARNING fails here too. scripts/validate-plugin-contracts.test.sh
+# asserts the shipping tree draws none, but the selection runs that suite only
+# when the change reaches it, so a warning a pull request introduces would
+# otherwise pass its own run and fail first in the merge queue (#6215).
+contracts=$(node scripts/validate-plugin-contracts.mjs 2>&1) || {
+  printf '%s\n' "$contracts"
+  exit 1
+}
+printf '%s\n' "$contracts"
+if grep -q '^warning: ' <<<"$contracts"; then
+  echo "error: the plugin contract validator printed a warning; the tree must draw none" >&2
+  exit 1
+fi
 bash scripts/check-publisher-token-alignment.sh || exit 1
 node scripts/generate-catalog.mjs --check || exit 1
 node scripts/generate-cheatsheet.mjs --check || exit 1

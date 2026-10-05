@@ -1168,7 +1168,7 @@ with the operator's signature on them.
 > **Rate-limit floor** (inlined verbatim per the loop-lane convention;
 > provenance: the `rate-limit-guard` reader contract):
 >
-> - **Tee file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
+> - **Snapshot file (fixed path):** `~/.claude/rate-limit-guard/rate-limits.json`
 > - **Pause threshold (fixed):** pause when **either** window reports
 >   `used_percentage >= 95`
 > - **Pause end:** the **tripped** window's `resets_at`; when **both**
@@ -1179,7 +1179,7 @@ with the operator's signature on them.
 >   from a fresh snapshot stays valid through the pause unless the
 >   account changes (see **Account switch**; no refresh happens while
 >   paused). While paused, a consumer **must** arm a session Monitor on
->   the tee file and re-evaluate on every write: the file carries an
+>   the snapshot file and re-evaluate on every write: the file carries an
 >   **`account.email` field when the writer could attribute the
 >   observation**, so a write is still the signal that the windows
 >   changed under you (account switch, another session's refresh).
@@ -1188,9 +1188,11 @@ with the operator's signature on them.
 >   only on explicit user request.
 > - **Account switch:** while paused, a consumer **MUST** read
 >   `.oauthAccount.emailAddress` directly from
->   `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the tee: a
->   machine running only headless sessions never refreshes the tee, so a
->   switch would go unseen. At pause entry, record the **latched
+>   `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot
+>   file: it names an account only as of a session's last API response,
+>   and a paused lane's Monitor ticks never write it, so after a switch
+>   it names the old account or none until a session gets a response
+>   under the new one. At pause entry, record the **latched
 >   account** as the `account.email` of the snapshot that tripped, not
 >   the account `.claude.json` names now: that snapshot can be up to 10
 >   minutes old and may describe an account the operator has since left.
@@ -1199,7 +1201,7 @@ with the operator's signature on them.
 >   detect. Read `.claude.json` at pause entry and on every
 >   re-evaluation (each Monitor tick and each wake). When it differs
 >   from the latched account, re-evaluate at once against the new
->   account's windows, taken from a fresh tee snapshot whose
+>   account's windows, taken from a fresh snapshot whose
 >   `account.email` equals the new account: below 95, drop the latched
 >   pause and resume; at or above 95, keep pausing and re-latch the
 >   pause end and the latched account against the new account's
@@ -1214,7 +1216,7 @@ with the operator's signature on them.
 > Two further reader-contract rules apply alongside the floor (outside the
 > byte-audited block):
 >
-> - **Fail-open capability detection, classified per window:** tee file
+> - **Fail-open capability detection, classified per window:** snapshot file
 >   absent, stale, or missing `rate_limits` → mode **unknown →
 >   reactive-only** for the whole guard. Absurd values are narrower than
 >   that: a `used_percentage` outside 0–100 or non-numeric, or a `resets_at`
@@ -1264,10 +1266,13 @@ with the operator's signature on them.
   Routines with no access to local checkouts. A local option is a
   scheduled headless `claude -p` reading each lane's telemetry
   `restart_request`.
-- **Account rotation is undetectable.** The rate-limit tee carries no
-  account identifier and is last-writer-wins. Rotate only at session
-  boundaries, never mid-cycle, or a fresh account's healthy windows get
-  fed to a lane running on an exhausted one.
+- **Account rotation is detected only when attributable.** The rate-limit
+  snapshot is last-writer-wins and carries `account.email` only when its
+  writer could attribute the reading, so a paused lane catches a switch
+  through the floor's Account switch rule but misses one it cannot
+  attribute. Rotate only at session boundaries, never mid-cycle, or a
+  fresh account's healthy windows can reach a lane running on an
+  exhausted one.
 - **Decision-pending alone does not park an item.** `wit_filter_frontier`
   takes the human-gated label as a parameter resolved from
   `config.role_labels`; no equivalent binding exists for a repository's

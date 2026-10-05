@@ -69,6 +69,14 @@ base_fixture f ""
 expect_rc "a missing list puts no plugin in fragment mode" 1 $?
 rm -rf "$f"
 
+# --- is_release_pr ----------------------------------------------------------------
+(use_lib && CHANGELOG_HEAD_REF=release/plugins changelog_fragments::is_release_pr)
+expect_rc "the release branch is the release pull request" 0 $?
+(use_lib && CHANGELOG_HEAD_REF=feat/release/plugins changelog_fragments::is_release_pr)
+expect_rc "a branch that only contains the release branch name is not" 1 $?
+(use_lib && unset CHANGELOG_HEAD_REF && changelog_fragments::is_release_pr)
+expect_rc "no head ref (a push, a fork, a local run) is not" 1 $?
+
 # --- bump_delivered ---------------------------------------------------------------
 base_fixture f alpha
 delivered "$f" beta 1.0.0 1.0.1

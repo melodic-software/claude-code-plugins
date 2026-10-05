@@ -16,9 +16,12 @@ const server = new McpServer(
   { name: "miro-mcp", version: "0.2.2" },
   {
     instructions:
-      "Miro board management for visual collaboration. " +
-      "Use these tools to create and manage boards, sticky notes, frames, " +
-      "tags, and connectors for EventStorming, brainstorming, and diagramming.",
+      "Reads and edits Miro boards: boards, sticky notes, frames, tags and connectors, " +
+      "plus bulk sticky-note creation and overlap detection. " +
+      "Search these tools when the user names a Miro board or asks to lay out an " +
+      "EventStorming, brainstorming or diagram board in Miro. " +
+      "Every call needs a Miro API token; without one, the tool returns an error " +
+      "that explains how to set it.",
   },
 );
 

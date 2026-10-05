@@ -306,6 +306,18 @@ kill "$dying" 2>/dev/null
 check "a handoff job waits for the held lock, then judges the key" '[[ "$(stub_calls)" == 1 && -n "$(verdict_of s1 handoff)" ]]'
 wait
 
+# A write test-scan did not record, made by a subagent: the fallback record
+# keeps the payload's agent_id, so the judge's class differs from the
+# subagent's model too (sonnet main session, opus subagent: haiku).
+transcript s9 claude-sonnet-5
+subagent s9 a9 claude-opus-5-5
+stub_reset
+A9="$REPO/src/agentfallback.test.ts"
+js_file "$A9" agentfallback
+payload s9 wa9 "$A9" '{"agent_id": "a9"}' | bash "$HOOK"
+check "the fallback record keeps the subagent's agent_id: a haiku judge" \
+  '[[ "$(stub_calls)" == 1 && "$(stub_args 1 | sed -n "/^--model$/{n;p;}")" == haiku ]]'
+
 # TEST_JUDGE_ACTIVE=1 (inside a judge run) exits at once.
 stub_reset
 record s1 w16 "$REPO/src/cap1.test.ts" null

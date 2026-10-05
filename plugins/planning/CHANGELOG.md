@@ -3,6 +3,28 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.69.3] - 2026-10-04
+
+### Added
+
+- **`planning` adds three `claude plugin eval` cases for `/planning:wayfind` work mode (tag `pocock-33`).** Each case scaffolds an exported decision map for a partner shipment feed and asks for the brief or handoff wayfind would pass on for one item. A case passes when that brief or handoff carries the map's destination, a decision already made, and the out-of-scope line excluding partner client SDKs, not the item alone. Regex graders check each of the three; the out-of-scope and design-handoff cases add a judge rubric with pass and fail samples. The research-brief case has no judge: its calibration missed the bar, and the regex graders already reject both of its failing samples. No skill text changes.
+
+## [0.69.2] - 2026-10-04
+
+### Added
+
+- **Four `claude plugin eval` cases for whether `/planning:interview` asks the quality bar in round 1.** Two vague build requests with no stated bar check, by regex, that round 1 asks whether the work is a prototype, an internal tool or production; the bar terms must sit in a sentence ending in a question mark, so a stated assumption does not pass. Two controls state the bar (a throwaway prototype, a production service) and check that round 1 does not ask it again, with a model judge for whether the round's depth fits the stated bar. The cases carry the `row38` tag so they run alone. The skill body is unchanged: the cases record what the current skill does before any instruction is added. No case under `evals/` carries a `tool_used: Skill` grader any more, the three earlier `brainstorm` and `plan` cases included: every prompt starts with a slash command, which loads the skill without a Skill tool call, so that grader failed every with-plugin run; the slash command guarantees the load, and the cases measure behavior after it, not triggering. The `depth-fits-prototype` judge rubric now judges questions only and counts where demo data lives as scoping, after calibration showed it failing its own prototype-sized pass sample. The three earlier cases now carry offline pass and fail samples for every regex grader, so `/evals:validate` proves each one before a paid run; two `disconnected-scan-before-new-work` patterns were widened after their samples showed them rejecting valid wording ("imports `build_digest` but never calls it", "no code ever reads it").
+
+## [0.69.1] - 2026-10-04
+
+### Changed
+
+- **`/planning:wayfind` work mode sweeps the map after every resolution.** A new step 6 rewrites or closes as moot any open item whose premise the resolution invalidated, and supersedes a closed decision found wrong with a new item that links it; the old Decisions-so-far line then points at its replacement. A rewritten item gets its type, mode label and blocked-by edges reset, and a moot item closes as not planned. Fog prose is deleted from Not-yet-specified once it becomes a typed item, and session-start hygiene deletes any such prose an interrupted run left behind. `context/map-anatomy.md` states the moot and superseded cases in its invariants, and eval case 9 covers the sweep.
+
+### Fixed
+
+- **`/planning:design` no longer says the ideal test-seam count is one.** The test-seam posture thread still drives toward the fewest seams that cover the surface.
+
 ## [0.69.0] - 2026-10-04
 
 ### Added

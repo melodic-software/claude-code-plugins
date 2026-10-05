@@ -5,6 +5,12 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.9] - 2026-10-04
+
+### Fixed
+
+- **Resolver test copy synced from context-guard: its shared-fixture cases no longer depend on how fast they run ([#6214](https://github.com/melodic-software/claude-code-plugins/issues/6214)).** No change to the resolver.
+
 ## [0.13.8] - 2026-10-04
 
 ### Changed

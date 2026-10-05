@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Every hook plugin's SessionStart node-notice row: the fleet shape, then the row run
 # for real the way each default shell would run it (bash, dash, and PowerShell on a Windows
-# machine without Git Bash) with node absent.
+# machine without Git Bash) with node absent. The runtime cases run on POSIX hosts only.
 #
 # A hook that launches through node cannot report that node is missing, so each plugin
 # carries one shell-form row that calls lib/prerequisites.sh and then lib/prerequisites.ps1.
@@ -27,6 +27,7 @@ rows_checked=0
 for hooks in "$ROOT"/plugins/*/hooks/hooks.json; do
   plugin="$(basename "$(dirname "$(dirname "$hooks")")")"
   mapfile -t rows < <(jq -r '[.hooks.SessionStart[]? | . as $g | .hooks[]? | select((.command // "") | contains("prerequisites.sh")) | "\($g.matcher // "")\t\(.command)"] | .[]' "$hooks")
+  rows=("${rows[@]%$'\r'}")
   if ((${#rows[@]} != 1)); then
     bad "$plugin: want exactly one node-notice SessionStart row" "found ${#rows[@]}"
     continue
@@ -79,64 +80,73 @@ else
 fi
 
 # --- the row, run with node absent ------------------------------------------------
-WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
-TOOLS="$WORK/tools"
-mkdir -p "$TOOLS" "$WORK/tmp"
-for t in sed tr find mkdir cat rm sh; do ln -s "$(command -v "$t")" "$TOOLS/$t"; done
-printf '#!/bin/sh\n: >"%s/powershell-ran"\n' "$WORK" >"$TOOLS/powershell"
-chmod +x "$TOOLS/powershell"
+node_absent_cases() {
+  WORK="$(mktemp -d)"
+  trap 'rm -rf "$WORK"' EXIT
+  TOOLS="$WORK/tools"
+  mkdir -p "$TOOLS" "$WORK/tmp"
+  for t in sed tr find mkdir cat rm sh; do ln -s "$(command -v "$t")" "$TOOLS/$t"; done
+  printf '#!/bin/sh\n: >"%s/powershell-ran"\n' "$WORK" >"$TOOLS/powershell"
+  chmod +x "$TOOLS/powershell"
 
-row_of() { jq -r '.hooks.SessionStart[].hooks[] | select((.command // "") | contains("prerequisites.sh")) | .command' "$ROOT/plugins/$1/hooks/hooks.json"; }
-expand() { # <plugin> -> the row with the plugin root substituted, as Claude Code does
-  local row
-  row="$(row_of "$1")"
-  printf '%s' "${row//\$\{CLAUDE_PLUGIN_ROOT\}/$ROOT/plugins/$1}"
+  row_of() { jq -r '.hooks.SessionStart[].hooks[] | select((.command // "") | contains("prerequisites.sh")) | .command' "$ROOT/plugins/$1/hooks/hooks.json"; }
+  expand() { # <plugin> -> the row with the plugin root substituted, as Claude Code does
+    local row
+    row="$(row_of "$1")"
+    printf '%s' "${row//\$\{CLAUDE_PLUGIN_ROOT\}/$ROOT/plugins/$1}"
+  }
+
+  session='{"session_id":"row-1","hook_event_name":"SessionStart"}'
+  out1="$(printf '%s' "$session" | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$(command -v bash)" -c "$(expand bash-format)" 2>/dev/null)"
+  rc1=$?
+  out2="$(printf '%s' "$session" | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$(command -v bash)" -c "$(expand guardrails)" 2>/dev/null)"
+  rc2=$?
+  if ((rc1 == 0 && rc2 == 0)) && [[ "$out1" == *'"systemMessage":"bash-format: node is not on PATH'*'then run /bash-format:check."}' && -z "$out2" ]]; then
+    ok "bash: two plugins in one session print one notice, naming the first plugin's check skill, and exit 0"
+  else
+    bad "bash: want one notice across two plugins" "rc=$rc1/$rc2 first=$out1 second=$out2"
+  fi
+  if [[ ! -e "$WORK/powershell-ran" ]]; then
+    ok "bash: the row leaves before the PowerShell half"
+  else
+    bad "bash: the PowerShell half ran"
+  fi
+
+  if DASH="$(command -v dash)"; then
+    out="$(printf '%s' '{"session_id":"row-dash","hook_event_name":"SessionStart"}' | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$DASH" -c "$(expand bash-format)" 2>/dev/null)"
+    rc=$?
+    if ((rc == 0)) && [[ "$out" == *'"systemMessage":"bash-format: node is not on PATH'* && ! -e "$WORK/powershell-ran" ]]; then
+      ok "dash: the row prints the notice and leaves before the PowerShell half"
+    else
+      bad "dash: want the notice and no PowerShell half" "rc=$rc out=$out powershell-ran=$([[ -e "$WORK/powershell-ran" ]] && echo yes || echo no)"
+    fi
+  else
+    printf 'NOTE: dash is not on PATH; the dash case did not run.\n'
+  fi
+
+  if PWSH="$(command -v pwsh)"; then
+    PS_TOOLS="$WORK/ps-tools"
+    mkdir -p "$PS_TOOLS" "$WORK/tmp-ps"
+    ln -s "$PWSH" "$PS_TOOLS/powershell"
+    ps_row() { printf '%s' "$session" | PATH="$PS_TOOLS" TMPDIR="$WORK/tmp-ps" "$PWSH" -NoProfile -NonInteractive -Command "$(expand "$1")" 2>/dev/null; }
+    out1="$(ps_row bash-format)"
+    rc1=$?
+    out2="$(ps_row guardrails)"
+    if ((rc1 == 0)) && [[ "$out1" == *'"systemMessage":"bash-format: node is not on PATH'* && -z "$out2" ]]; then
+      ok "powershell: with no sh, two plugins in one session print one notice and exit 0"
+    else
+      bad "powershell: want one notice across two plugins" "rc=$rc1 first=$out1 second=$out2"
+    fi
+  else
+    printf 'NOTE: pwsh is not on PATH; the PowerShell cases did not run.\n'
+  fi
 }
 
-session='{"session_id":"row-1","hook_event_name":"SessionStart"}'
-out1="$(printf '%s' "$session" | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$(command -v bash)" -c "$(expand bash-format)" 2>/dev/null)"
-rc1=$?
-out2="$(printf '%s' "$session" | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$(command -v bash)" -c "$(expand guardrails)" 2>/dev/null)"
-rc2=$?
-if ((rc1 == 0 && rc2 == 0)) && [[ "$out1" == *'"systemMessage":"bash-format: node is not on PATH'*'then run /bash-format:check."}' && -z "$out2" ]]; then
-  ok "bash: two plugins in one session print one notice, naming the first plugin's check skill, and exit 0"
-else
-  bad "bash: want one notice across two plugins" "rc=$rc1/$rc2 first=$out1 second=$out2"
-fi
-if [[ ! -e "$WORK/powershell-ran" ]]; then
-  ok "bash: the row leaves before the PowerShell half"
-else
-  bad "bash: the PowerShell half ran"
-fi
-
-if DASH="$(command -v dash)"; then
-  out="$(printf '%s' '{"session_id":"row-dash","hook_event_name":"SessionStart"}' | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$DASH" -c "$(expand bash-format)" 2>/dev/null)"
-  rc=$?
-  if ((rc == 0)) && [[ "$out" == *'"systemMessage":"bash-format: node is not on PATH'* && ! -e "$WORK/powershell-ran" ]]; then
-    ok "dash: the row prints the notice and leaves before the PowerShell half"
-  else
-    bad "dash: want the notice and no PowerShell half" "rc=$rc out=$out powershell-ran=$([[ -e "$WORK/powershell-ran" ]] && echo yes || echo no)"
-  fi
-else
-  printf 'NOTE: dash is not on PATH; the dash case did not run.\n'
-fi
-
-if PWSH="$(command -v pwsh)"; then
-  PS_TOOLS="$WORK/ps-tools"
-  mkdir -p "$PS_TOOLS" "$WORK/tmp-ps"
-  ln -s "$PWSH" "$PS_TOOLS/powershell"
-  ps_row() { printf '%s' "$session" | PATH="$PS_TOOLS" TMPDIR="$WORK/tmp-ps" "$PWSH" -NoProfile -NonInteractive -Command "$(expand "$1")" 2>/dev/null; }
-  out1="$(ps_row bash-format)"
-  rc1=$?
-  out2="$(ps_row guardrails)"
-  if ((rc1 == 0)) && [[ "$out1" == *'"systemMessage":"bash-format: node is not on PATH'* && -z "$out2" ]]; then
-    ok "powershell: with no sh, two plugins in one session print one notice and exit 0"
-  else
-    bad "powershell: want one notice across two plugins" "rc=$rc1 first=$out1 second=$out2"
-  fi
-else
-  printf 'NOTE: pwsh is not on PATH; the PowerShell cases did not run.\n'
-fi
+case "$(uname -s)" in
+MINGW* | MSYS* | CYGWIN* | Windows_NT*)
+  printf 'SKIP: the node-absent row cases need a stub PATH of POSIX symlinks and an extensionless powershell, which Windows cannot execute; Linux CI covers them (no coverage here, not a pass)\n'
+  ;;
+*) node_absent_cases ;;
+esac
 
 test_harness::report

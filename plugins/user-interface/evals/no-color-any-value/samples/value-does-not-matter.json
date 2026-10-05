@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Any non-empty value disables color, so NO_COLOR=0 turns color off too.",
+      "why": "states the rule directly"
+    },
+    {
+      "answer": "Check presence only: if NO_COLOR is set and not empty, print no ANSI color regardless of its value. Let --color override it.",
+      "why": "regardless of value"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Treat NO_COLOR=0 as false and keep color on; only NO_COLOR=1 disables it.",
+      "why": "the wrong rule"
+    },
+    {
+      "answer": "Respect NO_COLOR by disabling color when it is set.",
+      "why": "never addresses the value"
+    }
+  ]
+}
