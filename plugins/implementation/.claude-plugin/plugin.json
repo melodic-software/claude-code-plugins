@@ -57,6 +57,17 @@
         "pilot",
         "every"
       ]
+    },
+    "integration_posture": {
+      "type": "string",
+      "title": "Integration posture",
+      "description": "How far /implementation:implement reshapes surrounding code without an approved plan. by-kind (default): a feature redesigns the code it lands in as if built in from the start, a fix or config change stays minimal, a refactor keeps the plan's scope. day-one: all redesign. minimal: all stay minimal.",
+      "default": "by-kind",
+      "options": [
+        "by-kind",
+        "day-one",
+        "minimal"
+      ]
     }
   }
 }

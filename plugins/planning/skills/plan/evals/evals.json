@@ -380,6 +380,20 @@
         "States or acts on the repository file overriding the user config value false",
         "Phase 1 is the stub phase for the loans/fines/ files, since there is no removal step"
       ]
+    },
+    {
+      "id": 30,
+      "name": "integration-posture-plan-writes-redesign",
+      "narration": true,
+      "prompt": "/planning:plan add recurring bookings to the room-reservation service: a booking can repeat weekly until an end date. Today rooms/booking.py stores one start and end per Booking and rooms/conflicts.py checks overlaps with a loop written for single bookings. The repository (a git checkout, not the home directory) has docs/conventions/implementation.yaml holding `integration_posture: by-kind`; phase_order and scaffold_stubs are unset and there is no docs/conventions/planning.yaml.",
+      "expected_output": "Step 2 reads integration_posture from docs/conventions/implementation.yaml and reports by-kind with that file as the source. The change is a feature, so by-kind gives it a day-one redesign, and the plan writes that redesign as explicit work items in the phases touching rooms/booking.py and rooms/conflicts.py (for example reshaping Booking so a single booking is the one-occurrence case of a schedule, and reworking the overlap check around occurrences), each naming the files and the restructuring, rather than leaving the scope to implementation.",
+      "files": [],
+      "expectations": [
+        "Reports integration_posture: by-kind with docs/conventions/implementation.yaml as the source",
+        "Classifies the change as a feature and so applies a day-one redesign",
+        "Writes the reshaping of rooms/booking.py and rooms/conflicts.py as explicit work items naming the files",
+        "Does NOT read or cite a planning user config value for integration_posture"
+      ]
     }
   ]
 }

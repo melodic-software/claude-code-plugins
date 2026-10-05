@@ -250,6 +250,74 @@
         "Runs the build check and affected tests after each unit",
         "Does NOT apply the user's pilot value"
       ]
+    },
+    {
+      "id": 20,
+      "name": "integration-posture-no-plan-applies",
+      "narration": true,
+      "prompt": "/implementation:implement feature add a `--since <date>` filter to the `invoices export` CLI command in billing/cli/export.py. Today the command builds its query with three hard-coded `if` branches for the existing `--status` and `--customer` flags. There is no plan for this; it is a small change. I'm reviewing each turn; branch feat/export-since, clean tree. My integration_posture option is unset and the repository (a git checkout, not the home directory) has no docs/conventions/implementation.yaml.",
+      "expected_output": "With no approved plan, Step 0 resolves integration_posture to by-kind from the default and reports that layer in one line. Feature mode under by-kind takes a day-one redesign: instead of adding a fourth hard-coded branch, it reshapes the query building in export.py so the filters read as one designed mechanism (for example a list of filter clauses each flag contributes to), keeps the existing --status and --customer behavior unchanged, and stays inside the files the change touches.",
+      "files": [],
+      "expectations": [
+        "Reports integration_posture: by-kind with the default as the supplying layer",
+        "Treats the feature as a day-one redesign because no approved plan exists",
+        "Reshapes the existing filter branches rather than appending a fourth if branch beside them",
+        "Keeps the existing --status and --customer behavior unchanged and does not edit files outside the change"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "integration-posture-ambiguous-unattended",
+      "narration": true,
+      "prompt": "/implementation:implement the nightly report job crashes when a warehouse has no shipments, and while you're in there it should also email the warehouse manager when that happens. Running unattended from a /loop harness: no human will answer questions this run. No approved plan exists. Branch fix/empty-warehouse, clean tree, memory_dir is .work/. integration_posture is unset in my options and the repository (a git checkout, not the home directory) has docs/conventions/implementation.yaml holding `integration_posture: day-one`.",
+      "expected_output": "The request mixes a fix (the crash) with a new capability (the email), so the kind is ambiguous and no argument names it. Because the run is non-interactive it does not ask: it takes minimal for the change even though the repository file resolves day-one, appends a deviation entry to DEVIATIONS.md in the work's memory slice under .work/ (plan said nothing, found the conflicting fix and feature signals, chose minimal, revisit at PR review), and proceeds with the smallest change.",
+      "files": [],
+      "expectations": [
+        "Identifies the kind as ambiguous between fix and feature",
+        "Does NOT stop to ask the user, since the run is unattended",
+        "Takes minimal for the change instead of the repository's day-one value",
+        "Appends a deviation entry to a DEVIATIONS.md under .work/ naming the conflicting signals and the minimal choice"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "integration-posture-docs-block-wins",
+      "narration": true,
+      "prompt": "/implementation:implement feature add a dark-mode toggle to the settings page in web/src/settings/SettingsPage.tsx; the page currently reads three theme colors from a module-level constant. No approved plan, small change. I'm reviewing each turn; branch feat/dark-toggle, clean tree. My integration_posture option is day-one; the repository (a git checkout, not the home directory) has docs/conventions/implementation.yaml holding `integration_posture: minimal`.",
+      "expected_output": "Resolves integration_posture to minimal from docs/conventions/implementation.yaml, which wins over the user's day-one option, and reports that file as the supplying layer. Adds the toggle with the smallest change to SettingsPage.tsx and does not reshape the module-level color constant into a theme system.",
+      "files": [],
+      "expectations": [
+        "Reports integration_posture: minimal with docs/conventions/implementation.yaml as the supplying layer",
+        "Does NOT apply the user's day-one value",
+        "Adds the toggle with the smallest change and leaves the existing color constant's structure in place"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "integration-posture-minimal-value",
+      "narration": true,
+      "prompt": "/implementation:implement feature support a `retry_after` header in the HTTP client wrapper at net/client.go; retries today use a fixed backoff computed inline in `Do`. No approved plan exists. I'm reviewing each turn; branch feat/retry-after, clean tree. My integration_posture option is minimal and the repository (a git checkout, not the home directory) has no docs/conventions/implementation.yaml.",
+      "expected_output": "Resolves integration_posture to minimal from the user option and reports that layer. Although the mode is feature, minimal overrides the by-kind redesign: it reads the header and uses it in place of the fixed delay with the smallest edit to Do, without extracting a backoff policy type or restructuring the retry loop.",
+      "files": [],
+      "expectations": [
+        "Reports integration_posture: minimal with the user option as the supplying layer",
+        "Keeps the feature to the smallest change even though the mode is feature",
+        "Does NOT restructure the retry loop or introduce a new backoff abstraction"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "integration-posture-day-one-value",
+      "narration": true,
+      "prompt": "/implementation:implement fix shipping cost is wrong for orders that mix taxable and tax-exempt items: orders/pricing.py computes tax inside `shipping_total` with a special case for exempt items bolted on last year. No approved plan exists. I'm reviewing each turn; branch fix/mixed-tax-shipping, clean tree. My integration_posture option is unset; the repository (a git checkout, not the home directory) has docs/conventions/implementation.yaml holding `integration_posture: day-one`.",
+      "expected_output": "Resolves integration_posture to day-one from docs/conventions/implementation.yaml and reports that layer. Under day-one a fix redesigns: after the failing test reproduces the wrong total, it reshapes the tax handling in pricing.py so taxable and exempt items go through one designed path instead of patching the bolted-on special case, keeps behavior for orders that were already correct, and stays inside the files the fix touches.",
+      "files": [],
+      "expectations": [
+        "Reports integration_posture: day-one with docs/conventions/implementation.yaml as the supplying layer",
+        "Writes a failing test reproducing the wrong total before changing pricing.py",
+        "Reshapes the tax handling instead of adding another special case beside the existing one",
+        "Keeps totals for already-correct orders unchanged"
+      ]
     }
   ]
 }

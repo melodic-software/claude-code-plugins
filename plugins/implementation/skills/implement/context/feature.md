@@ -2,6 +2,8 @@
 
 New feature implementation follows a top-down approach: scaffold the structure, fill in implementation, then wire up tests.
 
+**Posture.** With an approved plan, its work items set how far the feature reshapes existing code. With none, apply the `integration_posture` that Step 0 resolved: `by-kind` or `day-one` redesigns the code the feature lands in, `minimal` adds the feature with the smallest change.
+
 ## Sequence
 
 1. **Review the plan**: re-read the approved plan. Identify files affected, dependencies, and test strategy

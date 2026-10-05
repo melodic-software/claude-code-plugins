@@ -47,7 +47,7 @@ Track skill Steps 0–5 in-session via the task list. Durable progress lives in 
 
 ## Step 0: Detect Execution Mode
 
-Before mode detection runs, hold to the scope discipline: do the simplest thing that works, edit a file surgically rather than rewriting it when the result is the same, and add no features, abstractions, or cleanup the task does not require. Proceed without prompting.
+In fix and config modes, hold to the scope discipline: do the simplest thing that works, edit a file surgically rather than rewriting it when the result is the same, and add no features, abstractions, or cleanup the task does not require. A feature follows `integration_posture` below, and so do fix and config when it resolves `day-one`; a refactor keeps the plan's scope. Proceed without prompting.
 
 Parse conversation context to determine execution mode. Mode shapes which context file to consult and how to structure the work.
 
@@ -63,6 +63,18 @@ If `$ARGUMENTS` specifies a mode (`feature`, `fix`, `refactor`, `config`), use t
 **Detect orchestration mode** (distinct from implement execution mode above). Signals for orchestrated execution: the session runs autonomously (a goal/loop harness with no human in the turn cycle), the approved plan routes phases to worker subagents, or `code_writing` resolves `dispatch`. When any holds, after Step 1's prerequisite check passes, invoke `/implementation:implement-dispatch` via the Skill tool and follow its dispatch cadence for those phases instead of the Step 2 inline cadence; under `dispatch` that is every phase, since implement-dispatch writes worker rows for the phases the plan leaves to the main session. Interactive sessions with no worker routing and `code_writing` resolved `inline` use the classic inline cadence below. Step 1 runs in every mode; orchestrated dispatch does not skip the branch / plan / dirty-tree preflight.
 
 **`code_writing`.** Resolve it once per run, here, from three layers, lowest first: the default `inline`; the user's option, `${user_config.code_writing}` (a literal, unexpanded placeholder means unset); and the `code_writing` key of the repository's `docs/conventions/implementation.yaml`, which wins when set, read under the root rule in [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md). A value other than `inline` or `dispatch` is named with its file or option, the key and the value, and that layer is dropped: the repository's valid value still wins over an invalid user value, and an invalid repository value resolves the default `inline`, never the user's value. Report one line, for example `code_writing: dispatch (docs/conventions/implementation.yaml)`. With no approved plan (a trivial change Step 1 lets through without one), there are no phases to hand out, so the inline cadence runs and the report line says so.
+
+**`integration_posture`.** This decides how far the change reshapes the code around it. With an approved plan, follow the plan's scope and do not resolve the key: `/planning:plan` already read it and wrote any redesign into the plan as work items, so report `integration_posture: plan governs`. With no approved plan, resolve it once the mode is known, from three layers, lowest first: the default `by-kind`; the user's option, `${user_config.integration_posture}` (a literal, unexpanded placeholder means unset); and the `integration_posture` key of the repository's `docs/conventions/implementation.yaml`, which wins when set, read under the root rule in [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md). A value other than `by-kind`, `day-one` or `minimal` is named with its file or option, the key and the value, and that layer is dropped: the repository's valid value still wins over an invalid user value, and an invalid repository value resolves the default `by-kind`, never the user's value. Report one line, for example `integration_posture: minimal (docs/conventions/implementation.yaml)`. Then apply it by mode:
+
+| Mode | `by-kind` | `day-one` | `minimal` |
+|---|---|---|---|
+| Feature | day-one redesign | day-one redesign | minimal |
+| Fix, Config | minimal | day-one redesign | minimal |
+| Refactor | plan scope, behavior unchanged | plan scope, behavior unchanged | plan scope, behavior unchanged |
+
+A day-one redesign changes the code the work lands in until it reads as though the new behavior had been part of the original design: move, rename, merge or split what that code already has, instead of adding a branch or a flag beside it. It stays inside the files the change already touches and leaves behavior outside the task unchanged. Minimal is the scope discipline at the top of this step.
+
+When the mode signals conflict (a "fix" that adds a capability, a config edit that changes code paths) and no argument names the mode, an interactive run asks. A non-interactive run (no human in the turn cycle) takes `minimal` for the change, whatever the resolved value, and appends a deviation entry to `DEVIATIONS.md` in this work's memory slice (`<memory_dir>/<slug>/`, default `.work/`), typed per `/implementation:implement-dispatch` "Divergence in non-interactive runs": plan said nothing (no approved plan), found the conflicting signals, chose `minimal`, revisit at PR review.
 
 **Read the relevant context file** for mode-specific guidance before proceeding.
 

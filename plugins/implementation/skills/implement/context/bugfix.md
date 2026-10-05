@@ -2,6 +2,8 @@
 
 Bug fixes follow a bottom-up approach: reproduce, isolate, fix, prove. Temptation is to jump to the fix. Resist it.
 
+**Posture.** The minimal-fix rule below holds under `by-kind` and `minimal`. When Step 0 resolved `integration_posture` to `day-one` with no approved plan, step 3 instead reshapes the code around the root cause so the corrected behavior reads as the original design, still inside the files the fix touches.
+
 ## Sequence
 
 1. **Reproduce first (test-first by default when project policy is silent)**: first honor the consuming project's testing cadence from its `CLAUDE.md` / rules; that project policy overrides the test-first instructions in this step. When the project declares no cadence, write a failing test that demonstrates the bug before touching any production code. If you can't reproduce it in a test, you can't prove you fixed it. Test name should describe the bug: `Should_ReturnError_When_InputIsNull`, not `TestFix42`. Invoke `/tdd:principles` via Skill tool (when the `tdd` plugin is installed) for test design guidance (what kind of test, where it goes, what to assert). Under the fallback cadence, bug fixes are the strongest case for test-first. The failing test IS the bug report

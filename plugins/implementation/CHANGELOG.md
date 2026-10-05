@@ -7,6 +7,21 @@ All notable changes to the `implementation` plugin are documented here. Format f
 
 ### Added
 
+- **`integration_posture` sets how far a change reshapes the code around it.** `by-kind` (the
+  default) redesigns the code a feature lands in as though the feature had been there from the
+  start, keeps a fix or a config change minimal, and keeps a refactor to the plan's scope with
+  behavior unchanged; `day-one` and `minimal` override the feature, fix and config kinds, never a
+  refactor. `/implementation:implement` Step 0 resolves and applies it only when no approved plan
+  exists (with a plan, `/planning:plan` has already written any redesign as work items), and a
+  non-interactive run whose kind is ambiguous takes `minimal` and appends a `DEVIATIONS.md` entry.
+  Step 0's scope line now names fix and config modes, `context/feature.md` and
+  `context/bugfix.md` read the resolved value, and `/implementation:implement-dispatch` brief
+  item 3 carries it to each worker. It is set per user in the new `integration_posture` user
+  config option and per repository in `docs/conventions/implementation.yaml` (schema
+  `schemas/implementation.schema.json`), which wins; an invalid value is named and that layer
+  dropped, and the skill reports the supplying layer. Five eval cases cover the no-plan default,
+  the ambiguous unattended run, the repository file winning, and the `minimal` and `day-one`
+  values.
 - `/implementation:implement-dispatch` brief item 9: a worker that provisions its own worktree runs
   the consumer's Workspace environment `setup` for it, read from the fetched default branch and
   skipped when the item's input is untrusted.
