@@ -39,7 +39,7 @@ export const CONFIG_PATHS = Object.freeze([
 ]);
 export const MEDIUM_DEFAULT = "artifact";
 const POLICIES = ["off", "offer", "always"];
-const MEDIUMS = ["terminal", "file", "artifact"];
+const MEDIUMS = ["terminal", "file", "artifact", "hosted"];
 const LEVELS = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 
 const isCount = (v) => Number.isInteger(v) && v >= 0;
@@ -245,7 +245,10 @@ export function resolveMedium(warnings, baseOid) {
     if (text === null) continue;
     const match = /^[ \t]*medium:[ \t]*["']?([a-z]+)["']?[ \t]*$/m.exec(text);
     if (!match || match[1] === "auto") continue;
-    if (MEDIUMS.includes(match[1])) {
+    if (match[1] === "hosted" && label === "team") {
+      // A pull request's base can carry a team file, so it never sends pages off to a shared host.
+      warnings.push(`${label} ${path}: medium hosted is honored only from the user-global layer or the overlay; layer ignored`);
+    } else if (MEDIUMS.includes(match[1])) {
       medium = { value: match[1], source: `${label} ${path}` };
     } else {
       warnings.push(`${label} ${path}: medium ${match[1]} is not one of auto, ${MEDIUMS.join(", ")}; treated as auto`);
