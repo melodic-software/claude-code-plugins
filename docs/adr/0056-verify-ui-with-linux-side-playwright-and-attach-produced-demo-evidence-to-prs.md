@@ -133,7 +133,8 @@ produced video and screenshots on the PR from the user's own gh login.
 
 4. **PR evidence route.** A local session publishes screenshots and video inline with
    `gh pr comment --attach` or `gh pr edit --attach` under the user's own login, on gh 2.99 or
-   later. CI uploads a non-zipped Actions artifact and comments a link with `GITHUB_TOKEN`, because
+   later. Posting to a pull request still needs whatever confirmation the project requires before
+   commenting on one; this decision picks the route, not the consent. CI uploads a non-zipped Actions artifact and comments a link with `GITHUB_TOKEN`, because
    `GITHUB_TOKEN` cannot upload attachments. No new credential is added: no bot PAT goes into CI
    lanes that read untrusted PR text
    ([ADR 0049](0049-run-ci-lanes-on-github-hosted-runners-under-trigger-and-token-hardening.md)).
@@ -209,9 +210,6 @@ produced video and screenshots on the PR from the user's own gh login.
   probe on a scratch repository before recommending any token beyond the user's login.
 - **SSH tunnel to Windows Chrome.** Withheld. It needs an OpenSSH server on Windows, a security
   decision, and a probe; the docs cover it for VMs, not WSL.
-- **Single-source labels.** Doc quotes from Microsoft, GitHub and Google stay labeled "single
-  publisher" until `/discovery:research` widens its first-party single-source rule from Anthropic
-  artifacts to any publisher's own artifact, a change the user has approved.
 
 Recheck this record when cli/cli#14309 closes or gh's attachment token allowlist changes, when
 `@playwright/cli` or Playwright releases zoom or idle trimming, or when Anthropic's chrome page
