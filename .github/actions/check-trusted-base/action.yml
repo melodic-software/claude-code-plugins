@@ -1,0 +1,63 @@
+name: Check trusted base
+description: >
+  Fail unless the gated PR targets the default branch and its base SHA is on
+  the default branch, then check that SHA out in the base checkout. Only a PR
+  into the default branch runs, and only from a base the default branch
+  already holds: a PR into another branch could otherwise choose the actions,
+  config and trusted-actor list it is judged by. Contract:
+  docs/conventions/pr-pipeline/pr-run-activity.md, run job step 4.
+
+inputs:
+  base-sha:
+    description: The trigger gate's base SHA.
+    required: true
+  pr-number:
+    description: The trigger gate's PR number, read on events other than pull_request.
+    required: true
+  base-path:
+    description: The default-branch checkout, with full history.
+    required: false
+    default: .base
+  github-token:
+    description: Token that can read the PR.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  commit:
+    description: The checked-out base SHA; set only when every check passed.
+    value: ${{ steps.check.outputs.commit }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check the base
+      id: check
+      shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        EVENT_BASE_REF: ${{ github.event.pull_request.base.ref }}
+        DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        BASE_SHA: ${{ inputs.base-sha }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        BASE_PATH: ${{ inputs.base-path }}
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        fail() {
+          echo "::error::$1"
+          exit 1
+        }
+        if [ "$EVENT_NAME" = pull_request ]; then
+          base_ref=$EVENT_BASE_REF
+        else
+          base_ref=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .base.ref) ||
+            fail "could not read the PR's base branch"
+        fi
+        [ -n "$DEFAULT_BRANCH" ] || fail "the event names no default branch"
+        [ "$base_ref" = "$DEFAULT_BRANCH" ] ||
+          fail "the PR targets a branch other than the default branch; lanes run only on PRs into the default branch"
+        [[ $BASE_SHA =~ ^[0-9a-f]{40}$ ]] || fail "the gated base SHA is malformed"
+        git -C "$BASE_PATH" merge-base --is-ancestor "$BASE_SHA" "refs/remotes/origin/$DEFAULT_BRANCH" ||
+          fail "the gated base SHA is not on the default branch"
+        git -C "$BASE_PATH" checkout -q --detach "$BASE_SHA"
+        echo "commit=$(git -C "$BASE_PATH" rev-parse HEAD)" >>"$GITHUB_OUTPUT"

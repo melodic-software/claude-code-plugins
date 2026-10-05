@@ -3,6 +3,18 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.9] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** Two comments no longer cite the retired statusline tee.
+
+## [0.8.8] - 2026-10-04
+
+### Removed
+
+- **Missing-jq notice (#6225).** Claude Code discards a Notification hook's `systemMessage`, so the notice never reached anyone. Without jq the hook now exits quietly; `/desktop-notification:check` reports the missing jq.
+
 ## [0.8.7] - 2026-10-04
 
 ### Changed

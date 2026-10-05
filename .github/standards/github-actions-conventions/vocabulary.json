@@ -50,11 +50,7 @@
       { "name": "require-checks", "status": "in-use" },
       { "name": "review", "status": "in-use" },
       { "name": "review-security", "status": "in-use" },
-      {
-        "name": "run-activity",
-        "status": "reserved",
-        "purpose": "Run one pipeline activity for a PR lane and report its check run; the reusable runner every PR lane calls."
-      },
+      { "name": "run-activity", "status": "in-use" },
       { "name": "run-checks", "status": "in-use" },
       { "name": "scan-dependencies", "status": "in-use" },
       { "name": "test-windows", "status": "in-use" },

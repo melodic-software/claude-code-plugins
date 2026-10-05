@@ -1,0 +1,17 @@
+#!/usr/bin/env bats
+# good-for: rule-inert-assertion
+# A run and its check on one line, and semicolons that end no statement: an
+# arithmetic for header and a case terminator.
+
+@test "greets and exits 0" {
+  run greet; [ "$status" -eq 0 ]
+}
+
+@test "greets each name" {
+  for ((i = 0; i < 2; i++)); do run greet "n$i"; [ "$output" = "hi n$i" ]; done
+}
+
+@test "greets in the chosen tone" {
+  case "$TONE" in loud) run greet --loud;; *) run greet;; esac
+  [ "$status" -eq 0 ]
+}

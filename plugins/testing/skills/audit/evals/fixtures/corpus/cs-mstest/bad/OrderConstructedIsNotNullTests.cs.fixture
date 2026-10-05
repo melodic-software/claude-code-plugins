@@ -1,0 +1,15 @@
+// expect: rule-throw-only-oracle
+// An order built with new is never null, so the test fails only if the
+// constructor throws.
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class OrderConstructedIsNotNullTests
+{
+    [TestMethod]
+    public void Constructor_BuildsAnOrder()
+    {
+        var order = new Order(42);
+        Assert.IsNotNull(order);
+    }
+}

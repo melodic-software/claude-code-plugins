@@ -337,8 +337,11 @@ wit_@@PROVIDER_FUNC@@_require_ok() {
 # │ verified against YOUR instance (see the skill's live-exploration step).     │
 # │ Load-bearing rules the contract fixes, whatever the field names:            │
 # │   • state is normalized lowercase "open" | "closed" — nothing else.         │
-# │   • blocked_by_count counts OPEN blockers only. Counting closed ones breaks │
-# │     frontier graduation: the item never becomes eligible.                   │
+# │   • blocked_by_count counts OPEN blockers, plus blockers closed as won't-do │
+# │     (not planned, duplicate) when the provider records a close reason.      │
+# │     Counting every closed one breaks frontier graduation.                   │
+# │   • blocked_by_wont_do_count counts those won't-do blockers; it stays 0     │
+# │     when the provider records no close reason (detection unsupported).      │
 # │   • id and parent_id are FULLY QUALIFIED (<provider>:<owner>/<repo>#<n>).   │
 # │     A bare number in either field is a contract violation.                  │
 # │   • type is the native type NAME or null — never invented.                  │
@@ -355,6 +358,7 @@ readonly WIT_@@PROVIDER_UPPER@@_NORMALIZE_PROGRAM='
     labels: [ (.labels // [])[] | .name // empty ],
     type: null,
     blocked_by_count: 0,
+    blocked_by_wont_do_count: 0,
     parent_id: null,
     url: (.html_url // "")
   }'

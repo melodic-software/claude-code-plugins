@@ -1,0 +1,63 @@
+{
+  "skill_name": "design",
+  "evals": [
+    {
+      "id": 1,
+      "name": "project-system-leads",
+      "prompt": "Our repo has a design-tokens.json with brand colors and a DESIGN.md that says errors are shown in a red banner with an icon. Design the error state for the new upload form.",
+      "expected_output": "The skill runs detect, finds the project's token file and design doc, and designs the error state from them: the red banner and icon the project already uses, colors from design-tokens.json. It names what it found and does not introduce a new error style or offer a style-imposing tool for a concern the project already defines.",
+      "files": [],
+      "expectations": [
+        "The response names the project's own design-tokens.json and DESIGN.md as what decides the error state",
+        "The error state uses the banner-with-icon pattern the project already defines rather than a new style",
+        "The response does not offer frontend-design, design-taste-frontend or ui-ux-pro-max for this concern"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "cli-output-terminal-rules",
+      "prompt": "Design the output for my CLI's `sync` command: progress while it runs and a summary at the end. People run it in CI too.",
+      "expected_output": "The skill states the target platforms before designing (Windows, macOS, Linux and WSL when unstated), designs progress for an interactive terminal, and gives the non-TTY behavior for CI: no color, spinner or cursor movement, plain parseable lines. It honors NO_COLOR and gives a plain-ASCII fallback.",
+      "files": [],
+      "expectations": [
+        "The response names the operating systems, shells or terminals the output must work in before or while designing it",
+        "The response says that when output is not a TTY (as in CI) it emits no color, spinner, cursor movement or animation",
+        "The response says NO_COLOR set to any non-empty value turns color off",
+        "The response gives a plain-ASCII fallback for dumb terminals or missing Nerd Font glyphs"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "routes-to-installed-tool",
+      "prompt": "Build me a landing page hero section. I have the frontend-design plugin from claude-plugins-official installed and enabled, and this project has no design system yet.",
+      "expected_output": "With no project design system and frontend-design installed, the skill routes the visual-direction concern to frontend-design by its exact id and says why, rather than answering only from its own guidance. It may offer to create a small token file for the gap, and creates nothing without the user's agreement.",
+      "files": [],
+      "expectations": [
+        "The response routes the visual direction to frontend-design and says why it chose that route",
+        "The response does not create a token or design-system file without asking first"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "nothing-installed-own-guidance",
+      "prompt": "How should my TUI's status bar look? I don't have any design plugins installed.",
+      "expected_output": "With nothing installed for the concern, the skill answers from its own terminal guidance (theme-safe named ANSI colors, display width in columns, plain fallback) and may name a free tool that would help, without installing anything.",
+      "files": [],
+      "expectations": [
+        "The response answers from the plugin's own terminal guidance rather than claiming a route to an installed tool",
+        "The response uses the terminal's named ANSI colors rather than fixed 24-bit values, or says to",
+        "The response installs nothing and asks before any install it suggests"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "layout-variants-hand-off",
+      "prompt": "Give me three throwaway layout variants of our settings page that I can flip between in the browser.",
+      "expected_output": "Throwaway layout variants are /prototype:explore-directions's job. The skill points the user there (its Next section) instead of building a variant switcher itself.",
+      "files": [],
+      "expectations": [
+        "The response points to /prototype:explore-directions for throwaway layout variants"
+      ]
+    }
+  ]
+}

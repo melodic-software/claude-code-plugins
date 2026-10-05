@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Candidate 1 (Strong): OrderHandler -> OrderValidator -> OrderRepo is a shallow chain; the pricing rules are split across all three.",
+      "why": "names the chain"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "No deepening candidates found in this repository.",
+      "why": "names nothing"
+    }
+  ]
+}

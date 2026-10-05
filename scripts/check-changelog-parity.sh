@@ -93,7 +93,17 @@
 #   * --check-bump also rejects a BUMP WITHOUT CHANGE: a bumped plugin must have
 #     a changed file under plugins/<name>/ (or a plugin.json edit beyond `version`) other than its root
 #     CHANGELOG.md. A deliberate re-release is named as `<plugin>@<version>` in
-#     scripts/changelog-no-op-bumps.txt (CHANGELOG_NO_OP_BUMPS overrides it).
+#     scripts/changelog-no-op-bumps.txt (CHANGELOG_NO_OP_BUMPS overrides it). A
+#     fragment under .changes/<name>/ that the change set deletes also counts:
+#     that is the release pull request consuming it (ADR 0048).
+#   * A plugin in fragment mode (scripts/fragment-plugins.txt) is versioned only
+#     by the release pull request, which changelog_fragments::is_release_pr
+#     recognizes by its head branch. On any other change set, --check-bump fails
+#     a version change or an added CHANGELOG heading for it (FRAGMENT-MODE
+#     RELEASE) and skips the per-PR rules above, PUBLISHED VERSION REUSE
+#     included: such a change set changes shipped files and leaves the version
+#     alone, and check-changelog-fragments.sh --check-required asks it for a
+#     fragment instead.
 #
 # Existing "versioned but changelog-less" debt is grandfathered by plugin NAME in
 # scripts/changelog-parity-baseline.txt (same stale-guarded idiom as
@@ -121,6 +131,8 @@ cd "$SCRIPT_DIR/.." || exit 2
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
 # shellcheck source=lib/gate-entry.sh
 . "$SCRIPT_DIR/lib/gate-entry.sh" || exit 2
+# shellcheck source=lib/changelog-fragments.sh
+. "$SCRIPT_DIR/lib/changelog-fragments.sh" || exit 2
 
 # Bodies shorter than this many characters may repeat (see --check-bump).
 MIN_REPEATED_BODY=120
@@ -500,6 +512,9 @@ base="$GE_REF"
 declare -A bumped_candidate
 declare -A shipped_changed
 declare -A manifest_edited
+declare -A consumed_fragment
+# The version headings this change set added to each plugin's CHANGELOG.md.
+declare -A added_headings
 # The changelogs this change set touched, in `git diff` order, for
 # --check-preserved. Same two roots --check-order sweeps.
 touched_changelogs=()
@@ -560,6 +575,18 @@ for path in ${diff_paths[@]+"${diff_paths[@]}"}; do
   plugins/*/*)
     rest="${path#plugins/}"
     shipped_changed["${rest%%/*}"]=1
+    ;;
+  .changes/*/*)
+    # A fragment gone at head is one the release consumed; it is the release's
+    # change for BUMP WITHOUT CHANGE.
+    if ! listing="$(git ls-tree --name-only "$head_commit" -- "$path")"; then
+      echo "check-changelog-parity: 'git ls-tree $head_commit -- $path' failed; refusing to pass without checking." >&2
+      exit 2
+    fi
+    if [[ -z "$listing" ]]; then
+      rest="${path#.changes/}"
+      consumed_fragment["${rest%%/*}"]=1
+    fi
     ;;
   docs/conventions/*/CHANGELOG.md)
     # A `case` glob's `*` spans `/`, so the depth is re-checked explicitly: only
@@ -680,6 +707,12 @@ published_reuse=0
 absorbed=0
 repeated=0
 empty_bump=0
+fragment_release=0
+release_pr=""
+# shellcheck disable=SC2310  # the non-zero return IS the handled case
+if changelog_fragments::is_release_pr; then
+  release_pr=1
+fi
 
 # touched_changelogs is already unique (the seen_changelog guard where it is
 # built), so each changelog is inspected exactly once.
@@ -709,6 +742,10 @@ for changelog in ${touched_changelogs[@]+"${touched_changelogs[@]}"}; do
   for v in $(changelog_versions "$changelog"); do
     [[ -n "${base_has[$v]:-}" ]] || added_versions+="$v "
   done
+  if [[ -n "$added_versions" && "$changelog" == plugins/* ]]; then
+    rest="${changelog#plugins/}"
+    added_headings["${rest%%/*}"]="$added_versions"
+  fi
   if [[ -n "$added_versions" ]]; then
     while read -r added copied; do
       [[ -n "$added" ]] || continue
@@ -722,6 +759,31 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
   plugin_dir="${manifest%/.claude-plugin/plugin.json}"
   name="${plugin_dir##*/}"
   changelog="$plugin_dir/CHANGELOG.md"
+
+  # A fragment-mode plugin outside the release pull request: the change set may
+  # not version it, and the per-PR rules below do not apply.
+  if [[ -z "$release_pr" ]]; then
+    changelog_fragments::in_mode "$name"
+    case $? in
+    0)
+      if [[ -n "${bumped_candidate[$name]:-}" ]]; then
+        head_version="$(version_of "$manifest")"
+        fork_version="$(git show "$merge_base:$manifest" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true)"
+        if [[ -n "$fork_version" && "$head_version" != "$fork_version" ]]; then
+          echo "FRAGMENT-MODE RELEASE: $name is in fragment mode ($CF_LIST) but this change set moves its version $fork_version -> $head_version." >&2
+          fragment_release=$((fragment_release + 1))
+        fi
+      fi
+      if [[ -n "${added_headings[$name]:-}" ]]; then
+        echo "FRAGMENT-MODE RELEASE: $name is in fragment mode ($CF_LIST) but this change set adds the version heading(s) ${added_headings[$name]% } to $changelog." >&2
+        fragment_release=$((fragment_release + 1))
+      fi
+      continue
+      ;;
+    1) ;;
+    *) exit 2 ;;
+    esac
+  fi
 
   # Both checks below need this change set to have touched the plugin (a shipped
   # file, or its manifest), so an untouched plugin is skipped before its two
@@ -790,7 +852,7 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
 
   # A release must ship something: a bump whose only plugin changes are the
   # manifest and the changelog is a re-release of the previous version.
-  if [[ -z "${shipped_changed[$name]:-}" && -z "${manifest_edited[$name]:-}" && -z "${no_op_bump["$name@$head_version"]:-}" ]]; then
+  if [[ -z "${shipped_changed[$name]:-}" && -z "${manifest_edited[$name]:-}" && -z "${consumed_fragment[$name]:-}" && -z "${no_op_bump["$name@$head_version"]:-}" ]]; then
     echo "BUMP WITHOUT CHANGE: $name went $base_version -> $head_version but this change set touches nothing under plugins/$name/ besides plugin.json and CHANGELOG.md; ship the change with the bump, or name '$name@$head_version' in $NO_OP_BUMPS if the re-release is deliberate." >&2
     empty_bump=$((empty_bump + 1))
   fi
@@ -847,7 +909,8 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
   fi
 done
 
-if ((undocumented > 0 || malformed > 0 || preexisting > 0 || nonmonotonic > 0 || absorbed > 0 || published_reuse > 0 || repeated > 0 || empty_bump > 0)); then
+if ((undocumented > 0 || malformed > 0 || preexisting > 0 || nonmonotonic > 0 || absorbed > 0 || published_reuse > 0 || repeated > 0 || empty_bump > 0 || fragment_release > 0)); then
+  ((fragment_release > 0)) && echo "Only the release pull request (branch $CF_RELEASE_BRANCH) changes a fragment-mode plugin's version or CHANGELOG.md. Revert those edits and describe the change in a fragment under .changes/<plugin>/: scripts/new-changelog-fragment.sh <plugin> <major|minor|patch|none>." >&2
   ((undocumented > 0)) && echo "Add a '## [<version>]' entry for every plugin whose version changed." >&2
   ((malformed > 0)) && echo "Convert unbracketed changelog headings to the '## [<version>]' Keep-a-Changelog form." >&2
   ((preexisting > 0)) && echo "Add the bumped version's '## [<version>]' entry in this change set; it must be absent from the base changelog, not merely present at head." >&2

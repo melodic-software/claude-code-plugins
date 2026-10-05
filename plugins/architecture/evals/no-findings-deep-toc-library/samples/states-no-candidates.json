@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "No deepening opportunities found. buildToc is the one export, and parse, slug and tree are private helpers behind it.",
+      "why": "explicit no-opportunities line"
+    },
+    {
+      "answer": "None of the modules qualify as a candidate: each helper does real work and only index.js imports it.",
+      "why": "none qualify"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Candidate 1 (Speculative): slug.js is small; fold it into tree.js. Which of these would you like to explore?",
+      "why": "invents a candidate"
+    }
+  ]
+}

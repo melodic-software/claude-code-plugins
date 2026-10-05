@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Test `[ -t 1 ]`; when stdout is not a terminal, print one plain line per file.",
+      "why": "names the test"
+    },
+    {
+      "answer": "When the output is non-TTY (piped or cron), drop the spinner.",
+      "why": "names non-TTY"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "When piped, the spinner still shows but in a quieter style.",
+      "why": "no TTY check"
+    },
+    {
+      "answer": "Always print the progress bar; tee handles ANSI fine.",
+      "why": "wrong"
+    }
+  ]
+}

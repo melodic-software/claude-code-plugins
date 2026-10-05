@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "learning/topic/sql-joins/MISSION.md"
+          }
+        }
+      ],
+      "why": "relative path to the mission file"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Glob",
+          "input": {
+            "pattern": "learning/**/*.md"
+          }
+        },
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/tmp/run/learning/topic/sql-joins/MISSION.md"
+          }
+        }
+      ],
+      "why": "absolute path after a Glob"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no tool call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "learning/topic/sql-joins/learning-records/0002-inner-join-demonstrated.md"
+          }
+        }
+      ],
+      "why": "near miss: reads the records but not the mission"
+    }
+  ]
+}
