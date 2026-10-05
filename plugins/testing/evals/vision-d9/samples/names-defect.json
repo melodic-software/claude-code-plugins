@@ -1,13 +1,13 @@
 {
   "pass": [
     {
-      "answer": "At 375 px the table overflows the viewport."
+      "answer": "At 375 px the table overflows the viewport.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "The Weight column is cut off on the right."
+      "answer": "The Weight column is cut off on the right.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "The table is wider than the screen and runs past the edge."
+      "answer": "The table is wider than the screen and runs past the edge.\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -19,6 +19,14 @@
     },
     {
       "answer": "The badge overlaps the title.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Nothing overflows the viewport; there is no horizontal scroll.\nVERDICT: CONFIRMED",
+      "why": "denies the defect"
+    },
+    {
+      "answer": "No content is cut off or off-screen, but the badge collides with the title.\nVERDICT: NEEDS WORK",
+      "why": "denies it, reports another"
     }
   ]
 }

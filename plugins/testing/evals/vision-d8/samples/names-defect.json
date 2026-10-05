@@ -1,13 +1,13 @@
 {
   "pass": [
     {
-      "answer": "In the first card Save sits lower than Add to cart."
+      "answer": "In the first card Save sits lower than Add to cart.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "The two buttons are misaligned."
+      "answer": "The two buttons are misaligned.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "Save is offset by a few pixels."
+      "answer": "Save is offset by a few pixels.\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -19,6 +19,14 @@
     },
     {
       "answer": "The heading color changed.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "All buttons are aligned on a shared top edge.\nVERDICT: CONFIRMED",
+      "why": "denies the defect"
+    },
+    {
+      "answer": "Nothing is misaligned; the table runs off screen at 375 px.\nVERDICT: NEEDS WORK",
+      "why": "denies it, reports another"
     }
   ]
 }

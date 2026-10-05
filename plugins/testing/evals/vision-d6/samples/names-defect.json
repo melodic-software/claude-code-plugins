@@ -1,13 +1,13 @@
 {
   "pass": [
     {
-      "answer": "It says Showing 5 results but the list has only 4 items."
+      "answer": "It says Showing 5 results but the list has only 4 items.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "Only four results are listed under 'Showing five results'."
+      "answer": "Only four results are listed under 'Showing five results'.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "The list has 4 entries, not the 5 the count claims."
+      "answer": "The list has 4 entries, not the 5 the count claims.\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -22,6 +22,14 @@
     },
     {
       "answer": "The table is cut off at 375 px.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Showing 5 results with 5 items listed; all 4 screenshots are clean.\nVERDICT: CONFIRMED",
+      "why": "denies the defect"
+    },
+    {
+      "answer": "Showing 5 results with 5 items listed; all 4 screenshots agree, but the badge overlaps.\nVERDICT: NEEDS WORK",
+      "why": "counts agree, reports another"
     }
   ]
 }

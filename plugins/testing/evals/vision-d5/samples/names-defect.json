@@ -1,13 +1,13 @@
 {
   "pass": [
     {
-      "answer": "A shipping banner appears after load and pushes the buttons down."
+      "answer": "A shipping banner appears after load and pushes the buttons down.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "Layout shift: the first card grows by 48 px between frames."
+      "answer": "Layout shift: the first card grows by 48 px between frames.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "The buttons jump when the banner pops in."
+      "answer": "The buttons jump when the banner pops in.\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -19,6 +19,14 @@
     },
     {
       "answer": "The badge overlaps the title.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Nothing shifts or jumps between the load and later frames.\nVERDICT: CONFIRMED",
+      "why": "denies the defect"
+    },
+    {
+      "answer": "There is no layout shift between frames, but the Save button is clipped.\nVERDICT: NEEDS WORK",
+      "why": "denies it, reports another"
     }
   ]
 }

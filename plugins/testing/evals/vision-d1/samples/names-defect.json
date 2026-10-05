@@ -1,10 +1,10 @@
 {
   "pass": [
     {
-      "answer": "At 375 px the badge overlaps the product title."
+      "answer": "At 375 px the badge overlaps the product title.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "The New badge collides with the title text on mobile."
+      "answer": "The New badge collides with the title text on mobile.\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -16,6 +16,18 @@
     },
     {
       "answer": "The Add to cart button is clipped.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Nothing is clipped or overlapping.\nVERDICT: CONFIRMED",
+      "why": "denies the defect"
+    },
+    {
+      "answer": "Nothing is clipped or overlapping, but the heading looks pale.\nVERDICT: NEEDS WORK",
+      "why": "denies it, reports another"
+    },
+    {
+      "answer": "- Overlap: none\n- Contrast: low on the body text\nVERDICT: NEEDS WORK",
+      "why": "checklist marks it absent"
     }
   ]
 }

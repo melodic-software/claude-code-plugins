@@ -1,13 +1,13 @@
 {
   "pass": [
     {
-      "answer": "The first Add to cart button is clipped: its label reads 'Add to'."
+      "answer": "The first Add to cart button is clipped: its label reads 'Add to'.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "The button text is truncated in the first card."
+      "answer": "The button text is truncated in the first card.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "Its label is cut off."
+      "answer": "Its label is cut off.\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -19,6 +19,14 @@
     },
     {
       "answer": "The badge overlaps the title.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "No button label is clipped or truncated; every label reads in full.\nVERDICT: CONFIRMED",
+      "why": "denies the defect"
+    },
+    {
+      "answer": "No label is cut off. The badge sits on the title at 375 px.\nVERDICT: NEEDS WORK",
+      "why": "denies it, reports another"
     }
   ]
 }

@@ -1,10 +1,10 @@
 {
   "pass": [
     {
-      "answer": "The grey body text has low contrast on white."
+      "answer": "The grey body text has low contrast on white.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "Description text fails WCAG contrast."
+      "answer": "Description text fails WCAG contrast.\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -16,6 +16,18 @@
     },
     {
       "answer": "The text is a bit light.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "Text contrast is adequate at both widths.\nVERDICT: CONFIRMED",
+      "why": "denies the defect"
+    },
+    {
+      "answer": "Contrast is not low anywhere; the badge overlaps the title.\nVERDICT: NEEDS WORK",
+      "why": "denies it, reports another"
+    },
+    {
+      "answer": "Contrast is fine. Some text is below the fold.\nVERDICT: NEEDS WORK",
+      "why": "qualifier in another sentence"
     }
   ]
 }
