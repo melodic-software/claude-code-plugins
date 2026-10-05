@@ -108,7 +108,7 @@ result from any directory; for `init` it is `claude plugin eval init --bare <nam
 A different refusal, from the CLI itself and not the Bash guard: when the plugin sits inside a git
 repository that has many linked worktrees, `claude plugin eval` stops before any case runs, saying the
 repository "registers more linked worktrees than can be screened". A repository with dozens of linked
-worktrees, as this one routinely has, trips it from any checkout. It applies to `run` only.
+worktrees, as this one routinely has, trips it from any checkout.
 
 The workaround copies the plugin outside any git repository and evaluates the copy:
 
