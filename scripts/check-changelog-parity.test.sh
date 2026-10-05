@@ -1341,4 +1341,73 @@ manifest_edit() {
 bump_case manifest_edit
 if [[ $rc -eq 0 ]]; then ok "a bump with a non-version plugin.json edit passes"; else fail "manifest edit wrongly failed: rc=$rc out='$out'"; fi
 
+# ------------------------ --check-bump fragment mode (ADR 0048) -------------
+# fragment_case <setup> [head-ref]: alpha is in fragment mode with one pending
+# fragment on the base; <head-ref> is the CHANGELOG_HEAD_REF CI would pass.
+fragment_case() {
+  mk_repo repo
+  git_init_test_repo "$repo"
+  local p
+  for p in alpha beta; do
+    mk_plugin "$repo" "$p" 1.0.0 yes
+    printf '# Changelog\n\n## [1.0.0]\n\n%s\n' "$long_body" >"$repo/plugins/$p/CHANGELOG.md"
+  done
+  printf 'alpha\n' >"$repo/scripts/fragment-plugins.txt"
+  mkdir -p "$repo/.changes/alpha"
+  printf -- '---\nbump: minor\n---\n\n### Added\n\n- A feature.\n' >"$repo/.changes/alpha/feat-x-0123abcd.md"
+  git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+  local base
+  base="$(git -C "$repo" rev-parse HEAD)"
+  "$1"
+  git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm change
+  out="$(cd "$repo" && CHANGELOG_HEAD_REF="${2:-}" bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+  rc=$?
+  rm -rf "$repo"
+}
+consume() { rm "$repo/.changes/alpha/feat-x-0123abcd.md"; }
+
+ship_alpha() { ship_change "$repo"; }
+fragment_case ship_alpha
+if [[ $rc -eq 0 ]]; then ok "a fragment-mode change that leaves the version alone passes (no PUBLISHED VERSION REUSE)"; else fail "fragment-mode change wrongly failed: rc=$rc out='$out'"; fi
+
+hand_bump() {
+  bump alpha 1.1.0 '- By hand.'
+  ship_change "$repo"
+}
+fragment_case hand_bump
+if [[ $rc -eq 1 && "$out" == *"FRAGMENT-MODE RELEASE: alpha is in fragment mode"*"moves its version 1.0.0 -> 1.1.0"* && "$out" == *".changes/<plugin>/"* ]]; then
+  ok "a non-release change set that bumps a fragment-mode plugin fails, pointing at .changes/"
+else
+  fail "hand bump of a fragment-mode plugin not caught: rc=$rc out='$out'"
+fi
+
+heading_only() { printf '# Changelog\n\n## [1.1.0]\n\n- Early note.\n\n## [1.0.0]\n\n%s\n' "$long_body" >"$repo/plugins/alpha/CHANGELOG.md"; }
+fragment_case heading_only
+if [[ $rc -eq 1 && "$out" == *"FRAGMENT-MODE RELEASE: alpha"*"adds the version heading(s) 1.1.0"* ]]; then
+  ok "a non-release change set that adds a fragment-mode CHANGELOG heading fails"
+else
+  fail "added heading on a fragment-mode plugin not caught: rc=$rc out='$out'"
+fi
+
+release() {
+  bump alpha 1.1.0 '- A feature.'
+  consume
+}
+fragment_case release release/plugins
+if [[ $rc -eq 0 ]]; then ok "the release pull request passes: a consumed fragment is the bump's change"; else fail "release pull request wrongly failed: rc=$rc out='$out'"; fi
+
+fragment_case release release/plugins-copy
+if [[ $rc -eq 1 && "$out" == *"FRAGMENT-MODE RELEASE: alpha"* ]]; then ok "only the exact release branch may version a fragment-mode plugin"; else fail "near-miss branch treated as the release: rc=$rc out='$out'"; fi
+
+fragment_case re_release release/plugins
+if [[ $rc -eq 1 && "$out" == *"BUMP WITHOUT CHANGE: alpha went 1.0.0 -> 1.1.0"* ]]; then
+  ok "a release bump that consumes no fragment still fails BUMP WITHOUT CHANGE"
+else
+  fail "release bump without a consumed fragment not caught: rc=$rc out='$out'"
+fi
+
+legacy_reuse() { ship_change "$repo" beta; }
+fragment_case legacy_reuse
+if [[ $rc -eq 1 && "$out" == *"PUBLISHED VERSION REUSE: beta"* ]]; then ok "a plugin not in fragment mode keeps the per-PR bump rules"; else fail "legacy plugin lost PUBLISHED VERSION REUSE: rc=$rc out='$out'"; fi
+
 test_harness::report

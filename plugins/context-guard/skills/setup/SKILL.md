@@ -1,5 +1,5 @@
 ---
-description: "Verify the context-guard plugin on this machine: jq, node, whether its mod runs in this session, this session's snapshot freshness, zones.json, every option's effective value, and any retired statusline tee still running beside the mod, with the steps to remove it. Seed or repair ~/.claude/context-guard/zones.json from the shipped defaults. Use when: 'set up context-guard', 'is context-guard working', a consumer reports zone unknown in a live session, or after a plugin update. Actions: check (read-only; never edits settings), apply (writes ONLY ~/.claude/context-guard/zones.json, on explicit request)."
+description: "Verify the context-guard plugin on this machine: jq, node, whether its mod runs in this session, this session's snapshot freshness, zones.json, and every option's effective value. Seed or repair ~/.claude/context-guard/zones.json from the shipped defaults. Use when: 'set up context-guard', 'is context-guard working', a consumer reports zone unknown in a live session, or after a plugin update. Actions: check (read-only; never edits settings), apply (writes ONLY ~/.claude/context-guard/zones.json, on explicit request)."
 argument-hint: "[check|apply] [defaults]"
 user-invocable: true
 disable-model-invocation: true
@@ -22,10 +22,6 @@ serves the `mcp__context-guard__status` tool. Nothing about it needs wiring, so 
 and reports PASS/FAIL/INFO with one remediation line per FAIL. The plugin also owns the machine file
 `~/.claude/context-guard/zones.json`, whose schema it defines and whose values the operator may
 edit; that owned writable file is what obliges an `apply`, and `apply` writes nothing else.
-
-Versions before this one wrote the snapshot through a statusline tee wired into the user's own
-`statusLine`. `check` finds a tee that still runs and prints the steps to remove it; it never edits
-a settings file, a script or the plugin cache itself.
 
 Action routing: no argument or `check` runs the check.
 
@@ -72,25 +68,7 @@ default zone bands, zones.json shape) are owned by
      and [the mod doesn't load](https://code.claude.com/docs/en/plugins/mods/troubleshoot#the-mod-doesnt-load).
    - **As of**: 2026-10-03, Claude Code 2.1.288.
    - **Recheck trigger**: that table changes a message, or the minimum version changes.
-4. **Retired statusline tee.** Read
-   [reference/legacy-statusline-detect.md](reference/legacy-statusline-detect.md), shared with
-   rate-limit-guard and synced byte-identical, with `<guard>` = `context-guard` and
-   `<plugin-root>` = `${CLAUDE_PLUGIN_ROOT}`. Run its three steps (stamps newer than this version's
-   install, cached versions still holding a tee, the three wiring routes) and report each finding
-   as that file classifies it. Reading settings, scripts and the plugin cache is all this step
-   does.
-   - **Any finding** (a running tee, files it left behind, a cached version that still carries one,
-     or a wiring route): read [reference/unwrap-before-compose.md](reference/unwrap-before-compose.md)
-     with `<guard>` = `context-guard` and print its steps for the person to run: the `statusLine`
-     value with every guard shim and tee removed and the person's own renderer kept byte for byte,
-     the wrapper-script lines to remove, the files to delete, and the restart. Print the edited
-     value itself, worked out by that file's rules, never a script to compute it.
-   - **The `statusLine` naming a shim or tee lives in managed settings**: name that file, say the
-     person cannot change it from here, and route them to the policy administrator; print no edit
-     for it.
-   - **No finding**: PASS. Say nothing about the person's own status line: it is theirs, and the
-     plugin no longer reads it.
-5. **Live-session snapshot freshness**. This session's id is `${CLAUDE_SESSION_ID}`. The module
+4. **Live-session snapshot freshness**. This session's id is `${CLAUDE_SESSION_ID}`. The module
    writes after every tool call, so this check's own Bash calls have each given it a chance to
    write before you read the file. Probe
    `~/.claude/context-guard/context/${CLAUDE_SESSION_ID}.json`:
@@ -110,7 +88,7 @@ default zone bands, zones.json shape) are owned by
    - If the literal string `${CLAUDE_SESSION_ID}` appears unexpanded above, report that this
      Claude Code version lacks the substitution and consumers will take the conservative path;
      probe the newest file in `~/.claude/context-guard/context/` instead, labeled as such.
-6. **zones.json state**, a read-only report over the pre-computed `zones.json` value: absent
+5. **zones.json state**, a read-only report over the pre-computed `zones.json` value: absent
    (shipped defaults in effect, percentage 50/75 plus the window-class token bands; valid
    zero-config state, not a defect), present and valid
    (report the bands in effect, both shapes), or present with a malformed shape (report per
@@ -124,7 +102,7 @@ default zone bands, zones.json shape) are owned by
    section defines them); an absent or invalid one means its default, never a defect. The module
    resolves zones with the same bands from the live session, so a machine with no snapshot files
    still gets lines.
-7. **Option posture**. Report every option, each as its own row with the value substituted below
+6. **Option posture**. Report every option, each as its own row with the value substituted below
    and what that value does. Never collapse them into one "active" status: a plugin that is
    enabled while its kill switch is off, or whose lines are off, is the exact state an operator is
    diagnosing when lines or gating are missing.
@@ -215,33 +193,13 @@ snapshots. The operator's directory `~/.claude/context-guard/` (`zones.json`, th
 compaction markers) stays, and removing it is safe at any time; readers then read `unknown` and take
 their conservative path.
 
-One order matters, and only while `check` step 4 still finds a `statusLine` naming
-`~/.claude/context-guard/bin/statusline-shim.sh`: apply that step's unwire edit first, then remove
-the directory. Deleting the directory while the wiring still names the shim leaves the status line
-invoking a missing file: `bash <missing-path>` exits 127 and the whole status line goes down. Report
-both steps together, in that order, when asked how to back this out and a shim is still wired.
-
 ## What this skill does not do
 
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform setup
   contract (`docs/plugin-philosophy.md` "Setup is explicit and repeatable" in the marketplace
   repository). Nor `settings.json` (user or project), a status line script, or any other Claude
-  Code settings surface; the unwire steps are the person's to run.
+  Code settings surface.
 - Install `jq`, `node` or any system package.
-- Write to the snapshot directory `~/.claude/context-guard/context/`; the module owns those files,
-  and the unwire steps that delete the retired tee's leftovers there are printed, not run.
+- Write to the snapshot directory `~/.claude/context-guard/context/`; the module owns those files.
 - Write anywhere outside `~/.claude/context-guard/zones.json`, including the sibling
   `rate-limit-guard` directory.
-
-## Spoke paths
-
-[reference/legacy-statusline-detect.md](reference/legacy-statusline-detect.md) (step 4's detector)
-and [reference/unwrap-before-compose.md](reference/unwrap-before-compose.md) (its unwire steps) are
-shared with rate-limit-guard and write this plugin's root directory as `<plugin-root>`, which is
-`${CLAUDE_PLUGIN_ROOT}`, and this plugin's name as `<guard>`, which is `context-guard`. Put those
-values in place of the placeholders before running a command or writing one into a brief. The files
-arrive through the Read tool as plain bytes, so a `${…}` token in them would reach the Bash tool
-unsubstituted, and the Bash tool's environment has no `CLAUDE_PLUGIN_ROOT` to expand it from.
-Basis: the plugins reference,
-<https://code.claude.com/docs/en/plugins-reference#where-each-variable-resolves>, verified
-2026-09-30; recheck when that table adds supporting files to where a `${…}` reference resolves.

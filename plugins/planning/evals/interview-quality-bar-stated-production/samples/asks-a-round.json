@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Here is what I see.\n\nQ1: Which accounting systems must the first release support?",
+      "why": "a Q1 line"
+    },
+    {
+      "answer": "Questions:\n1. Which accounting systems?",
+      "why": "numbered list"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Here is the locked brief. Goal: a nightly invoice export.",
+      "why": "no round asked"
+    }
+  ]
+}

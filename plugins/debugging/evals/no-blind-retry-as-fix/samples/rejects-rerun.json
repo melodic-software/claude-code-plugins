@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "No. A pass on rerun is not a fix; the root cause is still present.",
+      "why": "not a fix + still present"
+    },
+    {
+      "answer": "It isn't fixed, it just didn't trigger this time.",
+      "why": "isn't fixed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Yes, if it passed on the rerun it's fine. Add a retry to be safe.",
+      "why": "accepts the rerun"
+    },
+    {
+      "answer": "Here is a summary of the release notes for version 2.3.",
+      "why": "answer to a different question"
+    }
+  ]
+}

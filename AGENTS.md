@@ -18,7 +18,8 @@ still respects a body hold and human comments, so never override one. The hold c
 `docs/conventions/loop-lane/README.md`.
 
 In this repository a small unrelated review fix in the same plugin as the PR also goes into the PR
-(shared version bump and CHANGELOG line); the rule itself is the scope test in
+(shared version bump and CHANGELOG line, or shared changelog fragment for a plugin in
+`scripts/fragment-plugins.txt`); the rule itself is the scope test in
 `plugins/source-control/reference/review-discipline.md`.
 
 ## When to stop and when to keep going

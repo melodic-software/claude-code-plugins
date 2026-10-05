@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Use csv.DictReader: list(csv.DictReader(f)).",
+      "why": "named"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Use pandas.read_csv(f).to_dict('records').",
+      "why": "a different tool"
+    }
+  ]
+}
