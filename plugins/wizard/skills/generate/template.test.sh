@@ -280,7 +280,7 @@ assert_contains "... before the env file is created" "$out" "env:ABSENT"
 # named x. Every global the library sets must be refused, so a new global added
 # without extending _assignable_key fails here. The list is every variable that
 # sourcing the library adds to a clean shell, which covers globals assigned in
-# an indented branch (the colour globals) that a line grep would miss.
+# an indented branch (the color globals) that a line grep would miss.
 lib_globals="$(
   env -i PATH="$PATH" WIZARD_TEST_TTY=/dev/null bash -c '
     compgen -v | sort >"$1"
