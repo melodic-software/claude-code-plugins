@@ -9,7 +9,7 @@
   ],
   "fail": [
     {
-      "answer": "VERDICT: NEEDS WORK - the heading is blue"
+      "answer": "FINDING: the heading is blue\nVERDICT: NEEDS WORK"
     }
   ]
 }

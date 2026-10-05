@@ -1,10 +1,13 @@
 {
   "pass": [
     {
-      "answer": "The grey body text has low contrast on white.\nVERDICT: NEEDS WORK"
+      "answer": "FINDING: The grey body text has low contrast on the white card background.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "Description text fails WCAG contrast.\nVERDICT: NEEDS WORK"
+      "answer": "FINDING: Description text fails WCAG AA contrast at both widths.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "FINDING: At 375 px, the product descriptions are too light: contrast is well below 4.5:1.\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -12,22 +15,48 @@
       "answer": ""
     },
     {
-      "answer": "Both widths render cleanly at load and after 1 s.\nVERDICT: CONFIRMED"
+      "answer": "Both widths render cleanly at load and after 1 s.\nVERDICT: CONFIRMED",
+      "why": "clean report"
     },
     {
-      "answer": "The text is a bit light.\nVERDICT: NEEDS WORK"
+      "answer": "FINDING: The badge overlaps the title at 375 px.\nVERDICT: NEEDS WORK",
+      "why": "reports only another defect"
     },
     {
-      "answer": "Text contrast is adequate at both widths.\nVERDICT: CONFIRMED",
-      "why": "denies the defect"
+      "answer": "The grey body text has low contrast on white.\nVERDICT: NEEDS WORK",
+      "why": "defect in prose, no FINDING line"
+    },
+    {
+      "answer": "FINDING: The grey body text has low contrast on white.\nVERDICT: CONFIRMED",
+      "why": "verdict is CONFIRMED"
+    },
+    {
+      "answer": "The badge overlaps the title at 375 px. I looked for low contrast and found none.\nVERDICT: NEEDS WORK",
+      "why": "brief probe: denial after the term, no FINDING line"
+    },
+    {
+      "answer": "FINDING: The badge overlaps the title at 375 px.\nI looked for low contrast and found none.\nVERDICT: NEEDS WORK",
+      "why": "denies this defect in prose, reports another on a FINDING line"
+    },
+    {
+      "answer": "FINDING: no low contrast anywhere\nVERDICT: NEEDS WORK",
+      "why": "FINDING line negates the defect"
+    },
+    {
+      "answer": "FINDING: Contrast is fine. Some text is below the fold.\nVERDICT: NEEDS WORK",
+      "why": "qualifier in another sentence of the FINDING line"
     },
     {
       "answer": "Contrast is not low anywhere; the badge overlaps the title.\nVERDICT: NEEDS WORK",
-      "why": "denies it, reports another"
+      "why": "earlier probe: denies it, reports another"
     },
     {
-      "answer": "Contrast is fine. Some text is below the fold.\nVERDICT: NEEDS WORK",
-      "why": "qualifier in another sentence"
+      "answer": "Text contrast is adequate at both widths.\nVERDICT: CONFIRMED",
+      "why": "earlier probe: denies the defect"
+    },
+    {
+      "answer": "FINDING: The table runs off screen at 375 px.\nI measured the body text; poor contrast is not a problem here.\nVERDICT: NEEDS WORK",
+      "why": "new probe: denial in prose"
     }
   ]
 }

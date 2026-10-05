@@ -12,7 +12,7 @@
       "answer": ""
     },
     {
-      "answer": "VERDICT: NEEDS WORK - heading",
+      "answer": "FINDING: the heading is blue\nVERDICT: NEEDS WORK",
       "why": "false positive"
     },
     {

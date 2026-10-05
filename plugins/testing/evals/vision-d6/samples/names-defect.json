@@ -1,13 +1,13 @@
 {
   "pass": [
     {
-      "answer": "It says Showing 5 results but the list has only 4 items.\nVERDICT: NEEDS WORK"
+      "answer": "FINDING: The count line says Showing 5 results, but the list below the cards has only 4 items.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "Only four results are listed under 'Showing five results'.\nVERDICT: NEEDS WORK"
+      "answer": "FINDING: Only four results are listed under 'Showing five results'.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "The list has 4 entries, not the 5 the count claims.\nVERDICT: NEEDS WORK"
+      "answer": "FINDING: The list has 4 entries, not the 5 the count line claims.\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -15,21 +15,44 @@
       "answer": ""
     },
     {
-      "answer": "Both widths render cleanly at load and after 1 s.\nVERDICT: CONFIRMED"
+      "answer": "Both widths render cleanly at load and after 1 s.\nVERDICT: CONFIRMED",
+      "why": "clean report"
     },
     {
-      "answer": "Body text contrast is 4.5:1 or better; the stove weighs 0.4 kg.\nVERDICT: NEEDS WORK"
+      "answer": "FINDING: The table is cut off at 375 px.\nVERDICT: NEEDS WORK",
+      "why": "reports only another defect"
     },
     {
-      "answer": "The table is cut off at 375 px.\nVERDICT: NEEDS WORK"
+      "answer": "It says Showing 5 results but the list has only 4 items.\nVERDICT: NEEDS WORK",
+      "why": "defect in prose, no FINDING line"
     },
     {
-      "answer": "Showing 5 results with 5 items listed; all 4 screenshots are clean.\nVERDICT: CONFIRMED",
-      "why": "denies the defect"
+      "answer": "FINDING: It says Showing 5 results but the list has only 4 items.\nVERDICT: CONFIRMED",
+      "why": "verdict is CONFIRMED"
+    },
+    {
+      "answer": "FINDING: The table is cut off at 375 px.\nI counted the list against Showing 5 results and found no mismatch.\nVERDICT: NEEDS WORK",
+      "why": "denies this defect in prose, reports another on a FINDING line"
+    },
+    {
+      "answer": "FINDING: Body text contrast is 4.5:1 or better; the stove weighs 0.4 kg.\nVERDICT: NEEDS WORK",
+      "why": "numbers that are not the count"
+    },
+    {
+      "answer": "FINDING: no mismatch between the 5 results and the 4 items shown\nVERDICT: NEEDS WORK",
+      "why": "FINDING line negates the defect"
     },
     {
       "answer": "Showing 5 results with 5 items listed; all 4 screenshots agree, but the badge overlaps.\nVERDICT: NEEDS WORK",
-      "why": "counts agree, reports another"
+      "why": "earlier probe: counts agree, reports another"
+    },
+    {
+      "answer": "Showing 5 results with 5 items listed; all 4 screenshots are clean.\nVERDICT: CONFIRMED",
+      "why": "earlier probe: denies the defect"
+    },
+    {
+      "answer": "FINDING: The badge overlaps the title.\nThe count matches: Showing 5 results, and I never saw only 4 items listed.\nVERDICT: NEEDS WORK",
+      "why": "new probe: denial in prose"
     }
   ]
 }

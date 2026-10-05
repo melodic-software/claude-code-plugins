@@ -1,10 +1,10 @@
 {
   "pass": [
     {
-      "answer": "Findings above.\nVERDICT: NEEDS WORK - see list"
+      "answer": "FINDING: one problem\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "**VERDICT:** NEEDS WORK\n1. problem"
+      "answer": "FINDING: one problem\n**VERDICT:** NEEDS WORK"
     }
   ],
   "fail": [
@@ -16,7 +16,7 @@
       "why": "green report"
     },
     {
-      "answer": "It needs work.",
+      "answer": "FINDING: one problem\nIt needs work.",
       "why": "no verdict line"
     }
   ]

@@ -12,13 +12,13 @@
   ],
   "fail": [
     {
-      "answer": "The blue heading has low contrast.\nVERDICT: NEEDS WORK"
+      "answer": "FINDING: The blue heading has low contrast.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "The Save button looks misaligned.\nVERDICT: NEEDS WORK"
+      "answer": "FINDING: The Save button looks misaligned.\nVERDICT: NEEDS WORK"
     },
     {
-      "answer": "The badge overlaps the title at 375 px."
+      "answer": "FINDING: The badge overlaps the title at 375 px."
     }
   ]
 }
