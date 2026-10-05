@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# Generate the hook event registry the harness-ops per-session event log is
-# registered from, and the hooks.json rows that register it.
+# Generate the hook event registry the harness-ops session event log records
+# from, and the event list its mod registers on.
 #
 #   scripts/gen-hook-event-registry.sh --fetch        fetch the Hooks reference,
 #                                                     rewrite the registry and
-#                                                     the producer rows
+#                                                     the event list
 #   scripts/gen-hook-event-registry.sh --from <file>  same, parsing a saved copy
 #                                                     of the reference (tests)
 #   scripts/gen-hook-event-registry.sh --check        OFFLINE: re-derive the
-#                                                     producer rows from the
+#                                                     event list from the
 #                                                     committed registry and
-#                                                     fail on drift (CI)
+#                                                     fail on drift, or on an
+#                                                     event-log row in
+#                                                     hooks.json (CI)
 #
 # Why generated, never hand-maintained: the event list is an upstream fact
 # (https://code.claude.com/docs/en/hooks, the lifecycle table under "Hook
@@ -18,28 +20,34 @@
 # renamed. Every registry entry is a four-part record per
 # docs/conventions/upstream-drift (claim, basis, as-of date, recheck trigger),
 # and per docs/conventions/native-references it states what the reference
-# documented on the as-of date, never that the running binary fires the event:
-# a producer row on an event the binary does not fire costs nothing.
+# documented on the as-of date, never that the running binary fires the event.
 #
-# Not every documented event gets a producer row. Five are excluded with their
-# reason stamped in the registry. Three because a registered hook on them
-# changes behavior rather than observing it:
+# The log is a mod (plugins/harness-ops/hooks/register.ts; ADR 0056). It hooks
+# `classic.<Event>` for each observable event, in a block between the module's
+# `GENERATED: observed events` markers that this script writes, and only while
+# session_event_log_enabled is true, so a default-off install starts no process
+# on any event. hooks.json carries no event-log or retention row: a run strips
+# any it finds, and --check fails while one is present.
+#
+# Not every documented event is recorded. Five are excluded with their reason
+# stamped in the registry. Three because a hook on them changes behavior rather
+# than observing it:
 #   WorktreeCreate  configuring one REPLACES the default git worktree creation,
 #                   and a hook that prints no path fails the worktree
 #   MessageDisplay  Claude Code holds each streamed batch until the hook returns
 #   FileChanged     the matcher builds the watch list; a matcherless row
 #                   watches nothing
-# and two for cost, because they fire on every tool call and even a disabled
-# log pays a process creation per fire:
+# and two for cost, because they fire on every tool call and an enabled log
+# pays a process creation per fire:
 #   PreToolUse, PostToolUse  PostToolBatch and PostToolUseFailure still record
 #                            tool activity
 # An event this script does not know is excluded as `unclassified` with a
-# warning, never registered by default: classify it here first.
+# warning, never recorded by default: classify it here first.
 #
 # The parse refuses to write when the table yields fewer than 25 rows: a page
 # whose shape changed would otherwise produce an empty registry and silently
-# unregister the producer. The committed registry stays authoritative until a
-# human re-runs --fetch. Recheck trigger for every entry: each
+# stop the log. The committed registry stays authoritative until a human
+# re-runs --fetch. Recheck trigger for every entry: each
 # `/harness-ops:changelog` ingest of a Claude Code release whose notes touch
 # hooks re-runs `--fetch --check`; a read-time re-fetch finding the table
 # changed also fires.
@@ -95,22 +103,13 @@ URL="https://code.claude.com/docs/en/hooks.md"
 BASIS="https://code.claude.com/docs/en/hooks#hook-lifecycle"
 REGISTRY="$ROOT/plugins/harness-ops/hooks/hook-events.registry.json"
 HOOKS_JSON="$ROOT/plugins/harness-ops/hooks/hooks.json"
-# The producer row is EXEC FORM. `"command"` is `node`; args are the shared
-# launcher, `--require-true SESSION_EVENT_LOG_ENABLED`, then the script.
-# The launcher exits 0 before it resolves bash when the option is not exactly
-# `true`, so a default-off install does not start Git Bash. `if` cannot carry
-# this gate: it takes one permission rule and is evaluated only on tool events.
-# The script keeps its own switch for a direct invocation.
-# shellcheck disable=SC2016  # the literal hooks.json path; Claude Code expands it, not this script
-PRODUCER='${CLAUDE_PLUGIN_ROOT}/hooks/session-event-log.sh'
-# shellcheck disable=SC2016
-RETENTION='${CLAUDE_PLUGIN_ROOT}/hooks/session-retention.sh'
+MOD_TS="$ROOT/plugins/harness-ops/hooks/register.ts"
 RECHECK="each /harness-ops:changelog ingest of a Claude Code release whose notes touch hooks re-runs scripts/gen-hook-event-registry.sh --fetch --check; a read-time re-fetch finding the lifecycle table changed also fires"
 MIN_ROWS=25
 
 # classify_to <cat-var> <producer-var> <event>: the category (the same table
 # plugins/harness-ops/hooks/session-log-lib.sh carries, pinned by the test) and
-# whether the producer may register on it.
+# whether the log may record it.
 classify_to() {
   local c p
   case "$3" in
@@ -134,7 +133,7 @@ classify_to() {
   WorktreeCreate) p="exclude: configuring a WorktreeCreate hook replaces the default git worktree creation, and a hook that prints no path fails the worktree" ;;
   MessageDisplay) p="exclude: Claude Code holds each streamed batch until the hook returns" ;;
   FileChanged) p="exclude: the matcher builds the watch list, so a matcherless row watches nothing" ;;
-  PreToolUse | PostToolUse) p="exclude: fires on every tool call, so even a disabled log costs a process creation per call; PostToolBatch and PostToolUseFailure still record tool activity" ;;
+  PreToolUse | PostToolUse) p="exclude: fires on every tool call, so an enabled log costs a process creation per call; PostToolBatch and PostToolUseFailure still record tool activity" ;;
   *) [[ "$c" == other ]] && p="exclude: unclassified by scripts/gen-hook-event-registry.sh; classify it there before registering" ;;
   esac
   printf -v "$1" '%s' "$c"
@@ -177,38 +176,46 @@ build_registry() {
       claim: ("hook event " + .[0] + " is documented in the Hooks reference lifecycle table"),
       basis: ($basis + " (raw markdown of hooks.md, fetched with curl -sS -L)"),
       as_of: $as_of, recheck: $recheck }]
-    | sort_by(.name)' <"$tmp"
+    | sort_by(.name)' <"$tmp" | tr -d '\r'
   rm -f "$tmp"
 }
 
-# regen_rows <registry-json-file> <hooks-json-file> -> hooks.json on stdout with
-# the producer rows re-derived: every row naming the producer or ending in the
-# retention script path is stripped, then one producer row per observable event
-# and one retention row on SessionEnd are appended; the existing handlers and
-# their order are untouched.
-regen_rows() {
-  jq --indent 2 --arg prod "$PRODUCER" --arg ret "$RETENTION" --slurpfile reg "$1" '
-    def is_log: ((.args // []) | index($prod)) != null or .command == $prod or ((.command // "") | endswith("/hooks/session-event-log.sh"));
-    def is_ret: ((.args // []) | index($ret)) != null or .command == $ret or ((.command // "") | endswith("/hooks/session-retention.sh"));
-    def log_row($event): {
-      type: "command",
-      command: "node",
-      args: ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "--require-true", "SESSION_EVENT_LOG_ENABLED", $prod],
-      timeout: 5,
-      statusMessage: ("Logging the " + $event + " event...")
-    };
-    def ret_row: {
-      type: "command",
-      command: "node",
-      args: ["${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs", "--require-true", "SESSION_EVENT_LOG_ENABLED", $ret],
-      statusMessage: "Pruning the session event log..."
-    };
-    def strip: map(select(any(.hooks[]?; is_log or is_ret) | not));
-    .hooks |= (with_entries(.value |= strip) | with_entries(select(.value | length > 0)))
-    | reduce ($reg[0][] | select(.producer == "observe")) as $e (.;
-        .hooks[$e.name] = ((.hooks[$e.name] // []) + [{hooks: [log_row($e.name)]}]))
-    | .hooks.SessionEnd = ((.hooks.SessionEnd // []) + [{hooks: [ret_row]}])
-  ' "$2"
+# strip_rows <hooks-json-file> -> hooks.json on stdout with every row that runs
+# session-event-log.sh or session-retention.sh removed, in any form an earlier
+# generator wrote (exec form through the launcher, or a bare command); the
+# other handlers and their order are untouched.
+strip_rows() {
+  jq --indent 2 '
+    def is_log: any((.args // [])[], (.command // ""); test("/hooks/session-(event-log|retention)[.]sh$"));
+    .hooks |= (with_entries(.value |= map(select(any(.hooks[]?; is_log) | not)))
+               | with_entries(select(.value | length > 0)))
+  ' "$1" | tr -d '\r'
+}
+
+# mod_ts <registry-json-file> <register-ts-file> -> register.ts on stdout with
+# the lines between its `BEGIN GENERATED: observed events` and `END GENERATED:
+# observed events` markers replaced by one `classic.<Event>` hook per event the
+# registry marks observe, sorted by name. Claude Code reads each hooked event
+# from a string literal at the call site and takes only a hook declared at the
+# top of the file, so the events are written out one call each, in the module.
+mod_ts() {
+  local block
+  block=$(jq -r '.[] | select(.producer == "observe") | .name' "$1" | tr -d '\r' | LC_ALL=C sort |
+    sed "s/.*/  on('classic.&', record).catch(passThrough)/")
+  tr -d '\r' <"$2" | awk -v block="$block" '
+    /BEGIN GENERATED: observed events/ { print; print block; skip = 1; next }
+    /END GENERATED: observed events/ { skip = 0 }
+    !skip { print }'
+}
+
+# require_markers: exit 1 unless register.ts carries both markers, so a lost
+# marker is a failure rather than a module that silently hooks nothing.
+require_markers() {
+  if ! grep -q 'BEGIN GENERATED: observed events' "$MOD_TS" 2>/dev/null ||
+    ! grep -q 'END GENERATED: observed events' "$MOD_TS"; then
+    echo "gen-hook-event-registry: $MOD_TS lacks the BEGIN/END GENERATED: observed events markers" >&2
+    exit 1
+  fi
 }
 
 case "$MODE" in
@@ -232,12 +239,15 @@ fetch | from)
     echo "gen-hook-event-registry: parsed only $n lifecycle rows (need $MIN_ROWS); the page shape may have changed. Nothing written." >&2
     exit 2
   fi
+  require_markers
   build_registry "$rows" "$AS_OF" >"$REGISTRY.tmp"
   mv "$REGISTRY.tmp" "$REGISTRY"
-  regen_rows "$REGISTRY" "$HOOKS_JSON" >"$HOOKS_JSON.tmp"
+  mod_ts "$REGISTRY" "$MOD_TS" >"$MOD_TS.tmp"
+  mv "$MOD_TS.tmp" "$MOD_TS"
+  strip_rows "$HOOKS_JSON" >"$HOOKS_JSON.tmp"
   mv "$HOOKS_JSON.tmp" "$HOOKS_JSON"
   observed=$(jq '[.[] | select(.producer == "observe")] | length' "$REGISTRY")
-  echo "gen-hook-event-registry: $n events in the registry ($observed observable), as of $AS_OF; producer rows rewritten in $HOOKS_JSON"
+  echo "gen-hook-event-registry: $n events in the registry ($observed observable), as of $AS_OF; observed-event hooks rewritten in $MOD_TS"
   ;;
 check)
   [[ -f "$REGISTRY" ]] || {
@@ -249,14 +259,20 @@ check)
     echo "gen-hook-event-registry: $bad registry entries lack one of the required parts (name, when, category, producer, claim, basis, as_of, recheck)" >&2
     exit 1
   fi
-  expected=$(regen_rows "$REGISTRY" "$HOOKS_JSON" | jq -S .)
+  require_markers
+  if [[ "$(mod_ts "$REGISTRY" "$MOD_TS")" != "$(tr -d '\r' <"$MOD_TS")" ]]; then
+    echo "gen-hook-event-registry: the observed-event hooks in $MOD_TS drift from the registry; re-run --fetch (or --from) to regenerate:" >&2
+    diff <(mod_ts "$REGISTRY" "$MOD_TS") <(tr -d '\r' <"$MOD_TS") >&2 || true
+    exit 1
+  fi
+  expected=$(strip_rows "$HOOKS_JSON" | jq -S .)
   actual=$(jq -S . "$HOOKS_JSON")
   if [[ "$expected" != "$actual" ]]; then
-    echo "gen-hook-event-registry: hooks.json producer rows drift from the registry; re-run --fetch (or --from) to regenerate:" >&2
+    echo "gen-hook-event-registry: hooks.json carries an event-log or retention row; the mod records the log, so re-run --fetch (or --from) to strip it:" >&2
     diff <(printf '%s\n' "$expected") <(printf '%s\n' "$actual") >&2 || true
     exit 1
   fi
-  echo "gen-hook-event-registry: hooks.json producer rows match the registry ($(jq length "$REGISTRY") events)"
+  echo "gen-hook-event-registry: the event list matches the registry ($(jq length "$REGISTRY") events) and hooks.json carries no event-log row"
   ;;
 *)
   usage >&2
