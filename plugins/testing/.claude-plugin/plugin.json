@@ -1,6 +1,6 @@
 {
   "name": "testing",
-  "version": "0.22.17",
+  "version": "0.22.19",
   "description": "Test-stage discipline: /testing:plan (coverage gaps, test plans), /testing:write (TDD authoring), /testing:run-e2e (live E2E and smoke checks), /testing:diagnose (failing-test root cause, with a fix-until-green workflow across files), /testing:audit (can't-fail test audit with a fail-closed gate), /testing:cleanup (rewrite, quarantine, or delete low-value tests behind a mutation gate), /testing:setup, and opt-in hooks that scan test files Claude writes and flag edits that weaken tests.",
   "author": {
     "name": "Melodic Software",
@@ -32,7 +32,7 @@
     "test_judge_model": {
       "type": "string",
       "title": "Test judge model",
-      "description": "Model class the judge runs on: fable, opus, sonnet (default) or haiku. When a model of that class wrote the tests, the fallback or another class is used.",
+      "description": "Model class the judge runs on: fable, opus, sonnet (default) or haiku. When a model of that class wrote the tests, the fallback or another class is used. The judge was not calibrated on haiku, so its verdicts may be less consistent.",
       "default": "sonnet",
       "options": ["fable", "opus", "sonnet", "haiku"]
     },

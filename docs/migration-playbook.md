@@ -494,6 +494,10 @@ Separate **plugin-owned** logic from **consumer-owned** extension points:
 - **A `version` bump in `plugin.json` is the only delivery vehicle.** A consumer receives a change only
   after the plugin's semver `version` increases. The version is the update cache key, so an unbumped
   plugin never delivers, even when its files changed (see "Shared code across plugins" below).
+  A plugin listed in `scripts/fragment-plugins.txt` is the exception: its pull requests add a
+  changelog fragment (`scripts/new-changelog-fragment.sh <plugin> <bump>`) and leave the version
+  and `CHANGELOG.md` alone, and the release pull request bumps it
+  ([ADR 0048](adr/0048-release-plugins-from-changelog-fragments-through-a-bot-maintained-release-pr.md)).
 - **Consumers update deliberately** with `/plugin marketplace update <marketplace>`, which refetches
   the marketplace. There is no silent auto-push of plugin changes to a consumer.
 - **Breaking-change / changelog note per plugin.** A version bump that changes behavior a consumer

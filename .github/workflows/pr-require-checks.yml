@@ -3,10 +3,16 @@ name: pr-require-checks
 on:
   # A dispatch runs the full contract corpus.
   workflow_dispatch:
-  push:
-    branches: [main]
-  # THE WHOLE TREE, TWICE A DAY. A push tests only what changed since the last
-  # green push run (see the `select-tests` job), so this run is the net for what a
+  # NO PUSH TRIGGER. Every commit reaches main through the merge queue (the
+  # repository's merge-queue ruleset, with the org `pull_request` rule and no
+  # bypass actor), and the queue merges a commit only after this workflow
+  # passed on that same SHA in its merge-group run. A push run re-tested the
+  # SHA the queue had just passed: all 55 main pushes from 2026-10-03T22:40Z
+  # to 10-04T17:41Z did, for 591 job minutes. The check runs that merge-group
+  # run left stay on the commit.
+  #
+  # THE WHOLE TREE, TWICE A DAY. A pull request and a merge group test only
+  # what changed, so this run is the net for what a
   # diff cannot show: a suite that asserts against the live tree, and a
   # dependency the affected-suite selector does not see. It takes the same path
   # as a dispatch: the full contract corpus, the whole-repository ShellCheck and
@@ -47,7 +53,7 @@ on:
   # concurrency group falls back to `github.run_id`, so no queued run cancels
   # another; the docs-only detector does not run, the detect-changes action
   # fails open and `select-tests` resolves no diff base, so the whole tree is
-  # tested; the base-diff gates decline as on a push; `check-contract` finds no pull
+  # tested; the base-diff gates decline as on a schedule run; `check-contract` finds no pull
   # request number and reports `skipped`, because the title, label and linkage
   # were already checked on the pull request before it could enter the queue;
   # and `ci-status` aggregates the lanes and records `ci-lanes` on the
@@ -71,26 +77,16 @@ permissions:
 # The full branch keeps one group per pull request, so a `synchronize` still
 # cancels everything on the old SHA; the PR number scopes cancellation to
 # exactly one pull request, where `head_ref` would collide across same-named
-# fork branches.
-#
-# PUSHES TO MAIN COALESCE. They share one group per workflow and branch, and
-# that branch alone does not cancel: the running push run finishes, and of the
-# pushes that land meanwhile only the newest waits, because GitHub cancels a
-# pending run when a newer one joins its group. A burst of merges costs two
-# runs instead of one each (a replay of 529 main pushes: 47% would be dropped
-# while pending). The surviving run diffs from the newest green push run, not
-# from its parent, so a dropped run's commits are still in its range. A
-# merge-group, schedule or dispatch run keeps the unique `github.run_id`
-# group, so it is never cancelled.
+# fork branches. A merge-group, schedule or dispatch run keeps the unique
+# `github.run_id` group, so it is never cancelled.
 concurrency:
   group: >-
     ${{ (github.event.pull_request.head.repo.full_name == github.repository &&
     (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) ||
     (github.event.action == 'edited' && !github.event.changes.base)))
     && format('ci-contract-{0}-{1}', github.event.pull_request.number, github.run_id)
-    || github.event_name == 'push' && format('{0}-push-{1}', github.workflow, github.ref)
     || format('{0}-{1}', github.workflow, github.event.pull_request.number || github.run_id) }}
-  cancel-in-progress: ${{ github.event_name != 'push' }}
+  cancel-in-progress: true
 
 # Quality lanes run the ci-workflows composite actions (referenced by SHA,
 # bumped via Dependabot — never copied) against this repo's exact standards
@@ -129,7 +125,7 @@ concurrency:
 # of its own, its wall is the sum of the measured seconds of the steps it
 # holds, plus the setup of the job whose toolchain it copies. Job, p95 / max
 # seconds, minutes: select-tests 24 / 35 plus the planner (up to 21 s measured), 3;
-# lint-repo 244 / 265, 7, sized for its whole-tree load (the push runs);
+# lint-repo 244 / 265, 7, sized for its whole-tree load (the scheduled runs);
 # lint-shell 345 / 385 with a whole-repository ShellCheck, 9; check-plugins
 # 110 / 120, 3; check-skills at most 585 / 645, the wall of a measured job
 # that ran all of its steps and more, 15; test-bash per leg about 230 on the
@@ -159,8 +155,8 @@ jobs:
   # non-zero exit, or an output file it could not write — leaves
   # `steps.detect.outputs.docs_only` unset, which every expression below
   # resolves toward running, and the full suite runs. The same unset-output
-  # path covers a run with no diff base (a schedule or dispatch run, or a push
-  # that could not use one), where the detect step does not run at all. The
+  # path covers a run with no diff base (a schedule or dispatch run, or a
+  # merge group), where the detect step does not run at all. The
   # narrowing clauses read the detect-changes action through fromJSON with a
   # `|| '{}'` default and compare `!= 'false'`, never `== 'true'`, for the same
   # reason: an unset filter group must run its lane, not skip it.
@@ -195,10 +191,8 @@ jobs:
     timeout-minutes: 3
     # The detect-changes action lists the pull request's files through the
     # API. Nothing else in this workflow needs that read, so it is granted here
-    # and nowhere else. `statuses: write` is for the in-flight marker below,
-    # `actions: read` for the green push runs the diff base is chosen from.
+    # and nowhere else. `statuses: write` is for the in-flight marker below.
     permissions:
-      actions: read
       contents: read
       pull-requests: read
       statuses: write
@@ -211,6 +205,10 @@ jobs:
       run_bash: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.bash != 'false' }}
       run_python: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.python != 'false' }}
       run_node: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.node != 'false' }}
+      # Whether `lint-shell` has input: its filter group matched. No docs-only
+      # term, because a shell file under a docs-only prefix is still ShellCheck
+      # input (scripts/docs-only-paths.txt).
+      run_shell: ${{ github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['lint_shell'] != 'false' }}
       run_workflows: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['workflows'] != 'false' }}
       run_skill_checker: ${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}
       run_manifests: ${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['manifests'] != 'false' }}
@@ -262,19 +260,11 @@ jobs:
       - name: Fetch base
         uses: ./.github/actions/download-full-history # zizmor: ignore[self-repository]
       # THE DIFF BASE, RESOLVED ONCE. A pull request diffs against its base
-      # branch. A push diffs against the newest commit on HEAD's first-parent
-      # line with a green push run, not against its parent: a push run
-      # coalesced away while pending, or a red one, leaves its commits in the
-      # next range, so a break stays in every later range until a run passes.
-      # A push with no such commit, or whose range touches the shared test
-      # machinery (this workflow, the actions it calls, the suite runner, the
-      # selector and planner, the resolver, scripts/lib/, the toolchain pins),
-      # and every schedule or dispatch run, get no base: the whole tree.
+      # branch. Every other run gets no base: the whole tree.
       # scripts/resolve-diff-base.sh holds the rules and logs why it chose.
       - name: Resolve the diff base
         id: base
         env:
-          GH_TOKEN: ${{ github.token }}
           BASE_REF: ${{ github.base_ref }}
         run: scripts/resolve-diff-base.sh
       - name: Test the docs-only detector
@@ -304,10 +294,19 @@ jobs:
       # and awk only, so no lockfile or interpreter pin can move that verdict.
       # A CHANGED skill is already checked on every diff by the changed-skills
       # gate in `check-skills`, check 25 included as a FAIL.
+      #
+      # `lint_shell` names every input of a `lint-shell` gate: shell and Python
+      # source, hook and bin directories, every file under plugins/ (the
+      # portability lint scans skills/ and reference/ markdown, the
+      # hook-frontmatter reader every .md under plugins/, and a plugin.json
+      # `hooks` entry may name a hooks file of any name or extension at any
+      # path in its plugin), the gates with their baselines and libraries, the rcfile,
+      # the PyYAML pin, and this workflow. A change that touches none of them
+      # starts no `lint-shell`; scripts/lint-shell-filter.test.sh pins this.
       - name: Match the changed files against the filter groups
         id: match
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/detect-changes@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/detect-changes@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           filters: |
             shell:
@@ -389,6 +388,39 @@ jobs:
               plugins/*/.claude-plugin/**
               scripts/check-manifest-duplicate-keys*
               .python-version
+            lint_shell:
+              .github/workflows/pr-require-checks.yml
+              .github/actions/download-full-history/**
+              .github/requirements-ci.txt
+              .python-version
+              .shellcheckrc
+              lib/**
+              scripts/lib/**
+              scripts/aggregate-hygiene-results*
+              scripts/check-killswitch-hoist*
+              scripts/check-hook-slow-shapes*
+              scripts/check-hook-exec-form-frontmatter*
+              scripts/check-silent-skips*
+              scripts/check-discriminating-test-skips*
+              scripts/check-fixture-git-isolation*
+              scripts/fixture-git-isolation-baseline.txt
+              scripts/check-drive-root-litter*
+              scripts/check-shell-portability*
+              scripts/shell-portability-*
+              scripts/cross-plugin-source-registry.txt
+              scripts/orphaned-fixtures-baseline.txt
+              scripts/check-pipefail-grep-q*
+              scripts/check-test-tmp-cleanup*
+              scripts/test-tmp-cleanup-baseline.txt
+              **/*.sh
+              **/*.bash
+              **/*.bats
+              **/*.py
+              **/hooks/**
+              **/bin/**
+              **/agents/**
+              **/SKILL.md
+              plugins/**
       # THE TEST LANES ARE PLANNED HERE, ONCE. scripts/plan-test-lanes.sh runs
       # the affected-suite selector over the diff and gives each test lane its
       # suites, packed into legs by suite-seconds, and each leg the optional
@@ -467,7 +499,7 @@ jobs:
   # PR-ONLY STEPS BRANCH IN THE SHELL, NOT IN `if:`. A step cannot carry both a
   # resolver gate and an event gate: the docs-only gate reads a step condition
   # whole, so a compound condition is an unsanctioned consumer form, and an
-  # event-only condition makes the step `skipped` on push, which the
+  # event-only condition makes the step `skipped` on a merge group, which the
   # fail-closed aggregator then reds. So a diff-scoped gate runs on every event
   # and returns early from its own script when there is no base ref to diff
   # against.
@@ -699,11 +731,11 @@ jobs:
           path: |
             ~/.npm/_npx
             ~/.npm/_cacache
-          key: npx-markdownlint-cli2-${{ runner.os }}-7446b5165511796b7b0d30b68d341689ebb8de61
+          key: npx-markdownlint-cli2-${{ runner.os }}-fb56986808750d6856c27de78df15e150027b8dc
       - name: Lint markdown
         id: markdown
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/markdownlint@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/markdownlint@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           config: .markdownlint-cli2.jsonc
           globs: ${{ steps.changed_md.outputs.globs }}
@@ -711,7 +743,7 @@ jobs:
       - name: Spell-check
         id: typos
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/typos@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/typos@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           config: _typos.toml
           # A pack's vendored baseline is replaced verbatim from upstream by its
@@ -725,13 +757,13 @@ jobs:
 
       # `log-opts` is unset on purpose: the composite scopes the scan by event. A
       # pull request scans only its own commits (<base>..HEAD), so a finding on
-      # another branch cannot fail it (#3599). A push to main scans main's full
-      # history (HEAD). A manual dispatch scans every ref present in the clone
-      # (--all).
+      # another branch cannot fail it (#3599). A merge group scans HEAD's full
+      # history. A schedule or manual dispatch scans every ref present in the
+      # clone (--all).
       - name: Scan for secrets
         id: gitleaks
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/gitleaks@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/gitleaks@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           config: .gitleaks.toml
           scan-mode: git
@@ -739,7 +771,7 @@ jobs:
       - name: Check editorconfig conformance
         id: editorconfig
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/editorconfig-checker@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           config: .editorconfig-checker.json
 
@@ -747,18 +779,19 @@ jobs:
       # actionlint and the dependabot and workflow schemas on `run_workflows`
       # (.github/**), the two manifest schemas and the duplicate-key detector
       # in `check-plugins` on `run_manifests`. Both rows carry the docs-only
-      # term, and on a push, schedule or dispatch every group reports true.
+      # term, and on a merge-group, schedule or dispatch run every group reports
+      # true.
       - name: Lint workflows
         id: actionlint
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/actionlint@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/actionlint@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
 
       - name: Validate dependabot.yml
         id: dependabot_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           builtin-schema: vendor.dependabot
           files: .github/dependabot.yml
@@ -766,7 +799,7 @@ jobs:
         id: workflow_schema
         if: needs.select-tests.outputs.run_workflows == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           builtin-schema: vendor.github-workflows
           files: >-
@@ -774,16 +807,17 @@ jobs:
             .github/workflows/pr-bump-plugin-version.yml
             .github/workflows/post-merge-detect-silent-revert.yml
             .github/workflows/pr-test-windows.yml
+            .github/workflows/release-plugins.yml
 
       - name: Verify shebang files are executable
         id: exec_bit
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/check-exec-bit@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
 
       - name: Check for machine-specific paths
         id: machine_paths
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@69e506b7c119517ef1dfc421479232b386b93a52 # v0.35.0
+        uses: melodic-software/ci-workflows/.github/actions/check-machine-paths@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
           # regex bodies self-match this lane's own detector. The autonomy
@@ -816,12 +850,12 @@ jobs:
       - name: Check index-level EOL drift
         id: eol
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/check-line-endings@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
 
       - name: Scan comment hygiene
         id: comment_hygiene
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@69e506b7c119517ef1dfc421479232b386b93a52 # v0.35.0
+        uses: melodic-software/ci-workflows/.github/actions/check-comment-markers@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           # The audit-comment-residue skill IS a code-comment linter: its detector
           # fixtures and shape library necessarily contain the markers this policy
@@ -889,7 +923,7 @@ jobs:
       # annotations are measured before anything is allowed to block on them.
       #
       # The event branch lives in the script rather than in `if:`, because a
-      # push has no base ref to diff against and a step cannot carry both an
+      # merge group has no base ref to diff against and a step cannot carry both an
       # event gate and a resolver gate.
       - name: Report ai-slop findings on changed markdown
         id: ai_slop_report
@@ -993,11 +1027,15 @@ jobs:
   # file outside plugins/ changes; inside `lint-repo` that scan would set the
   # critical path.
   #
-  # The job skips only on a contract-only event or a draft (see `lint-repo`).
+  # The job skips on a contract-only event, on a draft, and on a change that
+  # touches none of its inputs (`select-tests`'s `run_shell` row, the `lint_shell`
+  # filter group). `ci-status` passes that skip only against the row, as it
+  # does a test lane's.
   lint-shell:
     needs: [select-tests]
-    # The contract-only gate, verbatim, and the draft gate (see `ci-status`).
-    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}
+    # The contract-only gate, verbatim, the draft gate (see `ci-status`), and
+    # this lane's ordered skip.
+    if: ${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('["labeled","unlabeled"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true && needs.select-tests.outputs.run_shell == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 9
     steps:
@@ -1208,7 +1246,7 @@ jobs:
       - name: Lint shell scripts
         id: shellcheck
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           files: ${{ steps.changed_shell.outputs.files }}
           rcfile: .shellcheckrc
@@ -1244,7 +1282,7 @@ jobs:
   #
   # The shared-library bump checks need base history: `download-full-history`
   # runs once, at the top, and every bump check below resolves
-  # `origin/$BASE_REF` from it. Each returns early on a push rather than
+  # `origin/$BASE_REF` from it. Each returns early off a pull request rather than
   # diffing against a ref that does not exist.
   #
   # The job skips only on a contract-only event or a draft (see `lint-repo`).
@@ -1392,6 +1430,10 @@ jobs:
         continue-on-error: true
         env:
           BASE_REF: ${{ github.base_ref }}
+          # The head branch of a pull request from this repository, never a
+          # fork's: scripts/lib/changelog-fragments.sh reads `release/plugins`
+          # here as the release pull request.
+          CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
         run: |
           if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
             echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
@@ -1422,6 +1464,45 @@ jobs:
         continue-on-error: true
         run: scripts/check-changelog-parity.sh --check-order
 
+      # Changelog fragments (ADR 0048). A plugin in scripts/fragment-plugins.txt
+      # takes a fragment under .changes/<plugin>/ in each pull request, and the
+      # release pull request (branch release/plugins) bumps it. --check
+      # validates every fragment in the tree; --check-required asks a change to
+      # such a plugin for one. --check-release keeps a release from merging past
+      # a fragment it never consumed: on the release pull request against the
+      # base, and in the merge queue against HEAD^1, the tree the queued squash
+      # commit lands on (main plus every entry ahead of it).
+      - name: Verify every changelog fragment is well formed
+        id: changelog_fragments_check
+        continue-on-error: true
+        run: scripts/check-changelog-fragments.sh --check
+      - name: Verify a change to a fragment-mode plugin adds a fragment
+        id: changelog_fragments_required
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            echo "::notice::Declined on a $GITHUB_EVENT_NAME event; there is no base ref to diff against."
+            exit 0
+          fi
+          scripts/check-changelog-fragments.sh --check-required "origin/$BASE_REF"
+      - name: Verify a release consumes every pending fragment for the plugins it bumps
+        id: changelog_fragments_release
+        continue-on-error: true
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          CHANGELOG_HEAD_REF: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = merge_group ]; then
+            scripts/check-changelog-fragments.sh --check-release 'HEAD^1'
+          elif [ "$GITHUB_EVENT_NAME" = pull_request ] && [ "$CHANGELOG_HEAD_REF" = release/plugins ]; then
+            scripts/check-changelog-fragments.sh --check-release "origin/$BASE_REF"
+          else
+            echo "::notice::Declined: only the release pull request and the merge queue release plugins."
+          fi
+
       # Vendor version bump: ADR 0019's intra-plugin sharing keeps ONE
       # committed copy at the plugin root (vendor/), so no sync-*.sh byte-drift
       # gate applies; the invariant that replaces it is delivery-by-version — a
@@ -1445,7 +1526,7 @@ jobs:
         id: marketplace_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           schemafile: https://json.schemastore.org/claude-code-marketplace.json
           files: .claude-plugin/marketplace.json
@@ -1453,7 +1534,7 @@ jobs:
         id: plugin_schema
         if: needs.select-tests.outputs.run_manifests == 'true'
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           schemafile: https://json.schemastore.org/claude-code-plugin-manifest.json
           files: plugins/*/.claude-plugin/plugin.json
@@ -1529,7 +1610,7 @@ jobs:
       # CI only verifies: the copies match their canonical, and a change to a
       # canonical bumps every carrying plugin. The libraries' own suites are
       # corpus suites, reached by the selector. The bump checks need a base
-      # ref, so they return early on a push rather than diffing against a ref
+      # ref, so they return early off a pull request rather than diffing against a ref
       # that does not exist.
       - name: Verify generated shared-library copies match their canonical sources
         if: needs.select-tests.outputs.run_tests == 'true'
@@ -1606,6 +1687,9 @@ jobs:
             changelog-parity-bump=${{ steps.changelog_parity_bump.outcome }}
             changelog-parity-preserved=${{ steps.changelog_parity_preserved.outcome }}
             changelog-parity-order=${{ steps.changelog_parity_order.outcome }}
+            changelog-fragments=${{ steps.changelog_fragments_check.outcome }}
+            changelog-fragments-required=${{ steps.changelog_fragments_required.outcome }}
+            changelog-fragments-release=${{ steps.changelog_fragments_release.outcome }}
             vendor-version-bump=${{ steps.vendor_version_bump.outcome }}
             marketplace-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.marketplace_schema.outcome }}
             plugin-schema=${{ needs.select-tests.outputs.run_manifests == 'false' && 'success' || steps.plugin_schema.outcome }}
@@ -1756,33 +1840,15 @@ jobs:
       #
       # The whole corpus (every SKILL.md through the full checker, about 300 s
       # of this job) runs on a pull request only when `skill_checker` matched,
-      # on a push only when its range touched the same inputs, and on every
-      # schedule or dispatch run. Elsewhere an unchanged skill's check-25
+      # and on every other run. Elsewhere an unchanged skill's check-25
       # verdict cannot have moved, because nothing it reads changed, and a
       # changed skill is checked by the next step, which fails it on check 25
       # like any other FAIL. The one verdict a diff can no longer see is a stale
       # scripts/verb-contract-baseline.txt row left by fixing a listed skill;
       # the list has no active rows, and the scheduled run still reports one.
-      #
-      # detect-changes reads only a pull request's files, so on a push every
-      # group reports true and the range is checked here instead, against the
-      # group's inputs less scripts/lib/ and this workflow, which already give
-      # a push no diff base.
       - name: Gate every skill on description/verb-contract polarity (check 25)
         if: needs.select-tests.outputs.run_skill_checker == 'true'
-        env:
-          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
-        run: |
-          if [ "$GITHUB_EVENT_NAME" = push ] && [ -n "$DIFF_BASE" ]; then
-            touched=$(git diff --name-only "$DIFF_BASE" HEAD -- plugins/skill-quality/scripts \
-              'scripts/check-all-skills-verb-contract*.sh' scripts/verb-contract-baseline.txt) ||
-              touched="(git diff failed)"
-            if [ -z "$touched" ]; then
-              echo "::notice::No check-25 input changed since $DIFF_BASE; the scheduled run checks every skill."
-              exit 0
-            fi
-          fi
-          bash scripts/check-all-skills-verb-contract.sh
+        run: bash scripts/check-all-skills-verb-contract.sh
       - name: Gate changed skills on the static skill-quality contract
         id: changed_skills
         continue-on-error: true
@@ -1797,7 +1863,7 @@ jobs:
       - name: Validate every eval set against the bundled schema
         id: evals_schema
         continue-on-error: true
-        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
@@ -1942,7 +2008,7 @@ jobs:
   # `test-bash`, its Python suites to `test-python`, and the Node packages they
   # reach to `test-node`; a Node suite with a sibling .test.sh runs through
   # that wrapper in `test-bash`, and a Pester suite in pr-test-windows.yml. The
-  # whole tree (a schedule, a dispatch, a push with no usable base, or a change
+  # whole tree (a schedule, a dispatch, a merge group, or a change
   # to this workflow or its actions) runs every suite of every lane.
   #
   # ORDERED SKIPS. Each test lane carries the contract-only and draft gates and
@@ -2014,7 +2080,7 @@ jobs:
         # available to the bash-format contract suites in this same job. It
         # verifies the install on one small file that sources nothing; the
         # ShellCheck gate in `lint-shell` is what lints the repository.
-        uses: melodic-software/ci-workflows/.github/actions/shellcheck@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/shellcheck@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           files: scripts/aggregate-hygiene-results.sh
           rcfile: .shellcheckrc
@@ -2393,7 +2459,7 @@ jobs:
       statuses: write
     steps:
       - name: Check the pull-request contract
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/check-contract@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           token: ${{ github.token }}
           # Carried over verbatim from `pr-issue-linkage.yml`, the caller this
@@ -2466,8 +2532,9 @@ jobs:
           fi
           echo "::error::draft: lanes not run. Mark the pull request ready to lint and test this SHA."
           exit 1
-      # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>` skips as a job
-      # when `select-tests`'s `run_<x>` row says the change gives it no work. Its
+      # ORDERED SKIPS ARE CHECKED HERE. A test lane `test-<x>`, or `lint-shell`
+      # on its `run_shell` row, skips as a job when `select-tests`'s `run_<x>`
+      # row says the change gives it no work. Its
       # `skipped` becomes `success` for the aggregate only when `select-tests`
       # succeeded and that row is exactly 'false'; every other result passes
       # through as it is, so a skip that hid work stays `skipped` and the
@@ -2484,8 +2551,8 @@ jobs:
             | to_entries
             | map(.key as $lane | .value.result as $r
                 | if $r == "skipped" and $s.result == "success"
-                    and ($lane | test("^test-[a-z]+$"))
-                    and ($s.outputs["run_" + ($lane | ltrimstr("test-"))] == "false")
+                    and ($lane | test("^(test-[a-z]+|lint-shell)$"))
+                    and ($s.outputs["run_" + ($lane | sub("^(test|lint)-"; ""))] == "false")
                   then "success" else $r end)
             | join(" ")' <<<"$LANES")
           if [ -z "$results" ]; then
@@ -2500,7 +2567,7 @@ jobs:
         # aggregation: the job still fails on the contract step's exit code, and
         # the `ci-lanes` status is on the SHA for the next contract-only run.
         if: ${{ !cancelled() }}
-        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@7446b5165511796b7b0d30b68d341689ebb8de61 # v0.34.0
+        uses: melodic-software/ci-workflows/.github/actions/pr-require-checks/aggregate-results@fb56986808750d6856c27de78df15e150027b8dc # v0.36.0
         with:
           # Every lane of the needs graph above — the single source of truth
           # for the lane list — through the ordered-skip check. Adding a lane

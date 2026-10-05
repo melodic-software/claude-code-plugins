@@ -185,11 +185,16 @@ them, that is a finding to raise, not a guard to delete.
 ## Gotchas
 
 - **The normalized item object has no `body` field.** It is `schema_version, id, title,
-  state, assignees, labels, type, blocked_by_count, parent_id, url`. A mapping that plans
-  to carry spec text through the seam is designing against a field that does not exist.
-- **`blocked_by_count` counts OPEN blockers only.** Counting closed ones is the bug that
-  keeps an item off the frontier forever. GitHub's own `totalCount` gets this wrong, which
-  is why the bundled adapter counts open nodes itself.
+  state, assignees, labels, type, blocked_by_count, blocked_by_wont_do_count, parent_id,
+  url`. A mapping that plans to carry spec text through the seam is designing against a
+  field that does not exist.
+- **`blocked_by_count` counts OPEN blockers, plus any closed as won't-do.** Counting every
+  closed one is the bug that keeps an item off the frontier forever. GitHub's own
+  `totalCount` gets this wrong, which is why the bundled adapter counts nodes itself.
+  Reading a close reason is optional: when the provider records one, a blocker closed as
+  not planned or duplicate still blocks and counts in `blocked_by_wont_do_count`; when it
+  records none, closed means resolved and `blocked_by_wont_do_count` is `0`
+  (CONTRACT.md "JSON output contract").
 - **IDs are fully qualified**, `<provider>:<owner>/<repo>#<n>`. Exactly two path segments.
   A scope like `acme/webapp` fills both; a bare project key needs the host in front of it.
   A bare `#123` is never persisted anywhere.

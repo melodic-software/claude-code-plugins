@@ -3,6 +3,18 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.8.8] - 2026-10-04
+
+### Changed
+
+- **Shared `hook-utils.sh` synced; no change to this plugin's hooks.** Two comments no longer cite the retired statusline tee.
+
+## [3.8.7] - 2026-10-04
+
+### Fixed
+
+- `/harness-ops:audit-skill-visibility` judges listing fit on the whole rendered listing (names, colon-space joiners, newlines and exempt entries, reported as `floor_chars` and `listing_chars` beside `demand_chars` on every band row), not on descriptions alone, which reported "fits" for a listing at its cap. It counts plugin commands and workflows, and with `--installed` user, project (every parent up to the repository root) and claude.ai-synced skills under `skillOverrides`, user and project skills under their frontmatter `name`, a personal skill shadowing a same-named project one and a settings file Claude Code rejects contributing no overrides; reads block-scalar and escaped-quote descriptions at their loaded length; and charges each walk grant its colon-space joiner. New `--listing-capture <transcript.jsonl>` counts built-in skills from a session's recorded listing and flags a band row that says "fits" while the session shed descriptions. A row set by `SLASH_COMMAND_TOOL_CHAR_BUDGET` is labeled with that variable instead of a window it ignores. Without a read capture that covers the counted fleet a fit is reported as `fit-unconfirmed`, never `listing-fits`, since the uncounted built-in entries can still overflow the session's listing (#6262).
+
 ## [3.8.6] - 2026-10-04
 
 ### Changed

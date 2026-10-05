@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 repro_checkout.py"
+          }
+        }
+      ],
+      "why": "loop re-run"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Grep",
+          "input": {
+            "pattern": "\\[DEBUG-a4f2\\]"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python repro_checkout.py; echo exit=$?"
+          }
+        }
+      ],
+      "why": "grep then loop"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest test_checkout"
+          }
+        }
+      ],
+      "why": "unit test only, loop not re-run"
+    }
+  ]
+}
