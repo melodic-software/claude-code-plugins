@@ -3,11 +3,22 @@
 # geometry check behind each geometry catch, with expected-matrix.json. The
 # expected cells come from the defect catalog's "Layers expected to catch it"
 # column; expected-matrix.json lists each cell that differs and why.
-# Skips (exit 0) when the one-time cache in README.md is not installed.
+# Skips (exit 0, nothing measured) when the one-time cache in README.md or
+# Chromium is missing; UI_DEFECTS_REQUIRE=1 fails the run instead, for a lane
+# that installed them and must not pass green on a skip.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../../../../../.." && pwd)"
+
+skip() {
+  if [[ "${UI_DEFECTS_REQUIRE:-}" == 1 ]]; then
+    echo "FAIL (UI_DEFECTS_REQUIRE=1, nothing measured): $1" >&2
+    exit 1
+  fi
+  echo "SKIP: NOTHING MEASURED, this pass proves nothing: $1 (set UI_DEFECTS_REQUIRE=1 to fail instead)" >&2
+  exit 0
+}
 
 # shellcheck source=../../../../../../scripts/lib/python-probe.sh
 . "$ROOT/scripts/lib/python-probe.sh"
@@ -15,8 +26,7 @@ PYTHON=""
 python_probe::require_to PYTHON "$HERE/../build-variants.py"
 
 if ! command -v node >/dev/null 2>&1 || [[ ! -d "$HERE/node_modules/@axe-core/playwright" ]]; then
-  echo "SKIP: node or harness/node_modules missing; install per $HERE/README.md"
-  exit 0
+  skip "node or harness/node_modules missing; install per $HERE/README.md"
 fi
 
 TMP="$(mktemp -d)"
@@ -25,8 +35,7 @@ trap 'rm -rf "$TMP"' EXIT
 status=0
 node "$HERE/measure-layers.mjs" --python "$PYTHON" --out "$TMP/measured.json" >"$TMP/log" 2>&1 || status=$?
 if [[ $status -eq 2 ]]; then
-  echo "SKIP: $(tail -n 1 "$TMP/log")"
-  exit 0
+  skip "$(tail -n 1 "$TMP/log")"
 fi
 if [[ $status -ne 0 ]]; then
   cat "$TMP/log" >&2
