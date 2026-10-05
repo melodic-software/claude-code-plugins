@@ -169,7 +169,11 @@ clause: an escalating lane decided to hold, drafted its explanation first, and a
 - **The `do-not-merge` label is the only cross-lane hold.** It is the one hold mechanism enforced
   server-side: the org ruleset requires the `ci-status` check, whose `check-contract` step fails on the
   `do-not-merge` label and re-evaluates on `labeled`/`unlabeled`, so applying the label flips a
-  SHA-bound required check with no bypass actors. A PR **comment is never a hold**: comments are
+  SHA-bound required check with no bypass actors. A PR already in the merge queue is held by the
+  same check: its merge-group run's `ci-status` re-reads the label and fails, and the queue removes
+  the PR. A label that lands after that run's `ci-status` passed does not stop the merge, so on a
+  queued PR also dequeue it (the `dequeuePullRequest` command under **Hold a PR** in
+  [§7](#7-operator-steering-through-github-state)). A PR **comment is never a hold**: comments are
   advisory by construction; no gate reads them, and an escalation comment on the PR obliges
   nothing until the label is on.
 - **Hold first, explain second.** The moment a lane decides a PR must not merge, it applies
@@ -997,6 +1001,9 @@ requires (freshness read, hold, then explanation):
 ```bash
 gh pr view <n> -R "$R" --json state,mergedAt
 gh pr edit <n> -R "$R" --add-label do-not-merge
+# Only when the PR is in the merge queue:
+gh api graphql -f query='mutation($id: ID!) { dequeuePullRequest(input: {id: $id}) { clientMutationId } }' \
+  -f id="$(gh pr view <n> -R "$R" --json id -q .id)"
 gh pr comment <n> -R "$R" --body "Held by operator: <reason>."
 ```
 
