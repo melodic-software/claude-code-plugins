@@ -112,6 +112,17 @@ assert_eq "title: code comment does not suppress the title H1" "# Setup guide" "
 inner_md="$(printf '%s' '<html><head><title>Guide - Site</title></head><body><main><h1>Guide</h1><p>Text.</p></main></body></html>' | conv)"
 assert_eq "title: H1 inside <main> is the only H1" "# Guide" "$(grep '^# ' <<<"$inner_md")"
 
+# --- Case: a ``` line inside <pre> does not close the fence early ---
+nested_file="$TEST_TMPDIR/nested.md"
+printf '%s' '<html><body><main><h1>Doc</h1><pre><code class="language-markdown">```
+## Fake heading
+```</code></pre><h2>Real</h2></main></body></html>' | conv >"$nested_file"
+assert_contains "fence: outer fence is one backtick longer than the longest inner run" \
+  $'````markdown\n```\n## Fake heading\n```\n````' "$(cat "$nested_file")"
+nested_map="$(bash "$SCRIPT_DIR/docs-cache.sh" map --file "$nested_file")"
+assert_absent "fence: section map has no heading from inside the code block" "Fake heading" "$nested_map"
+assert_contains "fence: the heading after the code block is in the map" "Doc > Real" "$nested_map"
+
 echo
 if [[ $FAILED -eq 0 ]]; then
   printf 'All %d assertions passed.\n' "$CASE_NUM"

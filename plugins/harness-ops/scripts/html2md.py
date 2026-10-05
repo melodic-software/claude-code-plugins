@@ -118,8 +118,15 @@ class Conv(HTMLParser):
             return
         elif tag == "pre":
             self.pre = max(0, self.pre - 1)
+            fence = "```"
+            if self.fence is not None:
+                # widen past the longest backtick run so a ``` line inside cannot close it
+                body = "".join(self.out[self.fence + 1 :])
+                run = max(map(len, re.findall("`+", body)), default=0)
+                fence = "`" * max(3, run + 1)
+                self.out[self.fence] = self.out[self.fence].replace("```", fence, 1)
             self.fence = None
-            self.emit("\n```\n\n")
+            self.emit("\n" + fence + "\n\n")
         elif tag == "code" and not self.pre:
             self.emit("`")
         elif tag == "a" and self.link is not None:

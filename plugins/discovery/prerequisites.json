@@ -52,8 +52,7 @@
       "detect": {
         "any": [
           "python3",
-          "python",
-          "py"
+          "python"
         ],
         "reject_store_alias": true
       },

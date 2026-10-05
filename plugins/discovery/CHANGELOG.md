@@ -24,6 +24,11 @@
   `max_page_bytes` (default 10 MiB) unread `too-large`, and `docs-cache.sh` refuses a summary or
   note with a line shaped like the block's BEGIN or END marker, says in the block's opening line
   that only the END line with its nonce closes it, and prints a note's writer and session as `(self-reported)`.
+- The read procedure pins every read, slice, summary and note to `<cache_key>-<sha256>` from the
+  manifest, so a concurrent fetch cannot swap the page version under the currency line; a code
+  block holding a ``` line converts inside a wider fence instead of leaking headings into the
+  section map; and the Python 3 prerequisite no longer counts the `py` launcher, which the fetch
+  does not use.
 
 ## [0.28.8] - 2026-10-04
 

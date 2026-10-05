@@ -30,13 +30,13 @@ the procedure sets.
 
 ## Why not WebFetch
 
-WebFetch hands back a model's extraction of a page rather than the page, so an answer about what a
-page says, or does not say, needs the lookup. WebFetch stays fine for finding which page to read.
+Use this lookup, not WebFetch, for any answer about what a page says or does not say. WebFetch
+stays fine for finding which page to read.
 
-- **Pointer**: <https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior>
+- **Pointer**: when deciding whether WebFetch output can stand in for the page, fetch
+  <https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior> live.
 - **As of**: 2026-10-04
-- **Recheck trigger**: that section stops describing WebFetch output as a processed extraction,
-  or documents a raw-page mode.
+- **Recheck trigger**: that section changes, or a WebFetch release note mentions its output format.
 
 ## Output
 

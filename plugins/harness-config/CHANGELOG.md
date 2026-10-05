@@ -97,6 +97,9 @@ Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branc
   epoch.
 - **A refused cache write says why:** the warning carries the reason and the record gains
   `cache_error`.
+- **`html2md.py` widens a code fence past any backtick run inside it**, so a ``` line in a `<pre>`
+  no longer closes the fence and turns later lines into headings; the Python 3 prerequisite's
+  degrade text says the docs fetch needs `python3` or `python` on PATH, not the `py` launcher.
 
 ## [1.10.0] - 2026-10-04
 

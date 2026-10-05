@@ -8,6 +8,7 @@ All notable changes to the `harness-ops` plugin are documented here. Format foll
 ### Changed
 
 - Shared `docs-cache.sh`, `fetch-docs.sh` synced ([#6020](https://github.com/melodic-software/claude-code-plugins/issues/6020)): the docs cache now skips a malformed summary file with a warning instead of hiding the other summaries.
+- Shared `html2md.py` synced: a ``` line inside a `<pre>` block no longer closes the converted code fence early.
 
 ### Fixed
 

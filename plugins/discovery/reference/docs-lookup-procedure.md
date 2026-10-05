@@ -31,6 +31,10 @@ bash "<scripts>/fetch-docs.sh" --cache --profile <profile> --out "$out" <slug-or
 - Record `url`, `validated`, `age_seconds`, `format` and `cache_key` for your answer's
   currency line. `stale: true` means the fetch failed and cached bytes stood in: say so, with
   the age.
+- Record `ref` as `<cache_key>-<sha256>` from the same record. Every command below takes
+  `<ref>`, which pins the entry the currency line describes; a bare `cache_key` resolves to
+  whatever another session fetched last. If a pinned `ref` misses (the entry was pruned), fetch
+  again.
 - A record with `quarantined: true` has its summaries and notes withheld; read the page itself.
 - `cache_key` null (the record's `cache_error` says why) means nothing was cached: work from the
   page file with `map --file` and `slice --file` below, and skip summaries and notes.
@@ -38,7 +42,7 @@ bash "<scripts>/fetch-docs.sh" --cache --profile <profile> --out "$out" <slug-or
 ## 2. Read the page or its map
 
 ```bash
-bash "<scripts>/docs-cache.sh" read <cache_key>
+bash "<scripts>/docs-cache.sh" read <ref>
 ```
 
 - At or under the whole-page threshold, `read` prints the whole page. Read all of it.
@@ -51,7 +55,7 @@ bash "<scripts>/docs-cache.sh" read <cache_key>
 ## 3. Slice the sections you need
 
 ```bash
-bash "<scripts>/docs-cache.sh" slice <cache_key> <id> [<id>...]
+bash "<scripts>/docs-cache.sh" slice <ref> <id> [<id>...]
 ```
 
 - A slice prints each section's heading, body and child sections.
@@ -77,14 +81,14 @@ text you read.
 - After reading a section in full, store a one-line summary of it:
 
   ```bash
-  bash "<scripts>/docs-cache.sh" summary put <cache_key> <id> "<one-line summary>"
+  bash "<scripts>/docs-cache.sh" summary put <ref> <id> "<one-line summary>"
   ```
 
 - After a full read of the page (the whole page printed, or an escalation), store one note for the
   question you answered, citing the section ids it rests on:
 
   ```bash
-  bash "<scripts>/docs-cache.sh" note put <cache_key> --model <your model id> --session <session> \
+  bash "<scripts>/docs-cache.sh" note put <ref> --model <your model id> --session <session> \
     --question "<the question, one line>" --sections <id>[,<id>...] <<'EOF'
   <the answer's page-backed findings, with "verbatim spans" in straight double quotes>
   EOF
@@ -102,7 +106,7 @@ summary and no note:
 
 - `bash "<scripts>/fetch-docs.sh" --cache --max-age 0 ...` asks the server every time and never
   serves stale bytes.
-- `bash "<scripts>/docs-cache.sh" read --raw <cache_key>` prints the page or the bare map;
+- `bash "<scripts>/docs-cache.sh" read --raw <ref>` prints the page or the bare map;
   `slice` never prints summaries or notes.
 
 ## 7. Configuration and limits
