@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Here is what I see: an empty directory.\n\nQ1: What should a habit record: a name and a daily tick, or also a target count?\nMy recommendation: **name plus daily tick** - enough to demo.\nQ2: Should data persist across reloads?\nMy recommendation: **localStorage** - no backend for a weekend demo.\n\nAuth, hosting and tests are out of scope for a throwaway prototype.",
+      "why": "prototype-sized round; production concerns named only as out of scope"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Q1: Which auth provider should users sign in with?\nQ2: What uptime target and monitoring do you want?\nQ3: Should CI run the test suite on every push?",
+      "why": "production-depth questions for a stated throwaway prototype"
+    }
+  ]
+}

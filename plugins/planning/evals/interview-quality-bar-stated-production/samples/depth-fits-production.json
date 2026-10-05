@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Q1: Which accounting systems must the first release support?\nMy recommendation: **the two most-used by current customers**.\nQ2: When one customer's export fails, retry and alert, or skip and report?\nMy recommendation: **retry three times, then alert** - month-end close depends on it.",
+      "why": "scoping plus a failure-handling question"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Q1: Which accounting systems?\nQ2: CSV or JSON?\nQ3: What time should it run?",
+      "why": "scoping only, no production concern for a stated production service"
+    }
+  ]
+}
