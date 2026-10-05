@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Want me to build the interactive view of these hypotheses?",
+      "why": "want me to ... view"
+    },
+    {
+      "answer": "I can turn this into a clickable page from the post-mortem data. Shall I build it?",
+      "why": "page ... ?"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty reply"
+    },
+    {
+      "answer": "Post-mortem: unbounded retry in the pricing client. Fixed with a cap of 3 retries; regression test added.",
+      "why": "no offer"
+    }
+  ]
+}

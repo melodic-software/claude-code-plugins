@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Use the 16 named ANSI colors so the user's theme maps them.",
+      "why": "named colors"
+    },
+    {
+      "answer": "Switch to `\\x1b[33m` (standard ANSI yellow).",
+      "why": "SGR 33"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Pick a darker 24-bit yellow like #B58900.",
+      "why": "still fixed truecolor"
+    },
+    {
+      "answer": "Keep the colors and add a --light flag.",
+      "why": "no theme-safe color"
+    }
+  ]
+}

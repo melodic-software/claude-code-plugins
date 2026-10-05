@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["version", "note", "rows"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"const": 1},
+    "note": {"type": "string", "minLength": 1},
+    "rows": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["concern", "rank", "id", "kind", "detect", "account", "status", "platforms", "as_of", "pointer"],
+        "additionalProperties": false,
+        "properties": {
+          "concern": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"},
+          "rank": {"type": "integer", "minimum": 1},
+          "id": {"type": "string", "minLength": 1},
+          "kind": {"enum": ["skill", "plugin", "mcp", "tool"]},
+          "detect": {"type": "string", "minLength": 1},
+          "account": {"enum": ["none", "key", "login", "paid"]},
+          "status": {"enum": ["confirmed", "unconfirmed", "deferred"]},
+          "platforms": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"enum": ["windows", "macos", "linux"]}
+          },
+          "as_of": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+          "pointer": {"type": "string", "pattern": "^https://"},
+          "style": {"enum": ["pixel-art"]}
+        }
+      }
+    }
+  }
+}

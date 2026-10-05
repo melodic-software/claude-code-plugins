@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 -m unittest test_checkout"
+          }
+        }
+      ],
+      "why": "regression test run with unittest"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 repro_checkout.py && python3 -m pytest test_checkout.py"
+          }
+        }
+      ],
+      "why": "loop then regression test with pytest"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no calls"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 repro_checkout.py"
+          }
+        }
+      ],
+      "why": "loop re-run only, regression test never run"
+    }
+  ]
+}
