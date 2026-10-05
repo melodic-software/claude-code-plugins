@@ -140,8 +140,11 @@ jobs:
           fi
           ci="$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/check-runs?check_name=ci-status" \
             --jq '.check_runs | sort_by(.started_at) | last | .conclusion // "pending"')"
-          if [ "$ci" != success ]; then
-            echo "::notice::ci-status on release pull request #$PR_NUMBER is ${ci:-missing}; a later run queues it."
+          if [ "$ci" = pending ]; then
+            echo "::notice::ci-status on release pull request #$PR_NUMBER is pending; a later run queues it."
+            exit 0
+          elif [ "$ci" != success ]; then
+            echo "::warning::ci-status on release pull request #$PR_NUMBER is $ci; re-run or fix it, then a later run queues it."
             exit 0
           fi
           # shellcheck disable=SC2016  # the $ names are GraphQL variables, not shell
