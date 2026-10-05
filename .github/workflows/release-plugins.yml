@@ -239,11 +239,24 @@ jobs:
         id: release
         if: steps.decide.outputs.build == 'true'
         run: |
+          set -o pipefail
           report="$RUNNER_TEMP/release-report.txt"
-          scripts/release-plugins.sh | tee "$report"
+          errors="$RUNNER_TEMP/release-errors.txt"
+          rc=0
+          scripts/release-plugins.sh 2>"$errors" | tee "$report" || rc=$?
+          cat "$errors" >&2
+          [ "$rc" = 0 ] || exit "$rc"
+          # release-plugins.sh skips a plugin whose fragments fail validation; surface each one.
+          skipped="$(sed -n 's/^release-plugins\.sh: skipped \([^:]*\):.*/\1/p' "$errors" | paste -sd ' ' -)"
+          for name in $skipped; do
+            echo "::warning::Skipped $name: a fragment under .changes/$name failed validation, so it is not in this release. Fix the fragment on main."
+          done
           released="$(grep -c ' -> ' "$report" || true)"
-          echo "released=$released" >>"$GITHUB_OUTPUT"
-          echo "report=$report" >>"$GITHUB_OUTPUT"
+          {
+            echo "released=$released"
+            echo "report=$report"
+            echo "skipped=$skipped"
+          } >>"$GITHUB_OUTPUT"
           if [ "$released" = 0 ]; then
             echo "::notice::No fragment on main asks for a release; nothing to write. A bump: none fragment waits for the next release."
           fi
@@ -305,6 +318,7 @@ jobs:
           MAIN_SHA: ${{ steps.decide.outputs.main }}
           RELEASED: ${{ steps.release.outputs.released }}
           REPORT: ${{ steps.release.outputs.report }}
+          SKIPPED: ${{ steps.release.outputs.skipped }}
         run: |
           # release-plugins.sh prints one line per plugin:
           #   <name>: <old> -> <new> (<bump>) from <n> fragment(s): <path>...
@@ -330,7 +344,10 @@ jobs:
               fi
             done <"$REPORT"
             echo
-            echo "Merge it only by running the \`release-plugins\` workflow with action \`merge\`, never the merge button: that run checks it against main's live tip first."
+            if [ -n "$SKIPPED" ]; then
+              printf '**Not released:** %s. A fragment for each failed validation; it stays on `main` until fixed, and the next release picks it up.\n\n' "$(code_list "$SKIPPED")"
+            fi
+            echo "The \`release-plugins\` workflow queues this pull request itself once \`ci-status\` is green (every 3 hours, on a fragment push, or by hand with action \`merge\`). Never use the merge button: the workflow checks it against main's live tip first."
           } >"$body"
           title="chore(release): release $RELEASED plugins"
           number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')"
