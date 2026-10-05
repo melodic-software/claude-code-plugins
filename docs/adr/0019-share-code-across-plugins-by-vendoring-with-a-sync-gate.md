@@ -1,6 +1,8 @@
 # Share code across plugins by vendoring with a sync gate, not a shared package
 
-- Status: accepted; amended 2026-10-02 (copies are generated output, see the amendment below)
+- Status: accepted; amended 2026-10-02 (copies are generated output, see the amendment below);
+  delivery amended by [ADR 0048](0048-release-plugins-from-changelog-fragments-through-a-bot-maintained-release-pr.md)
+  for plugins in fragment mode (see the amendment at the end)
 - Date: 2026-07-04
 
 ## Decision
@@ -171,3 +173,23 @@ shape above still replaces the byte-drift gate with delivery-by-version
 (`check-vendor-version-bump.sh`, its own gate). **Recheck trigger:** a sync gate that needs a
 different runner, a different toolchain, or an isolation the consolidated job cannot give it earns
 its own job again; say which of the three when adding one.
+
+## Amendment (2026-10-04): fragment-mode plugins deliver through a changelog fragment
+
+[ADR 0048](0048-release-plugins-from-changelog-fragments-through-a-bot-maintained-release-pr.md)
+moves the version bump out of pull requests. For a plugin listed in `scripts/fragment-plugins.txt`,
+"bump every carrying plugin" (the Decision and the 2026-10-02 amendment) reads "add a fragment whose
+`bump` is not `none` for every carrying plugin"; the release pull request then raises the version.
+`--check-bump` accepts either through the shared predicate in `scripts/lib/changelog-fragments.sh`,
+and a plugin not yet listed still bumps per pull request. The sync-only wording moves into the
+fragment body under `### Changed`. One command writes it for every fragment-mode carrier:
+
+```bash
+scripts/new-changelog-fragment.sh --stdin --carriers-of lib/hook-utils.sh patch <<'EOF'
+### Changed
+
+- Shared `hook-utils.sh` synced (<link to the change>); no other change to this plugin.
+EOF
+```
+
+The version is still the update cache key; only the change that raises it moved.

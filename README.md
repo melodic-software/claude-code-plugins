@@ -13,11 +13,11 @@ consumers without editing the plugin itself.
 
 Browse and manage with `/plugin`. To refresh after updates: `/plugin marketplace update melodic-software`.
 
-When you consume this repo from a local `directory` source, the install cache keys on semver
-`version`, not commit, so several commits under one version leave early installs on a stale
-snapshot and `plugin update` can report "already at the latest version" while SHA lags. See
-[`docs/migration-playbook.md`](docs/migration-playbook.md) ("Same-version commit drift") and
-[#2061](https://github.com/melodic-software/claude-code-plugins/issues/2061).
+An install from GitHub is a copy keyed on the plugin's semver `version`, not the commit, so a change
+reaches it only when a release raises that version; until then `plugin update` reports "already at
+the latest version". A marketplace added from a local clone loads each plugin in place, so edits
+apply at the next session or `/reload-plugins`. See
+[`docs/migration-playbook.md`](docs/migration-playbook.md) ("Same-version commit drift").
 
 ### Enable plugin suggestions for an organization
 
