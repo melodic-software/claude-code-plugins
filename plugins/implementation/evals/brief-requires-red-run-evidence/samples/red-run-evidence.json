@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "## Brief: phase 2, wire RateLimiter into POST /orders\n\nWorktree: /home/dev/wt/orders-rate-limit (branch feat/orders-rate-limit). Anchor every command with `git -C /home/dev/wt/orders-rate-limit` or an absolute path.\n\nWhy: one noisy client must not starve the others; this phase makes the limiter from phase 1 actually protect the endpoint.\n\nALLOWED: src/api/orders.py, tests/api/test_orders_rate_limit.py.\nFORBIDDEN: every other path; opening a PR.\n\nAcceptance: over-limit request returns 429 with Retry-After; under-limit requests unchanged; `make test` green.\n\nCommit authority: worker. Commit and push early. No issue numbers in code comments.\n\nIf an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n\nReturn: the commit SHA, the files changed, and red-run evidence: the output of the new 429 test failing against the code before your edit to orders.py, then the same test passing after it.",
+      "answer": "## Brief: phase 2, wire RateLimiter into POST /orders\n\nWorktree: /srv/dev/wt/orders-rate-limit (branch feat/orders-rate-limit). Anchor every command with `git -C /srv/dev/wt/orders-rate-limit` or an absolute path.\n\nWhy: one noisy client must not starve the others; this phase makes the limiter from phase 1 actually protect the endpoint.\n\nALLOWED: src/api/orders.py, tests/api/test_orders_rate_limit.py.\nFORBIDDEN: every other path; opening a PR.\n\nAcceptance: over-limit request returns 429 with Retry-After; under-limit requests unchanged; `make test` green.\n\nCommit authority: worker. Commit and push early. No issue numbers in code comments.\n\nIf an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n\nReturn: the commit SHA, the files changed, and red-run evidence: the output of the new 429 test failing against the code before your edit to orders.py, then the same test passing after it.",
       "why": "names red-run evidence as a return field: failing output before the edit, passing after"
     },
     {
@@ -11,7 +11,7 @@
   ],
   "fail": [
     {
-      "answer": "## Brief: phase 2\n\nWorktree: /home/dev/wt/orders-rate-limit. ALLOWED: src/api/orders.py, tests/api/test_orders_rate_limit.py. FORBIDDEN: everything else.\n\nWhy: stop a noisy client starving the others.\n\nAcceptance: 429 with Retry-After over the limit; under-limit unchanged; `make test` green.\n\nCommit authority: worker; push early. STOP and report if an assumption proves wrong or you need a FORBIDDEN file. Do not improvise.\n\nReturn: commit SHA, files changed, and the `make test` summary showing all tests pass.",
+      "answer": "## Brief: phase 2\n\nWorktree: /srv/dev/wt/orders-rate-limit. ALLOWED: src/api/orders.py, tests/api/test_orders_rate_limit.py. FORBIDDEN: everything else.\n\nWhy: stop a noisy client starving the others.\n\nAcceptance: 429 with Retry-After over the limit; under-limit unchanged; `make test` green.\n\nCommit authority: worker; push early. STOP and report if an assumption proves wrong or you need a FORBIDDEN file. Do not improvise.\n\nReturn: commit SHA, files changed, and the `make test` summary showing all tests pass.",
       "why": "return asks only for a green suite, no evidence the test fails without the change"
     },
     {

@@ -11,7 +11,7 @@ We're executing an approved plan with worker subagents, and I need the brief for
 
 The plan (approved, autonomous run, no human in the loop):
 
-- Repo: /home/dev/orders-api, default branch `main`. The item's worktree already exists at /home/dev/wt/orders-rate-limit on branch `feat/orders-rate-limit`. Commit authority: worker.
+- Repo: /srv/dev/orders-api, default branch `main`. The item's worktree already exists at /srv/dev/wt/orders-rate-limit on branch `feat/orders-rate-limit`. Commit authority: worker.
 - Goal: per-client rate limiting on `POST /orders`, so one noisy client can no longer starve the others.
 - Phase 1 [DONE]: `RateLimiter` class in `src/limits/rate_limiter.py` with unit tests.
 - Phase 2 (worker, no model routing): wire `RateLimiter` into `src/api/orders.py` so a client over 100 requests a minute gets HTTP 429 with a `Retry-After` header; add tests in `tests/api/test_orders_rate_limit.py`. Acceptance: an over-limit request returns 429 with `Retry-After`; under-limit requests are unchanged; the full suite is green.

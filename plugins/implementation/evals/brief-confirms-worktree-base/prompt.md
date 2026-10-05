@@ -11,7 +11,7 @@ I'm fanning an approved plan out to worker subagents. Write the brief for phase 
 
 The plan (approved, autonomous run):
 
-- Repo: /home/dev/billing, default branch `main`. I'm the orchestrator and I stay on `main`; the worker provisions its own worktree on branch `feat/invoice-rounding`. Commit authority: worker.
+- Repo: /srv/dev/billing, default branch `main`. I'm the orchestrator and I stay on `main`; the worker provisions its own worktree on branch `feat/invoice-rounding`. Commit authority: worker.
 - Goal: invoice totals round half-even to the cent, so they match the ledger service.
 - Phase 1 (worker): change `round_total()` in `billing/invoice.py` to half-even rounding and add cases to `tests/test_invoice.py`. Acceptance: 2.675 rounds to 2.68 and 2.665 to 2.66; existing tests still pass with `pytest`.
 - Phase 2: update `CHANGELOG.md`.

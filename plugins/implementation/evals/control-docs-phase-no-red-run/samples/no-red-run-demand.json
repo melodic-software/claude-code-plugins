@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "## Brief: phase 3, document the rate limit\n\nWorktree: /home/dev/wt/orders-rate-limit (branch feat/orders-rate-limit); anchor every command with `git -C /home/dev/wt/orders-rate-limit`.\n\nWhy: clients need to know the ceiling and how to back off.\n\nALLOWED: docs/api.md. FORBIDDEN: every other path; opening a PR.\n\nAcceptance: a section in docs/api.md covering the 100-per-minute limit, the 429 status, and the Retry-After header; `make docs-lint` passes.\n\nCommit authority: worker; commit and push early. If an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n\nReturn: commit SHA and the `make docs-lint` output.",
+      "answer": "## Brief: phase 3, document the rate limit\n\nWorktree: /srv/dev/wt/orders-rate-limit (branch feat/orders-rate-limit); anchor every command with `git -C /srv/dev/wt/orders-rate-limit`.\n\nWhy: clients need to know the ceiling and how to back off.\n\nALLOWED: docs/api.md. FORBIDDEN: every other path; opening a PR.\n\nAcceptance: a section in docs/api.md covering the 100-per-minute limit, the 429 status, and the Retry-After header; `make docs-lint` passes.\n\nCommit authority: worker; commit and push early. If an assumption in this brief proves wrong or the task requires touching anything FORBIDDEN, STOP and report. Do not improvise.\n\nReturn: commit SHA and the `make docs-lint` output.",
       "why": "docs brief with lint as the only check, no red-run demand"
     },
     {
