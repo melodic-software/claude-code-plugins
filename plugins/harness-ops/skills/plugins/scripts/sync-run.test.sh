@@ -37,6 +37,12 @@ assert_contains() {
   *) fail "$1" "expected to contain: $3 — got: $2" ;;
   esac
 }
+assert_not_contains() {
+  case "$2" in
+  *"$3"*) fail "$1" "expected not to contain: $3 — got: $2" ;;
+  *) pass "$1" ;;
+  esac
+}
 
 if ! command -v jq >/dev/null 2>&1; then
   echo "SKIP: jq not installed" >&2
