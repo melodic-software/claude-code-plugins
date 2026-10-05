@@ -410,6 +410,7 @@ jobs:
               scripts/cross-plugin-source-registry.txt
               scripts/orphaned-fixtures-baseline.txt
               scripts/check-pipefail-grep-q*
+              scripts/pipefail-grep-q-baseline.txt
               scripts/check-test-tmp-cleanup*
               scripts/test-tmp-cleanup-baseline.txt
               **/*.sh
@@ -1184,8 +1185,9 @@ jobs:
           scripts/check-shell-portability.sh "origin/$BASE_REF"
 
       # Piped early-exit grep: `producer | grep -q` under pipefail can report a
-      # producer's SIGPIPE as "no match". The gate scans every scripts/**/*.sh
-      # on every run.
+      # producer's SIGPIPE as "no match". The gate scans every *.sh in the repo
+      # on every run, less the known offenders in
+      # scripts/pipefail-grep-q-baseline.txt, which only shrinks.
       - name: Gate scripts on piped early-exit greps
         id: pipefail_grep_q
         continue-on-error: true

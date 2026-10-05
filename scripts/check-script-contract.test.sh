@@ -415,7 +415,7 @@ recipe::pipefail_grep_q() { # <clean|violation>
   local body='grep -q x <<<"$v"'
   # shellcheck disable=SC2016  # see above
   [[ "$1" == violation ]] && body='echo "$v" | grep -q x'
-  fixture_tree::build f --sut "$SELF_DIR/check-pipefail-grep-q.sh" --no-lib || return 2
+  fixture_tree::build f --sut "$SELF_DIR/check-pipefail-grep-q.sh" --git || return 2
   printf '%s\n' "$body" >"$f/scripts/sample.sh"
   capture run_in "$f" bash scripts/check-pipefail-grep-q.sh
 }

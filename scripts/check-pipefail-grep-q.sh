@@ -1,8 +1,15 @@
 #!/usr/bin/env bash
-# Gate: no shell file under scripts/ pipes into an early-exit grep.
+# Gate: no shell file in the repository pipes into an early-exit grep.
 #
-#   scripts/check-pipefail-grep-q.sh              scan every scripts/**/*.sh
+#   scripts/check-pipefail-grep-q.sh              scan every *.sh git lists
+#                                                 (tracked, or untracked and
+#                                                 not ignored)
 #   scripts/check-pipefail-grep-q.sh <file>...    scan exactly these files
+#
+# The default scan skips the findings of each file listed in
+# scripts/pipefail-grep-q-baseline.txt, the known offenders. The baseline is a
+# ratchet: an entry whose file is gone or no longer offends is a finding, so
+# the list only shrinks. Never add a file to it: rewrite the pipe instead.
 #
 # Flags `producer | grep` (also `|&`, egrep, fgrep, `\grep`, a path to grep, a
 # `command`, `env`, `!` or `{` prefix, and a pipe split across lines) when that
@@ -13,8 +20,11 @@
 # Why: when grep exits at its first match, a producer still writing is killed
 # by SIGPIPE, and under `set -o pipefail` the pipeline reports that 141 instead
 # of grep's 0. A present match reads as absent, and a negated assertion passes.
-# scripts/affected-tests.test.sh measured it on a 1 MB input (#4461). Sourced
-# libraries are scanned too, since they run inside callers that set pipefail.
+# scripts/affected-tests.test.sh measured it on a 1 MB input (#4461). Small
+# input is not safe either: bash line-buffers its stdout, so `printf '%s\n' "$v"`
+# writes one line at a time, and a grep that matched an early line can exit
+# before the rest is written. Sourced libraries are scanned too, since they run
+# inside callers that set pipefail.
 #
 # The rewrite: match a variable with a here-string, `grep -q X <<<"$v"`, and a
 # command's output with process substitution, `grep -q X < <(producer)`; the
@@ -45,14 +55,27 @@ if ! command -v awk >/dev/null 2>&1; then
 fi
 
 files=()
+baseline=()
 if (($# == 0)); then
-  cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
-  while IFS= read -r f; do
-    files+=("$f")
-  done < <(find scripts -type f -name '*.sh' 2>/dev/null | LC_ALL=C sort)
-  if ((${#files[@]} == 0)); then
-    echo "check-pipefail-grep-q: no shell files found under scripts/" >&2
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+  cd "$SCRIPT_DIR/.." || exit 2
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "check-pipefail-grep-q: the default scan lists files with git, and $PWD is not a git work tree" >&2
     exit 2
+  fi
+  while IFS= read -r f; do
+    [[ -f "$f" ]] && files+=("$f")
+  done < <(git ls-files --cached --others --exclude-standard -- '*.sh' | LC_ALL=C sort)
+  if ((${#files[@]} == 0)); then
+    echo "check-pipefail-grep-q: no shell files found in the work tree" >&2
+    exit 2
+  fi
+  BASELINE="${PIPEFAIL_GREP_Q_BASELINE:-scripts/pipefail-grep-q-baseline.txt}"
+  if [[ -e "$BASELINE" ]]; then
+    # shellcheck source=lib/read-list.sh
+    . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
+    # shellcheck disable=SC2310  # the non-zero return IS the handled case
+    read_list::into baseline "$BASELINE" --comments inline || exit 2
   fi
 else
   for f in "$@"; do
@@ -307,13 +330,55 @@ FNR == 1 {
 END { if (n > 0) finish() }
 '
 
-findings="$(LC_ALL=C awk "$LEXER" "${files[@]}")" || {
+# The lexer reads every character, so the repository-wide scan is split into
+# one contiguous slice of the sorted list per CPU, each written to its own file
+# and read back in order, which keeps the output the same as a serial run.
+cpus="$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 1)"
+[[ "$cpus" =~ ^[1-9][0-9]*$ ]] || cpus=1
+per=$(((${#files[@]} + cpus - 1) / cpus))
+out_dir="$(mktemp -d)" || exit 2
+trap 'rm -rf "$out_dir"' EXIT
+pids=()
+for ((b = 0; b * per < ${#files[@]}; b++)); do
+  LC_ALL=C awk "$LEXER" "${files[@]:b*per:per}" >"$out_dir/$b" &
+  pids+=("$!")
+done
+scan_failed=0
+for pid in "${pids[@]}"; do
+  wait "$pid" || scan_failed=1
+done
+findings=""
+for ((b = 0; b < ${#pids[@]}; b++)); do
+  findings+="$(cat "$out_dir/$b")"$'\n'
+done
+findings="$(grep -v '^$' <<<"$findings")" || true
+if ((scan_failed)); then
   echo "check-pipefail-grep-q: awk failed while scanning" >&2
   exit 2
-}
+fi
+
+# A baselined file's findings are known debt; an entry with none left is stale.
+if ((${#baseline[@]} > 0)); then
+  # shellcheck disable=SC2016  # awk program text; the shell must not expand it
+  findings="$(LC_ALL=C awk -v B="$BASELINE" -v list="$(printf '%s\n' "${baseline[@]}")" '
+    BEGIN { n = split(list, b, "\n"); for (i = 1; i <= n; i++) base[b[i]] = 1 }
+    NF {
+      f = $0; sub(/^PIPED EARLY-EXIT GREP: /, "", f); sub(/:[0-9]+: .*$/, "", f)
+      if (f in base) { hit[f] = 1; next }
+      print
+    }
+    END {
+      for (f in base) if (!(f in hit))
+        printf "STALE BASELINE ENTRY: %s has no piped early-exit grep left, or is gone; delete its line from %s\n", f, B
+    }
+  ' <<<"$findings")" || {
+    echo "check-pipefail-grep-q: awk failed while applying the baseline" >&2
+    exit 2
+  }
+fi
 
 if [[ -z "$findings" ]]; then
-  echo "No piped early-exit grep in ${#files[@]} shell file(s)."
+  echo "No piped early-exit grep in ${#files[@]} shell file(s); ${#baseline[@]} baselined file(s) still to fix."
   exit 0
 fi
 
