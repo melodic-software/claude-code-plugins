@@ -92,6 +92,7 @@ lib/exec-bash.mjs plugins/testing/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/typos-format/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/speech/hooks/exec-bash.mjs
 lib/exec-bash.mjs plugins/explainer-video/hooks/exec-bash.mjs
+lib/exec-bash.mjs plugins/playwright/hooks/exec-bash.mjs
 lib/prerequisites.mjs plugins/explainer-video/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/explainer-video/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/explainer-video/lib/prerequisites.ps1
@@ -324,6 +325,7 @@ lib/hook-utils.sh plugins/rate-limit-guard/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/ruff-format/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/source-control/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/speech/hooks/hook-utils.sh
+lib/hook-utils.sh plugins/playwright/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/testing/hooks/hook-utils.sh
 lib/hook-utils.sh plugins/typos-format/hooks/hook-utils.sh
 lib/html-escape.mjs plugins/work-items/lib/html-escape.mjs
