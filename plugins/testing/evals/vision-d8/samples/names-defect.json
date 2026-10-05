@@ -11,6 +11,12 @@
     },
     {
       "answer": "FINDING [contrast]: Body text looks pale.\nFINDING [ misalignment ]: In the first card the Save button sits about 8 px lower than Add to cart.\n**VERDICT:** NEEDS WORK"
+    },
+    {
+      "answer": "FINDING [misalignment]: At 375 px the badge overlaps the product title; no other issues.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "FINDING [misalignment]: Notable overlap of the badge and the product title.\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -137,6 +143,70 @@
     {
       "answer": "FINDING [contrast]: Body text looks pale.\noverflow - none observed.\nVERDICT: NEEDS WORK",
       "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [misalignment]: none\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: None.\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: N/A\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: na\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: nothing\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: Not applicable\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: absent\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: Clean.\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: OK\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: fine\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: nil\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: -\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: —\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: –\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: no issues\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [misalignment]: - none\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
     }
   ]
 }

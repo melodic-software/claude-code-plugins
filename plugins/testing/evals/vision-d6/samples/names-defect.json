@@ -11,6 +11,12 @@
     },
     {
       "answer": "FINDING [contrast]: Body text looks pale.\nFINDING [ count-mismatch ]: The count line says Showing 5 results but the list renders only 4 items.\n**VERDICT:** NEEDS WORK"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: At 375 px the badge overlaps the product title; no other issues.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Notable overlap of the badge and the product title.\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -137,6 +143,70 @@
     {
       "answer": "FINDING [contrast]: Body text looks pale.\noverflow - none observed.\nVERDICT: NEEDS WORK",
       "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: none\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: None.\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: N/A\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: na\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: nothing\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Not applicable\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: absent\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: Clean.\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: OK\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: fine\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: nil\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: -\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: —\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: –\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: no issues\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [count-mismatch]: - none\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
     }
   ]
 }

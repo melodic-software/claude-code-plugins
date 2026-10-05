@@ -11,6 +11,12 @@
     },
     {
       "answer": "FINDING [contrast]: Body text looks pale.\nFINDING [ layout-shift ]: A Free shipping banner appears in the first card after load and pushes its buttons down.\n**VERDICT:** NEEDS WORK"
+    },
+    {
+      "answer": "FINDING [layout-shift]: At 375 px the badge overlaps the product title; no other issues.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "FINDING [layout-shift]: Notable overlap of the badge and the product title.\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -137,6 +143,70 @@
     {
       "answer": "FINDING [contrast]: Body text looks pale.\noverflow - none observed.\nVERDICT: NEEDS WORK",
       "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [layout-shift]: none\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [layout-shift]: None.\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [layout-shift]: N/A\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [layout-shift]: na\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [layout-shift]: nothing\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [layout-shift]: Not applicable\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [layout-shift]: absent\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [layout-shift]: Clean.\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [layout-shift]: OK\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [layout-shift]: fine\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [layout-shift]: nil\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [layout-shift]: -\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [layout-shift]: —\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [layout-shift]: –\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [layout-shift]: no issues\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [layout-shift]: - none\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
     }
   ]
 }

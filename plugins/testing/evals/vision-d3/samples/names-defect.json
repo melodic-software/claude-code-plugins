@@ -11,6 +11,12 @@
     },
     {
       "answer": "FINDING [overlap]: The badge covers the title.\nFINDING [ contrast ]: Body text is light grey on white and hard to read at both widths.\n**VERDICT:** NEEDS WORK"
+    },
+    {
+      "answer": "FINDING [contrast]: At 375 px the badge overlaps the product title; no other issues.\nVERDICT: NEEDS WORK"
+    },
+    {
+      "answer": "FINDING [contrast]: Notable overlap of the badge and the product title.\nVERDICT: NEEDS WORK"
     }
   ],
   "fail": [
@@ -137,6 +143,70 @@
     {
       "answer": "FINDING [overlap]: The badge covers the title.\noverflow - none observed.\nVERDICT: NEEDS WORK",
       "why": "brief probe in prose"
+    },
+    {
+      "answer": "FINDING [contrast]: none\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: None.\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: N/A\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: na\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: nothing\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: Not applicable\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: absent\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: Clean.\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: OK\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: fine\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: nil\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: -\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: —\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: –\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: no issues\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
+    },
+    {
+      "answer": "FINDING [contrast]: - none\nVERDICT: NEEDS WORK",
+      "why": "denial body, not a finding"
     }
   ]
 }
