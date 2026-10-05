@@ -1,5 +1,27 @@
 # Changelog: docs-hygiene plugin
 
+## [0.26.9] - 2026-10-04
+
+### Changed
+
+- **extract-ssot's orchestrated mode inlines rate-limit-guard's updated operable floor and drops a stale snapshot claim.** The Account switch bullet no longer says a headless-only machine never refreshes the snapshot file; it says the file names an account only as of a session's last API response and a paused lane's Monitor ticks never write it. The reactive-only note no longer says the snapshot carries no account identifier: it carries one when the writer could attribute the reading.
+
+## [0.26.8] - 2026-10-04
+
+### Added
+
+- **`write-for-agents` gains three `claude plugin eval` cases (tag `pocock-34`) under the plugin's `evals/`.** Two check that trimming an AGENTS.md keeps a row mapping a misleading error to its real cause while cutting derivable filler; a control checks that a row whose error already names its own fix is cut.
+
+### Changed
+
+- **`write-for-agents` description names trimming an existing CLAUDE.md or AGENTS.md as a trigger ([#6381](https://github.com/melodic-software/claude-code-plugins/issues/6381)).** It adds 'trim this AGENTS.md', 'cut it down to what earns its place' and 'prune what an agent could derive'; every earlier trigger phrase stays. The skill fired in 0 of 9 runs of the cases above, whose prompts all ask for a trim.
+
+## [0.26.7] - 2026-10-04
+
+### Changed
+
+- **`extract-ssot`'s orchestrated mode calls `rate-limits.json` the snapshot file, not the tee file**, matching rate-limit-guard's reader contract. The inlined floor's first bullet is now `Snapshot file (fixed path)`; the path and values are unchanged.
+
 ## [0.26.6] - 2026-10-04
 
 ### Changed

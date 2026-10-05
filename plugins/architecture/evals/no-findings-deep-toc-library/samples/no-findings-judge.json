@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Scanned src/ and test/. No deepening candidates: buildToc is one function with three options, and behind it parse.js, slug.js and tree.js handle fences, setext headings, duplicate slugs and nesting. Only index.js imports them and the tests go through buildToc alone. Deleting any helper would push its logic into index.js, not remove it.",
+      "why": "explicit no-findings verdict, modules described accurately"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Two candidates. 1 (Worth exploring): slug.js is a shallow module, one function; merge it into tree.js. 2 (Speculative): export parseHeadings so callers can reuse it. Which of these would you like to explore?",
+      "why": "cards private helpers as shallow and invents candidates"
+    }
+  ]
+}

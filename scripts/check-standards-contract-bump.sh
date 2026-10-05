@@ -46,6 +46,7 @@ if git diff --quiet "$base" -- "$src" "$schema"; then
   exit 0
 fi
 stale=0
+stale_fragment=""
 
 base_contract=""
 if base_src=$(git show "$base:$src" 2>/dev/null); then
@@ -86,15 +87,24 @@ for copy in "${carriers[@]}"; do
   # shellcheck disable=SC2310  # the non-zero return IS the answer; rc 2 exits below
   changelog_fragments::bump_delivered "$base" "${rest%%/*}" "$base_version" "$head_version" || rc=$?
   ((rc < 2)) || exit 2
-  if ((rc == 1)); then
+  # shellcheck disable=SC2310  # the non-zero return IS the answer; bump_delivered already read the list
+  if ((rc == 1)) && changelog_fragments::in_mode "${rest%%/*}"; then
+    echo "STALE VERSION: $src changed vs $base but ${rest%%/*}, in fragment mode, has no fragment for it" >&2
+    echo "  Run scripts/new-changelog-fragment.sh ${rest%%/*} patch." >&2
+    stale=1
+    stale_fragment=1
+  elif ((rc == 1)); then
     echo "STALE VERSION: $src changed vs $base but $manifest is still $head_version" >&2
     stale=1
   fi
 done
 
 if ((stale)); then
-  echo "Bump the standards-contract frontmatter, add a changelog entry, and bump every carrying plugin." >&2
+  echo "Bump the standards-contract frontmatter, add a changelog entry, and bump every carrying plugin${stale_fragment:+ not in fragment mode}." >&2
   echo "For a bump that only carries the sync, the CHANGELOG entry is: Shared \`$(basename "$src")\` synced (<link to the change>); no change to this plugin's reference." >&2
+  if [[ -n "$stale_fragment" ]]; then
+    echo "A carrying plugin in fragment mode takes a patch fragment instead (the command above), with that line under ### Changed; the release pull request bumps its version (ADR 0048)." >&2
+  fi
   exit 1
 fi
 echo "Contract changed vs $base with frontmatter, changelog, and every carrying plugin bumped."

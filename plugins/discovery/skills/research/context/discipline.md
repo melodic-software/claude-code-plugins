@@ -49,7 +49,7 @@ Every accepted claim has at least one Tier 0/1 source plus two independent corro
 
 ## Single-source first-party content claims
 
-Some claims can have only one publisher. A **first-party content claim** states what a named Anthropic page, file or changelog says. The content exists in one place, so searching for an independent second source finds only copies of it. Such a claim passes criterion 4 with no counted corroborator when all of these hold:
+Some claims can have only one publisher. A **first-party content claim** states what a vendor's or maintainer's own official page, file or changelog says about its own product. The content exists in one place, so searching for an independent second source finds only copies of it. Such a claim passes criterion 4 with no counted corroborator when all of these hold:
 
 - **The claim states why only one publisher exists**, in the sidecar header's `single_source:` field. The verifier grades that reason; one that does not hold fails criterion 4 like any other uncorroborated claim.
 - **A repost is not a second source.** A blog post, forum answer, mirror or synthesis answer that quotes or restates the page shares its pool. Record it with the page's `pool`, never count it, and keep the flag: a repost does not turn the claim into a corroborated one.

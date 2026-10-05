@@ -38,7 +38,7 @@ export function registerBoardTools(
 ): void {
   server.tool(
     "miro_create_board",
-    "Create a new Miro board. Use this to start a new visual collaboration space. Returns the board ID and view URL.",
+    "Create a new, empty Miro board. Use this to start a new visual collaboration space; to work on a board that already exists, find it with miro_list_boards instead. Returns the new board's id, name and viewLink (the URL to open it). sharing_access sets the board link's access level at creation; omit it to keep Miro's default.",
     {
       name: z.string().describe("Board name"),
       description: z.string().optional().describe("Board description"),
@@ -61,10 +61,18 @@ export function registerBoardTools(
 
   server.tool(
     "miro_list_boards",
-    "List accessible Miro boards. Use this to find existing boards or verify a board exists. Returns board IDs, names, and view URLs.",
+    "List Miro boards the token can access. Use this to find a board's ID or check that a board exists before reading or changing it. Returns an array of { id, name, viewLink }. Stops at limit (default 10, max 50) and gives no sign that more boards exist: a result of exactly limit boards may be incomplete, so narrow it with query rather than assuming the board is missing.",
     {
-      query: z.string().optional().describe("Search query to filter boards by name"),
-      limit: z.number().min(1).max(50).default(10).describe("Max boards to return"),
+      query: z
+        .string()
+        .optional()
+        .describe("Optional search text to filter boards by name; omit to list all"),
+      limit: z
+        .number()
+        .min(1)
+        .max(50)
+        .default(10)
+        .describe("Max boards to return (default 10, max 50)"),
     },
     { readOnlyHint: true, openWorldHint: true },
     async ({ query, limit }) => {
@@ -83,7 +91,7 @@ export function registerBoardTools(
 
   server.tool(
     "miro_get_board",
-    "Get details for a specific Miro board. Use this to check board metadata, sharing status, or last modified time. Returns name, description, view URL, and timestamps.",
+    "Get one Miro board's metadata by ID. Use this to check a board's name, description or when it was last modified. Returns { id, name, description, viewLink, createdAt, modifiedAt }. It does not return sharing settings, owner or members, or the board's items; list items with miro_list_board_items.",
     {
       board_id: z.string().describe("The board ID"),
     },
@@ -103,7 +111,7 @@ export function registerBoardTools(
 
   server.tool(
     "miro_update_board",
-    "Update a Miro board's name, description, or sharing policy. Use this to rename boards, change descriptions, or adjust access levels. Returns the updated board details.",
+    "Update a Miro board's name, description or link sharing access. Use this to rename a board, change its description or change who can open it by link. Only the fields you pass change; omitted fields keep their current values. Returns the board's { id, name, viewLink, sharingPolicy } after the update.",
     {
       board_id: z.string().describe("The board ID"),
       name: z.string().optional().describe("New board name"),
@@ -121,15 +129,14 @@ export function registerBoardTools(
         id: board.id,
         name: board.name,
         viewLink: board.viewLink,
-        // BoardWithLinks lacks an index signature — double cast needed to access undeclared fields
-        sharingPolicy: (board as unknown as Record<string, unknown>)["sharingPolicy"],
+        sharingPolicy: board.policy?.sharingPolicy,
       });
     },
   );
 
   server.tool(
     "miro_delete_board",
-    "Permanently delete a Miro board. On paid plans, boards go to Trash (restorable via UI within 90 days). Use miro_list_boards first to verify the board ID.",
+    'Delete a Miro board and everything on it. Confirm the board ID with miro_list_boards or miro_get_board first; this cannot be undone through these tools. On paid plans, boards go to Trash (restorable via UI within 90 days). Returns { id, status: "deleted" }. To remove one item instead, use miro_delete_item.',
     {
       board_id: z.string().describe("The board ID to delete"),
     },

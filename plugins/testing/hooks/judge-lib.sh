@@ -7,6 +7,7 @@
 # State under $DATA, all pruned after 7 days by test-scan.sh:
 #   sessions/<pkey>/<sid>/<tool_use_id>.json  test-scan's record of each write
 #   verdicts/<pkey>/<sid>/<key-hash>.json     the ledger, written by rename
+#   verdicts/<pkey>/<sid>/blob-<blob id>      a test file as a judge run read it
 #   relayed/<pkey>/<sid>/<key-hash>           shown to the user (mirrors the ledger)
 #   locks/<key-hash>, slots/<n>               "pid host start", noclobber
 #   pending/<pkey>/<sid>/<id>                 a background job: "pid host start", then the file
@@ -19,7 +20,8 @@
 # valid when lines shift and goes stale when the text changes.
 #
 # Test seams: TEST_JUDGE_CMD replaces `claude`, TEST_JUDGE_RUN_TIMEOUT (seconds,
-# default 150) the per-run hang guard, TEST_SCAN_SCANNER the scanner.
+# default 150) the per-run hang guard, TEST_SCAN_SCANNER the scanner,
+# TEST_JUDGE_REUSE=0 turns verdict reuse off (judge::reuse).
 # shellcheck disable=SC2034,SC2154 # globals shared with the sourcing hook
 
 # judge::num <var> <value> <default>: set var to the value when it is a plain
@@ -172,8 +174,18 @@ judge::session_set() {
 # writer's session (the owner of its verdicts).
 # IFILES holds each info's file path, the same index. One jq reads every
 # record; only when a malformed record fails it does each file get its own.
+# JUDGE_AGENT_ONLY keeps only the records that subagent wrote (its
+# SubagentStop); JUDGE_AGENT_SKIP, space-separated agent ids, drops every
+# file a subagent still running wrote (the parent's Stop), the parent's own
+# records of it too: a key is a block's current text, so judging the parent's
+# record would relay the subagent's latest version at the parent.
 judge::load() {
-  local s f files=() out i group='map(select(.file | type == "string")) | group_by(.file)[] | {
+  # shellcheck disable=SC2016 # $only, $skip and $a are jq variables
+  local s f files=() out i fa group='map(select(.file | type == "string")
+      | select($only == "" or (.agent_id // "" | tostring) == $only))
+    | group_by(.file)[]
+    | select(all(.[]; (.agent_id // "" | tostring) as $a | $a == "" or ($skip | contains(" \($a) ") | not)))
+    | {
       file: .[0].file,
       repo: (map(.repo | strings) | .[0] // null),
       whole: any(.[]; .blocks == null),
@@ -187,8 +199,9 @@ judge::load() {
     for f in "$DATA/sessions/$PKEY/$s"/*.json; do [[ -f "$f" ]] && files+=("$f"); done
   done
   ((${#files[@]})) || return 0
-  out="$(jq -rn "[inputs | objects | . + {sid: (input_filename | split(\"/\") | .[-2])}] | $group" "${files[@]}" 2>/dev/null)" ||
-    out="$(judge::records_json "${files[@]}" | jq -r "$group" 2>/dev/null)"
+  fa=(--arg only "${JUDGE_AGENT_ONLY:-}" --arg skip " ${JUDGE_AGENT_SKIP:-} ")
+  out="$(jq -rn "${fa[@]}" "[inputs | objects | . + {sid: (input_filename | split(\"/\") | .[-2])}] | $group" "${files[@]}" 2>/dev/null)" ||
+    out="$(judge::records_json "${files[@]}" | jq -r "${fa[@]}" "$group" 2>/dev/null)"
   mapfile -t f <<<"$out"
   for ((i = 0; i + 1 < ${#f[@]}; i += 2)); do
     IFILES+=("${f[i]}")
@@ -481,9 +494,11 @@ judge::pick() {
   return 1
 }
 
-# judge::harvest <raw> [reason]: split a finished run's output (or, with a
-# reason, UNKNOWN for every key) into one ledger file per key, each written to
-# a temp file and renamed. The run's sidecar <raw>.keys names the keys. False
+# judge::harvest <raw> [reason reason-kind]: split a finished run's output (or,
+# with a reason, UNKNOWN for every key) into one ledger file per key, each
+# written to a temp file and renamed. Every UNKNOWN records its reason_kind and
+# origin, the verdict it started as: UNKNOWN when the judge said so, "" when no
+# verdict came back. The run's sidecar <raw>.keys names the keys. False
 # when the output holds no usable result; a key the output leaves out gets no
 # verdict. A run whose result lists permission_denials (the authoritative
 # record of denied tool calls,
@@ -498,12 +513,12 @@ judge::harvest() {
   JUDGE_MUTED=0
   [[ -f "$raw.keys" ]] || return 1
   [[ -n "${2:-}" || -s "$raw" ]] || return 1
-  out="$(jq -rn --slurpfile meta "$raw.keys" --rawfile raw "$raw" --arg forced "${2:-}" '
+  out="$(jq -rn --slurpfile meta "$raw.keys" --rawfile raw "$raw" --arg forced "${2:-}" --arg fkind "${3:-}" '
     $meta[0] as $m
-    | (if $forced != "" then {reason: $forced}
+    | (if $forced != "" then {reason: $forced, kind: $fkind}
        else ($raw | fromjson? // {}) as $e
        | if ($e | type) != "object" then null
-         elif $e.subtype == "error_max_budget_usd" then {reason: "the judge hit its $\($m.budget) malfunction budget"}
+         elif $e.subtype == "error_max_budget_usd" then {reason: "the judge hit its $\($m.budget) malfunction budget", kind: "budget"}
          elif ($e.result | type) == "string" then
            ($e.result | (index("{") // -1) as $i | (rindex("}") // -1) as $j
              | if $i < 0 or $j < $i then null else .[$i:$j + 1] | fromjson? end) as $v
@@ -518,11 +533,16 @@ judge::harvest() {
       | if $r.denied == true and all($kv[]; .v.verdict | IN("FLAG", "PASS") | not) then "! muted" else
       $kv[] | .k as $k | .v as $v
       | ($v.verdict | IN("FLAG", "PASS", "UNKNOWN")) as $ok
+      | (if $ok then $v.verdict else "UNKNOWN" end) as $verdict
       | "\($k.kh) \({file: $m.file, repo: $m.repo, name: $k.name, ordinal: $k.ordinal, start: $k.start, end: $k.end,
-          verdict: (if $ok then $v.verdict else "UNKNOWN" end),
+          verdict: $verdict,
           evidence: [$v.evidence[]? | strings], source: ($v.source // "" | tostring), diff: ($v.diff // "" | tostring),
           reason: (if $ok then ($v.reason // "" | tostring) else "the judge returned no valid verdict" end),
-          model: $m.model, effort: $m.effort, judged_at: (now | todate)} | tojson)"
+          model: $m.model, effort: $m.effort, blob: ($m.blob // ""), reuse_key: ($k.rk // ""), judged_at: (now | todate)}
+        + (if $verdict != "UNKNOWN" then {}
+           elif $r.reason then {reason_kind: $r.kind, origin: ""}
+           elif $ok then {reason_kind: "judge", origin: "UNKNOWN"}
+           else {reason_kind: "invalid", origin: ""} end) | tojson)"
       end end' 2>/dev/null)" || return 1
   [[ -n "$out" ]] || return 1
   while read -r kh json; do
@@ -545,6 +565,97 @@ judge::harvest_orphans() {
   done
 }
 
+# judge::reuse <file> <repo> <ledger dir> <keys>: give each key whose block
+# body is identical to one the session set already judged PASS that verdict,
+# and set KEYS_LEFT to the keys still to judge. The reuse key is the sha256 of
+# the body with the test's name taken out of its declaration line and each
+# line's whitespace runs collapsed to one space and trimmed (so "a b" and "ab"
+# stay apart), the judge model and effort, the judge prompt
+# file's hash, the repository and every line of the file outside the block
+# (imports, helpers, constants): the same body in the same surroundings under
+# the same judge. A FLAG
+# is never reused (its diff edits its own file), and a whole-file key has no
+# reuse key. RKEYS gets "<key-hash> <reuse key>" per key, for the ledger. A
+# reused verdict records reused_from, the block it was judged for.
+# TEST_JUDGE_REUSE=0 (a test seam) turns the lookup off, and with it the Stop
+# hook's in-run grouping; the keys are still recorded.
+judge::reuse() {
+  local file="$1" repo="$2" dir="$3" kh o r s e name rk src d f files=()
+  local -A have=()
+  RKEYS="" KEYS_LEFT=""
+  if [[ "${TEST_JUDGE_REUSE:-1}" != 0 ]]; then
+    for d in "${SESSIONS[@]}"; do
+      for f in "$DATA/verdicts/$PKEY/$d"/*.json; do [[ -f "$f" ]] && files+=("$f"); done
+    done
+    if ((${#files[@]})); then
+      while IFS=$'\t' read -r rk f; do
+        [[ -n "$rk" && -z "${have[$rk]+x}" ]] && have[$rk]="$f"
+      done < <(jq -Rr 'fromjson? | objects | select(.verdict == "PASS" and (.reuse_key // "") != "")
+        | "\(.reuse_key)\t\(input_filename)"' "${files[@]}" 2>/dev/null)
+    fi
+  fi
+  while read -r kh o r name; do
+    [[ -n "$kh" ]] || continue
+    judge::rkey "$file" "$o" "$r" "$name" "$repo"
+    rk="$RK"
+    RKEYS+="$kh $rk"$'\n'
+    src="${rk:+${have[$rk]:-}}"
+    if [[ -n "$src" ]] && judge::copy_verdict "$src" "$dir" "$kh" "$file" "$repo" "$o" "$r" "$name"; then
+      judge::log "reused: $file: $name: the PASS verdict of ${src##*/}"
+      continue
+    fi
+    KEYS_LEFT+="$kh $o $r $name"$'\n'
+  done <<<"$4"
+}
+
+# judge::rkey <file> <ordinal> <start-end> <name> <repo>: set RK to the
+# block's reuse key (judge::reuse) under MODEL and EFFORT, or "" for a
+# whole-file key or a block the file no longer holds.
+judge::rkey() {
+  local file="$1" o="$2" r="$3" name="$4" repo="$5" s e line body="" named=0 text=() words=()
+  RK=""
+  [[ "$o" =~ ^[1-9][0-9]*$ && "$r" =~ ^([0-9]+)-([0-9]+)$ && -f "$file" ]] || return 0
+  s="${BASH_REMATCH[1]}" e="${BASH_REMATCH[2]}"
+  ((s >= 1 && e >= s)) || return 0
+  if [[ -z "${JUDGE_PSHA:-}" ]]; then
+    JUDGE_PSHA="$(judge::sha "$HOOK_DIR/test-judge-prompt.md" 2>/dev/null)" && JUDGE_PSHA="${JUDGE_PSHA#\\}" && JUDGE_PSHA="${JUDGE_PSHA%% *}"
+  fi
+  mapfile -t text <"$file" 2>/dev/null
+  ((${#text[@]} >= e)) || return 0
+  for line in "${text[@]:s-1:e-s+1}"; do
+    if ((named == 0)) && [[ "$line" == *"$name"* ]]; then
+      line="${line/"$name"/}"
+      named=1
+    fi
+    read -r -a words <<<"${line%$'\r'}"
+    body+="${words[*]-}"$'\n'
+  done
+  RK="$({
+    printf '%s\n%s\n%s\n%s\n%s\n' "$body" "$MODEL" "$EFFORT" "${JUDGE_PSHA:-}" "$repo"
+    printf '%s\n' "${text[@]:0:s-1}" "${text[@]:e}"
+  } | judge::sha -)"
+  RK="${RK#\\}" && RK="${RK:0:32}"
+}
+
+# judge::copy_verdict <source verdict> <ledger dir> <key-hash> <file> <repo>
+# <ordinal> <start-end> <name> [source key-hash]: write the source verdict as
+# the key's, for that block, with reused_from naming the block it was judged
+# for (its key-hash defaults to the source file's name). A FLAG's diff edits
+# the source's file, so the copy carries none. Only a FLAG whose diff already
+# passed validation is copied (the Stop hook copies the validated verdict),
+# so validation keeps a reused FLAG without a diff a FLAG, and the findings
+# file points at the source's diff.
+judge::copy_verdict() {
+  local src="$1" dir="$2" kh="$3" s="${7%-*}" e="${7#*-}"
+  jq -c --arg f "$4" --arg r "$5" --arg n "$8" --argjson o "$6" --argjson s "$s" --argjson e "$e" \
+    --arg k "${9:-${src##*/}}" '. + {file: $f, repo: $r, name: $n, ordinal: $o, start: $s, end: $e, blob: "",
+      reused_from: {file: .file, name: .name, ordinal: .ordinal, start: .start, key: ($k | rtrimstr(".json"))},
+      reused_at: (now | todate)} | if .verdict == "FLAG" then .diff = "" else . end' \
+    "$src" >"$dir/.$kh.tmp" 2>/dev/null && mv -f -- "$dir/.$kh.tmp" "$dir/$kh.json" && return 0
+  rm -f -- "$dir/.$kh.tmp"
+  return 1
+}
+
 judge::section1() {
   awk '/^## 1\. /{f=1} f&&/^## /&&!/^## 1\. /{exit} f' "$HOOK_DIR/../skills/test-value/SKILL.md" 2>/dev/null
 }
@@ -556,7 +667,7 @@ judge::section1() {
 # attempt.
 judge::run() {
   local info="$1" keys="$2" t="$3" hint="$4" res="${5:-}" dir file repo owner writers n budget raw sys prompt rc kh here
-  local rule denied
+  local rule denied blob kind
   testing::fields "$info" .file .repo .owner '.writers | tojson' || {
     judge::release_run "$res"
     return 0
@@ -576,22 +687,48 @@ judge::run() {
     judge::release_run "$res"
     return 0
   fi
-  n=0
-  while read -r kh _; do [[ -z "$kh" ]] || n=$((n + 1)); done <<<"$keys"
-  budget="$((((n + 9) / 10) * 90))" && budget="$((budget / 100)).$(printf '%02d' $((budget % 100)))"
   mkdir -p "$dir"
   raw="$dir/.run-$BASHPID-$RANDOM"
   judge::pick "$writers"
-  jq -Rn --arg file "$file" --arg repo "$repo" --arg model "$MODEL" --arg effort "$EFFORT" --arg budget "$budget" '
-    {file: $file, repo: $repo, model: $model, effort: $effort, budget: $budget,
+  RKEYS=""
+  if [[ -n "$MODEL" && -n "$repo" ]]; then
+    judge::reuse "$file" "$repo" "$dir" "$keys"
+    keys="$KEYS_LEFT"
+    if [[ -z "$keys" ]]; then
+      judge::release_run "$res"
+      return 0
+    fi
+  fi
+  n=0
+  while read -r kh _; do [[ -z "$kh" ]] || n=$((n + 1)); done <<<"$keys"
+  budget="$((((n + 9) / 10) * 90))" && budget="$((budget / 100)).$(printf '%02d' $((budget % 100)))"
+  # The file as the judge reads it, kept under its blob id, so a quote can be
+  # told stale (the file changed since) from made up.
+  blob=""
+  if [[ -n "$repo" ]]; then
+    blob="$(unset GIT_DIR GIT_WORK_TREE && git -C "$repo" hash-object --no-filters -- "$file" 2>/dev/null)"
+    blob="${blob//$'\r'/}"
+    if [[ ! "$blob" =~ ^[0-9a-f]{40,64}$ ]]; then
+      blob=""
+    elif [[ -f "$dir/blob-$blob" ]]; then
+      # A newer verdict names it: the 7-day prune goes by mtime.
+      touch -- "$dir/blob-$blob" 2>/dev/null
+    else
+      cp -- "$file" "$dir/.blob-$blob.$BASHPID" 2>/dev/null && mv -f -- "$dir/.blob-$blob.$BASHPID" "$dir/blob-$blob" || blob=""
+    fi
+  fi
+  jq -Rn --arg file "$file" --arg repo "$repo" --arg model "$MODEL" --arg effort "$EFFORT" --arg budget "$budget" --arg blob "$blob" \
+    --arg rks "$RKEYS" '
+    ($rks | split("\n") | map(select(. != "") | split(" ") | {key: .[0], value: (.[1] // "")}) | from_entries) as $rk
+    | {file: $file, repo: $repo, model: $model, effort: $effort, budget: $budget, blob: $blob,
      keys: [inputs | select(. != "") | capture("^(?<kh>[^ ]+) (?<ordinal>[0-9]+) (?<start>[0-9]+)-(?<end>[0-9]+) (?<name>.*)$")
-       | .ordinal |= tonumber | .start |= tonumber | .end |= tonumber]}' <<<"$keys" >"$raw.keys"
-  rc=""
-  [[ -n "$MODEL" ]] || rc="no judge class differs from the writers"
-  [[ -n "$repo" ]] || rc="no repository: the judge reads only inside a git repository, and this test file is in none"
+       | .ordinal |= tonumber | .start |= tonumber | .end |= tonumber | .rk = ($rk[.kh] // "")]}' <<<"$keys" >"$raw.keys"
+  rc="" kind=""
+  [[ -n "$MODEL" ]] || rc="no judge class differs from the writers" kind=no-judge-class
+  [[ -n "$repo" ]] || rc="no repository: the judge reads only inside a git repository, and this test file is in none" kind=no-repository
   if [[ -n "$rc" ]]; then
     : >"$raw"
-    judge::harvest "$raw" "$rc"
+    judge::harvest "$raw" "$rc" "$kind"
     rm -f "$raw" "$raw.keys"
     judge::release_run "$res"
     return 0
@@ -663,19 +800,126 @@ judge::quoted_in_repo() {
 
 # judge::relay_reset: empty the relay set judge::validate fills.
 judge::relay_reset() {
-  RELAY="" RELAY_REPOS=() RELAY_N=0 RELAY_F=0 RELAY_P=0 RELAY_U=0
+  RELAY="" RELAY_REPOS=() RELAY_N=0 RELAY_F=0 RELAY_P=0 RELAY_U=0 RELAY_UF=0
 }
 judge::relay_reset
+
+# judge::comment_only <file> <diff>: true when every line the diff adds or
+# removes is blank or a comment in the file's language, by the comment syntax
+# of the scanner adapters' languages: // and /* */ for JS and TS, C# and Go;
+# # (and <# #> for PowerShell) for bash, Python and PowerShell. A file of any
+# other language is never comment-only. Lines before a hunk's @@ are headers.
+# When unsure it says code: a false comment-only hides a real repair, a false
+# code only lets the FLAG through.
+judge::comment_only() {
+  local style line body rest hunk=0 open=0 comment new
+  case "${1,,}" in
+  *.js | *.jsx | *.ts | *.tsx | *.mjs | *.cjs | *.mts | *.cts | *.cs | *.go) style=slash ;;
+  *.sh | *.bash | *.bats | *.py) style=pound ;;
+  *.ps1 | *.psm1) style=powershell ;;
+  *) return 1 ;;
+  esac
+  while IFS= read -r line; do
+    case "$line" in
+    'diff --git '*) hunk=0 open=0 ;;
+    '@@'*) hunk=1 open=0 ;;
+    [+\ -]*)
+      ((hunk)) || continue
+      body="${line:1}" && body="${body//$'\r'/}"
+      body="${body#"${body%%[![:space:]]*}"}"
+      comment=0 new=1
+      [[ "${line:0:1}" == - ]] && new=0
+      if [[ -z "$body" ]]; then
+        comment=1
+      elif [[ "$style" == slash ]]; then
+        # The /* */ state follows the new file (context and added lines),
+        # opened only by a line that starts with /* and does not close it.
+        # Inside it, a `* text` margin or a line ending the block is a
+        # comment; a /* ... */ line is one only when nothing follows `*/`.
+        if ((open)) && [[ "$body" == *\*/* ]]; then
+          rest="${body#*\*/}"
+          [[ -z "${rest//[[:space:]]/}" ]] && comment=1
+          ((new)) && open=0
+        elif ((open)); then
+          [[ "$body" =~ ^\*([[:space:]]|$) ]] && comment=1
+        elif [[ "$body" == //* ]]; then
+          comment=1
+        elif [[ "$body" == /\** ]]; then
+          rest="${body#/\*}"
+          if [[ "$rest" == *\*/* ]]; then
+            rest="${rest#*\*/}"
+            [[ -z "${rest//[[:space:]]/}" ]] && comment=1
+          else
+            comment=1
+            ((new)) && open=1
+          fi
+        fi
+      elif [[ "$style" == powershell ]]; then
+        # <# #> follows the new file the same way; every new-file line inside
+        # it is a comment, and the closing line is one when nothing follows
+        # `#>`. A removed line inside it is code: the state says nothing about
+        # the old file.
+        if ((open)) && [[ "$body" == *'#>'* ]]; then
+          rest="${body#*'#>'}"
+          [[ -z "${rest//[[:space:]]/}" ]] && comment=1
+          ((new)) && open=0
+        elif ((open)); then
+          ((new)) && comment=1
+        elif [[ "$body" == '<#'* ]]; then
+          rest="${body#'<#'}"
+          if [[ "$rest" == *'#>'* ]]; then
+            rest="${rest#*'#>'}"
+            [[ -z "${rest//[[:space:]]/}" ]] && comment=1
+          else
+            comment=1
+            ((new)) && open=1
+          fi
+        elif [[ "$body" == \#* ]]; then
+          comment=1
+        fi
+      else
+        [[ "$body" == \#* ]] && comment=1
+      fi
+      [[ "${line:0:1}" == " " ]] || ((comment)) || return 1
+      ;;
+    *) ;;
+    esac
+  done <<<"$2"
+  return 0
+}
+
+# judge::grounded <repo> <snapshot> <quote>...: set GROUND to "" when every
+# quote is in a file of the repository, else to "stale" when each one that is
+# not was in the snapshot of the test file the judge read (the file changed
+# since), else to "ungrounded" (a quote was made up).
+judge::grounded() {
+  local repo="$1" snap="$2" q
+  shift 2
+  GROUND=""
+  for q in "$@"; do
+    judge::quoted_in_repo "$repo" "$q" && continue
+    if [[ -n "$snap" && -f "$snap" && "$q" != *$'\n'* ]] && grep -qF -e "$q" -- "$snap" 2>/dev/null; then
+      GROUND=stale
+    else
+      GROUND=ungrounded
+      return 0
+    fi
+  done
+}
 
 # judge::validate <verdict file> [test file]: add the verdict, as it may be
 # relayed, to RELAY (one compact JSON line each), its repository to
 # RELAY_REPOS and its verdict to the counts. A quote that is not in the
 # current file, a FLAG with no diff, or a diff that fails `git apply --check`
-# or touches another file makes it UNKNOWN, with the reason. One jq reads the
-# fields and runs the quote check; git runs only for a FLAG, and jq again only
-# to rewrite a verdict that failed.
+# or touches another file makes it UNKNOWN, with the reason, its reason_kind
+# and its origin, the verdict it started as. RELAY_UF counts the UNKNOWN
+# verdicts that started as a FLAG: the only UNKNOWN verdicts an attended Stop
+# is blocked for. A
+# quote the judge-time snapshot holds but the file no longer does is stale,
+# not made up. One jq reads the fields and runs the quote check; git runs
+# only for a FLAG, and jq again only to rewrite a verdict that failed.
 judge::validate() {
-  local v="$1" file="${2:-}" json="" repo verdict ev diff why="" p n=0 known=0 text=(--arg text "")
+  local v="$1" file="${2:-}" json="" repo verdict ev diff why="" kind="" origin blob reused snap="" p n=0 known=0 text=(--arg text "")
   IFS= read -r -d '' json <"$v"
   json="${json%%$'\n'*}"
   if [[ -z "$file" ]]; then
@@ -686,48 +930,66 @@ judge::validate() {
   # The quotes, trimmed, that the test file does not hold follow the fixed
   # fields; each must then be in a file of the repository the judge could
   # read (an implementation line is a FLAG's best evidence), else it was
-  # made up.
+  # made up. Every field drops NUL, the separator, so no model-written
+  # string can shift the fields after it.
   FIELDS=()
   while IFS= read -r -d '' p; do FIELDS+=("$p"); done < <(jq -j "${text[@]}" '
-    ((.evidence // []) | map(tostring | sub("^[[:space:]]+"; "") | sub("[[:space:]]+$"; "")) | map(select(. != ""))) as $e
-    | (.repo // "" | tostring), "\u0000", (.verdict // "" | tostring), "\u0000",
-      (if ($e | length) == 0 then "none" else "some" end), "\u0000", (.diff // "" | tostring), "\u0000",
+    def s: tostring | gsub("\u0000"; "");
+    ((.evidence // []) | map(s | sub("^[[:space:]]+"; "") | sub("[[:space:]]+$"; "")) | map(select(. != ""))) as $e
+    | (.repo // "" | s), "\u0000", (.verdict // "" | s), "\u0000",
+      (if ($e | length) == 0 then "none" else "some" end), "\u0000", (.diff // "" | s), "\u0000",
+      (.origin // .verdict // "" | s), "\u0000", (.blob // "" | s), "\u0000",
+      (if (.reused_from | type) == "object" then "reused" else "" end), "\u0000",
       ($e[] | select(. as $q | $text | contains($q) | not) | (., "\u0000"))' <<<"$json" 2>/dev/null)
-  ((${#FIELDS[@]} >= 4)) || return 0
-  repo="${FIELDS[0]}" verdict="${FIELDS[1]}" ev="${FIELDS[2]}" diff="${FIELDS[3]}"
+  ((${#FIELDS[@]} >= 7)) || return 0
+  repo="${FIELDS[0]}" verdict="${FIELDS[1]}" ev="${FIELDS[2]}" diff="${FIELDS[3]}" origin="${FIELDS[4]}" blob="${FIELDS[5]}"
+  reused="${FIELDS[6]}"
   [[ -n "$repo" && -d "$repo" ]] || repo=""
   ((JUDGE_WIN)) && repo="${repo//\\//}"
+  [[ "$blob" =~ ^[0-9a-f]{40,64}$ ]] && snap="${v%/*}/blob-$blob"
+  GROUND=""
+  [[ -f "$file" ]] && ((${#FIELDS[@]} > 7)) && judge::grounded "$repo" "$snap" "${FIELDS[@]:7}"
   if [[ ! -f "$file" ]]; then
-    why="the test file no longer exists"
+    why="the test file no longer exists" kind=file-gone
   elif [[ "$verdict" != UNKNOWN && "$ev" == none ]]; then
-    why="the verdict quotes no evidence"
-  elif ! judge::quoted_in_repo "$repo" "${FIELDS[@]:4}"; then
-    why="a quoted line is in no file of the repository"
+    why="the verdict quotes no evidence" kind=no-evidence
+  elif [[ "$GROUND" == ungrounded ]]; then
+    why="a quoted line is in no file of the repository" kind=ungrounded
+  elif [[ "$GROUND" == stale ]]; then
+    why="the test file changed after the judge read it: a quoted line is no longer in it" kind=stale
+  elif [[ "$verdict" == FLAG && -z "$diff" && "$reused" == reused ]]; then
+    : # a FLAG copied from an identical body's validated FLAG: its diff passed there
   elif [[ "$verdict" == FLAG && -z "$diff" ]]; then
-    why="the FLAG proposes no diff"
+    why="the FLAG proposes no diff" kind=no-diff
   elif [[ "$verdict" == FLAG && -z "$repo" ]]; then
-    why="no repository to check the proposed diff against"
+    why="no repository to check the proposed diff against" kind=diff-no-repository
   elif [[ "$verdict" == FLAG ]]; then
     # --check with --numstat -z: whether it applies and which files it
     # touches (paths unquoted), in one call that writes nothing.
     while IFS= read -r -d '' p; do
       [[ "$p" == ok ]] && n=1 && continue
       p="${p#*$'\t'}" && p="${p#*$'\t'}"
-      judge::same_path "$repo/$p" "$file" || why="the proposed diff touches another file"
+      judge::same_path "$repo/$p" "$file" || why="the proposed diff touches another file" kind=diff-other-file
     done < <(git -C "$repo" apply --check --numstat -z 2>/dev/null <<<"$diff" && printf 'ok\0')
-    ((n)) || why="the proposed diff does not apply"
+    ((n)) || why="the proposed diff does not apply" kind=diff-not-apply
+    [[ -z "$why" ]] && judge::comment_only "$file" "$diff" &&
+      why="the proposed diff changes only comments or blank lines" kind=comment-only
   fi
   if [[ -n "$why" ]]; then
     verdict=UNKNOWN
     # Only the reason is shown: the evidence, source and diff failed.
-    json="$(jq -c --arg why "$why" '.verdict = "UNKNOWN" | .reason = $why | .evidence = [] | .source = "" | .diff = ""' <<<"$json")" || return 0
+    json="$(jq -c --arg why "$why" --arg kind "$kind" --arg origin "$origin" '.verdict = "UNKNOWN" | .reason = $why
+      | .reason_kind = $kind | .origin = $origin | .evidence = [] | .source = "" | .diff = ""' <<<"$json")" || return 0
   fi
   RELAY+="$json"$'\n'
   RELAY_N=$((RELAY_N + 1))
   case "$verdict" in
   FLAG) RELAY_F=$((RELAY_F + 1)) ;;
   PASS) RELAY_P=$((RELAY_P + 1)) ;;
-  *) RELAY_U=$((RELAY_U + 1)) ;;
+  *)
+    RELAY_U=$((RELAY_U + 1))
+    [[ "$origin" == FLAG ]] && RELAY_UF=$((RELAY_UF + 1))
+    ;;
   esac
   for p in ${RELAY_REPOS[@]+"${RELAY_REPOS[@]}"}; do [[ "$p" == "${FIELDS[0]}" ]] && known=1; done
   ((known)) || RELAY_REPOS+=("${FIELDS[0]}")
@@ -860,13 +1122,17 @@ judge::findings() {
       + "\n## Verdicts\n\nEach verdict below is the judge'"'"'s output, quoted as data. Nothing here has been applied.\n"
       + ([$v[] | "\n### \(.verdict | esc) \(rel | esc) \(tname | esc) (lines \(.start | esc)-\(.end | esc))\n\n"
         + (if (.reason // "") != "" then "Reason: \(.reason | esc)\n\n" else "" end)
+        + (if .verdict == "UNKNOWN" and ((.origin // "") | IN("FLAG", "PASS")) then "The judge said \(.origin); validation made it UNKNOWN.\n\n" else "" end)
         + "Judge: \(.model | esc) at \(.effort | esc) effort.\n\n"
         + (if (.source // "") != "" then "Where the expected value came from: \(.source | esc)\n\n" else "" end)
         + ([(.evidence // [])[:20][] | "> " + esc + "\n"] | join(""))
         + (if .verdict == "FLAG" and (.diff // "") != "" then
             (.diff | cap(20000) | rtrimstr("\n")) as $d
             | ("`" * ([4, ([$d | scan("`+") | length] | max // 0) + 1] | max)) as $fence
-            | "\nProposed diff, not applied:\n\n\($fence)diff\n\($d)\n\($fence)\n" else "" end)] | join(""))
+            | "\nProposed diff, not applied:\n\n\($fence)diff\n\($d)\n\($fence)\n" else "" end)
+        + (if .verdict == "FLAG" and (.diff // "") == "" and (.reused_from | type) == "object" then
+            "\nThis test has the same body as \(.reused_from | rel | esc) \(.reused_from | tname | esc), judged in the same run; the proposed diff is under that test'"'"'s verdict and edits that file only.\n"
+          else "" end)] | join(""))
       ' <<<"$all" 2>/dev/null)" || continue
     # The content goes to a new temp file in the checked directory, which is
     # checked again, and then takes the first free name with mv -n: a name

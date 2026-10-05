@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "PRICES = {\"A\": 12.5, \"B\": 4.0}\n\n\ndef unit_price(sku):\n    return PRICES[sku]\n",
+      "why": "tag line removed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "def unit_price(sku):\n    price = PRICES[sku]\n    print(\"[DEBUG-a4f2] lookup\", sku, price)\n    return price\n",
+      "why": "tag left in"
+    }
+  ]
+}

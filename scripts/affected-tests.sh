@@ -30,8 +30,9 @@
 # suite under --run; 2 usage or a broken derivation; 3 --run ran every shell
 # suite it selected but ALSO selected suites in other ecosystems, whose runner
 # it deliberately will not guess (see the --run note at the foot of this file);
-# 4 --unmapped-corpus widened the selection to the corpus of an unmapped file's
-# language. Under --run the first that applies wins, in the order 1, 3, 4.
+# 4 --unmapped-corpus met an unmapped file (and widened the selection to the
+# corpus of its language when it is code). Under --run the first that applies
+# wins, in the order 1, 3, 4.
 #
 # HOST: --run IS A LINUX GATE. On a Windows Git Bash host a standing set of
 # suites fails for reasons that belong to the host and not to the tree: text-mode
@@ -58,9 +59,12 @@
 # the lane that does cover it, and deletions, which have no content left to
 # cover. --allow-unmapped downgrades the error to a warning; --unmapped-corpus
 # keeps the report and adds every suite of the file's language to the selection:
-# the shell corpus for .sh and .bash, Python for .py, Node for .js .mjs .cjs,
-# Pester for .ps1 .psm1, and the shell corpus for any other file, because shell
-# suites are the ones that read data files out of the tree.
+# the shell corpus for .sh and .bash and for an extensionless file with a `#!`
+# line, Python for .py, Node for .js .mjs .cjs, Pester for .ps1 .psm1. Any
+# other unmapped file is data that no rule reaches, and a suite that reads a
+# tree file names it or declares it (R8), so it adds no corpus: the report
+# still counts it (exit 4), scripts/selection-audit.sh's daily trace reports a
+# suite read the rules miss, and the scheduled whole-tree run runs every suite.
 #
 # SELECTION RULES. A suite runs when the changed file is code the suite runs or
 # loads, or data the suite (or code it runs) reads. Every rule finds that
@@ -162,8 +166,14 @@
 # PowerShell; `//`, `/*` or a `*` continuation in Node) names nothing, in suites
 # and in code alike: prose that cites a file is not a dependency on it. A
 # `# shellcheck source=` directive and a JSDoc type import (`@import`,
-# `import('...')`) are read by tools and still count, as does a trailing
-# comment on a code line.
+# `import('...')`) are read by tools and still count. A trailing comment on a
+# shell, Python or PowerShell code line (a `#` outside quotes after a blank)
+# names nothing either: `pin="1.7" # matches .github/actionlint.yaml` reads
+# no file. A trailing comment on a Node line, or on a Python `import`/`from`
+# line, still counts: `import transcript_reader  # scripts/transcript_reader.py`
+# is how a module import names its file. Nor does a shell
+# output redirect's target (`>file`, `>>"$dir/file"`): a suite that seeds a
+# fixture under a temporary directory writes that name and reads nothing.
 #
 # REPLAY. `--replay <range>` selects every first-parent commit of <range>
 # (`git rev-list --first-parent <range>`) against its parent, the squash-merged
@@ -692,6 +702,23 @@ token_hits() {
       if (text ~ /^[ \t]*#[ \t]*shellcheck[ \t]+source=/) return 0
       return text ~ /^[ \t]*#/
     }
+    # code_part: a shell, Python or PowerShell line with its trailing comment
+    # cut, a `#` outside quotes that starts the line or follows a blank, so
+    # `${#x}` and `$#` stay code. A trailing shellcheck source directive stays.
+    function code_part(text,   n, k, c, q, prev) {
+      n = length(text); q = ""; prev = " "
+      for (k = 1; k <= n; k++) {
+        c = substr(text, k, 1)
+        if (q == "\"" && c == "\\") { k++; prev = "x"; continue }
+        if (q != "") { if (c == q) q = ""; prev = c; continue }
+        if (c == "\"" || c == "'\''") q = c
+        else if (c == "#" && (prev == " " || prev == "\t") &&
+          substr(text, k) !~ /^#[ \t]*shellcheck[ \t]+source=/)
+          return substr(text, 1, k - 1)
+        prev = c
+      }
+      return text
+    }
     {
       i = index($0, ":")
       # No separator means no path: git grep says "Binary file X matches" that way.
@@ -699,6 +726,13 @@ token_hits() {
       path = substr($0, 1, i - 1)
       text = substr($0, i + 1)
       if (comment_only(path, text)) next
+      # A Python import keeps its comment: `import x  # scripts/x.py` is how a
+      # module import, which never spells the file name, names the file.
+      if (path ~ /\.(sh|bash|ps1|psm1)$/ || (path ~ /\.py$/ && text !~ /^[ \t]*(import|from)[ \t]/))
+        text = code_part(text)
+      # A shell redirect target is written, not read: a suite that seeds a
+      # fixture with `printf x >"$dir/docs/a.md"` does not read docs/a.md.
+      if (path ~ /\.(sh|bash)$/) gsub(/>>?[ \t]*("[^"]*"|[^ \t;|&()<>]+)/, "", text)
       # A word, not an extension: the `.sh` of `x.sh` is no interpreter.
       exec_line = text ~ /(^|[^A-Za-z0-9_.-])(bash|sh|zsh|python3?|node|deno|pwsh|powershell|uv|npx|source|subprocess|Popen|check_output|check_call|spawn[A-Za-z0-9_]*|exec[A-Za-z0-9_]*|execa|child_process|Start-Process|Invoke-Expression)([^A-Za-z0-9_-]|$)/
       # Path tokens. A leading `.` stays: `./x`, `../x` and `.claude-plugin/x`
@@ -1297,8 +1331,13 @@ if [[ ${#UNMAPPED[@]} -gt 0 ]]; then
     for f in "${UNMAPPED[@]}"; do
       lang_family "$f"
       case "$LANG_FAMILY" in
-      py | node | ps) CORPORA["$LANG_FAMILY"]=1 ;;
-      *) CORPORA[sh]=1 ;;
+      sh | py | node | ps) CORPORA["$LANG_FAMILY"]=1 ;;
+      *)
+        # An executable without an extension is shell-run code. Data no rule
+        # reaches is read by no suite: a suite that reads a tree file names it
+        # or declares it (R8), so it widens nothing.
+        [[ -f "$f" && "$(head -c 2 "$f" 2>/dev/null)" == '#!' ]] && CORPORA[sh]=1
+        ;;
       esac
     done
     awk -v want=" ${!CORPORA[*]} " '
@@ -1312,7 +1351,11 @@ if [[ ${#UNMAPPED[@]} -gt 0 ]]; then
     while IFS=$'\t' read -r lang suite; do
       add_suite "$suite" "unmapped-corpus: the $lang corpus of an unmapped file" || true
     done <"$WORK_DIR/corpus"
-    echo "Selecting the whole corpus of each unmapped file's language under --unmapped-corpus: ${!CORPORA[*]}." >&2
+    if [[ ${#CORPORA[@]} -gt 0 ]]; then
+      echo "Selecting the whole corpus of each unmapped code file's language under --unmapped-corpus: ${!CORPORA[*]}." >&2
+    else
+      echo "Every unmapped file is data no suite reads; --unmapped-corpus selects no corpus for it." >&2
+    fi
     corpus_used=1
   elif [[ "$allow_unmapped" -eq 0 ]]; then
     echo "Re-run with --allow-unmapped to proceed anyway." >&2
@@ -1344,6 +1387,10 @@ if [[ ${#SUITES[@]} -gt 0 ]]; then
 fi
 
 if [[ ${#selected[@]} -eq 0 ]]; then
+  if [[ "$corpus_used" -eq 1 ]]; then
+    echo "No suites selected (every unmapped file is data no suite reads)." >&2
+    exit 4
+  fi
   echo "No suites selected (every changed file is a recorded no-suite class or a deletion)." >&2
   exit 0
 fi

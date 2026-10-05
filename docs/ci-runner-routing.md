@@ -96,17 +96,11 @@ diff-scoped step diffs against it:
 - **Pull request:** the base branch. The contract suites are the affected
   selection (`scripts/affected-tests.sh`), and ShellCheck lints the changed
   shell files.
-- **Push to `main`:** the newest commit on HEAD's first-parent line with a
-  green `ci` push run, not HEAD's parent. A push run that went red, or was
-  dropped while pending, leaves its commits in the next run's range, so a break
-  stays red until a run passes. Push runs coalesce: one runs and only the newest
-  waits. `scripts/resolve-diff-base.sh` matches commits against one listing of
-  recent push runs and asks by `head_sha` about the nearest 20 the listing does
-  not show as green, since the listing has come back without runs it should
-  hold; it logs the base and the reason. With no green ancestor, a shallow
-  history, or a range that touches the shared test machinery (`pr-require-checks.yml`,
-  `.github/actions/`, the suite runner and selector, the resolver,
-  `scripts/lib/`, the toolchain pins), the push tests the whole tree.
+- **Merge group:** the whole tree. The queue merges a commit only after this
+  run passed on it, so main's commits carry its checks.
+- **Push to `main`:** no run, in `pr-require-checks.yml` or
+  `pr-test-windows.yml`. Every commit reaches `main` through the merge queue,
+  whose merge-group run already tested that SHA.
 - **Schedule (09:17 and 16:17 UTC, two of the workflow's quietest hours) and
   dispatch:** the whole tree. That means
   the full contract corpus, the whole-repository ShellCheck, and the check-25
@@ -132,9 +126,13 @@ legs of about 120 suite-seconds each and `test-python` one to four of about
 `scripts/suite-seconds.txt`, and each leg installs only the optional toolchains
 (the animation wheels, the inventory's parser packages, the DuckDB CLI) its
 suites need. `test-node` runs the Node packages the change reaches. An
-UNMAPPED file adds the whole corpus of its language. A Python pin runs every
-Python suite, a Node pin every Node package, and a change to `pr-require-checks.yml` or
-`.github/actions/` every suite of every lane.
+UNMAPPED code file adds the whole corpus of its language; unmapped data adds
+nothing, since no suite reads it, and is still counted. A Python pin runs every
+Python suite, a Node pin every Node package, and a change to
+`pr-require-checks.yml` or `.github/actions/download-full-history/` every suite
+of every lane. `lint-shell` skips when the change touches none of its inputs
+(the `lint_shell` filter group: shell and Python source, hook and bin
+directories, skill and agent markdown, its gates and their baselines).
 
 A suite that scans a directory never names the file that changed, so it
 declares what it reads in a `# test-scope:` header, and the selector's rule R8

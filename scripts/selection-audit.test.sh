@@ -76,6 +76,9 @@ else
   printf '%s\n' '#!/usr/bin/env bash' 'true' >"$t/suites/quiet.test.sh"
   # Reads the unmapped file too, but the fallback corpus does not run it.
   printf '%s\n' '#!/usr/bin/env bash' 'cat data/unmapped.txt' >"$t/suites/zz-outside.test.sh"
+  # An eval fixture is data no lane runs, so the corpus leaves it untraced.
+  mkdir -p "$t/plugins/x/evals/fixtures"
+  printf '%s\n' 'open("data/hidden.txt").read()' >"$t/plugins/x/evals/fixtures/test_fake.py"
   ci_fallback "$t" suites/reader.test.sh suites/quiet.test.sh
   git -C "$t" add -A && git -C "$t" commit -qm base
   echo untracked >"$t/data/untracked.txt"
@@ -117,7 +120,7 @@ EOF
     fail "trace: verdicts.tsv [$(cat "$TMP_ROOT/out/verdicts.tsv" 2>/dev/null)]"
   fi
   if [[ "$(cut -f1,2 "$TMP_ROOT/out/suites.tsv")" == $'suites/quiet.test.sh\t0\nsuites/reader.test.sh\t0\nsuites/zz-outside.test.sh\t0' ]]; then
-    ok "trace: suites.tsv records every traced suite and its exit"
+    ok "trace: suites.tsv records every traced suite and its exit, and no eval fixture"
   else
     fail "trace: suites.tsv [$(cat "$TMP_ROOT/out/suites.tsv")]"
   fi

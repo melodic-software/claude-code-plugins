@@ -176,7 +176,7 @@ DATA_CARRIERS=(
 # The bullet labels the floor is made of. Present in the source block or this
 # gate is reading the wrong thing and says so instead of passing.
 BULLETS=(
-  "**Tee file (fixed path):**"
+  "**Snapshot file (fixed path):**"
   "**Pause threshold (fixed):**"
   "**Pause end:**"
   "**Staleness rule:**"
@@ -185,7 +185,7 @@ BULLETS=(
 )
 
 # The first line of the floor block, in both plain and blockquoted form.
-MARKER='- **Tee file (fixed path):**'
+MARKER='- **Snapshot file (fixed path):**'
 
 MODE=check
 case "${1-}" in

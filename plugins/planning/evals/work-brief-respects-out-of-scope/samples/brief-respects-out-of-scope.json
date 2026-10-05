@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Brief for the research subagent:\n\nQuestion: Survey how partners will integrate the feed (#308): what does each of Northwind Freight, Blue Heron and Kestrel Couriers need to start consuming it?\n\nScope: partner client SDKs or libraries are out of scope; we publish a feed contract only and never ship client code. Focus on contract documentation, sample payloads, sandbox access and onboarding steps. Return findings per partner.",
+      "why": "brief states the SDK exclusion"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Brief for the research subagent:\n\nQuestion: Survey how partners will integrate the feed (#308). Find out what tooling each partner needs, and evaluate which client SDKs (Python, Java, .NET) we should build and ship to make adoption easiest. Return a ranked list.",
+      "why": "tasks research with building SDKs, no exclusion"
+    },
+    {
+      "answer": "Brief for the research subagent:\n\nQuestion: Survey how partners will integrate the feed (#308): what tooling, libraries, or integration help would make adoption easiest? Return findings per partner.\n\n(Note to you, not the subagent: SDKs are out of scope on the map.)",
+      "why": "exclusion only outside the brief"
+    }
+  ]
+}

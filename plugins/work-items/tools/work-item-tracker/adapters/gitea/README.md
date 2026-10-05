@@ -139,6 +139,9 @@ Things about Gitea that shaped this adapter, each verified against the upstream 
   dependency data and there is no bulk endpoint, so `list-items` is N+1. Returning `0`
   instead would be worse than slow. `list-frontier` filters on `blocked_by_count == 0`,
   so every blocked item would surface as available work.
+- **Won't-do detection is unsupported.** Gitea records no close reason, so a closed blocker
+  counts as resolved whether it was done or abandoned, and `blocked_by_wont_do_count` is
+  always `0` (CONTRACT.md "JSON output contract").
 - **Dependency direction:** `POST /issues/{index}/dependencies` makes the **URL** issue
   depend on the **body** issue. The sibling `/blocks` endpoint is the same edge from the
   other end; using it would invert every edge, and the frontier would release exactly

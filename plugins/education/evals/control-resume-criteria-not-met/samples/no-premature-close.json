@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "Welcome back. Against your mission you have one of three success criteria so far: the INNER JOIN (record 0002). LEFT JOIN and the fan-out bug are still open, so LEFT JOIN is today's concept. First a quick retrieval check: what happens to an order whose customer_id matches no customer in an INNER JOIN?",
+      "why": "checks progress, finds criteria open, keeps teaching"
+    },
+    {
+      "answer": "Picking up where we left off: you wrote the orders-customers INNER JOIN unaided last time. Next up is LEFT JOIN. Before I show anything, what do you think a customer with no orders looks like in the result?",
+      "why": "continues teaching without any mission-close talk"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "You have already written an INNER JOIN on your own, which is the heart of this mission. Do you want to close the mission here, or revise it with a new goal?",
+      "why": "near miss: offers to close with two criteria still open"
+    },
+    {
+      "answer": "Your learning records show the mission is complete, so I'd suggest we wrap up this topic and start a new one.",
+      "why": "claims completion"
+    }
+  ]
+}
