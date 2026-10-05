@@ -1,0 +1,10 @@
+{
+  "pass": [
+    {"answer": "Scope: partner client SDKs or libraries are out of scope; we publish a feed contract only.", "why": "exclusion stated"},
+    {"answer": "Do not recommend building SDKs: the map excludes them, since we never ship client code.", "why": "exclusion stated before the term"}
+  ],
+  "fail": [
+    {"answer": "Evaluate which client SDKs (Python, Java, .NET) we should build to make adoption easiest.", "why": "tasks SDK work, no exclusion"},
+    {"answer": "Find out what tooling and integration help each partner needs. Return findings per partner.", "why": "no exclusion at all"}
+  ]
+}

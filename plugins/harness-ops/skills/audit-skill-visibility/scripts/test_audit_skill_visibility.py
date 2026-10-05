@@ -3453,15 +3453,16 @@ class ListingCaptureTest(unittest.TestCase):
         capture = self._capture()
         self.assertEqual(capture["status"], "read")
         self.assertEqual(capture["model"], "claude-fixture-1")
-        self.assertEqual(capture["chars"], 57)
+        self.assertEqual(capture["chars"], 67)
         by_name = {e["name"]: e for e in capture["entries"]}
         self.assertEqual(by_name["builtin-x"]["rendered_chars"], 33)
         self.assertFalse(by_name["builtin-x"]["name_only"])
-        self.assertTrue(by_name["synced:y"]["name_only"])
+        self.assertTrue(by_name["anthropic-skills:y"]["name_only"])
 
     def test_unenumerated_entries_count_toward_the_verdict(self):
-        # p:a is enumerated: `- p:a: hello` (12). builtin-x (33) and synced:y
-        # (10) come from the capture. Two newlines: 57 against 56.
+        # p:a is enumerated: `- p:a: hello` (12). builtin-x (33) and
+        # anthropic-skills:y (20) come from the capture. Two newlines: 67
+        # against 66.
         model = engine.classify(
             denominator=[
                 {
@@ -3475,14 +3476,14 @@ class ListingCaptureTest(unittest.TestCase):
             config=engine.Config(),
             clock=_utc(2026, 8, 18),
             horizons={},
-            listing_config=engine.ListingConfig(env_char_budget=56),
+            listing_config=engine.ListingConfig(env_char_budget=66),
             listing_capture=self._capture(),
         )
         listing = model["listing"]
-        self.assertEqual(listing["listing_chars"], 57)
+        self.assertEqual(listing["listing_chars"], 67)
         self.assertEqual(listing["overflow_chars"], 1)
         self.assertEqual(listing["capture"]["unenumerated_count"], 2)
-        self.assertEqual(listing["capture"]["unenumerated_chars"], 43)
+        self.assertEqual(listing["capture"]["unenumerated_chars"], 53)
 
     def test_observed_shedding_disagrees_with_a_fits_verdict(self):
         model = engine.classify(
@@ -3498,12 +3499,14 @@ class ListingCaptureTest(unittest.TestCase):
             config=engine.Config(),
             clock=_utc(2026, 8, 18),
             horizons={},
-            listing_config=engine.ListingConfig(env_char_budget=57),
+            listing_config=engine.ListingConfig(env_char_budget=67),
             listing_capture=self._capture(),
         )
         listing = model["listing"]
         self.assertEqual(listing["verdict"], "listing-fits")
-        self.assertEqual(listing["capture"]["observed_name_only"], ["synced:y"])
+        self.assertEqual(
+            listing["capture"]["observed_name_only"], ["anthropic-skills:y"]
+        )
         # The env override is the only budget row, and it is named for the
         # variable that set it, not for a window it ignores.
         self.assertEqual(
@@ -3512,7 +3515,7 @@ class ListingCaptureTest(unittest.TestCase):
         self.assertIn("disagree", engine._render_markdown(model).lower())
 
     def test_every_band_row_that_says_fits_disagrees_with_observed_shedding(self):
-        # The 57-character listing fits every row of the band (the smallest
+        # The 67-character listing fits every row of the band (the smallest
         # budget is 6,000), so all four rows SKILL.md names disagree.
         model = engine.classify(
             denominator=[_competing("p:a", 5)],
@@ -3602,6 +3605,158 @@ class ListingCaptureTest(unittest.TestCase):
         model = self._fleet_model([_competing("p:a", 3)])
         self.assertEqual(model["listing"]["verdict"], "fit-unconfirmed")
         self.assertEqual(model["listing"]["capture"]["longer_in_capture"], ["p:a"])
+
+
+def _capture_of(*rendered):
+    """A read capture whose listing is the given rendered entries, in order."""
+    names = [line[2:].split(": ", 1)[0] for line in rendered]
+    record = {
+        "type": "attachment",
+        "attachment": {
+            "type": "skill_listing",
+            "content": "\n".join(rendered),
+            "names": names,
+            "isInitial": True,
+        },
+    }
+    return engine.parse_listing_capture([json.dumps(record)])
+
+
+class StaleCaptureEntryTest(unittest.TestCase):
+    """A captured plugin entry the fleet no longer has is not a fixed cost."""
+
+    def _model(self, denominator, capture, budget):
+        return engine.classify(
+            denominator=denominator,
+            events=[],
+            config=engine.Config(),
+            clock=_utc(2026, 8, 18),
+            horizons={},
+            listing_config=engine.ListingConfig(env_char_budget=budget),
+            listing_capture=capture,
+        )
+
+    def test_an_uninstalled_plugins_entry_is_not_charged(self):
+        # `- p:a: xxxxx` (12) is the whole fleet. `gone:old` (12 + 20 = 32)
+        # belonged to a plugin uninstalled since the capture; charging it made
+        # 12 + 32 + 1 = 45 against 20 read as overflowing.
+        capture = _capture_of("- p:a: " + "x" * 5, "- gone:old: " + "y" * 20)
+        listing = self._model([_competing("p:a", 5)], capture, 20)["listing"]
+        self.assertEqual(listing["listing_chars"], 12)
+        self.assertEqual(listing["verdict"], "fit-unconfirmed")
+        self.assertEqual(listing["capture"]["not_in_fleet"], ["gone:old"])
+        self.assertEqual(listing["capture"]["unenumerated_names"], [])
+
+    def test_counted_entries_that_overflow_alone_stay_overflowing(self):
+        # `- p:a: ` + 30 is 37 against 20 with no capture charge at all.
+        capture = _capture_of("- p:a: " + "x" * 30, "- gone:old")
+        listing = self._model([_competing("p:a", 30)], capture, 20)["listing"]
+        self.assertEqual(listing["verdict"], "overflowing")
+
+    def test_an_overflow_that_needs_a_mismatched_capture_is_unconfirmed(self):
+        # 12 (p:a) + 33 (`- builtin-x: ` + 20) + 1 = 46 against 40: over only
+        # because of the capture's charge, and the capture is of another fleet.
+        capture = _capture_of(
+            "- p:a: " + "x" * 5, "- builtin-x: " + "z" * 20, "- gone:old"
+        )
+        model = self._model([_competing("p:a", 5)], capture, 40)
+        listing = model["listing"]
+        self.assertEqual(listing["listing_chars"], 46)
+        self.assertEqual(listing["verdict"], "overflow-unconfirmed")
+        self.assertEqual(listing["capture"]["unenumerated_names"], ["builtin-x"])
+        self.assertEqual(model["skills"][0]["starvation"]["verdict"], "withheld")
+        self.assertNotIn("over budget by", engine._render_markdown(model))
+
+    def test_a_synced_entry_is_stale_only_when_synced_skills_were_walked(self):
+        capture = _capture_of("- p:a: " + "x" * 5, "- anthropic-skills:old")
+        unwalked = self._model([_competing("p:a", 5)], capture, 1000)["listing"]
+        self.assertEqual(
+            unwalked["capture"]["unenumerated_names"], ["anthropic-skills:old"]
+        )
+        walked = self._model(
+            [
+                _competing("p:a", 5),
+                _competing("anthropic-skills:pdf", 5, source="synced"),
+            ],
+            capture,
+            1000,
+        )["listing"]
+        self.assertEqual(walked["capture"]["not_in_fleet"], ["anthropic-skills:old"])
+
+    def test_an_empty_synced_walk_still_marks_a_synced_entry_stale(self):
+        capture = _capture_of("- p:a: " + "x" * 5, "- anthropic-skills:old")
+        listing = engine.classify(
+            denominator=[_competing("p:a", 5)],
+            events=[],
+            config=engine.Config(),
+            clock=_utc(2026, 8, 18),
+            horizons={},
+            listing_config=engine.ListingConfig(env_char_budget=1000),
+            listing_capture=capture,
+            walked=engine.Walked(synced=True),
+        )["listing"]
+        self.assertEqual(listing["capture"]["not_in_fleet"], ["anthropic-skills:old"])
+        self.assertEqual(listing["capture"]["unenumerated_names"], [])
+
+    def test_a_checkout_charges_names_outside_its_own_plugins(self):
+        # A checkout walks only its own plugins: another marketplace's plugin
+        # and a nested project skill are fixed costs, while a skill gone from
+        # a checkout plugin is stale.
+        capture = _capture_of(
+            "- p:a: " + "x" * 5, "- other:b", "- sub/dir:c", "- p:gone"
+        )
+        listing = engine.classify(
+            denominator=[_competing("p:a", 5)],
+            events=[],
+            config=engine.Config(),
+            clock=_utc(2026, 8, 18),
+            horizons={},
+            listing_config=engine.ListingConfig(env_char_budget=1000),
+            listing_capture=capture,
+            walked=engine.Walked(plugins=frozenset({"p"})),
+        )["listing"]
+        self.assertEqual(listing["capture"]["not_in_fleet"], ["p:gone"])
+        self.assertEqual(
+            listing["capture"]["unenumerated_names"], ["other:b", "sub/dir:c"]
+        )
+
+    def test_a_synced_folder_resolves_without_any_synced_skills(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            claude_json = os.path.join(tmp, ".claude.json")
+            with open(claude_json, "w", encoding="utf-8") as handle:
+                json.dump(
+                    {"oauthAccount": {"organizationUuid": "o", "accountUuid": "u"}},
+                    handle,
+                )
+            self.assertEqual(
+                engine.synced_skills_folder(tmp, claude_json),
+                os.path.join(tmp, "skills", "synced", "o_u"),
+            )
+            self.assertEqual(engine.collect_synced_skills(tmp, claude_json, {}), [])
+
+
+class CommandWithoutFrontmatterTest(unittest.TestCase):
+    """Command frontmatter is optional; the prompt's first line describes it."""
+
+    def _commands(self, text):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, "commands"))
+            path = os.path.join(tmp, "commands", "plain.md")
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write(text)
+            return engine._plugin_listing_files(tmp)
+
+    def test_the_first_body_line_is_the_description(self):
+        [(kind, leaf, _, frontmatter)] = self._commands(
+            "\n\nDeploy the preview build.\nThen report the URL.\n"
+        )
+        self.assertEqual((kind, leaf), ("command", "plain"))
+        self.assertNotIn("_malformed", frontmatter)
+        self.assertEqual(frontmatter["description"], "Deploy the preview build.")
+
+    def test_an_unterminated_frontmatter_block_is_still_malformed(self):
+        [(_, _, _, frontmatter)] = self._commands("---\ndescription: x\nbody\n")
+        self.assertTrue(frontmatter.get("_malformed"))
 
 
 if __name__ == "__main__":

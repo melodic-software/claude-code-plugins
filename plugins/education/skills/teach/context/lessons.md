@@ -30,6 +30,7 @@ The two per-concept teaching artifacts. A **lesson** delivers learning; a **refe
 # Lesson: {one tightly-scoped thing}
 
 **Concept:** {what this teaches}  **Mission link:** {how it serves MISSION.md}
+**Primary source:** {the one RESOURCES.md entry this lesson follows; other sources go under Go deeper}
 
 ## Teach
 {minimum knowledge, with inline citations to RESOURCES.md / sources}
