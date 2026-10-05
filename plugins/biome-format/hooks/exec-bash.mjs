@@ -324,7 +324,10 @@ function msysRoot(ctx) {
 
 // The native paths a bash path names. On Windows, Git Bash reads /x/... as
 // drive X: and any other /... under its own root; elsewhere a path is itself.
-// An empty list means the path cannot be placed, which callers treat as "run".
+// An empty list means the path cannot be placed. A marker root that cannot be
+// placed never skips; a settings file that cannot be placed counts as absent,
+// which only happens when no Git Bash resolves, and the gate's own evaluation
+// on Windows honors only the C:/Program Files managed file.
 export function bashPaths(p, ctx) {
   if (ctx.platform !== "win32" || !p.startsWith("/")) return [p];
   const drive = /^\/([A-Za-z])(?:\/|$)/.exec(p);
