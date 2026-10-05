@@ -2066,6 +2066,7 @@ jobs:
           cache: npm
           cache-dependency-path: |
             package-lock.json
+            .github/standards/runner-policy/package-lock.json
             plugins/harness-ops/skills/inventory/scripts/js/package-lock.json
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -2129,6 +2130,8 @@ jobs:
             { echo "::error::the plan names no toolchains for leg $LEG"; exit 1; }
           echo "This leg installs: ${leg_needs:-the base toolchains only}"
           npm ci
+          # The yaml package scripts/check-read-caller-keys.test.sh parses with.
+          npm ci --prefix .github/standards/runner-policy
           requirements=(--requirement .github/requirements-ci.txt)
           if [[ "$leg_needs" == *animation* ]]; then
             requirements+=(--requirement .github/requirements-ci-animation.txt)
