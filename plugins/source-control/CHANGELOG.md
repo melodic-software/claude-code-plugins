@@ -11,7 +11,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Changed
 
-- **`resolve-version-bump-conflict.sh` leaves a fragment-mode plugin untouched and names it.** For a plugin the default branch lists in `scripts/fragment-plugins.txt`, the resolution is main's `plugin.json` and `CHANGELOG.md` with the PR's entry moved into a fragment; `resolve-conflicts`, `babysit-loop` and `babysit-prs` say so.
+- **`resolve-version-bump-conflict.sh` leaves a fragment-mode plugin untouched and names it.** For a plugin the default branch lists in `scripts/fragment-plugins.txt`, the resolution is main's `plugin.json` and `CHANGELOG.md` with the PR's entry moved into a fragment, which `resolve-conflicts` routes through `convert-bump-to-fragment.sh` on the branch before merging main again; `babysit-loop` and `babysit-prs` say so.
 
 ## [0.80.0] - 2026-10-04
 

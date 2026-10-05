@@ -16,8 +16,9 @@
 # A plugin that the default branch's scripts/fragment-plugins.txt lists is in
 # changelog-fragment mode, where only the release pull request bumps it: the
 # resolution is main's plugin.json and CHANGELOG.md, with the PR's entry moved
-# into a changelog fragment (scripts/convert-bump-to-fragment.sh in this plugin,
-# once available). This script leaves such a plugin untouched and names it.
+# into a changelog fragment. This script leaves such a plugin untouched and
+# names it; abort the merge, run convert-bump-to-fragment.sh (this plugin) on
+# the branch, commit, and merge again.
 #
 # Both files are recomputed from the three commits, never from the worktree,
 # then written and staged. Other conflicted paths are left alone.
