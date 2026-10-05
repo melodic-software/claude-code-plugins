@@ -1733,7 +1733,7 @@ if [[ -n "$E_CTX" ]]; then
   if [[ ${#dep_parse[@]} -gt 0 ]]; then
     DEP_RECS+="$(printf '%s\0' "${dep_parse[@]}" | base64 | tr -d '\r\n' | ejq -R -c '
       @base64d | split("\u0000")[:-1] as $f | range(0; $f | length; 2) as $j | ($f[$j] | tonumber) as $i
-      | (if ($f[$j + 1] | test("^\\s*$")) then null else (try ($f[$j + 1] | fromjson | {v: .}) catch null) end)
+      | (if ($f[$j + 1] | test("^[[:space:]]*$")) then null else (try ($f[$j + 1] | fromjson | {v: .}) catch null) end)
       | if . == null then {i: $i, deps: null, why: "its plugin.json is not valid JSON"}
         else .v | {i: $i, deps: (if type == "object" then (.dependencies // []) else null end), why: "plugin.json is not an object or its dependencies is not an array"} end')"
   fi
