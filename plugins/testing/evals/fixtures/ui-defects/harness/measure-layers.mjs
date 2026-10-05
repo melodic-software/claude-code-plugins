@@ -209,8 +209,10 @@ async function measureWidth(browser, url, width, AxeBuilder) {
       for (const e of list.getEntries()) if (!e.hadRecentInput) window.__cls += e.value;
     }).observe({ type: 'layout-shift', buffered: true });
   });
-  // A fake clock makes the "before" boxes deterministic: page timers run only inside runFor.
-  await page.clock.install();
+  // install() alone lets time flow, so a 300 ms page timer can fire before the load snapshot; pausing first
+  // means page timers run only inside runFor.
+  await page.clock.install({ time: 0 });
+  await page.clock.pauseAt(1000);
   await page.goto(url, { waitUntil: 'load' });
   await page.evaluate(snapshotBoxes);
   await page.clock.runFor(SETTLE_MS);
@@ -253,7 +255,8 @@ const pw = playwrightCore();
 const { AxeBuilder, version: axeVersion } = axeBuilder();
 let browser;
 try {
-  browser = await pw.chromium.launch();
+  // Without these, a frame redrawn after relayout varies by 1/255 at rounded-corner edges between runs.
+  browser = await pw.chromium.launch({ args: ['--disable-partial-raster', '--disable-gpu-rasterization'] });
 } catch (e) {
   missing(`Chromium did not launch (${e.message.split('\n')[0]}); run playwright-cli install-browser`);
 }
