@@ -79,14 +79,14 @@ gh pr checks <pr_number> --json name,state,bucket
 - [ ] Every check run is in a terminal state (`SUCCESS`, `FAILURE`, `SKIPPED`), none `PENDING` or `IN_PROGRESS`
 - [ ] No unexpected checks missing (compare against expected actors table)
 
-**Gotcha: one name may show duplicate entries (`SUCCESS` check-run + stuck `PENDING` commit-status).** `gh pr checks` aggregates BOTH workflow check-runs AND external commit-statuses, so a workflow and an external app posting under the same name produce two rows: the workflow's check-run resolves cleanly, while the app's redundant commit status may never finalize and sits at `PENDING` indefinitely. When you see two rows for one name, one `pass|SUCCESS` with a `link` and one `pending|PENDING` with no link, treat the check-run as authoritative. Verify with the duplicated name in place of `<name>`:
+**Gotcha: one name may show duplicate entries (`SUCCESS` check-run + stuck `PENDING` commit-status).** `gh pr checks` aggregates BOTH workflow check-runs AND external commit-statuses, so a workflow and an external app posting under the same name produce two rows: the workflow's check-run resolves cleanly, while the app's redundant commit status may never finalize and sits at `PENDING` indefinitely. When you see two rows for one name, one `pass|SUCCESS` with a `link` and one `pending|PENDING` with no link, treat the check-run as authoritative. Verify by listing every check run on the head (`<sha>` is the 40-hex head SHA) and finding the duplicated name's row in the output:
 
 ```bash
 gh api --paginate "repos/{owner}/{repo}/commits/<sha>/check-runs?per_page=100" \
-  --jq '.check_runs[] | select(.name | test("<name>"; "i")) | "\(.status) \(.conclusion)"'
+  --jq '.check_runs[] | [.name, .status, .conclusion] | @tsv'
 ```
 
-If `completed success`, the stuck commit-status is the redundant external bot. Classify it as non-blocking, document, and proceed. `mergeStateStatus=UNSTABLE` will reflect the stuck status but does NOT block merge when the repo's required checks are green.
+Match the name by reading the output, never by typing it into the command: a check name is chosen by whoever wrote the workflow (a fork PR names its own jobs), so inside a shell argument or a jq program it can run shell code or act as a regex. If its row reads `completed success`, the stuck commit-status is the redundant external bot. Classify it as non-blocking, document, and proceed. `mergeStateStatus=UNSTABLE` will reflect the stuck status but does NOT block merge when the repo's required checks are green.
 
 The pagination is not optional and the completeness assertion is not hygiene. See [Reading GitHub list APIs](#reading-github-list-apis).
 

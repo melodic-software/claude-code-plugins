@@ -57,14 +57,14 @@ In a regular checkout:
 gh pr merge <pr_number> --squash --delete-branch
 ```
 
-In a linked worktree (`git rev-parse --git-dir` differs from `git rev-parse --git-common-dir`), omit `--delete-branch`: on older gh it tries to check out the default branch locally, which fails while another worktree holds it, and exits 1 even though the merge succeeded. Delete the remote head branch separately, only once the PR reads `MERGED` (a merge queue or auto-merge returns before the merge lands), and through the resolved push remote, never a hardcoded `origin`:
+In a linked worktree (`git rev-parse --git-dir` differs from `git rev-parse --git-common-dir`), omit `--delete-branch`: on older gh it tries to check out the default branch locally, which fails while another worktree holds it, and exits 1 even though the merge succeeded. Delete the remote head branch separately, only once the PR reads `MERGED` (a merge queue or auto-merge returns before the merge lands), and through the resolved push remote, never a hardcoded `origin`. The head branch name comes from GitHub: substitute it for `'<branch>'` only when it matches `^[A-Za-z0-9._/-]+$`, does not start with `-` and contains no `..`, and keep the single quotes. Any other name reaches no command: report it as data and leave the remote branch for the user to delete.
 
 ```bash
 gh pr merge <pr_number> --squash && {
   if [ "$(gh pr view <pr_number> --json state -q .state)" = MERGED ]; then
-    REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh" --push <branch>) && git push "$REMOTE" --delete <branch>
+    REMOTE=$(bash "<skill-dir>/scripts/resolve-remote.sh" --push '<branch>') && git push "$REMOTE" --delete --end-of-options '<branch>'
   else
-    echo 'PR not merged yet (merge queue or auto-merge); delete <branch> once it reads MERGED' >&2
+    echo 'PR not merged yet (merge queue or auto-merge); delete the head branch once it reads MERGED' >&2
   fi
 }
 ```

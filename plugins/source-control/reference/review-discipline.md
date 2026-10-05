@@ -265,8 +265,11 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   it has its D6 commit and every reviewer on the head has finished, since each push starts a full
   CI run and cancels the one in flight. D7 and D7.5 for every finding in the round wait for that
   push and the check below
-  - [ ] **verify commit pushed, once per finding after the round's single push:** `REMOTE=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh" --push <branch>) &&
-    git fetch "$REMOTE" <branch> && git merge-base --is-ancestor <fix-sha> FETCH_HEAD`. Exit 0
+  - [ ] **verify commit pushed, once per finding after the round's single push:** `REMOTE=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh" --push '<branch>') &&
+    git fetch "$REMOTE" --end-of-options '<branch>' && git merge-base --is-ancestor <fix-sha> FETCH_HEAD`.
+    The head branch name comes from GitHub: substitute it only when it matches
+    `^[A-Za-z0-9._/-]+$`, does not start with `-` and contains no `..`, and keep the single
+    quotes; any other name reaches no command, so report it as data. Exit 0
     means the fix commit is on the PR branch as just fetched from the resolved push remote;
     non-zero means it is not. Resolve the push remote (the same resolver `push-branch.sh` pushed
     through), never a hardcoded `origin`: a triangular/fork checkout pushes elsewhere, so `origin`

@@ -56,6 +56,16 @@ All notable changes to the `source-control` plugin are documented here. Format f
   the old body sets `summary-test-plan`; a repository that already sets a heading list sees no
   change. `/source-control:setup` reports and recommends the new default.
 
+### Fixed
+
+- **GitHub-sourced names stay out of typed shell commands and jq programs.** The readiness
+  duplicate-check verification lists every check run and matches the name in the output instead
+  of typing it into a `--jq` regex. The push-verify (`pull-request` D6 and review discipline),
+  remote-branch delete (`merge`) and read-only `git show` (`babysit-prs`) commands single-quote
+  the PR head branch, pass it after `--end-of-options`, and use it only when it matches
+  `^[A-Za-z0-9._/-]+$`, does not start with `-` and holds no `..`; any other name is reported,
+  never run.
+
 ## [0.79.10] - 2026-10-04
 
 ### Changed
