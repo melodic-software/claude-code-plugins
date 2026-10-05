@@ -1188,9 +1188,11 @@ with the operator's signature on them.
 >   only on explicit user request.
 > - **Account switch:** while paused, a consumer **MUST** read
 >   `.oauthAccount.emailAddress` directly from
->   `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot file: a
->   machine running only headless sessions never refreshes the snapshot file, so a
->   switch would go unseen. At pause entry, record the **latched
+>   `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`, never via the snapshot
+>   file: it names an account only as of a session's last API response,
+>   and a paused lane's Monitor ticks never write it, so after a switch
+>   it names the old account or none until a session gets a response
+>   under the new one. At pause entry, record the **latched
 >   account** as the `account.email` of the snapshot that tripped, not
 >   the account `.claude.json` names now: that snapshot can be up to 10
 >   minutes old and may describe an account the operator has since left.
@@ -1264,10 +1266,13 @@ with the operator's signature on them.
   Routines with no access to local checkouts. A local option is a
   scheduled headless `claude -p` reading each lane's telemetry
   `restart_request`.
-- **Account rotation is undetectable.** The rate-limit snapshot carries no
-  account identifier and is last-writer-wins. Rotate only at session
-  boundaries, never mid-cycle, or a fresh account's healthy windows get
-  fed to a lane running on an exhausted one.
+- **Account rotation is detected only when attributable.** The rate-limit
+  snapshot is last-writer-wins and carries `account.email` only when its
+  writer could attribute the reading, so a paused lane catches a switch
+  through the floor's Account switch rule but misses one it cannot
+  attribute. Rotate only at session boundaries, never mid-cycle, or a
+  fresh account's healthy windows can reach a lane running on an
+  exhausted one.
 - **Decision-pending alone does not park an item.** `wit_filter_frontier`
   takes the human-gated label as a parameter resolved from
   `config.role_labels`; no equivalent binding exists for a repository's
