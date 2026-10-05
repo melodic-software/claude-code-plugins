@@ -25,6 +25,10 @@ playwright-cli -s=<name> delete-data  # remove persistent profile data
 
 **Always `close` when done.** Zombie browsers consume RAM and hold file locks on persistent profile directory.
 
+If a headless session reports the browser is not open after a pause, run `open` again and redo any in-memory setup. Before a long pause mid-flow, raise the idle limit with `open --idle-timeout=<ms>`.
+
+- **Pointer**: when you need the idle-shutdown default or which sessions it applies to, run `playwright-cli open --help` live; for the change, fetch the [v0.1.20 release notes](https://github.com/microsoft/playwright-cli/releases/tag/v0.1.20). **As of**: 2026-10-04. **Recheck trigger**: the frontmatter `upstream-version` moves.
+
 ## Implicit session via env
 
 ```bash
