@@ -70,7 +70,7 @@ environment variable is set). A single check can run in isolation:
 
 ## Extending the skill
 
-1. New Windows check (shipped): write `scripts/windows/checks/Test-<Thing>.ps1` emitting the shared schema, add an entry to `catalog/checks.jsonc` with `os: ["windows"]`, document thresholds in `reference/windows/check-catalog.md`, and bump the plugin version.
+1. New Windows check (shipped): write `scripts/windows/checks/Test-<Thing>.ps1` emitting the shared schema, add an entry to `catalog/checks.jsonc` with `os: ["windows"]`, document thresholds in `reference/windows/check-catalog.md`, and add the repo's release record for the plugin (a version bump plus CHANGELOG entry, or a changelog fragment where the repo uses them; see the repo's AGENTS.md).
 2. Machine-local custom check (consumer-side): see `reference/shared/catalog-overlay.md`. Script under the state base, entry in `checks.local.jsonc`, no plugin change.
 3. New remediation: write `scripts/windows/remediations/<Verb>-<Noun>.ps1`, add it to the authorization list in `reference/windows/remediation-policy.md`, and wire dispatch in the orchestrator. Remediations always default to not approved.
 4. New OS: replace the matching `NOT_IMPLEMENTED.md` with a populated folder. Consult `reference/shared/discovery-guide.md` for the porting checklist.

@@ -320,8 +320,9 @@ against the new build, bump `VALIDATED_AGAINST` to that version. It is the one c
 
 **For downstream consumers.** A consumer on an older plugin version against a newer CLI gets a
 `degraded` or `broken` verdict rather than a wrong answer, the report tells on itself, which is the
-property that makes shipping this safe. Fixes reach them the ordinary way: bump the plugin version,
-and `/harness-ops:plugins sync` carries it. Never quietly widen a count to make a status look better;
+property that makes shipping this safe. Fixes reach them the ordinary way: a new plugin version
+(bumped in the pull request, or by the release pull request where the repo uses changelog
+fragments), which `/harness-ops:plugins sync` carries. Never quietly widen a count to make a status look better;
 the stale-but-honest report is the one a consumer can act on.
 
 ## Next
